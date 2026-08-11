@@ -5,14 +5,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.food.resolver import MainFoodSelection
-from ai_runtime.gateway.agent import RuntimeAgent
 from app.bootstrap.food import build_food_service
 from app.bootstrap.runtime_food import final_main_food_loader
+from elfie.brain.food_port import MainFoodSelection
 from infrastructure.models.fallback_runtime import FallbackRuntimeAdapter
 from infrastructure.models.runtime_adapter import StructuredRuntime
-from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
+from infrastructure.models.runtime_agent import RuntimeAgent
+from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.persistence.food import SQLiteFoodAdapter
 
 
 @dataclass(frozen=True)
@@ -49,7 +49,7 @@ def build_runtime_services(
         config,
         live_reload=live_reload,
         main_food_loader=main_food_loader,
-        food_catalog_repository=SQLiteFoodPackageRepository(db_path),
+        food_catalog_repository=SQLiteFoodAdapter(db_path),
     )
 
     def warmup() -> None:

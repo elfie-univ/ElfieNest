@@ -46,9 +46,9 @@
   <rect class="inner" x="776" y="665" width="508" height="80" rx="8"/><text class="title" x="797" y="697">Observer semantic residual</text><text class="muted" x="797" y="720">registered for later Nest cleanup</text>
   <rect class="inner" x="776" y="779" width="508" height="35" rx="8"/><text class="text" x="797" y="803">semantic commands / physical facts</text>
   <rect class="outer" x="45" y="900" width="540" height="174" rx="12"/>
-  <text class="title" x="72" y="937">ai_runtime (mixed residual)</text>
-  <rect class="inner" x="78" y="960" width="246" height="45" rx="8"/><text class="text" x="99" y="989">Food / inference loop</text>
-  <rect class="inner" x="345" y="960" width="238" height="45" rx="8"/><text class="text" x="367" y="989">tools · safety</text>
+  <text class="title" x="72" y="937">infrastructure/models + tools</text>
+  <rect class="inner" x="78" y="960" width="246" height="45" rx="8"/><text class="text" x="99" y="989">models · Runtime technology</text>
+  <rect class="inner" x="345" y="960" width="238" height="45" rx="8"/><text class="text" x="367" y="989">tools · validation</text>
   <rect class="source" x="78" y="1021" width="505" height="34" rx="8"/><text class="text" x="100" y="1044">Public Ollama / cloud provider — external, configured</text>
   <rect class="outer" x="745" y="900" width="390" height="174" rx="12"/>
   <text class="title" x="772" y="937">infrastructure/godot</text>

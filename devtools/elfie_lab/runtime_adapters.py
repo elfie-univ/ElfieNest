@@ -7,11 +7,11 @@ import re
 import time
 from typing import Any, Dict, List
 
-from ai_runtime.food.models import FoodPackage
 from devtools.elfie_lab.runtime_foods import (
     load_runtime_food_catalog,
     runtime_food_catalog_store,
 )
+from elfie.brain.food_port import FoodPackage
 from elfie.brain.runtime_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
@@ -211,8 +211,8 @@ def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRunti
     if normalized == "mock":
         return TracingRuntimeAgent(MockRuntimeAgent(), "mock")
 
-    from ai_runtime import RuntimeAgent
     from devtools.runtime_lab import RuntimeLabConfigStore
+    from infrastructure.models.runtime_agent import RuntimeAgent
 
     store = RuntimeLabConfigStore(config_dir or default_runtime_config_dir())
     config = store.load_runtime_config()

@@ -5,11 +5,11 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Callable
 
-from ai_runtime.config import LLMRuntimeConfig
 from infrastructure.models.provider_validation import (
     ProviderValidationRunner,
     classify_latency,
 )
+from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.validation_models import CheckStatus
 from infrastructure.persistence.provider_connections import ProviderConnection
 

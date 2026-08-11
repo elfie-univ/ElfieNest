@@ -6,8 +6,6 @@ from unittest.mock import AsyncMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from ai_runtime.food.evidence import record_model_evidence
-from ai_runtime.food.planner import ModelEvidence
 from app.features.accounts import AccountPrincipal, AccountRole
 from app.features.configuration import (
     ProvidersService,
@@ -15,8 +13,10 @@ from app.features.configuration import (
     StoredLocalProviderCandidate,
     StoredLocalProviderProbe,
 )
+from app.features.configuration.food import StoredModelEvidence
 from app.interfaces.api.v1.admin.model_providers.routes import router
 from app.interfaces.api.v1.auth import require_user
+from infrastructure.models.food_technology import record_model_evidence
 from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.provider_validation import DiscoveredModel
@@ -319,10 +319,11 @@ def test_model_matrix_reads_current_and_historical_sqlite_evidence(
     subject_id = f"{connection_id}/model-a"
     record_model_evidence(
         (
-            ModelEvidence(
-                subject_id,
-                frozenset({"text"}),
-                True,
+            StoredModelEvidence(
+                reference=subject_id,
+                display_name="Model A",
+                capabilities=frozenset({"text"}),
+                verified=True,
                 observed_at=datetime.now(timezone.utc).isoformat(),
             ),
         ),

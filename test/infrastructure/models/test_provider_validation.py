@@ -1,12 +1,12 @@
 import json
 import urllib.error
 
-from ai_runtime.config import LLMRuntimeConfig
 from infrastructure.models.provider_validation import (
     ProviderValidationRunner,
     classify_latency,
     discover_provider_models,
 )
+from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.validation_models import CheckStatus
 
 

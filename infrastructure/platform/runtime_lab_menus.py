@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ai_runtime.lab.cli import RuntimeLab
+from infrastructure.platform.runtime_lab import RuntimeLab
 
 
 class RuntimeLabMenusAdapter:

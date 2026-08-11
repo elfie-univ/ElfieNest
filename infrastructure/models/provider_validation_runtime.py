@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ai_runtime.config import LLMRuntimeConfig
 from infrastructure.models.providers.profiles import get_product
+from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.persistence.provider_connections import ProviderConnection
 from infrastructure.persistence.secrets import connection_secret_name, resolve_secret
 

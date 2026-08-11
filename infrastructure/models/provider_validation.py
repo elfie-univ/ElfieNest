@@ -10,7 +10,6 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
 
-from ai_runtime.config import LLMRuntimeConfig
 from infrastructure.models.catalog import verify_provider
 from infrastructure.models.llm_api import call_llm_api
 from infrastructure.models.providers.dispatch import detect_api_mode_for_url
@@ -19,6 +18,7 @@ from infrastructure.models.providers.http import (
     read_provider_response,
 )
 from infrastructure.models.providers.model_hints import configured_model_specs
+from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.validation_models import (
     CheckResult,
     CheckStatus,

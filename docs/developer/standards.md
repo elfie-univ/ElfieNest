@@ -10,7 +10,9 @@ the code, rather than relying on someone's memory.
   scenes or desktop lifecycle.
 - `nest/` only stores in-nest state and environment; the composition of real
   Elfies and the Nest belongs only in `app/orchestration/`.
-- `ai_runtime/` owns models, providers, tools, food and the safety runtime.
+- `infrastructure/models/` owns model and Runtime technology;
+  `infrastructure/tools/` owns tool execution adapters; Food policy belongs to
+  the App Food Feature and Elfie consumes it through its own Port.
 - `godot_project/` is the single source of truth for rooms, geometry,
   coordinates, collision and rendering.
 - `app/orchestration/lifecycle/` owns Runtime supervision and authority

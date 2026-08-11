@@ -7,7 +7,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import FrozenSet, cast
 
-from ai_runtime.tools.config import default_tool_configs
 from app.features.configuration.capabilities import (
     CapabilitiesPortError,
     LocalFileUpdateField,
@@ -27,6 +26,7 @@ from infrastructure.persistence.runtime_settings import (
     read_runtime_settings,
     write_runtime_settings,
 )
+from infrastructure.tools.config import default_tool_configs
 
 _SEARCH_PROVIDERS = frozenset({"duckduckgo", "brave", "tavily"})
 

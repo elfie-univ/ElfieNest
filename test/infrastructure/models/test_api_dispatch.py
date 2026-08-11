@@ -10,8 +10,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.gateway.agent import RuntimeAgent
 from infrastructure.models.providers.dispatch import (
     API_DISPATCH as _API_DISPATCH,
 )
@@ -27,6 +25,8 @@ from infrastructure.models.providers.dispatch import (
 from infrastructure.models.providers.dispatch import (
     detect_api_mode_for_url as _detect_api_mode_for_url,
 )
+from infrastructure.models.runtime_agent import RuntimeAgent
+from infrastructure.models.runtime_config import LLMRuntimeConfig
 
 
 class TestDetectApiMode:

@@ -7,13 +7,13 @@
 
 | ID | 严重级别 | 状态 | 当前偏差 | 关闭门槛 |
 | --- | --- | --- | --- | --- |
-| SYS-001 | P0 | in progress | 根 `infrastructure/` 已拥有七个目标能力目录及其局部治理、Data Home、持久化、模型/Provider 技术、工具技术、终端宿主、Godot Gateway、authority 宿主和产物校验；原 `app/infrastructure/` 与 `godot_runtime/` 根已消失。剩余所有权债仅限已登记的混合 `ai_runtime` 协调器与 Observer/Core 残留。 | 混合协调器保留给后续 Elfie/Nest 专项；不得恢复旧根或兼容 import。 |
+| SYS-001 | P0 | in progress | 根 `infrastructure/` 已拥有目标能力目录、Data Home、持久化、模型/Provider 与 Runtime 技术、工具技术、终端宿主、Godot Gateway、authority 宿主和产物校验；原 `app/infrastructure/`、`godot_runtime/` 与 `ai_runtime/` 根已消失。剩余所有权债仅限 Observer/Core 残留。 | 保持已退役根目录不存在，并在不引入兼容 import 的前提下关闭单独登记的 Elfie/Nest 残留。 |
 | SYS-002 | P0 | open | Elfie Memory/Profile 会构造 SQLite、YAML 和路径实现，Factory/Runtime 仍知道具体存储或 Godot 传输细节；这是已登记的 Elfie 内部债，不属于当前顶层归位批次。 | Elfie 只保留语义模型、算法、Facade 和 Port；Infrastructure 实现存储/身体/渠道 Adapter；Bootstrap 注入；聚焦 Elfie 测试使用 Fake 且无技术 I/O。 |
 | SYS-003 | P0 | in progress | 原始 WebSocket、JSON、Bundle、协议与 Session 已归位 `infrastructure/godot/gateway/`，Nest 已无 WebSocket import；`nest/godot_gateway/observer.py` 仍是被 Nest Session 私有消费的已登记混合语义投影。 | APP-G06 用所有者公开导出或消费方 Port Model 替换最后一个 Observer 私有模型 import，随后删除残留 Nest 目录；世界语义、状态、事件和协议行为不得改变。 |
 | SYS-004 | P0 | closed | 生产服务与交互脚本从 `app/bootstrap/` 获取 Runtime、存储、Nest Session 和 Elfie 恢复装配；Bootstrap 构造鉴权管理 WebSocket Gateway 并注入 API 启停回调；Runtime、管理 Gateway 与 Godot 通道只经 Lifecycle 启停。Interface 只保留协议映射。 | 永久架构测试持续禁止 Interface 构造具体实现，并断言 API lifespan 把通道控制委托给 Lifecycle。 |
 | SYS-005 | P1 | open | 系统 Facade 和出站 Port 已部分存在，但没有一份稳定强类型边界清单；部分路径仍使用 `Any`、具体路径或协议细节。 | Elfie/Nest Facade，以及 Food、模型、工具、身体、世界、通信和持久化 Port 全部使用强类型模型；重复或技术命名的边界 API 删除。 |
 | SYS-006 | P1 | open | 现有永久规则只覆盖部分目标：系统精确 Scanner 主要检查 Elfie/Nest 技术 import，尚未完整棘轮 Bootstrap 装配、Infrastructure 跨能力组合和打包所有权。 | Core 测试使用 Fake/内存 Port，Adapter 测试分离，Bootstrap 有装配测试，迁移路径有端到端证据，并且系统精确基线清零。 |
-| SYS-007 | P0 | in progress | Provider/模型客户端、Runtime 请求/结果契约、直接搜索/文件工具、验证 Runner 与终端宿主已进入目标 Infrastructure 能力目录。剩余 `ai_runtime/` 包混合了推理、Food 执行、工具循环策略、用量观察、验证或实验台协调，部分目标 Adapter 仍委托这些混合所有者。 | 任何必须重构 Elfie 认知、Food 执行或工具行为才能移动的混合协调器继续登记为后续 Elfie 内部专项，不得改名塞进 Infrastructure。 |
+| SYS-007 | P0 | in progress | 原 `ai_runtime/` 根和 import 已清零；Provider/模型客户端与 Runtime 技术进入 `infrastructure/models/`，工具技术进入 `infrastructure/tools/`，Food 策略位于 App Food Feature，只读 Food Port 位于 Elfie。等价搬迁后的 Runtime 协调器与实验台内部仍组合多个具体 Infrastructure 能力。 | 保持 Provider → Food → 模型 → 工具 → 保底粮行为不变，再只用窄注入 Port 替换剩余 Infrastructure 跨能力具体构造；不得重设计 Elfie 认知或恢复旧根。 |
 
 ## 当前执行边界
 
@@ -50,8 +50,10 @@ Godot 和工程结构安全规则，但不能据此关闭其余目标条目。`S
 2. 关闭目标 Infrastructure 包所需的 Bootstrap、Data Home 和打包基础；
 3. 把 Godot 宿主/产物与 Gateway/协议技术等价迁到 `infrastructure/godot/`，切换全部
    调用方后删除旧根；
-4. 只把 `ai_runtime/` 中的纯技术部分迁到现有目标能力目录，并切换其调用方；
-5. 审查剩余混合协调器；如果关闭它需要重构 Elfie 或 Nest 内部，就延期；
+4. 棘轮已经完成的 `ai_runtime/` 拆解：模型与 Runtime 技术在
+   `infrastructure/models/`，工具在 `infrastructure/tools/`，Food 策略在 App
+   Feature，只读 Port 在 Elfie；
+5. 单独审查剩余 Elfie/Nest 内部债务，不得恢复已退役根目录；
 6. 只缩减已经实际消失的精确基线；缺失的永久规则必须等实时违规清零后，以独立治理
    变更加入。
 

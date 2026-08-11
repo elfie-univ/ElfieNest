@@ -155,7 +155,7 @@ Test paths, Desktop and Godot build commands are maintained separately by the
 | --- | --- |
 | [`elfie/`](elfie/README.md) | One complete Elfie: profile, brain, body, communication and skills |
 | [`nest/`](nest/README.md) | Activity-space state, environment clock, interaction, Godot protocol boundary |
-| [`ai_runtime/`](ai_runtime/README.md) | Models, providers, routing, food, tools, safety and runtime |
+| `infrastructure/` | Model, tool, persistence, Godot, device, communication and platform adapters |
 | [`app/`](app/README.md) | Product use-cases, interfaces, infrastructure and cross-module orchestration |
 | [`app/interfaces/desktop/`](app/interfaces/desktop/README.md) | Visible Electron windows, system integration and the public Runtime lifecycle client |
 | [`godot_project/`](godot_project/README.md) | Standalone Godot source project: rooms, geometry, coordinates, collision, characters and rendering |

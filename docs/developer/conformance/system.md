@@ -9,13 +9,13 @@
 
 | ID | Severity | Status | Current deviation | Closure gate |
 | --- | --- | --- | --- | --- |
-| SYS-001 | P0 | in progress | Root `infrastructure/` now owns the seven target capability areas, their local governance, Data Home, persistence, model/provider technology, tool technology, terminal hosting, Godot Gateway, authority hosting and artifact validation. The former `app/infrastructure/` and `godot_runtime/` roots are gone. Remaining ownership debt is limited to the registered mixed `ai_runtime/` coordinators and Observer/Core residuals. | Retain explicitly mixed coordinators for later Elfie/Nest work; never restore old roots or compatibility imports. |
+| SYS-001 | P0 | in progress | Root `infrastructure/` owns the target capability areas, Data Home, persistence, model/provider and Runtime technology, tool technology, terminal hosting, Godot Gateway, authority hosting and artifact validation. The former `app/infrastructure/`, `godot_runtime/` and `ai_runtime/` roots are gone. Remaining ownership debt is limited to Observer/Core residuals. | Keep the retired roots absent and close the separately registered Elfie/Nest residuals without compatibility imports. |
 | SYS-002 | P0 | open | Elfie memory and profile code constructs SQLite/YAML/path implementations, and Elfie factory/runtime code still knows concrete storage or Godot transport details. This is registered Elfie-internal debt, not part of the current top-level ownership pass. | Elfie owns only semantic models, algorithms, facades and Ports; Infrastructure implements storage/body/channel adapters; Bootstrap injects them; focused Elfie tests use fakes without technical I/O. |
 | SYS-003 | P0 | in progress | Raw WebSocket, JSON, bundle, protocol and session implementations now live in `infrastructure/godot/gateway/`, and Nest has no remaining WebSocket import. `nest/godot_gateway/observer.py` remains a registered mixed semantic projection consumed privately by Nest Session. | APP-G06 replaces the remaining private Observer model import with its owning public export or a consumer-owned Port Model; the residual Nest directory is then deleted without changing world semantics, state, events or protocol behavior. |
 | SYS-004 | P0 | closed | Production service and interactive entry scripts request Runtime, storage, Nest Session and Elfie restoration from `app/bootstrap/`. Bootstrap constructs the authenticated management WebSocket gateway and injects API startup/shutdown callbacks; Runtime, management Gateway and Godot channels start and stop only through Lifecycle. Interfaces retain protocol mapping only. | Permanent architecture tests keep concrete construction out of Interfaces and assert that API lifespan delegates channel control to Lifecycle. |
 | SYS-005 | P1 | open | System facades and outbound Ports are partially present but not exposed through one stable, strict boundary inventory; some paths still use `Any`, concrete paths or protocol details. | Elfie and Nest facades plus Food, model, tool, body, world, communication and persistence Ports use strict models; duplicate or technology-named boundary APIs are removed. |
 | SYS-006 | P1 | open | Existing permanent rules cover only part of the target: the exact System scanner focuses on Elfie/Nest technical imports, while Bootstrap completeness, Infrastructure cross-capability composition and packaging ownership are not yet fully ratcheted. | Core tests use fake/in-memory Ports, adapter tests are separate, Bootstrap has wiring tests, migrated paths have end-to-end proof, and the exact system baseline is empty. |
-| SYS-007 | P0 | in progress | Provider/model clients, Runtime request/result contracts, direct search/file tools, validation runners and terminal hosting now live in their target Infrastructure capability areas. The remaining `ai_runtime/` packages combine inference, Food execution, tool-loop policy, usage observation, validation or lab coordination; some target Adapters still delegate to those mixed owners. | Any remaining mixed coordinator that cannot move without redesigning Elfie cognition, Food execution or tool behavior stays registered for the later Elfie-internal work instead of being relabeled as Infrastructure. |
+| SYS-007 | P0 | in progress | The former `ai_runtime/` root and imports are absent. Provider/model clients and Runtime technology now live in `infrastructure/models/`, tool technology in `infrastructure/tools/`, Food policy in the App Food Feature, and the read-only Food Port in Elfie. The mechanically moved Runtime coordinator and lab still compose multiple concrete Infrastructure capabilities internally. | Preserve the existing Provider → Food → model → tool → emergency fallback behavior, then replace only the remaining Infrastructure cross-capability construction with narrow injected Ports; do not redesign Elfie cognition or restore the retired root. |
 
 ## Current execution boundary
 
@@ -61,10 +61,11 @@ For the current pass, use this narrower dependency order:
    Infrastructure packages;
 3. mechanically move Godot host/artifact and Gateway/protocol technology into
    `infrastructure/godot/`, switch all callers, then delete the old roots;
-4. move only the pure technical parts of `ai_runtime/` into their existing
-   target capability areas and switch their callers;
-5. audit any remaining mixed coordinator and defer it when closing it would
-   require Elfie or Nest internal redesign;
+4. keep the completed `ai_runtime/` decomposition ratcheted: models and Runtime
+   technology in `infrastructure/models/`, tools in `infrastructure/tools/`,
+   Food policy in the App Feature and the read Port in Elfie;
+5. audit remaining Elfie/Nest internal debt separately without reopening the
+   retired root;
 6. shrink exact baselines only for violations actually removed, then add any
    missing permanent rule in a separate governance change after its live
    violations are zero.

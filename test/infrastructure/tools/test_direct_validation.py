@@ -1,4 +1,4 @@
-from ai_runtime.config import LLMRuntimeConfig
+from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.validation_models import CheckStatus
 from infrastructure.tools.direct_validation import DirectToolValidationRunner
 

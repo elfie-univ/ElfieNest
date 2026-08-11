@@ -2,18 +2,18 @@ from __future__ import annotations
 
 from typing import Any, Callable, cast
 
-from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.usage.observer import (
-    ModelCallObservation,
-    RuntimeEventStatus,
-    get_runtime_observer,
-)
-from ai_runtime.usage.token_tracker import get_token_tracker
 from infrastructure.models.providers.dispatch import (
     API_DISPATCH,
     call_openai_compatible_api,
     detect_api_mode_for_url,
 )
+from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.models.runtime_observations import (
+    ModelCallObservation,
+    RuntimeEventStatus,
+    get_runtime_observer,
+)
+from infrastructure.models.token_usage import get_token_tracker
 
 
 def call_llm_api(

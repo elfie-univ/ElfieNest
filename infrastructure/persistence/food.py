@@ -17,6 +17,7 @@ from app.features.configuration.food import (
     StoredElfieFoodAssignment,
     StoredFoodPackage,
 )
+from elfie.brain.food_port import FoodAssignment, FoodCatalog, FoodPackage
 
 from .sqlite_connection import app_sqlite_connection
 
@@ -26,6 +27,13 @@ class SQLiteFoodAdapter:
 
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = str(db_path)
+
+    def load(self) -> FoodCatalog:
+        """Load the read-only Food projection consumed by one Elfie's brain."""
+        packages = {
+            package.food_id: _elfie_package(package) for package in self.list_packages()
+        }
+        return FoodCatalog(packages=packages)
 
     def list_packages(self) -> tuple[StoredFoodPackage, ...]:
         try:
@@ -269,6 +277,25 @@ def _package_from_row(row: sqlite3.Row) -> StoredFoodPackage:
 
 def _optional_text(value: object) -> str | None:
     return None if value is None else str(value)
+
+
+def _elfie_package(package: StoredFoodPackage) -> FoodPackage:
+    return FoodPackage(
+        key=package.food_id,
+        display_name=package.display_name,
+        system_role=package.system_role,
+        enabled=package.enabled,
+        archived=package.archived,
+        primary=_elfie_assignment(package.primary_model),
+        reasoning=_elfie_assignment(package.reasoning_model),
+        vision=_elfie_assignment(package.vision_model),
+        tool=_elfie_assignment(package.tool_model),
+        fallback=_elfie_assignment(package.fallback_model),
+    )
+
+
+def _elfie_assignment(reference: str | None) -> FoodAssignment | None:
+    return None if reference is None else FoodAssignment(reference)
 
 
 def _decode_user_ids(raw: str) -> tuple[int, ...]:

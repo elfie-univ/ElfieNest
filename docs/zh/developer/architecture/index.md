@@ -27,7 +27,6 @@ Feature 用例，Feature 声明自己需要的 Port，Infrastructure 实现 Port
 | `elfie/` | 一只完整精灵的档案、大脑、神经系统、身体、通信与技能 | [Elfie README](https://github.com/elfie-univ/ElfieNest/blob/main/elfie/README.md) |
 | `nest/` | 活动空间状态、环境时钟与互动语义 | [Nest README](https://github.com/elfie-univ/ElfieNest/blob/main/nest/README.md) |
 | `infrastructure/godot/gateway/` | 已认证 Godot 协议传输、Session 与 Bundle 检查 | [模块边界](./module-boundaries) |
-| `ai_runtime/` | 已登记的混合 Food、工具循环与推理协调残留 | [AI Runtime README](https://github.com/elfie-univ/ElfieNest/blob/main/ai_runtime/README.md) |
 | `app/` | 产品用例、接口、编排与 Bootstrap 装配 | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
 | `infrastructure/` | 模型、工具、持久化、Godot、设备、通信与平台 Adapter | [模块边界](./module-boundaries) |
 | `app/orchestration/lifecycle/` | Runtime 生命周期、完整健康、owner lease 与权威控制 | [运行时与数据](./runtime) |

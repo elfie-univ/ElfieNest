@@ -5,14 +5,13 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timezone
 
-from ai_runtime.food.evidence import record_model_evidence
-from ai_runtime.food.planner import ModelEvidence
-from app.features.configuration.food import FoodPortError
+from app.features.configuration.food import FoodPortError, StoredModelEvidence
 from app.orchestration.setup_installation import SetupInstallationPortError
 from infrastructure.models.capabilities import (
     canonical_display_name,
     known_capabilities,
 )
+from infrastructure.models.food_technology import record_model_evidence
 from infrastructure.persistence.food import SQLiteFoodAdapter
 
 from .food_technology import RuntimeFoodTechnologyAdapter
@@ -30,8 +29,8 @@ class SetupFoodAdapter:
 
     def ensure_emergency_food(self, model_reference: str) -> None:
         try:
-            evidence = ModelEvidence(
-                model=model_reference,
+            evidence = StoredModelEvidence(
+                reference=model_reference,
                 display_name=canonical_display_name(model_reference, model_reference),
                 capabilities=frozenset({"text"})
                 | known_capabilities(model_reference, model_reference),

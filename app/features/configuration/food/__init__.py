@@ -32,6 +32,12 @@ from .models import (
     UpdateFoodPackageCommand,
     UpdateMainFoodPolicyCommand,
 )
+from .policy import (
+    EVIDENCE_MAX_AGE,
+    FoodPlanner,
+    is_model_evidence_fresh,
+    project_food_health,
+)
 from .port_models import (
     FOOD_ROLES,
     FoodSystemRole,
@@ -69,6 +75,7 @@ __all__ = (
     "FoodConflict",
     "FoodError",
     "FoodForbidden",
+    "FoodPlanner",
     "FoodGenerationChangeResult",
     "FoodGenerationPreviewResult",
     "FoodLifecycleAction",
@@ -88,6 +95,7 @@ __all__ = (
     "FoodUnavailable",
     "FoodValidationError",
     "FoodVisibilityMode",
+    "EVIDENCE_MAX_AGE",
     "GetMainFoodPolicyQuery",
     "ListFoodPackagesQuery",
     "PreviewFoodGenerationCommand",
@@ -102,4 +110,6 @@ __all__ = (
     "StoredModelEvidence",
     "UpdateMainFoodPolicyCommand",
     "UpdateFoodPackageCommand",
+    "is_model_evidence_fresh",
+    "project_food_health",
 )

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_runtime.usage.observer import (
+from infrastructure.models.runtime_observations import (
     FallbackObservation,
     RuntimeEventStatus,
     RuntimeObserver,

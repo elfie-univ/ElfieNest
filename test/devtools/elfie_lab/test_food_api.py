@@ -1,14 +1,10 @@
-from ai_runtime import RuntimeAgent
-from ai_runtime.food.models import (
-    FOOD_COMMON_ID,
-    FOOD_EMERGENCY_ID,
-    FoodPackage,
-    ModelAssignment,
-)
+from app.features.configuration.food import StoredFoodPackage
 from devtools.elfie_lab.app import create_app
 from devtools.runtime_lab import RuntimeLabConfigStore
+from elfie.brain.food_port import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
+from infrastructure.models.runtime_agent import RuntimeAgent
 from infrastructure.models.runtime_contracts import RuntimeResult
-from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
+from infrastructure.persistence.food import SQLiteFoodAdapter
 from infrastructure.persistence.store import init_db
 
 
@@ -32,26 +28,26 @@ def _write_foods(
     runtime_dir.mkdir(parents=True, exist_ok=True)
     db_path = runtime_dir / "nest.db"
     init_db(str(db_path))
-    repository = SQLiteFoodPackageRepository(db_path)
+    repository = SQLiteFoodAdapter(db_path)
     for package in (
-        FoodPackage(
-            key="coarse",
+        StoredFoodPackage(
+            food_id="coarse",
             display_name="粗粮",
-            primary=ModelAssignment("ollama/qwen3.5:0.8b"),
+            primary_model="ollama/qwen3.5:0.8b",
         ),
-        FoodPackage(
-            key="standard",
+        StoredFoodPackage(
+            food_id="standard",
             display_name="标准粮",
-            primary=ModelAssignment(standard_model),
+            primary_model=standard_model,
         ),
-        FoodPackage(
-            key="focus",
+        StoredFoodPackage(
+            food_id="focus",
             display_name="清醒粮",
-            primary=ModelAssignment(focus_model),
-            fallback=ModelAssignment("ollama/qwen3.5:0.8b"),
+            primary_model=focus_model,
+            fallback_model="ollama/qwen3.5:0.8b",
         ),
     ):
-        repository.create(package)
+        repository.create_package(package)
 
 
 def test_default_app_uses_developer_runtime_and_keeps_production_isolated(
@@ -79,7 +75,7 @@ def test_default_app_uses_developer_runtime_and_keeps_production_isolated(
     assert client.get("/api/runtime/status").json()["scope"] == "developer"
     assert not production_home.exists()
     assert client.get("/api/runtime/foods").json()["configuration_command"] == (
-        f"ELFIE_HOME={developer_runtime} .venv/bin/python -m ai_runtime.lab"
+        f"ELFIE_HOME={developer_runtime} .venv/bin/python -m devtools.runtime_lab"
     )
 
 
@@ -106,7 +102,9 @@ def test_food_api_reports_primary_and_fallback_readiness(
     assert response.status_code == 200
     payload = response.json()
     focus = next(item for item in payload["items"] if item["key"] == "focus")
-    runtime_lab_command = f"ELFIE_HOME={runtime_dir} .venv/bin/python -m ai_runtime.lab"
+    runtime_lab_command = (
+        f"ELFIE_HOME={runtime_dir} .venv/bin/python -m devtools.runtime_lab"
+    )
     assert payload["configuration_command"] == runtime_lab_command
     assert focus["model"] == "openai/example-model"
     assert focus["primary_ready"] is False
@@ -248,7 +246,7 @@ def test_uninstalled_ollama_food_is_disabled_with_setup_command(
     assert standard["unavailable_reason"] == "本地模型 qwen3.5:0.8b 尚未安装"
     assert standard["setup_commands"] == ["ollama pull qwen3.5:0.8b"]
     assert food_payload["configuration_command"].endswith(
-        ".venv/bin/python -m ai_runtime.lab"
+        ".venv/bin/python -m devtools.runtime_lab"
     )
 
     created = client.post("/api/elfies", json=elfie_payload("未就绪粮食测试")).json()

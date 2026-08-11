@@ -1,7 +1,7 @@
 # AI Runtime conformance
 
-> This is a temporary implementation gap register for the current
-> `ai_runtime/` migration package and the
+> This is a temporary implementation gap register for the decomposed model,
+> Food and tool implementation and the
 > [model, Food and tool behavior contract](../contracts/ai-runtime). It records
 > current non-conformance; target ownership is defined only by the
 > [system architecture contract](../contracts/system).

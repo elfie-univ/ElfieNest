@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Set, Tuple
 
-from ai_runtime.lab.cli import RuntimeLab
 from app.orchestration.lifecycle import DEFAULT_SERVICE_PORTS, LifecycleFacade
 from infrastructure.persistence.data_home import (
     ensure_elfie_home,
@@ -17,6 +16,7 @@ from infrastructure.persistence.data_home import (
     get_runtime_locks_dir,
     get_runtime_validation_dir,
 )
+from infrastructure.platform.runtime_lab import RuntimeLab
 
 
 @dataclass(frozen=True)

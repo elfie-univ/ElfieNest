@@ -39,7 +39,7 @@ def show_config(
     print()
 
     print("  【LLM and Food Strategy】")
-    print("    Managed by Runtime Lab: .venv/bin/python -m ai_runtime.lab")
+    print("    Managed by Runtime Lab: .venv/bin/python -m devtools.runtime_lab")
     print("    Elfies choose default/allowed/fallback food, not direct model binding")
     print()
 

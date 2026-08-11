@@ -50,6 +50,9 @@ def test_adapter_round_trips_packages_assignments_and_provider_references(
 
     assert adapter.create_package(package) == package
     assert adapter.get_package("food_custom") == package
+    runtime_package = adapter.load().packages["food_custom"]
+    assert runtime_package.primary is not None
+    assert runtime_package.primary.model == "cloud/main"
     assert list_food_model_references(db_path) == (
         ("food_common", ()),
         ("food_custom", ("cloud/main", "cloud/reasoning")),

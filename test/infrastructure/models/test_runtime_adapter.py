@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from threading import Event, Lock, Thread
 
-from ai_runtime.food.resolver import MainFoodSelection
+from elfie.brain.food_port import MainFoodSelection
 from elfie.brain.limbic_appraiser import BrainClockPulse
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.brain.runtime_port import (

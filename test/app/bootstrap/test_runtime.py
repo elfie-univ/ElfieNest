@@ -59,7 +59,7 @@ def test_model_runtime_receives_existing_food_and_warmup_dependencies(
     monkeypatch.setattr(runtime_bootstrap, "RuntimeAgent", _FakeRuntime)
     monkeypatch.setattr(
         runtime_bootstrap,
-        "SQLiteFoodPackageRepository",
+        "SQLiteFoodAdapter",
         lambda db_path: (repository, db_path),
     )
     monkeypatch.setattr(

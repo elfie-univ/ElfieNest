@@ -60,8 +60,8 @@ def test_legacy_provider_and_model_owner_routes_are_removed() -> None:
 
     assert not (AI_RUNTIME / "storage" / "runtime_config_bundle.py").exists()
     product_sources = [
-        *AI_RUNTIME.rglob("*.py"),
         *(PROJECT_ROOT / "app").rglob("*.py"),
+        *(PROJECT_ROOT / "infrastructure").rglob("*.py"),
     ]
     old_symbols = {
         "ModelEvidenceStore",
@@ -78,21 +78,21 @@ def test_legacy_provider_and_model_owner_routes_are_removed() -> None:
 
 def test_model_consumers_share_the_sqlite_evidence_projection() -> None:
     consumers = {
-        "ai_runtime/gateway/agent.py",
-        "ai_runtime/lab/cli.py",
-        "ai_runtime/validation/overview.py",
+        "infrastructure/models/runtime_agent.py",
+        "infrastructure/platform/runtime_lab.py",
+        "infrastructure/models/runtime_overview.py",
         "infrastructure/models/food_technology.py",
         "infrastructure/models/provider_model_matrix.py",
     }
     assert all("query_model_evidence" in _source(path) for path in consumers)
-    evidence_source = _source("ai_runtime/food/evidence.py")
+    evidence_source = _source("infrastructure/models/food_technology.py")
     assert "ProviderConnectionStore" in evidence_source
     assert "ReportRepository" in evidence_source
     assert "read_yaml" not in evidence_source
 
 
 def test_product_runtime_has_one_food_resolver_and_no_direct_model_route() -> None:
-    source = _source("ai_runtime/gateway/agent.py")
+    source = _source("infrastructure/models/runtime_agent.py")
     assert "ModelRegistry" not in source
     assert "ensure_model_ready" not in source
     assert "def generate_stream(" not in source
@@ -103,7 +103,7 @@ def test_product_runtime_has_one_food_resolver_and_no_direct_model_route() -> No
     assert not (AI_RUNTIME / "setup").exists()
     assert not (AI_RUNTIME / "policy").exists()
 
-    config_source = _source("ai_runtime/config.py")
+    config_source = _source("infrastructure/models/runtime_config.py")
     for legacy_field in (
         "cheap_model",
         "cheap_provider",
@@ -132,14 +132,14 @@ def test_provider_catalogs_do_not_encode_runtime_model_selection_groups() -> Non
 
 
 def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
-    prompt_source = _source("ai_runtime/gateway/skills_prompt.py")
+    prompt_source = _source("infrastructure/tools/skills_prompt.py")
     streaming_source = _source("infrastructure/models/streaming.py")
     for forbidden in ("[CODE]", "[SKILL_CREATE]", "[SKILL_MODIFY]"):
         assert forbidden not in prompt_source
         assert forbidden not in streaming_source
     assert "[SEARCH]" in prompt_source
     assert "[READ_FILE]" in prompt_source
-    config_source = _source("ai_runtime/tools/config.py")
+    config_source = _source("infrastructure/tools/config.py")
     assert '"web_search"' in config_source
     assert '"local_file"' in config_source
     for legacy_gateway_leaf in (
@@ -151,8 +151,8 @@ def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
         assert not (AI_RUNTIME / "gateway" / legacy_gateway_leaf).exists()
     assert '"code_sandbox"' not in config_source
     for source_path in (
-        "ai_runtime/gateway/agent.py",
-        "ai_runtime/food/executor.py",
+        "infrastructure/models/runtime_agent.py",
+        "infrastructure/models/food_execution.py",
     ):
         source = _source(source_path)
         assert "CodeSandboxPlugin" not in source
@@ -162,7 +162,9 @@ def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
 def test_reports_and_food_facts_use_only_contract_paths() -> None:
     data_home_source = _source("infrastructure/persistence/data_home.py")
     assert "ai-runtime.sqlite" in data_home_source
-    assert "runtime_events.jsonl" not in _source("ai_runtime/usage/observer.py")
+    assert "runtime_events.jsonl" not in _source(
+        "infrastructure/models/runtime_observations.py"
+    )
 
     forbidden_names = {
         "model-evidence.yaml",
@@ -171,8 +173,8 @@ def test_reports_and_food_facts_use_only_contract_paths() -> None:
         "runtime_events.jsonl",
     }
     product_sources = [
-        *AI_RUNTIME.rglob("*.py"),
         *(PROJECT_ROOT / "app").rglob("*.py"),
+        *(PROJECT_ROOT / "infrastructure").rglob("*.py"),
     ]
     offenders = {
         path.relative_to(PROJECT_ROOT).as_posix()
@@ -195,8 +197,8 @@ def test_elfie_main_food_uses_the_final_elfie_row_without_legacy_policy() -> Non
         "def fallback_food(",
     )
     product_sources = [
-        *AI_RUNTIME.rglob("*.py"),
         *(PROJECT_ROOT / "app").rglob("*.py"),
+        *(PROJECT_ROOT / "infrastructure").rglob("*.py"),
     ]
     offenders = {
         path.relative_to(PROJECT_ROOT).as_posix()

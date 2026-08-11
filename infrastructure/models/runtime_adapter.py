@@ -6,7 +6,7 @@ from _thread import LockType
 from threading import Lock
 from typing import Callable, Dict, Protocol, Set
 
-from ai_runtime.food.resolver import MainFoodSelection
+from elfie.brain.food_port import MainFoodSelection
 from elfie.brain.runtime_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,

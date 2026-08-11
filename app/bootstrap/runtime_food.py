@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from ai_runtime.food.resolver import MainFoodSelection
 from app.features.configuration.food import FoodService, ResolveElfieFoodQuery
+from elfie.brain.food_port import MainFoodSelection
 
 
 def final_main_food_loader(

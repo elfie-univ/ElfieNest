@@ -8,7 +8,8 @@
 - `elfie/` 只实现单个完整 Elfie；不放账户、Web、Godot 场景或桌面生命周期。
 - `nest/` 只保存巢内状态和环境；真实 Elfie 与 Nest 的组合只能进入
   `app/orchestration/`。
-- `ai_runtime/` 管模型、Provider、工具、粮食和安全运行时。
+- `infrastructure/models/` 管模型与 Runtime 技术，`infrastructure/tools/` 管工具执行
+  Adapter；Food 策略属于 App Food Feature，Elfie 通过自有 Port 消费。
 - `godot_project/` 是房间、几何、坐标、碰撞与渲染的唯一源码来源。
 - `app/orchestration/lifecycle/` 负责 Runtime 监督与权威生命周期；
   `app/interfaces/desktop/` 负责 Electron Observer interface 和公开 lifecycle client。

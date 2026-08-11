@@ -1,6 +1,6 @@
 # AI Runtime 实现一致性台账
 
-> 这是当前 `ai_runtime/` 迁移包和
+> 这是已拆解的模型、Food、工具实现与
 > [模型、Food 与工具行为契约](../contracts/ai-runtime)的临时实现差距台账，只记录
 > 当前未达标项；目标所有权只由[系统架构契约](../contracts/system)定义。
 

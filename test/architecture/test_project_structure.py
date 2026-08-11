@@ -23,7 +23,7 @@ REQUIRED_ROOT_DIRECTORIES = frozenset(
     | {"scripts", "test"}
 )
 FORBIDDEN_SOURCE_DIRECTORIES = frozenset(
-    {"desktop", "elfienest", "godot", "godot_runtime", "runtime"}
+    {"ai_runtime", "desktop", "elfienest", "godot", "godot_runtime", "runtime"}
 )
 FORBIDDEN_ELFIE_DIRECTORIES = frozenset({"state"})
 REQUIRED_APP_DIRECTORIES = frozenset(
@@ -38,7 +38,6 @@ REQUIRED_DESKTOP_SOURCE_FILES = frozenset(
     {"desktop_role_lifecycle.ts", "lifecycle_client.ts", "main.ts", "role_dispatch.ts"}
 )
 CURRENT_PYTHON_SOURCE_ROOTS = (
-    "ai_runtime",
     "app",
     "elfie",
     "nest",
@@ -106,22 +105,14 @@ def test_root_infrastructure_is_a_first_class_python_source() -> None:
     pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     # When/Then: release discovery, import sorting and coverage all classify it.
-    assert (
-        'include = ["ai_runtime*", "app*", "elfie*", "infrastructure*", "nest*"]'
-        in pyproject
-    )
-    assert (
-        'known-first-party = ["ai_runtime", "app", "elfie", "infrastructure", "nest"]'
-        in pyproject
-    )
-    assert (
-        'source = ["ai_runtime", "app", "elfie", "infrastructure", "nest"]' in pyproject
-    )
+    assert 'include = ["app*", "elfie*", "infrastructure*", "nest*"]' in pyproject
+    assert 'known-first-party = ["app", "elfie", "infrastructure", "nest"]' in pyproject
+    assert 'source = ["app", "elfie", "infrastructure", "nest"]' in pyproject
     assert (
         '"infrastructure.models.providers" = '
         '["provider-catalog.yaml", "model-catalog.yaml"]' in pyproject
     )
-    assert '"ai_runtime.providers" =' not in pyproject
+    assert "ai_runtime" not in pyproject
 
 
 def test_legacy_source_directories_are_removed() -> None:
@@ -193,7 +184,6 @@ def test_desktop_source_has_the_confirmed_secondary_structure() -> None:
 def test_python_sources_do_not_import_legacy_packages() -> None:
     # Given
     source_roots = (
-        PROJECT_ROOT / "ai_runtime",
         PROJECT_ROOT / "app",
         PROJECT_ROOT / "devtools",
         PROJECT_ROOT / "elfie",

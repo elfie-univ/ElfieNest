@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, Optional
 
-from ai_runtime.food.evidence import query_model_evidence
 from infrastructure.models.capabilities import known_capabilities
+from infrastructure.models.food_technology import query_model_evidence
 from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderModelRecord,

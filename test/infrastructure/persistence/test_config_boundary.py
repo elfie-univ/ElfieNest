@@ -8,7 +8,7 @@ import importlib
 import json
 from pathlib import Path
 
-from ai_runtime.config import LLMRuntimeConfig
+from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.persistence.data_home import get_config_path, get_elfie_home
 
 
@@ -31,7 +31,7 @@ def _write_legacy_runtime_config(path: Path, provider_id: str = "legacy_only") -
 
 
 def _patch_legacy_runtime_path(monkeypatch, legacy_path: Path) -> None:
-    config_module = importlib.import_module("ai_runtime.config")
+    config_module = importlib.import_module("infrastructure.models.runtime_config")
     fake_module_file = legacy_path.parent / "config.py"
     monkeypatch.setattr(config_module, "__file__", str(fake_module_file))
 

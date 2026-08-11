@@ -1,53 +1,52 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import replace
 from datetime import datetime, timezone
 
-from ai_runtime.food.health import FoodHealth
-from ai_runtime.food.models import FoodPackage, ModelAssignment
-from ai_runtime.food.planner import FoodChange, FoodUpdateProposal, ModelEvidence
-from app.features.configuration.food import StoredFoodPackage
+from app.features.configuration.food import (
+    StoredFoodChange,
+    StoredFoodHealth,
+    StoredFoodPackage,
+    StoredFoodProposal,
+    StoredModelEvidence,
+)
 from infrastructure.models.food_technology import RuntimeFoodTechnologyAdapter
 
 
-def test_adapter_delegates_evidence_health_and_planning_to_single_runtime_algorithms(
+def test_adapter_delegates_evidence_health_and_planning_to_owned_rules(
     monkeypatch,
 ) -> None:
     now = datetime.now(timezone.utc).isoformat()
-    evidence = ModelEvidence(
-        model="cloud/main",
+    evidence = StoredModelEvidence(
+        reference="cloud/main",
         display_name="Main",
         capabilities=frozenset({"text"}),
         verified=True,
         observed_at=now,
+        fresh=True,
     )
     monkeypatch.setattr(
         "infrastructure.models.food_technology.query_model_evidence",
-        lambda: {evidence.model: evidence},
+        lambda: {evidence.reference: evidence},
     )
     monkeypatch.setattr(
         "infrastructure.models.food_technology.project_food_health",
-        lambda package, items: FoodHealth("healthy", "remote", now),
+        lambda package, items: StoredFoodHealth("healthy", "remote", now),
     )
-    validated: list[FoodPackage] = []
+    validated: list[StoredFoodPackage] = []
     monkeypatch.setattr(
-        "infrastructure.models.food_technology.validate_food_catalog_model_references",
-        lambda catalog: validated.extend(catalog.packages.values()),
+        "infrastructure.models.food_technology.validate_food_package_model_references",
+        lambda package: validated.append(package),
     )
 
-    @dataclass
     class Planner:
         def propose_package(self, package, items, **options):
             _ = items, options
-            proposed = FoodPackage(
-                key=package.key,
-                display_name=package.display_name,
-                enabled=True,
-                primary=ModelAssignment("cloud/main"),
-            )
-            return FoodUpdateProposal(
+            proposed = replace(package, enabled=True, primary_model="cloud/main")
+            return StoredFoodProposal(
                 proposed,
-                (FoodChange("primary", None, "cloud/main"),),
+                (StoredFoodChange("primary", None, "cloud/main"),),
+                (),
             )
 
     monkeypatch.setattr("infrastructure.models.food_technology.FoodPlanner", Planner)
@@ -70,4 +69,4 @@ def test_adapter_delegates_evidence_health_and_planning_to_single_runtime_algori
     assert defaults.default_food_id == "food_common"
     assert health.status == "healthy"
     assert proposal.package.primary_model == "cloud/main"
-    assert validated[0].key == "food_custom"
+    assert validated[0].food_id == "food_custom"

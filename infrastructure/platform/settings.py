@@ -7,7 +7,6 @@ import shutil
 from pathlib import Path
 from typing import Any, Mapping, NoReturn, Sequence
 
-from ai_runtime.config import DEFAULT_SYSTEM_SETTINGS
 from app.features.configuration import (
     SettingsStorageError,
     SpeciesId,
@@ -16,6 +15,7 @@ from app.features.configuration import (
     StoredRuntimeSettings,
     StoredSecuritySettings,
 )
+from infrastructure.models.runtime_config import DEFAULT_SYSTEM_SETTINGS
 from infrastructure.persistence.config_store import (
     ConfigStoreError,
     read_yaml_mapping,

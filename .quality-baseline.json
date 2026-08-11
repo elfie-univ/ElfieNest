@@ -2,9 +2,6 @@
   "schema_version": 1,
   "ruff_check": {},
   "ruff_format": {
-    "ai_runtime/food/models.py:format:9866a54f9128070bb6ffca521bad26dfce42df70675e529cc48c86e279332d5c": 1,
-    "ai_runtime/gateway/agent.py:format:27610eaf39cc362041eb38b38b5989a6850e88a511fd84dcab39920b664919ce": 1,
-    "ai_runtime/lab/cli.py:format:d52d410f32f7983b3844343d994f5db766a7125f8a0807cf4d3e3b928e090f0b": 1,
     "app/features/adoption/candidates.py:format:b7269dc562f7aeade2f18692708b97baa978fabed4a04c7eccc7f989a98aa4e1": 1,
     "app/features/configuration/food_access.py:format:c7731791813710fc83505595235f24748fe03dd40d96366092189489acdb2cb5": 1,
     "app/features/elfie_profile/private_cognition_focus.py:format:310d0d3692b79df45af016e4fa588aa49e8f6c8500875eee20b187b69b3f1e45": 1,
@@ -24,8 +21,6 @@
     "app/interfaces/cli/tui/setup_app.py:format:398091f541572bfb64f29514d0ff08c22c5e31b0c488c9768c421edead974493": 1,
     "app/interfaces/web/frontend_build.py:format:c78d6e58f33f06ed2d5855aeb36557f15430ed118bdefc0a83d4fed0b4a3d894": 1,
     "app/orchestration/nest_session.py:format:e30879c978f1fd976d216eb3eb6642b25f138b0100d3e25f3467a0deadb535c0": 1,
-    "test/ai_runtime/food/test_models.py:format:9ad6b4a864008ab8d45419c63d6a320ae6a3c7229a1fbd81a55789a88615e1b3": 1,
-    "test/ai_runtime/food/test_store.py:format:0175d9f5819f4faf2a74b8e31662b8df1e7793fcdacdcc5a4682717992adacbe": 1,
     "test/app/features/adoption/test_candidates.py:format:31b99a93083b20c64f6caec0d319ea72b0437767c0c63ab6a235037d8310241d": 1,
     "test/app/features/elfie_profile/test_private_cognition_graphs.py:format:66a4f90e4686f29d76a33ad5810937e07c421e6fe9b5c2cfd4a519936b4261d9": 1,
     "test/app/features/setup/test_draft_repository.py:format:7bb56967c162742de30790b5514f2629fcdea756a91b92f31c0766f301e06cdd": 1,

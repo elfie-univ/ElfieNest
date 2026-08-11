@@ -5,13 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional, Union
 
-from ai_runtime.food.resolver import MainFoodSelection
 from app.orchestration.nest_session import (
     CorticalRuntimeFactory,
     ElfieNestEngine,
     NestSession,
 )
 from elfie import ElfieFactory
+from elfie.brain.food_port import MainFoodSelection
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
 from infrastructure.models.runtime_adapter import (
     SerializedRuntimeAdapter,

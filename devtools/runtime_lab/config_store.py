@@ -8,8 +8,8 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from ai_runtime.config import LLMRuntimeConfig
 from infrastructure.models.providers.profiles import BUILTIN_PROFILES
+from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.persistence.data_home import get_elfie_developer_home
 
 SECRET_ENV_KEYS = {

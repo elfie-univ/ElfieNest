@@ -136,7 +136,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 | --- | --- |
 | [`elfie/`](elfie/README_zh.md) | 一只完整 Elfie 的档案、大脑、身体、通信与技能 |
 | [`nest/`](nest/README_zh.md) | 活动空间状态、环境时钟、互动与 Godot 协议边界 |
-| [`ai_runtime/`](ai_runtime/README_zh.md) | 模型、Provider、路由、粮食、工具、安全与运行时 |
+| `infrastructure/` | 模型、工具、持久化、Godot、设备、通信与平台 Adapter |
 | [`app/`](app/README_zh.md) | 产品用例、接口、基础设施与跨模块编排 |
 | [`app/interfaces/desktop/`](app/interfaces/desktop/README_zh.md) | 可见 Electron 窗口、系统集成与公开 Runtime lifecycle client |
 | [`godot_project/`](godot_project/README_zh.md) | 独立 Godot 源工程：房间、几何、坐标、碰撞、角色和渲染源码 |

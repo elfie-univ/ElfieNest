@@ -6,12 +6,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from ai_runtime.usage.observer import (
-    FallbackObservation,
-    RuntimeEventStatus,
-    RuntimeObserver,
-    ToolCallObservation,
-)
 from app.features.accounts import AccountPrincipal, parse_account_role
 from app.features.operations import (
     OperationsFacade,
@@ -23,6 +17,12 @@ from app.features.operations import (
 from app.interfaces.api.service_access import ServiceAccessPolicy
 from app.interfaces.api.v1.admin.runtime import router
 from app.interfaces.api.v1.auth import require_manager, require_user
+from infrastructure.models.runtime_observations import (
+    FallbackObservation,
+    RuntimeEventStatus,
+    RuntimeObserver,
+    ToolCallObservation,
+)
 from infrastructure.models.runtime_observer import RuntimeObserverProjectionAdapter
 
 

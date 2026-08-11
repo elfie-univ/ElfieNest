@@ -3,12 +3,12 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Callable, cast
 
-from ai_runtime.config import LLMRuntimeConfig
 from infrastructure.models.providers.dispatch import detect_api_mode_for_url
 from infrastructure.models.providers.streaming import (
     STREAM_DISPATCH,
     stream_openai_compatible_api,
 )
+from infrastructure.models.runtime_config import LLMRuntimeConfig
 
 logger = logging.getLogger("ai_runtime.gateway.streaming")
 

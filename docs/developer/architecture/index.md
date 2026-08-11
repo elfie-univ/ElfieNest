@@ -32,7 +32,6 @@ The core source is split by responsibility:
 | `elfie/` | One complete creature's profile, brain, nervous system, body, communication and skills | [Elfie README](https://github.com/elfie-univ/ElfieNest/blob/main/elfie/README.md) |
 | `nest/` | Activity-space state, environment clock and interaction semantics | [Nest README](https://github.com/elfie-univ/ElfieNest/blob/main/nest/README.md) |
 | `infrastructure/godot/gateway/` | Authenticated Godot protocol transport, sessions and bundle inspection | [Module boundaries](./module-boundaries) |
-| `ai_runtime/` | Registered mixed Food, tool-loop and inference-coordination residual | [AI Runtime README](https://github.com/elfie-univ/ElfieNest/blob/main/ai_runtime/README.md) |
 | `app/` | Product use-cases, interfaces, orchestration and Bootstrap composition | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
 | `infrastructure/` | Model, tool, persistence, Godot, device, communication and platform Adapters | [Module boundaries](./module-boundaries) |
 | `app/orchestration/lifecycle/` | Runtime lifecycle, full health, owner leases and authority control | [Runtime & data](./runtime) |

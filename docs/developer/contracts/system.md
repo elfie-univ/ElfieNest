@@ -67,12 +67,12 @@ capability's concrete Adapter. When one capability needs another, it depends on
 a narrow Port or shared technical model and Bootstrap supplies the concrete
 implementations.
 
-Current `ai_runtime/`, `nest/godot_gateway/observer.py`, plus concrete technical
-code inside `elfie/` or `nest/`, are migration-state locations. The former
-`godot_runtime/` and `app/infrastructure/` roots have been retired.
-`ai_runtime/` is decomposed by responsibility;
-it is not moved intact and no target `infrastructure/ai_runtime/` is created.
-These paths shrink only through separately approved migration slices.
+The former `ai_runtime/`, `godot_runtime/` and `app/infrastructure/` roots have
+been retired. Their technical responsibilities now live in the existing target
+Infrastructure capability packages; no target `infrastructure/ai_runtime/` was
+created. `nest/godot_gateway/observer.py` and concrete technical code inside
+`elfie/` or `nest/` remain migration-state locations that shrink only through
+separately approved migration slices.
 
 ## System dependency direction
 
@@ -204,8 +204,8 @@ new authoritative fact by copying, caching or projecting the same record.
 
 ## Model, Food and tool ownership
 
-There is no target AI Runtime module. The current `ai_runtime/` package mixes
-responsibilities that are separated as follows:
+There is no target AI Runtime module. The former `ai_runtime/` package was
+decomposed into the following owners:
 
 | Responsibility | Target owner |
 | --- | --- |

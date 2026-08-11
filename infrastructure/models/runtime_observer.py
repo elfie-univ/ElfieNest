@@ -4,17 +4,6 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ai_runtime.usage.observer import (
-    RuntimeEvent,
-    RuntimeObserver,
-    get_runtime_observer,
-)
-from ai_runtime.usage.observer import (
-    RuntimeEventStatus as TechnicalRuntimeEventStatus,
-)
-from ai_runtime.usage.observer import (
-    RuntimeEventType as TechnicalRuntimeEventType,
-)
 from app.features.operations import (
     OperationsPortError,
     RuntimeEventStatus,
@@ -22,6 +11,17 @@ from app.features.operations import (
     StoredRuntimeEvent,
     StoredRuntimeMetadata,
     StoredRuntimeSnapshot,
+)
+from infrastructure.models.runtime_observations import (
+    RuntimeEvent,
+    RuntimeObserver,
+    get_runtime_observer,
+)
+from infrastructure.models.runtime_observations import (
+    RuntimeEventStatus as TechnicalRuntimeEventStatus,
+)
+from infrastructure.models.runtime_observations import (
+    RuntimeEventType as TechnicalRuntimeEventType,
 )
 
 

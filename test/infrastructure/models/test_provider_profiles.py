@@ -1,9 +1,9 @@
-from ai_runtime.config import LLMRuntimeConfig
 from infrastructure.models.providers.profiles import (
     BUILTIN_PROFILES,
     get_default_api_mode,
     get_profile,
 )
+from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,

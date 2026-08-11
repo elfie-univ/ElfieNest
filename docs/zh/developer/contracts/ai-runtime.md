@@ -3,7 +3,7 @@
 **契约版本：** 1.4
 **修订日期：** 2026-08-10
 
-> **拆解期间的行为权威。** 本文保留当前 `ai_runtime/` 下已经接受的 Provider、模型、
+> **拆解期间的行为权威。** 本文保留原 `ai_runtime/` 下已经接受的 Provider、模型、
 > Food 与工具行为，但不定义目标 AI Runtime 模块。目标所有权、依赖和物理位置由
 > [系统架构契约](system)统一控制。当前偏差记录在
 > [AI Runtime 实现一致性台账](../conformance/ai-runtime)。
@@ -12,8 +12,8 @@
 实现阶段可以修改代码、测试和一致性台账，但不能顺手修改本文档。确需改变行为时，
 必须先显式修订契约版本，再开始实现。
 
-当前顶层 `ai_runtime/` 是已登记迁移包，按职责拆解而不是整体移动。Provider/模型
-访问进入 `infrastructure/models/`，工具执行进入 `infrastructure/tools/`，持久化进入
+原顶层 `ai_runtime/` 已按职责拆解而不是整体移动。Provider/模型访问与 Runtime 技术
+位于 `infrastructure/models/`，工具执行位于 `infrastructure/tools/`，持久化进入
 Infrastructure Adapter，管理员 Food 配置、生成和报告进入 App Feature，Elfie 通过
 自有注入 Port 直接使用 Food、模型和工具能力。
 
@@ -375,8 +375,8 @@ flowchart LR
 
 一期只有一个全局工具配置页面，不提供按精灵开关。实际可用工具是“全局启用工具、
 精灵内部 Skill 请求、已实现的安全工具注册表、逐次调用的安全权限决策”四者交集。Skills 位于
-`elfies/<elfie_id>/skills/`，共享工具实现当前位于迁移路径 `ai_runtime/tools/`，目标
-执行 Adapter 位于 `infrastructure/tools/`；工具绝不写入 Food 配置。
+`elfies/<elfie_id>/skills/`，共享工具实现位于 `infrastructure/tools/`；工具绝不写入
+Food 配置。
 
 注入的 Tool Adapter 随每次请求接收当前精灵获授权的工作区根目录。只读文件工具只能
 访问该工作区和明确获准的共享资源根，不能读取其他精灵工作区、凭据、报告或 Runtime

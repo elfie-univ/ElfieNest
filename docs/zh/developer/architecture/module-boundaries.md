@@ -16,7 +16,6 @@
 | `app/interfaces/desktop/` | Electron Observer 窗口、平台集成和公开 lifecycle client | Supervisor、Gateway 内部实现、权威凭据和产品规则 |
 | `app/` | 产品用例、接口、编排与 Bootstrap 装配 | 具体技术实现或取代领域内部状态 |
 | `infrastructure/` | 模型、工具、持久化、Godot、设备、通信与平台 Adapter | 产品授权或用例流程决策 |
-| `ai_runtime/` | 已登记的混合 Food、工具循环与推理协调残留 | 新的永久技术所有权 |
 | `godot_project/` | 房屋、坐标、移动、碰撞、角色和渲染源码 | Python 侧业务状态或 Runtime 生命周期 |
 | `devtools/` | 隔离的开发和调试入口 | 普通用户产品导航 |
 

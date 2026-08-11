@@ -6,7 +6,7 @@ import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Mapping
 
-from ai_runtime.tools.config import load_tool_configs
+from infrastructure.tools.config import load_tool_configs
 
 logger = logging.getLogger("infrastructure.tools.search")
 

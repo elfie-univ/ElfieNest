@@ -218,9 +218,9 @@ infrastructure/   模型、工具、持久化、Godot、设备、通信与平台
   由 Bootstrap 组合。
 - `elfie/` 与 `nest/` 不得互相导入，也不得导入 `app/` 或具体 Infrastructure；底层
   Adapter 可以反向导入自己实现的核心 Port，这是依赖倒置，不是领域反向依赖。
-- 现有 `ai_runtime/`、`nest/godot_gateway/observer.py` 及
-  领域内部技术实现是已登记迁移路径，只能按获批切片收缩，不得复制成新的所有权。
-  `ai_runtime/` 按职责拆解，不整体移动，也不创建 `infrastructure/ai_runtime/`。
+- `ai_runtime/` 已按职责拆解并删除；不得恢复该旧根，也不得创建
+  `infrastructure/ai_runtime/`。`nest/godot_gateway/observer.py` 与领域内部技术实现
+  仍是已登记迁移路径，只能按获批切片收缩，不得复制成新的所有权。
 - `godot_project/` 永久保持独立 Godot 源工程和物理 authority，不是迁移目录；只有
   Python 侧 Gateway、宿主、产物和协议 Adapter 目标进入 `infrastructure/godot/`。
 
@@ -237,9 +237,9 @@ infrastructure/   模型、工具、持久化、Godot、设备、通信与平台
 - `app/features/` 放产品用例，`app/interfaces/` 放 API、Web、CLI，
   `app/orchestration/` 放跨 authority 编排，`app/bootstrap/` 只做依赖装配；具体持久化、
   模型、工具、Godot、设备、通信和平台实现位于根 `infrastructure/`。
-- 当前 `ai_runtime/` 是待拆分的历史实现：Provider/模型访问目标进入
-  `infrastructure/models/`，工具执行进入 `infrastructure/tools/`，Food 管理和报告
-  进入 App Feature，Elfie 通过自有 `FoodPort`、`ModelPort`、`ToolPort` 直接使用。
+- Provider/模型访问与 Runtime 技术实现位于 `infrastructure/models/`，工具执行位于
+  `infrastructure/tools/`，Food 管理和报告位于 App Feature；Elfie 通过自有
+  `FoodPort`、`ModelPort`、`ToolPort` 使用注入能力。
 - `app/interfaces/desktop/` 只负责可见 Electron 窗口、系统 UI 集成与公开
   lifecycle client，不承载 Supervisor、Godot authority、账户、聊天、领养或 Nest 规则。
 - `godot_project/` 是独立 Godot 源工程，也是房屋、几何、坐标、移动、碰撞和渲染的唯一源码来源；禁止在

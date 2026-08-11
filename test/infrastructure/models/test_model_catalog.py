@@ -3,12 +3,12 @@
 import urllib.error
 from unittest.mock import MagicMock, patch
 
-from ai_runtime.config import LLMRuntimeConfig
 from infrastructure.models.catalog import (
     BUILTIN_MODEL_CATALOG,
     ModelCatalog,
     verify_provider,
 )
+from infrastructure.models.runtime_config import LLMRuntimeConfig
 
 
 class TestBuiltinModelCatalog:

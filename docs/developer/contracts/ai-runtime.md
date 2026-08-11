@@ -4,7 +4,7 @@
 **Revised:** 2026-08-10
 
 > **Behavior authority during decomposition.** This document preserves the
-> accepted Provider, model, Food and tool behavior currently implemented under
+> accepted Provider, model, Food and tool behavior formerly implemented under
 > `ai_runtime/`. It does not define a target AI Runtime module. Target ownership,
 > dependencies and physical placement are controlled by the
 > [system architecture contract](system). Current deviations are recorded in
@@ -16,9 +16,9 @@ Implementation work may update code, tests and the conformance register without
 changing this contract. A behavior change requires an explicit contract-version
 revision before implementation.
 
-The current `ai_runtime/` root is a registered migration package and is
-decomposed rather than moved intact. Provider/model access targets
-`infrastructure/models/`; tool execution targets `infrastructure/tools/`;
+The former `ai_runtime/` root was decomposed rather than moved intact.
+Provider/model access and Runtime technology live in `infrastructure/models/`;
+tool execution lives in `infrastructure/tools/`;
 persistence targets Infrastructure adapters; administrator Food configuration,
 generation and reports target App Features; Elfie consumes Food, model and tool
 capabilities directly through its own injected Ports.
@@ -464,9 +464,8 @@ There is one global tool configuration surface in phase one and no per-Elfie
 switch UI. The effective tool set is the intersection of globally enabled
 tools, the Elfie's internal skill request, the implemented safe-tool registry
 and a per-invocation safety permission decision. Skills live
-under `elfies/<elfie_id>/skills/`; shared tool implementations currently live
-in migration path `ai_runtime/tools/` and target `infrastructure/tools/`. Tools
-never live in Food configuration.
+under `elfies/<elfie_id>/skills/`; shared tool implementations live in
+`infrastructure/tools/`. Tools never live in Food configuration.
 
 The injected Tool Adapter receives the current Elfie's authorized workspace
 root with each request. Read-only file access is confined to that workspace

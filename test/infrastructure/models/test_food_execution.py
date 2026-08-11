@@ -1,0 +1,49 @@
+from elfie.brain.food_port import FoodAssignment, FoodPackage
+from infrastructure.models.food_execution import FoodExecutor
+from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.models.runtime_observations import RuntimeObserver
+
+
+class _Permission:
+    def verify_action(self, *args, **kwargs):
+        return None
+
+
+def test_executor_uses_role_then_one_fallback(monkeypatch, tmp_path):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    calls = []
+
+    def caller(provider, model, messages, temperature, max_tokens, options):
+        calls.append(f"{provider}/{model}")
+        if model == "reason":
+            raise RuntimeError("down")
+        return "ok"
+
+    config = LLMRuntimeConfig()
+    config.providers["cloud_0001"] = {
+        "api_mode": "chat_completions",
+        "api_key": "test",
+    }
+    executor = FoodExecutor(
+        config=config,
+        search_plugin=None,
+        permission_manager=_Permission(),
+        observation_port=RuntimeObserver(),
+        file_access_plugin=None,
+        model_caller=caller,
+    )
+    result = executor.execute(
+        FoodPackage(
+            "food_x",
+            "X",
+            primary=FoodAssignment("cloud_0001/main"),
+            reasoning=FoodAssignment("cloud_0001/reason"),
+            fallback=FoodAssignment("cloud_0001/backup"),
+        ),
+        [{"role": "user", "content": "hi"}],
+        semantic_role="reasoning",
+    )
+    assert calls == ["cloud_0001/reason", "cloud_0001/backup"]
+    assert result.model == "cloud_0001/backup"
+    assert result.execution_stage == "fallback"
+    assert len(result.attempts) == 2

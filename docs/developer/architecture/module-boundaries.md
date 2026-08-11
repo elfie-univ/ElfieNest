@@ -17,7 +17,6 @@
 | `app/interfaces/desktop/` | Electron observer windows, platform integration and public lifecycle client | Supervisor, Gateway internals, authority credentials and product rules |
 | `app/` | Product use-cases, interfaces, orchestration and Bootstrap composition | Concrete technical implementation or replacing domain internals |
 | `infrastructure/` | Model, tool, persistence, Godot, device, communication and platform Adapters | Product authorization or use-case sequencing |
-| `ai_runtime/` | Registered mixed Food, tool-loop and inference-coordination residual | New permanent technical ownership |
 | `godot_project/` | Houses, coordinates, motion, collision, characters and rendering source | Python-side business state or Runtime lifecycle |
 | `devtools/` | Isolated development and debugging entry points | End-user product navigation |
 

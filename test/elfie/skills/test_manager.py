@@ -1,4 +1,3 @@
-from ai_runtime.tools.config import TOOL_KEYS
 from elfie import ElfieFactory
 from elfie.skills import (
     BUILTIN_SKILLS,
@@ -6,6 +5,7 @@ from elfie.skills import (
     SkillManager,
     SkillPolicy,
 )
+from infrastructure.tools.config import TOOL_KEYS
 
 
 class CapturingRuntime:

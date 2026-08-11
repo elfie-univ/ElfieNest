@@ -58,7 +58,6 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "elfie/AGENTS.md",
             "nest/AGENTS.md",
             "nest/godot_gateway/AGENTS.md",
-            "ai_runtime/AGENTS.md",
             "infrastructure/AGENTS.md",
             "infrastructure/persistence/AGENTS.md",
             "infrastructure/godot/AGENTS.md",
@@ -132,8 +131,9 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0002-system-ports-adapters.md",
         ),
         agent_paths=(
-            "ai_runtime/AGENTS.md",
             "app/features/configuration/AGENTS.md",
+            "elfie/AGENTS.md",
+            "infrastructure/AGENTS.md",
         ),
         scanner_paths=(),
         test_paths=("test/architecture/test_ai_runtime_contract.py",),

@@ -2,34 +2,34 @@ import stat
 
 import yaml
 
-from ai_runtime.food.models import FoodPackage, ModelAssignment
+from app.features.configuration.food import StoredFoodPackage
 from devtools.elfie_lab.runtime_adapters import (
     create_runtime,
     default_runtime_config_dir,
 )
 from devtools.runtime_lab import RuntimeLabConfigStore
 from devtools.runtime_lab.config_store import PROVIDER_DEFAULTS
-from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
+from infrastructure.persistence.food import SQLiteFoodAdapter
 from infrastructure.persistence.store import init_db
 
 
 def _write_foods(root):
     root.mkdir(parents=True, exist_ok=True)
     init_db(str(root / "nest.db"))
-    repository = SQLiteFoodPackageRepository(root / "nest.db")
+    repository = SQLiteFoodAdapter(root / "nest.db")
     for package in (
-        FoodPackage(
-            key="standard",
+        StoredFoodPackage(
+            food_id="standard",
             display_name="标准粮",
-            primary=ModelAssignment("ollama/qwen3.5:0.8b"),
+            primary_model="ollama/qwen3.5:0.8b",
         ),
-        FoodPackage(
-            key="focus",
+        StoredFoodPackage(
+            food_id="focus",
             display_name="清醒粮",
-            primary=ModelAssignment("openai/example-model"),
+            primary_model="openai/example-model",
         ),
     ):
-        repository.create(package)
+        repository.create_package(package)
 
 
 def test_development_runtime_config_does_not_read_production_config(
