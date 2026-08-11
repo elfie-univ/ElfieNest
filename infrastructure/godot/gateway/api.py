@@ -12,15 +12,19 @@ from typing import Any
 
 import websockets
 
-from nest.godot_gateway.api_v2 import GodotProtocolV2Handler
-from nest.godot_gateway.messages import CommandName, JsonObject, RuntimeEventFrame
-from nest.godot_gateway.session import (
+from infrastructure.godot.gateway.api_v2 import GodotProtocolV2Handler
+from infrastructure.godot.gateway.messages import (
+    CommandName,
+    JsonObject,
+    RuntimeEventFrame,
+)
+from infrastructure.godot.gateway.session import (
     RuntimeConnection,
     RuntimeSession,
     RuntimeSessionNotReadyError,
 )
 
-logger = logging.getLogger("nest.godot_gateway.api")
+logger = logging.getLogger("infrastructure.godot.gateway.api")
 GODOT_PROTOCOL_VERSION = 2
 
 

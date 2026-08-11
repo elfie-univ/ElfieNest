@@ -277,9 +277,9 @@ def test_nest_does_not_retain_v1_godot_or_furniture_mirror_api() -> None:
 
 
 def test_godot_gateway_accepts_protocol_v2_only() -> None:
-    source = (PROJECT_ROOT / "nest" / "godot_gateway" / "api.py").read_text(
-        encoding="utf-8"
-    )
+    source = (
+        PROJECT_ROOT / "infrastructure" / "godot" / "gateway" / "api.py"
+    ).read_text(encoding="utf-8")
     tree = ast.parse(source)
     protocol_values = {
         node.value.value

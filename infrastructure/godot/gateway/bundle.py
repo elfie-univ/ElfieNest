@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 GODOT_WEB_DIR = PROJECT_ROOT / "build" / "components" / "godot-web"
 GODOT_WEB_ENTRY = GODOT_WEB_DIR / "elfienest.html"
 GODOT_WEB_MANIFEST = GODOT_WEB_DIR / "build-manifest.json"

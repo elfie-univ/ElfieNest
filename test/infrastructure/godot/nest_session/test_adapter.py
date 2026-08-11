@@ -7,10 +7,16 @@ from app.orchestration.nest_session.models import (
     WorldEventName,
     WorldSnapshot,
 )
+from infrastructure.godot.gateway.api import GodotAPIServer
+from infrastructure.godot.gateway.messages import (
+    CommandName,
+    EventName,
+    RuntimeEventFrame,
+)
+from infrastructure.godot.gateway.session import (
+    RuntimeConnection as GatewayConnection,
+)
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
-from nest.godot_gateway.api import GodotAPIServer
-from nest.godot_gateway.messages import CommandName, EventName, RuntimeEventFrame
-from nest.godot_gateway.session import RuntimeConnection as GatewayConnection
 
 
 def test_adapter_translates_world_operations_to_protocol_commands() -> None:

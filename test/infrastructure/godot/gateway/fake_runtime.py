@@ -5,13 +5,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
-from nest.godot_gateway.messages import (
+from infrastructure.godot.gateway.messages import (
     CommandName,
     EventName,
     JsonObject,
     RuntimeEventFrame,
 )
-from nest.godot_gateway.session import RuntimeConnection
+from infrastructure.godot.gateway.session import RuntimeConnection
 
 
 class FakeRuntime:
