@@ -39,7 +39,6 @@ class Elfie:
     def __init__(
         self,
         config_dir: str | None = None,
-        anatomy_type: str | None = None,
         elfie_id: str | None = None,
         memory_db_path: str | None = None,
         character_profile: ElfieProfile | None = None,
@@ -80,7 +79,6 @@ class Elfie:
         )
         self.anatomy_type, self.anatomy = assemble_anatomy(
             self.character_profile,
-            anatomy_type,
         )
         self.body_registry = BodyRegistry()
         self.body_binding = BodyBinding(self.body_registry)

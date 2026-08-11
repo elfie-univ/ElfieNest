@@ -62,10 +62,9 @@ def assemble_profile(
 
 def assemble_anatomy(
     profile: ElfieProfile,
-    legacy_anatomy_type: str | None,
 ) -> tuple[str, SomaticAnatomy]:
-    """Resolve the configured morphology without executing any action policy."""
-    morphology = legacy_anatomy_type or profile.embodiment.primary_morphology
+    """Resolve the profile-owned morphology without executing action policy."""
+    morphology = profile.embodiment.primary_morphology
     if morphology == "quadruped":
         return morphology, QuadrupedAnatomy()
     return morphology, BipedAnatomy()

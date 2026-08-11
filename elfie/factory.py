@@ -22,7 +22,6 @@ class ElfieFactory:
         self,
         *,
         config_dir: Optional[ConfigPath] = None,
-        anatomy_type: Optional[str] = None,
         elfie_id: Optional[str] = None,
         memory_db_path: Optional[str] = None,
         character_profile: Optional[ElfieProfile] = None,
@@ -45,7 +44,6 @@ class ElfieFactory:
 
         elfie = Elfie(
             config_dir=normalized_config_dir,
-            anatomy_type=anatomy_type,
             elfie_id=resolved_elfie_id,
             memory_db_path=memory_db_path,
             character_profile=profile,
@@ -69,7 +67,6 @@ class ElfieFactory:
         self,
         config_dir: ConfigPath,
         *,
-        anatomy_type: Optional[str] = None,
         elfie_id: Optional[str] = None,
         memory_db_path: Optional[str] = None,
         body: Optional[BodyPort] = None,
@@ -85,7 +82,6 @@ class ElfieFactory:
             raise FileNotFoundError("精灵最终档案不存在")
         elfie = self.create(
             config_dir=config_dir,
-            anatomy_type=anatomy_type,
             elfie_id=elfie_id,
             memory_db_path=memory_db_path,
             body=body,

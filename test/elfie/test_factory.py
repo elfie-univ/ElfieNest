@@ -166,7 +166,7 @@ def test_restore_preserves_profile_and_explicit_body_binding(tmp_path: Path) -> 
     assert explicit.connected is True
 
 
-def test_factory_uses_profile_embodiment_when_legacy_anatomy_is_absent(
+def test_factory_uses_profile_embodiment_as_the_anatomy_source(
     tmp_path: Path,
 ) -> None:
     profile = replace(
