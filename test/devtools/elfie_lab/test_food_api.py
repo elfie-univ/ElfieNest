@@ -5,11 +5,11 @@ from ai_runtime.food.models import (
     FoodPackage,
     ModelAssignment,
 )
-from ai_runtime.gateway.request import RuntimeResult
-from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
-from infrastructure.persistence.store import init_db
 from devtools.elfie_lab.app import create_app
 from devtools.runtime_lab import RuntimeLabConfigStore
+from infrastructure.models.runtime_contracts import RuntimeResult
+from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
+from infrastructure.persistence.store import init_db
 
 
 def elfie_payload(name):

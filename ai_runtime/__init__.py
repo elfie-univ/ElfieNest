@@ -1,6 +1,5 @@
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.gateway.agent import RuntimeAgent
-from ai_runtime.gateway.request import RuntimeRequest, RuntimeResult
 from infrastructure.models.catalog import (
     BUILTIN_MODEL_CATALOG,
     ModelCatalog,
@@ -11,8 +10,6 @@ from infrastructure.models.catalog import (
 __all__ = [
     "LLMRuntimeConfig",
     "RuntimeAgent",
-    "RuntimeRequest",
-    "RuntimeResult",
     "ModelCatalog",
     "ModelEntry",
     "BUILTIN_MODEL_CATALOG",

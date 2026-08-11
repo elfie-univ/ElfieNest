@@ -7,12 +7,6 @@ from threading import Lock
 from typing import Callable, Dict, Protocol, Set
 
 from ai_runtime.food.resolver import MainFoodSelection
-from ai_runtime.gateway.request import (
-    StructuredGenerationMode,
-    StructuredMessage,
-    StructuredRuntimeRequest,
-    StructuredRuntimeResult,
-)
 from elfie.brain.runtime_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
@@ -20,6 +14,12 @@ from elfie.brain.runtime_port import (
     StructuredOutputMode,
 )
 from elfie.message_types import TurnId
+from infrastructure.models.runtime_contracts import (
+    StructuredGenerationMode,
+    StructuredMessage,
+    StructuredRuntimeRequest,
+    StructuredRuntimeResult,
+)
 
 
 class StructuredRuntime(Protocol):

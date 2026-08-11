@@ -1,4 +1,4 @@
-from ai_runtime.gateway.request import RuntimeRequest
+from infrastructure.models.runtime_contracts import RuntimeRequest
 
 
 def test_runtime_request_uses_semantic_role():
