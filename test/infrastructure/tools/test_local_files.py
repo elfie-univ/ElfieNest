@@ -1,6 +1,6 @@
 import pytest
 
-from ai_runtime.tools.local_files import LocalFileAccessError, LocalFileAccessPlugin
+from infrastructure.tools.local_files import LocalFileAccessError, LocalFileAccessPlugin
 
 
 def test_local_file_access_reads_and_lists_only_inside_root(tmp_path):

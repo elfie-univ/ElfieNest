@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Mapping
 
 from ai_runtime.tools.config import load_tool_configs
 
-logger = logging.getLogger("ai_runtime.tools.search")
+logger = logging.getLogger("infrastructure.tools.search")
 
 
 class WebSearchPlugin:
@@ -22,7 +22,7 @@ class WebSearchPlugin:
         api_key: str = "",
         max_results: int = 3,
         timeout_seconds: float = 5.0,
-    ):
+    ) -> None:
         self.provider = provider
         self.api_base = api_base
         self.api_key = api_key
@@ -37,7 +37,9 @@ class WebSearchPlugin:
         }
 
     @classmethod
-    def from_runtime_policy(cls, runtime_policy: Mapping[str, Any] | None):
+    def from_runtime_policy(
+        cls, runtime_policy: Mapping[str, Any] | None
+    ) -> WebSearchPlugin:
         config = load_tool_configs(runtime_policy)["web_search"]
         return cls(
             provider=str(config.get("provider") or "duckduckgo"),
@@ -139,17 +141,19 @@ class WebSearchPlugin:
         from html.parser import HTMLParser
 
         class DDGParser(HTMLParser):
-            def __init__(self):
+            def __init__(self) -> None:
                 super().__init__()
                 self.in_result = False
                 self.in_snippet = False
                 self.in_title = False
-                self.temp_result = {}
-                self.results = []
+                self.temp_result: Dict[str, str] = {}
+                self.results: List[Dict[str, str]] = []
 
-            def handle_starttag(self, tag, attrs):
+            def handle_starttag(
+                self, tag: str, attrs: List[tuple[str, str | None]]
+            ) -> None:
                 attrs_dict = dict(attrs)
-                cls = attrs_dict.get("class", "")
+                cls = attrs_dict.get("class") or ""
                 if tag == "div" and "result__body" in cls:
                     self.in_result = True
                     self.temp_result = {}
@@ -158,7 +162,7 @@ class WebSearchPlugin:
                 elif tag == "a" and "result__url" in cls:
                     self.in_title = True
 
-            def handle_data(self, data):
+            def handle_data(self, data: str) -> None:
                 if self.in_title:
                     self.temp_result["title"] = (
                         self.temp_result.get("title", "") + data.strip()
@@ -168,7 +172,7 @@ class WebSearchPlugin:
                         self.temp_result.get("snippet", "") + data.strip()
                     )
 
-            def handle_endtag(self, tag):
+            def handle_endtag(self, tag: str) -> None:
                 if tag == "a" and self.in_title:
                     self.in_title = False
                 elif tag == "a" and self.in_snippet:
@@ -184,7 +188,7 @@ class WebSearchPlugin:
         return parser.results[:max_results]
 
     def _format_results(self, results: List[Dict[str, str]]) -> str:
-        formatted = []
+        formatted: List[str] = []
         for i, res in enumerate(results, 1):
             formatted.append(
                 f"[{i}] 标题: {res.get('title', '无标题')}\n"

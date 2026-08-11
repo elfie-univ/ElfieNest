@@ -5,18 +5,23 @@ from __future__ import annotations
 import tempfile
 import time
 from pathlib import Path
+from typing import Protocol
 
-from ai_runtime.tools.local_files import LocalFileAccessPlugin
-from ai_runtime.tools.search import WebSearchPlugin
 from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
+from infrastructure.tools.local_files import LocalFileAccessPlugin
+from infrastructure.tools.search import WebSearchPlugin
+
+
+class SearchPlugin(Protocol):
+    def search(self, query: str) -> str: ...
 
 
 class DirectToolValidationRunner:
     def __init__(
         self,
-        config,
+        config: object,
         *,
-        search_plugin: WebSearchPlugin | None = None,
+        search_plugin: SearchPlugin | None = None,
     ) -> None:
         self.config = config
         self.search_plugin = search_plugin or WebSearchPlugin.from_runtime_policy(
