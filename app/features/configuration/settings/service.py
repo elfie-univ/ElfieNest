@@ -167,9 +167,7 @@ class SettingsService:
                 f"必须在 1 到 {MAX_ELFIES_PER_MACHINE} 之间",
             )
         if not settings.allowed_species_ids:
-            raise SettingsValidationError(
-                "allowed_species_ids", "至少需要保留一个物种"
-            )
+            raise SettingsValidationError("allowed_species_ids", "至少需要保留一个物种")
         unknown = set(settings.allowed_species_ids) - ALLOWED_SPECIES_IDS
         if unknown:
             raise SettingsValidationError(

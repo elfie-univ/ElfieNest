@@ -28,9 +28,7 @@ def config_providers(
     menu = TerminalMenu(input_fn=input, output_fn=print)
     while True:
         configured = tuple(
-            item
-            for item in connections(providers, principal)
-            if not item.archived
+            item for item in connections(providers, principal) if not item.archived
         )
         items = [MenuItem("1", "Provider Overview")]
         connection_by_key: dict[str, ProviderConnectionResult] = {}
@@ -195,9 +193,7 @@ def _ordered_products(
     principal: AccountPrincipal,
 ) -> tuple[ProviderProductResult, ...]:
     available = products(providers, principal)
-    regular = tuple(
-        item for item in available if item.catalog_id != "custom_openai"
-    )
+    regular = tuple(item for item in available if item.catalog_id != "custom_openai")
     custom = tuple(item for item in available if item.catalog_id == "custom_openai")
     return regular + custom
 

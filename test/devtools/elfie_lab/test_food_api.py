@@ -34,22 +34,22 @@ def _write_foods(
     init_db(str(db_path))
     repository = SQLiteFoodPackageRepository(db_path)
     for package in (
-            FoodPackage(
-                key="coarse",
-                display_name="粗粮",
-                primary=ModelAssignment("ollama/qwen3.5:0.8b"),
-            ),
-            FoodPackage(
-                key="standard",
-                display_name="标准粮",
-                primary=ModelAssignment(standard_model),
-            ),
-            FoodPackage(
-                key="focus",
-                display_name="清醒粮",
-                primary=ModelAssignment(focus_model),
-                fallback=ModelAssignment("ollama/qwen3.5:0.8b"),
-            ),
+        FoodPackage(
+            key="coarse",
+            display_name="粗粮",
+            primary=ModelAssignment("ollama/qwen3.5:0.8b"),
+        ),
+        FoodPackage(
+            key="standard",
+            display_name="标准粮",
+            primary=ModelAssignment(standard_model),
+        ),
+        FoodPackage(
+            key="focus",
+            display_name="清醒粮",
+            primary=ModelAssignment(focus_model),
+            fallback=ModelAssignment("ollama/qwen3.5:0.8b"),
+        ),
     ):
         repository.create(package)
 

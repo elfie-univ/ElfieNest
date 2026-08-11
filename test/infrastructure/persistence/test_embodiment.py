@@ -61,7 +61,10 @@ def test_list_sessions_projects_missing_rows_as_at_nest_without_writing(
         ),
     )
     with get_db(db_path) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM embodiment_sessions").fetchone()[0] == 0
+        assert (
+            connection.execute("SELECT COUNT(*) FROM embodiment_sessions").fetchone()[0]
+            == 0
+        )
 
 
 def test_aborting_a_failed_hosting_releases_the_lease_and_returns_to_nest(

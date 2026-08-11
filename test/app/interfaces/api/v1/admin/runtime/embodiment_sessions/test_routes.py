@@ -54,12 +54,13 @@ def test_manager_lists_existing_sessions_without_materializing_missing_rows(
 
     assert response.status_code == 200
     assert response.json() == {
-        "items": [
-            {"elfie_id": "00000001", "state": "at_nest", "body_id": None}
-        ]
+        "items": [{"elfie_id": "00000001", "state": "at_nest", "body_id": None}]
     }
     with get_db(client.app.state.db_path) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM embodiment_sessions").fetchone()[0] == 0
+        assert (
+            connection.execute("SELECT COUNT(*) FROM embodiment_sessions").fetchone()[0]
+            == 0
+        )
 
 
 def test_member_cannot_list_embodiment_sessions(tmp_path: Path) -> None:

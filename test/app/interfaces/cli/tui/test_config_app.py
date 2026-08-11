@@ -84,7 +84,9 @@ def test_config_tui_dispatches_three_runtime_layers(
     calls: list[str] = []
     monkeypatch.setattr(config_app, "clear_screen", lambda: None)
     monkeypatch.setattr(config_app, "print_banner", lambda: None)
-    monkeypatch.setattr(config_app, "config_providers", lambda *args: calls.append("provider"))
+    monkeypatch.setattr(
+        config_app, "config_providers", lambda *args: calls.append("provider")
+    )
     _patch_input(monkeypatch, ["1", "2", "3", "0"])
 
     _run_config_tui(FakeRuntimeMenus(calls))
@@ -98,7 +100,9 @@ def test_config_tui_dispatches_view_and_reset(
     calls: list[str] = []
     monkeypatch.setattr(config_app, "clear_screen", lambda: None)
     monkeypatch.setattr(config_app, "print_banner", lambda: None)
-    monkeypatch.setattr(config_app, "config_providers", lambda *args: calls.append("provider"))
+    monkeypatch.setattr(
+        config_app, "config_providers", lambda *args: calls.append("provider")
+    )
     monkeypatch.setattr(config_app, "show_config", lambda *args: calls.append("view"))
     monkeypatch.setattr(config_app, "reset_config", lambda *args: calls.append("reset"))
     _patch_input(monkeypatch, ["1", "2", "3", "4", "5", "0"])

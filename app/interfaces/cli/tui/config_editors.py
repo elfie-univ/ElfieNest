@@ -72,9 +72,7 @@ def config_security(
             "Session and Security",
             (
                 MenuItem("1", f"Session TTL (days): {current.session_ttl_days}"),
-                MenuItem(
-                    "2", f"Max login attempts: {current.rate_limit.max_attempts}"
-                ),
+                MenuItem("2", f"Max login attempts: {current.rate_limit.max_attempts}"),
                 MenuItem(
                     "3",
                     f"Rate limit window (sec): {current.rate_limit.window_seconds}",
@@ -121,7 +119,9 @@ def config_security(
                     UpdateSecuritySettingsCommand(
                         rate_limit=LoginRateLimit(
                             max_attempts=(
-                                value if is_attempts else current.rate_limit.max_attempts
+                                value
+                                if is_attempts
+                                else current.rate_limit.max_attempts
                             ),
                             window_seconds=(
                                 current.rate_limit.window_seconds

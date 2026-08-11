@@ -4,8 +4,8 @@ import sqlite3
 from pathlib import Path
 
 from app.features.communication import ConversationMessageWrite
-from infrastructure.persistence.store import init_db
 from infrastructure.persistence.communication import SQLiteConversationHistoryAdapter
+from infrastructure.persistence.store import init_db
 from test.app.interfaces.api._helpers import adopt_test_elfie, create_test_owner
 
 

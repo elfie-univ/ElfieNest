@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 from app.bootstrap import create_app
 from app.features.accounts import AccountPrincipal, AccountsService
 from app.features.elfies import ElfiesService
-from infrastructure.persistence.store import init_db
 from app.interfaces.api.v1.auth import get_current_user
 from app.interfaces.api.v1.observer import router
 from app.orchestration.observer import (
@@ -18,6 +17,7 @@ from app.orchestration.observer import (
     ObserverFacade,
     ObserverWorldIntent,
 )
+from infrastructure.persistence.store import init_db
 from test.app.interfaces.api._helpers import create_test_owner
 
 

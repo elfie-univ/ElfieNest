@@ -11,8 +11,8 @@ from app.features.operations import (
     ListActiveSessionsQuery,
     OperationsFacade,
 )
-from infrastructure.persistence.store import get_db, hash_password, init_db
 from app.interfaces.cli import runtime_commands
+from infrastructure.persistence.store import get_db, hash_password, init_db
 from test.app.interfaces.cli.entrypoint_test_support import (
     PROJECT_ROOT,
     write_executable,

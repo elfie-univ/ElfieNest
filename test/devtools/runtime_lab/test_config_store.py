@@ -3,14 +3,14 @@ import stat
 import yaml
 
 from ai_runtime.food.models import FoodPackage, ModelAssignment
-from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
-from infrastructure.persistence.store import init_db
 from devtools.elfie_lab.runtime_adapters import (
     create_runtime,
     default_runtime_config_dir,
 )
 from devtools.runtime_lab import RuntimeLabConfigStore
 from devtools.runtime_lab.config_store import PROVIDER_DEFAULTS
+from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
+from infrastructure.persistence.store import init_db
 
 
 def _write_foods(root):
@@ -18,16 +18,16 @@ def _write_foods(root):
     init_db(str(root / "nest.db"))
     repository = SQLiteFoodPackageRepository(root / "nest.db")
     for package in (
-            FoodPackage(
-                key="standard",
-                display_name="标准粮",
-                primary=ModelAssignment("ollama/qwen3.5:0.8b"),
-            ),
-            FoodPackage(
-                key="focus",
-                display_name="清醒粮",
-                primary=ModelAssignment("openai/example-model"),
-            ),
+        FoodPackage(
+            key="standard",
+            display_name="标准粮",
+            primary=ModelAssignment("ollama/qwen3.5:0.8b"),
+        ),
+        FoodPackage(
+            key="focus",
+            display_name="清醒粮",
+            primary=ModelAssignment("openai/example-model"),
+        ),
     ):
         repository.create(package)
 
@@ -57,7 +57,9 @@ def test_development_runtime_config_does_not_read_production_config(
 
     runtime = create_runtime("standard", str(store.root))
     assert runtime.inner.selected_model == "ollama/qwen3.5:0.8b"
-    assert runtime.inner.runtime.food_catalog_repository._db_path == str(store.root / "nest.db")
+    assert runtime.inner.runtime.food_catalog_repository._db_path == str(
+        store.root / "nest.db"
+    )
 
 
 def test_elfie_lab_runtime_adapter_defaults_to_developer_root(tmp_path, monkeypatch):
@@ -110,4 +112,6 @@ def test_provider_configuration_separates_secret_and_non_secret_data(tmp_path):
     runtime = create_runtime("focus", str(store.root))
     assert runtime.inner.selected_provider == "openai"
     assert runtime.inner.selected_model == "openai/example-model"
-    assert runtime.inner.runtime.food_catalog_repository._db_path == str(store.root / "nest.db")
+    assert runtime.inner.runtime.food_catalog_repository._db_path == str(
+        store.root / "nest.db"
+    )

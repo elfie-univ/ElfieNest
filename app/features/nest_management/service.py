@@ -88,9 +88,7 @@ class NestManagementService:
         except NestPortError as error:
             raise NestManagementUnavailable("Nest management unavailable") from error
         anchor_id = (
-            None
-            if command.bed_number is None
-            else f"bed-{command.bed_number:02d}"
+            None if command.bed_number is None else f"bed-{command.bed_number:02d}"
         )
         return NestBedAssignment(
             elfie_id=command.elfie_id,

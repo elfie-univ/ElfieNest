@@ -127,7 +127,9 @@ def _source_child_directories(root: Path) -> Set[str]:
     return {
         path.name
         for path in root.iterdir()
-        if path.is_dir() and path.name != "__pycache__" and not path.name.startswith(".")
+        if path.is_dir()
+        and path.name != "__pycache__"
+        and not path.name.startswith(".")
     }
 
 

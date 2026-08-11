@@ -125,7 +125,9 @@ class OllamaPlatformAdapter:
         if binding is None:
             return OllamaProbe("absent", "")
         if not is_safe_local_endpoint(binding.api_base):
-            return OllamaProbe("repair_required", "", detail="Ollama endpoint 必须是本机回环地址")
+            return OllamaProbe(
+                "repair_required", "", detail="Ollama endpoint 必须是本机回环地址"
+            )
         if binding.install_kind == "official-script":
             try:
                 self.verify_recorded_installation(binding)

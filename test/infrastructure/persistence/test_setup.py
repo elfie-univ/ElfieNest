@@ -3,8 +3,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from infrastructure.persistence.store import init_db
 from infrastructure.persistence.setup import SQLiteSetupAdapter
+from infrastructure.persistence.store import init_db
 
 
 def test_setup_reads_are_read_only_when_the_installation_row_is_absent(
