@@ -30,8 +30,8 @@
 万能 Repository、自动扫描式依赖注入框架，也不要求每个 helper 都定义 Port。这些
 机制只有在出现独立且已证明的需求并获得批准后才能引入。
 
-[系统架构契约](system)负责顶层物理目录。现有 `app/infrastructure/` Adapter 属于
-已登记迁移债务；新增所有权必须以根 `infrastructure/` 为目标，旧路径只允许收缩。
+[系统架构契约](system)负责顶层物理目录。生产 Adapter 已归位根
+`infrastructure/`；禁止恢复已退役的 `app/infrastructure/` 路径。
 
 ## 四个 App 区域及其 Infrastructure Adapter
 
@@ -40,7 +40,7 @@
 | `app/interfaces/` | HTTP、WebSocket、CLI、Web、Desktop 协议入口；凭据解析；请求响应映射；协议错误映射 | 产品规则、SQL、数据根解析、具体 Repository、Runtime authority |
 | `app/features/` | 产品用例、授权、命令、查询、结果、业务错误和用例所需 Port | FastAPI、SQLite、具体 Adapter、线程/进程所有权、跨 authority Runtime 流程 |
 | `app/orchestration/` | 跨两个以上 authority 的流程、非原子外部副作用、Runtime 生命周期协同 | 普通 CRUD、协议 DTO、具体持久化或设备 Adapter |
-| `infrastructure/`（目标；当前为 `app/infrastructure/`） | 持久化、文件、网络、模型平台、设备和操作系统能力的 Port 实现 | 产品授权、页面行为、用例流程决策 |
+| `infrastructure/` | 持久化、文件、网络、模型平台、设备和操作系统能力的 Port 实现 | 产品授权、页面行为、用例流程决策 |
 | `app/bootstrap/` | 组合根：创建、注入、对象生命周期、启动和收束装配 | 业务分支、SQL、协议映射、第二套配置事实 |
 
 四个 App 自有区域是 Interface、Feature、Orchestration 和 Bootstrap。根
@@ -177,8 +177,7 @@ Repository 可以表达事实的保存和查询，但不能决定管理员是否
 
 外部身体概念、命令和感知契约属于 `elfie/body`。设备注册、列表、撤销、授权和
 Elfie/body 关联属于 App Feature。凭据材料、局域网传输、设备 Session 和技术健康属于
-Secret 与 `infrastructure/devices` Adapter（当前位于
-`app/infrastructure/devices`）；App 只保存凭据引用。托管、归巢、离线和身体切换需要
+Secret 与 `infrastructure/devices` Adapter；App 只保存凭据引用。托管、归巢、离线和身体切换需要
 协调真实精灵、Nest 和设备时属于 Orchestration。持久化实现对应
 Feature/Orchestration Port，Bootstrap 完成装配。设备传输本身既不是产品流程，也不是
 授权 authority。

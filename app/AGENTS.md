@@ -15,7 +15,7 @@
 interfaces    -> Feature 公开用例 / Orchestration 公开门面
 features      -> 自有 Model、Port + 获准的领域公开 API
 orchestration -> App Port + elfie / nest 公开 API
-infrastructure-> 实现 Feature / Orchestration Port + 技术库（目标在根目录）
+root infrastructure -> 实现 Feature / Orchestration Port + 技术库
 bootstrap     -> 以上所有模块（仅创建、注入、生命周期装配）
 ```
 
@@ -26,9 +26,9 @@ bootstrap     -> 以上所有模块（仅创建、注入、生命周期装配）
 - `orchestration/` 只承载跨两个以上 authority、跨模块副作用或 Runtime 生命周期
   流程；不得直接依赖具体 Infrastructure，也不得成为普通 CRUD、Food 读取、模型调用
   或工具执行的中转层。
-- 根 `infrastructure/` 是 Adapter 的目标位置，承载 SQL、文件系统、网络、模型平台和
-  设备传输等技术细节；不得决定产品权限或业务流程。现有 `app/infrastructure/` 是
-  迁移路径，只允许在获批迁移中收缩，不得继续新增所有权。
+- 根 `infrastructure/` 是 Adapter 的唯一生产位置，承载 SQL、文件系统、网络、模型
+  平台和设备传输等技术细节；不得决定产品权限或业务流程。禁止恢复
+  `app/infrastructure/` 产品实现或第二个 Adapter 根。
 - Infrastructure 各能力包不得导入或构造彼此的具体 Adapter；跨能力依赖使用窄 Port，
   由 Bootstrap 注入。
 - `bootstrap/` 是唯一生产组合根，只负责实例化、注入、Container 对象生命周期和

@@ -28,7 +28,7 @@ Godot 或应用生命周期。
 | `infrastructure/tools/` | 搜索、受限工作区文件、沙箱及其他工具执行 Adapter |
 | `elfie/` | 单只精灵的大脑、记忆、情绪和 Skills；只请求语义模型角色和允许工具，不选择 Provider |
 | `app/features/` | Provider 连接管理和凭据引用、Food 管理/生成、模型管理报告、验证调度策略、全局工具配置和页面投影 |
-| `infrastructure/persistence/`（目标；当前为 `app/infrastructure/`） | Nest 数据库和文件系统适配 |
+| `infrastructure/persistence/` | Nest 数据库和文件系统适配 |
 | Elfie 自有 Port | 直接读取 Food、调用模型和执行已批准工具；Infrastructure 实现，Bootstrap 注入 |
 | `app/interfaces/` | Owner API 和可见页面，不持有独立 Runtime 事实 |
 | App 自有 Scheduler/Runner Port | 执行由模型管理 Feature 定义策略的定时验证任务 |

@@ -15,8 +15,8 @@
 具体的内部入口与控制路径。特别是，`ElfieFactory` 负责创建或恢复 `Elfie` 实例；
 运行期操作随后通过返回的 `elfie.py` facade 进行。
 
-`app/orchestration` 直接组合 `elfie`、`nest` 与 `ai_runtime`，并不位于
-`app/features` 或 `app/infrastructure` 的下游。在产品用例平面，Interface 调用具体
+`app/orchestration` 直接组合 `elfie`、`nest` 与注入的认知 Runtime，并不位于
+`app/features` 的下游。在产品用例平面，Interface 调用具体
 Feature 用例，Feature 声明自己需要的 Port，Infrastructure 实现 Port，Bootstrap 是
 唯一组合根。当前历史偏差记录在 [App 一致性台账](../conformance/application)。
 
@@ -27,8 +27,9 @@ Feature 用例，Feature 声明自己需要的 Port，Infrastructure 实现 Port
 | `elfie/` | 一只完整精灵的档案、大脑、神经系统、身体、通信与技能 | [Elfie README](https://github.com/elfie-univ/ElfieNest/blob/main/elfie/README.md) |
 | `nest/` | 活动空间状态、环境时钟与互动语义 | [Nest README](https://github.com/elfie-univ/ElfieNest/blob/main/nest/README.md) |
 | `infrastructure/godot/gateway/` | 已认证 Godot 协议传输、Session 与 Bundle 检查 | [模块边界](./module-boundaries) |
-| `ai_runtime/` | 模型、Provider、策略、粮食、工具与安全运行时 | [AI Runtime README](https://github.com/elfie-univ/ElfieNest/blob/main/ai_runtime/README.md) |
-| `app/` | 产品用例、接口、基础设施和跨模块编排 | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
+| `ai_runtime/` | 已登记的混合 Food、工具循环与推理协调残留 | [AI Runtime README](https://github.com/elfie-univ/ElfieNest/blob/main/ai_runtime/README.md) |
+| `app/` | 产品用例、接口、编排与 Bootstrap 装配 | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
+| `infrastructure/` | 模型、工具、持久化、Godot、设备、通信与平台 Adapter | [模块边界](./module-boundaries) |
 | `app/orchestration/lifecycle/` | Runtime 生命周期、完整健康、owner lease 与权威控制 | [运行时与数据](./runtime) |
 | `infrastructure/godot/lifecycle/` 与 `artifacts/` | 权威宿主选择、已导出 Runtime 启动和产物元数据 | [运行时与数据](./runtime) |
 | `app/interfaces/desktop/` | Electron Observer 窗口与公开 lifecycle client | [Desktop README](https://github.com/elfie-univ/ElfieNest/blob/main/app/interfaces/desktop/README.md) |

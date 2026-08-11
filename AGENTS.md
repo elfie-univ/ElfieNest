@@ -218,7 +218,7 @@ infrastructure/   模型、工具、持久化、Godot、设备、通信与平台
   由 Bootstrap 组合。
 - `elfie/` 与 `nest/` 不得互相导入，也不得导入 `app/` 或具体 Infrastructure；底层
   Adapter 可以反向导入自己实现的核心 Port，这是依赖倒置，不是领域反向依赖。
-- 现有 `app/infrastructure/`、`ai_runtime/`、`nest/godot_gateway/observer.py` 及
+- 现有 `ai_runtime/`、`nest/godot_gateway/observer.py` 及
   领域内部技术实现是已登记迁移路径，只能按获批切片收缩，不得复制成新的所有权。
   `ai_runtime/` 按职责拆解，不整体移动，也不创建 `infrastructure/ai_runtime/`。
 - `godot_project/` 永久保持独立 Godot 源工程和物理 authority，不是迁移目录；只有
@@ -260,7 +260,7 @@ infrastructure/   模型、工具、持久化、Godot、设备、通信与平台
 - `app/interfaces/desktop` 是可见的 Observer 与 lifecycle client：只能读取获授权
   的范围状态、发出获允许的高层意图；不得持有 authority 凭据、启动 Runtime 组件，
   或导入 Gateway 内部协议实现。
-- `app/interfaces/`、`app/features/`、`app/infrastructure/` 可以使用公开配置、目录
+- `app/interfaces/`、`app/features/` 可以使用公开配置、目录
   和只读 DTO；不得因此构造或接管 Engine、Gateway、Godot authority，或发送原始
   Runtime 协议帧。
 - 新增跨边界 import、生命周期所有者或 Observer 能力时，只添加或更新直接相关的
@@ -270,7 +270,7 @@ infrastructure/   模型、工具、持久化、Godot、设备、通信与平台
 - 中间构建产物只能写入根 `build/`，最终发行物只能写入根 `dist/`，生产数据
   只能写入 `ELFIE_HOME`；不得把生成物写回源码目录。
 - 生产数据只能通过统一 resolver 定位；SQL 只能存在于持久化层。具体数据根、
-  数据库职责和 Developer Tools 隔离规则见 `app/infrastructure/persistence/AGENTS.md`。
+  数据库职责和 Developer Tools 隔离规则见 `infrastructure/persistence/AGENTS.md`。
 
 禁止恢复旧顶层 Python 包 `runtime/` 或 `elfienest/`。宏观架构 v1 已冻结；新增顶层
 目录、改变模块所有权、authority、依赖方向、生产组合/生命周期所有权或系统级 Port

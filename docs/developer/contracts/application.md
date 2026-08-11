@@ -36,9 +36,8 @@ auto-discovered dependency-injection framework or a Port for every helper
 function. Those mechanisms require a separate demonstrated need and approval.
 
 The [system architecture contract](system) controls physical top-level
-placement. Existing adapters under `app/infrastructure/` are registered
-migration debt; new ownership must target root `infrastructure/`, and the old
-path may only shrink.
+placement. Production Adapters now live under root `infrastructure/`; the
+retired `app/infrastructure/` path must not be restored.
 
 ## Four App areas and their Infrastructure adapters
 
@@ -47,7 +46,7 @@ path may only shrink.
 | `app/interfaces/` | HTTP, WebSocket, CLI, Web and Desktop protocol entry; credential parsing; request/response mapping; protocol error mapping | Product rules, SQL, data-root resolution, concrete repositories, Runtime authority |
 | `app/features/` | Product use-cases, authorization, commands, queries, results, business errors and the Ports required by those use-cases | FastAPI, SQLite, concrete adapters, process/thread ownership, cross-authority Runtime flows |
 | `app/orchestration/` | Workflows crossing two or more authorities, non-atomic external side effects, and Runtime lifecycle coordination | Ordinary CRUD, protocol DTOs, concrete persistence/device adapters |
-| `infrastructure/` (target; currently `app/infrastructure/`) | Port implementations for persistence, files, network, model platforms, devices and operating-system facilities | Product authorization, page behavior, use-case sequencing |
+| `infrastructure/` | Port implementations for persistence, files, network, model platforms, devices and operating-system facilities | Product authorization, page behavior, use-case sequencing |
 | `app/bootstrap/` | The composition root: construction, injection, object lifetime, startup and shutdown wiring | Business branches, SQL, protocol mapping, a second configuration source |
 
 The four App-owned areas are Interfaces, Features, Orchestration and Bootstrap.
@@ -197,7 +196,7 @@ The external-body concept, commands and perception contracts belong to
 `elfie/body`. Product enrollment, list, revoke, grants and Elfie/body
 association belong to an App Feature. Credential material, LAN transport,
 device sessions and technical health belong to secret and
-`infrastructure/devices` Adapters (currently `app/infrastructure/devices`);
+`infrastructure/devices` Adapters;
 App stores references rather than credential material. Hosting, return-home,
 offline and body-switching flows belong to Orchestration when they coordinate
 the real Elfie, Nest and device. Persistence implements the owning Feature or

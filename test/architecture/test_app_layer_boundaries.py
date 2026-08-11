@@ -209,7 +209,8 @@ def test_architecture_governance_layout_and_local_rules_exist() -> None:
         "app/features/configuration/AGENTS.md",
         "app/orchestration/AGENTS.md",
         "app/bootstrap/AGENTS.md",
-        "app/infrastructure/AGENTS.md",
+        "infrastructure/AGENTS.md",
+        "infrastructure/persistence/AGENTS.md",
         "app/interfaces/AGENTS.md",
         "app/orchestration/lifecycle/AGENTS.md",
         "app/orchestration/embodiment/AGENTS.md",
@@ -223,6 +224,7 @@ def test_architecture_governance_layout_and_local_rules_exist() -> None:
     }
     assert all((PROJECT_ROOT / path).is_file() for path in required_docs)
     assert all((PROJECT_ROOT / path).is_file() for path in required_agents)
+    assert not (PROJECT_ROOT / "app/infrastructure").exists()
 
 
 def test_governance_change_classifier_rejects_self_approval_mix() -> None:

@@ -136,9 +136,9 @@ app/
 only unversioned JSON exception is the lightweight `/api/health` process probe;
 HTML/page and static-asset routes are not product JSON resources.
 
-`app/infrastructure/` contains local governance instructions only. Production
-adapters live in the root `infrastructure/` capability packages and are created
-by `app/bootstrap/Container` assembly.
+`app/infrastructure/` has been removed. Production adapters and their local
+governance now live in root `infrastructure/` capability packages and are
+created by `app/bootstrap/Container` assembly.
 
 ## Retired-to-final mapping
 

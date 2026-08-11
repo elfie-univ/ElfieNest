@@ -123,8 +123,8 @@ app/
 `observer/`、`realtime/` 可继续包含资源子目录。唯一未版本化 JSON 例外是轻量
 `/api/health` 进程探针；HTML 页面和静态资源 Route 不属于产品 JSON 资源。
 
-`app/infrastructure/` 只保留本地治理说明。生产 Adapter 位于根 `infrastructure/`
-能力包，由 `app/bootstrap/Container` 统一创建和装配。
+`app/infrastructure/` 已删除。生产 Adapter 及其局部治理规则位于根
+`infrastructure/` 能力包，由 `app/bootstrap/Container` 统一创建和装配。
 
 ## 旧目录到最终所有者
 

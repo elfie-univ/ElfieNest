@@ -35,7 +35,7 @@ lifecycle.
 | `infrastructure/tools/` | Search, bounded workspace-file, sandbox and other tool-execution adapters |
 | `elfie/` | One Elfie's brain, memory, emotion and skills; it requests semantic model roles and allowed tools but does not select Providers |
 | `app/features/` | Provider-connection administration and credential references, Food administration/generation, model-management reports, validation scheduling policy, global tool configuration and UI projections |
-| `infrastructure/persistence/` (target; currently `app/infrastructure/`) | Nest DB and filesystem adapters |
+| `infrastructure/persistence/` | Nest DB and filesystem adapters |
 | Elfie-owned Ports | Direct Food reads, model calls and approved tool execution; Infrastructure implements and Bootstrap injects them |
 | `app/interfaces/` | Owner APIs and visible UI; no independent Runtime facts |
 | App-owned Scheduler/Runner Port | Executes scheduled validation jobs whose policy belongs to the model-management Feature |

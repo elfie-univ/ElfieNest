@@ -7,10 +7,10 @@
 
 | ID | 严重级别 | 状态 | 当前偏差 | 关闭门槛 |
 | --- | --- | --- | --- | --- |
-| SYS-001 | P0 | in progress | 根 `infrastructure/` 已有七个目标能力目录，并已拥有 Data Home、Godot Gateway、authority 宿主与产物校验。剩余所有权债集中在 `ai_runtime/`、已登记的 Observer 语义残留及 Core 内技术实现。 | 技术实现分别进入 `models`、`tools`、`persistence`、`godot`、`devices`、`communication` 或 `platform`；旧技术根和兼容 import 删除，根 `godot_project/` 保持不动。 |
+| SYS-001 | P0 | in progress | 根 `infrastructure/` 已拥有七个目标能力目录及其局部治理、Data Home、持久化、模型/Provider 技术、工具、Godot Gateway、authority 宿主和产物校验；原 `app/infrastructure/` 与 `godot_runtime/` 根已消失。剩余所有权债集中在已登记的混合 `ai_runtime` 与 Observer/Core 残留。 | 只继续等价迁移纯技术叶子；必须重构 Elfie/Nest 才能移动的混合协调器保留为后续专项；不得恢复旧根或兼容 import。 |
 | SYS-002 | P0 | open | Elfie Memory/Profile 会构造 SQLite、YAML 和路径实现，Factory/Runtime 仍知道具体存储或 Godot 传输细节；这是已登记的 Elfie 内部债，不属于当前顶层归位批次。 | Elfie 只保留语义模型、算法、Facade 和 Port；Infrastructure 实现存储/身体/渠道 Adapter；Bootstrap 注入；聚焦 Elfie 测试使用 Fake 且无技术 I/O。 |
 | SYS-003 | P0 | in progress | 原始 WebSocket、JSON、Bundle、协议与 Session 已归位 `infrastructure/godot/gateway/`，Nest 已无 WebSocket import；`nest/godot_gateway/observer.py` 仍是被 Nest Session 私有消费的已登记混合语义投影。 | APP-G06 用所有者公开导出或消费方 Port Model 替换最后一个 Observer 私有模型 import，随后删除残留 Nest 目录；世界语义、状态、事件和协议行为不得改变。 |
-| SYS-004 | P0 | in progress | 强类型 `app/bootstrap/` Container 已构造大量根 Adapter，但 API、CLI 和脚本入口仍会解析或构造部分具体技术依赖，Lifecycle 所有权尚未完全单一。 | Bootstrap 构造全部跨系统具体 Adapter并注入系统 Port；只有 Lifecycle 能启动和停止 Runtime、Gateway 与 Godot authority；产品/Runtime 代码不再有 Service Locator 或具体 Adapter 构造。 |
+| SYS-004 | P0 | in progress | 服务与交互脚本已从 `app/bootstrap/` 获取 Runtime、存储、Nest Session 和 Elfie 恢复装配，Runtime/Godot 通道经 Lifecycle 启停；但 API lifespan 仍自行构造并启动鉴权管理 WebSocket Gateway，生产装配与生命周期尚未完全单一。 | Bootstrap 构造最后这个具体 Gateway，并注入委托 Lifecycle 控制通道的启动/停止回调；Interface 只保留协议映射。 |
 | SYS-005 | P1 | open | 系统 Facade 和出站 Port 已部分存在，但没有一份稳定强类型边界清单；部分路径仍使用 `Any`、具体路径或协议细节。 | Elfie/Nest Facade，以及 Food、模型、工具、身体、世界、通信和持久化 Port 全部使用强类型模型；重复或技术命名的边界 API 删除。 |
 | SYS-006 | P1 | open | 现有永久规则只覆盖部分目标：系统精确 Scanner 主要检查 Elfie/Nest 技术 import，尚未完整棘轮 Bootstrap 装配、Infrastructure 跨能力组合和打包所有权。 | Core 测试使用 Fake/内存 Port，Adapter 测试分离，Bootstrap 有装配测试，迁移路径有端到端证据，并且系统精确基线清零。 |
 | SYS-007 | P0 | in progress | Provider、Food 与工具管理边界已有目标 Adapter，但 `ai_runtime/` 仍混有模型/工具技术、持久化和推理协调，部分根 Infrastructure Adapter 仍委托它。 | 纯技术实现及全部调用方迁到目标能力目录；任何必须重构 Elfie 认知或工具行为才能移动的混合协调器继续登记为后续 Elfie 内部专项，不得改名塞进 Infrastructure。 |

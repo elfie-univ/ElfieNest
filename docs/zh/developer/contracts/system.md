@@ -54,8 +54,8 @@ Infrastructure Adapter 可以具有复杂内部实现，例如协议状态、连
 Infrastructure 各能力包不得导入或构造其他能力包的具体 Adapter。一个能力需要另一
 能力时，只能依赖窄 Port 或共享技术模型，由 Bootstrap 提供具体实现。
 
-当前 `ai_runtime/`、`godot_runtime/`、`nest/godot_gateway/`、
-`app/infrastructure/`，以及 `elfie/`、`nest/` 内的具体技术代码，都是迁移期路径。
+当前 `ai_runtime/`、`nest/godot_gateway/observer.py`，以及 `elfie/`、`nest/` 内的
+具体技术代码，仍是迁移期路径；原 `godot_runtime/` 和 `app/infrastructure/` 根已退役。
 `ai_runtime/` 按职责拆解，不整体移动，也不创建目标 `infrastructure/ai_runtime/`。
 这些路径只能通过后续单独批准的迁移切片收缩。
 
