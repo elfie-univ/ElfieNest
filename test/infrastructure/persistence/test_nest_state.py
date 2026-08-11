@@ -67,6 +67,18 @@ def test_query_uses_public_defaults_without_writing_configuration(tmp_path) -> N
         )
 
 
+def test_runtime_catalog_before_setup_does_not_create_configuration(tmp_path) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+    repository = SQLiteNestStateAdapter(db_path)
+
+    repository.save_catalog(WorldCatalog(nest_id="local-nest", revision=1, zones=()))
+
+    with get_db(db_path) as connection:
+        assert (
+            connection.execute("SELECT COUNT(*) FROM nest_settings").fetchone()[0] == 0
+        )
+
+
 def test_remove_resident_keeps_elfie_and_clears_bed(tmp_path) -> None:
     db_path = init_db(str(tmp_path / "nest.db"))
     _seed_elfie(db_path)

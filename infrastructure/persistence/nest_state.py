@@ -95,7 +95,11 @@ class SQLiteNestStateAdapter:
                     (catalog.revision, nest_id),
                 )
                 if cursor.rowcount != 1:
-                    raise NestPersistenceError("Nest configuration not found")
+                    # Setup owns creation of the configuration row. A fresh
+                    # installation still needs to accept the live Runtime
+                    # catalog so the Setup UI can become reachable.
+                    connection.rollback()
+                    return
                 connection.commit()
         except sqlite3.Error as error:
             raise NestPersistenceError(str(error)) from error
