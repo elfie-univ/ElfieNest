@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
-from ai_runtime.storage.data_home import get_report_database_path
 from ai_runtime.storage.report_queries import (
     latest_observations,
     observations_for_run,
@@ -24,6 +23,7 @@ from ai_runtime.storage.report_schema import (
     connect_report_database,
     initialize_report_database,
 )
+from infrastructure.persistence.data_home import get_report_database_path
 
 _RUN_STATUSES = frozenset({"running", "complete", "partial", "failed"})
 _SUBJECT_KINDS = frozenset({"provider", "model", "food", "fallback", "tool", "runtime"})

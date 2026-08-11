@@ -13,11 +13,6 @@ import webbrowser
 from pathlib import Path
 from typing import Final, Optional, Sequence
 
-from ai_runtime.storage.data_home import (
-    DataHomeSelectionError,
-    get_elfie_home,
-    resolve_elfie_home,
-)
 from app.interfaces.web.frontend_build import FrontendBuildError, ensure_frontend_build
 from app.orchestration.lifecycle import (
     DEFAULT_HTTP_PORT,
@@ -34,6 +29,11 @@ from app.orchestration.lifecycle import (
     http_port_from_command,
     service_ports_from_command,
     validate_service_ports,
+)
+from infrastructure.persistence.data_home import (
+    DataHomeSelectionError,
+    get_elfie_home,
+    resolve_elfie_home,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]

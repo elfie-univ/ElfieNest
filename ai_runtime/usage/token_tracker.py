@@ -5,7 +5,7 @@ import logging
 import threading
 from typing import Any, Dict, Optional
 
-from ai_runtime.storage.data_home import get_elfie_home
+from infrastructure.persistence.data_home import get_elfie_home
 
 logger = logging.getLogger("ai_runtime.usage.token_tracker")
 

@@ -11,7 +11,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Final, Iterator
 
-from ai_runtime.storage.data_home import get_elfie_conversations_dir
+from infrastructure.persistence.data_home import get_elfie_conversations_dir
 from infrastructure.persistence.elfie_chat_history_queries import (
     select_history_rows,
     select_source_message,

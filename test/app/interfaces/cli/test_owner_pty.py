@@ -18,7 +18,7 @@ from infrastructure.persistence.store import (
 from test.app.interfaces.cli.entrypoint_test_support import PROJECT_ROOT
 
 _CHILD_CODE: Final = """
-from ai_runtime.storage.data_home import get_db_path
+from infrastructure.persistence.data_home import get_db_path
 from app.bootstrap.accounts import build_accounts_service
 from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.interfaces.cli.owner_commands import recover_owner_interactive

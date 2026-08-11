@@ -7,8 +7,6 @@ import shutil
 from dataclasses import replace
 from pathlib import Path
 
-from ai_runtime.storage.data_home import data_home_from_db_path
-from ai_runtime.storage.data_layout import ensure_final_elfie_layout, final_root_layout
 from app.features.adoption import AcceptedAdoptionReservation
 from app.orchestration.resident_admission import ResidentAdmissionPortError
 from elfie.profile import (
@@ -16,6 +14,11 @@ from elfie.profile import (
     AppearanceResolver,
     ElfieProfileRepository,
     create_visual_profile,
+)
+from infrastructure.persistence.data_home import data_home_from_db_path
+from infrastructure.persistence.data_layout import (
+    ensure_final_elfie_layout,
+    final_root_layout,
 )
 
 _VERBAL_TICKS = ("哒", "喵", "呢", "啦", "呀")

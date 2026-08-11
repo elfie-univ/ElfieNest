@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ai_runtime.storage.data_home import get_runtime_dir
+from infrastructure.persistence.data_home import get_runtime_dir
 
 
 class LocalFileAccessError(RuntimeError):

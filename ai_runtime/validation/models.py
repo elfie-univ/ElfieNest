@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Mapping
 
-from ai_runtime.storage.data_home import get_runtime_validation_dir
+from infrastructure.persistence.data_home import get_runtime_validation_dir
 
 
 class CheckStatus(str, Enum):

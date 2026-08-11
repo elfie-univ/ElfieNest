@@ -6,9 +6,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
 
+from infrastructure.persistence.data_home import get_env_path, get_provider_config_path
+
 from .providers.profiles import BUILTIN_PROFILES, get_default_api_mode, get_product
 from .storage.config_store import ConfigStoreError, read_yaml_mapping
-from .storage.data_home import get_env_path, get_provider_config_path
 from .storage.provider_connections import ProviderConnectionStore
 from .storage.runtime_settings import read_runtime_settings
 from .storage.secrets import (

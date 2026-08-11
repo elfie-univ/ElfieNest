@@ -28,7 +28,6 @@ from ai_runtime.gateway.request import (
 )
 from ai_runtime.models.model_reference import parse_model_reference
 from ai_runtime.safety.permissions import PermissionManager
-from ai_runtime.storage.data_home import get_runtime_config_paths
 from ai_runtime.tools.config import effective_tool_keys, load_tool_configs
 from ai_runtime.tools.local_files import LocalFileAccessPlugin
 from ai_runtime.tools.search import WebSearchPlugin
@@ -38,6 +37,7 @@ from ai_runtime.usage.observer import (
     RuntimeEventStatus,
     get_runtime_observer,
 )
+from infrastructure.persistence.data_home import get_runtime_config_paths
 
 logger = logging.getLogger("ai_runtime.gateway.agent")
 MainFoodLoader = Callable[[str], MainFoodSelection]
@@ -549,7 +549,9 @@ class RuntimeAgent:
             raise RuntimeError("Runtime 未注入粮食数据库仓储")
         catalog = self.food_catalog_repository.load()
         if not catalog.recipes:
-            raise RuntimeError("正式粮食数据库不存在粮食配置，请先运行 setup/doctor 初始化")
+            raise RuntimeError(
+                "正式粮食数据库不存在粮食配置，请先运行 setup/doctor 初始化"
+            )
         return catalog
 
     def _assemble_multimodal_payload(

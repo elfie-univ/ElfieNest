@@ -17,7 +17,6 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import RequestResponseEndpoint
 
-from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts import AccountsService
 from app.features.adoption import AdoptionService
 from app.features.bodies import BodiesService
@@ -43,6 +42,7 @@ from app.orchestration.observer import ObserverFacade
 from app.orchestration.resident_admission import ResidentAdmissionService
 from app.orchestration.setup_installation import SetupInstallationService
 from infrastructure.communication import SameOriginMessagePublisher
+from infrastructure.persistence.data_home import get_db_path as _get_db_path
 from infrastructure.persistence.store import (
     init_db,
     seed_initial_owner_if_env_set,

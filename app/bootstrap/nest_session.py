@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Union
 
 from ai_runtime.food.resolver import MainFoodSelection
-from ai_runtime.storage.data_home import get_elfie_workspace_dir
 from app.orchestration.nest_session import CorticalRuntimeFactory, ElfieNestEngine
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
 from infrastructure.models.runtime_adapter import (
@@ -14,6 +13,7 @@ from infrastructure.models.runtime_adapter import (
     StructuredRuntime,
 )
 from infrastructure.persistence import SQLiteNestStateAdapter
+from infrastructure.persistence.data_home import get_elfie_workspace_dir
 
 MainFoodLoader = Callable[[str], Optional[Union[str, MainFoodSelection]]]
 

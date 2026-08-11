@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.storage.data_home import get_config_path, get_elfie_home
+from infrastructure.persistence.data_home import get_config_path, get_elfie_home
 
 
 def _write_legacy_runtime_config(path: Path, provider_id: str = "legacy_only") -> None:

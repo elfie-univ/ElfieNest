@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from ai_runtime.storage.data_home import get_db_path
 from app.bootstrap.cli_configuration import build_cli_configuration
 from app.features.configuration import ListProviderProductsQuery
+from infrastructure.persistence.data_home import get_db_path
 
 
 def test_cli_configuration_builds_narrow_facades(monkeypatch, tmp_path) -> None:

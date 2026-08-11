@@ -49,14 +49,6 @@ from ai_runtime.gateway.request import (
     StructuredRuntimeRequest,
     StructuredRuntimeResult,
 )
-from ai_runtime.storage.data_home import (
-    DataHomeSelectionError,
-    data_home_from_db_path,
-    get_db_path,
-    get_elfie_config_dir,
-    get_elfie_home,
-    select_elfie_home,
-)
 from app.bootstrap import create_app
 from app.bootstrap.food import build_food_service
 from app.bootstrap.lifecycle import create_lifecycle_facade
@@ -88,6 +80,14 @@ from infrastructure.persistence import (
     SQLiteElfiesProjectionAdapter,
 )
 from infrastructure.persistence.account_repository import AccountRepository
+from infrastructure.persistence.data_home import (
+    DataHomeSelectionError,
+    data_home_from_db_path,
+    get_db_path,
+    get_elfie_config_dir,
+    get_elfie_home,
+    select_elfie_home,
+)
 from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
 from infrastructure.persistence.store import (
     get_db,

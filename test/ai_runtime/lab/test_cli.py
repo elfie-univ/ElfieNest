@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from ai_runtime.lab.cli import RuntimeLab
-from ai_runtime.storage.data_home import (
-    get_env_path,
-    get_provider_config_path,
-)
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.storage.runtime_settings import read_runtime_settings
 from ai_runtime.storage.secrets import read_secrets
+from infrastructure.persistence.data_home import (
+    get_env_path,
+    get_provider_config_path,
+)
 
 
 def test_default_runtime_lab_writes_only_runtime_settings(tmp_path, monkeypatch):

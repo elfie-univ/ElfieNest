@@ -32,7 +32,6 @@ from ai_runtime.providers.model_hints import (
 )
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
 from ai_runtime.storage.config_store import write_yaml_mapping
-from ai_runtime.storage.data_home import get_config_path, get_elfie_developer_home
 from ai_runtime.storage.runtime_settings import write_runtime_settings
 from ai_runtime.storage.secrets import (
     provider_secret_name,
@@ -55,6 +54,10 @@ from ai_runtime.validation.providers import (
 )
 from ai_runtime.validation.tools import DirectToolValidationRunner
 from infrastructure.persistence import init_db
+from infrastructure.persistence.data_home import (
+    get_config_path,
+    get_elfie_developer_home,
+)
 from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
 
 
@@ -794,9 +797,7 @@ class RuntimeLab:
         )
         self.output(f"Vision: {package.vision.model if package.vision else '—'}")
         self.output(f"Tool: {package.tool.model if package.tool else '—'}")
-        self.output(
-            f"Fallback: {package.fallback.model if package.fallback else '—'}"
-        )
+        self.output(f"Fallback: {package.fallback.model if package.fallback else '—'}")
         self.output(
             f"State: {'archived' if package.archived else 'enabled' if package.enabled else 'disabled'}"
         )
@@ -859,8 +860,9 @@ class RuntimeLab:
                 "Reasoning": package.reasoning.model if package.reasoning else "None",
                 "Vision": package.vision.model if package.vision else "None",
                 "Tool": package.tool.model if package.tool else "None",
-                "Fallback": package.fallback.model if package.fallback else ""
-                or "None",
+                "Fallback": package.fallback.model
+                if package.fallback
+                else "" or "None",
             }
 
         old_values, new_values = values(old_recipe), values(new_recipe)

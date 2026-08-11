@@ -8,7 +8,6 @@ import time
 from typing import Any, Dict, List
 
 from ai_runtime.food.models import FoodPackage
-from ai_runtime.storage.data_home import get_elfie_developer_home
 from devtools.elfie_lab.runtime_foods import (
     load_runtime_food_catalog,
     runtime_food_catalog_store,
@@ -19,6 +18,7 @@ from elfie.brain.runtime_port import (
     ModelGenerationResult,
     StructuredOutputMode,
 )
+from infrastructure.persistence.data_home import get_elfie_developer_home
 
 _SECRET_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{12,}"),

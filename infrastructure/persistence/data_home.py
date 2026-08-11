@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Mapping, Optional, Union
 
-from ai_runtime.storage.data_layout import (
+from infrastructure.persistence.data_layout import (
     FinalRootLayout,
     ensure_final_root_layout,
     final_root_layout,

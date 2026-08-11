@@ -19,9 +19,9 @@
   或迁移已废弃的 `nest.db.chat_messages`。
 - Developer Tools 默认根为 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，其下分别保存
   `elfie_lab/`、`nest_lab/`、`runtime_lab/`。它们不得读取或写入生产 `ELFIE_HOME`。
-- 新增永久数据路径必须通过统一数据根 resolver；当前
-  `ai_runtime.storage.data_home` 是待迁移实现，不得成为新的目标所有权。resolver 的
-  目标位置由后续持久化/平台迁移切片确定。只有永久数据契约或开发者可见行为变化时
-  才同步中英文文档。
+- 新增永久数据路径必须通过统一的
+  `infrastructure.persistence.data_home` resolver；不得在局部任务中复制第二套路径
+  规则、环境变量解析或数据布局。只有永久数据契约或开发者可见行为变化时才同步
+  中英文文档。
 - MVP 阶段默认更新当前调用方并删除旧实现；未经用户明确批准，不新增 migration、
   fallback read、dual write、旧字段 alias、兼容 Repository 或长期兼容壳。

@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Optional, Set, Tuple
 
 from ai_runtime.lab.cli import RuntimeLab
-from ai_runtime.storage.data_home import (
+from app.orchestration.lifecycle import DEFAULT_SERVICE_PORTS, LifecycleFacade
+from infrastructure.persistence.data_home import (
     ensure_elfie_home,
     get_elfie_home,
     get_logs_dir,
@@ -16,7 +17,6 @@ from ai_runtime.storage.data_home import (
     get_runtime_locks_dir,
     get_runtime_validation_dir,
 )
-from app.orchestration.lifecycle import DEFAULT_SERVICE_PORTS, LifecycleFacade
 
 
 @dataclass(frozen=True)

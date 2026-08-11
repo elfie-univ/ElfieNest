@@ -7,13 +7,13 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, cast
 
-from ai_runtime.storage.data_home import get_elfie_developer_home
 from devtools.elfie_lab.schemas import ElfieSpec, derive_life_stage, new_id
 from elfie.profile import (
     ElfieProfileRepository,
     create_visual_profile,
     derive_personality,
 )
+from infrastructure.persistence.data_home import get_elfie_developer_home
 
 
 class ElfieLabStorage:

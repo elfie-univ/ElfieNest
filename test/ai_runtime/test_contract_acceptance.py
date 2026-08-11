@@ -15,9 +15,6 @@ from ai_runtime.food.models import (
 from ai_runtime.food.planner import FoodPlanner, ModelEvidence
 from ai_runtime.food.store import FoodCatalog
 from ai_runtime.gateway.agent import RuntimeAgent
-from ai_runtime.storage.data_home import (
-    get_provider_config_path,
-)
 from ai_runtime.storage.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
@@ -25,6 +22,9 @@ from ai_runtime.storage.provider_connections import (
 from ai_runtime.storage.report_repository import ReportRepository
 from ai_runtime.storage.runtime_settings import write_runtime_settings
 from ai_runtime.storage.secrets import set_connection_secret
+from infrastructure.persistence.data_home import (
+    get_provider_config_path,
+)
 from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
 from infrastructure.persistence.store import get_db, init_db
 

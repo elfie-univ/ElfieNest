@@ -13,7 +13,6 @@ from ai_runtime.storage.config_store import (
     read_yaml_mapping,
     write_yaml_mapping,
 )
-from ai_runtime.storage.data_home import get_config_path
 from ai_runtime.storage.runtime_settings import (
     CONFIG_DOCUMENT_VERSION,
     read_runtime_settings,
@@ -27,6 +26,7 @@ from app.features.configuration import (
     StoredRuntimeSettings,
     StoredSecuritySettings,
 )
+from infrastructure.persistence.data_home import get_config_path
 
 
 class RuntimeSettingsAdapter:
@@ -154,9 +154,7 @@ class RuntimeSettingsAdapter:
     def _default_section(name: str) -> dict[str, object]:
         raw_section = DEFAULT_SYSTEM_SETTINGS.get(name)
         if not isinstance(raw_section, Mapping):
-            RuntimeSettingsAdapter._invalid(
-                f"default system.{name}", "必须是对象"
-            )
+            RuntimeSettingsAdapter._invalid(f"default system.{name}", "必须是对象")
         return RuntimeSettingsAdapter._typed_mapping(raw_section)
 
     def _save_section(self, name: str, section: Mapping[str, object]) -> None:
@@ -187,7 +185,9 @@ class RuntimeSettingsAdapter:
             if self._config_path.exists():
                 shutil.copy2(
                     str(self._config_path),
-                    str(self._config_path.with_suffix(f"{self._config_path.suffix}.bak")),
+                    str(
+                        self._config_path.with_suffix(f"{self._config_path.suffix}.bak")
+                    ),
                 )
             write_yaml_mapping(
                 self._config_path,

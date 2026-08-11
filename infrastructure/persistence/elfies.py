@@ -10,8 +10,6 @@ from typing import Final
 
 import yaml
 
-from ai_runtime.storage.data_home import data_home_from_db_path
-from ai_runtime.storage.data_layout import final_root_layout
 from app.features.elfies import (
     CognitionEdgeRecord,
     CognitionEntityRecord,
@@ -24,6 +22,8 @@ from app.features.elfies import (
     ElfiesPortError,
 )
 from elfie.profile import AppearanceResolver, ElfieProfileRepository, ResolvedAppearance
+from infrastructure.persistence.data_home import data_home_from_db_path
+from infrastructure.persistence.data_layout import final_root_layout
 
 from .sqlite_connection import app_sqlite_connection
 

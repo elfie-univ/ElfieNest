@@ -12,7 +12,7 @@ from ai_runtime.storage.config_store import (
     read_yaml_mapping,
     write_yaml_mapping,
 )
-from ai_runtime.storage.data_home import (
+from infrastructure.persistence.data_home import (
     ensure_elfie_home,
     get_config_path,
     get_tool_config_path,

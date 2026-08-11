@@ -4,15 +4,15 @@ import pytest
 import yaml
 
 from ai_runtime.storage.config_store import ConfigStoreError
-from ai_runtime.storage.data_home import (
-    get_config_path,
-    get_provider_config_path,
-    get_tool_config_path,
-)
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.storage.runtime_settings import (
     read_runtime_settings,
     write_runtime_settings,
+)
+from infrastructure.persistence.data_home import (
+    get_config_path,
+    get_provider_config_path,
+    get_tool_config_path,
 )
 
 

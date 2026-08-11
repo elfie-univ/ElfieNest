@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Iterable
 
-from ai_runtime.storage.data_home import get_elfie_developer_home
+from infrastructure.persistence.data_home import get_elfie_developer_home
 
 
 @dataclass(frozen=True)

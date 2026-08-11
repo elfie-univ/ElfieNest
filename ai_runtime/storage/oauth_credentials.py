@@ -10,7 +10,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
-from ai_runtime.storage.data_home import ensure_elfie_home, get_oauth_credentials_dir
+from infrastructure.persistence.data_home import (
+    ensure_elfie_home,
+    get_oauth_credentials_dir,
+)
 
 _CREDENTIAL_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 _MAX_CREDENTIAL_BYTES = 1024 * 1024

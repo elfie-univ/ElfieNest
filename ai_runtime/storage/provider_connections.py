@@ -10,7 +10,6 @@ from ai_runtime.storage.config_store import (
     read_yaml_mapping,
     write_yaml_mapping,
 )
-from ai_runtime.storage.data_home import ensure_elfie_home, get_provider_config_path
 from ai_runtime.storage.provider_connection_records import (
     CONNECTION_DOCUMENT_VERSION,
     CONNECTION_ID_PATTERN,
@@ -21,6 +20,10 @@ from ai_runtime.storage.provider_connection_records import (
     ProviderModelRecord,
     is_connection_id,
     parse_provider_document,
+)
+from infrastructure.persistence.data_home import (
+    ensure_elfie_home,
+    get_provider_config_path,
 )
 
 

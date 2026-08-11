@@ -154,7 +154,7 @@ def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
 
 
 def test_reports_and_food_facts_use_only_contract_paths() -> None:
-    data_home_source = _source("ai_runtime/storage/data_home.py")
+    data_home_source = _source("infrastructure/persistence/data_home.py")
     assert "ai-runtime.sqlite" in data_home_source
     assert "runtime_events.jsonl" not in _source("ai_runtime/usage/observer.py")
 

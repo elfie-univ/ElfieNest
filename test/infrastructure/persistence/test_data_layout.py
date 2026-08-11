@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_runtime.storage.data_layout import (
+from infrastructure.persistence.data_layout import (
     InvalidAvatarExtensionError,
     InvalidFinalElfieIdError,
     InvalidFinalUserIdError,

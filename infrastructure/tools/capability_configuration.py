@@ -12,7 +12,6 @@ from ai_runtime.storage.config_store import (
     read_yaml_mapping,
     write_yaml_mapping,
 )
-from ai_runtime.storage.data_home import get_config_path
 from ai_runtime.storage.runtime_settings import (
     read_runtime_settings,
     write_runtime_settings,
@@ -27,6 +26,7 @@ from app.features.configuration.capabilities import (
     StoredWebSearchCapability,
     WebSearchUpdateField,
 )
+from infrastructure.persistence.data_home import get_config_path
 
 _SEARCH_PROVIDERS = frozenset({"duckduckgo", "brave", "tavily"})
 

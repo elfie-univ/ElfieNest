@@ -1,4 +1,4 @@
-"""tests for ai_runtime.storage.data_home module"""
+"""Tests for the root Infrastructure data-home resolver."""
 
 import os
 import stat
@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from ai_runtime.storage import data_home
-from ai_runtime.storage.data_home import (
+from infrastructure.persistence import data_home
+from infrastructure.persistence.data_home import (
     data_home_from_db_path,
     ensure_elfie_home,
     get_config_path,

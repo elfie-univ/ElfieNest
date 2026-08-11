@@ -34,16 +34,6 @@ SQL_LITERAL_PATTERN = re.compile(
 )
 
 
-def _migration_path(*relative_paths: str) -> Path:
-    """Prefer the target path while accepting one registered current location."""
-
-    for relative_path in relative_paths:
-        candidate = PROJECT_ROOT / relative_path
-        if candidate.is_file():
-            return candidate
-    return PROJECT_ROOT / relative_paths[0]
-
-
 def test_developer_tools_only_reference_production_home_for_an_explicit_guard() -> None:
     offenders: list[str] = []
     for path in (PROJECT_ROOT / "devtools").rglob("*.py"):
@@ -91,10 +81,7 @@ def test_legacy_nest_chat_storage_has_no_runtime_path() -> None:
 
 
 def test_data_home_declares_production_developer_and_elfie_workspace_roots() -> None:
-    source_path = _migration_path(
-        "infrastructure/persistence/data_home.py",
-        "ai_runtime/storage/data_home.py",
-    )
+    source_path = PROJECT_ROOT / "infrastructure/persistence/data_home.py"
     functions = {
         node.name
         for node in ast.walk(ast.parse(source_path.read_text(encoding="utf-8")))
@@ -117,6 +104,8 @@ def test_data_home_declares_production_developer_and_elfie_workspace_roots() -> 
         "get_runtime_config_paths",
         "get_tool_config_path",
     } <= functions
+    assert not (PROJECT_ROOT / "ai_runtime/storage/data_home.py").exists()
+    assert not (PROJECT_ROOT / "ai_runtime/storage/data_layout.py").exists()
 
 
 def test_application_layers_do_not_own_sql() -> None:

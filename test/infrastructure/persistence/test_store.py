@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_runtime.storage.data_home import DataHomeSelectionError
+from infrastructure.persistence.data_home import DataHomeSelectionError
 from infrastructure.persistence.store import (
     count_elfies_by_owner,
     get_db,

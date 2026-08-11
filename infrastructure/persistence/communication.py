@@ -6,12 +6,12 @@ import sqlite3
 from pathlib import Path
 from uuid import uuid4
 
-from ai_runtime.storage.data_home import data_home_from_db_path
 from app.features.communication import (
     CommunicationPortError,
     ConversationMessageWrite,
     StoredConversationMessage,
 )
+from infrastructure.persistence.data_home import data_home_from_db_path
 from infrastructure.persistence.elfie_chat_history import (
     ElfieChatMessageInput,
     ElfieChatSender,

@@ -22,11 +22,6 @@ if (
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ai_runtime.storage.data_home import (
-    DataHomeSelectionError,
-    get_db_path,
-    resolve_elfie_home,
-)
 from app.bootstrap.accounts import build_accounts_service
 from app.bootstrap.cli_configuration import build_cli_configuration
 from app.bootstrap.lifecycle import create_lifecycle_facade
@@ -54,6 +49,11 @@ from app.interfaces.cli.tui.common import print_banner
 from app.interfaces.cli.tui.config_app import run_config_tui
 from app.interfaces.cli.uninstall_commands import run_uninstall_menu
 from app.orchestration.lifecycle import LifecycleFacade, ServiceLifecycleResult
+from infrastructure.persistence.data_home import (
+    DataHomeSelectionError,
+    get_db_path,
+    resolve_elfie_home,
+)
 
 if getattr(sys, "frozen", False):
     try:

@@ -9,7 +9,6 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from ai_runtime.storage.data_home import get_config_path
 from app.bootstrap import create_app
 from app.interfaces.cli.doctor_commands import repair_local_runtime_state
 from elfie import ElfieFactory
@@ -17,6 +16,7 @@ from elfie.brain.memory.knowledge_schema import KNOWLEDGE_TABLES
 from elfie.communication import InboundDisposition, InboundDispositionStatus
 from elfie.message_types import EventId
 from infrastructure.persistence.bodies import SQLiteBodiesAdapter
+from infrastructure.persistence.data_home import get_config_path
 from infrastructure.persistence.elfie_chat_history import (
     ElfieChatMessageInput,
     ElfieChatSender,

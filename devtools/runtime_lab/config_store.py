@@ -10,7 +10,7 @@ import yaml
 
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
-from ai_runtime.storage.data_home import get_elfie_developer_home
+from infrastructure.persistence.data_home import get_elfie_developer_home
 
 SECRET_ENV_KEYS = {
     provider_id: profile.api_key_env_var

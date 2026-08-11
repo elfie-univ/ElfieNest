@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Optional
 
 from ai_runtime.lab.menu import MenuItem, TerminalMenu
-from ai_runtime.storage.data_home import get_db_path
 from app.features.accounts import (
     MAX_PASSWORD_LENGTH,
     MIN_PASSWORD_LENGTH,
@@ -21,6 +20,7 @@ from app.features.accounts import (
 )
 from app.interfaces.cli.tui.common import input_password, input_text
 from app.orchestration.lifecycle import LifecycleFacade, RecoveryInProgressError
+from infrastructure.persistence.data_home import get_db_path
 
 MIN_OWNER_ACCOUNT_ID_LENGTH = 3
 MAX_OWNER_ACCOUNT_ID_LENGTH = 32
