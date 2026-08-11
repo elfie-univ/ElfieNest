@@ -22,6 +22,7 @@ from infrastructure.godot import GodotTransport, NativeBody
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
 from infrastructure.persistence.data_home import data_home_from_db_path
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.nest_management import SQLiteNestManagementAdapter
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from infrastructure.persistence.setup import SQLiteSetupAdapter
@@ -122,6 +123,9 @@ def adopt_test_elfie(
                 )
             ),
             lambda path: YamlProfileStoreAdapter(Path(path) / "profile"),
+            lambda path: SQLiteMemoryStoreAdapter(
+                Path(path) / "memory" / "knowledge.sqlite"
+            ),
         ).restore(elfie_id, workspace)
         engine.session.register_elfie(elfie_id, elfie)
     return elfie_id

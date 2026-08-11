@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from elfie.brain.memory.graph_storage import GraphStorage
 from elfie.brain.memory.node_types import (
     EdgeTypes,
     MemoryNode,
@@ -16,9 +15,10 @@ from elfie.brain.memory.node_types import (
 )
 from elfie.brain.memory.retrieval import MemoryRetriever
 from elfie.brain.memory.sensory_index import SensoryIndexer
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 
-def _seed_test_data(gs: GraphStorage):
+def _seed_test_data(gs: SQLiteMemoryStoreAdapter):
     """填充测试数据：5个episodic节点 + 3个entity节点 + 边 + 感官索引"""
     now = datetime.now()
 
@@ -103,7 +103,7 @@ class TestMemoryRetriever:
 
     @pytest.fixture
     def storage(self):
-        gs = GraphStorage(db_path=":memory:")
+        gs = SQLiteMemoryStoreAdapter.in_memory()
         _seed_test_data(gs)
         yield gs
         gs.close()

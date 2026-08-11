@@ -13,6 +13,8 @@ from app.orchestration.nest_session import (
 )
 from elfie import ElfieFactory
 from elfie.brain.food_port import MainFoodSelection
+from elfie.factory import ElfieAssembly
+from elfie.initialization import assemble_profile
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
 from infrastructure.models.runtime_adapter import (
@@ -24,6 +26,7 @@ from infrastructure.persistence.data_home import (
     get_elfie_workspace_dir,
 )
 from infrastructure.persistence.elfies import SQLiteElfiesProjectionAdapter
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
@@ -104,14 +107,22 @@ def restore_registered_elfies(
     for row in SQLiteElfiesProjectionAdapter(db_path).list_directory():
         try:
             config_dir = Path(get_elfie_config_dir(row.elfie_id))
+            profile_store = YamlProfileStoreAdapter(config_dir / "profile")
+            profile = profile_store.load()
+            memory_store = SQLiteMemoryStoreAdapter(
+                config_dir / "memory" / "knowledge.sqlite"
+            )
             elfie = factory.restore(
-                str(config_dir),
-                elfie_id=row.elfie_id,
-                body=NativeBody(
-                    body_id=row.elfie_id,
-                    transport=GodotTransport(cast(GodotGateway, session.world_runtime)),
+                ElfieAssembly(
+                    profile=profile,
+                    memory_store=memory_store,
+                    body=NativeBody(
+                        body_id=row.elfie_id,
+                        transport=GodotTransport(
+                            cast(GodotGateway, session.world_runtime)
+                        ),
+                    ),
                 ),
-                profile_store=YamlProfileStoreAdapter(config_dir / "profile"),
             )
             session.register_elfie(row.elfie_id, elfie)
             restored.append(RestoredElfie(row.elfie_id, row.name))
@@ -128,11 +139,15 @@ def restore_registered_elfies(
 
 def register_transient_elfie(session: NestSession, elfie_id: str) -> None:
     """Create and register the existing interactive-script Elfie."""
+    profile = assemble_profile(config_dir=None, elfie_id=elfie_id, supplied=None)
     elfie = ElfieFactory().create(
-        elfie_id=elfie_id,
-        body=NativeBody(
-            body_id=elfie_id,
-            transport=GodotTransport(cast(GodotGateway, session.world_runtime)),
+        ElfieAssembly(
+            profile=profile,
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            body=NativeBody(
+                body_id=elfie_id,
+                transport=GodotTransport(cast(GodotGateway, session.world_runtime)),
+            ),
         ),
     )
     session.register_elfie(elfie_id, elfie)

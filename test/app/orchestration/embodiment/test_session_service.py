@@ -12,8 +12,10 @@ from app.orchestration.embodiment import (
 )
 from elfie import Elfie
 from elfie.body import HeadlessBody
+from elfie.profile import create_visual_profile
 from infrastructure.persistence.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.embodiment import SQLiteEmbodimentLeaseAdapter
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.store import get_db, init_db
 from nest.embodiment import EmbodimentState
 
@@ -171,7 +173,11 @@ def _registered_elfie(tmp_path: Path) -> tuple[str, Elfie]:
     nest_body = HeadlessBody(body_id="nest-1")
     nest_body.connect()
     return db_path, Elfie(
-        elfie_id="00000001", memory_db_path=":memory:", body=nest_body
+        character_profile=create_visual_profile(
+            elfie_id="00000001", display_name="测试精灵", species_id="fox", seed=5
+        ),
+        memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        body=nest_body,
     )
 
 

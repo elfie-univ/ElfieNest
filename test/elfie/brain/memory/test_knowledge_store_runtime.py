@@ -4,7 +4,9 @@ import sqlite3
 from pathlib import Path
 
 from elfie import ElfieFactory
-from elfie.brain.memory.knowledge_schema import KNOWLEDGE_TABLES
+from elfie.factory import ElfieAssembly
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from infrastructure.persistence.memory.schema import KNOWLEDGE_TABLES
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
@@ -21,10 +23,14 @@ def test_factory_workspace_uses_only_final_knowledge_database(tmp_path: Path) ->
     workspace = tmp_path / "elfie-workspace"
 
     # When
+    profile = _profile(workspace)
     elfie = ElfieFactory().create(
-        config_dir=workspace,
-        elfie_id="elfie-runtime",
-        profile_store=YamlProfileStoreAdapter(workspace / "profile"),
+        ElfieAssembly(
+            profile=profile,
+            memory_store=SQLiteMemoryStoreAdapter(
+                workspace / "memory" / "knowledge.sqlite"
+            ),
+        )
     )
 
     # Then
@@ -32,7 +38,7 @@ def test_factory_workspace_uses_only_final_knowledge_database(tmp_path: Path) ->
     assert db_path.is_file()
     assert _user_tables(db_path) == set(KNOWLEDGE_TABLES)
     assert not list(workspace.rglob("graph_memory.db"))
-    elfie.memory.close()
+    elfie.memory.storage.close()
 
 
 def test_record_reopen_retrieve_and_consolidate_uses_final_store(
@@ -40,23 +46,30 @@ def test_record_reopen_retrieve_and_consolidate_uses_final_store(
 ) -> None:
     # Given
     workspace = tmp_path / "elfie-workspace"
+    profile = _profile(workspace)
     first = ElfieFactory().create(
-        config_dir=workspace,
-        elfie_id="elfie-runtime",
-        profile_store=YamlProfileStoreAdapter(workspace / "profile"),
+        ElfieAssembly(
+            profile=profile,
+            memory_store=SQLiteMemoryStoreAdapter(
+                workspace / "memory" / "knowledge.sqlite"
+            ),
+        )
     )
     first.memory.record_episode(
         content="今天在花园看到了金色的花",
         emotion="happy",
         intensity=80.0,
     )
-    first.memory.close()
+    first.memory.storage.close()
 
     # When
-    reopened = ElfieFactory().create(
-        config_dir=workspace,
-        elfie_id="elfie-runtime",
-        profile_store=YamlProfileStoreAdapter(workspace / "profile"),
+    reopened = ElfieFactory().restore(
+        ElfieAssembly(
+            profile=YamlProfileStoreAdapter(workspace / "profile").load(),
+            memory_store=SQLiteMemoryStoreAdapter(
+                workspace / "memory" / "knowledge.sqlite"
+            ),
+        )
     )
     memories = reopened.memory.retrieve_relevant_memories("金色的花")
     result = reopened.memory.run_consolidation()
@@ -65,7 +78,7 @@ def test_record_reopen_retrieve_and_consolidate_uses_final_store(
     assert "今天在花园看到了金色的花" in memories
     assert result["consolidated_count"] == 1
     assert not list(workspace.rglob("graph_memory.db"))
-    reopened.memory.close()
+    reopened.memory.storage.close()
 
 
 def test_product_memory_modules_do_not_reference_legacy_graph_store() -> None:
@@ -94,3 +107,20 @@ def test_product_memory_modules_do_not_reference_legacy_graph_store() -> None:
         assert "graph_memory.db" not in source, name
         assert "FROM nodes" not in source, name
         assert "INTO nodes" not in source, name
+
+
+def _profile(workspace: Path):
+    workspace.mkdir(parents=True, exist_ok=True)
+    profile_store = YamlProfileStoreAdapter(workspace / "profile")
+    profile = profile_store.load() if profile_store.exists() else None
+    if profile is None:
+        from elfie.initialization import assemble_profile
+
+        profile = assemble_profile(
+            config_dir=None,
+            elfie_id="elfie-runtime",
+            supplied=None,
+        )
+        profile_store.save(profile)
+    (workspace / "memory").mkdir(parents=True, exist_ok=True)
+    return profile

@@ -1,37 +1,24 @@
-import sqlite3
 from dataclasses import replace
 from pathlib import Path
 
-import pytest
-
 from elfie import Elfie, ElfieFactory
 from elfie.body import BodyMode, HeadlessBody, QuadrupedAnatomy
-from elfie.brain.memory.knowledge_store import KnowledgeStore
 from elfie.factory import ElfieAssembly
 from elfie.profile import (
-    ElfieProfile,
     EmbodimentProfile,
     create_visual_profile,
 )
 from infrastructure.godot import GodotTransport, NativeBody
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
-def test_factory_defaults_workspace_memory_to_knowledge_sqlite(tmp_path: Path) -> None:
-    # Given
-    workspace = tmp_path / "workspace"
-
-    # When
-    elfie = ElfieFactory().create(
-        config_dir=workspace,
-        elfie_id="elfie-final-store",
-        profile_store=YamlProfileStoreAdapter(workspace / "profile"),
-    )
-
-    # Then
-    db_path = workspace / "memory" / "knowledge.sqlite"
+def test_memory_adapter_owns_workspace_knowledge_sqlite(tmp_path: Path) -> None:
+    db_path = tmp_path / "memory" / "knowledge.sqlite"
+    db_path.parent.mkdir()
+    store = SQLiteMemoryStoreAdapter(db_path)
     assert db_path.is_file()
-    with sqlite3.connect(db_path) as connection:
+    with store.connection as connection:
         tables = {
             row[0]
             for row in connection.execute(
@@ -39,8 +26,8 @@ def test_factory_defaults_workspace_memory_to_knowledge_sqlite(tmp_path: Path) -
             )
         }
     assert len(tables) == 9
-    assert not (workspace / "graph_memory.db").exists()
-    elfie.memory.close()
+    assert not (tmp_path / "graph_memory.db").exists()
+    store.close()
 
 
 def make_profile(config_dir: Path, elfie_id: str = "elfie-profile"):
@@ -72,21 +59,7 @@ class FakeGodotGateway:
         return True
 
 
-class InMemoryProfileStore:
-    def __init__(self, profile: ElfieProfile) -> None:
-        self.profile = profile
-
-    def exists(self) -> bool:
-        return True
-
-    def load(self) -> ElfieProfile:
-        return self.profile
-
-    def save(self, profile: ElfieProfile) -> None:
-        self.profile = profile
-
-
-def test_factory_consumes_profile_store_port_without_path_knowledge() -> None:
+def test_factory_consumes_typed_profile_and_memory_ports() -> None:
     profile = create_visual_profile(
         elfie_id="elfie-port",
         display_name="端口精灵",
@@ -95,10 +68,10 @@ def test_factory_consumes_profile_store_port_without_path_knowledge() -> None:
     )
 
     elfie = ElfieFactory().create(
-        config_dir="profile-store-port-test",
-        elfie_id="elfie-port",
-        memory_db_path=":memory:",
-        profile_store=InMemoryProfileStore(profile),
+        ElfieAssembly(
+            profile=profile,
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        )
     )
 
     assert elfie.profile == profile
@@ -111,7 +84,7 @@ def test_factory_assembles_from_an_immutable_typed_dependency_record() -> None:
         species_id="fox",
         seed=23,
     )
-    store = KnowledgeStore.in_memory()
+    store = SQLiteMemoryStoreAdapter.in_memory()
 
     elfie = ElfieFactory().assemble(ElfieAssembly(profile=profile, memory_store=store))
 
@@ -122,7 +95,15 @@ def test_factory_assembles_from_an_immutable_typed_dependency_record() -> None:
 
 
 def test_factory_creates_canonical_elfie_without_copying_legacy_algorithms() -> None:
-    elfie = ElfieFactory().create(elfie_id="elfie-new", memory_db_path=":memory:")
+    profile = create_visual_profile(
+        elfie_id="elfie-new", display_name="新精灵", species_id="fox", seed=11
+    )
+    elfie = ElfieFactory().create(
+        ElfieAssembly(
+            profile=profile,
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        )
+    )
 
     assert isinstance(elfie, Elfie)
     assert elfie.perceptual_workspace is not None
@@ -134,13 +115,18 @@ def test_factory_creates_canonical_elfie_without_copying_legacy_algorithms() -> 
 
 def test_factory_accepts_an_already_assembled_native_body() -> None:
     gateway = FakeGodotGateway()
+    profile = create_visual_profile(
+        elfie_id="elfie-native", display_name="原生精灵", species_id="fox", seed=12
+    )
 
     elfie = ElfieFactory().create(
-        elfie_id="elfie-native",
-        memory_db_path=":memory:",
-        body=NativeBody(
-            body_id="elfie-native",
-            transport=GodotTransport(gateway),
+        ElfieAssembly(
+            profile=profile,
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            body=NativeBody(
+                body_id="elfie-native",
+                transport=GodotTransport(gateway),
+            ),
         ),
     )
 
@@ -152,12 +138,14 @@ def test_factory_accepts_an_already_assembled_native_body() -> None:
 
 def test_factory_restores_persisted_profile_and_identity(tmp_path: Path) -> None:
     profile = make_profile(tmp_path)
+    db_path = tmp_path / "memory" / "knowledge.sqlite"
+    db_path.parent.mkdir()
 
     elfie = ElfieFactory().restore(
-        tmp_path,
-        elfie_id="elfie-profile",
-        memory_db_path=":memory:",
-        profile_store=YamlProfileStoreAdapter(tmp_path / "profile"),
+        ElfieAssembly(
+            profile=YamlProfileStoreAdapter(tmp_path / "profile").load(),
+            memory_store=SQLiteMemoryStoreAdapter(db_path),
+        )
     )
 
     assert elfie.profile is profile or elfie.profile.to_dict() == profile.to_dict()
@@ -172,11 +160,12 @@ def test_restore_preserves_profile_and_explicit_body_binding(tmp_path: Path) -> 
 
     # When
     elfie = ElfieFactory().restore(
-        tmp_path,
-        bodies=[explicit],
-        current_body_id="explicit",
-        memory_db_path=":memory:",
-        profile_store=YamlProfileStoreAdapter(tmp_path / "profile"),
+        ElfieAssembly(
+            profile=YamlProfileStoreAdapter(tmp_path / "profile").load(),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            bodies=(explicit,),
+            current_body_id="explicit",
+        )
     )
 
     # Then
@@ -200,36 +189,30 @@ def test_factory_uses_profile_embodiment_as_the_anatomy_source(
     YamlProfileStoreAdapter(tmp_path / "profile").save(profile)
 
     elfie = ElfieFactory().restore(
-        tmp_path,
-        memory_db_path=":memory:",
-        profile_store=YamlProfileStoreAdapter(tmp_path / "profile"),
+        ElfieAssembly(
+            profile=YamlProfileStoreAdapter(tmp_path / "profile").load(),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        )
     )
 
     assert elfie.anatomy_type == "quadruped"
     assert isinstance(elfie.anatomy, QuadrupedAnatomy)
 
 
-def test_factory_rejects_identity_that_conflicts_with_profile(tmp_path: Path) -> None:
-    make_profile(tmp_path)
-
-    with pytest.raises(ValueError, match="与 profile 身份"):
-        ElfieFactory().restore(
-            tmp_path,
-            elfie_id="different-id",
-            memory_db_path=":memory:",
-            profile_store=YamlProfileStoreAdapter(tmp_path / "profile"),
-        )
-
-
 def test_factory_registers_multiple_bodies_and_selects_current_body() -> None:
     first = HeadlessBody(body_id="first")
     second = HeadlessBody(body_id="second")
+    profile = create_visual_profile(
+        elfie_id="elfie-bodies", display_name="多身体精灵", species_id="fox", seed=13
+    )
 
     elfie = ElfieFactory().create(
-        elfie_id="elfie-bodies",
-        memory_db_path=":memory:",
-        bodies=[first, second],
-        current_body_id="second",
+        ElfieAssembly(
+            profile=profile,
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            bodies=(first, second),
+            current_body_id="second",
+        )
     )
 
     assert elfie.current_body is second

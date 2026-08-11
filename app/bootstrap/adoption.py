@@ -23,6 +23,7 @@ from infrastructure.persistence.account_repository import AccountRepository
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
 from infrastructure.persistence.elfies import SQLiteElfiesProjectionAdapter
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from infrastructure.persistence.store import get_db
 from infrastructure.platform import (
@@ -111,6 +112,9 @@ def build_adoption_services(
                 ElfieFactory(),
                 body_factory,
                 lambda workspace: YamlProfileStoreAdapter(Path(workspace) / "profile"),
+                lambda workspace: SQLiteMemoryStoreAdapter(
+                    Path(workspace) / "memory" / "knowledge.sqlite"
+                ),
             ),
             nest_session,
         ),

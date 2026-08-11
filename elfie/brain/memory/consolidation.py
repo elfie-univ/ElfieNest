@@ -40,7 +40,6 @@ class MemoryConsolidator:
         storage: MemoryStorePort,
         core_cognition=None,
         elfie_id: str | None = None,
-        config_dir: str | None = None,
     ):
         self.storage = storage
         self.core_cognition = core_cognition
@@ -50,7 +49,6 @@ class MemoryConsolidator:
         self._llm_calls_this_cycle = 0
         self._max_llm_calls = 4
         self.elfie_id = elfie_id
-        self.config_dir = config_dir
 
     def run_consolidation(self, runtime_agent=None) -> Dict[str, Any]:
         """执行巩固流程（8.5步骤，含pattern发现）
@@ -267,7 +265,6 @@ class MemoryConsolidator:
                     runtime_agent,
                     prompt,
                     elfie_id=self.elfie_id,
-                    config_dir=self.config_dir,
                     semantic_role="reasoning",
                     complexity=2,
                 )
@@ -500,7 +497,6 @@ class MemoryConsolidator:
                     runtime_agent,
                     prompt,
                     elfie_id=self.elfie_id,
-                    config_dir=self.config_dir,
                     semantic_role="reasoning",
                     complexity=2,
                 )
@@ -688,7 +684,6 @@ class MemoryConsolidator:
                     runtime_agent,
                     prompt,
                     elfie_id=self.elfie_id,
-                    config_dir=self.config_dir,
                     semantic_role="reasoning",
                     complexity=2,
                 )

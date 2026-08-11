@@ -1,4 +1,4 @@
-"""Final per-Elfie knowledge SQLite store."""
+"""SQLite Adapter for one Elfie's semantic MemoryStorePort."""
 
 from __future__ import annotations
 
@@ -7,16 +7,19 @@ from pathlib import Path
 from types import TracebackType
 from typing import Final
 
-from .knowledge_edge_store import KnowledgeEdgeStoreMixin
-from .knowledge_node_store import KnowledgeNodeStoreMixin
-from .knowledge_schema import KNOWLEDGE_SCHEMA_SQL
-from .sqlite_connection import SQLitePathError, connect_memory_sqlite
+from infrastructure.persistence.memory.edge_store import KnowledgeEdgeStoreMixin
+from infrastructure.persistence.memory.node_store import KnowledgeNodeStoreMixin
+from infrastructure.persistence.memory.schema import KNOWLEDGE_SCHEMA_SQL
+from infrastructure.persistence.sqlite_connection import (
+    UnsafeSQLitePathError,
+    connect_app_sqlite,
+)
 
 _FINAL_FILENAME: Final = "knowledge.sqlite"
 
 
-class KnowledgeStorePathError(Exception):
-    """KnowledgeStore requires its final filename or explicit test memory."""
+class MemoryStorePathError(Exception):
+    """The SQLite Memory Adapter requires the final filename or test memory."""
 
     __slots__ = ("db_path",)
 
@@ -25,10 +28,13 @@ class KnowledgeStorePathError(Exception):
         super().__init__(str(self))
 
     def __str__(self) -> str:
-        return f"KnowledgeStore requires {_FINAL_FILENAME}: {self.db_path}"
+        return f"SQLite Memory Adapter requires {_FINAL_FILENAME}: {self.db_path}"
 
 
-class KnowledgeStore(KnowledgeNodeStoreMixin, KnowledgeEdgeStoreMixin):
+class SQLiteMemoryStoreAdapter(
+    KnowledgeNodeStoreMixin,
+    KnowledgeEdgeStoreMixin,
+):
     """Own a connection initialized with the final nine-table schema."""
 
     def __init__(self, db_path: str | Path) -> None:
@@ -36,17 +42,17 @@ class KnowledgeStore(KnowledgeNodeStoreMixin, KnowledgeEdgeStoreMixin):
         try:
             # Cognition owns the logical write sequence, but the provider worker
             # runs on its own thread and reads the same per-Elfie store.
-            self.conn = connect_memory_sqlite(self._db_path, check_same_thread=False)
-        except SQLitePathError as error:
-            raise KnowledgeStorePathError(db_path=str(db_path)) from error
+            self.conn = connect_app_sqlite(self._db_path, check_same_thread=False)
+        except UnsafeSQLitePathError as error:
+            raise MemoryStorePathError(db_path=str(db_path)) from error
         self._initialize_schema()
 
     @classmethod
-    def in_memory(cls) -> KnowledgeStore:
+    def in_memory(cls) -> SQLiteMemoryStoreAdapter:
         """Create an isolated in-memory store for tests and explicit tooling."""
         return cls(":memory:")
 
-    def __enter__(self) -> KnowledgeStore:
+    def __enter__(self) -> SQLiteMemoryStoreAdapter:
         return self
 
     def __exit__(
@@ -73,9 +79,9 @@ class KnowledgeStore(KnowledgeNodeStoreMixin, KnowledgeEdgeStoreMixin):
             return ":memory:"
         path = Path(db_path)
         if path.name != _FINAL_FILENAME:
-            raise KnowledgeStorePathError(db_path=str(db_path))
+            raise MemoryStorePathError(db_path=str(db_path))
         if path.is_symlink():
-            raise KnowledgeStorePathError(db_path=str(db_path))
+            raise MemoryStorePathError(db_path=str(db_path))
         return path
 
     def _initialize_schema(self) -> None:
@@ -89,4 +95,4 @@ class KnowledgeStore(KnowledgeNodeStoreMixin, KnowledgeEdgeStoreMixin):
             raise
 
 
-__all__ = ["KnowledgeStore", "KnowledgeStorePathError"]
+__all__ = ["MemoryStorePathError", "SQLiteMemoryStoreAdapter"]

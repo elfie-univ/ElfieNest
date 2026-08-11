@@ -6,36 +6,30 @@
 - 总 Token 数量约束
 - SQLite 持久化加载
 - 增量更新与周期全量重写
-- JSON 缓存文件保存
+- 注入的语义存储生命周期
 """
 
-import json
-import os
-import tempfile
 from pathlib import Path
 
 from elfie.brain.memory.core_cognition import CoreCognition
+from elfie.profile import load_packaged_profile_defaults
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 # ---------------------------------------------------------------------------
 # 测试辅助
 # ---------------------------------------------------------------------------
 
-_HERE = Path(__file__).resolve().parent
-_PROJECT_ROOT = _HERE.parent.parent.parent.parent
-
-# 实际personality.yaml路径
-_PERSONALITY_PATH = str(
-    _PROJECT_ROOT / "elfie" / "profile" / "defaults" / "personality.yaml"
-)
-# 不存在的路径，用于阻止 _load_from_db 自动初始化
-_NONEXISTENT_PATH = "/tmp/_nonexistent_personality.yaml"
+_PERSONALITY_DATA = load_packaged_profile_defaults()["personality"]
 
 
 def _make_cc(db_path: str = ":memory:") -> CoreCognition:
     """创建一个已初始化的 CoreCognition 测试实例。"""
-    cc = CoreCognition(db_path=db_path, personality_path=_NONEXISTENT_PATH)
-    cc.initialize_from_personality(_PERSONALITY_PATH)
-    return cc
+    if db_path != ":memory:":
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    return CoreCognition(
+        storage=SQLiteMemoryStoreAdapter(db_path),
+        personality_data=_PERSONALITY_DATA,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -48,13 +42,16 @@ class TestCoreCognition:
 
     def test_initialize_from_personality(self):
         """从yaml初始化，4段核心认知全部生成"""
-        cc = CoreCognition(db_path=":memory:", personality_path=_NONEXISTENT_PATH)
+        cc = CoreCognition(
+            storage=SQLiteMemoryStoreAdapter.in_memory(),
+            personality_data=None,
+        )
         # 初始状态：无核心认知
         assert len(cc._core_text) == 0
         assert cc.get_core_text() == {}
 
         # 从yaml初始化
-        cc.initialize_from_personality(_PERSONALITY_PATH)
+        cc.initialize_from_personality(_PERSONALITY_DATA)
 
         core_text = cc.get_core_text()
         assert len(core_text) == 4
@@ -102,24 +99,26 @@ class TestCoreCognition:
         char_counts = {k: len(v) for k, v in core_text.items()}
         print(f"  [字符统计] {char_counts} | 总计: {total_chars}")
 
-    def test_load_from_db(self):
+    def test_load_from_db(self, tmp_path: Path):
         """从SQLite加载已存在的核心认知"""
-        with tempfile.TemporaryDirectory() as directory:
-            db_path = str(Path(directory).resolve() / "knowledge.sqlite")
-            # 第一个实例：初始化数据并写入SQLite
-            cc1 = _make_cc(db_path=db_path)
-            expected_text = dict(cc1._core_text)
-            assert len(expected_text) == 4
-            cc1.close()
+        db_path = str((tmp_path / "knowledge.sqlite").resolve())
+        # 第一个实例：初始化数据并写入SQLite
+        cc1 = _make_cc(db_path=db_path)
+        expected_text = dict(cc1._core_text)
+        assert len(expected_text) == 4
+        cc1.storage.close()
 
-            # 第二个实例：从同一文件加载，不自动初始化
-            cc2 = CoreCognition(db_path=db_path, personality_path=_NONEXISTENT_PATH)
-            # _load_from_db 应找到已存在的 core 节点
-            loaded = cc2.get_core_text()
-            assert loaded == expected_text, (
-                f"加载的内容与期望不符\n期望: {expected_text}\n实际: {loaded}"
-            )
-            cc2.close()
+        # 第二个实例：从同一文件加载，不自动初始化
+        cc2 = CoreCognition(
+            storage=SQLiteMemoryStoreAdapter(db_path),
+            personality_data=None,
+        )
+        # _load_from_db 应找到已存在的 core 节点
+        loaded = cc2.get_core_text()
+        assert loaded == expected_text, (
+            f"加载的内容与期望不符\n期望: {expected_text}\n实际: {loaded}"
+        )
+        cc2.storage.close()
 
     def test_update_incremental(self):
         """增量更新核心认知（metadata）"""
@@ -272,31 +271,3 @@ class TestCoreCognition:
 
         # entity属性应保留（回滚到重写前状态，包含entity更新）
         assert "主人很温柔" in cc._core_text["relation"]
-
-    def test_save_to_file(self):
-        """保存到JSON缓存文件"""
-        cc = _make_cc()
-        expected_text = cc.get_core_text()
-
-        # 使用临时文件路径
-        with tempfile.NamedTemporaryFile(
-            suffix=".json", mode="w", encoding="utf-8", delete=False
-        ) as f:
-            filepath = f.name
-
-        try:
-            saved = cc.save_to_file(filepath=filepath)
-            assert saved == filepath
-
-            # 读取并验证内容
-            with open(filepath, encoding="utf-8") as f:
-                data = json.load(f)
-
-            assert "core_text" in data
-            assert data["core_text"] == expected_text
-            assert data["update_count"] == 0
-            assert "updated_at" in data
-            assert isinstance(data["updated_at"], str)
-        finally:
-            if os.path.exists(filepath):
-                os.unlink(filepath)

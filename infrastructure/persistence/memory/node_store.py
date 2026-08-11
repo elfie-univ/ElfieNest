@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 from datetime import datetime, timezone
-from typing import Final
+from typing import Any, Final, cast
 
-from .node_types import Edge, MemoryNode
+from elfie.brain.memory.node_types import Edge, MemoryNode
 
 _TYPE_MAP: Final[dict[str, str]] = {
     "core": "concept",
@@ -23,6 +24,30 @@ _SUBTYPE_TABLES: Final[tuple[str, ...]] = (
     "places",
     "events",
 )
+
+
+def _json_safe(value):
+    """Encode malformed numeric metadata without violating SQLite JSON checks."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_json_safe(item) for item in value)
+    return value
+
+
+def _bounded_score(value: object, default: float = 0.5) -> float:
+    """Keep legacy metadata values inside final schema score constraints."""
+    try:
+        score = float(cast(Any, value))
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(score):
+        return default
+    return min(max(score, 0.0), 1.0)
 
 
 class KnowledgeNodeStoreMixin:
@@ -59,11 +84,11 @@ class KnowledgeNodeStoreMixin:
                 entity_type,
                 node.content or node.id,
                 node.content,
-                float(node.metadata.get("confidence", 0.5)),
+                _bounded_score(node.metadata.get("confidence", 0.5)),
                 node.created_at or now,
                 node.updated_at or now,
                 node.updated_at or now,
-                json.dumps(metadata, ensure_ascii=False),
+                json.dumps(_json_safe(metadata), ensure_ascii=False),
             ),
         )
         self._replace_subtype(node, entity_type, now)
@@ -161,7 +186,7 @@ class KnowledgeNodeStoreMixin:
                     node.metadata.get("timestamp", node.created_at),
                     node.type,
                     node.content,
-                    float(node.metadata.get("importance", 0.5)),
+                    _bounded_score(node.metadata.get("importance", 0.5)),
                     json.dumps(node.metadata, ensure_ascii=False),
                     node.updated_at or now,
                 ),

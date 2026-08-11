@@ -18,15 +18,15 @@ import pytest
 
 from elfie.brain.memory.consolidation import MemoryConsolidator
 from elfie.brain.memory.context_assembly import ContextAssembler
-from elfie.brain.memory.graph_storage import GraphStorage
 from elfie.brain.memory.node_types import Edge, EdgeTypes, MemoryNode, NodeTypes
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 # ---------------------------------------------------------------------------
 # 辅助函数
 # ---------------------------------------------------------------------------
 
 
-def _setup_basic_data(storage: GraphStorage):
+def _setup_basic_data(storage: SQLiteMemoryStoreAdapter):
     """设置基础测试数据：实体 + 未巩固的episodic（带involves边）"""
     # 实体
     ent_1 = MemoryNode(id="ent_1", type="entity", content="主人")
@@ -87,7 +87,7 @@ class TestMemoryConsolidator:
     @pytest.fixture
     def storage(self):
         """创建内存SQLite存储"""
-        gs = GraphStorage(db_path=":memory:")
+        gs = SQLiteMemoryStoreAdapter.in_memory()
         yield gs
 
     @pytest.fixture
@@ -557,7 +557,7 @@ class TestPatternDiscovery:
     @pytest.fixture
     def storage(self):
         """创建内存SQLite存储"""
-        gs = GraphStorage(db_path=":memory:")
+        gs = SQLiteMemoryStoreAdapter.in_memory()
         yield gs
 
     @pytest.fixture

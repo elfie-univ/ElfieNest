@@ -5,6 +5,9 @@ from elfie.brain.skills import (
     SkillManager,
     SkillPolicy,
 )
+from elfie.factory import ElfieAssembly
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.tools.config import TOOL_KEYS
 
 
@@ -66,9 +69,16 @@ def test_factory_injects_skill_manager_into_canonical_elfie() -> None:
     )
 
     elfie = ElfieFactory().create(
-        elfie_id="elfie-skills",
-        memory_db_path=":memory:",
-        skills=manager,
+        ElfieAssembly(
+            profile=create_visual_profile(
+                elfie_id="elfie-skills",
+                display_name="技能精灵",
+                species_id="fox",
+                seed=1,
+            ),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            skills=manager,
+        )
     )
 
     assert elfie.skills is manager

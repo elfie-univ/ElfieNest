@@ -5,9 +5,9 @@
 
 import pytest
 
-from elfie.brain.memory.graph_storage import GraphStorage
 from elfie.brain.memory.node_types import MemoryNode
 from elfie.brain.memory.sensory_index import SensoryIndexer
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 
 class TestSensoryIndexer:
@@ -16,7 +16,7 @@ class TestSensoryIndexer:
     @pytest.fixture
     def storage(self):
         """创建内存 SQLite GraphStorage 实例"""
-        gs = GraphStorage(db_path=":memory:")
+        gs = SQLiteMemoryStoreAdapter.in_memory()
         yield gs
 
     @pytest.fixture

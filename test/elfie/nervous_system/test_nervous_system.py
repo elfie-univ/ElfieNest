@@ -8,6 +8,8 @@ from elfie.body.native.anatomy.biped import BipedAnatomy
 from elfie.brain.emotion import EmotionSystem
 from elfie.message_types import CommandId, IntentId, TurnId
 from elfie.nervous_system import NervousSystem
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 NOW = datetime(2026, 7, 22, 8, 0, tzinfo=timezone.utc)
 
@@ -27,7 +29,12 @@ def test_nervous_system_owns_sensors_and_processing_components() -> None:
 
 
 def test_elfie_owns_one_canonical_nervous_system() -> None:
-    elfie = Elfie(memory_db_path=":memory:")
+    elfie = Elfie(
+        character_profile=create_visual_profile(
+            elfie_id="elfie-nervous", display_name="神经精灵", species_id="fox", seed=1
+        ),
+        memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+    )
 
     assert elfie.nervous_system.speech_actuator is not None
     assert elfie.nervous_system.motion_actuator is not None

@@ -47,13 +47,11 @@ class MemoryEncoder:
         sensory_buffer: SensoryBuffer,
         sensory_indexer: SensoryIndexer = None,
         elfie_id: str | None = None,
-        config_dir: str | None = None,
     ):
         self.storage = storage
         self.sensory_buffer = sensory_buffer
         self.sensory_indexer = sensory_indexer
         self.elfie_id = elfie_id
-        self.config_dir = config_dir
 
     def encode(
         self,
@@ -302,7 +300,6 @@ class MemoryEncoder:
                     runtime_agent,
                     prompt,
                     elfie_id=self.elfie_id,
-                    config_dir=self.config_dir,
                     semantic_role="primary",
                     complexity=1,
                 )

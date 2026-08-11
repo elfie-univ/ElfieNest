@@ -9,13 +9,13 @@ from devtools.elfie_lab.schemas import ElfieSpec
 from devtools.elfie_lab.session import ElfieLabSession
 from devtools.elfie_lab.session_projection import _memory_cognition_projection
 from devtools.elfie_lab.storage import ElfieLabStorage
-from elfie.brain.memory.graph_storage import GraphStorage
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from test.devtools.elfie_lab.projection_test_support import add_node
 
 
 @pytest.fixture
 def projection_subject():
-    storage = GraphStorage(":memory:")
+    storage = SQLiteMemoryStoreAdapter.in_memory()
     memory = SimpleNamespace(
         storage=storage, get_core_cognition=lambda: {"world": "世界仍在展开。"}
     )

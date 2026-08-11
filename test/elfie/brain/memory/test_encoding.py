@@ -13,13 +13,13 @@ from datetime import datetime, timedelta
 import pytest
 
 from elfie.brain.memory.encoding import MemoryEncoder
-from elfie.brain.memory.graph_storage import GraphStorage
 from elfie.brain.memory.node_types import (
     EdgeTypes,
     MemoryNode,
     NodeTypes,
 )
 from elfie.brain.memory.sensory_buffer import SensoryBuffer
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 
 class TestMemoryEncoder:
@@ -28,7 +28,7 @@ class TestMemoryEncoder:
     @pytest.fixture
     def storage(self):
         """使用 :memory: 模式的 SQLite 存储"""
-        gs = GraphStorage(db_path=":memory:")
+        gs = SQLiteMemoryStoreAdapter.in_memory()
         yield gs
         gs.close()
 

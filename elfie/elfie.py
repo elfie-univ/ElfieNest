@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime, timezone
-from pathlib import Path
 from threading import Lock
 from typing import Iterable
 
@@ -27,11 +26,11 @@ from elfie.communication import CommunicationEnvelope, CommunicationHub
 from elfie.communication.contracts import InboundDisposition, InboundDispositionStatus
 from elfie.communication.perception_adapter import CommunicationPerceptionAdapter
 from elfie.communication.router import RegisteredChannel
-from elfie.initialization import assemble_anatomy, assemble_profile
+from elfie.initialization import assemble_anatomy
 from elfie.lifecycle_errors import ElfieLifecycleError, InvalidClockDeltaError
 from elfie.message_types import ElfieId, TurnId
 from elfie.nervous_system import NervousSystem
-from elfie.profile import ElfieProfile, ProfileStorePort
+from elfie.profile import ElfieProfile
 
 
 class Elfie:
@@ -39,24 +38,16 @@ class Elfie:
 
     def __init__(
         self,
-        config_dir: str | None = None,
-        elfie_id: str | None = None,
-        memory_db_path: str | None = None,
-        memory_store: MemoryStorePort | None = None,
-        character_profile: ElfieProfile | None = None,
+        *,
+        character_profile: ElfieProfile,
+        memory_store: MemoryStorePort,
         body: BodyPort | None = None,
         communication: CommunicationHub | None = None,
         skills: SkillManager | None = None,
         model_port: ModelPort | None = None,
-        profile_store: ProfileStorePort | None = None,
     ) -> None:
-        self._config_dir = config_dir
-        self.character_profile = assemble_profile(
-            config_dir=config_dir,
-            elfie_id=elfie_id,
-            supplied=character_profile,
-            profile_store=profile_store,
-        )
+        character_profile.validate()
+        self.character_profile = character_profile
         self.species_id = self.character_profile.identity.species_id
         self._elapsed_time = 0.0
         self._clock_lock = Lock()
@@ -66,9 +57,7 @@ class Elfie:
         )
         self.amygdala = EmotionSystem(clock=lambda: self._elapsed_time)
         self.memory = MemorySystem(
-            db_path=memory_db_path or self._default_memory_path(config_dir),
-            elfie_id=elfie_id,
-            config_dir=config_dir,
+            elfie_id=self.character_profile.identity.elfie_id,
             personality_data=self.character_profile.personality or None,
             storage=memory_store,
         )
@@ -129,7 +118,7 @@ class Elfie:
                 "cannot change Elfie identity after cognition assembly"
             )
         identity_changed = self.identity.elfie_id != elfie_id
-        self.memory.bind_elfie_identity(elfie_id, self._config_dir)
+        self.memory.bind_elfie_identity(elfie_id)
         if identity_changed:
             self.character_profile = replace(
                 self.character_profile,
@@ -269,11 +258,3 @@ class Elfie:
         if runtime is None:
             raise ElfieLifecycleError("Elfie cognition is not configured")
         return runtime
-
-    @staticmethod
-    def _default_memory_path(config_dir: str | None) -> str:
-        return (
-            str(Path(config_dir) / "memory" / "knowledge.sqlite")
-            if config_dir
-            else ":memory:"
-        )

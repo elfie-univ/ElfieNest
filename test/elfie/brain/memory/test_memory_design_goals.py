@@ -16,7 +16,6 @@ from elfie.brain.memory.consolidation import MemoryConsolidator
 from elfie.brain.memory.context_assembly import ContextAssembler
 from elfie.brain.memory.ebbinghaus_decay import EbbinghausDecay
 from elfie.brain.memory.emotion_weighting import EmotionWeighting
-from elfie.brain.memory.graph_storage import GraphStorage
 from elfie.brain.memory.node_types import (
     Edge,
     EdgeTypes,
@@ -25,6 +24,7 @@ from elfie.brain.memory.node_types import (
     RetrievalQuery,
 )
 from elfie.brain.memory.spreading_activation import SpreadingActivation
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 # ==============================================================================
 # 辅助函数
@@ -81,7 +81,7 @@ class TestSpreadingActivationDesignGoals:
 
     @pytest.fixture
     def storage(self):
-        gs = GraphStorage(db_path=":memory:")
+        gs = SQLiteMemoryStoreAdapter.in_memory()
         yield gs
 
     @pytest.fixture
@@ -497,7 +497,7 @@ class TestConsolidationSafetyDesignGoals:
 
     @pytest.fixture
     def storage(self):
-        gs = GraphStorage(db_path=":memory:")
+        gs = SQLiteMemoryStoreAdapter.in_memory()
         yield gs
 
     @pytest.fixture
@@ -603,7 +603,7 @@ class TestConsolidationPatternDesignGoals:
 
     @pytest.fixture
     def storage(self):
-        gs = GraphStorage(db_path=":memory:")
+        gs = SQLiteMemoryStoreAdapter.in_memory()
         yield gs
 
     @pytest.fixture
@@ -840,7 +840,7 @@ class TestConsolidationEntityDesignGoals:
 
     @pytest.fixture
     def storage(self):
-        gs = GraphStorage(db_path=":memory:")
+        gs = SQLiteMemoryStoreAdapter.in_memory()
         yield gs
 
     @pytest.fixture

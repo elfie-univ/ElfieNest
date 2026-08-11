@@ -4,7 +4,7 @@ MemorySystem 是图记忆系统的统一入口门面（Facade），
 将所有子系统组合在一起，对外暴露简洁的 API 接口。
 
 子系统列表：
-- KnowledgeStore: final SQLite knowledge storage
+- MemoryStorePort: injected semantic memory persistence
 - SensoryBuffer: 短期感知缓冲
 - CoreCognition: 核心认知（4段人格信念）
 - MemoryEncoder: 编码引擎
@@ -20,7 +20,6 @@ MemorySystem 是图记忆系统的统一入口门面（Facade），
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .consolidation import MemoryConsolidator
@@ -29,7 +28,6 @@ from .core_cognition import CoreCognition
 from .ebbinghaus_decay import EbbinghausDecay
 from .emotion_weighting import EmotionWeighting
 from .encoding import MemoryEncoder
-from .knowledge_store import KnowledgeStore
 from .memory_store import MemoryStorePort
 from .node_types import RetrievalQuery
 from .retrieval import MemoryRetriever
@@ -45,40 +43,18 @@ class MemorySystem:
 
     def __init__(
         self,
-        db_path: Optional[str] = None,
-        personality_path: Optional[str] = None,
+        storage: MemoryStorePort,
+        *,
         elfie_id: str | None = None,
-        config_dir: str | None = None,
         personality_data: Optional[dict] = None,
-        storage: MemoryStorePort | None = None,
     ):
-        """初始化所有组件
-
-        Args:
-            db_path: SQLite数据库路径（默认:memory:用于测试）
-            personality_path: personality.yaml路径（默认自动查找）
-        """
-        resolved_db_path = db_path
-        if storage is None and resolved_db_path is None:
-            resolved_db_path = (
-                str(Path(config_dir) / "memory" / "knowledge.sqlite")
-                if config_dir is not None
-                else ":memory:"
-            )
-        if storage is None:
-            self.storage: MemoryStorePort = KnowledgeStore(
-                resolved_db_path or ":memory:"
-            )
-            self._owns_storage = True
-        else:
-            self.storage = storage
-            self._owns_storage = False
+        """初始化所有语义组件；具体存储由 Bootstrap 注入。"""
+        self.storage = storage
+        self._owns_storage = False
         self.sensory_buffer = SensoryBuffer()
         self.core_cognition = CoreCognition(
-            resolved_db_path or ":memory:",
-            personality_path,
+            storage=storage,
             personality_data=personality_data,
-            storage=self.storage,
         )
         self.sensory_indexer = SensoryIndexer(self.storage)
         self.encoder = MemoryEncoder(
@@ -86,7 +62,6 @@ class MemorySystem:
             self.sensory_buffer,
             self.sensory_indexer,
             elfie_id=elfie_id,
-            config_dir=config_dir,
         )
         self.retriever = MemoryRetriever(self.storage)
         self.spreading = SpreadingActivation(self.storage)
@@ -96,7 +71,6 @@ class MemorySystem:
             self.storage,
             self.core_cognition,
             elfie_id=elfie_id,
-            config_dir=config_dir,
         )
         self.context_assembler = ContextAssembler(
             self.storage,
@@ -110,13 +84,9 @@ class MemorySystem:
     def bind_elfie_identity(
         self,
         elfie_id: str,
-        config_dir: str | None = None,
     ) -> None:
         self.encoder.elfie_id = elfie_id
         self.consolidator.elfie_id = elfie_id
-        if config_dir is not None:
-            self.encoder.config_dir = config_dir
-            self.consolidator.config_dir = config_dir
 
     def record_episode(
         self,
@@ -264,6 +234,5 @@ class MemorySystem:
         return self.context_assembler.assemble(retrieval_query, top_k=top_k)
 
     def close(self) -> None:
-        """Close the final knowledge database owned by this facade."""
-        if self._owns_storage:
-            self.storage.close()
+        """Retain the injected store's lifecycle for Bootstrap ownership."""
+        return None

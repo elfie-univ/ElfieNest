@@ -2,7 +2,9 @@ from pathlib import Path
 
 from app.features.adoption import AcceptedAdoptionReservation
 from elfie import ElfieFactory
+from elfie.factory import ElfieAssembly
 from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
@@ -24,10 +26,14 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(tmp_path: Path) 
     )
 
     workspace = adapter.materialize(reservation)
+    profile_store = YamlProfileStoreAdapter(Path(workspace) / "profile")
     elfie = ElfieFactory().restore(
-        workspace,
-        elfie_id=reservation.elfie_id,
-        profile_store=YamlProfileStoreAdapter(Path(workspace) / "profile"),
+        ElfieAssembly(
+            profile=profile_store.load(),
+            memory_store=SQLiteMemoryStoreAdapter(
+                Path(workspace) / "memory" / "knowledge.sqlite"
+            ),
+        )
     )
 
     assert elfie.profile.identity.display_name == "星砂"

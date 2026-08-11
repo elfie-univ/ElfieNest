@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from elfie.brain.memory.knowledge_store import (
-    KnowledgeStore,
-    KnowledgeStorePathError,
+from infrastructure.persistence.memory import (
+    MemoryStorePathError,
+    SQLiteMemoryStoreAdapter,
 )
 
 EXPECTED_TABLES = {
@@ -40,8 +40,9 @@ def _insert_entity(
 def test_creates_exact_final_tables_and_private_database(tmp_path: Path) -> None:
     """Given a final path, When opened, Then only nine private tables exist."""
     db_path = tmp_path / "memory" / "knowledge.sqlite"
+    db_path.parent.mkdir()
 
-    with KnowledgeStore(db_path) as store:
+    with SQLiteMemoryStoreAdapter(db_path) as store:
         tables = {
             row["name"]
             for row in store.connection.execute(
@@ -57,9 +58,9 @@ def test_schema_initialization_is_idempotent(tmp_path: Path) -> None:
     """Given an initialized DB, When reopened, Then the same schema remains."""
     db_path = tmp_path / "knowledge.sqlite"
 
-    with KnowledgeStore(db_path):
+    with SQLiteMemoryStoreAdapter(db_path) as store:
         pass
-    with KnowledgeStore(db_path) as store:
+    with SQLiteMemoryStoreAdapter(db_path) as store:
         tables = {
             row["name"]
             for row in store.connection.execute(
@@ -77,15 +78,15 @@ def test_rejects_non_final_filename_and_symlink(tmp_path: Path) -> None:
     link = tmp_path / "knowledge.sqlite"
     link.symlink_to(target)
 
-    with pytest.raises(KnowledgeStorePathError):
-        KnowledgeStore(tmp_path / "graph_memory.db")
-    with pytest.raises(KnowledgeStorePathError):
-        KnowledgeStore(link)
+    with pytest.raises(MemoryStorePathError):
+        SQLiteMemoryStoreAdapter(tmp_path / "graph_memory.db")
+    with pytest.raises(MemoryStorePathError):
+        SQLiteMemoryStoreAdapter(link)
 
 
 def test_direct_sql_enforces_json_type_scores_and_foreign_keys() -> None:
     """Given the schema, When invalid entities are inserted, Then SQLite rejects."""
-    with KnowledgeStore.in_memory() as store:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
         with pytest.raises(sqlite3.IntegrityError):
             store.connection.execute(
                 "INSERT INTO entities "
@@ -109,7 +110,7 @@ def test_direct_sql_enforces_json_type_scores_and_foreign_keys() -> None:
 
 def test_direct_sql_enforces_single_owner_self_and_known_elfie_id() -> None:
     """Given valid entities, When uniqueness is violated, Then writes fail."""
-    with KnowledgeStore.in_memory() as store:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
         for entity_id, entity_type in (
             ("owner-1", "person"),
             ("owner-2", "person"),

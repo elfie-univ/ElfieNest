@@ -10,7 +10,6 @@ def ask_memory_model(
     prompt: str,
     *,
     elfie_id: str | None,
-    config_dir: str | None,
     semantic_role: str,
     complexity: int,
 ) -> str:
@@ -21,7 +20,6 @@ def ask_memory_model(
             food_key=None,
             semantic_role=semantic_role,
             elfie_id=elfie_id,
-            elfie_config_dir=config_dir,
             scene="memory",
             energy=50.0,
             task_complexity=complexity,

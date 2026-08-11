@@ -8,8 +8,8 @@ from datetime import datetime, timezone
 from typing import Protocol, cast
 from uuid import uuid4
 
-from .node_types import Edge, MemoryNode
-from .tokenizer import tokenize
+from elfie.brain.memory.node_types import Edge, MemoryNode
+from elfie.brain.memory.tokenizer import tokenize
 
 
 class _KnowledgeNodeReader(Protocol):

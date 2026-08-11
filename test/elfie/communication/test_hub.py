@@ -14,7 +14,10 @@ from elfie.communication import (
     TextPart,
 )
 from elfie.communication.outbox import CommunicationOutbox
+from elfie.factory import ElfieAssembly
 from elfie.message_types import ActorRef, MessageMeta
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 NOW = datetime(2026, 7, 22, 0, 0, tzinfo=timezone.utc)
 
@@ -207,7 +210,12 @@ def test_policy_rejects_disallowed_channels_and_long_messages() -> None:
 
 
 def test_canonical_elfie_owns_hub_and_updates_its_identity() -> None:
-    elfie = ElfieFactory().create(elfie_id="before", memory_db_path=":memory:")
+    elfie = ElfieFactory().create(
+        ElfieAssembly(
+            profile=_profile("before"),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        )
+    )
     elfie.communication.register_channel(FakeChannel(), connect=True)
 
     elfie.bind_identity("after")
@@ -224,13 +232,24 @@ def test_factory_rebinds_injected_hub_to_profile_identity() -> None:
     hub = CommunicationHub("stale-id")
 
     elfie = ElfieFactory().create(
-        elfie_id="current-id",
-        memory_db_path=":memory:",
-        communication=hub,
+        ElfieAssembly(
+            profile=_profile("current-id"),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            communication=hub,
+        )
     )
 
     assert elfie.communication is hub
     assert hub.elfie_id == "current-id"
+
+
+def _profile(elfie_id: str):
+    return create_visual_profile(
+        elfie_id=elfie_id,
+        display_name=elfie_id,
+        species_id="fox",
+        seed=1,
+    )
 
 
 def _envelope(

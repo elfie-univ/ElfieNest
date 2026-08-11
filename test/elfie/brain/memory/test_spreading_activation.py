@@ -2,15 +2,15 @@
 
 import pytest
 
-from elfie.brain.memory.graph_storage import GraphStorage
 from elfie.brain.memory.node_types import EdgeTypes, MemoryNode
 from elfie.brain.memory.spreading_activation import SpreadingActivation
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 
 @pytest.fixture
 def storage():
     """提供内存数据库的 GraphStorage 实例"""
-    gs = GraphStorage(db_path=":memory:")
+    gs = SQLiteMemoryStoreAdapter.in_memory()
     yield gs
     gs.close()
 

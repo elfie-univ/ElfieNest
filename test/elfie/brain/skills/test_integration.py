@@ -4,6 +4,9 @@ from elfie import ElfieFactory
 from elfie.body import HeadlessBody
 from elfie.brain.skills import SkillManager, SkillPolicy
 from elfie.communication import CommunicationHub
+from elfie.factory import ElfieAssembly
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from test.elfie.test_cognitive_lifecycle import (
     RecordingChannel,
     TwoTurnRuntime,
@@ -21,12 +24,19 @@ def test_elfie_passes_authorized_tool_keys_to_cortical_request() -> None:
     runtime = TwoTurnRuntime()
     runtime.release_first.set()
     elfie = ElfieFactory().create(
-        elfie_id="elfie-loop",
-        memory_db_path=":memory:",
-        body=body,
-        communication=hub,
-        skills=manager,
-        model_port=runtime,
+        ElfieAssembly(
+            profile=create_visual_profile(
+                elfie_id="elfie-loop",
+                display_name="技能回路精灵",
+                species_id="fox",
+                seed=1,
+            ),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            body=body,
+            communication=hub,
+            skills=manager,
+            model_port=runtime,
+        )
     )
 
     elfie.start()

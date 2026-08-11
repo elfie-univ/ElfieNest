@@ -6,7 +6,7 @@ import sqlite3
 
 import pytest
 
-from elfie.brain.memory.knowledge_store import KnowledgeStore
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 
 def _insert_entity(connection: sqlite3.Connection, entity_id: str) -> None:
@@ -18,7 +18,7 @@ def _insert_entity(connection: sqlite3.Connection, entity_id: str) -> None:
 
 def test_direct_sql_rejects_dangling_duplicate_and_invalid_edges() -> None:
     """Given two entities, When invalid edges are inserted, Then writes fail."""
-    with KnowledgeStore.in_memory() as store:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
         _insert_entity(store.connection, "source")
         _insert_entity(store.connection, "target")
         store.connection.execute(
@@ -65,7 +65,7 @@ def test_direct_sql_rejects_dangling_duplicate_and_invalid_edges() -> None:
 )
 def test_direct_sql_rejects_unsafe_memory_note_paths(bad_path: str) -> None:
     """Given an unsafe path, When a note is inserted, Then SQLite rejects it."""
-    with KnowledgeStore.in_memory() as store:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
         _insert_entity(store.connection, "entity")
 
         with pytest.raises(sqlite3.IntegrityError):
@@ -78,7 +78,7 @@ def test_direct_sql_rejects_unsafe_memory_note_paths(bad_path: str) -> None:
 
 def test_accepts_relative_note_and_logical_history_evidence() -> None:
     """Given final references, When inserted, Then logical links are accepted."""
-    with KnowledgeStore.in_memory() as store:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
         _insert_entity(store.connection, "entity")
         store.connection.execute(
             "INSERT INTO memory_notes "
@@ -102,7 +102,7 @@ def test_accepts_relative_note_and_logical_history_evidence() -> None:
 
 def test_direct_sql_rejects_invalid_evidence_source_and_note_json() -> None:
     """Given final source rules, When invalid values are inserted, Then writes fail."""
-    with KnowledgeStore.in_memory() as store:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
         _insert_entity(store.connection, "entity")
         with pytest.raises(sqlite3.IntegrityError):
             store.connection.execute(
@@ -122,7 +122,7 @@ def test_direct_sql_rejects_invalid_evidence_source_and_note_json() -> None:
 
 def test_has_sensory_indexes_without_a_tenth_table() -> None:
     """Given final schema, When inspected, Then sensory access uses indexes only."""
-    with KnowledgeStore.in_memory() as store:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
         indexes = {
             row["name"]
             for row in store.connection.execute(
