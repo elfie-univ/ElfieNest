@@ -19,13 +19,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger("chat")
 
-from ai_runtime import LLMRuntimeConfig, RuntimeAgent
 from app.bootstrap.lifecycle import create_lifecycle_facade
-from app.bootstrap.nest_session import build_nest_session_services
-from elfie import ElfieFactory
+from app.bootstrap.nest_session import (
+    build_nest_session_services,
+    register_transient_elfie,
+)
+from app.bootstrap.runtime import build_runtime_services
+from app.bootstrap.storage import ensure_application_storage
 from infrastructure.persistence.data_home import get_db_path
-from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
-from infrastructure.persistence.store import init_db
 
 
 def main():
@@ -37,28 +38,24 @@ def main():
 
     def engine_worker():
         # 1. Assemble services, mirroring the main.py flow in one thread.
-        config = LLMRuntimeConfig(ollama_host="http://localhost:11434")
         db_path = str(get_db_path())
-        init_db(db_path)
-        food_repository = SQLiteFoodPackageRepository(db_path)
-        runtime_agent = RuntimeAgent(
-            config,
-            food_catalog_repository=food_repository,
+        ensure_application_storage(db_path)
+        runtime_services = build_runtime_services(
+            db_path,
+            use_fallback=False,
+            live_reload=False,
+            resolve_main_food=False,
         )
         nest_session = build_nest_session_services(
             db_path,
-            runtime=runtime_agent,
+            runtime=runtime_services.runtime,
             godot_ws_port=8765,
             http_port=8000,
             tick_interval_sec=1.5,
         )
         lifecycle.start_runtime_channel(nest_session.world_runtime)
         engine = nest_session.engine
-        elfie = ElfieFactory().create(
-            elfie_id="Aifei",
-            godot_api=nest_session.world_runtime,
-        )
-        engine.session.register_elfie("Aifei", elfie)
+        register_transient_elfie(engine.session, "Aifei")
         engine_holder["engine"] = engine
         engine_holder["world_runtime"] = nest_session.world_runtime
         engine_ready.set()

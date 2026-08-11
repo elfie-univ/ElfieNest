@@ -1,0 +1,58 @@
+"""Nest Session composition owns persisted Elfie construction."""
+
+from types import SimpleNamespace
+
+from app.bootstrap import nest_session as nest_session_bootstrap
+
+
+class _FakeFactory:
+    def restore(self, path: str, *, godot_api: object, elfie_id: str) -> object:
+        if elfie_id == "broken":
+            raise ValueError("invalid profile")
+        return (path, godot_api, elfie_id)
+
+
+class _FakeSession:
+    world_runtime = object()
+
+    def __init__(self) -> None:
+        self.registered: list[tuple[str, object]] = []
+
+    def register_elfie(self, elfie_id: str, elfie: object) -> None:
+        self.registered.append((elfie_id, elfie))
+
+
+def test_restore_registered_elfies_isolates_one_invalid_profile(monkeypatch) -> None:
+    rows = (
+        SimpleNamespace(elfie_id="ready", name="Ready"),
+        SimpleNamespace(elfie_id="broken", name="Broken"),
+    )
+    monkeypatch.setattr(nest_session_bootstrap, "ElfieFactory", _FakeFactory)
+    monkeypatch.setattr(
+        nest_session_bootstrap,
+        "SQLiteElfiesProjectionAdapter",
+        lambda _db_path: SimpleNamespace(list_directory=lambda: rows),
+    )
+    monkeypatch.setattr(
+        nest_session_bootstrap,
+        "get_elfie_config_dir",
+        lambda elfie_id: f"/profiles/{elfie_id}",
+    )
+    session = _FakeSession()
+
+    result = nest_session_bootstrap.restore_registered_elfies(
+        "/tmp/nest.db",
+        session,  # type: ignore[arg-type]
+    )
+
+    assert result.restored == (nest_session_bootstrap.RestoredElfie("ready", "Ready"),)
+    assert result.failures == (
+        nest_session_bootstrap.ElfieRestoreFailure(
+            "broken",
+            "Broken",
+            "invalid profile",
+        ),
+    )
+    assert session.registered == [
+        ("ready", ("/profiles/ready", session.world_runtime, "ready"))
+    ]

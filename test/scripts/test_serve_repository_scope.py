@@ -172,3 +172,14 @@ def test_serve_does_not_call_the_removed_runtime_owned_ollama_manager() -> None:
 
     # Then: it cannot silently fall back because of a deleted Runtime attribute.
     assert "ollama_manager.ensure_service_started" not in main_source
+
+
+def test_service_entrypoint_uses_bootstrap_instead_of_concrete_adapters() -> None:
+    source = inspect.getsource(serve)
+
+    assert "RuntimeAgent(" not in source
+    assert "LLMRuntimeConfig(" not in source
+    assert "SQLiteFoodPackageRepository(" not in source
+    assert "SQLiteElfiesProjectionAdapter(" not in source
+    assert "ElfieFactory(" not in source
+    assert "init_db(" not in source

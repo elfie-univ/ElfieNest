@@ -10,9 +10,9 @@ from fastapi import FastAPI
 from app.interfaces.api.app import create_http_application
 from infrastructure.persistence.data_home import get_db_path
 from infrastructure.persistence.nest_state import SQLiteNestStateAdapter
-from infrastructure.persistence.store import init_db
 
 from .container import build_application_container
+from .storage import ensure_application_storage
 
 
 def create_app(
@@ -24,8 +24,7 @@ def create_app(
     web_build_dir: Optional[Path] = None,
 ) -> FastAPI:
     selected_db_path = db_path or str(get_db_path())
-    if selected_db_path != ":memory:":
-        init_db(selected_db_path)
+    ensure_application_storage(selected_db_path)
     if engine is not None and not engine.session.has_repository:
         engine.session.attach_repository(SQLiteNestStateAdapter(selected_db_path))
     container = build_application_container(

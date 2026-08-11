@@ -4,7 +4,7 @@
 Startup flow:
     1. Initialize DB + seed Owner account
     2. Optional: seed initial Elfie "Aifei" for Owner (--seed-elfie, default on)
-    3. Engine background thread: RuntimeAgent → ElfieNestEngine (no hardcoded Elfies)
+    3. Engine background thread: cognition Runtime → ElfieNestEngine
     4. Load final Elfie records → instantiate Elfie → register to engine
     5. Create FastAPI app → uvicorn blocks main thread
 
@@ -33,18 +33,21 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Optional, Protocol, Sequence
+from typing import Callable, Protocol, Sequence
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
-from ai_runtime import LLMRuntimeConfig
 from app.bootstrap import create_app
 from app.bootstrap.adoption import seed_single_elfie
-from app.bootstrap.food import build_food_service
 from app.bootstrap.lifecycle import create_lifecycle_facade
-from app.bootstrap.nest_session import build_nest_session_services
+from app.bootstrap.nest_session import (
+    build_nest_session_services,
+    restore_registered_elfies,
+)
+from app.bootstrap.runtime import build_runtime_services
+from app.bootstrap.storage import initialize_service_storage
 from app.interfaces.api.service_access import ServiceMode
 from app.interfaces.cli.lifecycle_commands import _remember_lifecycle_data_home
 from app.interfaces.web.frontend_build import (
@@ -60,19 +63,11 @@ from app.orchestration.lifecycle import (
     validate_service_ports,
 )
 from infrastructure.godot.gateway.bundle import inspect_godot_web_bundle
-from infrastructure.models.fallback_runtime import FallbackRuntimeAdapter
 from infrastructure.persistence.data_home import (
     DataHomeSelectionError,
     get_db_path,
-    get_elfie_config_dir,
     get_elfie_home,
     select_elfie_home,
-)
-from infrastructure.persistence.elfies import SQLiteElfiesProjectionAdapter
-from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
-from infrastructure.persistence.store import (
-    init_db,
-    seed_initial_owner_if_env_set,
 )
 
 
@@ -326,10 +321,7 @@ def main():
     db_path = str(get_db_path())
 
     # 1. Initialize the final database and seed Owner from environment.
-    init_db(db_path)
-    seed_initial_owner_if_env_set(db_path)
-    food_repository = SQLiteFoodPackageRepository(db_path)
-    food_service = build_food_service(db_path)
+    initialize_service_storage(db_path)
 
     # 2. Optionally seed the initial Owner Elfie (enabled by default).
     if not args.no_seed_elfie:
@@ -341,34 +333,22 @@ def main():
     engine_ready = threading.Event()
 
     def engine_worker():
-        config = LLMRuntimeConfig(
-            ollama_host="http://localhost:11434",
-        )
-
-        # Read engine configuration.
-        engine_config = config.system.get("engine", {})
-        tick_interval_sec = engine_config.get("tick_interval_sec", 1.5)
-
-        runtime_agent: Optional[Any] = None
-        main_food_loader: Optional[Callable[[str], Any]] = None
         if args.fallback:
-            runtime_agent = FallbackRuntimeAdapter()
+            runtime_services = build_runtime_services(
+                db_path,
+                use_fallback=True,
+                live_reload=True,
+                resolve_main_food=False,
+            )
             print("  ⚡ Using built-in dialogue engine (--fallback mode)")
         else:
             try:
-                from ai_runtime import RuntimeAgent  # noqa: PLC0415
-                from app.bootstrap.runtime_food import (  # noqa: PLC0415
-                    final_main_food_loader,
-                )
-
-                main_food_loader = final_main_food_loader(food_service)
-                raw_agent = RuntimeAgent(
-                    config,
+                runtime_services = build_runtime_services(
+                    db_path,
+                    use_fallback=False,
                     live_reload=True,
-                    main_food_loader=main_food_loader,
-                    food_catalog_repository=food_repository,
+                    resolve_main_food=True,
                 )
-                runtime_agent = raw_agent
                 print(
                     "  ✅ Runtime connected, will select local or cloud models via food policy"
                 )
@@ -376,12 +356,8 @@ def main():
 
                 def _warmup():
                     try:
-                        raw_agent.ask(
-                            "hello",
-                            energy=100,
-                            task_complexity=1,
-                            allowed_skills=[],
-                        )
+                        assert runtime_services.warmup is not None
+                        runtime_services.warmup()
                         print("  ✅ Model warm-up complete, ready to chat!")
                     except Exception as e:
                         print(f"  ⚠️  Model warm-up error: {e}")
@@ -389,24 +365,27 @@ def main():
                 threading.Thread(target=_warmup, daemon=True).start()
             except Exception as error:  # noqa: BLE001
                 print(f"  ⚠️  Runtime initialization failed: {error}")
-
-        if runtime_agent is None:
-            runtime_agent = FallbackRuntimeAdapter()
-            print(
-                "  ⚡ Ollama auto-start failed or not installed, using built-in dialogue engine"
-            )
-            print(
-                "  💡 For real AI responses, ensure Ollama is installed locally:\n"
-                "     Setup guide: ./elfienest.sh setup"
-            )
+                runtime_services = build_runtime_services(
+                    db_path,
+                    use_fallback=True,
+                    live_reload=True,
+                    resolve_main_food=False,
+                )
+                print(
+                    "  ⚡ Ollama auto-start failed or not installed, using built-in dialogue engine"
+                )
+                print(
+                    "  💡 For real AI responses, ensure Ollama is installed locally:\n"
+                    "     Setup guide: ./elfienest.sh setup"
+                )
 
         nest_session = build_nest_session_services(
             db_path,
-            runtime=runtime_agent,
+            runtime=runtime_services.runtime,
             godot_ws_port=args.godot_ws_port,
             http_port=args.port,
-            tick_interval_sec=tick_interval_sec,
-            main_food_loader=main_food_loader,
+            tick_interval_sec=runtime_services.tick_interval_sec,
+            main_food_loader=runtime_services.main_food_loader,
         )
         lifecycle.start_runtime_channel(nest_session.world_runtime)
         engine = nest_session.engine
@@ -432,25 +411,15 @@ def main():
     # 4. Dynamically load all Elfies from the database.
     loaded_elfies: list[dict] = []
     try:
-        from elfie import ElfieFactory  # noqa: PLC0415
-
-        elfie_factory = ElfieFactory()
-
-        rows = SQLiteElfiesProjectionAdapter(db_path).list_directory()
-        for row in rows:
-            elfie_id = row.elfie_id
-            config_dir = str(get_elfie_config_dir(elfie_id))
-            name = row.name
-            try:
-                elfie = elfie_factory.restore(
-                    config_dir,
-                    godot_api=engine.world_runtime,
-                    elfie_id=elfie_id,
-                )
-                engine.session.register_elfie(elfie_id, elfie)
-                loaded_elfies.append({"id": elfie_id, "name": name})
-            except Exception as e:
-                print(f"  ⚠️  Failed to load Elfie {name} ({elfie_id}) failed: {e}")
+        restore_result = restore_registered_elfies(db_path, engine.session)
+        loaded_elfies = [
+            {"id": item.elfie_id, "name": item.name} for item in restore_result.restored
+        ]
+        for failure in restore_result.failures:
+            print(
+                f"  ⚠️  Failed to load Elfie {failure.name} "
+                f"({failure.elfie_id}) failed: {failure.error}"
+            )
     except Exception as e:
         print(f"  ⚠️  Failed to query Elfie list: {e}")
 
