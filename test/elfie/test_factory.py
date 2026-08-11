@@ -6,12 +6,12 @@ import pytest
 
 from elfie import Elfie, ElfieFactory
 from elfie.body import BodyMode, HeadlessBody, QuadrupedAnatomy
-from elfie.body.native import GodotTransport, NativeBody
 from elfie.profile import (
     ElfieProfile,
     EmbodimentProfile,
     create_visual_profile,
 )
+from infrastructure.godot import GodotTransport, NativeBody
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 

@@ -55,7 +55,7 @@ class _PendingIntent:
     reason: str = ""
 
 
-class GodotTransport:  # noqa: MUTABLE_OK - synchronized pending command registry.
+class GodotTransport:
     """Wait for actual Runtime terminal events without blocking the Nest tick."""
 
     def __init__(self, gateway: GodotGateway):

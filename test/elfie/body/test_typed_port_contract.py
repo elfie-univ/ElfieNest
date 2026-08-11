@@ -10,9 +10,7 @@ import pytest
 from elfie.body import (
     BodyCapabilities,
     BodyPort,
-    ExternalBody,
     HeadlessBody,
-    NativeBody,
 )
 from elfie.body.contracts import (
     BodyId,
@@ -23,8 +21,9 @@ from elfie.body.contracts import (
     SpeechCommand,
     UtteranceFinal,
 )
-from elfie.body.native import GodotTransport
 from elfie.message_types import ActorId, ActorRef, CommandId, EventId, IntentId, TurnId
+from infrastructure.devices import ExternalBody
+from infrastructure.godot import GodotTransport, NativeBody
 
 NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
 

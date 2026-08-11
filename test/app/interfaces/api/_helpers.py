@@ -18,7 +18,7 @@ from app.features.adoption import (
     AdoptionReservationRecord,
 )
 from elfie import ElfieFactory
-from elfie.body.native import GodotTransport, NativeBody
+from infrastructure.godot import GodotTransport, NativeBody
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
 from infrastructure.persistence.data_home import data_home_from_db_path

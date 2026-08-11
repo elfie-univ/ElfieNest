@@ -12,7 +12,6 @@ from elfie.body import (
     CommandReceipt,
     CommandStatus,
     EmergencyStopCommand,
-    ExternalBody,
     MotionCommand,
     SpeechCommand,
     UtteranceFinal,
@@ -25,6 +24,7 @@ from elfie.message_types import (
     IntentId,
     TurnId,
 )
+from infrastructure.devices import ExternalBody
 
 NOW = datetime(2026, 7, 22, 8, 0, tzinfo=timezone.utc)
 

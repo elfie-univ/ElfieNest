@@ -12,8 +12,8 @@ from app.orchestration.nest_session import (
     NestSession,
 )
 from elfie import ElfieFactory
-from elfie.body.native import GodotGateway, GodotTransport, NativeBody
 from elfie.brain.food_port import MainFoodSelection
+from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
 from infrastructure.models.runtime_adapter import (
     SerializedRuntimeAdapter,

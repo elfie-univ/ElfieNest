@@ -17,8 +17,8 @@ from app.features.configuration.settings import SettingsStorePort
 from app.orchestration.nest_session import NestSession
 from app.orchestration.resident_admission import ResidentAdmissionService
 from elfie import ElfieFactory
-from elfie.body.native import GodotGateway, GodotTransport, NativeBody
 from elfie.body.port import BodyPort
+from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.persistence.account_repository import AccountRepository
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter

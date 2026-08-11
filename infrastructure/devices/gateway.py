@@ -15,7 +15,10 @@ from elfie.body.contracts import (
     CommandReceipt,
     CommandStatus,
 )
-from elfie.body.external.transport import ExternalEventHandler, ExternalTransport
+from infrastructure.devices.body_transport import (
+    ExternalEventHandler,
+    ExternalTransport,
+)
 
 ReceiptHandler = Callable[[CommandReceipt], None]
 

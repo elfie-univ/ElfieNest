@@ -11,12 +11,11 @@ from elfie.body import (
     CommandStatus,
     EmergencyStopCommand,
     ExpressionCommand,
-    GodotTransport,
     MotionCommand,
-    NativeBody,
     SpeechCommand,
 )
 from elfie.message_types import CommandId, IntentId, TurnId
+from infrastructure.godot import GodotTransport, NativeBody
 
 NOW = datetime(2026, 7, 22, 8, 0, tzinfo=timezone.utc)
 

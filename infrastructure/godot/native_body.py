@@ -25,13 +25,13 @@ from elfie.body.contracts import (
     MotionCommand,
     SpeechCommand,
 )
-from elfie.body.native.godot_transport import GodotTransport, RuntimeIntentPayload
-from elfie.body.native.sensors import NativeSensors
 from elfie.body.types import (
     BodyDescriptor,
     BodyMode,
 )
 from elfie.message_types import ErrorInfo
+from infrastructure.godot.body_sensors import NativeSensors
+from infrastructure.godot.body_transport import GodotTransport, RuntimeIntentPayload
 
 
 class NativeBody:

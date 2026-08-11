@@ -24,13 +24,13 @@ from elfie.body.contracts import (
 from elfie.body.contracts import (
     CommandStatus as ReceiptStatus,
 )
-from elfie.body.external.sensors import ExternalSensors
-from elfie.body.external.transport import ExternalTransport
 from elfie.body.types import (
     BodyDescriptor,
     BodyMode,
 )
 from elfie.message_types import ErrorInfo
+from infrastructure.devices.body_sensors import ExternalSensors
+from infrastructure.devices.body_transport import ExternalTransport
 
 
 class ExternalBody:

@@ -52,7 +52,7 @@ app/
   homing through persistent leases; `nest/embodiment` only stores state and
   holds no real Elfie or device connection;
 - `infrastructure.devices.DeviceGatewayTransport`: brings authenticated
-  LAN devices into the `elfie.body.external.ExternalTransport` contract; device
+  LAN devices into the `infrastructure.devices.ExternalTransport` contract; device
   events, action polling and receipts never enter the Nest.
 
 `NestSession` holds the real Elfie objects, while the Nest only receives Elfie
