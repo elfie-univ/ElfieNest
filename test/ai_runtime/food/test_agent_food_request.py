@@ -13,7 +13,7 @@ from ai_runtime.gateway.request import (
     StructuredGenerationMode,
     StructuredRuntimeRequest,
 )
-from ai_runtime.storage.provider_connections import (
+from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,
     ProviderModelRecord,

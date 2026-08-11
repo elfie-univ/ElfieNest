@@ -7,15 +7,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import FrozenSet, cast
 
-from ai_runtime.storage.config_store import (
-    ConfigStoreError,
-    read_yaml_mapping,
-    write_yaml_mapping,
-)
-from ai_runtime.storage.runtime_settings import (
-    read_runtime_settings,
-    write_runtime_settings,
-)
 from ai_runtime.tools.config import default_tool_configs
 from app.features.configuration.capabilities import (
     CapabilitiesPortError,
@@ -26,7 +17,16 @@ from app.features.configuration.capabilities import (
     StoredWebSearchCapability,
     WebSearchUpdateField,
 )
+from infrastructure.persistence.config_store import (
+    ConfigStoreError,
+    read_yaml_mapping,
+    write_yaml_mapping,
+)
 from infrastructure.persistence.data_home import get_config_path
+from infrastructure.persistence.runtime_settings import (
+    read_runtime_settings,
+    write_runtime_settings,
+)
 
 _SEARCH_PROVIDERS = frozenset({"duckduckgo", "brave", "tavily"})
 

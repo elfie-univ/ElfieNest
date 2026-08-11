@@ -8,7 +8,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Mapping
 
-from ai_runtime.storage.secrets import resolve_secret, tool_secret_name
+from infrastructure.persistence.secrets import resolve_secret, tool_secret_name
 
 SAFE_TOOL_KEYS: tuple[str, ...] = (
     "web_search",

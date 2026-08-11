@@ -10,11 +10,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Mapping
 
 from ai_runtime.providers.profiles import get_product
-from ai_runtime.storage.provider_connections import (
+from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderModelRecord,
 )
-from ai_runtime.storage.secrets import connection_secret_name, read_secrets
+from infrastructure.persistence.secrets import connection_secret_name, read_secrets
 
 ValidationMode = Literal["full", "cached", "heartbeat"]
 

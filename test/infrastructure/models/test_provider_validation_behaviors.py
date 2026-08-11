@@ -7,13 +7,6 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from ai_runtime.storage.provider_connections import (
-    ProviderConnection,
-    ProviderConnectionStore,
-    ProviderModelRecord,
-)
-from ai_runtime.storage.secrets import set_connection_secret
-from ai_runtime.storage.validation_reports import read_latest_model_validation
 from app.features.configuration import (
     StoredProviderConnection,
     StoredProviderModel,
@@ -25,6 +18,13 @@ from infrastructure.models.provider_validation_policy import (
 )
 from infrastructure.models.provider_validation_runtime import runtime_projection
 from infrastructure.models.provider_validation_service import validate_connection
+from infrastructure.persistence.provider_connections import (
+    ProviderConnection,
+    ProviderConnectionStore,
+    ProviderModelRecord,
+)
+from infrastructure.persistence.secrets import set_connection_secret
+from infrastructure.persistence.validation_reports import read_latest_model_validation
 
 
 def _full_report(connection, checked_at: str) -> dict[str, object]:

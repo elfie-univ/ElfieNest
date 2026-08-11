@@ -5,8 +5,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from ai_runtime.storage.provider_connections import ProviderConnection
-from ai_runtime.storage.validation_reports import read_latest_provider_validation
+from infrastructure.persistence.provider_connections import ProviderConnection
+from infrastructure.persistence.validation_reports import (
+    read_latest_provider_validation,
+)
 
 from .provider_validation_checks import RuntimeProjection
 from .provider_validation_policy import (

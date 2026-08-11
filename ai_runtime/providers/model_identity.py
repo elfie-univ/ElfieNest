@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple
 
-from ai_runtime.storage.config_store import ConfigStoreError, read_yaml_mapping
+from infrastructure.persistence.config_store import ConfigStoreError, read_yaml_mapping
 
 MODEL_CATALOG_VERSION = 1
 BUNDLED_MODEL_CATALOG_PATH = Path(__file__).with_name("model-catalog.yaml")

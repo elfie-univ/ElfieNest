@@ -21,7 +21,7 @@ _CONNECTION_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 def provider_secret_name(provider_id: str) -> str:
     profile = get_profile(provider_id)
     if profile and profile.api_key_env_var:
-        return profile.api_key_env_var
+        return str(profile.api_key_env_var)
     normalized = _ENV_NAME_PATTERN.sub("_", provider_id.upper()).strip("_")
     return f"{normalized or 'CUSTOM'}_API_KEY"
 
@@ -59,7 +59,10 @@ def read_secrets(path: Path | None = None) -> dict[str, str]:
 
 
 def resolve_secret(name: str, path: Path | None = None) -> str:
-    return os.getenv(name, read_secrets(path).get(name, ""))
+    environment_value = os.environ.get(name)
+    if environment_value is not None:
+        return environment_value
+    return read_secrets(path).get(name, "")
 
 
 def write_secrets(values: Mapping[str, str], path: Path | None = None) -> None:

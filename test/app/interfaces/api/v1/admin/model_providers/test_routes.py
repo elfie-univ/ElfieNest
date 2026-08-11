@@ -8,7 +8,6 @@ from fastapi.testclient import TestClient
 
 from ai_runtime.food.evidence import record_model_evidence
 from ai_runtime.food.planner import ModelEvidence
-from ai_runtime.storage.report_repository import ReportRepository
 from ai_runtime.validation.providers import DiscoveredModel
 from app.features.accounts import AccountPrincipal, AccountRole
 from app.features.configuration import (
@@ -20,6 +19,7 @@ from app.features.configuration import (
 from app.interfaces.api.v1.admin.model_providers.routes import router
 from app.interfaces.api.v1.auth import require_user
 from infrastructure.models import ProviderModelsAdapter, PublicOllamaProviderAdapter
+from infrastructure.persistence.report_repository import ReportRepository
 
 
 class NoProviderReferences:

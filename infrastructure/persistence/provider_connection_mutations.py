@@ -6,9 +6,9 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Optional
 
-from ai_runtime.storage.provider_connection_records import ProviderConnection
-from ai_runtime.storage.provider_connections import ProviderConnectionStore
-from ai_runtime.storage.secrets import (
+from infrastructure.persistence.provider_connection_records import ProviderConnection
+from infrastructure.persistence.provider_connections import ProviderConnectionStore
+from infrastructure.persistence.secrets import (
     connection_secret_name,
     read_secrets,
     set_connection_secret,

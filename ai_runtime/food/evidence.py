@@ -8,12 +8,12 @@ from typing import Any, Mapping, Optional, Sequence
 from ai_runtime.food.planner import EVIDENCE_MAX_AGE, ModelEvidence
 from ai_runtime.models.capabilities import canonical_display_name, known_capabilities
 from ai_runtime.providers.profiles import get_product
-from ai_runtime.storage.provider_connections import (
+from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,
     ProviderModelRecord,
 )
-from ai_runtime.storage.report_repository import (
+from infrastructure.persistence.report_repository import (
     ReportRepository,
     ValidationObservation,
 )

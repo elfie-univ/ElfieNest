@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 from typing import Any, Mapping
 
-from ai_runtime.storage.config_store import (
+from infrastructure.persistence.config_store import (
     ConfigStoreError,
     read_yaml_mapping,
     write_yaml_mapping,

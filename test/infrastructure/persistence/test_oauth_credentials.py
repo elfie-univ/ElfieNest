@@ -4,13 +4,13 @@ import stat
 
 import pytest
 
-from ai_runtime.storage.oauth_credentials import (
+from infrastructure.persistence.data_home import get_credentials_dir
+from infrastructure.persistence.oauth_credentials import (
     InvalidOAuthCredentialIdError,
     OAuthCredential,
     OAuthCredentialStore,
     OAuthCredentialStoreError,
 )
-from infrastructure.persistence.data_home import get_credentials_dir
 
 
 def test_oauth_credential_round_trip_redacts_public_projection_and_repr(tmp_path):

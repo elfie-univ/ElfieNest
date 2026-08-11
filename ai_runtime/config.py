@@ -6,18 +6,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
 
+from infrastructure.persistence.config_store import ConfigStoreError, read_yaml_mapping
 from infrastructure.persistence.data_home import get_env_path, get_provider_config_path
-
-from .providers.profiles import BUILTIN_PROFILES, get_default_api_mode, get_product
-from .storage.config_store import ConfigStoreError, read_yaml_mapping
-from .storage.provider_connections import ProviderConnectionStore
-from .storage.runtime_settings import read_runtime_settings
-from .storage.secrets import (
+from infrastructure.persistence.provider_connections import ProviderConnectionStore
+from infrastructure.persistence.runtime_settings import read_runtime_settings
+from infrastructure.persistence.secrets import (
     connection_secret_name,
     provider_secret_name,
     read_secrets,
     resolve_secret,
 )
+
+from .providers.profiles import BUILTIN_PROFILES, get_default_api_mode, get_product
 
 
 def _load_env_file_values(env_path: Path | None = None) -> Dict[str, str]:

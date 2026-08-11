@@ -6,9 +6,9 @@ import asyncio
 from typing import Any, Callable
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.storage.provider_connections import ProviderConnection
 from ai_runtime.validation.models import CheckStatus
 from ai_runtime.validation.providers import ProviderValidationRunner, classify_latency
+from infrastructure.persistence.provider_connections import ProviderConnection
 
 RuntimeProjection = Callable[[ProviderConnection], tuple[str, LLMRuntimeConfig]]
 _MODEL_TIMEOUT_SECONDS = 20.0

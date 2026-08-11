@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Protocol
 
-from ai_runtime.storage.provider_connections import ProviderConnection
+from infrastructure.persistence.provider_connections import ProviderConnection
 
 from .provider_validation_checks import run_connection_model_check
 from .provider_validation_runtime import runtime_projection

@@ -7,13 +7,13 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Tuple
 
 from ai_runtime.providers.profiles import BUILTIN_PROFILES, get_product
-from ai_runtime.storage.provider_connection_mutations import (
+from infrastructure.persistence.provider_connection_mutations import (
     delete_connection_with_secret,
     finalize_created_connection,
     replace_connection_with_secret,
 )
-from ai_runtime.storage.provider_connection_records import ProviderModelRecord
-from ai_runtime.storage.provider_connections import (
+from infrastructure.persistence.provider_connection_records import ProviderModelRecord
+from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,
 )

@@ -8,16 +8,6 @@ from pathlib import Path
 from typing import Any, Mapping, NoReturn, Sequence
 
 from ai_runtime.config import DEFAULT_SYSTEM_SETTINGS
-from ai_runtime.storage.config_store import (
-    ConfigStoreError,
-    read_yaml_mapping,
-    write_yaml_mapping,
-)
-from ai_runtime.storage.runtime_settings import (
-    CONFIG_DOCUMENT_VERSION,
-    read_runtime_settings,
-    write_runtime_settings,
-)
 from app.features.configuration import (
     SettingsStorageError,
     SpeciesId,
@@ -26,7 +16,17 @@ from app.features.configuration import (
     StoredRuntimeSettings,
     StoredSecuritySettings,
 )
+from infrastructure.persistence.config_store import (
+    ConfigStoreError,
+    read_yaml_mapping,
+    write_yaml_mapping,
+)
 from infrastructure.persistence.data_home import get_config_path
+from infrastructure.persistence.runtime_settings import (
+    CONFIG_DOCUMENT_VERSION,
+    read_runtime_settings,
+    write_runtime_settings,
+)
 
 
 class RuntimeSettingsAdapter:

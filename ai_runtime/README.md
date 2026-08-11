@@ -121,7 +121,7 @@ For environment preparation, key rules and the unified quality gate, see
 
 - `test/ai_runtime/`: Gateway, providers, models, policy and tools;
 - `test/ai_runtime/food/`: food recipes, planning, evidence and execution;
-- `test/ai_runtime/storage/`: configuration, keys and data boundary;
+- `test/infrastructure/persistence/`: configuration, keys and data boundary;
 - `test/ai_runtime/validation/`: local validators and the Runtime Lab;
 - `test/architecture/test_project_structure.py`: current source root, the
   legacy `runtime/` package ban, and quality gate entry points.

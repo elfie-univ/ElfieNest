@@ -6,10 +6,8 @@ import re
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping, Optional
 
-from ai_runtime.storage.report_repository import (
-    ReportRepository,
-    ValidationObservation,
-)
+from infrastructure.persistence.report_records import ValidationObservation
+from infrastructure.persistence.report_repository import ReportRepository
 
 REPORT_VERSION = 1
 _PROVIDER_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")

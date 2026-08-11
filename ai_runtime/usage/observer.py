@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Union
 
-from ai_runtime.storage.report_repository import ReportRepository
+from infrastructure.persistence.report_repository import ReportRepository
 
 logger = logging.getLogger("ai_runtime.usage.observer")
 

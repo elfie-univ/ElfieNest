@@ -7,12 +7,14 @@ from typing import Any, Dict, Optional
 
 from ai_runtime.food.evidence import query_model_evidence
 from ai_runtime.models.capabilities import known_capabilities
-from ai_runtime.storage.provider_connections import (
+from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderModelRecord,
 )
-from ai_runtime.storage.report_repository import ValidationObservation
-from ai_runtime.storage.validation_reports import read_latest_provider_validation
+from infrastructure.persistence.report_repository import ValidationObservation
+from infrastructure.persistence.validation_reports import (
+    read_latest_provider_validation,
+)
 
 
 def build_model_matrix(

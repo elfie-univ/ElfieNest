@@ -5,12 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Mapping, Optional, Tuple
 
-from ai_runtime.storage.config_store import (
+from infrastructure.persistence.config_store import (
     ConfigStoreError,
     read_yaml_mapping,
     write_yaml_mapping,
 )
-from ai_runtime.storage.provider_connection_records import (
+from infrastructure.persistence.data_home import (
+    ensure_elfie_home,
+    get_provider_config_path,
+)
+from infrastructure.persistence.provider_connection_records import (
     CONNECTION_DOCUMENT_VERSION,
     CONNECTION_ID_PATTERN,
     InvalidProviderConnectionDocument,
@@ -20,10 +24,6 @@ from ai_runtime.storage.provider_connection_records import (
     ProviderModelRecord,
     is_connection_id,
     parse_provider_document,
-)
-from infrastructure.persistence.data_home import (
-    ensure_elfie_home,
-    get_provider_config_path,
 )
 
 

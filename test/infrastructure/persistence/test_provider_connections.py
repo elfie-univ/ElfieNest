@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import yaml
 
-from ai_runtime.storage.provider_connections import (
+from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,
     ProviderConnectionStoreError,

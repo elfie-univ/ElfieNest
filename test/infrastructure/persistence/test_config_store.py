@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from ai_runtime.storage.config_store import (
+from infrastructure.persistence.config_store import (
     ConfigStoreError,
     read_yaml_mapping,
     write_yaml_mapping,

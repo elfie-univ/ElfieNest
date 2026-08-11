@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Optional
 
-from ai_runtime.storage.report_records import (
+from infrastructure.persistence.report_records import (
     ValidationObservation,
     observation_from_row,
 )

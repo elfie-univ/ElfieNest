@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Literal, Mapping
 
-from ai_runtime.storage.config_store import ConfigStoreError, read_yaml_mapping
+from infrastructure.persistence.config_store import ConfigStoreError, read_yaml_mapping
 from infrastructure.persistence.data_home import get_provider_catalog_path
 
 logger = logging.getLogger("ai_runtime.providers.catalog")

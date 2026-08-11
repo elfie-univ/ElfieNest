@@ -4,11 +4,11 @@ from ai_runtime.providers.profiles import (
     get_default_api_mode,
     get_profile,
 )
-from ai_runtime.storage.provider_connections import (
+from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
-from ai_runtime.storage.secrets import (
+from infrastructure.persistence.secrets import (
     set_connection_secret,
     set_provider_secret,
     write_secrets,

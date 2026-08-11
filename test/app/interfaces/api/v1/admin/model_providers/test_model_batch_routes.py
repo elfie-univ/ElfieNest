@@ -7,16 +7,16 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from ai_runtime.storage.provider_connections import (
-    ProviderConnectionStore,
-    ProviderModelRecord,
-)
-from ai_runtime.storage.validation_reports import write_model_validation_report
 from app.features.accounts import AccountPrincipal
 from app.features.configuration import ProvidersService
 from app.interfaces.api.v1.admin.model_providers.routes import router
 from app.interfaces.api.v1.auth import require_user
 from infrastructure.models import ProviderModelsAdapter, PublicOllamaProviderAdapter
+from infrastructure.persistence.provider_connections import (
+    ProviderConnectionStore,
+    ProviderModelRecord,
+)
+from infrastructure.persistence.validation_reports import write_model_validation_report
 
 
 class NoProviderReferences:

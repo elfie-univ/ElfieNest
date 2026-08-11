@@ -20,23 +20,6 @@ from ai_runtime.providers.remote_catalog import (
     RemoteCatalogUnavailable,
     fetch_remote_models,
 )
-from ai_runtime.storage.provider_connection_mutations import (
-    delete_connection_with_secret,
-    finalize_created_connection,
-    replace_connection_with_secret,
-)
-from ai_runtime.storage.provider_connections import (
-    ProviderConnection,
-    ProviderConnectionStore,
-    ProviderConnectionStoreError,
-    ProviderModelRecord,
-)
-from ai_runtime.storage.report_repository import ReportRepository
-from ai_runtime.storage.secrets import resolve_secret
-from ai_runtime.storage.validation_reports import (
-    read_latest_model_validation,
-    write_model_validation_report,
-)
 from ai_runtime.validation.providers import DiscoveredModel, discover_provider_models
 from app.features.configuration import (
     ApiMode,
@@ -66,6 +49,23 @@ from app.features.configuration import (
     StoredVerification,
     ValidationMode,
     ValidationStatus,
+)
+from infrastructure.persistence.provider_connection_mutations import (
+    delete_connection_with_secret,
+    finalize_created_connection,
+    replace_connection_with_secret,
+)
+from infrastructure.persistence.provider_connections import (
+    ProviderConnection,
+    ProviderConnectionStore,
+    ProviderConnectionStoreError,
+    ProviderModelRecord,
+)
+from infrastructure.persistence.report_repository import ReportRepository
+from infrastructure.persistence.secrets import resolve_secret
+from infrastructure.persistence.validation_reports import (
+    read_latest_model_validation,
+    write_model_validation_report,
 )
 
 from .provider_errors import sanitize_error

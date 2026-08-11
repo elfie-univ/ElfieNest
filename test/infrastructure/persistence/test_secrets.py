@@ -2,7 +2,8 @@ import os
 
 import pytest
 
-from ai_runtime.storage.secrets import (
+from infrastructure.persistence.data_home import get_credentials_dir, get_env_path
+from infrastructure.persistence.secrets import (
     provider_secret_name,
     read_secrets,
     redact_secret,
@@ -10,7 +11,6 @@ from ai_runtime.storage.secrets import (
     set_connection_secret,
     set_provider_secret,
 )
-from infrastructure.persistence.data_home import get_credentials_dir, get_env_path
 
 
 def test_provider_secret_name_uses_profile_and_custom_fallback():

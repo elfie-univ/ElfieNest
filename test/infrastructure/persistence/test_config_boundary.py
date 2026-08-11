@@ -114,7 +114,7 @@ def test_existing_config_yaml_is_authoritative_over_legacy(monkeypatch, tmp_path
     provider_path = isolated_home / "configs" / "providers.yaml"
     provider_path.parent.mkdir(parents=True)
 
-    from ai_runtime.storage.provider_connections import (
+    from infrastructure.persistence.provider_connections import (
         ProviderConnection,
         ProviderConnectionDocument,
         ProviderConnectionStore,
@@ -175,7 +175,7 @@ def test_runtime_api_reads_current_elfie_home_after_environment_switch(
     monkeypatch, tmp_path
 ):
     """Given two homes, When ELFIE_HOME changes, Then API helpers follow it."""
-    from ai_runtime.storage.provider_connections import (
+    from infrastructure.persistence.provider_connections import (
         ProviderConnection,
         ProviderConnectionDocument,
         ProviderConnectionStore,

@@ -106,6 +106,7 @@ def test_data_home_declares_production_developer_and_elfie_workspace_roots() -> 
     } <= functions
     assert not (PROJECT_ROOT / "ai_runtime/storage/data_home.py").exists()
     assert not (PROJECT_ROOT / "ai_runtime/storage/data_layout.py").exists()
+    assert not (PROJECT_ROOT / "ai_runtime/storage").exists()
 
 
 def test_application_layers_do_not_own_sql() -> None:

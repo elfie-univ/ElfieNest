@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ai_runtime.storage.secrets import resolve_secret, set_tool_secret
 from app.features.configuration.capabilities import CapabilitiesPortError
+from infrastructure.persistence.secrets import resolve_secret, set_tool_secret
 
 
 class ToolCapabilitySecretAdapter:

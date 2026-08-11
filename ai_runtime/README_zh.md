@@ -106,7 +106,7 @@ ELFIE_HOME=/tmp/elfienest-runtime-lab \
 
 - `test/ai_runtime/`：Gateway、Provider、模型、策略和工具；
 - `test/ai_runtime/food/`：粮食配方、规划、证据和执行；
-- `test/ai_runtime/storage/`：配置、密钥和数据边界；
+- `test/infrastructure/persistence/`：配置、密钥和数据边界；
 - `test/ai_runtime/validation/`：本地验证器与 Runtime Lab；
 - `test/architecture/test_project_structure.py`：当前源码根、旧 `runtime/` 包禁令
   和质量门入口。

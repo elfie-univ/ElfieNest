@@ -21,7 +21,6 @@ from ai_runtime.food.store import (
     validate_food_catalog_model_references,
 )
 from ai_runtime.models.model_reference import ModelReferenceError
-from ai_runtime.storage.provider_connections import ProviderConnectionStoreError
 from app.features.configuration.food import (
     FoodPortError,
     FoodPortInvalid,
@@ -34,6 +33,7 @@ from app.features.configuration.food import (
     StoredFoodProposal,
     StoredModelEvidence,
 )
+from infrastructure.persistence.provider_connections import ProviderConnectionStoreError
 
 
 class RuntimeFoodTechnologyAdapter:

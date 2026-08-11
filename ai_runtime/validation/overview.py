@@ -19,13 +19,13 @@ from ai_runtime.models.capabilities import (
 )
 from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
-from ai_runtime.storage.report_repository import ReportRepository
 from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
 from ai_runtime.validation.providers import (
     ProviderValidationRunner,
     discover_provider_models,
 )
 from infrastructure.persistence.data_home import get_model_validation_dir
+from infrastructure.persistence.report_repository import ReportRepository
 
 
 def configured_provider_ids(config: LLMRuntimeConfig) -> list[str]:

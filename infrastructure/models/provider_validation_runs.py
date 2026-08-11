@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Literal
 
-from ai_runtime.storage.provider_connections import ProviderConnection
-from ai_runtime.storage.report_repository import ReportRepository
-from ai_runtime.storage.validation_reports import (
+from infrastructure.persistence.provider_connections import ProviderConnection
+from infrastructure.persistence.report_repository import ReportRepository
+from infrastructure.persistence.validation_reports import (
     write_model_validation_report,
     write_provider_validation_report,
 )

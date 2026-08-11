@@ -2,12 +2,12 @@ from datetime import datetime, timedelta, timezone
 
 from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
 from ai_runtime.food.planner import ModelEvidence
-from ai_runtime.storage.provider_connections import (
+from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,
     ProviderModelRecord,
 )
-from ai_runtime.storage.report_repository import ReportRepository
+from infrastructure.persistence.report_repository import ReportRepository
 
 
 def _configure_inventory(store: ProviderConnectionStore) -> None:

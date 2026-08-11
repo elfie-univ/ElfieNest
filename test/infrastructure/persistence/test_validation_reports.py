@@ -3,7 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from ai_runtime.storage.validation_reports import (
+from infrastructure.persistence.data_home import get_report_database_path
+from infrastructure.persistence.validation_reports import (
     InvalidReportIdentityError,
     ReportRepository,
     read_latest_model_validation,
@@ -11,7 +12,6 @@ from ai_runtime.storage.validation_reports import (
     write_model_validation_report,
     write_provider_validation_report,
 )
-from infrastructure.persistence.data_home import get_report_database_path
 
 
 def test_provider_validation_is_appended_to_sqlite_without_yaml(
