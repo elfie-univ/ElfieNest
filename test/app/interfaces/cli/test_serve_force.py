@@ -37,8 +37,7 @@ def test_serve_main_does_not_rebind_nest_repository_inside_worker() -> None:
     )
 
     # When / Then
-    assert (
-        "from app.bootstrap.nest_session import build_nest_session_services" in source
-    )
+    assert "from app.bootstrap.nest_session import (" in source
+    assert "build_nest_session_services," in source
     assert "SQLiteNestStateRepository" not in source
     assert "engine.session.attach_repository" not in source
