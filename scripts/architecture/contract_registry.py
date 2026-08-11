@@ -79,6 +79,32 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
         baseline_path="test/architecture/baselines/system_layer.py",
     ),
     ContractRegistration(
+        contract_id="elfie-internal-architecture",
+        version="1.0",
+        english_path="docs/developer/contracts/elfie.md",
+        chinese_path="docs/zh/developer/contracts/elfie.md",
+        decision_paths=(
+            "docs/developer/decisions/0004-elfie-internal-ports-adapters.md",
+            "docs/zh/developer/decisions/0004-elfie-internal-ports-adapters.md",
+        ),
+        agent_paths=(
+            "elfie/AGENTS.md",
+            "elfie/brain/AGENTS.md",
+            "elfie/brain/memory/AGENTS.md",
+            "elfie/body/AGENTS.md",
+            "elfie/communication/AGENTS.md",
+            "elfie/nervous_system/AGENTS.md",
+            "elfie/profile/AGENTS.md",
+            "elfie/skills/AGENTS.md",
+        ),
+        scanner_paths=("scripts/architecture/system_layer_scan.py",),
+        test_paths=("test/architecture/test_elfie_cognitive_contracts.py",),
+        conformance_paths=(
+            "docs/developer/conformance/elfie.md",
+            "docs/zh/developer/conformance/elfie.md",
+        ),
+    ),
+    ContractRegistration(
         contract_id="application-architecture",
         version="1.4",
         english_path="docs/developer/contracts/application.md",
@@ -121,12 +147,14 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="model-food-tool-behavior",
-        version="1.4",
+        version="1.5",
         english_path="docs/developer/contracts/ai-runtime.md",
         chinese_path="docs/zh/developer/contracts/ai-runtime.md",
         decision_paths=(
             "docs/developer/decisions/0002-system-ports-adapters.md",
             "docs/zh/developer/decisions/0002-system-ports-adapters.md",
+            "docs/developer/decisions/0004-elfie-internal-ports-adapters.md",
+            "docs/zh/developer/decisions/0004-elfie-internal-ports-adapters.md",
         ),
         agent_paths=(
             "ai_runtime/AGENTS.md",

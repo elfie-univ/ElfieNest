@@ -68,14 +68,17 @@ export default defineConfig({
                 { text: "Architecture contracts", link: "/developer/contracts/" },
                 { text: "Repository governance", link: "/developer/contracts/repository-governance" },
                 { text: "System architecture contract", link: "/developer/contracts/system" },
+                { text: "Elfie internal contract", link: "/developer/contracts/elfie" },
                 { text: "Application contract", link: "/developer/contracts/application" },
                 { text: "Model, Food and tool behavior", link: "/developer/contracts/ai-runtime" },
                 { text: "System architecture conformance", link: "/developer/conformance/system" },
+                { text: "Elfie architecture conformance", link: "/developer/conformance/elfie" },
                 { text: "Application conformance", link: "/developer/conformance/application" },
                 { text: "AI Runtime migration conformance", link: "/developer/conformance/ai-runtime" },
                 { text: "Architecture decisions", link: "/developer/decisions/" },
                 { text: "App Ports & Adapters decision", link: "/developer/decisions/0001-lightweight-ports-adapters" },
-                { text: "System Ports & Adapters decision", link: "/developer/decisions/0002-system-ports-adapters" }
+                { text: "System Ports & Adapters decision", link: "/developer/decisions/0002-system-ports-adapters" },
+                { text: "Elfie Ports & Adapters decision", link: "/developer/decisions/0004-elfie-internal-ports-adapters" }
               ]
             },
             {
@@ -179,14 +182,17 @@ export default defineConfig({
                 { text: "架构契约", link: "/zh/developer/contracts/" },
                 { text: "仓库架构治理", link: "/zh/developer/contracts/repository-governance" },
                 { text: "系统架构契约", link: "/zh/developer/contracts/system" },
+                { text: "Elfie 内部架构契约", link: "/zh/developer/contracts/elfie" },
                 { text: "应用架构契约", link: "/zh/developer/contracts/application" },
                 { text: "模型、Food 与工具行为", link: "/zh/developer/contracts/ai-runtime" },
                 { text: "系统架构一致性", link: "/zh/developer/conformance/system" },
+                { text: "Elfie 内部架构一致性", link: "/zh/developer/conformance/elfie" },
                 { text: "应用架构一致性", link: "/zh/developer/conformance/application" },
                 { text: "AI Runtime 迁移一致性", link: "/zh/developer/conformance/ai-runtime" },
                 { text: "架构决策", link: "/zh/developer/decisions/" },
                 { text: "App Ports/Adapters 决策", link: "/zh/developer/decisions/0001-lightweight-ports-adapters" },
-                { text: "系统 Ports/Adapters 决策", link: "/zh/developer/decisions/0002-system-ports-adapters" }
+                { text: "系统 Ports/Adapters 决策", link: "/zh/developer/decisions/0002-system-ports-adapters" },
+                { text: "Elfie Ports/Adapters 决策", link: "/zh/developer/decisions/0004-elfie-internal-ports-adapters" }
               ]
             },
             {

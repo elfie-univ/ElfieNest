@@ -6,12 +6,17 @@ import ast
 import tokenize
 from pathlib import Path
 
+import elfie as elfie_api
 import elfie.body as body_api
 import elfie.communication as communication_api
-from elfie.body import BodyCommand, BodySensorEvent, CommandReceipt
+from elfie.body import BodyCommand, BodyPort, BodySensorEvent, CommandReceipt
 from elfie.body.contracts import BodyCommand as ContractBodyCommand
 from elfie.brain import BrainContext, DecisionPlan, PerceptualWorkspace
-from elfie.communication import CommunicationEnvelope, DeliveryReceipt
+from elfie.communication import (
+    CommunicationChannel,
+    CommunicationEnvelope,
+    DeliveryReceipt,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ELFIE_ROOT = PROJECT_ROOT / "elfie"
@@ -52,7 +57,14 @@ def test_elfie_does_not_reverse_import_application_or_runtime_layers() -> None:
             )
             imported = ([module] if module is not None else []) + names
             if any(
-                name.split(".", 1)[0] in {"ai_runtime", "app", "nest"}
+                name.split(".", 1)[0]
+                in {
+                    "ai_runtime",
+                    "app",
+                    "godot_runtime",
+                    "infrastructure",
+                    "nest",
+                }
                 for name in imported
             ):
                 offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
@@ -60,6 +72,19 @@ def test_elfie_does_not_reverse_import_application_or_runtime_layers() -> None:
 
     # Then
     assert offenders == []
+
+
+def test_root_public_surface_is_the_stable_aggregate_facades() -> None:
+    # Given / When / Then
+    assert elfie_api.__all__ == ["Elfie", "ElfieFactory"]
+
+
+def test_body_and_communication_ports_are_consumer_owned_protocols() -> None:
+    # Given / When / Then
+    assert getattr(BodyPort, "_is_protocol", False)
+    assert BodyPort.__module__ == "elfie.body.port"
+    assert getattr(CommunicationChannel, "_is_protocol", False)
+    assert CommunicationChannel.__module__ == "elfie.communication.channel"
 
 
 def test_canonical_cross_module_contracts_are_public() -> None:

@@ -148,6 +148,30 @@ def test_contract_change_requires_mirror_version_bump_and_bilingual_adr(
     )
 
 
+def test_contract_indexes_are_bilingual_navigation_not_versioned_contracts(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    # Given
+    english_index = "docs/developer/contracts/index.md"
+    chinese_index = "docs/zh/developer/contracts/index.md"
+    for path, source in (
+        (english_index, "# Architecture contracts\n"),
+        (chinese_index, "# 架构契约\n"),
+    ):
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    # When / Then
+    changed = {english_index, chinese_index}
+    assert validate_contract_changes("base", changed) == []
+    assert validate_contract_changes("base", {english_index}) == [
+        f"contract mirror not changed with {english_index}: {chinese_index}"
+    ]
+
+
 def test_frozen_macro_contract_requires_a_new_standalone_bilingual_adr(
     tmp_path: Path,
     monkeypatch,

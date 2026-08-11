@@ -5,5 +5,6 @@
 
 - [仓库架构治理](./repository-governance)
 - [系统架构](./system)
+- [Elfie 内部架构](./elfie)
 - [应用架构](./application)
 - [模型、Food 与工具行为](./ai-runtime)
