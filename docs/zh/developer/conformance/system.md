@@ -13,7 +13,7 @@
 | SYS-004 | P0 | closed | 生产服务与交互脚本从 `app/bootstrap/` 获取 Runtime、存储、Nest Session 和 Elfie 恢复装配；Bootstrap 构造鉴权管理 WebSocket Gateway 并注入 API 启停回调；Runtime、管理 Gateway 与 Godot 通道只经 Lifecycle 启停。Interface 只保留协议映射。 | 永久架构测试持续禁止 Interface 构造具体实现，并断言 API lifespan 把通道控制委托给 Lifecycle。 |
 | SYS-005 | P1 | open | 系统 Facade 和出站 Port 已部分存在，但没有一份稳定强类型边界清单；部分路径仍使用 `Any`、具体路径或协议细节。 | Elfie/Nest Facade，以及 Food、模型、工具、身体、世界、通信和持久化 Port 全部使用强类型模型；重复或技术命名的边界 API 删除。 |
 | SYS-006 | P1 | open | 现有永久规则只覆盖部分目标：系统精确 Scanner 主要检查 Elfie/Nest 技术 import，尚未完整棘轮 Bootstrap 装配、Infrastructure 跨能力组合和打包所有权。 | Core 测试使用 Fake/内存 Port，Adapter 测试分离，Bootstrap 有装配测试，迁移路径有端到端证据，并且系统精确基线清零。 |
-| SYS-007 | P0 | in progress | 原 `ai_runtime/` 根和 import 已清零；Provider/模型客户端与 Runtime 技术进入 `infrastructure/models/`，工具技术进入 `infrastructure/tools/`，Food 策略位于 App Food Feature，只读 Food Port 位于 Elfie。等价搬迁后的 Runtime 协调器与实验台内部仍组合多个具体 Infrastructure 能力。 | 保持 Provider → Food → 模型 → 工具 → 保底粮行为不变，再只用窄注入 Port 替换剩余 Infrastructure 跨能力具体构造；不得重设计 Elfie 认知或恢复旧根。 |
+| SYS-007 | P0 | in progress | 原 `ai_runtime/` 根和 import 已清零；Provider/模型客户端与 Runtime 技术进入 `infrastructure/models/`，工具技术进入 `infrastructure/tools/`，Food 策略位于 App Food Feature，只读 Food Port 位于 Elfie。`RuntimeAgent` 现在通过由 Bootstrap 装配的 `RuntimeAgentPorts` 接收技术能力。剩余具体跨能力组合集中在 Provider/Food 技术 Adapter；隔离的 Runtime Lab 作为开发工具可以继续组合具体 Adapter。 | 保持 Provider → Food → 模型 → 工具 → 保底粮行为不变，再只用窄注入 Port 替换剩余 Provider/Food Infrastructure 跨能力具体构造；Runtime Lab 保持开发工具隔离；不得重设计 Elfie 认知或恢复旧根。 |
 
 ## 当前执行边界
 
