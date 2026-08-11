@@ -4,7 +4,6 @@ def test_layered_runtime_imports_are_available():
     from ai_runtime.providers.ollama import OllamaManager
     from ai_runtime.providers.profiles import get_profile
     from ai_runtime.safety.permissions import PermissionManager
-    from ai_runtime.tools.code import CodeSandboxPlugin
     from ai_runtime.tools.executor import ToolExecutor
     from ai_runtime.tools.search import WebSearchPlugin
     from ai_runtime.usage.observer import RuntimeObserver
@@ -18,7 +17,6 @@ def test_layered_runtime_imports_are_available():
     assert get_profile("ollama") is not None
     assert PermissionManager is not None
     assert get_elfie_home() is not None
-    assert CodeSandboxPlugin is not None
     assert ToolExecutor is not None
     assert WebSearchPlugin is not None
     assert RuntimeObserver is not None

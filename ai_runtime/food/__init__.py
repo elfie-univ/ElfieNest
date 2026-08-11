@@ -1,6 +1,5 @@
 """Stable model-package and routing abstractions."""
 
-from ai_runtime.food.advisor import LLMFoodPlanningAdvisor, select_planning_model
 from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
 from ai_runtime.food.executor import (
     FoodExecutionError,
@@ -33,7 +32,6 @@ __all__ = [
     "FoodPackage",
     "FoodPlanner",
     "FoodUpdateProposal",
-    "LLMFoodPlanningAdvisor",
     "ModelAssignment",
     "ModelEvidence",
     "MainFoodRoute",
@@ -43,5 +41,4 @@ __all__ = [
     "query_model_evidence",
     "record_model_evidence",
     "resolve_main_food",
-    "select_planning_model",
 ]
