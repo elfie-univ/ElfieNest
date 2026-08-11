@@ -7,13 +7,24 @@
 
 | ID | 严重级别 | 状态 | 当前偏差 | 关闭门槛 |
 | --- | --- | --- | --- | --- |
-| SYS-001 | P0 | open | 技术 Adapter 分散在 `app/infrastructure/`、`ai_runtime/`、`godot_runtime/`、`nest/godot_gateway/` 和 Elfie/Nest 具体存储或传输代码中；目标根 `infrastructure/` 尚不存在。 | 技术实现分别进入 `models`、`tools`、`persistence`、`godot`、`devices`、`communication` 或 `platform`；旧技术根和兼容 import 删除，根 `godot_project/` 保持不动。 |
-| SYS-002 | P0 | open | Elfie Memory/Profile 会构造 SQLite、YAML 和路径实现，Factory/Runtime 仍知道具体存储或 Godot 传输细节。 | Elfie 只保留语义模型、算法、Facade 和 Port；Infrastructure 实现存储/身体/渠道 Adapter；Bootstrap 注入；聚焦 Elfie 测试使用 Fake 且无技术 I/O。 |
-| SYS-003 | P0 | open | Nest 内含具体 WebSocket、JSON、环境、Bundle 和 Godot 传输实现。 | Nest 只保留世界语义、规则、Facade 和 Port；Infrastructure 拥有协议/宿主 Adapter；全局事实经过 Nest，actor 回执走身体通道。 |
-| SYS-004 | P0 | open | 具体构造散落在 App Route、Feature、Factory 和 Orchestration；`app/bootstrap/` 尚不是完整组合根。 | Bootstrap 构造全部跨系统具体 Adapter 并注入系统 Port；产品/Runtime 代码不再有 Service Locator 或具体 Adapter 构造。 |
+| SYS-001 | P0 | in progress | 根 `infrastructure/` 已有七个目标能力目录，但部分 Adapter 仍委托 `ai_runtime/`、`godot_runtime/`、`nest/godot_gateway/` 或 Core 内的技术实现。 | 技术实现分别进入 `models`、`tools`、`persistence`、`godot`、`devices`、`communication` 或 `platform`；旧技术根和兼容 import 删除，根 `godot_project/` 保持不动。 |
+| SYS-002 | P0 | open | Elfie Memory/Profile 会构造 SQLite、YAML 和路径实现，Factory/Runtime 仍知道具体存储或 Godot 传输细节；这是已登记的 Elfie 内部债，不属于当前顶层归位批次。 | Elfie 只保留语义模型、算法、Facade 和 Port；Infrastructure 实现存储/身体/渠道 Adapter；Bootstrap 注入；聚焦 Elfie 测试使用 Fake 且无技术 I/O。 |
+| SYS-003 | P0 | in progress | 根 `infrastructure/godot/` 已拥有 Lifecycle、Nest Session 和 Observer Adapter，但 `nest/godot_gateway/` 仍持有原始 WebSocket、JSON、Bundle 和协议实现。 | 把既有技术传输等价迁入 Infrastructure，并迁完全部调用方；Nest 世界语义、状态、事件和协议行为不得改变。 |
+| SYS-004 | P0 | in progress | 强类型 `app/bootstrap/` Container 已构造大量根 Adapter，但 API、CLI 和脚本入口仍会解析或构造部分具体技术依赖，Lifecycle 所有权尚未完全单一。 | Bootstrap 构造全部跨系统具体 Adapter并注入系统 Port；只有 Lifecycle 能启动和停止 Runtime、Gateway 与 Godot authority；产品/Runtime 代码不再有 Service Locator 或具体 Adapter 构造。 |
 | SYS-005 | P1 | open | 系统 Facade 和出站 Port 已部分存在，但没有一份稳定强类型边界清单；部分路径仍使用 `Any`、具体路径或协议细节。 | Elfie/Nest Facade，以及 Food、模型、工具、身体、世界、通信和持久化 Port 全部使用强类型模型；重复或技术命名的边界 API 删除。 |
-| SYS-006 | P1 | open | 当前部分 Core 测试仍依赖真实 Adapter，系统级架构债尚未全部进入精确棘轮。 | Core 测试使用 Fake/内存 Port，Adapter 测试分离，Bootstrap 有装配测试，迁移路径有端到端证据，并且系统精确基线清零。 |
-| SYS-007 | P0 | open | 当前 `ai_runtime/` 把 Provider/模型 Adapter、Food 管理、报告、持久化、工具执行和推理协调混在一个已废弃的目标所有者中。 | Provider/模型访问进入 `infrastructure/models`，工具执行进入 `infrastructure/tools`，持久化实现消费方 Port，App 拥有 Food 管理与报告，Elfie 直接使用注入的 `FoodPort`、`ModelPort`、`ToolPort`；全部调用方迁移后删除旧根，不整体移动。 |
+| SYS-006 | P1 | open | 现有永久规则只覆盖部分目标：系统精确 Scanner 主要检查 Elfie/Nest 技术 import，尚未完整棘轮 Bootstrap 装配、Infrastructure 跨能力组合和打包所有权。 | Core 测试使用 Fake/内存 Port，Adapter 测试分离，Bootstrap 有装配测试，迁移路径有端到端证据，并且系统精确基线清零。 |
+| SYS-007 | P0 | in progress | Provider、Food 与工具管理边界已有目标 Adapter，但 `ai_runtime/` 仍混有模型/工具技术、持久化和推理协调，部分根 Infrastructure Adapter 仍委托它。 | 纯技术实现及全部调用方迁到目标能力目录；任何必须重构 Elfie 认知或工具行为才能移动的混合协调器继续登记为后续 Elfie 内部专项，不得改名塞进 Infrastructure。 |
+
+## 当前执行边界
+
+当前最高优先级是**顶层物理所有权与跨根边界稳定**。本批允许关闭 Bootstrap、Data
+Home、打包与 Lifecycle 装配缺口；等价迁移现有 Godot 宿主/Gateway 和其他纯技术
+实现；迁移其调用方；只有旧路径调用方清零后才能删除旧路径。
+
+Elfie 与 Nest 内部算法、状态机、子模块交互和用户可见行为全部保持不变。本批尤其
+不重设计认知、Memory、Skills、模型/工具循环、Nest 世界语义、Resident 同步或事件
+传播。如果旧模块无法在此约束下等价移动，就继续登记为后续 Elfie 或 Nest 内部专项，
+不能为了清空目录强行塞进 Infrastructure。
 
 ## 机器覆盖
 
@@ -33,8 +44,16 @@ Godot 和工程结构安全规则，但不能据此关闭其余目标条目。`S
 4. 删除旧实现与 import 路径；
 5. 缩减机器基线，只关闭受影响条目。
 
-建议依赖顺序为：Bootstrap 基础、Elfie Food/模型/工具 Port、模型与工具 Adapter、
-Elfie 持久化、Nest 持久化、Godot Gateway/宿主接入、Nest 世界 authority、外部设备
-与通信，最后处理剩余平台能力。App 领域迁移继续由
-[应用架构一致性台账](./application)单独跟踪；当前 `ai_runtime/` 行为债务在迁移包
-删除前继续由 [AI Runtime 一致性台账](./ai-runtime)记录。
+当前批次采用更窄的依赖顺序：
+
+1. 冻结现有行为、公开边界和 Lifecycle 所有者；
+2. 关闭目标 Infrastructure 包所需的 Bootstrap、Data Home 和打包基础；
+3. 把 Godot 宿主/产物与 Gateway/协议技术等价迁到 `infrastructure/godot/`，切换全部
+   调用方后删除旧根；
+4. 只把 `ai_runtime/` 中的纯技术部分迁到现有目标能力目录，并切换其调用方；
+5. 审查剩余混合协调器；如果关闭它需要重构 Elfie 或 Nest 内部，就延期；
+6. 只缩减已经实际消失的精确基线；缺失的永久规则必须等实时违规清零后，以独立治理
+   变更加入。
+
+App 领域迁移继续由[应用架构一致性台账](./application)单独跟踪。Elfie 与 Nest
+内部清理不属于本次顶层迁移。
