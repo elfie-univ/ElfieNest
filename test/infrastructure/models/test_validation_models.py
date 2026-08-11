@@ -1,7 +1,7 @@
 import json
 import os
 
-from ai_runtime.validation.models import (
+from infrastructure.models.validation_models import (
     CheckResult,
     CheckStatus,
     ValidationReport,

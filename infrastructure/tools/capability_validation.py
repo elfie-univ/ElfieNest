@@ -6,13 +6,13 @@ from collections.abc import Callable, Mapping
 from typing import Protocol, cast
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.validation.models import CheckResult
 from app.features.configuration.capabilities import (
     CapabilitiesPortError,
     CapabilityKey,
     StoredValidationResult,
     ValidationStatus,
 )
+from infrastructure.models.validation_models import CheckResult
 from infrastructure.tools.direct_validation import DirectToolValidationRunner
 
 

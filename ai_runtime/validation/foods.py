@@ -7,7 +7,11 @@ from collections.abc import Sequence
 from ai_runtime.food.health import project_food_health
 from ai_runtime.food.planner import ModelEvidence
 from ai_runtime.food.store import FoodCatalog
-from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
+from infrastructure.models.validation_models import (
+    CheckResult,
+    CheckStatus,
+    ValidationSuite,
+)
 
 
 class FoodValidationRunner:

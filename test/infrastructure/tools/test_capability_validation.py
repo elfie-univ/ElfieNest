@@ -1,6 +1,6 @@
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.validation.models import CheckResult, CheckStatus
 from app.features.configuration.capabilities import StoredValidationResult
+from infrastructure.models.validation_models import CheckResult, CheckStatus
 from infrastructure.tools import DirectCapabilityValidationAdapter
 
 

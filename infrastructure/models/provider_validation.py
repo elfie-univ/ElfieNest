@@ -12,7 +12,6 @@ from typing import Any
 
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.gateway.llm_api import call_llm_api
-from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
 from infrastructure.models.catalog import verify_provider
 from infrastructure.models.providers.dispatch import detect_api_mode_for_url
 from infrastructure.models.providers.http import (
@@ -20,6 +19,11 @@ from infrastructure.models.providers.http import (
     read_provider_response,
 )
 from infrastructure.models.providers.model_hints import configured_model_specs
+from infrastructure.models.validation_models import (
+    CheckResult,
+    CheckStatus,
+    ValidationSuite,
+)
 
 
 @dataclass(frozen=True)

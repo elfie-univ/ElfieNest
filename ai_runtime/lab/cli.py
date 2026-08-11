@@ -23,28 +23,32 @@ from ai_runtime.lab.provider_storage import (
 from ai_runtime.tools.config import TOOL_KEYS, load_tool_configs
 from ai_runtime.validation.agent import ModelAgentValidationRunner
 from ai_runtime.validation.foods import FoodValidationRunner
-from ai_runtime.validation.models import CheckStatus, ValidationReport, ValidationSuite
 from ai_runtime.validation.overview import (
     RuntimeOverviewGenerator,
     RuntimeOverviewStore,
     configured_provider_ids,
     render_provider_model_matrix,
 )
-from ai_runtime.validation.providers import (
-    ProviderValidationRunner,
-    discover_provider_models,
-)
 from infrastructure.models.capabilities import (
     canonical_display_name,
     known_capabilities,
 )
 from infrastructure.models.catalog import BUILTIN_MODEL_CATALOG
+from infrastructure.models.provider_validation import (
+    ProviderValidationRunner,
+    discover_provider_models,
+)
 from infrastructure.models.providers.model_hints import (
     ProviderModelSpec,
     configured_model_specs,
     suggested_model_names,
 )
 from infrastructure.models.providers.profiles import BUILTIN_PROFILES
+from infrastructure.models.validation_models import (
+    CheckStatus,
+    ValidationReport,
+    ValidationSuite,
+)
 from infrastructure.persistence.config_store import write_yaml_mapping
 from infrastructure.persistence.data_home import (
     get_config_path,

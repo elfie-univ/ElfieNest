@@ -6,8 +6,11 @@ import asyncio
 from typing import Any, Callable
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.validation.models import CheckStatus
-from ai_runtime.validation.providers import ProviderValidationRunner, classify_latency
+from infrastructure.models.provider_validation import (
+    ProviderValidationRunner,
+    classify_latency,
+)
+from infrastructure.models.validation_models import CheckStatus
 from infrastructure.persistence.provider_connections import ProviderConnection
 
 RuntimeProjection = Callable[[ProviderConnection], tuple[str, LLMRuntimeConfig]]

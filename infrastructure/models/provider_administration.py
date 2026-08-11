@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, Mapping, Optional, cast
 
-from ai_runtime.validation.providers import DiscoveredModel, discover_provider_models
 from app.features.configuration import (
     ApiMode,
     AuthType,
@@ -38,6 +37,10 @@ from app.features.configuration import (
     StoredVerification,
     ValidationMode,
     ValidationStatus,
+)
+from infrastructure.models.provider_validation import (
+    DiscoveredModel,
+    discover_provider_models,
 )
 from infrastructure.models.providers.discovery import (
     bundled_catalog_models,

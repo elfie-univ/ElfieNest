@@ -1,6 +1,6 @@
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.validation.agent import ModelAgentValidationRunner
-from ai_runtime.validation.models import CheckStatus
+from infrastructure.models.validation_models import CheckStatus
 
 
 def scripted_model(provider, model, messages, temperature, max_tokens):

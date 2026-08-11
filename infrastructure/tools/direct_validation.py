@@ -7,7 +7,11 @@ import time
 from pathlib import Path
 from typing import Protocol
 
-from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
+from infrastructure.models.validation_models import (
+    CheckResult,
+    CheckStatus,
+    ValidationSuite,
+)
 from infrastructure.tools.local_files import LocalFileAccessPlugin
 from infrastructure.tools.search import WebSearchPlugin
 

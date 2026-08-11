@@ -1,5 +1,5 @@
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.validation.models import CheckStatus
+from infrastructure.models.validation_models import CheckStatus
 from infrastructure.tools.direct_validation import DirectToolValidationRunner
 
 
