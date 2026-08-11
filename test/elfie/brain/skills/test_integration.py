@@ -1,9 +1,9 @@
-"""Skill policy integration with the typed cortical request boundary."""
+"""Skill authorization integration with the typed cortical request boundary."""
 
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
+from elfie.brain.skills import SkillManager, SkillPolicy
 from elfie.communication import CommunicationHub
-from elfie.skills import SkillManager, SkillPolicy
 from test.elfie.test_cognitive_lifecycle import (
     RecordingChannel,
     TwoTurnRuntime,
@@ -11,8 +11,7 @@ from test.elfie.test_cognitive_lifecycle import (
 )
 
 
-def test_elfie_passes_allowed_runtime_tools_to_cortical_request() -> None:
-    # Given: one Elfie whose policy allows only the registered web search tool.
+def test_elfie_passes_authorized_tool_keys_to_cortical_request() -> None:
     manager = SkillManager(
         policy=SkillPolicy(allowed_skill_ids=frozenset({"web_search"}))
     )
@@ -30,13 +29,11 @@ def test_elfie_passes_allowed_runtime_tools_to_cortical_request() -> None:
         cortical_runtime=runtime,
     )
 
-    # When: a typed owner message starts one cortical turn.
     elfie.start()
     elfie.receive_communication_envelope(_owner_message(elfie.cognitive_datetime))
     elfie.advance_clock(0.5)
     elfie.wait_for_outcome_count(1, timeout=1.0)
 
-    # Then: the typed request carries the filtered tool capability.
     assert runtime.requests[0].allowed_tools == ("web_search",)
     elfie.stop()
     elfie.join()

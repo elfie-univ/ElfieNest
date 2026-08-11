@@ -1,16 +1,16 @@
-"""每只精灵对 Runtime 技能的使用策略。"""
+"""Per-Elfie Skill authorization policy owned by Brain."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import FrozenSet
 
-from elfie.skills.registry import SkillDefinition
+from elfie.brain.skills.registry import SkillDefinition
 
 
 @dataclass(frozen=True)
 class SkillPolicy:
-    """空 allowed_skill_ids 表示允许所有已注册技能，再应用 denied_skill_ids。"""
+    """Allow registered Skills, then apply explicit denials."""
 
     allowed_skill_ids: FrozenSet[str] = frozenset()
     denied_skill_ids: FrozenSet[str] = frozenset()

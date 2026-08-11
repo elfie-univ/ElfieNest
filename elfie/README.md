@@ -52,7 +52,7 @@ elfie/
 ├── nervous_system/      # perception normalization, filtering, reflexes and physical output
 ├── body/                # Headless, Native, External swappable bodies
 ├── communication/       # digital message channel bypassing the NervousSystem
-└── skills/              # current skill location; target owner is brain/skills
+└── brain/skills/        # semantic Skill catalog and authorization policy
 ```
 
 ## Entry points
@@ -95,7 +95,7 @@ demand — do not maintain Schema files or export scripts in the repo.
 
 ```text
 app/orchestration ──> elfie
-elfie.elfie ──> profile + brain + nervous_system + body + communication + skills
+elfie.elfie ──> profile + brain + nervous_system + body + communication
 brain/output ──> abstract Food, model, tool and execution ports
 ```
 
@@ -132,6 +132,6 @@ For the full environment setup and quality gate see
   memory;
 - `test/elfie/body/`, `test/elfie/nervous_system/`: body and physical
   boundaries;
-- `test/elfie/communication/`, `test/elfie/skills/`: messages and skills;
+- `test/elfie/communication/`, `test/elfie/brain/skills/`: messages and Skills;
 - `test/architecture/test_elfie_cognitive_contracts.py`: cognitive entry
   points, dependency direction, Pydantic contracts and the on-disk Schema ban.

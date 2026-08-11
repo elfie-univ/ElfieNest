@@ -18,6 +18,7 @@ from elfie.brain.output_router import OutputRouter
 from elfie.brain.output_types import ExecutionReceipt, IntentExecutionResult
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.brain.runtime_port import CorticalRuntimePort
+from elfie.brain.skills import SkillManager
 from elfie.brain.turn_outcome import TurnOutcome
 from elfie.cognitive_context import ElfieContextSource
 from elfie.communication import CommunicationHub
@@ -25,7 +26,6 @@ from elfie.communication.output_executor import CommunicationIntentExecutor
 from elfie.message_types import ElfieId, TurnId, UTCDateTime
 from elfie.nervous_system import NervousSystem
 from elfie.nervous_system.output_executor import NervousSystemIntentExecutor
-from elfie.skills import SkillManager
 
 
 class DefaultInternalIntentSink:
@@ -100,7 +100,7 @@ class ElfieCognitiveRuntime:
             cortical_worker=worker,
             plan_sink=self.router,
             initial_timestamp=clock().timestamp(),
-            allowed_tools=skills.allowed_runtime_tools(),
+            allowed_tools=skills.allowed_tool_keys(),
         )
         self._started = False
         self._workspace = workspace

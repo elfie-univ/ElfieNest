@@ -8,10 +8,10 @@ from typing import Any, Iterable, Optional, Union, cast
 from elfie.body.native import GodotGateway, GodotTransport, NativeBody
 from elfie.body.port import BodyPort
 from elfie.brain.runtime_port import CorticalRuntimePort
+from elfie.brain.skills import SkillManager
 from elfie.communication import CommunicationHub
 from elfie.elfie import Elfie
 from elfie.profile import ElfieProfile, ElfieProfileRepository
-from elfie.skills import SkillManager
 
 ConfigPath = Union[str, Path]
 

@@ -44,7 +44,7 @@ elfie/
 ├── nervous_system/      # 感知规范化、过滤、反射和物理输出
 ├── body/                # Headless、Native、External 可替换身体
 ├── communication/       # 不经过 NervousSystem 的数字消息通道
-└── skills/              # 当前 Skill 位置；目标所有者为 brain/skills
+└── brain/skills/        # 语义 Skill 目录和授权策略
 ```
 
 ## 入口
@@ -81,7 +81,7 @@ ExecutionReceipt ----------------------------------> PerceptualWorkspace
 
 ```text
 app/orchestration ──> elfie
-elfie.elfie ──> profile + brain + nervous_system + body + communication + skills
+elfie.elfie ──> profile + brain + nervous_system + body + communication
 brain/output ──> 抽象 Food、模型、工具与执行端口
 ```
 
@@ -113,6 +113,6 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 - `test/elfie/`：单精灵门面、工厂、身份和跨子模块组合；
 - `test/elfie/brain/`：感知、上下文、决策、情绪、能量和记忆；
 - `test/elfie/body/`、`test/elfie/nervous_system/`：身体与物理边界；
-- `test/elfie/communication/`、`test/elfie/skills/`：消息与技能；
+- `test/elfie/communication/`、`test/elfie/brain/skills/`：消息与技能；
 - `test/architecture/test_elfie_cognitive_contracts.py`：认知入口、依赖方向、
   Pydantic 契约和磁盘 Schema 禁令。

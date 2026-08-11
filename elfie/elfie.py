@@ -19,6 +19,7 @@ from elfie.brain.output_types import ExecutionReceipt
 from elfie.brain.perception_types import IngestReceipt
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.brain.runtime_port import CorticalRuntimePort
+from elfie.brain.skills import SkillManager
 from elfie.brain.turn_outcome import TurnOutcome
 from elfie.cognitive_runtime import ElfieCognitiveRuntime
 from elfie.communication import CommunicationEnvelope, CommunicationHub
@@ -30,7 +31,6 @@ from elfie.lifecycle_errors import ElfieLifecycleError, InvalidClockDeltaError
 from elfie.message_types import ElfieId, TurnId
 from elfie.nervous_system import NervousSystem
 from elfie.profile import ElfieProfile
-from elfie.skills import SkillManager
 
 
 class Elfie:

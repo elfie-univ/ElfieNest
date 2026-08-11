@@ -1,4 +1,4 @@
-"""精灵可使用技能的声明和注册表。"""
+"""Semantic Skill declarations and the in-memory catalog owned by Brain."""
 
 from __future__ import annotations
 
@@ -9,8 +9,10 @@ from typing import Dict, List, Optional
 
 @dataclass(frozen=True)
 class SkillDefinition:
+    """Immutable declaration of one semantic tool capability."""
+
     skill_id: str
-    runtime_tool: str
+    tool_key: str
     display_name: str
     description: str
 
@@ -19,10 +21,12 @@ class SkillDefinition:
 
 
 class SkillRegistrationError(ValueError):
-    """技能声明无效或标识发生冲突。"""
+    """Raised when a Skill declaration is invalid or conflicts."""
 
 
 class SkillRegistry:
+    """Thread-safe in-memory catalog for bundled or explicitly assembled Skills."""
+
     def __init__(self) -> None:
         self._skills: Dict[str, SkillDefinition] = {}
         self._lock = RLock()
@@ -31,13 +35,15 @@ class SkillRegistry:
         self, skill: SkillDefinition, *, replace: bool = False
     ) -> SkillDefinition:
         if not skill.skill_id.strip():
-            raise SkillRegistrationError("skill_id 不能为空")
-        if not skill.runtime_tool.strip():
-            raise SkillRegistrationError("runtime_tool 不能为空")
+            raise SkillRegistrationError("skill_id must not be blank")
+        if not skill.tool_key.strip():
+            raise SkillRegistrationError("tool_key must not be blank")
         with self._lock:
             existing = self._skills.get(skill.skill_id)
             if existing is not None and existing != skill and not replace:
-                raise SkillRegistrationError(f"技能已经注册: {skill.skill_id}")
+                raise SkillRegistrationError(
+                    f"Skill already registered: {skill.skill_id}"
+                )
             self._skills[skill.skill_id] = skill
         return skill
 
@@ -46,7 +52,7 @@ class SkillRegistry:
             try:
                 return self._skills.pop(skill_id)
             except KeyError as exc:
-                raise KeyError(f"技能未注册: {skill_id}") from exc
+                raise KeyError(f"Skill not registered: {skill_id}") from exc
 
     def get(self, skill_id: str) -> Optional[SkillDefinition]:
         with self._lock:
