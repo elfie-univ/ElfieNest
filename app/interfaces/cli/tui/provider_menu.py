@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from typing import Callable
 
-from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from app.features.accounts import AccountPrincipal
 from app.features.configuration import (
     GetProviderModelMatrixQuery,
@@ -15,6 +14,7 @@ from app.features.configuration import (
 )
 from app.interfaces.cli.provider_commands import remove_provider
 from app.interfaces.cli.provider_projection import connections, products
+from infrastructure.platform.terminal_menu import MenuItem, TerminalMenu
 
 ProviderLogin = Callable[[str], None]
 

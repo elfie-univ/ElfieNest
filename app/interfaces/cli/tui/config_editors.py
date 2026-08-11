@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import MutableMapping
 
-from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from app.features.accounts import AccountPrincipal
 from app.features.configuration import (
     GetElfieSettingsQuery,
@@ -16,6 +15,7 @@ from app.features.configuration import (
     UpdateSecuritySettingsCommand,
 )
 from app.interfaces.cli.tui.common import clear_screen, print_banner
+from infrastructure.platform.terminal_menu import MenuItem, TerminalMenu
 
 
 def config_llm(config: object | None = None) -> None:
