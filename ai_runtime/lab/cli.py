@@ -45,7 +45,6 @@ from ai_runtime.validation.providers import (
     ProviderValidationRunner,
     discover_provider_models,
 )
-from ai_runtime.validation.tools import DirectToolValidationRunner
 from infrastructure.persistence.config_store import write_yaml_mapping
 from infrastructure.persistence.data_home import (
     get_config_path,
@@ -59,6 +58,7 @@ from infrastructure.persistence.secrets import (
     set_tool_secret,
 )
 from infrastructure.persistence.store import init_db
+from infrastructure.tools.direct_validation import DirectToolValidationRunner
 
 
 class RuntimeLab:

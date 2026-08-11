@@ -7,13 +7,13 @@ from typing import Protocol, cast
 
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.validation.models import CheckResult
-from ai_runtime.validation.tools import DirectToolValidationRunner
 from app.features.configuration.capabilities import (
     CapabilitiesPortError,
     CapabilityKey,
     StoredValidationResult,
     ValidationStatus,
 )
+from infrastructure.tools.direct_validation import DirectToolValidationRunner
 
 
 class ValidationRunner(Protocol):

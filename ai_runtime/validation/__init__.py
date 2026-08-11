@@ -19,13 +19,11 @@ from ai_runtime.validation.providers import (
     ProviderValidationRunner,
     discover_provider_models,
 )
-from ai_runtime.validation.tools import DirectToolValidationRunner
 
 __all__ = [
     "CheckResult",
     "CheckStatus",
     "DiscoveredModel",
-    "DirectToolValidationRunner",
     "FoodValidationRunner",
     "ModelAgentValidationRunner",
     "ProviderValidationRunner",

@@ -1,4 +1,4 @@
-"""Agent 的只读本地文件工具，只允许访问用户数据根目录。"""
+"""只读本地文件技术 Adapter，只允许访问注入的数据根目录。"""
 
 from __future__ import annotations
 

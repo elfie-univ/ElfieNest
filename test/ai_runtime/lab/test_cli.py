@@ -29,6 +29,7 @@ def test_default_runtime_lab_saves_and_deletes_provider_connection(
     monkeypatch,
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    monkeypatch.setenv("ELFIE_DEV_HOME", str(tmp_path / "developer"))
     messages: list[str] = []
     lab = RuntimeLab(
         input_fn=lambda _prompt: "DELETE",

@@ -1,6 +1,6 @@
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.validation.models import CheckStatus
-from ai_runtime.validation.tools import DirectToolValidationRunner
+from infrastructure.tools.direct_validation import DirectToolValidationRunner
 
 
 class FakeSearch:
