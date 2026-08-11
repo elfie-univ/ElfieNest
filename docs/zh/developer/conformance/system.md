@@ -7,9 +7,9 @@
 
 | ID | 严重级别 | 状态 | 当前偏差 | 关闭门槛 |
 | --- | --- | --- | --- | --- |
-| SYS-001 | P0 | in progress | 根 `infrastructure/` 已有七个目标能力目录，但部分 Adapter 仍委托 `ai_runtime/`、`godot_runtime/`、`nest/godot_gateway/` 或 Core 内的技术实现。 | 技术实现分别进入 `models`、`tools`、`persistence`、`godot`、`devices`、`communication` 或 `platform`；旧技术根和兼容 import 删除，根 `godot_project/` 保持不动。 |
+| SYS-001 | P0 | in progress | 根 `infrastructure/` 已有七个目标能力目录，并已拥有 Data Home 与原始 Godot Gateway，但部分 Adapter 仍委托 `ai_runtime/`、`godot_runtime/` 或 Core 内的技术实现。 | 技术实现分别进入 `models`、`tools`、`persistence`、`godot`、`devices`、`communication` 或 `platform`；旧技术根和兼容 import 删除，根 `godot_project/` 保持不动。 |
 | SYS-002 | P0 | open | Elfie Memory/Profile 会构造 SQLite、YAML 和路径实现，Factory/Runtime 仍知道具体存储或 Godot 传输细节；这是已登记的 Elfie 内部债，不属于当前顶层归位批次。 | Elfie 只保留语义模型、算法、Facade 和 Port；Infrastructure 实现存储/身体/渠道 Adapter；Bootstrap 注入；聚焦 Elfie 测试使用 Fake 且无技术 I/O。 |
-| SYS-003 | P0 | in progress | 根 `infrastructure/godot/` 已拥有 Lifecycle、Nest Session 和 Observer Adapter，但 `nest/godot_gateway/` 仍持有原始 WebSocket、JSON、Bundle 和协议实现。 | 把既有技术传输等价迁入 Infrastructure，并迁完全部调用方；Nest 世界语义、状态、事件和协议行为不得改变。 |
+| SYS-003 | P0 | in progress | 原始 WebSocket、JSON、Bundle、协议与 Session 已归位 `infrastructure/godot/gateway/`，Nest 已无 WebSocket import；`nest/godot_gateway/observer.py` 仍是被 Nest Session 私有消费的已登记混合语义投影。 | APP-G06 用所有者公开导出或消费方 Port Model 替换最后一个 Observer 私有模型 import，随后删除残留 Nest 目录；世界语义、状态、事件和协议行为不得改变。 |
 | SYS-004 | P0 | in progress | 强类型 `app/bootstrap/` Container 已构造大量根 Adapter，但 API、CLI 和脚本入口仍会解析或构造部分具体技术依赖，Lifecycle 所有权尚未完全单一。 | Bootstrap 构造全部跨系统具体 Adapter并注入系统 Port；只有 Lifecycle 能启动和停止 Runtime、Gateway 与 Godot authority；产品/Runtime 代码不再有 Service Locator 或具体 Adapter 构造。 |
 | SYS-005 | P1 | open | 系统 Facade 和出站 Port 已部分存在，但没有一份稳定强类型边界清单；部分路径仍使用 `Any`、具体路径或协议细节。 | Elfie/Nest Facade，以及 Food、模型、工具、身体、世界、通信和持久化 Port 全部使用强类型模型；重复或技术命名的边界 API 删除。 |
 | SYS-006 | P1 | open | 现有永久规则只覆盖部分目标：系统精确 Scanner 主要检查 Elfie/Nest 技术 import，尚未完整棘轮 Bootstrap 装配、Infrastructure 跨能力组合和打包所有权。 | Core 测试使用 Fake/内存 Port，Adapter 测试分离，Bootstrap 有装配测试，迁移路径有端到端证据，并且系统精确基线清零。 |

@@ -8,9 +8,9 @@ from pydantic import JsonValue
 
 from devtools.nest_lab.event_log import LabEventLog
 from devtools.nest_lab.models import LabActor
+from infrastructure.godot.gateway.api import GodotAPIServer
+from infrastructure.godot.gateway.messages import CommandName, JsonObject
 from nest import Nest
-from nest.godot_gateway.api import GodotAPIServer
-from nest.godot_gateway.messages import CommandName, JsonObject
 
 
 def sync_actors(

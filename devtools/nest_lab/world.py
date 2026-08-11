@@ -13,18 +13,18 @@ from devtools.nest_lab.event_log import LabEventLog
 from devtools.nest_lab.models import LabActor, LabSpecies, NestLabConflictError
 from devtools.nest_lab.residents import assign_missing_homes, clear_home_assignments
 from devtools.nest_lab.simulation import WanderScheduler
-from infrastructure.godot.nest_session.mapper import (
-    parse_scene_manifest,
-    parse_world_snapshot,
-)
-from nest import Nest, NestConfig
-from nest.godot_gateway.api import GodotAPIServer
-from nest.godot_gateway.messages import (
+from infrastructure.godot.gateway.api import GodotAPIServer
+from infrastructure.godot.gateway.messages import (
     CommandName,
     EventName,
     JsonObject,
     RuntimeEventFrame,
 )
+from infrastructure.godot.nest_session.mapper import (
+    parse_scene_manifest,
+    parse_world_snapshot,
+)
+from nest import Nest, NestConfig
 from nest.state.models import (
     AnchorKind,
     InteractionAnchor,

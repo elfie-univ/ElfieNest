@@ -13,7 +13,7 @@ NON_ORCHESTRATION_APP_ROOTS = (
 )
 PUBLIC_GATEWAY_IMPORTS = frozenset(
     {
-        "nest.godot_gateway.bundle",
+        "infrastructure.godot.gateway.bundle",
         "nest.godot_gateway.observer",
     }
 )
@@ -71,7 +71,7 @@ def test_runtime_import_scanner_flags_raw_protocol_control(tmp_path: Path) -> No
     # Given: an interface implementation tries to import a raw protocol frame.
     source = tmp_path / "runtime_route.py"
     source.write_text(
-        "from nest.godot_gateway.messages import RuntimeEventFrame\n",
+        "from infrastructure.godot.gateway.messages import RuntimeEventFrame\n",
         encoding="utf-8",
     )
 
@@ -79,4 +79,4 @@ def test_runtime_import_scanner_flags_raw_protocol_control(tmp_path: Path) -> No
     imports = _runtime_imports(source)
 
     # Then: the import is recognized as non-public Runtime control.
-    assert imports - PUBLIC_GATEWAY_IMPORTS == {"nest.godot_gateway.messages"}
+    assert imports - PUBLIC_GATEWAY_IMPORTS == {"infrastructure.godot.gateway.messages"}

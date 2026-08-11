@@ -10,9 +10,9 @@ from typing import Any
 import websockets
 from pydantic import ValidationError
 
-from nest.godot_gateway.messages import parse_runtime_event_frame
-from nest.godot_gateway.protocol import MessageRateLimiter
-from nest.godot_gateway.session import (
+from infrastructure.godot.gateway.messages import parse_runtime_event_frame
+from infrastructure.godot.gateway.protocol import MessageRateLimiter
+from infrastructure.godot.gateway.session import (
     RuntimeAuthorityError,
     RuntimeConnection,
     RuntimeQueueFullError,
@@ -20,7 +20,7 @@ from nest.godot_gateway.session import (
     StaleRuntimeEventError,
 )
 
-logger = logging.getLogger("nest.godot_gateway.api")
+logger = logging.getLogger("infrastructure.godot.gateway.api")
 
 
 class GodotProtocolV2Handler:

@@ -25,7 +25,8 @@ Feature 用例，Feature 声明自己需要的 Port，Infrastructure 实现 Port
 | 模块 | 当前职责 | 详细入口 |
 | --- | --- | --- |
 | `elfie/` | 一只完整精灵的档案、大脑、神经系统、身体、通信与技能 | [Elfie README](https://github.com/elfie-univ/ElfieNest/blob/main/elfie/README.md) |
-| `nest/` | 活动空间状态、环境时钟、互动和 Godot 协议边界 | [Nest README](https://github.com/elfie-univ/ElfieNest/blob/main/nest/README.md) |
+| `nest/` | 活动空间状态、环境时钟与互动语义 | [Nest README](https://github.com/elfie-univ/ElfieNest/blob/main/nest/README.md) |
+| `infrastructure/godot/gateway/` | 已认证 Godot 协议传输、Session 与 Bundle 检查 | [模块边界](./module-boundaries) |
 | `ai_runtime/` | 模型、Provider、策略、粮食、工具与安全运行时 | [AI Runtime README](https://github.com/elfie-univ/ElfieNest/blob/main/ai_runtime/README.md) |
 | `app/` | 产品用例、接口、基础设施和跨模块编排 | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
 | `app/orchestration/lifecycle/` | Runtime 生命周期、完整健康、owner lease 与权威控制 | [运行时与数据](./runtime) |
@@ -54,7 +55,7 @@ Python 侧只保存产品规则所需的语义状态，并通过明确协议与�
 ## 精灵、Nest 与 Godot Runtime 的交互
 
 `godot_project/` 是开发时编辑的 Godot 源工程，并不是 Python 在运行时导入的
-目录。构建会把它导出为 Godot Runtime；Python 侧通过 `nest/godot_gateway/` 的协议边界
+目录。构建会把它导出为 Godot Runtime；Python 侧通过 `infrastructure/godot/gateway/` 的协议边界
 与这个已运行的 Runtime 交换语义命令和世界事实。
 
 ```mermaid
@@ -64,7 +65,7 @@ flowchart LR
     Elfie["elfie/<br/>认知、身体输出与通信输出"]
     Orchestration["app/orchestration/<br/>真实 Elfie 与 Nest 的组合、路由"]
     Nest["nest/<br/>房间语义、居民状态与世界事件"]
-    Adapter["nest/godot_gateway/<br/>Godot Runtime 协议适配"]
+    Adapter["infrastructure/godot/gateway/<br/>Godot Runtime 协议适配"]
 
     Source -->|"导出构建"| Runtime
     Elfie -->|"抽象行动与通信输出"| Orchestration
@@ -80,7 +81,7 @@ flowchart LR
 构建阶段先把 `godot_project/` 导出为可运行的 Godot Runtime。连接使用仅支持
 v2 的 nonce 鉴权和单权威 generation；编排层先配置世界，等待 Runtime 发布语义
 目录并声明导航就绪，再发送完整角色目录。运行期间，精灵输出抽象行动或通信内容；
-`app/orchestration/` 按精灵 ID 经 `nest/godot_gateway/` 发送语义命令，Nest 自身不复制
+`app/orchestration/` 按精灵 ID 经 `infrastructure/godot/gateway/` 发送语义命令，Nest 自身不复制
 坐标和家具事实。Runtime 运行空间、导航、动作、碰撞和渲染，并将发生的物理事实
 回传。同一条回程经由编排层更新 Nest 语义状态，并成为对应精灵的身体感知、通信
 感知或动作执行回执。

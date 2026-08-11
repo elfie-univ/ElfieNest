@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import anyio
 
-from nest.godot_gateway.api import GodotAPIServer
+from infrastructure.godot.gateway.api import GodotAPIServer
 
 
 class FakeWebSocket:

@@ -74,6 +74,7 @@ from app.orchestration.lifecycle import (
 from elfie.brain.decision_types import CancelPolicy, DecisionPlan, MessageIntent
 from elfie.brain.model_context_compiler import CompiledModelContext
 from elfie.message_types import EventId, IntentId, PlanId, TurnId
+from infrastructure.godot.gateway.bundle import inspect_godot_web_bundle
 from infrastructure.persistence import (
     FinalElfieWorkspaceAdapter,
     SQLiteAdoptionAdapter,
@@ -94,7 +95,6 @@ from infrastructure.persistence.store import (
     init_db,
     seed_initial_owner_if_env_set,
 )
-from nest.godot_gateway.bundle import inspect_godot_web_bundle
 
 
 class FallbackAgent:

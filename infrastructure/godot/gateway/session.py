@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from threading import RLock
 
-from nest.godot_gateway.messages import (
+from infrastructure.godot.gateway.messages import (
     CommandName,
     JsonObject,
     RuntimeCommandFrame,

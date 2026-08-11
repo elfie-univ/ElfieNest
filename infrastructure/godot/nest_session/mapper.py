@@ -24,7 +24,11 @@ from app.orchestration.nest_session import (
     WorldSnapshot,
     WorldZone,
 )
-from nest.godot_gateway.messages import EventName, JsonObject, RuntimeEventFrame
+from infrastructure.godot.gateway.messages import (
+    EventName,
+    JsonObject,
+    RuntimeEventFrame,
+)
 
 
 class _ManifestZone(BaseModel):

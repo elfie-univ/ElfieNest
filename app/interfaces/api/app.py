@@ -42,12 +42,12 @@ from app.orchestration.observer import ObserverFacade
 from app.orchestration.resident_admission import ResidentAdmissionService
 from app.orchestration.setup_installation import SetupInstallationService
 from infrastructure.communication import SameOriginMessagePublisher
+from infrastructure.godot.gateway.bundle import GODOT_WEB_DIR, godot_web_bundle_present
 from infrastructure.persistence.data_home import get_db_path as _get_db_path
 from infrastructure.persistence.store import (
     init_db,
     seed_initial_owner_if_env_set,
 )
-from nest.godot_gateway.bundle import GODOT_WEB_DIR, godot_web_bundle_present
 
 from .health_models import HealthResponse
 from .page_routes import router as page_router

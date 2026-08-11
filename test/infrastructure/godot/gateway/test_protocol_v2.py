@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from nest.godot_gateway.messages import (
+from infrastructure.godot.gateway.messages import (
     CommandName,
     EventName,
     IntentTerminalStatus,

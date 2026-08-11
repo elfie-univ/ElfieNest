@@ -11,7 +11,7 @@
 | --- | --- | --- |
 | `elfie/` | Individual profile, brain, body, nervous system, communication and skills | Accounts, Nest, Runtime lifecycle |
 | `nest/` | In-nest semantic state, environment time and interaction propagation | Creating or holding `ElfieIndividual`, house geometry or authority hosting |
-| `nest/godot_gateway/` | The Python-side semantic Gateway and scoped Observer protocol | Godot process ownership or UI windows |
+| `infrastructure/godot/gateway/` | Authenticated Python-side Godot transport, protocol frames, sessions and bundle inspection | Nest world semantics, product authorization or process lifecycle |
 | `app/orchestration/lifecycle/` | Runtime lifecycle, full health, owner leases and authority start/stop | Product UI, account rules and raw scene facts |
 | `godot_runtime/` | Authority-host selection, artifact metadata and exported Runtime launch | Nest business state, scene editing or product routing |
 | `app/interfaces/desktop/` | Electron observer windows, platform integration and public lifecycle client | Supervisor, Gateway internals, authority credentials and product rules |
@@ -38,6 +38,7 @@ is not a second authority or a pass-through for Godot protocol frames.
 
 ```text
 app/bootstrap → app/orchestration → elfie / nest / ai_runtime
+app/orchestration → infrastructure/godot/gateway → exported Godot authority
 app/orchestration/lifecycle → godot_runtime → exported Godot authority
 app/interfaces/desktop → public lifecycle CLI and authenticated Observer surface
 app/interfaces → app/features

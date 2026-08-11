@@ -5,7 +5,6 @@ import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-NEST_SESSION_GODOT_ADAPTER_ROOT = PROJECT_ROOT / "infrastructure/godot/nest_session"
 DESKTOP_BOUNDARY_PATHS = (
     PROJECT_ROOT / "desktop",
     PROJECT_ROOT / "app/interfaces/desktop",
@@ -64,8 +63,6 @@ def test_removed_gateway_alias_is_not_restored() -> None:
 
 def test_runtime_host_does_not_import_nest_business_objects() -> None:
     # Given: the Runtime host selects/launches artifacts rather than Nest business state.
-    # The migrated Nest Session Adapter may wrap the registered legacy technical
-    # protocol until ``nest.godot_gateway`` itself moves to root Infrastructure.
     runtime_roots = (
         PROJECT_ROOT / "godot_runtime",
         PROJECT_ROOT / "infrastructure/godot",
@@ -85,19 +82,11 @@ def test_runtime_host_does_not_import_nest_business_objects() -> None:
 
 
 def _forbidden_nest_imports(path: Path) -> set[str]:
-    imports = {
+    return {
         module
         for module in _imported_modules(path)
         if module == "nest" or module.startswith("nest.")
     }
-    if path.is_relative_to(NEST_SESSION_GODOT_ADAPTER_ROOT):
-        return {
-            module
-            for module in imports
-            if module != "nest.godot_gateway"
-            and not module.startswith("nest.godot_gateway.")
-        }
-    return imports
 
 
 def test_desktop_interface_does_not_import_gateway_internals() -> None:
@@ -124,11 +113,12 @@ def test_desktop_boundary_scanner_rejects_gateway_import_fixture(
     # Given: a Desktop adapter reaches into a Gateway implementation directly.
     fixture = tmp_path / "desktop_adapter.py"
     fixture.write_text(
-        "from nest.godot_gateway.api import GodotAPIServer\n", encoding="utf-8"
+        "from infrastructure.godot.gateway.api import GodotAPIServer\n",
+        encoding="utf-8",
     )
 
     # When: the shared Desktop boundary scanner analyzes the adapter.
     imports = _gateway_internal_imports(fixture)
 
     # Then: the forbidden protocol import is reported for the architecture guard.
-    assert imports == {"nest.godot_gateway.api"}
+    assert imports == {"infrastructure.godot.gateway.api"}

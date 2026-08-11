@@ -12,5 +12,6 @@
   `app/orchestration/` 完成。
 - Actor 身体命令可以经共享 Godot Adapter 直达 authority；全局世界事实必须进入
   Nest 规则，再由 Orchestration 向受影响 Elfie 分发类型化感知。
-- 现有 `nest/godot_gateway/` 等具体传输是 `SYS-003` 迁移债务，目标与当前
-  `godot_runtime/` 一起收敛到 `infrastructure/godot/`；本规则不授权直接搬迁。
+- Godot 具体传输已归位 `infrastructure/godot/gateway/`。现有
+  `nest/godot_gateway/observer.py` 只作为 APP-G06 登记的 Observer 语义残留；不得
+  扩建、恢复协议实现或新增调用方。

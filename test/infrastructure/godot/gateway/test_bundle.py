@@ -6,7 +6,16 @@ from pathlib import Path
 
 from pytest import MonkeyPatch
 
-from nest.godot_gateway.bundle import inspect_godot_web_bundle
+from infrastructure.godot.gateway.bundle import (
+    GODOT_WEB_DIR,
+    inspect_godot_web_bundle,
+)
+
+
+def test_default_bundle_directory_remains_under_repository_build_root() -> None:
+    repository_root = Path(__file__).resolve().parents[4]
+
+    assert GODOT_WEB_DIR == repository_root / "build" / "components" / "godot-web"
 
 
 def test_bundle_status_requires_all_runtime_artifacts(tmp_path: Path) -> None:

@@ -2,8 +2,12 @@ from datetime import datetime, timezone
 
 import pytest
 
-from nest.godot_gateway.messages import CommandName, EventName, RuntimeEventFrame
-from nest.godot_gateway.session import (
+from infrastructure.godot.gateway.messages import (
+    CommandName,
+    EventName,
+    RuntimeEventFrame,
+)
+from infrastructure.godot.gateway.session import (
     RuntimeAuthorityError,
     RuntimeQueueFullError,
     RuntimeSession,

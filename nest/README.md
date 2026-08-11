@@ -45,7 +45,7 @@ nest/
 ├── state/          # config, residents, homes, world catalog and Runtime mirror
 ├── engine/         # environment clock advancement
 ├── interaction/    # speech, user messages, collision and tactile propagation
-├── godot_gateway/  # authority messages, Observer sessions and WebSocket Gateway
+├── godot_gateway/  # registered Observer semantic projection residual
 └── events.py       # Nest domain event value objects
 ```
 
@@ -54,7 +54,7 @@ nest/
 - `nest.Nest` — composes state, environment clock and interaction propagation;
 - `nest.NestConfig` — configuration such as Nest capacity;
 - `nest.NestState` — runtime container holding only in-nest state;
-- `nest.godot_gateway.GodotAPIServer` — the WebSocket boundary between Python and the
+- `infrastructure.godot.gateway.GodotAPIServer` — the WebSocket boundary between Python and the
   Godot Runtime.
 
 Real Elfie registration is performed by `app.orchestration.NestSession`; do not
@@ -65,7 +65,7 @@ push real objects into `NestState`.
 ```text
 app/orchestration ──> nest
 nest.nest ──> state + engine + interaction
-nest.godot_gateway ──> Nest / Godot protocol boundary
+infrastructure.godot.gateway ──> Nest / Godot protocol boundary
 godot_runtime ──> host selection, launch and artifact metadata
 godot_project/ ──> single source of truth for scenes and geometry
 ```
@@ -120,7 +120,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest -q \
   test/nest/test_nest.py \
-  test/nest/godot_gateway/test_api_handshake.py
+  test/infrastructure/godot/gateway/test_api_handshake.py
 ```
 
 Opening, running or screenshotting the Godot project requires following the
@@ -132,8 +132,10 @@ to be running. For the dev environment and the unified quality gate see
 
 - `test/nest/test_nest.py`: state, environment clock and interaction
   propagation;
-- `test/nest/godot_gateway/`: authority handshake, message validation, Observer
-  capability scope and authoritative session;
+- `test/infrastructure/godot/gateway/`: authority handshake, message validation
+  and authoritative session;
+- `test/nest/godot_gateway/`: the registered Observer semantic residual until
+  APP-G06 is closed;
 - `test/godot_runtime/`: host selection, launcher and artifact metadata;
 - `test/e2e/test_nest_runtime_v2.py`: world and full character catalog
   convergence after reconnection;

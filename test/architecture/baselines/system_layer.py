@@ -23,10 +23,5 @@ LEGACY_SYSTEM_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
         }
     ),
     "nest_forbidden_module_imports": frozenset(),
-    "nest_technical_imports": frozenset(
-        {
-            "nest/godot_gateway/api.py -> websockets",
-            "nest/godot_gateway/api_v2.py -> websockets",
-        }
-    ),
+    "nest_technical_imports": frozenset(),
 }
