@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 
 PRODUCTION_ROOTS = (
-    "ai_runtime/",
     "app/",
     "elfie/",
     "godot_project/",

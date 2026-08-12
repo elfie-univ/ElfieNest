@@ -1,4 +1,4 @@
-import type { FoodPackage } from "../api/owner-foods"
+import type { FoodPackage } from "../api/admin/food-packages"
 import type { OllamaStatus } from "../api/owner-ollama"
 import type { ProviderConnection, ProviderModel } from "../api/owner-providers"
 

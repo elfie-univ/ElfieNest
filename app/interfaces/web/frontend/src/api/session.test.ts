@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { requestJson } from "./http"
-import { currentUser, login, logout, safeLoginNextPath, updateProfile } from "./session"
+import { currentUser, heartbeat, login, logout, safeLoginNextPath, updateProfile } from "./session"
 
 vi.mock("./http", () => ({
   csrfHeaders: vi.fn((_csrfToken: string, json = false) => json
@@ -52,8 +52,18 @@ describe("currentUser", () => {
   it("accepts the canonical Admin role without treating it as an Owner", async () => {
     vi.mocked(requestJson).mockResolvedValue({
       account_id: "admin01",
+      avatar_color: 0,
+      avatar_kind: "initials",
+      avatar_url: null,
+      birth_date: null,
+      created_at: "2026-08-01T00:00:00Z",
+      csrf_token: "csrf-token",
+      default_landing_page: "manage",
       display_name: "Admin",
+      elfie_count: 0,
+      gender: "male",
       role: "admin",
+      theme_key: "warm-paper",
       user_id: 2,
     })
 
@@ -74,6 +84,17 @@ describe("currentUser", () => {
 })
 
 describe("canonical account requests", () => {
+  const profileResponse = {
+    account_id: "owner-renamed",
+    avatar_color: 0,
+    avatar_kind: "initials",
+    avatar_url: null,
+    birth_date: null,
+    display_name: "Owner Renamed",
+    gender: "male",
+    user_id: 1,
+  } as const
+
   it("sends account_id in the login form body", async () => {
     // Given: the server accepts a canonical login and chooses chat.
     vi.mocked(requestJson).mockResolvedValue({ landing_path: "/chat" })
@@ -82,7 +103,7 @@ describe("canonical account requests", () => {
     await login("owner01", "secret-pass", "/chat")
 
     // Then: the form body contains account_id rather than a legacy alias.
-    expect(requestJson).toHaveBeenCalledWith("/api/auth/login?next=/chat", expect.objectContaining({ method: "POST" }))
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/auth/login?next=/chat", expect.objectContaining({ method: "POST" }))
     const requestBody = vi.mocked(requestJson).mock.calls[0]?.[1]?.body
     expect(requestBody).toBeInstanceOf(URLSearchParams)
     if (!(requestBody instanceof URLSearchParams)) throw new TypeError("expected URLSearchParams login body")
@@ -93,20 +114,24 @@ describe("canonical account requests", () => {
 
   it("sends display_name for profile updates", async () => {
     // Given: the profile endpoint accepts an empty response body.
-    vi.mocked(requestJson).mockResolvedValue({})
+    vi.mocked(requestJson).mockResolvedValue(profileResponse)
 
     // When: the display name is changed.
     await updateProfile({ display_name: "Owner Renamed" }, "csrf-token")
 
     // Then: the request contains no nickname alias.
-    expect(requestJson).toHaveBeenCalledWith("/api/auth/me/profile", expect.objectContaining({
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/me/profile", expect.objectContaining({
       body: JSON.stringify({ display_name: "Owner Renamed" }),
-      method: "PUT",
+      method: "PATCH",
     }))
   })
 
   it("sends the editable identity projection for profile updates", async () => {
-    vi.mocked(requestJson).mockResolvedValue({})
+    vi.mocked(requestJson).mockResolvedValue({
+      ...profileResponse,
+      birth_date: "1990-02-03",
+      gender: "female",
+    })
 
     await updateProfile({
       account_id: "owner-renamed",
@@ -115,14 +140,14 @@ describe("canonical account requests", () => {
       gender: "female",
     }, "csrf-token")
 
-    expect(requestJson).toHaveBeenCalledWith("/api/auth/me/profile", expect.objectContaining({
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/me/profile", expect.objectContaining({
       body: JSON.stringify({
         account_id: "owner-renamed",
         birth_date: "1990-02-03",
         display_name: "Owner Renamed",
         gender: "female",
       }),
-      method: "PUT",
+      method: "PATCH",
     }))
   })
 
@@ -134,8 +159,23 @@ describe("canonical account requests", () => {
     await logout("csrf-token")
 
     // Then: the request targets the canonical endpoint and carries the CSRF token.
-    expect(requestJson).toHaveBeenCalledWith("/api/auth/logout", {
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/auth/logout", {
       headers: { "X-CSRF-Token": "csrf-token" },
+      method: "POST",
+    })
+  })
+
+  it("records presence only through the current-account resource", async () => {
+    vi.mocked(requestJson).mockResolvedValue({
+      status: "ok",
+      last_seen_at: "2026-08-11T08:00:00+00:00",
+    })
+
+    await expect(heartbeat("csrf-token")).resolves.toBe(
+      "2026-08-11T08:00:00+00:00",
+    )
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/me/heartbeat", {
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": "csrf-token" },
       method: "POST",
     })
   })
@@ -157,7 +197,7 @@ describe("safe login destinations", () => {
     await expect(login("owner", "pass123", "/monitor")).resolves.toBe("/monitor")
 
     expect(requestJson).toHaveBeenCalledWith(
-      "/api/auth/login?next=/monitor",
+      "/api/v1/auth/login?next=/monitor",
       expect.objectContaining({ method: "POST" }),
     )
   })

@@ -5,9 +5,9 @@ import warnings
 
 from _pytest.monkeypatch import MonkeyPatch
 
-from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from app.interfaces.cli.tui import common
 from app.interfaces.cli.tui.config_editors import config_llm
+from infrastructure.platform.terminal_menu import MenuItem, TerminalMenu
 
 
 def test_input_password_fails_closed_when_getpass_cannot_hide_input(

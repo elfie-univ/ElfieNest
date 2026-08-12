@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, FrozenSet, Mapping
+from typing import FrozenSet, Mapping, cast
+
+from pydantic import JsonValue
 
 
 @dataclass(frozen=True)
@@ -12,7 +14,7 @@ class BodyCapabilities:
 
     sensors: FrozenSet[str] = frozenset()
     actions: FrozenSet[str] = frozenset()
-    limits: Mapping[str, Any] = field(default_factory=dict)
+    limits: Mapping[str, JsonValue] = field(default_factory=dict)
     revision: int = 1
 
     def supports_sensor(self, sensor: str) -> bool:
@@ -21,10 +23,13 @@ class BodyCapabilities:
     def supports_action(self, action: str) -> bool:
         return "*" in self.actions or action in self.actions
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "sensors": sorted(self.sensors),
-            "actions": sorted(self.actions),
-            "limits": dict(self.limits),
-            "revision": self.revision,
-        }
+    def to_dict(self) -> dict[str, JsonValue]:
+        return cast(
+            dict[str, JsonValue],
+            {
+                "sensors": sorted(self.sensors),
+                "actions": sorted(self.actions),
+                "limits": dict(self.limits),
+                "revision": self.revision,
+            },
+        )

@@ -16,8 +16,9 @@ component set (`core`, `gateway`, `godot_authority`, `ollama`) and the lifecycle
 state. The Supervisor writes the current receipt to
 `<selected-data-home>/runtime.json`.
 
-The authority host is selected by `godot_runtime/` without Nest state, scene
-data or protocol credentials:
+The authority host is selected by `infrastructure/godot/lifecycle/` without
+Nest state, scene data or protocol credentials. Exported artifact metadata and
+validation live in `infrastructure/godot/artifacts/`:
 
 | Host kind | Display mode | Purpose |
 | --- | --- | --- |

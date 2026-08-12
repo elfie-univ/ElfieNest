@@ -3,46 +3,25 @@
 from __future__ import annotations
 
 import os
-import signal
-import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Set, Tuple
 
-from ai_runtime.lab.cli import RuntimeLab
-from ai_runtime.storage.data_home import (
-    ensure_elfie_home,
-    get_elfie_home,
-    get_logs_dir,
-    get_model_validation_dir,
-    get_runtime_locks_dir,
-    get_runtime_validation_dir,
-)
-from app.orchestration.lifecycle.process import (
+from app.orchestration.lifecycle import (
     DEFAULT_SERVICE_PORTS,
-    PID_FILENAME,
-    DefaultProcessInspector,
-    any_service_port_in_use,
-    get_port_occupant_pid,
-    kill_port_occupant,
+    DoctorRepairResult,
+    LifecycleFacade,
 )
 
 
-@dataclass(frozen=True)
-class DoctorRepairReport:
-    """Summary of local auto-repair actions."""
-
-    repaired: tuple[str, ...] = ()
-
-
-def run_doctor() -> int:
+def run_doctor(lifecycle: LifecycleFacade) -> int:
     """Run safe local repairs first, then offline runtime and config checks."""
     print("  🩺 Doctor diagnostics and auto-repair")
     print("  " + "=" * 45)
     print()
     try:
-        repairs = repair_local_runtime_state()
+        repairs = repair_local_runtime_state(lifecycle)
         if repairs.repaired:
             print("  🔧 Auto-repaired:")
             for item in repairs.repaired:
@@ -51,7 +30,7 @@ def run_doctor() -> int:
         else:
             print("  ✅ Local structure needs no repair")
             print()
-        report = RuntimeLab().run_offline_validation()
+        report = lifecycle.run_offline_validation()
     except (OSError, RuntimeError, ValueError) as error:
         print(f"  ❌ Doctor failed: {error}")
         return 1
@@ -63,26 +42,9 @@ def run_doctor() -> int:
     return 0 if report.passed else 1
 
 
-def repair_local_runtime_state() -> DoctorRepairReport:
+def repair_local_runtime_state(lifecycle: LifecycleFacade) -> DoctorRepairResult:
     """Repair local state that needs no network, keys, or user data deletion."""
-    repaired: list[str] = []
-    expected_dirs = (
-        get_elfie_home(),
-        get_elfie_home() / "assets",
-        get_elfie_home() / "assets" / "users",
-        get_elfie_home() / "configs",
-        get_elfie_home() / "elfies",
-        get_logs_dir(),
-        get_model_validation_dir(),
-        get_runtime_validation_dir(),
-        get_runtime_locks_dir(),
-    )
-    missing_dirs = [path for path in expected_dirs if not path.exists()]
-    ensure_elfie_home()
-    if missing_dirs:
-        repaired.append("Created missing ~/.elfienest data directories")
-
-    return DoctorRepairReport(tuple(repaired))
+    return lifecycle.repair_local_state()
 
 
 @dataclass(frozen=True)
@@ -95,7 +57,9 @@ class ProcessInfo:
     process_type: str  # "python", "electron", "other"
 
 
-def find_all_elfienest_processes() -> Tuple[ProcessInfo, ...]:
+def find_all_elfienest_processes(
+    lifecycle: LifecycleFacade,
+) -> Tuple[ProcessInfo, ...]:
     """
     Find all ElfieNest background service processes.
 
@@ -105,32 +69,16 @@ def find_all_elfienest_processes() -> Tuple[ProcessInfo, ...]:
     - Electron helper processes spawned by godot-authority
     """
     processes: list[ProcessInfo] = []
-    inspector = DefaultProcessInspector()
-    current_pid = os.getpid()
+    current_pid = lifecycle.current_pid()
     godot_authority_pids: set[int] = set()
 
     try:
-        result = subprocess.run(
-            ["ps", "aux"],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=5.0,
-        )
+        entries = lifecycle.list_processes()
 
         # First pass: identify main processes
-        for line in result.stdout.splitlines()[1:]:
-            parts = line.split(None, 10)
-            if len(parts) < 11:
-                continue
-
-            pid_str = parts[1]
-            command = parts[10]
-
-            try:
-                pid = int(pid_str)
-            except ValueError:
-                continue
+        for entry in entries:
+            pid = entry.pid
+            command = " ".join(entry.command)
 
             if pid == current_pid:
                 continue
@@ -149,90 +97,55 @@ def find_all_elfienest_processes() -> Tuple[ProcessInfo, ...]:
                 godot_authority_pids.add(pid)
 
             if is_elfienest:
-                try:
-                    cmd_tuple = tuple(command.split())
-                    cwd = inspector.cwd(pid) if inspector.exists(pid) else None
-                    processes.append(
-                        ProcessInfo(
-                            pid=pid,
-                            command=cmd_tuple,
-                            cwd=cwd,
-                            process_type=process_type,
-                        )
+                processes.append(
+                    ProcessInfo(
+                        pid=pid,
+                        command=entry.command,
+                        cwd=entry.cwd,
+                        process_type=process_type,
                     )
-                except (OSError, subprocess.SubprocessError):
-                    processes.append(
-                        ProcessInfo(
-                            pid=pid,
-                            command=(command,),
-                            cwd=None,
-                            process_type=process_type,
-                        )
-                    )
+                )
 
         # Second pass: find Electron helper processes
         if godot_authority_pids:
-            for line in result.stdout.splitlines()[1:]:
-                parts = line.split(None, 10)
-                if len(parts) < 11:
-                    continue
-
-                pid_str = parts[1]
-                ppid_str = parts[2]
-                command = parts[10]
-
-                try:
-                    pid = int(pid_str)
-                    ppid = int(ppid_str)
-                except ValueError:
-                    continue
+            for entry in entries:
+                pid = entry.pid
+                ppid = entry.parent_pid
+                command = " ".join(entry.command)
 
                 if pid == current_pid or any(p.pid == pid for p in processes):
                     continue
 
                 if ppid in godot_authority_pids and "Electron" in command:
-                    try:
-                        cmd_tuple = tuple(command.split())
-                        cwd = inspector.cwd(pid) if inspector.exists(pid) else None
-                        processes.append(
-                            ProcessInfo(
-                                pid=pid,
-                                command=cmd_tuple,
-                                cwd=cwd,
-                                process_type="electron",
-                            )
+                    processes.append(
+                        ProcessInfo(
+                            pid=pid,
+                            command=entry.command,
+                            cwd=entry.cwd,
+                            process_type="electron",
                         )
-                    except (OSError, subprocess.SubprocessError):
-                        processes.append(
-                            ProcessInfo(
-                                pid=pid,
-                                command=(command,),
-                                cwd=None,
-                                process_type="electron",
-                            )
-                        )
+                    )
 
-    except (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired):
+    except (OSError, RuntimeError, TimeoutError):
         pass
 
     return tuple(processes)
 
 
 def kill_processes_safely(
+    lifecycle: LifecycleFacade,
     pids: Set[int],
     timeout_seconds: float = 10.0,
 ) -> Tuple[Tuple[int, bool, Optional[str]], ...]:
     """Kill a set of processes safely with proper timeout."""
     results: list[Tuple[int, bool, Optional[str]]] = []
-    inspector = DefaultProcessInspector()
-
     for pid in pids:
         try:
-            if not inspector.exists(pid):
+            if not lifecycle.process_exists(pid):
                 results.append((pid, True, None))
                 continue
 
-            os.kill(pid, signal.SIGTERM)
+            lifecycle.terminate_process(pid)
             results.append((pid, True, None))
         except ProcessLookupError:
             results.append((pid, True, None))
@@ -247,7 +160,7 @@ def kill_processes_safely(
 
     while still_running and time.monotonic() < deadline:
         for pid in list(still_running):
-            if not inspector.exists(pid):
+            if not lifecycle.process_exists(pid):
                 still_running.remove(pid)
         if still_running:
             time.sleep(0.1)
@@ -256,7 +169,7 @@ def kill_processes_safely(
     if still_running:
         for pid in still_running:
             try:
-                os.kill(pid, signal.SIGKILL)
+                lifecycle.terminate_process(pid, force=True)
             except (ProcessLookupError, PermissionError, OSError):
                 pass
         time.sleep(0.5)
@@ -266,7 +179,7 @@ def kill_processes_safely(
     for pid, _, error_message in results:
         if error_message:
             final_results.append((pid, False, error_message))
-        elif inspector.exists(pid):
+        elif lifecycle.process_exists(pid):
             final_results.append((pid, False, "Process did not exit"))
         else:
             final_results.append((pid, True, None))
@@ -274,15 +187,19 @@ def kill_processes_safely(
     return tuple(final_results)
 
 
-def cleanup_pid_files() -> Tuple[str, ...]:
+def cleanup_pid_files(lifecycle: LifecycleFacade) -> Tuple[str, ...]:
     """Clean up stale PID files."""
     cleaned: list[str] = []
-    elfie_home = get_elfie_home()
-    pid_path = elfie_home / PID_FILENAME
+    elfie_home = lifecycle.select_data_home(
+        None,
+        project_root=Path(__file__).resolve().parents[3],
+        runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+    )
+    pid_path = elfie_home / "elfienest.pid"
 
-    if pid_path.exists():
+    if lifecycle.receipt_exists(elfie_home):
         try:
-            pid_path.unlink()
+            lifecycle.clear_receipt(elfie_home)
             cleaned.append(f"Removed stale PID file: {pid_path}")
         except OSError as error:
             cleaned.append(f"Failed to remove PID file: {error}")
@@ -290,25 +207,26 @@ def cleanup_pid_files() -> Tuple[str, ...]:
     return tuple(cleaned)
 
 
-def diagnose_ports(ports: Tuple[int, ...] = DEFAULT_SERVICE_PORTS) -> dict:
+def diagnose_ports(
+    lifecycle: LifecycleFacade,
+    ports: Tuple[int, ...] = DEFAULT_SERVICE_PORTS,
+) -> dict[int, ProcessInfo]:
     """
     Diagnose port occupation.
 
     Returns:
         Dict mapping port -> ProcessInfo (or None if not occupied)
     """
-    from app.orchestration.lifecycle.process import DefaultProcessInspector
-
-    occupied = {}
-    inspector = DefaultProcessInspector()
+    occupied: dict[int, ProcessInfo] = {}
 
     for port in ports:
-        pid = get_port_occupant_pid(port)
+        pid = lifecycle.port_occupant_pid(port)
         if pid:
             try:
                 # Get process details
-                command = inspector.command(pid)
-                cwd = inspector.cwd(pid) if inspector.exists(pid) else None
+                snapshot = lifecycle.inspect_process(pid)
+                command = snapshot.command
+                cwd = snapshot.cwd if lifecycle.process_exists(pid) else None
 
                 occupied[port] = ProcessInfo(
                     pid=pid,
@@ -316,7 +234,7 @@ def diagnose_ports(ports: Tuple[int, ...] = DEFAULT_SERVICE_PORTS) -> dict:
                     cwd=cwd,
                     process_type="unknown",
                 )
-            except (OSError, subprocess.SubprocessError):
+            except (OSError, RuntimeError):
                 # If we can't get details, just record the PID
                 occupied[port] = ProcessInfo(
                     pid=pid,
@@ -329,16 +247,17 @@ def diagnose_ports(ports: Tuple[int, ...] = DEFAULT_SERVICE_PORTS) -> dict:
 
 
 def interactive_port_cleanup(
+    lifecycle: LifecycleFacade,
     ports: Tuple[int, ...] = DEFAULT_SERVICE_PORTS,
     *,
     force: bool = False,
 ) -> bool:
     """Interactively clean up all ElfieNest-related processes and ports."""
     # Step 1: Find all ElfieNest-related processes
-    all_processes = find_all_elfienest_processes()
+    all_processes = find_all_elfienest_processes(lifecycle)
 
     # Step 2: Check port occupation
-    occupied_ports = diagnose_ports(ports)
+    occupied_ports = diagnose_ports(lifecycle, ports)
 
     has_issues = all_processes or occupied_ports
 
@@ -409,7 +328,7 @@ def interactive_port_cleanup(
     if all_processes:
         pids = {proc.pid for proc in all_processes}
         print(f"  📍 Stopping {len(pids)} ElfieNest process(es)...")
-        kill_results = kill_processes_safely(pids, timeout_seconds=10.0)
+        kill_results = kill_processes_safely(lifecycle, pids, timeout_seconds=10.0)
 
         for pid, success, error in kill_results:
             if success:
@@ -423,7 +342,13 @@ def interactive_port_cleanup(
     if occupied_ports:
         print("  📍 Cleaning occupied ports...")
         for port in occupied_ports.keys():
-            success, error = kill_port_occupant(port, timeout_seconds=5.0)
+            occupant_pid = lifecycle.port_occupant_pid(port)
+            results = (
+                kill_processes_safely(lifecycle, {occupant_pid}, timeout_seconds=5.0)
+                if occupant_pid is not None
+                else ()
+            )
+            success, error = (results[0][1], results[0][2]) if results else (True, None)
             if success:
                 print(f"  ✅ Port {port} cleared")
             else:
@@ -433,7 +358,7 @@ def interactive_port_cleanup(
 
     # Step 5: Clean up PID files
     print("  📍 Cleaning up stale files...")
-    cleaned_files = cleanup_pid_files()
+    cleaned_files = cleanup_pid_files(lifecycle)
     if cleaned_files:
         for msg in cleaned_files:
             print(f"  ✅ {msg}")
@@ -445,21 +370,25 @@ def interactive_port_cleanup(
     print("  📍 Verifying port status...")
     time.sleep(1.0)
 
-    if any_service_port_in_use(ports):
+    if lifecycle.ports_in_use(ports):
         all_success = False
         print("  ⚠️  Some ports are still occupied after cleanup")
 
-        still_occupied = diagnose_ports(ports)
+        still_occupied = diagnose_ports(lifecycle, ports)
         if still_occupied:
-            for port, pid in still_occupied.items():
-                print(f"  - Port {port} still occupied by PID {pid}")
+            for port, remaining_info in still_occupied.items():
+                print(f"  - Port {port} still occupied by PID {remaining_info}")
     else:
         print("  ✅ All ports are now available")
 
     return all_success
 
 
-def run_doctor_with_port_fix(fix_ports: bool = False, force: bool = False) -> int:
+def run_doctor_with_port_fix(
+    lifecycle: LifecycleFacade,
+    fix_ports: bool = False,
+    force: bool = False,
+) -> int:
     """Run doctor with optional port cleanup."""
     print("  🩺 Doctor diagnostics and auto-repair")
     print("  " + "=" * 45)
@@ -467,7 +396,7 @@ def run_doctor_with_port_fix(fix_ports: bool = False, force: bool = False) -> in
 
     # Port diagnostics first
     if fix_ports:
-        if not interactive_port_cleanup(force=force):
+        if not interactive_port_cleanup(lifecycle, force=force):
             print()
             print("  ❌ Port cleanup failed or cancelled")
             return 1
@@ -475,7 +404,7 @@ def run_doctor_with_port_fix(fix_ports: bool = False, force: bool = False) -> in
 
     # Original doctor repairs
     try:
-        repairs = repair_local_runtime_state()
+        repairs = repair_local_runtime_state(lifecycle)
         if repairs.repaired:
             print("  🔧 Auto-repaired:")
             for item in repairs.repaired:
@@ -485,7 +414,7 @@ def run_doctor_with_port_fix(fix_ports: bool = False, force: bool = False) -> in
             print("  ✅ Local structure needs no repair")
             print()
 
-        report = RuntimeLab().run_offline_validation()
+        report = lifecycle.run_offline_validation()
     except (OSError, RuntimeError, ValueError) as error:
         print(f"  ❌ Doctor failed: {error}")
         return 1

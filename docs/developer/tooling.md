@@ -76,7 +76,7 @@ Foreground and background services support code-validated parameters:
 
 ```bash
 ./elfienest.sh serve --fallback
-./elfienest.sh serve --port 8001 --ws-port 8767 --godot-ws-port 8768
+./elfienest.sh serve --port 8001 --godot-ws-port 8768
 ./elfienest.sh start --fallback --no-seed-elfie
 ```
 

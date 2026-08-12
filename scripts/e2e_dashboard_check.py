@@ -54,22 +54,13 @@ def _header_lower(d: dict, key: str) -> str:
     return ""
 
 
-def _cookie_val(headers: dict) -> str:
-    """Extract session_token from response headers."""
-    raw = _header_lower(headers, "set-cookie")
-    if raw:
-        m = re.search(r"session_token=([^;]+)", raw)
-        if m:
-            return m.group(1)
-    return ""
-
-
 class E2ESession:
     """HTTP session with cookie persistence."""
 
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
         self._session_token = ""
+        self._setup_token = ""
 
     def _request(
         self,
@@ -80,24 +71,25 @@ class E2ESession:
     ) -> tuple[int, dict, str, dict]:
         url = f"{self.base_url}{path}"
         hdrs = dict(headers or {})
+        cookies = []
         if self._session_token:
-            hdrs["Cookie"] = f"session_token={self._session_token}"
+            cookies.append(f"session_token={self._session_token}")
+        if self._setup_token:
+            cookies.append(f"setup_token={self._setup_token}")
+        if cookies:
+            hdrs["Cookie"] = "; ".join(cookies)
 
         req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
         try:
             with urllib.request.urlopen(req, timeout=10.0) as resp:
                 body = resp.read().decode("utf-8")
                 rh = dict(resp.headers.items())
-                cv = _cookie_val(rh)
-                if cv:
-                    self._session_token = cv
+                self._capture_cookie_values(resp.headers.get_all("Set-Cookie") or [])
                 return resp.status, (json.loads(body) if body else {}), body, rh
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8")
             rh = dict(e.headers.items())
-            cv = _cookie_val(rh)
-            if cv:
-                self._session_token = cv
+            self._capture_cookie_values(e.headers.get_all("Set-Cookie") or [])
             try:
                 return e.code, (json.loads(body) if body else {}), body, rh
             except json.JSONDecodeError:
@@ -117,6 +109,26 @@ class E2ESession:
         hdrs.setdefault("Content-Type", "application/json")
         return self._request("POST", path, data=encoded, headers=hdrs)
 
+    def put_json(
+        self, path: str, body: dict, headers: dict = None
+    ) -> tuple[int, dict, str, dict]:
+        encoded = json.dumps(body).encode("utf-8")
+        hdrs = dict(headers or {})
+        hdrs.setdefault("Content-Type", "application/json")
+        return self._request("PUT", path, data=encoded, headers=hdrs)
+
+    def _capture_cookie_values(self, values: list[str]) -> None:
+        for raw in values:
+            for name in ("session_token", "setup_token"):
+                match = re.search(rf"{name}=([^;]*)", raw)
+                if match is None:
+                    continue
+                value = match.group(1)
+                if name == "session_token":
+                    self._session_token = value
+                else:
+                    self._setup_token = value
+
     def login(self, account_id: str, password: str) -> tuple[bool, str]:
         """Log in and return (success, csrf_token)."""
         form_data = urllib.parse.urlencode(
@@ -124,7 +136,7 @@ class E2ESession:
         ).encode("utf-8")
         hdrs = {"Content-Type": "application/x-www-form-urlencoded"}
         s, d, r, rh = self._request(
-            "POST", "/api/auth/login", data=form_data, headers=hdrs
+            "POST", "/api/v1/auth/login", data=form_data, headers=hdrs
         )
         if s == 200:
             csrf = _header_lower(rh, "x-csrf-token")
@@ -147,7 +159,7 @@ def wait_for_server(url: str, timeout: float = 15.0) -> bool:
 
 
 def main() -> None:
-    port, ws_port, godot_ws_port = find_distinct_free_ports(3)
+    port, godot_ws_port = find_distinct_free_ports(2)
     base_url = f"http://127.0.0.1:{port}"
     data_home = tempfile.mkdtemp(prefix="elfienest-e2e-")
     owner_password = os.environ.get(
@@ -158,7 +170,6 @@ def main() -> None:
     print("  ElfieNest management dashboard E2E verification")
     print("=" * 60)
     print(f"  HTTP port: {port}")
-    print(f"  Management WS port: {ws_port}")
     print(f"  Godot WS port: {godot_ws_port}")
     print()
 
@@ -170,8 +181,6 @@ def main() -> None:
             "--fallback",
             "--port",
             str(port),
-            "--ws-port",
-            str(ws_port),
             "--godot-ws-port",
             str(godot_ws_port),
         ],
@@ -206,14 +215,41 @@ def main() -> None:
         # Step 0: First-run setup; create Owner if no user exists.
         # ==================================================================
         print("  [Step 0/5] Checking first-run setup state")
-        status, data, raw = owner.get("/api/auth/setup-status")
+        status, data, raw = owner.get("/api/v1/setup/status")
         if status == 200 and data.get("need_setup"):
             print("    ⚡ No users exist; running first-run setup...")
-            status, data, raw, _ = owner.post_json(
-                "/api/auth/setup",
-                {"account_id": "owner", "password": owner_password},
+            setup_headers = {"X-CSRF-Token": str(data.get("csrf_token", ""))}
+            draft_responses = (
+                owner.put_json(
+                    "/api/v1/setup/draft/owner",
+                    {
+                        "account_id": "owner",
+                        "display_name": "Owner",
+                        "password": owner_password,
+                        "confirm_password": owner_password,
+                    },
+                    headers=setup_headers,
+                ),
+                owner.put_json(
+                    "/api/v1/setup/draft/offline",
+                    {"use_local_ollama": False, "model_id": None},
+                    headers=setup_headers,
+                ),
+                owner.put_json(
+                    "/api/v1/setup/draft/nest",
+                    {"bed_count": 4},
+                    headers=setup_headers,
+                ),
             )
-            aok = status == 201
+            status, data, raw, _ = owner.post_json(
+                "/api/v1/setup/installation",
+                {"confirmed": True},
+                headers=setup_headers,
+            )
+            aok = all(item[0] == 200 for item in draft_responses) and status in {
+                200,
+                202,
+            }
             print(
                 f"    {'✅' if aok else '❌'} First-run setup {'succeeded' if aok else f'failed: {status} {raw[:200]}'}"
             )
@@ -228,12 +264,12 @@ def main() -> None:
         if ok:
             print("    ✅ Owner login succeeded")
             status, data, raw, _ = owner.post_json(
-                "/api/owner/users",
+                "/api/v1/admin/users",
                 {"account_id": "alice", "password": "alice123", "role": "user"},
                 headers={"X-CSRF-Token": owner_csrf},
             )
             if status == 201:
-                print(f"    ✅ Created user alice (id={data.get('id')})")
+                print(f"    ✅ Created user alice (id={data.get('user_id')})")
                 results[0] = True
             else:
                 print(f"    ❌ Failed to create user: {status} {raw[:200]}")
@@ -249,7 +285,7 @@ def main() -> None:
 
         def _adopt(name: str) -> tuple[int, dict, str]:
             status, candidates, raw, _ = alice.post_json(
-                "/api/user/adoption/candidates",
+                "/api/v1/me/adoption/candidate-sets",
                 {
                     "species_id": "fox",
                     "life_stage": "young_adult",
@@ -271,9 +307,8 @@ def main() -> None:
                 item["candidate_id"] for item in candidates["candidates"][:2]
             ]
             status, replies, raw, _ = alice.post_json(
-                "/api/user/adoption/replies",
+                f"/api/v1/me/adoption/candidate-sets/{candidates['candidate_set_id']}/replies",
                 {
-                    "candidate_set_id": candidates["candidate_set_id"],
                     "candidate_ids": candidate_ids,
                 },
                 headers={"X-CSRF-Token": alice_csrf},
@@ -291,7 +326,7 @@ def main() -> None:
             if accepted is None:
                 return 409, {}, "No candidate accepted the invitation"
             status, adopted, raw, _ = alice.post_json(
-                "/api/user/adoption/commit",
+                "/api/v1/me/adoption",
                 {
                     "candidate_set_id": candidates["candidate_set_id"],
                     "candidate_id": accepted["candidate_id"],
@@ -312,8 +347,9 @@ def main() -> None:
                     "/api/v1/elfies",
                     headers={"X-CSRF-Token": alice_csrf},
                 )
-                if status == 200 and isinstance(data, list) and len(data) >= 1:
-                    names = [e["name"] for e in data]
+                items = data.get("items") if isinstance(data, dict) else None
+                if status == 200 and isinstance(items, list) and items:
+                    names = [e["profile"]["name"] for e in items]
                     if "Snow" in names:
                         print("    ✅ Snow appears in Alice's Elfie list")
                         results[1] = True
@@ -354,8 +390,9 @@ def main() -> None:
             "/api/v1/elfies",
             headers={"X-CSRF-Token": alice_csrf},
         )
-        if status == 200 and isinstance(data, list):
-            count = len(data)
+        items = data.get("items") if isinstance(data, dict) else None
+        if status == 200 and isinstance(items, list):
+            count = len(items)
             print(f"    ✅ Alice has {count} Elfies")
             if count == 3:
                 results[3] = True
@@ -372,16 +409,17 @@ def main() -> None:
         ok, owner_csrf2 = owner.login("owner", owner_password)
         if ok:
             status, data, raw = owner.get(
-                "/api/owner/elfies",
+                "/api/v1/admin/elfies",
                 headers={"X-CSRF-Token": owner_csrf2},
             )
-            if status == 200 and isinstance(data, list):
-                names = [e["name"] for e in data]
-                print(f"    ✅ Owner sees {len(data)} Elfies: {names}")
-                if len(data) >= 3:
+            items = data.get("items") if isinstance(data, dict) else None
+            if status == 200 and isinstance(items, list):
+                names = [e["profile"]["name"] for e in items]
+                print(f"    ✅ Owner sees {len(items)} Elfies: {names}")
+                if len(items) >= 3:
                     results[4] = True
                 else:
-                    print(f"    ⚠️ Owner sees only {len(data)}; expected at least 3")
+                    print(f"    ⚠️ Owner sees only {len(items)}; expected at least 3")
             else:
                 print(f"    ❌ Owner failed to query Elfies: {status} {raw[:200]}")
         else:

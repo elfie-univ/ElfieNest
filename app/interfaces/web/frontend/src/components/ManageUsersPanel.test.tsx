@@ -43,7 +43,7 @@ const member: OwnerUser = {
   elfie_count: 0,
   elfie_quota_override: null,
   effective_elfie_limit: 3,
-  avatar_url: "/api/owner/users/7/avatar",
+  avatar_url: "/api/v1/admin/users/7/avatar",
 }
 const owner: OwnerUser = {
   ...member,

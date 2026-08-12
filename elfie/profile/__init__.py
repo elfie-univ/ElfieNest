@@ -1,5 +1,6 @@
 """精灵稳定档案、物种外貌配置和解析接口。"""
 
+from .defaults import load_packaged_profile_defaults
 from .generator import AppearanceGenerator, create_visual_profile
 from .models import (
     SUPPORTED_MORPHOLOGIES,
@@ -17,7 +18,7 @@ from .personality_derivation import (
     PersonalityDerivationError,
     derive_personality,
 )
-from .repository import ElfieProfileRepository
+from .port import ProfileStorePort
 from .resolver import AppearanceResolver, ResolvedAppearance
 from .species import SUPPORTED_SPECIES, SpeciesAppearanceProfile, get_species_profile
 
@@ -28,7 +29,7 @@ __all__ = [
     "EmbodimentProfile",
     "ElfieIdentity",
     "ElfieProfile",
-    "ElfieProfileRepository",
+    "ProfileStorePort",
     "ProfileProvenance",
     "PERSONALITY_KEYWORDS",
     "PERSONALITY_PRESETS",
@@ -42,4 +43,5 @@ __all__ = [
     "create_visual_profile",
     "derive_personality",
     "get_species_profile",
+    "load_packaged_profile_defaults",
 ]

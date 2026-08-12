@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime, timezone
-from pathlib import Path
 from threading import Lock
 from typing import Iterable
 
@@ -14,23 +13,24 @@ from elfie.body.port import BodyPort
 from elfie.brain.decision_types import DecisionPlan
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import HypothalamusEnergy
-from elfie.brain.memory import MemorySystem
+from elfie.brain.memory.memory_store import MemoryStorePort
+from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.output_types import ExecutionReceipt
 from elfie.brain.perception_types import IngestReceipt
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
-from elfie.brain.runtime_port import CorticalRuntimePort
+from elfie.brain.runtime_port import ModelPort
+from elfie.brain.skills import SkillManager
 from elfie.brain.turn_outcome import TurnOutcome
 from elfie.cognitive_runtime import ElfieCognitiveRuntime
 from elfie.communication import CommunicationEnvelope, CommunicationHub
 from elfie.communication.contracts import InboundDisposition, InboundDispositionStatus
 from elfie.communication.perception_adapter import CommunicationPerceptionAdapter
 from elfie.communication.router import RegisteredChannel
-from elfie.initialization import assemble_anatomy, assemble_profile
+from elfie.initialization import assemble_anatomy
 from elfie.lifecycle_errors import ElfieLifecycleError, InvalidClockDeltaError
 from elfie.message_types import ElfieId, TurnId
 from elfie.nervous_system import NervousSystem
 from elfie.profile import ElfieProfile
-from elfie.skills import SkillManager
 
 
 class Elfie:
@@ -38,22 +38,16 @@ class Elfie:
 
     def __init__(
         self,
-        config_dir: str | None = None,
-        anatomy_type: str | None = None,
-        elfie_id: str | None = None,
-        memory_db_path: str | None = None,
-        character_profile: ElfieProfile | None = None,
+        *,
+        character_profile: ElfieProfile,
+        memory_store: MemoryStorePort,
         body: BodyPort | None = None,
         communication: CommunicationHub | None = None,
         skills: SkillManager | None = None,
-        cortical_runtime: CorticalRuntimePort | None = None,
+        model_port: ModelPort | None = None,
     ) -> None:
-        self._config_dir = config_dir
-        self.character_profile = assemble_profile(
-            config_dir=config_dir,
-            elfie_id=elfie_id,
-            supplied=character_profile,
-        )
+        character_profile.validate()
+        self.character_profile = character_profile
         self.species_id = self.character_profile.identity.species_id
         self._elapsed_time = 0.0
         self._clock_lock = Lock()
@@ -63,11 +57,9 @@ class Elfie:
         )
         self.amygdala = EmotionSystem(clock=lambda: self._elapsed_time)
         self.memory = MemorySystem(
-            db_path=memory_db_path or self._default_memory_path(config_dir),
-            personality_path=self._personality_path(config_dir),
-            elfie_id=elfie_id,
-            config_dir=config_dir,
+            elfie_id=self.character_profile.identity.elfie_id,
             personality_data=self.character_profile.personality or None,
+            storage=memory_store,
         )
         workspace_id = ElfieId(self.character_profile.identity.elfie_id)
         self.perceptual_workspace = PerceptualWorkspace(workspace_id)
@@ -79,7 +71,6 @@ class Elfie:
         )
         self.anatomy_type, self.anatomy = assemble_anatomy(
             self.character_profile,
-            anatomy_type,
         )
         self.body_registry = BodyRegistry()
         self.body_binding = BodyBinding(self.body_registry)
@@ -88,8 +79,8 @@ class Elfie:
         self.communication.bind_identity(str(workspace_id))
         self.skills = skills or SkillManager()
         self._cognitive_runtime: ElfieCognitiveRuntime | None = None
-        if cortical_runtime is not None:
-            self.configure_cognition(cortical_runtime)
+        if model_port is not None:
+            self.configure_cognition(model_port)
 
     @property
     def profile(self) -> ElfieProfile:
@@ -127,7 +118,7 @@ class Elfie:
                 "cannot change Elfie identity after cognition assembly"
             )
         identity_changed = self.identity.elfie_id != elfie_id
-        self.memory.bind_elfie_identity(elfie_id, self._config_dir)
+        self.memory.bind_elfie_identity(elfie_id)
         if identity_changed:
             self.character_profile = replace(
                 self.character_profile,
@@ -178,7 +169,7 @@ class Elfie:
             replace=replace,
         )
 
-    def configure_cognition(self, cortical_runtime: CorticalRuntimePort) -> None:
+    def configure_cognition(self, model_port: ModelPort) -> None:
         if self._cognitive_runtime is not None:
             raise ElfieLifecycleError("Elfie cognition is already configured")
         self.communication.bind_perception_adapter(
@@ -194,7 +185,7 @@ class Elfie:
             communication=self.communication,
             current_body=lambda: self.current_body,
             clock=lambda: self.cognitive_datetime,
-            cortical_runtime=cortical_runtime,
+            model_port=model_port,
             skills=self.skills,
         )
 
@@ -267,18 +258,3 @@ class Elfie:
         if runtime is None:
             raise ElfieLifecycleError("Elfie cognition is not configured")
         return runtime
-
-    @staticmethod
-    def _default_memory_path(config_dir: str | None) -> str:
-        return (
-            str(Path(config_dir) / "memory" / "knowledge.sqlite")
-            if config_dir
-            else ":memory:"
-        )
-
-    @staticmethod
-    def _personality_path(config_dir: str | None) -> str | None:
-        candidate = (
-            Path(config_dir) / "profile" / "profile.yaml" if config_dir else None
-        )
-        return str(candidate) if candidate is not None and candidate.is_file() else None

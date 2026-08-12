@@ -9,12 +9,12 @@
 
 ```text
 test/
-├── ai_runtime/     # 模型、路由、工具、粮食和安全运行时
 ├── app/            # 产品功能、接口、基础设施与跨模块编排
 ├── elfie/          # 单个 Elfie 的档案、大脑、神经系统、身体、通信与技能
 ├── nest/           # 活动空间、状态、互动和 Godot 接口
 ├── devtools/       # 隔离开发工具
 ├── godot/          # Godot 场景与资源的静态契约
+├── infrastructure/ # 模型、工具、持久化、Godot 与平台 Adapter
 ├── scripts/        # 可测试的仓库脚本逻辑
 ├── architecture/   # 顶层目录、依赖边界和工程配置契约
 ├── e2e/            # 跨模块、服务或用户场景

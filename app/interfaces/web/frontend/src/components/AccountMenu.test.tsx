@@ -144,7 +144,7 @@ describe("AccountMenu", () => {
     await user.click(screen.getByRole("button", { name: "退出登录" }))
 
     // Then: the authenticated session is revoked through the canonical endpoint.
-    await waitFor(() => expect(kyMock).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST" })))
+    await waitFor(() => expect(kyMock).toHaveBeenCalledWith("/api/v1/auth/logout", expect.objectContaining({ method: "POST" })))
     expect(onLoggedOut).toHaveBeenCalledOnce()
   })
 
@@ -181,7 +181,7 @@ describe("AccountMenu", () => {
     // Then: the request uses all editable identity fields.
     expect(kyMock).toHaveBeenCalledOnce()
     const request = kyMock.mock.calls[0]
-    expect(request?.[0]).toBe("/api/auth/me/profile")
+    expect(request?.[0]).toBe("/api/v1/me/profile")
     expect(JSON.parse(String(request?.[1]?.body))).toEqual({
       account_id: "owner-renamed",
       birth_date: "2000-01-02",
@@ -268,7 +268,7 @@ describe("AccountMenu", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to save management data.")
     expect(screen.getByRole("alert")).not.toHaveTextContent("后端配色保存失败")
     const request = kyMock.mock.calls[0]
-    expect(request?.[0]).toBe("/api/auth/me/theme")
+    expect(request?.[0]).toBe("/api/v1/me/theme")
     expect(JSON.parse(String(request?.[1]?.body))).toEqual({ theme_key: "harbor-blue" })
   })
 

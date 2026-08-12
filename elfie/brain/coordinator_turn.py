@@ -1,5 +1,7 @@
 """Turn construction helpers invoked only by the Brain owner thread."""
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 from typing import Tuple
 from uuid import uuid4
@@ -18,6 +20,7 @@ from elfie.brain.perception_types import (
     InternalSignal,
     PerceptionEvent,
     PerceptionFrame,
+    SocialPayload,
 )
 from elfie.brain.runtime_port import JsonSchemaDocument, ModelGenerationRequest
 from elfie.message_types import (
@@ -89,6 +92,7 @@ class CoordinatorTurnFactory:
             item.meta.event_id
             for item in frame.events + frame.state_updates + frame.media_samples
         )
+        reply_channel_id, reply_conversation_id = self._owner_reply_target(frame)
         deadline = captured_at + timedelta(seconds=self._hard_timeout)
         seed = DecisionDecodeSeed(
             turn_id=turn_id,
@@ -98,6 +102,8 @@ class CoordinatorTurnFactory:
             created_at=captured_at,
             deadline=deadline,
             cause_event_ids=cause_ids,
+            reply_channel_id=reply_channel_id,
+            reply_conversation_id=reply_conversation_id,
         )
         request = ModelGenerationRequest(
             turn_id=seed.turn_id,
@@ -116,6 +122,20 @@ class CoordinatorTurnFactory:
             allowed_tools=self._allowed_tools,
         )
         return CorticalTask(request=request, seed=seed)
+
+    @staticmethod
+    def _owner_reply_target(
+        frame: PerceptionFrame,
+    ) -> tuple[str | None, str | None]:
+        """Return only the channel/conversation proven by an owner event."""
+        for event in frame.events:
+            payload = event.payload
+            if not isinstance(payload, SocialPayload):
+                continue
+            if payload.sender.source_kind != "owner":
+                continue
+            return payload.channel_id, payload.conversation_id
+        return None, None
 
     @staticmethod
     def noop_plan(seed: DecisionDecodeSeed, reason: str) -> DecisionPlan:

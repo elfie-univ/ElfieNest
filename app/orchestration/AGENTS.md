@@ -12,3 +12,16 @@
   Godot、模型、网络或设备。
 - `lifecycle/` 是 Runtime 生命周期唯一所有者；`embodiment/` 只协调真实精灵、Nest
   与外部身体，不拥有设备传输实现。
+
+最终工作流目录固定为 `lifecycle`、`nest_session`、`resident_admission`、
+`setup_installation`、`message_delivery`、`embodiment`、`observer`：
+
+- `nest_session` 组合唯一 Nest、真实 Elfie、世界事件和共享 Godot world channel；
+- `resident_admission` 只协调已接受领养、Elfie 构造、Nest 接纳和失败补偿；
+- `setup_installation` 只协调 Setup 状态与 Accounts、Provider/模型、Food、Nest 和受管
+  安装 Runner；
+- `message_delivery` 协调已授权会话、用户可见历史、真实 Elfie 投递与回执；
+- `observer` 协调受限主体/能力、授权投影和允许的高层意图。
+
+当前根目录平铺工作流文件是迁移期位置。迁移时按以上工作流归组；模型、Godot、通信或
+平台的具体技术 Adapter 必须进入对应根 Infrastructure 能力包，不能留在 Orchestration。

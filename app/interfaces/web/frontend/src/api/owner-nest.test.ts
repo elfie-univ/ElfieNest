@@ -15,7 +15,7 @@ describe("owner Nest API boundary", () => {
 
   it("normalizes semantic bed payloads into the floorplan contract", async () => {
     // Given: the backend emits numeric bed ids and the semantic label field.
-    vi.mocked(requestJson).mockResolvedValue([{
+    vi.mocked(requestJson).mockResolvedValue({ items: [{
       id: "local-nest",
       name: "Local Nest",
       desired_bed_count: 4,
@@ -34,8 +34,7 @@ describe("owner Nest API boundary", () => {
         occupant_owner_account_id: null,
         occupant_owner_display_name: null,
       }],
-      zones: [],
-    }])
+    }] })
 
     // When: the real room payload crosses the API boundary.
     const [room] = await ownerRooms()
@@ -49,5 +48,6 @@ describe("owner Nest API boundary", () => {
       occupant_name: null,
       occupant_species_id: null,
     }])
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/admin/nest/rooms")
   })
 })

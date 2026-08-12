@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict
+
+from pydantic import JsonValue
 
 from elfie.body.capabilities import BodyCapabilities
 
@@ -22,7 +23,7 @@ class BodyDescriptor:
     display_name: str
     capabilities: BodyCapabilities
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, JsonValue]:
         return {
             "body_id": self.body_id,
             "mode": self.mode.value,

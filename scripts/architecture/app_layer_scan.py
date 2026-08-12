@@ -34,6 +34,50 @@ LOOSE_OUTPUT_TYPES = LOOSE_INPUT_TYPES | frozenset({"List", "list"})
 ADAPTER_SUFFIXES = ("Repository", "Registry", "Store")
 UNOWNED_TASK_CALLS = frozenset({"Process", "Thread", "create_task"})
 PUBLIC_UNVERSIONED_HTTP_EXCEPTIONS = frozenset({"/api/health"})
+TARGET_FEATURE_DOMAINS = frozenset(
+    {
+        "accounts",
+        "adoption",
+        "bodies",
+        "communication",
+        "configuration",
+        "elfies",
+        "nest_management",
+        "operations",
+        "setup",
+    }
+)
+LEGACY_FEATURE_DOMAINS = frozenset(
+    {"administration", "chat", "elfie_profile", "embodiment", "nest_registration"}
+)
+TARGET_CONFIGURATION_DOMAINS = frozenset(
+    {"capabilities", "food", "providers", "settings"}
+)
+TARGET_ORCHESTRATION_DOMAINS = frozenset(
+    {
+        "embodiment",
+        "lifecycle",
+        "message_delivery",
+        "nest_session",
+        "observer",
+        "resident_admission",
+        "setup_installation",
+    }
+)
+TARGET_API_V1_DOMAINS = frozenset(
+    {"admin", "auth", "elfies", "me", "observer", "realtime", "setup"}
+)
+TARGET_API_ADMIN_DOMAINS = frozenset(
+    {
+        "elfies",
+        "food_packages",
+        "model_providers",
+        "nest",
+        "runtime",
+        "settings",
+        "users",
+    }
+)
 
 RULE_LEDGER_IDS: Dict[str, str] = {
     "interface_forbidden_layer_imports": "APP-001",
@@ -46,10 +90,14 @@ RULE_LEDGER_IDS: Dict[str, str] = {
     "cross_feature_internal_imports": "APP-004",
     "interface_feature_internal_imports": "APP-004",
     "interface_orchestration_internal_imports": "APP-004",
+    "orchestration_private_boundary_imports": "APP-004",
     "infrastructure_feature_internal_imports": "APP-004",
     "json_routes_missing_response_model": "APP-005",
     "json_routes_loose_annotations": "APP-005",
+    "websocket_loose_payloads": "APP-005",
+    "nonstandard_error_responses": "APP-005",
     "feature_unowned_task_calls": "APP-008",
+    "interface_runtime_lifecycle_calls": "APP-008",
     "unversioned_product_routes": "APP-011",
 }
 
@@ -75,6 +123,46 @@ def _relative(path: Path) -> str:
 
 def _python_files(root: Path) -> Iterator[Path]:
     yield from sorted(path for path in root.rglob("*.py") if path.is_file())
+
+
+def _source_child_directories(root: Path) -> Set[str]:
+    if not root.is_dir():
+        return set()
+    return {
+        path.name
+        for path in root.iterdir()
+        if path.is_dir()
+        and path.name != "__pycache__"
+        and not path.name.startswith(".")
+    }
+
+
+def collect_unowned_app_directories(project_root: Path) -> Set[str]:
+    """Return App business/workflow directories outside the frozen target map."""
+
+    app_root = project_root / "app"
+    checks = (
+        (
+            app_root / "features",
+            TARGET_FEATURE_DOMAINS | LEGACY_FEATURE_DOMAINS,
+        ),
+        (
+            app_root / "features" / "configuration",
+            TARGET_CONFIGURATION_DOMAINS,
+        ),
+        (app_root / "orchestration", TARGET_ORCHESTRATION_DOMAINS),
+        (app_root / "interfaces" / "api", frozenset({"v1"})),
+        (app_root / "interfaces" / "api" / "v1", TARGET_API_V1_DOMAINS),
+        (
+            app_root / "interfaces" / "api" / "v1" / "admin",
+            TARGET_API_ADMIN_DOMAINS,
+        ),
+    )
+    offenders: Set[str] = set()
+    for root, allowed in checks:
+        for name in _source_child_directories(root) - allowed:
+            offenders.add((root / name).relative_to(project_root).as_posix())
+    return offenders
 
 
 def _tree(path: Path) -> ast.AST:
@@ -254,6 +342,8 @@ def _scan_import_boundaries(
 
         for module in modules:
             target_layer = _app_layer(module)
+            if module == "infrastructure" or module.startswith("infrastructure."):
+                target_layer = "infrastructure"
             location = f"{relative} -> {module}"
 
             if source_layer == "interfaces" and target_layer in {
@@ -305,6 +395,18 @@ def _scan_import_boundaries(
                 if len(parts) > 1 and parts[-1] not in {"models", "ports"}:
                     violations["infrastructure_feature_internal_imports"].add(location)
 
+            if source_layer == "orchestration":
+                if module.startswith("app.features."):
+                    parts = _module_parts_after(module, "app.features.")
+                    if len(parts) > 1:
+                        violations["orchestration_private_boundary_imports"].add(
+                            location
+                        )
+                if module == "nest.godot_gateway" or module.startswith(
+                    "nest.godot_gateway."
+                ):
+                    violations["orchestration_private_boundary_imports"].add(location)
+
 
 def _scan_feature_signatures_and_tasks(
     violations: DefaultDict[str, Set[str]],
@@ -352,6 +454,82 @@ def _scan_interface_construction(
             )
 
 
+def _scan_interface_runtime_lifecycle(
+    violations: DefaultDict[str, Set[str]],
+) -> None:
+    forbidden_calls = UNOWNED_TASK_CALLS | frozenset(
+        {"new_event_loop", "run_forever", "serve"}
+    )
+    for path in _python_files(APP_ROOT / "interfaces" / "api"):
+        tree = _tree(path)
+        parents = _parents(tree)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            call_name = _call_name(node)
+            if call_name not in forbidden_calls:
+                continue
+            violations["interface_runtime_lifecycle_calls"].add(
+                f"{_relative(path)}::{_enclosing_callable(node, parents)}::{call_name}"
+            )
+
+
+def _annotation_has_loose_mapping(node: ast.AST) -> bool:
+    if isinstance(node, ast.Name):
+        return node.id in {"Any", "Dict", "Mapping", "dict", "object"}
+    if isinstance(node, ast.Attribute):
+        return node.attr in {"Any", "Dict", "Mapping", "dict", "object"}
+    if isinstance(node, ast.Subscript):
+        return _annotation_has_loose_mapping(node.value)
+    return False
+
+
+def _scan_websocket_payloads(
+    violations: DefaultDict[str, Set[str]],
+) -> None:
+    root = APP_ROOT / "interfaces" / "api" / "v1" / "realtime"
+    for path in _python_files(root):
+        if path.name != "models.py":
+            continue
+        for node in ast.walk(_tree(path)):
+            if not isinstance(node, ast.AnnAssign):
+                continue
+            if _annotation_has_loose_mapping(node.annotation):
+                violations["websocket_loose_payloads"].add(
+                    f"{_relative(path)}::{getattr(node.target, 'id', 'field')}"
+                )
+
+
+def _scan_nonstandard_error_responses(
+    violations: DefaultDict[str, Set[str]],
+) -> None:
+    for path in _python_files(APP_ROOT / "interfaces" / "api"):
+        tree = _tree(path)
+        parents = _parents(tree)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or _call_name(node) != "JSONResponse":
+                continue
+            keywords = {item.arg: item.value for item in node.keywords if item.arg}
+            status = keywords.get("status_code")
+            content = keywords.get("content")
+            if not (
+                isinstance(status, ast.Constant)
+                and isinstance(status.value, int)
+                and status.value >= 400
+                and isinstance(content, ast.Dict)
+            ):
+                continue
+            keys = {
+                key.value
+                for key in content.keys
+                if isinstance(key, ast.Constant) and isinstance(key.value, str)
+            }
+            if "detail" in keys:
+                violations["nonstandard_error_responses"].add(
+                    f"{_relative(path)}::{_enclosing_callable(node, parents)}"
+                )
+
+
 def _scan_api_route_models(
     violations: DefaultDict[str, Set[str]],
 ) -> None:
@@ -395,7 +573,7 @@ def _scan_api_route_models(
 def _scan_unversioned_product_routes(
     violations: DefaultDict[str, Set[str]],
 ) -> None:
-    from app.interfaces.api import create_app
+    from app.bootstrap import create_app
 
     application = create_app(db_path=":memory:")
     for route in application.routes:
@@ -421,7 +599,10 @@ def collect_app_layer_violations() -> Dict[str, FrozenSet[str]]:
     _scan_import_boundaries(mutable)
     _scan_feature_signatures_and_tasks(mutable)
     _scan_interface_construction(mutable)
+    _scan_interface_runtime_lifecycle(mutable)
     _scan_api_route_models(mutable)
+    _scan_websocket_payloads(mutable)
+    _scan_nonstandard_error_responses(mutable)
     _scan_unversioned_product_routes(mutable)
     return {rule: frozenset(values) for rule, values in sorted(mutable.items())}
 

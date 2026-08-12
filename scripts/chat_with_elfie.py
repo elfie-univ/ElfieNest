@@ -19,12 +19,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger("chat")
 
-from ai_runtime import LLMRuntimeConfig, RuntimeAgent
-from ai_runtime.storage.data_home import get_db_path
-from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.store import init_db
-from app.orchestration.engine import ElfieNestEngine
-from elfie import ElfieFactory
+from app.bootstrap.app_wiring.storage import ensure_application_storage
+from app.bootstrap.runtime import build_runtime_services
+from app.bootstrap.system_wiring.entrypoints import get_db_path
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
+from app.bootstrap.system_wiring.nest_session import (
+    build_nest_session_services,
+    register_transient_elfie,
+)
 
 
 def main():
@@ -32,28 +34,36 @@ def main():
     # avoiding SQLite cross-thread errors.
     engine_holder: dict = {}
     engine_ready = threading.Event()
+    lifecycle = create_lifecycle_facade()
 
     def engine_worker():
         # 1. Assemble services, mirroring the main.py flow in one thread.
-        config = LLMRuntimeConfig(ollama_host="http://localhost:11434")
         db_path = str(get_db_path())
-        init_db(db_path)
-        food_repository = SQLiteFoodPackageRepository(db_path)
-        runtime_agent = RuntimeAgent(
-            config,
-            food_catalog_repository=food_repository,
+        ensure_application_storage(db_path)
+        runtime_services = build_runtime_services(
+            db_path,
+            use_fallback=False,
+            live_reload=False,
+            resolve_main_food=False,
         )
-        engine = ElfieNestEngine()
-        elfie = ElfieFactory().create(
-            elfie_id="Aifei",
-            godot_api=engine.api_server,
+        nest_session = build_nest_session_services(
+            db_path,
+            runtime=runtime_services.runtime,
+            godot_ws_port=8765,
+            http_port=8000,
+            tick_interval_sec=1.5,
         )
-        engine.session.register_elfie("Aifei", elfie)
+        lifecycle.start_runtime_channel(nest_session.world_runtime)
+        engine = nest_session.engine
+        register_transient_elfie(engine.session, "Aifei")
         engine_holder["engine"] = engine
+        engine_holder["world_runtime"] = nest_session.world_runtime
         engine_ready.set()
         # 2. Start the blocking engine loop.
         engine.start_loop(
-            runtime_agent=runtime_agent, ticks_to_run=100000, interval_sec=3.0
+            model_port_factory=nest_session.model_port_factory,
+            ticks_to_run=100000,
+            interval_sec=3.0,
         )
 
     engine_thread = threading.Thread(target=engine_worker, daemon=True)
@@ -91,7 +101,7 @@ def main():
         print("⏳ Aifei is thinking...")
 
     # 4. Cleanup.
-    engine.api_server.stop()
+    lifecycle.stop_runtime_channel(engine_holder["world_runtime"])
 
 
 if __name__ == "__main__":

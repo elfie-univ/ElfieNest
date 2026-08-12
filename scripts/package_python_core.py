@@ -123,7 +123,7 @@ def _freeze_entrypoint(
         "--clean",
         "--onefile",
         "--collect-data",
-        "ai_runtime.providers",
+        "infrastructure.models.providers",
         "--name",
         executable.rsplit(".", 1)[0],
         "--distpath",

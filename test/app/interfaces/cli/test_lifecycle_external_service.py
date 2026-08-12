@@ -1,31 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Tuple
 
-from app.features.administration.system_service import PortStatus
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import lifecycle_commands
-from app.orchestration.lifecycle.process import PID_FILENAME
+from app.orchestration.lifecycle import ServicePortStatus
+from app.orchestration.lifecycle.ports import ProcessSnapshot
 
-
-class ExternalInspector:
-    """Process inspector fixture for a live service from another checkout."""
-
-    def __init__(self, cwd: Path) -> None:
-        self._cwd = cwd
-
-    def exists(self, pid: int) -> bool:
-        return pid == 15727
-
-    def cwd(self, pid: int) -> Path:
-        if pid != 15727:
-            raise OSError("unexpected pid")
-        return self._cwd
-
-    def command(self, pid: int) -> Tuple[str, ...]:
-        if pid != 15727:
-            raise OSError("unexpected pid")
-        return ("python", "scripts/serve.py", "--fallback")
+LIFECYCLE = create_lifecycle_facade()
+PID_FILENAME = "elfienest.pid"
 
 
 def test_status_marks_default_ports_as_external_when_pid_belongs_elsewhere(
@@ -39,23 +22,31 @@ def test_status_marks_default_ports_as_external_when_pid_belongs_elsewhere(
     (elfie_home / PID_FILENAME).write_text("15727", encoding="utf-8")
     external_root = tmp_path / "other-checkout"
     external_root.mkdir()
-    monkeypatch.setattr(lifecycle_commands, "get_elfie_home", lambda: elfie_home)
     monkeypatch.setattr(
-        lifecycle_commands, "existing_service_command", lambda *args: None
+        LIFECYCLE,
+        "select_data_home",
+        lambda *_args, **_kwargs: elfie_home,
+    )
+    monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
+    monkeypatch.setattr(LIFECYCLE, "recorded_pid", lambda *_args: 15727)
+    monkeypatch.setattr(LIFECYCLE, "process_exists", lambda pid: pid == 15727)
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "inspect_process",
+        lambda pid: ProcessSnapshot(
+            pid=pid,
+            cwd=external_root,
+            command=("python", "scripts/serve.py", "--fallback"),
+        ),
     )
     monkeypatch.setattr(
-        lifecycle_commands,
-        "DefaultProcessInspector",
-        lambda: ExternalInspector(external_root),
-    )
-    monkeypatch.setattr(
-        lifecycle_commands,
+        LIFECYCLE,
         "default_port_statuses",
-        lambda: [PortStatus(port=8000, name="HTTP", running=True)],
+        lambda: [ServicePortStatus(port=8000, name="HTTP", running=True)],
     )
 
     # When: the user asks for status from the current worktree.
-    lifecycle_commands.show_service_status()
+    lifecycle_commands.show_service_status(LIFECYCLE)
 
     # Then: a live external service is not reported as the current project.
     output = capsys.readouterr().out
@@ -70,21 +61,21 @@ def test_web_opens_healthy_default_service_without_starting_another_one(
     # Given: no current-project PID receipt is verified, but the default Web is healthy.
     opened: list[str] = []
     start_calls: list[str] = []
+    monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
     monkeypatch.setattr(
-        lifecycle_commands, "existing_service_command", lambda *args: None
-    )
-    monkeypatch.setattr(
-        lifecycle_commands, "_web_is_healthy", lambda port=8000: port == 8000
+        lifecycle_commands,
+        "_web_is_healthy",
+        lambda _lifecycle, port=8000: port == 8000,
     )
     monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
     monkeypatch.setattr(
         lifecycle_commands,
         "start_background_service",
-        lambda: start_calls.append("start"),
+        lambda _lifecycle: start_calls.append("start"),
     )
 
     # When: the user runs `web`.
-    result = lifecycle_commands.open_web_console()
+    result = lifecycle_commands.open_web_console(LIFECYCLE)
 
     # Then: the existing healthy page opens and no duplicate service is launched.
     assert result.status == "already_running"
@@ -99,24 +90,26 @@ def test_web_reports_external_port_owner_when_default_health_fails(
     # Given: another process occupies the default Web port but is not healthy.
     opened: list[str] = []
     start_calls: list[str] = []
-    monkeypatch.setattr(
-        lifecycle_commands, "existing_service_command", lambda *args: None
-    )
-    monkeypatch.setattr(lifecycle_commands, "_web_is_healthy", lambda port=8000: False)
+    monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
     monkeypatch.setattr(
         lifecycle_commands,
+        "_web_is_healthy",
+        lambda _lifecycle, port=8000: False,
+    )
+    monkeypatch.setattr(
+        LIFECYCLE,
         "default_port_statuses",
-        lambda: [PortStatus(port=8000, name="HTTP", running=True)],
+        lambda: [ServicePortStatus(port=8000, name="HTTP", running=True)],
     )
     monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
     monkeypatch.setattr(
         lifecycle_commands,
         "start_background_service",
-        lambda: start_calls.append("start"),
+        lambda _lifecycle: start_calls.append("start"),
     )
 
     # When: the user runs `web`.
-    result = lifecycle_commands.open_web_console()
+    result = lifecycle_commands.open_web_console(LIFECYCLE)
 
     # Then: the CLI reports the external owner class instead of starting again.
     assert result.status == "failed"

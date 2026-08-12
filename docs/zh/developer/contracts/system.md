@@ -9,9 +9,9 @@
 > Ports/Adapters，是根模块迁移的权威。它不表示当前目录已经合规；精确偏差记录在
 > [系统架构一致性台账](../conformance/system)。
 
-系统契约管理根目录位置和跨模块边界；应用契约管理 `app/` 内部行为。旧 AI Runtime
-契约只作为当前迁移包的行为清单，不再定义目标模块，也不能反转本契约。旧子契约若写的
-是历史所有者或路径，目标以本契约为准，过渡状态进入一致性台账。
+系统契约管理根目录位置和跨模块边界；应用契约管理 `app/` 内部行为。模型、Food 与
+工具行为契约只作为当前迁移包的行为清单，不定义目标模块，也不能反转本契约。子契约若
+写的是历史所有者或路径，目标以本契约为准，过渡状态进入一致性台账。
 
 ## 目标系统形态
 
@@ -54,10 +54,10 @@ Infrastructure Adapter 可以具有复杂内部实现，例如协议状态、连
 Infrastructure 各能力包不得导入或构造其他能力包的具体 Adapter。一个能力需要另一
 能力时，只能依赖窄 Port 或共享技术模型，由 Bootstrap 提供具体实现。
 
-当前 `ai_runtime/`、`godot_runtime/`、`nest/godot_gateway/`、
-`app/infrastructure/`，以及 `elfie/`、`nest/` 内的具体技术代码，都是迁移期路径。
-`ai_runtime/` 按职责拆解，不整体移动，也不创建目标 `infrastructure/ai_runtime/`。
-这些路径只能通过后续单独批准的迁移切片收缩。
+原 `ai_runtime/`、`godot_runtime/` 和 `app/infrastructure/` 根已退役；其技术职责已
+归入现有目标 Infrastructure 能力目录，没有创建 `infrastructure/ai_runtime/`。
+`elfie/`、`nest/` 内仍存在的具体技术代码属于迁移期路径，只能通过后续单独批准的
+迁移切片收缩。
 
 ## 系统依赖方向
 
@@ -172,7 +172,7 @@ Infrastructure 可以把多个事实物理存入同一数据库，但存储共�
 
 ## 模型、Food 与工具所有权
 
-目标架构不存在 AI Runtime 模块。当前 `ai_runtime/` 混合的职责按下表拆分：
+目标架构不存在 AI Runtime 模块。原 `ai_runtime/` 已按下表拆分到对应所有者：
 
 | 职责 | 目标所有者 |
 | --- | --- |

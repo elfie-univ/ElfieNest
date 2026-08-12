@@ -91,8 +91,8 @@ const ModelMatrixSchema = z.object({
     mode: z.string(),
     run_id: z.string().nullable().optional(),
     as_of: z.string().nullable().optional(),
-    status: z.string().optional(),
-    started_at: z.string().optional(),
+    status: z.string().nullable().optional(),
+    started_at: z.string().nullable().optional(),
     finished_at: z.string().nullable().optional(),
   }),
   connections: z.array(z.object({
@@ -171,15 +171,15 @@ export type BenchmarkCombination = {
 }
 
 export async function ownerProviderCatalog(): Promise<readonly ProviderProduct[]> {
-  return z.array(ProviderProductSchema).parse(
-    await ownerRead("/api/owner/providers/catalog"),
-  )
+  return z.object({ items: z.array(ProviderProductSchema) }).parse(
+    await ownerRead("/api/v1/admin/model-providers/catalog"),
+  ).items
 }
 
 export async function ownerProviderConnections(): Promise<readonly ProviderConnection[]> {
-  return z.array(ProviderConnectionSchema).parse(
-    await ownerRead("/api/owner/providers/connections"),
-  )
+  return z.object({ items: z.array(ProviderConnectionSchema) }).parse(
+    await ownerRead("/api/v1/admin/model-providers/connections"),
+  ).items
 }
 
 export async function createProviderConnection(
@@ -187,7 +187,7 @@ export async function createProviderConnection(
   csrfToken: string,
 ): Promise<ProviderConnection> {
   return ProviderConnectionSchema.parse(await ownerWrite(
-    "/api/owner/providers/connections",
+    "/api/v1/admin/model-providers/connections",
     "POST",
     csrfToken,
     draft,
@@ -200,8 +200,8 @@ export async function updateProviderConnection(
   csrfToken: string,
 ): Promise<ProviderConnection> {
   return ProviderConnectionSchema.parse(await ownerWrite(
-    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}`,
-    "PUT",
+    `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}`,
+    "PATCH",
     csrfToken,
     draft,
   ))
@@ -212,7 +212,7 @@ export async function deleteProviderConnection(
   csrfToken: string,
 ): Promise<void> {
   await ownerWrite(
-    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}`,
+    `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}`,
     "DELETE",
     csrfToken,
   )
@@ -225,7 +225,7 @@ export async function verifyProviderConnection(
 ): Promise<z.infer<typeof VerifyConnectionResultSchema>> {
   const query = forceFull ? "?force_full=true" : ""
   return VerifyConnectionResultSchema.parse(await ownerWrite(
-    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/verify${query}`,
+    `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}/verify${query}`,
     "POST",
     csrfToken,
   ))
@@ -237,7 +237,7 @@ export async function changeProviderConnectionLifecycle(
   csrfToken: string,
 ): Promise<ProviderConnection> {
   return ProviderConnectionSchema.parse(await ownerWrite(
-    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/${action}`,
+    `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}/${action}`,
     "POST",
     csrfToken,
   ))
@@ -247,7 +247,7 @@ export async function validateAllProviderModels(
   csrfToken: string,
 ): Promise<z.infer<typeof ValidateAllResultSchema>> {
   return ValidateAllResultSchema.parse(await ownerWrite(
-    "/api/owner/providers/connection-models/validate-all",
+    "/api/v1/admin/model-providers/model-validations",
     "POST",
     csrfToken,
   ))
@@ -258,7 +258,7 @@ export async function refreshProviderModels(
   csrfToken: string,
 ): Promise<z.infer<typeof ModelRefreshSchema>> {
   return ModelRefreshSchema.parse(await ownerWrite(
-    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/models/refresh`,
+    `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}/models/refresh`,
     "POST",
     csrfToken,
   ))
@@ -270,7 +270,7 @@ export async function addProviderModel(
   csrfToken: string,
 ): Promise<ProviderModel> {
   return ProviderModelSchema.parse(await ownerWrite(
-    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/models`,
+    `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}/models`,
     "POST",
     csrfToken,
     model,
@@ -287,8 +287,8 @@ export async function updateProviderModel(
   csrfToken: string,
 ): Promise<ProviderModel> {
   return ProviderModelSchema.parse(await ownerWrite(
-    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/models/${encodeURIComponent(modelId)}`,
-    "PUT",
+    `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}/models/${encodeURIComponent(modelId)}`,
+    "PATCH",
     csrfToken,
     update,
   ))
@@ -300,7 +300,7 @@ export async function saveProviderModels(
   csrfToken: string,
 ): Promise<ProviderConnection> {
   return ProviderConnectionSchema.parse(await ownerWrite(
-    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/models`,
+    `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}/models`,
     "PUT",
     csrfToken,
     { models },
@@ -309,7 +309,7 @@ export async function saveProviderModels(
 
 export async function ownerModelMatrix(): Promise<ModelMatrix> {
   return ModelMatrixSchema.parse(
-    await ownerRead("/api/owner/providers/connection-model-matrix"),
+    await ownerRead("/api/v1/admin/model-providers/model-matrix"),
   )
 }
 
@@ -318,7 +318,7 @@ export async function benchmarkProviderModels(
   csrfToken: string,
 ): Promise<z.infer<typeof BenchmarkResultSchema>> {
   return BenchmarkResultSchema.parse(await ownerWrite(
-    "/api/owner/providers/connection-models/benchmark",
+    "/api/v1/admin/model-providers/model-benchmarks",
     "POST",
     csrfToken,
     { combinations },

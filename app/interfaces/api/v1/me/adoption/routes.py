@@ -1,0 +1,169 @@
+"""Versioned resource routes for the current member's Adoption journey."""
+
+from __future__ import annotations
+
+from typing import Union
+
+from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
+
+from app.features.accounts import AccountPrincipal
+from app.features.adoption import (
+    AdoptionCandidateNotAccepted,
+    AdoptionCandidateSetExpired,
+    AdoptionCapacityReached,
+    AdoptionError,
+    AdoptionInvalid,
+    AdoptionOwnerNotFound,
+    AdoptionService,
+    AdoptionUnavailable,
+    CandidateAppearance,
+    CreateCandidateSetCommand,
+    GetAdoptionOptionsQuery,
+    ReplyToCandidatesCommand,
+)
+from app.interfaces.api.v1.auth import require_user
+from app.orchestration.resident_admission import (
+    AdmitAcceptedAdoptionCommand,
+    ResidentAdmissionError,
+    ResidentAdmissionService,
+)
+
+from .dependencies import adoption_service, resident_admission_service
+from .models import (
+    AdoptionCommitRequest,
+    AdoptionErrorDetails,
+    AdoptionErrorItem,
+    AdoptionErrorResponse,
+    AdoptionOptionsResponse,
+    AdoptionResultResponse,
+    CandidateRepliesRequest,
+    CandidateRepliesResponse,
+    CandidateSetRequest,
+    CandidateSetResponse,
+)
+
+router = APIRouter(prefix="/api/v1/me/adoption", tags=["me-adoption"])
+CurrentPrincipal = Depends(require_user)
+AdoptionDependency = Depends(adoption_service)
+ResidentAdmissionDependency = Depends(resident_admission_service)
+
+
+@router.get("", response_model=AdoptionOptionsResponse)
+def get_adoption_options(
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: AdoptionService = AdoptionDependency,
+) -> Union[AdoptionOptionsResponse, JSONResponse]:
+    try:
+        result = service.get_options(principal, GetAdoptionOptionsQuery())
+    except AdoptionError as error:
+        return _error_response(error)
+    return AdoptionOptionsResponse.from_result(result)
+
+
+@router.post("/candidate-sets", response_model=CandidateSetResponse)
+def create_candidate_set(
+    body: CandidateSetRequest,
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: AdoptionService = AdoptionDependency,
+) -> Union[CandidateSetResponse, JSONResponse]:
+    try:
+        result = service.create_candidate_set(
+            principal,
+            CreateCandidateSetCommand(
+                species_id=body.species_id,
+                life_stage=body.life_stage,
+                gender=body.gender,
+                appearance=CandidateAppearance(
+                    stature=body.appearance.stature,
+                    build=body.appearance.build,
+                    face=body.appearance.face,
+                    signature=body.appearance.signature,
+                    priority=body.appearance.priority,
+                ),
+                answers=body.answers,
+            ),
+        )
+    except AdoptionError as error:
+        return _error_response(error)
+    return CandidateSetResponse.from_result(result)
+
+
+@router.post(
+    "/candidate-sets/{candidate_set_id}/replies",
+    response_model=CandidateRepliesResponse,
+)
+def reply_to_candidates(
+    candidate_set_id: str,
+    body: CandidateRepliesRequest,
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: AdoptionService = AdoptionDependency,
+) -> Union[CandidateRepliesResponse, JSONResponse]:
+    try:
+        result = service.reply_to_candidates(
+            principal,
+            ReplyToCandidatesCommand(
+                candidate_set_id=candidate_set_id,
+                candidate_ids=body.candidate_ids,
+            ),
+        )
+    except AdoptionError as error:
+        return _error_response(error)
+    return CandidateRepliesResponse.from_result(result)
+
+
+@router.post("", status_code=201, response_model=AdoptionResultResponse)
+def commit_adoption(
+    body: AdoptionCommitRequest,
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: ResidentAdmissionService = ResidentAdmissionDependency,
+) -> Union[AdoptionResultResponse, JSONResponse]:
+    try:
+        result = service.admit(
+            principal,
+            AdmitAcceptedAdoptionCommand(
+                candidate_set_id=body.candidate_set_id,
+                candidate_id=body.candidate_id,
+                name=body.name,
+            ),
+        )
+    except (AdoptionError, ResidentAdmissionError) as error:
+        return _error_response(error)
+    return AdoptionResultResponse.from_result(result)
+
+
+def _error_response(error: Exception) -> JSONResponse:
+    status_code = 503
+    code = "adoption_unavailable"
+    details = AdoptionErrorDetails()
+    if isinstance(error, AdoptionInvalid):
+        status_code = 422
+        code = "invalid_adoption"
+    elif isinstance(error, AdoptionCandidateSetExpired):
+        status_code = 410
+        code = "adoption_candidate_set_expired"
+    elif isinstance(error, AdoptionCandidateNotAccepted):
+        status_code = 409
+        code = "adoption_candidate_not_accepted"
+    elif isinstance(error, AdoptionCapacityReached):
+        status_code = 409
+        code = "elfie_capacity_reached"
+        details = AdoptionErrorDetails(limit=error.limit)
+    elif isinstance(error, AdoptionOwnerNotFound):
+        status_code = 404
+        code = "adoption_owner_not_found"
+    elif isinstance(error, AdoptionUnavailable):
+        code = "adoption_unavailable"
+    elif isinstance(error, ResidentAdmissionError):
+        code = "elfie_runtime_unavailable"
+    payload = AdoptionErrorResponse(
+        error=AdoptionErrorItem(
+            code=code,
+            message=str(error),
+            details=details,
+        )
+    )
+    return JSONResponse(status_code=status_code, content=payload.model_dump())
+
+
+__all__ = ("router",)

@@ -13,7 +13,7 @@ def test_dispatch_reports_keyboard_interrupt_without_traceback(
     capsys: CaptureFixture[str],
 ) -> None:
     # Given
-    def interrupt() -> None:
+    def interrupt(_lifecycle) -> None:
         raise KeyboardInterrupt
 
     monkeypatch.setattr(elfienest, "restart_background_service", interrupt)

@@ -52,7 +52,7 @@ and the [Developer Docs](docs/developer/index.md) layer by layer.
   internal effectors;
 - A Nest that only holds resident IDs and in-nest semantic state, plus a Godot
   project that owns rooms, geometry, motion, collision and rendering;
-- A standalone AI Runtime, a product application layer, an Electron desktop
+- Model, Food and tool runtime capabilities, a product application layer, an Electron desktop
   host and isolated module workbenches.
 
 ## Core experience
@@ -155,7 +155,7 @@ Test paths, Desktop and Godot build commands are maintained separately by the
 | --- | --- |
 | [`elfie/`](elfie/README.md) | One complete Elfie: profile, brain, body, communication and skills |
 | [`nest/`](nest/README.md) | Activity-space state, environment clock, interaction, Godot protocol boundary |
-| [`ai_runtime/`](ai_runtime/README.md) | Models, providers, routing, food, tools, safety and runtime |
+| `infrastructure/` | Model, tool, persistence, Godot, device, communication and platform adapters |
 | [`app/`](app/README.md) | Product use-cases, interfaces, infrastructure and cross-module orchestration |
 | [`app/interfaces/desktop/`](app/interfaces/desktop/README.md) | Visible Electron windows, system integration and the public Runtime lifecycle client |
 | [`godot_project/`](godot_project/README.md) | Standalone Godot source project: rooms, geometry, coordinates, collision, characters and rendering |

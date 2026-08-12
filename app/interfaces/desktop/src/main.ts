@@ -73,8 +73,22 @@ function startGodotAuthorityRole(): void {
   const projectRoot =
     process.env["ELFIENEST_PROJECT_ROOT"] ?? join(process.cwd(), "..", "..", "..");
   const entry = app.isPackaged
-    ? join(app.getAppPath(), "godot_runtime", "electron", "authority_main.mjs")
-    : join(projectRoot, "godot_runtime", "electron", "authority_main.mjs");
+    ? join(
+        app.getAppPath(),
+        "infrastructure",
+        "godot",
+        "lifecycle",
+        "electron",
+        "authority_main.mjs",
+      )
+    : join(
+        projectRoot,
+        "infrastructure",
+        "godot",
+        "lifecycle",
+        "electron",
+        "authority_main.mjs",
+      );
   void import(pathToFileURL(entry).href);
 }
 

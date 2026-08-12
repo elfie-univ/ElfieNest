@@ -13,7 +13,8 @@ endpoint 作为第四组件被探测：其不可用会使 Runtime 处于 `degrad
 `godot_authority`、`ollama`）和生命周期状态。Supervisor 将当前收据写入
 `<所选数据根>/runtime.json`。
 
-权威宿主由 `godot_runtime/` 选择，不携带 Nest 状态、场景数据或协议凭据：
+权威宿主由 `infrastructure/godot/lifecycle/` 选择，不携带 Nest 状态、场景数据或协议
+凭据；已导出产物元数据与校验位于 `infrastructure/godot/artifacts/`：
 
 | 宿主类型 | 显示模式 | 用途 |
 | --- | --- | --- |
@@ -94,7 +95,7 @@ iframe 的快照。
 和具身租约。聊天与记忆不使用根数据库。
 
 Provider、模型、粮食、工具、凭据、报告和 Runtime 收据的所有权只由
-[AI Runtime 设计契约](../contracts/ai-runtime) 定义。完整生产目录树以及
+[模型、Food 与工具行为契约](../contracts/model-food-tool-behavior) 定义。完整生产目录树以及
 “每项持久化事实只能有一个类型化写入者”的规则也只在该契约中维护，本页不再复制这些
 Schema。
 

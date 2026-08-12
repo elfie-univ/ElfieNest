@@ -1,20 +1,20 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import type { OwnerElfie } from "../api/client"
+import { updateElfieFoodPolicy } from "../api/client"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ownerWrite } from "../api/client"
 import { currentLocale, segmentWords } from "../i18n/format"
 import { describeApiError, type LocalizedErrorState } from "../i18n/errors"
 import type { SupportedLocale } from "../i18n/locale"
 import { Notice } from "./Notice"
 import { SelectField } from "./SelectField"
 import { StatusIndicator } from "./StatusIndicator"
+import type { ManagedElfie } from "./managed-elfie"
 
 type ElfieIdentityCardProps = {
   readonly csrfToken: string
-  readonly elfie: OwnerElfie
+  readonly elfie: ManagedElfie
   readonly onError: (error: LocalizedErrorState) => void
   readonly onSaved: () => Promise<void>
 }
@@ -23,27 +23,21 @@ export function ElfieIdentityCard({ csrfToken, elfie, onError, onSaved }: ElfieI
   const { i18n, t } = useTranslation("manage")
   const locale = currentLocale(i18n)
   const [editing, setEditing] = useState(false)
-  const [defaultFood, setDefaultFood] = useState(elfie.food_policy.main_food_id || elfie.food_policy.effective_main_food_id)
+  const [defaultFood, setDefaultFood] = useState(elfie.foodPolicy.main_food_id || elfie.foodPolicy.effective_main_food_id)
   const [saving, setSaving] = useState(false)
   const profile = elfie.profile
-  const statusLabel = profile.status.code === "at_nest"
+  const status = profileStatus(elfie.embodiment.state)
+  const statusLabel = status.code === "at_nest"
     ? t("elfies.values.atNest")
-    : profile.status.code === "awake"
+    : status.code === "awake"
       ? t("elfies.values.awake")
-      : profile.status.code === "sleeping"
+      : status.code === "sleeping"
         ? t("elfies.values.sleeping")
         : t("elfies.values.unknownStatus")
   const save = async (): Promise<void> => {
     setSaving(true)
     try {
-      await ownerWrite(
-        `/api/user/elfies/${encodeURIComponent(elfie.elfie_id)}/food-policy/`,
-        "PUT",
-        csrfToken,
-        {
-          main_food_id: defaultFood,
-        },
-      )
+      await updateElfieFoodPolicy(elfie.profile.elfie_id, defaultFood, csrfToken)
       setEditing(false)
       await onSaved()
     } catch (reason: unknown) {
@@ -53,7 +47,7 @@ export function ElfieIdentityCard({ csrfToken, elfie, onError, onSaved }: ElfieI
     }
   }
   const cancel = (): void => {
-    setDefaultFood(elfie.food_policy.main_food_id || elfie.food_policy.effective_main_food_id)
+    setDefaultFood(elfie.foodPolicy.main_food_id || elfie.foodPolicy.effective_main_food_id)
     setEditing(false)
   }
   return <Card asChild><article className="elfie-id-card">
@@ -64,7 +58,7 @@ export function ElfieIdentityCard({ csrfToken, elfie, onError, onSaved }: ElfieI
           : <span>{profile.name.slice(0, 1)}</span>}
       </div>
       <div className="elfie-id-card__body">
-        <StatusIndicator label={statusLabel} tone={profile.status.tone} />
+        <StatusIndicator label={statusLabel} tone={status.tone} />
         <dl className="elfie-id-card__identity identity-card__primary">
           <IdentityField label={t("elfies.fields.name")} value={profile.name} />
           <IdentityField label={t("elfies.fields.owner")} value={elfie.owner.display_name ?? elfie.owner.account_id} />
@@ -73,9 +67,9 @@ export function ElfieIdentityCard({ csrfToken, elfie, onError, onSaved }: ElfieI
         </dl>
         <dl className="elfie-id-card__identity identity-card__secondary">
           <IdentityField label={t("elfies.fields.birthDate")} value={profile.birth_date ?? t("elfies.values.notRegistered")} />
-          <IdentityField label={t("elfies.fields.adoptionDate")} value={formatDateOnly(elfie.created_at)} />
-          <IdentityField label={t("elfies.fields.id")} value={elfie.elfie_id} />
-          <IdentityField label={t("elfies.fields.bed")} value={profile.nest.bed_name ?? t("elfies.values.notAssigned")} />
+          <IdentityField label={t("elfies.fields.adoptionDate")} value={formatDateOnly(profile.adopted_at)} />
+          <IdentityField label={t("elfies.fields.id")} value={profile.elfie_id} />
+          <IdentityField label={t("elfies.fields.bed")} value={elfie.nestBed?.name ?? t("elfies.values.notAssigned")} />
         </dl>
       </div>
       {editing ? <div className="elfie-id-card__editor identity-card__full-row">
@@ -83,11 +77,11 @@ export function ElfieIdentityCard({ csrfToken, elfie, onError, onSaved }: ElfieI
           disabled={saving}
           label={t("elfies.fields.stapleFood")}
           onValueChange={setDefaultFood}
-          options={elfie.food_policy.main_food_options.map((food) => ({ label: food.display_name, value: food.food_id }))}
+          options={elfie.foodPolicy.main_food_options.map((food) => ({ label: food.display_name, value: food.food_id }))}
           value={defaultFood}
         />
       </div> : <dl className="elfie-id-card__food identity-card__full-row">
-        <IdentityField label={t("elfies.fields.stapleFood")} value={elfie.food_policy.main_food_options.find((food) => food.food_id === elfie.food_policy.effective_main_food_id)?.display_name ?? t("elfies.values.none")} />
+        <IdentityField label={t("elfies.fields.stapleFood")} value={elfie.foodPolicy.main_food_options.find((food) => food.food_id === elfie.foodPolicy.effective_main_food_id)?.display_name ?? t("elfies.values.none")} />
       </dl>}
       <dl className="elfie-id-card__summary identity-card__full-row">
         <IdentityField
@@ -105,6 +99,16 @@ export function ElfieIdentityCard({ csrfToken, elfie, onError, onSaved }: ElfieI
       </div>
     </div>
   </article></Card>
+}
+
+function profileStatus(state: ManagedElfie["embodiment"]["state"]): { readonly code: string; readonly tone: string } {
+  switch (state) {
+    case "at_nest": return { code: "at_nest", tone: "active" }
+    case "hosted": return { code: "awake", tone: "active" }
+    case "offline": return { code: "unknown", tone: "inactive" }
+    case "switching_to_hosted":
+    case "returning_to_nest": return { code: "unknown", tone: "transition" }
+  }
 }
 
 function IdentityField({ className, label, locale, phraseAware = false, value }: {

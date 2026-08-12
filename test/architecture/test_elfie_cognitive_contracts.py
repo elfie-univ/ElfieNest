@@ -6,12 +6,24 @@ import ast
 import tokenize
 from pathlib import Path
 
+import elfie as elfie_api
 import elfie.body as body_api
 import elfie.communication as communication_api
-from elfie.body import BodyCommand, BodySensorEvent, CommandReceipt
+from elfie.body import BodyCommand, BodyPort, BodySensorEvent, CommandReceipt
 from elfie.body.contracts import BodyCommand as ContractBodyCommand
-from elfie.brain import BrainContext, DecisionPlan, PerceptualWorkspace
-from elfie.communication import CommunicationEnvelope, DeliveryReceipt
+from elfie.brain import (
+    BrainContext,
+    DecisionPlan,
+    PerceptualWorkspace,
+    ToolPort,
+    ToolRequest,
+    ToolResult,
+)
+from elfie.communication import (
+    CommunicationChannel,
+    CommunicationEnvelope,
+    DeliveryReceipt,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ELFIE_ROOT = PROJECT_ROOT / "elfie"
@@ -52,7 +64,14 @@ def test_elfie_does_not_reverse_import_application_or_runtime_layers() -> None:
             )
             imported = ([module] if module is not None else []) + names
             if any(
-                name.split(".", 1)[0] in {"ai_runtime", "app", "nest"}
+                name.split(".", 1)[0]
+                in {
+                    "ai_runtime",
+                    "app",
+                    "godot_runtime",
+                    "infrastructure",
+                    "nest",
+                }
                 for name in imported
             ):
                 offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
@@ -60,6 +79,52 @@ def test_elfie_does_not_reverse_import_application_or_runtime_layers() -> None:
 
     # Then
     assert offenders == []
+
+
+def test_app_inbound_callers_use_curated_elfie_and_nest_surfaces() -> None:
+    """App callers do not reach through domain internals for production entry points."""
+    offenders: list[str] = []
+    for relative_root in ("app/orchestration", "app/interfaces"):
+        for path in (PROJECT_ROOT / relative_root).rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                module: str | None = None
+                if isinstance(node, ast.ImportFrom):
+                    module = node.module
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name in {"elfie", "nest"}:
+                            offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+                if module in {"elfie", "nest"} or (
+                    module is not None
+                    and (module.startswith("elfie.") or module.startswith("nest."))
+                    and module not in {"elfie.public", "nest.public"}
+                ):
+                    offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+    assert offenders == []
+
+
+def test_root_public_surface_is_the_stable_aggregate_facades() -> None:
+    # Given / When / Then
+    assert elfie_api.__all__ == ["Elfie", "ElfieFactory"]
+
+
+def test_body_and_communication_ports_are_consumer_owned_protocols() -> None:
+    # Given / When / Then
+    assert getattr(BodyPort, "_is_protocol", False)
+    assert BodyPort.__module__ == "elfie.body.port"
+    assert getattr(CommunicationChannel, "_is_protocol", False)
+    assert CommunicationChannel.__module__ == "elfie.communication.channel"
+
+
+def test_brain_tool_port_is_consumer_owned_and_the_legacy_skill_package_is_gone() -> (
+    None
+):
+    assert getattr(ToolPort, "_is_protocol", False)
+    assert ToolPort.__module__ == "elfie.brain.tool_port"
+    assert ToolRequest.__module__ == "elfie.brain.tool_port"
+    assert ToolResult.__module__ == "elfie.brain.tool_port"
+    assert not (ELFIE_ROOT / "skills").exists()
 
 
 def test_canonical_cross_module_contracts_are_public() -> None:

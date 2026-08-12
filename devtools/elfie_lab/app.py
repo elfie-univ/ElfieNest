@@ -11,7 +11,6 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 import devtools.elfie_lab.api_models as api_models
 import devtools.elfie_lab.runtime_foods as runtime_food_support
-from ai_runtime.storage.data_home import get_elfie_developer_home, get_elfie_home
 from devtools.elfie_lab.food_status import find_food_item
 from devtools.elfie_lab.host import LoopbackHostMiddleware
 from devtools.elfie_lab.media_store import (
@@ -35,6 +34,10 @@ from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.elfie_lab.system_routes import build_system_router
 from devtools.runtime_lab import RuntimeLabConfigStore
 from devtools.web_host import frontend_shell
+from infrastructure.persistence.layout.data_home import (
+    get_elfie_developer_home,
+    get_elfie_home,
+)
 
 
 def create_app(

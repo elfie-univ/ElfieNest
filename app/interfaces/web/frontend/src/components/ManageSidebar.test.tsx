@@ -12,10 +12,7 @@ import { ManageSidebar } from "./ManageSidebar"
 
 const mobileAccessMock = vi.hoisted(() => vi.fn())
 
-vi.mock("../api/client", async (loadOriginal) => {
-  const original = await loadOriginal<typeof import("../api/client")>()
-  return { ...original, mobileAccess: mobileAccessMock }
-})
+vi.mock("../api/admin/runtime", () => ({ mobileAccess: mobileAccessMock }))
 
 const owner = {
   account_id: "admin123",

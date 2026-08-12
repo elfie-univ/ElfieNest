@@ -5,9 +5,14 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from app.features.administration.system_service import ActiveSession
-from app.infrastructure.persistence.store import get_db, hash_password, init_db
+from app.features.operations import (
+    ActiveSessionResult,
+    ActiveSessionsResult,
+    ListActiveSessionsQuery,
+    OperationsFacade,
+)
 from app.interfaces.cli import runtime_commands
+from infrastructure.persistence.nest_db.store import get_db, hash_password, init_db
 from test.app.interfaces.cli.entrypoint_test_support import (
     PROJECT_ROOT,
     write_executable,
@@ -86,20 +91,26 @@ def test_owner_menu_reports_current_owner_without_secrets(
     assert "entrypoint-secret" not in result.stdout
 
 
-def test_session_cli_prints_account_id_and_token_hash(monkeypatch, capsys) -> None:
-    monkeypatch.setattr(
-        runtime_commands,
-        "list_active_sessions",
-        lambda: [
-            ActiveSession(
-                token_hash="d" * 64,
-                account_id="doctor-bai",
-                expires_at="2099-01-01T00:00:00+00:00",
-            )
-        ],
-    )
+def test_session_cli_prints_account_id_and_token_hash(capsys) -> None:
+    class SessionOperations(OperationsFacade):
+        def __init__(self) -> None:
+            pass
 
-    runtime_commands.show_sessions()
+        def list_active_sessions(
+            self, query: ListActiveSessionsQuery
+        ) -> ActiveSessionsResult:
+            assert query.limit == 20
+            return ActiveSessionsResult(
+                items=(
+                    ActiveSessionResult(
+                        token_hash="d" * 64,
+                        account_id="doctor-bai",
+                        expires_at="2099-01-01T00:00:00+00:00",
+                    ),
+                )
+            )
+
+    runtime_commands.show_sessions(SessionOperations())
 
     output = capsys.readouterr().out
     assert "doctor-bai" in output

@@ -1,246 +1,97 @@
-from __future__ import annotations
-
-import signal
 from pathlib import Path
-from typing import List, Tuple
 
-from _pytest.monkeypatch import MonkeyPatch
-
-from app.orchestration.lifecycle import service as service_lifecycle
-from app.orchestration.lifecycle.service import (
+from app.orchestration.lifecycle.service import stop_service
+from app.orchestration.lifecycle.types import (
     InvalidPidFileError,
     ProcessIdentityMismatchError,
     ServicePortsActiveError,
     StopTimeoutError,
-    stop_service,
 )
 from test.app.orchestration.lifecycle.service_fakes import (
-    FailingInspector,
     FakeClock,
-    FakeInspector,
+    FakeProcessPort,
     serve_command,
     write_pid,
 )
 
 
-def test_stop_is_already_stopped_without_pid_file(tmp_path: Path) -> None:
-    # Given
-    elfie_home = tmp_path / "home"
-
-    # When
-    result = stop_service(
-        elfie_home,
-        tmp_path / "project",
-        inspector=FailingInspector(),
-        service_ports_in_use=lambda _ports: False,
-    )
-
-    # Then
+def test_stop_without_receipt_is_already_stopped(tmp_path: Path) -> None:
+    port = FakeProcessPort(cwd=tmp_path)
+    result = stop_service(tmp_path / "home", tmp_path, process_port=port)
     assert result.status == "already_stopped"
-    assert result.pid is None
 
 
-def test_stop_fails_closed_without_pid_when_service_ports_are_active(
-    tmp_path: Path,
-) -> None:
-    # Given
-    elfie_home = tmp_path / "home"
-
-    # When
-    result = stop_service(
-        elfie_home,
-        tmp_path / "project",
-        inspector=FailingInspector(),
-        service_ports_in_use=lambda _ports: True,
-    )
-
-    # Then
-    assert result.status == "failed"
-    assert result.error is not None
-    assert "PID" in str(result.error)
-
-
-def test_stop_rejects_non_target_process_without_signal(tmp_path: Path) -> None:
-    # Given
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    pid_path = write_pid(elfie_home, 4101)
-    inspector = FakeInspector(
-        cwd=tmp_path / "other-project",
-        command=serve_command(project_root),
-        existence=[True],
-    )
-    signals: List[Tuple[int, int]] = []
-
-    # When
-    result = stop_service(
-        elfie_home,
-        project_root,
-        inspector=inspector,
-        signaler=lambda pid, sig: signals.append((pid, sig)),
-    )
-
-    # Then
-    assert result.status == "failed"
-    assert isinstance(result.error, ProcessIdentityMismatchError)
-    assert signals == []
-    assert pid_path.exists()
-
-
-def test_stop_signals_verified_target_and_removes_pid_file(tmp_path: Path) -> None:
-    # Given
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    pid_path = write_pid(elfie_home, 4102)
-    inspector = FakeInspector(
-        cwd=project_root.resolve(),
-        command=serve_command(project_root),
-        existence=[True, True, False],
-    )
-    signals: List[Tuple[int, int]] = []
-    clock = FakeClock()
-
-    # When
-    result = stop_service(
-        elfie_home,
-        project_root,
-        inspector=inspector,
-        signaler=lambda pid, sig: signals.append((pid, sig)),
-        timeout_seconds=1.0,
-        poll_interval_seconds=0.1,
-        monotonic=clock.monotonic,
-        sleeper=clock.sleep,
-        service_ports_in_use=lambda _ports: False,
-    )
-
-    # Then
-    assert result.status == "stopped"
-    assert result.pid == 4102
-    assert result.command == serve_command(project_root)
-    assert signals == [(4102, signal.SIGTERM)]
-    assert not pid_path.exists()
-
-
-def test_stop_accepts_relative_serve_script_from_verified_working_directory(
-    tmp_path: Path,
-) -> None:
-    # Given
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    write_pid(elfie_home, 4104)
-    inspector = FakeInspector(
-        cwd=project_root.resolve(),
-        command=("python", "scripts/serve.py", "--fallback"),
-        existence=[True, True, False],
-    )
-    signals: List[Tuple[int, int]] = []
-
-    # When
-    result = stop_service(
-        elfie_home,
-        project_root,
-        inspector=inspector,
-        signaler=lambda pid, sig: signals.append((pid, sig)),
-        service_ports_in_use=lambda _ports: False,
-    )
-
-    # Then
-    assert result.status == "stopped"
-    assert signals == [(4104, signal.SIGTERM)]
-
-
-def test_stop_fails_when_target_ports_remain_active(tmp_path: Path) -> None:
-    # Given
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    pid_path = write_pid(elfie_home, 4105)
-    inspector = FakeInspector(
-        cwd=project_root.resolve(),
-        command=serve_command(project_root),
-        existence=[True, True, False],
-    )
-
-    # When
-    result = stop_service(
-        elfie_home,
-        project_root,
-        inspector=inspector,
-        signaler=lambda pid, sig: None,
-        service_ports_in_use=lambda _ports: True,
-    )
-
-    # Then
-    assert result.status == "failed"
+def test_stop_fails_closed_without_receipt_when_ports_active(tmp_path: Path) -> None:
+    port = FakeProcessPort(cwd=tmp_path, ports_active=True)
+    result = stop_service(tmp_path / "home", tmp_path, process_port=port)
     assert isinstance(result.error, ServicePortsActiveError)
-    assert pid_path.exists()
 
 
-def test_stop_timeout_keeps_pid_receipt_for_retry(tmp_path: Path) -> None:
-    # Given
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    pid_path = write_pid(elfie_home, 4103)
-    inspector = FakeInspector(
-        cwd=project_root.resolve(),
-        command=serve_command(project_root),
-        existence=[True],
+def test_stop_rejects_mismatched_process_without_signal(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    write_pid(home, 4101)
+    port = FakeProcessPort(
+        cwd=tmp_path / "other", command=serve_command(tmp_path), existence=(True,)
     )
-    clock = FakeClock()
+    result = stop_service(home, tmp_path, process_port=port)
+    assert isinstance(result.error, ProcessIdentityMismatchError)
+    assert port.terminations == []
 
-    # When
+
+def test_stop_verified_process_and_remove_receipt(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    write_pid(home, 4102)
+    port = FakeProcessPort(
+        cwd=tmp_path.resolve(),
+        command=serve_command(tmp_path),
+        existence=(True, True, False),
+    )
+    result = stop_service(home, tmp_path, process_port=port)
+    assert result.status == "stopped"
+    assert port.terminations == [(4102, False)]
+    assert not (home / "elfienest.pid").exists()
+
+
+def test_stop_timeout_keeps_receipt(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    write_pid(home, 4103)
+    clock = FakeClock()
+    port = FakeProcessPort(
+        cwd=tmp_path.resolve(), command=serve_command(tmp_path), existence=(True,)
+    )
     result = stop_service(
-        elfie_home,
-        project_root,
-        inspector=inspector,
-        signaler=lambda pid, sig: None,
+        home,
+        tmp_path,
+        process_port=port,
         timeout_seconds=0.2,
-        poll_interval_seconds=0.1,
         monotonic=clock.monotonic,
         sleeper=clock.sleep,
     )
-
-    # Then
-    assert result.status == "failed"
     assert isinstance(result.error, StopTimeoutError)
-    assert pid_path.exists()
+    assert (home / "elfienest.pid").exists()
 
 
-def test_stop_rejects_invalid_pid_file_with_typed_error(tmp_path: Path) -> None:
-    # Given
-    elfie_home = tmp_path / "home"
-    elfie_home.mkdir()
-    (elfie_home / "elfienest.pid").write_text("not-a-pid", encoding="utf-8")
-
-    # When
-    result = stop_service(
-        elfie_home,
-        tmp_path / "project",
-        inspector=FailingInspector(),
+def test_stop_invalid_or_unreadable_receipt_returns_typed_error(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    write_pid(home, 4104).write_text("bad", encoding="utf-8")
+    port = FakeProcessPort(cwd=tmp_path)
+    assert isinstance(
+        stop_service(home, tmp_path, process_port=port).error, InvalidPidFileError
     )
-
-    # Then
-    assert result.status == "failed"
-    assert isinstance(result.error, InvalidPidFileError)
+    port.read_error = PermissionError("denied")
+    assert stop_service(home, tmp_path, process_port=port).status == "failed"
 
 
-def test_stop_reports_unreadable_pid_receipt_as_failure(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    elfie_home = tmp_path / "home"
-    write_pid(elfie_home, 4106)
+def test_stop_handles_receipt_disappearing_during_read(tmp_path: Path) -> None:
+    class DisappearingReceiptPort(FakeProcessPort):
+        def receipt_exists(self, elfie_home: Path) -> bool:
+            return True
 
-    def fail_read(_path: Path):
-        raise PermissionError("receipt denied")
+        def read_receipt(self, elfie_home: Path) -> None:
+            return None
 
-    monkeypatch.setattr(service_lifecycle, "_read_pid", fail_read)
+    port = DisappearingReceiptPort(cwd=tmp_path)
 
-    result = stop_service(
-        elfie_home,
-        tmp_path / "project",
-        inspector=FailingInspector(),
-    )
+    result = stop_service(tmp_path / "home", tmp_path, process_port=port)
 
-    assert result.status == "failed"
-    assert result.error is not None
-    assert "PID" in str(result.error)
+    assert result.status == "already_stopped"

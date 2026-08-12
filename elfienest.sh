@@ -85,7 +85,7 @@ show_help() {
     echo "    web            Ensure service is running and open Web console"
     echo "    desktop        Launch packaged ElfieNest Desktop"
     echo "    mobile         Show mobile access URL and QR code"
-    echo "    config         AI Runtime configuration (interactive menu)"
+    echo "    config         Provider, model, Food and tool configuration (interactive menu)"
     echo "    owner          Owner account menu"
     echo "    doctor         Run local diagnostics and auto-repair"
     echo "    uninstall      Uninstall and data cleanup"

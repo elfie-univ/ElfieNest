@@ -1,10 +1,23 @@
 from __future__ import annotations
 
 import builtins
+from dataclasses import dataclass
 
-from ai_runtime.lab.menu import TerminalMenu
-from app.features.administration.owner_service import OwnerAccount
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
+from app.features.accounts import GetOwnerAccountQuery, OwnerAccountResult
 from app.interfaces.cli import owner_commands
+from infrastructure.platform.terminal_menu import TerminalMenu
+
+LIFECYCLE = create_lifecycle_facade()
+
+
+@dataclass
+class OwnerServiceStub:
+    account: OwnerAccountResult
+
+    def get_owner_account(self, query: GetOwnerAccountQuery) -> OwnerAccountResult:
+        _ = query
+        return self.account
 
 
 def test_owner_menu_has_three_items_and_shares_actions(monkeypatch, capsys) -> None:
@@ -20,11 +33,23 @@ def test_owner_menu_has_three_items_and_shares_actions(monkeypatch, capsys) -> N
     monkeypatch.setattr(
         owner_commands,
         "recover_owner_interactive",
-        lambda **_kwargs: calls.append("recover") or 0,
+        lambda *_args, **_kwargs: calls.append("recover") or 0,
     )
 
     # When
-    result = owner_commands.run_owner_menu()
+    result = owner_commands.run_owner_menu(
+        LIFECYCLE,
+        OwnerServiceStub(
+            OwnerAccountResult(
+                user_id=7,
+                account_id="owner",
+                display_name=None,
+                created_at="2026-07-16T01:02:03Z",
+                updated_at="2026-07-16T04:05:06Z",
+            )
+        ),
+        TerminalMenu(input_fn=input, output_fn=print, interactive=False),
+    )
 
     # Then
     output = capsys.readouterr().out
@@ -44,20 +69,18 @@ def test_owner_account_view_is_a_detail_page_with_pause(monkeypatch, capsys) -> 
         key_reader=lambda: next(keys),
         interactive=True,
     )
-    monkeypatch.setattr(
-        owner_commands,
-        "get_owner_account",
-        lambda _path=None: OwnerAccount(
+    service = OwnerServiceStub(
+        OwnerAccountResult(
             user_id=7,
             account_id="owner",
             display_name=None,
             created_at="2026-07-16T01:02:03Z",
             updated_at="2026-07-16T04:05:06Z",
-        ),
+        )
     )
 
     # When
-    result = owner_commands.show_owner_account_page(menu)
+    result = owner_commands.show_owner_account_page(menu, service)
 
     # Then
     output = capsys.readouterr().out
@@ -79,14 +102,20 @@ def test_owner_recovery_can_be_cancelled_before_input(monkeypatch, capsys) -> No
         interactive=True,
     )
     calls: list[str] = []
-    monkeypatch.setattr(
-        owner_commands,
-        "recover_owner_account",
-        lambda *args: calls.append("recover"),
+    service = OwnerServiceStub(
+        OwnerAccountResult(
+            user_id=7,
+            account_id="owner",
+            display_name=None,
+            created_at="2026-07-16T01:02:03Z",
+            updated_at="2026-07-16T04:05:06Z",
+        )
     )
 
     # When
-    result = owner_commands.recover_owner_interactive("/tmp/missing.db", menu=menu)
+    result = owner_commands.recover_owner_interactive(
+        LIFECYCLE, service, "/tmp/missing.db", menu=menu
+    )
 
     # Then
     output = capsys.readouterr().out

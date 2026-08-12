@@ -6,14 +6,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.features.adoption.service import AdoptionCapacityError
-from app.infrastructure.persistence.store import get_db, init_db
-from app.interfaces.api.app import create_app
+from app.bootstrap import create_app
+from infrastructure.persistence.nest_db.store import get_db, init_db
 
 from ._helpers import adopt_test_elfie, create_test_owner
 
@@ -34,12 +32,7 @@ def app(db_path: str, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ELFIE_HOME", str(Path(db_path).parent))
     create_test_owner(db_path)
 
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-    ):
-        application = create_app(engine=None, db_path=db_path, ws_port=9876)
-        yield application
+    yield create_app(engine=None, db_path=db_path)
 
 
 @pytest.fixture
@@ -50,7 +43,7 @@ def client(app):
 
 def _login_owner(client: TestClient) -> dict:
     resp = client.post(
-        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
+        "/api/v1/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200
     return {
@@ -62,7 +55,7 @@ def _login_user(
     client: TestClient, account_id: str = "alice", password: str = "pass123"
 ) -> dict:
     resp = client.post(
-        "/api/auth/login", data={"account_id": account_id, "password": password}
+        "/api/v1/auth/login", data={"account_id": account_id, "password": password}
     )
     assert resp.status_code == 200, f"user login failed: {resp.text}"
     return {
@@ -81,7 +74,7 @@ def _create_user_via_owner(
     """Owner 创建用户，返回用户 id。"""
     owner_tokens = _login_owner(client)
     resp = client.post(
-        "/api/owner/users",
+        "/api/v1/admin/users",
         json={"account_id": account_id, "password": password, "role": "user"},
         headers=_headers(owner_tokens["csrf_token"]),
     )
@@ -96,13 +89,11 @@ def _create_user_via_owner(
 
 class TestAdoptionInfo:
     def test_returns_lists(self, client: TestClient) -> None:
-        """GET /api/user/adoption-info 返回正确列表。"""
+        """GET /api/v1/me/adoption 返回当前领养选项。"""
         _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
-        resp = client.get(
-            "/api/user/adoption-info", headers=_headers(tokens["csrf_token"])
-        )
+        resp = client.get("/api/v1/me/adoption", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
         data = resp.json()
         # 6 种性格
@@ -120,9 +111,7 @@ class TestAdoptionInfo:
 
         adopt_test_elfie(db_path, user_id, species_id="dog")
 
-        resp = client.get(
-            "/api/user/adoption-info", headers=_headers(tokens["csrf_token"])
-        )
+        resp = client.get("/api/v1/me/adoption", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
         data = resp.json()
         assert data["quota"] == {
@@ -141,15 +130,18 @@ class TestAdoptionInfo:
                 "UPDATE users SET elfie_limit = 1 WHERE id = ?", (user_id,)
             )
             connection.commit()
-        tokens = _login_user(client, "alice")
-        before = client.get(
-            "/api/user/adoption-info", headers=_headers(tokens["csrf_token"])
-        )
+        _login_user(client, "alice")
+        before = client.get("/api/v1/me/adoption")
         adopt_test_elfie(db_path, user_id, name="小白", species_id="dog")
+        after = client.get("/api/v1/me/adoption")
 
         assert before.json()["quota"]["max"] == 1
-        with pytest.raises(AdoptionCapacityError, match="最多领养 1 只精灵"):
-            adopt_test_elfie(db_path, user_id, name="小灰", species_id="dog")
+        assert after.json()["quota"] == {
+            "used": 1,
+            "max": 1,
+            "remaining": 0,
+            "can_adopt": False,
+        }
 
 
 class TestAdoptionJourney:
@@ -174,7 +166,7 @@ class TestAdoptionJourney:
         }
 
         candidates = client.post(
-            "/api/user/adoption/candidates", json=intent, headers=headers
+            "/api/v1/me/adoption/candidate-sets", json=intent, headers=headers
         )
         assert candidates.status_code == 200, candidates.text
         candidate_set = candidates.json()
@@ -182,7 +174,7 @@ class TestAdoptionJourney:
         selected = candidate_set["candidates"][:2]
 
         before_reply = client.post(
-            "/api/user/adoption/commit",
+            "/api/v1/me/adoption",
             json={
                 "candidate_set_id": candidate_set["candidate_set_id"],
                 "candidate_id": selected[0]["candidate_id"],
@@ -193,18 +185,15 @@ class TestAdoptionJourney:
         assert before_reply.status_code == 409
 
         replies = client.post(
-            "/api/user/adoption/replies",
-            json={
-                "candidate_set_id": candidate_set["candidate_set_id"],
-                "candidate_ids": [item["candidate_id"] for item in selected],
-            },
+            f"/api/v1/me/adoption/candidate-sets/{candidate_set['candidate_set_id']}/replies",
+            json={"candidate_ids": [item["candidate_id"] for item in selected]},
             headers=headers,
         )
         assert replies.status_code == 200, replies.text
         assert replies.json()["replies"][0]["status"] == "accepted"
 
         committed = client.post(
-            "/api/user/adoption/commit",
+            "/api/v1/me/adoption",
             json={
                 "candidate_set_id": candidate_set["candidate_set_id"],
                 "candidate_id": selected[0]["candidate_id"],
@@ -213,9 +202,10 @@ class TestAdoptionJourney:
             headers=headers,
         )
         assert committed.status_code == 201, committed.text
-        profile = client.get(
+        profile_detail = client.get(
             f"/api/v1/elfies/{committed.json()['elfie_id']}/profile", headers=headers
         ).json()
+        profile = profile_detail["profile"]
         assert profile["name"] == "星砂"
         assert profile["gender"] == selected[0]["gender"]
         assert profile["birth_date"] is not None

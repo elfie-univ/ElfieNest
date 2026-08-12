@@ -2,34 +2,34 @@ import stat
 
 import yaml
 
-from ai_runtime.food.models import FoodPackage, ModelAssignment
-from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.store import init_db
+from app.features.configuration.food import StoredFoodPackage
 from devtools.elfie_lab.runtime_adapters import (
     create_runtime,
     default_runtime_config_dir,
 )
 from devtools.runtime_lab import RuntimeLabConfigStore
 from devtools.runtime_lab.config_store import PROVIDER_DEFAULTS
+from infrastructure.persistence.food import SQLiteFoodAdapter
+from infrastructure.persistence.nest_db.store import init_db
 
 
 def _write_foods(root):
     root.mkdir(parents=True, exist_ok=True)
     init_db(str(root / "nest.db"))
-    repository = SQLiteFoodPackageRepository(root / "nest.db")
+    repository = SQLiteFoodAdapter(root / "nest.db")
     for package in (
-            FoodPackage(
-                key="standard",
-                display_name="标准粮",
-                primary=ModelAssignment("ollama/qwen3.5:0.8b"),
-            ),
-            FoodPackage(
-                key="focus",
-                display_name="清醒粮",
-                primary=ModelAssignment("openai/example-model"),
-            ),
+        StoredFoodPackage(
+            food_id="standard",
+            display_name="标准粮",
+            primary_model="ollama/qwen3.5:0.8b",
+        ),
+        StoredFoodPackage(
+            food_id="focus",
+            display_name="清醒粮",
+            primary_model="openai/example-model",
+        ),
     ):
-        repository.create(package)
+        repository.create_package(package)
 
 
 def test_development_runtime_config_does_not_read_production_config(
@@ -57,7 +57,9 @@ def test_development_runtime_config_does_not_read_production_config(
 
     runtime = create_runtime("standard", str(store.root))
     assert runtime.inner.selected_model == "ollama/qwen3.5:0.8b"
-    assert runtime.inner.runtime.food_catalog_repository._db_path == str(store.root / "nest.db")
+    assert runtime.inner.runtime.food_catalog_repository._db_path == str(
+        store.root / "nest.db"
+    )
 
 
 def test_elfie_lab_runtime_adapter_defaults_to_developer_root(tmp_path, monkeypatch):
@@ -80,7 +82,10 @@ def test_runtime_lab_defaults_use_the_catalog_test_model_for_vision(tmp_path):
     document = store.default_document()
 
     # Then: its vision slot keeps a current catalog model instead of the retired role map.
-    assert document["multimodal_model"] == PROVIDER_DEFAULTS["ollama"]["test_model"]
+    assert (
+        document["runtime_policy"]["model_selection"]["remote_multimodal"]["model"]
+        == PROVIDER_DEFAULTS["ollama"]["test_model"]
+    )
 
 
 def test_provider_configuration_separates_secret_and_non_secret_data(tmp_path):
@@ -98,8 +103,14 @@ def test_provider_configuration_separates_secret_and_non_secret_data(tmp_path):
 
     document = yaml.safe_load(store.config_path.read_text(encoding="utf-8"))
     assert "unit-test-secret" not in store.config_path.read_text(encoding="utf-8")
-    assert document["deep_provider"] == "openai"
-    assert document["deep_model"] == "example-model"
+    assert (
+        document["runtime_policy"]["model_selection"]["remote_deep"]["provider"]
+        == "openai"
+    )
+    assert (
+        document["runtime_policy"]["model_selection"]["remote_deep"]["model"]
+        == "example-model"
+    )
     assert status["ready_for_attempt"] is True
     assert status["model_key"] == "remote_deep"
     assert store.env_path.read_text(encoding="utf-8").strip() == (
@@ -110,4 +121,6 @@ def test_provider_configuration_separates_secret_and_non_secret_data(tmp_path):
     runtime = create_runtime("focus", str(store.root))
     assert runtime.inner.selected_provider == "openai"
     assert runtime.inner.selected_model == "openai/example-model"
-    assert runtime.inner.runtime.food_catalog_repository._db_path == str(store.root / "nest.db")
+    assert runtime.inner.runtime.food_catalog_repository._db_path == str(
+        store.root / "nest.db"
+    )

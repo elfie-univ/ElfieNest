@@ -13,7 +13,7 @@ import {
   previewNewFood,
   type FoodCatalog,
   type FoodPackage,
-} from "../api/owner-foods"
+} from "../api/admin/food-packages"
 import { ownerProviderConnections, type ProviderConnection } from "../api/owner-providers"
 import { ownerUsers, type OwnerUser } from "../api/owner-users"
 import { ownerOllamaStatus, type OllamaStatus } from "../api/owner-ollama"
@@ -23,8 +23,8 @@ import type { SupportedLocale } from "../i18n/locale"
 import { OwnerFoodPanel } from "./OwnerFoodPanel"
 import { ToastProvider } from "./ui/toast"
 
-vi.mock("../api/owner-foods", async (loadOriginal) => {
-  const original = await loadOriginal<typeof import("../api/owner-foods")>()
+vi.mock("../api/admin/food-packages", async (loadOriginal) => {
+  const original = await loadOriginal<typeof import("../api/admin/food-packages")>()
   return { ...original, changeFoodLifecycle: vi.fn(), createFood: vi.fn(), deleteFood: vi.fn(), editFood: vi.fn(), ownerFoods: vi.fn(), previewFoodUpdate: vi.fn(), previewNewFood: vi.fn() }
 })
 vi.mock("../api/owner-providers", async (loadOriginal) => {

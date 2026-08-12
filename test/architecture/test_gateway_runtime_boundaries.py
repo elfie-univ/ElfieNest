@@ -63,29 +63,27 @@ def test_removed_gateway_alias_is_not_restored() -> None:
 
 def test_runtime_host_does_not_import_nest_business_objects() -> None:
     # Given: the Runtime host selects/launches artifacts rather than Nest business state.
-    runtime_roots = (
-        PROJECT_ROOT / "godot_runtime",
-        PROJECT_ROOT / "infrastructure/godot",
-    )
+    runtime_roots = (PROJECT_ROOT / "infrastructure/godot",)
 
     # When: every Runtime host module is checked for absolute Nest imports.
     offenders = {
-        path.relative_to(PROJECT_ROOT).as_posix(): sorted(
-            module
-            for module in _imported_modules(path)
-            if module == "nest" or module.startswith("nest.")
-        )
+        path.relative_to(PROJECT_ROOT).as_posix(): sorted(_forbidden_nest_imports(path))
         for runtime_root in runtime_roots
         if runtime_root.is_dir()
         for path in runtime_root.rglob("*.py")
-        if any(
-            module == "nest" or module.startswith("nest.")
-            for module in _imported_modules(path)
-        )
+        if _forbidden_nest_imports(path)
     }
 
     # Then: no Nest business object crosses into the host boundary.
     assert offenders == {}
+
+
+def _forbidden_nest_imports(path: Path) -> set[str]:
+    return {
+        module
+        for module in _imported_modules(path)
+        if module == "nest" or module.startswith("nest.")
+    }
 
 
 def test_desktop_interface_does_not_import_gateway_internals() -> None:
@@ -112,11 +110,12 @@ def test_desktop_boundary_scanner_rejects_gateway_import_fixture(
     # Given: a Desktop adapter reaches into a Gateway implementation directly.
     fixture = tmp_path / "desktop_adapter.py"
     fixture.write_text(
-        "from nest.godot_gateway.api import GodotAPIServer\n", encoding="utf-8"
+        "from infrastructure.godot.gateway.api import GodotAPIServer\n",
+        encoding="utf-8",
     )
 
     # When: the shared Desktop boundary scanner analyzes the adapter.
     imports = _gateway_internal_imports(fixture)
 
     # Then: the forbidden protocol import is reported for the architecture guard.
-    assert imports == {"nest.godot_gateway.api"}
+    assert imports == {"infrastructure.godot.gateway.api"}

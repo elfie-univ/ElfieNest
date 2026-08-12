@@ -7,9 +7,10 @@ import {
   adoptionReplies,
   commitAdoption,
   type AdoptionCandidate,
+  type AdoptionCandidateSetInput,
   type AdoptionInfo,
   type AdoptionReply,
-} from "../../api/client"
+} from "../../api/me/adoption"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../../i18n/errors"
 import { currentLocale } from "../../i18n/format"
 import { ConfirmDialog } from "../ConfirmDialog"
@@ -314,19 +315,27 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     }
   }
 
-  const intentPayload = (): Record<string, unknown> => ({
-    species_id: state.draft.speciesId,
-    life_stage: state.draft.lifeStage,
-    gender: state.draft.gender,
-    appearance: {
-      stature: state.draft.stature,
-      build: state.draft.build,
-      face: state.draft.face,
-      signature: state.draft.signature,
-      priority: state.draft.priority,
-    },
-    answers: state.draft.answers,
-  })
+  const intentPayload = (): AdoptionCandidateSetInput => {
+    const speciesId = state.draft.speciesId
+    if (speciesId === null) throw new Error("Adoption species is required")
+    const answers = state.draft.answers.map((answer) => {
+      if (answer === null) throw new Error("Every Adoption answer is required")
+      return answer
+    })
+    return {
+      species_id: speciesId,
+      life_stage: state.draft.lifeStage,
+      gender: state.draft.gender,
+      appearance: {
+        stature: state.draft.stature,
+        build: state.draft.build,
+        face: state.draft.face,
+        signature: state.draft.signature,
+        priority: state.draft.priority,
+      },
+      answers,
+    }
+  }
 
   const generateCandidates = async (): Promise<void> => {
     if (!intentComplete(state.draft)) {

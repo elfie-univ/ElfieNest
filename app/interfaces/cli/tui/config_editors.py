@@ -1,124 +1,155 @@
 from __future__ import annotations
 
-from ai_runtime.lab.menu import MenuItem, TerminalMenu
-from app.features.configuration.user_config import UserConfig, write_user_config
+from typing import MutableMapping
+
+from app.features.accounts import AccountPrincipal
+from app.features.configuration import (
+    GetElfieSettingsQuery,
+    GetRuntimeSettingsQuery,
+    GetSecuritySettingsQuery,
+    LoginRateLimit,
+    SettingsService,
+    SpeciesId,
+    UpdateElfieSettingsCommand,
+    UpdateRuntimeSettingsCommand,
+    UpdateSecuritySettingsCommand,
+)
 from app.interfaces.cli.tui.common import clear_screen, print_banner
+from app.interfaces.cli.tui.menu import MenuItem, TerminalMenuPort
 
 
-def config_llm(config: UserConfig) -> None:
+def config_llm(config: object | None = None) -> None:
     _ = config
     clear_screen()
     print_banner()
     print("  🤖 LLM and Food Strategy")
     print("  " + "=" * 45)
     print()
-    print("  Provider connections, models and food packages are managed in AI Runtime.")
+    print(
+        "  Provider connections, models and food packages are managed in Config Center."
+    )
     try:
         input("Press Enter to return...")
     except (EOFError, KeyboardInterrupt):
         return
 
 
-def config_engine(config: UserConfig) -> None:
-    menu = TerminalMenu(input_fn=input, output_fn=print)
+def config_engine(
+    settings: SettingsService,
+    principal: AccountPrincipal,
+    menu: TerminalMenuPort,
+) -> None:
     while True:
-        engine = config.setdefault("system", {}).setdefault("engine", {})
+        current = settings.get_runtime_settings(principal, GetRuntimeSettingsQuery())
         choice = menu.choose(
             "Engine Parameters",
-            (
-                MenuItem(
-                    "1", f"Tick interval (sec): {engine.get('tick_interval_sec', 1.5)}"
-                ),
-            ),
+            (MenuItem("1", f"Tick interval (sec): {current.tick_interval_sec}"),),
             breadcrumb="ElfieNest / Config / App / Engine",
             back_label="Save and return",
         )
         if choice is None:
-            write_user_config(config)
             return
         if choice == "1":
-            _set_float(
+            value = _read_float(
                 menu,
-                engine,
-                "tick_interval_sec",
                 "Enter tick interval (sec)",
-                1.5,
+                current.tick_interval_sec,
                 minimum=0.01,
             )
+            if value is not None:
+                settings.update_runtime_settings(
+                    principal,
+                    UpdateRuntimeSettingsCommand(tick_interval_sec=value),
+                )
 
 
-def config_security(config: UserConfig) -> None:
-    menu = TerminalMenu(input_fn=input, output_fn=print)
+def config_security(
+    settings: SettingsService,
+    principal: AccountPrincipal,
+    menu: TerminalMenuPort,
+) -> None:
     while True:
-        security = config.setdefault("system", {}).setdefault("security", {})
-        rate_limit = security.setdefault("rate_limit", {})
+        current = settings.get_security_settings(principal, GetSecuritySettingsQuery())
         choice = menu.choose(
             "Session and Security",
             (
-                MenuItem(
-                    "1", f"Session TTL (days): {security.get('session_ttl_days', 7)}"
-                ),
-                MenuItem(
-                    "2", f"Max login attempts: {rate_limit.get('max_attempts', 5)}"
-                ),
+                MenuItem("1", f"Session TTL (days): {current.session_ttl_days}"),
+                MenuItem("2", f"Max login attempts: {current.rate_limit.max_attempts}"),
                 MenuItem(
                     "3",
-                    f"Rate limit window (sec): {rate_limit.get('window_seconds', 300)}",
+                    f"Rate limit window (sec): {current.rate_limit.window_seconds}",
                 ),
             ),
             breadcrumb="ElfieNest / Config / Owner and Security",
             back_label="Save and return",
         )
         if choice is None:
-            write_user_config(config)
             return
         if choice == "1":
-            _set_int(
+            value = _read_int(
                 menu,
-                security,
-                "session_ttl_days",
                 "Enter session TTL (days)",
-                7,
+                current.session_ttl_days,
                 minimum=1,
                 maximum=90,
             )
-        elif choice == "2":
-            _set_int(
+            if value is not None:
+                settings.update_security_settings(
+                    principal,
+                    UpdateSecuritySettingsCommand(session_ttl_days=value),
+                )
+        elif choice in {"2", "3"}:
+            is_attempts = choice == "2"
+            value = _read_int(
                 menu,
-                rate_limit,
-                "max_attempts",
-                "Enter max failed attempts in window",
-                5,
+                (
+                    "Enter max failed attempts in window"
+                    if is_attempts
+                    else "Enter rate limit window (sec)"
+                ),
+                (
+                    current.rate_limit.max_attempts
+                    if is_attempts
+                    else current.rate_limit.window_seconds
+                ),
                 minimum=1,
-                maximum=100,
+                maximum=100 if is_attempts else 3600,
             )
-        elif choice == "3":
-            _set_int(
-                menu,
-                rate_limit,
-                "window_seconds",
-                "Enter rate limit window (sec)",
-                300,
-                minimum=1,
-                maximum=3600,
-            )
+            if value is not None:
+                settings.update_security_settings(
+                    principal,
+                    UpdateSecuritySettingsCommand(
+                        rate_limit=LoginRateLimit(
+                            max_attempts=(
+                                value
+                                if is_attempts
+                                else current.rate_limit.max_attempts
+                            ),
+                            window_seconds=(
+                                current.rate_limit.window_seconds
+                                if is_attempts
+                                else value
+                            ),
+                        )
+                    ),
+                )
 
 
-def config_adoption(config: UserConfig) -> None:
-    menu = TerminalMenu(input_fn=input, output_fn=print)
+def config_adoption(
+    settings: SettingsService,
+    principal: AccountPrincipal,
+    menu: TerminalMenuPort,
+) -> None:
     while True:
-        adoption = config.setdefault("system", {}).setdefault("adoption", {})
-        allowed = adoption.setdefault("allowed_species_ids", ["dog", "fox"])
-        enabled = adoption.setdefault("personality_presets_enabled", {})
+        current = settings.get_elfie_settings(principal, GetElfieSettingsQuery())
+        allowed: list[SpeciesId] = list(current.allowed_species_ids)
+        enabled = dict(current.personality_presets_enabled)
         if not enabled:
             enabled.update(dict.fromkeys(_PERSONALITY_PRESETS, True))
         choice = menu.choose(
             "Elfie Adoption",
             (
-                MenuItem(
-                    "1",
-                    f"Max elfies per user: {adoption.get('max_elfies_per_user', 3)}",
-                ),
+                MenuItem("1", f"Max elfies per user: {current.max_elfies_per_user}"),
                 MenuItem("2", f"Allowed species: {', '.join(allowed)}"),
                 MenuItem("3", "Personality preset toggles"),
             ),
@@ -126,31 +157,41 @@ def config_adoption(config: UserConfig) -> None:
             back_label="Save and return",
         )
         if choice is None:
-            write_user_config(config)
             return
         if choice == "1":
-            _set_int(
+            value = _read_int(
                 menu,
-                adoption,
-                "max_elfies_per_user",
                 "Enter max elfies per user",
-                3,
+                current.max_elfies_per_user,
                 minimum=1,
                 maximum=32,
             )
-        elif choice == "2":
-            _toggle_species_menu(menu, adoption)
-        elif choice == "3":
-            _toggle_personality_menu(menu, enabled)
+            if value is not None:
+                settings.update_elfie_settings(
+                    principal,
+                    UpdateElfieSettingsCommand(max_elfies_per_user=value),
+                )
+        elif choice == "2" and _toggle_species_menu(menu, allowed):
+            settings.update_elfie_settings(
+                principal,
+                UpdateElfieSettingsCommand(allowed_species_ids=tuple(allowed)),
+            )
+        elif choice == "3" and _toggle_personality_menu(menu, enabled):
+            settings.update_elfie_settings(
+                principal,
+                UpdateElfieSettingsCommand(
+                    personality_presets_enabled=tuple(enabled.items())
+                ),
+            )
 
 
 _PERSONALITY_PRESETS = ("Energetic", "Calm", "Curious", "Timid", "Tsundere", "Random")
 
 
-def _toggle_species_menu(menu: TerminalMenu, adoption: UserConfig) -> None:
-    labels = {"dog": "Dog", "fox": "Fox"}
+def _toggle_species_menu(menu: TerminalMenuPort, allowed: list[SpeciesId]) -> bool:
+    labels: dict[SpeciesId, str] = {"dog": "Dog", "fox": "Fox"}
+    changed = False
     while True:
-        allowed = adoption.setdefault("allowed_species_ids", ["dog", "fox"])
         choice = menu.choose(
             "Allowed Elfie Species",
             tuple(
@@ -164,7 +205,7 @@ def _toggle_species_menu(menu: TerminalMenu, adoption: UserConfig) -> None:
             back_label="Back to adoption config",
         )
         if choice is None:
-            return
+            return changed
         if choice not in {"1", "2"}:
             continue
         key = tuple(labels)[int(choice) - 1]
@@ -174,9 +215,14 @@ def _toggle_species_menu(menu: TerminalMenu, adoption: UserConfig) -> None:
             allowed.remove(key)
         else:
             allowed.append(key)
+        changed = True
 
 
-def _toggle_personality_menu(menu: TerminalMenu, enabled: UserConfig) -> None:
+def _toggle_personality_menu(
+    menu: TerminalMenuPort,
+    enabled: MutableMapping[str, bool],
+) -> bool:
+    changed = False
     while True:
         choice = menu.choose(
             "Personality Preset Toggles",
@@ -191,7 +237,7 @@ def _toggle_personality_menu(menu: TerminalMenu, enabled: UserConfig) -> None:
             back_label="Back to adoption config",
         )
         if choice is None:
-            return
+            return changed
         if not choice.isdigit() or not 1 <= int(choice) <= len(_PERSONALITY_PRESETS):
             continue
         name = _PERSONALITY_PRESETS[int(choice) - 1]
@@ -200,57 +246,53 @@ def _toggle_personality_menu(menu: TerminalMenu, enabled: UserConfig) -> None:
         ):
             continue
         enabled[name] = not enabled.get(name, True)
+        changed = True
 
 
-def _set_float(
-    menu: TerminalMenu,
-    section: UserConfig,
-    key: str,
+def _read_float(
+    menu: TerminalMenuPort,
     prompt: str,
-    default: float,
+    current: float,
     *,
     minimum: float | None = None,
     maximum: float | None = None,
-) -> None:
+) -> float | None:
     try:
-        raw = menu.read_text(
-            f"{prompt} [{section.get(key, default)}]: ", default=str(default)
-        )
+        raw = menu.read_text(f"{prompt} [{current}]: ", default=str(current))
         if raw is None:
-            return
+            return None
         value = float(raw)
         if minimum is not None and value < minimum:
             raise ValueError
         if maximum is not None and value > maximum:
             raise ValueError
+        return value
     except (TypeError, ValueError):
         print("❌ Invalid input")
-        return
-    section[key] = value
+        return None
 
 
-def _set_int(
-    menu: TerminalMenu,
-    section: UserConfig,
-    key: str,
+def _read_int(
+    menu: TerminalMenuPort,
     prompt: str,
-    default: int,
+    current: int,
     *,
     minimum: int | None = None,
     maximum: int | None = None,
-) -> None:
+) -> int | None:
     try:
-        raw = menu.read_text(
-            f"{prompt} [{section.get(key, default)}]: ", default=str(default)
-        )
+        raw = menu.read_text(f"{prompt} [{current}]: ", default=str(current))
         if raw is None:
-            return
+            return None
         value = int(raw)
         if minimum is not None and value < minimum:
             raise ValueError
         if maximum is not None and value > maximum:
             raise ValueError
+        return value
     except (TypeError, ValueError):
         print("❌ Invalid input")
-        return
-    section[key] = value
+        return None
+
+
+__all__ = ("config_adoption", "config_engine", "config_llm", "config_security")

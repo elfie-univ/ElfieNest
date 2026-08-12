@@ -5,8 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from app.features.administration.system_service import PortStatus
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import lifecycle_commands
+from app.orchestration.lifecycle import ServicePortStatus
 from app.orchestration.lifecycle.runtime_health import (
     OwnerLease,
     RuntimeHealth,
@@ -15,16 +16,20 @@ from app.orchestration.lifecycle.runtime_health import (
 from app.orchestration.lifecycle.types import ServiceLifecycleResult
 from scripts import elfienest
 
+LIFECYCLE = create_lifecycle_facade()
+
 
 @pytest.fixture(autouse=True)
 def isolate_lifecycle_home(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        lifecycle_commands, "get_elfie_home", lambda: tmp_path / "elfie-home"
+        LIFECYCLE,
+        "select_data_home",
+        lambda *_args, **_kwargs: tmp_path / "elfie-home",
     )
     monkeypatch.setattr(
-        lifecycle_commands,
-        "_lifecycle_receipt_home",
-        lambda: tmp_path / "lifecycle-home",
+        LIFECYCLE,
+        "remember_data_home",
+        lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
         lifecycle_commands,
@@ -98,7 +103,9 @@ def test_start_when_stably_running_skips_frontend_preflight(monkeypatch) -> None
         lambda: events.append("build"),
     )
 
-    result = lifecycle_commands.start_background_service()
+    result = lifecycle_commands.start_background_service(
+        LIFECYCLE,
+    )
 
     assert result.status == "already_running"
     assert events == ["status", "start"]
@@ -116,7 +123,9 @@ def test_start_when_stopped_prepares_frontend_before_launch(monkeypatch) -> None
         lambda: events.append("build"),
     )
 
-    result = lifecycle_commands.start_background_service()
+    result = lifecycle_commands.start_background_service(
+        LIFECYCLE,
+    )
 
     assert result.status == "started"
     assert events == ["status", "build", "start"]
@@ -137,7 +146,9 @@ def test_start_does_not_launch_when_frontend_preflight_fails(monkeypatch) -> Non
 
     monkeypatch.setattr(lifecycle_commands, "_prepare_frontend_for_launch", fail)
 
-    result = lifecycle_commands.start_background_service()
+    result = lifecycle_commands.start_background_service(
+        LIFECYCLE,
+    )
 
     assert result.status == "failed"
     assert events == ["status", "build"]
@@ -166,7 +177,7 @@ def test_restart_prepares_frontend_before_stopping_old_service(monkeypatch) -> N
         lambda: events.append("build"),
     )
 
-    result = lifecycle_commands.restart_background_service()
+    result = lifecycle_commands.restart_background_service(LIFECYCLE)
 
     assert result.status == "started"
     assert events == ["build", "stop", "start"]
@@ -187,7 +198,7 @@ def test_restart_build_failure_keeps_old_service_running(monkeypatch) -> None:
 
     monkeypatch.setattr(lifecycle_commands, "_prepare_frontend_for_launch", fail)
 
-    result = lifecycle_commands.restart_background_service()
+    result = lifecycle_commands.restart_background_service(LIFECYCLE)
 
     assert result.status == "failed"
     assert events == ["build"]
@@ -205,7 +216,9 @@ def test_stop_never_runs_frontend_preflight(monkeypatch) -> None:
         lambda: pytest.fail("stop must not build frontend"),
     )
 
-    result = lifecycle_commands.stop_background_service()
+    result = lifecycle_commands.stop_background_service(
+        LIFECYCLE,
+    )
 
     assert result.status == "stopped"
     assert events == ["stop"]
@@ -244,75 +257,69 @@ def test_start_is_idempotent_when_service_is_already_running(
     monkeypatch, capsys
 ) -> None:
     # Given
-    calls: list[str] = []
+    events: list[str] = []
+    supervisor = _LaunchSupervisor(
+        _stable_health(),
+        events,
+        start_result=ServiceLifecycleResult(status="already_running", pid=42),
+    )
     monkeypatch.setattr(
         lifecycle_commands,
-        "start_service",
-        lambda *args, **kwargs: (
-            calls.append("start")
-            or ServiceLifecycleResult(status="already_running", pid=42)
-        ),
+        "_supervisor_for",
+        lambda *_args, **_kwargs: supervisor,
     )
 
     # When
-    lifecycle_commands.start_background_service()
+    lifecycle_commands.start_background_service(LIFECYCLE)
 
     # Then
-    assert calls == ["start"]
+    assert events == ["status", "start"]
     assert "already running" in capsys.readouterr().out
 
 
 def test_start_rejects_godot_port_collision_before_launch(monkeypatch, capsys) -> None:
-    calls: list[str] = []
     monkeypatch.setattr(
         lifecycle_commands,
-        "start_service",
-        lambda *args, **kwargs: (
-            calls.append("start") or ServiceLifecycleResult(status="started", pid=1)
-        ),
+        "_supervisor_for",
+        lambda *_args, **_kwargs: pytest.fail("invalid ports must not build Runtime"),
     )
 
     result = lifecycle_commands.start_background_service(
-        ("python", "scripts/serve.py", "--port", "8765")
+        LIFECYCLE, ("python", "scripts/serve.py", "--port", "8765")
     )
 
     assert result.status == "failed"
-    assert calls == []
     assert "port" in capsys.readouterr().out
 
 
 def test_start_forwards_custom_service_ports(monkeypatch) -> None:
     # Given
     commands: list[tuple[str, ...]] = []
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "start_service",
-        lambda *args, **kwargs: (
-            commands.append(tuple(kwargs["command"]))
-            or ServiceLifecycleResult(status="started", pid=44)
-        ),
-    )
+    supervisor = _LaunchSupervisor(_stopped_health(), [])
+
+    def build_supervisor(_lifecycle, command, _port, **_kwargs):
+        commands.append(tuple(command))
+        return supervisor
+
+    monkeypatch.setattr(lifecycle_commands, "_supervisor_for", build_supervisor)
 
     # When
     lifecycle_commands.start_background_service(
+        LIFECYCLE,
         lifecycle_commands.default_service_command(
             (
                 "--port",
                 "8100",
-                "--ws-port",
-                "8866",
                 "--godot-ws-port",
                 "8768",
             )
-        )
+        ),
     )
 
     # Then
-    assert commands[0][-6:] == (
+    assert commands[0][-4:] == (
         "--port",
         "8100",
-        "--ws-port",
-        "8866",
         "--godot-ws-port",
         "8768",
     )
@@ -321,55 +328,54 @@ def test_start_forwards_custom_service_ports(monkeypatch) -> None:
 def test_start_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
     # Given
     commands: list[tuple[str, ...]] = []
-    timeouts: list[float] = []
+    supervisor = _LaunchSupervisor(_stopped_health(), [])
     monkeypatch.setattr(
-        lifecycle_commands.desktop_lifecycle,
-        "find_desktop_executable",
-        lambda *args: Path("/tmp/ElfieNestDesktop"),
-    )
-    monkeypatch.setattr(
-        lifecycle_commands.desktop_lifecycle,
-        "start_desktop_application",
-        lambda *args, **kwargs: pytest.fail("start must not launch Desktop"),
-    )
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "start_service",
-        lambda *args, **kwargs: (
-            commands.append(tuple(kwargs["command"]))
-            or timeouts.append(kwargs["timeout_seconds"])
-            or ServiceLifecycleResult(status="started", pid=44)
-        ),
+        LIFECYCLE,
+        "start_desktop",
+        lambda *_args, **_kwargs: pytest.fail("start must not launch Desktop"),
     )
 
+    def build_supervisor(_lifecycle, command, _port, **_kwargs):
+        commands.append(tuple(command))
+        return supervisor
+
+    monkeypatch.setattr(lifecycle_commands, "_supervisor_for", build_supervisor)
+
     # When
-    result = lifecycle_commands.start_background_service()
+    result = lifecycle_commands.start_background_service(
+        LIFECYCLE,
+    )
 
     # Then
     assert result.status == "started"
     assert commands == [lifecycle_commands.default_service_command(("--lan",))]
-    assert timeouts == [lifecycle_commands.BACKGROUND_START_TIMEOUT_SECONDS]
 
 
 def test_restart_does_not_pass_force_flag(monkeypatch, capsys) -> None:
     # Given
     commands: list[tuple[str, ...]] = []
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "stop_service",
-        lambda *args, **kwargs: ServiceLifecycleResult(
+    stopped = _LaunchSupervisor(
+        _stable_health(),
+        [],
+        stop_result=ServiceLifecycleResult(
             status="stopped", command=("python", "scripts/serve.py", "--fallback")
         ),
     )
+    started = _LaunchSupervisor(_stopped_health(), [])
+    calls = 0
 
-    def fake_start(*args, **kwargs):
-        commands.append(tuple(kwargs["command"]))
-        return ServiceLifecycleResult(status="started", pid=43)
+    def build_supervisor(_lifecycle, command, _port, **_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return stopped
+        commands.append(tuple(command))
+        return started
 
-    monkeypatch.setattr(lifecycle_commands, "start_service", fake_start)
+    monkeypatch.setattr(lifecycle_commands, "_supervisor_for", build_supervisor)
 
     # When
-    lifecycle_commands.restart_background_service()
+    lifecycle_commands.restart_background_service(LIFECYCLE)
 
     # Then
     assert commands == [("python", "scripts/serve.py", "--fallback")]
@@ -383,20 +389,22 @@ def test_restart_emits_one_final_success_status(monkeypatch, capsys) -> None:
         "_prepare_frontend_for_launch",
         lambda: None,
     )
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "stop_service",
-        lambda *args: ServiceLifecycleResult(
+    stopped = _LaunchSupervisor(
+        _stable_health(),
+        [],
+        stop_result=ServiceLifecycleResult(
             status="stopped", command=("python", "scripts/serve.py")
         ),
     )
+    started = _LaunchSupervisor(_stopped_health(), [])
+    supervisors = iter((stopped, started))
     monkeypatch.setattr(
         lifecycle_commands,
-        "start_service",
-        lambda *args, **kwargs: ServiceLifecycleResult(status="started", pid=43),
+        "_supervisor_for",
+        lambda *_args, **_kwargs: next(supervisors),
     )
 
-    lifecycle_commands.restart_background_service()
+    lifecycle_commands.restart_background_service(LIFECYCLE)
 
     output = capsys.readouterr().out
     assert "\r  ✅ Restarting service ✓" not in output
@@ -406,46 +414,37 @@ def test_restart_emits_one_final_success_status(monkeypatch, capsys) -> None:
 def test_restart_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
     # Given
     commands: list[tuple[str, ...]] = []
-    timeouts: list[float] = []
     monkeypatch.setattr(
-        lifecycle_commands.desktop_lifecycle,
-        "find_desktop_executable",
-        lambda *args: Path("/tmp/ElfieNestDesktop"),
+        LIFECYCLE,
+        "start_desktop",
+        lambda *_args, **_kwargs: pytest.fail("restart must not launch Desktop"),
     )
-    monkeypatch.setattr(
-        lifecycle_commands.desktop_lifecycle,
-        "stop_desktop_application",
-        lambda *args: pytest.fail("restart must not stop Desktop"),
-    )
-    monkeypatch.setattr(
-        lifecycle_commands.desktop_lifecycle,
-        "start_desktop_application",
-        lambda *args, **kwargs: pytest.fail("restart must not launch Desktop"),
-    )
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "stop_service",
-        lambda *args: ServiceLifecycleResult(
+    stopped = _LaunchSupervisor(
+        _stable_health(),
+        [],
+        stop_result=ServiceLifecycleResult(
             status="stopped", command=("python", "scripts/serve.py", "--fallback")
         ),
     )
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "start_service",
-        lambda *args, **kwargs: (
-            commands.append(tuple(kwargs["command"]))
-            or timeouts.append(kwargs["timeout_seconds"])
-            or ServiceLifecycleResult(status="started", pid=43)
-        ),
-    )
+    started = _LaunchSupervisor(_stopped_health(), [])
+    calls = 0
+
+    def build_supervisor(_lifecycle, command, _port, **_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return stopped
+        commands.append(tuple(command))
+        return started
+
+    monkeypatch.setattr(lifecycle_commands, "_supervisor_for", build_supervisor)
 
     # When
-    result = lifecycle_commands.restart_background_service()
+    result = lifecycle_commands.restart_background_service(LIFECYCLE)
 
     # Then
     assert result.status == "started"
     assert commands == [("python", "scripts/serve.py", "--fallback")]
-    assert timeouts == [lifecycle_commands.BACKGROUND_START_TIMEOUT_SECONDS]
 
 
 def test_dispatch_propagates_lifecycle_failure(monkeypatch) -> None:
@@ -453,7 +452,7 @@ def test_dispatch_propagates_lifecycle_failure(monkeypatch) -> None:
     monkeypatch.setattr(
         elfienest,
         "stop_background_service",
-        lambda: ServiceLifecycleResult(status="failed"),
+        lambda _lifecycle: ServiceLifecycleResult(status="failed"),
     )
 
     # When / Then
@@ -466,17 +465,19 @@ def test_web_opens_the_tracked_service_port(monkeypatch) -> None:
     # Given
     opened: list[str] = []
     monkeypatch.setattr(
-        lifecycle_commands,
+        LIFECYCLE,
         "existing_service_command",
         lambda *args: (42, ("python", "scripts/serve.py", "--port", "8100")),
     )
     monkeypatch.setattr(
-        lifecycle_commands, "_web_is_healthy", lambda port=8000: port == 8100
+        lifecycle_commands,
+        "_web_is_healthy",
+        lambda _lifecycle, port=8000: port == 8100,
     )
     monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
 
     # When
-    result = lifecycle_commands.open_web_console()
+    result = lifecycle_commands.open_web_console(LIFECYCLE)
 
     # Then
     assert result.status == "already_running"
@@ -487,33 +488,28 @@ def test_web_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
     # Given
     opened: list[str] = []
     monkeypatch.setattr(
-        lifecycle_commands.desktop_lifecycle,
-        "find_desktop_executable",
-        lambda *args: Path("/tmp/ElfieNestDesktop"),
+        LIFECYCLE,
+        "start_desktop",
+        lambda *_args, **_kwargs: pytest.fail("web must not launch Desktop"),
     )
-    monkeypatch.setattr(
-        lifecycle_commands.desktop_lifecycle,
-        "start_desktop_application",
-        lambda *args, **kwargs: pytest.fail("web must not launch Desktop"),
-    )
-    monkeypatch.setattr(
-        lifecycle_commands, "existing_service_command", lambda *args: None
-    )
+    monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
     monkeypatch.setattr(
         lifecycle_commands,
         "start_background_service",
-        lambda: ServiceLifecycleResult(
+        lambda _lifecycle: ServiceLifecycleResult(
             status="started",
             command=("python", "scripts/serve.py", "--port", "8100"),
         ),
     )
     monkeypatch.setattr(
-        lifecycle_commands, "_web_is_healthy", lambda port=8000: port == 8100
+        lifecycle_commands,
+        "_web_is_healthy",
+        lambda _lifecycle, port=8000: port == 8100,
     )
     monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
 
     # When
-    result = lifecycle_commands.open_web_console()
+    result = lifecycle_commands.open_web_console(LIFECYCLE)
 
     # Then
     assert result.status == "already_running"
@@ -523,18 +519,23 @@ def test_web_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
 def test_stop_uses_core_when_desktop_pid_is_present(monkeypatch) -> None:
     # Given
     monkeypatch.setattr(
-        lifecycle_commands.desktop_lifecycle,
-        "stop_desktop_application",
-        lambda *args: pytest.fail("stop must not stop Desktop"),
+        LIFECYCLE,
+        "stop_desktop",
+        lambda *_args: pytest.fail("stop must not stop Desktop"),
+    )
+    supervisor = _LaunchSupervisor(
+        _stable_health(),
+        [],
+        stop_result=ServiceLifecycleResult(status="stopped", pid=44),
     )
     monkeypatch.setattr(
         lifecycle_commands,
-        "stop_service",
-        lambda *args: ServiceLifecycleResult(status="stopped", pid=44),
+        "_supervisor_for",
+        lambda *_args, **_kwargs: supervisor,
     )
 
     # When
-    result = lifecycle_commands.stop_background_service()
+    result = lifecycle_commands.stop_background_service(LIFECYCLE)
 
     # Then
     assert result.status == "stopped"
@@ -543,16 +544,20 @@ def test_stop_uses_core_when_desktop_pid_is_present(monkeypatch) -> None:
 def test_status_does_not_report_desktop_lifecycle(monkeypatch, capsys) -> None:
     # Given
     monkeypatch.setattr(
-        lifecycle_commands.desktop_lifecycle,
+        LIFECYCLE,
         "desktop_process_id",
-        lambda *args: pytest.fail("status must inspect Core only"),
+        lambda *_args: pytest.fail("status must inspect Core only"),
     )
+    monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
+    monkeypatch.setattr(LIFECYCLE, "default_port_statuses", lambda: ())
     monkeypatch.setattr(
-        lifecycle_commands, "existing_service_command", lambda *args: None
+        lifecycle_commands,
+        "_supervisor_for",
+        lambda *_args, **_kwargs: _LaunchSupervisor(_stopped_health(), []),
     )
 
     # When
-    lifecycle_commands.show_service_status()
+    lifecycle_commands.show_service_status(LIFECYCLE)
 
     # Then
     assert "Service Status" in capsys.readouterr().out
@@ -562,15 +567,15 @@ def test_explicit_desktop_command_starts_desktop(monkeypatch) -> None:
     # Given
     calls: list[str] = []
     monkeypatch.setattr(
-        lifecycle_commands.desktop_lifecycle,
-        "start_desktop_application",
+        LIFECYCLE,
+        "start_desktop",
         lambda *args, **kwargs: (
             calls.append("desktop") or ServiceLifecycleResult(status="started", pid=44)
         ),
     )
 
     # When
-    result = lifecycle_commands.start_desktop_application()
+    result = lifecycle_commands.start_desktop_application(LIFECYCLE)
 
     # Then
     assert result.status == "started"
@@ -581,7 +586,6 @@ def test_product_start_options_enable_lan_by_default_and_allow_loopback() -> Non
     # Given
     default_start = Namespace(
         port=None,
-        ws_port=None,
         godot_ws_port=None,
         fallback=False,
         no_seed_elfie=False,
@@ -589,7 +593,6 @@ def test_product_start_options_enable_lan_by_default_and_allow_loopback() -> Non
     )
     loopback_start = Namespace(
         port=None,
-        ws_port=None,
         godot_ws_port=None,
         fallback=False,
         no_seed_elfie=False,
@@ -609,7 +612,7 @@ def test_status_reports_the_tracked_service_ports(monkeypatch, capsys) -> None:
     # Given
     checked: list[tuple[int, str]] = []
     monkeypatch.setattr(
-        lifecycle_commands,
+        LIFECYCLE,
         "existing_service_command",
         lambda *args: (
             42,
@@ -618,29 +621,37 @@ def test_status_reports_the_tracked_service_ports(monkeypatch, capsys) -> None:
                 "scripts/serve.py",
                 "--port",
                 "8100",
-                "--ws-port",
-                "8866",
                 "--godot-ws-port",
                 "8768",
             ),
         ),
     )
 
-    def fake_check_port(port: int, name: str):
-        checked.append((port, name))
-        return PortStatus(port, name, True)
+    def fake_statuses(http_port: int, godot_ws_port: int):
+        checked.extend(
+            (
+                (http_port, "HTTP"),
+                (godot_ws_port, "WebSocket (Godot)"),
+            )
+        )
+        return tuple(
+            ServicePortStatus(port=port, name=name, running=True)
+            for port, name in checked
+        )
 
+    monkeypatch.setattr(LIFECYCLE, "service_port_statuses", fake_statuses)
     monkeypatch.setattr(
-        "app.features.administration.system_service.check_port", fake_check_port
+        lifecycle_commands,
+        "_supervisor_for",
+        lambda *_args, **_kwargs: _LaunchSupervisor(_stopped_health(), []),
     )
 
     # When
-    lifecycle_commands.show_service_status()
+    lifecycle_commands.show_service_status(LIFECYCLE)
 
     # Then
     output = capsys.readouterr().out
     assert (8100, "HTTP") in checked
-    assert (8866, "WebSocket (admin)") in checked
     assert (8768, "WebSocket (Godot)") in checked
     assert "port 8100" in output
-    assert "port 8866" in output
+    assert "port 8768" in output

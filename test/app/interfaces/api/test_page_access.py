@@ -4,25 +4,23 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.infrastructure.persistence.store import get_db, hash_password
-from app.interfaces.api.app import create_app
+from app.bootstrap import create_app
+from infrastructure.persistence.nest_db.store import get_db, hash_password
 
 from ._helpers import complete_test_setup
 
 
 @pytest.fixture
-def client(tmp_path: Path) -> TestClient:
-    db_path = str(tmp_path / "nest.db")
+def db_path(tmp_path: Path) -> str:
+    return str(tmp_path / "nest.db")
+
+
+@pytest.fixture
+def client(tmp_path: Path, db_path: str) -> TestClient:
     build_dir = _web_build(tmp_path)
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-    ):
-        application = create_app(
-            engine=None, db_path=db_path, ws_port=9876, web_build_dir=build_dir
-        )
-        with TestClient(application, base_url="http://127.0.0.1:8000") as test_client:
-            yield test_client
+    application = create_app(engine=None, db_path=db_path, web_build_dir=build_dir)
+    with TestClient(application, base_url="http://127.0.0.1:8000") as test_client:
+        yield test_client
 
 
 def _web_build(tmp_path: Path) -> Path:
@@ -40,8 +38,8 @@ def _web_build(tmp_path: Path) -> Path:
     return build_dir
 
 
-def _create_user(client: TestClient, account_id: str, role: str) -> None:
-    with get_db(client.app.state.db_path) as connection:
+def _create_user(db_path: str, account_id: str, role: str) -> None:
+    with get_db(db_path) as connection:
         connection.execute(
             "INSERT INTO users (account_id, password_hash, role) VALUES (?, ?, ?)",
             (account_id, hash_password("pass123"), role),
@@ -49,13 +47,13 @@ def _create_user(client: TestClient, account_id: str, role: str) -> None:
         connection.commit()
 
 
-def _complete_setup(client: TestClient) -> None:
-    complete_test_setup(client.app.state.db_path)
+def _complete_setup(db_path: str) -> None:
+    complete_test_setup(db_path)
 
 
 def _login(client: TestClient, account_id: str) -> None:
     response = client.post(
-        "/api/auth/login", data={"account_id": account_id, "password": "pass123"}
+        "/api/v1/auth/login", data={"account_id": account_id, "password": "pass123"}
     )
     assert response.status_code == 200
 
@@ -75,13 +73,11 @@ def test_pages_redirect_anonymous_users_to_login_with_safe_next(
     assert manage.headers["location"] == "/setup"
 
 
-def test_ws_configuration_requires_an_authenticated_session(client: TestClient) -> None:
-    # Given: the WebSocket port is deployment metadata, not public bootstrap data.
-    # When: an anonymous browser requests it.
-    # Then: it cannot discover the authenticated gateway configuration.
+def test_legacy_ws_configuration_resource_is_retired(client: TestClient) -> None:
+    # The browser now uses the same-origin versioned WebSocket resource directly.
     response = client.get("/api/ws-config")
 
-    assert response.status_code == 401
+    assert response.status_code == 404
 
 
 def test_login_discards_malformed_or_external_next(client: TestClient) -> None:
@@ -105,7 +101,7 @@ def test_anonymous_clients_receive_public_shell_assets_but_no_product_data(
     # Given: a generated single-page application bundle.
     # When: an anonymous client asks for its static asset and protected data.
     shell_asset = client.get("/assets/app.js")
-    conversations = client.get("/api/v1/conversations")
+    conversations = client.get("/api/v1/me/conversations")
 
     # Then: JavaScript is public but data remains session-protected.
     assert shell_asset.status_code == 200
@@ -128,28 +124,30 @@ def test_asset_request_refreshes_the_manifest_after_a_frontend_rebuild(
     assert response.text == "new app"
 
 
-def test_login_returns_only_an_allowed_post_login_page(client: TestClient) -> None:
+def test_login_returns_only_an_allowed_post_login_page(
+    client: TestClient, db_path: str
+) -> None:
     # Given: an Owner account and both local and hostile next values.
-    _create_user(client, "owner", "owner")
+    _create_user(db_path, "owner", "owner")
 
     # When: the same credentials are submitted through each login target.
     chat_next = client.post(
-        "/api/auth/login?next=/chat",
+        "/api/v1/auth/login?next=/chat",
         data={"account_id": "owner", "password": "pass123"},
     )
     client.cookies.clear()
     manage_next = client.post(
-        "/api/auth/login?next=/manage",
+        "/api/v1/auth/login?next=/manage",
         data={"account_id": "owner", "password": "pass123"},
     )
     client.cookies.clear()
     monitor_next = client.post(
-        "/api/auth/login?next=/monitor",
+        "/api/v1/auth/login?next=/monitor",
         data={"account_id": "owner", "password": "pass123"},
     )
     client.cookies.clear()
     hostile = client.post(
-        "/api/auth/login?next=https://attacker.invalid",
+        "/api/v1/auth/login?next=https://attacker.invalid",
         data={"account_id": "owner", "password": "pass123"},
     )
 
@@ -162,13 +160,14 @@ def test_login_returns_only_an_allowed_post_login_page(client: TestClient) -> No
 
 def test_owner_chat_next_keeps_the_management_default_landing(
     client: TestClient,
+    db_path: str,
 ) -> None:
     # Given: an Owner whose existing default landing is management.
-    _create_user(client, "owner", "owner")
+    _create_user(db_path, "owner", "owner")
 
     # When: the login request carries the generic chat return target.
     response = client.post(
-        "/api/auth/login?next=/chat",
+        "/api/v1/auth/login?next=/chat",
         data={"account_id": "owner", "password": "pass123"},
     )
 
@@ -176,19 +175,21 @@ def test_owner_chat_next_keeps_the_management_default_landing(
     assert response.json()["landing_path"] == "/manage"
 
 
-def test_owner_and_user_receive_server_side_landing_routes(client: TestClient) -> None:
+def test_owner_and_user_receive_server_side_landing_routes(
+    client: TestClient, db_path: str
+) -> None:
     # Given: one Owner, one Admin and one ordinary user.
-    _create_user(client, "owner", "owner")
-    _create_user(client, "admin", "admin")
-    _create_user(client, "alice", "user")
-    _complete_setup(client)
+    _create_user(db_path, "owner", "owner")
+    _create_user(db_path, "admin", "admin")
+    _create_user(db_path, "alice", "user")
+    _complete_setup(db_path)
 
     # When: each authenticated user opens the root and management page.
     _login(client, "owner")
     owner_root = client.get("/", follow_redirects=False)
     owner_manage = client.get("/manage", follow_redirects=False)
     owner_monitor = client.get("/monitor", follow_redirects=False)
-    client.post("/api/auth/logout", headers={"X-CSRF-Token": ""})
+    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": ""})
     client.cookies.clear()
     _login(client, "alice")
     user_root = client.get("/", follow_redirects=False)
@@ -200,13 +201,13 @@ def test_owner_and_user_receive_server_side_landing_routes(client: TestClient) -
     assert owner_manage.status_code == 200
     assert owner_monitor.status_code == 200
     assert "no-store" in owner_monitor.headers["cache-control"]
-    client.post("/api/auth/logout", headers={"X-CSRF-Token": ""})
+    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": ""})
     client.cookies.clear()
     _login(client, "admin")
     admin_root = client.get("/", follow_redirects=False)
     admin_manage = client.get("/manage", follow_redirects=False)
     admin_monitor = client.get("/monitor", follow_redirects=False)
-    client.post("/api/auth/logout", headers={"X-CSRF-Token": ""})
+    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": ""})
     client.cookies.clear()
     assert user_root.headers["location"] == "/chat"
     assert user_manage.headers["location"] == "/chat"
@@ -218,11 +219,12 @@ def test_owner_and_user_receive_server_side_landing_routes(client: TestClient) -
 
 def test_monitor_route_redirects_setup_and_anonymous_requests_safely(
     client: TestClient,
+    db_path: str,
 ) -> None:
     # Given: first a fresh installation, then a configured application without a session.
     before_setup = client.get("/monitor", follow_redirects=False)
-    _create_user(client, "owner", "owner")
-    _complete_setup(client)
+    _create_user(db_path, "owner", "owner")
+    _complete_setup(db_path)
 
     # When: the monitor route is requested at each lifecycle stage.
     anonymous = client.get("/monitor", follow_redirects=False)
@@ -236,8 +238,9 @@ def test_monitor_route_redirects_setup_and_anonymous_requests_safely(
 
 def test_owner_manage_query_still_returns_the_react_shell(
     client: TestClient,
+    db_path: str,
 ) -> None:
-    _create_user(client, "owner", "owner")
+    _create_user(db_path, "owner", "owner")
     _login(client, "owner")
 
     response = client.get("/manage?mode=classic")
@@ -246,8 +249,10 @@ def test_owner_manage_query_still_returns_the_react_shell(
     assert response.text == "app"
 
 
-def test_react_shell_pages_are_not_cached_by_the_browser(client: TestClient) -> None:
-    _create_user(client, "owner", "owner")
+def test_react_shell_pages_are_not_cached_by_the_browser(
+    client: TestClient, db_path: str
+) -> None:
+    _create_user(db_path, "owner", "owner")
     _login(client, "owner")
 
     response = client.get("/manage")
@@ -260,17 +265,11 @@ def test_react_shell_pages_are_not_cached_by_the_browser(client: TestClient) -> 
 def test_lan_rejects_unrecognized_host_and_origin(tmp_path: Path) -> None:
     # Given: a LAN-facing application with one explicitly recognized address.
     db_path = str(tmp_path / "nest.db")
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch(
-            "app.interfaces.api.service_access.private_ipv4_addresses",
-            return_value=("192.168.1.8",),
-        ),
+    with patch(
+        "app.interfaces.api.service_access.private_ipv4_addresses",
+        return_value=("192.168.1.8",),
     ):
-        application = create_app(
-            engine=None, db_path=db_path, ws_port=9876, service_mode="lan"
-        )
+        application = create_app(engine=None, db_path=db_path, service_mode="lan")
         with TestClient(application) as client:
             # When: a forged Host or Origin reaches the public login page.
             bad_host = client.get("/login", headers={"Host": "attacker.invalid"})
@@ -300,28 +299,25 @@ def test_lan_rejects_unrecognized_host_and_origin(tmp_path: Path) -> None:
 def test_owner_mobile_access_exposes_only_active_lan_addresses(tmp_path: Path) -> None:
     # Given: an Owner session on a LAN-facing Core with one allowed address.
     db_path = str(tmp_path / "nest.db")
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch(
-            "app.interfaces.api.service_access.private_ipv4_addresses",
-            return_value=("192.168.1.8",),
-        ),
+    with patch(
+        "app.interfaces.api.service_access.private_ipv4_addresses",
+        return_value=("192.168.1.8",),
     ):
-        application = create_app(
-            engine=None, db_path=db_path, ws_port=9876, service_mode="lan"
-        )
+        application = create_app(engine=None, db_path=db_path, service_mode="lan")
         with TestClient(application) as client:
-            _create_user(client, "owner", "owner")
+            _create_user(db_path, "owner", "owner")
             headers = {"Host": "192.168.1.8:8000"}
             login = client.post(
-                "/api/auth/login",
+                "/api/v1/auth/login",
                 data={"account_id": "owner", "password": "pass123"},
                 headers=headers,
             )
 
             # When: the Owner asks the current Core for its mobile access URL.
-            response = client.get("/api/owner/mobile-access", headers=headers)
+            response = client.get(
+                "/api/v1/admin/runtime/mobile-access", headers=headers
+            )
+            legacy = client.get("/api/owner/mobile-access", headers=headers)
 
     # Then: the response advertises the real LAN root, never a loopback URL.
     assert login.status_code == 200
@@ -330,6 +326,7 @@ def test_owner_mobile_access_exposes_only_active_lan_addresses(tmp_path: Path) -
         "available": True,
         "urls": ["http://192.168.1.8:8000/"],
     }
+    assert legacy.status_code == 404
 
 
 def test_core_reads_the_packaged_web_build_directory_from_its_environment(
@@ -337,15 +334,9 @@ def test_core_reads_the_packaged_web_build_directory_from_its_environment(
 ) -> None:
     build_dir = _web_build(tmp_path)
     monkeypatch.setenv("ELFIENEST_WEB_BUILD_DIR", str(build_dir))
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-    ):
-        application = create_app(
-            engine=None, db_path=str(tmp_path / "nest.db"), ws_port=9876
-        )
-        with TestClient(application) as test_client:
-            response = test_client.get("/login")
+    application = create_app(engine=None, db_path=str(tmp_path / "nest.db"))
+    with TestClient(application) as test_client:
+        response = test_client.get("/login")
 
     assert response.status_code == 200
     assert response.text == "app"

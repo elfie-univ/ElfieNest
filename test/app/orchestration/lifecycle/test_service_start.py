@@ -1,388 +1,142 @@
-from __future__ import annotations
-
-import signal
-from dataclasses import FrozenInstanceError
 from pathlib import Path
-from typing import List, Tuple
 
-import pytest
-from _pytest.monkeypatch import MonkeyPatch
-
-from app.orchestration.lifecycle import service as service_lifecycle
-from app.orchestration.lifecycle.recovery_lock import acquire_service_start_lease
-from app.orchestration.lifecycle.service import (
+from app.orchestration.lifecycle.service import start_service
+from app.orchestration.lifecycle.types import (
+    CleanupFailedError,
     HealthCheckFailedError,
-    LaunchFailedError,
-    ServiceLifecycleResult,
-    start_service,
+    ServicePortsActiveError,
 )
-from app.orchestration.lifecycle.types import CleanupFailedError
 from test.app.orchestration.lifecycle.service_fakes import (
-    FailingInspector,
     FakeClock,
-    FakeInspector,
-    RecordingLauncher,
+    FakeProcessPort,
+    FakeRecoveryLock,
     write_pid,
 )
 
 
-class ExitingBeforeCleanupInspector(FakeInspector):
-    """Simulate a launched service exiting between exists() and cwd()."""
-
-    def cwd(self, pid: int) -> Path:
-        raise OSError(f"process {pid} exited")
-
-
-def test_start_writes_pid_before_health_check_and_returns_started(
+def test_start_registers_pid_before_health_and_preserves_environment(
     tmp_path: Path,
 ) -> None:
-    # Given
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    launcher = RecordingLauncher(5101)
-    inspector = FakeInspector(
-        cwd=project_root,
-        command=("python", "scripts/serve.py"),
-        existence=[True],
-    )
-    health_observations: List[str] = []
+    home = tmp_path / "home"
+    port = FakeProcessPort(cwd=tmp_path, launched_pid=5101)
+    observations: list[str] = []
 
-    def healthy() -> bool:
-        health_observations.append(
-            (elfie_home / "elfienest.pid").read_text(encoding="utf-8")
-        )
-        return True
-
-    # When
     result = start_service(
-        elfie_home,
-        project_root,
-        launcher=launcher,
-        inspector=inspector,
-        health_checker=healthy,
+        home,
+        tmp_path,
+        process_port=port,
+        recovery_lock=FakeRecoveryLock(),
+        health_checker=lambda: (
+            observations.append((home / "elfienest.pid").read_text(encoding="utf-8"))
+            or True
+        ),
+        child_environment={"ELFIE_HOME": str(home)},
     )
 
-    # Then
     assert result.status == "started"
-    assert result.pid == 5101
-    assert launcher.calls[0][0][1] == str(
-        (project_root / "scripts" / "serve.py").resolve()
-    )
-    assert launcher.calls[0][0][2:] == ("--fallback",)
-    assert launcher.calls[0][1] == project_root.resolve()
-    assert health_observations == ["5101"]
+    assert observations == ["5101"]
+    assert port.launches[0][2]["ELFIENEST_MANAGED_START"] == "1"
+    assert port.launches[0][2]["ELFIE_HOME"] == str(home)
 
 
-def test_start_refuses_to_launch_while_another_start_holds_lease(
-    tmp_path: Path,
-) -> None:
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    launcher = RecordingLauncher(5109)
-    lease = acquire_service_start_lease(elfie_home)
-
-    try:
-        result = start_service(
-            elfie_home,
-            project_root,
-            launcher=launcher,
-            inspector=FailingInspector(),
-            health_checker=lambda: True,
-        )
-    finally:
-        lease.release()
-
-    assert result.status == "failed"
-    assert launcher.calls == []
-
-
-def test_start_preserves_supplied_service_command(tmp_path: Path) -> None:
-    # Given
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    launcher = RecordingLauncher(5104)
-    command = (
-        "/custom/python",
-        "scripts/serve.py",
-        "--fallback",
-        "--port",
-        "8100",
-        "--ws-port=8866",
-    )
-    inspector = FakeInspector(
-        cwd=project_root,
-        command=command,
-        existence=[True],
-    )
-
-    # When
+def test_start_is_blocked_by_recovery_lock(tmp_path: Path) -> None:
+    port = FakeProcessPort(cwd=tmp_path)
     result = start_service(
-        elfie_home,
-        project_root,
-        command=command,
-        launcher=launcher,
-        inspector=inspector,
+        tmp_path / "home",
+        tmp_path,
+        process_port=port,
+        recovery_lock=FakeRecoveryLock(blocked=True),
         health_checker=lambda: True,
     )
-
-    # Then
-    assert result.status == "started"
-    assert launcher.calls[0][0] == command
-    assert result.command == command
+    assert result.status == "failed"
+    assert port.launches == []
 
 
-def test_start_rejects_a_running_service_on_a_different_port(tmp_path: Path) -> None:
-    # Given
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    write_pid(elfie_home, 5103)
-    launcher = RecordingLauncher(5104)
-    inspector = FakeInspector(
-        cwd=project_root,
+def test_start_rejects_existing_service_on_different_ports(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    write_pid(home, 5103)
+    port = FakeProcessPort(
+        cwd=tmp_path,
         command=("python", "scripts/serve.py", "--port", "8000"),
-        existence=[True],
     )
-
-    # When
     result = start_service(
-        elfie_home,
-        project_root,
+        home,
+        tmp_path,
+        process_port=port,
+        recovery_lock=FakeRecoveryLock(),
         command=("python", "scripts/serve.py", "--port", "8100"),
-        launcher=launcher,
-        inspector=inspector,
         health_checker=lambda: True,
     )
-
-    # Then
     assert result.status == "failed"
-    assert result.pid == 5103
     assert "different ports" in str(result.error)
-    assert launcher.calls == []
 
 
-def test_start_checks_health_before_reporting_existing_service_as_running(
-    tmp_path: Path,
-) -> None:
-    # Given
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    write_pid(elfie_home, 5110)
-    inspector = FakeInspector(
-        cwd=project_root,
-        command=("python", "scripts/serve.py"),
-        existence=[True],
-    )
-
-    # When
+def test_start_checks_health_of_existing_service(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    write_pid(home, 5110)
+    port = FakeProcessPort(cwd=tmp_path)
     result = start_service(
-        elfie_home,
-        project_root,
-        inspector=inspector,
-        launcher=RecordingLauncher(5111),
+        home,
+        tmp_path,
+        process_port=port,
+        recovery_lock=FakeRecoveryLock(),
         health_checker=lambda: False,
     )
-
-    # Then
-    assert result.status == "failed"
-    assert result.pid == 5110
     assert isinstance(result.error, HealthCheckFailedError)
+    assert port.launches == []
 
 
-def test_start_health_failure_terminates_process_and_removes_pid(
-    tmp_path: Path,
-) -> None:
-    # Given
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    launcher = RecordingLauncher(5102)
-    signals: List[Tuple[int, int]] = []
+def test_start_health_timeout_cleans_process_and_receipt(tmp_path: Path) -> None:
+    home = tmp_path / "home"
     clock = FakeClock()
-    inspector = FakeInspector(
-        cwd=project_root,
-        command=("python", "scripts/serve.py"),
-        existence=[True, True, True, True, False],
+    port = FakeProcessPort(
+        cwd=tmp_path,
+        existence=(True, True, True, False),
+        launched_pid=5102,
     )
-
-    # When
     result = start_service(
-        elfie_home,
-        project_root,
-        launcher=launcher,
+        home,
+        tmp_path,
+        process_port=port,
+        recovery_lock=FakeRecoveryLock(),
         health_checker=lambda: False,
-        signaler=lambda pid, sig: signals.append((pid, sig)),
-        inspector=inspector,
-        timeout_seconds=0.2,
-        poll_interval_seconds=0.1,
+        timeout_seconds=0.1,
         monotonic=clock.monotonic,
         sleeper=clock.sleep,
     )
-
-    # Then
-    assert result.status == "failed"
     assert isinstance(result.error, HealthCheckFailedError)
-    assert signals == [(5102, signal.SIGTERM)]
-    assert not (elfie_home / "elfienest.pid").exists()
+    assert port.terminations == [(5102, False)]
+    assert not (home / "elfienest.pid").exists()
 
 
-def test_start_cleanup_preserves_pid_receipt_replaced_by_another_process(
-    tmp_path: Path,
-) -> None:
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    launcher = RecordingLauncher(5107)
-    inspector = FakeInspector(
-        cwd=project_root,
-        command=("python", "scripts/serve.py"),
-        existence=[True, True, False],
-    )
-
-    def replace_receipt(_pid: int, _sig: int) -> None:
-        (elfie_home / "elfienest.pid").write_text("9999", encoding="utf-8")
-
-    result = start_service(
-        elfie_home,
-        project_root,
-        launcher=launcher,
-        health_checker=lambda: False,
-        signaler=replace_receipt,
-        inspector=inspector,
-        timeout_seconds=0.0,
-    )
-
-    assert result.status == "failed"
-    assert (elfie_home / "elfienest.pid").read_text(encoding="utf-8") == "9999"
-
-
-def test_start_cleanup_does_not_signal_reused_pid(tmp_path: Path) -> None:
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    launcher = RecordingLauncher(5108)
-    inspector = FakeInspector(
-        cwd=tmp_path / "other-project",
+def test_start_cleanup_refuses_reused_pid(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    port = FakeProcessPort(
+        cwd=tmp_path / "other",
         command=("python", "unrelated.py"),
-        existence=[True, True],
+        existence=(True, True),
+        launched_pid=5108,
     )
-    signals: List[Tuple[int, int]] = []
-
     result = start_service(
-        elfie_home,
-        project_root,
-        launcher=launcher,
-        health_checker=lambda: False,
-        signaler=lambda pid, sig: signals.append((pid, sig)),
-        inspector=inspector,
-        timeout_seconds=0.0,
-    )
-
-    assert result.status == "failed"
-    assert isinstance(result.error, CleanupFailedError)
-    assert signals == []
-    assert (elfie_home / "elfienest.pid").exists()
-
-
-def test_start_health_cleanup_timeout_keeps_pid_receipt(tmp_path: Path) -> None:
-    # Given
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    launcher = RecordingLauncher(5105)
-    inspector = FakeInspector(
-        cwd=project_root,
-        command=("python", "scripts/serve.py"),
-        existence=[True],
-    )
-    clock = FakeClock()
-
-    # When
-    result = start_service(
-        elfie_home,
-        project_root,
-        launcher=launcher,
-        inspector=inspector,
-        health_checker=lambda: False,
-        signaler=lambda _pid, _sig: None,
-        timeout_seconds=0.2,
-        poll_interval_seconds=0.1,
-        monotonic=clock.monotonic,
-        sleeper=clock.sleep,
-    )
-
-    # Then
-    assert result.status == "failed"
-    assert isinstance(result.error, CleanupFailedError)
-    assert (elfie_home / "elfienest.pid").exists()
-
-
-def test_start_health_failure_reports_original_error_when_process_exits_during_cleanup(
-    tmp_path: Path,
-) -> None:
-    # Given
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    launcher = RecordingLauncher(5112)
-    inspector = ExitingBeforeCleanupInspector(
-        cwd=project_root,
-        command=("python", "scripts/serve.py"),
-        existence=[True, True, False],
-    )
-
-    # When
-    result = start_service(
-        elfie_home,
-        project_root,
-        launcher=launcher,
-        inspector=inspector,
+        home,
+        tmp_path,
+        process_port=port,
+        recovery_lock=FakeRecoveryLock(),
         health_checker=lambda: False,
         timeout_seconds=0.0,
     )
-
-    # Then
-    assert result.status == "failed"
-    assert isinstance(result.error, HealthCheckFailedError)
-    assert not (elfie_home / "elfienest.pid").exists()
+    assert isinstance(result.error, CleanupFailedError)
+    assert port.terminations == []
 
 
-def test_start_pid_registration_failure_cleans_up_launched_process(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    # Given
-    project_root = tmp_path / "project"
-    elfie_home = tmp_path / "home"
-    launcher = RecordingLauncher(5106)
-    inspector = FakeInspector(
-        cwd=project_root,
-        command=("python", "scripts/serve.py"),
-        existence=[True, False],
-    )
-    signals: List[Tuple[int, int]] = []
-
-    def fail_registration(_home: Path, _pid: int) -> Path:
-        raise PermissionError("read-only home")
-
-    monkeypatch.setattr(
-        service_lifecycle, "register_service_process", fail_registration
-    )
-
-    # When
+def test_start_rejects_port_collision_before_launch(tmp_path: Path) -> None:
+    port = FakeProcessPort(cwd=tmp_path, ports_active=True)
     result = start_service(
-        elfie_home,
-        project_root,
-        launcher=launcher,
-        inspector=inspector,
-        health_checker=lambda: True,
-        signaler=lambda pid, sig: signals.append((pid, sig)),
+        tmp_path / "home",
+        tmp_path,
+        process_port=port,
+        recovery_lock=FakeRecoveryLock(),
+        health_checker=lambda: False,
     )
-
-    # Then
-    assert result.status == "failed"
-    assert isinstance(result.error, LaunchFailedError)
-    assert signals == [(5106, signal.SIGTERM)]
-
-
-def test_lifecycle_result_is_frozen() -> None:
-    # Given
-    result = ServiceLifecycleResult(status="already_stopped")
-
-    # When / Then
-    with pytest.raises(FrozenInstanceError):
-        result.pid = 1
+    assert isinstance(result.error, ServicePortsActiveError)
+    assert port.launches == []

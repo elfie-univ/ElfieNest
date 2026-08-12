@@ -10,7 +10,10 @@ from elfie.communication import (
     MessageDirection,
     TextPart,
 )
+from elfie.factory import ElfieAssembly
 from elfie.message_types import ActorRef, MessageMeta
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from test.elfie.test_cognitive_lifecycle import RecordingChannel, TwoTurnRuntime
 
 
@@ -23,11 +26,13 @@ def test_body_source_identity_reaches_cortical_context() -> None:
     runtime = TwoTurnRuntime()
     runtime.release_first.set()
     elfie = ElfieFactory().create(
-        elfie_id="cross-elfie",
-        memory_db_path=":memory:",
-        body=body,
-        communication=hub,
-        cortical_runtime=runtime,
+        ElfieAssembly(
+            profile=_profile("cross-elfie"),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            body=body,
+            communication=hub,
+            model_port=runtime,
+        )
     )
     elfie.start()
     now = elfie.cognitive_datetime
@@ -62,11 +67,13 @@ def test_non_owner_social_input_is_not_written_as_owner_memory() -> None:
     runtime = TwoTurnRuntime()
     runtime.release_first.set()
     elfie = ElfieFactory().create(
-        elfie_id="peer-elfie",
-        memory_db_path=":memory:",
-        body=body,
-        communication=hub,
-        cortical_runtime=runtime,
+        ElfieAssembly(
+            profile=_profile("peer-elfie"),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            body=body,
+            communication=hub,
+            model_port=runtime,
+        )
     )
     peer = ActorRef(actor_id="peer-1", source_kind="elfie")
     now = elfie.cognitive_datetime
@@ -101,3 +108,12 @@ def test_non_owner_social_input_is_not_written_as_owner_memory() -> None:
     assert elfie.memory.get_all_episodes() == []
     elfie.stop()
     elfie.join()
+
+
+def _profile(elfie_id: str):
+    return create_visual_profile(
+        elfie_id=elfie_id,
+        display_name=elfie_id,
+        species_id="fox",
+        seed=1,
+    )

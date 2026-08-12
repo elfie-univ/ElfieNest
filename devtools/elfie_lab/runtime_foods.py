@@ -6,31 +6,31 @@ import shlex
 from pathlib import Path
 from typing import Any, Dict
 
-from ai_runtime.food.store import FoodCatalog, FoodCatalogRepository
-from ai_runtime.providers.ollama import OllamaManager
-from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.store import init_db
+from elfie.brain.food_port import FoodCatalog, FoodPort
+from infrastructure.models.providers.ollama import OllamaManager
+from infrastructure.persistence.food import SQLiteFoodAdapter
+from infrastructure.persistence.nest_db.store import init_db
 
 
-def runtime_food_catalog_store(config_store: Any) -> FoodCatalogRepository:
+def runtime_food_catalog_store(config_store: Any) -> FoodPort:
     """返回指定隔离 Runtime 根目录下的粮食数据库仓储。"""
     root = Path(config_store.root).expanduser().resolve()
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     db_path = root / "nest.db"
     init_db(str(db_path))
-    return SQLiteFoodPackageRepository(db_path)
+    return SQLiteFoodAdapter(db_path)
 
 
 def runtime_lab_command(config_store: Any) -> str:
     """返回操作当前 Runtime 根目录的完整 Runtime Lab 命令。"""
     root_path = Path(config_store.root).expanduser().resolve()
     root = shlex.quote(str(root_path))
-    return f"ELFIE_HOME={root} .venv/bin/python -m ai_runtime.lab"
+    return f"ELFIE_HOME={root} .venv/bin/python -m devtools.runtime_lab"
 
 
 def load_runtime_food_catalog(
     config_store: Any,
-    food_store: FoodCatalogRepository | None = None,
+    food_store: FoodPort | None = None,
 ) -> FoodCatalog:
     """加载 Lab Runtime 隔离数据库中的粮食目录。"""
     store = food_store or runtime_food_catalog_store(config_store)

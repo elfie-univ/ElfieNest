@@ -2,140 +2,59 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Iterable, Optional, Union, cast
+from dataclasses import dataclass
 
-from elfie.body.native import GodotGateway, GodotTransport, NativeBody
 from elfie.body.port import BodyPort
-from elfie.brain.runtime_port import CorticalRuntimePort
+from elfie.brain.memory.memory_store import MemoryStorePort
+from elfie.brain.runtime_port import ModelPort
+from elfie.brain.skills import SkillManager
 from elfie.communication import CommunicationHub
 from elfie.elfie import Elfie
-from elfie.profile import ElfieProfile, ElfieProfileRepository
-from elfie.skills import SkillManager
+from elfie.profile import ElfieProfile
 
-ConfigPath = Union[str, Path]
+
+@dataclass(frozen=True)
+class ElfieAssembly:
+    """Immutable, already-scoped dependencies for one complete Elfie."""
+
+    profile: ElfieProfile
+    memory_store: MemoryStorePort
+    body: BodyPort | None = None
+    bodies: tuple[BodyPort, ...] = ()
+    current_body_id: str | None = None
+    communication: CommunicationHub | None = None
+    skills: SkillManager | None = None
+    model_port: ModelPort | None = None
 
 
 class ElfieFactory:
     """装配现有子系统，不重新实现任何脑、身体或记忆算法。"""
 
-    def create(
-        self,
-        *,
-        config_dir: Optional[ConfigPath] = None,
-        anatomy_type: Optional[str] = None,
-        godot_api: Any = None,
-        elfie_id: Optional[str] = None,
-        memory_db_path: Optional[str] = None,
-        character_profile: Optional[ElfieProfile] = None,
-        body: Optional[BodyPort] = None,
-        bodies: Iterable[BodyPort] = (),
-        current_body_id: Optional[str] = None,
-        communication: Optional[CommunicationHub] = None,
-        skills: Optional[SkillManager] = None,
-        cortical_runtime: Optional[CorticalRuntimePort] = None,
-    ) -> Elfie:
-        normalized_config_dir = str(config_dir) if config_dir is not None else None
-        profile = self._resolve_profile(
-            normalized_config_dir,
-            character_profile,
-            elfie_id,
-        )
-        resolved_elfie_id = self._resolve_elfie_id(elfie_id, profile)
-        auto_native_body = body is None and godot_api is not None
-        if auto_native_body:
-            body = NativeBody(
-                body_id=resolved_elfie_id or "elfie_default",
-                transport=GodotTransport(cast(GodotGateway, godot_api)),
-            )
+    def create(self, assembly: ElfieAssembly) -> Elfie:
+        """Create one Elfie from an already resolved typed assembly."""
+        return self.assemble(assembly)
 
+    def restore(self, assembly: ElfieAssembly) -> Elfie:
+        """Restore one Elfie from an already loaded profile and memory store."""
+        return self.assemble(assembly)
+
+    def assemble(self, assembly: ElfieAssembly) -> Elfie:
+        """Build one complete, not-yet-started Elfie from typed dependencies."""
+        assembly.profile.validate()
         elfie = Elfie(
-            config_dir=normalized_config_dir,
-            anatomy_type=anatomy_type,
-            elfie_id=resolved_elfie_id,
-            memory_db_path=memory_db_path,
-            character_profile=profile,
-            body=body,
-            communication=communication,
-            skills=skills,
-            cortical_runtime=cortical_runtime,
+            character_profile=assembly.profile,
+            memory_store=assembly.memory_store,
+            body=assembly.body,
+            communication=assembly.communication,
+            skills=assembly.skills,
+            model_port=assembly.model_port,
         )
-        for available_body in bodies:
+        for available_body in assembly.bodies:
             if elfie.body_registry.get(available_body.body_id) is available_body:
                 continue
             elfie.register_body(available_body)
-        if auto_native_body and body is not None:
-            elfie.bind_body(body.body_id)
-        if current_body_id is not None:
-            elfie.bind_body(current_body_id)
+        if assembly.body is not None and assembly.current_body_id is None:
+            elfie.bind_body(assembly.body.body_id)
+        if assembly.current_body_id is not None:
+            elfie.bind_body(assembly.current_body_id)
         return elfie
-
-    def restore(
-        self,
-        config_dir: ConfigPath,
-        *,
-        anatomy_type: Optional[str] = None,
-        godot_api: Any = None,
-        elfie_id: Optional[str] = None,
-        memory_db_path: Optional[str] = None,
-        body: Optional[BodyPort] = None,
-        bodies: Iterable[BodyPort] = (),
-        current_body_id: Optional[str] = None,
-        communication: Optional[CommunicationHub] = None,
-        skills: Optional[SkillManager] = None,
-        cortical_runtime: Optional[CorticalRuntimePort] = None,
-    ) -> Elfie:
-        """Restore one Elfie from its final workspace."""
-        path = Path(config_dir).expanduser()
-        if not path.is_dir():
-            raise FileNotFoundError(f"精灵配置目录不存在: {path}")
-        profile_repository = ElfieProfileRepository(path / "profile")
-        if not profile_repository.exists():
-            raise FileNotFoundError(f"精灵最终档案不存在: {profile_repository.path}")
-        elfie = self.create(
-            config_dir=path,
-            anatomy_type=anatomy_type,
-            godot_api=godot_api,
-            elfie_id=elfie_id,
-            memory_db_path=memory_db_path,
-            body=body,
-            bodies=bodies,
-            current_body_id=current_body_id,
-            communication=communication,
-            skills=skills,
-            cortical_runtime=cortical_runtime,
-        )
-        return elfie
-
-    @staticmethod
-    def _resolve_profile(
-        config_dir: Optional[str],
-        supplied: Optional[ElfieProfile],
-        elfie_id: Optional[str],
-    ) -> Optional[ElfieProfile]:
-        if supplied is not None:
-            supplied.validate()
-            return supplied
-        if config_dir is None:
-            return None
-        repository = ElfieProfileRepository(Path(config_dir) / "profile")
-        if repository.exists():
-            return repository.load()
-        from elfie.initialization import assemble_profile  # noqa: PLC0415
-
-        profile = assemble_profile(config_dir=None, elfie_id=elfie_id, supplied=None)
-        repository.save(profile)
-        return profile
-
-    @staticmethod
-    def _resolve_elfie_id(
-        supplied_id: Optional[str], profile: Optional[ElfieProfile]
-    ) -> Optional[str]:
-        if profile is None:
-            return supplied_id
-        profile_id = profile.identity.elfie_id
-        if supplied_id is not None and supplied_id != profile_id:
-            raise ValueError(
-                f"elfie_id={supplied_id!r} 与 profile 身份 {profile_id!r} 不一致"
-            )
-        return profile_id

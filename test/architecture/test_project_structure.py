@@ -11,9 +11,20 @@ from scripts.check_quality_baseline import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 REQUIRED_ROOT_DIRECTORIES = frozenset(
-    {"app", "devtools", "docs", "elfie", "godot_project", "nest"} | {"scripts", "test"}
+    {
+        "app",
+        "devtools",
+        "docs",
+        "elfie",
+        "godot_project",
+        "infrastructure",
+        "nest",
+    }
+    | {"scripts", "test"}
 )
-FORBIDDEN_SOURCE_DIRECTORIES = frozenset({"desktop", "elfienest", "godot", "runtime"})
+FORBIDDEN_SOURCE_DIRECTORIES = frozenset(
+    {"ai_runtime", "desktop", "elfienest", "godot", "godot_runtime", "runtime"}
+)
 FORBIDDEN_ELFIE_DIRECTORIES = frozenset({"state"})
 REQUIRED_APP_DIRECTORIES = frozenset(
     {"bootstrap", "features", "interfaces", "orchestration"}
@@ -22,12 +33,12 @@ REQUIRED_APP_INTERFACE_DIRECTORIES = frozenset({"api", "cli", "desktop", "web"})
 REQUIRED_NEST_ENTRIES = frozenset(
     {"__init__.py", "engine", "events.py", "interaction"} | {"nest.py", "state"}
 )
+FORBIDDEN_NEST_DIRECTORIES = frozenset({"embodiment", "godot_gateway"})
 REQUIRED_DESKTOP_SOURCE_DIRECTORIES = frozenset({"resources", "windows"})
 REQUIRED_DESKTOP_SOURCE_FILES = frozenset(
     {"desktop_role_lifecycle.ts", "lifecycle_client.ts", "main.ts", "role_dispatch.ts"}
 )
 CURRENT_PYTHON_SOURCE_ROOTS = (
-    "ai_runtime",
     "app",
     "elfie",
     "nest",
@@ -61,7 +72,11 @@ def _imported_roots(path: Path) -> set[str]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             imported_roots.update(alias.name.split(".", 1)[0] for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module is not None
+        ):
             imported_roots.add(node.module.split(".", 1)[0])
     return imported_roots
 
@@ -88,6 +103,21 @@ def test_stable_repository_directories_exist() -> None:
 
     # Then
     assert missing == frozenset()
+
+
+def test_root_infrastructure_is_a_first_class_python_source() -> None:
+    # Given: root Infrastructure is a production package, not checkout-only code.
+    pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    # When/Then: release discovery, import sorting and coverage all classify it.
+    assert 'include = ["app*", "elfie*", "infrastructure*", "nest*"]' in pyproject
+    assert 'known-first-party = ["app", "elfie", "infrastructure", "nest"]' in pyproject
+    assert 'source = ["app", "elfie", "infrastructure", "nest"]' in pyproject
+    assert (
+        '"infrastructure.models.providers" = '
+        '["provider-catalog.yaml", "model-catalog.yaml"]' in pyproject
+    )
+    assert "ai_runtime" not in pyproject
 
 
 def test_legacy_source_directories_are_removed() -> None:
@@ -135,6 +165,7 @@ def test_app_and_nest_have_the_confirmed_secondary_structure() -> None:
     assert missing_app_entries == frozenset()
     assert missing_interface_entries == frozenset()
     assert missing_nest_entries == frozenset()
+    assert not FORBIDDEN_NEST_DIRECTORIES.intersection(nest_entries)
 
 
 def test_desktop_source_has_the_confirmed_secondary_structure() -> None:
@@ -159,7 +190,6 @@ def test_desktop_source_has_the_confirmed_secondary_structure() -> None:
 def test_python_sources_do_not_import_legacy_packages() -> None:
     # Given
     source_roots = (
-        PROJECT_ROOT / "ai_runtime",
         PROJECT_ROOT / "app",
         PROJECT_ROOT / "devtools",
         PROJECT_ROOT / "elfie",
@@ -277,9 +307,9 @@ def test_nest_does_not_retain_v1_godot_or_furniture_mirror_api() -> None:
 
 
 def test_godot_gateway_accepts_protocol_v2_only() -> None:
-    source = (PROJECT_ROOT / "nest" / "godot_gateway" / "api.py").read_text(
-        encoding="utf-8"
-    )
+    source = (
+        PROJECT_ROOT / "infrastructure" / "godot" / "gateway" / "api.py"
+    ).read_text(encoding="utf-8")
     tree = ast.parse(source)
     protocol_values = {
         node.value.value

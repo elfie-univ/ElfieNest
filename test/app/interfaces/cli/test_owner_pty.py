@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Final, Tuple
 
-from app.infrastructure.persistence.store import (
+from infrastructure.persistence.nest_db.store import (
     get_db,
     hash_password,
     init_db,
@@ -18,8 +18,16 @@ from app.infrastructure.persistence.store import (
 from test.app.interfaces.cli.entrypoint_test_support import PROJECT_ROOT
 
 _CHILD_CODE: Final = """
+from infrastructure.persistence.layout.data_home import get_db_path
+from app.bootstrap.app_wiring.accounts import build_accounts_service
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli.owner_commands import recover_owner_interactive
-raise SystemExit(recover_owner_interactive())
+db_path = str(get_db_path())
+raise SystemExit(recover_owner_interactive(
+    create_lifecycle_facade(),
+    build_accounts_service(db_path),
+    db_path,
+))
 """
 
 

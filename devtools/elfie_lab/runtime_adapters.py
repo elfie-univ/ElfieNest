@@ -5,20 +5,32 @@ from __future__ import annotations
 import json
 import re
 import time
+from functools import partial
 from typing import Any, Dict, List
 
-from ai_runtime.food.models import FoodPackage
-from ai_runtime.storage.data_home import get_elfie_developer_home
 from devtools.elfie_lab.runtime_foods import (
     load_runtime_food_catalog,
     runtime_food_catalog_store,
 )
+from elfie.brain.food_port import FoodPackage
 from elfie.brain.runtime_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
     StructuredOutputMode,
 )
+from infrastructure.models.runtime_agent import RuntimeAgent
+from infrastructure.models.runtime_observations import get_runtime_observer
+from infrastructure.models.runtime_ports import RuntimeAgentPorts
+from infrastructure.persistence.configuration.secrets import resolve_secret
+from infrastructure.persistence.food_evidence import query_model_evidence
+from infrastructure.persistence.layout.data_home import get_elfie_developer_home
+from infrastructure.tools.execution.config import effective_tool_keys, load_tool_configs
+from infrastructure.tools.execution.loop import PortToolLoop
+from infrastructure.tools.execution.permissions import PermissionManager
+from infrastructure.tools.execution.skills_prompt import inject_skills_system_prompt
+from infrastructure.tools.local_file.local_files import LocalFileAccessPlugin
+from infrastructure.tools.web_search.search import WebSearchPlugin
 
 _SECRET_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{12,}"),
@@ -211,7 +223,6 @@ def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRunti
     if normalized == "mock":
         return TracingRuntimeAgent(MockRuntimeAgent(), "mock")
 
-    from ai_runtime import RuntimeAgent
     from devtools.runtime_lab import RuntimeLabConfigStore
 
     store = RuntimeLabConfigStore(config_dir or default_runtime_config_dir())
@@ -224,10 +235,53 @@ def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRunti
 
     agent = RuntimeAgent(
         config,
+        ports=_runtime_agent_ports(store),
         food_catalog_repository=food_store,
     )
     food_agent = FoodRuntimeAgent(agent, normalized, package)
     return TracingRuntimeAgent(food_agent, normalized)
+
+
+def _runtime_agent_ports(store: Any) -> RuntimeAgentPorts:
+    observer = get_runtime_observer()
+    tool_config_loader = partial(load_tool_configs, secret_resolver=resolve_secret)
+
+    def build_permission_manager(
+        config: Any, observation_port: Any
+    ) -> PermissionManager:
+        return PermissionManager(config, observation_port)
+
+    def build_file_access(
+        root: str, max_read_bytes: int, max_items: int
+    ) -> LocalFileAccessPlugin:
+        return LocalFileAccessPlugin(
+            root,
+            max_read_bytes=max_read_bytes,
+            max_items=max_items,
+        )
+
+    return RuntimeAgentPorts(
+        observer=observer,
+        config_paths=lambda: (store.config_path, store.env_path),
+        search_factory=partial(
+            WebSearchPlugin.from_runtime_policy,
+            secret_resolver=resolve_secret,
+        ),
+        permission_factory=build_permission_manager,
+        tool_config_loader=tool_config_loader,
+        effective_tool_keys=partial(
+            effective_tool_keys, secret_resolver=resolve_secret
+        ),
+        file_access_factory=build_file_access,
+        model_evidence_source=query_model_evidence,
+        tool_loop_factory=lambda tool_port, allowed, scope: PortToolLoop(
+            tool_port,
+            allowed_tool_keys=allowed,
+            scope_id=scope,
+        ),
+        prompt_injector=inject_skills_system_prompt,
+        runtime_config_loader=store.load_runtime_config,
+    )
 
 
 def default_runtime_config_dir() -> str:

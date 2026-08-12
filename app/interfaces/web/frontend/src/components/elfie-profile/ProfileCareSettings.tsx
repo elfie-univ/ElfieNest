@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import { ownerWrite } from "../../api/client"
+import { updateElfieFoodPolicy } from "../../api/client"
 import { SelectField } from "../SelectField"
 import type { CareSettings } from "./model"
 
@@ -31,12 +31,7 @@ export function ProfileCareSettings({ csrfToken, elfieId, onSaved, settings }: P
     setSaving(true)
     setError(null)
     try {
-      await ownerWrite(
-        `/api/user/elfies/${encodeURIComponent(elfieId)}/food-policy/`,
-        "PUT",
-        csrfToken,
-        { main_food_id: selectedFoodId },
-      )
+      await updateElfieFoodPolicy(elfieId, selectedFoodId, csrfToken)
       await onSaved()
     } catch (reason: unknown) {
       setError(reason instanceof Error && reason.message ? reason.message : t("profile.private.food.saveError"))

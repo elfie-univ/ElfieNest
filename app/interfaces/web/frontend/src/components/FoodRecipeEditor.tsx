@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import type { FoodPackage } from "../api/owner-foods"
+import type { FoodPackage } from "../api/admin/food-packages"
 import type { OwnerUser } from "../api/owner-users"
 import { FoodVisibilitySelect } from "./FoodScopeSelect"
 import { SelectField, type SelectFieldOption } from "./SelectField"

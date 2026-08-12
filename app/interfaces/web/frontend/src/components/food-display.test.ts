@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import type { FoodPackage } from "../api/owner-foods"
+import type { FoodPackage } from "../api/admin/food-packages"
 import { formatLatency, projectFoodDisplay, type FoodLocalRuntime } from "./food-display"
 
 const food = {

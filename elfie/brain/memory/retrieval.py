@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from typing import Dict, List
 
-from .memory_store import MemoryStore
+from .memory_store import MemoryStorePort
 from .node_types import EdgeTypes, MemoryNode, NodeTypes, RetrievalQuery
 
 logger = logging.getLogger("elfie.brain.memory.retrieval")
@@ -13,7 +13,7 @@ logger = logging.getLogger("elfie.brain.memory.retrieval")
 class MemoryRetriever:
     """多维检索引擎：从多个入口检索相关记忆"""
 
-    def __init__(self, storage: MemoryStore):
+    def __init__(self, storage: MemoryStorePort):
         self.storage = storage
 
     def retrieve(self, query: RetrievalQuery, top_k: int = 10) -> List[MemoryNode]:

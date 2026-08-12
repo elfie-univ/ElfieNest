@@ -42,10 +42,10 @@ build-constraint-dependencies = ["setuptools==80.9.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["ai_runtime*", "app*", "elfie*", "nest*"]
+include = ["app*", "elfie*", "infrastructure*", "nest*"]
 
 [tool.setuptools.package-data]
-"ai_runtime.providers" = ["provider-catalog.yaml"]
+"infrastructure.models.providers" = ["provider-catalog.yaml", "model-catalog.yaml"]
 
 [tool.ruff]
 line-length = 88
@@ -74,7 +74,7 @@ ignore = [
 "scripts/*" = ["E402"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["ai_runtime", "app", "elfie", "nest"]
+known-first-party = ["app", "elfie", "infrastructure", "nest"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -102,11 +102,13 @@ ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
+pythonpath = ["."]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
     "-v",
+    "--import-mode=importlib",
     "--strict-markers",
     "--tb=short",
 ]
@@ -117,7 +119,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["ai_runtime", "app", "elfie", "nest"]
+source = ["app", "elfie", "infrastructure", "nest"]
 omit = [
     "*/test/*",
     "*/tests/*",

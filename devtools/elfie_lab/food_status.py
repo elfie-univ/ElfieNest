@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from typing import List, Optional, TypedDict
 
-from ai_runtime.food.models import FoodPackage, system_food_packages
-from ai_runtime.food.store import FoodCatalogRepository
 from devtools.elfie_lab.runtime_foods import (
     list_installed_ollama_models,
     load_runtime_food_catalog,
     model_availability,
 )
 from devtools.runtime_lab import RuntimeLabConfigStore
+from elfie.brain.food_port import FoodPackage, FoodPort, system_food_packages
 
 
 class FoodStatusItem(TypedDict):
@@ -33,7 +32,7 @@ class FoodStatusItem(TypedDict):
 
 def build_food_items(
     runtime_store: RuntimeLabConfigStore,
-    food_store: FoodCatalogRepository,
+    food_store: FoodPort,
     configure_runtime_command: str,
 ) -> List[FoodStatusItem]:
     """Build runtime food readiness rows for the Lab API."""
@@ -120,7 +119,7 @@ def unconfigured_food_item(package: FoodPackage) -> FoodStatusItem:
 def find_food_item(
     food_key: str,
     runtime_store: RuntimeLabConfigStore,
-    food_store: FoodCatalogRepository,
+    food_store: FoodPort,
     configure_runtime_command: str,
 ) -> FoodStatusItem | None:
     """Resolve one normalized food key from the same rows exposed by the API."""

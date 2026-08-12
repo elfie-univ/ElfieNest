@@ -5,7 +5,8 @@
 ## 模块定位
 
 `nest/` 实现精灵活动空间的 Python 领域模型：维护居民 ID、巢内语义状态、环境时钟
-和互动传播，并提供与 Godot Runtime 连接所需的协议适配。
+和互动传播。Godot 传输与协议适配器位于领域外的
+`infrastructure/godot/`。
 
 ## 负责与不负责
 
@@ -13,15 +14,15 @@
 
 - 居民注册、移除、长期床位分配、姿态和活动状态；
 - 环境时间推进、说话传播、碰撞和触觉等巢内互动；
-- Godot Gateway 语义协议、单权威 Runtime 会话、命令/事件队列和速率限制；
-- 场景语义目录、Runtime 临时镜像和已导出 Web Runtime 的完整性检查。
+- 场景语义目录和 Runtime 临时语义镜像；
+- 类型化世界事实进入 NestSession 后的巢内规则处理。
 
 不负责：
 
 - 创建、恢复或持有真实 `Elfie` / `ElfieIndividual` 对象；
 - 执行单精灵认知、记忆、身体或通信生命周期；
 - 定义房屋几何、世界坐标、碰撞体、导航网格、家具资源和渲染；
-- 编排 AI Runtime 或产品账户流程。
+- 编排跨 authority 运行流程或产品账户流程。
 
 `NestState` 只保存精灵 ID、长期住处和巢内语义状态，不保存家具副本、坐标或
 真实精灵对象。房屋、几何、坐标、移动、碰撞判定与渲染的唯一源码来源是独立
@@ -35,7 +36,6 @@ nest/
 ├── state/          # 配置、居民、住处、世界目录与 Runtime 镜像
 ├── engine/         # 环境时钟推进
 ├── interaction/    # 说话、用户消息、碰撞与触觉传播
-├── godot_gateway/  # 权威消息、Observer 会话与 WebSocket Gateway
 └── events.py       # Nest 领域事件值对象
 ```
 
@@ -44,7 +44,8 @@ nest/
 - `nest.Nest`：组合状态、环境时钟和互动传播；
 - `nest.NestConfig`：Nest 容量等配置；
 - `nest.NestState`：仅包含巢内状态的运行容器；
-- `nest.godot_gateway.GodotAPIServer`：Python 与 Godot Runtime 的 WebSocket 协议边界。
+- `app.orchestration.nest_session`：组合 Nest、真实精灵与类型化世界通道；
+- `infrastructure.godot.gateway`：拥有具体 WebSocket 协议实现。
 
 真实精灵注册由 `app.orchestration.NestSession` 完成；不要把真实对象塞入
 `NestState`。
@@ -54,20 +55,19 @@ nest/
 ```text
 app/orchestration ──> nest
 nest.nest ──> state + engine + interaction
-nest.godot_gateway ──> Nest/Godot 协议边界
-godot_runtime ──> 宿主选择、启动与产物元数据
+app/orchestration/nest_session ──> 类型化 Nest 世界边界
+infrastructure/godot ──> 协议、宿主与产物适配器
 godot_project/ ──> 场景与几何的唯一事实源
 ```
 
-`nest/` 不依赖 `app/`、`elfie/` 或 `ai_runtime/`。需要把 Nest 事件交给真实
+`nest/` 不依赖 `app/`、`elfie/` 或模型、Food、工具 Adapter。需要把 Nest 事件交给真实
 精灵时，由 `app/orchestration/` 按 ID 查找并调用精灵对象。
 
 ## Runtime 权威与 Observer 生命周期
 
-Godot 权威连接后必须先发送带随机 nonce、`runtime_id` 和 `protocol: 3` 的
-`AuthorityHello`。同一时刻只有一个 Runtime 拥有权威；新一代连接会获得递增
-`generation`，旧代事件不会进入 Nest。Runtime 生命周期选择已导出的宿主；`nest/`
-从不启动 Godot，也不拥有宿主进程。
+Godot 权威连接后完成由 `infrastructure/godot/gateway` 拥有的认证握手。同一时刻只有
+一个 Runtime 拥有权威；新一代连接会获得递增 `generation`，旧代事件不会进入 Nest。
+Runtime 生命周期选择已导出的宿主；`nest/` 从不启动 Godot，也不拥有宿主进程。
 
 启动同步按固定顺序收敛：
 
@@ -97,7 +97,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest -q \
   test/nest/test_nest.py \
-  test/nest/godot_gateway/test_api_handshake.py
+  test/infrastructure/godot/gateway/test_api_handshake.py
 ```
 
 如需打开、运行或截图 Godot 项目，必须先遵守仓库的 Godot 操作门；这里的测试不
@@ -107,8 +107,10 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 ## 对应测试
 
 - `test/nest/test_nest.py`：状态、环境时钟和互动传播；
-- `test/nest/godot_gateway/`：权威握手、消息校验、Observer capability 范围与权威会话；
-- `test/godot_runtime/`：宿主选择、启动与产物元数据；
+- `test/infrastructure/godot/gateway/`：权威握手、消息校验与权威会话；
+- `test/app/orchestration/observer/`：具备能力范围的 Observer 投影及
+  generation/sequence 行为；
+- `test/infrastructure/godot/`：宿主选择、启动、产物元数据与协议传输；
 - `test/e2e/test_nest_runtime_v2.py`：重连后的世界与完整角色目录收敛；
 - `test/architecture/test_project_structure.py`：Nest 目录结构与旧包禁令；
 - `test/app/orchestration/`：真实精灵和 Nest 的组合行为。

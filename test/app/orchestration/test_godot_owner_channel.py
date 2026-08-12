@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 from pydantic import JsonValue
 
-from app.orchestration.godot_owner_channel import GodotOwnerChannel
+from app.orchestration.message_delivery import (
+    DeliverElfieReplyCommand,
+    GodotOwnerChannel,
+    MessageDeliveryFacade,
+    MessageDeliveryOwnerBroadcaster,
+)
 from elfie.communication import (
     CommunicationEnvelope,
     DeliveryStatus,
@@ -77,3 +83,50 @@ def test_outbound_owner_message_uses_envelope_event_identity() -> None:
     )
     assert receipt.message_id == envelope.meta.event_id
     assert receipt.status is DeliveryStatus.SENT
+
+
+def test_nest_owner_message_uses_canonical_reply_delivery() -> None:
+    delivery = MagicMock(spec=MessageDeliveryFacade)
+    broadcaster = MessageDeliveryOwnerBroadcaster(delivery)
+
+    broadcaster.broadcast_to_owners(
+        "elfie-1",
+        {
+            "action": "owner_message",
+            "payload": {
+                "parts": [
+                    {"type": "text", "text": "你好"},
+                    {"type": "text", "text": "主人"},
+                ],
+                "emotion": "happy",
+            },
+        },
+    )
+
+    delivery.deliver_elfie_reply.assert_called_once_with(
+        DeliverElfieReplyCommand(
+            elfie_id="elfie-1",
+            text="你好\n主人",
+            channel="web",
+            meta="情绪：happy",
+        )
+    )
+
+
+def test_nest_speech_event_uses_canonical_reply_delivery() -> None:
+    delivery = MagicMock(spec=MessageDeliveryFacade)
+    broadcaster = MessageDeliveryOwnerBroadcaster(delivery)
+
+    broadcaster.broadcast_to_owners(
+        "elfie-1",
+        {"action": "speak_event", "payload": {"text": "在这里"}},
+    )
+
+    delivery.deliver_elfie_reply.assert_called_once_with(
+        DeliverElfieReplyCommand(
+            elfie_id="elfie-1",
+            text="在这里",
+            channel="web",
+            meta="实时回复",
+        )
+    )

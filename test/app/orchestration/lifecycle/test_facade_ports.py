@@ -1,0 +1,49 @@
+"""Lifecycle owns user-visible service-port observations."""
+
+from unittest.mock import Mock, call
+
+from app.orchestration.lifecycle import LifecycleFacade
+
+
+def test_service_port_statuses_use_injected_process_port() -> None:
+    process = Mock()
+    process.ports_in_use.side_effect = lambda ports: ports[0] in {8100, 8768}
+    lifecycle = LifecycleFacade(
+        process_port=process,
+        recovery_lock=Mock(),
+        desktop_host=Mock(),
+        http_probe=Mock(),
+        runtime_record_factory=Mock(),
+        authority_host_factory=Mock(),
+    )
+
+    statuses = lifecycle.service_port_statuses(8100, 8768)
+
+    assert [(item.port, item.name, item.running) for item in statuses] == [
+        (8100, "HTTP", True),
+        (8768, "WebSocket (Godot)", True),
+    ]
+    assert process.ports_in_use.call_args_list == [
+        call((8100,)),
+        call((8768,)),
+    ]
+
+
+def test_optional_runtime_component_stays_behind_lifecycle_facade() -> None:
+    optional_component = Mock()
+    optional_component.ready.return_value = True
+    lifecycle = LifecycleFacade(
+        process_port=Mock(),
+        recovery_lock=Mock(),
+        desktop_host=Mock(),
+        http_probe=Mock(),
+        runtime_record_factory=Mock(),
+        authority_host_factory=Mock(),
+        optional_component=optional_component,
+    )
+
+    assert lifecycle.optional_component_ready() is True
+    lifecycle.prepare_optional_component()
+
+    optional_component.ready.assert_called_once_with()
+    optional_component.prepare.assert_called_once_with()

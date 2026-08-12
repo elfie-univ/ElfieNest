@@ -4,21 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from ai_runtime.food.resolver import MainFoodSelection
-from ai_runtime.food.store import FoodCatalogRepository
-from app.features.configuration.food_access import resolve_elfie_main_food_selection
+from app.features.configuration.food import FoodService, ResolveElfieFoodQuery
+from elfie.brain.food_port import MainFoodSelection
 
 
 def final_main_food_loader(
-    db_path: str,
-    food_catalog_repository: FoodCatalogRepository,
+    food_service: FoodService,
 ) -> Callable[[str], MainFoodSelection]:
     def load(elfie_id: str) -> MainFoodSelection:
-        return resolve_elfie_main_food_selection(
-            db_path,
-            elfie_id,
-            food_catalog_repository.load(),
+        result = food_service.resolve_elfie_food(
+            ResolveElfieFoodQuery(elfie_id=elfie_id)
         )
+        return MainFoodSelection(result.food_id, unavailable=result.unavailable)
 
     return load
 

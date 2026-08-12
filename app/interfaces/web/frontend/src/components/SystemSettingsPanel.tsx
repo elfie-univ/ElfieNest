@@ -1,9 +1,20 @@
 import { Button } from "@/components/ui/button"
 import { useEffect, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { z } from "zod"
 
-import { ownerElfies, ownerRead, ownerRooms, ownerWrite } from "../api/client"
+import { adminElfies } from "../api/admin/elfies"
+import {
+  elfieSettings,
+  runtimeSettings,
+  securitySettings,
+  updateElfieSettings,
+  updateRuntimeSettings,
+  updateSecuritySettings,
+  type ElfieSettings,
+  type RuntimeSettings,
+  type SecuritySettings,
+} from "../api/admin/settings"
+import { ownerRooms } from "../api/owner-nest"
 import type { ToolKey } from "../api/owner-tools"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
 import { currentLocale } from "../i18n/format"
@@ -18,12 +29,6 @@ import { WebSearchToolDetails } from "./tools/WebSearchToolDetails"
 import { useToast } from "./ui/toast"
 import "./tools-permissions.css"
 
-const EngineSchema = z.object({ tick_interval_sec: z.number() })
-const AdoptionSchema = z.object({ max_elfies_per_user: z.number(), allowed_species_ids: z.array(z.string()), personality_presets_enabled: z.record(z.string(), z.boolean()) })
-const SecuritySchema = z.object({ session_ttl_days: z.number(), rate_limit: z.object({ max_attempts: z.number(), window_seconds: z.number() }) })
-type EngineSettings = z.infer<typeof EngineSchema>
-type AdoptionSettings = z.infer<typeof AdoptionSchema>
-type SecuritySettings = z.infer<typeof SecuritySchema>
 type SettingsSection = "quota" | "advanced"
 
 const TOOL_META = [
@@ -34,8 +39,8 @@ const TOOL_META = [
 export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string }) {
   const { i18n, t } = useTranslation("manage")
   const locale = currentLocale(i18n)
-  const [engine, setEngine] = useState<EngineSettings | null>(null)
-  const [adoption, setAdoption] = useState<AdoptionSettings | null>(null)
+  const [engine, setEngine] = useState<RuntimeSettings | null>(null)
+  const [adoption, setAdoption] = useState<ElfieSettings | null>(null)
   const [security, setSecurity] = useState<SecuritySettings | null>(null)
   const [capacity, setCapacity] = useState<number | null>(null)
   const [adoptedCount, setAdoptedCount] = useState<number | null>(null)
@@ -47,16 +52,16 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
   const load = async (): Promise<void> => {
     try {
       const [loadedEngine, loadedAdoption, loadedSecurity, rooms, elfies] = await Promise.all([
-        ownerRead("/api/owner/system/engine"),
-        ownerRead("/api/owner/system/adoption"),
-        ownerRead("/api/owner/system/security"),
+        runtimeSettings(),
+        elfieSettings(),
+        securitySettings(),
         ownerRooms(),
-        ownerElfies(),
+        adminElfies(),
       ])
       const room = rooms[0]
-      setEngine(EngineSchema.parse(loadedEngine))
-      setAdoption(AdoptionSchema.parse(loadedAdoption))
-      setSecurity(SecuritySchema.parse(loadedSecurity))
+      setEngine(loadedEngine)
+      setAdoption(loadedAdoption)
+      setSecurity(loadedSecurity)
       setCapacity(room ? room.desired_bed_count ?? room.beds.length : null)
       setAdoptedCount(elfies.length)
       setError(null)
@@ -71,7 +76,7 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
     if (adoption === null) return
     setSaving("quota")
     try {
-      await ownerWrite("/api/owner/system/adoption", "PUT", csrfToken, adoption)
+      await updateElfieSettings(adoption, csrfToken)
       show({ kind: "success", message: t("systemSettings.notices.quotaSaved") })
       setError(null)
       await load()
@@ -88,8 +93,8 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
     setSaving("advanced")
     try {
       await Promise.all([
-        ownerWrite("/api/owner/system/engine", "PUT", csrfToken, engine),
-        ownerWrite("/api/owner/system/security", "PUT", csrfToken, security),
+        updateRuntimeSettings(engine, csrfToken),
+        updateSecuritySettings(security, csrfToken),
       ])
       show({ kind: "success", message: t("systemSettings.notices.advancedSaved") })
       setError(null)

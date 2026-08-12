@@ -74,9 +74,9 @@ def test_system_contract_ledger_decision_and_agents_exist_in_both_languages() ->
     required_agents = {
         "elfie/AGENTS.md",
         "nest/AGENTS.md",
-        "nest/godot_gateway/AGENTS.md",
-        "ai_runtime/AGENTS.md",
-        "godot_runtime/AGENTS.md",
+        "infrastructure/AGENTS.md",
+        "infrastructure/persistence/AGENTS.md",
+        "infrastructure/godot/AGENTS.md",
         "godot_project/AGENTS.md",
     }
 
@@ -98,6 +98,7 @@ def test_system_contract_ledger_decision_and_agents_exist_in_both_languages() ->
     assert "单只精灵通过注入 Port 读取" in chinese_contract
     assert all((PROJECT_ROOT / path).is_file() for path in required_docs)
     assert all((PROJECT_ROOT / path).is_file() for path in required_agents)
+    assert not (PROJECT_ROOT / "app/infrastructure").exists()
     for number in range(1, 8):
         gap_id = f"SYS-{number:03d}"
         assert gap_id in (

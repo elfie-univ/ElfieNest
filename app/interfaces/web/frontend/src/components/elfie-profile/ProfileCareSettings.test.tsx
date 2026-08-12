@@ -4,11 +4,11 @@ import { beforeAll, describe, expect, it, vi } from "vitest"
 
 import { createI18n } from "../../i18n/config"
 
-import { ownerWrite } from "../../api/client"
+import { updateElfieFoodPolicy } from "../../api/client"
 import { HAPPY_EXPERIENCE } from "../../test/fixtures/elfie-profile"
 import { ProfileCareSettings } from "./ProfileCareSettings"
 
-vi.mock("../../api/client", () => ({ ownerWrite: vi.fn() }))
+vi.mock("../../api/client", () => ({ updateElfieFoodPolicy: vi.fn() }))
 
 createI18n()
 
@@ -33,7 +33,12 @@ describe("ProfileCareSettings", () => {
         ],
       },
     }
-    vi.mocked(ownerWrite).mockResolvedValue({})
+    vi.mocked(updateElfieFoodPolicy).mockResolvedValue({
+      main_food_id: "sensitive",
+      effective_main_food_id: "sensitive",
+      main_food_options: [],
+      main_food_unavailable: false,
+    })
 
     render(<ProfileCareSettings csrfToken="csrf-token" elfieId="12345678" onSaved={onSaved} settings={settings} />)
 
@@ -45,11 +50,10 @@ describe("ProfileCareSettings", () => {
     await user.keyboard("{Enter}{ArrowDown}{Enter}")
     await user.click(screen.getByRole("button", { name: "保存" }))
 
-    await waitFor(() => expect(ownerWrite).toHaveBeenCalledWith(
-      "/api/user/elfies/12345678/food-policy/",
-      "PUT",
+    await waitFor(() => expect(updateElfieFoodPolicy).toHaveBeenCalledWith(
+      "12345678",
+      "sensitive",
       "csrf-token",
-      { main_food_id: "sensitive" },
     ))
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
   })

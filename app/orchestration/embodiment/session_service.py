@@ -2,54 +2,66 @@
 
 from __future__ import annotations
 
-from app.features.embodiment import (
+from app.features.accounts import AccountPrincipal, is_manager
+from elfie.public import BodyPort, Elfie
+
+from .errors import EmbodimentForbidden, EmbodimentUnavailable
+from .models import (
     EmbodimentConflict,
+    EmbodimentSession,
     Hosted,
     HostingFailed,
     HostingResult,
+    ListEmbodimentSessionsQuery,
 )
-from app.infrastructure.persistence.embodiment_sessions import (
+from .ports import (
     EmbodimentLeaseConflict,
-    EmbodimentSession,
-    abort_hosting,
-    begin_hosting,
-    complete_hosting,
-    complete_return,
-    expire_stale_lease,
-    get_embodiment_session,
-    recover_offline_session,
-    renew_hosting_heartbeat,
-    start_return,
+    EmbodimentLeasePort,
+    EmbodimentLeasePortError,
 )
-from elfie import Elfie
-from elfie.body import BodyPort
-from nest.embodiment import EmbodimentState
+from .state_machine import EmbodimentState
 
 
 class EmbodimentSessionService:
     """Keep durable lease state and an Elfie's sole active BodyPort aligned."""
 
-    def __init__(self, *, db_path: str, nest_body_id: str) -> None:
-        self._db_path = db_path
-        self._nest_body_id = nest_body_id
+    def __init__(self, leases: EmbodimentLeasePort) -> None:
+        self._leases = leases
+
+    def get_session(self, elfie_id: str) -> EmbodimentSession:
+        return self._leases.get(elfie_id)
+
+    def list_sessions(
+        self,
+        principal: AccountPrincipal,
+        query: ListEmbodimentSessionsQuery,
+    ) -> tuple[EmbodimentSession, ...]:
+        """Return the existing durable session projection to managers only."""
+        del query
+        if not is_manager(principal.role):
+            raise EmbodimentForbidden("Embodiment sessions require a manager")
+        try:
+            return self._leases.list_sessions()
+        except EmbodimentLeasePortError as error:
+            raise EmbodimentUnavailable("Embodiment sessions unavailable") from error
 
     def host(
         self, elfie_id: str, elfie: Elfie, body: BodyPort, *, lease_seconds: float
     ) -> HostingResult:
         """Acquire first, then bind; release the durable lease if binding fails."""
         try:
-            switching = begin_hosting(
-                self._db_path, elfie_id, body.body_id, lease_seconds=lease_seconds
+            switching = self._leases.begin_hosting(
+                elfie_id, body.body_id, lease_seconds=lease_seconds
             )
         except EmbodimentLeaseConflict as error:
-            current = get_embodiment_session(self._db_path, elfie_id)
+            current = self._leases.get(elfie_id)
             return EmbodimentConflict(state=current.state, reason=str(error))
 
         existing = elfie.body_registry.get(body.body_id)
         if existing is None:
             elfie.register_body(body)
         elif existing is not body:
-            restored = abort_hosting(self._db_path, elfie_id, switching.lease_version)
+            restored = self._leases.abort_hosting(elfie_id, switching.lease_version)
             return HostingFailed(
                 restored_state=restored.state,
                 reason="body_id 已注册为另一个身体实例",
@@ -57,42 +69,40 @@ class EmbodimentSessionService:
         try:
             elfie.bind_body(body.body_id)
         except RuntimeError as error:
-            restored = abort_hosting(self._db_path, elfie_id, switching.lease_version)
+            restored = self._leases.abort_hosting(elfie_id, switching.lease_version)
             return HostingFailed(restored_state=restored.state, reason=str(error))
-        return Hosted(
-            complete_hosting(self._db_path, elfie_id, switching.lease_version)
-        )
+        return Hosted(self._leases.complete_hosting(elfie_id, switching.lease_version))
 
     def return_to_nest(
-        self, elfie_id: str, elfie: Elfie
+        self, elfie_id: str, elfie: Elfie, *, nest_body_id: str
     ) -> EmbodimentSession | EmbodimentConflict:
         """Bind the resident nest body before releasing the hosted lease."""
-        current = get_embodiment_session(self._db_path, elfie_id)
+        current = self._leases.get(elfie_id)
         if current.lease_version == 0:
             return EmbodimentConflict(
                 state=current.state, reason="没有可归巢的具身会话"
             )
         try:
-            returning = start_return(self._db_path, elfie_id, current.lease_version)
+            returning = self._leases.start_return(elfie_id, current.lease_version)
         except EmbodimentLeaseConflict as error:
             return EmbodimentConflict(state=current.state, reason=str(error))
-        elfie.bind_body(self._nest_body_id)
-        return complete_return(self._db_path, elfie_id, returning.lease_version)
+        elfie.bind_body(nest_body_id)
+        return self._leases.complete_return(elfie_id, returning.lease_version)
 
     def heartbeat(
         self, elfie_id: str, lease_version: int, *, lease_seconds: float
     ) -> EmbodimentSession:
-        """Renew a hosted session's lease from a trusted device heartbeat."""
-        return renew_hosting_heartbeat(
-            self._db_path, elfie_id, lease_version, lease_seconds=lease_seconds
+        """Renew a hosted session's lease from a trusted body heartbeat."""
+        return self._leases.heartbeat(
+            elfie_id, lease_version, lease_seconds=lease_seconds
         )
 
     def expire_stale_lease(
         self, elfie_id: str, elfie: Elfie, *, now: float | None = None
     ) -> EmbodimentSession:
         """Unbind a timed-out active body after persistence has made it offline."""
-        before = get_embodiment_session(self._db_path, elfie_id)
-        current = expire_stale_lease(self._db_path, elfie_id, now=now)
+        before = self._leases.get(elfie_id)
+        current = self._leases.expire(elfie_id, now=now)
         if (
             current.state is EmbodimentState.OFFLINE
             and before.body_id == elfie.body_binding.current_body_id
@@ -101,10 +111,10 @@ class EmbodimentSessionService:
         return current
 
     def recover_to_nest(
-        self, elfie_id: str, elfie: Elfie
+        self, elfie_id: str, elfie: Elfie, *, nest_body_id: str
     ) -> EmbodimentSession | EmbodimentConflict:
         """Reconnect the resident nest body after an acknowledged offline timeout."""
-        current = get_embodiment_session(self._db_path, elfie_id)
+        current = self._leases.get(elfie_id)
         if current.lease_version == 0:
             return EmbodimentConflict(
                 state=current.state, reason="没有可恢复的具身会话"
@@ -113,5 +123,8 @@ class EmbodimentSessionService:
             return EmbodimentConflict(
                 state=current.state, reason="只有离线会话可以恢复到 Nest"
             )
-        elfie.bind_body(self._nest_body_id)
-        return recover_offline_session(self._db_path, elfie_id, current.lease_version)
+        elfie.bind_body(nest_body_id)
+        return self._leases.recover(elfie_id, current.lease_version)
+
+
+__all__ = ("EmbodimentSessionService",)

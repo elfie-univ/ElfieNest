@@ -23,6 +23,7 @@ const session = vi.hoisted(() => ({
 
 const chatApi = vi.hoisted(() => ({
   conversations: vi.fn(),
+  elfieFoodPolicy: vi.fn(),
   elfies: vi.fn(),
   messages: vi.fn(),
   profile: vi.fn(),
@@ -39,8 +40,19 @@ vi.mock("../stores/heartbeat", () => ({
 
 vi.mock("../api/client", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/client")>()
-  return { ...original, ...chatApi }
+  return {
+    ...original,
+    elfieFoodPolicy: chatApi.elfieFoodPolicy,
+    elfies: chatApi.elfies,
+    profile: chatApi.profile,
+  }
 })
+
+vi.mock("../api/communication", () => ({
+  conversations: chatApi.conversations,
+  messages: chatApi.messages,
+  sendMessage: chatApi.sendMessage,
+}))
 
 vi.mock("../api/chat-socket", () => ({
   ChatSocket: class {
@@ -69,7 +81,7 @@ const elfie = {
   summary: null,
   online_status: "online" as const,
   portrait_url: "",
-  appearance: {},
+  appearance: null,
   big_five: {},
   personality_tags: [],
   status: { code: "at_nest", label: "在巢中", tone: "active" as const },
@@ -119,6 +131,12 @@ describe("ChatPage profile integration", () => {
       last_message_at: "2026-08-04T23:00:00Z",
     }])
     chatApi.elfies.mockResolvedValue([elfie])
+    chatApi.elfieFoodPolicy.mockResolvedValue({
+      effective_main_food_id: "",
+      main_food_id: "",
+      main_food_options: [],
+      main_food_unavailable: false,
+    })
     chatApi.messages.mockResolvedValue([])
     chatApi.profile.mockResolvedValue(profileDetail(elfie))
   })

@@ -88,7 +88,9 @@ def test_turn_rejects_cross_elfie_media_reference(tmp_path, monkeypatch, client_
     assert response.status_code == 404
 
 
-def test_turn_rejects_malformed_media_id_without_server_error(tmp_path, monkeypatch, client_for):
+def test_turn_rejects_malformed_media_id_without_server_error(
+    tmp_path, monkeypatch, client_for
+):
     runtime_dir = tmp_path / "runtime"
     seed_mock_food(runtime_dir)
     monkeypatch.setattr(

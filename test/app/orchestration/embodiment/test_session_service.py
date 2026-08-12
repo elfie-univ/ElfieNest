@@ -4,14 +4,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.features.embodiment import EmbodimentConflict, Hosted, HostingFailed
-from app.infrastructure.devices import DeviceRegistry
-from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
-from app.infrastructure.persistence.store import get_db, init_db
-from app.orchestration.embodiment import EmbodimentSessionService
+from app.orchestration.embodiment import (
+    EmbodimentConflict,
+    EmbodimentSessionService,
+    EmbodimentState,
+    Hosted,
+    HostingFailed,
+)
 from elfie import Elfie
 from elfie.body import HeadlessBody
-from nest.embodiment import EmbodimentState
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.elfie_workspace.bodies import SQLiteBodiesAdapter
+from infrastructure.persistence.elfie_workspace.embodiment import (
+    SQLiteEmbodimentLeaseAdapter,
+)
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from infrastructure.persistence.nest_db.store import get_db, init_db
 
 
 class FailingBody(HeadlessBody):
@@ -28,9 +36,10 @@ def test_host_and_return_keep_one_real_active_body_and_persisted_state(
     db_path, elfie = _registered_elfie(tmp_path)
     nest_body = elfie.current_body
     assert nest_body is not None
-    body = DeviceRegistry(db_path).enroll("00000001", "身体一", "toy")
+    body = _enroll(db_path, "身体一")
     hosted_body = HeadlessBody(body_id=body.body_id)
-    service = EmbodimentSessionService(db_path=db_path, nest_body_id=nest_body.body_id)
+    leases = SQLiteEmbodimentLeaseAdapter(db_path)
+    service = EmbodimentSessionService(leases)
 
     # When: the Elfie is hosted and then returned through the service.
     hosted = service.host("00000001", elfie, hosted_body, lease_seconds=30)
@@ -40,17 +49,17 @@ def test_host_and_return_keep_one_real_active_body_and_persisted_state(
     assert elfie.current_body is hosted_body
     assert hosted_body.connected is True
     assert nest_body.connected is False
-    assert get_embodiment_session(db_path, "00000001").body_id == body.body_id
-    assert get_embodiment_session(db_path, "00000001").state is EmbodimentState.HOSTED
+    assert leases.get("00000001").body_id == body.body_id
+    assert leases.get("00000001").state is EmbodimentState.HOSTED
 
-    returned = service.return_to_nest("00000001", elfie)
+    returned = service.return_to_nest("00000001", elfie, nest_body_id=nest_body.body_id)
 
     assert returned.state is EmbodimentState.AT_NEST
     assert returned.body_id is None
     assert elfie.current_body is nest_body
     assert nest_body.connected is True
     assert hosted_body.connected is False
-    assert get_embodiment_session(db_path, "00000001").state is EmbodimentState.AT_NEST
+    assert leases.get("00000001").state is EmbodimentState.AT_NEST
 
 
 def test_host_failure_restores_the_nest_body_and_releases_the_persisted_lease(
@@ -60,8 +69,9 @@ def test_host_failure_restores_the_nest_body_and_releases_the_persisted_lease(
     db_path, elfie = _registered_elfie(tmp_path)
     nest_body = elfie.current_body
     assert nest_body is not None
-    service = EmbodimentSessionService(db_path=db_path, nest_body_id=nest_body.body_id)
-    body = DeviceRegistry(db_path).enroll("00000001", "故障身体", "toy")
+    leases = SQLiteEmbodimentLeaseAdapter(db_path)
+    service = EmbodimentSessionService(leases)
+    body = _enroll(db_path, "故障身体")
 
     # When: hosting attempts to bind the failed body after obtaining a lease.
     result = service.host(
@@ -73,7 +83,7 @@ def test_host_failure_restores_the_nest_body_and_releases_the_persisted_lease(
     assert result.restored_state is EmbodimentState.AT_NEST
     assert elfie.current_body is nest_body
     assert nest_body.connected is True
-    persisted = get_embodiment_session(db_path, "00000001")
+    persisted = leases.get("00000001")
     assert persisted.state is EmbodimentState.AT_NEST
     assert persisted.body_id is None
 
@@ -85,10 +95,10 @@ def test_duplicate_host_is_rejected_before_a_second_body_can_bind(
     db_path, elfie = _registered_elfie(tmp_path)
     nest_body = elfie.current_body
     assert nest_body is not None
-    service = EmbodimentSessionService(db_path=db_path, nest_body_id=nest_body.body_id)
-    registry = DeviceRegistry(db_path)
-    first_body = registry.enroll("00000001", "身体一", "toy")
-    second_body = registry.enroll("00000001", "身体二", "toy")
+    leases = SQLiteEmbodimentLeaseAdapter(db_path)
+    service = EmbodimentSessionService(leases)
+    first_body = _enroll(db_path, "身体一")
+    second_body = _enroll(db_path, "身体二")
     first = HeadlessBody(body_id=first_body.body_id)
     assert isinstance(service.host("00000001", elfie, first, lease_seconds=30), Hosted)
 
@@ -105,7 +115,7 @@ def test_duplicate_host_is_rejected_before_a_second_body_can_bind(
     assert elfie.current_body is first
     assert first.connected is True
     assert elfie.body_binding.current_body_id == first_body.body_id
-    assert get_embodiment_session(db_path, "00000001").body_id == first_body.body_id
+    assert leases.get("00000001").body_id == first_body.body_id
 
 
 def test_heartbeat_timeout_unbinds_the_active_body_and_persists_offline(
@@ -115,8 +125,9 @@ def test_heartbeat_timeout_unbinds_the_active_body_and_persists_offline(
     db_path, elfie = _registered_elfie(tmp_path)
     nest_body = elfie.current_body
     assert nest_body is not None
-    service = EmbodimentSessionService(db_path=db_path, nest_body_id=nest_body.body_id)
-    body = DeviceRegistry(db_path).enroll("00000001", "身体一", "toy")
+    leases = SQLiteEmbodimentLeaseAdapter(db_path)
+    service = EmbodimentSessionService(leases)
+    body = _enroll(db_path, "身体一")
     hosted_body = HeadlessBody(body_id=body.body_id)
     hosted = service.host("00000001", elfie, hosted_body, lease_seconds=30)
     assert isinstance(hosted, Hosted)
@@ -134,11 +145,13 @@ def test_heartbeat_timeout_unbinds_the_active_body_and_persists_offline(
     assert elfie.current_body is None
     assert hosted_body.connected is False
     assert nest_body.connected is False
-    persisted = get_embodiment_session(db_path, "00000001")
+    persisted = leases.get("00000001")
     assert persisted.state is EmbodimentState.OFFLINE
     assert persisted.body_id is None
 
-    recovered = service.recover_to_nest("00000001", elfie)
+    recovered = service.recover_to_nest(
+        "00000001", elfie, nest_body_id=nest_body.body_id
+    )
 
     assert recovered.state is EmbodimentState.AT_NEST
     assert elfie.current_body is nest_body
@@ -162,5 +175,18 @@ def _registered_elfie(tmp_path: Path) -> tuple[str, Elfie]:
     nest_body = HeadlessBody(body_id="nest-1")
     nest_body.connect()
     return db_path, Elfie(
-        elfie_id="00000001", memory_db_path=":memory:", body=nest_body
+        character_profile=create_visual_profile(
+            elfie_id="00000001", display_name="测试精灵", species_id="fox", seed=5
+        ),
+        memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        body=nest_body,
+    )
+
+
+def _enroll(db_path: str, display_name: str):
+    return SQLiteBodiesAdapter(db_path).enroll(
+        owner_user_id=1,
+        elfie_id="00000001",
+        display_name=display_name,
+        body_type="toy",
     )

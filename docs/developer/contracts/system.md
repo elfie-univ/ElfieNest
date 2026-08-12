@@ -12,10 +12,10 @@
 > [System conformance](../conformance/system).
 
 The system contract governs root placement and cross-module boundaries. The
-Application contract governs behavior inside `app/`. The older AI Runtime
-contract remains only a behavior inventory for the current migration package;
-it does not define a target module and cannot reverse this contract. Where an
-older child contract names a legacy owner or path, this contract controls the
+Application contract governs behavior inside `app/`. The Model, Food and tool
+behavior contract remains only a behavior inventory for the current migration
+package; it does not define a target module and cannot reverse this contract.
+Where a child contract names a legacy owner or path, this contract controls the
 target while the conformance register records the transition.
 
 ## Target system shape
@@ -67,11 +67,11 @@ capability's concrete Adapter. When one capability needs another, it depends on
 a narrow Port or shared technical model and Bootstrap supplies the concrete
 implementations.
 
-Current `ai_runtime/`, `godot_runtime/`, `nest/godot_gateway/` and
-`app/infrastructure/`, plus concrete technical code inside `elfie/` or `nest/`,
-are migration-state locations. `ai_runtime/` is decomposed by responsibility;
-it is not moved intact and no target `infrastructure/ai_runtime/` is created.
-These paths shrink only through separately approved migration slices.
+The former `ai_runtime/`, `godot_runtime/` and `app/infrastructure/` roots have
+been retired. Their technical responsibilities now live in the existing target
+Infrastructure capability packages; no target `infrastructure/ai_runtime/` was
+created. Concrete technical code that remains inside `elfie/` or `nest/` is
+migration-state and shrinks only through separately approved migration slices.
 
 ## System dependency direction
 
@@ -203,8 +203,8 @@ new authoritative fact by copying, caching or projecting the same record.
 
 ## Model, Food and tool ownership
 
-There is no target AI Runtime module. The current `ai_runtime/` package mixes
-responsibilities that are separated as follows:
+There is no target AI Runtime module. The former `ai_runtime/` package was
+decomposed into the following owners:
 
 | Responsibility | Target owner |
 | --- | --- |

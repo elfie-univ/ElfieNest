@@ -28,7 +28,10 @@ from elfie.communication import (
     MessageDirection,
     TextPart,
 )
+from elfie.factory import ElfieAssembly
 from elfie.message_types import ActorRef, MessageMeta, TurnId
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 
 class RecordingChannel:
@@ -181,12 +184,11 @@ def test_cognitive_lifecycle_runs_two_turns_without_blocking_clock() -> None:
     channel = RecordingChannel()
     hub.register_channel(channel, connect=True)
     runtime = TwoTurnRuntime()
-    elfie = ElfieFactory().create(
-        elfie_id="elfie-loop",
-        memory_db_path=":memory:",
+    elfie = _new_elfie(
+        "elfie-loop",
         body=body,
         communication=hub,
-        cortical_runtime=runtime,
+        model_port=runtime,
     )
     elfie.start()
     elfie.receive_communication_envelope(_owner_message(elfie.cognitive_datetime))
@@ -226,12 +228,11 @@ def test_stop_closes_communication_input_boundary() -> None:
     body = HeadlessBody(body_id="body-stop")
     hub = CommunicationHub("elfie-loop")
     hub.register_channel(RecordingChannel(), connect=True)
-    elfie = ElfieFactory().create(
-        elfie_id="elfie-loop",
-        memory_db_path=":memory:",
+    elfie = _new_elfie(
+        "elfie-loop",
         body=body,
         communication=hub,
-        cortical_runtime=TwoTurnRuntime(),
+        model_port=TwoTurnRuntime(),
     )
     elfie.start()
     elfie.stop()
@@ -248,6 +249,21 @@ def test_stop_closes_communication_input_boundary() -> None:
     assert disposition.error.code == "communication_closed"
     assert hub.inbox.metrics().pending_count == 0
     assert elfie.is_running is False
+
+
+def _new_elfie(elfie_id: str, **dependencies):
+    return ElfieFactory().create(
+        ElfieAssembly(
+            profile=create_visual_profile(
+                elfie_id=elfie_id,
+                display_name=elfie_id,
+                species_id="fox",
+                seed=1,
+            ),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            **dependencies,
+        )
+    )
 
 
 def test_cognitive_start_rolls_back_router_when_coordinator_start_fails() -> None:

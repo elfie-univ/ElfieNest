@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.infrastructure.persistence.store import init_db
-from app.interfaces.api.app import create_app
+from app.bootstrap import create_app
+from infrastructure.persistence.nest_db.store import init_db
 
 from ._helpers import create_test_owner
 
@@ -17,18 +16,14 @@ def client(tmp_path: Path):
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
     create_test_owner(db_path)
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-    ):
-        application = create_app(engine=None, db_path=db_path, ws_port=9876)
-        with TestClient(application) as test_client:
-            yield test_client
+    application = create_app(engine=None, db_path=db_path)
+    with TestClient(application) as test_client:
+        yield test_client
 
 
 def _login(client: TestClient) -> str:
     response = client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         data={"account_id": "owner", "password": "ownerchangeme"},
     )
     assert response.status_code == 200

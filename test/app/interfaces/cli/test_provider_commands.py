@@ -2,23 +2,21 @@ from __future__ import annotations
 
 from _pytest.capture import CaptureFixture
 
-from app.infrastructure.persistence.account_repository import AccountRepository
-from app.infrastructure.persistence.elfie_repository import ElfieRepository
-from app.infrastructure.persistence.store import get_db, init_db
-from app.interfaces.cli import provider_commands, route_commands
+from app.interfaces.cli import provider_commands
+from test.app.interfaces.cli.configuration_test_support import (
+    FakeProvidersService,
+    manager_principal,
+    verification,
+)
 
 
 def test_list_providers_prints_configured_provider(
-    monkeypatch,
     capsys: CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr(
-        provider_commands,
-        "read_user_config",
-        lambda: {"providers": {"openai": {"status": "active"}}},
-    )
+    providers = FakeProvidersService()
+    providers.add_connection("openai")
 
-    provider_commands.list_providers()
+    provider_commands.list_providers(providers, manager_principal())
 
     output = capsys.readouterr().out
     assert "OpenAI" in output
@@ -26,29 +24,20 @@ def test_list_providers_prints_configured_provider(
 
 
 def test_login_provider_saves_verified_credentials(monkeypatch) -> None:
-    saved_configs = []
-    saved_env_vars = []
+    providers = FakeProvidersService()
     monkeypatch.setattr(provider_commands, "input_password", lambda prompt: "test-key")
     monkeypatch.setattr(provider_commands, "input_text", lambda prompt: "")
-    monkeypatch.setattr(provider_commands, "read_user_config", lambda: {})
-    monkeypatch.setattr(provider_commands, "read_env_file", lambda: {})
-    monkeypatch.setattr(provider_commands, "write_user_config", saved_configs.append)
-    monkeypatch.setattr(provider_commands, "write_env_file", saved_env_vars.append)
-    monkeypatch.setattr(
-        provider_commands,
-        "verify_provider",
-        lambda provider_id, config: {"status": "active", "latency_ms": 12.0},
-    )
 
-    provider_commands.login_provider("openai")
+    provider_commands.login_provider(providers, manager_principal(), "openai")
 
-    assert saved_configs[0]["providers"]["openai"]["status"] == "active"
-    assert saved_env_vars[0]["OPENAI_API_KEY"] == "test-key"
+    saved = providers.connections[0]
+    assert saved.catalog_id == "openai"
+    assert saved.has_api_key is True
+    assert saved.verification.status == "passed"
 
 
 def test_login_provider_accepts_custom_openai_endpoint(monkeypatch) -> None:
-    saved_configs = []
-    saved_env_vars = []
+    providers = FakeProvidersService()
     prompts = []
     text_answers = iter(["My Proxy", "https://proxy.example.com/v1", "gpt-4o-mini"])
 
@@ -58,84 +47,61 @@ def test_login_provider_accepts_custom_openai_endpoint(monkeypatch) -> None:
 
     monkeypatch.setattr(provider_commands, "input_password", lambda prompt: "test-key")
     monkeypatch.setattr(provider_commands, "input_text", input_text)
-    monkeypatch.setattr(provider_commands, "read_user_config", lambda: {})
-    monkeypatch.setattr(provider_commands, "read_env_file", lambda: {})
-    monkeypatch.setattr(provider_commands, "write_user_config", saved_configs.append)
-    monkeypatch.setattr(provider_commands, "write_env_file", saved_env_vars.append)
-    monkeypatch.setattr(
-        provider_commands,
-        "verify_provider",
-        lambda provider_id, config: {"status": "active", "latency_ms": 12.0},
+
+    provider_commands.login_provider(
+        providers,
+        manager_principal(),
+        "custom_openai",
     )
 
-    provider_commands.login_provider("custom_openai")
-
-    provider = saved_configs[0]["providers"]["custom_openai"]
+    provider = providers.connections[0]
     assert prompts == ["  Name", "  Endpoint / Base URL", "  Test model"]
-    assert provider["display_name"] == "My Proxy"
-    assert provider["api_base"] == "https://proxy.example.com/v1"
-    assert provider["test_model"] == "gpt-4o-mini"
-    assert provider["api_mode"] == "chat_completions"
-    assert saved_env_vars[0]["CUSTOM_OPENAI_API_KEY"] == "test-key"
+    assert provider.alias == "My Proxy"
+    assert provider.api_base == "https://proxy.example.com/v1"
+    assert provider.models[0].model_id == "gpt-4o-mini"
+    assert provider.api_mode == "chat_completions"
+    assert provider.has_api_key is True
 
 
-def test_login_provider_saves_custom_endpoint_when_verify_fails(monkeypatch) -> None:
-    saved_configs = []
-    saved_env_vars = []
+def test_login_provider_saves_custom_endpoint_when_verify_fails(
+    monkeypatch,
+    capsys: CaptureFixture[str],
+) -> None:
+    providers = FakeProvidersService()
+    providers.next_verification = verification("failed", error="连接失败")
     text_answers = iter(["My Proxy", "https://proxy.example.com/v1", "gpt-4o-mini"])
     monkeypatch.setattr(provider_commands, "input_password", lambda prompt: "test-key")
     monkeypatch.setattr(
         provider_commands, "input_text", lambda prompt: next(text_answers)
     )
-    monkeypatch.setattr(provider_commands, "read_user_config", lambda: {})
-    monkeypatch.setattr(provider_commands, "read_env_file", lambda: {})
-    monkeypatch.setattr(provider_commands, "write_user_config", saved_configs.append)
-    monkeypatch.setattr(provider_commands, "write_env_file", saved_env_vars.append)
-    monkeypatch.setattr(
-        provider_commands,
-        "verify_provider",
-        lambda provider_id, config: {"status": "inactive", "error": "连接失败"},
+
+    provider_commands.login_provider(
+        providers,
+        manager_principal(),
+        "custom_openai",
     )
 
-    provider_commands.login_provider("custom_openai")
-
-    provider = saved_configs[0]["providers"]["custom_openai"]
-    assert provider["display_name"] == "My Proxy"
-    assert provider["status"] == "active"
-    assert saved_env_vars[0]["CUSTOM_OPENAI_API_BASE"] == "https://proxy.example.com/v1"
+    provider = providers.connections[0]
+    assert provider.alias == "My Proxy"
+    assert provider.api_base == "https://proxy.example.com/v1"
+    assert "Config will still be saved" in capsys.readouterr().out
 
 
-def test_show_route_prints_main_food_without_models(
-    tmp_path,
-    monkeypatch,
-    capsys: CaptureFixture[str],
-) -> None:
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    database_path = init_db()
-    with get_db(database_path) as connection:
-        owner_id = AccountRepository(connection).create_owner(
-            account_id="owner",
-            password_hash="test-hash",
-            display_name="Owner",
-            avatar_color=0,
-        )
-        connection.commit()
-    elfies = ElfieRepository(database_path)
-    elfies.reserve_adoption(
-        elfie_id="00000001",
-        owner_user_id=owner_id,
-        name="Elfie",
-        species="fox",
-        summary=None,
-        max_elfies=3,
-    )
-    from app.infrastructure.persistence.food_assignments import set_elfie_main_food_id
+def test_remove_provider_uses_facade_lifecycle_and_delete(capsys) -> None:
+    providers = FakeProvidersService()
+    providers.add_connection("openai")
 
-    set_elfie_main_food_id(database_path, "00000001", "premium")
+    provider_commands.remove_provider(providers, manager_principal(), "openai")
 
-    route_commands.show_route("00000001")
+    assert providers.connections == []
+    assert "configuration removed" in capsys.readouterr().out
 
-    output = capsys.readouterr().out
-    assert "00000001 Main Food" in output
-    assert "Main food: premium" in output
-    assert "Models are managed by Runtime food packages" in output
+
+def test_remove_ollama_uses_explicit_local_removal(capsys) -> None:
+    providers = FakeProvidersService()
+    providers.add_connection("ollama")
+
+    provider_commands.remove_provider(providers, manager_principal(), "ollama")
+
+    assert providers.connections == []
+    assert "configuration removed" in capsys.readouterr().out

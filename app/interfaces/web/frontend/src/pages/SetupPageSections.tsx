@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next"
 
-import type { SetupModelOption, SetupStatus } from "../api/client"
+import type { SetupModelOption, SetupStatus } from "../api/setup"
 
 type SetupTranslation = TFunction<"setup">
 type SetupStepNumber = 1 | 2 | 3 | 4

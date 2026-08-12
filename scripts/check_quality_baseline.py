@@ -17,7 +17,6 @@ from pydantic import BaseModel, ConfigDict, TypeAdapter
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASELINE_PATH = PROJECT_ROOT / ".quality-baseline.json"
 MYPY_SOURCE_ROOT_CANDIDATES: Tuple[str, ...] = (
-    "ai_runtime",
     "app",
     "elfie",
     "nest",

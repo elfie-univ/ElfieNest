@@ -2,13 +2,13 @@
 
 from typing import Dict, List, Tuple
 
-from .memory_store import MemoryStore
+from .memory_store import MemoryStorePort
 
 
 class SpreadingActivation:
     """扩散激活：从种子节点出发，沿边扩散激活值"""
 
-    def __init__(self, storage: MemoryStore):
+    def __init__(self, storage: MemoryStorePort):
         self.storage = storage
 
     def spread(

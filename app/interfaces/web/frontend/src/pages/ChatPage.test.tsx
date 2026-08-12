@@ -34,6 +34,7 @@ const session = vi.hoisted(() => ({
 const chatApi = vi.hoisted(() => ({
   conversations: vi.fn(),
   elfies: vi.fn(),
+  elfieFoodPolicy: vi.fn(),
   messages: vi.fn(),
   profile: vi.fn(),
   sendMessage: vi.fn(),
@@ -59,8 +60,14 @@ vi.mock("../stores/heartbeat", () => ({
 
 vi.mock("../api/client", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/client")>()
-  return { ...original, ...chatApi }
+  return { ...original, elfies: chatApi.elfies, elfieFoodPolicy: chatApi.elfieFoodPolicy, profile: chatApi.profile }
 })
+
+vi.mock("../api/communication", () => ({
+  conversations: chatApi.conversations,
+  messages: chatApi.messages,
+  sendMessage: chatApi.sendMessage,
+}))
 
 vi.mock("../api/chat-socket", () => ({
   ChatSocket: class {
@@ -88,14 +95,12 @@ const elfie = {
   gender: null,
   birth_date: null,
   summary: null,
-  online_status: "online" as const,
+  adopted_at: "2026-08-01",
+  profile_status: "empty" as const,
   portrait_url: "",
-  appearance: {},
-  big_five: {},
+  appearance: null,
+  big_five: null,
   personality_tags: [],
-  status: { code: "at_nest", label: "在巢中", tone: "active" as const },
-  nest: { room_name: null, bed_name: null, posture: "standing" },
-  embodiment: { state: "at_nest" },
 }
 
 describe("ChatPage list pane headings", () => {
@@ -114,6 +119,12 @@ describe("ChatPage list pane headings", () => {
     chatApi.elfies.mockResolvedValue([elfie])
     chatApi.messages.mockResolvedValue([])
     chatApi.profile.mockResolvedValue(elfie)
+    chatApi.elfieFoodPolicy.mockResolvedValue({
+      main_food_id: "standard",
+      effective_main_food_id: "standard",
+      main_food_options: [],
+      main_food_unavailable: false,
+    })
     chatApi.sendMessage.mockResolvedValue({
       id: 1,
       elfie_id: "00000001",
@@ -310,7 +321,7 @@ describe("ChatPage list pane headings", () => {
   })
 
   it("uses the authenticated account avatar for user messages", async () => {
-    session.user.avatar_url = "/api/auth/me/avatar"
+    session.user.avatar_url = "/api/v1/me/avatar"
     chatApi.messages.mockResolvedValue([{
       id: 9,
       elfie_id: "00000001",
@@ -323,7 +334,7 @@ describe("ChatPage list pane headings", () => {
 
     const message = await screen.findByText("来自当前用户")
     const article = message.closest("article")
-    expect(article?.querySelector("img")).toHaveAttribute("src", "/api/auth/me/avatar")
+    expect(article?.querySelector("img")).toHaveAttribute("src", "/api/v1/me/avatar")
   })
 
   it("sends a message with plain Enter while keeping Shift+Enter available for new lines", async () => {

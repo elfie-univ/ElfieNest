@@ -1,13 +1,75 @@
-"""首次安装和 Owner 初始化功能。"""
+"""Stable public facade for first-run Setup."""
 
-from app.features.setup.service import (
-    SetupAlreadyCompleteError,
-    has_owner,
-    needs_setup,
+from .errors import (
+    SetupConflict,
+    SetupError,
+    SetupForbidden,
+    SetupUnavailable,
+    SetupValidationError,
 )
+from .models import (
+    GetSetupStatusQuery,
+    InspectSetupOllamaQuery,
+    ListSetupModelsQuery,
+    SaveSetupNestDraftCommand,
+    SaveSetupOfflineDraftCommand,
+    SaveSetupOwnerDraftCommand,
+    SetupDraftResult,
+    SetupInstallResult,
+    SetupModelOptionResult,
+    SetupOllamaResult,
+    SetupPrincipal,
+    SetupStatusResult,
+    SetupStepResult,
+)
+from .port_models import (
+    SetupOllamaState,
+    SetupTaskState,
+    StoredOllamaObservation,
+    StoredSetupDraft,
+    StoredSetupInstallation,
+    StoredSetupModelOption,
+)
+from .ports import (
+    SetupModelCatalogPort,
+    SetupNestChoicePort,
+    SetupOllamaInspectionPort,
+    SetupOwnerStatusPort,
+    SetupPortError,
+    SetupStatePort,
+)
+from .service import SetupService
 
-__all__ = [
-    "SetupAlreadyCompleteError",
-    "has_owner",
-    "needs_setup",
-]
+__all__ = (
+    "GetSetupStatusQuery",
+    "InspectSetupOllamaQuery",
+    "ListSetupModelsQuery",
+    "SaveSetupNestDraftCommand",
+    "SaveSetupOfflineDraftCommand",
+    "SaveSetupOwnerDraftCommand",
+    "SetupConflict",
+    "SetupDraftResult",
+    "SetupError",
+    "SetupForbidden",
+    "SetupInstallResult",
+    "SetupModelCatalogPort",
+    "SetupModelOptionResult",
+    "SetupNestChoicePort",
+    "SetupOllamaInspectionPort",
+    "SetupOllamaResult",
+    "SetupOllamaState",
+    "SetupOwnerStatusPort",
+    "SetupPortError",
+    "SetupPrincipal",
+    "SetupService",
+    "SetupStatePort",
+    "SetupStatusResult",
+    "SetupStepResult",
+    "SetupTaskState",
+    "SetupUnavailable",
+    "SetupValidationError",
+    "StoredOllamaObservation",
+    "StoredSetupDraft",
+    "StoredSetupInstallation",
+    "StoredSetupModelOption",
+)

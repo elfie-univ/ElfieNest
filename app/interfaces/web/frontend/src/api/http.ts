@@ -8,6 +8,7 @@ export class ApiError extends Error {
     readonly status: number,
     message: string,
     readonly validationDetails: readonly ApiValidationDetail[] = [],
+    readonly code?: string,
   ) {
     super(message)
   }
@@ -23,15 +24,29 @@ export type ApiValidationDetail = z.infer<typeof ValidationDetailSchema>
 
 const ErrorPayloadSchema = z.object({
   detail: z.union([z.string(), z.array(ValidationDetailSchema)]).optional(),
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+  }).optional(),
 })
 
 function parseApiError(payload: unknown): {
+  readonly code?: string
   readonly message: string
   readonly validationDetails: readonly ApiValidationDetail[]
 } {
   const parsed = ErrorPayloadSchema.safeParse(payload)
   if (!parsed.success || parsed.data.detail === undefined) {
-    return { message: "", validationDetails: [] }
+    const code = parsed.success ? parsed.data.error?.code : undefined
+    const result = {
+      message: parsed.success ? parsed.data.error?.message ?? "" : "",
+      validationDetails: [],
+    }
+    if (code === undefined) return result
+    return {
+      ...result,
+      code,
+    }
   }
   if (typeof parsed.data.detail === "string") {
     return { message: parsed.data.detail, validationDetails: [] }
@@ -48,7 +63,7 @@ export async function requestJson(path: string, init?: RequestInit): Promise<unk
   const payload: unknown = await response.json().catch(() => ({}))
   if (!response.ok) {
     const error = parseApiError(payload)
-    throw new ApiError(response.status, error.message, error.validationDetails)
+    throw new ApiError(response.status, error.message, error.validationDetails, error.code)
   }
   return payload
 }
@@ -65,7 +80,7 @@ export async function ownerRead(path: string): Promise<unknown> {
 
 export async function ownerWrite(
   path: string,
-  method: "POST" | "PUT" | "DELETE",
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
   csrfToken: string,
   body?: unknown,
 ): Promise<unknown> {

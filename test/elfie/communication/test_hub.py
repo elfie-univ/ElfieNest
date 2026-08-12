@@ -14,7 +14,10 @@ from elfie.communication import (
     TextPart,
 )
 from elfie.communication.outbox import CommunicationOutbox
+from elfie.factory import ElfieAssembly
 from elfie.message_types import ActorRef, MessageMeta
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 NOW = datetime(2026, 7, 22, 0, 0, tzinfo=timezone.utc)
 
@@ -60,6 +63,40 @@ def test_hub_routes_outbound_message_and_records_receipt() -> None:
     assert channel.sent[0].sender.actor_id == "elfie-1"
     assert channel.sent[0].direction is MessageDirection.OUTBOUND
     assert hub.outbox.get(receipt.message_id).receipt is receipt
+
+
+def test_hub_routes_multiple_channels_by_stable_channel_id() -> None:
+    hub = CommunicationHub("elfie-1")
+    wechat = FakeChannel(channel_id="wechat")
+    telegram = FakeChannel(channel_id="telegram")
+    hub.register_channel(wechat, connect=True)
+    hub.register_channel(telegram, connect=True)
+
+    wechat_receipt = hub.send_envelope(
+        _envelope(
+            MessageDirection.OUTBOUND,
+            "elfie-1",
+            "owner-wechat",
+            "微信消息",
+            channel_id="wechat",
+            event_id="message-wechat",
+        )
+    )
+    telegram_receipt = hub.send_envelope(
+        _envelope(
+            MessageDirection.OUTBOUND,
+            "elfie-1",
+            "owner-telegram",
+            "Telegram 消息",
+            channel_id="telegram",
+            event_id="message-telegram",
+        )
+    )
+
+    assert wechat_receipt.status is DeliveryStatus.SENT
+    assert telegram_receipt.status is DeliveryStatus.SENT
+    assert [item.channel_id for item in wechat.sent] == ["wechat"]
+    assert [item.channel_id for item in telegram.sent] == ["telegram"]
 
 
 def test_outbox_retains_only_bounded_recent_history() -> None:
@@ -173,7 +210,12 @@ def test_policy_rejects_disallowed_channels_and_long_messages() -> None:
 
 
 def test_canonical_elfie_owns_hub_and_updates_its_identity() -> None:
-    elfie = ElfieFactory().create(elfie_id="before", memory_db_path=":memory:")
+    elfie = ElfieFactory().create(
+        ElfieAssembly(
+            profile=_profile("before"),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        )
+    )
     elfie.communication.register_channel(FakeChannel(), connect=True)
 
     elfie.bind_identity("after")
@@ -190,13 +232,24 @@ def test_factory_rebinds_injected_hub_to_profile_identity() -> None:
     hub = CommunicationHub("stale-id")
 
     elfie = ElfieFactory().create(
-        elfie_id="current-id",
-        memory_db_path=":memory:",
-        communication=hub,
+        ElfieAssembly(
+            profile=_profile("current-id"),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            communication=hub,
+        )
     )
 
     assert elfie.communication is hub
     assert hub.elfie_id == "current-id"
+
+
+def _profile(elfie_id: str):
+    return create_visual_profile(
+        elfie_id=elfie_id,
+        display_name=elfie_id,
+        species_id="fox",
+        seed=1,
+    )
 
 
 def _envelope(
@@ -206,6 +259,7 @@ def _envelope(
     content: str,
     *,
     event_id: str | None = None,
+    channel_id: str = "test",
 ) -> CommunicationEnvelope:
     sender = ActorRef(
         actor_id=sender_id,
@@ -223,7 +277,7 @@ def _envelope(
             trace_id=f"trace-{sender_id}-{recipient_id}",
         ),
         account_id="account-test",
-        channel_id="test",
+        channel_id=channel_id,
         conversation_id=recipient_id,
         sender=sender,
         recipients=(

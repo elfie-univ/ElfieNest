@@ -1,0 +1,66 @@
+from datetime import datetime, timedelta, timezone
+
+from app.features.configuration.food import (
+    FoodPlanner,
+    StoredFoodPackage,
+    StoredModelEvidence,
+    project_food_health,
+)
+
+
+def _evidence(
+    reference: str,
+    *,
+    local: bool = False,
+    age: int = 0,
+    capabilities: tuple[str, ...] = ("text",),
+) -> StoredModelEvidence:
+    return StoredModelEvidence(
+        reference=reference,
+        display_name=reference,
+        capabilities=frozenset(capabilities),
+        verified=True,
+        local=local,
+        tool_test_passed="tools" in capabilities,
+        observed_at=(datetime.now(timezone.utc) - timedelta(hours=age)).isoformat(),
+    )
+
+
+def test_planner_uses_only_fresh_scoped_models_and_local_first() -> None:
+    proposal = FoodPlanner().propose_package(
+        StoredFoodPackage(
+            food_id="food_emergency",
+            display_name="保底",
+            system_role="emergency",
+        ),
+        (
+            _evidence("cloud_0001/fast"),
+            _evidence("ollama_0001/local", local=True),
+            _evidence("ollama_0001/stale", local=True, age=48),
+        ),
+        connection_ids=("ollama_0001", "cloud_0001"),
+        local_first=True,
+    )
+
+    assert proposal.package.primary_model == "ollama_0001/local"
+    assert proposal.package.fallback_model == "cloud_0001/fast"
+    assert "stale" not in proposal.package.model_references
+
+
+def test_health_uses_primary_and_same_food_fallback_evidence() -> None:
+    package = StoredFoodPackage(
+        food_id="food_custom",
+        display_name="Custom",
+        enabled=True,
+        primary_model="cloud/main",
+        fallback_model="local/backup",
+    )
+    evidence = {
+        "cloud/main": _evidence("cloud/main", age=48),
+        "local/backup": _evidence("local/backup", local=True),
+    }
+
+    health = project_food_health(package, evidence)
+
+    assert health.status == "degraded"
+    assert health.locality == "mixed"

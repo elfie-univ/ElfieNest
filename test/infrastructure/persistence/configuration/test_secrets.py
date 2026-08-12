@@ -1,0 +1,91 @@
+import os
+
+import pytest
+
+from infrastructure.persistence.configuration.secrets import (
+    provider_secret_name,
+    read_secrets,
+    redact_secret,
+    resolve_secret,
+    set_connection_secret,
+    set_provider_secret,
+)
+from infrastructure.persistence.layout.data_home import (
+    get_credentials_dir,
+    get_env_path,
+)
+
+
+def test_provider_secret_name_uses_profile_and_custom_fallback():
+    assert provider_secret_name("openai") == "OPENAI_API_KEY"
+    assert provider_secret_name("my-gateway") == "MY_GATEWAY_API_KEY"
+
+
+def test_connection_secret_names_are_isolated_for_multiple_accounts(tmp_path):
+    first = set_connection_secret(
+        "anthropic_api_0001",
+        "first-secret",
+        tmp_path / ".env",
+    )
+    second = set_connection_secret(
+        "anthropic_api_0002",
+        "second-secret",
+        tmp_path / ".env",
+    )
+
+    assert first == "ELFIE_PROVIDER_ANTHROPIC_API_0001_API_KEY"
+    assert second == "ELFIE_PROVIDER_ANTHROPIC_API_0002_API_KEY"
+    assert read_secrets(tmp_path / ".env") == {
+        first: "first-secret",
+        second: "second-secret",
+    }
+
+
+def test_set_provider_secret_round_trip_and_secure_mode(tmp_path):
+    path = tmp_path / ".env"
+
+    name = set_provider_secret("openai", "local-secret", path)
+
+    assert name == "OPENAI_API_KEY"
+    assert read_secrets(path)[name] == "local-secret"
+    if os.name != "nt":
+        assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_default_secret_path_secures_credentials_directory(monkeypatch, tmp_path):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "elfie-home"))
+
+    set_provider_secret("openai", "local-secret")
+
+    assert read_secrets(get_env_path())["OPENAI_API_KEY"] == "local-secret"
+    if os.name != "nt":
+        assert get_credentials_dir().stat().st_mode & 0o777 == 0o700
+        assert get_env_path().stat().st_mode & 0o777 == 0o600
+
+
+def test_environment_overrides_local_secret(monkeypatch, tmp_path):
+    path = tmp_path / ".env"
+    set_provider_secret("openai", "file-secret", path)
+    monkeypatch.setenv("OPENAI_API_KEY", "environment-secret")
+
+    assert resolve_secret("OPENAI_API_KEY", path) == "environment-secret"
+
+
+def test_secret_rejects_newlines_and_redacts_values(tmp_path):
+    with pytest.raises(ValueError):
+        set_provider_secret("openai", "bad\nsecret", tmp_path / ".env")
+    assert redact_secret("abcdefgh") == "****efgh"
+
+
+def test_secret_store_defaults_to_final_auth_path(monkeypatch, tmp_path):
+    # Given
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+
+    # When
+    set_provider_secret("openai", "local-secret")
+
+    # Then
+    path = tmp_path / "configs" / "auth.env"
+    assert read_secrets(path)["OPENAI_API_KEY"] == "local-secret"
+    if os.name != "nt":
+        assert path.stat().st_mode & 0o777 == 0o600

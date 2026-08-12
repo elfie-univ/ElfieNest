@@ -20,14 +20,14 @@ const OwnerUserSchema = z.object({
   avatar_url: z.string().nullable(),
 }).strict()
 const CreatedOwnerUserSchema = OwnerUserSchema
+const OwnerUsersSchema = z.object({ items: z.array(OwnerUserSchema) }).strict()
 const TemporaryPasswordSchema = z.object({ temporary_password: z.string().min(1) }).strict()
-const DeleteUserResponseSchema = z.object({ detail: z.string() }).strict()
 
 export type OwnerUser = z.infer<typeof OwnerUserSchema>
 export type CreatedOwnerUser = z.infer<typeof CreatedOwnerUserSchema>
 
 export async function ownerUsers(): Promise<readonly OwnerUser[]> {
-  return z.array(OwnerUserSchema).parse(await requestJson("/api/owner/users"))
+  return OwnerUsersSchema.parse(await requestJson("/api/v1/admin/users")).items
 }
 
 export async function createManagedUser(
@@ -38,7 +38,7 @@ export async function createManagedUser(
   csrfToken: string,
 ): Promise<CreatedOwnerUser> {
   const managedRole = ManagedCreationRoleSchema.parse(role)
-  return CreatedOwnerUserSchema.parse(await requestJson("/api/owner/users", {
+  return CreatedOwnerUserSchema.parse(await requestJson("/api/v1/admin/users", {
     method: "POST",
     headers: csrfHeaders(csrfToken, true),
     body: JSON.stringify({ account_id: accountId, display_name: displayName, password, role: managedRole }),
@@ -51,7 +51,7 @@ export async function updateManagedUser(
   csrfToken: string,
 ): Promise<CreatedOwnerUser> {
   return CreatedOwnerUserSchema.parse(
-    await ownerWrite(`/api/owner/users/${userId}`, "PUT", csrfToken, changes),
+    await ownerWrite(`/api/v1/admin/users/${userId}`, "PATCH", csrfToken, changes),
   )
 }
 
@@ -59,12 +59,12 @@ export async function resetManagedUserPassword(
   userId: number,
   csrfToken: string,
 ): Promise<{ readonly temporary_password: string }> {
-  return TemporaryPasswordSchema.parse(await requestJson(`/api/owner/users/${userId}/reset-password`, {
+  return TemporaryPasswordSchema.parse(await requestJson(`/api/v1/admin/users/${userId}/reset-password`, {
     method: "POST",
     headers: csrfHeaders(csrfToken),
   }))
 }
 
 export async function deleteManagedUser(userId: number, csrfToken: string): Promise<void> {
-  DeleteUserResponseSchema.parse(await ownerWrite(`/api/owner/users/${userId}`, "DELETE", csrfToken, {}))
+  await ownerWrite(`/api/v1/admin/users/${userId}`, "DELETE", csrfToken)
 }

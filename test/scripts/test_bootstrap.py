@@ -201,13 +201,13 @@ def test_bootstrap_report_marks_absent_ollama_as_optional_missing(
     }
 
 
-def test_bootstrap_report_ignores_removed_project_private_ollama(
+def test_bootstrap_report_ignores_unrelated_project_private_ollama(
     tmp_path: Path,
 ) -> None:
     project_root = tmp_path / "project"
     scripts_dir = copy_bootstrap(project_root)
     prepare_build_runtime(project_root)
-    make_executable(project_root / "ai_runtime/setup/bin/ollama")
+    make_executable(project_root / "legacy-private/setup/bin/ollama")
     elfie_home = tmp_path / "elfie-home"
     elfie_home.mkdir()
 
@@ -250,6 +250,17 @@ def test_bootstrap_pnpm_preparation_uses_repository_pinned_version() -> None:
     assert 'PNPM_VERSION="10.12.1"' in runtime_source
     assert "pnpm@${PNPM_VERSION}" in runtime_source
     assert "pnpm@latest" not in bootstrap_source + runtime_source
+
+
+def test_bootstrap_creates_data_home_through_root_infrastructure() -> None:
+    bootstrap_source = (PROJECT_ROOT / "scripts/bootstrap.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "from app.bootstrap.system_wiring.entrypoints import ensure_elfie_home" in (
+        bootstrap_source
+    )
+    assert "ai_runtime.storage.data_home" not in bootstrap_source
 
 
 def test_bootstrap_accepts_only_dev_and_build_tiers(tmp_path: Path) -> None:

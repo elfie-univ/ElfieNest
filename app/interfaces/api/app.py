@@ -6,54 +6,58 @@
 from __future__ import annotations
 
 import logging
-import os
-from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import (
-    Any,
-    Dict,
-    Optional,  # noqa: E402
-)
+from typing import AsyncContextManager, Callable, Protocol  # noqa: E402
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response, WebSocket
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import RequestResponseEndpoint
 
-from ai_runtime.storage.data_home import get_db_path as _get_db_path
-from app.features.accounts.auth import (
-    get_current_user,
-    verify_csrf_token,
+from app.features.accounts import AccountsService
+from app.features.adoption import AdoptionService
+from app.features.bodies import BodiesService
+from app.features.communication import CommunicationFacade
+from app.features.configuration import (
+    CapabilitiesService,
+    FoodService,
+    ProvidersService,
+    SettingsService,
 )
-from app.features.setup.installer import (
-    SetupInstallJobManager,
-    recover_interrupted_setup_install,
-)
-from app.infrastructure.devices import DeviceGateway
-from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.store import (
-    init_db,
-    seed_initial_owner_if_env_set,
-)
-from app.interfaces.web.build_discovery import (
-    WebBuildManifestMalformedError,
-    WebBuildManifestMissingError,
-    discover_web_build,
-)
-from nest.godot_gateway.bundle import (
-    GODOT_WEB_DIR,
-    godot_web_bundle_present,
-    inspect_godot_web_bundle,
-)
+from app.features.elfies import ElfiesService
+from app.features.nest_management import NestManagementService
+from app.features.operations import OperationsFacade
+from app.features.setup import SetupService
+from app.interfaces.web.build_discovery import WebBuild
+from app.orchestration.embodiment import BodyDeviceChannel, EmbodimentSessionService
+from app.orchestration.message_delivery import MessageDeliveryFacade
+from app.orchestration.observer import ObserverFacade, SessionLogoutWorkflow
+from app.orchestration.resident_admission import ResidentAdmissionService
+from app.orchestration.setup_installation import SetupInstallationService
 
+from .errors import (
+    ValidationIssue,
+    api_error_response,
+    error_message,
+    http_error_code,
+)
+from .health_models import HealthResponse
 from .page_routes import router as page_router
-from .profile_routes import router as profile_router
 from .request_limits import AvatarUploadBodyLimitMiddleware
 from .service_access import ServiceAccessPolicy, configure_service_access
-from .v1.realtime import SameOriginChatHub
-from .ws_gateway import AuthenticatedWSManager
+from .v1.auth import verify_csrf_token
 
 logger = logging.getLogger("app.interfaces.api.app")
+
+
+class CommunicationRealtimePort(Protocol):
+    """Same-origin connection surface consumed by the chat Interface."""
+
+    async def connect(self, user_id: int, websocket: WebSocket) -> None: ...
+
+    async def disconnect(self, user_id: int, websocket: WebSocket) -> None: ...
 
 
 # ---------------------------------------------------------------------------
@@ -94,87 +98,70 @@ def verify_csrf_for_setup(request: Request) -> None:
 # ---------------------------------------------------------------------------
 
 
-def create_app(
-    engine: Any = None,
-    db_path: Optional[str] = None,
-    ws_port: int = 8766,
-    http_port: int = 8000,
-    service_mode: str = "loopback",
-    web_build_dir: Optional[Path] = None,
+def create_http_application(
+    accounts: AccountsService,
+    settings: SettingsService,
+    nest_management: NestManagementService,
+    elfies: ElfiesService,
+    providers: ProvidersService,
+    food: FoodService,
+    capabilities: CapabilitiesService,
+    operations: OperationsFacade,
+    communication: CommunicationFacade,
+    message_delivery: MessageDeliveryFacade,
+    communication_realtime: CommunicationRealtimePort,
+    observer: ObserverFacade,
+    session_logout: SessionLogoutWorkflow,
+    adoption: AdoptionService,
+    resident_admission: ResidentAdmissionService,
+    setup: SetupService,
+    setup_installation: SetupInstallationService,
+    bodies: BodiesService,
+    embodiment: EmbodimentSessionService,
+    body_device_channel: BodyDeviceChannel,
+    lifespan: Callable[[FastAPI], AsyncContextManager[None]],
+    engine_ready: bool,
+    godot_web_ready: Callable[[], bool],
+    godot_runtime_ready: Callable[[], bool],
+    godot_web_dir: Path,
+    service_access: ServiceAccessPolicy,
+    web_build: WebBuild | None,
+    web_build_error: str | None,
 ) -> FastAPI:
     """Create and configure the FastAPI application.
 
     Args:
-        engine: An optional ``ElfieNestEngine`` instance.  When provided, the
-            health endpoint reports ``engine_ready: true`` and routes that need
-            engine access (adoption, config, etc.) become functional.
-        db_path: Path to the SQLite database file.
-        ws_port: Port for the authenticated WebSocket gateway (default 8766).
-        http_port: Port serving the browser console (default 8000).
-
     Returns:
         A fully configured :class:`FastAPI` instance.
     """
-    if db_path is None:
-        db_path = str(_get_db_path())
-
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        init_db(db_path)
-        recover_interrupted_setup_install(db_path)
-        seed_initial_owner_if_env_set(db_path)
-        if engine is not None and not engine.session.has_repository:
-            from app.infrastructure.persistence.nest_state_repository import (  # noqa: PLC0415
-                SQLiteNestStateRepository,
-            )
-
-            engine.session.attach_repository(SQLiteNestStateRepository(db_path))
-
-        # 创建鉴权 WS 网关（独立端口，不与 Godot 8765 冲突）
-        ws_manager = AuthenticatedWSManager(
-            port=ws_port,
-            http_port=http_port,
-            db_path=db_path,
-        )
-        ws_manager.product_chat_hub = app.state.v1_chat_hub
-        if engine is not None:
-            engine.ws_manager = ws_manager
-            ws_manager.nest_session = engine.session
-            engine.session.owner_broadcaster = ws_manager
-        ws_manager.start()
-        app.state.ws_manager = ws_manager
-
-        logger.info("App startup complete (db=%s, ws=%d)", db_path, ws_manager.port)
-        yield
-
-        ws_manager.stop()
-        logger.info("App shutdown complete")
 
     app = FastAPI(title="ElfieNest Management Dashboard", lifespan=lifespan)
 
-    # 将 db_path 与 engine 存入 app.state 供依赖注入使用
-    app.state.db_path = db_path
-    app.state.food_repository = SQLiteFoodPackageRepository(db_path)
-    app.state.engine = engine
-    app.state.device_gateway = DeviceGateway()
-    app.state.v1_chat_hub = SameOriginChatHub(db_path)
-    app.state.setup_install_jobs = SetupInstallJobManager()
-    app.state.ws_port = ws_port
-    configured_web_build_dir = os.environ.get("ELFIENEST_WEB_BUILD_DIR")
-    build_dir = web_build_dir or (
-        Path(configured_web_build_dir)
-        if configured_web_build_dir
-        else Path(__file__).resolve().parents[3] / "build" / "web"
-    )
-    try:
-        app.state.web_build = discover_web_build(build_dir)
-        app.state.web_build_error = None
-    except (WebBuildManifestMissingError, WebBuildManifestMalformedError) as error:
-        app.state.web_build = None
-        app.state.web_build_error = str(error)
+    # Store only injected public application boundaries for request dependencies.
+    app.state.accounts = accounts
+    app.state.settings = settings
+    app.state.nest_management = nest_management
+    app.state.elfies = elfies
+    app.state.providers = providers
+    app.state.food = food
+    app.state.capabilities = capabilities
+    app.state.operations = operations
+    app.state.communication = communication
+    app.state.message_delivery = message_delivery
+    app.state.communication_realtime = communication_realtime
+    app.state.observer = observer
+    app.state.session_logout = session_logout
+    app.state.adoption = adoption
+    app.state.resident_admission = resident_admission
+    app.state.setup = setup
+    app.state.setup_installation = setup_installation
+    app.state.bodies = bodies
+    app.state.embodiment = embodiment
+    app.state.body_device_channel = body_device_channel
+    app.state.web_build = web_build
+    app.state.web_build_error = web_build_error
     app.add_middleware(AvatarUploadBodyLimitMiddleware)
 
-    service_access = ServiceAccessPolicy.create(service_mode, http_port)
     configure_service_access(app, service_access)
 
     # -------------------------------------------------------------------
@@ -190,7 +177,7 @@ def create_app(
 
     app.mount(
         "/runtime/godot",
-        StaticFiles(directory=str(GODOT_WEB_DIR), check_dir=False),
+        StaticFiles(directory=str(godot_web_dir), check_dir=False),
         name="godot-runtime",
     )
 
@@ -202,33 +189,63 @@ def create_app(
         request: Request, exc: Exception
     ) -> JSONResponse:
         logger.exception("Unhandled exception: %s %s", request.method, request.url)
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal Server Error"},
+        return api_error_response(500, "internal_error", "Internal Server Error")
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(
+        _request: Request, exc: HTTPException
+    ) -> JSONResponse:
+        return api_error_response(
+            exc.status_code,
+            http_error_code(exc.status_code),
+            error_message(exc.detail),
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_error_handler(
+        _request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        issues = tuple(
+            ValidationIssue(
+                location=tuple(str(part) for part in error.get("loc", ())),
+                message=str(error.get("msg", "字段无效")),
+                kind=str(error.get("type", "validation_error")),
+            )
+            for error in exc.errors()
+        )
+        return api_error_response(
+            422,
+            "invalid_request",
+            "请求字段无效",
+            issues=issues,
         )
 
     # -------------------------------------------------------------------
     # CSRF 中间件（login 端点豁免）
     # -------------------------------------------------------------------
     @app.middleware("http")
-    async def csrf_middleware(request: Request, call_next):
-        if request.method in ("POST", "PUT", "DELETE"):
+    async def csrf_middleware(
+        request: Request,
+        call_next: RequestResponseEndpoint,
+    ) -> Response:
+        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
             path = request.url.path
-            csrf_exempt = path == "/api/auth/login"
+            csrf_exempt = path == "/api/v1/auth/login"
             if not csrf_exempt:
                 try:
-                    if path.startswith("/api/auth/setup/draft/"):
+                    if path.startswith("/api/v1/setup/draft/"):
                         verify_csrf_for_setup(request)
-                    elif path == "/api/auth/setup/install" and request.cookies.get(
+                    elif path == "/api/v1/setup/installation" and request.cookies.get(
                         "setup_token"
                     ):
                         verify_csrf_for_setup(request)
                     else:
                         verify_csrf_for_session(request)
                 except HTTPException as exc:
-                    return JSONResponse(
-                        status_code=exc.status_code,
-                        content={"detail": exc.detail},
+                    return api_error_response(
+                        exc.status_code,
+                        "csrf_rejected",
+                        error_message(exc.detail),
                     )
         return await call_next(request)
 
@@ -236,95 +253,71 @@ def create_app(
     # Routes
     # -------------------------------------------------------------------
 
-    @app.get("/api/health")
-    async def health():
+    @app.get("/api/health", response_model=HealthResponse)
+    async def health() -> HealthResponse:
         """健康检查"""
-        return {
-            "status": "ok",
-            "engine_ready": engine is not None,
-            "godot_web_ready": godot_web_bundle_present(),
-            "godot_runtime_ready": bool(
-                engine is not None and engine.api_server.runtime_ready
-            ),
-        }
-
-    @app.get("/api/godot-web/status")
-    async def godot_web_status():
-        status = inspect_godot_web_bundle()
-        return {
-            "ready": status.ready,
-            "entry_url": status.entry_url,
-            "missing": list(status.missing),
-            "integrity_errors": list(getattr(status, "integrity_errors", ())),
-            "manifest": status.manifest,
-        }
-
-    @app.get("/api/ws-config")
-    async def ws_config(
-        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-    ) -> Dict[str, int]:
-        """返回浏览器连接鉴权 WebSocket 所需的端口。"""
-        _ = user
-        return {"port": ws_port}
+        return HealthResponse(
+            status="ok",
+            engine_ready=engine_ready,
+            godot_web_ready=godot_web_ready(),
+            godot_runtime_ready=godot_runtime_ready(),
+        )
 
     # -------------------------------------------------------------------
     # Setup Wizard 路由（首启向导 — 在 owner 路由之前注册）
     # -------------------------------------------------------------------
-    from .account_auth_routes import router as account_auth_router  # noqa: PLC0415
-    from .setup_routes import router as setup_router  # noqa: PLC0415
+    from .v1.admin.elfies import router as admin_elfies_router  # noqa: PLC0415
+    from .v1.admin.food_packages import (
+        router as food_packages_router,  # noqa: PLC0415
+    )
+    from .v1.admin.model_providers import (
+        router as model_providers_router,  # noqa: PLC0415
+    )
+    from .v1.admin.nest import router as nest_management_router  # noqa: PLC0415
+    from .v1.admin.runtime import router as runtime_router  # noqa: PLC0415
+    from .v1.admin.runtime.embodiment_sessions import (
+        router as embodiment_sessions_router,  # noqa: PLC0415
+    )
+    from .v1.admin.settings import router as settings_router  # noqa: PLC0415
+    from .v1.admin.settings.capabilities import (
+        router as capabilities_router,  # noqa: PLC0415
+    )
+    from .v1.admin.users import router as admin_users_router  # noqa: PLC0415
+    from .v1.auth.routes import router as auth_router  # noqa: PLC0415
+    from .v1.elfies import router as elfies_router  # noqa: PLC0415
+    from .v1.elfies.bodies import router as bodies_router  # noqa: PLC0415
+    from .v1.elfies.food_policy import (
+        router as elfie_food_policy_router,  # noqa: PLC0415
+    )
+    from .v1.me import router as me_router  # noqa: PLC0415
+    from .v1.me.adoption import router as adoption_router  # noqa: PLC0415
+    from .v1.me.conversations import (
+        router as conversations_router,  # noqa: PLC0415
+    )
+    from .v1.observer import router as observer_router  # noqa: PLC0415
+    from .v1.realtime.bodies import router as body_realtime_router  # noqa: PLC0415
+    from .v1.realtime.chat import router as realtime_chat_router  # noqa: PLC0415
+    from .v1.setup import router as setup_router  # noqa: PLC0415
 
-    app.include_router(account_auth_router)
+    app.include_router(auth_router)
+    app.include_router(settings_router)
+    app.include_router(nest_management_router)
+    app.include_router(model_providers_router)
+    app.include_router(food_packages_router)
+    app.include_router(elfie_food_policy_router)
+    app.include_router(bodies_router)
+    app.include_router(capabilities_router)
+    app.include_router(runtime_router)
+    app.include_router(embodiment_sessions_router)
+    app.include_router(me_router)
+    app.include_router(adoption_router)
+    app.include_router(conversations_router)
+    app.include_router(observer_router)
+    app.include_router(realtime_chat_router)
+    app.include_router(body_realtime_router)
+    app.include_router(elfies_router)
+    app.include_router(admin_elfies_router)
+    app.include_router(admin_users_router)
     app.include_router(setup_router)
     app.include_router(page_router)
-    app.include_router(profile_router)
-    from .v1.client_routes import router as v1_client_router  # noqa: PLC0415
-    from .v1.device_routes import router as v1_device_router  # noqa: PLC0415
-
-    app.include_router(v1_client_router)
-    app.include_router(v1_device_router)
-
-    # -------------------------------------------------------------------
-    # System Settings 路由
-    # -------------------------------------------------------------------
-    from .system_routes import router as system_router  # noqa: PLC0415
-
-    app.include_router(system_router)
-
-    # -------------------------------------------------------------------
-    # Owner REST API 路由
-    # -------------------------------------------------------------------
-    from .nest_routes import router as nest_router  # noqa: PLC0415
-    from .owner_elfie_routes import router as owner_elfie_router  # noqa: PLC0415
-    from .owner_user_routes import router as owner_user_router  # noqa: PLC0415
-
-    app.include_router(owner_user_router)
-    app.include_router(owner_elfie_router)
-    app.include_router(nest_router)
-    from .user_routes import router as user_router  # noqa: PLC0415
-
-    app.include_router(user_router)
-
-    from .observer_routes import router as observer_router  # noqa: PLC0415
-
-    app.include_router(observer_router)
-
-    # -------------------------------------------------------------------
-    # LLM Config 路由 (Provider/Model/Route 管理)
-    # -------------------------------------------------------------------
-    from .provider_routes import router as provider_router  # noqa: PLC0415
-
-    app.include_router(provider_router)
-    from .elfie_food_routes import router as elfie_food_router  # noqa: PLC0415
-
-    app.include_router(elfie_food_router)
-    from .food_owner_routes import router as food_owner_router  # noqa: PLC0415
-
-    app.include_router(food_owner_router)
-    from .tool_owner_routes import router as tool_owner_router  # noqa: PLC0415
-
-    app.include_router(tool_owner_router)
-    from .runtime_routes import router as runtime_router  # noqa: PLC0415
-
-    app.include_router(runtime_router)
-
     return app

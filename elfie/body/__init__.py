@@ -1,4 +1,4 @@
-"""Elfie 可替换身体及当前 Native 身体的公共导出。"""
+"""Elfie 可替换身体语义与端口的公共导出。"""
 
 from elfie.body.binding import BodyBinding, BodySwitchError
 from elfie.body.capabilities import BodyCapabilities
@@ -20,9 +20,7 @@ from elfie.body.contracts import (
     VisionChange,
     VisionSample,
 )
-from elfie.body.external import ExternalBody, ExternalTransport
 from elfie.body.headless import HeadlessBody
-from elfie.body.native import GodotGateway, GodotTransport, NativeBody
 from elfie.body.native.anatomy.base import JointLimit, SomaticAnatomy, VoiceProfile
 from elfie.body.native.anatomy.biped import BipedAnatomy
 from elfie.body.native.anatomy.quadruped import QuadrupedAnatomy
@@ -61,11 +59,6 @@ __all__ = [
     "BodyDescriptor",
     "BodyMode",
     "HeadlessBody",
-    "GodotGateway",
-    "GodotTransport",
-    "NativeBody",
-    "ExternalTransport",
-    "ExternalBody",
     "BodyId",
     "BodySensorEvent",
     "BodySnapshot",

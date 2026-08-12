@@ -97,5 +97,5 @@ def test_ci_installs_and_verifies_exact_cpython_runtime() -> None:
     )
 
     # Then
-    assert workflow.count(pinned_install) == 3
+    assert workflow.count(pinned_install) == 4
     assert runtime_probe.search(workflow)

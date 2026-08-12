@@ -6,8 +6,8 @@
 
 `nest/` implements the Python domain model of an Elfie's activity space: it
 maintains resident IDs, in-nest semantic state, the environment clock and
-interaction propagation, and provides the protocol adapter needed to talk to
-the Godot Runtime.
+interaction propagation. Godot transport and protocol adapters live outside
+the domain in `infrastructure/godot/`.
 
 ## Responsibilities and non-responsibilities
 
@@ -17,10 +17,8 @@ Responsible for:
   activity state;
 - Environment time advancement, speech propagation, collision and tactile and
   other in-nest interactions;
-- Godot Gateway semantic protocol, one authoritative Runtime session, command/
-  event queues and rate limiting;
-- The scene semantic catalog, the Runtime's temporary mirror, and integrity
-  checks on the exported Web Runtime.
+- The scene semantic catalog and the Runtime's temporary semantic mirror;
+- World rules applied after typed facts arrive through the NestSession boundary.
 
 Not responsible for:
 
@@ -28,7 +26,7 @@ Not responsible for:
 - Running a single Elfie's cognition, memory, body or communication lifecycle;
 - Defining house geometry, world coordinates, collision shapes, navigation
   meshes, furniture assets or rendering;
-- Orchestrating the AI Runtime or product account flows.
+- Orchestrating cross-authority runtime flows or product account flows.
 
 `NestState` only stores Elfie IDs, long-term homes and in-nest semantic state —
 it does not store furniture copies, coordinates or real Elfie objects. The
@@ -45,7 +43,6 @@ nest/
 ├── state/          # config, residents, homes, world catalog and Runtime mirror
 ├── engine/         # environment clock advancement
 ├── interaction/    # speech, user messages, collision and tactile propagation
-├── godot_gateway/  # authority messages, Observer sessions and WebSocket Gateway
 └── events.py       # Nest domain event value objects
 ```
 
@@ -54,8 +51,8 @@ nest/
 - `nest.Nest` — composes state, environment clock and interaction propagation;
 - `nest.NestConfig` — configuration such as Nest capacity;
 - `nest.NestState` — runtime container holding only in-nest state;
-- `nest.godot_gateway.GodotAPIServer` — the WebSocket boundary between Python and the
-  Godot Runtime.
+- `app.orchestration.nest_session` — composes the Nest, real Elfies and typed world channel;
+- `infrastructure.godot.gateway` — owns the concrete WebSocket protocol implementation.
 
 Real Elfie registration is performed by `app.orchestration.NestSession`; do not
 push real objects into `NestState`.
@@ -65,22 +62,22 @@ push real objects into `NestState`.
 ```text
 app/orchestration ──> nest
 nest.nest ──> state + engine + interaction
-nest.godot_gateway ──> Nest / Godot protocol boundary
-godot_runtime ──> host selection, launch and artifact metadata
+app/orchestration/nest_session ──> typed Nest world boundary
+infrastructure/godot ──> protocol, host and artifact adapters
 godot_project/ ──> single source of truth for scenes and geometry
 ```
 
-`nest/` does not depend on `app/`, `elfie/` or `ai_runtime/`. When Nest events
+`nest/` does not depend on `app/`, `elfie/` or model, Food or tool adapters. When Nest events
 must reach a real Elfie, `app/orchestration/` looks the Elfie up by ID and
 invokes it.
 
 ## Runtime authority and Observer lifecycle
 
-After connecting, the Godot authority must first send `AuthorityHello` with a
-random nonce, a `runtime_id` and `protocol: 3`. Only one Runtime holds authority
-at a time; a newer connection gets an incremented `generation`, and events from
-older generations never enter the Nest. Runtime lifecycle selects the exported
-host; `nest/` never launches Godot or owns a host process.
+After connecting, the Godot authority completes the authenticated Gateway
+handshake owned by `infrastructure/godot/gateway`. Only one Runtime holds
+authority at a time; a newer connection gets an incremented `generation`, and
+events from older generations never enter the Nest. Runtime lifecycle selects
+the exported host; `nest/` never launches Godot or owns a host process.
 
 Startup sync converges in a fixed order:
 
@@ -120,7 +117,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest -q \
   test/nest/test_nest.py \
-  test/nest/godot_gateway/test_api_handshake.py
+  test/infrastructure/godot/gateway/test_api_handshake.py
 ```
 
 Opening, running or screenshotting the Godot project requires following the
@@ -132,9 +129,12 @@ to be running. For the dev environment and the unified quality gate see
 
 - `test/nest/test_nest.py`: state, environment clock and interaction
   propagation;
-- `test/nest/godot_gateway/`: authority handshake, message validation, Observer
-  capability scope and authoritative session;
-- `test/godot_runtime/`: host selection, launcher and artifact metadata;
+- `test/infrastructure/godot/gateway/`: authority handshake, message validation
+  and authoritative session;
+- `test/app/orchestration/observer/`: capability-scoped Observer projection and
+  generation/sequence behavior;
+- `test/infrastructure/godot/`: host selection, launcher, artifact metadata and
+  protocol transport;
 - `test/e2e/test_nest_runtime_v2.py`: world and full character catalog
   convergence after reconnection;
 - `test/architecture/test_project_structure.py`: Nest directory structure and

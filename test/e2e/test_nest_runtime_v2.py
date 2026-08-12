@@ -1,15 +1,16 @@
 from unittest.mock import MagicMock
 
-from app.orchestration.engine import ElfieNestEngine
+from app.orchestration.nest_session import ElfieNestEngine
 from elfie import Elfie
-from nest.godot_gateway.messages import CommandName
-from test.nest.godot_gateway.fake_runtime import FakeRuntime
+from infrastructure.godot.gateway.messages import CommandName
+from infrastructure.godot.nest_session import GodotNestSessionAdapter
+from test.infrastructure.godot.gateway.fake_runtime import FakeRuntime
 
 
 def test_fake_runtime_reconnect_converges_complete_actor_catalog() -> None:
     runtime = FakeRuntime()
     runtime.connect()
-    engine = ElfieNestEngine(api_server=runtime)
+    engine = ElfieNestEngine(GodotNestSessionAdapter(gateway=runtime))
     engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
     engine.session.register_elfie("dog-1", MagicMock(spec=Elfie))
 

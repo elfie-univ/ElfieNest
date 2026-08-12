@@ -82,7 +82,7 @@ pre-commit 与 CI 还会运行 Gitleaks。不要用 `--no-verify` 绕过密钥�
 - Runtime Lab 检查 Provider、模型配置和连接，不监听端口。
 
 默认端口只是本地开发值。不要把实验台接入普通用户导航，也不要让它们使用默认
-生产数据。正式 App 使用 `8000` / `8765` / `8766`，Elfie Lab 使用 `9001`，Nest Lab
+生产数据。正式 App 使用 `8000` / `8765`，Elfie Lab 使用 `9001`，Nest Lab
 使用 `9002` / `9003`。默认启动同一 Lab 会安全重启当前工作区的旧实例；显式端口用于并行
 实验，不会终止既有实例。详细边界见
 [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md)。
@@ -149,11 +149,12 @@ pnpm build
 
 开发启动默认只监听 loopback；需要给同网段设备提供登录页时，显式使用 `--lan`。
 LAN 不会放宽账户、角色、CSRF、Host/Origin 或设备凭证检查。安装后的 CLI 可用
-`--loopback` 关闭家庭 LAN 服务。设备只使用 `/api/v1/ws/devices` 的 Bearer 凭证，
+`--loopback` 关闭家庭 LAN 服务。设备只使用 `/api/v1/ws/bodies` 的 Bearer 凭证，
 浏览器用户始终使用会话 Cookie。
 
-`/api/v1/ws/devices` 不接受自由格式 JSON：每个文本帧最大 64 KiB，并且只能是
-`heartbeat`、`sensor_event`、`receipt` 或 `command_poll`。其中传感器事件和动作回执
+`/api/v1/ws/bodies` 不接受自由格式 JSON：每个文本帧最大 64 KiB，必须声明协议版本
+`1`、事件 ID 与 UTC 发生时间，并且只能是 `heartbeat`、`sensor_event`、`receipt` 或
+`command_poll`。其中传感器事件和动作回执
 直接复用 `elfie.body.contracts` 的类型契约；Core 通过 `DeviceGatewayTransport` 将动作
 排入已连接设备的下一次 `command_poll`。设备凭证只在登记或轮换时显示一次，不能写入
 浏览器日志、测试夹具或版本库。

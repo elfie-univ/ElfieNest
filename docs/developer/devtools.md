@@ -37,8 +37,8 @@ semantic commands and records Runtime facts. Both Labs use the same Godot Web
 export as the real desktop run; each just provides an isolated web shell, data
 root and local protocol entry.
 
-Local ports are layered by convention: the real App uses `8000` / `8765` /
-`8766`, Elfie Lab uses `9001`, Nest Lab uses `9002` / `9003`, and Runtime Lab
+Local ports are layered by convention: the real App uses `8000` / `8765`,
+Elfie Lab uses `9001`, Nest Lab uses `9002` / `9003`, and Runtime Lab
 does not listen on a web port. Running the default Lab command again safely
 restarts the old same-kind instance in the current workspace; only an explicit
 port keeps parallel instances alive, and an unknown port occupant is never

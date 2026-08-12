@@ -18,8 +18,8 @@ heads are shown. Red arrows identify the concrete internal entrypoints and
 control path. In particular, `ElfieFactory` creates or restores an `Elfie`
 instance; runtime operations then use the returned `elfie.py` facade.
 
-`app/orchestration` directly composes `elfie`, `nest` and `ai_runtime`. It is
-not downstream of `app/features` or `app/infrastructure`. In the product
+`app/orchestration` directly composes `elfie`, `nest` and the injected cognition
+Runtime. It is not downstream of `app/features`. In the product
 use-case plane, Interfaces call concrete Feature use-cases; Features declare
 the Ports they need, Infrastructure implements those Ports, and Bootstrap is
 the only composition root. Current historical deviations are tracked in the
@@ -30,11 +30,12 @@ The core source is split by responsibility:
 | Module | Current responsibility | Detailed entry |
 | --- | --- | --- |
 | `elfie/` | One complete creature's profile, brain, nervous system, body, communication and skills | [Elfie README](https://github.com/elfie-univ/ElfieNest/blob/main/elfie/README.md) |
-| `nest/` | Activity-space state, environment clock, interaction and the Godot protocol boundary | [Nest README](https://github.com/elfie-univ/ElfieNest/blob/main/nest/README.md) |
-| `ai_runtime/` | Models, providers, policy, food, tools and the safety runtime | [AI Runtime README](https://github.com/elfie-univ/ElfieNest/blob/main/ai_runtime/README.md) |
-| `app/` | Product use-cases, interfaces, infrastructure and cross-module orchestration | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
+| `nest/` | Activity-space state, environment clock and interaction semantics | [Nest README](https://github.com/elfie-univ/ElfieNest/blob/main/nest/README.md) |
+| `infrastructure/godot/gateway/` | Authenticated Godot protocol transport, sessions and bundle inspection | [Module boundaries](./module-boundaries) |
+| `app/` | Product use-cases, interfaces, orchestration and Bootstrap composition | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
+| `infrastructure/` | Model, tool, persistence, Godot, device, communication and platform Adapters | [Module boundaries](./module-boundaries) |
 | `app/orchestration/lifecycle/` | Runtime lifecycle, full health, owner leases and authority control | [Runtime & data](./runtime) |
-| `godot_runtime/` | Authority-host selection, exported Runtime launch and artifact metadata | [Runtime & data](./runtime) |
+| `infrastructure/godot/lifecycle/` and `artifacts/` | Authority-host selection, exported Runtime launch and artifact metadata | [Runtime & data](./runtime) |
 | `app/interfaces/desktop/` | Electron Observer windows and public lifecycle client | [Desktop README](https://github.com/elfie-univ/ElfieNest/blob/main/app/interfaces/desktop/README.md) |
 | `godot_project/` | Standalone Godot source project: rooms, geometry, coordinates, collision, characters and rendering | [Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot_project/README.md) |
 | `devtools/` | Module workbenches isolated from the end-user product | [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md) |
@@ -67,7 +68,7 @@ call product features.
 `godot_project/` is the Godot source project edited at dev time; it is not a
 directory Python imports at runtime. The build exports it into the Godot
 Runtime; the Python side exchanges semantic commands and world facts with that
-running Runtime through the protocol boundary in `nest/godot_gateway/`.
+running Runtime through the protocol boundary in `infrastructure/godot/gateway/`.
 
 ```mermaid
 flowchart LR
@@ -76,7 +77,7 @@ flowchart LR
     Elfie["elfie/<br/>cognition, body output and communication output"]
     Orchestration["app/orchestration/<br/>composition & routing of real Elfie and Nest"]
     Nest["nest/<br/>room semantics, resident state and world events"]
-    Adapter["nest/godot_gateway/<br/>Godot Runtime protocol adapter"]
+    Adapter["infrastructure/godot/gateway/<br/>Godot Runtime protocol adapter"]
 
     Source -->|"export build"| Runtime
     Elfie -->|"abstract actions and communication output"| Orchestration
@@ -95,7 +96,7 @@ The connection uses nonce authentication and a single authoritative generation
 Runtime to publish the semantic catalog and declare navigation ready, and only
 then sends the full actor catalog. During the run, an Elfie outputs abstract
 actions or communication content; `app/orchestration/` sends semantic commands
-through `nest/godot_gateway/` keyed on the Elfie ID, while the Nest itself does not copy
+through `infrastructure/godot/gateway/` keyed on the Elfie ID, while the Nest itself does not copy
 coordinate or furniture facts. The Runtime runs space, navigation, motion,
 collision and rendering, and reports the physical facts that actually happen
 back. The return path updates the Nest semantic state through the orchestration

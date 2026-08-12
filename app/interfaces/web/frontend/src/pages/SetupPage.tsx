@@ -12,7 +12,7 @@ import {
   setupStatus,
   type SetupModelOption,
   type SetupStatus,
-} from "../api/client"
+} from "../api/setup"
 import { LanguageSwitcher } from "../components/LanguageSwitcher"
 import { Notice } from "../components/Notice"
 import { NumberField } from "../components/NumberField"

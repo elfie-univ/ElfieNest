@@ -11,7 +11,7 @@ import {
   ownerFoods,
   type FoodCatalog,
   type FoodPackage,
-} from "../api/owner-foods"
+} from "../api/admin/food-packages"
 import { ownerProviderConnections, type ProviderConnection } from "../api/owner-providers"
 import { ownerOllamaStatus, type OllamaStatus } from "../api/owner-ollama"
 import { ownerUsers, type OwnerUser } from "../api/owner-users"

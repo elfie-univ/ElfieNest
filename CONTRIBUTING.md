@@ -96,12 +96,12 @@ has actually changed, and explain why in the PR.
 - `nest/`: activity space, in-nest state, environment time and interaction
   propagation; must not hold real Elfie objects.
 - `app/orchestration/`: cross-module flows that compose real `Elfie`, `Nest`
-  and `ai_runtime`.
+  and injected capabilities.
 - `app/features/`: product use-cases; `app/interfaces/`: API, Web, CLI;
   `app/infrastructure/`: persistence, filesystem, audio and device
   capabilities.
-- `ai_runtime/`: models, providers, routing, tools, safety and the inference
-  runtime.
+- `infrastructure/`: model, tool, persistence, Godot, device, communication and
+  platform adapters.
 - `app/interfaces/desktop/`: visible Electron windows, platform adaptation and
   the public Runtime lifecycle client; it does not own Runtime processes.
 - `godot_project/`: standalone Godot source project; the single source project

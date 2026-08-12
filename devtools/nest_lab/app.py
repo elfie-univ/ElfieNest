@@ -9,12 +9,12 @@ from typing import AsyncIterator, Callable, Dict, Union
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
-from ai_runtime.storage.data_home import get_elfie_developer_home
 from devtools.elfie_lab.host import LoopbackHostMiddleware
 from devtools.nest_lab.routes import build_router
 from devtools.nest_lab.static_host import mount_static_surfaces
 from devtools.nest_lab.world import NestLabWorld
 from devtools.web_host import frontend_shell
+from infrastructure.persistence.layout.data_home import get_elfie_developer_home
 
 
 def create_app(

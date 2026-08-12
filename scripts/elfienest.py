@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
+from functools import partial
 from pathlib import Path
 from typing import NoReturn
 
@@ -21,7 +23,16 @@ if (
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ai_runtime.storage.data_home import DataHomeSelectionError, resolve_elfie_home
+from app.bootstrap.app_wiring.accounts import build_accounts_service
+from app.bootstrap.app_wiring.cli_configuration import build_cli_configuration
+from app.bootstrap.app_wiring.cli_ui import build_terminal_menu
+from app.bootstrap.app_wiring.operations import build_operations_facade
+from app.bootstrap.system_wiring.entrypoints import (
+    DataHomeSelectionError,
+    get_db_path,
+    resolve_elfie_home,
+)
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli.doctor_commands import run_doctor
 from app.interfaces.cli.foreground_runtime import run_foreground_service
 from app.interfaces.cli.lifecycle_commands import (
@@ -44,7 +55,7 @@ from app.interfaces.cli.runtime_commands import dispatch_db, show_version
 from app.interfaces.cli.tui.common import print_banner
 from app.interfaces.cli.tui.config_app import run_config_tui
 from app.interfaces.cli.uninstall_commands import run_uninstall_menu
-from app.orchestration.lifecycle.types import ServiceLifecycleResult
+from app.orchestration.lifecycle import LifecycleFacade, ServiceLifecycleResult
 
 if getattr(sys, "frozen", False):
     try:
@@ -76,6 +87,22 @@ class SecretSafeArgumentParser(argparse.ArgumentParser):
         super().error(message)
 
 
+class RuntimeLabMenusProcess:
+    """Launch the isolated developer Runtime Lab without importing it in CLI code."""
+
+    def _run(self, section: str) -> None:
+        subprocess.run(
+            [sys.executable, "-m", "devtools.runtime_lab", "--section", section],
+            check=True,
+        )
+
+    def tool_menu(self) -> None:
+        self._run("tools")
+
+    def food_menu(self) -> None:
+        self._run("food")
+
+
 def main() -> None:
     parser = SecretSafeArgumentParser(
         prog="elfienest",
@@ -105,14 +132,12 @@ def main() -> None:
     serve_parser.add_argument("--fallback", action="store_true")
     serve_parser.add_argument("--force", action="store_true")
     serve_parser.add_argument("--port", type=int, default=None)
-    serve_parser.add_argument("--ws-port", type=int, default=None)
     serve_parser.add_argument("--godot-ws-port", type=int, default=None)
     serve_parser.add_argument("--no-seed-elfie", action="store_true")
     serve_parser.add_argument("--data-home", default=None)
 
     start_parser = subparsers.add_parser("start", help="Start background service")
     start_parser.add_argument("--port", type=int, default=None)
-    start_parser.add_argument("--ws-port", type=int, default=None)
     start_parser.add_argument("--godot-ws-port", type=int, default=None)
     start_parser.add_argument("--fallback", action="store_true")
     start_parser.add_argument("--no-seed-elfie", action="store_true")
@@ -165,12 +190,15 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    dispatch_command(args)
+    dispatch_command(args, create_lifecycle_facade())
 
 
-def dispatch_command(args: argparse.Namespace) -> None:
+def dispatch_command(
+    args: argparse.Namespace, lifecycle: LifecycleFacade | None = None
+) -> None:
+    lifecycle_client = lifecycle or create_lifecycle_facade()
     try:
-        _dispatch_command(args)
+        _dispatch_command(args, lifecycle_client)
     except DataHomeSelectionError as error:
         sys.stderr.write(f"elfienest: {error}\n")
         raise SystemExit(2) from error
@@ -180,27 +208,44 @@ def dispatch_command(args: argparse.Namespace) -> None:
         raise SystemExit(130) from error
 
 
-def _dispatch_command(args: argparse.Namespace) -> None:
+def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> None:
     if args.command == "config":
-        run_config_tui(login_provider, getattr(args, "config_path", None))
+        configuration = build_cli_configuration(
+            str(get_db_path()),
+            runtime_menus=RuntimeLabMenusProcess(),
+        )
+        run_config_tui(
+            configuration.providers,
+            configuration.settings,
+            configuration.principal,
+            partial(
+                login_provider,
+                configuration.providers,
+                configuration.principal,
+            ),
+            configuration.runtime_menus,
+            build_terminal_menu(),
+            getattr(args, "config_path", None),
+        )
     elif args.command == "serve":
         options = _service_options_from_args(args)
         if args.force:
             options += ("--force",)
-        _exit_on_lifecycle_failure(run_foreground_service(options))
+        _exit_on_lifecycle_failure(run_foreground_service(lifecycle, options))
     elif args.command == "status":
-        show_service_status(json_output=getattr(args, "json", False))
+        show_service_status(lifecycle, json_output=getattr(args, "json", False))
     elif args.command == "web":
-        _exit_on_lifecycle_failure(open_web_console())
+        _exit_on_lifecycle_failure(open_web_console(lifecycle))
     elif args.command == "desktop":
-        _exit_on_lifecycle_failure(start_desktop_application())
+        _exit_on_lifecycle_failure(start_desktop_application(lifecycle))
     elif args.command == "mobile":
-        raise SystemExit(show_mobile_access())
+        raise SystemExit(show_mobile_access(lifecycle))
     elif args.command == "start":
         command = default_service_command(_service_options_from_args(args))
         owner_id = getattr(args, "owner_id", None)
         _exit_on_lifecycle_failure(
             start_background_service(
+                lifecycle,
                 command,
                 **({"owner_id": owner_id} if owner_id is not None else {}),
             )
@@ -208,26 +253,36 @@ def _dispatch_command(args: argparse.Namespace) -> None:
     elif args.command == "stop":
         owner_id = getattr(args, "owner_id", None)
         result = (
-            stop_background_service(owner_id=owner_id)
+            stop_background_service(lifecycle, owner_id=owner_id)
             if owner_id is not None
-            else stop_background_service()
+            else stop_background_service(lifecycle)
         )
         _exit_on_lifecycle_failure(result)
     elif args.command == "restart":
-        _exit_on_lifecycle_failure(restart_background_service())
+        _exit_on_lifecycle_failure(restart_background_service(lifecycle))
     elif args.command == "owner":
-        raise SystemExit(run_owner_menu())
+        owner_db_path = str(get_db_path())
+        raise SystemExit(
+            run_owner_menu(
+                lifecycle,
+                build_accounts_service(owner_db_path),
+                build_terminal_menu(),
+                owner_db_path,
+            )
+        )
     elif args.command == "doctor":
         fix_ports = getattr(args, "fix_ports", False)
         force = getattr(args, "force", False)
         if fix_ports:
             from app.interfaces.cli.doctor_commands import run_doctor_with_port_fix
 
-            raise SystemExit(run_doctor_with_port_fix(fix_ports=True, force=force))
+            raise SystemExit(
+                run_doctor_with_port_fix(lifecycle, fix_ports=True, force=force)
+            )
         else:
-            raise SystemExit(run_doctor())
+            raise SystemExit(run_doctor(lifecycle))
     elif args.command == "uninstall":
-        raise SystemExit(run_uninstall_menu())
+        raise SystemExit(run_uninstall_menu(lifecycle, build_terminal_menu()))
     elif args.command == "version":
         show_version()
     elif args.command == "setup":
@@ -235,12 +290,17 @@ def _dispatch_command(args: argparse.Namespace) -> None:
 
         run_setup_wizard()
     elif args.command == "db":
-        dispatch_db(getattr(args, "db_command", None))
+        dispatch_db(
+            build_operations_facade(str(get_db_path())),
+            getattr(args, "db_command", None),
+        )
     else:
         print_banner()
         print("  Starting service...")
         print()
-        _exit_on_lifecycle_failure(run_foreground_service(tuple(sys.argv[1:])))
+        _exit_on_lifecycle_failure(
+            run_foreground_service(lifecycle, tuple(sys.argv[1:]))
+        )
 
 
 def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
@@ -248,8 +308,6 @@ def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
     options: list[str] = []
     if args.port is not None:
         options.extend(("--port", str(args.port)))
-    if args.ws_port is not None:
-        options.extend(("--ws-port", str(args.ws_port)))
     if args.godot_ws_port is not None:
         options.extend(("--godot-ws-port", str(args.godot_ws_port)))
     if args.fallback:

@@ -9,7 +9,7 @@ from typing import DefaultDict, List, Set, Tuple
 
 from fastapi.routing import APIRoute
 
-from app.interfaces.api import create_app
+from app.bootstrap import create_app
 from scripts.architecture.app_layer_scan import (
     APP_ROOT,
     LOOSE_OUTPUT_TYPES,
@@ -25,6 +25,7 @@ from scripts.architecture.app_layer_scan import (
     _route_decorators,
     _tree,
     collect_app_layer_violations,
+    collect_unowned_app_directories,
     deny_all_failures,
 )
 from scripts.architecture.check_governance_change import classify_paths
@@ -49,6 +50,30 @@ def test_app_deny_all_accepts_zero_and_rejects_any_violation() -> None:
 
 def test_app_feature_dependency_graph_is_acyclic() -> None:
     assert _cycles(_feature_dependency_graph(APP_ROOT / "features")) == set()
+
+
+def test_app_business_and_workflow_directories_follow_frozen_map(
+    tmp_path: Path,
+) -> None:
+    assert collect_unowned_app_directories(PROJECT_ROOT) == set()
+
+    allowed = (
+        tmp_path / "app" / "features" / "accounts",
+        tmp_path / "app" / "features" / "configuration" / "providers",
+        tmp_path / "app" / "orchestration" / "message_delivery",
+        tmp_path / "app" / "interfaces" / "api" / "v1" / "me",
+        tmp_path / "app" / "interfaces" / "api" / "v1" / "admin" / "users",
+    )
+    for path in allowed:
+        path.mkdir(parents=True, exist_ok=True)
+    assert collect_unowned_app_directories(tmp_path) == set()
+
+    (tmp_path / "app" / "features" / "dashboard").mkdir()
+    (tmp_path / "app" / "interfaces" / "api" / "manage").mkdir()
+    assert collect_unowned_app_directories(tmp_path) == {
+        "app/features/dashboard",
+        "app/interfaces/api/manage",
+    }
 
 
 def test_new_port_and_model_modules_cannot_use_any() -> None:
@@ -82,10 +107,10 @@ def test_app_boundary_scanner_catches_relative_import_fixture(tmp_path: Path) ->
     feature.mkdir(parents=True)
     source = feature / "service.py"
     source.write_text(
-        "from ...infrastructure.persistence.store import get_db\n",
+        "from ...infrastructure.persistence.nest_db.store import get_db\n",
         encoding="utf-8",
     )
-    assert "app.infrastructure.persistence.store" in _imported_modules(source)
+    assert "app.infrastructure.persistence.nest_db.store" in _imported_modules(source)
 
 
 def test_route_scanner_distinguishes_json_and_response_fixtures(
@@ -152,8 +177,8 @@ def test_application_contract_and_ledger_have_bilingual_authority_markers() -> N
         PROJECT_ROOT / "docs/zh/developer/conformance/application.md"
     ).read_text(encoding="utf-8")
 
-    assert "**Contract version:** 1.4" in english_contract
-    assert "**契约版本：** 1.4" in chinese_contract
+    assert "**Contract version:** 1.5" in english_contract
+    assert "**契约版本：** 1.5" in chinese_contract
     assert "test_app_layer_boundaries.py" in english_contract
     assert "test_app_layer_boundaries.py" in chinese_contract
     for number in range(1, 13):
@@ -169,25 +194,27 @@ def test_architecture_governance_layout_and_local_rules_exist() -> None:
         "docs/developer/contracts/repository-governance.md",
         "docs/developer/conformance/application.md",
         "docs/developer/decisions/0001-lightweight-ports-adapters.md",
+        "docs/developer/decisions/0004-app-domain-slices.md",
         "docs/zh/developer/architecture/index.md",
         "docs/zh/developer/contracts/application.md",
         "docs/zh/developer/contracts/repository-governance.md",
         "docs/zh/developer/conformance/application.md",
         "docs/zh/developer/decisions/0001-lightweight-ports-adapters.md",
+        "docs/zh/developer/decisions/0004-app-domain-slices.md",
     }
     required_agents = {
         "app/AGENTS.md",
         "app/features/AGENTS.md",
         "app/features/accounts/AGENTS.md",
-        "app/features/administration/AGENTS.md",
         "app/features/configuration/AGENTS.md",
         "app/orchestration/AGENTS.md",
         "app/bootstrap/AGENTS.md",
-        "app/infrastructure/AGENTS.md",
+        "infrastructure/AGENTS.md",
+        "infrastructure/persistence/AGENTS.md",
         "app/interfaces/AGENTS.md",
         "app/orchestration/lifecycle/AGENTS.md",
         "app/orchestration/embodiment/AGENTS.md",
-        "app/infrastructure/devices/AGENTS.md",
+        "infrastructure/devices/AGENTS.md",
         "app/interfaces/api/AGENTS.md",
         "app/interfaces/desktop/AGENTS.md",
         "app/interfaces/cli/AGENTS.md",
@@ -197,6 +224,7 @@ def test_architecture_governance_layout_and_local_rules_exist() -> None:
     }
     assert all((PROJECT_ROOT / path).is_file() for path in required_docs)
     assert all((PROJECT_ROOT / path).is_file() for path in required_agents)
+    assert not (PROJECT_ROOT / "app/infrastructure").exists()
 
 
 def test_governance_change_classifier_rejects_self_approval_mix() -> None:

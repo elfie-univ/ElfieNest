@@ -10,8 +10,12 @@ from typing import Callable, Final, Optional, Sequence
 
 from app.interfaces.cli import lifecycle_commands
 from app.interfaces.web.frontend_build import FrontendBuildError
-from app.orchestration.lifecycle.runtime_health import RuntimeHealthState
-from app.orchestration.lifecycle.types import LaunchFailedError, ServiceLifecycleResult
+from app.orchestration.lifecycle import (
+    LaunchFailedError,
+    LifecycleFacade,
+    RuntimeHealthState,
+    ServiceLifecycleResult,
+)
 
 WaitOnce = Callable[[threading.Event], bool]
 HEALTH_CHECK_INTERVAL_SECONDS: Final = 0.5
@@ -21,6 +25,7 @@ TERMINAL_HEALTH_STATES: Final = frozenset(
 
 
 def run_foreground_service(
+    lifecycle: LifecycleFacade,
     options: Sequence[str],
     *,
     wait_once: Optional[WaitOnce] = None,
@@ -35,7 +40,7 @@ def run_foreground_service(
             command=command,
             error=LaunchFailedError(f"Invalid service port arguments: {error}"),
         )
-        lifecycle_commands._print_start_result(result)
+        lifecycle_commands._print_start_result(lifecycle, result)
         return result
 
     try:
@@ -46,12 +51,12 @@ def run_foreground_service(
             command=command,
             error=LaunchFailedError(f"Frontend build failed: {error}"),
         )
-        lifecycle_commands._print_start_result(result)
+        lifecycle_commands._print_start_result(lifecycle, result)
         return result
 
-    supervisor = lifecycle_commands._supervisor_for(command, http_port)
+    supervisor = lifecycle_commands._supervisor_for(lifecycle, command, http_port)
     started = supervisor.start(owner_id=f"cli-serve:{os.getpid()}")
-    lifecycle_commands._print_start_result(started)
+    lifecycle_commands._print_start_result(lifecycle, started)
     if started.status != "started":
         return started
 

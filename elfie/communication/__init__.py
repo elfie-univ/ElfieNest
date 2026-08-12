@@ -1,12 +1,6 @@
 """精灵自带的双向消息通信能力。"""
 
 from elfie.communication.channel import CommunicationChannel
-from elfie.communication.channels import (
-    TelegramChannel,
-    TelegramConnector,
-    WeChatChannel,
-    WeChatConnector,
-)
 from elfie.communication.contracts import (
     AudioPart,
     CommunicationEnvelope,
@@ -67,8 +61,4 @@ __all__ = [
     "ChannelRegistrationError",
     "CommunicationRouter",
     "CommunicationHub",
-    "WeChatConnector",
-    "WeChatChannel",
-    "TelegramConnector",
-    "TelegramChannel",
 ]

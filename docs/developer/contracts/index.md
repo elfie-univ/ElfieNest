@@ -8,4 +8,4 @@ in `conformance/`; reasons for deliberate contract changes belong in
 - [Repository architecture governance](./repository-governance)
 - [System architecture](./system)
 - [Application architecture](./application)
-- [Model, Food and tool behavior](./ai-runtime)
+- [Model, Food and tool behavior](./model-food-tool-behavior)

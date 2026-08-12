@@ -32,7 +32,7 @@ const member = {
   elfie_count: 1,
   elfie_quota_override: null,
   effective_elfie_limit: 3,
-  avatar_url: "/api/owner/users/7/avatar",
+  avatar_url: "/api/v1/admin/users/7/avatar",
 } as const
 
 describe("owner user API boundary", () => {
@@ -42,7 +42,7 @@ describe("owner user API boundary", () => {
 
   it("parses the exact canonical user view when listing users", async () => {
     // Given: the backend returns the final OwnerUserView.
-    vi.mocked(requestJson).mockResolvedValue([member])
+    vi.mocked(requestJson).mockResolvedValue({ items: [member] })
 
     // When: the user list crosses the API boundary.
     const result = await ownerUsers()
@@ -53,12 +53,12 @@ describe("owner user API boundary", () => {
 
   it("rejects legacy identity and presence aliases", async () => {
     // Given: a stale backend returns only legacy aliases.
-    vi.mocked(requestJson).mockResolvedValue([{
+    vi.mocked(requestJson).mockResolvedValue({ items: [{
       id: "7",
       username: "member01",
       nickname: "Member",
       online_status: "online",
-    }])
+    }] })
 
     // When/Then: strict parsing rejects the payload.
     await expect(ownerUsers()).rejects.toMatchObject({ name: "ZodError" })
@@ -72,7 +72,7 @@ describe("owner user API boundary", () => {
     const result = await createManagedUser("member01", "Member", "secret", "user", "csrf")
 
     // Then: the request and response both use the final contract.
-    expect(requestJson).toHaveBeenCalledWith("/api/owner/users", expect.objectContaining({
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/admin/users", expect.objectContaining({
       method: "POST",
       body: JSON.stringify({
         account_id: "member01",
@@ -89,7 +89,7 @@ describe("owner user API boundary", () => {
 
     await createManagedUser("admin01", "Admin", "secret", "admin", "csrf")
 
-    expect(requestJson).toHaveBeenCalledWith("/api/owner/users", expect.objectContaining({
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/admin/users", expect.objectContaining({
       body: JSON.stringify({ account_id: "admin01", display_name: "Admin", password: "secret", role: "admin" }),
     }))
   })
@@ -98,7 +98,7 @@ describe("owner user API boundary", () => {
     // Given: every mutation endpoint returns valid JSON.
     vi.mocked(ownerWrite)
       .mockResolvedValueOnce({ ...member, elfie_quota_override: 6, effective_elfie_limit: 6 })
-      .mockResolvedValueOnce({ detail: "removed" })
+      .mockResolvedValueOnce({})
     vi.mocked(requestJson).mockResolvedValue({ temporary_password: "Temp12345678" })
 
     // When: all member mutations run.
@@ -107,20 +107,20 @@ describe("owner user API boundary", () => {
     await deleteManagedUser(7, "csrf")
 
     // Then: each URL contains the numeric identity.
-    expect(ownerWrite).toHaveBeenNthCalledWith(1, "/api/owner/users/7", "PUT", "csrf", {
+    expect(ownerWrite).toHaveBeenNthCalledWith(1, "/api/v1/admin/users/7", "PATCH", "csrf", {
       elfie_quota_override: 6,
     })
-    expect(requestJson).toHaveBeenCalledWith("/api/owner/users/7/reset-password", expect.objectContaining({ method: "POST" }))
-    expect(ownerWrite).toHaveBeenNthCalledWith(2, "/api/owner/users/7", "DELETE", "csrf", {})
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/admin/users/7/reset-password", expect.objectContaining({ method: "POST" }))
+    expect(ownerWrite).toHaveBeenNthCalledWith(2, "/api/v1/admin/users/7", "DELETE", "csrf")
   })
 
-  it("validates temporary-password and delete JSON responses", async () => {
-    // Given: successful HTTP responses contain malformed JSON contracts.
+  it("validates temporary-password responses and accepts an empty delete response", async () => {
+    // Given: reset contains malformed JSON while delete is intentionally empty.
     vi.mocked(requestJson).mockResolvedValue({ temporary_password: 123456 })
-    vi.mocked(ownerWrite).mockResolvedValue({ removed: true })
+    vi.mocked(ownerWrite).mockResolvedValue({})
 
     // When/Then: both response boundaries fail loudly.
     await expect(resetManagedUserPassword(7, "csrf")).rejects.toMatchObject({ name: "ZodError" })
-    await expect(deleteManagedUser(7, "csrf")).rejects.toMatchObject({ name: "ZodError" })
+    await expect(deleteManagedUser(7, "csrf")).resolves.toBeUndefined()
   })
 })

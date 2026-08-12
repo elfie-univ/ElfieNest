@@ -8,9 +8,10 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.providers.profiles import BUILTIN_PROFILES
-from ai_runtime.storage.data_home import get_elfie_developer_home
+from infrastructure.models.providers.profiles import BUILTIN_PROFILES
+from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.persistence.layout.data_home import get_elfie_developer_home
+from infrastructure.persistence.runtime_config import load_runtime_config
 
 SECRET_ENV_KEYS = {
     provider_id: profile.api_key_env_var
@@ -57,24 +58,28 @@ class RuntimeLabConfigStore:
 
     def default_document(self) -> Dict[str, Any]:
         providers = {name: dict(values) for name, values in PROVIDER_DEFAULTS.items()}
+        default_model = providers["ollama"]["test_model"]
         return {
             "config_version": 1,
             "providers": providers,
-            "cheap_provider": "ollama",
-            "cheap_model": providers["ollama"]["test_model"],
-            "deep_provider": "ollama",
-            "deep_model": providers["ollama"]["test_model"],
-            "multimodal_provider": "ollama",
-            "multimodal_model": providers["ollama"]["vision_model"],
             "ollama_host": providers["ollama"]["api_base"],
-            "ollama_model_fast": providers["ollama"]["test_model"],
-            "ollama_model_vision": providers["ollama"]["vision_model"],
-            "runtime_policy": {"elfie_lab_model_key": "local_fast"},
+            "runtime_policy": {
+                "elfie_lab_model_key": "local_fast",
+                "model_selection": {
+                    "local_fast": {"provider": "ollama", "model": default_model},
+                    "remote_cheap": {"provider": "ollama", "model": default_model},
+                    "remote_deep": {"provider": "ollama", "model": default_model},
+                    "remote_multimodal": {
+                        "provider": "ollama",
+                        "model": providers["ollama"]["vision_model"],
+                    },
+                },
+            },
         }
 
     def load_runtime_config(self) -> LLMRuntimeConfig:
         self.ensure_defaults()
-        return LLMRuntimeConfig(config_home=str(self.root))
+        return load_runtime_config(config_home=str(self.root))
 
     def read_document(self) -> Dict[str, Any]:
         self.ensure_defaults()
@@ -122,17 +127,14 @@ class RuntimeLabConfigStore:
         )
         if model_key == "local_fast":
             document["ollama_host"] = api_base.strip().rstrip("/")
-            document["ollama_model_fast"] = model.strip()
-        elif model_key == "remote_cheap":
-            document["cheap_provider"] = provider
-            document["cheap_model"] = model.strip()
-        elif model_key == "remote_deep":
-            document["deep_provider"] = provider
-            document["deep_model"] = model.strip()
-        else:
-            document["multimodal_provider"] = provider
-            document["multimodal_model"] = model.strip()
-        document.setdefault("runtime_policy", {})["elfie_lab_model_key"] = model_key
+        selection = document.setdefault("runtime_policy", {}).setdefault(
+            "model_selection", {}
+        )
+        selection[model_key] = {
+            "provider": provider,
+            "model": model.strip(),
+        }
+        document["runtime_policy"]["elfie_lab_model_key"] = model_key
         self._write_yaml(document)
 
         if api_key is not None and provider in SECRET_ENV_KEYS:
@@ -185,25 +187,16 @@ class RuntimeLabConfigStore:
 
     @staticmethod
     def _resolve_model(document: Dict[str, Any], model_key: str) -> tuple[str, str]:
-        mapping = {
-            "local_fast": (
-                "ollama",
-                str(document.get("ollama_model_fast", "")),
-            ),
-            "remote_cheap": (
-                str(document.get("cheap_provider", "")),
-                str(document.get("cheap_model", "")),
-            ),
-            "remote_deep": (
-                str(document.get("deep_provider", "")),
-                str(document.get("deep_model", "")),
-            ),
-            "remote_multimodal": (
-                str(document.get("multimodal_provider", "")),
-                str(document.get("multimodal_model", "")),
-            ),
-        }
-        return mapping.get(model_key, mapping["local_fast"])
+        runtime_policy = document.get("runtime_policy", {})
+        selection = (
+            runtime_policy.get("model_selection", {})
+            if isinstance(runtime_policy, dict)
+            else {}
+        )
+        raw = selection.get(model_key, selection.get("local_fast", {}))
+        if not isinstance(raw, dict):
+            return "ollama", ""
+        return str(raw.get("provider", "")), str(raw.get("model", ""))
 
     def _read_env(self) -> Dict[str, str]:
         values: Dict[str, str] = {}

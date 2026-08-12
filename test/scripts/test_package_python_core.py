@@ -49,7 +49,7 @@ def test_freeze_core_builds_only_on_its_native_target(tmp_path: Path) -> None:
             "--clean",
             "--onefile",
             "--collect-data",
-            "ai_runtime.providers",
+            "infrastructure.models.providers",
             "--name",
             "ElfieNestCore",
             "--distpath",
@@ -98,5 +98,5 @@ def test_freeze_cli_builds_a_checkout_independent_management_executable(
     assert artifact == tmp_path / "ElfieNestCli"
     assert commands[0][-1] == str(PROJECT_ROOT / "scripts" / "elfienest.py")
     assert "--collect-data" in commands[0]
-    assert "ai_runtime.providers" in commands[0]
+    assert "infrastructure.models.providers" in commands[0]
     assert "ElfieNestCli" in commands[0]

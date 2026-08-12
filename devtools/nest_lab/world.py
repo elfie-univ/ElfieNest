@@ -8,15 +8,30 @@ from secrets import token_urlsafe
 from threading import RLock
 from typing import Any, Callable
 
-from app.orchestration.scene_manifest import parse_scene_manifest, parse_world_snapshot
 from devtools.nest_lab.actor_sync import sync_actors
 from devtools.nest_lab.event_log import LabEventLog
 from devtools.nest_lab.models import LabActor, LabSpecies, NestLabConflictError
 from devtools.nest_lab.residents import assign_missing_homes, clear_home_assignments
 from devtools.nest_lab.simulation import WanderScheduler
+from infrastructure.godot.gateway.api import GodotAPIServer
+from infrastructure.godot.gateway.messages import (
+    CommandName,
+    EventName,
+    JsonObject,
+    RuntimeEventFrame,
+)
+from infrastructure.godot.nest_session.mapper import (
+    parse_scene_manifest,
+    parse_world_snapshot,
+)
 from nest import Nest, NestConfig
-from nest.godot_gateway.api import GodotAPIServer
-from nest.godot_gateway.messages import CommandName, EventName, RuntimeEventFrame
+from nest.state.models import (
+    AnchorKind,
+    InteractionAnchor,
+    RuntimeResidentMirror,
+    WorldCatalog,
+    ZoneDescriptor,
+)
 
 
 def _synchronized(method: Callable[..., Any]) -> Callable[..., Any]:
@@ -267,7 +282,7 @@ class NestLabWorld:
     def _consume_runtime_event(self, event: RuntimeEventFrame) -> None:
         self._events.append(event.name.value, event.message_id)
         if event.name is EventName.SCENE_MANIFEST:
-            catalog = parse_scene_manifest(event.payload)
+            catalog = _nest_catalog(event.payload)
             if catalog.revision != self._world_revision:
                 return
             self._nest.apply_catalog(catalog)
@@ -284,10 +299,56 @@ class NestLabWorld:
                         world_revision=event.world_revision,
                     )
         elif event.name is EventName.WORLD_SNAPSHOT:
-            revision, mirrors = parse_world_snapshot(event.payload)
+            revision, mirrors = _nest_mirrors(event.payload)
             if revision == self._ready_revision:
                 self._nest.apply_runtime_mirrors(mirrors)
         elif event.name is EventName.INTENT_TERMINAL:
             command_id = event.payload.get("command_id")
             if isinstance(command_id, str):
                 self._wander_scheduler.complete(command_id)
+
+
+def _nest_catalog(payload: JsonObject) -> WorldCatalog:
+    """Convert the shared strict Godot projection into the Lab's Nest model."""
+    catalog = parse_scene_manifest(payload)
+    return WorldCatalog(
+        nest_id=catalog.nest_id,
+        revision=catalog.revision,
+        zones=tuple(
+            ZoneDescriptor(
+                zone_id=zone.zone_id,
+                label=zone.label,
+                order=zone.order,
+                anchors=tuple(
+                    InteractionAnchor(
+                        anchor_id=anchor.anchor_id,
+                        kind=AnchorKind(anchor.kind),
+                        label=anchor.label,
+                        order=anchor.order,
+                        active=anchor.active,
+                    )
+                    for anchor in zone.anchors
+                ),
+            )
+            for zone in catalog.zones
+        ),
+    )
+
+
+def _nest_mirrors(
+    payload: JsonObject,
+) -> tuple[int, tuple[RuntimeResidentMirror, ...]]:
+    """Convert the shared strict snapshot into Lab-owned Nest mirrors."""
+    revision, mirrors = parse_world_snapshot(payload)
+    return (
+        revision,
+        tuple(
+            RuntimeResidentMirror(
+                elfie_id=mirror.elfie_id,
+                current_zone_id=mirror.current_zone_id,
+                posture=mirror.posture,
+                active_command_id=mirror.active_command_id,
+            )
+            for mirror in mirrors
+        ),
+    )

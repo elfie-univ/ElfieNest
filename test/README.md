@@ -10,12 +10,12 @@ directly at the repository root.
 
 ```text
 test/
-├── ai_runtime/     # models, routing, tools, food and safety runtime
 ├── app/            # product features, interfaces, infrastructure and cross-module orchestration
 ├── elfie/          # a single Elfie's profile, brain, nervous system, body, communication and skills
 ├── nest/           # activity space, state, interaction and Godot interface
 ├── devtools/       # isolated development tools
 ├── godot/          # static contracts for Godot scenes and resources
+├── infrastructure/ # model, tool, persistence, Godot and platform adapters
 ├── scripts/        # testable repo-script logic
 ├── architecture/   # top-level directory, dependency boundary and engineering config contracts
 ├── e2e/            # cross-module, service or user scenarios

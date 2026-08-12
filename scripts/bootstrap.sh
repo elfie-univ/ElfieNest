@@ -206,7 +206,7 @@ ensure_elfie_home() {
 
     echo "${CYAN}  🔧 Creating data directory...${RESET}"
 
-    if ! "$PROJECT_ROOT/.venv/bin/python" -c "from ai_runtime.storage.data_home import ensure_elfie_home; ensure_elfie_home()" >&2; then
+    if ! "$PROJECT_ROOT/.venv/bin/python" -c "from app.bootstrap.system_wiring.entrypoints import ensure_elfie_home; ensure_elfie_home()" >&2; then
         echo "${RED}  ❌ Failed to create ELFIE_HOME${RESET}" >&2
         return 1
     fi

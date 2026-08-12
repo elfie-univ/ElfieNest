@@ -162,13 +162,17 @@ def test_run_pnpm_keeps_interactive_failure_diagnostics(
 
     monkeypatch.setattr(frontend_build.subprocess, "run", run)
 
-    with pytest.raises(frontend_build.FrontendBuildError, match="error: build failed") as raised:
+    with pytest.raises(
+        frontend_build.FrontendBuildError, match="error: build failed"
+    ) as raised:
         frontend_build._run_pnpm(tmp_path, ("build",))
 
     assert "vite summary" in str(raised.value)
 
 
-def test_build_failure_is_typed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_build_failure_is_typed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     source = tmp_path / "frontend"
     source.mkdir()
     (source / "package.json").write_text('{"name":"test"}', encoding="utf-8")
@@ -222,13 +226,13 @@ def test_ensure_fails_closed_when_build_marker_cannot_be_verified(
     monkeypatch.setattr(frontend_build, "_run_pnpm", run_pnpm)
     monkeypatch.setattr(frontend_build, "_write_build_marker", lambda *_args: None)
 
-    with pytest.raises(frontend_build.FrontendBuildError, match="could not be verified"):
+    with pytest.raises(
+        frontend_build.FrontendBuildError, match="could not be verified"
+    ):
         frontend_build.ensure_frontend_build(
             runtime_mode="development", source=source, output=output
         )
 
 
-def _raise_build_failure(
-    _frontend_root: Path, _arguments: tuple[str, ...]
-) -> None:
+def _raise_build_failure(_frontend_root: Path, _arguments: tuple[str, ...]) -> None:
     raise frontend_build.FrontendBuildError("pnpm failed")
