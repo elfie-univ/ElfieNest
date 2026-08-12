@@ -43,6 +43,18 @@ toolchain declarations remain aligned with:
 bash scripts/check_node_toolchain.sh
 ```
 
+## Preview the documentation site
+
+Run the VitePress development server and open the local site in the browser:
+
+```bash
+./developer.sh docs
+```
+
+The server watches `docs/` and reloads the page as Markdown or site configuration
+changes. Stop it with `Ctrl-C`. Pass VitePress options after the command when
+needed, for example `./developer.sh docs --port 4317`.
+
 Python `3.9.25` 是产品和开发工具的共同固定运行时。除非负责人明确批准全仓升级，
 不得改用系统 `python`/`python3`、其他虚拟环境或 `ELFIENEST_PYTHON` 覆盖入口；
 安装、CLI、Developer Tools、测试和 CR 一律经 `uv` 与仓库 `.venv`。环境失效时只需

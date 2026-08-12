@@ -5,6 +5,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON_VERSION_FILE="$SCRIPT_DIR/.python-version"
 PYTHON_BIN="$SCRIPT_DIR/.venv/bin/python3"
 
+if [[ "${1:-}" == "docs" ]]; then
+  shift
+  if ! command -v pnpm >/dev/null 2>&1; then
+    echo "❌ Docs preview requires pnpm 10.12.1 (Node.js 20+)." >&2
+    echo "💡 Install the repository toolchain, then run ./developer.sh docs again." >&2
+    exit 1
+  fi
+  if [[ ! -x "$SCRIPT_DIR/docs/node_modules/.bin/vitepress" ]]; then
+    echo "❌ Docs preview dependencies are missing: $SCRIPT_DIR/docs/node_modules" >&2
+    echo "💡 Run: pnpm --dir docs install --frozen-lockfile" >&2
+    exit 1
+  fi
+  cd "$SCRIPT_DIR"
+  exec pnpm --dir docs dev --host "${DOCS_HOST:-127.0.0.1}" --open "$@"
+fi
+
 if [[ -n "${ELFIENEST_PYTHON:-}" ]]; then
   echo "❌ Developer Tool does not accept ELFIENEST_PYTHON; must use the repo-pinned CPython 3.9.25 environment." >&2
   exit 1

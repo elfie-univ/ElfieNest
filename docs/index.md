@@ -3,15 +3,15 @@ layout: home
 
 hero:
   name: ElfieNest
-  text: A home for your Elfie, on your own computer
+  text: Build a home for your Elfie on your own computer
   tagline: An Earth station that connects unknown life — and the beginning of a long companionship.
   image:
     src: /assets/elfienest-hero-v1.png
     alt: ElfieNest Earth station
   actions:
     - theme: brand
-      text: Get started
-      link: /getting-started/
+      text: User guide
+      link: /user-guide/
     - theme: alt
       text: Read the story
       link: /story/
@@ -42,7 +42,7 @@ home they can share for an Elfie willing to come to Earth.
 | What you want to know | Start here |
 | --- | --- |
 | The relationship between Elfaria, Elfie and ElfieNest | [World & Story](/story/) |
-| How to build your own Nest, configure it and run an Elfie | [Getting started](/getting-started/) |
+| How to build your own Nest, configure it and run an Elfie | [User Guide](/user-guide/) |
 | How the system is layered, and how to develop and verify it | [Developer docs](/developer/) |
 
 The underlying code, the module READMEs and the developer docs together

@@ -6,6 +6,7 @@ in `conformance/`; reasons for deliberate contract changes belong in
 `decisions/`.
 
 - [Repository architecture governance](./repository-governance)
+- [Documentation structure](./documentation-structure)
 - [System architecture](./system)
 - [Application architecture](./application)
 - [Model, Food and tool behavior](./model-food-tool-behavior)

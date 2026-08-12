@@ -50,12 +50,16 @@
   color: rgba(220, 231, 255, 0.72);
 }
 
-/* 首页导航栏语言切换按钮 */
-.VPNavBar.home .VPNavBarTranslations {
+/* 首页浅色主题的语言切换触发按钮；弹出菜单保留默认颜色。 */
+html:not(.dark) .VPNavBar.home .VPNavBarTranslations > .button {
   color: rgba(245, 248, 255, 0.9);
 }
 
-.VPNavBar.home .VPNavBarTranslations:hover {
+html:not(.dark) .VPNavBar.home .VPNavBarTranslations > .button * {
+  color: inherit;
+}
+
+html:not(.dark) .VPNavBar.home .VPNavBarTranslations > .button:hover {
   color: #9eb7ff;
 }
 

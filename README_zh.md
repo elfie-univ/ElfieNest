@@ -35,7 +35,7 @@
 现在，你也可以在自己的电脑上建立一座 ElfieNest，领养第一只愿意来到你身边的 Elfie。
 
 先从[文档首页](docs/zh/index.md)开始，再按[世界观与故事](docs/zh/story/index.md)、
-[开始使用](docs/zh/getting-started/index.md)和[开发者文档](docs/zh/developer/index.md)
+[用户指南](docs/zh/user-guide/index.md)和[开发者文档](docs/zh/developer/index.md)
 逐层深入。
 
 > English version: [README.md](README.md)
@@ -90,7 +90,7 @@ elfienest version
 ```
 
 安装脚本只支持用户级安装，请不要使用 `root` 或 `sudo`。更完整的前提、错误处理
-和平台说明见[开始使用](docs/zh/getting-started/index.md)。
+和平台说明见[用户指南](docs/zh/user-guide/index.md)。
 
 手动原生安装包与未来的校验远程 bootstrap 会进入同一个安装后运行态。bootstrap
 契约已在本地验证，但正式 URL 尚未上线。
@@ -99,10 +99,10 @@ elfienest version
 
 - [文档首页](docs/zh/index.md)：项目简介与阅读入口；
 - [世界观与故事](docs/zh/story/index.md)：写给第一次认识 ElfieNest 的读者；
-- [开始使用](docs/zh/getting-started/index.md)：从源码建立并运行一座 Nest；
+- [用户指南](docs/zh/user-guide/index.md)：从源码建立并运行一座 Nest；
 - [开发者文档](docs/zh/developer/index.md)：架构、开发流程与工具；
 - [当前架构](docs/zh/developer/architecture/index.md)：模块边界和信息流；
-- [命令与开发工具](docs/zh/developer/tooling.md)：CLI、实验台、Godot 与构建入口。
+- [命令与开发工具](docs/zh/developer/engineering/tooling.md)：CLI、实验台、Godot 与构建入口。
 
 文档站使用 VitePress。站点源码只包含准备公开的最终文档；历史设计、过程证据和
 尚未揭示的世界观材料不属于公开站点。

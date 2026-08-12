@@ -46,6 +46,19 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
         ),
     ),
     ContractRegistration(
+        contract_id="documentation-structure",
+        version="1.0",
+        english_path="docs/developer/contracts/documentation-structure.md",
+        chinese_path="docs/zh/developer/contracts/documentation-structure.md",
+        decision_paths=(
+            "docs/developer/decisions/0006-documentation-information-architecture.md",
+            "docs/zh/developer/decisions/0006-documentation-information-architecture.md",
+        ),
+        agent_paths=("docs/AGENTS.md",),
+        scanner_paths=(),
+        test_paths=("test/architecture/test_documentation_structure.py",),
+    ),
+    ContractRegistration(
         contract_id="system-architecture",
         version="1.3",
         english_path="docs/developer/contracts/system.md",

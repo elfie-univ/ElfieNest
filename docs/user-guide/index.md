@@ -1,4 +1,4 @@
-# Getting started
+# User Guide
 
 This is the user manual that goes from "building a Nest" to "meeting your first
 Elfie". You can read it in order or jump straight to the section you need.

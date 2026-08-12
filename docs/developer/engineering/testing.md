@@ -28,7 +28,7 @@ chain. When a baseline reaches zero it is deleted and the same scanner runs
 with `--mode deny-all`. CI also runs the scanner and baseline from the pull
 request base commit against candidate production code, so a change cannot
 weaken the rule that judges itself. See the
-[repository architecture governance contract](./contracts/repository-governance).
+[repository architecture governance contract](../contracts/repository-governance).
 
 ## Quality gate
 

@@ -24,7 +24,7 @@ uv run --no-sync pytest test/architecture/
 基线只列出精确的既有违规，不授权新代码复制旧债。迁移删除旧调用链时，同步删除对应
 基线条目；基线清零后直接删除，并让同一 Scanner 以 `--mode deny-all` 永久运行。CI 还会
 使用 Pull Request 基础提交中的 Scanner 和基线检查候选生产代码，因此同一变更不能放松
-评判自己的规则。详见[仓库架构治理契约](./contracts/repository-governance)。
+评判自己的规则。详见[仓库架构治理契约](../contracts/repository-governance)。
 
 ## 质量门
 

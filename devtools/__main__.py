@@ -31,7 +31,7 @@ Examples:
   %(prog)s nest-lab                     # Godot room experiments (default HTTP 9002, WS 9003)
   %(prog)s runtime-lab                  # Configure AI models (interactive TUI)
 
-Documentation: https://elfienest.dev/developer/devtools
+Documentation: https://elfienest.dev/developer/engineering/devtools
 """,
     )
     subparsers = parser.add_subparsers(dest="tool", title="Available tools")

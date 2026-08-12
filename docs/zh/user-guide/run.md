@@ -29,4 +29,4 @@
 ./elfienest.sh stop
 ```
 
-完整命令和 Developer Tools 见[命令参考](/zh/developer/tooling)。
+完整命令和 Developer Tools 见[命令参考](/zh/developer/engineering/tooling)。

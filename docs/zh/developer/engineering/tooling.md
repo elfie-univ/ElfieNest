@@ -37,6 +37,18 @@ Web 前端、桌面宿主、文档站和 Developer Tools 仍各自保留独立�
 bash scripts/check_node_toolchain.sh
 ```
 
+## 预览文档站
+
+运行 VitePress 开发服务器，并自动在浏览器打开本地文档站：
+
+```bash
+./developer.sh docs
+```
+
+服务器会监听 `docs/` 的变更，并在 Markdown 或站点配置修改后自动刷新页面。使用
+`Ctrl-C` 停止。需要改端口时，把 VitePress 参数放在命令后面，例如
+`./developer.sh docs --port 4317`。
+
 ## CLI 入口
 
 直接运行 `./elfienest.sh` 会进入交互模式；脚本化调用应提供明确子命令：

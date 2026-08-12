@@ -32,4 +32,4 @@ The run pipeline includes:
 ```
 
 For the full command set and Developer Tools see
-[Commands & dev tools](/developer/tooling).
+[Commands & dev tools](/developer/engineering/tooling).

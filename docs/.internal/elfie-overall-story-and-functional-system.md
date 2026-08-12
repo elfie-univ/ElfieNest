@@ -4,8 +4,8 @@
 > 整理日期：2026-08-11
 > 文档性质：产品故事、生命形态、功能需求与顶层边界设计，不代表当前代码均已实现
 > 适用范围：先定义“一只 Elfie 是什么、怎样存在、怎样生活”；顶级目录和所有权以
-> [Elfie 顶级模块与目录规约](./elfie-top-level-module-contract.md)为准，Brain 的当前概念架构以
-> [Elfie 大脑十系统架构](./elfie-brain-ten-system-architecture.md)为准
+> [Elfie 顶级模块设计](../zh/developer/designs/elfie-top-level-module-design.md)为准，Brain 的当前概念架构以
+> [Elfie 大脑十系统架构](../zh/developer/designs/elfie-brain-ten-system-architecture.md)为准
 
 ## 1. 这份文档解决什么问题
 
@@ -731,4 +731,4 @@ ElfieAtlas 中的历史产品蓝图，以及旧 Vault 中的世界观、记忆�
 后续讨论进一步确认：Profile 不删除，也不把 Identity 和 VirtualAppearance 拆成两个顶级目录。
 Profile 作为一级数据模块保留，只保存创建后不变的固有身份、Godot 虚拟外貌和生成来源；动态人格、
 自我、记忆、关系、能力和身体状态仍由各自系统拥有。完整边界以
-[Elfie 顶级模块与目录规约](./elfie-top-level-module-contract.md)为准。
+[Elfie 顶级模块设计](../zh/developer/designs/elfie-top-level-module-design.md)为准。
