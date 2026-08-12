@@ -12,6 +12,7 @@ from elfie.brain.decision_types import (
     MessageIntent,
     MotionIntent,
     NoOpIntent,
+    PersistentActivityIntent,
     SpeechIntent,
 )
 from elfie.brain.output_types import ExecutionReceipt
@@ -34,6 +35,7 @@ def project_decision(
         "expression_intents": [],
         "action_intents": [],
         "internal_intents": [],
+        "activity_intents": [],
         "noop_intents": [],
     }
     if plan is None:
@@ -81,6 +83,21 @@ def project_decision(
                     **common,
                     "operation": intent.operation.value,
                     "content": intent.content,
+                }
+            )
+        elif isinstance(intent, PersistentActivityIntent):
+            projected["activity_intents"].append(
+                {
+                    **common,
+                    "activity_id": str(intent.draft.activity_id),
+                    "goal": intent.draft.goal,
+                    "state": "pending",
+                    "wake_at": (
+                        intent.draft.wake_at.isoformat()
+                        if intent.draft.wake_at is not None
+                        else None
+                    ),
+                    "step_count": len(intent.draft.steps),
                 }
             )
         elif isinstance(intent, NoOpIntent):

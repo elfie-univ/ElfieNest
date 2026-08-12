@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import time
+from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List
@@ -208,6 +209,7 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
         "deadline": request.deadline.isoformat(),
         "cancel_policy": "always",
     }
+    intents: list[dict[str, object]]
     if request.source_domain.value == "communication":
         intents = [
             {
@@ -219,21 +221,97 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
                 **common,
             }
         ]
-    else:
+        if "提醒" in request.user_prompt or "稍后" in request.user_prompt:
+            wake_at = request.created_at.timestamp() + 30
+            activity_deadline = request.created_at.timestamp() + 300
+            intents.append(
+                {
+                    "type": "activity",
+                    "intent_id": "mock-activity-intent",
+                    "draft": {
+                        "schema_version": 1,
+                        "activity_id": "mock-activity",
+                        "goal": "在约定时间提醒主人",
+                        "success_criteria": "通过当前已授权会话发送提醒",
+                        "steps": [
+                            {
+                                "step_id": "mock-activity-step",
+                                "ordinal": 0,
+                                "kind": "communication",
+                                "operation": "send_message",
+                                "deadline": datetime.fromtimestamp(
+                                    activity_deadline, timezone.utc
+                                ).isoformat(),
+                                "scope": {
+                                    "external_domain": "communication",
+                                    "channel_id": request.response_scope.channel_id,
+                                    "conversation_id": request.response_scope.conversation_id,
+                                },
+                                "retry_limit": 1,
+                            }
+                        ],
+                        "cause_event_ids": [
+                            str(item) for item in request.cause_event_ids
+                        ],
+                        "idempotency_key": f"mock-activity:{request.turn_id}",
+                        "created_at": request.created_at.isoformat(),
+                        "deadline": datetime.fromtimestamp(
+                            activity_deadline, timezone.utc
+                        ).isoformat(),
+                        "wake_at": datetime.fromtimestamp(
+                            wake_at, timezone.utc
+                        ).isoformat(),
+                        "estimated_budget": 1.0,
+                    },
+                    **common,
+                }
+            )
+    elif (
+        request.response_scope.external_domain is not None
+        and request.response_scope.external_domain.value == "communication"
+    ):
+        intents = [
+            {
+                "type": "message",
+                "intent_id": "mock-internal-message",
+                "channel_id": request.response_scope.channel_id,
+                "conversation_id": request.response_scope.conversation_id,
+                "content": speech,
+                **common,
+            }
+        ]
+    elif (
+        request.response_scope.external_domain is not None
+        and request.response_scope.external_domain.value == "nervous_system"
+    ):
         intents = [
             {
                 "type": "speech",
-                "intent_id": "mock-speech",
+                "intent_id": "mock-internal-speech",
                 "text": speech,
                 **common,
             },
             {
                 "type": "motion",
-                "intent_id": "mock-motion",
+                "intent_id": "mock-internal-motion",
                 "motion": "nod_head",
                 "target": None,
                 **common,
             },
+        ]
+    else:
+        intents = [
+            {
+                "type": "noop",
+                "intent_id": "mock-noop",
+                "reason": "internal trigger has no external scope",
+                "cancel_policy": "if_not_started",
+                **{
+                    key: value
+                    for key, value in common.items()
+                    if key != "cancel_policy"
+                },
+            }
         ]
     return json.dumps(
         {

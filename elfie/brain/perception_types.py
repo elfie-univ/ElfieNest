@@ -70,6 +70,7 @@ class InternalSignal(str, Enum):
     EMOTION = "emotion"
     HOMEOSTASIS = "homeostasis"
     PROCESSING_FAILURE = "processing_failure"
+    ACTIVITY = "activity"
 
 
 @unique
@@ -135,6 +136,7 @@ class InternalScope(FrozenContractModel):
 
     kind: Literal["internal"] = "internal"
     cause_id: _NonBlankText
+    response_scope: Optional[ResponseScope] = None
 
 
 InteractionScope: TypeAlias = Annotated[
@@ -160,7 +162,8 @@ class ResponseScope(FrozenContractModel):
             return value
         if (
             value.get("external_domain") is ExternalExecutionDomain.NERVOUS_SYSTEM
-            or value.get("external_domain") == ExternalExecutionDomain.NERVOUS_SYSTEM.value
+            or value.get("external_domain")
+            == ExternalExecutionDomain.NERVOUS_SYSTEM.value
         ) and value.get("body_generation") is None:
             return {**value, "body_generation": 1}
         return value
@@ -228,7 +231,7 @@ class ExecutionPayload(FrozenContractModel):
     plan_id: PlanId
     turn_id: TurnId
     intent_id: IntentId
-    executor: Literal["body", "communication", "internal"]
+    executor: Literal["body", "communication", "internal", "activity"]
     status: ExecutionStatus
     error: Optional[ErrorInfo] = None
 
@@ -239,6 +242,7 @@ class InternalPayload(FrozenContractModel):
     type: Literal["internal"]
     signal: InternalSignal
     detail: _NonBlankText
+    response_scope: Optional[ResponseScope] = None
 
 
 PerceptionPayload: TypeAlias = Annotated[
@@ -416,11 +420,18 @@ class TurnFrame(FrozenContractModel):
                     "embodied_response_scope",
                     "embodied turns can respond only through their admitted body",
                 )
-        elif self.response_scope.external_domain is not None:
-            raise PydanticCustomError(
-                "internal_response_scope",
-                "stage-one internal turns cannot execute an external directive",
+        else:
+            interaction = self.interaction_scope
+            allowed = (
+                interaction.response_scope
+                if isinstance(interaction, InternalScope)
+                else None
             )
+            if self.response_scope != (allowed or ResponseScope(external_domain=None)):
+                raise PydanticCustomError(
+                    "internal_response_scope",
+                    "internal response scope exceeds the trigger's allowed scope",
+                )
         return self
 
 
@@ -454,6 +465,15 @@ def scope_key(write: PerceptionWrite) -> Tuple[str, ...]:
     if isinstance(payload, ExecutionPayload):
         return (SourceDomain.INTERNAL.value, f"execution:{payload.turn_id}")
     cause = write.meta.causation_id or write.meta.event_id
+    if isinstance(payload, InternalPayload) and payload.response_scope is not None:
+        scope = payload.response_scope
+        if scope.external_domain is ExternalExecutionDomain.COMMUNICATION:
+            target = f"communication:{scope.channel_id}:{scope.conversation_id}"
+        elif scope.external_domain is ExternalExecutionDomain.NERVOUS_SYSTEM:
+            target = f"nervous_system:{scope.body_id}:{scope.body_generation}"
+        else:
+            target = "none"
+        return (SourceDomain.INTERNAL.value, str(cause), target)
     return (SourceDomain.INTERNAL.value, str(cause))
 
 
@@ -468,20 +488,39 @@ def interaction_scope_for(write: PerceptionWrite) -> InteractionScope:
             body_id=key[1],
             body_generation=int(key[2]) if len(key) > 2 else 1,
         )
-    return InternalScope(cause_id=key[1])
+    payload = write.payload if isinstance(write, PerceptionEvent) else None
+    response_scope = (
+        payload.response_scope if isinstance(payload, InternalPayload) else None
+    )
+    return InternalScope(cause_id=key[1], response_scope=response_scope)
 
 
 def interaction_scope_key(scope: InteractionScope) -> Tuple[str, ...]:
     """Return the same deterministic identity represented by a typed scope."""
     if isinstance(scope, CommunicationScope):
-        return (SourceDomain.COMMUNICATION.value, scope.channel_id, scope.conversation_id)
+        return (
+            SourceDomain.COMMUNICATION.value,
+            scope.channel_id,
+            scope.conversation_id,
+        )
     if isinstance(scope, EmbodiedScope):
         return (
             SourceDomain.EMBODIED.value,
             scope.body_id,
             str(scope.body_generation),
         )
-    return (SourceDomain.INTERNAL.value, scope.cause_id)
+    response_scope = scope.response_scope
+    if response_scope is None:
+        return (SourceDomain.INTERNAL.value, scope.cause_id)
+    if response_scope.external_domain is ExternalExecutionDomain.COMMUNICATION:
+        target = f"communication:{response_scope.channel_id}:{response_scope.conversation_id}"
+    elif response_scope.external_domain is ExternalExecutionDomain.NERVOUS_SYSTEM:
+        target = (
+            f"nervous_system:{response_scope.body_id}:{response_scope.body_generation}"
+        )
+    else:
+        target = "none"
+    return (SourceDomain.INTERNAL.value, scope.cause_id, target)
 
 
 def domain_for_scope(scope: InteractionScope) -> SourceDomain:
@@ -503,7 +542,7 @@ def response_scope_for(scope: InteractionScope) -> ResponseScope:
             body_id=scope.body_id,
             body_generation=scope.body_generation,
         )
-    return ResponseScope(external_domain=None)
+    return scope.response_scope or ResponseScope(external_domain=None)
 
 
 __all__ = (

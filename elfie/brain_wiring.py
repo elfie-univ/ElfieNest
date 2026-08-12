@@ -7,6 +7,7 @@ from threading import Lock
 from typing import Callable, Mapping
 
 from elfie.body.port import BodyPort
+from elfie.brain.activity import ActivityStorePort
 from elfie.brain.context_source import BrainContextState
 from elfie.brain.context_types import (
     BodyCapabilityDescriptor,
@@ -125,6 +126,7 @@ def assemble_brain_runtime(
     clock: Callable[[], datetime],
     model_port: ModelPort,
     tool_port: ToolPort | None = None,
+    activity_store: ActivityStorePort | None = None,
 ) -> BrainRuntime:
     """Assemble Brain once while keeping sibling adapters outside Brain ownership."""
     communication.bind_perception_adapter(CommunicationPerceptionAdapter(workspace))
@@ -163,6 +165,7 @@ def assemble_brain_runtime(
             clock=clock,
         ),
         internal_executor=InternalIntentExecutor(ClosedInternalIntentSink()),
+        activity_store=activity_store,
     )
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from functools import singledispatch
 from threading import Event, Lock
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, cast
 
 from elfie.brain.decision_types import (
     DecisionIntent,
@@ -14,12 +14,13 @@ from elfie.brain.decision_types import (
     MessageIntent,
     MotionIntent,
     NoOpIntent,
+    PersistentActivityIntent,
     SpeechIntent,
 )
-from elfie.brain.output_ports import IntentExecutor
+from elfie.brain.output_ports import ActivityPreflightExecutor, IntentExecutor
 from elfie.brain.output_types import ExecutionBatch, ExecutorKind
 from elfie.brain.perception_types import ExecutionStatus
-from elfie.message_types import IntentId
+from elfie.message_types import ErrorInfo, IntentId
 
 
 class BatchRuntime:
@@ -51,16 +52,29 @@ class ExecutorRegistry:
         body: IntentExecutor,
         communication: IntentExecutor,
         internal: IntentExecutor,
+        activity: ActivityPreflightExecutor,
     ) -> None:
         self._executors = {
             ExecutorKind.BODY: body,
             ExecutorKind.COMMUNICATION: communication,
             ExecutorKind.INTERNAL: internal,
+            ExecutorKind.ACTIVITY: activity,
         }
 
     def for_intent(self, intent: DecisionIntent) -> tuple[ExecutorKind, IntentExecutor]:
         kind = executor_kind(intent)
         return kind, self._executors[kind]
+
+    def preflight(
+        self,
+        plan: DecisionPlan,
+        intent: DecisionIntent,
+    ) -> ErrorInfo | None:
+        kind = executor_kind(intent)
+        executor = self._executors[kind]
+        if kind is not ExecutorKind.ACTIVITY:
+            return None
+        return cast(ActivityPreflightExecutor, executor).preflight(plan, intent)
 
 
 @singledispatch
@@ -84,6 +98,11 @@ def _communication_kind(_intent: MessageIntent) -> ExecutorKind:
 @executor_kind.register(NoOpIntent)
 def _internal_kind(_intent: DecisionIntent) -> ExecutorKind:
     return ExecutorKind.INTERNAL
+
+
+@executor_kind.register(PersistentActivityIntent)
+def _activity_kind(_intent: PersistentActivityIntent) -> ExecutorKind:
+    return ExecutorKind.ACTIVITY
 
 
 __all__ = ("BatchRuntime", "ExecutorRegistry", "executor_kind")

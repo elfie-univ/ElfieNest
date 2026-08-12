@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from elfie.body.port import BodyPort
+from elfie.brain.activity import ActivityStorePort
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
@@ -27,6 +28,7 @@ class ElfieAssembly:
     skills: SkillManager | None = None
     model_port: ModelPort | None = None
     tool_port: ToolPort | None = None
+    activity_store: ActivityStorePort | None = None
 
 
 class ElfieFactory:
@@ -51,6 +53,7 @@ class ElfieFactory:
             skills=assembly.skills,
             model_port=assembly.model_port,
             tool_port=assembly.tool_port,
+            activity_store=assembly.activity_store,
         )
         for available_body in assembly.bodies:
             if elfie.body_registry.get(available_body.body_id) is available_body:

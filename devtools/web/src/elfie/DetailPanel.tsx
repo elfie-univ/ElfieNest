@@ -33,7 +33,7 @@ function List({ values, diff = false }: Readonly<{ values: Readonly<Record<strin
 function snapshot(value: unknown): Record<string, unknown> {
   const state = record(value);
   const dominant = typeof state.dominant_emotion === "string" ? state.dominant_emotion : "";
-  return { "能量": state.energy, "疲劳": state.fatigue, "睡眠": state.is_sleeping === true ? "是" : "否", "主导情绪": emotionLabels[dominant] ?? dominant, "注意力": state.attention_network, "动作意图": state.action_intent, "记忆数": state.memory_count, "情绪全景": state.emotions };
+  return { "能量": state.energy, "疲劳": state.fatigue, "睡眠": state.is_sleeping === true ? "是" : "否", "主导情绪": emotionLabels[dominant] ?? dominant, "注意力": state.attention_network, "动作意图": state.action_intent, "记忆数": state.memory_count, "活动数": state.activity_count, "活动": state.activities, "情绪全景": state.emotions };
 }
 
 function difference(value: unknown, prefix = ""): Record<string, unknown> {
@@ -56,7 +56,7 @@ function Section({ title, children }: Readonly<{ title: string; children: React.
 }
 
 function DecisionSection({ turn }: Readonly<{ turn: ElfieTurn }>): React.JSX.Element {
-  const groups: readonly (readonly [string, readonly unknown[]])[] = [["Speech", turn.decision.speech_intents], ["Message", turn.decision.message_intents], ["Motion", turn.decision.motion_intents], ["Expression", turn.decision.expression_intents], ["Internal", turn.decision.internal_intents], ["No-op", turn.decision.noop_intents]];
+  const groups: readonly (readonly [string, readonly unknown[]])[] = [["Speech", turn.decision.speech_intents], ["Message", turn.decision.message_intents], ["Motion", turn.decision.motion_intents], ["Expression", turn.decision.expression_intents], ["Internal", turn.decision.internal_intents], ["Activity", turn.decision.activity_intents], ["No-op", turn.decision.noop_intents]];
   const cards = groups.flatMap(([label, intents]) => intents.map((intent) => <Card key={`${label}-${text(intent)}`} label={label} meta={typeof record(intent).status === "string" ? String(record(intent).status) : "pending"} value={intent} />));
   return <Section title="决策意图">{cards.length ? cards : <Card label="无决策计划" meta="只读" value="本轮没有持久化 typed intent" />}</Section>;
 }

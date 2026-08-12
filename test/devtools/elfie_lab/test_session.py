@@ -83,6 +83,43 @@ def test_mock_embodied_turn_uses_body_output_only(tmp_path, session_factory):
     assert turn["decision"]["motion_intents"][0]["motion"] == "nod_head"
 
 
+def test_mock_activity_wakes_and_settles_from_child_receipt(tmp_path, session_factory):
+    # Given: a communication turn that creates a bounded future Activity.
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("跨回合精灵")
+    session = session_factory(spec, storage)
+
+    first = session.run_turn(StimulusBundle(message="请提醒我稍后带钥匙"), "mock")
+
+    # When: the fake clock reaches the Activity wake-up and the resulting
+    # Internal Turn is allowed to settle its communication step.
+    assert first["decision"]["activity_intents"]
+    assert session.snapshot()["activities"][0]["state"] == "waiting"
+    session.elfie.advance_clock(31)
+    session.elfie._brain_runtime.coordinator.synchronize(2)
+    session.elfie.advance_clock(12)
+    session.elfie.wait_for_outcome_count(3, timeout=5)
+    for outcome in session.elfie.turn_outcomes():
+        session.elfie.wait_for_output(outcome.turn_id, timeout=5)
+
+    # Then: durable state reaches a receipt-backed terminal state exactly once.
+    activity = session.snapshot()["activities"][0]
+    assert activity["state"] == "completed"
+    assert activity["progress"][0]["attempts"] == 1
+    assert activity["progress"][0]["last_receipt_id"]
+    assert len(session._turn_adapter.channel.sent) == 2
+
+    # And: a new Lab session observes the same terminal Activity without replay.
+    session.close()
+    restored = ElfieLabSession(spec, storage)
+    try:
+        assert restored.snapshot()["activities"][0]["state"] == "completed"
+        assert restored.snapshot()["activities"][0]["progress"][0]["attempts"] == 1
+        assert restored._turn_adapter.channel.sent == []
+    finally:
+        restored.close()
+
+
 def test_state_injection_is_visible_and_persistent(tmp_path, session_factory):
     storage = ElfieLabStorage(str(tmp_path))
     spec = storage.create_elfie("边界测试")

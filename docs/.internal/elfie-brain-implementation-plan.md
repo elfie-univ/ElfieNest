@@ -480,9 +480,34 @@ Feature 切片；不能把账户表、联系人数据库或平台凭据临时搬
 
 ### 8.3 完成门与非目标
 
-关闭 BRN-005、BRN-010、ELF-014，并补齐 BRN-002 的 Activity 快照；Activity 列表、当前
-状态、下一唤醒、原因、Scope 和回执在 Elfie Lab 可见。本阶段不让 Motivation 自动创建
-Activity，不支持无限子任务、开放式长期 Agent 或自由派生 Worker。
+本阶段目标是关闭 BRN-005、ELF-014，并补齐 BRN-002 的 Activity 可观察投影；统一
+BRN-010 仍需后续 Journal/State/Checkpoint 切片完成。Activity 列表、当前状态、下一唤醒、
+原因、Scope 和回执在 Elfie Lab 可见。本阶段不让 Motivation 自动创建 Activity，不支持
+无限子任务、开放式长期 Agent 或自由派生 Worker。
+
+### 8.4 阶段五 MVP 验收记录
+
+阶段五本次切片完成了 Persistent Activity 的最小可运行闭环：
+
+- Brain 只依赖 `ActivityStorePort`；SQLite Adapter 位于
+  `infrastructure/persistence/activity.py`，Lab 为每只 Elfie 使用独立的
+  `elfies/<elfie_id>/activity/activity.sqlite`；
+- `ActivityDraft` 先做无副作用 Preflight，再在 Turn 结算后幂等 Commit；Activity 保存
+  稳定 ID、因果 ID、授权 Scope、唤醒时间、步骤进度和 revision；
+- 等待中的 Activity 到期后只通过带稳定事件 ID 的 `InternalSignal.ACTIVITY` 重新进入
+  Brain；通信和身体 Scope 仍由同一确定性输出边界分别校验；
+- 真实通信回执会结算当前 Activity Step，记录 attempts/receipt，并把 Activity 推进到
+  可观察终态；重启后从 SQLite 读取终态，不重放已经完成的消息；
+- Elfie Lab 已展示 Activity 列表、状态、下一唤醒、Scope、步骤和回执；Mock 场景“提醒我
+  稍后带钥匙”已覆盖等待、时钟唤醒、Internal Turn、消息回执、终态恢复和无重复副作用。
+
+本次局部回归为 46 项通过，Lab Web 的 TypeScript/Vite build 通过；Brain 架构门通过。
+Facade 纯源码行数门仍是阶段四之前的既有基线失败（当前 336、阶段五前 329，门槛 250），
+本阶段没有扩大范围修复。统一 Journal/State/Checkpoint、跨进程 Directive 对账和多步骤
+Activity 的完整推进仍属于 BRN-010 后续持久化切片；本次不把它们冒充为已完成能力。
+
+据此，**阶段五 Persistent Activity MVP 已达到本阶段可验收范围**；Motivation 仍必须等
+Activity 稳定后另行实现。
 
 ## 9. 阶段六：动机与主动生活
 

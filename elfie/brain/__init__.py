@@ -1,3 +1,18 @@
+from elfie.brain.activity import (
+    ActivityDraft,
+    ActivityPreflightResult,
+    ActivityPreflightStatus,
+    ActivityRecord,
+    ActivityState,
+    ActivityStateEvent,
+    ActivityStep,
+    ActivityStepKind,
+    ActivityStepProgress,
+    ActivityStorePort,
+    ActivityTransitionError,
+    InMemoryActivityStore,
+    transition_activity,
+)
 from elfie.brain.context_builder import ThalamusContextBuilder
 from elfie.brain.context_types import (
     BigFiveTraits,
@@ -41,6 +56,19 @@ from elfie.brain.state_lifecycle import (
 from elfie.brain.tool_port import ToolPort, ToolRequest, ToolResult
 
 __all__ = [
+    "ActivityDraft",
+    "ActivityPreflightResult",
+    "ActivityPreflightStatus",
+    "ActivityRecord",
+    "ActivityState",
+    "ActivityStateEvent",
+    "ActivityStep",
+    "ActivityStepKind",
+    "ActivityStepProgress",
+    "ActivityStorePort",
+    "ActivityTransitionError",
+    "InMemoryActivityStore",
+    "transition_activity",
     "BrainContext",
     "BrainContinuityCheckpoint",
     "BigFiveTraits",

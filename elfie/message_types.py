@@ -26,6 +26,7 @@ _Sha256 = Annotated[str, StringConstraints(strict=True, pattern=r"^[0-9a-f]{64}$
 _SizeBytes = Annotated[int, Field(strict=True, ge=0)]
 
 EventId = NewType("EventId", _NonBlankId)
+ActivityId = NewType("ActivityId", _NonBlankId)
 TurnId = NewType("TurnId", _NonBlankId)
 PlanId = NewType("PlanId", _NonBlankId)
 IntentId = NewType("IntentId", _NonBlankId)
@@ -110,6 +111,7 @@ class MessageMeta(FrozenContractModel):
 
 
 __all__ = (
+    "ActivityId",
     "ActorId",
     "ActorRef",
     "CommandId",

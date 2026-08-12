@@ -17,7 +17,11 @@ from elfie.brain.decision_types import (
     TurnDecision,
 )
 from elfie.brain.output_execution_state import BatchRuntime, ExecutorRegistry
-from elfie.brain.output_ports import EffectiveCapabilitiesSource, IntentExecutor
+from elfie.brain.output_ports import (
+    ActivityPreflightExecutor,
+    EffectiveCapabilitiesSource,
+    IntentExecutor,
+)
 from elfie.brain.output_receipts import ExecutionReceiptPublisher
 from elfie.brain.output_scheduler import OutputBatchScheduler
 from elfie.brain.output_types import (
@@ -43,12 +47,17 @@ class OutputRouter:
         body_executor: IntentExecutor,
         message_executor: IntentExecutor,
         internal_executor: IntentExecutor,
+        activity_executor: ActivityPreflightExecutor | None = None,
         clock: Callable[[], UTCDateTime],
         max_pending_batches: int = 8,
         max_intents_per_plan: int = 64,
         max_schedule_horizon_seconds: float = 60.0,
         max_workers: int = 4,
         completed_retention: int = 256,
+        receipt_handler: Callable[
+            [DecisionPlan, DecisionIntent, ExecutionReceipt], None
+        ]
+        | None = None,
     ) -> None:
         self._capabilities = capabilities
         self._clock = clock
@@ -58,11 +67,13 @@ class OutputRouter:
         )
         self._max_workers = max_workers
         self._completed_retention = completed_retention
+        self._receipt_handler = receipt_handler
         self._queue: Queue[BatchRuntime] = Queue(max_pending_batches)
         self._executors = ExecutorRegistry(
             body=body_executor,
             communication=message_executor,
             internal=internal_executor,
+            activity=activity_executor or _closed_activity_executor(),
         )
         self._publisher = ExecutionReceiptPublisher(
             elfie_id=elfie_id,
@@ -115,6 +126,10 @@ class OutputRouter:
             error = self._validate(decision)
             if error is not None:
                 return self._reject(plan, error.code, error.message)
+            for intent in plan.intents:
+                error = self._executors.preflight(plan, intent)
+                if error is not None:
+                    return self._reject(plan, error.code, error.message)
             if self._queue.full():
                 return self._reject(plan, "output_backpressure", "output queue is full")
             batch = ExecutionBatch(
@@ -271,13 +286,15 @@ class OutputRouter:
         status: ExecutionStatus,
         error: Optional[ErrorInfo],
     ) -> None:
-        self._publisher.emit(
+        receipt = self._publisher.emit(
             plan=plan,
             intent=intent,
             executor=kind,
             status=status,
             error=error,
         )
+        if self._receipt_handler is not None:
+            self._receipt_handler(plan, intent, receipt)
 
     def _reject(self, plan: DecisionPlan, code: str, message: str) -> BatchRejection:
         rejection = BatchRejection(
@@ -315,3 +332,9 @@ def _body_target(
 
 
 __all__ = ("OutputRouter",)
+
+
+def _closed_activity_executor() -> ActivityPreflightExecutor:
+    from elfie.brain.internal_output import ClosedActivityIntentExecutor
+
+    return ClosedActivityIntentExecutor()

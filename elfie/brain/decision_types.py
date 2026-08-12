@@ -9,6 +9,7 @@ from pydantic import Field, StringConstraints, model_validator
 from pydantic_core import PydanticCustomError
 from typing_extensions import TypeAlias
 
+from elfie.brain.activity import ActivityDraft
 from elfie.brain.perception_types import (
     CommunicationScope,
     EmbodiedScope,
@@ -122,6 +123,13 @@ class InternalIntent(IntentContract):
     content: _NonBlankText
 
 
+class PersistentActivityIntent(IntentContract):
+    """A validated request to persist work beyond the current Turn."""
+
+    type: Literal["activity"]
+    draft: ActivityDraft
+
+
 class NoOpIntent(IntentContract):
     """A terminal, auditable decision that requests no external action."""
 
@@ -136,6 +144,7 @@ DecisionIntent: TypeAlias = Annotated[
         MotionIntent,
         ExpressionIntent,
         InternalIntent,
+        PersistentActivityIntent,
         NoOpIntent,
     ],
     Field(discriminator="type"),
@@ -258,7 +267,9 @@ class TurnDecision(FrozenContractModel):
                             "decision_conversation_scope",
                             "communication decision target exceeds the admitted conversation",
                         )
-                elif not isinstance(intent, (InternalIntent, NoOpIntent)):
+                elif not isinstance(
+                    intent, (InternalIntent, PersistentActivityIntent, NoOpIntent)
+                ):
                     raise PydanticCustomError(
                         "decision_external_domain",
                         "communication turns cannot produce nervous-system intents",
@@ -281,12 +292,15 @@ class TurnDecision(FrozenContractModel):
                     "embodied turns cannot produce communication intents",
                 )
         else:
-            if self.response_scope.external_domain is not None:
+            scope = self.interaction_scope
+            allowed_scope = getattr(scope, "response_scope", None)
+            expected_scope = allowed_scope or ResponseScope(external_domain=None)
+            if self.response_scope != expected_scope:
                 raise PydanticCustomError(
                     "decision_interaction_scope",
-                    "stage-one internal decisions cannot own an external scope",
+                    "internal decisions cannot exceed their trigger response scope",
                 )
-            if any(
+            if self.response_scope.external_domain is None and any(
                 isinstance(
                     intent,
                     (SpeechIntent, MessageIntent, MotionIntent, ExpressionIntent),
@@ -295,7 +309,30 @@ class TurnDecision(FrozenContractModel):
             ):
                 raise PydanticCustomError(
                     "decision_external_domain",
-                    "stage-one internal turns cannot produce external intents",
+                    "internal turns without an allowed scope cannot produce external intents",
+                )
+            if (
+                self.response_scope.external_domain
+                is ExternalExecutionDomain.COMMUNICATION
+                and any(
+                    isinstance(intent, (SpeechIntent, MotionIntent, ExpressionIntent))
+                    for intent in self.plan.intents
+                )
+            ):
+                raise PydanticCustomError(
+                    "decision_external_domain",
+                    "communication-scoped internal turns cannot produce body intents",
+                )
+            if (
+                self.response_scope.external_domain
+                is ExternalExecutionDomain.NERVOUS_SYSTEM
+                and any(
+                    isinstance(intent, MessageIntent) for intent in self.plan.intents
+                )
+            ):
+                raise PydanticCustomError(
+                    "decision_external_domain",
+                    "body-scoped internal turns cannot produce communication intents",
                 )
         return self
 
@@ -310,6 +347,7 @@ __all__ = (
     "MessageIntent",
     "MotionIntent",
     "NoOpIntent",
+    "PersistentActivityIntent",
     "SpeechIntent",
     "TurnDecision",
 )

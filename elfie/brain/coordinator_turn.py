@@ -21,6 +21,7 @@ from elfie.brain.energy.energy import HypothalamusEnergy
 from elfie.brain.limbic_appraiser import LimbicAppraiser
 from elfie.brain.model_context_compiler import ModelContextCompiler, ModelTokenBudget
 from elfie.brain.perception_types import (
+    ExternalExecutionDomain,
     InternalPayload,
     InternalSignal,
     PerceptionEvent,
@@ -213,10 +214,17 @@ class CoordinatorTurnFactory:
         for event in frame.events:
             payload = event.payload
             if not isinstance(payload, SocialPayload):
+                if isinstance(payload, InternalPayload):
+                    scope = payload.response_scope
+                    if (
+                        scope is not None
+                        and scope.external_domain
+                        is ExternalExecutionDomain.COMMUNICATION
+                    ):
+                        return scope.channel_id, scope.conversation_id
                 continue
-            if payload.sender.source_kind != "owner":
-                continue
-            return payload.channel_id, payload.conversation_id
+            if payload.sender.source_kind == "owner":
+                return payload.channel_id, payload.conversation_id
         return None, None
 
     @staticmethod

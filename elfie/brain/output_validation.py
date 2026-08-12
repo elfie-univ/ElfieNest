@@ -6,6 +6,7 @@ from datetime import timedelta
 from functools import singledispatch
 from typing import Optional
 
+from elfie.brain.activity import ActivityStepKind
 from elfie.brain.context_types import EffectiveCapabilities
 from elfie.brain.decision_types import (
     DecisionIntent,
@@ -15,9 +16,10 @@ from elfie.brain.decision_types import (
     MessageIntent,
     MotionIntent,
     NoOpIntent,
+    PersistentActivityIntent,
     SpeechIntent,
 )
-from elfie.brain.perception_types import EmbodiedScope
+from elfie.brain.perception_types import ExternalExecutionDomain
 from elfie.message_types import ErrorInfo, UTCDateTime
 
 
@@ -163,6 +165,58 @@ def _validate_noop(
     _intent: NoOpIntent,
     _capabilities: EffectiveCapabilities,
 ) -> Optional[ErrorInfo]:
+    return None
+
+
+@_validate_target.register
+def _validate_activity(
+    intent: PersistentActivityIntent,
+    capabilities: EffectiveCapabilities,
+) -> Optional[ErrorInfo]:
+    """Check every persisted external step against current capabilities."""
+    for step in intent.draft.steps:
+        scope = step.scope
+        if step.kind is ActivityStepKind.INTERNAL:
+            continue
+        if scope is None:
+            return ErrorInfo(
+                code="activity_scope_missing",
+                message="external Activity step has no execution scope",
+            )
+        if scope.external_domain is ExternalExecutionDomain.COMMUNICATION:
+            channel = next(
+                (
+                    candidate
+                    for candidate in capabilities.connected_channels
+                    if candidate.channel_id == scope.channel_id
+                ),
+                None,
+            )
+            if channel is None:
+                return ErrorInfo(
+                    code="activity_channel_unavailable",
+                    message="Activity communication channel is not connected",
+                )
+            if scope.conversation_id not in channel.authorized_conversation_ids:
+                return ErrorInfo(
+                    code="activity_conversation_unauthorized",
+                    message="Activity conversation target is not authorized",
+                )
+        elif scope.external_domain is ExternalExecutionDomain.NERVOUS_SYSTEM:
+            body = capabilities.current_body
+            if body is None or (
+                body.body_id != scope.body_id
+                or body.body_generation != scope.body_generation
+            ):
+                return ErrorInfo(
+                    code="activity_body_unavailable",
+                    message="Activity body target is no longer current",
+                )
+            if "*" not in body.actions and step.operation not in body.actions:
+                return ErrorInfo(
+                    code="activity_operation_unavailable",
+                    message="Activity body operation is not currently supported",
+                )
     return None
 
 

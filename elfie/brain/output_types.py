@@ -27,6 +27,7 @@ class ExecutorKind(str, Enum):
     BODY = "body"
     COMMUNICATION = "communication"
     INTERNAL = "internal"
+    ACTIVITY = "activity"
 
 
 class ExecutionBatch(FrozenContractModel):

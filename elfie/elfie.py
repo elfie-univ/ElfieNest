@@ -10,6 +10,7 @@ from typing import Iterable
 from elfie.body import BodyBinding, BodyRegistry
 from elfie.body.contracts import BodySensorEvent
 from elfie.body.port import BodyPort
+from elfie.brain.activity import ActivityStorePort, InMemoryActivityStore
 from elfie.brain.context_types import (
     OrientationSnapshot,
     ProfileAnchorSnapshot,
@@ -56,6 +57,7 @@ class Elfie:
         skills: SkillManager | None = None,
         model_port: ModelPort | None = None,
         tool_port: ToolPort | None = None,
+        activity_store: ActivityStorePort | None = None,
     ) -> None:
         character_profile.validate()
         self.character_profile = character_profile
@@ -84,6 +86,7 @@ class Elfie:
             clock=lambda: self.cognitive_datetime,
             initial_at=self.cognitive_datetime,
         )
+        self.activity_store = activity_store or InMemoryActivityStore()
         workspace_id = ElfieId(self.character_profile.identity.elfie_id)
         self.perceptual_workspace = PerceptualWorkspace(workspace_id)
         self.nervous_system = NervousSystem(
@@ -244,6 +247,7 @@ class Elfie:
             clock=clock,
             model_port=model_port,
             tool_port=tool_port,
+            activity_store=self.activity_store,
         )
 
     def start(self) -> None:
@@ -320,6 +324,10 @@ class Elfie:
 
     def turn_reasoning(self, turn_id: TurnId) -> ReasoningRunResult | None:
         return self._require_brain_runtime().reasoning(turn_id)
+
+    def activities(self):
+        """Return committed cross-Turn work for Observer/Lab projections."""
+        return self._require_brain_runtime().activities()
 
     def orientation_snapshot(self) -> OrientationSnapshot:
         """Return the latest committed self/world orientation snapshot."""
