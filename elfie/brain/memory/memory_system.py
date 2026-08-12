@@ -201,8 +201,22 @@ class MemorySystem:
         nodes = self.retriever.retrieve(retrieval_query, top_k)
         return [node.content for node in nodes]
 
+    def pending_consolidation_ids(self, limit: int = 8) -> tuple[str, ...]:
+        """Return a bounded, read-only view of episodic work awaiting consolidation."""
+        if limit < 1:
+            return ()
+        return tuple(
+            node.id
+            for node in self.storage.get_unconsolidated_nodes(node_type="episodic")[
+                :limit
+            ]
+        )
+
     def run_consolidation(
-        self, runtime_agent: MemoryModelPort | None = None
+        self,
+        runtime_agent: MemoryModelPort | None = None,
+        *,
+        max_episodes: int | None = None,
     ) -> Dict[str, Any]:
         """运行巩固流程
 
@@ -213,7 +227,10 @@ class MemorySystem:
             巩固结果字典
             {"consolidated_count": int, "knowledge_created": int, "edges_created": int}
         """
-        result = self.consolidator.run_consolidation(runtime_agent)
+        result = self.consolidator.run_consolidation(
+            runtime_agent,
+            max_episodes=max_episodes,
+        )
         if any(isinstance(value, int) and value > 0 for value in result.values()):
             self._commit_state(
                 causation_id=EventId(f"memory-consolidation:{uuid4().hex}")

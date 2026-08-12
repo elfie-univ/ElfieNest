@@ -19,6 +19,7 @@ from elfie.brain.context_types import (
     BrainContext,
     MemoryStateSnapshot,
     MotivationSnapshot,
+    OfflineCognitionSnapshot,
     OrientationSnapshot,
     ProfileAnchorSnapshot,
     SelfhoodDerivation,
@@ -36,6 +37,12 @@ from elfie.brain.motivation import (
     MotivationCheckpoint,
     MotivationSystem,
     RecoveryDriveCandidate,
+)
+from elfie.brain.offline_cognition import (
+    OfflineCognitionCandidate,
+    OfflineCognitionCheckpoint,
+    OfflineCognitionRestoreError,
+    OfflineCognitionSystem,
 )
 from elfie.brain.orientation import OrientationSystem
 from elfie.brain.perception_types import TurnFrame
@@ -82,9 +89,14 @@ __all__ = [
     "ProfileAnchorSnapshot",
     "MemoryStateSnapshot",
     "MotivationSnapshot",
+    "OfflineCognitionSnapshot",
     "MotivationCheckpoint",
     "MotivationSystem",
     "RecoveryDriveCandidate",
+    "OfflineCognitionCandidate",
+    "OfflineCognitionCheckpoint",
+    "OfflineCognitionRestoreError",
+    "OfflineCognitionSystem",
     "SelfhoodDerivation",
     "SelfhoodSnapshot",
     "SelfhoodSpeechStyle",

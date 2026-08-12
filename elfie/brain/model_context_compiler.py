@@ -13,6 +13,7 @@ from elfie.brain.context_types import (
     HomeostasisSnapshot,
     MemoryStateSnapshot,
     MotivationSnapshot,
+    OfflineCognitionSnapshot,
     OrientationSnapshot,
     ProfileAnchorSnapshot,
     SelfhoodSnapshot,
@@ -110,6 +111,7 @@ class CompiledModelContext(FrozenContractModel):
     emotion: EmotionSnapshot
     homeostasis: HomeostasisSnapshot
     motivation: MotivationSnapshot
+    offline_cognition: OfflineCognitionSnapshot
     orientation: OrientationSnapshot
     capabilities: EffectiveCapabilities
     truncated: bool
@@ -204,6 +206,7 @@ class ModelContextCompiler:
             emotion=context.emotion,
             homeostasis=context.homeostasis,
             motivation=context.motivation,
+            offline_cognition=context.offline_cognition,
             orientation=context.orientation,
             capabilities=context.capabilities,
             truncated=cursor.truncated,

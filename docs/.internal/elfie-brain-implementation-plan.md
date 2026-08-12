@@ -1,6 +1,6 @@
 # Elfie Brain 七阶段实施与体验验收计划
 
-> 状态：阶段一、阶段二、阶段三实现与机器/真实 Godot 验收完成；阶段四 4A、4B、4C 已完成验收并关闭为“连续生命状态 MVP”里程碑；阶段五 Persistent Activity MVP 与阶段六恢复 Motivation MVP 已完成机器和 Lab 验收。Profile 物理字段迁移、统一持久化收口、完整 ELF-015 和阶段七心智整理仍按 Conformance 台账保留为后续阶段债务
+> 状态：阶段一、阶段二、阶段三实现与机器/真实 Godot 验收完成；阶段四 4A、4B、4C 已完成验收并关闭为“连续生命状态 MVP”里程碑；阶段五 Persistent Activity MVP、阶段六恢复 Motivation MVP 与阶段七有界心智整理 MVP 已完成机器和 Lab 验收。Profile 物理字段迁移、统一持久化收口和 BRN-002/010 仍按 Conformance 台账保留为后续阶段债务
 > 制定日期：2026-08-12
 > 依据：[Brain 十系统设计](./elfie-brain-ten-system-architecture.md)、
 > [Brain 内部架构契约](../zh/developer/contracts/brain.md)、
@@ -584,8 +584,26 @@ Checkpoint 和 owner 提交边界内复用或收敛现有实现。
 
 ### 10.3 完成门与非目标
 
-关闭 BRN-009、ELF-015；Elfie Lab 能展示候选、证据、校验结果和前后状态差异。本阶段不让
-睡眠过程直接发消息、移动身体、自由重写人格，也不建设独立第二大脑。
+关闭 BRN-009、ELF-015 的“有界心智整理”范围；Elfie Lab 能展示候选、证据、校验结果和前后
+状态差异。本阶段不让睡眠过程直接发消息、移动身体、创建 Activity、自由重写人格，也不建设
+独立第二大脑。当前 MVP 只整理有限数量的 Episodic 记忆，未来的 Activity/情绪轨迹/人格候选
+仍需各自获批的后续切片。
+
+### 10.4 阶段七验收记录
+
+- `OfflineCognitionSystem` 只在睡眠窗口发现有限（默认最多 8 条）未整理经历，并生成带稳定
+  ID、来源和 Checkpoint 的 `OfflineCognitionCandidate`；评估阶段不修改 Memory；
+- 候选以 `InternalSignal.OFFLINE_COGNITION` 进入独立 Internal Turn，Mock Runtime 只能
+  产生 No-op；只有完成回执才调用已有 `MemorySystem` 巩固算法，且以 `max_episodes` 限制本轮
+  工作量；通信、NervousSystem 和 Activity 执行器均不参与；
+- `BrainContext`、provider-neutral Model Context、Lab 快照和连续性 Checkpoint 都能看到该
+  状态；失败会清除待处理候选并进入冷却，重启恢复待处理候选不会重复创建新的候选；
+- Elfie Lab 场景 `test_offline_cognition_consolidates_memory_without_external_actions` 已
+  证明：睡眠 → 候选 → Internal Turn → No-op 回执 → Memory 巩固，消息和 Activity 数量均为零；
+  随后推进时钟仍只有一个终态回合；
+- 阶段七聚焦回归覆盖 Offline Cognition、Memory consolidation、Context、Coordinator、Lab
+  和 Web build；已明确保留的后续范围是 Activity/情绪轨迹的夜间整理、Selfhood 候选及统一
+  Journal/State/Checkpoint 收口。
 
 ## 11. 每阶段统一交付清单
 

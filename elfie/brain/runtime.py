@@ -113,6 +113,7 @@ class BrainRuntime:
             initial_timestamp=clock().timestamp(),
             allowed_tools=skills.allowed_tool_keys(),
             motivation_blocked=self._motivation_blocked,
+            offline_blocked=self._offline_blocked,
         )
         self._started = False
         self._workspace = workspace
@@ -181,6 +182,10 @@ class BrainRuntime:
         """Expose the current fixed-drive state for Lab/Observer inspection."""
         return self.context.motivation_snapshot()
 
+    def offline_cognition_snapshot(self):
+        """Expose bounded quiet-window cognition for Lab/Observer inspection."""
+        return self.context.offline_cognition_snapshot()
+
     def continuity_checkpoint(self) -> BrainContinuityCheckpoint:
         """Capture one checkpoint for the Stage 4C continuous state owners."""
         return BrainContinuityCheckpoint(
@@ -189,6 +194,7 @@ class BrainRuntime:
             energy=self._homeostasis.checkpoint(),
             memory=self.context.memory_checkpoint(),
             motivation=self.context.motivation_checkpoint(),
+            offline_cognition=self.context.offline_cognition_checkpoint(),
         )
 
     def restore_continuity(self, checkpoint: BrainContinuityCheckpoint) -> None:
@@ -200,16 +206,19 @@ class BrainRuntime:
         self._homeostasis.validate_checkpoint(checkpoint.energy)
         self.context.validate_memory_checkpoint(checkpoint.memory)
         self.context.validate_motivation_checkpoint(checkpoint.motivation)
+        self.context.validate_offline_cognition_checkpoint(checkpoint.offline_cognition)
         try:
             self._emotion.restore(checkpoint.emotion)
             self._homeostasis.restore(checkpoint.energy)
             self.context.restore_memory_checkpoint(checkpoint.memory)
             self.context.restore_motivation_checkpoint(checkpoint.motivation)
+            self.context.restore_offline_cognition_checkpoint(checkpoint.offline_cognition)
         except Exception:
             self._emotion.restore(current.emotion)
             self._homeostasis.restore(current.energy)
             self.context.restore_memory_checkpoint(current.memory)
             self.context.restore_motivation_checkpoint(current.motivation)
+            self.context.restore_offline_cognition_checkpoint(current.offline_cognition)
             raise
 
     def decision(self, turn_id: TurnId) -> Optional[TurnDecision]:
@@ -265,6 +274,7 @@ class BrainRuntime:
     ) -> None:
         """Bind a child external receipt to the Activity step that requested it."""
         self._settle_motivation_receipt(intent, receipt)
+        self._settle_offline_cognition_receipt(intent, receipt)
         if receipt.status is not ExecutionStatus.COMPLETED or isinstance(
             intent, PersistentActivityIntent
         ):
@@ -331,8 +341,56 @@ class BrainRuntime:
                 success=True,
             )
 
+    def _settle_offline_cognition_receipt(
+        self,
+        intent: DecisionIntent,
+        receipt: ExecutionReceipt,
+    ) -> None:
+        """Commit memory整理 only after its inert Internal Turn settles."""
+        if not isinstance(intent, (NoOpIntent, PersistentActivityIntent)):
+            return
+        terminal = {
+            ExecutionStatus.COMPLETED,
+            ExecutionStatus.FAILED,
+            ExecutionStatus.REJECTED,
+            ExecutionStatus.INTERRUPTED,
+            ExecutionStatus.TIMED_OUT,
+            ExecutionStatus.CANCELLED,
+        }
+        if receipt.status not in terminal:
+            return
+        candidate_id = next(
+            (
+                event_id
+                for event_id in intent.cause_event_ids
+                if str(event_id).startswith("offline:consolidation:")
+            ),
+            None,
+        )
+        if candidate_id is not None:
+            self.context.settle_offline_cognition(
+                candidate_id,
+                now=receipt.occurred_at,
+                success=receipt.status is ExecutionStatus.COMPLETED,
+            )
+
     def _motivation_blocked(self) -> bool:
         """Treat pending external work as higher priority than a drive."""
+        with self._activity_lock:
+            active_activity = any(
+                record.state
+                in {
+                    ActivityState.VALIDATED,
+                    ActivityState.WAITING,
+                    ActivityState.RUNNING,
+                    ActivityState.PAUSED,
+                }
+                for record in self.activity_store.list()
+            )
+        return active_activity or self._workspace.metrics().reliable_event_count > 0
+
+    def _offline_blocked(self) -> bool:
+        """Do not start quiet-window整理 while foreground work is pending."""
         with self._activity_lock:
             active_activity = any(
                 record.state

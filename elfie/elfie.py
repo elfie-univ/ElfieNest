@@ -361,6 +361,17 @@ class Elfie:
             )
         return runtime.motivation_snapshot()
 
+    def offline_cognition_snapshot(self):
+        """Expose bounded quiet-window memory整理 state for Lab/Observer reads."""
+        runtime = self._brain_runtime
+        if runtime is None:
+            from elfie.brain.context_types import OfflineCognitionSnapshot
+
+            return OfflineCognitionSnapshot.unknown().model_copy(
+                update={"captured_at": self.cognitive_datetime}
+            )
+        return runtime.offline_cognition_snapshot()
+
     def continuity_checkpoint(self) -> BrainContinuityCheckpoint:
         """Capture continuous Emotion/Energy/Memory state for restart tests."""
         return self._require_brain_runtime().continuity_checkpoint()

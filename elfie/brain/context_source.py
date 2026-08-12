@@ -14,6 +14,7 @@ from elfie.brain.context_types import (
     MemoryContext,
     MemoryItem,
     MotivationSnapshot,
+    OfflineCognitionSnapshot,
     OrientationSnapshot,
     ProfileAnchorSnapshot,
     SelfhoodSnapshot,
@@ -23,6 +24,11 @@ from elfie.brain.motivation import (
     MotivationCheckpoint,
     MotivationSystem,
     RecoveryDriveCandidate,
+)
+from elfie.brain.offline_cognition import (
+    OfflineCognitionCandidate,
+    OfflineCognitionCheckpoint,
+    OfflineCognitionSystem,
 )
 from elfie.brain.orientation import OrientationSystem
 from elfie.brain.perception_types import SocialPayload, TurnFrame
@@ -46,6 +52,7 @@ class BrainContextState:
         orientation: OrientationSystem | None = None,
         selfhood: SelfhoodSystem | None = None,
         motivation: MotivationSystem | None = None,
+        offline_cognition: OfflineCognitionSystem | None = None,
         profile_anchors: ProfileAnchorSnapshot | None = None,
         history_capacity: int = 32,
         event_identity_capacity: int = 2048,
@@ -57,6 +64,11 @@ class BrainContextState:
         self._orientation = orientation or OrientationSystem(initial_at=clock())
         self._selfhood = selfhood or SelfhoodSystem(initial_at=clock())
         self._motivation = motivation or MotivationSystem(initial_at=clock())
+        self._offline_cognition = offline_cognition or OfflineCognitionSystem(
+            pending_episode_ids=memory.pending_consolidation_ids,
+            consolidate=lambda limit: memory.run_consolidation(max_episodes=limit),
+            initial_at=clock(),
+        )
         self._profile_anchors = (
             profile_anchors
             or ProfileAnchorSnapshot.unknown().model_copy(
@@ -287,6 +299,67 @@ class BrainContextState:
         """Restore a validated drive checkpoint."""
         with self._lock:
             self._motivation.restore(checkpoint)
+
+    def offline_cognition(
+        self, captured_at: UTCDateTime
+    ) -> OfflineCognitionSnapshot:
+        """Read the quiet-window consolidation state at a Turn cutoff."""
+        with self._lock:
+            return self._offline_cognition.snapshot(captured_at)
+
+    def offline_cognition_snapshot(self) -> OfflineCognitionSnapshot:
+        """Return the latest offline-cognition state for Lab/continuity reads."""
+        with self._lock:
+            return self._offline_cognition.snapshot(self._clock())
+
+    def evaluate_offline_cognition(
+        self,
+        *,
+        sleeping: bool,
+        now: UTCDateTime,
+        blocked: bool,
+    ) -> Optional[OfflineCognitionCandidate]:
+        """Evaluate one quiet-window candidate without mutating Memory."""
+        with self._lock:
+            return self._offline_cognition.evaluate(
+                sleeping=sleeping,
+                now=now,
+                blocked=blocked,
+            )
+
+    def settle_offline_cognition(
+        self,
+        candidate_id: EventId,
+        *,
+        now: UTCDateTime,
+        success: bool,
+    ) -> bool:
+        """Commit bounded memory consolidation after a completed Internal Turn."""
+        with self._lock:
+            return self._offline_cognition.settle(
+                candidate_id,
+                now=now,
+                success=success,
+            )
+
+    def offline_cognition_checkpoint(self) -> OfflineCognitionCheckpoint:
+        """Capture quiet-window suppression state for continuity restore."""
+        with self._lock:
+            return self._offline_cognition.checkpoint()
+
+    def validate_offline_cognition_checkpoint(
+        self, checkpoint: OfflineCognitionCheckpoint
+    ) -> None:
+        """Validate quiet-window continuity without changing Brain state."""
+        with self._lock:
+            self._offline_cognition.validate_checkpoint(checkpoint)
+
+    def restore_offline_cognition_checkpoint(
+        self, checkpoint: OfflineCognitionCheckpoint
+    ) -> None:
+        """Restore a validated quiet-window checkpoint."""
+        with self._lock:
+            self._offline_cognition.restore(checkpoint)
 
     def selfhood_snapshot(self) -> SelfhoodSnapshot:
         """Return the latest committed Selfhood without changing its revision."""

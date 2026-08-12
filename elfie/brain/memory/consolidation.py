@@ -51,7 +51,10 @@ class MemoryConsolidator:
         self.elfie_id = elfie_id
 
     def run_consolidation(
-        self, runtime_agent: MemoryModelPort | None = None
+        self,
+        runtime_agent: MemoryModelPort | None = None,
+        *,
+        max_episodes: int | None = None,
     ) -> Dict[str, Any]:
         """执行巩固流程（8.5步骤，含pattern发现）
 
@@ -76,7 +79,7 @@ class MemoryConsolidator:
         }
 
         # 步骤1：收集未巩固episodic节点
-        episodic_nodes = self._collect_unconsolidated()
+        episodic_nodes = self._collect_unconsolidated(limit=max_episodes)
         if not episodic_nodes:
             logger.info("巩固跳过：没有未巩固的episodic节点")
             return result
@@ -176,9 +179,10 @@ class MemoryConsolidator:
     # 步骤1：收集
     # ------------------------------------------------------------------
 
-    def _collect_unconsolidated(self) -> List[MemoryNode]:
+    def _collect_unconsolidated(self, limit: int | None = None) -> List[MemoryNode]:
         """步骤1：收集未巩固episodic节点"""
-        return self.storage.get_unconsolidated_nodes(node_type="episodic")
+        nodes = self.storage.get_unconsolidated_nodes(node_type="episodic")
+        return nodes if limit is None else nodes[: max(0, limit)]
 
     # ------------------------------------------------------------------
     # 步骤2：分组

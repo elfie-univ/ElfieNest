@@ -9,6 +9,7 @@ from elfie.brain.context_types import MemoryStateSnapshot
 from elfie.brain.emotion.emotion_system import EmotionCheckpoint
 from elfie.brain.energy.energy import EnergyCheckpoint
 from elfie.brain.motivation import MotivationCheckpoint
+from elfie.brain.offline_cognition import OfflineCognitionCheckpoint
 from elfie.brain.state_lifecycle import StateCheckpoint
 
 
@@ -25,6 +26,7 @@ class BrainContinuityCheckpoint:
     energy: EnergyCheckpoint
     memory: StateCheckpoint[MemoryStateSnapshot]
     motivation: MotivationCheckpoint
+    offline_cognition: OfflineCognitionCheckpoint
 
 
 __all__ = ("BrainContinuityCheckpoint",)

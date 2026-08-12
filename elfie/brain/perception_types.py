@@ -72,6 +72,7 @@ class InternalSignal(str, Enum):
     PROCESSING_FAILURE = "processing_failure"
     ACTIVITY = "activity"
     MOTIVATION = "motivation"
+    OFFLINE_COGNITION = "offline_cognition"
 
 
 @unique

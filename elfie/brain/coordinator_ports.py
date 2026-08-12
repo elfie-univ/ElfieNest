@@ -8,12 +8,14 @@ from elfie.brain.context_types import (
     EmotionSnapshot,
     MemoryContext,
     MotivationSnapshot,
+    OfflineCognitionSnapshot,
     OrientationSnapshot,
     ProfileAnchorSnapshot,
     SelfhoodSnapshot,
 )
 from elfie.brain.decision_types import TurnDecision
 from elfie.brain.motivation import RecoveryDriveCandidate
+from elfie.brain.offline_cognition import OfflineCognitionCandidate
 from elfie.brain.perception_types import TurnFrame
 from elfie.message_types import TurnId, UTCDateTime
 
@@ -64,6 +66,18 @@ class BrainContextSource(Protocol):
         blocked: bool,
     ) -> Optional[RecoveryDriveCandidate]:
         """Evaluate the bounded fixed drive at a coordinator clock boundary."""
+
+    def offline_cognition(self, captured_at: UTCDateTime) -> OfflineCognitionSnapshot:
+        """Return quiet-window memory整理 state at the Turn cutoff."""
+
+    def evaluate_offline_cognition(
+        self,
+        *,
+        sleeping: bool,
+        now: UTCDateTime,
+        blocked: bool,
+    ) -> Optional[OfflineCognitionCandidate]:
+        """Evaluate one bounded quiet-window consolidation candidate."""
 
     def profile_anchors(self, captured_at: UTCDateTime) -> ProfileAnchorSnapshot:
         """Return immutable identity and appearance anchors at the Turn cutoff."""

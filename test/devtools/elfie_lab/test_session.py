@@ -155,6 +155,54 @@ def test_recovery_drive_creates_one_bounded_internal_turn(tmp_path, session_fact
     assert session.snapshot()["activity_count"] == 0
 
 
+def test_offline_cognition_consolidates_memory_without_external_actions(
+    tmp_path, session_factory
+):
+    # Given: pending episodic memories and a sleeping Brain.
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("离线整理")
+    session = session_factory(spec, storage)
+    session._turn_adapter._runtime.select(session_module.create_runtime("mock"))
+    session.elfie.memory.record_episode(
+        content="主人在窗边陪我玩耍",
+        emotion="happy",
+        intensity=70,
+    )
+    session.elfie.memory.record_episode(
+        content="主人在窗边给我零食",
+        emotion="happy",
+        intensity=80,
+    )
+    session.elfie.hypothalamus.is_sleeping = True
+    session.elfie.hypothalamus.fatigue = 90.0
+
+    # When: a clock pulse opens the quiet-window candidate and its Internal Turn.
+    session.elfie.advance_clock(1.0)
+    session.elfie.wait_for_outcome_count(1, timeout=5)
+    for outcome in session.elfie.turn_outcomes():
+        session.elfie.wait_for_output(outcome.turn_id, timeout=5)
+
+    # Then: Memory changes are receipt-backed, with no message/body output.
+    outcomes = session.elfie.turn_outcomes()
+    assert len(outcomes) == 1
+    decision = session.elfie.turn_decision(outcomes[0].turn_id)
+    assert decision is not None
+    assert decision.plan.intents[0].type == "noop"
+    assert "离线整理" in decision.plan.intents[0].reason
+    assert session._turn_adapter.channel.sent == []
+    assert session.snapshot()["activity_count"] == 0
+    offline = session.snapshot()["offline_cognition"]
+    assert offline["status"] == "satisfied"
+    assert offline["last_consolidated_count"] == 2
+    assert offline["last_knowledge_created"] >= 1
+    assert session.elfie.memory.pending_consolidation_ids() == ()
+
+    # And: the satisfaction window suppresses a duplicate night-work turn.
+    session.elfie.advance_clock(1.0)
+    session.elfie._brain_runtime.coordinator.synchronize(2)
+    assert len(session.elfie.turn_outcomes()) == 1
+
+
 def test_state_injection_is_visible_and_persistent(tmp_path, session_factory):
     storage = ElfieLabStorage(str(tmp_path))
     spec = storage.create_elfie("边界测试")

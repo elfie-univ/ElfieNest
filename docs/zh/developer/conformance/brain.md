@@ -20,7 +20,7 @@
 | BRN-006 | P0 | open | Orientation 与 Selfhood 已有权威内存快照及候选—校验—提交/恢复保护；Emotion、Energy、Memory 现在提供版本化快照/Checkpoint 和 Brain 连续状态恢复门面，但 Profile 仍拥有等待物理迁移的人格/能力/限制宽映射。 | 版本化 Orientation、Selfhood、Emotion、Energy、Memory 状态一致恢复；Profile 保持不可变；单条消息或短期情绪不能改写人格；陈旧候选不能覆盖新状态。 |
 | BRN-007 | P1 | open | 能量现在产生 `long`/`normal`/`degraded`/`emergency` 认知投影，并把每回合 token、模型、工具、步骤预算传给大脑皮层 Worker；持久紧急储备记账和用户可见的降级响应策略仍未完成。 | 确定性测试覆盖普通、有界长思考、降级和紧急模式；紧急储备禁止长思考/后台认知，同时保留最小响应和恢复。 |
 | BRN-008 | P1 | closed | Brain 现在拥有一个有界的恢复 Motivation 驱力。低能量/高疲劳时只能产生带稳定因果 ID 的 `RecoveryDriveCandidate` 和 `InternalSignal.MOTIVATION`；压力、阻塞、冷却、满足状态、重复抑制和 Checkpoint 恢复共同防止自唤醒风暴。候选必须进入一次 Internal Turn，不能直接创建 Activity 或执行外部动作。 | Motivation、Coordinator 与 Elfie Lab 聚焦测试覆盖阈值、抑制、有界 Internal Turn、安全 No-op 结算和 Checkpoint 恢复。多驱力、社交主动和直接创建 Activity 保留为范围外。 |
-| BRN-009 | P1 | open | 当前 Memory consolidation 只是记忆 Helper，不是具备独立预算、Checkpoint 和无外部副作用 Scope 的可中断心智整理生命周期。 | 睡眠/空闲 Run 可从 Checkpoint 恢复，只提交已校验记忆/关系/Selfhood 候选或未来 Internal Trigger，不能发消息、移动、创建 Activity 或扩权。 |
+| BRN-009 | P1 | closed | Brain 现在拥有有界的 Offline Cognition 生命周期：睡眠时最多接纳固定数量的待整理 Episodic 记忆，把带 Checkpoint 的候选送入一次 Internal Turn，并且只有内部回执完成后才提交已有 Memory 巩固器。 | `test_offline_cognition.py` 与 Elfie Lab 离线整理场景覆盖睡眠门控、阻塞/重复抑制、Checkpoint 恢复、有界巩固和回执后提交。候选没有外部响应 Scope，因此不能发消息、移动、创建 Activity 或扩权；更广的 Activity/情绪/Selfhood 夜间整理仍是后续范围。 |
 | BRN-010 | P0 | open | Activity 现在具备持久 revision 状态、因果/幂等身份和回执对账，但 Brain 仍没有覆盖心智状态、Run、Directive 与 Activity 的统一持久 Journal/State/Checkpoint/因果 Trace 契约。 | 重启只恢复已提交状态，按因果/幂等身份对账未完成 Directive 和 Activity，拒绝旧身体 generation，暴露可追溯失败，且认知基础设施不成为决策所有者。 |
 
 ## 实现顺序约束

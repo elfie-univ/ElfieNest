@@ -67,6 +67,9 @@ def build_snapshot(elfie: Elfie, spec: ElfieSpec) -> Dict[str, Any]:
     )
     memory_state = elfie.memory.snapshot(elfie.cognitive_datetime)
     motivation = elfie.motivation_snapshot() if elfie.cognition_configured else None
+    offline_cognition = (
+        elfie.offline_cognition_snapshot() if elfie.cognition_configured else None
+    )
     activities = [
         record.model_dump(mode="json")
         for record in (elfie.activities() if elfie.cognition_configured else ())
@@ -102,6 +105,11 @@ def build_snapshot(elfie: Elfie, spec: ElfieSpec) -> Dict[str, Any]:
         "activity_count": len(activities),
         "motivation": (
             motivation.model_dump(mode="json") if motivation is not None else None
+        ),
+        "offline_cognition": (
+            offline_cognition.model_dump(mode="json")
+            if offline_cognition is not None
+            else None
         ),
     }
 

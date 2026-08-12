@@ -22,7 +22,7 @@
 | ELF-012 | P0 | closed | Body Registry/Binding 现在为当前身体分配 authority generation；NervousSystem 只接收当前身体代际，输出执行器拒绝切换后的旧回执，中断也回到原身体；失败切换保留旧身体。 | 阶段三 Headless/真实 Godot 验收通过；身体切换、旧事件拒绝、旧回执拒绝、连接失败回滚以及唯一当前身体均有聚焦测试和真实 `world_ready`/`intent_terminal` 证据。 |
 | ELF-013 | P1 | open | `elfie/initialization.py` 只装配 Profile 与 Anatomy，尚无 `genesis/` 所有者承载经过校验的临时创建 Bundle、Brain 种子和有界人生补全。 | Genesis 生成并校验类型化创建产物，每项只提交一次给最终所有者，不保留重复生命状态，完成后退出普通运行期。 |
 | ELF-014 | P0 | closed | Brain 现在拥有 Persistent Activity 语义 Port 和输出边界；Lab 为每只 Elfie 注入独立 SQLite Adapter。已校验 Draft 幂等提交，等待任务通过类型化 Internal 事件唤醒，通信/具身子回执结算 Activity 进度，重启后不重复投递。 | Activity、持久化和 Lab 聚焦测试覆盖跨回合状态、唤醒、Scope 校验、回执终态、重启恢复和无重复投递。 |
-| ELF-015 | P1 | open | 首个有界恢复 Motivation 驱力已经有 Brain 运行时所有者和 Lab 证据，但 Cognitive Consolidation 仍只有设计；因此主动自治/离线成长的聚合能力尚未完成。 | 实现有界 Motivation 与无副作用 Cognitive Consolidation：固定驱力带冷却地产生候选，心智整理在独立预算内只产生已校验状态候选或后续内部触发。 |
+| ELF-015 | P1 | closed | 首个有界恢复 Motivation 驱力和首个有界 Offline Cognition 切片现在都有 Brain 所有者与 Lab 证据。离线工作仅整理睡眠窗口中的 Episodic 记忆，不能产生外部副作用；更多主动驱力与成长仍是独立范围。 | Motivation 以冷却/满足状态控制候选；Offline Cognition 以 Checkpoint 候选和固定经历预算进入内部回合，并且只有内部回执完成后才提交 Memory。Brain/Lab 聚焦测试与 Web build 通过；夜间路径不创建消息、身体动作或 Activity。 |
 | ELF-016 | P0 | closed | Brain 已拥有单个 Turn 内有界的 `ReasoningRun`：模型、认知 Tool、真实 Observation、验证和完成/失败收束均在 Brain 内部完成，外部行动仍只能由结算后的决定进入既有边界。 | 26 项聚焦 Brain/Lab 测试通过；真实 Elfie Lab 展示 Tool→Observation，虚假外部执行声明不产生外部回执，模型不可用进入明确 `failed/no_op`，紧急事件形成独立新 Turn。纯文本 Provider 的 `owner_message_fallback` 被记录为降级而非成功事实。 |
 | ELF-017 | P0 | open | 情绪、能量和记忆已有实现，但 Orientation 与 Selfhood 尚未成为独立 authority，完整连续生命状态也未在跨 Turn、身体切换和进程重启后统一恢复。 | 类型化 Orientation/Selfhood/Emotion/Energy/Memory Snapshot 具有明确所有者、来源/版本规则和最小持久恢复；Profile 保持不可变，短期情绪不能直接改写人格。 |
 

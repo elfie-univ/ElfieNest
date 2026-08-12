@@ -81,6 +81,36 @@ class MotivationSnapshot(FrozenContractModel):
         )
 
 
+class OfflineCognitionSnapshot(FrozenContractModel):
+    """Bounded quiet-window memory整理 state captured for one cortical turn."""
+
+    revision: _Revision
+    captured_at: UTCDateTime
+    status: Literal["ready", "blocked", "cooldown", "satisfied", "unknown"] = (
+        "unknown"
+    )
+    pending_episode_count: int = Field(strict=True, ge=0)
+    last_trigger_id: Optional[EventId] = None
+    cooldown_until: Optional[UTCDateTime] = None
+    satisfaction_until: Optional[UTCDateTime] = None
+    last_run_at: Optional[UTCDateTime] = None
+    last_consolidated_count: int = Field(strict=True, ge=0)
+    last_knowledge_created: int = Field(strict=True, ge=0)
+    last_patterns_created: int = Field(strict=True, ge=0)
+
+    @classmethod
+    def unknown(cls) -> OfflineCognitionSnapshot:
+        """Return an explicit unknown state for isolated context tests."""
+        return cls(
+            revision=0,
+            captured_at=datetime.fromtimestamp(0, timezone.utc),
+            pending_episode_count=0,
+            last_consolidated_count=0,
+            last_knowledge_created=0,
+            last_patterns_created=0,
+        )
+
+
 class ConversationMessage(FrozenContractModel):
     """A source-preserving conversation item used as model context."""
 
@@ -404,6 +434,9 @@ class BrainContext(FrozenContractModel):
     emotion: EmotionSnapshot
     homeostasis: HomeostasisSnapshot
     motivation: MotivationSnapshot = Field(default_factory=MotivationSnapshot.unknown)
+    offline_cognition: OfflineCognitionSnapshot = Field(
+        default_factory=OfflineCognitionSnapshot.unknown
+    )
     conversation: ConversationContext
     memory: MemoryContext
     capabilities: EffectiveCapabilities
@@ -423,6 +456,7 @@ class BrainContext(FrozenContractModel):
             self.emotion.captured_at,
             self.homeostasis.captured_at,
             self.motivation.captured_at,
+            self.offline_cognition.captured_at,
             self.conversation.captured_at,
             self.memory.captured_at,
             self.capabilities.captured_at,
@@ -450,6 +484,7 @@ __all__ = (
     "BigFiveTraits",
     "HomeostasisSnapshot",
     "MotivationSnapshot",
+    "OfflineCognitionSnapshot",
     "MemoryContext",
     "MemoryItem",
     "MemoryStateSnapshot",

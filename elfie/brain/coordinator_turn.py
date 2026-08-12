@@ -9,6 +9,7 @@ from uuid import uuid4
 from elfie.brain.context_builder import ThalamusContextBuilder
 from elfie.brain.context_types import (
     MotivationSnapshot,
+    OfflineCognitionSnapshot,
     OrientationSnapshot,
     ProfileAnchorSnapshot,
     SelfhoodSnapshot,
@@ -110,6 +111,14 @@ class CoordinatorTurnFactory:
                 update={"captured_at": captured_at}
             )
         )
+        offline_reader = getattr(self._context_source, "offline_cognition", None)
+        offline_cognition = (
+            offline_reader(captured_at)
+            if offline_reader is not None
+            else OfflineCognitionSnapshot.unknown().model_copy(
+                update={"captured_at": captured_at}
+            )
+        )
         profile_reader = getattr(self._context_source, "profile_anchors", None)
         profile_anchors = (
             profile_reader(captured_at)
@@ -128,6 +137,7 @@ class CoordinatorTurnFactory:
             orientation=orientation,
             selfhood=selfhood,
             motivation=motivation,
+            offline_cognition=offline_cognition,
             profile_anchors=profile_anchors,
             captured_at=captured_at,
         )
