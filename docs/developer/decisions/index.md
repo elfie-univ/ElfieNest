@@ -13,3 +13,4 @@ The current contract always states the enforceable rule.
 - [ADR-0007: Brain Turn, mental-state and persistent-activity ownership](./0007-brain-turn-state-and-activity-ownership)
 - [ADR-0008: Public documentation information architecture](./0008-documentation-information-architecture)
 - [ADR-0009: Repository-wide implementation change classification](./0009-repository-wide-change-classification)
+- [ADR-0010: Effective dependencies include dynamic execution targets](./0010-effective-dependency-targets)

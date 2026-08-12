@@ -80,8 +80,8 @@ def test_system_contract_ledger_decision_and_agents_exist_in_both_languages() ->
         "godot_project/AGENTS.md",
     }
 
-    assert "**Contract version:** 1.3" in english_contract
-    assert "**契约版本：** 1.3" in chinese_contract
+    assert "**Contract version:** 1.4" in english_contract
+    assert "**契约版本：** 1.4" in chinese_contract
     assert "**Macro architecture baseline:** v1 (frozen)" in english_contract
     assert "**宏观架构基线：** v1（已冻结）" in chinese_contract
     assert "always has exactly one Nest" in english_contract

@@ -16,5 +16,8 @@
 - `test_app_layer_boundaries.py` 约束 App 内部分层；`test_system_layer_boundaries.py`
   约束 `app`、`elfie`、`nest`、目标 `infrastructure` 之间的系统级边界。两套规则
   可以嵌套，但不得互相替代。
+- `test_effective_dependency_boundaries.py` 必须同时攻击模块命令、脚本路径、动态加载、
+  Node 子进程、Godot、Shell 与未知源码根目标，并至少跨 Interface、Feature、Core、Infrastructure、
+  Bootstrap、Scripts 与 Developer Tools 所有权验证允许和禁止方向。
 - 删除或弱化规则属于治理变更，必须同步 ADR/契约并与生产源码分开审查。
 - 只运行与本次边界变化直接相关的架构测试；不得把产品功能断言塞进本目录。

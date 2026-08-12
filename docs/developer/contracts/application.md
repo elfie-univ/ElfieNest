@@ -1,6 +1,6 @@
 # Application architecture contract
 
-**Contract version:** 1.5
+**Contract version:** 1.6
 **Adopted:** 2026-08-10
 **Scope:** `app/` and App-owned adapters migrating to root `infrastructure/`
 
@@ -156,6 +156,14 @@ The detailed matrix is:
 | Orchestration | public Feature contracts, orchestration-owned Ports, public `elfie`/`nest` APIs | Interface, Bootstrap, concrete Infrastructure |
 | Infrastructure | Feature/Orchestration contracts it implements; technical libraries | Interface, Bootstrap, product rules or private Feature internals |
 | Bootstrap | all construction targets | Any product decision beyond wiring and lifecycle |
+
+The matrix applies to effective dependencies, not only Python imports. A CLI,
+Desktop, API or Web entry cannot bypass its Interface boundary by launching a
+forbidden repository module through `python -m`, a script path, subprocess,
+Node child process, shell command or dynamic loader. A resolvable process target
+is checked as though the caller imported that target directly. Variable launch
+plans belong behind an injected Port or in Bootstrap; putting a module name in a
+string is not dependency inversion.
 
 No App layer may form an import cycle. A Feature exposes its stable use-cases and
 boundary models through its package facade; another Feature or Interface does
@@ -333,6 +341,11 @@ scanner and the surrounding contract. Its exact legacy baseline is temporary
 and linked to gap IDs in the conformance register. The baseline must match
 current debt exactly: removing debt requires shrinking it in the same change;
 adding or restoring an entry fails.
+
+`scripts/architecture/effective_dependency_scan.py` additionally scans
+repository-owned Python, Node, Godot and shell execution surfaces for resolvable
+dynamic module and script targets. It reuses this contract's dependency matrix,
+has no legacy baseline and stays permanently in deny-all mode.
 
 The repository-level change process, contract/ledger lifecycle and base-branch
 ratchet are defined by the

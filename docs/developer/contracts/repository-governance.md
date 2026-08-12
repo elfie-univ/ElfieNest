@@ -1,6 +1,6 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.5
+**Contract version:** 1.6
 **Adopted:** 2026-08-10
 **Enforced scope:** Repository-wide change classification and architecture boundaries
 
@@ -41,6 +41,17 @@ No one mechanism replaces another. Contracts state the target, `AGENTS.md`
 guides execution, machine gates reject detectable violations, conformance and
 baselines record only legacy debt, and human review covers semantic rules that
 cannot be proven mechanically.
+
+An architecture dependency is defined by the effective target, not only by an
+`import` statement. A repository module reached through `python -m`, a script
+path, a subprocess or Node child-process command, a shell command, `importlib`,
+`runpy` or another dynamic loader is subject to the same ownership and allowed-
+direction matrix as a static import. The effective-dependency scanner applies
+this rule to repository-owned Python, Node, Godot and shell execution surfaces,
+including newly introduced source roots. It
+classifies both caller and target by module ownership; it does not blacklist a
+particular current offender. Targets that cannot be statically resolved still
+require a typed Port or Bootstrap-owned launch plan and human review.
 
 ## End-to-end governance workflow
 
@@ -159,6 +170,8 @@ pre-push commit:
 - the base-branch scanner is run against candidate production code;
 - every candidate violation must already exist in the base baseline;
 - the candidate scanner must exactly match the candidate baseline;
+- the baseline-free effective-dependency scanner must report zero forbidden
+  repository targets;
 - a normal change may delete baseline entries but may not add or rewrite them;
 - a governance change may not edit a legacy baseline;
 - governance and implementation-source changes may not coexist.

@@ -1,6 +1,6 @@
 # 应用架构契约
 
-**契约版本：** 1.5
+**契约版本：** 1.6
 **采用日期：** 2026-08-10
 **适用范围：** `app/`，以及迁往根 `infrastructure/` 的 App Adapter
 
@@ -146,6 +146,12 @@ bootstrap     -> 所有区域，但只做装配
 | Infrastructure | 自己实现的 Feature/Orchestration 契约；技术库 | Interface、Bootstrap、产品规则或 Feature 私有实现 |
 | Bootstrap | 所有需要装配的具体对象 | 装配与生命周期之外的产品决策 |
 
+该矩阵约束的是有效依赖，不只约束 Python import。CLI、Desktop、API 或 Web 入口不得
+通过 `python -m`、脚本路径、subprocess、Node 子进程、Shell 命令或动态加载器启动被
+禁止的仓库模块来绕过 Interface 边界。能够解析的进程目标，按调用方直接 import 该目标
+来判定。变量启动计划必须位于注入的 Port 之后或由 Bootstrap 拥有；把模块名放进字符串
+不属于依赖倒置。
+
 App 内不能形成 import 环。Feature 通过包门面暴露稳定用例和边界模型；其他 Feature
 或 Interface 不导入它的内部 service、helper 或 Repository。Bootstrap 可以导入
 具体构造目标，但不能成为产品代码运行时调用的 Service Locator。
@@ -284,6 +290,10 @@ API 资源、版本和 DTO 细则由 `app/interfaces/api/AGENTS.md` 进一步规
 模型和部分公开类型规则；`test/architecture/test_app_layer_boundaries.py` 保护扫描器及
 周边契约。精确历史基线是临时的，并通过缺口 ID 关联一致性台账。基线必须精确匹配
 当前债务：清除债务时同一改动必须缩减基线；新增或恢复条目直接失败。
+
+`scripts/architecture/effective_dependency_scan.py` 还会扫描仓库自有 Python、Node、
+Godot 和 Shell 执行表面中能够解析的动态模块与脚本目标，复用本契约的依赖矩阵，不设置历史
+基线，并永久保持 deny-all。
 
 仓库级变更流程、契约与台账生命周期以及主分支对照门禁由
 [仓库架构治理契约](./repository-governance)定义。本契约负责定义 App 目标，不能为

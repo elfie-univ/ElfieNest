@@ -1,6 +1,6 @@
 # 系统架构契约
 
-**契约版本：** 1.3
+**契约版本：** 1.4
 **采用日期：** 2026-08-10
 **适用范围：** 全仓目标架构
 **宏观架构基线：** v1（已冻结）
@@ -86,6 +86,12 @@ app/bootstrap    -> 仅为装配导入全部具体构造对象
 elfie            -X-> app、nest 或具体 infrastructure
 nest             -X-> app、elfie 或具体 infrastructure
 ```
+
+上述方向同时约束静态 import 和有效依赖。通过模块名、可执行脚本、subprocess、子进程、
+Shell 命令或动态加载器启动仓库模块，会形成一条从调用方所有者到目标所有者的依赖边。
+把禁止模块名从 import 移到命令字符串中，不能改变或隐藏这条边。Developer Tools 可以
+为了隔离实验依赖产品公开边界，但生产根目录和产品入口脚本永远不得以 `devtools/` 为
+运行目标。
 
 运行时允许 Core 通过注入的 Port 调用 Adapter，但这不授权 Core 导入、创建、配置或
 检查具体 Adapter。

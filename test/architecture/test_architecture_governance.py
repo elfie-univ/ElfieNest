@@ -15,6 +15,9 @@ from scripts.architecture.check_governance_change import (
     validate_governance_rule_changes,
 )
 from scripts.architecture.contract_registry import CONTRACT_REGISTRY
+from scripts.architecture.effective_dependency_scan import (
+    RULE_LEDGER_IDS as EFFECTIVE_RULE_IDS,
+)
 from scripts.architecture.system_layer_scan import RULE_LEDGER_IDS as SYSTEM_RULE_IDS
 from test.architecture.baselines.app_layer import LEGACY_APP_LAYER_VIOLATIONS
 from test.architecture.baselines.system_layer import LEGACY_SYSTEM_LAYER_VIOLATIONS
@@ -84,6 +87,8 @@ def test_scanner_rules_reference_registered_conformance_ids() -> None:
     )
     assert all(gap_id in app_conformance for gap_id in APP_RULE_IDS.values())
     assert all(gap_id in system_conformance for gap_id in SYSTEM_RULE_IDS.values())
+    combined_conformance = app_conformance + system_conformance
+    assert all(gap_id in combined_conformance for gap_id in EFFECTIVE_RULE_IDS.values())
 
 
 def test_contract_change_requires_mirror_version_bump_and_bilingual_adr(

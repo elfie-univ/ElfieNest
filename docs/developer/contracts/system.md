@@ -1,6 +1,6 @@
 # System architecture contract
 
-**Contract version:** 1.3
+**Contract version:** 1.4
 **Adopted:** 2026-08-10
 **Scope:** repository-wide target architecture
 **Macro architecture baseline:** v1 (frozen)
@@ -102,6 +102,14 @@ app/bootstrap    -> all concrete construction targets, for wiring only
 elfie            -X-> app, nest or concrete infrastructure
 nest             -X-> app, elfie or concrete infrastructure
 ```
+
+These directions govern effective dependencies as well as imports. Launching a
+repository module by module name, executable script, subprocess, child process,
+shell command or dynamic loader is an edge from the caller's owner to the
+target's owner. Moving a forbidden module name from an import into a command
+string does not change or hide that edge. Developer Tools may depend on public
+product boundaries for isolated experiments; production roots and product
+entry scripts never target `devtools/`.
 
 Runtime calls may travel from a core through an injected Port to an Adapter.
 That does not authorize the core to import, construct, configure or inspect the

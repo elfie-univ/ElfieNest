@@ -177,8 +177,8 @@ def test_application_contract_and_ledger_have_bilingual_authority_markers() -> N
         PROJECT_ROOT / "docs/zh/developer/conformance/application.md"
     ).read_text(encoding="utf-8")
 
-    assert "**Contract version:** 1.5" in english_contract
-    assert "**契约版本：** 1.5" in chinese_contract
+    assert "**Contract version:** 1.6" in english_contract
+    assert "**契约版本：** 1.6" in chinese_contract
     assert "test_app_layer_boundaries.py" in english_contract
     assert "test_app_layer_boundaries.py" in chinese_contract
     for number in range(1, 13):

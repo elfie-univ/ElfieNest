@@ -12,3 +12,4 @@
 - [ADR-0007：Brain 回合、心智状态与跨回合活动所有权](./0007-brain-turn-state-and-activity-ownership)
 - [ADR-0008：公开文档信息架构](./0008-documentation-information-architecture)
 - [ADR-0009：全仓实现变更分类](./0009-repository-wide-change-classification)
+- [ADR-0010：有效依赖包含动态执行目标](./0010-effective-dependency-targets)

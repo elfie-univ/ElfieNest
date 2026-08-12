@@ -246,6 +246,11 @@ infrastructure/   模型、工具、持久化、Godot、设备、通信与平台
   Python 中复制场景、3D 布局或家具事实。
 - `devtools/` 是隔离的模块实验台；`docs/` 是公开文档网站内容；
   `test/` 必须镜像源码结构，根目录不得新增 `test_*.py`。
+- 依赖边界按实际目标判定，不只看静态 import。`python -m`、脚本路径、subprocess、
+  Node 子进程、Shell 命令、`importlib` 和 `runpy` 指向仓库模块时，必须遵守与直接
+  import 相同的全仓所有权和依赖方向；不得把禁止目标藏进字符串，也不得为某个当前
+  违规目录写专用黑名单。无法静态解析的启动目标必须通过窄 Port 或由 Bootstrap
+  拥有的强类型启动计划注入。
 
 ### Runtime / Observer authority contract
 
