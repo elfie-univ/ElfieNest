@@ -12,3 +12,4 @@
 - [ADR-0007：Brain 回合、心智状态与跨回合活动所有权](./0007-brain-turn-state-and-activity-ownership)
 - [ADR-0008：公开文档信息架构](./0008-documentation-information-architecture)
 - [ADR-0009：原子化零债务治理收口](./0009-zero-debt-governance-closure)
+- [ADR-0010：Desktop authority host 结构遵循所有权](./0010-desktop-authority-host-structure)

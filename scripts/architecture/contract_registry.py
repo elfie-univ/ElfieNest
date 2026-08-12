@@ -33,6 +33,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0003-architecture-governance-ratchet.md",
             "docs/developer/decisions/0009-zero-debt-governance-closure.md",
             "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
+            "docs/developer/decisions/0010-desktop-authority-host-structure.md",
+            "docs/zh/developer/decisions/0010-desktop-authority-host-structure.md",
         ),
         agent_paths=(
             "AGENTS.md",
@@ -70,6 +72,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0002-system-ports-adapters.md",
             "docs/developer/decisions/0009-zero-debt-governance-closure.md",
             "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
+            "docs/developer/decisions/0010-desktop-authority-host-structure.md",
+            "docs/zh/developer/decisions/0010-desktop-authority-host-structure.md",
         ),
         agent_paths=(
             "elfie/AGENTS.md",
