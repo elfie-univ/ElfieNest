@@ -6,6 +6,7 @@ const base = configuredBase.endsWith("/") ? configuredBase : `${configuredBase}/
 export default defineConfig({
   title: "ElfieNest",
   description: "An Earth station that connects unknown life — and a home for your Elfie.",
+  srcExclude: [".internal/**"],
   base,
   cleanUrls: true,
   lastUpdated: true,
