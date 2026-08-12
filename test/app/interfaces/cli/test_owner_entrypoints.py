@@ -49,6 +49,26 @@ def test_interactive_help_exposes_owner_account_management() -> None:
     assert result.returncode == 0
     assert "owner" in result.stdout
     assert "Owner account menu" in result.stdout
+    assert "serve --godot-ws-port <PORT>" in result.stdout
+    assert "start --godot-ws-port <PORT>" in result.stdout
+    assert "serve --ws-port" not in result.stdout
+
+
+def test_direct_help_alias_uses_shell_help() -> None:
+    env = os.environ.copy()
+    env["TERM"] = "xterm"
+    result = subprocess.run(
+        [str(PROJECT_ROOT / "elfienest.sh"), "help"],
+        cwd=PROJECT_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert result.returncode == 0
+    assert "Commands with * support additional arguments" in result.stdout
+    assert "invalid choice" not in result.stderr
 
 
 def test_owner_menu_reports_current_owner_without_secrets(
