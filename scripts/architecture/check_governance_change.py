@@ -10,15 +10,12 @@ import sys
 from pathlib import Path
 from typing import Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 
-PRODUCTION_ROOTS = (
-    "app/",
-    "elfie/",
-    "godot_project/",
-    "godot_runtime/",
-    "infrastructure/",
-    "nest/",
+NEUTRAL_DOCUMENT_EXACT = frozenset(
+    {
+        "LICENSE",
+    }
 )
-PRODUCTION_DOCUMENT_SUFFIXES = frozenset({".md", ".rst"})
+NEUTRAL_DOCUMENT_SUFFIXES = frozenset({".md", ".rst"})
 GOVERNANCE_PREFIXES = (
     "docs/developer/contracts/",
     "docs/developer/decisions/",
@@ -68,11 +65,19 @@ def is_governance_file(path: str) -> bool:
 
 
 def is_production_source(path: str) -> bool:
-    if not path.startswith(PRODUCTION_ROOTS):
+    """Return whether a path belongs to the implementation side of a change.
+
+    The historical function name is retained for callers, but classification
+    is intentionally repository-wide. Developer tools, tests, build/release
+    scripts and executable documentation-site files can change runtime or
+    delivery behavior just as product-package files can.
+    """
+
+    if is_governance_file(path):
         return False
-    if path.endswith("/AGENTS.md") or path.endswith("/README.md"):
+    if path in NEUTRAL_DOCUMENT_EXACT:
         return False
-    return Path(path).suffix.lower() not in PRODUCTION_DOCUMENT_SUFFIXES
+    return Path(path).suffix.lower() not in NEUTRAL_DOCUMENT_SUFFIXES
 
 
 def classify_paths(paths: Iterable[str]) -> Tuple[Set[str], Set[str]]:

@@ -25,12 +25,14 @@ class ContractRegistration:
 CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ContractRegistration(
         contract_id="repository-governance",
-        version="1.4",
+        version="1.5",
         english_path="docs/developer/contracts/repository-governance.md",
         chinese_path="docs/zh/developer/contracts/repository-governance.md",
         decision_paths=(
             "docs/developer/decisions/0003-architecture-governance-ratchet.md",
             "docs/zh/developer/decisions/0003-architecture-governance-ratchet.md",
+            "docs/developer/decisions/0009-repository-wide-change-classification.md",
+            "docs/zh/developer/decisions/0009-repository-wide-change-classification.md",
         ),
         agent_paths=(
             "AGENTS.md",
