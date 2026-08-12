@@ -8,11 +8,15 @@ from typing import Deque, Dict, NamedTuple, Optional, Tuple
 from elfie.brain.perception_types import (
     IngestDisposition,
     PerceptionEvent,
-    PerceptionFrame,
     PerceptionMediaSample,
     PerceptionStateUpdate,
     PerceptionWrite,
     TriggerReason,
+    TurnFrame,
+    domain_for_scope,
+    interaction_scope_for,
+    response_scope_for,
+    scope_key,
 )
 from elfie.brain.workspace_event_metrics import WorkspaceEventMetrics
 from elfie.brain.workspace_loss_ledger import WorkspaceLossLedger
@@ -57,8 +61,8 @@ class WorkspaceStorage:
         self._media_capacity = media_per_stream_capacity
         self._journal: Deque[_EventEntry] = deque()
         self._failure_queue: Deque[_EventEntry] = deque()
-        self._state: OrderedDict[str, _StateEntry] = OrderedDict()
-        self._media: Dict[str, Deque[_MediaEntry]] = {}
+        self._state: OrderedDict[Tuple[str, str], _StateEntry] = OrderedDict()
+        self._media: Dict[Tuple[str, str], Deque[_MediaEntry]] = {}
         self._loss = WorkspaceLossLedger()
         self._event_metrics = WorkspaceEventMetrics()
         self._dead_letters: Deque[ProcessingFailureEvent] = deque()
@@ -94,60 +98,95 @@ class WorkspaceStorage:
         frame_event_capacity: int,
         reason: TriggerReason,
         captured_at: UTCDateTime,
-    ) -> Optional[PerceptionFrame]:
+    ) -> Optional[TurnFrame]:
         reliable = tuple(
             entry
             for entry in tuple(self._failure_queue) + tuple(self._journal)
             if entry.seq <= requested_cutoff
         )
         reliable = tuple(sorted(reliable, key=lambda entry: entry.seq))
-        selected = reliable[:frame_event_capacity]
-        cutoff = requested_cutoff
-        if len(selected) < len(reliable):
-            cutoff = selected[-1].seq
-        states = tuple(
-            entry.item for entry in self._state.values() if entry.seq <= cutoff
+        state_entries = tuple(
+            entry for entry in self._state.values() if entry.seq <= requested_cutoff
         )
         media_entries = tuple(
             entry
             for stream in self._media.values()
             for entry in stream
-            if entry.seq <= cutoff
+            if entry.seq <= requested_cutoff
         )
         media_entries = tuple(sorted(media_entries, key=lambda entry: entry.seq))
-        if not selected and not states and not media_entries:
+        candidates = tuple(
+            sorted(
+                reliable + state_entries + media_entries,
+                key=lambda entry: entry.seq,
+            )
+        )
+        if not candidates:
             return None
-        return PerceptionFrame(
+        interaction_scope = interaction_scope_for(candidates[0].item)
+        selected_scope = scope_key(candidates[0].item)
+        compatible_reliable = tuple(
+            entry for entry in reliable if scope_key(entry.item) == selected_scope
+        )
+        selected = compatible_reliable[:frame_event_capacity]
+        cutoff = requested_cutoff
+        if len(selected) < len(compatible_reliable):
+            cutoff = selected[-1].seq
+        states = tuple(
+            entry.item
+            for entry in state_entries
+            if entry.seq <= cutoff and scope_key(entry.item) == selected_scope
+        )
+        selected_media = tuple(
+            entry.item
+            for entry in media_entries
+            if entry.seq <= cutoff and scope_key(entry.item) == selected_scope
+        )
+        return TurnFrame(
             frame_id=frame_id,
             elfie_id=elfie_id,
             revision=revision,
             captured_at=captured_at,
             cutoff_seq=cutoff,
             trigger_reason=reason,
+            source_domain=domain_for_scope(interaction_scope),
+            interaction_scope=interaction_scope,
+            response_scope=response_scope_for(interaction_scope),
             events=tuple(entry.item for entry in selected),
             state_updates=states,
-            media_samples=tuple(entry.item for entry in media_entries),
+            media_samples=selected_media,
             coalesced=self._loss.coalesced_summaries(cutoff),
             dropped=self._loss.dropped_summaries(cutoff),
         )
 
-    def commit(self, cutoff: int) -> None:
-        self._journal = deque(entry for entry in self._journal if entry.seq > cutoff)
+    def commit(self, frame: TurnFrame) -> None:
+        event_ids = {event.meta.event_id for event in frame.events}
+        state_ids = {state.meta.event_id for state in frame.state_updates}
+        media_ids = {sample.meta.event_id for sample in frame.media_samples}
+        self._journal = deque(
+            entry for entry in self._journal if entry.item.meta.event_id not in event_ids
+        )
         self._failure_queue = deque(
-            entry for entry in self._failure_queue if entry.seq > cutoff
+            entry
+            for entry in self._failure_queue
+            if entry.item.meta.event_id not in event_ids
         )
         self._state = OrderedDict(
-            (key, entry) for key, entry in self._state.items() if entry.seq > cutoff
+            (key, entry)
+            for key, entry in self._state.items()
+            if entry.item.meta.event_id not in state_ids
         )
         for stream_id in tuple(self._media):
             retained = deque(
-                entry for entry in self._media[stream_id] if entry.seq > cutoff
+                entry
+                for entry in self._media[stream_id]
+                if entry.item.meta.event_id not in media_ids
             )
             if retained:
                 self._media[stream_id] = retained
             else:
                 del self._media[stream_id]
-        self._loss.commit(cutoff)
+        self._loss.commit(frame.cutoff_seq)
         self._media_count = sum(len(stream) for stream in self._media.values())
         self._event_metrics.refresh(
             entry.item for entry in tuple(self._failure_queue) + tuple(self._journal)
@@ -158,7 +197,7 @@ class WorkspaceStorage:
         *,
         seq: int,
         elfie_id: ElfieId,
-        failed_frame: PerceptionFrame,
+        failed_frame: TurnFrame,
         reason: str,
         occurred_at: UTCDateTime,
     ) -> ProcessingFailureEvent:
@@ -183,7 +222,8 @@ class WorkspaceStorage:
         seq: int,
     ) -> IngestDisposition:
         disposition = IngestDisposition.ACCEPTED
-        previous = self._state.pop(item.state_key, None)
+        scoped_key = (item.body_id, item.state_key)
+        previous = self._state.pop(scoped_key, None)
         if previous is not None:
             self._loss.record_coalesced(
                 f"state:{item.state_key}",
@@ -199,7 +239,7 @@ class WorkspaceStorage:
                 dropped.item.meta.event_id,
             )
             disposition = IngestDisposition.COALESCED
-        self._state[item.state_key] = _StateEntry(seq, item)
+        self._state[scoped_key] = _StateEntry(seq, item)
         return disposition
 
     def _store_media(
@@ -207,7 +247,8 @@ class WorkspaceStorage:
         item: PerceptionMediaSample,
         seq: int,
     ) -> IngestDisposition:
-        stream = self._media.setdefault(item.stream_id, deque())
+        stream_key = (item.body_id, item.stream_id)
+        stream = self._media.setdefault(stream_key, deque())
         disposition = IngestDisposition.ACCEPTED
         if len(stream) >= self._media_capacity:
             dropped = stream.popleft()

@@ -18,20 +18,29 @@ from elfie.brain.context_types import (
     MemoryContext,
     MemoryItem,
 )
-from elfie.brain.perception_types import PerceptionFrame, TriggerReason
+from elfie.brain.perception_types import (
+    InternalScope,
+    ResponseScope,
+    SourceDomain,
+    TriggerReason,
+    TurnFrame,
+)
 from elfie.message_types import ActorId, ActorRef, ElfieId, EventId
 
 NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
 
 
-def _frame() -> PerceptionFrame:
-    return PerceptionFrame(
+def _frame() -> TurnFrame:
+    return TurnFrame(
         frame_id=EventId("frame-1"),
         elfie_id=ElfieId("elfie-1"),
         revision=4,
         captured_at=NOW,
         cutoff_seq=9,
         trigger_reason=TriggerReason.SALIENCE,
+        source_domain=SourceDomain.INTERNAL,
+        interaction_scope=InternalScope(cause_id="manual-test"),
+        response_scope=ResponseScope(external_domain=None),
     )
 
 

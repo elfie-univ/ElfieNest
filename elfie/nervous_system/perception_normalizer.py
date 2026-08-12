@@ -134,6 +134,7 @@ class BodyPerceptionNormalizer:
         self._media_filter.filter_noise({"images": (payload.media.uri,)})
         return PerceptionMediaSample(
             meta=self._meta(event, event.event_id),
+            body_id=str(event.body_id),
             stream_id=stream_id,
             ordinal=ordinal,
             captured_at=event.occurred_at,
@@ -189,6 +190,7 @@ class BodyPerceptionNormalizer:
         suffix = state_key.rsplit(":", 1)[-1]
         return PerceptionStateUpdate(
             meta=self._meta(event, EventId(f"{event.event_id}:{suffix}")),
+            body_id=str(event.body_id),
             state_key=state_key,
             revision=revision,
             value=value,

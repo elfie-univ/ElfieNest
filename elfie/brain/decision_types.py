@@ -9,6 +9,14 @@ from pydantic import Field, StringConstraints, model_validator
 from pydantic_core import PydanticCustomError
 from typing_extensions import TypeAlias
 
+from elfie.brain.perception_types import (
+    CommunicationScope,
+    EmbodiedScope,
+    ExternalExecutionDomain,
+    InteractionScope,
+    ResponseScope,
+    SourceDomain,
+)
 from elfie.message_types import (
     EventId,
     FrozenContractModel,
@@ -217,6 +225,80 @@ class DecisionPlan(FrozenContractModel):
         return self
 
 
+class TurnDecision(FrozenContractModel):
+    """One host-scoped final decision accepted for a single-domain turn."""
+
+    source_domain: SourceDomain
+    interaction_scope: InteractionScope
+    response_scope: ResponseScope
+    plan: DecisionPlan
+
+    @model_validator(mode="after")
+    def validate_response_boundary(self) -> TurnDecision:
+        """Reject model intents that expand the admitted turn boundary."""
+        if self.source_domain is SourceDomain.COMMUNICATION:
+            scope = self.interaction_scope
+            if not isinstance(scope, CommunicationScope) or (
+                self.response_scope.external_domain
+                is not ExternalExecutionDomain.COMMUNICATION
+                or self.response_scope.channel_id != scope.channel_id
+                or self.response_scope.conversation_id != scope.conversation_id
+            ):
+                raise PydanticCustomError(
+                    "decision_interaction_scope",
+                    "communication decision requires its admitted conversation scope",
+                )
+            for intent in self.plan.intents:
+                if isinstance(intent, MessageIntent):
+                    if (
+                        intent.channel_id != scope.channel_id
+                        or intent.conversation_id != scope.conversation_id
+                    ):
+                        raise PydanticCustomError(
+                            "decision_conversation_scope",
+                            "communication decision target exceeds the admitted conversation",
+                        )
+                elif not isinstance(intent, (InternalIntent, NoOpIntent)):
+                    raise PydanticCustomError(
+                        "decision_external_domain",
+                        "communication turns cannot produce nervous-system intents",
+                    )
+        elif self.source_domain is SourceDomain.EMBODIED:
+            scope = self.interaction_scope
+            if not isinstance(scope, EmbodiedScope) or (
+                self.response_scope.external_domain
+                is not ExternalExecutionDomain.NERVOUS_SYSTEM
+                or self.response_scope.body_id != scope.body_id
+            ):
+                raise PydanticCustomError(
+                    "decision_interaction_scope",
+                    "embodied decision requires its admitted body scope",
+                )
+            if any(isinstance(intent, MessageIntent) for intent in self.plan.intents):
+                raise PydanticCustomError(
+                    "decision_external_domain",
+                    "embodied turns cannot produce communication intents",
+                )
+        else:
+            if self.response_scope.external_domain is not None:
+                raise PydanticCustomError(
+                    "decision_interaction_scope",
+                    "stage-one internal decisions cannot own an external scope",
+                )
+            if any(
+                isinstance(
+                    intent,
+                    (SpeechIntent, MessageIntent, MotionIntent, ExpressionIntent),
+                )
+                for intent in self.plan.intents
+            ):
+                raise PydanticCustomError(
+                    "decision_external_domain",
+                    "stage-one internal turns cannot produce external intents",
+                )
+        return self
+
+
 __all__ = (
     "CancelPolicy",
     "DecisionIntent",
@@ -228,4 +310,5 @@ __all__ = (
     "MotionIntent",
     "NoOpIntent",
     "SpeechIntent",
+    "TurnDecision",
 )

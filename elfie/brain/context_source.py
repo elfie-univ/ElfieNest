@@ -1,15 +1,12 @@
-"""Coordinator-owned context reads for one complete Elfie."""
+"""Brain-owned bounded context state for one continuous Elfie."""
 
 from __future__ import annotations
 
 from collections import deque
 from threading import Lock
-from typing import Callable, Deque, Optional, Tuple
+from typing import Callable, Deque, Mapping, Optional, Tuple
 
-from elfie.body.port import BodyPort
 from elfie.brain.context_types import (
-    BodyCapabilityDescriptor,
-    ConnectedChannelDescriptor,
     ConversationContext,
     ConversationMessage,
     EffectiveCapabilities,
@@ -18,30 +15,32 @@ from elfie.brain.context_types import (
     MemoryItem,
 )
 from elfie.brain.memory import MemorySystem
-from elfie.brain.perception_types import PerceptionFrame, SocialPayload
-from elfie.communication import CommunicationHub
+from elfie.brain.perception_types import SocialPayload, TurnFrame
 from elfie.message_types import EventId, UTCDateTime
 
+CapabilityReader = Callable[
+    [UTCDateTime, Mapping[str, Tuple[str, ...]]], EffectiveCapabilities
+]
 
-class ElfieContextSource:
-    """Read bounded context and capabilities under Coordinator ownership."""
+
+class BrainContextState:
+    """Read bounded context and capabilities under Brain ownership."""
 
     def __init__(
         self,
         *,
         memory: MemorySystem,
-        current_body: Callable[[], Optional[BodyPort]],
-        communication: CommunicationHub,
+        capability_reader: CapabilityReader,
         clock: Callable[[], UTCDateTime],
         history_capacity: int = 32,
         event_identity_capacity: int = 2048,
         conversations_per_channel: int = 128,
     ) -> None:
         self._memory = memory
-        self._current_body = current_body
-        self._communication = communication
+        self._capability_reader = capability_reader
         self._clock = clock
-        self._history: Deque[ConversationMessage] = deque(maxlen=history_capacity)
+        self._history_capacity = history_capacity
+        self._histories: dict[tuple[str, str], Deque[ConversationMessage]] = {}
         self._event_identity_capacity = event_identity_capacity
         self._conversations_per_channel = conversations_per_channel
         self._seen_conversation_events: set[EventId] = set()
@@ -49,29 +48,30 @@ class ElfieContextSource:
         self._recorded_owner_events: set[EventId] = set()
         self._recorded_owner_order: Deque[EventId] = deque()
         self._authorized_conversations: dict[str, Deque[str]] = {}
-        self._capability_signature: Optional[Tuple[str, ...]] = None
-        self._capability_revision = 0
         self._lock = Lock()
 
     def conversation(
         self,
-        frame: PerceptionFrame,
+        frame: TurnFrame,
         captured_at: UTCDateTime,
     ) -> ConversationContext:
-        """Append source-preserving social events and return bounded history."""
+        """Append only the admitted conversation and return its bounded history."""
         conversation_ids: list[str] = []
+        active_key: Optional[tuple[str, str]] = None
         with self._lock:
             for event in frame.events:
                 payload = event.payload
                 if not isinstance(payload, SocialPayload):
                     continue
                 conversation_ids.append(payload.conversation_id)
-                self._remember_conversation(
-                    payload.channel_id,
-                    payload.conversation_id,
-                )
+                active_key = (payload.channel_id, payload.conversation_id)
+                self._remember_conversation(payload.channel_id, payload.conversation_id)
                 if event.meta.event_id not in self._seen_conversation_events:
-                    self._history.append(
+                    history = self._histories.setdefault(
+                        active_key,
+                        deque(maxlen=self._history_capacity),
+                    )
+                    history.append(
                         ConversationMessage(
                             event_id=event.meta.event_id,
                             sender=payload.sender,
@@ -80,7 +80,11 @@ class ElfieContextSource:
                         )
                     )
                     self._remember_seen_event(event.meta.event_id)
-            history = tuple(self._history)
+            history = (
+                tuple(self._histories.get(active_key, ()))
+                if active_key is not None
+                else ()
+            )
         unique_conversations = tuple(dict.fromkeys(conversation_ids))
         return ConversationContext(
             revision=frame.revision,
@@ -93,11 +97,11 @@ class ElfieContextSource:
 
     def memory(
         self,
-        frame: PerceptionFrame,
+        frame: TurnFrame,
         emotion: EmotionSnapshot,
         captured_at: UTCDateTime,
     ) -> MemoryContext:
-        """Record owner text once and retrieve one bounded compatibility excerpt."""
+        """Record owner text once and retrieve one bounded memory excerpt."""
         query_parts: list[str] = []
         source_ids: list[EventId] = []
         dominant = emotion.dominant or "calm"
@@ -151,65 +155,16 @@ class ElfieContextSource:
         )
 
     def capabilities(self, captured_at: UTCDateTime) -> EffectiveCapabilities:
-        """Capture the current Body and connected communication endpoints."""
-        body = self._current_body()
-        current_body = None
-        signature: list[str] = []
-        if body is not None:
-            capabilities = body.capabilities
-            current_body = BodyCapabilityDescriptor(
-                body_id=body.body_id,
-                capability_revision=capabilities.revision,
-                sensors=tuple(sorted(capabilities.sensors)),
-                actions=tuple(sorted(capabilities.actions)),
-            )
-            signature.extend(
-                (
-                    f"body:{body.body_id}",
-                    f"body-revision:{capabilities.revision}",
-                    f"body-connected:{body.snapshot_body(now=captured_at).connected}",
-                )
-            )
+        """Read a sibling-free capability projection through the injected reader."""
         with self._lock:
-            authorized_conversations = {
-                channel_id: tuple(sorted(conversation_ids))
-                for channel_id, conversation_ids in self._authorized_conversations.items()
+            authorized = {
+                channel_id: tuple(conversations)
+                for channel_id, conversations in self._authorized_conversations.items()
             }
-        channels = tuple(
-            ConnectedChannelDescriptor(
-                channel_id=channel.channel_id,
-                account_id=channel.channel_id,
-                capability_revision=1,
-                content_kinds=("text",),
-                authorized_conversation_ids=authorized_conversations.get(
-                    channel.channel_id,
-                    (),
-                ),
-            )
-            for channel in self._communication.router.list_channels()
-            if channel.is_connected
-        )
-        for channel in channels:
-            signature.append(f"channel:{channel.channel_id}")
-            signature.extend(
-                f"channel:{channel.channel_id}:conversation:{conversation_id}"
-                for conversation_id in channel.authorized_conversation_ids
-            )
-        with self._lock:
-            frozen_signature = tuple(signature)
-            if frozen_signature != self._capability_signature:
-                self._capability_revision += 1
-                self._capability_signature = frozen_signature
-            revision = self._capability_revision
-        return EffectiveCapabilities(
-            revision=revision,
-            captured_at=captured_at,
-            current_body=current_body,
-            connected_channels=channels,
-        )
+        return self._capability_reader(captured_at, authorized)
 
     def current(self) -> EffectiveCapabilities:
-        """Return a fresh capability snapshot for OutputRouter validation."""
+        """Return a fresh capability snapshot for decision validation."""
         return self.capabilities(self._clock())
 
     def _remember_seen_event(self, event_id: EventId) -> None:
@@ -226,15 +181,8 @@ class ElfieContextSource:
         while len(self._recorded_owner_order) > self._event_identity_capacity:
             self._recorded_owner_events.discard(self._recorded_owner_order.popleft())
 
-    def _remember_conversation(
-        self,
-        channel_id: str,
-        conversation_id: str,
-    ) -> None:
-        conversations = self._authorized_conversations.setdefault(
-            channel_id,
-            deque(),
-        )
+    def _remember_conversation(self, channel_id: str, conversation_id: str) -> None:
+        conversations = self._authorized_conversations.setdefault(channel_id, deque())
         if conversation_id in conversations:
             return
         conversations.append(conversation_id)
@@ -242,4 +190,4 @@ class ElfieContextSource:
             conversations.popleft()
 
 
-__all__ = ("ElfieContextSource",)
+__all__ = ("BrainContextState", "CapabilityReader")

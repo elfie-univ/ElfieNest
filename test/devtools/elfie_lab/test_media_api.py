@@ -42,6 +42,7 @@ def test_upload_and_submit_pure_visual_turn(tmp_path, monkeypatch, client_for):
     turn = client.post(
         f"/api/elfies/{elfie_id}/turns",
         json={
+            "source_domain": "embodied",
             "message": "",
             "food_key": "mock",
             "vision_media_id": descriptor["media_id"],
@@ -79,6 +80,7 @@ def test_turn_rejects_cross_elfie_media_reference(tmp_path, monkeypatch, client_
     response = client.post(
         f"/api/elfies/{second['elfie_id']}/turns",
         json={
+            "source_domain": "embodied",
             "message": "",
             "food_key": "mock",
             "vision_media_id": uploaded["media_id"],
@@ -102,7 +104,12 @@ def test_turn_rejects_malformed_media_id_without_server_error(
 
     response = client.post(
         f"/api/elfies/{created['elfie_id']}/turns",
-        json={"message": "", "food_key": "mock", "vision_media_id": "../../secret"},
+        json={
+            "source_domain": "embodied",
+            "message": "",
+            "food_key": "mock",
+            "vision_media_id": "../../secret",
+        },
     )
 
     assert response.status_code == 422

@@ -7,6 +7,7 @@ from threading import Event, Lock, Thread
 
 from elfie.brain.food_port import MainFoodSelection
 from elfie.brain.limbic_appraiser import BrainClockPulse
+from elfie.brain.perception_types import InternalScope, ResponseScope, SourceDomain
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.brain.runtime_port import (
     JsonSchemaDocument,
@@ -37,6 +38,9 @@ def _request(turn_id: str = "turn-1") -> ModelGenerationRequest:
         created_at=now,
         deadline=now + timedelta(seconds=45),
         cause_event_ids=("event-1",),
+        source_domain=SourceDomain.INTERNAL,
+        interaction_scope=InternalScope(cause_id="event-1"),
+        response_scope=ResponseScope(external_domain=None),
         system_prompt="You are Elfie.",
         user_prompt="Return a decision plan.",
         response_schema=JsonSchemaDocument(

@@ -4,8 +4,19 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from elfie.brain.decision_types import CancelPolicy, DecisionPlan, NoOpIntent
+from elfie.brain.decision_types import (
+    CancelPolicy,
+    DecisionPlan,
+    NoOpIntent,
+    TurnDecision,
+)
 from elfie.brain.output_router import OutputRouter
+from elfie.brain.perception_types import (
+    CommunicationScope,
+    ExternalExecutionDomain,
+    ResponseScope,
+    SourceDomain,
+)
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.message_types import EventId, IntentId, PlanId, TurnId
 from test.elfie.brain.test_output_router import (
@@ -14,6 +25,7 @@ from test.elfie.brain.test_output_router import (
     RecordingExecutor,
     StaticCapabilities,
     _capabilities,
+    _embodied_decision,
     _message,
     _plan,
 )
@@ -41,7 +53,22 @@ def test_router_rejects_message_target_without_inbound_authorization() -> None:
     )
 
     # When: a model-selected recipient has no trusted inbound conversation grant.
-    accepted = router.accept(_plan((unauthorized,)))
+    plan = _plan((unauthorized,))
+    accepted = router.accept(
+        TurnDecision(
+            source_domain=SourceDomain.COMMUNICATION,
+            interaction_scope=CommunicationScope(
+                channel_id="chat",
+                conversation_id="attacker-selected-recipient",
+            ),
+            response_scope=ResponseScope(
+                external_domain=ExternalExecutionDomain.COMMUNICATION,
+                channel_id="chat",
+                conversation_id="attacker-selected-recipient",
+            ),
+            plan=plan,
+        )
+    )
 
     # Then: no platform executor is called.
     assert accepted is False
@@ -79,7 +106,7 @@ def test_router_rejects_plan_beyond_maximum_schedule_horizon() -> None:
     )
 
     # When / Then: direct Router callers cannot create unbounded scheduled work.
-    assert router.accept(future_plan) is False
+    assert router.accept(_embodied_decision(future_plan)) is False
     assert router.last_rejection is not None
     assert router.last_rejection.error.code == "schedule_horizon_exceeded"
     router.stop()

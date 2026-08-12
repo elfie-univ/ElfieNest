@@ -44,12 +44,15 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
 
     assert turn["result"]["success"] is True
     assert turn["result"]["speech"]
-    assert turn["decision"]["spoken_texts"] == [turn["result"]["speech"]]
-    assert turn["decision"]["motion_intents"][0]["motion"] == "nod_head"
+    assert turn["stimulus_bundle"]["source_domain"] == "communication"
+    assert turn["decision"]["message_texts"] == [turn["result"]["speech"]]
+    assert turn["decision"]["motion_intents"] == []
     assert "response" not in turn["model_call"]
     assert turn["model_call"]["model"] == "elfie-mock"
     stages = turn["trace"]["stages"]
     assert stages["typed_input"]["source"] == "developer_tool"
+    assert stages["typed_input"]["source_domain"] == "communication"
+    assert stages["turn_boundary"]["source_domain"] == "communication"
     assert stages["cognitive_turn"]["status"] == "completed"
     assert stages["cognitive_turn"]["model_mode"] == "structured"
     assert stages["output_receipts"][-1]["status"] == "completed"
@@ -57,6 +60,22 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
         storage.load_latest_session(spec.elfie_id)["turns"][0]["turn_id"]
         == turn["turn_id"]
     )
+
+
+def test_mock_embodied_turn_uses_body_output_only(tmp_path, session_factory):
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("具身链路")
+    session = session_factory(spec, storage)
+
+    turn = session.run_turn(
+        StimulusBundle(source_domain="embodied", message="现场有人叫你"),
+        "mock",
+    )
+
+    assert turn["trace"]["stages"]["turn_boundary"]["source_domain"] == "embodied"
+    assert turn["decision"]["message_intents"] == []
+    assert turn["decision"]["spoken_texts"]
+    assert turn["decision"]["motion_intents"][0]["motion"] == "nod_head"
 
 
 def test_state_injection_is_visible_and_persistent(tmp_path, session_factory):
@@ -95,7 +114,7 @@ def test_close_stops_cognitive_runtime(tmp_path, session_factory):
     storage = ElfieLabStorage(str(tmp_path))
     spec = storage.create_elfie("关闭测试")
     session = session_factory(spec, storage)
-    runtime = session.elfie._cognitive_runtime
+    runtime = session.elfie._brain_runtime
 
     assert runtime is not None
     assert runtime.is_running is True
@@ -120,7 +139,7 @@ def test_close_if_idle_refuses_to_interrupt_owned_turn_lock(tmp_path, session_fa
 
     # Then
     assert closed is False
-    assert session.elfie._cognitive_runtime.is_running is True
+    assert session.elfie._brain_runtime.is_running is True
 
 
 def test_closed_session_reference_cannot_start_turn_after_delete_wins_race(

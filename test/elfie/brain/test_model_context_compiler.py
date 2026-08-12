@@ -22,25 +22,22 @@ from elfie.brain.model_context_compiler import (
     ModelTokenBudget,
 )
 from elfie.brain.perception_types import (
-    ExecutionPayload,
-    ExecutionStatus,
+    CommunicationScope,
+    ExternalExecutionDomain,
     PerceptionEvent,
-    PerceptionFrame,
-    PhysicalModality,
-    PhysicalPayload,
+    ResponseScope,
     SocialPayload,
+    SourceDomain,
     TriggerReason,
+    TurnFrame,
 )
 from elfie.message_types import (
     ActorId,
     ActorRef,
     ElfieId,
     EventId,
-    IntentId,
     MessageMeta,
-    PlanId,
     TraceId,
-    TurnId,
 )
 
 NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
@@ -66,46 +63,32 @@ def _meta(
 
 
 def _context(long_social_text: str = "please answer from the sofa") -> BrainContext:
-    room_actor = _actor("room-mic-left", "body")
     user_actor = _actor("owner-1", "human")
-    receipt_actor = _actor("body-executor", "system")
-    frame = PerceptionFrame(
+    frame = TurnFrame(
         frame_id=EventId("frame-1"),
         elfie_id=ELFIE_ID,
         revision=3,
         captured_at=NOW,
         cutoff_seq=10,
         trigger_reason=TriggerReason.CONVERSATION_QUIET,
+        source_domain=SourceDomain.COMMUNICATION,
+        interaction_scope=CommunicationScope(
+            channel_id="wechat-main", conversation_id="conversation-1"
+        ),
+        response_scope=ResponseScope(
+            external_domain=ExternalExecutionDomain.COMMUNICATION,
+            channel_id="wechat-main",
+            conversation_id="conversation-1",
+        ),
         events=(
             PerceptionEvent(
-                meta=_meta("physical-1", room_actor),
-                payload=PhysicalPayload(
-                    type="physical",
-                    body_id="headless-body",
-                    modality=PhysicalModality.UTTERANCE,
-                    content="chair moved near the desk",
-                ),
-            ),
-            PerceptionEvent(
-                meta=_meta("social-1", user_actor, EventId("physical-1")),
+                meta=_meta("social-1", user_actor),
                 payload=SocialPayload(
                     type="social",
                     channel_id="wechat-main",
                     conversation_id="conversation-1",
                     sender=user_actor,
                     content=long_social_text,
-                ),
-            ),
-            PerceptionEvent(
-                meta=_meta("receipt-1", receipt_actor, EventId("social-1")),
-                payload=ExecutionPayload(
-                    type="execution",
-                    receipt_id=EventId("receipt-1"),
-                    plan_id=PlanId("plan-1"),
-                    turn_id=TurnId("turn-1"),
-                    intent_id=IntentId("intent-1"),
-                    executor="body",
-                    status=ExecutionStatus.COMPLETED,
                 ),
             ),
         ),
@@ -173,8 +156,8 @@ def _context(long_social_text: str = "please answer from the sofa") -> BrainCont
     )
 
 
-def test_compile_preserves_event_actor_channel_modality_and_cause_ids() -> None:
-    # Given: a BrainContext with physical, social, and execution events.
+def test_compile_preserves_communication_actor_and_channel() -> None:
+    # Given: a BrainContext containing one communication turn.
     context = _context()
 
     # When: the compiler creates provider-neutral model input.
@@ -184,17 +167,10 @@ def test_compile_preserves_event_actor_channel_modality_and_cause_ids() -> None:
     )
 
     # Then: model adapters receive typed rows with exact source and cause fields.
-    assert tuple(event.event_id for event in compiled.events) == (
-        EventId("physical-1"),
-        EventId("social-1"),
-        EventId("receipt-1"),
-    )
-    assert compiled.events[0].modality == "physical:utterance"
-    assert compiled.events[0].actor.actor_id == ActorId("room-mic-left")
-    assert compiled.events[1].channel_id == "wechat-main"
-    assert compiled.events[1].cause_event_ids == (EventId("physical-1"),)
-    assert compiled.events[2].cause_event_ids == (EventId("social-1"),)
-    assert compiled.events[1].occurred_at == NOW
+    assert tuple(event.event_id for event in compiled.events) == (EventId("social-1"),)
+    assert compiled.events[0].actor.actor_id == ActorId("owner-1")
+    assert compiled.events[0].channel_id == "wechat-main"
+    assert compiled.events[0].occurred_at == NOW
     assert compiled.emotion.dominant == "curiosity"
     assert compiled.homeostasis.energy == 81.0
     assert compiled.capabilities.current_body.body_id == "headless-body"
@@ -211,8 +187,8 @@ def test_prompt_injection_text_is_compiled_as_inert_event_data() -> None:
     )
 
     # Then: policy text is separate and the hostile string remains user data.
-    assert injection in compiled.events[1].content
-    assert compiled.events[1].role == "event_data"
+    assert injection in compiled.events[0].content
+    assert compiled.events[0].role == "event_data"
     assert all(injection not in policy for policy in compiled.policies)
 
 
@@ -227,13 +203,13 @@ def test_tight_budget_trims_content_without_dropping_identity_fields() -> None:
     )
 
     # Then: text is truncated, while source identity remains available.
-    social_event = compiled.events[1]
+    social_event = compiled.events[0]
     assert compiled.truncated is True
     assert social_event.content.endswith("[truncated]")
     assert social_event.event_id == EventId("social-1")
     assert social_event.actor.actor_id == ActorId("owner-1")
     assert social_event.channel_id == "wechat-main"
-    assert social_event.cause_event_ids == (EventId("physical-1"),)
+    assert social_event.cause_event_ids == ()
 
 
 def test_empty_history_compiles_to_empty_sections() -> None:

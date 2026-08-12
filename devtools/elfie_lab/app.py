@@ -237,6 +237,7 @@ def create_app(
                 else None
             )
             stimulus = StimulusBundle(
+                source_domain=request.source_domain,
                 message=request.message,
                 vision_media=vision_media,
                 temperature=request.temperature,

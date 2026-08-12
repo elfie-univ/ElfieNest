@@ -6,9 +6,9 @@ from typing import Optional, Protocol, runtime_checkable
 
 from elfie.brain.perception_types import (
     IngestReceipt,
-    PerceptionFrame,
     PerceptionWrite,
     TriggerReason,
+    TurnFrame,
 )
 from elfie.message_types import EventId, TurnId, UTCDateTime
 
@@ -23,7 +23,7 @@ class PerceptionSink(Protocol):
 
 
 @runtime_checkable
-class PerceptionFrameSource(Protocol):
+class TurnFrameSource(Protocol):
     """Coordinator-only frame lifecycle capability."""
 
     def seal(
@@ -35,7 +35,7 @@ class PerceptionFrameSource(Protocol):
         """Seal the current cutoff and return its frame ID, if non-empty."""
         ...
 
-    def claim(self, frame_id: EventId, turn_id: TurnId) -> PerceptionFrame:
+    def claim(self, frame_id: EventId, turn_id: TurnId) -> TurnFrame:
         """Claim one sealed frame for a cortical turn."""
         ...
 
@@ -48,4 +48,4 @@ class PerceptionFrameSource(Protocol):
         ...
 
 
-__all__ = ("PerceptionFrameSource", "PerceptionSink")
+__all__ = ("PerceptionSink", "TurnFrameSource")

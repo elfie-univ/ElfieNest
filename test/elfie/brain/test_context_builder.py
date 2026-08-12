@@ -22,12 +22,14 @@ from elfie.brain.context_types import (
     MemoryItem,
 )
 from elfie.brain.perception_types import (
+    CommunicationScope,
+    ExternalExecutionDomain,
     PerceptionEvent,
-    PerceptionFrame,
-    PhysicalModality,
-    PhysicalPayload,
+    ResponseScope,
     SocialPayload,
+    SourceDomain,
     TriggerReason,
+    TurnFrame,
 )
 from elfie.message_types import (
     ActorId,
@@ -60,28 +62,27 @@ def _meta(
     )
 
 
-def _mixed_frame() -> PerceptionFrame:
-    room_actor = _actor("room-mic-left", "body")
+def _communication_frame() -> TurnFrame:
     user_actor = _actor("owner-1", "human")
-    return PerceptionFrame(
+    return TurnFrame(
         frame_id=EventId("frame-1"),
         elfie_id=ELFIE_ID,
         revision=3,
         captured_at=NOW,
         cutoff_seq=10,
         trigger_reason=TriggerReason.CONVERSATION_QUIET,
+        source_domain=SourceDomain.COMMUNICATION,
+        interaction_scope=CommunicationScope(
+            channel_id="wechat-main", conversation_id="conversation-1"
+        ),
+        response_scope=ResponseScope(
+            external_domain=ExternalExecutionDomain.COMMUNICATION,
+            channel_id="wechat-main",
+            conversation_id="conversation-1",
+        ),
         events=(
             PerceptionEvent(
-                meta=_meta("physical-1", room_actor),
-                payload=PhysicalPayload(
-                    type="physical",
-                    body_id="headless-body",
-                    modality=PhysicalModality.UTTERANCE,
-                    content="footsteps near the desk",
-                ),
-            ),
-            PerceptionEvent(
-                meta=_meta("social-1", user_actor, EventId("physical-1")),
+                meta=_meta("social-1", user_actor),
                 payload=SocialPayload(
                     type="social",
                     channel_id="wechat-main",
@@ -166,8 +167,8 @@ def _capabilities() -> EffectiveCapabilities:
 
 
 def test_assemble_returns_immutable_brain_context_when_inputs_are_typed() -> None:
-    # Given: a sealed mixed physical/social frame and owner-captured snapshots.
-    frame = _mixed_frame()
+    # Given: one sealed communication frame and owner-captured snapshots.
+    frame = _communication_frame()
 
     # When: the Thalamus builder assembles the cortical input.
     context = ThalamusContextBuilder().assemble(
@@ -182,9 +183,8 @@ def test_assemble_returns_immutable_brain_context_when_inputs_are_typed() -> Non
 
     # Then: typed identity and causality remain intact in an immutable BrainContext.
     assert isinstance(context, BrainContext)
-    assert context.frame.events[0].meta.source.actor_id == ActorId("room-mic-left")
-    assert context.frame.events[1].payload.channel_id == "wechat-main"
-    assert context.frame.events[1].meta.causation_id == EventId("physical-1")
+    assert context.frame.events[0].meta.source.actor_id == ActorId("owner-1")
+    assert context.frame.events[0].payload.channel_id == "wechat-main"
     with pytest.raises(ValidationError, match="frozen"):
         context.revision = -1
 
@@ -207,6 +207,17 @@ def test_malformed_typed_boundary_is_rejected_before_assembly() -> None:
         "captured_at": NOW,
         "cutoff_seq": 1,
         "trigger_reason": "manual",
+        "source_domain": "communication",
+        "interaction_scope": {
+            "kind": "communication",
+            "channel_id": "wechat-main",
+            "conversation_id": "conversation-1",
+        },
+        "response_scope": {
+            "external_domain": "communication",
+            "channel_id": "wechat-main",
+            "conversation_id": "conversation-1",
+        },
         "events": (
             {
                 "meta": _meta("bad-event", _actor("actor-1", "test")),
@@ -218,4 +229,4 @@ def test_malformed_typed_boundary_is_rejected_before_assembly() -> None:
 
     # When / Then: Pydantic rejects malformed typed input before builder logic runs.
     with pytest.raises(ValidationError, match="union_tag_invalid"):
-        PerceptionFrame.model_validate(raw_frame)
+        TurnFrame.model_validate(raw_frame)

@@ -18,7 +18,7 @@
 | ELF-008 | P1 | closed | `ElfieFactory` 已成为围绕不可变 `ElfieAssembly` 的类型化领域 Builder；存储路径、Godot API 和分阶段 Runtime 配置在调用前解析。 | Factory create/restore 测试通过，返回的聚合完整但未启动，生产组合根仍由 Bootstrap 拥有。 |
 | ELF-009 | P1 | closed | Profile、Body、Communication、Nest Session、Runtime observation 及 Infrastructure Port 模型的公开边界均使用命名不可变模型或受限 JSON 值。永久 Port 棘轮拒绝 `Any`、`object` 和具体对等 Adapter 签名；身体/通信/Bootstrap 证据已有机器门禁。 | 保持严格 Port 棘轮和证据通过；内部算法局部映射不属于公开边界契约。 |
 | ELF-010 | P0 | open | `ElfieProfile` 仍保存 `personality`、`capabilities`、`system_limits`；`elfie/profile/defaults/` 仍把自我认知、身体能力、能量/运行默认值与不可变外貌事实混在一起。 | 先建立接收它们的 Brain/Body/NervousSystem 所有者，再在一个获批切片中迁移全部生产调用方和持久字段，最后删除三个宽泛 Profile 映射及混合默认资源，不保留 fallback read 或双 authority。 |
-| ELF-011 | P0 | open | `elfie/cognitive_runtime.py`、`elfie/cognitive_context.py` 仍是根聚合文件，当前感知 Frame 尚未强制三类来源与单域 Turn/响应范围。 | 私有认知协调与上下文组装归 Brain；通信、具身和内部输入形成类型化单域 Turn；宿主校验阻止 Turn 扩大响应域；删除根认知文件。 |
+| ELF-011 | P0 | closed | 私有认知协调与上下文组装已经归 Brain；Communication、Embodied、Internal 输入形成类型化单域 Turn，宿主强制响应范围，旧根认知文件已删除。 | Brain 生命周期、Lane、Scope 和决策边界聚焦测试通过；Elfie Lab 展示通信闭环的来源域、Scope、决定与投递回执。后续 Brain 能力扩展必须保持这一边界门禁。 |
 | ELF-012 | P0 | open | Body Registry/Binding 已选择当前命令身体，但尚未实现完整的虚拟/实体互斥切换、authority generation、旧回执拒绝、回滚和重启恢复契约。 | 一个明确切换状态机始终保持唯一选中传感/动作 authority，拒绝旧 generation，并在失败或重启后确定性恢复或回滚。 |
 | ELF-013 | P1 | open | `elfie/initialization.py` 只装配 Profile 与 Anatomy，尚无 `genesis/` 所有者承载经过校验的临时创建 Bundle、Brain 种子和有界人生补全。 | Genesis 生成并校验类型化创建产物，每项只提交一次给最终所有者，不保留重复生命状态，完成后退出普通运行期。 |
 | ELF-014 | P0 | open | 当前认知已有 Workspace、Model Worker、DecisionPlan 和内部占位操作，但缺少已接受的 Persistent Activity 所有者、确定性 Preflight/Commit 分离、持久内部唤醒和回执对账。 | 已校验 Activity 跨 Turn/重启存续，只通过类型化内部事件唤醒，保持通信/具身 Step 分离，并以真实回执达到无重复副作用的终态。 |

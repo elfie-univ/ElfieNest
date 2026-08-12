@@ -3,7 +3,11 @@ from devtools.elfie_lab.app import create_app
 from devtools.runtime_lab import RuntimeLabConfigStore
 from elfie.brain.food_port import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
 from infrastructure.models.runtime_agent import RuntimeAgent
-from infrastructure.models.runtime_contracts import RuntimeResult
+from infrastructure.models.runtime_contracts import (
+    StructuredGenerationMode,
+    StructuredRuntimeCapabilities,
+    StructuredRuntimeResult,
+)
 from infrastructure.persistence.food import SQLiteFoodAdapter
 from infrastructure.persistence.nest_db.store import init_db
 
@@ -120,21 +124,39 @@ def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
     _write_foods(runtime_dir)
     captured = {}
 
-    def fake_run_with_food(runtime, **kwargs):
-        captured["food_key"] = kwargs["food_key"]
+    def fake_structured_capabilities(runtime, food_key=None, food_unavailable=False):
+        captured["food_key"] = food_key
+        assert food_unavailable is False
         captured["catalog_path"] = runtime.food_catalog_repository._db_path
-        return RuntimeResult(
-            text="粮食调用成功。[ACTION]nod_head[/ACTION]",
-            mode="local",
+        return StructuredRuntimeCapabilities(
+            provider="ollama",
             model_key="ollama/test-food-model",
-            decision={"food": {"requested": "standard", "actual": "standard"}},
-            food_requested="standard",
-            food_used="standard",
-            execution_stage="primary",
-            actual_model="ollama/test-food-model",
+            supports_json_schema=False,
+            supports_tool_calling=False,
+            supports_json_mode=True,
+            supports_plain_text=True,
+            max_output_tokens=512,
         )
 
-    monkeypatch.setattr(RuntimeAgent, "run_with_food", fake_run_with_food)
+    def fake_generate_structured(runtime, request):
+        assert request.food_key == "standard"
+        return StructuredRuntimeResult(
+            text="粮食调用成功。[ACTION]nod_head[/ACTION]",
+            selected_mode=StructuredGenerationMode.JSON_TEXT,
+            provider="ollama",
+            model_key="ollama/test-food-model",
+        )
+
+    monkeypatch.setattr(
+        RuntimeAgent,
+        "structured_capabilities",
+        fake_structured_capabilities,
+    )
+    monkeypatch.setattr(
+        RuntimeAgent,
+        "generate_structured",
+        fake_generate_structured,
+    )
     monkeypatch.setattr(
         "devtools.elfie_lab.food_status.list_installed_ollama_models",
         lambda config: ("qwen3.5:0.8b",),
@@ -144,7 +166,7 @@ def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
 
     response = client.post(
         f"/api/elfies/{created['elfie_id']}/turns",
-        json={"message": "你好", "food_key": "standard"},
+        json={"source_domain": "communication", "message": "你好", "food_key": "standard"},
     )
 
     assert response.status_code == 200
@@ -174,7 +196,7 @@ def test_turn_rejects_legacy_mode_and_unknown_food(tmp_path, monkeypatch, client
     missing = client.post(endpoint, json={"message": "你好"})
     unknown = client.post(
         endpoint,
-        json={"message": "你好", "food_key": "not-a-food"},
+        json={"source_domain": "communication", "message": "你好", "food_key": "not-a-food"},
     )
 
     assert legacy.status_code == 422
@@ -252,7 +274,7 @@ def test_uninstalled_ollama_food_is_disabled_with_setup_command(
     created = client.post("/api/elfies", json=elfie_payload("未就绪粮食测试")).json()
     response = client.post(
         f"/api/elfies/{created['elfie_id']}/turns",
-        json={"message": "你好", "food_key": "standard"},
+        json={"source_domain": "communication", "message": "你好", "food_key": "standard"},
     )
     assert response.status_code == 422
     assert "ollama pull qwen3.5:0.8b" in response.json()["detail"]

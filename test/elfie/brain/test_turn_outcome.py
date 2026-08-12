@@ -10,14 +10,14 @@ from elfie.brain.perception_types import (
     IngestDisposition,
     IngestReceipt,
     PerceptionEvent,
-    PerceptionFrame,
+    TurnFrame,
 )
 from elfie.brain.turn_outcome import (
     ModelMode,
     TerminalStatus,
     TurnOutcome,
 )
-from elfie.brain.workspace_ports import PerceptionFrameSource, PerceptionSink
+from elfie.brain.workspace_ports import PerceptionSink, TurnFrameSource
 from elfie.message_types import EventId, PlanId, TurnId
 
 NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
@@ -100,7 +100,7 @@ class _PortExample:
         del reason, captured_at
         return None
 
-    def claim(self, frame_id: EventId, turn_id: TurnId) -> PerceptionFrame:
+    def claim(self, frame_id: EventId, turn_id: TurnId) -> TurnFrame:
         raise LookupError(frame_id, turn_id)
 
     def commit(self, frame_id: EventId, turn_id: TurnId) -> None:
@@ -116,7 +116,7 @@ def test_workspace_protocols_are_structural_without_queue_members() -> None:
 
     # When: runtime-checkable protocols inspect the implementation.
     supports_sink = isinstance(port, PerceptionSink)
-    supports_source = isinstance(port, PerceptionFrameSource)
+    supports_source = isinstance(port, TurnFrameSource)
 
     # Then: no queue/storage inheritance or attributes are required.
     assert supports_sink is True

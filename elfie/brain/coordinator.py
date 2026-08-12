@@ -12,7 +12,7 @@ from elfie.brain.coordinator_outcomes import (
     cortical_failure_outcome,
     cortical_timeout_outcome,
 )
-from elfie.brain.coordinator_ports import BrainContextSource, DecisionPlanSink
+from elfie.brain.coordinator_ports import BrainContextSource, TurnDecisionSink
 from elfie.brain.coordinator_runtime import CoordinatorRuntime, TurnOutcomeBuffer
 from elfie.brain.coordinator_turn import CoordinatorTurnFactory
 from elfie.brain.coordinator_types import (
@@ -23,6 +23,7 @@ from elfie.brain.coordinator_types import (
     WorkerDoneControl,
 )
 from elfie.brain.cortical_worker import CorticalExecutionPort
+from elfie.brain.decision_governance import govern_decision
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import HypothalamusEnergy
 from elfie.brain.limbic_appraiser import BrainClockPulse, LimbicAppraiser
@@ -45,7 +46,7 @@ class BrainCoordinator:
         appraiser: LimbicAppraiser,
         context_source: BrainContextSource,
         cortical_worker: CorticalExecutionPort,
-        plan_sink: DecisionPlanSink,
+        plan_sink: TurnDecisionSink,
         initial_timestamp: float,
         next_autonomous_at: Optional[float] = None,
         hard_timeout_seconds: float = 45.0,
@@ -213,7 +214,8 @@ class BrainCoordinator:
             inflight.task.seed,
             "cortical_hard_timeout",
         )
-        if self._plan_sink.accept(plan):
+        decision = govern_decision(inflight.frame, plan)
+        if self._plan_sink.accept(decision):
             self._workspace.commit(inflight.frame.frame_id, inflight.task.seed.turn_id)
             self._outcomes.record(cortical_timeout_outcome(plan))
             inflight.terminal_status = TerminalStatus.TIMED_OUT

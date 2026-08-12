@@ -11,8 +11,8 @@ from pydantic import Field
 from elfie.brain.perception_types import (
     InternalPayload,
     InternalSignal,
-    PerceptionFrame,
     ProcessingFailureEvent,
+    TurnFrame,
 )
 from elfie.message_types import (
     ActorId,
@@ -71,7 +71,7 @@ class WorkspaceStorageMetrics(NamedTuple):
 class WorkspaceClaim(NamedTuple):
     """One active frame-to-turn ownership record."""
 
-    frame: PerceptionFrame
+    frame: TurnFrame
     turn_id: TurnId
 
 

@@ -9,10 +9,10 @@ from elfie.brain.perception_types import (
     IngestDisposition,
     IngestReceipt,
     PerceptionEvent,
-    PerceptionFrame,
     PerceptionWrite,
     ProcessingFailureEvent,
     TriggerReason,
+    TurnFrame,
 )
 from elfie.brain.workspace_ingest import WorkspaceIngestIndex
 from elfie.brain.workspace_signal import Clock, WorkspaceSignal, utc_now
@@ -52,7 +52,7 @@ class PerceptualWorkspace:
             media_per_stream_capacity=media_per_stream_capacity,
         )
         self._ingest = WorkspaceIngestIndex(dedupe_capacity)
-        self._sealed: Optional[PerceptionFrame] = None
+        self._sealed: Optional[TurnFrame] = None
         self._active: Optional[WorkspaceClaim] = None
         self._attempts: dict[EventId, int] = {}
         self._next_seq = 0
@@ -121,7 +121,7 @@ class PerceptualWorkspace:
                 self._sealed = self._build_frame(self._next_seq, reason, captured_at)
             return None if self._sealed is None else self._sealed.frame_id
 
-    def claim(self, frame_id: EventId, turn_id: TurnId) -> PerceptionFrame:
+    def claim(self, frame_id: EventId, turn_id: TurnId) -> TurnFrame:
         """Claim a sealed frame for one turn."""
         with self._signal.locked():
             self._ensure_no_active()
@@ -139,7 +139,7 @@ class PerceptualWorkspace:
         turn_id: TurnId,
         reason: TriggerReason,
         captured_at: UTCDateTime,
-    ) -> PerceptionFrame:
+    ) -> TurnFrame:
         """Atomically build and claim a frame ending at the requested cutoff."""
         with self._signal.locked():
             self._ensure_no_active()
@@ -209,7 +209,7 @@ class PerceptualWorkspace:
         requested_cutoff: int,
         reason: TriggerReason,
         captured_at: UTCDateTime,
-    ) -> Optional[PerceptionFrame]:
+    ) -> Optional[TurnFrame]:
         next_revision = self._frame_revision + 1
         frame = self._storage.build_frame(
             frame_id=EventId(f"frame_{uuid4().hex}"),
@@ -224,8 +224,8 @@ class PerceptualWorkspace:
             self._frame_revision = next_revision
         return frame
 
-    def _commit(self, frame: PerceptionFrame) -> None:
-        self._storage.commit(frame.cutoff_seq)
+    def _commit(self, frame: TurnFrame) -> None:
+        self._storage.commit(frame)
         self._attempts.pop(frame.frame_id, None)
         self._active = None
         self._signal.bump()

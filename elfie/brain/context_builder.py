@@ -13,7 +13,7 @@ from elfie.brain.context_types import (
     HomeostasisSnapshot,
     MemoryContext,
 )
-from elfie.brain.perception_types import PerceptionFrame
+from elfie.brain.perception_types import TurnFrame
 from elfie.message_types import UTCDateTime
 
 logger = logging.getLogger("elfie.brain.context_builder")
@@ -25,7 +25,7 @@ class ThalamusContextBuilder:
     def assemble(
         self,
         *,
-        frame: PerceptionFrame,
+        frame: TurnFrame,
         emotion: EmotionSnapshot,
         homeostasis: HomeostasisSnapshot,
         conversation: ConversationContext,
@@ -39,7 +39,7 @@ class ThalamusContextBuilder:
             captured_at if captured_at is not None else frame.captured_at
         )
         context_revision = revision if revision is not None else frame.revision
-        logger.info("丘脑已接收 sealed PerceptionFrame，正在组装不可变 BrainContext。")
+        logger.info("丘脑已接收单域 TurnFrame，正在组装不可变 BrainContext。")
         return BrainContext(
             revision=context_revision,
             captured_at=context_captured_at,

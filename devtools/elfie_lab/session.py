@@ -7,7 +7,7 @@ import time
 from dataclasses import asdict
 from typing import Any, Callable, Dict, List, Optional
 
-from devtools.elfie_lab.deprecated_sync_adapter import DeprecatedSyncCognitionAdapter
+from devtools.elfie_lab.brain_turn_adapter import BrainTurnAdapter
 from devtools.elfie_lab.runtime_adapters import create_runtime
 from devtools.elfie_lab.schemas import (
     ElfieSpec,
@@ -71,7 +71,7 @@ class ElfieLabSession:
                 body=self.body,
             ),
         )
-        self._sync_adapter = DeprecatedSyncCognitionAdapter(self.elfie)
+        self._turn_adapter = BrainTurnAdapter(self.elfie)
         self._lock = threading.Lock()
         self._closed = False
 
@@ -109,11 +109,12 @@ class ElfieLabSession:
             error: Optional[str] = None
             try:
                 runtime = create_runtime(food_key, self.runtime_config_dir)
-                outcome, plan, receipts = self._sync_adapter.run(
+                outcome, turn_decision, receipts = self._turn_adapter.run(
                     stimulus,
                     turn_id,
                     runtime,
                 )
+                plan = turn_decision.plan if turn_decision is not None else None
                 decision = project_decision(plan, receipts)
                 speech = "\n".join(decision["spoken_texts"] + decision["message_texts"])
                 result = {
@@ -126,8 +127,14 @@ class ElfieLabSession:
                     "stages": {
                         "typed_input": {
                             "source": "developer_tool",
+                            "source_domain": stimulus.source_domain,
                             "modalities": stimulus_modalities(stimulus),
                         },
+                        "turn_boundary": (
+                            turn_decision.model_dump(mode="json", exclude={"plan"})
+                            if turn_decision is not None
+                            else None
+                        ),
                         "cognitive_turn": outcome.model_dump(mode="json"),
                         "output_receipts": [
                             receipt.model_dump(mode="json") for receipt in receipts
@@ -193,7 +200,7 @@ class ElfieLabSession:
             self.session_id = new_id("session")
             self.created_at = utc_now()
             self.turns = []
-            self._sync_adapter.close()
+            self._turn_adapter.close()
             self.body.disconnect()
             self.body = HeadlessBody(body_id=f"{self.spec.elfie_id}:headless")
             self.body.connect()
@@ -208,7 +215,7 @@ class ElfieLabSession:
                     body=self.body,
                 ),
             )
-            self._sync_adapter = DeprecatedSyncCognitionAdapter(self.elfie)
+            self._turn_adapter = BrainTurnAdapter(self.elfie)
             self._closed = False
             self.storage.save_session(self.get_payload())
             return self.get_payload()
@@ -255,7 +262,7 @@ class ElfieLabSession:
         if self._closed:
             return
         self._closed = True
-        self._sync_adapter.close()
+        self._turn_adapter.close()
         self.body.disconnect()
 
     def _ensure_open(self) -> None:

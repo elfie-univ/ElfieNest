@@ -10,7 +10,12 @@ from threading import Event, Lock, Thread
 from typing import Callable, Optional, Tuple
 from uuid import uuid4
 
-from elfie.brain.decision_types import CancelPolicy, DecisionIntent, DecisionPlan
+from elfie.brain.decision_types import (
+    CancelPolicy,
+    DecisionIntent,
+    DecisionPlan,
+    TurnDecision,
+)
 from elfie.brain.output_execution_state import BatchRuntime, ExecutorRegistry
 from elfie.brain.output_ports import EffectiveCapabilitiesSource, IntentExecutor
 from elfie.brain.output_receipts import ExecutionReceiptPublisher
@@ -65,7 +70,7 @@ class OutputRouter:
             clock=clock,
         )
         self._runtimes: OrderedDict[TurnId, BatchRuntime] = OrderedDict()
-        self._plans: OrderedDict[str, DecisionPlan] = OrderedDict()
+        self._decisions: OrderedDict[str, TurnDecision] = OrderedDict()
         self._thread: Optional[Thread] = None
         self._pool: Optional[ThreadPoolExecutor] = None
         self._lock = Lock()
@@ -93,20 +98,21 @@ class OutputRouter:
             )
             self._thread.start()
 
-    def submit(self, plan: DecisionPlan) -> ExecutionBatch | BatchRejection:
-        """Atomically validate and enqueue a plan without executing inline."""
+    def submit(self, decision: TurnDecision) -> ExecutionBatch | BatchRejection:
+        """Atomically validate and enqueue one governed turn decision."""
+        plan = decision.plan
         with self._lock:
-            existing = self._plans.get(str(plan.plan_id))
+            existing = self._decisions.get(str(plan.plan_id))
             if existing is not None:
-                runtime = self._runtimes[existing.turn_id]
-                if existing == plan:
+                runtime = self._runtimes[existing.plan.turn_id]
+                if existing == decision:
                     return runtime.batch
                 return self._reject(plan, "idempotency_conflict", "plan ID was reused")
             if not self._accepting:
                 return self._reject(
                     plan, "router_not_running", "output router is stopped"
                 )
-            error = self._validate(plan)
+            error = self._validate(decision)
             if error is not None:
                 return self._reject(plan, error.code, error.message)
             if self._queue.full():
@@ -119,7 +125,7 @@ class OutputRouter:
                 intent_ids=tuple(intent.intent_id for intent in plan.intents),
             )
             runtime = BatchRuntime(batch, plan)
-            self._plans[str(plan.plan_id)] = plan
+            self._decisions[str(plan.plan_id)] = decision
             self._runtimes[plan.turn_id] = runtime
             self._trim_completed_locked()
             for intent in plan.intents:
@@ -128,9 +134,9 @@ class OutputRouter:
             self._queue.put_nowait(runtime)
         return batch
 
-    def accept(self, plan: DecisionPlan) -> bool:
-        """DecisionPlanSink compatibility used by BrainCoordinator."""
-        return isinstance(self.submit(plan), ExecutionBatch)
+    def accept(self, decision: TurnDecision) -> bool:
+        """Accept only the governed decision produced by BrainCoordinator."""
+        return isinstance(self.submit(decision), ExecutionBatch)
 
     def cancel_stale(self, turn_id: TurnId, reason: str) -> None:
         self.cancel_for_stale_turn(turn_id, reason)
@@ -155,10 +161,12 @@ class OutputRouter:
     def receipts(self, turn_id: TurnId) -> Tuple[ExecutionReceipt, ...]:
         return self._publisher.receipts_for(str(turn_id))
 
-    def decision_plan(self, turn_id: TurnId) -> Optional[DecisionPlan]:
+    def decision(self, turn_id: TurnId) -> Optional[TurnDecision]:
         with self._lock:
             runtime = self._runtimes.get(turn_id)
-            return runtime.plan if runtime is not None else None
+            if runtime is None:
+                return None
+            return self._decisions.get(str(runtime.plan.plan_id))
 
     def retry_receipts(self) -> Tuple[EventId, ...]:
         return self._publisher.retry_pending()
@@ -214,11 +222,11 @@ class OutputRouter:
             if self._stop_requested.is_set() and self._queue.empty():
                 return
 
-    def _validate(self, plan: DecisionPlan) -> Optional[ErrorInfo]:
+    def _validate(self, decision: TurnDecision) -> Optional[ErrorInfo]:
         from elfie.brain.output_validation import validate_plan_for_execution
 
         return validate_plan_for_execution(
-            plan,
+            decision.plan,
             self._capabilities.current(),
             now=self._clock(),
             max_intents=self._max_intents,
@@ -230,7 +238,15 @@ class OutputRouter:
         plan: DecisionPlan,
         _intent: DecisionIntent,
     ) -> Optional[ErrorInfo]:
-        return self._validate(plan)
+        from elfie.brain.output_validation import validate_plan_for_execution
+
+        return validate_plan_for_execution(
+            plan,
+            self._capabilities.current(),
+            now=self._clock(),
+            max_intents=self._max_intents,
+            max_schedule_horizon=self._max_schedule_horizon,
+        )
 
     def _wait_until(self, target: UTCDateTime, cancelled: Event) -> bool:
         while target > self._clock():
@@ -274,7 +290,7 @@ class OutputRouter:
         overflow = len(completed) - self._completed_retention
         for turn_id in completed[: max(0, overflow)]:
             runtime = self._runtimes.pop(turn_id)
-            self._plans.pop(str(runtime.plan.plan_id), None)
+            self._decisions.pop(str(runtime.plan.plan_id), None)
             self._evicted_completed_count += 1
 
 

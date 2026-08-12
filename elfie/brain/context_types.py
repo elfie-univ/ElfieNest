@@ -7,7 +7,7 @@ from typing import Annotated, Optional, Tuple
 from pydantic import Field, StringConstraints, model_validator
 from pydantic_core import PydanticCustomError
 
-from elfie.brain.perception_types import PerceptionFrame
+from elfie.brain.perception_types import TurnFrame
 from elfie.message_types import ActorRef, EventId, FrozenContractModel, UTCDateTime
 
 _NonBlankText = Annotated[
@@ -124,7 +124,7 @@ class BrainContext(FrozenContractModel):
 
     revision: _Revision
     captured_at: UTCDateTime
-    frame: PerceptionFrame
+    frame: TurnFrame
     emotion: EmotionSnapshot
     homeostasis: HomeostasisSnapshot
     conversation: ConversationContext

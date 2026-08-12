@@ -16,6 +16,7 @@ from test.elfie.brain.test_output_router import (
     RecordingExecutor,
     StaticCapabilities,
     _capabilities,
+    _embodied_decision,
 )
 
 
@@ -71,9 +72,9 @@ def test_stop_returns_while_the_bounded_queue_is_full() -> None:
         max_workers=1,
     )
     router.start()
-    assert isinstance(router.submit(_speech_plan(1)), ExecutionBatch)
+    assert isinstance(router.submit(_embodied_decision(_speech_plan(1))), ExecutionBatch)
     assert body.started.wait(1)
-    assert isinstance(router.submit(_speech_plan(2)), ExecutionBatch)
+    assert isinstance(router.submit(_embodied_decision(_speech_plan(2))), ExecutionBatch)
     returned = Event()
 
     def request_stop() -> None:
@@ -107,27 +108,29 @@ def test_decision_plan_lookup_follows_completed_retention() -> None:
     )
     router.start()
     first = _speech_plan(1)
-    assert isinstance(router.submit(first), ExecutionBatch)
+    first_decision = _embodied_decision(first)
+    assert isinstance(router.submit(first_decision), ExecutionBatch)
     router.wait_for_turn(first.turn_id, timeout=1)
 
     # When: the retained plan is looked up repeatedly.
-    first_lookup = router.decision_plan(first.turn_id)
-    duplicate_lookup = router.decision_plan(first.turn_id)
+    first_lookup = router.decision(first.turn_id)
+    duplicate_lookup = router.decision(first.turn_id)
 
     # Then: callers receive the frozen plan and unknown turns stay absent.
-    assert first_lookup is first
-    assert duplicate_lookup is first
-    assert router.decision_plan(TurnId("turn-unknown")) is None
+    assert first_lookup is first_decision
+    assert duplicate_lookup is first_decision
+    assert router.decision(TurnId("turn-unknown")) is None
 
     # When: enough later completed turns make the first plan stale.
     second = _speech_plan(2)
     third = _speech_plan(3)
-    assert isinstance(router.submit(second), ExecutionBatch)
+    second_decision = _embodied_decision(second)
+    assert isinstance(router.submit(second_decision), ExecutionBatch)
     router.wait_for_turn(second.turn_id, timeout=1)
-    assert isinstance(router.submit(third), ExecutionBatch)
+    assert isinstance(router.submit(_embodied_decision(third)), ExecutionBatch)
 
     # Then: plan visibility follows the router's existing retention boundary.
-    assert router.decision_plan(first.turn_id) is None
-    assert router.decision_plan(second.turn_id) is second
+    assert router.decision(first.turn_id) is None
+    assert router.decision(second.turn_id) is second_decision
     router.stop()
     router.join()

@@ -12,13 +12,13 @@ from pydantic import JsonValue
 
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
+from elfie.brain.runtime import BrainRuntime
 from elfie.brain.runtime_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
     StructuredOutputMode,
 )
-from elfie.cognitive_runtime import ElfieCognitiveRuntime
 from elfie.communication import (
     CommunicationEnvelope,
     CommunicationHub,
@@ -111,9 +111,6 @@ class TwoTurnRuntime:
         request: ModelGenerationRequest,
     ) -> list[dict[str, JsonValue]]:
         return [
-            self._intent(request, "speech", text="hello room"),
-            self._intent(request, "motion", motion="walk"),
-            self._intent(request, "expression", expression="happy", intensity=0.8),
             self._intent(
                 request,
                 "message",
@@ -153,26 +150,33 @@ class TwoTurnRuntime:
         }
 
 
-def _owner_message(at: datetime) -> CommunicationEnvelope:
+def _owner_message(
+    at: datetime,
+    *,
+    event_id: str = "owner-message-1",
+    conversation_id: str = "owner-chat",
+    text: str = "hello elfie",
+    elfie_id: str = "elfie-loop",
+) -> CommunicationEnvelope:
     owner = ActorRef(actor_id="owner-1", source_kind="owner")
     return CommunicationEnvelope(
         meta=MessageMeta(
-            event_id="owner-message-1",
-            elfie_id="elfie-loop",
+            event_id=event_id,
+            elfie_id=elfie_id,
             source=owner,
             occurred_at=at,
             received_at=at,
-            trace_id="trace-owner-message-1",
+            trace_id=f"trace-{event_id}",
         ),
         account_id="owner-account",
         channel_id="chat",
-        conversation_id="owner-chat",
+        conversation_id=conversation_id,
         sender=owner,
-        recipients=(ActorRef(actor_id="elfie-loop", source_kind="elfie"),),
+        recipients=(ActorRef(actor_id=elfie_id, source_kind="elfie"),),
         direction=MessageDirection.INBOUND,
-        external_message_id="external-owner-message-1",
-        dedupe_key="external-owner-message-1",
-        parts=(TextPart(text="hello elfie"),),
+        external_message_id=f"external-{event_id}",
+        dedupe_key=f"external-{event_id}",
+        parts=(TextPart(text=text),),
     )
 
 
@@ -199,18 +203,19 @@ def test_cognitive_lifecycle_runs_two_turns_without_blocking_clock() -> None:
     for _ in range(5):
         elfie.advance_clock(1.0)
 
-    # Then: simulation time advances independently and the first result fans out.
+    # Then: simulation time advances independently and replies stay in Communication.
     assert elfie.elapsed_time == 5.5
     runtime.release_first.set()
     elfie.wait_for_outcome_count(1, timeout=1)
     first = elfie.turn_outcomes()[0]
     elfie.wait_for_output(first.turn_id, timeout=1)
-    decision_plan = elfie.decision_plan(first.turn_id)
-    assert decision_plan is not None
-    assert decision_plan.turn_id == first.turn_id
-    assert len(decision_plan.intents) == 5
-    assert elfie.decision_plan(TurnId("turn-unknown")) is None
+    decision = elfie.turn_decision(first.turn_id)
+    assert decision is not None
+    assert decision.plan.turn_id == first.turn_id
+    assert len(decision.plan.intents) == 2
+    assert elfie.turn_decision(TurnId("turn-unknown")) is None
     assert len(channel.sent) == 2
+    assert body.snapshot_body(now=elfie.cognitive_datetime).last_status is None
 
     # When: receipt facts age into the next frame.
     elfie.advance_clock(5.0)
@@ -251,6 +256,54 @@ def test_stop_closes_communication_input_boundary() -> None:
     assert elfie.is_running is False
 
 
+def test_two_conversations_form_separate_turns_without_temporary_context_leak() -> None:
+    hub = CommunicationHub("elfie-two-chats")
+    hub.register_channel(RecordingChannel(), connect=True)
+    runtime = TwoTurnRuntime()
+    elfie = _new_elfie(
+        "elfie-two-chats",
+        body=HeadlessBody(body_id="body-two-chats"),
+        communication=hub,
+        model_port=runtime,
+    )
+    elfie.start()
+    now = elfie.cognitive_datetime
+    elfie.receive_communication_envelope(
+        _owner_message(
+            now,
+            event_id="message-a",
+            conversation_id="conversation-a",
+            text="secret-from-a",
+            elfie_id="elfie-two-chats",
+        )
+    )
+    elfie.receive_communication_envelope(
+        _owner_message(
+            now,
+            event_id="message-b",
+            conversation_id="conversation-b",
+            text="only-for-b",
+            elfie_id="elfie-two-chats",
+        )
+    )
+    elfie.advance_clock(2.1)
+    assert runtime.first_started.wait(1)
+    runtime.release_first.set()
+    elfie.wait_for_outcome_count(1, timeout=1)
+    elfie.advance_clock(0.1)
+    assert runtime.second_started.wait(1)
+    elfie.wait_for_outcome_count(2, timeout=1)
+
+    assert runtime.requests[0].interaction_scope.conversation_id == "conversation-a"
+    assert runtime.requests[1].interaction_scope.conversation_id == "conversation-b"
+    second_context = json.loads(runtime.requests[1].user_prompt)
+    assert [row["content"] for row in second_context["conversation"]] == [
+        "only-for-b"
+    ]
+    elfie.stop()
+    elfie.join()
+
+
 def _new_elfie(elfie_id: str, **dependencies):
     return ElfieFactory().create(
         ElfieAssembly(
@@ -267,7 +320,7 @@ def _new_elfie(elfie_id: str, **dependencies):
 
 
 def test_cognitive_start_rolls_back_router_when_coordinator_start_fails() -> None:
-    runtime = object.__new__(ElfieCognitiveRuntime)
+    runtime = object.__new__(BrainRuntime)
     runtime._started = False
     runtime.router = MagicMock()
     runtime.coordinator = MagicMock()

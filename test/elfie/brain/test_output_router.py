@@ -19,13 +19,21 @@ from elfie.brain.decision_types import (
     MessageIntent,
     MotionIntent,
     SpeechIntent,
+    TurnDecision,
 )
 from elfie.brain.output_router import OutputRouter
 from elfie.brain.output_types import (
     ExecutionBatch,
     IntentExecutionResult,
 )
-from elfie.brain.perception_types import ExecutionStatus
+from elfie.brain.perception_types import (
+    CommunicationScope,
+    EmbodiedScope,
+    ExecutionStatus,
+    ExternalExecutionDomain,
+    ResponseScope,
+    SourceDomain,
+)
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.message_types import (
     ElfieId,
@@ -157,8 +165,36 @@ def _plan(intents: tuple[DecisionIntent, ...], *, revision: int = 7) -> Decision
     )
 
 
-def test_plan_executes_physical_targets_concurrently_and_messages_in_order() -> None:
-    # Given: physical intents and five independent messages in one validated plan.
+def _embodied_decision(plan: DecisionPlan) -> TurnDecision:
+    return TurnDecision(
+        source_domain=SourceDomain.EMBODIED,
+        interaction_scope=EmbodiedScope(body_id="body-1"),
+        response_scope=ResponseScope(
+            external_domain=ExternalExecutionDomain.NERVOUS_SYSTEM,
+            body_id="body-1",
+        ),
+        plan=plan,
+    )
+
+
+def _communication_decision(plan: DecisionPlan) -> TurnDecision:
+    return TurnDecision(
+        source_domain=SourceDomain.COMMUNICATION,
+        interaction_scope=CommunicationScope(
+            channel_id="chat",
+            conversation_id="conversation-1",
+        ),
+        response_scope=ResponseScope(
+            external_domain=ExternalExecutionDomain.COMMUNICATION,
+            channel_id="chat",
+            conversation_id="conversation-1",
+        ),
+        plan=plan,
+    )
+
+
+def test_embodied_plan_executes_physical_targets_concurrently() -> None:
+    # Given: three physical intents in one embodied turn.
     body = BlockingBodyExecutor()
     message = RecordingExecutor()
     internal = RecordingExecutor()
@@ -182,19 +218,19 @@ def test_plan_executes_physical_targets_concurrently_and_messages_in_order() -> 
     )
 
     # When: the complete plan is accepted without blocking the caller.
-    batch = router.submit(_plan(physical + tuple(_message(i) for i in range(5))))
+    batch = router.submit(_embodied_decision(_plan(physical)))
     assert isinstance(batch, ExecutionBatch)
     assert body.two_started.wait(1)
     body.release.set()
     router.wait_for_turn(TurnId("turn-router"), timeout=1)
 
-    # Then: physical work overlapped while one message sequence stayed ordered.
-    assert message.calls == [IntentId(f"message-{i}") for i in range(5)]
+    # Then: physical work overlapped and the communication executor stayed idle.
+    assert message.calls == []
     receipts = router.receipts(TurnId("turn-router"))
-    assert len(receipts) == 24
+    assert len(receipts) == 9
     assert {receipt.turn_id for receipt in receipts} == {TurnId("turn-router")}
     assert {receipt.plan_id for receipt in receipts} == {PlanId("plan-router")}
-    assert workspace.metrics().reliable_event_count == 24
+    assert workspace.metrics().reliable_event_count == 9
     for intent_id in batch.intent_ids:
         assert [
             receipt.status for receipt in receipts if receipt.intent_id == intent_id
@@ -224,7 +260,9 @@ def test_atomic_validation_rejects_stale_capabilities_without_executor_calls() -
     router.start()
 
     # When: the router evaluates the whole plan before queueing any intent.
-    accepted = router.accept(_plan((_message(0),), revision=7))
+    accepted = router.accept(
+        _communication_decision(_plan((_message(0),), revision=7))
+    )
 
     # Then: nothing reaches an executor and the rejection is observable.
     assert accepted is False
@@ -252,8 +290,9 @@ def test_repeated_plan_id_returns_same_batch_without_duplicate_execution() -> No
     plan = _plan((_message(0),))
 
     # When: the same complete plan is submitted twice.
-    first = router.submit(plan)
-    second = router.submit(plan)
+    decision = _communication_decision(plan)
+    first = router.submit(decision)
+    second = router.submit(decision)
     router.wait_for_turn(plan.turn_id, timeout=1)
 
     # Then: both calls identify one batch and execute the intent exactly once.

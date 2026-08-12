@@ -1,8 +1,4 @@
-"""Temporary synchronous Lab facade over the production typed pipeline.
-
-This adapter expires with D1/D1b. It owns no cognition algorithm and exists only
-to let the current Lab wait for an asynchronous production turn.
-"""
+"""Elfie Lab adapter for explicit Communication and Embodied Brain turns."""
 
 from __future__ import annotations
 
@@ -20,7 +16,7 @@ from elfie.body import (
     VisionChange,
     VisionSample,
 )
-from elfie.brain.decision_types import DecisionPlan
+from elfie.brain.decision_types import TurnDecision
 from elfie.brain.output_types import ExecutionReceipt
 from elfie.brain.runtime_port import (
     ModelGenerationCapabilities,
@@ -29,7 +25,16 @@ from elfie.brain.runtime_port import (
     ModelPort,
 )
 from elfie.brain.turn_outcome import TurnOutcome
-from elfie.message_types import ActorId, ActorRef, EventId, MediaRef
+from elfie.communication import (
+    CommunicationEnvelope,
+    DeliveryReceipt,
+    DeliveryStatus,
+    MessageDirection,
+    TextPart,
+)
+from elfie.message_types import ActorId, ActorRef, EventId, MediaRef, MessageMeta
+
+_TURN_WAIT_TIMEOUT_SECONDS = 180.0
 
 
 class RuntimeSelectionMissingError(RuntimeError):
@@ -64,12 +69,39 @@ class SelectedLabRuntime:
         return selected
 
 
-class DeprecatedSyncCognitionAdapter:
-    """Convert Lab stimuli once, then wait on the production lifecycle."""
+class LabCommunicationChannel:
+    """Connected in-memory boundary that makes Lab replies observable."""
+
+    channel_id = "elfie-lab"
+
+    def __init__(self) -> None:
+        self._connected = False
+        self.sent: list[CommunicationEnvelope] = []
+
+    @property
+    def is_connected(self) -> bool:
+        return self._connected
+
+    def connect(self) -> bool:
+        self._connected = True
+        return True
+
+    def disconnect(self) -> None:
+        self._connected = False
+
+    def send_envelope(self, envelope: CommunicationEnvelope) -> DeliveryReceipt:
+        self.sent.append(envelope)
+        return DeliveryReceipt.for_envelope(envelope, status=DeliveryStatus.SENT)
+
+
+class BrainTurnAdapter:
+    """Submit one explicit input lane, then wait on the production Brain lifecycle."""
 
     def __init__(self, elfie: Elfie) -> None:
         self._elfie = elfie
         self._runtime = SelectedLabRuntime()
+        self.channel = LabCommunicationChannel()
+        self._elfie.register_communication_channel(self.channel, connect=True)
         self._elfie.configure_cognition(self._runtime)
         self._elfie.start()
 
@@ -78,23 +110,64 @@ class DeprecatedSyncCognitionAdapter:
         stimulus: StimulusBundle,
         event_id: str,
         runtime: ModelPort,
-    ) -> tuple[TurnOutcome, DecisionPlan | None, tuple[ExecutionReceipt, ...]]:
+    ) -> tuple[TurnOutcome, TurnDecision | None, tuple[ExecutionReceipt, ...]]:
         self._runtime.select(runtime)
         previous_count = len(self._elfie.turn_outcomes())
-        self._elfie.pump_body_events(self._events(stimulus, event_id))
+        if stimulus.source_domain == "communication":
+            self._elfie.receive_communication_envelope(
+                self._communication_envelope(stimulus, event_id)
+            )
+        else:
+            self._elfie.pump_body_events(self._events(stimulus, event_id))
         self._elfie.advance_clock(5.0)
-        self._elfie.wait_for_outcome_count(previous_count + 1, timeout=5.0)
+        self._elfie.wait_for_outcome_count(
+            previous_count + 1,
+            timeout=_TURN_WAIT_TIMEOUT_SECONDS,
+        )
         outcome = self._elfie.turn_outcomes()[-1]
-        self._elfie.wait_for_output(outcome.turn_id, timeout=5.0)
+        self._elfie.wait_for_output(
+            outcome.turn_id,
+            timeout=_TURN_WAIT_TIMEOUT_SECONDS,
+        )
         return (
             outcome,
-            self._elfie.decision_plan(outcome.turn_id),
+            self._elfie.turn_decision(outcome.turn_id),
             self._elfie.execution_receipts(outcome.turn_id),
         )
 
     def close(self) -> None:
         self._elfie.stop()
         self._elfie.join()
+
+    def _communication_envelope(
+        self, stimulus: StimulusBundle, event_id: str
+    ) -> CommunicationEnvelope:
+        now = self._elfie.cognitive_datetime
+        owner = ActorRef(actor_id=ActorId("elfie-lab-owner"), source_kind="owner")
+        return CommunicationEnvelope(
+            meta=MessageMeta(
+                event_id=EventId(event_id),
+                elfie_id=self._elfie.identity.elfie_id,
+                source=owner,
+                occurred_at=now,
+                received_at=now,
+                trace_id=f"trace-{event_id}",
+            ),
+            account_id="elfie-lab-account",
+            channel_id=self.channel.channel_id,
+            conversation_id="developer-conversation",
+            sender=owner,
+            recipients=(
+                ActorRef(
+                    actor_id=ActorId(self._elfie.identity.elfie_id),
+                    source_kind="elfie",
+                ),
+            ),
+            direction=MessageDirection.INBOUND,
+            external_message_id=event_id,
+            dedupe_key=event_id,
+            parts=(TextPart(text=stimulus.message.strip()),),
+        )
 
     def _events(
         self,
@@ -128,10 +201,7 @@ class DeprecatedSyncCognitionAdapter:
                     body_id,
                     source,
                     now,
-                    VisionSample(
-                        kind="vision_sample",
-                        media=media,
-                    ),
+                    VisionSample(kind="vision_sample", media=media),
                 )
             )
             if not message:
@@ -170,9 +240,7 @@ class DeprecatedSyncCognitionAdapter:
                     TactileImpact(
                         kind="tactile_impact",
                         location=stimulus.impact_direction or "body",
-                        force_newtons=max(
-                            stimulus.impact_force, stimulus.gentle_stroke
-                        ),
+                        force_newtons=max(stimulus.impact_force, stimulus.gentle_stroke),
                     ),
                 )
             )
@@ -202,4 +270,4 @@ class DeprecatedSyncCognitionAdapter:
         )
 
 
-__all__ = ("DeprecatedSyncCognitionAdapter",)
+__all__ = ("BrainTurnAdapter",)

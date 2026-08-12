@@ -66,7 +66,7 @@ def test_clock_is_inert_until_autonomous_deadline_and_timeout_commits_noop() -> 
     coordinator.synchronize()
 
     assert len(sink.plans) == 1
-    assert tuple(intent.type for intent in sink.plans[0].intents) == ("noop",)
+    assert tuple(intent.type for intent in sink.plans[0].plan.intents) == ("noop",)
     assert coordinator.outcomes()[0].status is TerminalStatus.TIMED_OUT
     assert workspace.metrics().reliable_event_count == 0
     runtime.release.set()

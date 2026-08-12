@@ -12,7 +12,7 @@
 
 | ID | 严重度 | 状态 | 当前偏差 | 关闭证据 |
 | --- | --- | --- | --- | --- |
-| BRN-001 | P0 | open | `PerceptionFrame` 可以同时包含 physical、social、execution 和 internal Payload，缺少权威 `SourceDomain`、`InteractionScope`、`ResponseScope` 和单域校验器。 | Communication、Embodied、Internal Lane 分别产生类型化 `TurnFrame`；不同会话、身体 generation 和内部原因保持独立 Scope；同时到达的跨域事件仍是不同 Turn；要求移动的 Communication Turn 不能提交身体指令。 |
+| BRN-001 | P0 | closed | Brain 现在把 Communication、Embodied、Internal 输入分别准入为带权威 `SourceDomain`、`InteractionScope`、`ResponseScope` 的类型化 `TurnFrame`，并拒绝混域 Frame。 | 域、Scope、排序、去重和边界攻击聚焦测试通过；不同会话、身体 generation 和内部原因保持独立 Turn；要求移动的 Communication Turn 不能提交身体指令；Elfie Lab 展示对应 Scope 与回执。 |
 | BRN-002 | P0 | open | `BrainContext` 只有 Frame、情绪、稳态、会话、记忆和能力，缺少权威 Orientation、Selfhood、Motivation、Activity 快照及完整来源/版本/未知语义；`ElfieContextSource` 仍在 Elfie 根部，并在读取上下文时隐式修改会话和兼容记忆。 | 上下文组装迁入 Brain，无隐式写入地读取版本化所有者快照，区分事实/推测/未知，并记录一个 Turn 使用的全部快照 cutoff。 |
 | BRN-003 | P0 | open | `CorticalWorker` 只完成一次模型生成和解码，缺少有界多步 Model/Skill/Tool Observation 循环、验证/完成判断、明确认知预算和长短 Run 中断契约。 | `ReasoningRun` 支持有界认知步骤和真实 Tool Observation；预算、超时、取消、陈旧结果测试均在不伪造成功的情况下终止；独立紧急 Turn 不污染现有 Run。 |
 | BRN-004 | P0 | open | `DecisionPlan` 是可混合 speech、message、motion 和占位内部操作的多意图 DAG；`OutputRouter` 实际承担决策/执行边界，但未强制已接受的单域 Turn/响应矩阵，也没有跨回合活动请求。 | 一个 `TurnDecision` 根据来源、响应、执行 Scope 确定性校验；至多一个外部域提交；内部状态候选单独结算；陈旧能力/身体 generation 和重复提交被拒绝。 |

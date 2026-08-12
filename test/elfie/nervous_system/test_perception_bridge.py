@@ -166,7 +166,11 @@ def test_dangerous_touch_executes_reflex_before_cortical_publish() -> None:
 
     # When: the impact crosses the reflex threshold.
     nervous_system.receive_body_event(impact)
-    frame = claim_all(workspace)
+    frames = []
+    while workspace.metrics().reliable_event_count or workspace.metrics().state_key_count:
+        frame = claim_all(workspace)
+        frames.append(frame)
+        workspace.commit(frame.frame_id, TurnId(f"turn-{frame.frame_id}"))
 
     # Then: emergency execution is already complete and stale state is observable.
     assert cortical_returned.is_set() is False
@@ -176,12 +180,14 @@ def test_dangerous_touch_executes_reflex_before_cortical_publish() -> None:
     assert nervous_system.urgent_revision == 1
     physical = [
         event
+        for frame in frames
         for event in frame.events
         if isinstance(event, PerceptionEvent)
         and isinstance(event.payload, PhysicalPayload)
     ]
     execution = [
         event
+        for frame in frames
         for event in frame.events
         if isinstance(event, PerceptionEvent)
         and isinstance(event.payload, ExecutionPayload)
@@ -191,7 +197,7 @@ def test_dangerous_touch_executes_reflex_before_cortical_publish() -> None:
     assert "reflex emergency_stop" in physical[1].payload.content
     assert len(execution) == 3
     assert execution[-1].payload.status.value == "completed"
-    assert [update.value for update in frame.state_updates] == [1]
+    assert [update.value for frame in frames for update in frame.state_updates] == [1]
 
 
 def test_samples_are_routed_to_state_and_media_without_reliable_fakes() -> None:
