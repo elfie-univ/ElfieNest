@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from elfie.brain.context_builder import ThalamusContextBuilder
 from elfie.brain.context_types import (
+    ActivityContext,
     MotivationSnapshot,
     OfflineCognitionSnapshot,
     OrientationSnapshot,
@@ -86,6 +87,14 @@ class CoordinatorTurnFactory:
         homeostasis = self._homeostasis.snapshot(timestamp)
         conversation = self._context_source.conversation(frame, captured_at)
         memory = self._context_source.memory(frame, emotion, captured_at)
+        activities_reader = getattr(self._context_source, "activities", None)
+        activities = (
+            activities_reader(captured_at)
+            if activities_reader is not None
+            else ActivityContext.unknown().model_copy(
+                update={"captured_at": captured_at}
+            )
+        )
         capabilities = self._context_source.capabilities(captured_at)
         orientation_reader = getattr(self._context_source, "orientation", None)
         orientation = (
@@ -133,6 +142,7 @@ class CoordinatorTurnFactory:
             homeostasis=homeostasis,
             conversation=conversation,
             memory=memory,
+            activities=activities,
             capabilities=capabilities,
             orientation=orientation,
             selfhood=selfhood,

@@ -17,7 +17,7 @@ from threading import Event
 from time import monotonic
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
-from pydantic import Field
+from pydantic import Field, JsonValue
 
 from elfie.brain.decision_decoder import (
     DecisionDecodeMode,
@@ -124,7 +124,7 @@ _TOOL_INSTRUCTIONS = (
 )
 _MAX_OBSERVATION_CHARS = 2400
 _MAX_MODEL_SUMMARY_CHARS = 240
-_TOOL_STEP_SCHEMA = {
+_TOOL_STEP_SCHEMA: dict[str, JsonValue] = {
     "type": "object",
     "required": ["tool_key", "operation", "value"],
     "properties": {
@@ -441,7 +441,11 @@ class ReasoningRun:
         key = parsed.get("tool_key")
         operation = parsed.get("operation")
         value = parsed.get("value")
-        if not all(isinstance(item, str) for item in (key, operation, value)):
+        if (
+            not isinstance(key, str)
+            or not isinstance(operation, str)
+            or not isinstance(value, str)
+        ):
             return None
         if key == "web_search" and operation == "search":
             return _ToolMarker(key, operation, value)

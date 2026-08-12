@@ -152,7 +152,10 @@ class BodyPerceptionBridge:
                     reason="foreign_body",
                 ),
             )
-        if expected_generation is not None and event.body_generation != expected_generation:
+        if (
+            expected_generation is not None
+            and event.body_generation != expected_generation
+        ):
             return (
                 IngestReceipt(
                     event_id=event.event_id,

@@ -6,7 +6,10 @@ from collections import deque
 from threading import Lock
 from typing import Callable, Deque, Mapping, Optional, Tuple
 
+from elfie.brain.activity import ActivityRecord, ActivityState, ActivityStorePort
 from elfie.brain.context_types import (
+    ActivityContext,
+    ActivityContextItem,
     ConversationContext,
     ConversationMessage,
     EffectiveCapabilities,
@@ -54,9 +57,11 @@ class BrainContextState:
         motivation: MotivationSystem | None = None,
         offline_cognition: OfflineCognitionSystem | None = None,
         profile_anchors: ProfileAnchorSnapshot | None = None,
+        activity_store: ActivityStorePort | None = None,
         history_capacity: int = 32,
         event_identity_capacity: int = 2048,
         conversations_per_channel: int = 128,
+        activities_capacity: int = 16,
     ) -> None:
         self._memory = memory
         self._capability_reader = capability_reader
@@ -75,6 +80,10 @@ class BrainContextState:
                 update={"captured_at": clock()}
             )
         )
+        if activities_capacity < 1:
+            raise ValueError("activities_capacity must be positive")
+        self._activity_store = activity_store
+        self._activities_capacity = activities_capacity
         self._history_capacity = history_capacity
         self._histories: dict[tuple[str, str], Deque[ConversationMessage]] = {}
         self._event_identity_capacity = event_identity_capacity
@@ -207,6 +216,43 @@ class BrainContextState:
         """Validate Memory continuity without mutating the owner."""
         self._memory.validate_checkpoint(checkpoint)
 
+    def activities(self, captured_at: UTCDateTime) -> ActivityContext:
+        """Read a bounded Activity projection without changing the Activity owner."""
+        if self._activity_store is None:
+            return ActivityContext.unknown().model_copy(
+                update={"captured_at": captured_at}
+            )
+        records = self._activity_store.list()
+        visible = tuple(
+            record for record in records if record.updated_at <= captured_at
+        )
+        has_newer_records = any(record.updated_at > captured_at for record in records)
+        active_states = {
+            ActivityState.VALIDATED,
+            ActivityState.WAITING,
+            ActivityState.RUNNING,
+            ActivityState.PAUSED,
+        }
+        ordered = tuple(
+            sorted(
+                visible,
+                key=lambda record: (
+                    0 if record.state in active_states else 1,
+                    -record.updated_at.timestamp(),
+                    str(record.activity_id),
+                ),
+            )
+        )
+        selected = ordered[: self._activities_capacity]
+        return ActivityContext(
+            revision=max((record.revision for record in visible), default=0),
+            captured_at=captured_at,
+            items=tuple(self._activity_item(record) for record in selected),
+            truncated=len(ordered) > self._activities_capacity,
+            unknown_fields=("newer_activity_state",) if has_newer_records else (),
+            freshness="stale" if has_newer_records else "current",
+        )
+
     def capabilities(self, captured_at: UTCDateTime) -> EffectiveCapabilities:
         """Read a sibling-free capability projection through the injected reader."""
         with self._lock:
@@ -300,9 +346,7 @@ class BrainContextState:
         with self._lock:
             self._motivation.restore(checkpoint)
 
-    def offline_cognition(
-        self, captured_at: UTCDateTime
-    ) -> OfflineCognitionSnapshot:
+    def offline_cognition(self, captured_at: UTCDateTime) -> OfflineCognitionSnapshot:
         """Read the quiet-window consolidation state at a Turn cutoff."""
         with self._lock:
             return self._offline_cognition.snapshot(captured_at)
@@ -394,6 +438,33 @@ class BrainContextState:
         conversations.append(conversation_id)
         while len(conversations) > self._conversations_per_channel:
             conversations.popleft()
+
+    @staticmethod
+    def _activity_item(record: ActivityRecord) -> ActivityContextItem:
+        current_step = next(
+            (
+                step
+                for step in record.draft.steps
+                if step.step_id == record.current_step_id
+            ),
+            None,
+        )
+        return ActivityContextItem(
+            activity_id=record.activity_id,
+            revision=record.revision,
+            state=record.state,
+            goal=record.draft.goal,
+            success_criteria=record.draft.success_criteria,
+            deadline=record.draft.deadline,
+            updated_at=record.updated_at,
+            next_wakeup_at=record.next_wakeup_at,
+            current_step_id=record.current_step_id,
+            current_step_kind=current_step.kind if current_step is not None else None,
+            current_step_operation=(
+                current_step.operation if current_step is not None else None
+            ),
+            last_error=record.last_error,
+        )
 
 
 __all__ = ("BrainContextState", "CapabilityReader")

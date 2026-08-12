@@ -15,6 +15,8 @@ from elfie.brain.activity import (
 )
 from elfie.brain.context_builder import ThalamusContextBuilder
 from elfie.brain.context_types import (
+    ActivityContext,
+    ActivityContextItem,
     BigFiveTraits,
     BrainContext,
     MemoryStateSnapshot,
@@ -83,6 +85,8 @@ __all__ = [
     "InMemoryActivityStore",
     "transition_activity",
     "BrainContext",
+    "ActivityContext",
+    "ActivityContextItem",
     "BrainContinuityCheckpoint",
     "BigFiveTraits",
     "OrientationSnapshot",

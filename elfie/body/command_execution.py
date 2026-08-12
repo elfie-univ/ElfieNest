@@ -140,6 +140,14 @@ def parse_wire_command(
             identity = _CommandIdentity.model_validate(dict(payload))
         except ValidationError:
             revision = payload.get("capability_revision")
+            body_generation_value = payload.get("body_generation")
+            body_generation = (
+                body_generation_value
+                if isinstance(body_generation_value, int)
+                and not isinstance(body_generation_value, bool)
+                and body_generation_value >= 1
+                else 1
+            )
             identity = _CommandIdentity(
                 command_id=CommandId(
                     _fallback_identifier(payload.get("command_id"), "invalid-command")
@@ -160,13 +168,7 @@ def parse_wire_command(
                     and revision >= 1
                     else 1
                 ),
-                body_generation=(
-                    payload.get("body_generation")
-                    if isinstance(payload.get("body_generation"), int)
-                    and not isinstance(payload.get("body_generation"), bool)
-                    and int(payload.get("body_generation")) >= 1
-                    else 1
-                ),
+                body_generation=body_generation,
             )
         return CommandReceipt(
             receipt_id=EventId(f"receipt_{uuid4().hex}"),

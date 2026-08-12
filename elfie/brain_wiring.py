@@ -7,7 +7,7 @@ from threading import Lock
 from typing import Callable, Mapping
 
 from elfie.body.port import BodyPort
-from elfie.brain.activity import ActivityStorePort
+from elfie.brain.activity import ActivityStorePort, InMemoryActivityStore
 from elfie.brain.context_source import BrainContextState
 from elfie.brain.context_types import (
     BodyCapabilityDescriptor,
@@ -135,12 +135,14 @@ def assemble_brain_runtime(
         current_body_generation=current_body_generation,
         communication=communication,
     )
+    resolved_activity_store = activity_store or InMemoryActivityStore()
     context = BrainContextState(
         memory=memory,
         capability_reader=capabilities.current,
         clock=clock,
         selfhood=selfhood,
         profile_anchors=profile_anchors,
+        activity_store=resolved_activity_store,
     )
     return BrainRuntime(
         elfie_id=elfie_id,
@@ -165,7 +167,7 @@ def assemble_brain_runtime(
             clock=clock,
         ),
         internal_executor=InternalIntentExecutor(ClosedInternalIntentSink()),
-        activity_store=activity_store,
+        activity_store=resolved_activity_store,
     )
 
 

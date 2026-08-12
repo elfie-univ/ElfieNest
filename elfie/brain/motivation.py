@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Literal, Optional, Tuple, cast
+from typing import Literal, Optional, Tuple
 
 from pydantic import Field, StringConstraints
 from typing_extensions import Annotated
@@ -214,7 +214,7 @@ class MotivationSystem:
         self._revision = checkpoint.revision
         self._last_updated_at = checkpoint.last_updated_at
         self._pressure = checkpoint.pressure
-        self._status = cast(MotivationStatus, checkpoint.status)
+        self._status = checkpoint.status
         self._last_trigger_id = checkpoint.last_trigger_id
         self._cooldown_until = checkpoint.cooldown_until
         self._satisfaction_until = checkpoint.satisfaction_until

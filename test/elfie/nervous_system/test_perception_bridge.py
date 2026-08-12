@@ -167,7 +167,9 @@ def test_dangerous_touch_executes_reflex_before_cortical_publish() -> None:
     # When: the impact crosses the reflex threshold.
     nervous_system.receive_body_event(impact)
     frames = []
-    while workspace.metrics().reliable_event_count or workspace.metrics().state_key_count:
+    while (
+        workspace.metrics().reliable_event_count or workspace.metrics().state_key_count
+    ):
         frame = claim_all(workspace)
         frames.append(frame)
         workspace.commit(frame.frame_id, TurnId(f"turn-{frame.frame_id}"))

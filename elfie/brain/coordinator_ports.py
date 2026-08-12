@@ -3,6 +3,7 @@
 from typing import Optional, Protocol
 
 from elfie.brain.context_types import (
+    ActivityContext,
     ConversationContext,
     EffectiveCapabilities,
     EmotionSnapshot,
@@ -37,6 +38,9 @@ class BrainContextSource(Protocol):
         captured_at: UTCDateTime,
     ) -> MemoryContext:
         """Return memory excerpts selected by the Brain owner."""
+
+    def activities(self, captured_at: UTCDateTime) -> ActivityContext:
+        """Return the bounded committed Activity projection at the Turn cutoff."""
 
     def capabilities(self, captured_at: UTCDateTime) -> EffectiveCapabilities:
         """Return current Body and connected-channel capabilities."""

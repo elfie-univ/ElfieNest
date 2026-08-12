@@ -166,7 +166,11 @@ def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
 
     response = client.post(
         f"/api/elfies/{created['elfie_id']}/turns",
-        json={"source_domain": "communication", "message": "你好", "food_key": "standard"},
+        json={
+            "source_domain": "communication",
+            "message": "你好",
+            "food_key": "standard",
+        },
     )
 
     assert response.status_code == 200
@@ -196,7 +200,11 @@ def test_turn_rejects_legacy_mode_and_unknown_food(tmp_path, monkeypatch, client
     missing = client.post(endpoint, json={"message": "你好"})
     unknown = client.post(
         endpoint,
-        json={"source_domain": "communication", "message": "你好", "food_key": "not-a-food"},
+        json={
+            "source_domain": "communication",
+            "message": "你好",
+            "food_key": "not-a-food",
+        },
     )
 
     assert legacy.status_code == 422
@@ -274,7 +282,11 @@ def test_uninstalled_ollama_food_is_disabled_with_setup_command(
     created = client.post("/api/elfies", json=elfie_payload("未就绪粮食测试")).json()
     response = client.post(
         f"/api/elfies/{created['elfie_id']}/turns",
-        json={"source_domain": "communication", "message": "你好", "food_key": "standard"},
+        json={
+            "source_domain": "communication",
+            "message": "你好",
+            "food_key": "standard",
+        },
     )
     assert response.status_code == 422
     assert "ollama pull qwen3.5:0.8b" in response.json()["detail"]

@@ -56,7 +56,9 @@ def test_physical_executor_interrupts_running_motion_with_emergency_stop() -> No
     assert body.snapshot_body(now=NOW).last_status is not None
 
 
-def test_completed_receipt_from_previous_body_generation_is_not_reported_successful() -> None:
+def test_completed_receipt_from_previous_body_generation_is_not_reported_successful() -> (
+    None
+):
     class BlockingBody(HeadlessBody):
         def __init__(self) -> None:
             super().__init__(body_id="body-old")

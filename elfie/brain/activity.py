@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from enum import Enum, unique
+from threading import RLock
 from typing import Literal, Optional, Protocol, Tuple
 
 from pydantic import Field, StringConstraints, model_validator
@@ -414,7 +415,7 @@ class ActivityStorePort(Protocol):
         """Read one committed Activity."""
 
     def list(self) -> Tuple[ActivityRecord, ...]:
-        """Read committed Activities for Brain/Lab projection."""
+        """Read one atomic committed Activity snapshot for Brain/Lab projection."""
 
     def transition(
         self,
@@ -447,8 +448,18 @@ class InMemoryActivityStore(ActivityStorePort):
     def __init__(self) -> None:
         self._records: dict[ActivityId, ActivityRecord] = {}
         self._idempotency: dict[str, ActivityId] = {}
+        self._lock = RLock()
 
     def preflight(
+        self,
+        draft: ActivityDraft,
+        *,
+        now: UTCDateTime,
+    ) -> ActivityPreflightResult:
+        with self._lock:
+            return self._preflight(draft, now=now)
+
+    def _preflight(
         self,
         draft: ActivityDraft,
         *,
@@ -516,6 +527,15 @@ class InMemoryActivityStore(ActivityStorePort):
         *,
         preflight: ActivityPreflightResult,
     ) -> ActivityRecord:
+        with self._lock:
+            return self._commit(draft, preflight=preflight)
+
+    def _commit(
+        self,
+        draft: ActivityDraft,
+        *,
+        preflight: ActivityPreflightResult,
+    ) -> ActivityRecord:
         if preflight.activity_id != draft.activity_id:
             raise ActivityTransitionError("Activity Preflight belongs to another draft")
         if preflight.status is not ActivityPreflightStatus.VALIDATED:
@@ -556,12 +576,34 @@ class InMemoryActivityStore(ActivityStorePort):
         return record
 
     def get(self, activity_id: ActivityId) -> Optional[ActivityRecord]:
-        return self._records.get(activity_id)
+        with self._lock:
+            return self._records.get(activity_id)
 
     def list(self) -> Tuple[ActivityRecord, ...]:
-        return tuple(self._records.values())
+        with self._lock:
+            return tuple(self._records.values())
 
     def transition(
+        self,
+        activity_id: ActivityId,
+        *,
+        expected_revision: int,
+        target: ActivityState,
+        now: UTCDateTime,
+        reason: Optional[str] = None,
+        next_wakeup_at: Optional[UTCDateTime] = None,
+    ) -> ActivityStateEvent:
+        with self._lock:
+            return self._transition(
+                activity_id,
+                expected_revision=expected_revision,
+                target=target,
+                now=now,
+                reason=reason,
+                next_wakeup_at=next_wakeup_at,
+            )
+
+    def _transition(
         self,
         activity_id: ActivityId,
         *,
@@ -587,6 +629,26 @@ class InMemoryActivityStore(ActivityStorePort):
         return event
 
     def settle_step(
+        self,
+        activity_id: ActivityId,
+        *,
+        expected_revision: int,
+        receipt_id: EventId,
+        now: UTCDateTime,
+        success: bool,
+        reason: Optional[str] = None,
+    ) -> ActivityStateEvent:
+        with self._lock:
+            return self._settle_step(
+                activity_id,
+                expected_revision=expected_revision,
+                receipt_id=receipt_id,
+                now=now,
+                success=success,
+                reason=reason,
+            )
+
+    def _settle_step(
         self,
         activity_id: ActivityId,
         *,

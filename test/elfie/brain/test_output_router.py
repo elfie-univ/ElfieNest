@@ -260,9 +260,7 @@ def test_atomic_validation_rejects_stale_capabilities_without_executor_calls() -
     router.start()
 
     # When: the router evaluates the whole plan before queueing any intent.
-    accepted = router.accept(
-        _communication_decision(_plan((_message(0),), revision=7))
-    )
+    accepted = router.accept(_communication_decision(_plan((_message(0),), revision=7)))
 
     # Then: nothing reaches an executor and the rejection is observable.
     assert accepted is False

@@ -121,7 +121,11 @@ def test_app_create_elfie_and_chat(tmp_path, monkeypatch, client_for):
 
     turn = client.post(
         f"/api/elfies/{elfie_id}/turns",
-        json={"source_domain": "communication", "message": "跟我打个招呼", "food_key": "mock"},
+        json={
+            "source_domain": "communication",
+            "message": "跟我打个招呼",
+            "food_key": "mock",
+        },
     )
     assert turn.status_code == 200
     payload = turn.json()

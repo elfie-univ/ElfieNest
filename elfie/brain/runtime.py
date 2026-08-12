@@ -212,7 +212,9 @@ class BrainRuntime:
             self._homeostasis.restore(checkpoint.energy)
             self.context.restore_memory_checkpoint(checkpoint.memory)
             self.context.restore_motivation_checkpoint(checkpoint.motivation)
-            self.context.restore_offline_cognition_checkpoint(checkpoint.offline_cognition)
+            self.context.restore_offline_cognition_checkpoint(
+                checkpoint.offline_cognition
+            )
         except Exception:
             self._emotion.restore(current.emotion)
             self._homeostasis.restore(current.energy)

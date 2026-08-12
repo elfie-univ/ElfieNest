@@ -40,7 +40,9 @@ def test_binding_switches_body_lifecycle_without_reimplementing_body() -> None:
     assert binding.current_body_id == "second"
 
 
-def test_binding_assigns_new_authority_generation_only_after_successful_switch() -> None:
+def test_binding_assigns_new_authority_generation_only_after_successful_switch() -> (
+    None
+):
     binding = BodyBinding()
     first = HeadlessBody(body_id="first")
     second = HeadlessBody(body_id="second")

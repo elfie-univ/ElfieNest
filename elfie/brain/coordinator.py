@@ -209,9 +209,7 @@ class BrainCoordinator:
         if self._inflight is not None:
             return
         autonomous_due = (
-            self._ensure_autonomous_event()
-            or self._motivation_due
-            or self._offline_due
+            self._ensure_autonomous_event() or self._motivation_due or self._offline_due
         )
         metrics = self._workspace.metrics()
         now = datetime.fromtimestamp(self._timestamp, timezone.utc)

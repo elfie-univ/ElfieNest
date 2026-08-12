@@ -6,6 +6,7 @@ import logging
 from typing import Optional
 
 from elfie.brain.context_types import (
+    ActivityContext,
     BrainContext,
     ConversationContext,
     EffectiveCapabilities,
@@ -38,6 +39,7 @@ class ThalamusContextBuilder:
         conversation: ConversationContext,
         memory: MemoryContext,
         capabilities: EffectiveCapabilities,
+        activities: Optional[ActivityContext] = None,
         orientation: Optional[OrientationSnapshot] = None,
         selfhood: Optional[SelfhoodSnapshot] = None,
         profile_anchors: Optional[ProfileAnchorSnapshot] = None,
@@ -68,6 +70,11 @@ class ThalamusContextBuilder:
             ),
             conversation=conversation,
             memory=memory,
+            activities=activities
+            if activities is not None
+            else ActivityContext.unknown().model_copy(
+                update={"captured_at": context_captured_at}
+            ),
             capabilities=capabilities,
             orientation=orientation
             if orientation is not None

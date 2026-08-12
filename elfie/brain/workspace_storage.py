@@ -164,7 +164,9 @@ class WorkspaceStorage:
         state_ids = {state.meta.event_id for state in frame.state_updates}
         media_ids = {sample.meta.event_id for sample in frame.media_samples}
         self._journal = deque(
-            entry for entry in self._journal if entry.item.meta.event_id not in event_ids
+            entry
+            for entry in self._journal
+            if entry.item.meta.event_id not in event_ids
         )
         self._failure_queue = deque(
             entry

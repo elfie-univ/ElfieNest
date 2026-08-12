@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 
 from elfie import Elfie
-from elfie.body import BodyId, BodySensorEvent, UtteranceFinal
+from elfie.body import BodyId, BodySensorEvent, HeadlessBody, UtteranceFinal
 from elfie.brain.perception_types import TriggerReason
 from elfie.message_types import ActorId, ActorRef, ElfieId, EventId, TurnId
 from elfie.profile import create_visual_profile
@@ -12,11 +12,13 @@ from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 def test_identity_rebind_reassembles_workspace_and_nervous_perception() -> None:
     # Given: an Elfie assembled under a provisional identity.
+    body = HeadlessBody(body_id="identity-body")
     elfie = Elfie(
         character_profile=create_visual_profile(
             elfie_id="provisional", display_name="临时精灵", species_id="fox", seed=4
         ),
         memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        body=body,
     )
     old_workspace = elfie.perceptual_workspace
     elfie.bind_identity("resident-1")

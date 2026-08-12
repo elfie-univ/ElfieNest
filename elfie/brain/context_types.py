@@ -8,9 +8,12 @@ from typing import Annotated, Literal, Optional, Tuple
 from pydantic import Field, StringConstraints, model_validator
 from pydantic_core import PydanticCustomError
 
+from elfie.brain.activity import ActivityState, ActivityStepKind
 from elfie.brain.perception_types import TurnFrame
 from elfie.message_types import (
+    ActivityId,
     ActorRef,
+    ErrorInfo,
     EventId,
     FrozenContractModel,
     TurnId,
@@ -20,6 +23,10 @@ from elfie.message_types import (
 _NonBlankText = Annotated[
     str,
     StringConstraints(strict=True, min_length=1, pattern=r".*\S.*"),
+]
+_ActivityText = Annotated[
+    str,
+    StringConstraints(strict=True, min_length=1, max_length=1024, pattern=r".*\S.*"),
 ]
 _Revision = Annotated[int, Field(strict=True, ge=0)]
 _Ratio = Annotated[float, Field(strict=True, ge=0.0, le=1.0)]
@@ -86,9 +93,7 @@ class OfflineCognitionSnapshot(FrozenContractModel):
 
     revision: _Revision
     captured_at: UTCDateTime
-    status: Literal["ready", "blocked", "cooldown", "satisfied", "unknown"] = (
-        "unknown"
-    )
+    status: Literal["ready", "blocked", "cooldown", "satisfied", "unknown"] = "unknown"
     pending_episode_count: int = Field(strict=True, ge=0)
     last_trigger_id: Optional[EventId] = None
     cooldown_until: Optional[UTCDateTime] = None
@@ -197,6 +202,61 @@ class MemoryStateSnapshot(FrozenContractModel):
             raise PydanticCustomError(
                 "memory_state_revision",
                 "revision zero memory state must be marked unknown",
+            )
+        return self
+
+
+class ActivityContextItem(FrozenContractModel):
+    """Bounded, read-only projection of one committed cross-turn Activity."""
+
+    activity_id: ActivityId
+    revision: _Revision
+    state: ActivityState
+    goal: _ActivityText
+    success_criteria: _ActivityText
+    deadline: UTCDateTime
+    updated_at: UTCDateTime
+    next_wakeup_at: Optional[UTCDateTime] = None
+    current_step_id: Optional[EventId] = None
+    current_step_kind: Optional[ActivityStepKind] = None
+    current_step_operation: Optional[_ActivityText] = None
+    last_error: Optional[ErrorInfo] = None
+
+
+class ActivityContext(FrozenContractModel):
+    """Versioned Activity snapshot captured at one Brain Turn cutoff."""
+
+    revision: _Revision
+    captured_at: UTCDateTime
+    items: Tuple[ActivityContextItem, ...]
+    truncated: bool = False
+    unknown_fields: Tuple[_NonBlankText, ...] = ()
+    freshness: Literal["current", "stale", "unknown"] = "current"
+
+    @classmethod
+    def unknown(cls) -> ActivityContext:
+        """Return an explicit unknown snapshot for isolated context builders."""
+        return cls(
+            revision=0,
+            captured_at=datetime.fromtimestamp(0, timezone.utc),
+            items=(),
+            unknown_fields=("activities",),
+            freshness="unknown",
+        )
+
+    @model_validator(mode="after")
+    def validate_snapshot(self) -> ActivityContext:
+        """Keep Activity identity unique and state reads inside the cutoff."""
+        activity_ids = tuple(str(item.activity_id) for item in self.items)
+        if len(set(activity_ids)) != len(activity_ids):
+            raise PydanticCustomError(
+                "activity_context_identity",
+                "Activity context IDs must be unique",
+            )
+        if any(item.updated_at > self.captured_at for item in self.items):
+            raise PydanticCustomError(
+                "activity_context_captured_at",
+                "Activity context items cannot be newer than its cutoff",
             )
         return self
 
@@ -439,6 +499,7 @@ class BrainContext(FrozenContractModel):
     )
     conversation: ConversationContext
     memory: MemoryContext
+    activities: ActivityContext = Field(default_factory=ActivityContext.unknown)
     capabilities: EffectiveCapabilities
     orientation: OrientationSnapshot = Field(
         default_factory=OrientationSnapshot.unknown
@@ -459,6 +520,7 @@ class BrainContext(FrozenContractModel):
             self.offline_cognition.captured_at,
             self.conversation.captured_at,
             self.memory.captured_at,
+            self.activities.captured_at,
             self.capabilities.captured_at,
             self.orientation.captured_at,
             self.selfhood.captured_at,
@@ -473,6 +535,8 @@ class BrainContext(FrozenContractModel):
 
 
 __all__ = (
+    "ActivityContext",
+    "ActivityContextItem",
     "BodyCapabilityDescriptor",
     "BrainContext",
     "ConnectedChannelDescriptor",

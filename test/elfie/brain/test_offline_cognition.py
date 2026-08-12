@@ -13,12 +13,14 @@ def test_offline_cognition_only_proposes_while_sleeping_and_settles_after_receip
     calls: list[int] = []
     system = OfflineCognitionSystem(
         pending_episode_ids=lambda _limit: pending,
-        consolidate=lambda limit: calls.append(limit)
-        or {
-            "consolidated_count": limit,
-            "knowledge_created": 1,
-            "patterns_created": 1,
-        },
+        consolidate=lambda limit: (
+            calls.append(limit)
+            or {
+                "consolidated_count": limit,
+                "knowledge_created": 1,
+                "patterns_created": 1,
+            }
+        ),
         initial_at=now,
     )
 
@@ -35,7 +37,9 @@ def test_offline_cognition_only_proposes_while_sleeping_and_settles_after_receip
     assert isinstance(perception.payload, InternalPayload)
     assert perception.payload.signal is InternalSignal.OFFLINE_COGNITION
 
-    assert system.settle(candidate.candidate_id, now=now + timedelta(seconds=2), success=True)
+    assert system.settle(
+        candidate.candidate_id, now=now + timedelta(seconds=2), success=True
+    )
     assert calls == [2]
     snapshot = system.snapshot(now + timedelta(seconds=2))
     assert snapshot.status == "satisfied"
@@ -76,7 +80,9 @@ def test_offline_cognition_checkpoint_restores_pending_candidate_without_running
         consolidate=lambda limit: calls.append(limit) or {"consolidated_count": limit},
         initial_at=now,
     )
-    candidate = system.evaluate(sleeping=True, now=now + timedelta(seconds=1), blocked=False)
+    candidate = system.evaluate(
+        sleeping=True, now=now + timedelta(seconds=1), blocked=False
+    )
     assert candidate is not None
     checkpoint = system.checkpoint()
 
@@ -86,5 +92,7 @@ def test_offline_cognition_checkpoint_restores_pending_candidate_without_running
         initial_at=now,
     )
     restored.restore(checkpoint)
-    assert restored.settle(candidate.candidate_id, now=now + timedelta(seconds=2), success=True)
+    assert restored.settle(
+        candidate.candidate_id, now=now + timedelta(seconds=2), success=True
+    )
     assert calls == [1]

@@ -41,9 +41,7 @@ _NonBlankText = Annotated[
     str,
     StringConstraints(strict=True, min_length=1, max_length=8192, pattern=r".*\S.*"),
 ]
-OfflineCognitionStatus = Literal[
-    "ready", "blocked", "cooldown", "satisfied", "unknown"
-]
+OfflineCognitionStatus = Literal["ready", "blocked", "cooldown", "satisfied", "unknown"]
 
 
 class OfflineCognitionCandidate(FrozenContractModel):
@@ -185,7 +183,9 @@ class OfflineCognitionSystem:
                 goal="整理近期经历，提炼稳定记忆；本轮只允许更新记忆，不产生外部动作",
                 episode_ids=pending,
                 created_at=now,
-                cause_event_ids=(EventId(f"offline-cognition-clock:{now.timestamp():.6f}"),),
+                cause_event_ids=(
+                    EventId(f"offline-cognition-clock:{now.timestamp():.6f}"),
+                ),
             )
             return self._pending_candidate
 
@@ -231,7 +231,9 @@ class OfflineCognitionSystem:
             self._last_consolidated_count = _result_int(result, "consolidated_count")
             self._last_knowledge_created = _result_int(result, "knowledge_created")
             self._last_patterns_created = _result_int(result, "patterns_created")
-            self._satisfaction_until = now + timedelta(seconds=self._satisfaction_seconds)
+            self._satisfaction_until = now + timedelta(
+                seconds=self._satisfaction_seconds
+            )
             self._status = "satisfied"
             self._pending_candidate = None
             self._revision += 1
@@ -251,7 +253,9 @@ class OfflineCognitionSystem:
                     else 0
                 )
             if self._pending_candidate is not None:
-                pending_count = max(pending_count, len(self._pending_candidate.episode_ids))
+                pending_count = max(
+                    pending_count, len(self._pending_candidate.episode_ids)
+                )
             return OfflineCognitionSnapshot(
                 revision=self._revision,
                 captured_at=captured_at,
@@ -285,19 +289,32 @@ class OfflineCognitionSystem:
     def validate_checkpoint(self, checkpoint: OfflineCognitionCheckpoint) -> None:
         with self._lock:
             if checkpoint.revision < self._revision:
-                raise OfflineCognitionRestoreError("offline checkpoint revision is older")
+                raise OfflineCognitionRestoreError(
+                    "offline checkpoint revision is older"
+                )
             if (
                 checkpoint.revision == self._revision
                 and checkpoint.last_updated_at < self._last_updated_at
             ):
                 raise OfflineCognitionRestoreError("offline checkpoint time is older")
-            if checkpoint.status not in {"ready", "blocked", "cooldown", "satisfied", "unknown"}:
-                raise OfflineCognitionRestoreError("offline checkpoint status is invalid")
-            if min(
-                checkpoint.last_consolidated_count,
-                checkpoint.last_knowledge_created,
-                checkpoint.last_patterns_created,
-            ) < 0:
+            if checkpoint.status not in {
+                "ready",
+                "blocked",
+                "cooldown",
+                "satisfied",
+                "unknown",
+            }:
+                raise OfflineCognitionRestoreError(
+                    "offline checkpoint status is invalid"
+                )
+            if (
+                min(
+                    checkpoint.last_consolidated_count,
+                    checkpoint.last_knowledge_created,
+                    checkpoint.last_patterns_created,
+                )
+                < 0
+            ):
                 raise OfflineCognitionRestoreError("offline result counts are invalid")
 
     def restore(self, checkpoint: OfflineCognitionCheckpoint) -> None:
@@ -317,7 +334,9 @@ class OfflineCognitionSystem:
 
     def _ensure_time(self, now: datetime) -> None:
         if now < self._last_updated_at:
-            raise OfflineCognitionRestoreError("offline cognition time cannot move backwards")
+            raise OfflineCognitionRestoreError(
+                "offline cognition time cannot move backwards"
+            )
 
 
 def offline_candidate_to_perception(

@@ -41,6 +41,7 @@ from elfie.message_types import (
     EventId,
     MediaRef,
     MessageMeta,
+    TraceId,
 )
 
 _TURN_WAIT_TIMEOUT_SECONDS = 180.0
@@ -195,7 +196,7 @@ class BrainTurnAdapter:
                 source=owner,
                 occurred_at=now,
                 received_at=now,
-                trace_id=f"trace-{event_id}",
+                trace_id=TraceId(f"trace-{event_id}"),
             ),
             account_id="elfie-lab-account",
             channel_id=self.channel.channel_id,

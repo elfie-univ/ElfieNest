@@ -35,9 +35,7 @@ def _communication_frame() -> TurnFrame:
 
 
 def test_communication_turn_rejects_body_motion_before_output_router() -> None:
-    proposal = _plan(
-        (MotionIntent(type="motion", motion="walk", **_base("motion")),)
-    )
+    proposal = _plan((MotionIntent(type="motion", motion="walk", **_base("motion")),))
 
     decision = govern_decision(_communication_frame(), proposal)
 

@@ -297,9 +297,7 @@ def test_two_conversations_form_separate_turns_without_temporary_context_leak() 
     assert runtime.requests[0].interaction_scope.conversation_id == "conversation-a"
     assert runtime.requests[1].interaction_scope.conversation_id == "conversation-b"
     second_context = json.loads(runtime.requests[1].user_prompt)
-    assert [row["content"] for row in second_context["conversation"]] == [
-        "only-for-b"
-    ]
+    assert [row["content"] for row in second_context["conversation"]] == ["only-for-b"]
     elfie.stop()
     elfie.join()
 

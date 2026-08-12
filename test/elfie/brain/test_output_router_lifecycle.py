@@ -72,9 +72,13 @@ def test_stop_returns_while_the_bounded_queue_is_full() -> None:
         max_workers=1,
     )
     router.start()
-    assert isinstance(router.submit(_embodied_decision(_speech_plan(1))), ExecutionBatch)
+    assert isinstance(
+        router.submit(_embodied_decision(_speech_plan(1))), ExecutionBatch
+    )
     assert body.started.wait(1)
-    assert isinstance(router.submit(_embodied_decision(_speech_plan(2))), ExecutionBatch)
+    assert isinstance(
+        router.submit(_embodied_decision(_speech_plan(2))), ExecutionBatch
+    )
     returned = Event()
 
     def request_stop() -> None:
