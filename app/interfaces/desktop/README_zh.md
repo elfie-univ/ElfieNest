@@ -17,9 +17,10 @@ Core 负责登录和路由选择：Desktop 打开同源登录页，认证后由 
 
 ## 独立权威角色
 
-UI 角色不是 Godot 权威。当 Runtime 选择图形化 Electron 权威宿主时，独立的
-`godot-authority` 角色会用自己的 Electron instance namespace，在隐藏且沙盒化的窗口中
-加载已导出的 Godot Web 权威。Runtime 生命周期和宿主选择仍在本 interface 之外。
+UI 角色不是 Godot 权威。`app/bootstrap/desktop_host/` 是 Electron 组合入口，负责
+分发可见 Desktop interface 或 Infrastructure 拥有的 `godot-authority` 入口。权威使用
+自己的 instance namespace，在隐藏且沙盒化的窗口中加载已导出的 Godot Web Runtime；
+Desktop 源码与自身 package metadata 都不导入或打包该权威。
 
 Observer 接收受限范围的语义投影，只能发送已授权的高层 intent。它从不接收场景几何、
 transform、原始 Gateway 帧、相机状态或权威凭据。第一阶段没有相机/视频或 JPEG 帧传输。
@@ -39,5 +40,6 @@ npx --yes pnpm@10.12.1 build
 npx --yes pnpm@10.12.1 test
 ```
 
-生成的 interface 输出属于 `build/components/desktop-interface/`。不要把生成的
+生成的 interface 输出属于 `build/components/desktop-interface/`。原生包组合配置由
+`app/bootstrap/desktop_host/electron-builder.yml` 拥有。不要把生成的
 JavaScript、Runtime 产物、模型或用户数据写回本源码目录。

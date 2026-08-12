@@ -23,12 +23,16 @@ validation live in `infrastructure/godot/artifacts/`:
 | Host kind | Display mode | Purpose |
 | --- | --- | --- |
 | `web_authority` | graphical | Exported Godot Web authority |
-| `electron_authority` | graphical | A separate Electron authority role for the exported Web authority |
+| `electron_authority` | graphical | Infrastructure authority selected by the Bootstrap-owned Electron host |
 | `linux_dedicated` | displayless | Linux x64 exported dedicated authority |
 
 `godot_project/` remains the editable source project. The Supervisor hosts an
 exported Runtime artifact; neither Python nor the Desktop UI reads Godot source
 assets as a Runtime dependency.
+
+`app/bootstrap/desktop_host/` is the Electron composition and packaging root.
+It dispatches the visible Desktop interface or the Infrastructure authority;
+`app/interfaces/desktop/` never imports or packages authority implementation.
 
 ## Owner leases and Desktop attachment
 

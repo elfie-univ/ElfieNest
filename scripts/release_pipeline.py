@@ -21,6 +21,9 @@ BUILD_DIR: Final = PROJECT_ROOT / "build"
 DIST_DIR: Final = PROJECT_ROOT / "dist"
 FRONTEND_DIR: Final = PROJECT_ROOT / "app" / "interfaces" / "web" / "frontend"
 DESKTOP_DIR: Final = PROJECT_ROOT / "desktop"
+DESKTOP_HOST_CONFIG: Final = (
+    PROJECT_ROOT / "app" / "bootstrap" / "desktop_host" / "electron-builder.yml"
+)
 StageResult = TypeVar("StageResult")
 
 
@@ -210,6 +213,8 @@ def _package_installer(
                 "electron-builder",
                 "--publish",
                 "never",
+                "--config",
+                str(DESKTOP_HOST_CONFIG),
                 f"--config.directories.output={output}",
                 *target_arguments,
             ),

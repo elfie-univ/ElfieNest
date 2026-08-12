@@ -158,7 +158,7 @@ Runtime Supervisor
   ├── Python Core + Gateway
   ├── one selected Godot authority host
   │   ├── graphical Web authority
-  │   ├── graphical Electron authority role
+  │   ├── Bootstrap-hosted Infrastructure Electron authority
   │   └── displayless Linux dedicated authority
   └── public Ollama health (optional; may be degraded)
 

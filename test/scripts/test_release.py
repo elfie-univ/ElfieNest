@@ -460,6 +460,10 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
     # Then: TypeScript compilation is an explicit required predecessor of electron-builder.
     assert commands[0] == ("npx", "--yes", "pnpm@10.12.1", "build")
     assert "electron-builder" in commands[1]
+    config_index = commands[1].index("--config")
+    assert commands[1][config_index + 1].endswith(
+        "app/bootstrap/desktop_host/electron-builder.yml"
+    )
 
 
 def test_packager_replaces_a_previous_same_version_local_artifact(
