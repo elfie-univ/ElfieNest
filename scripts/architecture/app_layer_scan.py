@@ -47,9 +47,6 @@ TARGET_FEATURE_DOMAINS = frozenset(
         "setup",
     }
 )
-LEGACY_FEATURE_DOMAINS = frozenset(
-    {"administration", "chat", "elfie_profile", "embodiment", "nest_registration"}
-)
 TARGET_CONFIGURATION_DOMAINS = frozenset(
     {"capabilities", "food", "providers", "settings"}
 )
@@ -79,27 +76,30 @@ TARGET_API_ADMIN_DOMAINS = frozenset(
     }
 )
 
-RULE_LEDGER_IDS: Dict[str, str] = {
-    "interface_forbidden_layer_imports": "APP-001",
-    "feature_forbidden_layer_imports": "APP-002",
-    "orchestration_forbidden_layer_imports": "APP-002",
-    "infrastructure_forbidden_layer_imports": "APP-002",
-    "feature_framework_imports": "APP-002",
-    "feature_public_db_path": "APP-002",
-    "interface_adapter_construction": "APP-003",
-    "cross_feature_internal_imports": "APP-004",
-    "interface_feature_internal_imports": "APP-004",
-    "interface_orchestration_internal_imports": "APP-004",
-    "orchestration_private_boundary_imports": "APP-004",
-    "infrastructure_feature_internal_imports": "APP-004",
-    "json_routes_missing_response_model": "APP-005",
-    "json_routes_loose_annotations": "APP-005",
-    "websocket_loose_payloads": "APP-005",
-    "nonstandard_error_responses": "APP-005",
-    "feature_unowned_task_calls": "APP-008",
-    "interface_runtime_lifecycle_calls": "APP-008",
-    "unversioned_product_routes": "APP-011",
-}
+RULE_NAMES = frozenset(
+    {
+        "interface_forbidden_layer_imports",
+        "feature_forbidden_layer_imports",
+        "orchestration_forbidden_layer_imports",
+        "infrastructure_forbidden_layer_imports",
+        "feature_framework_imports",
+        "feature_public_db_path",
+        "interface_adapter_construction",
+        "cross_feature_internal_imports",
+        "interface_feature_internal_imports",
+        "interface_orchestration_internal_imports",
+        "orchestration_private_boundary_imports",
+        "infrastructure_feature_internal_imports",
+        "json_routes_missing_response_model",
+        "json_routes_loose_annotations",
+        "websocket_loose_payloads",
+        "nonstandard_error_responses",
+        "feature_unowned_task_calls",
+        "interface_runtime_lifecycle_calls",
+        "unversioned_product_routes",
+        "unowned_app_directories",
+    }
+)
 
 
 def configure_project_root(project_root: Path) -> None:
@@ -144,7 +144,7 @@ def collect_unowned_app_directories(project_root: Path) -> Set[str]:
     checks = (
         (
             app_root / "features",
-            TARGET_FEATURE_DOMAINS | LEGACY_FEATURE_DOMAINS,
+            TARGET_FEATURE_DOMAINS,
         ),
         (
             app_root / "features" / "configuration",
@@ -594,8 +594,11 @@ def _scan_unversioned_product_routes(
 
 def collect_app_layer_violations() -> Dict[str, FrozenSet[str]]:
     mutable: DefaultDict[str, Set[str]] = defaultdict(set)
-    for rule in RULE_LEDGER_IDS:
+    for rule in RULE_NAMES:
         mutable[rule]
+    mutable["unowned_app_directories"].update(
+        collect_unowned_app_directories(PROJECT_ROOT)
+    )
     _scan_import_boundaries(mutable)
     _scan_feature_signatures_and_tasks(mutable)
     _scan_interface_construction(mutable)

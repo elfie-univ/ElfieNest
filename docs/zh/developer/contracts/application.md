@@ -1,13 +1,12 @@
 # 应用架构契约
 
-**契约版本：** 1.6
-**采用日期：** 2026-08-10
-**适用范围：** `app/`，以及迁往根 `infrastructure/` 的 App Adapter
+**契约版本：** 1.7
+**采用日期：** 2026-08-12
+**适用范围：** `app/`，以及位于根 `infrastructure/` 的 App Adapter
 
-> **规范性目标。** 本文是 `app/` 下新增代码和已迁移代码的长期架构权威，定义
-> 所有权、依赖方向和边界语义；它不表示全部历史实现已经合规。当前偏差记录在
-> [应用架构一致性台账](../conformance/application)。中英文文件是同一份逻辑契约的
-> 两个语言镜像，必须同步修改。
+> **规范性目标。** 本文是 `app/` 下代码的长期架构权威，定义所有权、依赖方向和
+> 边界语义。已登记的 App 迁移债务已经关闭；当前目标由永久 Scanner 和架构测试直接
+> 执行。中英文文件是同一份逻辑契约的两个语言镜像，必须同步修改。
 
 权威顺序为：
 
@@ -15,10 +14,10 @@
 2. `app/AGENTS.md` 为编码工作提供执行摘要；
 3. 子目录 `AGENTS.md` 只能细化局部规则，不能反转本契约；
 4. 架构测试执行可机器检查的约束；
-5. 一致性台账只记录临时缺口，不能批准新的例外。
+5. 临时缺口必须登记一致性条目，且不能批准新的例外。
 
-若要改变所有权或依赖方向，必须先明确升级契约版本，再开始实现。普通迁移只更新
-代码、测试和一致性台账，不重写目标。
+若要改变所有权或依赖方向，必须先明确升级契约版本，再开始实现。普通实现工作不重写
+目标。
 
 ## 目标与明确不做的事
 
@@ -49,8 +48,8 @@ Infrastructure 是它们使用的独立 Adapter 层；表格列出它，是为�
 
 ## App 最终业务与工作流地图
 
-以下目录地图是已迁移 App 代码的规范性目标。它冻结所有权和迁移单元，但不要求在真实
-切片开始前创建空目录。
+以下目录地图是 App 代码的规范性目标。它冻结所有权，但不要求在真实能力需要之前创建
+空目录。
 
 ```text
 app/features/
@@ -118,7 +117,7 @@ WebSocket 仍属于 App Interface；`infrastructure/communication/` 实现外部
 Python 物理目录使用 snake_case，公开 URL 继续遵守 API 契约的 kebab-case 规则。
 `/api/health` 仍是唯一不版本化技术探针。
 
-`app/bootstrap/` 仍是唯一组合根，不要求按业务域镜像。每个纵向迁移切片只增加自己
+`app/bootstrap/` 仍是唯一组合根，不要求按业务域镜像。每个纵向能力切片只增加自己
 实际需要的装配。
 
 应用层有两个平面。`features/` 处理能够在一个业务 authority 内完整推理的产品用例；
@@ -146,11 +145,11 @@ bootstrap     -> 所有区域，但只做装配
 | Infrastructure | 自己实现的 Feature/Orchestration 契约；技术库 | Interface、Bootstrap、产品规则或 Feature 私有实现 |
 | Bootstrap | 所有需要装配的具体对象 | 装配与生命周期之外的产品决策 |
 
-该矩阵约束的是有效依赖，不只约束 Python import。CLI、Desktop、API 或 Web 入口不得
-通过 `python -m`、脚本路径、subprocess、Node 子进程、Shell 命令或动态加载器启动被
-禁止的仓库模块来绕过 Interface 边界。能够解析的进程目标，按调用方直接 import 该目标
-来判定。变量启动计划必须位于注入的 Port 之后或由 Bootstrap 拥有；把模块名放进字符串
-不属于依赖倒置。
+该矩阵约束有效依赖，不只约束 Python import。CLI、Desktop、API 或 Web 入口不能通过
+`python -m`、脚本路径、subprocess、Node 子进程、Shell 命令或动态加载器启动禁止的
+仓库模块，从而绕过 Interface 边界。可解析的进程目标按调用方直接 import 该目标处理。
+变量启动计划必须放在注入的 Port 后面或归 Bootstrap 所有；把模块名放进字符串不等于
+依赖倒置。
 
 App 内不能形成 import 环。Feature 通过包门面暴露稳定用例和边界模型；其他 Feature
 或 Interface 不导入它的内部 service、helper 或 Repository。Bootstrap 可以导入
@@ -158,7 +157,7 @@ App 内不能形成 import 环。Feature 通过包门面暴露稳定用例和边
 
 ## Feature 形态与 Port 所有权
 
-完成迁移的 Feature 通常包含：
+Feature 通常包含：
 
 ```text
 app/features/<domain>/
@@ -284,22 +283,22 @@ Adapter，不能复制事实或算法。
 API 资源、版本和 DTO 细则由 `app/interfaces/api/AGENTS.md` 进一步规定；App 契约
 仍是依赖方向和所有权的权威。
 
-## 机器约束与迁移
+## 机器约束与变更验收
 
 `scripts/architecture/app_layer_scan.py` 扫描依赖图、Feature 隔离、组合边界、Route
 模型和部分公开类型规则；`test/architecture/test_app_layer_boundaries.py` 保护扫描器及
-周边契约。精确历史基线是临时的，并通过缺口 ID 关联一致性台账。基线必须精确匹配
-当前债务：清除债务时同一改动必须缩减基线；新增或恢复条目直接失败。
+周边契约。Scanner 永久以 deny-all 模式运行，不使用 App 旧债基线；任何检测条目都
+直接失败。
 
-`scripts/architecture/effective_dependency_scan.py` 还会扫描仓库自有 Python、Node、
-Godot 和 Shell 执行表面中能够解析的动态模块与脚本目标，复用本契约的依赖矩阵，不设置历史
-基线，并永久保持 deny-all。
+`scripts/architecture/effective_dependency_scan.py` 还会扫描仓库自有的 Python、
+Node、Godot 和 Shell 执行表面，解析动态模块和脚本目标。它复用本契约的依赖矩阵，
+没有旧债基线，并永久以 deny-all 模式运行。
 
-仓库级变更流程、契约与台账生命周期以及主分支对照门禁由
+仓库级变更流程、临时债务生命周期以及主分支对照门禁由
 [仓库架构治理契约](./repository-governance)定义。本契约负责定义 App 目标，不能为
 自己的机器例外放行。
 
-迁移按业务域逐个闭环。一个领域只有同时满足以下条件才算完成：
+新增或修改的业务域切片只有同时满足以下条件才算完成：
 
 1. 已盘点 Route、调用方、Service、Adapter 和事实源；
 2. 已建立唯一 Feature 公开门面和严格 command/query/result 模型；
@@ -309,9 +308,8 @@ Godot 和 Shell 执行表面中能够解析的动态模块与脚本目标，复�
 6. 授权和 Principal 行为有聚焦测试；
 7. 事务、文件或外部工作流语义有聚焦测试；
 8. 适用时已测试错误、超时、重试和幂等；
-9. 所有生产调用方都使用新路径；
-10. 旧 Route、DTO、Adapter、兼容分支和夹具已删除；
-11. 精确架构基线和一致性台账已缩减；
-12. 至少一条真实端到端用例证明最终调用链。
+9. 所有生产调用方都使用权威路径；
+10. 被替代的 Route、DTO、Adapter、兼容分支和夹具已删除；
+11. 至少一条真实端到端用例证明最终调用链。
 
-只有存在代码和测试证据时才能关闭台账条目。已经登记的缺口也不能授权新代码重复它。
+未来任何临时缺口都遵守仓库治理契约，也不能授权新代码重复它。

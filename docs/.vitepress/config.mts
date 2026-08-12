@@ -81,6 +81,7 @@ export default defineConfig({
                     { text: "Documentation structure contract", link: "/developer/contracts/documentation-structure" },
                     { text: "System architecture contract", link: "/developer/contracts/system" },
                     { text: "Elfie internal contract", link: "/developer/contracts/elfie" },
+                    { text: "Elfie Brain internal contract", link: "/developer/contracts/brain" },
                     { text: "Application contract", link: "/developer/contracts/application" },
                     { text: "Model, Food and tool behavior", link: "/developer/contracts/model-food-tool-behavior" }
                   ]
@@ -90,10 +91,8 @@ export default defineConfig({
                   collapsed: true,
                   items: [
                     { text: "Conformance overview", link: "/developer/conformance/" },
-                    { text: "System architecture conformance", link: "/developer/conformance/system" },
                     { text: "Elfie architecture conformance", link: "/developer/conformance/elfie" },
-                    { text: "Application conformance", link: "/developer/conformance/application" },
-                    { text: "Model/Food/Tool conformance", link: "/developer/conformance/model-food-tool-conformance" }
+                    { text: "Elfie Brain conformance", link: "/developer/conformance/brain" }
                   ]
                 },
                 {
@@ -104,7 +103,10 @@ export default defineConfig({
                     { text: "App Ports & Adapters decision", link: "/developer/decisions/0001-lightweight-ports-adapters" },
                     { text: "System Ports & Adapters decision", link: "/developer/decisions/0002-system-ports-adapters" },
                     { text: "Elfie Ports & Adapters decision", link: "/developer/decisions/0005-elfie-internal-ports-adapters" },
-                    { text: "Documentation structure decision", link: "/developer/decisions/0006-documentation-information-architecture" }
+                    { text: "Elfie life-system ownership", link: "/developer/decisions/0006-elfie-life-system-ownership" },
+                    { text: "Brain ownership decision", link: "/developer/decisions/0007-brain-turn-state-and-activity-ownership" },
+                    { text: "Documentation structure decision", link: "/developer/decisions/0008-documentation-information-architecture" },
+                    { text: "Zero-debt closure decision", link: "/developer/decisions/0009-zero-debt-governance-closure" }
                   ]
                 }
               ]
@@ -214,6 +216,7 @@ export default defineConfig({
                     { text: "文档结构契约", link: "/zh/developer/contracts/documentation-structure" },
                     { text: "系统架构契约", link: "/zh/developer/contracts/system" },
                     { text: "Elfie 内部架构契约", link: "/zh/developer/contracts/elfie" },
+                    { text: "Elfie Brain 内部架构契约", link: "/zh/developer/contracts/brain" },
                     { text: "应用架构契约", link: "/zh/developer/contracts/application" },
                     { text: "模型、Food 与工具行为", link: "/zh/developer/contracts/model-food-tool-behavior" }
                   ]
@@ -223,10 +226,8 @@ export default defineConfig({
                   collapsed: true,
                   items: [
                     { text: "架构一致性总览", link: "/zh/developer/conformance/" },
-                    { text: "系统架构一致性", link: "/zh/developer/conformance/system" },
                     { text: "Elfie 内部架构一致性", link: "/zh/developer/conformance/elfie" },
-                    { text: "应用架构一致性", link: "/zh/developer/conformance/application" },
-                    { text: "Model/Food/Tool 一致性", link: "/zh/developer/conformance/model-food-tool-conformance" }
+                    { text: "Elfie Brain 内部架构一致性", link: "/zh/developer/conformance/brain" }
                   ]
                 },
                 {
@@ -237,7 +238,10 @@ export default defineConfig({
                     { text: "App Ports/Adapters 决策", link: "/zh/developer/decisions/0001-lightweight-ports-adapters" },
                     { text: "系统 Ports/Adapters 决策", link: "/zh/developer/decisions/0002-system-ports-adapters" },
                     { text: "Elfie Ports/Adapters 决策", link: "/zh/developer/decisions/0005-elfie-internal-ports-adapters" },
-                    { text: "文档结构决策", link: "/zh/developer/decisions/0006-documentation-information-architecture" }
+                    { text: "Elfie 生命系统所有权", link: "/zh/developer/decisions/0006-elfie-life-system-ownership" },
+                    { text: "Brain 所有权决策", link: "/zh/developer/decisions/0007-brain-turn-state-and-activity-ownership" },
+                    { text: "文档结构决策", link: "/zh/developer/decisions/0008-documentation-information-architecture" },
+                    { text: "零债务收口决策", link: "/zh/developer/decisions/0009-zero-debt-governance-closure" }
                   ]
                 }
               ]

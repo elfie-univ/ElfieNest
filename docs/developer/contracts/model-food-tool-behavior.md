@@ -1,20 +1,20 @@
 # Model, Food and tool behavior contract
 
-**Contract version:** 1.5
-**Revised:** 2026-08-11
+**Contract version:** 1.6
+**Revised:** 2026-08-12
 
-> **Behavior authority during decomposition.** This document preserves the
-> accepted Provider, model, Food and tool behavior formerly implemented under
-> the retired `ai_runtime/` root. It does not define a target Runtime module.
+> **Behavior authority.** This document defines the accepted Provider, model,
+> Food and tool behavior after the retired `ai_runtime/` root was decomposed.
+> The current implementation conforms to this contract. It does not define a target Runtime module.
 > Target ownership, dependencies and physical placement are controlled by the
-> [system architecture contract](system). Current deviations are recorded in
-> [Model/Food/Tool conformance](../conformance/model-food-tool-conformance).
+> [system architecture contract](system).
 > The English and Chinese files are synchronized language mirrors of one
 > logical contract and must change together.
 
-Implementation work may update code, tests and the conformance register without
+Implementation work that preserves this behavior updates code and tests without
 changing this contract. A behavior change requires an explicit contract-version
-revision before implementation.
+revision before implementation. Any future known deviation requires a temporary
+registered conformance entry with an exact deletion gate.
 
 The former `ai_runtime/` root was decomposed rather than moved intact.
 Provider/model access and Runtime technology live in `infrastructure/models/`;
@@ -629,5 +629,5 @@ A clean temporary `ELFIE_HOME` must prove:
     guarded-delete a custom package;
 13. pass focused tests, architecture tests and browser interaction checks.
 
-Implementation is conformant only when this flow passes and the conformance
-register has no open item.
+Conformance is maintained only while this flow remains covered by focused tests,
+architecture tests and replayable browser acceptance.

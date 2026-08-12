@@ -9,8 +9,8 @@ Outbox、Hub、Router 和投递回执。渠道 Port 支持多个平台实现并�
   Communication Feature 解析 Principal、会话成员、目标 Elfie 与授权，最后通过
   `Elfie` Facade 投递标准 Envelope；Infrastructure 不得自行选择 Elfie 或绕过产品
   授权。没有独立进程或多实现需求时，不创建对称的入站 Protocol。
-- 平台 SDK、凭据、Webhook、网络会话、传输重试和原生 Payload 映射属于
-  Infrastructure。现有 `channels/` 技术实现属于 `ELF-007` 迁移债务，不得扩展。
+- 平台 SDK、凭据、Webhook、网络会话、传输重试和原生 Payload 映射只属于
+  Infrastructure；`channels/` 不得恢复具体平台技术实现。
 - 产品账户、关系、会话成员和用户可见历史属于 App Communication Feature，不得写入
   Elfie Communication 作为第二 authority。
 - Inbox/Outbox 只保留有界处理和投递状态，不持久化第二份产品会话历史，也不接管平台

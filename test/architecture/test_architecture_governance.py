@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import runpy
 from pathlib import Path
 from typing import Optional, Set
 
 import scripts.architecture.check_governance_change as governance_change
-from scripts.architecture.app_layer_scan import RULE_LEDGER_IDS as APP_RULE_IDS
 from scripts.architecture.check_governance_change import (
     classify_paths,
     validate_baseline_changes,
@@ -15,12 +15,6 @@ from scripts.architecture.check_governance_change import (
     validate_governance_rule_changes,
 )
 from scripts.architecture.contract_registry import CONTRACT_REGISTRY
-from scripts.architecture.effective_dependency_scan import (
-    RULE_LEDGER_IDS as EFFECTIVE_RULE_IDS,
-)
-from scripts.architecture.system_layer_scan import RULE_LEDGER_IDS as SYSTEM_RULE_IDS
-from test.architecture.baselines.app_layer import LEGACY_APP_LAYER_VIOLATIONS
-from test.architecture.baselines.system_layer import LEGACY_SYSTEM_LAYER_VIOLATIONS
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -70,25 +64,41 @@ def test_every_architecture_test_is_owned_by_a_registered_contract() -> None:
     assert actual == _registered_paths("test_paths")
 
 
-def test_scanner_rules_reference_registered_conformance_ids() -> None:
-    app_conformance = "\n".join(
-        (PROJECT_ROOT / path).read_text(encoding="utf-8")
-        for path in (
-            "docs/developer/conformance/application.md",
-            "docs/zh/developer/conformance/application.md",
+def _conformance_statuses(relative_path: str) -> Set[str]:
+    source = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
+    statuses: Set[str] = set()
+    for line in source.splitlines():
+        cells = [cell.strip().lower() for cell in line.split("|")]
+        if len(cells) > 3 and cells[3] in {"open", "in progress", "closed"}:
+            statuses.add(cells[3])
+    return statuses
+
+
+def test_registered_temporary_debt_artifacts_are_live() -> None:
+    for registration in CONTRACT_REGISTRY:
+        for relative_path in registration.conformance_paths:
+            statuses = _conformance_statuses(relative_path)
+            assert statuses, f"no conformance rows: {relative_path}"
+            assert statuses != {"closed"}, (
+                f"all-closed conformance must be removed from the registry: "
+                f"{relative_path}"
+            )
+
+        if registration.baseline_path is None:
+            continue
+        namespace = runpy.run_path(str(PROJECT_ROOT / registration.baseline_path))
+        baselines = [
+            value
+            for name, value in namespace.items()
+            if name.startswith("LEGACY_") and isinstance(value, dict)
+        ]
+        assert baselines, f"no legacy baseline mapping: {registration.baseline_path}"
+        assert any(
+            entries for baseline in baselines for entries in baseline.values()
+        ), (
+            f"empty baseline must be removed from the registry: "
+            f"{registration.baseline_path}"
         )
-    )
-    system_conformance = "\n".join(
-        (PROJECT_ROOT / path).read_text(encoding="utf-8")
-        for path in (
-            "docs/developer/conformance/system.md",
-            "docs/zh/developer/conformance/system.md",
-        )
-    )
-    assert all(gap_id in app_conformance for gap_id in APP_RULE_IDS.values())
-    assert all(gap_id in system_conformance for gap_id in SYSTEM_RULE_IDS.values())
-    combined_conformance = app_conformance + system_conformance
-    assert all(gap_id in combined_conformance for gap_id in EFFECTIVE_RULE_IDS.values())
 
 
 def test_contract_change_requires_mirror_version_bump_and_bilingual_adr(
@@ -294,7 +304,7 @@ def test_repository_wide_implementation_surfaces_cannot_hide_in_governance_chang
     }
 
 
-def test_governance_artifacts_take_precedence_over_broad_implementation_roots() -> None:
+def test_governance_artifacts_take_precedence_over_implementation_roots() -> None:
     governance, production = classify_paths(
         {
             ".github/workflows/ci.yml",
@@ -372,6 +382,29 @@ def test_architecture_baseline_may_only_shrink_from_the_base_commit(
     )
     assert "governance changes may not edit legacy architecture baselines" in failures
 
+    candidate.unlink()
+    failures = validate_baseline_changes(
+        "base", {baseline_path, "AGENTS.md"}, governance={"AGENTS.md"}
+    )
+    assert any("may only delete an empty" in failure for failure in failures)
+
+    empty_base_source = 'LEGACY_APP_LAYER_VIOLATIONS = {"rule": frozenset({})}\n'
+
+    def empty_base_file(_base_sha: str, path: str) -> str:
+        if path == contract_path:
+            return "contract"
+        if path == baseline_path:
+            return empty_base_source
+        raise AssertionError(path)
+
+    monkeypatch.setattr(governance_change, "_base_source", empty_base_file)
+    assert (
+        validate_baseline_changes(
+            "base", {baseline_path, "AGENTS.md"}, governance={"AGENTS.md"}
+        )
+        == []
+    )
+
 
 def test_new_baseline_is_allowed_only_for_the_initial_governance_bootstrap(
     tmp_path: Path,
@@ -423,42 +456,21 @@ def test_executable_governance_rule_change_requires_bilingual_adr_update() -> No
     )
 
 
-def _conformance_status(relative_path: str, gap_id: str) -> str:
-    source = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
-    for line in source.splitlines():
-        cells = [cell.strip() for cell in line.split("|")]
-        if len(cells) > 3 and cells[1] == gap_id:
-            return cells[3].lower()
-    raise AssertionError(f"missing conformance row: {relative_path}:{gap_id}")
-
-
-def test_conformance_row_cannot_close_while_its_baseline_has_entries() -> None:
-    contract_sets = (
-        (
-            LEGACY_APP_LAYER_VIOLATIONS,
-            APP_RULE_IDS,
-            "docs/developer/conformance/application.md",
-            "docs/zh/developer/conformance/application.md",
-        ),
-        (
-            LEGACY_SYSTEM_LAYER_VIOLATIONS,
-            SYSTEM_RULE_IDS,
-            "docs/developer/conformance/system.md",
-            "docs/zh/developer/conformance/system.md",
-        ),
-    )
-    for baseline, rule_ids, english_path, chinese_path in contract_sets:
-        for rule, entries in baseline.items():
-            if not entries:
-                continue
-            gap_id = rule_ids[rule]
-            assert _conformance_status(english_path, gap_id) != "closed"
-            assert _conformance_status(chinese_path, gap_id) != "closed"
-
-
 def test_architecture_ratchet_uses_immutable_base_on_pr_and_push() -> None:
     workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     architecture_job = workflow.split("  environment-smoke:", maxsplit=1)[0]
     assert "github.event.pull_request.base.sha" in architecture_job
     assert "github.event.before" in architecture_job
     assert "if: github.event_name == 'pull_request'" not in architecture_job
+
+
+def test_ci_full_test_job_covers_the_complete_architecture_suite_once() -> None:
+    workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    test_job = workflow.split("  test:", maxsplit=1)[1].split(
+        "  docs-build:", maxsplit=1
+    )[0]
+    pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert "uv run --no-sync pytest --cov" in test_job
+    assert "--ignore=test/architecture" not in test_job
+    assert 'testpaths = ["test"]' in pyproject

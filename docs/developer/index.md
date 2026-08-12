@@ -31,13 +31,15 @@ source of truth.
   public sections, Developer document classes and bilingual structure rules.
 - [System architecture contract](./contracts/system): the target four-module
   structure, system Ports/Adapters and migration direction.
-- [System architecture conformance](./conformance/system): the temporary root
-  module and technical-boundary migration register.
+- [Elfie internal architecture contract](./contracts/elfie): one Elfie's
+  aggregate, life-system and Port ownership boundaries.
+- [Elfie Brain internal architecture contract](./contracts/brain): Turn,
+  reasoning, mental-state and persistent-activity ownership.
+- [Elfie conformance](./conformance/elfie) and [Brain conformance](./conformance/brain):
+  the remaining temporary life-system implementation gaps.
 - [Application architecture contract](./contracts/application): the
   normative ownership, dependency, Port/Adapter and composition rules for new
   and migrated `app/` code.
-- [Application conformance](./conformance/application): the temporary register
-  and exact-removal gates for current App architecture debt.
 - [Architecture decisions (ADRs)](./decisions/): accepted reasoning for durable changes.
 
 ## Engineering

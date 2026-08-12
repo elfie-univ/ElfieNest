@@ -16,18 +16,18 @@ package names, reverse dependencies and engineering-config contracts.
 
 ```bash
 uv run --no-sync python scripts/architecture/app_layer_scan.py \
-  --project-root . --baseline test/architecture/baselines/app_layer.py --mode exact
+  --project-root . --mode deny-all
 uv run --no-sync python scripts/architecture/system_layer_scan.py \
-  --project-root . --baseline test/architecture/baselines/system_layer.py --mode exact
+  --project-root . --mode deny-all
 uv run --no-sync pytest test/architecture/
 ```
 
-The baselines list exact pre-existing violations; they are not allowances for
-new code. A migration removes matching entries as it deletes the old call
-chain. When a baseline reaches zero it is deleted and the same scanner runs
-with `--mode deny-all`. CI also runs the scanner and baseline from the pull
-request base commit against candidate production code, so a change cannot
-weaken the rule that judges itself. See the
+App and system scanner debt is zero, so both permanent scanners run in
+`deny-all` mode without legacy baselines. If a future approved migration needs
+a temporary exact baseline, it must shrink with each slice and be deleted when
+it reaches zero. CI also evaluates candidate production code with the rules
+from the pull request base commit, so a change cannot weaken the rule that
+judges itself. See the
 [repository architecture governance contract](../contracts/repository-governance).
 
 ## Quality gate

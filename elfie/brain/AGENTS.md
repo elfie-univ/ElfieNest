@@ -30,8 +30,8 @@
 - 随源码发布的不可变 Skill 与内存策略不建立持久化 Port；可变 Skill 安装或持久状态
   在单独契约获批前保持禁用，Brain 不得先写文件制造事实源。
 - `ElfieCognitiveRuntime` 或后继协调器只能是聚合内部实现，不得成为 App Runtime、
-  composition root 或公开产品入口；其目标所有者是 Brain，根部现状属于 `ELF-011`。
-- 新边界使用命名不可变模型，禁止新增 `Any`、裸 `dict`、SDK 对象或协议帧。历史
-  `CorticalRuntimePort` 是 `ELF-003` 迁移路径，不得扩展其职责。
+  composition root 或公开产品入口。
+- 新边界使用命名不可变模型，禁止新增 `Any`、裸 `dict`、SDK 对象或协议帧；已退役的
+  `CorticalRuntimePort` 不得恢复。
 - Brain 单元测试使用 Fake Port；模型、工具、数据库、网络和 Godot 不得成为认知算法
   测试的前置条件。

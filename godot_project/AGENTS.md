@@ -8,7 +8,7 @@
 - 协议帧、网络连接、进程宿主和 Python 侧 Adapter 属于系统 Infrastructure；本目录
   只实现 Godot 侧协议端点和 authority 行为。
 - Actor 身体回执与全局世界事实是不同语义通道，但可以共享同一认证连接。
-- Python 侧宿主、Gateway 和协议 Adapter 的目标归档由系统契约与 `SYS-001` 跟踪；
+- Python 侧宿主、Gateway 和协议 Adapter 只属于根 `infrastructure/godot/`；
   `godot_project/` 永久保持独立，本规则不授权移动 Godot 工程或修改协议。
 - 打开、运行、调试、截图或关闭 Godot 前，必须先读取并执行
   `../.agents/skills/godot-project-operator/SKILL.md`。

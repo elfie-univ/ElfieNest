@@ -8,12 +8,10 @@
 brain, memory and homeostasis, a nervous system, a swappable body, digital
 communication and the skills usable during cognition.
 
-This page describes the current package. The normative migration target is the
-[Elfie internal architecture contract](../docs/developer/contracts/elfie.md);
-known implementation debt is tracked in
-[Elfie conformance](../docs/developer/conformance/elfie.md). In particular,
-technical body/channel/persistence implementations move to Infrastructure and
-Skills move under Brain without changing the macro system contract.
+This page describes the current package. The normative authority is the
+[Elfie internal architecture contract](../docs/developer/contracts/elfie.md),
+enforced by permanent architecture tests without changing the macro system
+contract.
 
 ## Responsibilities and non-responsibilities
 
@@ -25,8 +23,8 @@ Responsible for:
   execution-receipt loop;
 - Emotion, energy, long-term memory and the Elfie's own clock;
 - Body identity, capabilities, typed commands/events, registry, binding and
-  nervous-system semantics; the current Headless, Native and External
-  implementations are migration paths rather than final technical ownership;
+  nervous-system semantics; deterministic no-I/O references and fakes may stay
+  here, while concrete platform and device I/O belongs to Infrastructure;
 - The Elfie's own digital message channel and its skill allowlist.
 
 Not responsible for:

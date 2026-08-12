@@ -1,22 +1,21 @@
 # System architecture contract
 
-**Contract version:** 1.4
-**Adopted:** 2026-08-10
+**Contract version:** 1.5
+**Adopted:** 2026-08-12
 **Scope:** repository-wide target architecture
 **Macro architecture baseline:** v1 (frozen)
 
 > **Normative target.** This contract defines the final module ownership,
 > dependency direction and system-level Ports/Adapters for ElfieNest. It is the
-> authority for migrations of root modules. It does not claim that the current
-> tree already conforms; exact deviations are recorded in
-> [System conformance](../conformance/system).
+> authority for root modules. The registered system migration debt is closed;
+> permanent scanners and architecture tests now enforce this target directly.
 
 The system contract governs root placement and cross-module boundaries. The
 Application contract governs behavior inside `app/`. The Model, Food and tool
 behavior contract remains only a behavior inventory for the current migration
 package; it does not define a target module and cannot reverse this contract.
-Where a child contract names a legacy owner or path, this contract controls the
-target while the conformance register records the transition.
+Where a child contract names an owner or path, this contract controls the
+system-level target.
 
 ## Target system shape
 
@@ -70,8 +69,7 @@ implementations.
 The former `ai_runtime/`, `godot_runtime/` and `app/infrastructure/` roots have
 been retired. Their technical responsibilities now live in the existing target
 Infrastructure capability packages; no target `infrastructure/ai_runtime/` was
-created. Concrete technical code that remains inside `elfie/` or `nest/` is
-migration-state and shrinks only through separately approved migration slices.
+created. Concrete technical I/O must not be restored inside `elfie/` or `nest/`.
 
 ## System dependency direction
 
@@ -319,24 +317,21 @@ Port change necessarily migrates the facade/consumer, Adapter and affected
 callers together; architecture isolation reduces accidental cross-module
 changes but does not hide a deliberate contract change.
 
-## Migration and enforcement
+## Change and enforcement
 
-Migration is incremental and governance-only changes remain separate from
-production migrations. For each slice:
+Governance-only changes remain separate from production implementation changes.
+For each complete boundary change:
 
 1. identify the current fact owner and complete call chain;
 2. define or confirm the facade, Port and strict models;
 3. implement the Infrastructure Adapter and Bootstrap wiring;
-4. move every production caller;
-5. delete the old technical implementation and compatibility path for that
-   migrated capability and complete call chain;
-6. reduce the exact conformance baseline and close the ledger item.
+4. update every production caller;
+5. delete the replaced technical implementation and compatibility path; and
+6. prove the complete call chain with focused and end-to-end evidence.
 
-New code must follow this contract immediately. Existing deviations may remain
-only when listed in the System conformance register and machine baseline. The
-baseline may decrease but never expand during a product or migration change.
-When every entry reaches zero, the legacy baseline and conformance page are
-deleted and the permanent scanner runs in deny-all mode.
+All code follows this contract. The permanent system scanner runs in deny-all
+mode without a legacy baseline. Any future temporary gap must follow the
+repository governance contract and cannot weaken this contract implicitly.
 
 ## Deliberate non-goals
 

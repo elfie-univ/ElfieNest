@@ -1,4 +1,4 @@
-"""Reject pull requests that mix architecture governance and production code."""
+"""Reject changes that mix architecture governance and implementation files."""
 
 from __future__ import annotations
 
@@ -184,6 +184,12 @@ def _baseline_entries(source: str, path: str) -> Dict[str, FrozenSet[str]]:
                 entries_node.args[0], (ast.Set, ast.List, ast.Tuple)
             ):
                 entry_nodes = entries_node.args[0].elts
+            elif (
+                len(entries_node.args) == 1
+                and isinstance(entries_node.args[0], ast.Dict)
+                and not entries_node.args[0].keys
+            ):
+                entry_nodes = ()
             else:
                 raise ValueError(f"{path} has an unsupported frozenset value")
         else:
@@ -222,7 +228,8 @@ def validate_baseline_changes(
     unknown = baseline_paths - set(BASELINE_VARIABLES)
     if unknown:
         failures.append(f"unregistered architecture baseline: {sorted(unknown)}")
-    if governance and base_has_governance:
+    retained_baselines = {path for path in baseline_paths if Path(path).is_file()}
+    if governance and base_has_governance and retained_baselines:
         failures.append("governance changes may not edit legacy architecture baselines")
 
     for path in sorted(baseline_paths & set(BASELINE_VARIABLES)):
@@ -233,6 +240,17 @@ def validate_baseline_changes(
                 failures.append(f"new architecture baseline is forbidden: {path}")
             continue
         if not candidate_path.is_file():
+            if governance and base_has_governance:
+                try:
+                    base_entries = _baseline_entries(base_source, path)
+                except (SyntaxError, ValueError) as error:
+                    failures.append(str(error))
+                    continue
+                if any(base_entries.values()):
+                    failures.append(
+                        f"governance changes may only delete an empty "
+                        f"architecture baseline: {path}"
+                    )
             continue
         try:
             base_entries = _baseline_entries(base_source, path)
@@ -356,7 +374,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     governance, production = classify_paths(paths)
     if governance and production:
         print(
-            "Architecture governance and production source must be reviewed "
+            "Architecture governance and implementation files must be reviewed "
             "in separate pull requests.",
             file=sys.stderr,
         )

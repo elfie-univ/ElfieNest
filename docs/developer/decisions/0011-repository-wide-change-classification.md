@@ -1,4 +1,4 @@
-# ADR-0009: Repository-wide implementation change classification
+# ADR-0011: Repository-wide implementation change classification
 
 - **Status:** accepted
 - **Date:** 2026-08-12

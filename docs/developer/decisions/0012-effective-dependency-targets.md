@@ -1,4 +1,4 @@
-# ADR-0010: Effective dependencies include dynamic execution targets
+# ADR-0012: Effective dependencies include dynamic execution targets
 
 **Status:** Accepted
 **Date:** 2026-08-12

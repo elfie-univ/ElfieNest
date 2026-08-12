@@ -65,7 +65,7 @@ jobs:
           uv run --no-sync python scripts/architecture/effective_dependency_scan.py \
             --project-root .
 
-      - name: Reject governance and production source in one change
+      - name: Reject governance and implementation files in one change
         run: |
           if git cat-file -e "$BASE_SHA:scripts/architecture/check_governance_change.py"; then
             classifier="$RUNNER_TEMP/base-check-governance-change.py"
@@ -134,8 +134,8 @@ jobs:
             done
             uv run --no-sync python "$scanner_dir/effective_dependency_scan.py" \
               --project-root "$GITHUB_WORKSPACE"
-          elif git cat-file -e "$BASE_SHA:docs/developer/decisions/0010-effective-dependency-targets.md"; then
-            echo "Base branch has ADR-0010 but no effective dependency scanner." >&2
+          elif git cat-file -e "$BASE_SHA:docs/developer/decisions/0012-effective-dependency-targets.md"; then
+            echo "Base branch has ADR-0012 but no effective dependency scanner." >&2
             exit 1
           else
             echo "Bootstrap effective dependency governance: no base scanner exists yet."

@@ -6,23 +6,22 @@ from pathlib import Path
 
 from scripts.architecture.check_governance_change import classify_paths
 from scripts.architecture.system_layer_scan import (
-    RULE_LEDGER_IDS,
+    RULE_NAMES,
     collect_system_layer_violations,
     deny_all_failures,
 )
-from test.architecture.baselines.system_layer import LEGACY_SYSTEM_LAYER_VIOLATIONS
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_system_legacy_baseline_exactly_matches_current_debt() -> None:
+def test_system_scanner_permanently_denies_all_current_debt() -> None:
     current = collect_system_layer_violations(PROJECT_ROOT)
-    assert set(LEGACY_SYSTEM_LAYER_VIOLATIONS) == set(RULE_LEDGER_IDS)
-    assert current == LEGACY_SYSTEM_LAYER_VIOLATIONS
+    assert set(current) == set(RULE_NAMES)
+    assert deny_all_failures(current) == []
 
 
 def test_system_deny_all_accepts_zero_and_rejects_any_violation() -> None:
-    empty = {rule: frozenset() for rule in RULE_LEDGER_IDS}
+    empty = {rule: frozenset() for rule in RULE_NAMES}
     assert deny_all_failures(empty) == []
     assert deny_all_failures({"rule": frozenset({"path -> dependency"})}) == [
         "rule: violations are forbidden in deny-all mode: ['path -> dependency']"
@@ -58,7 +57,7 @@ def test_system_scanner_catches_core_boundary_fixtures(tmp_path: Path) -> None:
     )
 
 
-def test_system_contract_ledger_decision_and_agents_exist_in_both_languages() -> None:
+def test_system_contract_decision_and_agents_exist_in_both_languages() -> None:
     english_contract = (PROJECT_ROOT / "docs/developer/contracts/system.md").read_text(
         encoding="utf-8"
     )
@@ -66,10 +65,12 @@ def test_system_contract_ledger_decision_and_agents_exist_in_both_languages() ->
         PROJECT_ROOT / "docs/zh/developer/contracts/system.md"
     ).read_text(encoding="utf-8")
     required_docs = {
-        "docs/developer/conformance/system.md",
         "docs/developer/decisions/0002-system-ports-adapters.md",
-        "docs/zh/developer/conformance/system.md",
         "docs/zh/developer/decisions/0002-system-ports-adapters.md",
+        "docs/developer/decisions/0009-zero-debt-governance-closure.md",
+        "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
+        "docs/developer/decisions/0012-effective-dependency-targets.md",
+        "docs/zh/developer/decisions/0012-effective-dependency-targets.md",
     }
     required_agents = {
         "elfie/AGENTS.md",
@@ -80,8 +81,8 @@ def test_system_contract_ledger_decision_and_agents_exist_in_both_languages() ->
         "godot_project/AGENTS.md",
     }
 
-    assert "**Contract version:** 1.4" in english_contract
-    assert "**契约版本：** 1.4" in chinese_contract
+    assert "**Contract version:** 1.5" in english_contract
+    assert "**契约版本：** 1.5" in chinese_contract
     assert "**Macro architecture baseline:** v1 (frozen)" in english_contract
     assert "**宏观架构基线：** v1（已冻结）" in chinese_contract
     assert "always has exactly one Nest" in english_contract
@@ -99,14 +100,6 @@ def test_system_contract_ledger_decision_and_agents_exist_in_both_languages() ->
     assert all((PROJECT_ROOT / path).is_file() for path in required_docs)
     assert all((PROJECT_ROOT / path).is_file() for path in required_agents)
     assert not (PROJECT_ROOT / "app/infrastructure").exists()
-    for number in range(1, 8):
-        gap_id = f"SYS-{number:03d}"
-        assert gap_id in (
-            PROJECT_ROOT / "docs/developer/conformance/system.md"
-        ).read_text(encoding="utf-8")
-        assert gap_id in (
-            PROJECT_ROOT / "docs/zh/developer/conformance/system.md"
-        ).read_text(encoding="utf-8")
 
 
 def test_root_infrastructure_source_is_classified_as_production() -> None:
