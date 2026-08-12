@@ -1,7 +1,7 @@
 import os
 
 from app.features.configuration.food import StoredModelEvidence
-from elfie.brain.food_port import FoodAssignment, FoodCatalog, FoodPackage
+from elfie.brain.reasoning.food_port import FoodAssignment, FoodCatalog, FoodPackage
 from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.runtime_overview import (
     build_overview,

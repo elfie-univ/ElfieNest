@@ -4,6 +4,7 @@ import devtools.elfie_lab.session as session_module
 from devtools.elfie_lab.schemas import StimulusBundle
 from devtools.elfie_lab.session import ElfieLabSession
 from devtools.elfie_lab.storage import ElfieLabStorage
+from elfie.diagnostics import ElfieDiagnostics
 
 
 @pytest.fixture
@@ -128,8 +129,8 @@ def test_recovery_drive_creates_one_bounded_internal_turn(tmp_path, session_fact
     # Autonomous turns still use the Lab's explicitly selected local food;
     # there is no user message in this scenario to select it implicitly.
     session._turn_adapter._runtime.select(session_module.create_runtime("mock"))
-    session.elfie.hypothalamus.energy = 10.0
-    session.elfie.hypothalamus.revision += 1
+    ElfieDiagnostics(session.elfie).energy.energy = 10.0
+    ElfieDiagnostics(session.elfie).energy.revision += 1
 
     # When: a clock pulse gives Motivation a chance to evaluate without input.
     session.elfie.advance_clock(1.0)
@@ -155,7 +156,7 @@ def test_recovery_drive_creates_one_bounded_internal_turn(tmp_path, session_fact
     assert session.snapshot()["activity_count"] == 0
 
 
-def test_offline_cognition_consolidates_memory_without_external_actions(
+def test_consolidation_consolidates_memory_without_external_actions(
     tmp_path, session_factory
 ):
     # Given: pending episodic memories and a sleeping Brain.
@@ -163,18 +164,18 @@ def test_offline_cognition_consolidates_memory_without_external_actions(
     spec = storage.create_elfie("离线整理")
     session = session_factory(spec, storage)
     session._turn_adapter._runtime.select(session_module.create_runtime("mock"))
-    session.elfie.memory.record_episode(
+    ElfieDiagnostics(session.elfie).memory.record_episode(
         content="主人在窗边陪我玩耍",
         emotion="happy",
         intensity=70,
     )
-    session.elfie.memory.record_episode(
+    ElfieDiagnostics(session.elfie).memory.record_episode(
         content="主人在窗边给我零食",
         emotion="happy",
         intensity=80,
     )
-    session.elfie.hypothalamus.is_sleeping = True
-    session.elfie.hypothalamus.fatigue = 90.0
+    ElfieDiagnostics(session.elfie).energy.is_sleeping = True
+    ElfieDiagnostics(session.elfie).energy.fatigue = 90.0
 
     # When: a clock pulse opens the quiet-window candidate and its Internal Turn.
     session.elfie.advance_clock(1.0)
@@ -191,11 +192,11 @@ def test_offline_cognition_consolidates_memory_without_external_actions(
     assert "离线整理" in decision.plan.intents[0].reason
     assert session._turn_adapter.channel.sent == []
     assert session.snapshot()["activity_count"] == 0
-    offline = session.snapshot()["offline_cognition"]
+    offline = session.snapshot()["cognitive_consolidation"]
     assert offline["status"] == "satisfied"
     assert offline["last_consolidated_count"] == 2
     assert offline["last_knowledge_created"] >= 1
-    assert session.elfie.memory.pending_consolidation_ids() == ()
+    assert ElfieDiagnostics(session.elfie).memory.pending_consolidation_ids() == ()
 
     # And: the satisfaction window suppresses a duplicate night-work turn.
     session.elfie.advance_clock(1.0)
@@ -207,11 +208,16 @@ def test_state_injection_is_visible_and_persistent(tmp_path, session_factory):
     storage = ElfieLabStorage(str(tmp_path))
     spec = storage.create_elfie("边界测试")
     session = session_factory(spec, storage)
+    initial = session.snapshot()
 
     turn = session.run_turn(
         StimulusBundle(
             message="你还好吗？",
-            state_injection={"energy": 12, "fatigue": 88},
+            state_injection={
+                "energy": 12,
+                "fatigue": 88,
+                "emotions": {"happiness": 66},
+            },
         ),
         "mock",
     )
@@ -219,7 +225,30 @@ def test_state_injection_is_visible_and_persistent(tmp_path, session_factory):
     assert turn["used_state_injection"] is True
     assert turn["state_before"]["energy"] == 12.0
     assert turn["state_before"]["fatigue"] == 88.0
+    assert turn["state_before"]["energy_revision"] == initial["energy_revision"] + 1
+    assert turn["state_before"]["emotion_revision"] == initial["emotion_revision"] + 1
     assert "state_injection" in turn["trace"]["stages"]
+
+
+def test_snapshot_exposes_p0_brain_system_state(tmp_path, session_factory):
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("十系统可见性")
+    session = session_factory(spec, storage)
+
+    snapshot = session.snapshot()
+
+    assert snapshot["orientation"] is not None
+    assert snapshot["profile_anchor"]["display_name"] == "十系统可见性"
+    assert (
+        snapshot["selfhood"]["profile_revision"]
+        == snapshot["profile_anchor"]["revision"]
+    )
+    assert snapshot["motivation"] is not None
+    assert snapshot["cognitive_consolidation"] is not None
+    assert snapshot["normal_budget_available"] >= 0
+    assert snapshot["emergency_reserve_available"] > 0
+    assert snapshot["reserved_cognitive_budget"] == 0
+    assert snapshot["journal"]["entry_count"] >= 0
 
 
 def test_repeated_same_text_is_treated_as_two_events(tmp_path, session_factory):
@@ -232,6 +261,10 @@ def test_repeated_same_text_is_treated_as_two_events(tmp_path, session_factory):
 
     assert first["result"].get("filtered") is not True
     assert second["result"].get("filtered") is not True
+    assert (
+        second["trace"]["stages"]["turn_boundary"]["source_domain"] == "communication"
+    )
+    assert second["decision"]["message_texts"]
     assert len(session.turns) == 2
 
 

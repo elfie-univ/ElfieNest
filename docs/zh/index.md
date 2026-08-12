@@ -10,8 +10,8 @@ hero:
     alt: ElfieNest 地球基站
   actions:
     - theme: brand
-      text: 开始使用
-      link: /zh/getting-started/
+      text: 用户指南
+      link: /zh/user-guide/
     - theme: alt
       text: 阅读故事
       link: /zh/story/
@@ -41,7 +41,7 @@ ElfieNest 是地球上的那座回应站：它连接两个世界，也为一只�
 | 你想了解什么 | 从这里开始 |
 | --- | --- |
 | Elfaria、Elfie 与 ElfieNest 的关系 | [世界观与故事](/zh/story/) |
-| 如何建立自己的 Nest、配置并运行 Elfie | [开始使用](/zh/getting-started/) |
+| 如何建立自己的 Nest、配置并运行 Elfie | [用户指南](/zh/user-guide/) |
 | 系统如何分层、如何开发和验证 | [开发者文档](/zh/developer/) |
 
 底层代码、模块 README 与开发者文档共同描述当前系统；世界观页面负责讲述连接两个

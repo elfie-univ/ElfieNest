@@ -1,6 +1,6 @@
 # Elfie Brain 七阶段实施与体验验收计划
 
-> 状态：阶段一、阶段二、阶段三实现与机器/真实 Godot 验收完成；阶段四 4A、4B、4C 已完成验收并关闭为“连续生命状态 MVP”里程碑；阶段五 Persistent Activity MVP、阶段六恢复 Motivation MVP 与阶段七有界心智整理 MVP 已完成机器和 Lab 验收。当前已进入 P0 收口切片：Activity 已纳入有界 BrainContext 快照；Profile 物理字段迁移、Memory owner 兼容写入和统一持久化收口仍按 Conformance 台账保留为后续债务
+> 状态：七个阶段和 P0 收口切片均已完成实现与机器验证。Brain 十系统拥有独立快照契约，工作区提交前状态与幂等窗口已持久化，Energy 已实现普通预算、紧急储备和回合级结算；Memory 的既有编码、检索、遗忘、图扩散、巩固和自我叙事能力保持不变。最终产品体验验收以本计划固定场景和 Elfie Lab 为准；Profile 物理字段迁移等非 P0 项继续只在 Conformance 台账跟踪
 > 制定日期：2026-08-12
 > 依据：[Brain 十系统设计](./elfie-brain-ten-system-architecture.md)、
 > [Brain 内部架构契约](../zh/developer/contracts/brain.md)、

@@ -169,9 +169,9 @@ Brain 只依赖自身定义的强类型使用方 Port 和 Elfie 语义契约，�
 Infrastructure、Provider SDK、平台 Payload、设备传输、文件系统 Root 或数据库 Record。
 AI Runtime 实现留在 Brain 外部；Brain 拥有在 Run 中何时以及为什么调用它们。
 
-概念目标包名是 `workspace/`、`orientation/`、`selfhood/`、`emotion/`、`energy/`、
-`motivation/`、`memory/`、`reasoning/`、`activity/` 和 `consolidation/`。只有真实状态、
-契约或行为迁入时才创建对应包；概念规模较小时可以使用扁平文件，禁止架构形状的空目录。
+规范包名是 `workspace/`、`orientation/`、`selfhood/`、`emotion/`、`energy/`、
+`motivation/`、`memory/`、`reasoning/`、`activity/` 和 `consolidation/`。每个包必须拥有
+真实状态、契约或行为；禁止恢复同义根级扁平模块，也禁止只有架构形状的空目录。
 
 私有认知协调和上下文组装归 Brain。根 Elfie Facade 可以启动、停止和观察聚合，但不能
 拥有 Turn 状态、模型循环或心智状态。产品实现只能通过一致性台账记录、另行批准的垂直

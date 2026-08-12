@@ -23,12 +23,16 @@ validation live in `infrastructure/godot/artifacts/`:
 | Host kind | Display mode | Purpose |
 | --- | --- | --- |
 | `web_authority` | graphical | Exported Godot Web authority |
-| `electron_authority` | graphical | A separate Electron authority role for the exported Web authority |
+| `electron_authority` | graphical | Infrastructure authority selected by the Bootstrap-owned Electron host |
 | `linux_dedicated` | displayless | Linux x64 exported dedicated authority |
 
 `godot_project/` remains the editable source project. The Supervisor hosts an
 exported Runtime artifact; neither Python nor the Desktop UI reads Godot source
 assets as a Runtime dependency.
+
+`app/bootstrap/desktop_host/` is the Electron composition and packaging root.
+It dispatches the visible Desktop interface or the Infrastructure authority;
+`app/interfaces/desktop/` never imports or packages authority implementation.
 
 ## Owner leases and Desktop attachment
 
@@ -161,7 +165,7 @@ claim that an artifact is currently available.
 
 Developer Tools defaults to an independent root
 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`; the `elfie_lab/`, `nest_lab/` and
-`runtime_lab/` underneath must never fall back to reading the production root.
+`elfie_lab/` and `nest_lab/` underneath must never fall back to reading the production root.
 Tests should set both a temporary `ELFIE_HOME` and `ELFIE_DEV_HOME`.
 
 Old roots and schemas are rejected before the application writes anything.

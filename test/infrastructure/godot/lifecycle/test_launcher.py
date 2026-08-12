@@ -14,13 +14,13 @@ from infrastructure.godot.lifecycle import launcher
 
 def _source_electron(project_root: Path) -> tuple[Path, Path]:
     electron = project_root / "app/interfaces/desktop/node_modules/.bin/electron"
-    desktop_main = project_root / "build/components/desktop-interface/main.js"
+    host_main = project_root / "app/bootstrap/desktop_host/host_main.mjs"
     electron.parent.mkdir(parents=True)
     electron.write_text("electron", encoding="utf-8")
     electron.chmod(0o755)
-    desktop_main.parent.mkdir(parents=True)
-    desktop_main.write_text("main", encoding="utf-8")
-    return electron, desktop_main
+    host_main.parent.mkdir(parents=True)
+    host_main.write_text("main", encoding="utf-8")
+    return electron, host_main
 
 
 @pytest.mark.parametrize("platform_name", ["darwin", "win32"])
@@ -29,7 +29,7 @@ def test_graphical_source_platform_routes_to_hidden_electron_authority(
     platform_name: str,
 ) -> None:
     # Given: a graphical source checkout has the existing Electron host artifacts.
-    electron, desktop_main = _source_electron(tmp_path)
+    electron, host_main = _source_electron(tmp_path)
     request = launcher.AuthorityLaunchRequest(
         project_root=tmp_path,
         http_port=18100,
@@ -48,7 +48,7 @@ def test_graphical_source_platform_routes_to_hidden_electron_authority(
     assert plan.host_kind is launcher.RuntimeHostKind.ELECTRON_AUTHORITY
     assert plan.command == (
         str(electron.resolve()),
-        str(desktop_main.resolve()),
+        str(host_main.resolve()),
         "--elfienest-role=godot-authority",
     )
     environment = dict(plan.environment)

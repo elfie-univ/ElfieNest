@@ -11,8 +11,8 @@ from elfie.body.contracts import (
 )
 from elfie.body.native.anatomy.base import SomaticAnatomy, VoiceProfile
 from elfie.body.port import BodyPort
-from elfie.brain.perception_types import IngestReceipt
-from elfie.brain.workspace_ports import PerceptionSink
+from elfie.brain.workspace.contracts import IngestReceipt
+from elfie.brain.workspace.ports import PerceptionSink
 from elfie.message_types import ElfieId
 from elfie.nervous_system.actuators import (
     MotionActuator,

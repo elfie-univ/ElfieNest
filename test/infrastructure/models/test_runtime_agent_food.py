@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from elfie.brain.food_port import (
+from elfie.brain.reasoning.food_port import (
     FOOD_EMERGENCY_ID,
     FoodAssignment,
     FoodCatalog,

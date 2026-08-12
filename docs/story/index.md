@@ -57,5 +57,5 @@ You will first see how it perceives, responds and lives; as the system and the
 story move forward, more of Elfaria will gradually become visible.
 
 If you would rather build your own Earth station first, continue to
-[Getting started](/getting-started/); if you want to know how this station is
+[User Guide](/user-guide/); if you want to know how this station is
 built, head to the [Developer docs](/developer/).

@@ -3,7 +3,7 @@
 验证睡眠熔断、唤醒恢复、情绪-能量交互等设计目标。
 """
 
-from elfie.brain.energy.energy import HypothalamusEnergy
+from elfie.brain.energy.energy import EnergySystem
 
 # =============================================================================
 # 睡眠熔断测试
@@ -15,7 +15,7 @@ class TestHibernationFuse:
 
     def test_hibernation_trigger(self):
         """疲劳拉到95→is_sleeping应变为True"""
-        energy = HypothalamusEnergy()
+        energy = EnergySystem()
         energy.is_sleeping = False
         energy.fatigue = 95.0
 
@@ -28,7 +28,7 @@ class TestHibernationFuse:
 
     def test_hibernation_threshold_boundary(self):
         """疲劳恰好95.0→触发睡眠（边界值测试）"""
-        energy = HypothalamusEnergy()
+        energy = EnergySystem()
         energy.is_sleeping = False
         energy.fatigue = 95.0
 
@@ -47,7 +47,7 @@ class TestWakeupRecovery:
 
     def test_wakeup_when_fatigue_low(self):
         """睡眠中疲劳降到15以下→is_sleeping变为False"""
-        energy = HypothalamusEnergy()
+        energy = EnergySystem()
         energy.is_sleeping = True
         energy.fatigue = 20.0  # 初始略高于唤醒阈值 15.0
 
@@ -62,7 +62,7 @@ class TestWakeupRecovery:
 
     def test_sleep_recovers_energy_and_reduces_fatigue(self):
         """睡眠状态下update_clock→energy应增加，fatigue应减少"""
-        energy = HypothalamusEnergy()
+        energy = EnergySystem()
         energy.is_sleeping = True
         energy.energy = 50.0
         energy.fatigue = 50.0

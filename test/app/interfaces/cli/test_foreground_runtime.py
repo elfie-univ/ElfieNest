@@ -87,7 +87,7 @@ def _wire_supervisor(
         validated_commands.append(selected_command)
         return 8123
 
-    monkeypatch.setattr(lifecycle_commands, "default_service_command", build)
+    monkeypatch.setattr(LIFECYCLE, "default_service_command", build)
     monkeypatch.setattr(lifecycle_commands, "_validated_http_port", validate)
     monkeypatch.setattr(lifecycle_commands, "_supervisor_for", build_supervisor)
     monkeypatch.setattr(foreground_runtime.os, "getpid", lambda: 4242)

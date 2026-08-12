@@ -14,7 +14,7 @@ from elfie.body.contracts import (
     TactileImpact,
 )
 from elfie.body.port import BodyPort
-from elfie.brain.perception_types import (
+from elfie.brain.workspace.contracts import (
     ExecutionPayload,
     ExecutionStatus,
     PerceptionEvent,

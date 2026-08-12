@@ -20,65 +20,50 @@ def test_service_host_binds_loopback_unless_lan_is_explicit() -> None:
 
 
 def test_prepare_godot_web_runtime_uses_ensure_for_development() -> None:
-    # Given: a development launch and a successful exporter process.
-    commands: list[list[str]] = []
+    calls: list[tuple[str, bool]] = []
 
-    class Result:
-        returncode = 0
+    class Lifecycle:
+        def prepare_godot_web(self, mode: str, *, is_frozen: bool) -> bool:
+            calls.append((mode, is_frozen))
+            return True
 
-    def run(command: list[str]) -> Result:
-        commands.append(command)
-        return Result()
-
-    # When: preparation runs.
-    # Then: it requests an incremental ensure build.
-    assert prepare_godot_web_runtime("development", run) is True
-    assert commands[0][-1] == "--ensure"
+    assert prepare_godot_web_runtime(Lifecycle(), "development") is True
+    assert calls == [("development", False)]
 
 
-def test_prepare_frontend_web_runtime_only_builds_development(
-    monkeypatch,
-) -> None:
+def test_prepare_frontend_web_runtime_only_builds_development() -> None:
     modes: list[str] = []
-    monkeypatch.setattr(
-        "scripts.serve.ensure_frontend_build",
-        lambda *, runtime_mode: modes.append(runtime_mode),
-    )
 
-    prepare_frontend_web_runtime("development")
-    prepare_frontend_web_runtime("release")
+    class Lifecycle:
+        def prepare_frontend(self, runtime_mode: str) -> None:
+            modes.append(runtime_mode)
+
+    prepare_frontend_web_runtime(Lifecycle(), "development")
+    prepare_frontend_web_runtime(Lifecycle(), "release")
 
     assert modes == ["development"]
 
 
 def test_prepare_godot_web_runtime_checks_only_in_release() -> None:
-    # Given: a release launch with a missing staged bundle.
-    commands: list[list[str]] = []
+    calls: list[tuple[str, bool]] = []
 
-    class Result:
-        returncode = 1
+    class Lifecycle:
+        def prepare_godot_web(self, mode: str, *, is_frozen: bool) -> bool:
+            calls.append((mode, is_frozen))
+            return False
 
-    def run(command: list[str]) -> Result:
-        commands.append(command)
-        return Result()
-
-    # When: preparation runs.
-    # Then: it only validates the staged runtime and fails closed.
-    assert prepare_godot_web_runtime("release", run) is False
-    assert commands[0][-1] == "--check"
+    assert prepare_godot_web_runtime(Lifecycle(), "release") is False
+    assert calls == [("release", False)]
 
 
 def test_frozen_release_core_does_not_try_to_reexecute_the_godot_build_script() -> None:
-    # Given: an installed Core whose staged Godot resources have already passed package validation.
-    class Result:
-        returncode = 1
+    class Lifecycle:
+        def prepare_godot_web(self, mode: str, *, is_frozen: bool) -> bool:
+            assert mode == "release"
+            assert is_frozen is True
+            return True
 
-    def run(_command: list[str]) -> Result:
-        raise AssertionError("the frozen Core must not run build_godot_web.py")
-
-    # When: the installed release runtime starts.
-    # Then: it trusts the already-validated staged bundle instead of treating itself as Python.
-    assert prepare_godot_web_runtime("release", run, is_frozen=True) is True
+    assert prepare_godot_web_runtime(Lifecycle(), "release", is_frozen=True) is True
 
 
 def test_serve_parser_rejects_missing_data_home_value() -> None:

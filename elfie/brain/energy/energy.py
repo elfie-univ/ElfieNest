@@ -6,8 +6,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Literal
 
-from elfie.brain.context_types import HomeostasisSnapshot
+from elfie.brain.energy.contracts import (
+    CognitiveBudgetReservation,
+    EnergySnapshot,
+)
 from elfie.brain.state_lifecycle import StateRestoreError
+from elfie.message_types import TurnId
 
 logger = logging.getLogger("elfie.brain.energy")
 
@@ -36,9 +40,14 @@ class EnergyCheckpoint:
     energy: float
     fatigue: float
     sleeping: bool
+    emergency_reserve: float
 
 
-class HypothalamusEnergy:
+class CognitiveBudgetUnavailableError(RuntimeError):
+    """Raised when neither normal energy nor emergency reserve can admit a Turn."""
+
+
+class EnergySystem:
     """中层：下丘脑 (生理能量与生物钟作息控制)"""
 
     def __init__(
@@ -92,6 +101,14 @@ class HypothalamusEnergy:
         self.emergency_fatigue_threshold = float(
             cognitive.get("emergency_fatigue_threshold", 90.0)
         )
+        self.emergency_reserve_capacity = float(
+            cognitive.get("emergency_reserve_capacity", 10.0)
+        )
+        self.emergency_reserve_recovery_rate = float(
+            cognitive.get("emergency_reserve_recovery_rate_sleep_per_sec", 0.01)
+        )
+        self.emergency_reserve = self.emergency_reserve_capacity
+        self._cognitive_reservations: dict[TurnId, CognitiveBudgetReservation] = {}
 
     def update_clock(self, dt: float) -> None:
         """
@@ -130,6 +147,10 @@ class HypothalamusEnergy:
 
             self.energy = min(self.energy + rec_rate * dt, self.max_energy)
             self.fatigue = max(self.fatigue - dec_rate * dt, 0.0)
+            self.emergency_reserve = min(
+                self.emergency_reserve_capacity,
+                self.emergency_reserve + self.emergency_reserve_recovery_rate * dt,
+            )
 
             # 疲劳消退至足够低，恢复清醒
             if self.fatigue <= self.wakeup_threshold:
@@ -191,11 +212,11 @@ class HypothalamusEnergy:
     def get_fatigue(self) -> float:
         return self.fatigue
 
-    def snapshot(self, at: float) -> HomeostasisSnapshot:
+    def snapshot(self, at: float) -> EnergySnapshot:
         """Advance first, then seal immutable homeostasis state."""
         self.advance_to(at)
         mode, long_allowed, budget = self.cognitive_policy()
-        return HomeostasisSnapshot(
+        return EnergySnapshot(
             revision=self.revision,
             captured_at=datetime.fromtimestamp(at, timezone.utc),
             energy=self.energy,
@@ -204,7 +225,92 @@ class HypothalamusEnergy:
             cognitive_mode=mode,
             long_reasoning_allowed=long_allowed,
             available_cognitive_budget=budget,
+            normal_budget_available=self.activity_budget_available(),
+            emergency_reserve_available=self._emergency_reserve_available(),
+            reserved_cognitive_budget=self.reserved_cognitive_budget(),
         )
+
+    def reserve_cognitive_budget(
+        self,
+        turn_id: TurnId,
+    ) -> CognitiveBudgetReservation:
+        """Reserve a bounded allowance before one ReasoningRun is admitted."""
+        existing = self._cognitive_reservations.get(turn_id)
+        if existing is not None:
+            return existing
+        mode = self.cognitive_policy()[0]
+        requested = {
+            "emergency": 1.0,
+            "degraded": 2.0,
+            "normal": 5.0,
+            "long": 8.0,
+        }[mode]
+        if mode == "emergency":
+            available = self._emergency_reserve_available()
+            source: Literal["normal", "emergency_reserve"] = "emergency_reserve"
+        else:
+            available = self.activity_budget_available()
+            source = "normal"
+        granted = min(requested, available)
+        if granted <= 0.0:
+            raise CognitiveBudgetUnavailableError(
+                f"no {source} budget is available for {turn_id}"
+            )
+        self.revision += 1
+        reservation = CognitiveBudgetReservation(
+            turn_id=turn_id,
+            mode=mode,
+            source=source,
+            granted=granted,
+            owner_revision=self.revision,
+        )
+        self._cognitive_reservations[turn_id] = reservation
+        return reservation
+
+    def settle_cognitive_budget(
+        self,
+        turn_id: TurnId,
+        *,
+        consumed: float,
+    ) -> float:
+        """Charge actual bounded work once and release the unused reservation."""
+        reservation = self._cognitive_reservations.pop(turn_id, None)
+        if reservation is None:
+            return 0.0
+        charged = min(reservation.granted, max(0.0, float(consumed)))
+        if reservation.source == "emergency_reserve":
+            self.emergency_reserve = max(0.0, self.emergency_reserve - charged)
+        else:
+            self.energy = max(0.0, self.energy - charged)
+        self.revision += 1
+        return charged
+
+    def release_cognitive_budget(self, turn_id: TurnId) -> bool:
+        """Release a reservation when no cognitive work started."""
+        if self._cognitive_reservations.pop(turn_id, None) is None:
+            return False
+        self.revision += 1
+        return True
+
+    def activity_budget_available(self) -> float:
+        """Return normal allowance only; Activity can never spend the reserve."""
+        reserved = sum(
+            item.granted
+            for item in self._cognitive_reservations.values()
+            if item.source == "normal"
+        )
+        return max(0.0, self.energy - self.emergency_energy_threshold - reserved)
+
+    def reserved_cognitive_budget(self) -> float:
+        return sum(item.granted for item in self._cognitive_reservations.values())
+
+    def _emergency_reserve_available(self) -> float:
+        reserved = sum(
+            item.granted
+            for item in self._cognitive_reservations.values()
+            if item.source == "emergency_reserve"
+        )
+        return max(0.0, self.emergency_reserve - reserved)
 
     def cognitive_policy(
         self,
@@ -245,6 +351,7 @@ class HypothalamusEnergy:
             energy=self.energy,
             fatigue=self.fatigue,
             sleeping=self.is_sleeping,
+            emergency_reserve=self.emergency_reserve,
         )
 
     def validate_checkpoint(self, checkpoint: EnergyCheckpoint) -> None:
@@ -264,6 +371,8 @@ class HypothalamusEnergy:
             raise ValueError("energy checkpoint value out of range")
         if not 0.0 <= checkpoint.fatigue <= self.max_fatigue:
             raise ValueError("fatigue checkpoint value out of range")
+        if not 0.0 <= checkpoint.emergency_reserve <= self.emergency_reserve_capacity:
+            raise ValueError("energy emergency reserve out of range")
 
     def restore(self, checkpoint: EnergyCheckpoint) -> None:
         """Restore a committed homeostasis checkpoint without rewinding it."""
@@ -273,3 +382,5 @@ class HypothalamusEnergy:
         self.energy = checkpoint.energy
         self.fatigue = checkpoint.fatigue
         self.is_sleeping = checkpoint.sleeping
+        self.emergency_reserve = checkpoint.emergency_reserve
+        self._cognitive_reservations.clear()

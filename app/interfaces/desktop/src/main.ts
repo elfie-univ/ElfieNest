@@ -1,7 +1,6 @@
 import { app, BrowserWindow, Menu } from "electron";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 
 import {
   applicationMenuTemplate,
@@ -9,7 +8,6 @@ import {
 } from "./application_menu.js";
 import { DESKTOP_UI_INSTANCE_NAMESPACE, DesktopRoleController } from "./desktop_role_lifecycle.js";
 import { ManagedRuntimeLifecycleClient } from "./lifecycle_client.js";
-import { resolveElectronRole } from "./role_dispatch.js";
 import { createMainWindow, showStartupFailure } from "./windows/runtime_windows.js";
 
 let roleController: DesktopRoleController | undefined;
@@ -17,9 +15,8 @@ let explicitExitRequested = false;
 
 async function startDesktop(): Promise<void> {
   const uiUrl = process.env["ELFIENEST_UI_URL"] ?? "http://127.0.0.1:8000/login";
-  const lifecycleCommand = process.env["ELFIENEST_LIFECYCLE_COMMAND"] ?? "elfienest";
   roleController = new DesktopRoleController(
-    new ManagedRuntimeLifecycleClient(lifecycleCommand, `desktop-${randomUUID()}`),
+    new ManagedRuntimeLifecycleClient(`desktop-${randomUUID()}`),
   );
   const state = await roleController.start();
   if (state.kind === "failed") {
@@ -69,55 +66,28 @@ function startDesktopUiRole(): void {
     });
 }
 
-function startGodotAuthorityRole(): void {
-  const projectRoot =
-    process.env["ELFIENEST_PROJECT_ROOT"] ?? join(process.cwd(), "..", "..", "..");
-  const entry = app.isPackaged
-    ? join(
-        app.getAppPath(),
-        "infrastructure",
-        "godot",
-        "lifecycle",
-        "electron",
-        "authority_main.mjs",
-      )
-    : join(
-        projectRoot,
-        "infrastructure",
-        "godot",
-        "lifecycle",
-        "electron",
-        "authority_main.mjs",
-      );
-  void import(pathToFileURL(entry).href);
-}
+startDesktopUiRole();
 
-if (resolveElectronRole(process.argv) === "godot-authority") {
-  startGodotAuthorityRole();
-} else {
-  startDesktopUiRole();
+app.on("before-quit", (event) => {
+  if (!explicitExitRequested || roleController === undefined) {
+    return;
+  }
+  event.preventDefault();
+  explicitExitRequested = false;
+  void roleController.exitApplication().then(() => app.exit(0));
+});
 
-  app.on("before-quit", (event) => {
-    if (!explicitExitRequested || roleController === undefined) {
-      return;
-    }
-    event.preventDefault();
-    explicitExitRequested = false;
-    void roleController.exitApplication().then(() => app.exit(0));
-  });
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0 && roleController !== undefined) {
+    createMainWindow(process.env["ELFIENEST_UI_URL"] ?? "http://127.0.0.1:8000/login");
+  }
+});
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0 && roleController !== undefined) {
-      createMainWindow(process.env["ELFIENEST_UI_URL"] ?? "http://127.0.0.1:8000/login");
-    }
-  });
-
-  app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") {
-      app.quit();
-    }
-  });
-}
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
 
 export function requestExplicitApplicationExit(): void {
   explicitExitRequested = true;

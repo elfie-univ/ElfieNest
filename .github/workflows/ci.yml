@@ -60,7 +60,12 @@ jobs:
               --mode deny-all
           fi
 
-      - name: Reject governance and production source in one change
+      - name: Check candidate effective dependencies
+        run: |
+          uv run --no-sync python scripts/architecture/effective_dependency_scan.py \
+            --project-root .
+
+      - name: Reject governance and implementation files in one change
         run: |
           if git cat-file -e "$BASE_SHA:scripts/architecture/check_governance_change.py"; then
             classifier="$RUNNER_TEMP/base-check-governance-change.py"
@@ -116,6 +121,24 @@ jobs:
             exit 1
           else
             echo "Bootstrap system governance change: no base-branch scanner exists yet."
+          fi
+
+      - name: Apply immutable base-branch effective dependency gate
+        run: |
+          if git cat-file -e "$BASE_SHA:scripts/architecture/effective_dependency_scan.py"; then
+            scanner_root="$RUNNER_TEMP/effective-dependency-ratchet"
+            scanner_dir="$scanner_root/scripts/architecture"
+            mkdir -p "$scanner_dir"
+            for file in effective_dependency_python.py effective_dependency_scan.py effective_dependency_targets.py effective_dependency_text.py; do
+              git show "$BASE_SHA:scripts/architecture/$file" > "$scanner_dir/$file"
+            done
+            uv run --no-sync python "$scanner_dir/effective_dependency_scan.py" \
+              --project-root "$GITHUB_WORKSPACE"
+          elif git cat-file -e "$BASE_SHA:docs/developer/decisions/0012-effective-dependency-targets.md"; then
+            echo "Base branch has ADR-0012 but no effective dependency scanner." >&2
+            exit 1
+          else
+            echo "Bootstrap effective dependency governance: no base scanner exists yet."
           fi
 
   environment-smoke:

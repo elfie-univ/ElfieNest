@@ -13,7 +13,7 @@ from elfie.body.contracts import (
     VisionChange,
     VisionSample,
 )
-from elfie.brain.perception_types import (
+from elfie.brain.workspace.contracts import (
     PerceptionEvent,
     PerceptionMediaSample,
     PerceptionStateUpdate,

@@ -11,11 +11,13 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List
 
 from devtools.elfie_lab.runtime_foods import (
+    ElfieLabRuntime,
+    default_runtime_config_dir,
     load_runtime_food_catalog,
     runtime_food_catalog_store,
 )
-from elfie.brain.food_port import FoodPackage
-from elfie.brain.runtime_port import (
+from elfie.brain.reasoning.food_port import FoodPackage
+from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
@@ -25,9 +27,6 @@ from infrastructure.models.runtime_adapter import SerializedRuntimeAdapter
 from infrastructure.models.runtime_agent import RuntimeAgent
 from infrastructure.models.runtime_observations import get_runtime_observer
 from infrastructure.models.runtime_ports import RuntimeAgentPorts
-from infrastructure.persistence.configuration.secrets import resolve_secret
-from infrastructure.persistence.food_evidence import query_model_evidence
-from infrastructure.persistence.layout.data_home import get_elfie_developer_home
 from infrastructure.tools.execution.config import effective_tool_keys, load_tool_configs
 from infrastructure.tools.execution.loop import PortToolLoop
 from infrastructure.tools.execution.permissions import PermissionManager
@@ -244,8 +243,14 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
                                 ).isoformat(),
                                 "scope": {
                                     "external_domain": "communication",
+                                    "target_actor_id": "elfie-lab-owner",
                                     "channel_id": request.response_scope.channel_id,
                                     "conversation_id": request.response_scope.conversation_id,
+                                    "capability_revision": request.capability_revision,
+                                    "allowed_operations": ["send_message"],
+                                    "expires_at": datetime.fromtimestamp(
+                                        activity_deadline, timezone.utc
+                                    ).isoformat(),
                                 },
                                 "retry_limit": 1,
                             }
@@ -301,7 +306,7 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
         ]
     else:
         recovery_trigger = "internal:motivation" in request.user_prompt
-        offline_trigger = "internal:offline_cognition" in request.user_prompt
+        offline_trigger = "internal:consolidation" in request.user_prompt
         intents = [
             {
                 "type": "noop",
@@ -400,19 +405,17 @@ def create_runtime(
     if normalized == "mock":
         return TracingRuntimeAgent(MockRuntimeAgent(), "mock")
 
-    from devtools.runtime_lab import RuntimeLabConfigStore
-
-    store = RuntimeLabConfigStore(config_dir or default_runtime_config_dir())
-    config = store.load_runtime_config()
-    food_store = runtime_food_catalog_store(store)
-    catalog = load_runtime_food_catalog(store, food_store)
+    runtime = ElfieLabRuntime(config_dir or default_runtime_config_dir())
+    config = runtime.load_runtime_config()
+    food_store = runtime_food_catalog_store(runtime)
+    catalog = load_runtime_food_catalog(runtime, food_store)
     package = catalog.packages.get(normalized)
     if package is None:
         raise ValueError(f"Runtime 粮食目录中不存在粮食: {normalized}")
 
     agent = RuntimeAgent(
         config,
-        ports=_runtime_agent_ports(store),
+        ports=_runtime_agent_ports(runtime),
         food_catalog_repository=food_store,
     )
     brain_tool_port = ToolPortAdapter.from_runtime_config(
@@ -430,9 +433,12 @@ def create_runtime(
     return TracingRuntimeAgent(food_agent, normalized)
 
 
-def _runtime_agent_ports(store: Any) -> RuntimeAgentPorts:
+def _runtime_agent_ports(runtime: ElfieLabRuntime) -> RuntimeAgentPorts:
     observer = get_runtime_observer()
-    tool_config_loader = partial(load_tool_configs, secret_resolver=resolve_secret)
+    tool_config_loader = partial(
+        load_tool_configs,
+        secret_resolver=runtime.resolve_secret,
+    )
 
     def build_permission_manager(
         config: Any, observation_port: Any
@@ -450,31 +456,27 @@ def _runtime_agent_ports(store: Any) -> RuntimeAgentPorts:
 
     return RuntimeAgentPorts(
         observer=observer,
-        config_paths=lambda: (store.config_path, store.env_path),
+        config_paths=runtime.config_paths,
         search_factory=partial(
             WebSearchPlugin.from_runtime_policy,
-            secret_resolver=resolve_secret,
+            secret_resolver=runtime.resolve_secret,
         ),
         permission_factory=build_permission_manager,
         tool_config_loader=tool_config_loader,
         effective_tool_keys=partial(
-            effective_tool_keys, secret_resolver=resolve_secret
+            effective_tool_keys,
+            secret_resolver=runtime.resolve_secret,
         ),
         file_access_factory=build_file_access,
-        model_evidence_source=query_model_evidence,
+        model_evidence_source=runtime.model_evidence,
         tool_loop_factory=lambda tool_port, allowed, scope: PortToolLoop(
             tool_port,
             allowed_tool_keys=allowed,
             scope_id=scope,
         ),
         prompt_injector=inject_skills_system_prompt,
-        runtime_config_loader=store.load_runtime_config,
+        runtime_config_loader=runtime.load_runtime_config,
     )
-
-
-def default_runtime_config_dir() -> str:
-    """返回 Elfie Lab 专属的开发 Runtime Lab 根目录。"""
-    return str(get_elfie_developer_home() / "runtime_lab")
 
 
 def _provider_from_model(model_ref: str) -> str:

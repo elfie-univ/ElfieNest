@@ -4,13 +4,13 @@ from threading import Event, Thread
 
 from elfie.body import HeadlessBody
 from elfie.body.contracts import BodyCommand
-from elfie.brain.decision_types import MotionIntent, SpeechIntent
-from elfie.brain.output_types import IntentExecutionResult
-from elfie.brain.perception_types import ExecutionStatus
+from elfie.brain.reasoning.decision_types import MotionIntent, SpeechIntent
+from elfie.brain.reasoning.execution_types import IntentExecutionResult
+from elfie.brain.workspace.contracts import ExecutionStatus
 from elfie.message_types import IntentId
 from elfie.nervous_system import NervousSystem
 from elfie.nervous_system.output_executor import NervousSystemIntentExecutor
-from test.elfie.brain.test_output_router import NOW, _base, _plan
+from test.elfie.brain.reasoning.test_output_router import NOW, _base, _plan
 
 
 def test_physical_executor_builds_correlated_typed_body_commands() -> None:

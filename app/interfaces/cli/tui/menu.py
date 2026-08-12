@@ -22,7 +22,7 @@ class TerminalMenuPort(Protocol):
         title: str,
         items: Sequence[MenuItem],
         *,
-        breadcrumb: str = "Runtime Lab",
+        breadcrumb: str = "ElfieNest",
         back_label: str = "Back",
     ) -> str | None: ...
 

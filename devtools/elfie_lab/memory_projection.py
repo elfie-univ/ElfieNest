@@ -55,7 +55,7 @@ class ProjectionStorage(Protocol):
 class ProjectionMemory(Protocol):
     storage: ProjectionStorage
 
-    def get_core_cognition(self) -> Dict[str, str]: ...
+    def get_self_narrative(self) -> Dict[str, str]: ...
 
 
 def build_memory_cognition(
@@ -69,7 +69,7 @@ def build_memory_cognition(
         *_nodes(memory.storage, "knowledge"),
         *_nodes(memory.storage, "pattern"),
     ]
-    world_understanding = str(memory.get_core_cognition().get("world", ""))
+    world_understanding = str(memory.get_self_narrative().get("world", ""))
     relation_nodes, relation_links = _relation_graph(
         memory.storage, entities, elfie_name
     )

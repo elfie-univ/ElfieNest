@@ -16,28 +16,26 @@ from typing import Iterable
 from elfie.body import BodyBinding, BodyRegistry
 from elfie.body.contracts import BodySensorEvent
 from elfie.body.port import BodyPort
-from elfie.brain.activity import ActivityStorePort
-from elfie.brain.context_types import (
-    MotivationSnapshot,
-    OrientationSnapshot,
-    ProfileAnchorSnapshot,
-    SelfhoodSnapshot,
-)
+from elfie.brain.activity.system import ActivityStorePort
 from elfie.brain.continuity import BrainContinuityCheckpoint
-from elfie.brain.decision_types import TurnDecision
 from elfie.brain.emotion.emotion_system import EmotionSystem
-from elfie.brain.energy.energy import HypothalamusEnergy
+from elfie.brain.energy.energy import EnergySystem
+from elfie.brain.journal import BrainJournalEntry, BrainJournalPort
 from elfie.brain.memory.memory_system import MemorySystem
-from elfie.brain.output_types import ExecutionReceipt
-from elfie.brain.perception_types import IngestReceipt
-from elfie.brain.perceptual_workspace import PerceptualWorkspace
-from elfie.brain.reasoning import ReasoningRunResult
+from elfie.brain.motivation.contracts import MotivationSnapshot
+from elfie.brain.orientation.contracts import OrientationSnapshot
+from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
+from elfie.brain.reasoning.decision_types import TurnDecision
+from elfie.brain.reasoning.execution_types import ExecutionReceipt
+from elfie.brain.reasoning.model_port import ModelPort
+from elfie.brain.reasoning.run import ReasoningRunResult
+from elfie.brain.reasoning.skills import SkillManager
+from elfie.brain.reasoning.tool_port import ToolPort
+from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.brain.runtime import BrainRuntime
-from elfie.brain.runtime_port import ModelPort
-from elfie.brain.selfhood import SelfhoodSystem
-from elfie.brain.skills import SkillManager
-from elfie.brain.tool_port import ToolPort
-from elfie.brain.turn_outcome import TurnOutcome
+from elfie.brain.selfhood.system import SelfhoodSystem
+from elfie.brain.workspace.contracts import IngestReceipt
+from elfie.brain.workspace.system import EventWorkspace
 from elfie.brain_wiring import assemble_brain_runtime
 from elfie.communication import CommunicationEnvelope, CommunicationHub
 from elfie.communication.contracts import InboundDisposition, InboundDispositionStatus
@@ -52,18 +50,19 @@ from elfie.profile import ElfieProfile
 class _ElfieFacadeState:
     """Typed state surface supplied by ``Elfie`` to the operation mixin."""
 
-    character_profile: ElfieProfile
-    hypothalamus: HypothalamusEnergy
-    selfhood: SelfhoodSystem
-    amygdala: EmotionSystem
-    memory: MemorySystem
-    activity_store: ActivityStorePort
-    perceptual_workspace: PerceptualWorkspace
-    nervous_system: NervousSystem
-    body_registry: BodyRegistry
-    body_binding: BodyBinding
-    communication: CommunicationHub
-    skills: SkillManager
+    _profile: ElfieProfile
+    _energy: EnergySystem
+    _selfhood: SelfhoodSystem
+    _emotion: EmotionSystem
+    _memory: MemorySystem
+    _activity_store: ActivityStorePort
+    _journal_store: BrainJournalPort
+    _workspace: EventWorkspace
+    _nervous_system: NervousSystem
+    _body_registry: BodyRegistry
+    _body_binding: BodyBinding
+    _communication: CommunicationHub
+    _skills: SkillManager
     _brain_runtime: BrainRuntime | None
     _clock_lock: Lock
     _elapsed_time: float
@@ -98,50 +97,53 @@ class ElfieFacadeOperations(_ElfieFacadeState):
                 "cannot change Elfie identity after cognition assembly"
             )
         identity_changed = self.identity.elfie_id != elfie_id
-        self.memory.bind_elfie_identity(elfie_id)
+        self._memory.bind_elfie_identity(elfie_id)
         if identity_changed:
-            self.character_profile = replace(
-                self.character_profile,
+            self._profile = replace(
+                self._profile,
                 identity=replace(self.identity, elfie_id=elfie_id),
             )
             self._reassemble_perception_identity(ElfieId(elfie_id))
-        self.communication.bind_identity(elfie_id)
+        self._communication.bind_identity(elfie_id)
 
     def _reassemble_perception_identity(self, elfie_id: ElfieId) -> None:
         """Rebuild empty pre-cognition producers under the final identity."""
-        self.perceptual_workspace = PerceptualWorkspace(elfie_id)
-        self.nervous_system = NervousSystem(
-            self.character_profile.capabilities,
-            perception_sink=self.perceptual_workspace,
+        self._workspace = EventWorkspace(
+            elfie_id,
+            persistence=self._journal_store,
+        )
+        self._nervous_system = NervousSystem(
+            self._profile.capabilities,
+            perception_sink=self._workspace,
             elfie_id=elfie_id,
             body_port=self.current_body,
             body_generation=self.current_body_generation,
         )
-        self.nervous_system.bind_body_port(
+        self._nervous_system.bind_body_port(
             self.current_body,
             body_generation=self.current_body_generation,
         )
-        if self.communication.perception_adapter is not None:
-            self.communication.bind_perception_adapter(
-                CommunicationPerceptionAdapter(self.perceptual_workspace)
+        if self._communication.perception_adapter is not None:
+            self._communication.bind_perception_adapter(
+                CommunicationPerceptionAdapter(self._workspace)
             )
 
     def register_body(self, body: BodyPort, *, make_current: bool = False) -> None:
-        self.body_binding.register(body)
+        self._body_binding.register(body)
         if make_current:
             self.bind_body(body.body_id)
 
     def bind_body(self, body_id: str) -> BodyPort:
-        current = self.body_binding.bind(body_id)
-        self.nervous_system.bind_body_port(
+        current = self._body_binding.bind(body_id)
+        self._nervous_system.bind_body_port(
             current,
-            body_generation=self.body_binding.current_generation,
+            body_generation=self._body_binding.current_generation,
         )
         return current
 
     def unbind_body(self) -> BodyPort | None:
-        previous = self.body_binding.unbind()
-        self.nervous_system.bind_body_port(None, body_generation=None)
+        previous = self._body_binding.unbind()
+        self._nervous_system.bind_body_port(None, body_generation=None)
         return previous
 
     def register_communication_channel(
@@ -151,7 +153,7 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         connect: bool = False,
         replace: bool = False,
     ) -> RegisteredChannel:
-        return self.communication.register_channel(
+        return self._communication.register_channel(
             channel,
             connect=connect,
             replace=replace,
@@ -175,30 +177,38 @@ class ElfieFacadeOperations(_ElfieFacadeState):
 
         self._brain_runtime = assemble_brain_runtime(
             elfie_id=ElfieId(self.identity.elfie_id),
-            workspace=self.perceptual_workspace,
-            memory=self.memory,
-            emotion=self.amygdala,
-            homeostasis=self.hypothalamus,
-            selfhood=self.selfhood,
+            workspace=self._workspace,
+            memory=self._memory,
+            emotion=self._emotion,
+            homeostasis=self._energy,
+            selfhood=self._selfhood,
             profile_anchors=self._profile_anchor_snapshot(clock()),
-            nervous_system=self.nervous_system,
-            communication=self.communication,
-            skills=self.skills,
+            nervous_system=self._nervous_system,
+            communication=self._communication,
+            skills=self._skills,
             current_body=lambda: self.current_body,
             current_body_generation=lambda: self.current_body_generation,
             clock=clock,
             model_port=model_port,
             tool_port=tool_port,
-            activity_store=self.activity_store,
+            activity_store=self._activity_store,
+            journal_store=self._journal_store,
+            restore_clock=self._restore_cognitive_clock,
         )
+
+    def _restore_cognitive_clock(self, captured_at: datetime) -> None:
+        """Advance, never rewind, the facade clock before state restoration."""
+        restored = captured_at.timestamp()
+        with self._clock_lock:
+            self._elapsed_time = max(self._elapsed_time, restored)
 
     def start(self) -> None:
         self._require_brain_runtime().start()
 
     def stop(self) -> None:
         if self._brain_runtime is not None:
-            self.communication.close()
-            self.nervous_system.close_perception()
+            self._communication.close()
+            self._nervous_system.close_perception()
             self._brain_runtime.stop()
 
     def join(self) -> None:
@@ -226,15 +236,15 @@ class ElfieFacadeOperations(_ElfieFacadeState):
                 for event in body.read_sensor_events()
             ]
         events.extend(additional_events)
-        previous_urgent_revision = self.nervous_system.urgent_revision
-        receipts = self.nervous_system.receive_body_events(events)
-        retries = self.nervous_system.retry_pending()
-        communication_retries = self.communication.retry_perception()
+        previous_urgent_revision = self._nervous_system.urgent_revision
+        receipts = self._nervous_system.receive_body_events(events)
+        retries = self._nervous_system.retry_pending()
+        communication_retries = self._communication.retry_perception()
         if events or retries or communication_retries:
             self._require_brain_runtime().notify_perception(
                 urgent_reason=(
                     "body_reflex"
-                    if self.nervous_system.urgent_revision > previous_urgent_revision
+                    if self._nervous_system.urgent_revision > previous_urgent_revision
                     else None
                 )
             )
@@ -244,7 +254,7 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         self,
         envelope: CommunicationEnvelope,
     ) -> InboundDisposition:
-        disposition = self.communication.receive_envelope(envelope)
+        disposition = self._communication.receive_envelope(envelope)
         if disposition.status is InboundDispositionStatus.ACCEPTED:
             self._require_brain_runtime().notify_perception()
         return disposition
@@ -271,6 +281,20 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         """Return committed cross-Turn work for Observer/Lab projections."""
         return self._require_brain_runtime().activities()
 
+    def close_resources(self) -> None:
+        """Release durable stores owned by this Elfie after its runtime stops."""
+        for resource in (self._journal_store, self._activity_store, self._memory):
+            close = getattr(resource, "close", None)
+            if callable(close):
+                close()
+
+    def brain_journal(self) -> tuple[BrainJournalEntry, ...]:
+        """Return causal facts without exposing the mutable journal store."""
+        runtime = self._brain_runtime
+        if runtime is not None:
+            return runtime.journal_entries()
+        return self._journal_store.entries()
+
     def orientation_snapshot(self) -> OrientationSnapshot:
         """Return the latest committed self/world orientation snapshot."""
         return self._require_brain_runtime().orientation_snapshot()
@@ -281,7 +305,7 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         return (
             runtime.selfhood_snapshot()
             if runtime is not None
-            else self.selfhood.snapshot()
+            else self._selfhood.snapshot()
         )
 
     def profile_anchor_snapshot(self) -> ProfileAnchorSnapshot:
@@ -302,16 +326,18 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             )
         return runtime.motivation_snapshot()
 
-    def offline_cognition_snapshot(self):
+    def consolidation_snapshot(self):
         """Expose bounded quiet-window memory整理 state for Lab/Observer reads."""
         runtime = self._brain_runtime
         if runtime is None:
-            from elfie.brain.context_types import OfflineCognitionSnapshot
+            from elfie.brain.consolidation.contracts import (
+                CognitiveConsolidationSnapshot,
+            )
 
-            return OfflineCognitionSnapshot.unknown().model_copy(
+            return CognitiveConsolidationSnapshot.unknown().model_copy(
                 update={"captured_at": self.cognitive_datetime}
             )
-        return runtime.offline_cognition_snapshot()
+        return runtime.consolidation_snapshot()
 
     def continuity_checkpoint(self) -> BrainContinuityCheckpoint:
         """Capture continuous Emotion/Energy/Memory state for restart tests."""
@@ -322,7 +348,7 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         self._require_brain_runtime().restore_continuity(checkpoint)
 
     def _profile_anchor_snapshot(self, captured_at: datetime) -> ProfileAnchorSnapshot:
-        profile = self.character_profile
+        profile = self._profile
         return ProfileAnchorSnapshot(
             revision=profile.schema_version,
             captured_at=captured_at,

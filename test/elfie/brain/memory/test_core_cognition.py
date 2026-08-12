@@ -8,7 +8,7 @@
 - 注入的语义存储生命周期
 """
 
-from elfie.brain.memory.core_cognition import CoreCognition
+from elfie.brain.memory.self_narrative import MemorySelfNarrativeProjection
 from elfie.profile import load_packaged_profile_defaults
 from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
@@ -19,9 +19,9 @@ from test.elfie.brain.memory.fake_store import FakeMemoryStore
 _PERSONALITY_DATA = load_packaged_profile_defaults()["personality"]
 
 
-def _make_cc() -> CoreCognition:
-    """创建一个不依赖技术持久化的 CoreCognition 测试实例。"""
-    return CoreCognition(
+def _make_cc() -> MemorySelfNarrativeProjection:
+    """创建一个不依赖技术持久化的 MemorySelfNarrativeProjection 测试实例。"""
+    return MemorySelfNarrativeProjection(
         storage=FakeMemoryStore.in_memory(),
         personality_data=_PERSONALITY_DATA,
     )
@@ -32,12 +32,12 @@ def _make_cc() -> CoreCognition:
 # ---------------------------------------------------------------------------
 
 
-class TestCoreCognition:
+class TestMemorySelfNarrativeProjection:
     """核心认知初始化与持久化测试"""
 
     def test_initialize_from_personality(self):
         """从yaml初始化，4段核心认知全部生成"""
-        cc = CoreCognition(
+        cc = MemorySelfNarrativeProjection(
             storage=FakeMemoryStore.in_memory(),
             personality_data=None,
         )
@@ -50,7 +50,7 @@ class TestCoreCognition:
 
         core_text = cc.get_core_text()
         assert len(core_text) == 4
-        for key in CoreCognition.CORE_KEYS:
+        for key in MemorySelfNarrativeProjection.CORE_KEYS:
             assert key in core_text
             # 每段至少包含一个有意义的句子
             assert len(core_text[key]) >= 10, (
@@ -135,19 +135,22 @@ class TestCoreCognition:
         cc = _make_cc()
 
         # 执行 FULL_REWRITE_INTERVAL 次 update
-        for i in range(CoreCognition.FULL_REWRITE_INTERVAL):
+        for i in range(MemorySelfNarrativeProjection.FULL_REWRITE_INTERVAL):
             cc.update(consolidation_results={"tick": i})
 
-        assert cc._update_count == CoreCognition.FULL_REWRITE_INTERVAL
+        assert cc._update_count == MemorySelfNarrativeProjection.FULL_REWRITE_INTERVAL
 
         # 全量重写后，metadata 应包含 rewritten_at
         node = cc.storage.get_node("core_identity")
         assert node is not None
         meta = node.metadata
         assert "rewritten_at" in meta, (
-            f"第{CoreCognition.FULL_REWRITE_INTERVAL}次update应触发全量重写"
+            f"第{MemorySelfNarrativeProjection.FULL_REWRITE_INTERVAL}次update应触发全量重写"
         )
-        assert meta.get("rewrite_count") == CoreCognition.FULL_REWRITE_INTERVAL
+        assert (
+            meta.get("rewrite_count")
+            == MemorySelfNarrativeProjection.FULL_REWRITE_INTERVAL
+        )
 
         # 所有core节点都应包含 rewrite 标记
         for node in cc.storage.get_nodes_by_type("core"):
@@ -244,7 +247,7 @@ class TestCoreCognition:
 
         # 回滚后，核心认知应恢复到重写前的状态
         assert cc._update_count == 7
-        for key in CoreCognition.CORE_KEYS:
+        for key in MemorySelfNarrativeProjection.CORE_KEYS:
             assert cc._core_text[key] == text_before_rewrite[key], (
                 f"回滚后{key}段应与重写前一致"
             )

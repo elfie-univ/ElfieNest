@@ -8,7 +8,7 @@ from app.features.configuration.food import (
     StoredFoodPackage,
     StoredModelEvidence,
 )
-from elfie.brain.food_port import (
+from elfie.brain.reasoning.food_port import (
     FOOD_COMMON_ID,
     FOOD_EMERGENCY_ID,
     NoAvailableFoodError,

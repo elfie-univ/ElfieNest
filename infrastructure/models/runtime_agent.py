@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
 import logging
 from time import perf_counter
 from typing import Any, Callable, Dict, List, cast
 
 from pydantic import JsonValue
 
-from elfie.brain.food_port import (
+from elfie.brain.reasoning.food_port import (
     FOOD_COMMON_ID,
     FOOD_EMERGENCY_ID,
     FoodCatalog,
@@ -17,7 +18,7 @@ from elfie.brain.food_port import (
     is_food_executable,
     resolve_main_food,
 )
-from elfie.brain.tool_port import ToolKey, ToolPort, ToolRequest, ToolResult
+from elfie.brain.reasoning.tool_port import ToolKey, ToolPort, ToolRequest, ToolResult
 from elfie.message_types import ErrorInfo
 from infrastructure.models.food_execution import (
     FoodExecutionError,
@@ -235,7 +236,7 @@ class RuntimeAgent:
             model_key=assignment.model,
             supports_json_schema=native,
             supports_tool_calling=native,
-            supports_json_mode=native or is_ollama,
+            supports_json_mode=native or is_ollama or api_mode == "chat_completions",
             supports_plain_text=True,
             max_output_tokens=4096,
         )
@@ -281,7 +282,7 @@ class RuntimeAgent:
             try:
                 execution = executor.execute(
                     package,
-                    messages,
+                    self._structured_messages(request, selected_mode, messages),
                     semantic_role="primary",
                     allowed_tools=tuple(request.allowed_tools),
                     scope_id=request.scope_id,
@@ -297,6 +298,30 @@ class RuntimeAgent:
                 latency_ms=(perf_counter() - started) * 1000.0,
             )
         raise NoAvailableFoodError("no_available_food: " + " | ".join(failures))
+
+    @staticmethod
+    def _structured_messages(
+        request: StructuredRuntimeRequest,
+        selected_mode: StructuredGenerationMode,
+        messages: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Add a host-owned schema instruction when the provider lacks native schema."""
+        copied = [dict(message) for message in messages]
+        if selected_mode is not StructuredGenerationMode.JSON_TEXT:
+            return copied
+        instruction = (
+            "Return only one JSON value. Do not use Markdown or explanatory text. "
+            f"The value must validate against this {request.response_schema_name} "
+            "JSON Schema:\n"
+            + json.dumps(
+                request.response_schema, ensure_ascii=False, separators=(",", ":")
+            )
+        )
+        if copied and copied[0].get("role") == "system":
+            copied[0]["content"] = f"{copied[0].get('content', '')}\n\n{instruction}"
+        else:
+            copied.insert(0, {"role": "system", "content": instruction})
+        return copied
 
     @staticmethod
     def _provider_for_model(model_key: str) -> str:

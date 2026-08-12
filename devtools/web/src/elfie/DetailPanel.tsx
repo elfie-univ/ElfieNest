@@ -33,7 +33,7 @@ function List({ values, diff = false }: Readonly<{ values: Readonly<Record<strin
 function snapshot(value: unknown): Record<string, unknown> {
   const state = record(value);
   const dominant = typeof state.dominant_emotion === "string" ? state.dominant_emotion : "";
-  return { "能量": state.energy, "疲劳": state.fatigue, "睡眠": state.is_sleeping === true ? "是" : "否", "主导情绪": emotionLabels[dominant] ?? dominant, "注意力": state.attention_network, "动作意图": state.action_intent, "恢复驱力": state.motivation, "离线整理": state.offline_cognition, "记忆数": state.memory_count, "活动数": state.activity_count, "活动": state.activities, "情绪全景": state.emotions };
+  return { "能量": state.energy, "疲劳": state.fatigue, "睡眠": state.is_sleeping === true ? "是" : "否", "认知模式": state.cognitive_mode, "普通认知配额": state.normal_budget_available, "紧急储备": state.emergency_reserve_available, "已预留认知配额": state.reserved_cognitive_budget, "主导情绪": emotionLabels[dominant] ?? dominant, "注意力": state.attention_network, "自我定位": state.orientation, "自我认知": state.selfhood, "Profile 锚点": state.profile_anchor, "动作意图": state.action_intent, "恢复驱力": state.motivation, "心智整理": state.cognitive_consolidation, "认知日志": state.journal, "记忆数": state.memory_count, "活动数": state.activity_count, "活动": state.activities, "情绪全景": state.emotions };
 }
 
 function difference(value: unknown, prefix = ""): Record<string, unknown> {

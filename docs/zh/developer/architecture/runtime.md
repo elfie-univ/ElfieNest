@@ -19,11 +19,14 @@ endpoint 作为第四组件被探测：其不可用会使 Runtime 处于 `degrad
 | 宿主类型 | 显示模式 | 用途 |
 | --- | --- | --- |
 | `web_authority` | 图形化 | 已导出的 Godot Web 权威 |
-| `electron_authority` | 图形化 | 用于已导出 Web 权威的独立 Electron 权威角色 |
+| `electron_authority` | 图形化 | 由 Bootstrap Electron 宿主选择的 Infrastructure 权威 |
 | `linux_dedicated` | 无显示 | Linux x64 已导出的 Dedicated 权威 |
 
 `godot_project/` 仍是可编辑的源工程。Supervisor 承载的是已导出的 Runtime 产物；
 Python 与 Desktop UI 都不会把 Godot 源资产当作 Runtime 依赖读取。
+
+`app/bootstrap/desktop_host/` 是 Electron 组合与打包根，负责分发可见 Desktop
+interface 或 Infrastructure 权威；`app/interfaces/desktop/` 不导入或打包权威实现。
 
 ## Owner lease 与 Desktop 挂接
 
@@ -131,7 +134,7 @@ ${ELFIE_HOME:-~/.elfienest}/
 ## 开发边界
 
 Developer Tools 默认使用独立根 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，其下的
-`elfie_lab/`、`nest_lab/`、`runtime_lab/` 不得回退读取生产根。测试应同时设置临时
+`elfie_lab/`、`nest_lab/` 不得回退读取生产根。测试应同时设置临时
 `ELFIE_HOME` 与 `ELFIE_DEV_HOME`。
 
 应用在产生写入前就会拒绝旧数据根和旧 schema。请先备份，再重建所选数据根；不提供

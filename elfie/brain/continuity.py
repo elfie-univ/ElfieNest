@@ -1,15 +1,17 @@
-"""Checkpoint contract for the continuous Emotion/Energy/Memory state."""
+"""Checkpoint contract for Brain's continuous state owners."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
 
-from elfie.brain.context_types import MemoryStateSnapshot
+from elfie.brain.consolidation.system import CognitiveConsolidationCheckpoint
 from elfie.brain.emotion.emotion_system import EmotionCheckpoint
 from elfie.brain.energy.energy import EnergyCheckpoint
-from elfie.brain.motivation import MotivationCheckpoint
-from elfie.brain.offline_cognition import OfflineCognitionCheckpoint
+from elfie.brain.memory.contracts import MemoryStateSnapshot
+from elfie.brain.motivation.system import MotivationCheckpoint
+from elfie.brain.orientation.contracts import OrientationSnapshot
+from elfie.brain.selfhood.contracts import SelfhoodSnapshot
 from elfie.brain.state_lifecycle import StateCheckpoint
 
 
@@ -25,8 +27,10 @@ class BrainContinuityCheckpoint:
     emotion: EmotionCheckpoint
     energy: EnergyCheckpoint
     memory: StateCheckpoint[MemoryStateSnapshot]
+    orientation: StateCheckpoint[OrientationSnapshot]
+    selfhood: StateCheckpoint[SelfhoodSnapshot]
     motivation: MotivationCheckpoint
-    offline_cognition: OfflineCognitionCheckpoint
+    consolidation: CognitiveConsolidationCheckpoint
 
 
 __all__ = ("BrainContinuityCheckpoint",)

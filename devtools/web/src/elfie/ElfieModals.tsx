@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { BigFive, ElfieSession } from "./contracts";
+import type { BigFive, ElfieSession, FoodConfiguration } from "./contracts";
 import { createSubmissionGate, creationAgeError } from "./viewModel";
 
 export type Creation = Readonly<{
@@ -14,10 +14,14 @@ export type Creation = Readonly<{
 
 type Props = Readonly<{
   readonly createOpen: boolean;
+  readonly configurationOpen: boolean;
+  readonly localModels: readonly string[];
   readonly deleteTarget: ElfieSession | null;
   readonly personalityTarget: ElfieSession | null;
   readonly onCreateClose: () => void;
   readonly onCreate: (creation: Creation) => Promise<boolean>;
+  readonly onConfigurationClose: () => void;
+  readonly onConfigureFood: (configuration: FoodConfiguration) => Promise<boolean>;
   readonly onDeleteClose: () => void;
   readonly onDelete: () => void;
   readonly onPersonalityClose: () => void;
@@ -40,10 +44,21 @@ const traits: readonly [keyof BigFive, string][] = [
   ["neuroticism", "敏感性"],
 ];
 
+const initialFoodConfiguration: FoodConfiguration = {
+  mode: "local",
+  model: "",
+  api_base: "",
+  api_key: "",
+  alias: "",
+};
+
 export function ElfieModals(props: Props): React.JSX.Element {
   const [creation, setCreation] = useState<Creation>(initial);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
+  const [foodConfiguration, setFoodConfiguration] = useState<FoodConfiguration>(initialFoodConfiguration);
+  const [configuringFood, setConfiguringFood] = useState(false);
+  const [configurationError, setConfigurationError] = useState("");
   const creationGate = useRef(createSubmissionGate());
   const [values, setValues] = useState<BigFive>({
     openness: 0.5,
@@ -59,6 +74,12 @@ export function ElfieModals(props: Props): React.JSX.Element {
     setCreateError("");
     creationGate.current.leave();
   }, [props.createOpen]);
+  useEffect(() => {
+    if (!props.configurationOpen) return;
+    setFoodConfiguration({ ...initialFoodConfiguration, model: props.localModels[0] ?? "" });
+    setConfiguringFood(false);
+    setConfigurationError("");
+  }, [props.configurationOpen, props.localModels]);
   useEffect(() => {
     if (props.personalityTarget !== null) {
       setValues(props.personalityTarget.profile.big_five);
@@ -89,7 +110,67 @@ export function ElfieModals(props: Props): React.JSX.Element {
     }
   }
 
+  function setFoodConfigurationValue(name: keyof FoodConfiguration, value: string): void {
+    setFoodConfiguration((current) => ({ ...current, [name]: value }));
+  }
+
+  async function submitFoodConfiguration(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!foodConfiguration.model.trim()) {
+      setConfigurationError("请选择或填写模型");
+      return;
+    }
+    setConfiguringFood(true);
+    setConfigurationError("");
+    try {
+      const configuration: FoodConfiguration = {
+        mode: foodConfiguration.mode,
+        model: foodConfiguration.model.trim(),
+        ...(foodConfiguration.mode === "openai" ? {
+          api_base: foodConfiguration.api_base?.trim() ?? "",
+          api_key: foodConfiguration.api_key ?? "",
+          alias: foodConfiguration.alias?.trim() ?? "",
+        } : {}),
+      };
+      const saved = await props.onConfigureFood(configuration);
+      if (!saved) setConfigurationError("保存失败，请查看页面提示后重试");
+    } finally {
+      setConfiguringFood(false);
+    }
+  }
+
   return <>
+    {props.configurationOpen && <div className="modal-backdrop">
+      <form aria-label="配置测试粮食" className="modal configuration-modal" onSubmit={(event) => { void submitFoodConfiguration(event); }} role="dialog">
+        <div className="modal-heading">
+          <div><p className="eyebrow">Elfie Lab</p><h2>配置测试粮食</h2></div>
+          <button aria-label="关闭" disabled={configuringFood} onClick={props.onConfigurationClose} type="button">×</button>
+        </div>
+        <p className="modal-intro">这里只保存连接配置，不提前做模型验证。第一次真实对话时会直接尝试调用。</p>
+        <label>模型来源
+          <select onChange={(event) => setFoodConfiguration((current) => ({ ...current, mode: event.target.value as FoodConfiguration["mode"], model: event.target.value === "local" ? props.localModels[0] ?? "" : "" }))} value={foodConfiguration.mode}>
+            <option value="local">本地 Ollama</option>
+            <option value="openai">OpenAI 兼容服务</option>
+          </select>
+        </label>
+        {foodConfiguration.mode === "local" ? <>
+          <label>本地模型
+            <select disabled={props.localModels.length === 0} onChange={(event) => setFoodConfigurationValue("model", event.target.value)} required value={foodConfiguration.model}>
+              <option value="">{props.localModels.length === 0 ? "未发现已安装模型" : "请选择模型"}</option>
+              {props.localModels.map((model) => <option key={model} value={model}>{model}</option>)}
+            </select>
+          </label>
+          {props.localModels.length === 0 ? <p className="modal-note">请先启动 Ollama 并安装模型，或切换到 OpenAI 兼容服务。</p> : null}
+        </> : <>
+          <label>URL<input autoComplete="url" onChange={(event) => setFoodConfigurationValue("api_base", event.target.value)} placeholder="https://api.example.com/v1" required type="url" value={foodConfiguration.api_base ?? ""} /></label>
+          <label>Token<input autoComplete="off" onChange={(event) => setFoodConfigurationValue("api_key", event.target.value)} placeholder="输入 Token" required type="password" value={foodConfiguration.api_key ?? ""} /></label>
+          <label>模型<input autoComplete="off" onChange={(event) => setFoodConfigurationValue("model", event.target.value)} placeholder="例如：gpt-4o-mini" required value={foodConfiguration.model} /></label>
+          <label>连接名称（可选）<input autoComplete="off" maxLength={80} onChange={(event) => setFoodConfigurationValue("alias", event.target.value)} placeholder="Elfie Lab" value={foodConfiguration.alias ?? ""} /></label>
+        </>}
+        {configurationError ? <p className="form-error" role="alert">{configurationError}</p> : null}
+        <div className="modal-actions"><button className="secondary-button" disabled={configuringFood} onClick={props.onConfigurationClose} type="button">取消</button><button className="primary-button" disabled={configuringFood || !foodConfiguration.model.trim()} type="submit">{configuringFood ? "保存中…" : "保存并使用"}</button></div>
+      </form>
+    </div>}
     {props.createOpen && <div className="modal-backdrop">
       <form aria-label="新建测试精灵" className="modal" onSubmit={(event) => { void submitCreation(event); }} role="dialog">
         <div className="modal-heading">

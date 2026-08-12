@@ -5,7 +5,7 @@ from __future__ import annotations
 from threading import RLock
 from typing import List, Optional, Sequence, Tuple
 
-from elfie.brain.perception_types import IngestReceipt
+from elfie.brain.workspace.contracts import IngestReceipt
 from elfie.communication.channel import CommunicationChannel
 from elfie.communication.contracts import (
     CommunicationEnvelope,

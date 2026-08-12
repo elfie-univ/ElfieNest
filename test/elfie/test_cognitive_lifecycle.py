@@ -12,13 +12,14 @@ from pydantic import JsonValue
 
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
-from elfie.brain.runtime import BrainRuntime
-from elfie.brain.runtime_port import (
+from elfie.brain.journal import BrainJournalKind
+from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
     StructuredOutputMode,
 )
+from elfie.brain.runtime import BrainRuntime
 from elfie.communication import (
     CommunicationEnvelope,
     CommunicationHub,
@@ -224,6 +225,11 @@ def test_cognitive_lifecycle_runs_two_turns_without_blocking_clock() -> None:
     assert runtime.second_started.wait(1)
     elfie.wait_for_outcome_count(2, timeout=1)
     assert "execution:receipt" in runtime.requests[1].user_prompt
+    journal_kinds = {entry.kind for entry in elfie.brain_journal()}
+    assert BrainJournalKind.RUN_STARTED in journal_kinds
+    assert BrainJournalKind.RUN_TERMINATED in journal_kinds
+    assert BrainJournalKind.DIRECTIVE_ACCEPTED in journal_kinds
+    assert BrainJournalKind.EXECUTION_RECEIPT in journal_kinds
     elfie.stop()
     elfie.join()
 
@@ -320,6 +326,9 @@ def _new_elfie(elfie_id: str, **dependencies):
 def test_cognitive_start_rolls_back_router_when_coordinator_start_fails() -> None:
     runtime = object.__new__(BrainRuntime)
     runtime._started = False
+    runtime._journal_store = MagicMock()
+    runtime._journal_store.load_checkpoint.return_value = None
+    runtime._reconcile_interrupted_work = MagicMock(return_value=False)
     runtime.router = MagicMock()
     runtime.coordinator = MagicMock()
     runtime.coordinator.start.side_effect = RuntimeError("coordinator failed")

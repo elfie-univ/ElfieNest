@@ -12,10 +12,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Callable, Dict, Final, Mapping, Optional, Tuple
 
-from elfie.brain.context_types import EmotionSnapshot, EmotionValue
 from elfie.brain.emotion.accumulator.decay import decay
 from elfie.brain.emotion.accumulator.frequency import FrequencyTracker
 from elfie.brain.emotion.accumulator.saturation import calculate_accumulation_delta
+from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
 from elfie.brain.emotion.emotion_input import EmotionInput
 from elfie.brain.emotion.emotion_types import EMOTION_CONFIGS, resolve_emotion_name
 from elfie.brain.emotion.fusion.deduplicator import EventDeduplicator

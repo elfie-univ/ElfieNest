@@ -3,6 +3,7 @@ from pathlib import Path
 
 from elfie import Elfie, ElfieFactory
 from elfie.body import BodyMode, HeadlessBody, QuadrupedAnatomy
+from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
 from elfie.profile import (
     EmbodimentProfile,
@@ -89,8 +90,8 @@ def test_factory_assembles_from_an_immutable_typed_dependency_record() -> None:
     elfie = ElfieFactory().assemble(ElfieAssembly(profile=profile, memory_store=store))
 
     assert elfie.profile == profile
-    assert elfie.memory.storage is store
-    elfie.memory.close()
+    assert ElfieDiagnostics(elfie).memory.storage is store
+    ElfieDiagnostics(elfie).memory.close()
     store.close()
 
 
@@ -106,11 +107,43 @@ def test_factory_creates_canonical_elfie_without_copying_legacy_algorithms() -> 
     )
 
     assert isinstance(elfie, Elfie)
-    assert elfie.perceptual_workspace is not None
-    assert elfie.nervous_system is not None
-    assert elfie.memory is not None
+    assert ElfieDiagnostics(elfie).workspace is not None
+    assert ElfieDiagnostics(elfie).nervous_system is not None
+    assert ElfieDiagnostics(elfie).memory is not None
     assert elfie.identity.elfie_id == "elfie-new"
     assert not hasattr(elfie, "brain")
+
+
+def test_elfie_facade_does_not_expose_mutable_subsystem_owners() -> None:
+    elfie = ElfieFactory().create(
+        ElfieAssembly(
+            profile=create_visual_profile(
+                elfie_id="facade-elfie",
+                display_name="门面精灵",
+                species_id="fox",
+                seed=31,
+            ),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        )
+    )
+
+    assert all(
+        not hasattr(elfie, name)
+        for name in (
+            "memory",
+            "amygdala",
+            "hypothalamus",
+            "selfhood",
+            "perceptual_workspace",
+            "activity_store",
+            "communication",
+            "nervous_system",
+            "body_registry",
+            "body_binding",
+            "skills",
+            "anatomy",
+        )
+    )
 
 
 def test_factory_accepts_an_already_assembled_native_body() -> None:
@@ -196,7 +229,7 @@ def test_factory_uses_profile_embodiment_as_the_anatomy_source(
     )
 
     assert elfie.anatomy_type == "quadruped"
-    assert isinstance(elfie.anatomy, QuadrupedAnatomy)
+    assert isinstance(ElfieDiagnostics(elfie).anatomy, QuadrupedAnatomy)
 
 
 def test_factory_registers_multiple_bodies_and_selects_current_body() -> None:
@@ -218,7 +251,9 @@ def test_factory_registers_multiple_bodies_and_selects_current_body() -> None:
     assert elfie.current_body is second
     assert second.connected is True
     assert first.connected is False
-    assert [item.body_id for item in elfie.body_registry.describe_all()] == [
+    assert [
+        item.body_id for item in ElfieDiagnostics(elfie).body_registry.describe_all()
+    ] == [
         "first",
         "second",
     ]

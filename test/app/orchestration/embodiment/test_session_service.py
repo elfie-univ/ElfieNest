@@ -13,6 +13,7 @@ from app.orchestration.embodiment import (
 )
 from elfie import Elfie
 from elfie.body import HeadlessBody
+from elfie.diagnostics import ElfieDiagnostics
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.elfie_workspace.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.elfie_workspace.embodiment import (
@@ -114,7 +115,7 @@ def test_duplicate_host_is_rejected_before_a_second_body_can_bind(
     assert isinstance(result, EmbodimentConflict)
     assert elfie.current_body is first
     assert first.connected is True
-    assert elfie.body_binding.current_body_id == first_body.body_id
+    assert ElfieDiagnostics(elfie).body_binding.current_body_id == first_body.body_id
     assert leases.get("00000001").body_id == first_body.body_id
 
 

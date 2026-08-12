@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from threading import Lock
+from time import monotonic
 
 from devtools.elfie_lab.schemas import StimulusBundle
 from elfie import Elfie
@@ -16,17 +17,18 @@ from elfie.body import (
     VisionChange,
     VisionSample,
 )
-from elfie.brain.decision_types import TurnDecision
-from elfie.brain.output_types import ExecutionReceipt
-from elfie.brain.reasoning import ReasoningRunResult
-from elfie.brain.runtime_port import (
+from elfie.brain.journal import BrainJournalKind
+from elfie.brain.reasoning.decision_types import TurnDecision
+from elfie.brain.reasoning.execution_types import ExecutionReceipt
+from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
     ModelPort,
 )
-from elfie.brain.tool_port import ToolKey, ToolRequest, ToolResult
-from elfie.brain.turn_outcome import TurnOutcome
+from elfie.brain.reasoning.run import ReasoningRunResult
+from elfie.brain.reasoning.tool_port import ToolKey, ToolRequest, ToolResult
+from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.communication import (
     CommunicationEnvelope,
     DeliveryReceipt,
@@ -158,26 +160,67 @@ class BrainTurnAdapter:
         self._runtime.select(runtime)
         previous_count = len(self._elfie.turn_outcomes())
         if stimulus.source_domain == "communication":
-            self._elfie.receive_communication_envelope(
-                self._communication_envelope(stimulus, event_id)
-            )
+            envelope = self._communication_envelope(stimulus, event_id)
+            submitted_event_ids = (envelope.meta.event_id,)
+            self._elfie.receive_communication_envelope(envelope)
         else:
-            self._elfie.pump_body_events(self._events(stimulus, event_id))
+            events = self._events(stimulus, event_id)
+            submitted_event_ids = tuple(event.event_id for event in events)
+            self._elfie.pump_body_events(events)
         self._elfie.advance_clock(5.0)
-        self._elfie.wait_for_outcome_count(
-            previous_count + 1,
-            timeout=_TURN_WAIT_TIMEOUT_SECONDS,
+        outcome = self._wait_for_submitted_events(
+            submitted_event_ids, previous_count=previous_count
         )
-        outcome = self._elfie.turn_outcomes()[-1]
-        self._elfie.wait_for_output(
-            outcome.turn_id,
-            timeout=_TURN_WAIT_TIMEOUT_SECONDS,
-        )
+        if self._elfie.turn_decision(outcome.turn_id) is not None:
+            self._elfie.wait_for_output(
+                outcome.turn_id,
+                timeout=_TURN_WAIT_TIMEOUT_SECONDS,
+            )
         return (
             outcome,
             self._elfie.turn_decision(outcome.turn_id),
             self._elfie.execution_receipts(outcome.turn_id),
             self._elfie.turn_reasoning(outcome.turn_id),
+        )
+
+    def _wait_for_submitted_events(
+        self,
+        event_ids: tuple[EventId, ...],
+        *,
+        previous_count: int,
+    ) -> TurnOutcome:
+        """Skip older internal housekeeping Turns and return this input's Turn."""
+        deadline = monotonic() + _TURN_WAIT_TIMEOUT_SECONDS
+        outcome_index = previous_count
+        while True:
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                raise TimeoutError(f"Lab input did not reach a Turn: {event_ids}")
+            self._elfie.wait_for_outcome_count(
+                outcome_index + 1,
+                timeout=remaining,
+            )
+            outcomes = self._elfie.turn_outcomes()
+            outcome = outcomes[outcome_index]
+            if self._turn_contains_any_event(outcome, event_ids):
+                return outcome
+            outcome_index += 1
+            # A prior receipt/reconciliation Turn can legitimately be ahead of
+            # the new input after restart. Give the owner loop a fresh pulse so
+            # the still-pending input forms its own independent Turn.
+            self._elfie.advance_clock(0.001)
+
+    def _turn_contains_any_event(
+        self,
+        outcome: TurnOutcome,
+        event_ids: tuple[EventId, ...],
+    ) -> bool:
+        submitted = frozenset(event_ids)
+        return any(
+            entry.kind is BrainJournalKind.RUN_STARTED
+            and entry.turn_id == outcome.turn_id
+            and not submitted.isdisjoint(entry.cause_event_ids)
+            for entry in self._elfie.brain_journal()
         )
 
     def close(self) -> None:

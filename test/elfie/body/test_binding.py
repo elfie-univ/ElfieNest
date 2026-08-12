@@ -2,6 +2,7 @@ import pytest
 
 from elfie import Elfie
 from elfie.body import BodyBinding, BodyRegistry, BodySwitchError, HeadlessBody
+from elfie.diagnostics import ElfieDiagnostics
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
@@ -91,8 +92,8 @@ def test_elfie_keeps_legacy_body_property_and_supports_formal_switching() -> Non
     second = HeadlessBody(body_id="second")
 
     assert elfie.current_body is first
-    assert elfie.body_binding.current is first
-    assert elfie.body_registry.require("first") is first
+    assert ElfieDiagnostics(elfie).body_binding.current is first
+    assert ElfieDiagnostics(elfie).body_registry.require("first") is first
 
     elfie.register_body(second)
     elfie.bind_body("second")

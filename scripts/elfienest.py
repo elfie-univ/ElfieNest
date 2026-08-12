@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import subprocess
 import sys
 from functools import partial
 from pathlib import Path
@@ -36,7 +35,6 @@ from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli.doctor_commands import run_doctor
 from app.interfaces.cli.foreground_runtime import run_foreground_service
 from app.interfaces.cli.lifecycle_commands import (
-    default_service_command,
     open_web_console,
     restart_background_service,
     show_service_status,
@@ -85,22 +83,6 @@ class SecretSafeArgumentParser(argparse.ArgumentParser):
             self.print_usage(sys.stderr)
             self.exit(2, f"{self.prog}: invalid Owner argument\n")
         super().error(message)
-
-
-class RuntimeLabMenusProcess:
-    """Launch the isolated developer Runtime Lab without importing it in CLI code."""
-
-    def _run(self, section: str) -> None:
-        subprocess.run(
-            [sys.executable, "-m", "devtools.runtime_lab", "--section", section],
-            check=True,
-        )
-
-    def tool_menu(self) -> None:
-        self._run("tools")
-
-    def food_menu(self) -> None:
-        self._run("food")
 
 
 def main() -> None:
@@ -210,12 +192,11 @@ def dispatch_command(
 
 def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> None:
     if args.command == "config":
-        configuration = build_cli_configuration(
-            str(get_db_path()),
-            runtime_menus=RuntimeLabMenusProcess(),
-        )
+        configuration = build_cli_configuration(str(get_db_path()))
         run_config_tui(
             configuration.providers,
+            configuration.food,
+            configuration.capabilities,
             configuration.settings,
             configuration.principal,
             partial(
@@ -223,7 +204,6 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
                 configuration.providers,
                 configuration.principal,
             ),
-            configuration.runtime_menus,
             build_terminal_menu(),
             getattr(args, "config_path", None),
         )
@@ -239,9 +219,14 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
     elif args.command == "desktop":
         _exit_on_lifecycle_failure(start_desktop_application(lifecycle))
     elif args.command == "mobile":
-        raise SystemExit(show_mobile_access(lifecycle))
+        raise SystemExit(
+            show_mobile_access(
+                lifecycle,
+                build_operations_facade(str(get_db_path())),
+            )
+        )
     elif args.command == "start":
-        command = default_service_command(_service_options_from_args(args))
+        command = lifecycle.default_service_command(_service_options_from_args(args))
         owner_id = getattr(args, "owner_id", None)
         _exit_on_lifecycle_failure(
             start_background_service(

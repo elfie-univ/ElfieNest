@@ -38,7 +38,7 @@ Now you can host your own ElfieNest on your own computer and adopt the first
 Elfie willing to come to you.
 
 Start at the [documentation home](https://elfienest.dev/), then move through
-[World & Story](docs/story/index.md), [Getting Started](docs/getting-started/index.md),
+[World & Story](docs/story/index.md), [User Guide](docs/user-guide/index.md),
 and the [Developer Docs](docs/developer/index.md) layer by layer.
 
 > 中文版请阅读 [README_zh.md](README_zh.md)。
@@ -102,7 +102,7 @@ elfienest version
 
 The installer supports user-level installation only — do not run it as `root`
 or with `sudo`. For the full set of prerequisites, error handling and platform
-notes, see [Getting Started](docs/getting-started/index.md).
+notes, see the [User Guide](docs/user-guide/index.md).
 
 Manual native packages and a future verified remote bootstrap enter the same
 installed runtime. The bootstrap contract is locally tested, but its public URL
@@ -112,12 +112,12 @@ is not live yet.
 
 - [Documentation home](docs/index.md): project intro and reading entry;
 - [World & Story](docs/story/index.md): for first-time readers of ElfieNest;
-- [Getting Started](docs/getting-started/index.md): build and run a Nest from
+- [User Guide](docs/user-guide/index.md): build and run a Nest from
   source;
 - [Developer Docs](docs/developer/index.md): architecture, workflow and tooling;
 - [Current architecture](docs/developer/architecture/index.md): module boundaries and
   information flow;
-- [Commands & dev tools](docs/developer/tooling.md): CLI, workbenches, Godot and
+- [Commands & dev tools](docs/developer/engineering/tooling.md): CLI, workbenches, Godot and
   build entry points.
 
 The docs site is built with VitePress. The site source contains only finalized

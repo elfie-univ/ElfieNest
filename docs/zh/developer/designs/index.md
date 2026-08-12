@@ -1,0 +1,9 @@
+# 设计文档
+
+设计文档保存已经确认的跨版本目标与未来架构背后的思考。它可以同时覆盖已经完成和
+尚未完成的版本，但不表示当前源码已经符合设计。规范性约束仍以[架构契约](../contracts/)
+为准，当前实现差距仍由[一致性台账](../conformance/)跟踪。
+
+- [Elfie 顶级模块设计](./elfie-top-level-module-design)：一只完整 Elfie 的目标顶级所有权。
+- [Elfie 大脑十系统架构](./elfie-brain-ten-system-architecture)：Brain 的概念系统、边界、
+  运行回路和渐进实现顺序。

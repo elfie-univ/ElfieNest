@@ -10,7 +10,8 @@ from elfie.body.contracts import (
     EnvironmentSample,
     TactileImpact,
 )
-from elfie.brain.perceptual_workspace import PerceptualWorkspace
+from elfie.brain.workspace.system import EventWorkspace
+from elfie.diagnostics import ElfieDiagnostics
 from elfie.message_types import EventId, TurnId
 from elfie.nervous_system import NervousSystem
 from elfie.profile import create_visual_profile
@@ -27,7 +28,7 @@ from test.elfie.nervous_system.perception_bridge_fixtures import (
 
 def test_humidity_and_illuminance_changes_publish_without_temperature_change() -> None:
     # Given: an initial environment sample has already been committed.
-    workspace = PerceptualWorkspace(ELFIE_ID)
+    workspace = EventWorkspace(ELFIE_ID)
     nervous_system = NervousSystem(perception_sink=workspace, elfie_id=ELFIE_ID)
     nervous_system.receive_body_event(
         body_event(
@@ -97,7 +98,7 @@ def test_elfie_body_switch_updates_the_reflex_execution_target() -> None:
     )
 
     # When: the current body reports a dangerous impact.
-    elfie.nervous_system.receive_body_event(impact)
+    ElfieDiagnostics(elfie).nervous_system.receive_body_event(impact)
 
     # Then: only the newly bound body executes the emergency stop.
     assert current_body.snapshot_body(now=NOW).last_command_id is not None
@@ -133,7 +134,7 @@ def test_stale_current_body_generation_is_rejected_after_switch() -> None:
         ),
     )
 
-    receipts = elfie.nervous_system.receive_body_event(stale)
+    receipts = ElfieDiagnostics(elfie).nervous_system.receive_body_event(stale)
 
     assert receipts[0].reason == "stale_body_generation"
-    assert elfie.perceptual_workspace.metrics().latest_ingest_seq == 0
+    assert ElfieDiagnostics(elfie).workspace.metrics().latest_ingest_seq == 0

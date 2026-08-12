@@ -2,8 +2,8 @@
 
 > This page explains the current executable flow. Ownership, Facades and the
 > target Food/model/tool, Body, communication and persistence Ports are
-> normative in the [Elfie internal architecture contract](../contracts/elfie);
-> current deviations are listed in [Elfie conformance](../conformance/elfie).
+> normative in the [Elfie internal architecture contract](../contracts/elfie)
+> and enforced by permanent architecture tests.
 
 An Elfie's inputs and outputs are not a single unified chat string — they are
 typed events routed separately across body, communication and internal
@@ -11,20 +11,20 @@ execution.
 
 ```text
 Body → NervousSystem ───────┐
-                            ├→ PerceptualWorkspace
+                            ├→ EventWorkspace
 Communication ─────────────┘
                                       ↓
                               BrainCoordinator
                                       ↓
                                BrainContext
                                       ↓
-                               DecisionPlan
+                         ReasoningRun → DecisionPlan
                          ┌────────────┼────────────┐
                          ↓            ↓            ↓
-                       Body     Communication   Internal
+                       Body     Communication   Activity
                          └────── ExecutionReceipt ────┘
                                       ↓
-                              PerceptualWorkspace
+                               EventWorkspace
 ```
 
 ## One turn

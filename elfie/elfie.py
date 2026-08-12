@@ -7,17 +7,18 @@ from threading import Lock
 
 from elfie.body import BodyBinding, BodyRegistry
 from elfie.body.port import BodyPort
-from elfie.brain.activity import ActivityStorePort, InMemoryActivityStore
+from elfie.brain.activity.system import ActivityStorePort, InMemoryActivityStore
 from elfie.brain.emotion.emotion_system import EmotionSystem
-from elfie.brain.energy.energy import HypothalamusEnergy
+from elfie.brain.energy.energy import EnergySystem
+from elfie.brain.journal import BrainJournalPort, InMemoryBrainJournal
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.memory_system import MemorySystem
-from elfie.brain.perceptual_workspace import PerceptualWorkspace
+from elfie.brain.reasoning.model_port import ModelPort
+from elfie.brain.reasoning.skills import SkillManager
+from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.runtime import BrainRuntime
-from elfie.brain.runtime_port import ModelPort
-from elfie.brain.selfhood import SelfhoodSystem
-from elfie.brain.skills import SkillManager
-from elfie.brain.tool_port import ToolPort
+from elfie.brain.selfhood.system import SelfhoodSystem
+from elfie.brain.workspace.system import EventWorkspace
 from elfie.communication import CommunicationHub
 from elfie.facade_operations import ElfieFacadeOperations
 from elfie.initialization import assemble_anatomy
@@ -40,76 +41,102 @@ class Elfie(ElfieFacadeOperations):
         model_port: ModelPort | None = None,
         tool_port: ToolPort | None = None,
         activity_store: ActivityStorePort | None = None,
+        journal_store: BrainJournalPort | None = None,
     ) -> None:
         character_profile.validate()
-        self.character_profile = character_profile
-        self.species_id = self.character_profile.identity.species_id
+        self._profile = character_profile
         self._elapsed_time = 0.0
         self._clock_lock = Lock()
-        self.hypothalamus = HypothalamusEnergy(
-            self.character_profile.system_limits,
+        self._energy = EnergySystem(
+            self._profile.system_limits,
             clock=lambda: self._elapsed_time,
         )
-        self.selfhood = SelfhoodSystem.from_personality_data(
-            self.character_profile.personality,
+        self._selfhood = SelfhoodSystem.from_personality_data(
+            self._profile.personality,
             initial_at=self.cognitive_datetime,
-            profile_revision=self.character_profile.schema_version,
+            profile_revision=self._profile.schema_version,
         )
-        self.amygdala = EmotionSystem(
-            personality=self.selfhood.big_five_dict(),
+        self._emotion = EmotionSystem(
+            personality=self._selfhood.big_five_dict(),
             clock=lambda: self._elapsed_time,
         )
-        self.memory = MemorySystem(
-            elfie_id=self.character_profile.identity.elfie_id,
-            personality_data=self.selfhood.seed_data(
-                display_name=self.character_profile.identity.display_name
+        self._memory = MemorySystem(
+            elfie_id=self._profile.identity.elfie_id,
+            personality_data=self._selfhood.seed_data(
+                display_name=self._profile.identity.display_name
             ),
             storage=memory_store,
             clock=lambda: self.cognitive_datetime,
             initial_at=self.cognitive_datetime,
         )
-        self.activity_store = activity_store or InMemoryActivityStore()
-        workspace_id = ElfieId(self.character_profile.identity.elfie_id)
-        self.perceptual_workspace = PerceptualWorkspace(workspace_id)
-        self.nervous_system = NervousSystem(
-            self.character_profile.capabilities,
-            perception_sink=self.perceptual_workspace,
+        self._activity_store = activity_store or InMemoryActivityStore()
+        self._journal_store = journal_store or InMemoryBrainJournal()
+        workspace_id = ElfieId(self._profile.identity.elfie_id)
+        self._workspace = EventWorkspace(
+            workspace_id,
+            persistence=self._journal_store,
+        )
+        self._nervous_system = NervousSystem(
+            self._profile.capabilities,
+            perception_sink=self._workspace,
             elfie_id=workspace_id,
             body_port=body,
         )
-        self.anatomy_type, self.anatomy = assemble_anatomy(
-            self.character_profile,
+        self._anatomy_type, self._anatomy = assemble_anatomy(
+            self._profile,
         )
-        self.body_registry = BodyRegistry()
-        self.body_binding = BodyBinding(self.body_registry)
-        self.body_binding.attach(body)
-        self.nervous_system.bind_body_port(
+        self._body_registry = BodyRegistry()
+        self._body_binding = BodyBinding(self._body_registry)
+        self._body_binding.attach(body)
+        self._nervous_system.bind_body_port(
             body,
-            body_generation=self.body_binding.current_generation,
+            body_generation=self._body_binding.current_generation,
         )
-        self.communication = communication or CommunicationHub(str(workspace_id))
-        self.communication.bind_identity(str(workspace_id))
-        self.skills = skills or SkillManager()
+        self._communication = communication or CommunicationHub(str(workspace_id))
+        self._communication.bind_identity(str(workspace_id))
+        self._skills = skills or SkillManager()
         self._brain_runtime: BrainRuntime | None = None
         if model_port is not None:
             self.configure_cognition(model_port, tool_port=tool_port)
 
     @property
     def profile(self) -> ElfieProfile:
-        return self.character_profile
+        return self._profile
 
     @property
     def identity(self):
-        return self.character_profile.identity
+        return self._profile.identity
+
+    @property
+    def species_id(self) -> str:
+        return self._profile.identity.species_id
+
+    @property
+    def anatomy_type(self) -> str:
+        """Return the stable morphology label without exposing mutable anatomy."""
+        return self._anatomy_type
 
     @property
     def current_body(self) -> BodyPort | None:
-        return self.body_binding.current
+        return self._body_binding.current
 
     @property
     def current_body_generation(self) -> int | None:
         """Authority generation for the currently selected Body, if any."""
-        return self.body_binding.current_generation
+        return self._body_binding.current_generation
+
+    @property
+    def current_body_id(self) -> str | None:
+        """Return the bound Body identity without exposing its mutable registry."""
+        return self._body_binding.current_body_id
+
+    def has_body(self, body_id: str) -> bool:
+        """Return whether a Body is registered without leaking the registry owner."""
+        return self._body_registry.get(body_id) is not None
+
+    def is_registered_body(self, body: BodyPort) -> bool:
+        """Return whether this exact Body instance owns its registered identity."""
+        return self._body_registry.get(body.body_id) is body
 
     @property
     def elapsed_time(self) -> float:

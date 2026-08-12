@@ -8,6 +8,7 @@ from app.features.accounts import AccountPrincipal, parse_account_role
 from app.features.operations import (
     BackupDatabasesCommand,
     DatabaseMaintenanceRejected,
+    GetMobileAccessQuery,
     GetRuntimeStatusQuery,
     GetUsageStatsQuery,
     ListActiveSessionsQuery,
@@ -90,6 +91,14 @@ class MemoryRuntimeObserver:
         )
 
 
+class MemoryNetworkAccessProjection:
+    def preferred_lan_address(self) -> str | None:
+        return "192.168.1.8"
+
+    def current_wifi_name(self) -> str | None:
+        return "Elfie Home"
+
+
 def _principal(role: str) -> AccountPrincipal:
     assert role in {"owner", "admin", "user"}
     return AccountPrincipal(
@@ -105,7 +114,20 @@ def _facade() -> tuple[
 ]:
     adapter = MemoryOperationsAdapter()
     observer = MemoryRuntimeObserver()
-    return OperationsFacade(adapter, adapter, observer), adapter, observer
+    return (
+        OperationsFacade(adapter, adapter, observer, MemoryNetworkAccessProjection()),
+        adapter,
+        observer,
+    )
+
+
+def test_mobile_access_is_projected_through_the_operations_boundary() -> None:
+    facade, _, _ = _facade()
+
+    result = facade.get_mobile_access(GetMobileAccessQuery(http_port=8000))
+
+    assert result.urls == ("http://192.168.1.8:8000",)
+    assert result.network_name == "Elfie Home"
 
 
 def test_facade_maps_existing_database_projections() -> None:

@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from elfie.brain.perception_types import (
+from elfie.brain.workspace.contracts import (
     IngestDisposition,
     IngestReceipt,
     PerceptionWrite,
     SocialPayload,
     TriggerReason,
 )
-from elfie.brain.perceptual_workspace import PerceptualWorkspace
+from elfie.brain.workspace.system import EventWorkspace
 from elfie.communication import (
     CommunicationEnvelope,
     CommunicationHub,
@@ -88,7 +88,7 @@ def inbound(index: int) -> CommunicationEnvelope:
 
 def test_five_message_burst_remains_five_ordered_social_events() -> None:
     # Given: one Hub connected to a real workspace and one conversation burst.
-    workspace = PerceptualWorkspace(elfie_id=ELFIE_ID)
+    workspace = EventWorkspace(elfie_id=ELFIE_ID)
     hub = CommunicationHub(
         "elfie-1",
         perception_adapter=CommunicationPerceptionAdapter(workspace),
@@ -125,7 +125,7 @@ def test_five_message_burst_remains_five_ordered_social_events() -> None:
 
 def test_backpressured_inbound_retries_the_same_envelope_once() -> None:
     # Given: one workspace slot already occupied by the first message.
-    workspace = PerceptualWorkspace(elfie_id=ELFIE_ID, journal_capacity=1)
+    workspace = EventWorkspace(elfie_id=ELFIE_ID, journal_capacity=1)
     hub = CommunicationHub(
         "elfie-1",
         perception_adapter=CommunicationPerceptionAdapter(workspace),

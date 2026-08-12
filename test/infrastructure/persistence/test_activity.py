@@ -2,15 +2,16 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from elfie.brain.activity import (
+from elfie.brain.activity.system import (
     ActivityDraft,
     ActivityPreflightStatus,
     ActivityState,
     ActivityStep,
     ActivityStepKind,
+    ExecutionScope,
 )
-from elfie.brain.perception_types import ExternalExecutionDomain, ResponseScope
-from elfie.message_types import ActivityId, EventId
+from elfie.brain.workspace.contracts import ExternalExecutionDomain
+from elfie.message_types import ActivityId, ActorId, EventId
 from infrastructure.persistence.activity import (
     ActivityStoreConflict,
     SQLiteActivityStoreAdapter,
@@ -32,10 +33,14 @@ def _draft(*, activity_id: str = "activity-1") -> ActivityDraft:
                 kind=ActivityStepKind.COMMUNICATION,
                 operation="send_message",
                 deadline=NOW + timedelta(hours=2),
-                scope=ResponseScope(
+                scope=ExecutionScope(
                     external_domain=ExternalExecutionDomain.COMMUNICATION,
+                    target_actor_id=ActorId("owner"),
                     channel_id="elfie",
                     conversation_id="owner",
+                    capability_revision=0,
+                    allowed_operations=("send_message",),
+                    expires_at=NOW + timedelta(hours=2),
                 ),
             ),
         ),

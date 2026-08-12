@@ -20,10 +20,11 @@ page, then the Core selects `/chat` or `/manage` after authentication.
 
 ## Separate authority role
 
-The UI role is not a Godot authority. When the Runtime selects the graphical
-Electron authority host, a separate `godot-authority` role loads the exported
-Godot Web authority in a hidden sandboxed window with its own Electron instance
-namespace. Runtime lifecycle and host selection remain outside this interface.
+The UI role is not a Godot authority. `app/bootstrap/desktop_host/` is the
+Electron composition entry: it dispatches the visible Desktop interface or the
+Infrastructure-owned `godot-authority` entry. The authority loads the exported
+Godot Web Runtime in a hidden sandboxed window with its own instance namespace.
+Desktop source and package metadata do not import or package that authority.
 
 The Observer receives scoped semantic projections and may send only authorized
 high-level intents. It never receives scene geometry, transforms, raw Gateway
@@ -48,5 +49,7 @@ npx --yes pnpm@10.12.1 test
 ```
 
 Generated interface output belongs in `build/components/desktop-interface/`.
+Native package composition belongs to
+`app/bootstrap/desktop_host/electron-builder.yml`.
 Do not write generated JavaScript, Runtime artifacts, models or user data back
 into this source directory.

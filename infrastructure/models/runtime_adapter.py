@@ -6,14 +6,14 @@ from _thread import LockType
 from threading import Lock
 from typing import Callable, Dict, Protocol, Set
 
-from elfie.brain.food_port import MainFoodSelection
-from elfie.brain.runtime_port import (
+from elfie.brain.reasoning.food_port import MainFoodSelection
+from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
     StructuredOutputMode,
 )
-from elfie.brain.tool_port import ToolPort
+from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.message_types import TurnId
 from infrastructure.models.runtime_contracts import (
     StructuredGenerationMode,

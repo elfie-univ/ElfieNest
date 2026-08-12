@@ -10,8 +10,9 @@ from elfie.body import (
     TactileImpact,
     UtteranceFinal,
 )
-from elfie.brain.food_port import MainFoodSelection
-from elfie.brain.runtime_port import ModelPort
+from elfie.brain.reasoning.food_port import MainFoodSelection
+from elfie.brain.reasoning.model_port import ModelPort
+from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.communication import (
     CommunicationEnvelope,
     DeliveryReceipt,
@@ -20,6 +21,8 @@ from elfie.communication import (
     MessageDirection,
     TextPart,
 )
+from elfie.factory import ElfieAssembly
+from elfie.initialization import assemble_profile
 from elfie.message_types import (
     ActorId,
     ActorRef,
@@ -44,6 +47,7 @@ __all__ = [
     "DeliveryStatus",
     "Elfie",
     "ElfieFactory",
+    "ElfieAssembly",
     "ElfieId",
     "ElfieProfile",
     "EventId",
@@ -52,8 +56,10 @@ __all__ = [
     "MessageDirection",
     "MessageMeta",
     "ModelPort",
+    "ToolPort",
     "TactileImpact",
     "TextPart",
     "TraceId",
     "UtteranceFinal",
+    "assemble_profile",
 ]

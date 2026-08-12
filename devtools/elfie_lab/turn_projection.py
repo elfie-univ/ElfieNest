@@ -5,17 +5,16 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, DefaultDict, Dict, Iterable, List, Optional
 
-from elfie.brain.decision_types import (
+from elfie.brain.reasoning.decision_types import (
     DecisionPlan,
     ExpressionIntent,
-    InternalIntent,
     MessageIntent,
     MotionIntent,
     NoOpIntent,
-    PersistentActivityIntent,
+    PersistentActivityRequest,
     SpeechIntent,
 )
-from elfie.brain.output_types import ExecutionReceipt
+from elfie.brain.reasoning.execution_types import ExecutionReceipt
 
 
 def project_decision(
@@ -77,15 +76,7 @@ def project_decision(
             }
             projected["expression_intents"].append(action)
             projected["action_intents"].append({"type": "expression", **action})
-        elif isinstance(intent, InternalIntent):
-            projected["internal_intents"].append(
-                {
-                    **common,
-                    "operation": intent.operation.value,
-                    "content": intent.content,
-                }
-            )
-        elif isinstance(intent, PersistentActivityIntent):
+        elif isinstance(intent, PersistentActivityRequest):
             projected["activity_intents"].append(
                 {
                     **common,

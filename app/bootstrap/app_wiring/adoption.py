@@ -16,11 +16,12 @@ from app.features.adoption import (
 from app.features.configuration.settings import SettingsStorePort
 from app.orchestration.nest_session import NestSession
 from app.orchestration.resident_admission import ResidentAdmissionService
-from elfie import ElfieFactory
-from elfie.body.port import BodyPort
+from elfie.public import BodyPort, ElfieFactory
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.persistence.account_repository import AccountRepository
+from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
+from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
 )
@@ -118,6 +119,12 @@ def build_adoption_services(
                 lambda workspace: YamlProfileStoreAdapter(Path(workspace) / "profile"),
                 lambda workspace: SQLiteMemoryStoreAdapter(
                     Path(workspace) / "memory" / "knowledge.sqlite"
+                ),
+                lambda workspace: SQLiteActivityStoreAdapter(
+                    Path(workspace) / "activity" / "activity.sqlite"
+                ),
+                lambda workspace: SQLiteBrainJournalAdapter(
+                    Path(workspace) / "brain" / "journal.sqlite"
                 ),
             ),
             nest_session,

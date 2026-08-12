@@ -5,21 +5,21 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from threading import Event, Lock, Thread
 
-from elfie.brain.food_port import MainFoodSelection
-from elfie.brain.limbic_appraiser import BrainClockPulse
-from elfie.brain.perception_types import InternalScope, ResponseScope, SourceDomain
-from elfie.brain.perceptual_workspace import PerceptualWorkspace
-from elfie.brain.runtime_port import (
+from elfie.brain.emotion.appraiser import BrainClockPulse
+from elfie.brain.reasoning.food_port import MainFoodSelection
+from elfie.brain.reasoning.model_port import (
     JsonSchemaDocument,
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     StructuredOutputMode,
 )
+from elfie.brain.workspace.contracts import InternalScope, ResponseScope, SourceDomain
+from elfie.brain.workspace.system import EventWorkspace
 from infrastructure.models.runtime_adapter import (
     RuntimeRequestAbandonedError,
     SerializedRuntimeAdapter,
 )
-from test.elfie.brain.test_coordinator import (
+from test.elfie.brain.reasoning.test_coordinator import (
     ELFIE_ID,
     NOW,
     RecordingPlanSink,
@@ -228,7 +228,7 @@ def test_adapter_serializes_healthy_provider_calls() -> None:
 
 def test_coordinator_timeout_rotates_the_production_runtime_adapter() -> None:
     # Given: the real orchestration adapter wraps a blocked structured Runtime.
-    workspace = PerceptualWorkspace(ELFIE_ID)
+    workspace = EventWorkspace(ELFIE_ID)
     runtime = BlockingStructuredRuntime(_schema_capabilities())
     adapter = SerializedRuntimeAdapter(runtime)
     coordinator, _, _ = _coordinator(workspace, adapter, RecordingPlanSink())

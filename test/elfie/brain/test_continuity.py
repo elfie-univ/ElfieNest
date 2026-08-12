@@ -7,7 +7,7 @@ import pytest
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
-from elfie.brain.energy.energy import HypothalamusEnergy
+from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.state_lifecycle import StateRestoreError
 from elfie.message_types import EventId
@@ -41,7 +41,7 @@ def test_emotion_checkpoint_restores_deduplication_and_rejects_stale_state() -> 
 
 
 def test_energy_checkpoint_and_cognitive_mode_boundary() -> None:
-    energy = HypothalamusEnergy(clock=lambda: 0.0)
+    energy = EnergySystem(clock=lambda: 0.0)
     checkpoint = energy.checkpoint()
     assert energy.snapshot(0.0).cognitive_mode == "long"
     assert energy.can_start_long_reasoning() is True
@@ -50,7 +50,7 @@ def test_energy_checkpoint_and_cognitive_mode_boundary() -> None:
     with pytest.raises(StateRestoreError):
         energy.restore(checkpoint)
 
-    emergency = HypothalamusEnergy(
+    emergency = EnergySystem(
         {"limits": {"energy": {"initial_value": 5.0}}},
         clock=lambda: 0.0,
     )

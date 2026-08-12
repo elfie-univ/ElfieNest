@@ -43,6 +43,14 @@ class UnusedDatabaseAdapter:
         raise AssertionError("GET status must not reset databases")
 
 
+class UnusedNetworkAccessProjection:
+    def preferred_lan_address(self) -> str | None:
+        raise AssertionError("runtime status must not query network access")
+
+    def current_wifi_name(self) -> str | None:
+        raise AssertionError("runtime status must not query WiFi")
+
+
 def _principal(role: str) -> AccountPrincipal:
     assert role in {"owner", "admin", "user"}
     return AccountPrincipal(
@@ -60,6 +68,7 @@ def _client(observer: RuntimeObserver, role: str) -> TestClient:
         database,
         database,
         RuntimeObserverProjectionAdapter(observer),
+        UnusedNetworkAccessProjection(),
     )
     app.dependency_overrides[require_user] = lambda: _principal(role)
     app.include_router(router)

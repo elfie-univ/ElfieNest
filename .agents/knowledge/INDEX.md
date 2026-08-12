@@ -18,19 +18,6 @@
   - 只需要依据当前代码和测试判断已实现行为的任务；
   - 与 Elfie 产品故事、生命形态和总体架构无关的局部任务。
 
-### Elfie 大脑十系统架构
-
-- file: `../../docs/.internal/elfie-brain-ten-system-architecture.md`
-- status: `architecture-baseline`
-- read_when:
-  - 讨论或设计 Elfie Brain 的一级概念系统、模块职责和运行关系；
-  - 评估大脑核心功能覆盖、对抗场景、P0/P1/P2 或渐进实现顺序；
-  - 讨论事件工作区、自我定位、自我认知、情绪、能量、动机、记忆、思考中枢、跨回合活动或心智整理；
-  - 准备细化任何 Brain 子系统的输入输出契约前。
-- do_not_read_when:
-  - 只需要依据当前代码和测试判断已实现行为；
-  - 与 Brain 架构和功能优先级无关的局部任务。
-
 ### Elfie 大脑十三系统历史扩展稿
 
 - file: `architecture/elfie-brain-system-design.md`

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 
-from elfie.brain.tool_port import ToolRequest
+from elfie.brain.reasoning.tool_port import ToolRequest
 from infrastructure.tools.execution.observation import (
     PermissionDecisionObservation,
     ToolCallObservation,

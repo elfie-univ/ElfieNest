@@ -43,8 +43,15 @@ class RuntimeObserverProjectionPort(Protocol):
     def snapshot(self) -> StoredRuntimeSnapshot: ...
 
 
+class NetworkAccessProjectionPort(Protocol):
+    def preferred_lan_address(self) -> str | None: ...
+
+    def current_wifi_name(self) -> str | None: ...
+
+
 __all__ = (
     "DatabaseMaintenancePort",
+    "NetworkAccessProjectionPort",
     "OperationsPortDatabaseMissing",
     "OperationsPortError",
     "OperationsPortUnsafeTarget",

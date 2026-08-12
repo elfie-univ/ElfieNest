@@ -36,8 +36,9 @@ REQUIRED_NEST_ENTRIES = frozenset(
 FORBIDDEN_NEST_DIRECTORIES = frozenset({"embodiment", "godot_gateway"})
 REQUIRED_DESKTOP_SOURCE_DIRECTORIES = frozenset({"resources", "windows"})
 REQUIRED_DESKTOP_SOURCE_FILES = frozenset(
-    {"desktop_role_lifecycle.ts", "lifecycle_client.ts", "main.ts", "role_dispatch.ts"}
+    {"desktop_role_lifecycle.ts", "lifecycle_client.ts", "main.ts"}
 )
+FORBIDDEN_DESKTOP_SOURCE_FILES = frozenset({"role_dispatch.ts"})
 CURRENT_PYTHON_SOURCE_ROOTS = (
     "app",
     "elfie",
@@ -185,6 +186,7 @@ def test_desktop_source_has_the_confirmed_secondary_structure() -> None:
     # Then
     assert missing_directories == frozenset()
     assert missing_files == frozenset()
+    assert not FORBIDDEN_DESKTOP_SOURCE_FILES.intersection(source_files)
 
 
 def test_python_sources_do_not_import_legacy_packages() -> None:

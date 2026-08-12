@@ -13,7 +13,7 @@ from app.bootstrap.app_wiring.food import (
 )
 from app.bootstrap.runtime_food import final_main_food_loader
 from app.bootstrap.system_wiring.runtime import build_runtime_agent_ports
-from elfie.brain.food_port import MainFoodSelection
+from elfie.public import MainFoodSelection
 from infrastructure.models.fallback_runtime import FallbackRuntimeAdapter
 from infrastructure.models.inference.token_usage import get_token_tracker
 from infrastructure.models.runtime_adapter import StructuredRuntime

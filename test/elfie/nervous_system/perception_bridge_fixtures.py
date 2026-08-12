@@ -13,8 +13,8 @@ from elfie.body.contracts import (
     UtteranceFinal,
     VisionSample,
 )
-from elfie.brain.perception_types import TriggerReason
-from elfie.brain.perceptual_workspace import PerceptualWorkspace
+from elfie.brain.workspace.contracts import TriggerReason
+from elfie.brain.workspace.system import EventWorkspace
 from elfie.message_types import ActorId, ActorRef, ElfieId, EventId, TurnId
 
 NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
@@ -46,7 +46,7 @@ def body_event(
     )
 
 
-def claim_all(workspace: PerceptualWorkspace):
+def claim_all(workspace: EventWorkspace):
     """Seal and claim every currently visible workspace write."""
     frame_id = workspace.seal(reason=TriggerReason.MANUAL, captured_at=NOW)
     assert frame_id is not None

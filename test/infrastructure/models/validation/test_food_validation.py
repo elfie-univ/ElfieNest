@@ -1,4 +1,4 @@
-from elfie.brain.food_port import FoodCatalog, FoodPackage
+from elfie.brain.reasoning.food_port import FoodCatalog, FoodPackage
 from infrastructure.models.validation.food_validation import FoodValidationRunner
 
 

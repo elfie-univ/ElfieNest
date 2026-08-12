@@ -10,10 +10,9 @@ Binding。`BodyPort` 是多具可替换身体共同实现的出站边界。
   authority。Headless 只允许作为确定性开发/测试替身，不是第三种产品身体。
 - 命令、事件和回执必须保留身体身份与类型化语义；禁止把 Godot 帧、设备包、Socket、
   蓝牙/LAN 协议或凭据加入公共模型。
-- Godot、实体设备、网络传输、进程控制及产品 Headless 托管最终属于 Infrastructure
-  Adapter。现有 `native/`、`external/` 是 `ELF-006` 迁移债务；`headless/` 必须区分
-  为确定性无 I/O 的领域参考/测试 Fake，或随产品托管实现一起迁出，不得按目录名猜测
-  所有权，也不得复制兼容路径。
+- Godot、实体设备、网络传输、进程控制及产品 Headless 托管属于 Infrastructure
+  Adapter。`native/`、`external/`、`headless/` 下只能保留确定性无 I/O 的领域参考或
+  测试 Fake；不得按目录名引入具体 I/O、产品托管或兼容路径。
 - Registry/Binding 只管理 Elfie 内身体语义；设备发现、授权、关联和跨 authority 工作流
   属于 App Feature/Orchestration。
 - Registry 只接收 App 已经发现、授权和关联的限定作用域 Body View；连接或健康状态不

@@ -15,6 +15,7 @@ from elfie.communication import (
     MessageDirection,
     TextPart,
 )
+from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
 from elfie.message_types import ActorRef, MessageMeta
 from elfie.profile import create_visual_profile
@@ -114,7 +115,7 @@ def test_non_owner_social_input_is_not_written_as_owner_memory() -> None:
 
     # Then: identity reaches context but owner-compatible memory is untouched.
     assert "peer-1" in runtime.requests[0].user_prompt
-    assert elfie.memory.get_all_episodes() == []
+    assert ElfieDiagnostics(elfie).memory.get_all_episodes() == []
     elfie.stop()
     elfie.join()
 
@@ -179,9 +180,9 @@ def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> 
             model_port=TwoTurnRuntime(),
         )
     )
-    elfie.amygdala.update_emotion("happiness", 25.0)
-    elfie.hypothalamus.consume_energy_by_action(token_count=100)
-    elfie.memory.record_episode(
+    ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 25.0)
+    ElfieDiagnostics(elfie).energy.consume_energy_by_action(token_count=100)
+    ElfieDiagnostics(elfie).memory.record_episode(
         content="我把这件事记住了",
         emotion="happiness",
         intensity=80.0,
@@ -200,9 +201,9 @@ def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> 
     restored.restore_continuity(checkpoint)
 
     # When: newer uncommitted-in-the-checkpoint state is produced.
-    elfie.amygdala.update_emotion("happiness", 20.0)
-    elfie.hypothalamus.consume_energy_by_action(token_count=100)
-    elfie.memory.record_episode(
+    ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 20.0)
+    ElfieDiagnostics(elfie).energy.consume_energy_by_action(token_count=100)
+    ElfieDiagnostics(elfie).memory.record_episode(
         content="这件事后来又发生了",
         emotion="happiness",
         intensity=80.0,
@@ -211,9 +212,9 @@ def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> 
         elfie.restore_continuity(checkpoint)
 
     # Then: the restarted runtime has the same committed state.
-    assert restored.amygdala.checkpoint() == checkpoint.emotion
-    assert restored.hypothalamus.checkpoint() == checkpoint.energy
-    assert restored.memory.checkpoint() == checkpoint.memory
+    assert ElfieDiagnostics(restored).emotion.checkpoint() == checkpoint.emotion
+    assert ElfieDiagnostics(restored).energy.checkpoint() == checkpoint.energy
+    assert ElfieDiagnostics(restored).memory.checkpoint() == checkpoint.memory
 
 
 def _profile(elfie_id: str):

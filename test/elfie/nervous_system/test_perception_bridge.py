@@ -13,14 +13,14 @@ from elfie.body.contracts import (
     UtteranceFinal,
     VisionSample,
 )
-from elfie.brain.perception_types import (
+from elfie.brain.workspace.contracts import (
     ExecutionPayload,
     IngestDisposition,
     PerceptionEvent,
     PhysicalPayload,
 )
-from elfie.brain.perceptual_workspace import PerceptualWorkspace
-from elfie.brain.workspace_ports import PerceptionSink
+from elfie.brain.workspace.system import EventWorkspace
+from elfie.brain.workspace.ports import PerceptionSink
 from elfie.message_types import (
     ActorId,
     EventId,
@@ -42,7 +42,7 @@ from test.elfie.nervous_system.perception_bridge_fixtures import (
 
 def test_receive_batch_preserves_each_utterance_and_source_identity() -> None:
     # Given: three utterances from two physically distinct speakers.
-    workspace = PerceptualWorkspace(ELFIE_ID)
+    workspace = EventWorkspace(ELFIE_ID)
     nervous_system = NervousSystem(
         perception_sink=workspace,
         elfie_id=ELFIE_ID,
@@ -91,7 +91,7 @@ def test_body_does_not_implement_the_brain_perception_sink() -> None:
 
 def test_backpressured_reliable_event_retries_once_capacity_is_available() -> None:
     # Given: a one-slot journal already occupied by a reliable utterance.
-    workspace = PerceptualWorkspace(ELFIE_ID, journal_capacity=1)
+    workspace = EventWorkspace(ELFIE_ID, journal_capacity=1)
     nervous_system = NervousSystem(
         perception_sink=workspace,
         elfie_id=ELFIE_ID,
@@ -125,7 +125,7 @@ def test_backpressured_reliable_event_retries_once_capacity_is_available() -> No
 
 def test_closed_body_perception_rejects_without_pending_growth() -> None:
     # Given: the runtime closed the Body-to-Brain input boundary.
-    workspace = PerceptualWorkspace(ELFIE_ID, journal_capacity=1)
+    workspace = EventWorkspace(ELFIE_ID, journal_capacity=1)
     nervous_system = NervousSystem(
         perception_sink=workspace,
         elfie_id=ELFIE_ID,
@@ -149,7 +149,7 @@ def test_closed_body_perception_rejects_without_pending_growth() -> None:
 
 def test_dangerous_touch_executes_reflex_before_cortical_publish() -> None:
     # Given: a connected body and a cortical operation that has not returned.
-    workspace = PerceptualWorkspace(ELFIE_ID, journal_capacity=16)
+    workspace = EventWorkspace(ELFIE_ID, journal_capacity=16)
     body = HeadlessBody(body_id=str(BODY_ID))
     body.connect()
     cortical_returned = Event()
@@ -204,7 +204,7 @@ def test_dangerous_touch_executes_reflex_before_cortical_publish() -> None:
 
 def test_samples_are_routed_to_state_and_media_without_reliable_fakes() -> None:
     # Given: a camera sample plus environment and posture state samples.
-    workspace = PerceptualWorkspace(ELFIE_ID)
+    workspace = EventWorkspace(ELFIE_ID)
     nervous_system = NervousSystem(
         perception_sink=workspace,
         elfie_id=ELFIE_ID,

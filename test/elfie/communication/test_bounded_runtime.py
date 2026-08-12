@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from threading import Event, Thread
 
-from elfie.brain.perception_types import (
+from elfie.brain.workspace.contracts import (
     IngestDisposition,
     IngestReceipt,
     PerceptionWrite,

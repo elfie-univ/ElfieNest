@@ -4,6 +4,7 @@
 缺口放在 `conformance/`，有意修改契约的原因放在 `decisions/`。
 
 - [仓库架构治理](./repository-governance)
+- [文档结构](./documentation-structure)
 - [系统架构](./system)
 - [Elfie 内部架构](./elfie)
 - [Elfie Brain 内部架构](./brain)

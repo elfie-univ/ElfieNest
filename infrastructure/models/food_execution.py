@@ -5,11 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
-from elfie.brain.food_port import (
+from elfie.brain.reasoning.food_port import (
     FoodAssignment,
     FoodPackage,
 )
-from elfie.brain.tool_port import ToolPort
+from elfie.brain.reasoning.tool_port import ToolPort
 from infrastructure.models.inference.multimodal import assemble_multimodal_payload
 from infrastructure.models.model_reference import (
     ModelReferenceError,

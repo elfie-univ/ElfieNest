@@ -60,11 +60,9 @@ and activity spaces.
 
 ## Architecture contract
 
-The versioned target for new and migrated application code is the
+The versioned authority for application code is the
 [Application architecture contract](../docs/developer/contracts/application.md).
-Known legacy deviations and their removal gates are tracked in
-[Application conformance](../docs/developer/conformance/application.md). The
-register does not authorize new violations.
+Permanent scanners and architecture tests enforce its machine-checkable rules.
 
 The target dependency direction is:
 
@@ -79,9 +77,8 @@ bootstrap     ──> all of the above (wiring only)
 Product flows that cross Elfie, Nest or another authority belong in
 `app/orchestration/`; an Elfie's ordinary Food read, model call or tool execution
 does not. Concrete adapters are created in `bootstrap/` and injected through
-Ports; lower layers must not import `app.interfaces` in reverse. Some legacy
-paths still violate this target and must shrink through domain-by-domain
-migration rather than be copied into new code.
+Ports; lower layers must not import `app.interfaces` in reverse. Retired paths
+must not be restored.
 
 ## Run & debug
 

@@ -17,8 +17,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from elfie.brain.memory.consolidation import MemoryConsolidator
-from elfie.brain.memory.context_assembly import ContextAssembler
 from elfie.brain.memory.node_types import Edge, EdgeTypes, MemoryNode, NodeTypes
+from elfie.brain.memory.recall_formatter import MemoryRecallFormatter
 from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
 # ---------------------------------------------------------------------------
@@ -824,8 +824,8 @@ class TestPatternDiscovery:
         spreading = MagicMock()
         decay = MagicMock()
         weighting = MagicMock()
-        core_cognition = MagicMock()
-        core_cognition.get_core_text.return_value = {}
+        self_narrative = MagicMock()
+        self_narrative.get_core_text.return_value = {}
 
         # 配置storage返回pattern节点
         pattern_node = MemoryNode(
@@ -836,13 +836,13 @@ class TestPatternDiscovery:
         )
         storage.get_nodes_by_type.return_value = [pattern_node]
 
-        assembler = ContextAssembler(
+        assembler = MemoryRecallFormatter(
             storage=storage,
             retriever=retriever,
             spreading=spreading,
             decay=decay,
             weighting=weighting,
-            core_cognition=core_cognition,
+            self_narrative=self_narrative,
         )
 
         result = assembler._assemble_prediction_zone(

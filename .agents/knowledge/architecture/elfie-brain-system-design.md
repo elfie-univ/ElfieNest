@@ -3,7 +3,7 @@
 > 状态：历史扩展设计，已由十系统架构基线取代
 > 最近整理：2026-08-11
 > 性质：私有架构设计，不代表当前代码已经实现
-> 当前基线：[Elfie 大脑十系统架构](../../../docs/.internal/elfie-brain-ten-system-architecture.md)
+> 当前基线：[Elfie 大脑十系统架构](../../../docs/developer/designs/elfie-brain-ten-system-architecture.md)
 > 用途：保留十三系统扩展细节，作为完整性和风险检查材料，不再定义当前一级概念系统。
 
 ## 1. 根本定位：这是智慧体的大脑，不是任务 Agent

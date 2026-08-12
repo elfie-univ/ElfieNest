@@ -17,7 +17,7 @@ from app.features.configuration.food import (
     StoredElfieFoodAssignment,
     StoredFoodPackage,
 )
-from elfie.brain.food_port import FoodAssignment, FoodCatalog, FoodPackage
+from elfie.brain.reasoning.food_port import FoodAssignment, FoodCatalog, FoodPackage
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
 
 

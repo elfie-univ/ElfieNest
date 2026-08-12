@@ -13,7 +13,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from elfie.brain.memory.consolidation import MemoryConsolidator
-from elfie.brain.memory.context_assembly import ContextAssembler
 from elfie.brain.memory.ebbinghaus_decay import EbbinghausDecay
 from elfie.brain.memory.emotion_weighting import EmotionWeighting
 from elfie.brain.memory.node_types import (
@@ -23,6 +22,7 @@ from elfie.brain.memory.node_types import (
     NodeTypes,
     RetrievalQuery,
 )
+from elfie.brain.memory.recall_formatter import MemoryRecallFormatter
 from elfie.brain.memory.spreading_activation import SpreadingActivation
 from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
@@ -667,8 +667,8 @@ class TestConsolidationPatternDesignGoals:
         spreading = MagicMock()
         decay = MagicMock()
         weighting = MagicMock()
-        core_cognition = MagicMock()
-        core_cognition.get_core_text.return_value = {}
+        self_narrative = MagicMock()
+        self_narrative.get_core_text.return_value = {}
 
         # 配置storage返回pattern节点
         pattern_node = MemoryNode(
@@ -679,13 +679,13 @@ class TestConsolidationPatternDesignGoals:
         )
         storage.get_nodes_by_type.return_value = [pattern_node]
 
-        assembler = ContextAssembler(
+        assembler = MemoryRecallFormatter(
             storage=storage,
             retriever=retriever,
             spreading=spreading,
             decay=decay,
             weighting=weighting,
-            core_cognition=core_cognition,
+            self_narrative=self_narrative,
         )
 
         result = assembler._assemble_prediction_zone(
@@ -713,22 +713,22 @@ class TestContextAssemblyDesignGoals:
         spreading = MagicMock()
         decay = MagicMock()
         weighting = MagicMock()
-        core_cognition = MagicMock()
+        self_narrative = MagicMock()
 
-        core_cognition.get_core_text.return_value = {
+        self_narrative.get_core_text.return_value = {
             "identity": "我是小狐狸艾菲，充满活力。",
             "relation": "主人是我最信任的人。",
             "world": "这个世界充满了有趣的事物。",
             "tendency": "开心时我会很活跃。",
         }
 
-        return ContextAssembler(
+        return MemoryRecallFormatter(
             storage=storage,
             retriever=retriever,
             spreading=spreading,
             decay=decay,
             weighting=weighting,
-            core_cognition=core_cognition,
+            self_narrative=self_narrative,
         )
 
     def test_context_assembly_all_zones_present(self, assembler):

@@ -29,9 +29,8 @@ Examples:
   %(prog)s elfie-lab                    # Single-elfie debugging (default port 9001)
   %(prog)s elfie-lab --port 8080        # Use custom port
   %(prog)s nest-lab                     # Godot room experiments (default HTTP 9002, WS 9003)
-  %(prog)s runtime-lab                  # Configure AI models (interactive TUI)
 
-Documentation: https://elfienest.dev/developer/devtools
+Documentation: https://elfienest.dev/developer/engineering/devtools
 """,
     )
     subparsers = parser.add_subparsers(dest="tool", title="Available tools")
@@ -43,23 +42,6 @@ Documentation: https://elfienest.dev/developer/devtools
             description=_help_description(tool.name),
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
-        if tool.name == "runtime-lab":
-            subparser.epilog = """
-Runtime Lab is an interactive TUI menu with the following features:
-
-  1. Runtime overview and reports
-  2. Provider and model configuration
-  3. Agent capability validation
-  4. Food strategy configuration
-
-Example:
-  %(prog)s runtime-lab
-
-After launch, use arrow keys to navigate and Enter to select.
-
-Data directory: ~/.elfienest-dev/runtime_lab/
-"""
-            continue
         if tool.default_port is not None:
             host_type = loopback_host
             subparser.add_argument(
@@ -92,7 +74,6 @@ Data directory: ~/.elfienest-dev/runtime_lab/
 def _help_text(name: str) -> str:
     descriptions = {
         "elfie-lab": "Single-elfie perception and decision debugging (Web UI)",
-        "runtime-lab": "Provider and model configuration (interactive TUI)",
         "nest-lab": "Nest/Godot module experiments (Web UI)",
     }
     return descriptions[name]
@@ -108,15 +89,6 @@ Automatically opens browser interface on startup.
 
 Data directory: ~/.elfienest-dev/elfie_lab/
 Default port: 9001
-""",
-        "runtime-lab": """
-Runtime Lab — Provider, Model and Food Configuration TUI
-
-Interactive menu interface for configuring and testing AI model providers
-(Ollama, OpenAI, Anthropic, etc.).
-Supports three-layer validation: Provider connection, Agent capabilities, Food strategy.
-
-Data directory: ~/.elfienest-dev/runtime_lab/
 """,
         "nest-lab": """
 Nest Lab — Godot Room and Character Experiments
@@ -206,10 +178,6 @@ def _restart_default_lab_if_requested(
 def main(argv: list[str] | None = None) -> int:
     """展示或启动开发者工具；不会启动普通用户服务。"""
     raw_args = list(argv) if argv is not None else sys.argv[1:]
-    if raw_args and raw_args[0] == "runtime-lab":
-        from devtools.runtime_lab.__main__ import main as runtime_lab_main
-
-        return runtime_lab_main()
     args = _parser().parse_args(raw_args)
     if args.tool is None:
         _parser().print_help()
@@ -222,8 +190,6 @@ def main(argv: list[str] | None = None) -> int:
         return _run_nest_lab(args)
     if args.tool == "elfie-lab":
         return _run_elfie_lab(args)
-    if args.tool == "runtime-lab":
-        return 2
     return 2
 
 

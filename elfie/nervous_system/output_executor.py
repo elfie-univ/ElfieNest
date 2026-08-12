@@ -18,14 +18,14 @@ from elfie.body.contracts import (
     SpeechCommand,
 )
 from elfie.body.port import BodyPort
-from elfie.brain.decision_types import (
+from elfie.brain.reasoning.decision_types import (
     DecisionIntent,
     DecisionPlan,
     ExpressionIntent,
     MotionIntent,
     SpeechIntent,
 )
-from elfie.brain.output_types import IntentExecutionResult
+from elfie.brain.reasoning.execution_types import IntentExecutionResult
 from elfie.message_types import (
     CommandId,
     ErrorInfo,

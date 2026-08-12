@@ -38,11 +38,11 @@ class MemoryConsolidator:
     def __init__(
         self,
         storage: MemoryStorePort,
-        core_cognition=None,
+        self_narrative=None,
         elfie_id: str | None = None,
     ):
         self.storage = storage
-        self.core_cognition = core_cognition
+        self.self_narrative = self_narrative
         self._consolidation_count = 0  # 巩固次数计数
         self._knowledge_counter = 0  # 知识节点ID计数器
         self._pattern_counter = 0  # pattern节点ID计数器
@@ -157,9 +157,9 @@ class MemoryConsolidator:
         result["knowledge_created"] = len(all_knowledge_ids)
 
         # 核心认知更新
-        if self.core_cognition is not None:
+        if self.self_narrative is not None:
             try:
-                self.core_cognition.update(
+                self.self_narrative.update(
                     consolidation_results=result,
                     runtime_agent=runtime_agent,
                 )

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from elfie.brain.tool_port import ToolKey, ToolRequest, ToolResult
+from elfie.brain.reasoning.tool_port import ToolKey, ToolRequest, ToolResult
 from elfie.message_types import ErrorInfo
 from infrastructure.tools.execution.loop import PortToolLoop
 

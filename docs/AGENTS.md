@@ -13,6 +13,29 @@
 - 任何公开能力、剧情秘密、截图或页面上线前都需要负责人目视审阅；无法证明已经
   实现的能力应标为规划，或不公开。
 
+## 站点信息架构
+
+公开内容分为首页、`story/`、`user-guide/` 和 `developer/`。英文位于站点根，
+中文在 `zh/` 下保持相同相对路径。旧 `getting-started/` 禁止恢复；用户安装、配置、
+运行和排障统一属于 `user-guide/`。
+
+Developer 内容直接分为 `architecture/`、可选的 `designs/`、`contracts/`、
+`conformance/`、`decisions/` 和 `engineering/`，不得再增加 `current/`、
+`evolution/`、`governance/`、`archive/` 等包装层。`developer/` 根目录只保留
+`index.md`；可选分类没有获批页面时不创建空目录。
+
+- `architecture/` 只描述当前、已验证的实现；
+- `designs/` 保存有长期价值且已经审阅的跨版本重大设计；
+- `contracts/` 保存当前权威的版本化规范；
+- `conformance/` 只保存当前差距，完全一致后删除详细台账；
+- `decisions/` 永久保存已接受 ADR；
+- `engineering/` 解释开发、质量、测试、调试、工具、安全和发布实践。
+
+结构权威见双语
+[`Documentation structure contract`](developer/contracts/documentation-structure.md)。修改
+顶级分区、Developer 分类、分类含义、双语镜像或生命周期时，必须使用独立治理变更，
+同步更新新 ADR、契约版本、本文件、VitePress 导航、Contract Registry 和聚焦架构测试。
+
 ## 架构治理文档
 
 `developer/architecture/` 只描述当前事实，`developer/contracts/` 定义长期目标，
@@ -24,8 +47,14 @@
 - 宏观架构 v1 已冻结；以后改变顶层模块、authority、依赖方向、生产组合/生命周期或
   系统级 Port 语义时，必须新建独立双语 ADR，并先提交不含产品代码的治理变更。
 - 产品迁移只更新当前事实说明、Conformance 和精确 Baseline；不得顺手改写目标契约
-  或 Scanner。治理变更不得混入生产源码。
+  或 Scanner。治理变更不得混入实现侧文件。
+- 普通 Markdown 内容在治理/实现分类中保持中立；`docs/.vitepress/`、文档站
+  `package.json` 和锁文件属于实现侧，不能与契约、ADR、Scanner 等治理变更混在同一
+  提交或 Pull Request。
 - Conformance 只保留仍然存在的缺口、验收门和迁移顺序；历史测试次数、过期失败、
   会话过程和已完成执行计划不作为长期台账内容。
+- 最后一个缺口和 Baseline 条目清零后，立即按仓库治理契约进行独立治理收口：删除空
+  Baseline、全 closed 台账及其注册表、测试、索引、链接和局部 Agent 迁移指引；永久
+  Scanner 和架构测试继续以 deny-all 执行。
 - 中英文语义同步由契约注册测试、文档构建和人工审查共同保证；不能只改版本字符串
   或复制一份未翻译文本来通过机器检查。

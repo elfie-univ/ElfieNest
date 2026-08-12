@@ -18,7 +18,7 @@
 `app/orchestration` 直接组合 `elfie`、`nest` 与注入的认知 Runtime，并不位于
 `app/features` 的下游。在产品用例平面，Interface 调用具体
 Feature 用例，Feature 声明自己需要的 Port，Infrastructure 实现 Port，Bootstrap 是
-唯一组合根。当前历史偏差记录在 [App 一致性台账](../conformance/application)。
+唯一组合根；这些边界由永久架构测试直接执行。
 
 核心源码按职责分为：
 
@@ -97,12 +97,12 @@ Elfie 的物理感知与数字通信是两条独立输入通道：
 
 ```text
 Body -> NervousSystem --------\
-                               -> PerceptualWorkspace
+                               -> EventWorkspace
 Communication ----------------/          │
                                           ▼
                                   BrainCoordinator
                                           │
-                              BrainContext + 模型回合
+                           BrainContext + ReasoningRun
                                           │
                                           ▼
                                     DecisionPlan
@@ -111,10 +111,10 @@ Communication ----------------/          │
                                      OutputRouter
                           ┌───────────────┼───────────────┐
                           ▼               ▼               ▼
-                        身体             通信           内部执行器
+                        身体             通信         Activity 请求
                           └──────── ExecutionReceipt ─────┘
                                           │
-                                          └──> PerceptualWorkspace
+                                          └──> EventWorkspace
 ```
 
 `ElfieNestEngine.tick_once()` 推进 Nest 和精灵自身时钟，再泵送身体事件；它不会
@@ -133,7 +133,7 @@ Runtime Supervisor
   ├── Python Core + Gateway
   ├── 一个被选中的 Godot 权威宿主
   │   ├── 图形化 Web 权威
-  │   ├── 图形化 Electron 权威角色
+  │   ├── Bootstrap 宿主装配的 Infrastructure Electron 权威
   │   └── 无显示 Linux dedicated 权威
   └── 公共 Ollama 健康（可选；可以 degraded）
 

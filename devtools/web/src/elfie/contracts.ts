@@ -139,7 +139,7 @@ export const sessionSchema = z.object({
     memory_cognition: memoryCognitionSchema.prefault({ topics: [], important_events: [], relations: { nodes: [], links: [] }, knowledge: { nodes: [], links: [] }, world_understanding: "尚未形成稳定的世界理解" }),
     spec_revision: z.number().optional(), updated_at: z.string().optional(),
   }).passthrough(),
-  current_state: z.object({ energy: z.number(), fatigue: z.number(), dominant_emotion: z.string(), is_sleeping: z.boolean(), memory_count: z.number().default(0), activity_count: z.number().default(0), activities: z.array(z.record(z.string(), z.unknown())).default([]), motivation: z.record(z.string(), z.unknown()).nullable().optional(), offline_cognition: z.record(z.string(), z.unknown()).nullable().optional() }).passthrough(),
+  current_state: z.object({ energy: z.number(), fatigue: z.number(), dominant_emotion: z.string(), is_sleeping: z.boolean(), normal_budget_available: z.number().default(0), emergency_reserve_available: z.number().default(0), reserved_cognitive_budget: z.number().default(0), memory_count: z.number().default(0), activity_count: z.number().default(0), activities: z.array(z.record(z.string(), z.unknown())).default([]), motivation: z.record(z.string(), z.unknown()).nullable().optional(), orientation: z.record(z.string(), z.unknown()).nullable().optional(), selfhood: z.record(z.string(), z.unknown()).nullable().optional(), profile_anchor: z.record(z.string(), z.unknown()).nullable().optional(), cognitive_consolidation: z.record(z.string(), z.unknown()).nullable().optional(), journal: z.record(z.string(), z.unknown()).nullable().optional() }).passthrough(),
   turns: z.array(turnSchema),
 }).passthrough();
 
@@ -152,9 +152,12 @@ export const foodsSchema = z.object({
     reasoning: z.string().default(""),
     ready_for_attempt: z.boolean(),
     unavailable_reason: z.string().default(""),
-    setup_commands: z.array(z.string()).default([]),
   }).passthrough()),
-  configuration_command: z.string().default(""),
+  local_models: z.array(z.string()).default([]),
+});
+
+export const configureFoodSchema = foodsSchema.extend({
+  selected_food: z.string(),
 });
 
 export const mediaSchema = z.object({ media_id: z.string(), media_url: z.string().optional() }).passthrough();
@@ -163,4 +166,11 @@ export type ElfieSession = z.infer<typeof sessionSchema>;
 export type ElfieTurn = ElfieSession["turns"][number];
 export type BigFive = z.infer<typeof bigFiveSchema>;
 export type FoodItem = z.infer<typeof foodsSchema>["items"][number];
+export type FoodConfiguration = Readonly<{
+  readonly mode: "local" | "openai";
+  readonly model: string;
+  readonly api_base?: string;
+  readonly api_key?: string;
+  readonly alias?: string;
+}>;
 export type PreviewIntent = z.infer<typeof intentSchema>;

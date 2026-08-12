@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 from threading import Lock
 from typing import Callable, Optional, Tuple
 
-from elfie.brain.activity import (
+from elfie.brain.activity.preflight import ActivityPreflightService
+from elfie.brain.activity.system import (
     ActivityRecord,
     ActivityState,
     ActivityStateEvent,
@@ -16,40 +17,46 @@ from elfie.brain.activity import (
     activity_scope_for_record,
     activity_state_event_to_perception,
 )
-from elfie.brain.context_source import BrainContextState
-from elfie.brain.context_types import (
-    OrientationSnapshot,
-    ProfileAnchorSnapshot,
-    SelfhoodSnapshot,
-)
 from elfie.brain.continuity import BrainContinuityCheckpoint
-from elfie.brain.coordinator import BrainCoordinator
-from elfie.brain.cortical_worker import CorticalWorker
-from elfie.brain.decision_decoder import DecisionPlanDecoder
-from elfie.brain.decision_types import (
+from elfie.brain.emotion.appraiser import BrainClockPulse, EmotionAppraiser
+from elfie.brain.emotion.emotion_system import EmotionSystem
+from elfie.brain.energy.energy import EnergySystem
+from elfie.brain.journal import (
+    BrainJournal,
+    BrainJournalEntry,
+    BrainJournalPort,
+    InMemoryBrainJournal,
+    reconciliation_fact_to_perception,
+)
+from elfie.brain.memory import MemorySystem
+from elfie.brain.orientation.contracts import OrientationSnapshot
+from elfie.brain.reasoning.context_source import BrainContextProvider
+from elfie.brain.reasoning.coordinator import BrainCoordinator
+from elfie.brain.reasoning.decision_decoder import DecisionPlanDecoder
+from elfie.brain.reasoning.decision_types import (
     DecisionIntent,
     ExpressionIntent,
     MessageIntent,
     MotionIntent,
     NoOpIntent,
-    PersistentActivityIntent,
+    PersistentActivityRequest,
     SpeechIntent,
     TurnDecision,
 )
-from elfie.brain.emotion.emotion_system import EmotionSystem
-from elfie.brain.energy.energy import HypothalamusEnergy
-from elfie.brain.internal_output import PersistentActivityIntentExecutor
-from elfie.brain.limbic_appraiser import BrainClockPulse, LimbicAppraiser
-from elfie.brain.output_ports import IntentExecutor
-from elfie.brain.output_router import OutputRouter
-from elfie.brain.output_types import ExecutionReceipt
-from elfie.brain.perception_types import ExecutionStatus
-from elfie.brain.perceptual_workspace import PerceptualWorkspace
-from elfie.brain.reasoning import ReasoningRunResult
-from elfie.brain.runtime_port import ModelPort
-from elfie.brain.skills import SkillManager
-from elfie.brain.tool_port import ToolPort
-from elfie.brain.turn_outcome import TurnOutcome
+from elfie.brain.reasoning.execution_ports import IntentExecutor
+from elfie.brain.reasoning.execution_router import OutputRouter
+from elfie.brain.reasoning.execution_types import ExecutionReceipt
+from elfie.brain.reasoning.internal_execution import PersistentActivityRequestExecutor
+from elfie.brain.reasoning.model_port import ModelPort
+from elfie.brain.reasoning.run import ReasoningRunResult
+from elfie.brain.reasoning.settlement import TurnSettlement
+from elfie.brain.reasoning.skills import SkillManager
+from elfie.brain.reasoning.tool_port import ToolPort
+from elfie.brain.reasoning.turn_outcome import TurnOutcome
+from elfie.brain.reasoning.worker import ReasoningWorker
+from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
+from elfie.brain.workspace.contracts import ExecutionStatus
+from elfie.brain.workspace.system import EventWorkspace
 from elfie.message_types import ElfieId, TurnId, UTCDateTime
 
 
@@ -60,10 +67,11 @@ class BrainRuntime:
         self,
         *,
         elfie_id: ElfieId,
-        workspace: PerceptualWorkspace,
+        workspace: EventWorkspace,
         emotion: EmotionSystem,
-        homeostasis: HypothalamusEnergy,
-        context: BrainContextState,
+        homeostasis: EnergySystem,
+        context: BrainContextProvider,
+        memory: MemorySystem,
         clock: Callable[[], UTCDateTime],
         model_port: ModelPort,
         tool_port: ToolPort | None = None,
@@ -72,14 +80,30 @@ class BrainRuntime:
         message_executor: IntentExecutor,
         internal_executor: IntentExecutor,
         activity_store: ActivityStorePort | None = None,
+        journal_store: BrainJournalPort | None = None,
+        restore_clock: Callable[[UTCDateTime], None] | None = None,
     ) -> None:
         self._clock = clock
         self._elfie_id = elfie_id
         self.context = context
         self.activity_store = activity_store or InMemoryActivityStore()
+        self._journal_store = journal_store or InMemoryBrainJournal()
+        self._restore_clock = restore_clock or (lambda _captured_at: None)
+        self._journal = BrainJournal(
+            elfie_id=elfie_id,
+            store=self._journal_store,
+            clock=clock,
+        )
         self._activity_lock = Lock()
-        activity_executor = PersistentActivityIntentExecutor(
-            self.activity_store,
+        activity_preflight = ActivityPreflightService(
+            store=self.activity_store,
+            clock=clock,
+            capabilities=context.current,
+            available_budget=homeostasis.activity_budget_available,
+            target_resolver=context.can_reach_actor,
+        )
+        activity_executor = PersistentActivityRequestExecutor(
+            activity_preflight,
             clock=clock,
             elfie_id=elfie_id,
             trigger_sink=workspace,
@@ -95,25 +119,35 @@ class BrainRuntime:
             activity_executor=activity_executor,
             clock=clock,
             receipt_handler=self._settle_activity_receipt,
+            journal=self._journal,
         )
-        worker = CorticalWorker(
+        worker = ReasoningWorker(
             model_port=model_port,
             decoder=DecisionPlanDecoder(),
             tool_port=tool_port,
+            activity_preflight=activity_preflight,
+        )
+        settlement = TurnSettlement(
+            memory,
+            orientation=context.commit_orientation_candidate,
         )
         self.coordinator = BrainCoordinator(
             elfie_id=elfie_id,
             workspace=workspace,
             emotion=emotion,
             homeostasis=homeostasis,
-            appraiser=LimbicAppraiser(),
+            appraiser=EmotionAppraiser(),
             context_source=context,
-            cortical_worker=worker,
+            reasoning_worker=worker,
             plan_sink=self.router,
+            settlement=settlement,
             initial_timestamp=clock().timestamp(),
             allowed_tools=skills.allowed_tool_keys(),
             motivation_blocked=self._motivation_blocked,
-            offline_blocked=self._offline_blocked,
+            consolidation_blocked=self._consolidation_blocked,
+            journal=self._journal,
+            on_outcome=self._persist_after_outcome,
+            on_state_change=self._save_continuity,
         )
         self._started = False
         self._workspace = workspace
@@ -124,8 +158,15 @@ class BrainRuntime:
         if self._started:
             return
         try:
+            checkpoint = self._journal_store.load_checkpoint()
+            if checkpoint is not None:
+                self._restore_clock(checkpoint.captured_at)
+                self.restore_continuity(checkpoint)
+            recovered = self._reconcile_interrupted_work()
             self.router.start()
             self.coordinator.start()
+            if recovered:
+                self.coordinator.notify_perception()
         except (OSError, RuntimeError):
             try:
                 self.coordinator.stop()
@@ -182,9 +223,9 @@ class BrainRuntime:
         """Expose the current fixed-drive state for Lab/Observer inspection."""
         return self.context.motivation_snapshot()
 
-    def offline_cognition_snapshot(self):
+    def consolidation_snapshot(self):
         """Expose bounded quiet-window cognition for Lab/Observer inspection."""
-        return self.context.offline_cognition_snapshot()
+        return self.context.consolidation_snapshot()
 
     def continuity_checkpoint(self) -> BrainContinuityCheckpoint:
         """Capture one checkpoint for the Stage 4C continuous state owners."""
@@ -193,35 +234,30 @@ class BrainRuntime:
             emotion=self._emotion.checkpoint(),
             energy=self._homeostasis.checkpoint(),
             memory=self.context.memory_checkpoint(),
+            orientation=self.context.orientation_checkpoint(),
+            selfhood=self.context.selfhood_checkpoint(),
             motivation=self.context.motivation_checkpoint(),
-            offline_cognition=self.context.offline_cognition_checkpoint(),
+            consolidation=self.context.consolidation_checkpoint(),
         )
 
     def restore_continuity(self, checkpoint: BrainContinuityCheckpoint) -> None:
-        """Restore Emotion/Energy/Memory atomically while Brain is stopped."""
+        """Prevalidate and restore all continuous owners while Brain is stopped."""
         if self._started:
             raise RuntimeError("cannot restore Brain continuity while it is running")
-        current = self.continuity_checkpoint()
         self._emotion.validate_checkpoint(checkpoint.emotion)
         self._homeostasis.validate_checkpoint(checkpoint.energy)
         self.context.validate_memory_checkpoint(checkpoint.memory)
+        self.context.validate_orientation_checkpoint(checkpoint.orientation)
+        self.context.validate_selfhood_checkpoint(checkpoint.selfhood)
         self.context.validate_motivation_checkpoint(checkpoint.motivation)
-        self.context.validate_offline_cognition_checkpoint(checkpoint.offline_cognition)
-        try:
-            self._emotion.restore(checkpoint.emotion)
-            self._homeostasis.restore(checkpoint.energy)
-            self.context.restore_memory_checkpoint(checkpoint.memory)
-            self.context.restore_motivation_checkpoint(checkpoint.motivation)
-            self.context.restore_offline_cognition_checkpoint(
-                checkpoint.offline_cognition
-            )
-        except Exception:
-            self._emotion.restore(current.emotion)
-            self._homeostasis.restore(current.energy)
-            self.context.restore_memory_checkpoint(current.memory)
-            self.context.restore_motivation_checkpoint(current.motivation)
-            self.context.restore_offline_cognition_checkpoint(current.offline_cognition)
-            raise
+        self.context.validate_consolidation_checkpoint(checkpoint.consolidation)
+        self._emotion.restore(checkpoint.emotion)
+        self._homeostasis.restore(checkpoint.energy)
+        self.context.restore_memory_checkpoint(checkpoint.memory)
+        self.context.restore_orientation_checkpoint(checkpoint.orientation)
+        self.context.restore_selfhood_checkpoint(checkpoint.selfhood)
+        self.context.restore_motivation_checkpoint(checkpoint.motivation)
+        self.context.restore_consolidation_checkpoint(checkpoint.consolidation)
 
     def decision(self, turn_id: TurnId) -> Optional[TurnDecision]:
         return self.router.decision(turn_id)
@@ -232,6 +268,53 @@ class BrainRuntime:
     def activities(self):
         """Return committed Activity records for Brain/Lab observation."""
         return self.activity_store.list()
+
+    def journal_entries(self) -> Tuple[BrainJournalEntry, ...]:
+        """Return append-only causal facts for diagnostics and recovery tests."""
+        return self._journal.entries()
+
+    def _reconcile_interrupted_work(self) -> bool:
+        """Never replay uncertain side effects after restart; surface them as facts."""
+        recovered = False
+        for fact in self._journal.reconcile_unfinished():
+            self._workspace.publish(
+                reconciliation_fact_to_perception(
+                    fact,
+                    elfie_id=self._elfie_id,
+                    occurred_at=self._clock(),
+                )
+            )
+            recovered = True
+        for record in self.activity_store.list():
+            if record.state is not ActivityState.RUNNING:
+                continue
+            occurred_at = max(self._clock(), record.updated_at)
+            try:
+                event = self.activity_store.transition(
+                    record.activity_id,
+                    expected_revision=record.revision,
+                    target=ActivityState.PAUSED,
+                    now=occurred_at,
+                    reason="restart_reconciliation_required",
+                )
+            except Exception:
+                continue
+            current = self.activity_store.get(record.activity_id)
+            if current is None:
+                continue
+            self._journal.record_activity(
+                current,
+                detail="restart_reconciliation_required",
+            )
+            self._workspace.publish(
+                activity_state_event_to_perception(
+                    event,
+                    elfie_id=self._elfie_id,
+                    response_scope=activity_scope_for_record(current),
+                )
+            )
+            recovered = True
+        return recovered
 
     def _wake_due_activities(self, now: datetime) -> None:
         """Turn due durable work into one deduplicable Internal event."""
@@ -256,6 +339,7 @@ class BrainRuntime:
                     continue
                 current = self.activity_store.get(record.activity_id)
                 if current is not None:
+                    self._journal.record_activity(current, detail="activity_due")
                     events.append((event, current))
         for event, record in events:
             self._workspace.publish(
@@ -276,10 +360,25 @@ class BrainRuntime:
     ) -> None:
         """Bind a child external receipt to the Activity step that requested it."""
         self._settle_motivation_receipt(intent, receipt)
-        self._settle_offline_cognition_receipt(intent, receipt)
-        if receipt.status is not ExecutionStatus.COMPLETED or isinstance(
-            intent, PersistentActivityIntent
-        ):
+        self._settle_consolidation_receipt(intent, receipt)
+        if receipt.status in {
+            ExecutionStatus.COMPLETED,
+            ExecutionStatus.REJECTED,
+            ExecutionStatus.FAILED,
+            ExecutionStatus.INTERRUPTED,
+            ExecutionStatus.TIMED_OUT,
+            ExecutionStatus.CANCELLED,
+        }:
+            self._save_continuity()
+        if isinstance(intent, PersistentActivityRequest):
+            record = self.activity_store.get(intent.draft.activity_id)
+            if record is not None:
+                self._journal.record_activity(
+                    record,
+                    detail=f"request_receipt:{receipt.receipt_id}",
+                )
+            return
+        if receipt.status is not ExecutionStatus.COMPLETED:
             return
         if not isinstance(
             intent, (MessageIntent, SpeechIntent, MotionIntent, ExpressionIntent)
@@ -317,6 +416,12 @@ class BrainRuntime:
                     )
                 except Exception:
                     continue
+                current = self.activity_store.get(record.activity_id)
+                if current is not None:
+                    self._journal.record_activity(
+                        current,
+                        detail=f"step_receipt:{receipt.receipt_id}",
+                    )
 
     def _settle_motivation_receipt(
         self,
@@ -325,7 +430,7 @@ class BrainRuntime:
     ) -> None:
         """Mark one bounded drive handled after its Internal Turn settles."""
         if receipt.status is not ExecutionStatus.COMPLETED or not isinstance(
-            intent, (NoOpIntent, PersistentActivityIntent)
+            intent, (NoOpIntent, PersistentActivityRequest)
         ):
             return
         candidate_id = next(
@@ -343,13 +448,13 @@ class BrainRuntime:
                 success=True,
             )
 
-    def _settle_offline_cognition_receipt(
+    def _settle_consolidation_receipt(
         self,
         intent: DecisionIntent,
         receipt: ExecutionReceipt,
     ) -> None:
         """Commit memory整理 only after its inert Internal Turn settles."""
-        if not isinstance(intent, (NoOpIntent, PersistentActivityIntent)):
+        if not isinstance(intent, (NoOpIntent, PersistentActivityRequest)):
             return
         terminal = {
             ExecutionStatus.COMPLETED,
@@ -365,12 +470,12 @@ class BrainRuntime:
             (
                 event_id
                 for event_id in intent.cause_event_ids
-                if str(event_id).startswith("offline:consolidation:")
+                if str(event_id).startswith("consolidation:")
             ),
             None,
         )
         if candidate_id is not None:
-            self.context.settle_offline_cognition(
+            self.context.settle_consolidation(
                 candidate_id,
                 now=receipt.occurred_at,
                 success=receipt.status is ExecutionStatus.COMPLETED,
@@ -391,7 +496,7 @@ class BrainRuntime:
             )
         return active_activity or self._workspace.metrics().reliable_event_count > 0
 
-    def _offline_blocked(self) -> bool:
+    def _consolidation_blocked(self) -> bool:
         """Do not start quiet-window整理 while foreground work is pending."""
         with self._activity_lock:
             active_activity = any(
@@ -418,7 +523,14 @@ class BrainRuntime:
             return
         self.coordinator.join()
         self.router.join()
+        self._save_continuity()
         self._started = False
+
+    def _persist_after_outcome(self, _outcome: TurnOutcome) -> None:
+        self._save_continuity()
+
+    def _save_continuity(self) -> None:
+        self._journal_store.save_checkpoint(self.continuity_checkpoint())
 
     @property
     def is_running(self) -> bool:

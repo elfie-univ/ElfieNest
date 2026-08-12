@@ -217,10 +217,14 @@ ensure_elfie_home() {
 check_electron() {
     local desktop_dir="$PROJECT_ROOT/app/interfaces/desktop"
     local electron_bin="$desktop_dir/node_modules/.bin/electron"
-    local authority_main="$PROJECT_ROOT/build/components/desktop-interface/main.js"
+    local desktop_main="$PROJECT_ROOT/build/components/desktop-interface/main.js"
+    local host_main="$PROJECT_ROOT/app/bootstrap/desktop_host/host_main.mjs"
+    local authority_main="$PROJECT_ROOT/infrastructure/godot/lifecycle/electron/authority_main.mjs"
 
     [[ -x "$electron_bin" ]] && \
     (cd "$desktop_dir" && node -e "const electron = require('electron'); process.exit(typeof electron === 'string' && electron.length > 0 ? 0 : 1)") >/dev/null 2>&1 && \
+    [[ -f "$desktop_main" ]] && \
+    [[ -f "$host_main" ]] && \
     [[ -f "$authority_main" ]]
 }
 

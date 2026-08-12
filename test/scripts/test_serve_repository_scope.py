@@ -6,7 +6,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from elfie.brain.decision_types import DecisionPlan, MessageIntent
+from elfie.brain.reasoning.decision_types import DecisionPlan, MessageIntent
 from infrastructure.models.fallback_runtime import FallbackRuntimeAdapter
 from infrastructure.models.runtime_contracts import (
     StructuredGenerationMode,
@@ -65,7 +65,7 @@ def _compiled_owner_prompt(
                 "recovery_pressure": 0.0,
                 "recovery_status": "unknown",
             },
-            "offline_cognition": {
+            "consolidation": {
                 "revision": 0,
                 "captured_at": captured_at,
                 "pending_episode_count": 0,

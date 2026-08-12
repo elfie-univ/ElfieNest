@@ -1,4 +1,5 @@
-from elfie.brain.activity import (
+from elfie.brain.activity.context import ActivityContext, ActivityContextItem
+from elfie.brain.activity.system import (
     ActivityDraft,
     ActivityPreflightResult,
     ActivityPreflightStatus,
@@ -13,43 +14,34 @@ from elfie.brain.activity import (
     InMemoryActivityStore,
     transition_activity,
 )
-from elfie.brain.context_builder import ThalamusContextBuilder
-from elfie.brain.context_types import (
-    ActivityContext,
-    ActivityContextItem,
-    BigFiveTraits,
-    BrainContext,
-    MemoryStateSnapshot,
-    MotivationSnapshot,
-    OfflineCognitionSnapshot,
-    OrientationSnapshot,
-    ProfileAnchorSnapshot,
-    SelfhoodDerivation,
-    SelfhoodSnapshot,
-    SelfhoodSpeechStyle,
+from elfie.brain.consolidation.contracts import CognitiveConsolidationSnapshot
+from elfie.brain.consolidation.system import (
+    CognitiveConsolidationCandidate,
+    CognitiveConsolidationCheckpoint,
+    CognitiveConsolidationRestoreError,
+    CognitiveConsolidationSystem,
 )
 from elfie.brain.continuity import BrainContinuityCheckpoint
-from elfie.brain.coordinator import BrainCoordinator
-from elfie.brain.decision_types import DecisionPlan, TurnDecision
 from elfie.brain.emotion.decay_calculator import EmotionDecayCalculator
 from elfie.brain.emotion.emotion_system import EmotionCheckpoint, EmotionSystem
 from elfie.brain.emotion.emotional_state import AmygdalaEmotionalState
-from elfie.brain.energy.energy import EnergyCheckpoint, HypothalamusEnergy
-from elfie.brain.motivation import (
+from elfie.brain.energy.energy import EnergyCheckpoint, EnergySystem
+from elfie.brain.memory.contracts import MemoryStateSnapshot
+from elfie.brain.motivation.contracts import MotivationSnapshot
+from elfie.brain.motivation.system import (
     MotivationCheckpoint,
     MotivationSystem,
     RecoveryDriveCandidate,
 )
-from elfie.brain.offline_cognition import (
-    OfflineCognitionCandidate,
-    OfflineCognitionCheckpoint,
-    OfflineCognitionRestoreError,
-    OfflineCognitionSystem,
+from elfie.brain.orientation.contracts import OrientationSnapshot
+from elfie.brain.orientation.system import OrientationSystem
+from elfie.brain.reasoning.context_builder import ContextAssembler
+from elfie.brain.reasoning.context_types import (
+    BrainContext,
 )
-from elfie.brain.orientation import OrientationSystem
-from elfie.brain.perception_types import TurnFrame
-from elfie.brain.perceptual_workspace import PerceptualWorkspace
-from elfie.brain.reasoning import (
+from elfie.brain.reasoning.coordinator import BrainCoordinator
+from elfie.brain.reasoning.decision_types import DecisionPlan, TurnDecision
+from elfie.brain.reasoning.run import (
     CognitiveStep,
     CognitiveStepKind,
     ReasoningBudget,
@@ -57,8 +49,16 @@ from elfie.brain.reasoning import (
     ReasoningRunResult,
     ReasoningStatus,
 )
+from elfie.brain.reasoning.tool_port import ToolPort, ToolRequest, ToolResult
 from elfie.brain.runtime import BrainRuntime
-from elfie.brain.selfhood import SelfhoodSystem
+from elfie.brain.selfhood.contracts import (
+    BigFiveTraits,
+    ProfileAnchorSnapshot,
+    SelfhoodDerivation,
+    SelfhoodSnapshot,
+    SelfhoodSpeechStyle,
+)
+from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.state_lifecycle import (
     StateCandidate,
     StateCheckpoint,
@@ -68,7 +68,8 @@ from elfie.brain.state_lifecycle import (
     VersionedState,
     VersionedStateStore,
 )
-from elfie.brain.tool_port import ToolPort, ToolRequest, ToolResult
+from elfie.brain.workspace.contracts import TurnFrame
+from elfie.brain.workspace.system import EventWorkspace
 
 __all__ = [
     "ActivityDraft",
@@ -93,14 +94,14 @@ __all__ = [
     "ProfileAnchorSnapshot",
     "MemoryStateSnapshot",
     "MotivationSnapshot",
-    "OfflineCognitionSnapshot",
+    "CognitiveConsolidationSnapshot",
     "MotivationCheckpoint",
     "MotivationSystem",
     "RecoveryDriveCandidate",
-    "OfflineCognitionCandidate",
-    "OfflineCognitionCheckpoint",
-    "OfflineCognitionRestoreError",
-    "OfflineCognitionSystem",
+    "CognitiveConsolidationCandidate",
+    "CognitiveConsolidationCheckpoint",
+    "CognitiveConsolidationRestoreError",
+    "CognitiveConsolidationSystem",
     "SelfhoodDerivation",
     "SelfhoodSnapshot",
     "SelfhoodSpeechStyle",
@@ -117,9 +118,9 @@ __all__ = [
     "ReasoningRun",
     "ReasoningRunResult",
     "ReasoningStatus",
-    "ThalamusContextBuilder",
-    "PerceptualWorkspace",
-    "HypothalamusEnergy",
+    "ContextAssembler",
+    "EventWorkspace",
+    "EnergySystem",
     "AmygdalaEmotionalState",
     "EmotionSystem",
     "EmotionCheckpoint",

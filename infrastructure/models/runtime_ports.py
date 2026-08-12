@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Callable, Mapping, Optional, Protocol
 from pydantic import JsonValue
 
 from app.features.configuration.food import StoredModelEvidence
-from elfie.brain.tool_port import ToolPort
+from elfie.brain.reasoning.tool_port import ToolPort
 
 if TYPE_CHECKING:
     from infrastructure.models.runtime_config import LLMRuntimeConfig

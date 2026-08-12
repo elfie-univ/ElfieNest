@@ -16,13 +16,13 @@ const doNothing = (): void => undefined;
 function renderSidebar(session: ElfieSession | null): string {
   return renderToStaticMarkup(<ElfieSidebar
     collapsed={false}
-    configurationCommand=""
     food=""
     foods={[]}
     iframeRef={{ current: null }}
     items={[]}
     menuOpen={false}
     onCollapse={doNothing}
+    onConfigureFood={doNothing}
     onCreate={doNothing}
     onDelete={doNothing}
     onEditPersonality={doNothing}

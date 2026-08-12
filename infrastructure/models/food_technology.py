@@ -21,7 +21,7 @@ from app.features.configuration.food import (
     is_model_evidence_fresh,
     project_food_health,
 )
-from elfie.brain.food_port import FoodPackage as RuntimeFoodPackage
+from elfie.brain.reasoning.food_port import FoodPackage as RuntimeFoodPackage
 from infrastructure.models.capabilities import (
     canonical_display_name,
     known_capabilities,

@@ -26,6 +26,27 @@ class BigFiveUpdateRequest(BaseModel):
     neuroticism: float = Field(ge=0.0, le=1.0)
 
 
+class ConfigureFoodRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["local", "openai"]
+    model: str = Field(min_length=1, max_length=200)
+    api_base: Optional[str] = Field(default=None, max_length=500)
+    api_key: Optional[str] = Field(default=None, max_length=2000)
+    alias: Optional[str] = Field(default=None, max_length=80)
+
+    @model_validator(mode="after")
+    def validate_connection_fields(self) -> "ConfigureFoodRequest":
+        if self.mode == "openai":
+            if not self.api_base or not self.api_base.strip():
+                raise ValueError("OpenAI 兼容服务必须填写 URL")
+            if not self.api_key or not self.api_key.strip():
+                raise ValueError("OpenAI 兼容服务必须填写 Token")
+        elif self.api_key and self.api_key.strip():
+            raise ValueError("本地模型不需要 Token")
+        return self
+
+
 class TurnRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -62,6 +83,7 @@ class PortraitRequest(BaseModel):
 
 __all__ = (
     "BigFiveUpdateRequest",
+    "ConfigureFoodRequest",
     "CreateElfieRequest",
     "PortraitRequest",
     "TurnRequest",

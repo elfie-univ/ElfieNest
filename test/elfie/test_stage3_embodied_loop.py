@@ -6,7 +6,7 @@ import json
 
 from elfie import ElfieFactory
 from elfie.body import BodyId, BodySensorEvent, HeadlessBody, UtteranceFinal
-from elfie.brain.runtime_port import (
+from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,

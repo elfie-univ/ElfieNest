@@ -14,6 +14,7 @@ from elfie.communication import (
     TextPart,
 )
 from elfie.communication.outbox import CommunicationOutbox
+from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
 from elfie.message_types import ActorRef, MessageMeta
 from elfie.profile import create_visual_profile
@@ -216,16 +217,16 @@ def test_canonical_elfie_owns_hub_and_updates_its_identity() -> None:
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
         )
     )
-    elfie.communication.register_channel(FakeChannel(), connect=True)
+    ElfieDiagnostics(elfie).communication.register_channel(FakeChannel(), connect=True)
 
     elfie.bind_identity("after")
-    receipt = elfie.communication.send_envelope(
+    receipt = ElfieDiagnostics(elfie).communication.send_envelope(
         _envelope(MessageDirection.OUTBOUND, "after", "owner", "你好")
     )
 
     assert receipt.status is DeliveryStatus.SENT
-    assert elfie.communication.elfie_id == "after"
-    assert elfie.communication.snapshot()["outbox_count"] == 1
+    assert ElfieDiagnostics(elfie).communication.elfie_id == "after"
+    assert ElfieDiagnostics(elfie).communication.snapshot()["outbox_count"] == 1
 
 
 def test_factory_rebinds_injected_hub_to_profile_identity() -> None:
@@ -239,7 +240,7 @@ def test_factory_rebinds_injected_hub_to_profile_identity() -> None:
         )
     )
 
-    assert elfie.communication is hub
+    assert ElfieDiagnostics(elfie).communication is hub
     assert hub.elfie_id == "current-id"
 
 

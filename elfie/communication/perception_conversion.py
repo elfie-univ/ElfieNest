@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import singledispatch
 from typing import Final, FrozenSet, Mapping, NamedTuple, Protocol, Tuple
 
-from elfie.brain.perception_types import (
+from elfie.brain.workspace.contracts import (
     ExecutionPayload,
     ExecutionStatus,
     IngestDisposition,

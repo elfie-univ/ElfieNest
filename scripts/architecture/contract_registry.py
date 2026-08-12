@@ -25,12 +25,20 @@ class ContractRegistration:
 CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ContractRegistration(
         contract_id="repository-governance",
-        version="1.4",
+        version="1.6",
         english_path="docs/developer/contracts/repository-governance.md",
         chinese_path="docs/zh/developer/contracts/repository-governance.md",
         decision_paths=(
             "docs/developer/decisions/0003-architecture-governance-ratchet.md",
             "docs/zh/developer/decisions/0003-architecture-governance-ratchet.md",
+            "docs/developer/decisions/0009-zero-debt-governance-closure.md",
+            "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
+            "docs/developer/decisions/0010-desktop-authority-host-structure.md",
+            "docs/zh/developer/decisions/0010-desktop-authority-host-structure.md",
+            "docs/developer/decisions/0011-repository-wide-change-classification.md",
+            "docs/zh/developer/decisions/0011-repository-wide-change-classification.md",
+            "docs/developer/decisions/0012-effective-dependency-targets.md",
+            "docs/zh/developer/decisions/0012-effective-dependency-targets.md",
         ),
         agent_paths=(
             "AGENTS.md",
@@ -38,21 +46,47 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "scripts/architecture/AGENTS.md",
             "test/architecture/AGENTS.md",
         ),
-        scanner_paths=("scripts/architecture/check_governance_change.py",),
+        scanner_paths=(
+            "scripts/architecture/check_governance_change.py",
+            "scripts/architecture/effective_dependency_python.py",
+            "scripts/architecture/effective_dependency_scan.py",
+            "scripts/architecture/effective_dependency_targets.py",
+            "scripts/architecture/effective_dependency_text.py",
+        ),
         test_paths=(
             "test/architecture/test_architecture_governance.py",
             "test/architecture/test_app_layer_boundaries.py",
+            "test/architecture/test_effective_dependency_boundaries.py",
             "test/architecture/test_system_layer_boundaries.py",
         ),
     ),
     ContractRegistration(
+        contract_id="documentation-structure",
+        version="1.0",
+        english_path="docs/developer/contracts/documentation-structure.md",
+        chinese_path="docs/zh/developer/contracts/documentation-structure.md",
+        decision_paths=(
+            "docs/developer/decisions/0008-documentation-information-architecture.md",
+            "docs/zh/developer/decisions/0008-documentation-information-architecture.md",
+        ),
+        agent_paths=("docs/AGENTS.md",),
+        scanner_paths=(),
+        test_paths=("test/architecture/test_documentation_structure.py",),
+    ),
+    ContractRegistration(
         contract_id="system-architecture",
-        version="1.3",
+        version="1.5",
         english_path="docs/developer/contracts/system.md",
         chinese_path="docs/zh/developer/contracts/system.md",
         decision_paths=(
             "docs/developer/decisions/0002-system-ports-adapters.md",
             "docs/zh/developer/decisions/0002-system-ports-adapters.md",
+            "docs/developer/decisions/0009-zero-debt-governance-closure.md",
+            "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
+            "docs/developer/decisions/0010-desktop-authority-host-structure.md",
+            "docs/zh/developer/decisions/0010-desktop-authority-host-structure.md",
+            "docs/developer/decisions/0012-effective-dependency-targets.md",
+            "docs/zh/developer/decisions/0012-effective-dependency-targets.md",
         ),
         agent_paths=(
             "elfie/AGENTS.md",
@@ -62,8 +96,15 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "infrastructure/godot/AGENTS.md",
             "godot_project/AGENTS.md",
         ),
-        scanner_paths=("scripts/architecture/system_layer_scan.py",),
+        scanner_paths=(
+            "scripts/architecture/effective_dependency_python.py",
+            "scripts/architecture/effective_dependency_scan.py",
+            "scripts/architecture/effective_dependency_targets.py",
+            "scripts/architecture/effective_dependency_text.py",
+            "scripts/architecture/system_layer_scan.py",
+        ),
         test_paths=(
+            "test/architecture/test_effective_dependency_boundaries.py",
             "test/architecture/test_system_layer_boundaries.py",
             "test/architecture/test_project_structure.py",
             "test/architecture/test_elfie_cognitive_contracts.py",
@@ -73,11 +114,6 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "test/architecture/test_runtime_observer_contracts.py",
             "test/architecture/test_storage_boundaries.py",
         ),
-        conformance_paths=(
-            "docs/developer/conformance/system.md",
-            "docs/zh/developer/conformance/system.md",
-        ),
-        baseline_path="test/architecture/baselines/system_layer.py",
     ),
     ContractRegistration(
         contract_id="elfie-internal-architecture",
@@ -89,6 +125,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0005-elfie-internal-ports-adapters.md",
             "docs/developer/decisions/0006-elfie-life-system-ownership.md",
             "docs/zh/developer/decisions/0006-elfie-life-system-ownership.md",
+            "docs/developer/decisions/0009-zero-debt-governance-closure.md",
+            "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
         ),
         agent_paths=(
             "elfie/AGENTS.md",
@@ -125,7 +163,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="application-architecture",
-        version="1.5",
+        version="1.7",
         english_path="docs/developer/contracts/application.md",
         chinese_path="docs/zh/developer/contracts/application.md",
         decision_paths=(
@@ -133,6 +171,10 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0001-lightweight-ports-adapters.md",
             "docs/developer/decisions/0004-app-domain-slices.md",
             "docs/zh/developer/decisions/0004-app-domain-slices.md",
+            "docs/developer/decisions/0009-zero-debt-governance-closure.md",
+            "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
+            "docs/developer/decisions/0012-effective-dependency-targets.md",
+            "docs/zh/developer/decisions/0012-effective-dependency-targets.md",
         ),
         agent_paths=(
             "app/AGENTS.md",
@@ -153,22 +195,24 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "app/orchestration/embodiment/AGENTS.md",
             "app/orchestration/lifecycle/AGENTS.md",
         ),
-        scanner_paths=("scripts/architecture/app_layer_scan.py",),
+        scanner_paths=(
+            "scripts/architecture/app_layer_scan.py",
+            "scripts/architecture/effective_dependency_python.py",
+            "scripts/architecture/effective_dependency_scan.py",
+            "scripts/architecture/effective_dependency_targets.py",
+            "scripts/architecture/effective_dependency_text.py",
+        ),
         test_paths=(
             "test/architecture/test_app_layer_boundaries.py",
             "test/architecture/test_bootstrap_wiring_boundaries.py",
+            "test/architecture/test_effective_dependency_boundaries.py",
             "test/architecture/test_runtime_import_boundaries.py",
             "test/architecture/test_storage_boundaries.py",
         ),
-        conformance_paths=(
-            "docs/developer/conformance/application.md",
-            "docs/zh/developer/conformance/application.md",
-        ),
-        baseline_path="test/architecture/baselines/app_layer.py",
     ),
     ContractRegistration(
         contract_id="model-food-tool-behavior",
-        version="1.5",
+        version="1.6",
         english_path="docs/developer/contracts/model-food-tool-behavior.md",
         chinese_path="docs/zh/developer/contracts/model-food-tool-behavior.md",
         decision_paths=(
@@ -176,6 +220,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0002-system-ports-adapters.md",
             "docs/developer/decisions/0005-elfie-internal-ports-adapters.md",
             "docs/zh/developer/decisions/0005-elfie-internal-ports-adapters.md",
+            "docs/developer/decisions/0009-zero-debt-governance-closure.md",
+            "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
         ),
         agent_paths=(
             "app/features/configuration/AGENTS.md",
@@ -184,10 +230,6 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
         ),
         scanner_paths=(),
         test_paths=("test/architecture/test_model_food_tool_contract.py",),
-        conformance_paths=(
-            "docs/developer/conformance/model-food-tool-conformance.md",
-            "docs/zh/developer/conformance/model-food-tool-conformance.md",
-        ),
     ),
 )
 

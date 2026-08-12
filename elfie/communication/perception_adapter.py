@@ -6,12 +6,12 @@ from collections import OrderedDict
 from threading import Lock
 from typing import List, NamedTuple, Tuple
 
-from elfie.brain.perception_types import (
+from elfie.brain.workspace.contracts import (
     IngestDisposition,
     IngestReceipt,
     PerceptionEvent,
 )
-from elfie.brain.workspace_ports import PerceptionSink
+from elfie.brain.workspace.ports import PerceptionSink
 from elfie.communication.contracts import (
     CommunicationEnvelope,
     DeliveryReceipt,

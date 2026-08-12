@@ -9,7 +9,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Final, Optional
 
-from elfie.brain.activity import (
+from elfie.brain.activity.system import (
     ActivityDraft,
     ActivityPreflightResult,
     ActivityPreflightStatus,
@@ -336,6 +336,7 @@ class SQLiteActivityStoreAdapter(ActivityStorePort):
         path = Path(db_path)
         if path.name != _FINAL_FILENAME or path.is_symlink():
             raise ActivityStorePathError(str(db_path))
+        path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
     def _initialize_schema(self) -> None:

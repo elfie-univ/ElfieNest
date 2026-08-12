@@ -14,6 +14,7 @@ from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli.doctor_commands import repair_local_runtime_state
 from elfie import ElfieFactory
 from elfie.communication import InboundDisposition, InboundDispositionStatus
+from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
 from elfie.message_types import EventId
 from infrastructure.persistence.configuration.settings import RuntimeSettingsAdapter
@@ -88,15 +89,17 @@ def test_fresh_root_survives_adoption_chat_memory_and_restart(tmp_path: Path) ->
         data_home=data_home,
     )
     elfie = _restore(workspace)
-    elfie.memory.record_episode("今天看到了金色的花", "happy", 80.0)
-    elfie.memory.storage.close()
+    ElfieDiagnostics(elfie).memory.record_episode("今天看到了金色的花", "happy", 80.0)
+    ElfieDiagnostics(elfie).memory.storage.close()
 
     init_db(str(db_path))
     reopened = _restore(workspace)
-    assert "今天看到了金色的花" in reopened.memory.retrieve_relevant_memories(
+    assert "今天看到了金色的花" in ElfieDiagnostics(
+        reopened
+    ).memory.retrieve_relevant_memories(
         "金色的花"
     )
-    reopened.memory.storage.close()
+    ElfieDiagnostics(reopened).memory.storage.close()
     assert [
         message.text
         for message in list_elfie_chat_history(
@@ -169,8 +172,8 @@ def test_full_product_chain_uses_one_explicit_final_root(
             ws_message = websocket.receive_json()
         workspace = data_home / "elfies" / elfie_id
         elfie = _restore(workspace)
-        elfie.memory.record_episode("完整链路记忆", "happy", 80.0)
-        elfie.memory.storage.close()
+        ElfieDiagnostics(elfie).memory.record_episode("完整链路记忆", "happy", 80.0)
+        ElfieDiagnostics(elfie).memory.storage.close()
         settings = RuntimeSettingsAdapter(get_config_path())
         settings.save_security_settings(
             replace(settings.load_security_settings(), session_ttl_days=5)
@@ -194,8 +197,10 @@ def test_full_product_chain_uses_one_explicit_final_root(
             "WS 消息",
         ]
     reopened = _restore(workspace)
-    assert "完整链路记忆" in reopened.memory.retrieve_relevant_memories("完整链路")
-    reopened.memory.storage.close()
+    assert "完整链路记忆" in ElfieDiagnostics(
+        reopened
+    ).memory.retrieve_relevant_memories("完整链路")
+    ElfieDiagnostics(reopened).memory.storage.close()
     assert _tables(db_path) == _NEST_TABLES
     assert _tables(workspace / "conversations" / "history.sqlite") == _HISTORY_TABLES
     assert _tables(workspace / "memory" / "knowledge.sqlite") == set(KNOWLEDGE_TABLES)

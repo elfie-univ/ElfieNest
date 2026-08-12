@@ -16,12 +16,11 @@ tools:
 ./developer.sh --help
 ```
 
-There are three entry points today:
+There are two entry points today:
 
 | Tool | Real entry point | Local default | Purpose |
 | --- | --- | --- | --- |
 | Elfie Lab | `./developer.sh elfie-lab` | `127.0.0.1:9001` | Single-Elfie profile, perception, decision and turn debugging |
-| Runtime Lab | `./developer.sh runtime-lab <command>` | CLI, no listening port | Provider, model configuration and connection experiments |
 | Nest Lab | `./developer.sh nest-lab` | HTTP `127.0.0.1:9002`, Godot WS `127.0.0.1:9003` | Fixed rooms, temporary characters and Godot Runtime experiments |
 
 The real App uses HTTP `8000`, Godot WebSocket `8765` and management WebSocket
@@ -47,13 +46,14 @@ temporary directory for a single experiment makes cleanup easier:
 ```bash
 ./developer.sh elfie-lab --data-dir /tmp/elfienest-elfie-lab --port 9001
 ./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab --port 9002 --godot-ws-port 9003
-./developer.sh runtime-lab --config-dir /tmp/elfienest-runtime-lab show
 ```
 
-Elfie Lab also maintains an independent Runtime configuration for the session;
-Runtime Lab writes API keys into a permission-restricted `.env` inside the dev
-config directory, and status commands never display key contents. Never copy
-any experiment data, key or local configuration into Git-tracked files.
+Elfie Lab keeps its model connection and test Food in the isolated Lab data
+root. In the page's experiment configuration, choose an installed local Ollama
+model or enter an OpenAI-compatible URL, Token and model. Saving creates or
+updates one test Food; the Lab does not preflight the connection, and the first
+real turn makes the actual model call. Never copy any experiment data, key or
+local configuration into Git-tracked files.
 
 ## Per-tool commands
 
@@ -64,19 +64,6 @@ exits:
 ./developer.sh elfie-lab --host 127.0.0.1 --port 9001
 ./developer.sh nest-lab --host 127.0.0.1 --port 9002 --godot-ws-port 9003
 ```
-
-Runtime Lab exposes four subcommands:
-
-```bash
-./developer.sh runtime-lab show
-./developer.sh runtime-lab configure
-./developer.sh runtime-lab test
-./developer.sh runtime-lab chat
-```
-
-`configure` can persist a dev API key via hidden input; do not put keys into
-command arguments, docs or shell history. `test` and `chat` actually call the
-selected model service — confirm the target and cost before running them.
 
 Both Elfie Lab and Nest Lab open a web page on startup and automatically reuse
 or rebuild the same `build/components/godot-web/` export: it is re-exported only

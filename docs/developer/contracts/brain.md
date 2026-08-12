@@ -223,11 +223,11 @@ Provider SDKs, platform payloads, device transports, filesystem roots or
 database records. AI Runtime implementations remain outside Brain; Brain owns
 when and why they are called inside a Run.
 
-The conceptual target package names are `workspace/`, `orientation/`,
+The canonical package names are `workspace/`, `orientation/`,
 `selfhood/`, `emotion/`, `energy/`, `motivation/`, `memory/`, `reasoning/`,
-`activity/` and `consolidation/`. A package is created only when real state,
-contracts or behavior move into it. Flat files are valid while a concept is
-small; empty architecture-shaped directories are forbidden.
+`activity/` and `consolidation/`. Every package owns real state, contracts or
+behavior. Synonymous flat modules at the Brain root must not return, and empty
+architecture-shaped directories are forbidden.
 
 Private cognitive coordination and context assembly belong under Brain. The
 root Elfie Facade may start, stop and observe the aggregate but must not become

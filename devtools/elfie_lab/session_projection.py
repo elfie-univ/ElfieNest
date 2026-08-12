@@ -13,6 +13,7 @@ from devtools.elfie_lab.memory_projection import (
 from devtools.elfie_lab.schemas import ElfieSpec
 from devtools.elfie_lab.storage import ElfieLabStorage
 from elfie import Elfie
+from elfie.diagnostics import ElfieDiagnostics
 from elfie.profile import AppearanceResolver
 
 
@@ -23,7 +24,8 @@ def build_profile(
 ) -> Dict[str, Any]:
     """Build the stable profile payload consumed by the Lab UI."""
     character_profile = elfie.profile
-    selfhood = elfie.selfhood.snapshot()
+    diagnostics = ElfieDiagnostics(elfie)
+    selfhood = diagnostics.selfhood.snapshot()
     resolved = AppearanceResolver().resolve(character_profile).to_payload()
     big_five = selfhood.big_five.model_dump()
     return {
@@ -49,7 +51,7 @@ def build_profile(
             else ""
         ),
         "memory_cognition": _memory_cognition_projection(elfie, spec),
-        "memory_count": len(elfie.memory.get_all_episodes()),
+        "memory_count": len(diagnostics.memory.get_all_episodes()),
         "model": {
             "interaction_protocol": "food",
             "default_food": "mock",
@@ -61,43 +63,52 @@ def build_profile(
 
 def build_snapshot(elfie: Elfie, spec: ElfieSpec) -> Dict[str, Any]:
     """Build the current in-memory state shown by the Lab."""
-    expression = elfie.amygdala.get_expression() or {}
-    cognitive_mode, long_reasoning_allowed, available_budget = (
-        elfie.hypothalamus.cognitive_policy()
-    )
-    memory_state = elfie.memory.snapshot(elfie.cognitive_datetime)
+    diagnostics = ElfieDiagnostics(elfie)
+    emotion = diagnostics.emotion
+    energy = diagnostics.energy
+    memory = diagnostics.memory
+    expression = emotion.get_expression() or {}
+    cognitive_mode, long_reasoning_allowed, available_budget = energy.cognitive_policy()
+    memory_state = memory.snapshot(elfie.cognitive_datetime)
     motivation = elfie.motivation_snapshot() if elfie.cognition_configured else None
-    offline_cognition = (
-        elfie.offline_cognition_snapshot() if elfie.cognition_configured else None
+    consolidation = (
+        elfie.consolidation_snapshot() if elfie.cognition_configured else None
     )
     activities = [
         record.model_dump(mode="json")
         for record in (elfie.activities() if elfie.cognition_configured else ())
     ]
+    orientation = elfie.orientation_snapshot() if elfie.cognition_configured else None
+    selfhood = elfie.selfhood_snapshot()
+    profile_anchor = elfie.profile_anchor_snapshot()
+    journal = elfie.brain_journal()
     return {
-        "energy": round(elfie.hypothalamus.get_energy(), 2),
-        "fatigue": round(elfie.hypothalamus.get_fatigue(), 2),
-        "is_sleeping": bool(elfie.hypothalamus.is_sleeping),
+        "energy": round(energy.get_energy(), 2),
+        "fatigue": round(energy.get_fatigue(), 2),
+        "is_sleeping": bool(energy.is_sleeping),
         "cognitive_mode": cognitive_mode,
         "long_reasoning_allowed": long_reasoning_allowed,
         "available_cognitive_budget": round(available_budget, 2),
-        "energy_revision": elfie.hypothalamus.revision,
-        "emotions": {
-            name: round(value, 2) for name, value in elfie.amygdala.emotions.items()
-        },
-        "dominant_emotion": elfie.amygdala.get_dominant_mood(),
-        "emotion_revision": elfie.amygdala.revision,
+        "normal_budget_available": round(energy.activity_budget_available(), 2),
+        "emergency_reserve_available": round(
+            energy.snapshot(elfie.elapsed_time).emergency_reserve_available, 2
+        ),
+        "reserved_cognitive_budget": round(energy.reserved_cognitive_budget(), 2),
+        "energy_revision": energy.revision,
+        "emotions": {name: round(value, 2) for name, value in emotion.emotions.items()},
+        "dominant_emotion": emotion.get_dominant_mood(),
+        "emotion_revision": emotion.revision,
         "expression": expression,
-        "attention_network": "cortical_worker",
+        "attention_network": "reasoning_worker",
         "species_id": spec.species_id,
         "anatomy_type": elfie.anatomy_type,
-        "action_intent": elfie.nervous_system.motion_actuator.last_action_intent,
+        "action_intent": diagnostics.nervous_system.motion_actuator.last_action_intent,
         "joint_angles": {
             name: round(value, 3)
-            for name, value in elfie.anatomy.get_joint_angles().items()
+            for name, value in diagnostics.anatomy.get_joint_angles().items()
         },
         "elapsed_time": round(elfie.elapsed_time, 3),
-        "memory_count": len(elfie.memory.get_all_episodes()),
+        "memory_count": len(memory.get_all_episodes()),
         "memory_revision": memory_state.revision,
         "memory_episodic_count": memory_state.episodic_count,
         "memory_total_count": memory_state.total_count,
@@ -106,11 +117,19 @@ def build_snapshot(elfie: Elfie, spec: ElfieSpec) -> Dict[str, Any]:
         "motivation": (
             motivation.model_dump(mode="json") if motivation is not None else None
         ),
-        "offline_cognition": (
-            offline_cognition.model_dump(mode="json")
-            if offline_cognition is not None
-            else None
+        "orientation": (
+            orientation.model_dump(mode="json") if orientation is not None else None
         ),
+        "selfhood": selfhood.model_dump(mode="json"),
+        "profile_anchor": profile_anchor.model_dump(mode="json"),
+        "cognitive_consolidation": (
+            consolidation.model_dump(mode="json") if consolidation is not None else None
+        ),
+        "journal": {
+            "entry_count": len(journal),
+            "last_kind": journal[-1].kind.value if journal else None,
+            "last_status": journal[-1].status if journal else None,
+        },
     }
 
 
@@ -157,4 +176,6 @@ def _memory_cognition_projection(
     elfie: Elfie,
     spec: ElfieSpec,
 ) -> MemoryCognitionPayload:
-    return build_memory_cognition(cast(ProjectionMemory, elfie.memory), spec.name)
+    return build_memory_cognition(
+        cast(ProjectionMemory, ElfieDiagnostics(elfie).memory), spec.name
+    )

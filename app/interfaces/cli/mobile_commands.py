@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import platform
-import socket
-import subprocess
-
+from app.features.operations import GetMobileAccessQuery, OperationsFacade
 from app.interfaces.cli.tui.common import clear_screen, print_banner
 from app.orchestration.lifecycle import LifecycleFacade
 
@@ -18,7 +15,10 @@ except ImportError:
     QRCODE_AVAILABLE = False
 
 
-def show_mobile_access(lifecycle: LifecycleFacade) -> int:
+def show_mobile_access(
+    lifecycle: LifecycleFacade,
+    operations: OperationsFacade,
+) -> int:
     clear_screen()
     print_banner()
 
@@ -40,16 +40,15 @@ def show_mobile_access(lifecycle: LifecycleFacade) -> int:
         print()
         return 1
 
-    local_ip = _get_local_ip()
-
-    if local_ip is None:
+    access = operations.get_mobile_access(GetMobileAccessQuery(http_port=http_port))
+    if not access.urls:
         print("  ❌ Unable to get local IP address")
         print("  Check network connection")
         print()
         return 1
 
-    url = f"http://{local_ip}:{http_port}"
-    wifi_name = _get_current_wifi()
+    url = access.urls[0]
+    wifi_name = access.network_name
 
     print(f"  URL: {url}")
     if wifi_name:
@@ -96,95 +95,3 @@ def show_mobile_access(lifecycle: LifecycleFacade) -> int:
     print()
 
     return 0
-
-
-def _get_local_ip() -> str | None:
-    """Get local IP address, preferring real LAN interfaces over VPN/USB."""
-    try:
-        import subprocess
-
-        result = subprocess.run(
-            ["ifconfig"],
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-        output = result.stdout
-
-        import re
-
-        ips = []
-        for match in re.finditer(r"inet (\d+\.\d+\.\d+\.\d+)", output):
-            ip = match.group(1)
-            if ip.startswith("127."):
-                continue
-            if ip.startswith("198.18."):
-                continue
-            if ip.startswith("10."):
-                ips.append(ip)
-            elif ip.startswith("192.168."):
-                ips.append(ip)
-            elif ip.startswith("172."):
-                next_octet = int(ip.split(".")[1])
-                if 16 <= next_octet <= 31:
-                    ips.append(ip)
-
-        if ips:
-            lan_ips = [ip for ip in ips if ip.startswith("192.168.")]
-            return lan_ips[0] if lan_ips else ips[0]
-
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            sock.connect(("8.8.8.8", 80))
-            local_ip = str(sock.getsockname()[0])
-            return local_ip
-    except (OSError, subprocess.SubprocessError):
-        return None
-
-
-def _get_current_wifi() -> str | None:
-    system = platform.system()
-    try:
-        if system == "Darwin":
-            result = subprocess.run(
-                ["system_profiler", "SPAirPortDataType"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if (
-                result.returncode == 0
-                and "Current Network Information:" in result.stdout
-            ):
-                lines = result.stdout.split("\n")
-                for i, line in enumerate(lines):
-                    if "Current Network Information:" in line and i + 1 < len(lines):
-                        next_line = lines[i + 1].strip()
-                        if ":" in next_line:
-                            network_name = next_line.split(":")[0].strip()
-                            if network_name and network_name not in ("", "<redacted>"):
-                                return network_name
-                        if "<redacted>" in next_line:
-                            return "<redacted>"
-
-            result = subprocess.run(
-                ["networksetup", "-getairportnetwork", "en0"],
-                capture_output=True,
-                text=True,
-                timeout=2,
-            )
-            output = result.stdout.strip()
-            if "Current Wi-Fi Network:" in output:
-                wifi_name = output.split("Current Wi-Fi Network:")[-1].strip()
-                return wifi_name if wifi_name else None
-        elif system == "Linux":
-            result = subprocess.run(
-                ["iwgetid", "-r"],
-                capture_output=True,
-                text=True,
-                timeout=2,
-            )
-            wifi_name = result.stdout.strip()
-            return wifi_name if wifi_name else None
-    except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
-        pass
-    return None
