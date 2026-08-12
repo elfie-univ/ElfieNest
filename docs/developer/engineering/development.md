@@ -87,17 +87,15 @@ The three workbenches are all isolated from the end-user product:
 
 ./developer.sh nest-lab \
   --data-dir /tmp/elfienest-nest-lab --port 9002
-
-./developer.sh runtime-lab \
-  --config-dir /tmp/elfienest-runtime-lab show
 ```
 
 - Elfie Lab inspects a single Elfie's profile, perception, decisions and turns;
 - Nest Lab starts an isolated Nest, an independent Godot v2 gateway and an
   optional browser room preview; it does not start `ElfieNestEngine` and does
   not read production data;
-- Runtime Lab inspects providers, model configuration and connections and does
-  not listen on a port.
+- Elfie Lab's experiment configuration can select a local Ollama model or save
+  an OpenAI-compatible URL, Token and model as one Lab test Food. It does not
+  preflight the connection; the first real turn attempts the model call.
 
 The default ports are only local development values. Do not wire the
 workbenches into end-user navigation, and do not let them use default

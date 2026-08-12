@@ -140,16 +140,13 @@ Dedicated 权威导出是
 ./developer.sh --help
 ./developer.sh elfie-lab --data-dir /tmp/elfienest-elfie-lab
 ./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab
-./developer.sh runtime-lab --config-dir /tmp/elfienest-runtime-lab show
 ```
 
 - Elfie Lab 默认监听 `127.0.0.1:8877`；
-- Nest Lab 默认监听 `127.0.0.1:8890`；
-- Runtime Lab 是命令行工具，没有监听端口。
+- Nest Lab 默认监听 `127.0.0.1:8890`。
 
-端口只是本地默认值，不是生产保证。`runtime-lab test` 和 `runtime-lab chat`
-会真实请求模型服务；运行前确认 Provider、模型、网络与费用。详细边界见
-`devtools/README.md`。
+端口只是本地默认值，不是生产保证。在 Elfie Lab 的实验配置面板中配置模型；保存不会
+验证连接，第一次真实回合才会发起模型请求。详细边界见 `devtools/README.md`。
 
 ## 质量检查与测试
 

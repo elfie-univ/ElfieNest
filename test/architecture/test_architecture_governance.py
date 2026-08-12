@@ -276,7 +276,7 @@ def test_repository_wide_implementation_surfaces_cannot_hide_in_governance_chang
     governance, production = classify_paths(
         {
             "docs/developer/contracts/repository-governance.md",
-            "devtools/runtime_lab/__main__.py",
+            "devtools/nest_lab/__main__.py",
             "scripts/release.py",
             "developer.sh",
             "pyproject.toml",
@@ -294,7 +294,7 @@ def test_repository_wide_implementation_surfaces_cannot_hide_in_governance_chang
     assert production == {
         ".github/workflows/docs.yml",
         "developer.sh",
-        "devtools/runtime_lab/__main__.py",
+        "devtools/nest_lab/__main__.py",
         "docs/.vitepress/config.mts",
         "docs/package.json",
         "new_surface/entry.custom",

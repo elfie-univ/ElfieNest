@@ -37,7 +37,7 @@ def test_python_process_targets_follow_the_callers_boundary(tmp_path: Path) -> N
         tmp_path,
         "scripts/elfienest.py",
         "import subprocess, sys\n"
-        "subprocess.run([sys.executable, '-m', 'devtools.runtime_lab'])\n",
+        "subprocess.run([sys.executable, '-m', 'devtools.nest_lab'])\n",
     )
 
     violations = collect_effective_dependency_violations(tmp_path)
@@ -49,7 +49,7 @@ def test_python_process_targets_follow_the_callers_boundary(tmp_path: Path) -> N
         }
     )
     assert violations["production_tooling_effective_dependencies"] == frozenset(
-        {"scripts/elfienest.py:2 [subprocess.run] -> devtools.runtime_lab"}
+        {"scripts/elfienest.py:2 [subprocess.run] -> devtools.nest_lab"}
     )
 
 
@@ -109,7 +109,7 @@ def test_allowed_composition_and_lab_targets_remain_valid(tmp_path: Path) -> Non
     _write(
         tmp_path,
         "devtools/elfie_lab/launcher.py",
-        "import subprocess\nsubprocess.run(['python', '-m', 'devtools.runtime_lab'])\n",
+        "import subprocess\nsubprocess.run(['python', '-m', 'devtools.nest_lab'])\n",
     )
 
     violations = collect_effective_dependency_violations(tmp_path)

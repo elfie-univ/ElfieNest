@@ -41,7 +41,7 @@ from infrastructure.tools.web_search.search import WebSearchPlugin
 
 
 def _build_offline_validator(db_path: str) -> Callable[[], bool]:
-    """Compose the existing offline suites without making Doctor own Runtime Lab."""
+    """Compose the existing offline suites without making Doctor own model Runtime."""
 
     def validate() -> bool:
         config = load_runtime_config()

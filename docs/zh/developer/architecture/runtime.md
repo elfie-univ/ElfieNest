@@ -134,7 +134,7 @@ ${ELFIE_HOME:-~/.elfienest}/
 ## 开发边界
 
 Developer Tools 默认使用独立根 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，其下的
-`elfie_lab/`、`nest_lab/`、`runtime_lab/` 不得回退读取生产根。测试应同时设置临时
+`elfie_lab/`、`nest_lab/` 不得回退读取生产根。测试应同时设置临时
 `ELFIE_HOME` 与 `ELFIE_DEV_HOME`。
 
 应用在产生写入前就会拒绝旧数据根和旧 schema。请先备份，再重建所选数据根；不提供

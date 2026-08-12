@@ -37,9 +37,9 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
   质量棘轮和人工审查怎样共同保护仓库。
 - [开发流程](./engineering/development)：环境、分支、最小变更和本地工作顺序。
 - [测试与质量](./engineering/testing)：测试层级、质量基线、pre-commit 与 CI。
-- [调试与实验台](./engineering/debugging)：Elfie Lab、Nest Lab、Runtime Lab 的用途和隔离方式。
+- [调试与实验台](./engineering/debugging)：Elfie Lab、Nest Lab 的用途和隔离方式。
 - [命令参考](./engineering/tooling)：统一 CLI、服务、数据和诊断命令。
-- [Developer Tools](./engineering/devtools)：三个模块实验台的入口和适用场景。
+- [Developer Tools](./engineering/devtools)：两个模块实验台的入口和适用场景。
 - [Godot](./engineering/godot)：场景、空间、角色、Web Runtime 的所有权和检查流程。
 - [Desktop](./engineering/desktop)：Electron 宿主、资源发现和进程监督边界。
 - [代码规范与约束](./engineering/standards)：目录边界、Python 类型、测试和文档写法。

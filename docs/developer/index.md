@@ -51,10 +51,10 @@ source of truth.
 - [Testing & quality](./engineering/testing): test layers, quality baseline, pre-commit and
   CI.
 - [Debugging & workbenches](./engineering/debugging): the purpose and isolation of Elfie
-  Lab, Nest Lab and Runtime Lab.
+  Lab and Nest Lab.
 - [Command reference](./engineering/tooling): the unified CLI and the service, data and
   diagnosis commands.
-- [Developer Tools](./engineering/devtools): the entry points and use cases of the three
+- [Developer Tools](./engineering/devtools): the entry points and use cases of the two
   module workbenches.
 - [Godot](./engineering/godot): ownership and inspection of scenes, space, characters and
   the Web Runtime.

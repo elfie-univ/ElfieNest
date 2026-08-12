@@ -165,7 +165,7 @@ claim that an artifact is currently available.
 
 Developer Tools defaults to an independent root
 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`; the `elfie_lab/`, `nest_lab/` and
-`runtime_lab/` underneath must never fall back to reading the production root.
+`elfie_lab/` and `nest_lab/` underneath must never fall back to reading the production root.
 Tests should set both a temporary `ELFIE_HOME` and `ELFIE_DEV_HOME`.
 
 Old roots and schemas are rejected before the application writes anything.

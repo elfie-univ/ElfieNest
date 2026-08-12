@@ -34,7 +34,7 @@ configuration, secrets, and lifecycle receipts are owner-only files (`0600`).
 `db reset` removes all three database kinds and preserves non-database files.
 
 Developer Tools uses an independent `${ELFIE_DEV_HOME:-~/.elfienest-dev}` with
-separate `elfie_lab/`, `nest_lab/`, and `runtime_lab/` children. It must not
+separate `elfie_lab/` and `nest_lab/` children. It must not
 read or write the product root by default. A legacy root is rejected before
 write; the supported 0.x first-release operation is backup followed by a
 fresh-root rebuild.

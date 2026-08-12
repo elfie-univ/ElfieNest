@@ -6,6 +6,11 @@ For observing a single Elfie's profile, perception, cognitive turns and output
 projection. It has its own entry point, port and data directory, and is not
 part of end-user navigation.
 
+Its experiment configuration accepts either an installed local Ollama model or
+an OpenAI-compatible URL, Token and model. Saving the form creates or updates
+one Lab test Food. The Lab does not run a separate model or Food validation;
+the first real turn is the connection attempt.
+
 ## Nest Lab
 
 For validating in-nest state inside a fixed room, character entry, the Godot
@@ -34,17 +39,11 @@ passed, running the default command again safely restarts the Nest Lab in the
 current workspace; passing `--port` or `--godot-ws-port` is treated as an
 independent experiment and does not reclaim the original instance.
 
-## Runtime Lab
-
-For inspecting providers, model configuration, food policy, tools and safety
-policy. It is a CLI workbench, not an end-user product page.
-
 ## Isolated runs
 
 ```bash
 ./developer.sh elfie-lab --data-dir /tmp/elfienest-elfie-lab --port 9001
 ./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab --port 9002 --godot-ws-port 9003
-./developer.sh runtime-lab --config-dir /tmp/elfienest-runtime-lab show
 ```
 
 Experiments must use a temporary `ELFIE_HOME` or an explicit data directory;

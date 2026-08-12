@@ -143,9 +143,12 @@ export const foodsSchema = z.object({
     reasoning: z.string().default(""),
     ready_for_attempt: z.boolean(),
     unavailable_reason: z.string().default(""),
-    setup_commands: z.array(z.string()).default([]),
   }).passthrough()),
-  configuration_command: z.string().default(""),
+  local_models: z.array(z.string()).default([]),
+});
+
+export const configureFoodSchema = foodsSchema.extend({
+  selected_food: z.string(),
 });
 
 export const mediaSchema = z.object({ media_id: z.string(), media_url: z.string().optional() }).passthrough();
@@ -154,4 +157,11 @@ export type ElfieSession = z.infer<typeof sessionSchema>;
 export type ElfieTurn = ElfieSession["turns"][number];
 export type BigFive = z.infer<typeof bigFiveSchema>;
 export type FoodItem = z.infer<typeof foodsSchema>["items"][number];
+export type FoodConfiguration = Readonly<{
+  readonly mode: "local" | "openai";
+  readonly model: string;
+  readonly api_base?: string;
+  readonly api_key?: string;
+  readonly alias?: string;
+}>;
 export type PreviewIntent = z.infer<typeof intentSchema>;

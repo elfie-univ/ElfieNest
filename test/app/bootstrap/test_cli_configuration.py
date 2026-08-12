@@ -17,7 +17,6 @@ def test_formal_cli_entrypoint_has_no_developer_tool_bridge() -> None:
     ).read_text(encoding="utf-8")
 
     assert "devtools" not in source
-    assert "RuntimeLab" not in source
 
 
 def test_cli_configuration_builds_narrow_facades(monkeypatch, tmp_path) -> None:

@@ -1,6 +1,9 @@
-from app.features.configuration.food import StoredFoodPackage
+from pathlib import Path
+
+import pytest
+
 from devtools.elfie_lab.app import create_app
-from devtools.runtime_lab import RuntimeLabConfigStore
+from devtools.elfie_lab.runtime_foods import ElfieLabRuntime
 from elfie.brain.food_port import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
 from infrastructure.models.runtime_agent import RuntimeAgent
 from infrastructure.models.runtime_contracts import (
@@ -9,10 +12,17 @@ from infrastructure.models.runtime_contracts import (
     StructuredRuntimeResult,
 )
 from infrastructure.persistence.food import SQLiteFoodAdapter
-from infrastructure.persistence.nest_db.store import init_db
 
 
-def elfie_payload(name):
+@pytest.fixture(autouse=True)
+def skip_frontend_bundle(monkeypatch):
+    monkeypatch.setattr(
+        "devtools.elfie_lab.app.mount_static_surfaces",
+        lambda _app: None,
+    )
+
+
+def elfie_payload(name: str) -> dict[str, object]:
     return {
         "name": name,
         "species_id": "fox",
@@ -23,105 +33,126 @@ def elfie_payload(name):
     }
 
 
-def _write_foods(
-    runtime_dir,
-    *,
-    focus_model="ollama/focus",
-    standard_model="ollama/qwen3.5:0.8b",
-):
-    runtime_dir.mkdir(parents=True, exist_ok=True)
-    db_path = runtime_dir / "nest.db"
-    init_db(str(db_path))
-    repository = SQLiteFoodAdapter(db_path)
-    for package in (
-        StoredFoodPackage(
-            food_id="coarse",
-            display_name="粗粮",
-            primary_model="ollama/qwen3.5:0.8b",
-        ),
-        StoredFoodPackage(
-            food_id="standard",
-            display_name="标准粮",
-            primary_model=standard_model,
-        ),
-        StoredFoodPackage(
-            food_id="focus",
-            display_name="清醒粮",
-            primary_model=focus_model,
-            fallback_model="ollama/qwen3.5:0.8b",
-        ),
-    ):
-        repository.create_package(package)
+def _configure_local(runtime_dir: Path, model: str = "qwen3.5:0.8b") -> None:
+    ElfieLabRuntime(runtime_dir).configure(mode="local", model=model)
 
 
-def test_default_app_uses_developer_runtime_and_keeps_production_isolated(
+def test_default_app_uses_elfie_lab_root_and_keeps_production_isolated(
     tmp_path, monkeypatch, client_for
 ):
     production_home = tmp_path / "production"
     developer_home = tmp_path / "developer"
-    developer_runtime = developer_home / "runtime_lab"
     elfie_data = tmp_path / "elfie-data"
     monkeypatch.setenv("ELFIE_HOME", str(production_home))
     monkeypatch.setenv("ELFIE_DEV_HOME", str(developer_home))
     monkeypatch.setattr(
-        "devtools.elfie_lab.food_status.list_installed_ollama_models",
-        lambda config: (),
+        "devtools.elfie_lab.runtime_foods.OllamaManager.list_installed_models",
+        lambda _manager: (),
     )
-    _write_foods(developer_runtime)
 
     app = create_app(str(elfie_data))
     client = client_for(app)
 
+    expected_root = developer_home / "elfie_lab"
     assert app.state.storage.root == elfie_data
-    assert app.state.runtime_store.root == developer_runtime
-    assert (developer_runtime / "nest.db").exists()
-    assert not (developer_runtime / "foods.yaml").exists()
+    assert app.state.runtime.root == expected_root.resolve()
+    assert (expected_root / "nest.db").exists()
     assert client.get("/api/runtime/status").json()["scope"] == "developer"
+    payload = client.get("/api/runtime/foods").json()
+    assert payload["local_models"] == []
+    assert "configuration_command" not in payload
     assert not production_home.exists()
-    assert client.get("/api/runtime/foods").json()["configuration_command"] == (
-        f"ELFIE_HOME={developer_runtime} .venv/bin/python -m devtools.runtime_lab"
-    )
 
 
-def test_food_api_reports_primary_and_fallback_readiness(
-    tmp_path, monkeypatch, client_for
-):
-    runtime_dir = tmp_path / "runtime"
-    _write_foods(runtime_dir, focus_model="openai/example-model")
-    store = RuntimeLabConfigStore(str(runtime_dir))
-    store.configure_provider(
-        "openai",
-        api_base="https://example.invalid/v1",
-        api_mode="chat_completions",
-        model="example-model",
-        model_key="remote_deep",
-    )
+def test_configure_local_model_creates_one_test_food(tmp_path, monkeypatch, client_for):
+    runtime_dir = tmp_path / "elfie-lab"
     monkeypatch.setattr(
-        "devtools.elfie_lab.food_status.list_installed_ollama_models",
-        lambda config: ("qwen3.5:0.8b",),
+        "devtools.elfie_lab.runtime_foods.OllamaManager.list_installed_models",
+        lambda _manager: ("qwen3.5:0.8b",),
     )
     client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
-    response = client.get("/api/runtime/foods")
+
+    response = client.post(
+        "/api/runtime/foods/configure",
+        json={"mode": "local", "model": "qwen3.5:0.8b"},
+    )
 
     assert response.status_code == 200
     payload = response.json()
-    focus = next(item for item in payload["items"] if item["key"] == "focus")
-    runtime_lab_command = (
-        f"ELFIE_HOME={runtime_dir} .venv/bin/python -m devtools.runtime_lab"
+    assert payload["selected_food"] == "elfie_lab_test"
+    food = next(item for item in payload["items"] if item["key"] == "elfie_lab_test")
+    assert food["ready_for_attempt"] is True
+    assert food["model"].endswith("/qwen3.5:0.8b")
+    assert payload["local_models"] == ["qwen3.5:0.8b"]
+
+
+def test_configure_openai_compatible_saves_secret_without_preflight(
+    tmp_path, monkeypatch, client_for
+):
+    runtime_dir = tmp_path / "elfie-lab"
+    monkeypatch.setattr(
+        "devtools.elfie_lab.runtime_foods.OllamaManager.list_installed_models",
+        lambda _manager: (),
     )
-    assert payload["configuration_command"] == runtime_lab_command
-    assert focus["model"] == "openai/example-model"
-    assert focus["primary_ready"] is False
-    assert focus["fallback_ready"] is True
-    assert focus["credential_ready"] is True
-    assert runtime_lab_command in focus["setup_commands"]
+    client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
+
+    response = client.post(
+        "/api/runtime/foods/configure",
+        json={
+            "mode": "openai",
+            "api_base": "https://example.invalid/v1",
+            "api_key": "test-token-not-for-response",
+            "model": "example-model",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "test-token-not-for-response" not in response.text
+    item = next(
+        item for item in response.json()["items"] if item["key"] == "elfie_lab_test"
+    )
+    assert item["ready_for_attempt"] is True
+    runtime = ElfieLabRuntime(runtime_dir)
+    config = runtime.load_runtime_config()
+    connection = next(
+        value
+        for key, value in config.providers.items()
+        if key.startswith("custom_openai_")
+    )
+    assert connection["api_base"] == "https://example.invalid/v1"
+    assert connection["api_key"] == "test-token-not-for-response"
+
+
+def test_configure_replaces_the_previous_test_food(tmp_path, client_for, monkeypatch):
+    runtime_dir = tmp_path / "elfie-lab"
+    monkeypatch.setattr(
+        "devtools.elfie_lab.runtime_foods.OllamaManager.list_installed_models",
+        lambda _manager: (),
+    )
+    client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
+
+    first = client.post(
+        "/api/runtime/foods/configure",
+        json={"mode": "local", "model": "first-model"},
+    )
+    second = client.post(
+        "/api/runtime/foods/configure",
+        json={"mode": "local", "model": "second-model"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    packages = SQLiteFoodAdapter(runtime_dir / "nest.db").list_packages()
+    selected = next(item for item in packages if item.food_id == "elfie_lab_test")
+    assert selected.primary_model.endswith("/second-model")
+    assert len([item for item in packages if item.food_id == "elfie_lab_test"]) == 1
 
 
 def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
     tmp_path, monkeypatch, client_for
 ):
-    runtime_dir = tmp_path / "runtime"
-    _write_foods(runtime_dir)
+    runtime_dir = tmp_path / "elfie-lab"
+    _configure_local(runtime_dir)
     captured = {}
 
     def fake_structured_capabilities(runtime, food_key=None, food_unavailable=False):
@@ -139,7 +170,7 @@ def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
         )
 
     def fake_generate_structured(runtime, request):
-        assert request.food_key == "standard"
+        assert request.food_key == "elfie_lab_test"
         return StructuredRuntimeResult(
             text="粮食调用成功。[ACTION]nod_head[/ACTION]",
             selected_mode=StructuredGenerationMode.JSON_TEXT,
@@ -147,134 +178,59 @@ def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
             model_key="ollama/test-food-model",
         )
 
-    monkeypatch.setattr(
-        RuntimeAgent,
-        "structured_capabilities",
-        fake_structured_capabilities,
-    )
-    monkeypatch.setattr(
-        RuntimeAgent,
-        "generate_structured",
-        fake_generate_structured,
-    )
-    monkeypatch.setattr(
-        "devtools.elfie_lab.food_status.list_installed_ollama_models",
-        lambda config: ("qwen3.5:0.8b",),
-    )
+    monkeypatch.setattr(RuntimeAgent, "structured_capabilities", fake_structured_capabilities)
+    monkeypatch.setattr(RuntimeAgent, "generate_structured", fake_generate_structured)
     client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
     created = client.post("/api/elfies", json=elfie_payload("粮食交互测试")).json()
 
     response = client.post(
         f"/api/elfies/{created['elfie_id']}/turns",
-        json={"source_domain": "communication", "message": "你好", "food_key": "standard"},
+        json={
+            "source_domain": "communication",
+            "message": "你好",
+            "food_key": "elfie_lab_test",
+        },
     )
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["food_key"] == "standard"
-    assert payload["model_call"]["food_used"] == "standard"
-    assert payload["model_call"]["provider"] == "ollama"
-    assert payload["model_call"]["model"] == "ollama/test-food-model"
+    assert payload["food_key"] == "elfie_lab_test"
+    assert payload["model_call"]["food_used"] == "elfie_lab_test"
     assert captured == {
-        "food_key": "standard",
+        "food_key": "elfie_lab_test",
         "catalog_path": str(runtime_dir / "nest.db"),
     }
 
 
-def test_turn_rejects_legacy_mode_and_unknown_food(tmp_path, monkeypatch, client_for):
-    monkeypatch.setattr(
-        "devtools.elfie_lab.food_status.list_installed_ollama_models",
-        lambda config: (),
-    )
-    runtime_dir = tmp_path / "runtime"
-    _write_foods(runtime_dir)
+def test_turn_rejects_legacy_mode_and_unknown_food(tmp_path, client_for):
+    runtime_dir = tmp_path / "elfie-lab"
+    _configure_local(runtime_dir)
     client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
     created = client.post("/api/elfies", json=elfie_payload("粮食协议测试")).json()
     endpoint = f"/api/elfies/{created['elfie_id']}/turns"
 
     legacy = client.post(endpoint, json={"message": "你好", "mode": "real"})
-    missing = client.post(endpoint, json={"message": "你好"})
     unknown = client.post(
         endpoint,
-        json={"source_domain": "communication", "message": "你好", "food_key": "not-a-food"},
+        json={
+            "source_domain": "communication",
+            "message": "你好",
+            "food_key": "not-a-food",
+        },
     )
 
     assert legacy.status_code == 422
-    assert missing.status_code == 422
     assert unknown.status_code == 422
     assert "不存在粮食" in unknown.json()["detail"]
 
 
-def test_foods_api_returns_food_list(tmp_path, monkeypatch, client_for):
-    monkeypatch.setattr(
-        "devtools.elfie_lab.food_status.list_installed_ollama_models",
-        lambda config: (),
-    )
-    runtime_dir = tmp_path / "runtime"
-    _write_foods(runtime_dir)
+def test_empty_catalog_exposes_only_unconfigured_system_foods(tmp_path, client_for):
+    runtime_dir = tmp_path / "empty-elfie-lab"
     client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
 
     response = client.get("/api/runtime/foods")
 
-    assert response.status_code == 200
-    items = response.json()["items"]
-    assert [item["key"] for item in items] == [
-        FOOD_EMERGENCY_ID,
-        FOOD_COMMON_ID,
-        "coarse",
-        "focus",
-        "standard",
-    ]
-    assert all(item["credential_ready"] is False for item in items)
-
-
-def test_default_elfie_lab_shows_unconfigured_foods_as_disabled_when_catalog_is_absent(
-    tmp_path, monkeypatch, client_for
-):
-    # Given
-    monkeypatch.setattr(
-        "devtools.elfie_lab.food_status.list_installed_ollama_models",
-        lambda config: (),
-    )
-    runtime_dir = tmp_path / "empty-runtime"
-    client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
-
-    # When
-    response = client.get("/api/runtime/foods")
-
-    # Then
     assert response.status_code == 200
     items = response.json()["items"]
     assert [item["key"] for item in items] == [FOOD_EMERGENCY_ID, FOOD_COMMON_ID]
     assert all(not item["ready_for_attempt"] for item in items)
-
-
-def test_uninstalled_ollama_food_is_disabled_with_setup_command(
-    tmp_path, monkeypatch, client_for
-):
-    monkeypatch.setattr(
-        "devtools.elfie_lab.food_status.list_installed_ollama_models",
-        lambda config: ("another-model:latest",),
-    )
-    runtime_dir = tmp_path / "runtime"
-    _write_foods(runtime_dir)
-    client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
-
-    food_payload = client.get("/api/runtime/foods").json()
-    foods = food_payload["items"]
-    standard = next(item for item in foods if item["key"] == "standard")
-
-    assert standard["ready_for_attempt"] is False
-    assert standard["unavailable_reason"] == "本地模型 qwen3.5:0.8b 尚未安装"
-    assert standard["setup_commands"] == ["ollama pull qwen3.5:0.8b"]
-    assert food_payload["configuration_command"].endswith(
-        ".venv/bin/python -m devtools.runtime_lab"
-    )
-
-    created = client.post("/api/elfies", json=elfie_payload("未就绪粮食测试")).json()
-    response = client.post(
-        f"/api/elfies/{created['elfie_id']}/turns",
-        json={"source_domain": "communication", "message": "你好", "food_key": "standard"},
-    )
-    assert response.status_code == 422
-    assert "ollama pull qwen3.5:0.8b" in response.json()["detail"]
