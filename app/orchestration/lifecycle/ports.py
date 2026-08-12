@@ -299,6 +299,18 @@ class OptionalRuntimeComponentPort(Protocol):
         """Best-effort start of an already configured public installation."""
 
 
+class FrontendPreparationPort(Protocol):
+    """Prepare source Web artifacts without exposing package-manager mechanics."""
+
+    def prepare(self, runtime_mode: str) -> None: ...
+
+
+class GodotWebPreparationPort(Protocol):
+    """Prepare or verify exported Godot Web artifacts."""
+
+    def prepare(self, runtime_mode: str, *, is_frozen: bool) -> bool: ...
+
+
 class RuntimeRecordPort(Protocol):
     """Durable owner-generation record required by RuntimeSupervisor."""
 

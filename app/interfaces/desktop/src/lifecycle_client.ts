@@ -13,7 +13,7 @@ type RuntimeStatus = Readonly<{
 }>;
 
 export interface LifecycleCommandRunner {
-  run(command: string, argumentsList: readonly string[]): Promise<string>;
+  run(argumentsList: readonly string[]): Promise<string>;
 }
 
 export class LifecycleClientError extends Error {
@@ -27,15 +27,14 @@ export class LifecycleClientError extends Error {
 const runFile = promisify(execFile);
 
 export class ProcessLifecycleCommandRunner implements LifecycleCommandRunner {
-  async run(command: string, argumentsList: readonly string[]): Promise<string> {
-    const result = await runFile(command, [...argumentsList]);
+  async run(argumentsList: readonly string[]): Promise<string> {
+    const result = await runFile("elfienest", [...argumentsList]);
     return result.stdout;
   }
 }
 
 export class ManagedRuntimeLifecycleClient implements LifecycleClient {
   constructor(
-    private readonly command: string,
     private readonly ownerLease: string,
     private readonly commandRunner: LifecycleCommandRunner = new ProcessLifecycleCommandRunner(),
   ) {}
@@ -49,7 +48,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       if (initial.state === "starting") {
         return this.failure("Runtime is already starting");
       }
-      await this.commandRunner.run(this.command, ["start", "--owner-id", this.ownerLease]);
+      await this.commandRunner.run(["start", "--owner-id", this.ownerLease]);
       const started = await this.status();
       if (this.isReady(started) && started.ownerLease === this.ownerLease) {
         return {
@@ -68,11 +67,11 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     if (ownerLease !== this.ownerLease) {
       throw new LifecycleClientError("Desktop cannot stop a lease it did not create");
     }
-    await this.commandRunner.run(this.command, ["stop", "--owner-id", ownerLease]);
+    await this.commandRunner.run(["stop", "--owner-id", ownerLease]);
   }
 
   private async status(): Promise<RuntimeStatus> {
-    const output = await this.commandRunner.run(this.command, ["status", "--json"]);
+    const output = await this.commandRunner.run(["status", "--json"]);
     return this.parseStatus(output);
   }
 

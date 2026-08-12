@@ -133,7 +133,7 @@ Runtime Supervisor
   ├── Python Core + Gateway
   ├── 一个被选中的 Godot 权威宿主
   │   ├── 图形化 Web 权威
-  │   ├── 图形化 Electron 权威角色
+  │   ├── Bootstrap 宿主装配的 Infrastructure Electron 权威
   │   └── 无显示 Linux dedicated 权威
   └── 公共 Ollama 健康（可选；可以 degraded）
 

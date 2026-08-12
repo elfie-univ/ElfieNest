@@ -25,6 +25,7 @@ from app.orchestration.lifecycle.runtime_health import (
     RuntimeHealthState,
 )
 from app.orchestration.lifecycle.types import (
+    FrontendPreparationError,
     LaunchFailedError,
     RecoveryInProgressError,
     ServiceLifecycleResult,
@@ -39,6 +40,7 @@ __all__ = [
     "DEFAULT_SERVICE_PORTS",
     "DoctorRepairResult",
     "DoctorValidationResult",
+    "FrontendPreparationError",
     "LaunchFailedError",
     "LifecycleFacade",
     "MANAGED_START_ENV",

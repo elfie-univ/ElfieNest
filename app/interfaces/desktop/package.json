@@ -9,48 +9,8 @@
     "build": "pnpm exec tsc -p tsconfig.json",
     "test": "pnpm build && node --test ../../../build/components/desktop-interface/application_menu.test.js ../../../build/components/desktop-interface/resources/resource_manifest.test.js ../../../build/components/desktop-interface/desktop_role_lifecycle.test.js ../../../build/components/desktop-interface/lifecycle_client.test.js",
     "build-resource-manifest": "pnpm build && node ../../../build/components/desktop-interface/resources/build_resource_manifest.js",
-    "dev": "pnpm build && electron ../../../build/components/desktop-interface/main.js",
-    "package": "pnpm build && electron-builder --publish never"
-  },
-  "build": {
-    "appId": "com.elfienest.desktop",
-    "productName": "ElfieNest",
-    "artifactName": "ElfieNest-${version}-internal-${os}-${arch}.${ext}",
-    "asar": true,
-    "files": [
-      {
-        "from": "../../../build/components/desktop-interface",
-        "to": ".",
-        "filter": ["**/*"]
-      },
-      {
-        "from": "../../../infrastructure/godot/lifecycle/electron",
-        "to": "infrastructure/godot/lifecycle/electron",
-        "filter": ["**/*"]
-      },
-      "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "../build/staging/${env.ELFIENEST_TARGET}/resources",
-        "to": "."
-      }
-    ],
-    "mac": {
-      "icon": "assets/elfienest.png",
-      "target": ["dmg"]
-    },
-    "win": {
-      "icon": "assets/elfienest.png",
-      "target": ["nsis"]
-    },
-    "linux": {
-      "icon": "assets/elfienest.png",
-      "target": ["AppImage"]
-    },
-    "directories": {
-      "output": "../../../dist"
-    }
+    "dev": "pnpm build && electron ../../../app/bootstrap/desktop_host/host_main.mjs",
+    "package": "pnpm build && electron-builder --publish never --config ../../../app/bootstrap/desktop_host/electron-builder.yml"
   },
   "packageManager": "pnpm@10.12.1",
   "engines": {

@@ -9,11 +9,11 @@ import shutil
 import subprocess
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Final, Optional, Sequence
+from typing import Callable, Final, Optional, Sequence
 
-from app.interfaces.web.build_discovery import discover_web_build
+from app.orchestration.lifecycle import FrontendPreparationError
 
-PROJECT_ROOT: Final = Path(__file__).resolve().parents[3]
+PROJECT_ROOT: Final = Path(__file__).resolve().parents[2]
 FRONTEND_SOURCE_DIRECTORY: Final = (
     PROJECT_ROOT / "app" / "interfaces" / "web" / "frontend"
 )
@@ -37,7 +37,12 @@ def source_digest(source: Path) -> str:
     return digest.hexdigest()
 
 
-def bundle_is_current(output: Path, source: Path) -> bool:
+def bundle_is_current(
+    output: Path,
+    source: Path,
+    *,
+    verify_build: Callable[[Path], object],
+) -> bool:
     """Return whether a generated Vite shell records the current source digest."""
     if not source.is_dir():
         return False
@@ -45,7 +50,7 @@ def bundle_is_current(output: Path, source: Path) -> bool:
     if not (output / "index.html").is_file() or not marker_path.is_file():
         return False
     try:
-        discover_web_build(output)
+        verify_build(output)
         marker = json.loads(marker_path.read_text(encoding="utf-8"))
     except (OSError, TypeError, ValueError):
         return False
@@ -66,6 +71,7 @@ def ensure_frontend_build(
     runtime_mode: str,
     source: Optional[Path] = None,
     output: Optional[Path] = None,
+    verify_build: Callable[[Path], object],
 ) -> None:
     """Build the source frontend only when an actual development launch needs it."""
     if runtime_mode != "development":
@@ -77,7 +83,11 @@ def ensure_frontend_build(
         raise FrontendBuildError(
             f"Frontend source directory does not exist: {source_directory}"
         )
-    if bundle_is_current(output_directory, source_directory):
+    if bundle_is_current(
+        output_directory,
+        source_directory,
+        verify_build=verify_build,
+    ):
         return
 
     try:
@@ -104,7 +114,11 @@ def ensure_frontend_build(
         raise FrontendBuildError(
             f"Could not record frontend build state: {error}"
         ) from error
-    if not bundle_is_current(output_directory, source_directory):
+    if not bundle_is_current(
+        output_directory,
+        source_directory,
+        verify_build=verify_build,
+    ):
         raise FrontendBuildError(
             "Frontend build completed but the generated Web shell could not be verified"
         )
@@ -163,3 +177,19 @@ def _source_files(source: Path) -> Iterable[Path]:
     for path in sorted(source.rglob("*")):
         if path.is_file() and "node_modules" not in path.parts:
             yield path
+
+
+class FrontendBuildAdapter:
+    """Infrastructure implementation of lifecycle-owned frontend preparation."""
+
+    def __init__(self, verify_build: Callable[[Path], object]) -> None:
+        self._verify_build = verify_build
+
+    def prepare(self, runtime_mode: str) -> None:
+        try:
+            ensure_frontend_build(
+                runtime_mode=runtime_mode,
+                verify_build=self._verify_build,
+            )
+        except FrontendBuildError as error:
+            raise FrontendPreparationError(str(error)) from error

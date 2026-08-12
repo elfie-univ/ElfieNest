@@ -64,7 +64,7 @@ def find_all_elfienest_processes(
     Find all ElfieNest background service processes.
 
     Only includes:
-    - Python service processes running scripts/serve.py
+    - Core service processes identified by the lifecycle boundary
     - Electron processes running godot-authority role
     - Electron helper processes spawned by godot-authority
     """
@@ -86,8 +86,8 @@ def find_all_elfienest_processes(
             is_elfienest = False
             process_type = "other"
 
-            # Python service process
-            if "scripts/serve.py" in command or "scripts\\serve.py" in command:
+            # Managed Core service process
+            if lifecycle.is_managed_service_command(entry.command):
                 is_elfienest = True
                 process_type = "python"
             # Electron godot-authority process

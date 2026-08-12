@@ -28,12 +28,11 @@ CLI tools:
 import argparse
 import logging
 import os
-import subprocess
 import sys
 import threading
 import time
 from pathlib import Path
-from typing import Callable, Protocol, Sequence
+from typing import Callable, Sequence
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -59,13 +58,10 @@ from app.bootstrap.system_wiring.nest_session import (
 from app.features.accounts import SeedInitialOwnerCommand
 from app.interfaces.api.service_access import ServiceMode
 from app.interfaces.cli.lifecycle_commands import _remember_lifecycle_data_home
-from app.interfaces.web.frontend_build import (
-    FrontendBuildError,
-    ensure_frontend_build,
-)
 from app.orchestration.lifecycle import (
     DEFAULT_GODOT_WS_PORT,
     MANAGED_START_ENV,
+    FrontendPreparationError,
     RecoveryInProgressError,
     command_runs_service,
     validate_service_ports,
@@ -85,36 +81,22 @@ def service_host(lan: bool) -> str:
     return "0.0.0.0" if lan else "127.0.0.1"
 
 
-class GodotBuildCommandResult(Protocol):
-    """Minimal Godot build command result contract for tests without Godot."""
-
-    returncode: int
-
-
-GodotBuildCommandRunner = Callable[[list[str]], GodotBuildCommandResult]
-
-
 def prepare_godot_web_runtime(
+    lifecycle,
     runtime_mode: str,
-    run_command: GodotBuildCommandRunner = subprocess.run,
     is_frozen: bool = bool(getattr(sys, "frozen", False)),
 ) -> bool:
     """Ensure or validate Godot Web Runtime for the selected mode, returning availability."""
-    if runtime_mode == "release" and is_frozen:
-        return True
-    action = "--ensure" if runtime_mode == "development" else "--check"
-    command = [
-        sys.executable,
-        str(Path(__file__).with_name("build_godot_web.py")),
-        action,
-    ]
-    return run_command(command).returncode == 0
+    return lifecycle.prepare_godot_web(runtime_mode, is_frozen=is_frozen)
 
 
-def prepare_frontend_web_runtime(runtime_mode: str) -> None:
+def prepare_frontend_web_runtime(
+    lifecycle,
+    runtime_mode: str,
+) -> None:
     """Ensure the source Web client is current before a development launch."""
     if runtime_mode == "development":
-        ensure_frontend_build(runtime_mode=runtime_mode)
+        lifecycle.prepare_frontend(runtime_mode)
 
 
 def main():
@@ -183,8 +165,8 @@ def main():
         parser.error(port_error)
 
     try:
-        prepare_frontend_web_runtime(args.runtime_mode)
-    except FrontendBuildError as error:
+        prepare_frontend_web_runtime(lifecycle, args.runtime_mode)
+    except FrontendPreparationError as error:
         print(f"  ❌ Frontend Web build failed: {error}")
         raise SystemExit(1) from None
 
@@ -199,7 +181,7 @@ def main():
         )
         raise SystemExit(1) from None
 
-    godot_ready = prepare_godot_web_runtime(args.runtime_mode)
+    godot_ready = prepare_godot_web_runtime(lifecycle, args.runtime_mode)
     if not godot_ready and args.runtime_mode == "release":
         print(
             "  ❌ Release mode requires verified Godot Web Runtime, service not started"

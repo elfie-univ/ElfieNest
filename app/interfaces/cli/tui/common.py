@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import getpass
-import os
 import sys
 import warnings
 from typing import Any, Optional
@@ -24,7 +23,10 @@ def print_banner() -> None:
 
 
 def clear_screen() -> None:
-    os.system("clear" if os.name == "posix" else "cls")
+    if not sys.stdout.isatty():
+        return
+    sys.stdout.write("\033[2J\033[H")
+    sys.stdout.flush()
 
 
 def rich_console() -> Optional[Any]:

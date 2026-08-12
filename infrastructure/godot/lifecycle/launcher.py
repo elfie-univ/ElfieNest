@@ -123,14 +123,14 @@ def _electron_command(
     electron = _executable(
         project_root / "app/interfaces/desktop/node_modules/.bin/electron"
     )
-    desktop_main = project_root / "build/components/desktop-interface/main.js"
+    desktop_host = project_root / "app/bootstrap/desktop_host/host_main.mjs"
     try:
-        resolved_main = desktop_main.resolve()
+        resolved_host = desktop_host.resolve()
     except OSError:
         return None
-    if electron is None or not resolved_main.is_file():
+    if electron is None or not resolved_host.is_file():
         return None
-    return (str(electron), str(resolved_main), AUTHORITY_ROLE_ARGUMENT)
+    return (str(electron), str(resolved_host), AUTHORITY_ROLE_ARGUMENT)
 
 
 def _requested_host(environment: Mapping[str, str]) -> Optional[RuntimeHostKind]:

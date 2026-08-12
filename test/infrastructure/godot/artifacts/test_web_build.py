@@ -4,7 +4,10 @@ import hashlib
 import json
 from pathlib import Path
 
-from scripts.build_godot_web import current_source_fingerprint, runtime_is_current
+from infrastructure.godot.artifacts.web_build import (
+    current_source_fingerprint,
+    runtime_is_current,
+)
 
 
 def _write_runtime(directory: Path, fingerprint: str) -> None:
@@ -30,7 +33,9 @@ def test_runtime_is_current_when_manifest_matches_source_fingerprint(
     project = tmp_path / "godot_project"
     project.mkdir()
     (project / "project.godot").write_text("[application]\n", encoding="utf-8")
-    monkeypatch.setattr("scripts.build_godot_web.GODOT_PROJECT", project)
+    monkeypatch.setattr(
+        "infrastructure.godot.artifacts.web_build.GODOT_PROJECT", project
+    )
     output = tmp_path / "runtime"
     _write_runtime(output, current_source_fingerprint())
 
@@ -45,7 +50,9 @@ def test_runtime_is_stale_when_godot_source_changes(
     project.mkdir()
     scene = project / "main.tscn"
     scene.write_text('[node name="Nest"]\n', encoding="utf-8")
-    monkeypatch.setattr("scripts.build_godot_web.GODOT_PROJECT", project)
+    monkeypatch.setattr(
+        "infrastructure.godot.artifacts.web_build.GODOT_PROJECT", project
+    )
     output = tmp_path / "runtime"
     _write_runtime(output, current_source_fingerprint())
     scene.write_text('[node name="ChangedNest"]\n', encoding="utf-8")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.interfaces.cli import lifecycle_commands
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 
 
 def test_lifecycle_commands_use_the_packaged_core_when_provided(
@@ -15,7 +15,7 @@ def test_lifecycle_commands_use_the_packaged_core_when_provided(
     monkeypatch.setenv("ELFIENEST_CORE_BIN", core)
 
     # When: it forms a background service command.
-    command = lifecycle_commands.default_service_command(("--lan",))
+    command = create_lifecycle_facade().default_service_command(("--lan",))
 
     # Then: no source checkout script is referenced.
     assert command == (core, "--lan")
