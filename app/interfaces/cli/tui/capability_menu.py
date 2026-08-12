@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from app.features.accounts import AccountPrincipal
 from app.features.configuration import capabilities as capabilities_feature
 from app.interfaces.cli.tui.menu import MenuItem, TerminalMenuPort
@@ -101,7 +103,7 @@ def _edit_web_search(
                     }
                 ),
                 enabled=enabled,
-                provider=provider,
+                provider=cast(capabilities_feature.SearchProvider, provider),
                 api_base=api_base,
                 api_key=api_key or None,
                 max_results=max_results,
