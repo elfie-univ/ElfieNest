@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import secrets
-import sys
 import threading
 import time
 import webbrowser
@@ -154,19 +153,6 @@ class ProgressIndicator:
         )
 
 
-def default_service_command(extra_args: Sequence[str] = ()) -> tuple[str, ...]:
-    """Build the background command without the foreground-only force flag."""
-    filtered = tuple(argument for argument in extra_args if argument != "--force")
-    packaged_core = os.environ.get("ELFIENEST_CORE_BIN")
-    if packaged_core:
-        return (packaged_core, *filtered)
-    return (
-        sys.executable,
-        str((PROJECT_ROOT / "scripts" / "serve.py").resolve()),
-        *filtered,
-    )
-
-
 def _data_home_for_command(
     lifecycle: LifecycleFacade,
     command: Sequence[str],
@@ -235,7 +221,9 @@ def start_background_service(
     progress.start()
 
     launch_command = (
-        tuple(command) if command is not None else default_service_command(("--lan",))
+        tuple(command)
+        if command is not None
+        else lifecycle.default_service_command(("--lan",))
     )
     try:
         http_port = _validated_http_port(launch_command)
@@ -284,7 +272,7 @@ def stop_background_service(
     """Stop only the current project's verified service process."""
     supervisor = _supervisor_for(
         lifecycle,
-        default_service_command(),
+        lifecycle.default_service_command(),
         DEFAULT_HTTP_PORT,
         use_remembered_home=True,
     )
@@ -316,7 +304,7 @@ def restart_background_service(lifecycle: LifecycleFacade) -> ServiceLifecycleRe
 
     stop_supervisor = _supervisor_for(
         lifecycle,
-        default_service_command(),
+        lifecycle.default_service_command(),
         DEFAULT_HTTP_PORT,
         use_remembered_home=True,
     )
@@ -364,7 +352,7 @@ def restart_background_service(lifecycle: LifecycleFacade) -> ServiceLifecycleRe
                 )
 
         return stopped
-    command = stopped.command or default_service_command(("--lan",))
+    command = stopped.command or lifecycle.default_service_command(("--lan",))
     try:
         http_port = _validated_http_port(command)
     except ValueError as error:
@@ -420,11 +408,13 @@ def show_service_status(
     """Print lifecycle state without duplicating usage/session statistics."""
     elfie_home = _data_home_for_command(
         lifecycle,
-        default_service_command(),
+        lifecycle.default_service_command(),
         use_remembered_home=True,
     )
     running = lifecycle.existing_service_command(elfie_home, PROJECT_ROOT)
-    status_command = running[1] if running is not None else default_service_command()
+    status_command = (
+        running[1] if running is not None else lifecycle.default_service_command()
+    )
     status_port = http_port_from_command(status_command)
     health = _supervisor_for(
         lifecycle,
@@ -548,7 +538,7 @@ def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
         if result.status not in {"started", "already_running"}:
             return result
         port = http_port_from_command(
-            result.command or default_service_command(("--lan",))
+            result.command or lifecycle.default_service_command(("--lan",))
         )
         if not _web_is_healthy(lifecycle, port):
             result = ServiceLifecycleResult(

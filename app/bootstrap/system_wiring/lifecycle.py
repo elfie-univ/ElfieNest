@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
+import sys
 from collections.abc import Callable
 from functools import partial
+from pathlib import Path
 
 from app.orchestration.lifecycle import LifecycleFacade
 from infrastructure.godot.lifecycle.authority import GodotAuthorityHostAdapter
@@ -62,7 +65,15 @@ def create_lifecycle_facade() -> LifecycleFacade:
     inspector = DefaultProcessInspector()
     db_path = str(get_db_path())
     local_data = LifecycleDataHomeAdapter()
+    project_root = Path(__file__).resolve().parents[3]
+    packaged_core = os.environ.get("ELFIENEST_CORE_BIN")
+    service_launch_command = (
+        (packaged_core,)
+        if packaged_core
+        else (sys.executable, str((project_root / "scripts" / "serve.py").resolve()))
+    )
     return LifecycleFacade(
+        service_launch_command=service_launch_command,
         process_port=LocalServiceProcessAdapter(),
         recovery_lock=LocalRecoveryLockAdapter(),
         desktop_host=LocalDesktopHostAdapter(),
