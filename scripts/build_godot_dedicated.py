@@ -9,39 +9,23 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-try:
-    from scripts.build_godot_web import (
-        _find_godot as package_find_godot,
-    )
-    from scripts.build_godot_web import (
-        _godot_version as package_godot_version,
-    )
-    from scripts.build_godot_web import (
-        _project_version as package_project_version,
-    )
-except ModuleNotFoundError:
-    from build_godot_web import (
-        _find_godot as script_find_godot,
-    )
-    from build_godot_web import (
-        _godot_version as script_godot_version,
-    )
-    from build_godot_web import (
-        _project_version as script_project_version,
-    )
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-    find_godot_helper = script_find_godot
-    godot_version_helper = script_godot_version
-    project_version_helper = script_project_version
-else:
-    find_godot_helper = package_find_godot
-    godot_version_helper = package_godot_version
-    project_version_helper = package_project_version
+from infrastructure.godot.artifacts.web_build import (
+    _find_godot as find_godot_helper,
+)
+from infrastructure.godot.artifacts.web_build import (
+    _godot_version as godot_version_helper,
+)
+from infrastructure.godot.artifacts.web_build import (
+    _project_version as project_version_helper,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 GODOT_PROJECT = PROJECT_ROOT / "godot_project"

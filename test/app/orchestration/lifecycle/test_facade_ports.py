@@ -68,3 +68,26 @@ def test_default_service_command_uses_the_injected_launch_target() -> None:
     )
     assert lifecycle.is_managed_service_command(("/managed/core", "--lan")) is True
     assert lifecycle.is_managed_service_command(("/other/core", "--lan")) is False
+
+
+def test_frontend_preparation_stays_behind_lifecycle_facade() -> None:
+    frontend = Mock()
+    godot_web = Mock()
+    godot_web.prepare.return_value = True
+    lifecycle = LifecycleFacade(
+        service_launch_command=("/managed/core",),
+        process_port=Mock(),
+        recovery_lock=Mock(),
+        desktop_host=Mock(),
+        http_probe=Mock(),
+        runtime_record_factory=Mock(),
+        authority_host_factory=Mock(),
+        frontend_preparation=frontend,
+        godot_web_preparation=godot_web,
+    )
+
+    lifecycle.prepare_frontend("development")
+
+    frontend.prepare.assert_called_once_with("development")
+    assert lifecycle.prepare_godot_web("release", is_frozen=True) is True
+    godot_web.prepare.assert_called_once_with("release", is_frozen=True)

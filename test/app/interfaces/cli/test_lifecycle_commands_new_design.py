@@ -34,7 +34,7 @@ def isolate_lifecycle_home(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         lifecycle_commands,
         "_prepare_frontend_for_launch",
-        lambda: None,
+        lambda *_args: None,
         raising=False,
     )
 
@@ -100,7 +100,7 @@ def test_start_when_stably_running_skips_frontend_preflight(monkeypatch) -> None
     monkeypatch.setattr(
         lifecycle_commands,
         "_prepare_frontend_for_launch",
-        lambda: events.append("build"),
+        lambda *_args: events.append("build"),
     )
 
     result = lifecycle_commands.start_background_service(
@@ -120,7 +120,7 @@ def test_start_when_stopped_prepares_frontend_before_launch(monkeypatch) -> None
     monkeypatch.setattr(
         lifecycle_commands,
         "_prepare_frontend_for_launch",
-        lambda: events.append("build"),
+        lambda *_args: events.append("build"),
     )
 
     result = lifecycle_commands.start_background_service(
@@ -138,11 +138,11 @@ def test_start_does_not_launch_when_frontend_preflight_fails(monkeypatch) -> Non
         lifecycle_commands, "_supervisor_for", lambda *_args, **_kwargs: supervisor
     )
 
-    def fail() -> None:
+    def fail(*_args) -> None:
         events.append("build")
-        from app.interfaces.web.frontend_build import FrontendBuildError
+        from app.orchestration.lifecycle import FrontendPreparationError
 
-        raise FrontendBuildError("frontend is stale")
+        raise FrontendPreparationError("frontend is stale")
 
     monkeypatch.setattr(lifecycle_commands, "_prepare_frontend_for_launch", fail)
 
@@ -174,7 +174,7 @@ def test_restart_prepares_frontend_before_stopping_old_service(monkeypatch) -> N
     monkeypatch.setattr(
         lifecycle_commands,
         "_prepare_frontend_for_launch",
-        lambda: events.append("build"),
+        lambda *_args: events.append("build"),
     )
 
     result = lifecycle_commands.restart_background_service(LIFECYCLE)
@@ -190,11 +190,11 @@ def test_restart_build_failure_keeps_old_service_running(monkeypatch) -> None:
         lifecycle_commands, "_supervisor_for", lambda *_args, **_kwargs: stopped
     )
 
-    def fail() -> None:
+    def fail(*_args) -> None:
         events.append("build")
-        from app.interfaces.web.frontend_build import FrontendBuildError
+        from app.orchestration.lifecycle import FrontendPreparationError
 
-        raise FrontendBuildError("frontend build failed")
+        raise FrontendPreparationError("frontend build failed")
 
     monkeypatch.setattr(lifecycle_commands, "_prepare_frontend_for_launch", fail)
 
@@ -213,7 +213,7 @@ def test_stop_never_runs_frontend_preflight(monkeypatch) -> None:
     monkeypatch.setattr(
         lifecycle_commands,
         "_prepare_frontend_for_launch",
-        lambda: pytest.fail("stop must not build frontend"),
+        lambda *_args: pytest.fail("stop must not build frontend"),
     )
 
     result = lifecycle_commands.stop_background_service(
@@ -227,12 +227,12 @@ def test_stop_never_runs_frontend_preflight(monkeypatch) -> None:
 def test_release_lifecycle_preflight_is_a_no_op(monkeypatch) -> None:
     monkeypatch.setenv("ELFIENEST_RUNTIME_MODE", "release")
     monkeypatch.setattr(
-        lifecycle_commands,
-        "ensure_frontend_build",
-        lambda **_kwargs: pytest.fail("release lifecycle must not build frontend"),
+        LIFECYCLE,
+        "prepare_frontend",
+        lambda *_args: pytest.fail("release lifecycle must not build frontend"),
     )
 
-    lifecycle_commands._prepare_frontend_for_launch()
+    lifecycle_commands._prepare_frontend_for_launch(LIFECYCLE)
 
 
 def test_lifecycle_commands_use_repository_root_for_service_command() -> None:
@@ -387,7 +387,7 @@ def test_restart_emits_one_final_success_status(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         lifecycle_commands,
         "_prepare_frontend_for_launch",
-        lambda: None,
+        lambda *_args: None,
     )
     stopped = _LaunchSupervisor(
         _stable_health(),
