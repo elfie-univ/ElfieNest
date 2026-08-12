@@ -8,6 +8,9 @@
   不能在同一个产品变更中放松扫描器或改写基线。
 - 治理提交不得修改旧 Baseline；产品迁移只能删除条目，不能新增、改写或重建。台账
   标记 `closed` 前，对应机器规则的 Baseline 条目必须清零。
+- 变更分类攻击测试必须覆盖全仓实现表面，不得只用 `app/` 或某个当前违规目录举例。
+  `devtools/`、普通脚本、根入口、普通测试、Manifest、文档站代码和 Workflow 至少各有
+  一个代表用例；同时证明架构 Scanner/测试的治理身份优先、普通说明文档保持中立。
 - 扫描器放在 `scripts/architecture/` 供本地测试和 CI 复用；测试验证扫描算法、契约
   路径、基线精确性和主分支 ratchet。
 - `test_app_layer_boundaries.py` 约束 App 内部分层；`test_system_layer_boundaries.py`

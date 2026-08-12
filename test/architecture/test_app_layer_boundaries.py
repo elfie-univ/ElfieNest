@@ -250,7 +250,10 @@ def test_baseline_reduction_is_not_classified_as_governance() -> None:
         }
     )
     assert governance == set()
-    assert production == {"app/features/adoption/service.py"}
+    assert production == {
+        "app/features/adoption/service.py",
+        "test/architecture/baselines/app_layer.py",
+    }
 
 
 def test_all_architecture_tests_except_baselines_are_governance() -> None:
@@ -261,4 +264,4 @@ def test_all_architecture_tests_except_baselines_are_governance() -> None:
         }
     )
     assert governance == {"test/architecture/test_storage_boundaries.py"}
-    assert production == set()
+    assert production == {"test/architecture/baselines/app_layer.py"}

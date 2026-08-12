@@ -1,8 +1,8 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.4
+**Contract version:** 1.5
 **Adopted:** 2026-08-10
-**Enforced scope:** App and system root boundaries
+**Enforced scope:** Repository-wide change classification and architecture boundaries
 
 This contract defines how ElfieNest architecture rules are organized, changed
 and enforced. Machine-checkable App and system rules use exact baselines; the
@@ -88,11 +88,15 @@ persistence, architecture-scanner and architecture-test boundaries.
 
 Every reviewed commit or pull request is one of two classes:
 
-1. **Product/migration change.** It may change production code and reduce an
-   existing architecture baseline. It must not change normative contracts,
-   governance rules, the scanner or CI policy.
+1. **Product/migration change.** It may change implementation-side files and
+   reduce an existing architecture baseline. Implementation-side files include
+   product code, Developer Tools, build/release scripts, ordinary tests,
+   executable manifests, delivery workflows and documentation-site code. It
+   must not change normative contracts, governance rules, the scanner or CI
+   policy.
 2. **Governance change.** It may change contracts, `AGENTS.md`, architecture
-   scanners, governance CI and ADRs. It must not change production code.
+   scanners, governance CI and ADRs. It must not change implementation-side
+   files.
 
 Mixing these classes is forbidden. Documentation needed to describe a public
 product behavior may travel with product code, but changing an architecture
@@ -157,12 +161,18 @@ pre-push commit:
 - the candidate scanner must exactly match the candidate baseline;
 - a normal change may delete baseline entries but may not add or rewrite them;
 - a governance change may not edit a legacy baseline;
-- governance and production-source changes may not coexist.
+- governance and implementation-source changes may not coexist.
 
-Production classification is path-based: every tracked non-documentation file
-under a production root is product source, including configuration, scripts,
-Godot scenes/resources and static assets. It is not limited to a source-code
-suffix allowlist.
+Implementation classification is repository-wide and fail-closed. After
+governance artifacts and ordinary prose documentation are identified, every
+other tracked file belongs to the implementation side, including product,
+Developer Tools, scripts, tests, root runtime/toolchain configuration,
+manifests, assets, documentation-site code and non-governance workflows.
+Governance identity takes precedence for architecture scanners and tests.
+Legacy architecture baselines remain on the implementation side so product
+migrations can only shrink them. Ordinary prose documentation is neutral and
+may accompany the change class it describes. A newly introduced directory,
+extension or executable surface therefore cannot remain unclassified.
 
 Therefore editing the current scanner, contract or baseline cannot make a new
 production violation pass. The bootstrap change that first introduces this

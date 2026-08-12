@@ -249,7 +249,81 @@ def test_quality_gate_definitions_are_governance_but_baseline_can_shrink() -> No
         ".pre-commit-config.yaml",
         "scripts/check_quality_baseline.py",
     }
-    assert production == {"app/features/setup/service.py"}
+    assert production == {
+        ".quality-baseline.json",
+        "app/features/setup/service.py",
+    }
+
+
+def test_repository_wide_implementation_surfaces_cannot_hide_in_governance_change() -> (
+    None
+):
+    governance, production = classify_paths(
+        {
+            "docs/developer/contracts/repository-governance.md",
+            "devtools/runtime_lab/__main__.py",
+            "scripts/release.py",
+            "developer.sh",
+            "pyproject.toml",
+            "test/app/test_product_flow.py",
+            "docs/.vitepress/config.mts",
+            "docs/package.json",
+            ".github/workflows/docs.yml",
+            "new_surface/entry.custom",
+        }
+    )
+
+    assert governance == {
+        "docs/developer/contracts/repository-governance.md",
+    }
+    assert production == {
+        ".github/workflows/docs.yml",
+        "developer.sh",
+        "devtools/runtime_lab/__main__.py",
+        "docs/.vitepress/config.mts",
+        "docs/package.json",
+        "new_surface/entry.custom",
+        "pyproject.toml",
+        "scripts/release.py",
+        "test/app/test_product_flow.py",
+    }
+
+
+def test_governance_artifacts_take_precedence_over_broad_implementation_roots() -> None:
+    governance, production = classify_paths(
+        {
+            ".github/workflows/ci.yml",
+            "scripts/architecture/effective_dependency_scan.py",
+            "scripts/check_quality_baseline.py",
+            "test/architecture/test_effective_dependency_boundaries.py",
+            "test/architecture/baselines/app_layer.py",
+            "test/architecture/baselines/__init__.py",
+        }
+    )
+
+    assert governance == {
+        ".github/workflows/ci.yml",
+        "scripts/architecture/effective_dependency_scan.py",
+        "scripts/check_quality_baseline.py",
+        "test/architecture/baselines/__init__.py",
+        "test/architecture/test_effective_dependency_boundaries.py",
+    }
+    assert production == {"test/architecture/baselines/app_layer.py"}
+
+
+def test_ordinary_documentation_remains_neutral_for_change_classification() -> None:
+    governance, production = classify_paths(
+        {
+            "README.md",
+            "LICENSE",
+            "docs/user-guide/configuration.md",
+            "docs/zh/user-guide/configuration.md",
+            "scripts/README.md",
+        }
+    )
+
+    assert governance == set()
+    assert production == set()
 
 
 def test_architecture_baseline_may_only_shrink_from_the_base_commit(
