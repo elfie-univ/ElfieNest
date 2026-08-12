@@ -7,10 +7,9 @@
 `elfie/` 实现一只完整精灵：稳定档案、三层脑、记忆与内稳态、神经系统、可替换
 身体、数字通信和认知过程中可用的技能。
 
-本页描述当前包。规范性迁移目标见
-[Elfie 内部架构契约](../docs/zh/developer/contracts/elfie.md)，已知实现债务见
-[Elfie 一致性台账](../docs/zh/developer/conformance/elfie.md)。其中，技术身体、渠道和
-持久化实现最终下移到 Infrastructure，Skills 移入 Brain；这些变化不修改宏观系统契约。
+本页描述当前包。规范性权威见
+[Elfie 内部架构契约](../docs/zh/developer/contracts/elfie.md)，并由永久架构测试执行；
+这不会改变宏观系统契约。
 
 ## 负责与不负责
 
@@ -19,8 +18,8 @@
 - 单只精灵的身份、外貌、人格、能力与稳定限制；
 - 感知帧、上下文、皮层决策、输出路由和执行回执闭环；
 - 情绪、能量、长期记忆和精灵自身时钟；
-- 身体身份、能力、类型化命令/事件、Registry、Binding 和神经系统语义；当前
-  Headless、Native、External 实现是迁移路径，不是技术实现的最终所有权；
+- 身体身份、能力、类型化命令/事件、Registry、Binding 和神经系统语义；确定性无 I/O
+  的参考实现和 Fake 可以留在本层，具体平台与设备 I/O 属于 Infrastructure；
 - 精灵自身的数字消息通道和技能白名单。
 
 不负责：

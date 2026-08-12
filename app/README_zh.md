@@ -51,10 +51,9 @@ app/
 
 ## 架构契约
 
-新增和已迁移应用代码的版本化目标见
-[应用架构契约](../docs/zh/developer/contracts/application.md)。当前历史偏差和删除
-门槛记录在[应用架构一致性台账](../docs/zh/developer/conformance/application.md)；台账
-不能授权新增违规。
+应用代码的版本化权威见
+[应用架构契约](../docs/zh/developer/contracts/application.md)，其中可机器检查的规则由
+永久 Scanner 和架构测试执行。
 
 目标依赖方向为：
 
@@ -68,8 +67,8 @@ bootstrap     ──> 以上模块（仅装配）
 
 跨 Elfie、Nest 或其他 authority 的产品流程进入 `app/orchestration/`；单只精灵普通的
 Food 读取、模型调用和工具执行不进入。具体 Adapter 由 `bootstrap/` 创建并通过 Port
-注入；下层模块不得为了调用产品功能而反向导入 `app.interfaces`。当前仍有部分历史
-调用违反目标，只能按业务域逐步缩减，不得复制到新代码。
+注入；下层模块不得为了调用产品功能而反向导入 `app.interfaces`，也不得恢复已退役
+路径。
 
 ## 运行与调试
 

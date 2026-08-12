@@ -23,11 +23,12 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
 - [文档结构契约](./contracts/documentation-structure)：公开分区、Developer 文档分类和
   双语结构规则。
 - [系统架构契约](./contracts/system)：四大目标模块、系统级 Ports/Adapters 和迁移方向。
-- [系统架构一致性台账](./conformance/system)：根模块和技术边界的临时迁移台账。
+- [Elfie 内部架构契约](./contracts/elfie)：一只 Elfie 的聚合、生命系统与 Port 所有权边界。
+- [Elfie Brain 内部架构契约](./contracts/brain)：Turn、思考、心智状态与跨回合活动所有权。
+- [Elfie 一致性](./conformance/elfie)与 [Brain 一致性](./conformance/brain)：当前仍开放的
+  临时生命系统实施缺口。
 - [应用架构契约](./contracts/application)：`app/` 新增和已迁移代码的所有权、
   依赖方向、Port/Adapter 和组合根规范。
-- [应用架构一致性台账](./conformance/application)：当前 App 架构债务的临时台账和
-  精确删除门。
 - [架构决策记录（ADR）](./decisions/)：长期架构变更的已接受原因。
 
 ## 工程实践

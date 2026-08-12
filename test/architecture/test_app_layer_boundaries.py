@@ -13,7 +13,7 @@ from app.bootstrap import create_app
 from scripts.architecture.app_layer_scan import (
     APP_ROOT,
     LOOSE_OUTPUT_TYPES,
-    RULE_LEDGER_IDS,
+    RULE_NAMES,
     _annotation_names,
     _cycles,
     _feature_dependency_graph,
@@ -29,19 +29,18 @@ from scripts.architecture.app_layer_scan import (
     deny_all_failures,
 )
 from scripts.architecture.check_governance_change import classify_paths
-from test.architecture.baselines.app_layer import LEGACY_APP_LAYER_VIOLATIONS
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_app_legacy_baseline_exactly_matches_current_debt() -> None:
+def test_app_scanner_permanently_denies_all_current_debt() -> None:
     current = collect_app_layer_violations()
-    assert set(LEGACY_APP_LAYER_VIOLATIONS) == set(RULE_LEDGER_IDS)
-    assert current == LEGACY_APP_LAYER_VIOLATIONS
+    assert set(current) == set(RULE_NAMES)
+    assert deny_all_failures(current) == []
 
 
 def test_app_deny_all_accepts_zero_and_rejects_any_violation() -> None:
-    empty = {rule: frozenset() for rule in RULE_LEDGER_IDS}
+    empty = {rule: frozenset() for rule in RULE_NAMES}
     assert deny_all_failures(empty) == []
     assert deny_all_failures({"rule": frozenset({"path -> dependency"})}) == [
         "rule: violations are forbidden in deny-all mode: ['path -> dependency']"
@@ -69,9 +68,13 @@ def test_app_business_and_workflow_directories_follow_frozen_map(
     assert collect_unowned_app_directories(tmp_path) == set()
 
     (tmp_path / "app" / "features" / "dashboard").mkdir()
+    (tmp_path / "app" / "features" / "administration").mkdir()
+    (tmp_path / "app" / "features" / "embodiment").mkdir()
     (tmp_path / "app" / "interfaces" / "api" / "manage").mkdir()
     assert collect_unowned_app_directories(tmp_path) == {
+        "app/features/administration",
         "app/features/dashboard",
+        "app/features/embodiment",
         "app/interfaces/api/manage",
     }
 
@@ -163,28 +166,17 @@ def _scan_api_route_models_for_fixture(
                 )
 
 
-def test_application_contract_and_ledger_have_bilingual_authority_markers() -> None:
+def test_application_contract_has_bilingual_authority_markers() -> None:
     english_contract = (
         PROJECT_ROOT / "docs/developer/contracts/application.md"
     ).read_text(encoding="utf-8")
     chinese_contract = (
         PROJECT_ROOT / "docs/zh/developer/contracts/application.md"
     ).read_text(encoding="utf-8")
-    english_ledger = (
-        PROJECT_ROOT / "docs/developer/conformance/application.md"
-    ).read_text(encoding="utf-8")
-    chinese_ledger = (
-        PROJECT_ROOT / "docs/zh/developer/conformance/application.md"
-    ).read_text(encoding="utf-8")
-
-    assert "**Contract version:** 1.5" in english_contract
-    assert "**契约版本：** 1.5" in chinese_contract
+    assert "**Contract version:** 1.6" in english_contract
+    assert "**契约版本：** 1.6" in chinese_contract
     assert "test_app_layer_boundaries.py" in english_contract
     assert "test_app_layer_boundaries.py" in chinese_contract
-    for number in range(1, 13):
-        gap_id = f"APP-{number:03d}"
-        assert gap_id in english_ledger
-        assert gap_id in chinese_ledger
 
 
 def test_architecture_governance_layout_and_local_rules_exist() -> None:
@@ -192,13 +184,11 @@ def test_architecture_governance_layout_and_local_rules_exist() -> None:
         "docs/developer/architecture/index.md",
         "docs/developer/contracts/application.md",
         "docs/developer/contracts/repository-governance.md",
-        "docs/developer/conformance/application.md",
         "docs/developer/decisions/0001-lightweight-ports-adapters.md",
         "docs/developer/decisions/0004-app-domain-slices.md",
         "docs/zh/developer/architecture/index.md",
         "docs/zh/developer/contracts/application.md",
         "docs/zh/developer/contracts/repository-governance.md",
-        "docs/zh/developer/conformance/application.md",
         "docs/zh/developer/decisions/0001-lightweight-ports-adapters.md",
         "docs/zh/developer/decisions/0004-app-domain-slices.md",
     }

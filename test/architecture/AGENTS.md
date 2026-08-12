@@ -8,8 +8,10 @@
   不能在同一个产品变更中放松扫描器或改写基线。
 - 治理提交不得修改旧 Baseline；产品迁移只能删除条目，不能新增、改写或重建。台账
   标记 `closed` 前，对应机器规则的 Baseline 条目必须清零。
+- 最后一个债务清零后必须执行独立治理收口：删除空 Baseline、全 closed 台账及其测试
+  绑定。注册表测试必须拒绝这两类临时产物继续存在。
 - 扫描器放在 `scripts/architecture/` 供本地测试和 CI 复用；测试验证扫描算法、契约
-  路径、基线精确性和主分支 ratchet。
+  路径、临时债务生命周期和主分支 ratchet。
 - `test_app_layer_boundaries.py` 约束 App 内部分层；`test_system_layer_boundaries.py`
   约束 `app`、`elfie`、`nest`、目标 `infrastructure` 之间的系统级边界。两套规则
   可以嵌套，但不得互相替代。

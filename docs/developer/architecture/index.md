@@ -22,8 +22,8 @@ instance; runtime operations then use the returned `elfie.py` facade.
 Runtime. It is not downstream of `app/features`. In the product
 use-case plane, Interfaces call concrete Feature use-cases; Features declare
 the Ports they need, Infrastructure implements those Ports, and Bootstrap is
-the only composition root. Current historical deviations are tracked in the
-[App conformance register](../conformance/application).
+the only composition root. Permanent architecture tests enforce these
+boundaries directly.
 
 The core source is split by responsibility:
 

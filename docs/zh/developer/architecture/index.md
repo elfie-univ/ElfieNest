@@ -18,7 +18,7 @@
 `app/orchestration` 直接组合 `elfie`、`nest` 与注入的认知 Runtime，并不位于
 `app/features` 的下游。在产品用例平面，Interface 调用具体
 Feature 用例，Feature 声明自己需要的 Port，Infrastructure 实现 Port，Bootstrap 是
-唯一组合根。当前历史偏差记录在 [App 一致性台账](../conformance/application)。
+唯一组合根；这些边界由永久架构测试直接执行。
 
 核心源码按职责分为：
 

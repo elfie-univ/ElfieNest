@@ -13,6 +13,10 @@ LEGACY_CONTRACT_PATHS = (
     PROJECT_ROOT / "docs/developer/conformance/ai-runtime.md",
     PROJECT_ROOT / "docs/zh/developer/conformance/ai-runtime.md",
 )
+RETIRED_CONFORMANCE_PATHS = (
+    PROJECT_ROOT / "docs/developer/conformance/model-food-tool-conformance.md",
+    PROJECT_ROOT / "docs/zh/developer/conformance/model-food-tool-conformance.md",
+)
 API = PROJECT_ROOT / "app" / "interfaces" / "api"
 
 
@@ -24,9 +28,12 @@ def test_model_food_tool_contract_defers_target_ownership_to_system() -> None:
     english = _source("docs/developer/contracts/model-food-tool-behavior.md")
     chinese = _source("docs/zh/developer/contracts/model-food-tool-behavior.md")
 
-    assert all(not path.exists() for path in LEGACY_CONTRACT_PATHS)
-    assert "**Contract version:** 1.5" in english
-    assert "**契约版本：** 1.5" in chinese
+    assert all(
+        not path.exists()
+        for path in (*LEGACY_CONTRACT_PATHS, *RETIRED_CONFORMANCE_PATHS)
+    )
+    assert "**Contract version:** 1.6" in english
+    assert "**契约版本：** 1.6" in chinese
     assert "does not define a target Runtime module" in english
     assert "不定义目标 Runtime 模块" in chinese
     assert "infrastructure/ai_runtime" not in english

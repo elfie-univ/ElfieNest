@@ -1,14 +1,13 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.4
-**Adopted:** 2026-08-10
+**Contract version:** 1.5
+**Adopted:** 2026-08-12
 **Enforced scope:** App and system root boundaries
 
 This contract defines how ElfieNest architecture rules are organized, changed
-and enforced. Machine-checkable App and system rules use exact baselines; the
-conformance registers explicitly identify target rules not yet covered by a
-scanner. The System contract defines the target four-module architecture and
-its register records current root and technical-boundary debt.
+and enforced. Exact baselines and conformance registers exist only while a
+registered architecture gap remains. App and system rules that have reached
+zero debt are enforced directly by permanent deny-all scanners and tests.
 
 ## Four document classes
 
@@ -60,8 +59,8 @@ Every architecture-sensitive change follows one visible loop:
 6. after a migration proves its real call chain, remove the old implementation,
    reduce only the matching baseline entries and close only the evidenced
    conformance row;
-7. when a rule set reaches zero, delete its baseline and conformance register
-   and keep the scanner permanently in deny-all mode.
+7. when the last gap in a rule set reaches zero, complete the zero-debt closure
+   workflow below; do not leave an all-closed register or empty baseline behind.
 
 The machine-readable registry at
 `scripts/architecture/contract_registry.py` links each contract version to its
@@ -79,9 +78,9 @@ may refine but never reverse a parent contract. Ordinary leaf directories do
 not receive ceremonial copies.
 
 The System contract is summarized in the root `AGENTS.md` and refined at the
-Elfie, Nest and current migration boundaries. The App contract is summarized at
+Elfie, Nest and high-risk ownership boundaries. The App contract is summarized at
 `app/AGENTS.md` and refined at App areas plus high-risk lifecycle, embodiment,
-device, API, Desktop, CLI, Setup, accounts, administration, configuration,
+device, API, Desktop, CLI, Setup, accounts, configuration,
 persistence, architecture-scanner and architecture-test boundaries.
 
 ## Change classes
@@ -177,12 +176,39 @@ this check before merge.
 
 ## Zero-debt state
 
-When a legacy architecture baseline reaches zero, the migration change deletes
-that baseline and its conformance page. The permanent scanner and architecture
-tests remain and CI switches that rule set to deny-all: every detected entry is
-a failure. A new baseline cannot be created to accommodate regression; only a
-separate governance change with an accepted ADR may change the underlying
-contract and scanner.
+The final product/migration change removes the last production violation and
+the last exact baseline entry. It records the evidence but does not edit
+governance rules. An immediate, governance-only closure change then performs
+one atomic cleanup:
+
+1. inspect the active checkout, remove retired physical paths including empty,
+   untracked and ignored directories, then run the permanent scanner in
+   deny-all mode and focused architecture tests against the zero-debt tree;
+2. run every architecture test registered to each contract being closed; if
+   multiple contracts close together, run the complete `test/architecture/`
+   suite instead of a selected subset;
+3. delete the empty baseline and the all-closed conformance mirrors;
+4. remove their registry fields, hard-coded test bindings, indexes and links;
+5. replace temporary migration guidance in root/child `AGENTS.md` with only the
+   durable target boundary and anti-regression rule;
+6. search for retired gap IDs, dead links and migration-only terminology,
+   retaining them only in ADR history where their historical meaning is
+   explicit; permanent anti-recreation tests may retain a retired baseline path;
+7. after deleting the temporary artifacts, rerun the same scanners and required
+   architecture tests, then verify bilingual mirrors, registry ownership and CI
+   deny-all behavior before merge.
+
+The closure is incomplete if any empty baseline, all-closed registered
+conformance page, retired physical path, stale local instruction or test that
+requires a retired debt artifact remains, or if any contract-owned architecture
+test has not passed. Registry tests reject registered all-closed conformance and
+registered empty baselines. The permanent scanner and architecture tests remain;
+CI's full test job includes the complete architecture suite and treats every
+detected entry as a failure without duplicating the same suite in another job.
+
+A new baseline cannot be created to accommodate regression; only a separate
+governance change with an accepted ADR may change the underlying contract and
+scanner.
 
 A conformance row may be marked `closed` only when every baseline rule mapped
 to that row has zero entries. Machine tests reject a closed row that still has

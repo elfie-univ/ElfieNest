@@ -44,12 +44,14 @@ FORBIDDEN_ROOT_IMPORTS: Mapping[str, FrozenSet[str]] = {
         }
     ),
 }
-RULE_LEDGER_IDS: Mapping[str, str] = {
-    "elfie_forbidden_module_imports": "SYS-002",
-    "elfie_technical_imports": "SYS-002",
-    "nest_forbidden_module_imports": "SYS-003",
-    "nest_technical_imports": "SYS-003",
-}
+RULE_NAMES = frozenset(
+    {
+        "elfie_forbidden_module_imports",
+        "elfie_technical_imports",
+        "nest_forbidden_module_imports",
+        "nest_technical_imports",
+    }
+)
 
 
 def _python_files(root: Path) -> Iterator[Path]:
@@ -72,7 +74,7 @@ def collect_system_layer_violations(
     project_root: Path = PROJECT_ROOT,
 ) -> Dict[str, FrozenSet[str]]:
     project_root = project_root.resolve()
-    mutable: Dict[str, Set[str]] = {rule: set() for rule in RULE_LEDGER_IDS}
+    mutable: Dict[str, Set[str]] = {rule: set() for rule in RULE_NAMES}
     for core in CORE_ROOTS:
         root = project_root / core
         for path in _python_files(root):

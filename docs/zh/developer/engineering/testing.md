@@ -15,16 +15,16 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/
 
 ```bash
 uv run --no-sync python scripts/architecture/app_layer_scan.py \
-  --project-root . --baseline test/architecture/baselines/app_layer.py --mode exact
+  --project-root . --mode deny-all
 uv run --no-sync python scripts/architecture/system_layer_scan.py \
-  --project-root . --baseline test/architecture/baselines/system_layer.py --mode exact
+  --project-root . --mode deny-all
 uv run --no-sync pytest test/architecture/
 ```
 
-基线只列出精确的既有违规，不授权新代码复制旧债。迁移删除旧调用链时，同步删除对应
-基线条目；基线清零后直接删除，并让同一 Scanner 以 `--mode deny-all` 永久运行。CI 还会
-使用 Pull Request 基础提交中的 Scanner 和基线检查候选生产代码，因此同一变更不能放松
-评判自己的规则。详见[仓库架构治理契约](../contracts/repository-governance)。
+App 和系统 Scanner 债务已经清零，两套永久 Scanner 均以 `deny-all` 模式运行，不再使用
+旧债基线。未来获批迁移若需要临时精确基线，必须随切片持续缩减并在清零后删除。CI 还会
+使用 Pull Request 基础提交中的规则检查候选生产代码，因此同一变更不能放松评判自己的
+规则。详见[仓库架构治理契约](../contracts/repository-governance)。
 
 ## 质量门
 

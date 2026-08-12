@@ -3,9 +3,7 @@
 本目录实现一只完整精灵，并受根目录 `AGENTS.md`、
 [`System architecture contract`](../docs/developer/contracts/system.md) 与
 [`Elfie internal architecture contract`](../docs/developer/contracts/elfie.md) 约束。
-当前实现偏差以
-[`Elfie conformance`](../docs/developer/conformance/elfie.md) 为准，不得用现状反向降低
-契约目标。
+已登记的 Elfie 架构债务已经清零；以下长期边界由永久架构测试执行。
 
 - 稳定、强类型的 `Elfie` / `ElfieFactory` Facade 可以直接承担入站 Port；没有真实
   隔离需求时，不再复制一套同形 Protocol。
@@ -33,7 +31,7 @@
   Godot authority 或共享 Adapter。
 - 禁止导入 `app/`、`nest/` 或具体 Infrastructure，禁止在新增代码中创建 SQLite、
   YAML 可变存储、网络、Godot、设备或操作系统实现。
-- 现有具体技术实现与公共边界偏差以 Conformance Register 中仍开放的条目为准，只能在
-  单独获批的完整迁移切片中删除或下移；本规则本身不授权搬迁源码、添加兼容层或保留双路径。
+- 禁止恢复已退役的具体技术实现、旧 Port 或公共边界；新增临时缺口必须遵守仓库治理
+  契约，不得用兼容层或双路径绕过永久架构测试。
 - 单元测试优先注入 fake/in-memory Port，不以真实数据库、文件、网络、设备或 Godot
   作为领域逻辑成立的前提。
