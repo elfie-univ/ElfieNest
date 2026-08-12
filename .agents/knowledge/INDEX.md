@@ -5,19 +5,39 @@
 
 ## 架构设计
 
-### Elfie 大脑完整系统设计
+### Elfie 整体故事、生命形态与功能体系
 
-- file: `architecture/elfie-brain-system-design.md`
+- file: `../../docs/.internal/elfie-overall-story-and-functional-system.md`
+- status: `review-baseline`
+- read_when:
+  - 讨论 Elfie 是什么、怎样生活、领养前后生命周期或单机/联网故事；
+  - 讨论两条对外线路、虚拟/实体身体互斥、三类大脑输入或顶级系统边界；
+  - 重新审查 Elfie 的总体功能体系、MVP 范围、Profile 定位或总体守恒规则；
+  - 开始设计 Brain、Nervous System、Body、Communication、Profile 或初始化流程前。
+- do_not_read_when:
+  - 只需要依据当前代码和测试判断已实现行为的任务；
+  - 与 Elfie 产品故事、生命形态和总体架构无关的局部任务。
+
+### Elfie 大脑十系统架构
+
+- file: `../../docs/.internal/elfie-brain-ten-system-architecture.md`
 - status: `architecture-baseline`
 - read_when:
-  - 讨论或设计 Elfie 大脑整体架构；
-  - 讨论三类事件来源、认知回合或聊天与身体行为隔离；
-  - 讨论情绪、记忆、能量、工作空间或大脑皮层；
-  - 讨论 Elfie 作为独立具身智慧体、人格、自我模型、动机或驱力；
-  - 讨论自主治理、能力边界、资源预算或为什么不做逐操作人工批准；
-  - 讨论 ReAct、Skills、Cortical Agent、Worker 或 Sub-Agent；
-  - 讨论 Activity、内部任务、调度、派生任务或主动行为；
-  - 讨论睡眠、夜间整理、记忆巩固、离线认知或反思系统。
+  - 讨论或设计 Elfie Brain 的一级概念系统、模块职责和运行关系；
+  - 评估大脑核心功能覆盖、对抗场景、P0/P1/P2 或渐进实现顺序；
+  - 讨论事件工作区、自我定位、自我认知、情绪、能量、动机、记忆、思考中枢、跨回合活动或心智整理；
+  - 准备细化任何 Brain 子系统的输入输出契约前。
 - do_not_read_when:
-  - 与大脑系统无关的局部代码、UI、安装、打包或普通运维任务；
-  - 只需要依据当前代码和测试判断已实现行为的任务。
+  - 只需要依据当前代码和测试判断已实现行为；
+  - 与 Brain 架构和功能优先级无关的局部任务。
+
+### Elfie 大脑十三系统历史扩展稿
+
+- file: `architecture/elfie-brain-system-design.md`
+- status: `historical-expanded-reference`
+- read_when:
+  - 十系统基线需要追溯历史上的详细状态机、治理、预算、Activity 或恢复风险；
+  - 对抗审查需要确认十系统收敛时是否遗漏扩展稿中的关键能力。
+- do_not_read_when:
+  - 初次了解当前 Brain 架构，应优先读取十系统基线；
+  - 不需要历史设计细节的普通实现和产品任务。
