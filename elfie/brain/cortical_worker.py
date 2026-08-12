@@ -1,9 +1,11 @@
 """Explicit isolated cortical worker for one Elfie."""
 
+from __future__ import annotations
+
 from collections import deque
 from concurrent.futures import Future
 from dataclasses import dataclass
-from threading import Lock, Thread
+from threading import Event, Lock, Thread
 from typing import Deque, Dict, NamedTuple, Optional, Protocol
 
 from elfie.brain.decision_decoder import (
@@ -11,7 +13,14 @@ from elfie.brain.decision_decoder import (
     DecisionDecodeSeed,
     DecisionPlanDecoder,
 )
+from elfie.brain.reasoning import (
+    ReasoningBudget,
+    ReasoningRun,
+    ReasoningRunResult,
+)
 from elfie.brain.runtime_port import ModelGenerationRequest, ModelPort
+from elfie.brain.tool_port import ToolPort
+from elfie.message_types import ElfieId
 
 
 @dataclass(frozen=True)
@@ -69,6 +78,10 @@ class CorticalTaskView(Protocol):
     def seed(self) -> DecisionDecodeSeed:
         """Return the immutable decode seed."""
 
+    @property
+    def tool_scope_id(self) -> ElfieId | None:
+        """Return the owning Elfie scope for local semantic tools."""
+
 
 @dataclass(frozen=True)
 class CorticalTask:
@@ -76,6 +89,7 @@ class CorticalTask:
 
     request: ModelGenerationRequest
     seed: DecisionDecodeSeed
+    tool_scope_id: ElfieId | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +97,7 @@ class CorticalTurnResult:
     """Validated worker result returned to BrainCoordinator."""
 
     decode: DecisionDecodeResult
+    reasoning: ReasoningRunResult
 
 
 class CorticalExecutionPort(Protocol):
@@ -107,11 +122,13 @@ class CorticalExecutionPort(Protocol):
 class _QueuedTask(NamedTuple):
     task: CorticalTaskView
     future: Future[CorticalTurnResult]
+    cancellation: Event
 
 
 class _ActiveCall(NamedTuple):
     task: CorticalTaskView
     thread: Thread
+    cancellation: Event
 
 
 class CorticalWorker:
@@ -122,11 +139,15 @@ class CorticalWorker:
         *,
         model_port: ModelPort,
         decoder: DecisionPlanDecoder,
+        tool_port: ToolPort | None = None,
+        reasoning_budget: ReasoningBudget | None = None,
         max_active_calls: int = 2,
         max_queued_tasks: int = 16,
     ) -> None:
         self._model_port = model_port
         self._decoder = decoder
+        self._tool_port = tool_port
+        self._reasoning_budget = reasoning_budget
         self._max_active_calls = max_active_calls
         self._max_queued_tasks = max_queued_tasks
         self._queued: Deque[_QueuedTask] = deque()
@@ -147,6 +168,7 @@ class CorticalWorker:
         """Submit without blocking the caller."""
         thread: Optional[Thread] = None
         future: Future[CorticalTurnResult] = Future()
+        cancellation = Event()
         with self._lock:
             if not self._accepting:
                 raise WorkerNotRunningError()
@@ -156,14 +178,16 @@ class CorticalWorker:
                         active_calls=len(self._active),
                         capacity=self._max_active_calls,
                     )
-                thread = self._prepare_thread_locked(_QueuedTask(task, future))
+                thread = self._prepare_thread_locked(
+                    _QueuedTask(task, future, cancellation)
+                )
             else:
                 if len(self._queued) >= self._max_queued_tasks:
                     raise WorkerQueueFullError(
                         queued_tasks=len(self._queued),
                         capacity=self._max_queued_tasks,
                     )
-                self._queued.append(_QueuedTask(task, future))
+                self._queued.append(_QueuedTask(task, future, cancellation))
         if thread is not None:
             thread.start()
         return future
@@ -178,6 +202,7 @@ class CorticalWorker:
                 future.cancel()
                 active = self._active.get(future)
                 if active is not None:
+                    active.cancellation.set()
                     request = active.task.request
                 thread = self._prepare_next_locked()
             else:
@@ -200,6 +225,7 @@ class CorticalWorker:
                 current.cancel()
                 active = self._active.get(current)
                 if active is not None:
+                    active.cancellation.set()
                     request = active.task.request
         if request is not None:
             self._model_port.abandon(request)
@@ -216,7 +242,11 @@ class CorticalWorker:
             daemon=True,
         )
         self._current = queued.future
-        self._active[queued.future] = _ActiveCall(queued.task, thread)
+        self._active[queued.future] = _ActiveCall(
+            queued.task,
+            thread,
+            queued.cancellation,
+        )
         return thread
 
     def _prepare_next_locked(self) -> Optional[Thread]:
@@ -245,7 +275,7 @@ class CorticalWorker:
             self._finish(future)
             return
         try:
-            result = self._run(queued.task)
+            result = self._run(queued.task, queued.cancellation)
         except Exception as error:  # noqa: BLE001  # noqa: BROAD_EXCEPT_OK - Future boundary
             future.set_exception(error)
         else:
@@ -263,25 +293,21 @@ class CorticalWorker:
         if thread is not None:
             thread.start()
 
-    def _run(self, task: CorticalTaskView) -> CorticalTurnResult:
-        capabilities = self._model_port.capabilities()
-        generation = self._model_port.generate(task.request)
-
-        def repair(raw_text: str, errors: tuple[str, ...]) -> str:
-            repair_prompt = (
-                "Repair the following invalid DecisionPlan JSON. Return JSON only.\n"
-                f"Errors: {'; '.join(errors)}\nRaw output:\n{raw_text}"
-            )
-            request = task.request.model_copy(update={"user_prompt": repair_prompt})
-            return self._model_port.generate(request).text
-
-        decode = self._decoder.decode(
-            seed=task.seed,
-            generation=generation,
-            capabilities=capabilities,
-            repair_callback=None if capabilities.plain_text_only else repair,
+    def _run(
+        self,
+        task: CorticalTaskView,
+        cancellation: Event,
+    ) -> CorticalTurnResult:
+        reasoning = ReasoningRun(
+            model_port=self._model_port,
+            decoder=self._decoder,
+            tool_port=self._tool_port,
+            budget=self._reasoning_budget,
+        ).run(task, cancellation=cancellation)
+        return CorticalTurnResult(
+            decode=reasoning.decode,
+            reasoning=reasoning,
         )
-        return CorticalTurnResult(decode=decode)
 
 
 __all__ = (

@@ -16,8 +16,10 @@ from elfie.brain.output_ports import IntentExecutor
 from elfie.brain.output_router import OutputRouter
 from elfie.brain.output_types import ExecutionReceipt
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
+from elfie.brain.reasoning import ReasoningRunResult
 from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
+from elfie.brain.tool_port import ToolPort
 from elfie.brain.turn_outcome import TurnOutcome
 from elfie.message_types import ElfieId, TurnId, UTCDateTime
 
@@ -35,6 +37,7 @@ class BrainRuntime:
         context: BrainContextState,
         clock: Callable[[], UTCDateTime],
         model_port: ModelPort,
+        tool_port: ToolPort | None = None,
         skills: SkillManager,
         body_executor: IntentExecutor,
         message_executor: IntentExecutor,
@@ -54,6 +57,7 @@ class BrainRuntime:
         worker = CorticalWorker(
             model_port=model_port,
             decoder=DecisionPlanDecoder(),
+            tool_port=tool_port,
         )
         self.coordinator = BrainCoordinator(
             elfie_id=elfie_id,
@@ -117,6 +121,9 @@ class BrainRuntime:
 
     def decision(self, turn_id: TurnId) -> Optional[TurnDecision]:
         return self.router.decision(turn_id)
+
+    def reasoning(self, turn_id: TurnId) -> Optional[ReasoningRunResult]:
+        return self.coordinator.reasoning(turn_id)
 
     def stop(self) -> None:
         if not self._started:

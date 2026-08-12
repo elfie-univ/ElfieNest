@@ -6,7 +6,8 @@ import json
 import re
 import time
 from functools import partial
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any, Callable, Dict, List
 
 from devtools.elfie_lab.runtime_foods import (
     load_runtime_food_catalog,
@@ -31,6 +32,7 @@ from infrastructure.tools.execution.loop import PortToolLoop
 from infrastructure.tools.execution.permissions import PermissionManager
 from infrastructure.tools.execution.skills_prompt import inject_skills_system_prompt
 from infrastructure.tools.local_file.local_files import LocalFileAccessPlugin
+from infrastructure.tools.port_adapter import ToolPortAdapter
 from infrastructure.tools.web_search.search import WebSearchPlugin
 
 _SECRET_PATTERNS = (
@@ -181,6 +183,11 @@ class TracingRuntimeAgent:
             return
         self.inner.abandon(request)
 
+    @property
+    def tool_port(self) -> Any:
+        """Expose the selected runtime's semantic tools to Brain only."""
+        return getattr(self.inner, "tool_port", None)
+
     def _model_name(self, task_complexity: int) -> str:
         if self.food_key == "mock":
             return "elfie-mock"
@@ -248,13 +255,20 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
 class FoodRuntimeAgent:
     """让精灵实验通过粮食语义调用 Runtime。"""
 
-    def __init__(self, runtime: Any, food_key: str, package: FoodPackage):
+    def __init__(
+        self,
+        runtime: Any,
+        food_key: str,
+        package: FoodPackage,
+        brain_tool_port: Any = None,
+    ):
         self.runtime = runtime
         self.config = runtime.config
         self.food_key = food_key
         self.selected_model = package.primary.model if package.primary else ""
         self.selected_provider = _provider_from_model(self.selected_model)
         self.last_result = None
+        self._brain_tool_port = brain_tool_port
         self._adapter = SerializedRuntimeAdapter(
             runtime,
             food_key_resolver=lambda: self.food_key,
@@ -272,6 +286,11 @@ class FoodRuntimeAgent:
     def abandon(self, request: ModelGenerationRequest) -> None:
         self._adapter.abandon(request)
 
+    @property
+    def tool_port(self) -> Any:
+        """Expose the runtime-injected semantic tool view to Brain."""
+        return self._brain_tool_port or getattr(self.runtime, "tool_port", None)
+
     def ask(self, prompt: str, energy: float, task_complexity: int) -> str:
         result = self.runtime.run_with_food(
             prompt=prompt,
@@ -286,7 +305,11 @@ class FoodRuntimeAgent:
         return result.text
 
 
-def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRuntimeAgent:
+def create_runtime(
+    food_key: str,
+    config_dir: str | None = None,
+    workspace_resolver: Callable[[str | None], Path | None] | None = None,
+) -> TracingRuntimeAgent:
     normalized = food_key.lower().strip()
     if normalized == "mock":
         return TracingRuntimeAgent(MockRuntimeAgent(), "mock")
@@ -306,7 +329,18 @@ def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRunti
         ports=_runtime_agent_ports(store),
         food_catalog_repository=food_store,
     )
-    food_agent = FoodRuntimeAgent(agent, normalized, package)
+    brain_tool_port = ToolPortAdapter.from_runtime_config(
+        config,
+        observation_port=get_runtime_observer(),
+        allowed_tool_keys=("web_search", "local_file"),
+        workspace_resolver=workspace_resolver,
+    )
+    food_agent = FoodRuntimeAgent(
+        agent,
+        normalized,
+        package,
+        brain_tool_port=brain_tool_port,
+    )
     return TracingRuntimeAgent(food_agent, normalized)
 
 

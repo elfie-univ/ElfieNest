@@ -9,6 +9,14 @@ from elfie.brain.energy.energy import HypothalamusEnergy
 from elfie.brain.perception_types import TurnFrame
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.brain.runtime import BrainRuntime
+from elfie.brain.reasoning import (
+    CognitiveStep,
+    CognitiveStepKind,
+    ReasoningBudget,
+    ReasoningRun,
+    ReasoningRunResult,
+    ReasoningStatus,
+)
 from elfie.brain.tool_port import ToolPort, ToolRequest, ToolResult
 
 __all__ = [
@@ -18,6 +26,12 @@ __all__ = [
     "TurnDecision",
     "TurnFrame",
     "BrainRuntime",
+    "CognitiveStep",
+    "CognitiveStepKind",
+    "ReasoningBudget",
+    "ReasoningRun",
+    "ReasoningRunResult",
+    "ReasoningStatus",
     "ThalamusContextBuilder",
     "PerceptualWorkspace",
     "HypothalamusEnergy",

@@ -8,6 +8,7 @@ from elfie.brain.coordinator_runtime import TurnOutcomeBuffer
 from elfie.brain.coordinator_types import InFlightTurn, WorkerDoneControl
 from elfie.brain.decision_governance import govern_decision
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
+from elfie.brain.reasoning import ReasoningStatus
 from elfie.brain.turn_outcome import TerminalStatus
 
 
@@ -58,6 +59,30 @@ class CoordinatorCompletionHandler:
             )
             return
         decision = govern_decision(inflight.frame, result.decode.plan)
+        if result.reasoning.status not in {
+            ReasoningStatus.COMPLETED,
+            ReasoningStatus.SAFE_NOOP,
+        }:
+            if self._plan_sink.accept(decision):
+                self._workspace.commit(
+                    inflight.frame.frame_id,
+                    inflight.task.seed.turn_id,
+                )
+            else:
+                self._workspace.release(
+                    inflight.frame.frame_id,
+                    inflight.task.seed.turn_id,
+                    "reasoning_failed_router_rejected",
+                )
+            self._outcomes.record(
+                result.decode.report.to_turn_outcome(
+                    plan=decision.plan,
+                    status=TerminalStatus.FAILED,
+                    error_code=result.reasoning.failure_reason
+                    or result.reasoning.status.value,
+                )
+            )
+            return
         if self._plan_sink.accept(decision):
             self._workspace.commit(inflight.frame.frame_id, inflight.task.seed.turn_id)
             self._outcomes.record(

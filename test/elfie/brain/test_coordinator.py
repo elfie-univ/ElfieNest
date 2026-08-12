@@ -263,3 +263,32 @@ def test_slow_runtime_does_not_block_clock_or_next_frame_ingest() -> None:
     coordinator.join()
     coordinator.join()
     assert coordinator.is_alive is False
+
+
+def test_model_unavailable_is_not_reported_as_a_successful_turn() -> None:
+    class UnavailableRuntime:
+        def capabilities(self):
+            raise RuntimeError("provider unavailable")
+
+        def abandon(self, request):
+            del request
+
+        def generate(self, request):
+            del request
+            raise AssertionError("generation must not start")
+
+    workspace = PerceptualWorkspace(ELFIE_ID)
+    sink = RecordingPlanSink()
+    coordinator, _, _ = _coordinator(workspace, UnavailableRuntime(), sink)
+    coordinator.start()
+    workspace.publish(_physical(1, 0, salience=0.95))
+    coordinator.notify_perception()
+    coordinator.wait_for_outcome()
+    coordinator.synchronize()
+
+    outcome = coordinator.outcomes()[0]
+    assert outcome.status is TerminalStatus.FAILED
+    assert outcome.error_code == "model_unavailable:RuntimeError"
+    assert tuple(intent.type for intent in sink.plans[0].plan.intents) == ("noop",)
+    coordinator.stop()
+    coordinator.join()

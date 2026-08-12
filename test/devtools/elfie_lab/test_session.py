@@ -55,6 +55,11 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
     assert stages["turn_boundary"]["source_domain"] == "communication"
     assert stages["cognitive_turn"]["status"] == "completed"
     assert stages["cognitive_turn"]["model_mode"] == "structured"
+    assert stages["reasoning"]["status"] == "completed"
+    assert [step["kind"] for step in stages["reasoning"]["steps"]] == [
+        "model",
+        "verify",
+    ]
     assert stages["output_receipts"][-1]["status"] == "completed"
     assert (
         storage.load_latest_session(spec.elfie_id)["turns"][0]["turn_id"]
@@ -163,7 +168,7 @@ def test_failed_turn_does_not_persist_exception_secrets_or_paths(
     spec = storage.create_elfie("失败脱敏测试")
     session = session_factory(spec, storage)
 
-    def fail_runtime(_food_key, _config_dir):
+    def fail_runtime(_food_key, _config_dir, **_kwargs):
         raise RuntimeError(f"sk-sensitive-secret at {tmp_path}/config.yaml")
 
     monkeypatch.setattr(session_module, "create_runtime", fail_runtime)

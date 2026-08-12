@@ -18,12 +18,14 @@ from elfie.body import (
 )
 from elfie.brain.decision_types import TurnDecision
 from elfie.brain.output_types import ExecutionReceipt
+from elfie.brain.reasoning import ReasoningRunResult
 from elfie.brain.runtime_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
     ModelPort,
 )
+from elfie.brain.tool_port import ToolKey, ToolRequest, ToolResult
 from elfie.brain.turn_outcome import TurnOutcome
 from elfie.communication import (
     CommunicationEnvelope,
@@ -32,7 +34,14 @@ from elfie.communication import (
     MessageDirection,
     TextPart,
 )
-from elfie.message_types import ActorId, ActorRef, EventId, MediaRef, MessageMeta
+from elfie.message_types import (
+    ActorId,
+    ActorRef,
+    ErrorInfo,
+    EventId,
+    MediaRef,
+    MessageMeta,
+)
 
 _TURN_WAIT_TIMEOUT_SECONDS = 180.0
 
@@ -61,12 +70,40 @@ class SelectedLabRuntime:
     def abandon(self, request: ModelGenerationRequest) -> None:
         self._current().abandon(request)
 
+    def current(self) -> ModelPort:
+        return self._current()
+
     def _current(self) -> ModelPort:
         with self._lock:
             selected = self._selected
         if selected is None:
             raise RuntimeSelectionMissingError("Lab runtime is not selected")
         return selected
+
+
+class SelectedLabToolPort:
+    """Forward semantic tools from the currently selected Lab runtime."""
+
+    def __init__(self, runtime: SelectedLabRuntime) -> None:
+        self._runtime = runtime
+
+    def available_tool_keys(self) -> tuple[ToolKey, ...]:
+        tool_port = getattr(self._runtime.current(), "tool_port", None)
+        if tool_port is None:
+            return ()
+        return tuple(tool_port.available_tool_keys())
+
+    def execute(self, request: ToolRequest) -> ToolResult:
+        tool_port = getattr(self._runtime.current(), "tool_port", None)
+        if tool_port is None:
+            message = "当前 Lab Runtime 未提供语义工具。"
+            return ToolResult(
+                tool_key=request.tool_key,
+                ok=False,
+                content=message,
+                error=ErrorInfo(code="tool_unavailable", message=message),
+            )
+        return tool_port.execute(request)
 
 
 class LabCommunicationChannel:
@@ -100,9 +137,10 @@ class BrainTurnAdapter:
     def __init__(self, elfie: Elfie) -> None:
         self._elfie = elfie
         self._runtime = SelectedLabRuntime()
+        self._tools = SelectedLabToolPort(self._runtime)
         self.channel = LabCommunicationChannel()
         self._elfie.register_communication_channel(self.channel, connect=True)
-        self._elfie.configure_cognition(self._runtime)
+        self._elfie.configure_cognition(self._runtime, tool_port=self._tools)
         self._elfie.start()
 
     def run(
@@ -110,7 +148,12 @@ class BrainTurnAdapter:
         stimulus: StimulusBundle,
         event_id: str,
         runtime: ModelPort,
-    ) -> tuple[TurnOutcome, TurnDecision | None, tuple[ExecutionReceipt, ...]]:
+    ) -> tuple[
+        TurnOutcome,
+        TurnDecision | None,
+        tuple[ExecutionReceipt, ...],
+        ReasoningRunResult | None,
+    ]:
         self._runtime.select(runtime)
         previous_count = len(self._elfie.turn_outcomes())
         if stimulus.source_domain == "communication":
@@ -133,6 +176,7 @@ class BrainTurnAdapter:
             outcome,
             self._elfie.turn_decision(outcome.turn_id),
             self._elfie.execution_receipts(outcome.turn_id),
+            self._elfie.turn_reasoning(outcome.turn_id),
         )
 
     def close(self) -> None:
@@ -240,7 +284,9 @@ class BrainTurnAdapter:
                     TactileImpact(
                         kind="tactile_impact",
                         location=stimulus.impact_direction or "body",
-                        force_newtons=max(stimulus.impact_force, stimulus.gentle_stroke),
+                        force_newtons=max(
+                            stimulus.impact_force, stimulus.gentle_stroke
+                        ),
                     ),
                 )
             )
@@ -270,4 +316,4 @@ class BrainTurnAdapter:
         )
 
 
-__all__ = ("BrainTurnAdapter",)
+__all__ = ("BrainTurnAdapter", "SelectedLabRuntime", "SelectedLabToolPort")

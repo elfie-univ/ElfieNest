@@ -108,8 +108,16 @@ class ElfieLabSession:
             result: Dict[str, Any] = {}
             error: Optional[str] = None
             try:
-                runtime = create_runtime(food_key, self.runtime_config_dir)
-                outcome, turn_decision, receipts = self._turn_adapter.run(
+                runtime = create_runtime(
+                    food_key,
+                    self.runtime_config_dir,
+                    workspace_resolver=lambda scope_id: (
+                        self.storage.elfie_dir(scope_id)
+                        if scope_id is not None
+                        else None
+                    ),
+                )
+                outcome, turn_decision, receipts, reasoning = self._turn_adapter.run(
                     stimulus,
                     turn_id,
                     runtime,
@@ -139,6 +147,11 @@ class ElfieLabSession:
                         "output_receipts": [
                             receipt.model_dump(mode="json") for receipt in receipts
                         ],
+                        "reasoning": (
+                            reasoning.model_dump(mode="json")
+                            if reasoning is not None
+                            else None
+                        ),
                     },
                     "warnings": [],
                 }

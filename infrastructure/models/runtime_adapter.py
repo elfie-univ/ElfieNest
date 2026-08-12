@@ -13,6 +13,7 @@ from elfie.brain.runtime_port import (
     ModelGenerationResult,
     StructuredOutputMode,
 )
+from elfie.brain.tool_port import ToolPort
 from elfie.message_types import TurnId
 from infrastructure.models.runtime_contracts import (
     StructuredGenerationMode,
@@ -90,6 +91,11 @@ class SerializedRuntimeAdapter:
             selection.unavailable,
         )
         return self._convert_capabilities(raw)
+
+    @property
+    def tool_port(self) -> ToolPort | None:
+        """Expose the already-scoped semantic tool view to Brain."""
+        return getattr(self._runtime, "tool_port", None)
 
     @staticmethod
     def _convert_capabilities(

@@ -8,6 +8,7 @@ from elfie.body.port import BodyPort
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
+from elfie.brain.tool_port import ToolPort
 from elfie.communication import CommunicationHub
 from elfie.elfie import Elfie
 from elfie.profile import ElfieProfile
@@ -25,6 +26,7 @@ class ElfieAssembly:
     communication: CommunicationHub | None = None
     skills: SkillManager | None = None
     model_port: ModelPort | None = None
+    tool_port: ToolPort | None = None
 
 
 class ElfieFactory:
@@ -48,6 +50,7 @@ class ElfieFactory:
             communication=assembly.communication,
             skills=assembly.skills,
             model_port=assembly.model_port,
+            tool_port=assembly.tool_port,
         )
         for available_body in assembly.bodies:
             if elfie.body_registry.get(available_body.body_id) is available_body:

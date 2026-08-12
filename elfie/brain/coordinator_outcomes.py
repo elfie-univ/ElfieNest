@@ -42,4 +42,26 @@ def cortical_failure_outcome(
     )
 
 
-__all__ = ("cortical_failure_outcome", "cortical_timeout_outcome")
+def cortical_stale_outcome(
+    *, turn_id: TurnId, frame_id: EventId, reason: str
+) -> TurnOutcome:
+    """Close a retired run before its isolated provider thread returns."""
+    return TurnOutcome(
+        turn_id=turn_id,
+        frame_id=frame_id,
+        plan_id=PlanId(f"stale-{turn_id}"),
+        status=TerminalStatus.STALE,
+        model_mode=ModelMode.NO_OP,
+        fallback_reason=None,
+        timeout_reason=None,
+        stale_reason=reason,
+        error_code=None,
+        receipt_ids=(),
+    )
+
+
+__all__ = (
+    "cortical_failure_outcome",
+    "cortical_stale_outcome",
+    "cortical_timeout_outcome",
+)

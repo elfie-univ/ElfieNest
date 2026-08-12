@@ -18,7 +18,7 @@ from test.elfie.brain.test_coordinator import (
 )
 
 
-def test_urgent_event_discards_late_plan_without_routing_it() -> None:
+def test_urgent_event_discards_late_old_plan_and_routes_new_turn() -> None:
     workspace = PerceptualWorkspace(ELFIE_ID)
     runtime = BlockingPlanRuntime()
     sink = RecordingPlanSink()
@@ -32,13 +32,40 @@ def test_urgent_event_discards_late_plan_without_routing_it() -> None:
     coordinator.notify_perception(urgent_reason="emergency_stop")
     sink.cancel_seen.wait()
     runtime.release.set()
-    coordinator.wait_for_outcome()
+    coordinator.wait_for_outcome_count(2)
     coordinator.synchronize()
 
-    assert sink.plans == []
+    assert len(sink.plans) == 1
     assert len(sink.cancelled) == 1
     assert coordinator.outcomes()[0].status is TerminalStatus.STALE
-    assert workspace.metrics().reliable_event_count == 1
+    assert workspace.metrics().reliable_event_count == 0
+    coordinator.stop()
+    coordinator.join()
+
+
+def test_urgent_event_starts_a_fresh_turn_while_old_provider_is_blocked() -> None:
+    workspace = PerceptualWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _, _ = _coordinator(workspace, runtime, sink)
+    coordinator.start()
+    workspace.publish(_physical(1, 0, salience=0.95))
+    coordinator.notify_perception()
+    assert runtime.started.wait(1)
+
+    workspace.publish(_physical(2, 50, salience=1.0, priority=Priority.CRITICAL))
+    coordinator.notify_perception(urgent_reason="emergency_stop")
+    assert runtime.second_started.wait(1)
+
+    runtime.release.set()
+    coordinator.wait_for_outcome_count(2)
+    coordinator.synchronize()
+
+    assert tuple(outcome.status for outcome in coordinator.outcomes()) == (
+        TerminalStatus.STALE,
+        TerminalStatus.COMPLETED,
+    )
+    assert len(sink.plans) == 1
     coordinator.stop()
     coordinator.join()
 

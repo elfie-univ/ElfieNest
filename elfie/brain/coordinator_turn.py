@@ -43,6 +43,7 @@ class CoordinatorTurnFactory:
     def __init__(
         self,
         *,
+        elfie_id: ElfieId,
         emotion: EmotionSystem,
         homeostasis: HypothalamusEnergy,
         appraiser: LimbicAppraiser,
@@ -50,6 +51,7 @@ class CoordinatorTurnFactory:
         hard_timeout_seconds: float,
         allowed_tools: Tuple[str, ...] = (),
     ) -> None:
+        self._elfie_id = elfie_id
         self._emotion = emotion
         self._homeostasis = homeostasis
         self._appraiser = appraiser
@@ -124,7 +126,11 @@ class CoordinatorTurnFactory:
             ),
             allowed_tools=self._allowed_tools,
         )
-        return CorticalTask(request=request, seed=seed)
+        return CorticalTask(
+            request=request,
+            seed=seed,
+            tool_scope_id=self._elfie_id,
+        )
 
     @staticmethod
     def _owner_reply_target(

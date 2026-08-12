@@ -18,9 +18,11 @@ from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.output_types import ExecutionReceipt
 from elfie.brain.perception_types import IngestReceipt
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
+from elfie.brain.reasoning import ReasoningRunResult
 from elfie.brain.runtime import BrainRuntime
 from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
+from elfie.brain.tool_port import ToolPort
 from elfie.brain.turn_outcome import TurnOutcome
 from elfie.brain_wiring import assemble_brain_runtime
 from elfie.communication import CommunicationEnvelope, CommunicationHub
@@ -46,6 +48,7 @@ class Elfie:
         communication: CommunicationHub | None = None,
         skills: SkillManager | None = None,
         model_port: ModelPort | None = None,
+        tool_port: ToolPort | None = None,
     ) -> None:
         character_profile.validate()
         self.character_profile = character_profile
@@ -81,7 +84,7 @@ class Elfie:
         self.skills = skills or SkillManager()
         self._brain_runtime: BrainRuntime | None = None
         if model_port is not None:
-            self.configure_cognition(model_port)
+            self.configure_cognition(model_port, tool_port=tool_port)
 
     @property
     def profile(self) -> ElfieProfile:
@@ -170,9 +173,19 @@ class Elfie:
             replace=replace,
         )
 
-    def configure_cognition(self, model_port: ModelPort) -> None:
+    def configure_cognition(
+        self,
+        model_port: ModelPort,
+        *,
+        tool_port: ToolPort | None = None,
+    ) -> None:
         if self._brain_runtime is not None:
             raise ElfieLifecycleError("Elfie cognition is already configured")
+        if tool_port is None:
+            candidate = getattr(model_port, "tool_port", None)
+            if candidate is not None:
+                tool_port = candidate
+
         def clock() -> datetime:
             return self.cognitive_datetime
 
@@ -188,6 +201,7 @@ class Elfie:
             current_body=lambda: self.current_body,
             clock=clock,
             model_port=model_port,
+            tool_port=tool_port,
         )
 
     def start(self) -> None:
@@ -255,6 +269,9 @@ class Elfie:
 
     def turn_decision(self, turn_id: TurnId) -> TurnDecision | None:
         return self._require_brain_runtime().decision(turn_id)
+
+    def turn_reasoning(self, turn_id: TurnId) -> ReasoningRunResult | None:
+        return self._require_brain_runtime().reasoning(turn_id)
 
     def _require_brain_runtime(self) -> BrainRuntime:
         runtime = self._brain_runtime

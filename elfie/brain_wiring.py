@@ -21,6 +21,7 @@ from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.brain.runtime import BrainRuntime
 from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
+from elfie.brain.tool_port import ToolPort
 from elfie.communication import CommunicationHub
 from elfie.communication.output_executor import CommunicationIntentExecutor
 from elfie.communication.perception_adapter import CommunicationPerceptionAdapter
@@ -113,6 +114,7 @@ def assemble_brain_runtime(
     current_body: Callable[[], BodyPort | None],
     clock: Callable[[], datetime],
     model_port: ModelPort,
+    tool_port: ToolPort | None = None,
 ) -> BrainRuntime:
     """Assemble Brain once while keeping sibling adapters outside Brain ownership."""
     communication.bind_perception_adapter(CommunicationPerceptionAdapter(workspace))
@@ -133,6 +135,7 @@ def assemble_brain_runtime(
         context=context,
         clock=clock,
         model_port=model_port,
+        tool_port=tool_port,
         skills=skills,
         body_executor=NervousSystemIntentExecutor(
             nervous_system=nervous_system,

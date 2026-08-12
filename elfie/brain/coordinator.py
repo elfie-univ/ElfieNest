@@ -10,6 +10,7 @@ from uuid import uuid4
 from elfie.brain.coordinator_completion import CoordinatorCompletionHandler
 from elfie.brain.coordinator_outcomes import (
     cortical_failure_outcome,
+    cortical_stale_outcome,
     cortical_timeout_outcome,
 )
 from elfie.brain.coordinator_ports import BrainContextSource, TurnDecisionSink
@@ -28,6 +29,7 @@ from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import HypothalamusEnergy
 from elfie.brain.limbic_appraiser import BrainClockPulse, LimbicAppraiser
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
+from elfie.brain.reasoning import ReasoningRunResult
 from elfie.brain.turn_outcome import TerminalStatus, TurnOutcome
 from elfie.brain.turn_trigger_policy import TurnTriggerPolicy
 from elfie.message_types import ElfieId, TurnId
@@ -66,6 +68,7 @@ class BrainCoordinator:
         self._hard_timeout = hard_timeout_seconds
         self._policy = trigger_policy or TurnTriggerPolicy()
         self._turn_factory = CoordinatorTurnFactory(
+            elfie_id=elfie_id,
             emotion=emotion,
             homeostasis=homeostasis,
             appraiser=appraiser,
@@ -75,6 +78,7 @@ class BrainCoordinator:
         )
         self._runtime = CoordinatorRuntime(elfie_id, cortical_worker)
         self._inflight: Optional[InFlightTurn] = None
+        self._reasoning: dict[TurnId, ReasoningRunResult] = {}
         self._outcomes = TurnOutcomeBuffer()
         self._completion = CoordinatorCompletionHandler(
             workspace=workspace,
@@ -120,6 +124,10 @@ class BrainCoordinator:
     def wait_for_outcome_count(self, count: int, *, timeout: float = 1.0) -> None:
         """Wait for a deterministic number of terminal cognitive turns."""
         self._outcomes.wait_for_count(count, timeout)
+
+    def reasoning(self, turn_id: TurnId) -> Optional[ReasoningRunResult]:
+        """Return the bounded cognitive trace for a completed worker turn."""
+        return self._reasoning.get(turn_id)
 
     def _run(self) -> None:
         while True:
@@ -198,6 +206,12 @@ class BrainCoordinator:
         inflight = self._inflight
         if inflight is None or control.turn_id != inflight.task.seed.turn_id:
             return
+        try:
+            result = control.future.result()
+        except Exception:  # noqa: BLE001 - completion handler owns failure mapping
+            pass
+        else:
+            self._reasoning[control.turn_id] = result.reasoning
         self._completion.complete(inflight, control)
         self._inflight = None
 
@@ -207,6 +221,22 @@ class BrainCoordinator:
         inflight.terminal_status = TerminalStatus.STALE
         inflight.terminal_reason = reason
         self._plan_sink.cancel_stale(inflight.task.seed.turn_id, reason)
+        self._worker.abandon(inflight.future)
+        self._workspace.commit(
+            inflight.frame.frame_id,
+            inflight.task.seed.turn_id,
+        )
+        self._outcomes.record(
+            cortical_stale_outcome(
+                turn_id=inflight.task.seed.turn_id,
+                frame_id=inflight.frame.frame_id,
+                reason=reason,
+            )
+        )
+        # The provider thread remains isolated and may finish later.  The
+        # logical claim is closed now so the urgent event can form a fresh
+        # independent Turn on the single-writer workspace.
+        self._inflight = None
 
     def _timeout_turn(self, inflight: InFlightTurn) -> None:
         self._worker.abandon(inflight.future)
