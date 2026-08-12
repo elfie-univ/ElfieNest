@@ -31,7 +31,7 @@ def run_foreground_service(
     wait_once: Optional[WaitOnce] = None,
 ) -> ServiceLifecycleResult:
     """Run one foreground-owned Runtime generation until shutdown."""
-    command = lifecycle_commands.default_service_command(options)
+    command = lifecycle.default_service_command(options)
     try:
         http_port = lifecycle_commands._validated_http_port(command)
     except ValueError as error:

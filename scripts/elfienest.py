@@ -35,7 +35,6 @@ from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli.doctor_commands import run_doctor
 from app.interfaces.cli.foreground_runtime import run_foreground_service
 from app.interfaces.cli.lifecycle_commands import (
-    default_service_command,
     open_web_console,
     restart_background_service,
     show_service_status,
@@ -227,7 +226,7 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
             )
         )
     elif args.command == "start":
-        command = default_service_command(_service_options_from_args(args))
+        command = lifecycle.default_service_command(_service_options_from_args(args))
         owner_id = getattr(args, "owner_id", None)
         _exit_on_lifecycle_failure(
             start_background_service(

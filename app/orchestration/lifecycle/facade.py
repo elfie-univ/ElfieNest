@@ -61,6 +61,7 @@ class LifecycleFacade:
     def __init__(
         self,
         *,
+        service_launch_command: Sequence[str],
         process_port: ServiceProcessPort,
         recovery_lock: RecoveryLockPort,
         desktop_host: DesktopHostPort,
@@ -72,6 +73,9 @@ class LifecycleFacade:
         doctor: Optional[DoctorPort] = None,
         uninstall: Optional[UninstallPort] = None,
     ) -> None:
+        if not service_launch_command:
+            raise ValueError("service_launch_command must not be empty")
+        self._service_launch_command = tuple(service_launch_command)
         self._process_port = process_port
         self._recovery_lock = recovery_lock
         self._desktop_host = desktop_host
@@ -82,6 +86,18 @@ class LifecycleFacade:
         self._data_home = data_home
         self._doctor = doctor
         self._uninstall = uninstall
+
+    def default_service_command(
+        self, extra_args: Sequence[str] = ()
+    ) -> tuple[str, ...]:
+        """Build the managed Core command from the Bootstrap-injected target."""
+        filtered = tuple(argument for argument in extra_args if argument != "--force")
+        return (*self._service_launch_command, *filtered)
+
+    def is_managed_service_command(self, command: Sequence[str]) -> bool:
+        """Return whether a process command starts with the injected Core target."""
+        target_length = len(self._service_launch_command)
+        return tuple(command[:target_length]) == self._service_launch_command
 
     def repair_local_state(self) -> DoctorRepairResult:
         if self._doctor is None:

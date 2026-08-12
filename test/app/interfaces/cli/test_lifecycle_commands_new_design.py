@@ -240,7 +240,7 @@ def test_lifecycle_commands_use_repository_root_for_service_command() -> None:
     repo_root = Path(__file__).resolve().parents[4]
 
     # When
-    command = lifecycle_commands.default_service_command()
+    command = LIFECYCLE.default_service_command()
 
     # Then
     assert lifecycle_commands.PROJECT_ROOT == repo_root
@@ -306,7 +306,7 @@ def test_start_forwards_custom_service_ports(monkeypatch) -> None:
     # When
     lifecycle_commands.start_background_service(
         LIFECYCLE,
-        lifecycle_commands.default_service_command(
+        LIFECYCLE.default_service_command(
             (
                 "--port",
                 "8100",
@@ -348,7 +348,7 @@ def test_start_uses_core_when_desktop_executable_is_present(monkeypatch) -> None
 
     # Then
     assert result.status == "started"
-    assert commands == [lifecycle_commands.default_service_command(("--lan",))]
+    assert commands == [LIFECYCLE.default_service_command(("--lan",))]
 
 
 def test_restart_does_not_pass_force_flag(monkeypatch, capsys) -> None:
