@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import subprocess
 import sys
 from functools import partial
 from pathlib import Path
@@ -85,22 +84,6 @@ class SecretSafeArgumentParser(argparse.ArgumentParser):
             self.print_usage(sys.stderr)
             self.exit(2, f"{self.prog}: invalid Owner argument\n")
         super().error(message)
-
-
-class RuntimeLabMenusProcess:
-    """Launch the isolated developer Runtime Lab without importing it in CLI code."""
-
-    def _run(self, section: str) -> None:
-        subprocess.run(
-            [sys.executable, "-m", "devtools.runtime_lab", "--section", section],
-            check=True,
-        )
-
-    def tool_menu(self) -> None:
-        self._run("tools")
-
-    def food_menu(self) -> None:
-        self._run("food")
 
 
 def main() -> None:
@@ -210,12 +193,11 @@ def dispatch_command(
 
 def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> None:
     if args.command == "config":
-        configuration = build_cli_configuration(
-            str(get_db_path()),
-            runtime_menus=RuntimeLabMenusProcess(),
-        )
+        configuration = build_cli_configuration(str(get_db_path()))
         run_config_tui(
             configuration.providers,
+            configuration.food,
+            configuration.capabilities,
             configuration.settings,
             configuration.principal,
             partial(
@@ -223,7 +205,6 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
                 configuration.providers,
                 configuration.principal,
             ),
-            configuration.runtime_menus,
             build_terminal_menu(),
             getattr(args, "config_path", None),
         )

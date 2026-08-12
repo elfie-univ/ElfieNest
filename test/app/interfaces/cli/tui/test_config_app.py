@@ -26,24 +26,14 @@ from test.app.interfaces.cli.configuration_test_support import (
 )
 
 
-class FakeRuntimeMenus:
-    def __init__(self, calls: list[str]) -> None:
-        self._calls = calls
-
-    def tool_menu(self) -> None:
-        self._calls.append("tools")
-
-    def food_menu(self) -> None:
-        self._calls.append("food")
-
-
-def _run_config_tui(runtime_menus: FakeRuntimeMenus) -> None:
+def _run_config_tui() -> None:
     config_app.run_config_tui(
         FakeProvidersService(),
+        object(),
+        object(),
         settings_service(),
         manager_principal(),
         lambda _provider_id: None,
-        runtime_menus,
         build_terminal_menu(),
     )
 
@@ -56,10 +46,10 @@ def test_run_config_tui_exits_from_main_menu(
     monkeypatch.setattr(config_app, "print_banner", lambda: None)
     _patch_input(monkeypatch, ["0"])
 
-    _run_config_tui(FakeRuntimeMenus([]))
+    _run_config_tui()
 
     output = capsys.readouterr().out
-    assert "Runtime Config" in output
+    assert "Application Config" in output
     assert "Goodbye" in output
 
 
@@ -75,12 +65,12 @@ def test_run_config_tui_exits_cleanly_on_eof(
 
     monkeypatch.setattr(builtins, "input", raise_eof)
 
-    _run_config_tui(FakeRuntimeMenus([]))
+    _run_config_tui()
 
     assert "Goodbye" in capsys.readouterr().out
 
 
-def test_config_tui_dispatches_three_runtime_layers(
+def test_config_tui_dispatches_feature_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
@@ -89,9 +79,13 @@ def test_config_tui_dispatches_three_runtime_layers(
     monkeypatch.setattr(
         config_app, "config_providers", lambda *args: calls.append("provider")
     )
+    monkeypatch.setattr(
+        config_app, "config_capabilities", lambda *args: calls.append("tools")
+    )
+    monkeypatch.setattr(config_app, "config_food", lambda *args: calls.append("food"))
     _patch_input(monkeypatch, ["1", "2", "3", "0"])
 
-    _run_config_tui(FakeRuntimeMenus(calls))
+    _run_config_tui()
 
     assert calls == ["provider", "tools", "food"]
 
@@ -105,16 +99,20 @@ def test_config_tui_dispatches_view_and_reset(
     monkeypatch.setattr(
         config_app, "config_providers", lambda *args: calls.append("provider")
     )
+    monkeypatch.setattr(
+        config_app, "config_capabilities", lambda *args: calls.append("tools")
+    )
+    monkeypatch.setattr(config_app, "config_food", lambda *args: calls.append("food"))
     monkeypatch.setattr(config_app, "show_config", lambda *args: calls.append("view"))
     monkeypatch.setattr(config_app, "reset_config", lambda *args: calls.append("reset"))
     _patch_input(monkeypatch, ["1", "2", "3", "4", "5", "0"])
 
-    _run_config_tui(FakeRuntimeMenus(calls))
+    _run_config_tui()
 
     assert calls == ["provider", "tools", "food", "view", "reset"]
 
 
-def test_config_menu_only_shows_runtime_and_basic_config(
+def test_config_menu_only_shows_feature_configuration(
     monkeypatch: pytest.MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
@@ -122,19 +120,19 @@ def test_config_menu_only_shows_runtime_and_basic_config(
     monkeypatch.setattr(config_app, "print_banner", lambda: None)
     _patch_input(monkeypatch, ["0"])
 
-    _run_config_tui(FakeRuntimeMenus([]))
+    _run_config_tui()
 
     output = capsys.readouterr().out
     assert "Provider and Model Configuration" in output
     assert "Agent Capability Validation" in output
     assert "Food Strategy Configuration" in output
     assert "View Current Config" in output
-    assert "Reset Runtime Config" in output
+    assert "Reset Application Config" in output
     assert "Owner Account" not in output
     assert "Diagnostics and auto-repair" not in output
 
 
-def test_config_llm_redirects_model_management_to_runtime_lab(
+def test_config_llm_redirects_model_management_to_config_center(
     monkeypatch: pytest.MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
