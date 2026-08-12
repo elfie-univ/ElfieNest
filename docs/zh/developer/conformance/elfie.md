@@ -23,7 +23,7 @@
 | ELF-013 | P1 | open | `elfie/initialization.py` 只装配 Profile 与 Anatomy，尚无 `genesis/` 所有者承载经过校验的临时创建 Bundle、Brain 种子和有界人生补全。 | Genesis 生成并校验类型化创建产物，每项只提交一次给最终所有者，不保留重复生命状态，完成后退出普通运行期。 |
 | ELF-014 | P0 | open | 当前认知已有 Workspace、Model Worker、DecisionPlan 和内部占位操作，但缺少已接受的 Persistent Activity 所有者、确定性 Preflight/Commit 分离、持久内部唤醒和回执对账。 | 已校验 Activity 跨 Turn/重启存续，只通过类型化内部事件唤醒，保持通信/具身 Step 分离，并以真实回执达到无重复副作用的终态。 |
 | ELF-015 | P1 | open | Motivation 和 Cognitive Consolidation 仍只有设计，主动自治与离线成长尚无有界运行所有者。 | 只在 Activity 稳定后实现：固定驱力带冷却地产生有界候选；无副作用整理在独立预算内只产生已校验状态候选或后续内部触发。 |
-| ELF-016 | P0 | open | 当前 Cortex 路径能够调用模型并解码 `DecisionPlan`，但 Brain 尚未拥有已接受的有界多步 Model/Skill/Tool Observation 循环、验证、抑制和完成判断。 | 一个 Reasoning Run 可以执行有界认知步骤和真实 Tool Observation，但只有结算后的 `TurnDecision` 能进入外部决策边界；超时、预算耗尽和虚假执行声明必须以无伪造成功的方式终止。 |
+| ELF-016 | P0 | closed | Brain 已拥有单个 Turn 内有界的 `ReasoningRun`：模型、认知 Tool、真实 Observation、验证和完成/失败收束均在 Brain 内部完成，外部行动仍只能由结算后的决定进入既有边界。 | 26 项聚焦 Brain/Lab 测试通过；真实 Elfie Lab 展示 Tool→Observation，虚假外部执行声明不产生外部回执，模型不可用进入明确 `failed/no_op`，紧急事件形成独立新 Turn。纯文本 Provider 的 `owner_message_fallback` 被记录为降级而非成功事实。 |
 | ELF-017 | P0 | open | 情绪、能量和记忆已有实现，但 Orientation 与 Selfhood 尚未成为独立 authority，完整连续生命状态也未在跨 Turn、身体切换和进程重启后统一恢复。 | 类型化 Orientation/Selfhood/Emotion/Energy/Memory Snapshot 具有明确所有者、来源/版本规则和最小持久恢复；Profile 保持不可变，短期情绪不能直接改写人格。 |
 
 ## 机器覆盖

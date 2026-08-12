@@ -1,11 +1,11 @@
 # Elfie Brain 七阶段实施与体验验收计划
 
-> 状态：阶段一实现完成；阶段二核心实现进行中，尚未完成用户验收；阶段三及后续未开始
+> 状态：阶段一、阶段二实现与用户验收完成；阶段三及后续未开始
 > 制定日期：2026-08-12
 > 依据：[Brain 十系统设计](./elfie-brain-ten-system-architecture.md)、
 > [Brain 内部架构契约](../zh/developer/contracts/brain.md)、
 > [Brain 一致性台账](../zh/developer/conformance/brain.md)
-> 本文性质：从已接受目标到当前代码的实施计划；阶段一已完成实现和机器验证，阶段二已完成首个可运行切片，仍需阶段验收与收口
+> 本文性质：从已接受目标到当前代码的实施计划；阶段一、阶段二均已完成实现、机器验证和用户验收
 
 ## 1. 目标与执行方式
 
@@ -256,9 +256,24 @@ Energy 成为运行前提。阶段四接入 Energy 后，只替换“可用预�
 
 ### 5.4 完成门与非目标
 
-BRN-003、ELF-016 关闭；工具越界、循环上限、超时、取消和陈旧结果测试通过；Elfie Lab
-能展示可公开步骤摘要和真实 Observation。阶段不实现通用 Planner、Sub-Agent 平台、
-跨 Turn 等待、身体执行、主动 Motivation 或跨进程重启恢复尚未完成的 ReasoningRun。
+阶段二已完成验收，关闭 BRN-003 与 ELF-016。完成证据如下：
+
+- 聚焦 Brain/Lab 测试通过：`test_reasoning.py`、`test_coordinator.py`、
+  `test_coordinator_terminal.py`、`test_session.py` 共 26 项通过；覆盖预算、工具失败、
+  超时、取消、陈旧结果、紧急新 Turn 和模型不可用；
+- 真实 Elfie Lab 回放显示 `Model -> Tool -> Observation -> Verify -> Reply`，本地文件
+  Observation 来自精灵自己的认知工作区；
+- Tool 输出“消息已发送/身体已移动”时没有生成外部通信或身体回执，最终回答明确保留“没有
+  外部执行回执”；
+- 模型不可用时显示 `model_unavailable:NoAvailableFoodError`，Run 为 `failed/no_op`，
+  没有伪造完成或调用外部执行器；
+- 长 Run 被紧急事件标记为 stale，紧急事件形成独立新 Turn；旧 provider 即使晚返回也不能
+  污染新 Turn。
+
+本次真实模型为纯文本能力，最终结构化决定在 Lab 中会记录 `owner_message_fallback`；这
+属于 Provider 能力降级，未改变 Tool Observation、无外部回执和失败 No-op 的边界事实。阶段
+二不实现通用 Planner、Sub-Agent 平台、跨 Turn 等待、身体执行、主动 Motivation 或跨进程
+重启恢复尚未完成的 ReasoningRun。
 
 ## 6. 阶段三：虚拟具身生命闭环
 
