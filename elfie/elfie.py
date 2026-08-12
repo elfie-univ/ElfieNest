@@ -79,6 +79,10 @@ class Elfie:
         self.body_registry = BodyRegistry()
         self.body_binding = BodyBinding(self.body_registry)
         self.body_binding.attach(body)
+        self.nervous_system.bind_body_port(
+            body,
+            body_generation=self.body_binding.current_generation,
+        )
         self.communication = communication or CommunicationHub(str(workspace_id))
         self.communication.bind_identity(str(workspace_id))
         self.skills = skills or SkillManager()
@@ -97,6 +101,11 @@ class Elfie:
     @property
     def current_body(self) -> BodyPort | None:
         return self.body_binding.current
+
+    @property
+    def current_body_generation(self) -> int | None:
+        """Authority generation for the currently selected Body, if any."""
+        return self.body_binding.current_generation
 
     @property
     def elapsed_time(self) -> float:
@@ -139,6 +148,11 @@ class Elfie:
             perception_sink=self.perceptual_workspace,
             elfie_id=elfie_id,
             body_port=self.current_body,
+            body_generation=self.current_body_generation,
+        )
+        self.nervous_system.bind_body_port(
+            self.current_body,
+            body_generation=self.current_body_generation,
         )
         if self.communication.perception_adapter is not None:
             self.communication.bind_perception_adapter(
@@ -152,12 +166,18 @@ class Elfie:
 
     def bind_body(self, body_id: str) -> BodyPort:
         current = self.body_binding.bind(body_id)
-        self.nervous_system.bind_body_port(current)
+        self.nervous_system.bind_body_port(
+            current,
+            body_generation=self.body_binding.current_generation,
+        )
         return current
 
     def unbind_body(self) -> BodyPort | None:
         previous = self.body_binding.unbind()
-        self.nervous_system.bind_body_port(None)
+        self.nervous_system.bind_body_port(
+            None,
+            body_generation=None,
+        )
         return previous
 
     def register_communication_channel(
@@ -199,6 +219,7 @@ class Elfie:
             communication=self.communication,
             skills=self.skills,
             current_body=lambda: self.current_body,
+            current_body_generation=lambda: self.current_body_generation,
             clock=clock,
             model_port=model_port,
             tool_port=tool_port,
@@ -230,7 +251,13 @@ class Elfie:
         additional_events: Iterable[BodySensorEvent] = (),
     ) -> tuple[IngestReceipt, ...]:
         body = self.current_body
-        events = list(body.read_sensor_events()) if body is not None else []
+        generation = self.current_body_generation
+        events = []
+        if body is not None:
+            events = [
+                event.model_copy(update={"body_generation": generation or 1})
+                for event in body.read_sensor_events()
+            ]
         events.extend(additional_events)
         previous_urgent_revision = self.nervous_system.urgent_revision
         receipts = self.nervous_system.receive_body_events(events)

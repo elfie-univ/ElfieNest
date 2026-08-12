@@ -40,6 +40,27 @@ def test_binding_switches_body_lifecycle_without_reimplementing_body() -> None:
     assert binding.current_body_id == "second"
 
 
+def test_binding_assigns_new_authority_generation_only_after_successful_switch() -> None:
+    binding = BodyBinding()
+    first = HeadlessBody(body_id="first")
+    second = HeadlessBody(body_id="second")
+    binding.register_and_bind(first)
+    assert binding.current_generation == 1
+
+    binding.register(second)
+    binding.bind("second")
+
+    assert binding.current is second
+    assert binding.current_generation == 2
+
+    failing = FailingBody(body_id="failing")
+    binding.register(failing)
+    with pytest.raises(RuntimeError, match="连接失败"):
+        binding.bind("failing")
+    assert binding.current is second
+    assert binding.current_generation == 2
+
+
 def test_binding_restores_previous_body_when_new_connection_fails() -> None:
     binding = BodyBinding()
     first = HeadlessBody(body_id="first")

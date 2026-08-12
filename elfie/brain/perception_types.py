@@ -127,6 +127,7 @@ class EmbodiedScope(FrozenContractModel):
 
     kind: Literal["embodied"] = "embodied"
     body_id: _NonBlankText
+    body_generation: _Revision = 1
 
 
 class InternalScope(FrozenContractModel):
@@ -149,6 +150,20 @@ class ResponseScope(FrozenContractModel):
     channel_id: Optional[_NonBlankText] = None
     conversation_id: Optional[_NonBlankText] = None
     body_id: Optional[_NonBlankText] = None
+    body_generation: Optional[_Revision] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def default_embodied_generation(cls, value: object) -> object:
+        """Keep legacy callers safe while making embodied scope explicit."""
+        if not isinstance(value, dict):
+            return value
+        if (
+            value.get("external_domain") is ExternalExecutionDomain.NERVOUS_SYSTEM
+            or value.get("external_domain") == ExternalExecutionDomain.NERVOUS_SYSTEM.value
+        ) and value.get("body_generation") is None:
+            return {**value, "body_generation": 1}
+        return value
 
     @model_validator(mode="after")
     def validate_target(self) -> ResponseScope:
@@ -158,18 +173,21 @@ class ResponseScope(FrozenContractModel):
                 self.channel_id is not None
                 and self.conversation_id is not None
                 and self.body_id is None
+                and self.body_generation is None
             )
         elif self.external_domain is ExternalExecutionDomain.NERVOUS_SYSTEM:
             valid = (
                 self.body_id is not None
                 and self.channel_id is None
                 and self.conversation_id is None
+                and self.body_generation is not None
             )
         else:
             valid = (
                 self.channel_id is None
                 and self.conversation_id is None
                 and self.body_id is None
+                and self.body_generation is None
             )
         if not valid:
             raise PydanticCustomError(
@@ -184,6 +202,7 @@ class PhysicalPayload(FrozenContractModel):
 
     type: Literal["physical"]
     body_id: _NonBlankText
+    body_generation: _Revision = 1
     modality: PhysicalModality
     content: _NonBlankText
     media: Tuple[MediaRef, ...] = ()
@@ -256,6 +275,7 @@ class PerceptionStateUpdate(FrozenContractModel):
 
     meta: MessageMeta
     body_id: _NonBlankText
+    body_generation: _Revision = 1
     state_key: _NonBlankText
     revision: _Revision
     value: _StateScalar
@@ -266,6 +286,7 @@ class PerceptionMediaSample(FrozenContractModel):
 
     meta: MessageMeta
     body_id: _NonBlankText
+    body_generation: _Revision = 1
     stream_id: _NonBlankText
     ordinal: _Sequence
     captured_at: UTCDateTime
@@ -389,6 +410,7 @@ class TurnFrame(FrozenContractModel):
                 self.response_scope.external_domain
                 is not ExternalExecutionDomain.NERVOUS_SYSTEM
                 or self.response_scope.body_id != interaction.body_id
+                or self.response_scope.body_generation != interaction.body_generation
             ):
                 raise PydanticCustomError(
                     "embodied_response_scope",
@@ -405,9 +427,17 @@ class TurnFrame(FrozenContractModel):
 def scope_key(write: PerceptionWrite) -> Tuple[str, ...]:
     """Return the deterministic lane/scope identity for one admitted write."""
     if isinstance(write, PerceptionStateUpdate):
-        return (SourceDomain.EMBODIED.value, write.body_id)
+        return (
+            SourceDomain.EMBODIED.value,
+            write.body_id,
+            str(write.body_generation),
+        )
     if isinstance(write, PerceptionMediaSample):
-        return (SourceDomain.EMBODIED.value, write.body_id)
+        return (
+            SourceDomain.EMBODIED.value,
+            write.body_id,
+            str(write.body_generation),
+        )
     payload = write.payload
     if isinstance(payload, SocialPayload):
         return (
@@ -416,7 +446,11 @@ def scope_key(write: PerceptionWrite) -> Tuple[str, ...]:
             payload.conversation_id,
         )
     if isinstance(payload, PhysicalPayload):
-        return (SourceDomain.EMBODIED.value, payload.body_id)
+        return (
+            SourceDomain.EMBODIED.value,
+            payload.body_id,
+            str(payload.body_generation),
+        )
     if isinstance(payload, ExecutionPayload):
         return (SourceDomain.INTERNAL.value, f"execution:{payload.turn_id}")
     cause = write.meta.causation_id or write.meta.event_id
@@ -430,7 +464,10 @@ def interaction_scope_for(write: PerceptionWrite) -> InteractionScope:
     if domain is SourceDomain.COMMUNICATION:
         return CommunicationScope(channel_id=key[1], conversation_id=key[2])
     if domain is SourceDomain.EMBODIED:
-        return EmbodiedScope(body_id=key[1])
+        return EmbodiedScope(
+            body_id=key[1],
+            body_generation=int(key[2]) if len(key) > 2 else 1,
+        )
     return InternalScope(cause_id=key[1])
 
 
@@ -439,7 +476,11 @@ def interaction_scope_key(scope: InteractionScope) -> Tuple[str, ...]:
     if isinstance(scope, CommunicationScope):
         return (SourceDomain.COMMUNICATION.value, scope.channel_id, scope.conversation_id)
     if isinstance(scope, EmbodiedScope):
-        return (SourceDomain.EMBODIED.value, scope.body_id)
+        return (
+            SourceDomain.EMBODIED.value,
+            scope.body_id,
+            str(scope.body_generation),
+        )
     return (SourceDomain.INTERNAL.value, scope.cause_id)
 
 
@@ -460,6 +501,7 @@ def response_scope_for(scope: InteractionScope) -> ResponseScope:
         return ResponseScope(
             external_domain=ExternalExecutionDomain.NERVOUS_SYSTEM,
             body_id=scope.body_id,
+            body_generation=scope.body_generation,
         )
     return ResponseScope(external_domain=None)
 

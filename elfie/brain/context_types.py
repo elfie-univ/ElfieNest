@@ -84,6 +84,7 @@ class BodyCapabilityDescriptor(FrozenContractModel):
     """Capabilities of the single body currently bound to the Elfie."""
 
     body_id: _NonBlankText
+    body_generation: _Revision = 1
     capability_revision: _Revision
     sensors: Tuple[_NonBlankText, ...]
     actions: Tuple[_NonBlankText, ...]

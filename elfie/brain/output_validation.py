@@ -1,5 +1,7 @@
 """Atomic capability and target validation for complete decision plans."""
 
+from __future__ import annotations
+
 from datetime import timedelta
 from functools import singledispatch
 from typing import Optional
@@ -15,6 +17,7 @@ from elfie.brain.decision_types import (
     NoOpIntent,
     SpeechIntent,
 )
+from elfie.brain.perception_types import EmbodiedScope
 from elfie.message_types import ErrorInfo, UTCDateTime
 
 
@@ -25,6 +28,8 @@ def validate_plan_for_execution(
     now: UTCDateTime,
     max_intents: int,
     max_schedule_horizon: timedelta,
+    expected_body_id: str | None = None,
+    expected_body_generation: int | None = None,
 ) -> Optional[ErrorInfo]:
     """Return one rejection only after checking every intent without side effects."""
     if plan.deadline < now:
@@ -39,6 +44,21 @@ def validate_plan_for_execution(
             code="stale_capability_revision",
             message="decision plan capability revision is stale",
         )
+    if expected_body_id is not None:
+        body = capabilities.current_body
+        if body is None or body.body_id != expected_body_id:
+            return ErrorInfo(
+                code="stale_body_generation",
+                message="decision targets a body that is no longer current",
+            )
+        if (
+            expected_body_generation is not None
+            and body.body_generation != expected_body_generation
+        ):
+            return ErrorInfo(
+                code="stale_body_generation",
+                message="decision targets an obsolete body generation",
+            )
     if len(plan.intents) > max_intents:
         return ErrorInfo(
             code="intent_capacity_exceeded",

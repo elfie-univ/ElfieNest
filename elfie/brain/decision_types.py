@@ -269,6 +269,7 @@ class TurnDecision(FrozenContractModel):
                 self.response_scope.external_domain
                 is not ExternalExecutionDomain.NERVOUS_SYSTEM
                 or self.response_scope.body_id != scope.body_id
+                or self.response_scope.body_generation != scope.body_generation
             ):
                 raise PydanticCustomError(
                     "decision_interaction_scope",

@@ -57,9 +57,13 @@ class BodyReflexController:
         *,
         elfie_id: ElfieId,
         body_port: Optional[BodyPort] = None,
+        body_generation: int | None = None,
     ) -> None:
         self._elfie_id = elfie_id
         self._body_port = body_port
+        self._body_generation: int | None = (
+            (body_generation or 1) if body_port is not None else None
+        )
         self._urgent_revision = 0
         self._last_command: Optional[EmergencyStopCommand] = None
         self._lock = Lock()
@@ -74,9 +78,17 @@ class BodyReflexController:
         with self._lock:
             return self._last_command
 
-    def bind_body_port(self, body_port: Optional[BodyPort]) -> None:
+    def bind_body_port(
+        self,
+        body_port: Optional[BodyPort],
+        *,
+        body_generation: int | None = None,
+    ) -> None:
         with self._lock:
             self._body_port = body_port
+            self._body_generation = (
+                (body_generation or 1) if body_port is not None else None
+            )
 
     def handle(
         self,
@@ -118,6 +130,7 @@ class BodyReflexController:
             issued_at=event.received_at,
             deadline=event.received_at + timedelta(seconds=1),
             capability_revision=body.capabilities.revision,
+            body_generation=self._body_generation or event.body_generation,
             reason=f"dangerous tactile impact at {impact.location}",
         )
 
@@ -132,6 +145,7 @@ class BodyReflexController:
             payload=PhysicalPayload(
                 type="physical",
                 body_id=str(event.body_id),
+                body_generation=event.body_generation,
                 modality=PhysicalModality.TOUCH,
                 content=(
                     "reflex emergency_stop; "
@@ -150,6 +164,7 @@ class BodyReflexController:
         return PerceptionStateUpdate(
             meta=self._derived_meta(event, "urgent-revision", Priority.CRITICAL),
             body_id=str(event.body_id),
+            body_generation=event.body_generation,
             state_key=f"body:{event.body_id}:nervous:urgent_revision",
             revision=revision,
             value=revision,

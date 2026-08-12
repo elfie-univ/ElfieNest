@@ -37,9 +37,11 @@ class EffectiveCapabilityProjection:
         self,
         *,
         current_body: Callable[[], BodyPort | None],
+        current_body_generation: Callable[[], int | None] | None = None,
         communication: CommunicationHub,
     ) -> None:
         self._current_body = current_body
+        self._current_body_generation = current_body_generation or (lambda: 1)
         self._communication = communication
         self._signature: tuple[str, ...] | None = None
         self._revision = 0
@@ -55,8 +57,10 @@ class EffectiveCapabilityProjection:
         signature: list[str] = []
         if body is not None:
             capabilities = body.capabilities
+            body_generation = self._current_body_generation() or 1
             current_body = BodyCapabilityDescriptor(
                 body_id=body.body_id,
+                body_generation=body_generation,
                 capability_revision=capabilities.revision,
                 sensors=tuple(sorted(capabilities.sensors)),
                 actions=tuple(sorted(capabilities.actions)),
@@ -64,6 +68,7 @@ class EffectiveCapabilityProjection:
             signature.extend(
                 (
                     f"body:{body.body_id}",
+                    f"body-generation:{body_generation}",
                     f"body-revision:{capabilities.revision}",
                     f"body-connected:{body.snapshot_body(now=captured_at).connected}",
                 )
@@ -112,6 +117,7 @@ def assemble_brain_runtime(
     communication: CommunicationHub,
     skills: SkillManager,
     current_body: Callable[[], BodyPort | None],
+    current_body_generation: Callable[[], int | None] | None = None,
     clock: Callable[[], datetime],
     model_port: ModelPort,
     tool_port: ToolPort | None = None,
@@ -120,6 +126,7 @@ def assemble_brain_runtime(
     communication.bind_perception_adapter(CommunicationPerceptionAdapter(workspace))
     capabilities = EffectiveCapabilityProjection(
         current_body=current_body,
+        current_body_generation=current_body_generation,
         communication=communication,
     )
     context = BrainContextState(
@@ -140,6 +147,7 @@ def assemble_brain_runtime(
         body_executor=NervousSystemIntentExecutor(
             nervous_system=nervous_system,
             current_body=current_body,
+            current_body_generation=current_body_generation,
             clock=clock,
         ),
         message_executor=CommunicationIntentExecutor(

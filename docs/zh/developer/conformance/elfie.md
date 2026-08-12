@@ -19,7 +19,7 @@
 | ELF-009 | P1 | closed | Profile、Body、Communication、Nest Session、Runtime observation 及 Infrastructure Port 模型的公开边界均使用命名不可变模型或受限 JSON 值。永久 Port 棘轮拒绝 `Any`、`object` 和具体对等 Adapter 签名；身体/通信/Bootstrap 证据已有机器门禁。 | 保持严格 Port 棘轮和证据通过；内部算法局部映射不属于公开边界契约。 |
 | ELF-010 | P0 | open | `ElfieProfile` 仍保存 `personality`、`capabilities`、`system_limits`；`elfie/profile/defaults/` 仍把自我认知、身体能力、能量/运行默认值与不可变外貌事实混在一起。 | 先建立接收它们的 Brain/Body/NervousSystem 所有者，再在一个获批切片中迁移全部生产调用方和持久字段，最后删除三个宽泛 Profile 映射及混合默认资源，不保留 fallback read 或双 authority。 |
 | ELF-011 | P0 | closed | 私有认知协调与上下文组装已经归 Brain；Communication、Embodied、Internal 输入形成类型化单域 Turn，宿主强制响应范围，旧根认知文件已删除。 | Brain 生命周期、Lane、Scope 和决策边界聚焦测试通过；Elfie Lab 展示通信闭环的来源域、Scope、决定与投递回执。后续 Brain 能力扩展必须保持这一边界门禁。 |
-| ELF-012 | P0 | open | Body Registry/Binding 已选择当前命令身体，但尚未实现完整的虚拟/实体互斥切换、authority generation、旧回执拒绝、回滚和重启恢复契约。 | 一个明确切换状态机始终保持唯一选中传感/动作 authority，拒绝旧 generation，并在失败或重启后确定性恢复或回滚。 |
+| ELF-012 | P0 | closed | Body Registry/Binding 现在为当前身体分配 authority generation；NervousSystem 只接收当前身体代际，输出执行器拒绝切换后的旧回执，中断也回到原身体；失败切换保留旧身体。 | 阶段三 Headless/真实 Godot 验收通过；身体切换、旧事件拒绝、旧回执拒绝、连接失败回滚以及唯一当前身体均有聚焦测试和真实 `world_ready`/`intent_terminal` 证据。 |
 | ELF-013 | P1 | open | `elfie/initialization.py` 只装配 Profile 与 Anatomy，尚无 `genesis/` 所有者承载经过校验的临时创建 Bundle、Brain 种子和有界人生补全。 | Genesis 生成并校验类型化创建产物，每项只提交一次给最终所有者，不保留重复生命状态，完成后退出普通运行期。 |
 | ELF-014 | P0 | open | 当前认知已有 Workspace、Model Worker、DecisionPlan 和内部占位操作，但缺少已接受的 Persistent Activity 所有者、确定性 Preflight/Commit 分离、持久内部唤醒和回执对账。 | 已校验 Activity 跨 Turn/重启存续，只通过类型化内部事件唤醒，保持通信/具身 Step 分离，并以真实回执达到无重复副作用的终态。 |
 | ELF-015 | P1 | open | Motivation 和 Cognitive Consolidation 仍只有设计，主动自治与离线成长尚无有界运行所有者。 | 只在 Activity 稳定后实现：固定驱力带冷却地产生有界候选；无副作用整理在独立预算内只产生已校验状态候选或后续内部触发。 |

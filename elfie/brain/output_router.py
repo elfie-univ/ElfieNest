@@ -26,7 +26,7 @@ from elfie.brain.output_types import (
     ExecutionReceipt,
     ExecutorKind,
 )
-from elfie.brain.perception_types import ExecutionStatus
+from elfie.brain.perception_types import EmbodiedScope, ExecutionStatus
 from elfie.brain.workspace_ports import PerceptionSink
 from elfie.message_types import ElfieId, ErrorInfo, EventId, TurnId, UTCDateTime
 
@@ -225,12 +225,15 @@ class OutputRouter:
     def _validate(self, decision: TurnDecision) -> Optional[ErrorInfo]:
         from elfie.brain.output_validation import validate_plan_for_execution
 
+        body_id, body_generation = _body_target(decision)
         return validate_plan_for_execution(
             decision.plan,
             self._capabilities.current(),
             now=self._clock(),
             max_intents=self._max_intents,
             max_schedule_horizon=self._max_schedule_horizon,
+            expected_body_id=body_id,
+            expected_body_generation=body_generation,
         )
 
     def _validate_intent(
@@ -240,12 +243,17 @@ class OutputRouter:
     ) -> Optional[ErrorInfo]:
         from elfie.brain.output_validation import validate_plan_for_execution
 
+        with self._lock:
+            decision = self._decisions.get(str(plan.plan_id))
+        body_id, body_generation = _body_target(decision)
         return validate_plan_for_execution(
             plan,
             self._capabilities.current(),
             now=self._clock(),
             max_intents=self._max_intents,
             max_schedule_horizon=self._max_schedule_horizon,
+            expected_body_id=body_id,
+            expected_body_generation=body_generation,
         )
 
     def _wait_until(self, target: UTCDateTime, cancelled: Event) -> bool:
@@ -292,6 +300,18 @@ class OutputRouter:
             runtime = self._runtimes.pop(turn_id)
             self._decisions.pop(str(runtime.plan.plan_id), None)
             self._evicted_completed_count += 1
+
+
+def _body_target(
+    decision: TurnDecision | None,
+) -> tuple[str | None, int | None]:
+    """Return the immutable embodied target captured by a decision."""
+    if decision is None or not isinstance(decision.interaction_scope, EmbodiedScope):
+        return None, None
+    return (
+        decision.interaction_scope.body_id,
+        decision.interaction_scope.body_generation,
+    )
 
 
 __all__ = ("OutputRouter",)

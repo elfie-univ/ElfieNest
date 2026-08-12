@@ -1,6 +1,6 @@
 # Elfie Brain 七阶段实施与体验验收计划
 
-> 状态：阶段一、阶段二实现与用户验收完成；阶段三及后续未开始
+> 状态：阶段一、阶段二、阶段三实现与机器/真实 Godot 验收完成；阶段四及后续未开始
 > 制定日期：2026-08-12
 > 依据：[Brain 十系统设计](./elfie-brain-ten-system-architecture.md)、
 > [Brain 内部架构契约](../zh/developer/contracts/brain.md)、
@@ -307,8 +307,24 @@ Godot 预览可以辅助观察，但二者都不能单独替代产品 Runtime �
 
 ### 6.4 完成门与非目标
 
-确定性 Headless E2E 与一条真实 Godot 运行路径都通过，预览回放不算真实执行证据；关闭
-BRN-004、ELF-012。本阶段不建设实体玩具、完整视觉/音频理解、复杂导航或多身体并发。
+阶段三已完成。确定性 Headless E2E 与一条真实 Godot authority 运行路径均通过，预览回放
+未被用作真实执行证据；BRN-004、ELF-012 已关闭。本阶段不建设实体玩具、完整视觉/音频
+理解、复杂导航或多身体并发。
+
+阶段三交付证据：
+
+- `test/elfie/test_stage3_embodied_loop.py`：固定模型、Headless Body 和模拟时钟证明
+  `BodySensorEvent -> Embodied Turn -> NervousSystem` 动作 -> 完成回执闭环；请求和决定
+  均携带当前 `body_id/body_generation`。
+- `test/elfie/body/test_binding.py`、
+  `test/elfie/nervous_system/test_perception_bridge_state.py` 与
+  `test/elfie/nervous_system/test_output_executor.py`：身体切换代际、旧感知拒绝、旧命令
+  回执拒绝和回滚保持当前身体 authority。
+- 真实 Godot 运行：经过认证 v2 hello、`world_ready`、scene manifest、actor sync，真实
+  `execute_intent` 产生 `intent_terminal=completed`；Brain 记录的来源域为 `embodied`，
+  身体代际为 `1`。
+- 聚焦领域/Brain 测试 `603 passed, 2 skipped`；Nest/Godot 相关测试 `101 passed, 1`
+  个受沙箱网络权限限制的 gateway 重启测试未归因于本次改动。
 
 ## 7. 阶段四：连续生命状态
 
