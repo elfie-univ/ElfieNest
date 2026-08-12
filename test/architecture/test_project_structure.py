@@ -36,7 +36,7 @@ REQUIRED_NEST_ENTRIES = frozenset(
 FORBIDDEN_NEST_DIRECTORIES = frozenset({"embodiment", "godot_gateway"})
 REQUIRED_DESKTOP_SOURCE_DIRECTORIES = frozenset({"resources", "windows"})
 REQUIRED_DESKTOP_SOURCE_FILES = frozenset(
-    {"desktop_role_lifecycle.ts", "lifecycle_client.ts", "main.ts", "role_dispatch.ts"}
+    {"desktop_role_lifecycle.ts", "lifecycle_client.ts", "main.ts"}
 )
 CURRENT_PYTHON_SOURCE_ROOTS = (
     "app",
