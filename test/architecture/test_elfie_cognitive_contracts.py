@@ -235,3 +235,51 @@ def test_pydantic_contracts_have_no_tracked_schema_maintenance_chain() -> None:
     # Then
     assert schema_snapshots == ()
     assert schema_exporters == ()
+
+
+def test_elfie_life_system_contract_keeps_the_accepted_owners_and_gaps() -> None:
+    english_contract = (PROJECT_ROOT / "docs/developer/contracts/elfie.md").read_text(
+        encoding="utf-8"
+    )
+    chinese_contract = (
+        PROJECT_ROOT / "docs/zh/developer/contracts/elfie.md"
+    ).read_text(encoding="utf-8")
+    conformance = (PROJECT_ROOT / "docs/developer/conformance/elfie.md").read_text(
+        encoding="utf-8"
+    )
+
+    for owner in (
+        "Event Workspace",
+        "Orientation",
+        "Selfhood",
+        "Emotion",
+        "Energy",
+        "Motivation",
+        "Memory",
+        "Reasoning Core",
+        "Persistent Activity",
+        "Cognitive Consolidation",
+    ):
+        assert owner in english_contract
+    for owner in (
+        "事件工作区",
+        "自我定位",
+        "自我认知",
+        "情绪",
+        "能量",
+        "动机",
+        "记忆",
+        "思考中枢",
+        "跨回合活动",
+        "心智整理",
+    ):
+        assert owner in chinese_contract
+
+    assert "Profile answers the objective question" in english_contract
+    assert "Profile 回答“客观上是哪一只 Elfie”" in chinese_contract
+    assert "embodiments are mutually exclusive" in english_contract
+    assert "虚拟和实体具身互斥" in chinese_contract
+    assert "Genesis is a one-time creation flow" in english_contract
+    assert "Genesis 是一次性创建流程" in chinese_contract
+    for gap_id in range(10, 18):
+        assert f"ELF-{gap_id:03d}" in conformance

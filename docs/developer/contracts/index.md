@@ -7,5 +7,7 @@ in `conformance/`; reasons for deliberate contract changes belong in
 
 - [Repository architecture governance](./repository-governance)
 - [System architecture](./system)
+- [Elfie internal architecture](./elfie)
+- [Elfie Brain internal architecture](./brain)
 - [Application architecture](./application)
 - [Model, Food and tool behavior](./model-food-tool-behavior)

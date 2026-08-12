@@ -2,8 +2,9 @@
 
 > Temporary migration register for the normative
 > [Elfie internal architecture contract](../contracts/elfie). It records the
-> current implementation gaps without weakening the target. Delete this page
-> after every row is closed.
+> current implementation gaps without weakening the target. Rows ELF-001 through
+> ELF-009 record the completed Ports/Adapters migration. Rows ELF-010 onward track
+> the life-system target adopted by contract version 2.0.
 
 ## Current gaps
 
@@ -18,6 +19,14 @@
 | ELF-007 | P0 | closed | `elfie/communication/` owns only canonical envelopes, policy, Hub/router, bounded inbox/outbox and injected channel Ports. WeChat/Telegram and message-delivery transport live in `infrastructure/communication/`; authenticated versioned App conversation and WebSocket routes resolve member/target before delivery Facade. | Keep communication Port/Adapter direction, authenticated ingress, identity/deduplication and delivery-order tests green. |
 | ELF-008 | P1 | closed | `ElfieFactory` is now a typed domain builder over an immutable `ElfieAssembly`; storage paths, Godot APIs and staged Runtime configuration are resolved before it is called. | Factory assembly/restore tests pass, the returned aggregate is complete but not started, and Bootstrap remains the only production composition root. |
 | ELF-009 | P1 | closed | Public Profile, Body, Communication, Nest Session, Runtime observation and Infrastructure Port models use named immutable models or bounded JSON values. Permanent Port ratchet rejects `Any`/`object`/concrete peer Adapter signatures; body/channel/Bootstrap evidence is focused and machine-checked. | Keep the strict Port ratchet and evidence green; internal algorithm-local mappings are not public boundary contracts. |
+| ELF-010 | P0 | open | `ElfieProfile` still carries `personality`, `capabilities` and `system_limits`; `elfie/profile/defaults/` still mixes selfhood, body capability and energy/runtime defaults with immutable appearance facts. | Establish the receiving Brain/Body/NervousSystem owners, migrate every production caller and persisted field in one approved slice, then remove the three broad Profile mappings and mixed defaults without fallback reads or dual authority. |
+| ELF-011 | P0 | open | `elfie/cognitive_runtime.py` and `elfie/cognitive_context.py` remain root aggregate files, and current perception frames do not yet enforce the contract's three source domains and single-domain Turn/response scope. | Brain owns the private cognitive coordination and context assembly; communication, embodied and internal inputs produce typed single-domain Turns; host validation prevents a Turn from widening its response domain; root cognitive files are removed. |
+| ELF-012 | P0 | open | Body registration and binding select a current command body, but the full virtual/physical mutual-exclusion transition, authority generation, stale receipt rejection, rollback and restart recovery contract is not implemented. | One explicit switching state machine preserves exactly one selected sensor/action authority, rejects stale generations and restores or rolls back deterministically after failure/restart. |
+| ELF-013 | P1 | open | `elfie/initialization.py` assembles Profile and anatomy but there is no `genesis/` owner for the validated ephemeral creation bundle, Brain seeds or bounded biography enrichment. | Genesis produces and validates typed creation artifacts, commits each artifact once to its final owner, retains no duplicate life state and leaves ordinary runtime after completion. |
+| ELF-014 | P0 | open | Current cognition provides workspace, model worker, decision plan and internal placeholder operations, but lacks the accepted Persistent Activity owner, deterministic preflight/commit split, durable internal wake-up and receipt reconciliation. | A validated Activity survives Turns/restarts, wakes only through a typed internal event, keeps communication and embodied steps separate, and reaches a receipt-backed terminal state without duplicate effects. |
+| ELF-015 | P1 | open | Motivation and Cognitive Consolidation are design-only; active autonomy and offline growth therefore have no bounded runtime owner yet. | Implement only after Activity is stable: fixed drives emit bounded candidates with cooldown, and no-side-effect consolidation emits validated state candidates or later internal triggers under independent budgets. |
+| ELF-016 | P0 | open | The current cortical path can call a model and decode a `DecisionPlan`, but Brain does not yet own the accepted bounded multi-step Model/Skill/Tool observation loop, verification, inhibition and completion judgment. | One Reasoning Run may perform bounded cognitive steps and real Tool observations, but only a settled `TurnDecision` can reach the external decision boundary; timeout, budget exhaustion and false execution claims terminate without invented success. |
+| ELF-017 | P0 | open | Emotion, energy and memory implementations exist, but Orientation and Selfhood are not independent authorities and the complete continuous-life state is not restored consistently across Turns, body switches and process restarts. | Typed Orientation/Selfhood/Emotion/Energy/Memory snapshots have explicit owners, source/version rules and minimal persistence/recovery; Profile remains immutable and transient emotion cannot directly rewrite personality. |
 
 ## Machine coverage
 
@@ -29,12 +38,13 @@ Brain-owned ToolPort surface. Memory Fake tests, Infrastructure persistence
 tests and the model/tool end-to-end path provide the evidence for the closed
 slices.
 
-All rows in this register are now closed by migrated production call chains,
-focused behavior evidence and permanent machine ratchets. This contract reuses
-the system scanner and existing baseline; it deliberately creates no second
-legacy baseline.
+The Ports/Adapters rows are closed by migrated production call chains, focused
+behavior evidence and permanent machine ratchets. Contract 2.0 reuses those
+boundaries and existing baselines; it deliberately creates no second legacy
+baseline. Open life-system rows are target gaps, not permission to weaken the
+contract or pretend design-only capabilities are implemented.
 
-## Migration order
+## Completed Ports/Adapters order
 
 1. inventory and freeze the `Elfie`/`ElfieFactory` public surface;
 2. move Skills under Brain and separate authorization from execution;
@@ -49,3 +59,18 @@ legacy baseline.
 Each step is an independently approved vertical slice: define or freeze the
 consumer Port, implement and inject one Adapter, migrate every caller, delete
 the old path, then close only the matching row.
+
+## Life-system implementation order
+
+1. Brain Kernel and the communication life loop close the single-domain Turn and root cognitive-ownership part of ELF-011;
+2. Reasoning Core closes ELF-016 with bounded Model/Skill/Tool observations without adding an external action channel;
+3. the virtual embodied loop closes ELF-012's one-active-body authority for the first production body;
+4. continuous life state closes ELF-017, establishes Selfhood/Energy/Orientation owners and closes ELF-010 without dual Profile fields;
+5. Persistent Activity closes ELF-014 before Motivation can create autonomous work;
+6. bounded Motivation and Cognitive Consolidation close ELF-015;
+7. Genesis closes ELF-013 only after the final Profile and Brain seed owners exist.
+
+The detailed execution plan is a separate implementation artifact. It may split
+these rows into smaller acceptance slices but cannot reorder Motivation ahead of
+Activity, remove one-body authority, add compatibility storage or redefine the
+owners fixed by the contract.

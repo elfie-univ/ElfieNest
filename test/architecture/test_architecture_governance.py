@@ -148,6 +148,41 @@ def test_contract_change_requires_mirror_version_bump_and_bilingual_adr(
     )
 
 
+def test_contract_indexes_require_mirrors_but_not_contract_versions(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    english_index = "docs/developer/contracts/index.md"
+    chinese_index = "docs/zh/developer/contracts/index.md"
+    english_decision = "docs/developer/decisions/0001-example.md"
+    chinese_decision = "docs/zh/developer/decisions/0001-example.md"
+    for path in (
+        english_index,
+        chinese_index,
+        english_decision,
+        chinese_decision,
+    ):
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("index or decision\n", encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        governance_change,
+        "_base_source",
+        lambda _base_sha, _path: "previous index or decision\n",
+    )
+    changed = {
+        english_index,
+        chinese_index,
+        english_decision,
+        chinese_decision,
+    }
+
+    assert validate_contract_changes("base", changed) == []
+    assert validate_decision_mirrors(changed) == []
+
+
 def test_frozen_macro_contract_requires_a_new_standalone_bilingual_adr(
     tmp_path: Path,
     monkeypatch,

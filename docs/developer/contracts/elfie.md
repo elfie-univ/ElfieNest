@@ -1,11 +1,13 @@
 # Elfie internal architecture contract
 
-**Contract version:** 1.0
+**Contract version:** 2.0
 **Adopted:** 2026-08-11
+**Revised:** 2026-08-12
 **Scope:** `elfie/` and Infrastructure Port views scoped to one Elfie
 
-> **Normative target.** This contract defines the internal ownership, dependency
-> direction, public Facades and outbound Ports of one complete Elfie. It refines,
+> **Normative target.** This contract defines the life-system ownership,
+> dependency direction, public Facades and outbound Ports of one complete Elfie.
+> It refines,
 > but does not change, the frozen [system architecture contract](./system). The
 > current implementation is not yet fully conformant; exact migration gaps live
 > in the [Elfie conformance register](../conformance/elfie).
@@ -18,12 +20,12 @@ implemented by the target owners.
 
 ## Purpose and non-goals
 
-`elfie/` owns one complete, independently testable creature: stable Profile,
-cognition, emotion, memory semantics, Skills, nervous-system processing, body
-semantics, digital communication semantics and its own lifecycle. Internally it
-uses a lightweight nested Ports/Adapters shape so that domain behavior does not
-depend on SQLite, YAML user storage, Provider SDKs, Godot frames, device
-transports or communication-platform protocols.
+`elfie/` owns one complete, independently testable creature: immutable Profile,
+continuous Brain, nervous-system processing, body semantics, digital
+communication semantics, creation-time Genesis rules and its own internal
+lifecycle. Internally it uses a lightweight nested Ports/Adapters shape so that
+domain behavior does not depend on SQLite, YAML user storage, Provider SDKs,
+Godot frames, device transports or communication-platform protocols.
 
 This contract does not introduce a microservice, event bus, generic dependency
 injection framework, universal repository, one Protocol per helper, or a second
@@ -33,23 +35,26 @@ the stable `Elfie` and `ElfieFactory` Facades.
 ## Aggregate shape
 
 One Elfie is one aggregate and one internal lifecycle boundary; it is not a
-system Runtime authority:
+system Runtime authority. Genesis runs before the ordinary aggregate lifecycle
+and commits its values to their final owners:
 
 ```text
+Genesis ---> Profile + Brain seeds
+
 Elfie / ElfieFactory Facades
             |
             v
-private Elfie cognitive coordination
-   |          |             |
-   v          v             v
- Brain   NervousSystem   Communication
-   |          |             |
-   |       BodyPort    CommunicationChannel
-   |
-   +--> FoodPort / ModelPort / ToolPort
-   +--> MemoryStorePort
+ Profile + private Brain coordination
+              |          |             |
+              v          v             v
+            Brain   NervousSystem   Communication
+              |          |             |
+              |       BodyPort    CommunicationChannel
+              |
+              +--> FoodPort / ModelPort / ToolPort
+              +--> MemoryStorePort
 
-Profile --> ProfileStorePort
+Profile ---------------------------> ProfileStorePort
 ```
 
 The root Facade coordinates the submodules. Brain owns cognition and decisions;
@@ -61,13 +66,14 @@ coordination, not an App Runtime, Infrastructure Adapter or public product API.
 
 | Module | Owns | Must not own |
 | --- | --- | --- |
-| `elfie/profile/` | Identity, species, appearance, personality, stable capabilities, limits, provenance and immutable bundled defaults | YAML/file persistence, user paths, App adoption or account rules |
-| `elfie/brain/` | Perception workspace, context, appraisal, cognition, decision plans, output routing, emotion, energy, memory semantics and Skills | Provider selection/configuration, SDK requests, concrete tool execution or product workflow |
+| `elfie/profile/` | Immutable intrinsic identity, species, virtual appearance, provenance and immutable appearance defaults | Personality, memory, permissions, runtime limits, current capabilities/state, YAML/file persistence, user paths, App adoption or account rules |
+| `elfie/brain/` | Event Workspace, Orientation, Selfhood, Emotion, Energy, Motivation, Memory, Reasoning Core, Persistent Activity, Cognitive Consolidation and Skills | Provider selection/configuration, SDK requests, concrete tool execution, device/channel transport or product workflow |
 | `elfie/brain/memory/` | Memory nodes, relations, encoding, retrieval, consolidation and the semantic storage Port | SQLite connections, schema, paths or persistence records |
 | `elfie/brain/skills/` | Skill declarations, the per-Elfie catalog, policy and authorization of semantic tool requests | Runtime proxies, platform tools, workspace paths or tool execution |
 | `elfie/nervous_system/` | Body-event normalization, filtering, reflexes, perception delivery and translation of validated body intents | Device transport, Godot protocol, geometry or body registration policy |
-| `elfie/body/` | Body identity, capabilities, anatomy, commands, sensor events, receipts, registry and binding semantics | Godot/WebSocket/device transport, credentials, process ownership or device product authorization |
+| `elfie/body/` | Body identity, capabilities, anatomy, commands, sensor events, receipts, candidate registry, switching and the single active binding | Concurrent virtual/physical authority, Godot/WebSocket/device transport, credentials, process ownership or device product authorization |
 | `elfie/communication/` | Canonical envelopes, admission and delivery semantics, policy, inbox/outbox, Hub and channel routing | Product conversation authority/history, account membership, platform SDKs, credentials or network transport |
+| `elfie/genesis/` | Creation-time generation rules, validation and the ephemeral initialization bundle | Daily cognition, permanent duplicate state, technical Adapter construction or lifecycle authority |
 
 Skills are part of Brain because they influence cognition and authorize which
 semantic tool requests one Elfie may make. A Skill names a semantic `tool_key`
@@ -76,6 +82,33 @@ Bundled Skill declarations and per-Elfie in-memory policy require no persistence
 Port. Mutable Skill installation, mutation or durable per-Elfie Skill state is
 outside this contract; introducing it requires a separate approved contract
 decision and cannot begin by writing files from Brain.
+
+The Brain systems above are conceptual owners rather than a deployment model.
+They do not imply ten processes, databases, workers or pre-created packages. A
+system receives a directory only when the implementation gives it real state,
+contracts or behavior; empty architecture-shaped packages are forbidden.
+
+## Life-system invariants
+
+- Profile answers the objective question "which Elfie is this?" and is immutable
+  after creation. Brain Selfhood answers "how do I currently understand myself?"
+  and may change slowly through validated long-term evidence.
+- Elfie has two external lines: the embodied line through NervousSystem and Body,
+  and the digital-message line through Communication. They may be active in the
+  same period but never share an output authority inside one Turn.
+- Brain receives communication events, embodied events and internal triggers as
+  three event sources. Every admitted Turn has exactly one `SourceDomain`; its
+  `ResponseScope` cannot be widened by model output.
+- Cross-domain consequences become a new internal event and a later Turn. A chat
+  Turn may request future embodied work, but cannot emit a body directive in the
+  current Turn.
+- Brain's external decision boundary accepts only communication directives,
+  nervous-system directives and persistent-activity requests, or no-op. Model,
+  Skill and Tool calls are internal cognitive operations.
+- Several authorized body candidates may be registered, but virtual and physical
+  embodiments are mutually exclusive. Outside an explicit switching transaction,
+  exactly one selected body owns sensor and action authority. Headless is only a
+  deterministic development/test substitute.
 
 ## Public inbound surface
 
@@ -161,24 +194,73 @@ does not proxy the runtime path. App Orchestration is not a model or tool
 gateway. The historical broad `CorticalRuntimePort` and `RuntimeSkillAdapter`
 are migration paths, not the target ownership model.
 
-## Body Ports and multiple bodies
+## Brain cognitive ownership
 
-An Elfie can register multiple bodies. Every body instance has a stable
-`BodyId`, capability revision and independent lifecycle, and implements the same
-`BodyPort`. Examples include a Godot actor body, one or more physical toy bodies,
-a device body and a headless/test body.
+The subordinate [Brain internal architecture contract](./brain) is authoritative
+for Turn lifecycle, mental-state commits, bounded reasoning and Persistent
+Activity semantics. This section fixes only their aggregate-level ownership.
+
+Brain owns ten conceptual systems with distinct authority:
+
+1. Event Workspace admits communication, embodied and internal events into
+   bounded, single-domain Turns.
+2. Orientation maintains the sourced current snapshot of body, place, time,
+   nearby people, conversation and active commitments.
+3. Selfhood maintains the slowly changing self-model, personality and norms,
+   anchored by immutable Profile facts.
+4. Emotion maintains persistent, decaying affective state.
+5. Energy maintains homeostasis, circadian state and cognitive/action budgets,
+   including an emergency reserve and deterministic degradation.
+6. Motivation turns fixed internal needs into attention, goal or internal-
+   trigger candidates; it never acts directly.
+7. Memory owns subjective experience, knowledge, relationships, retrieval,
+   forgetting and semantic consolidation.
+8. Reasoning Core assembles Turn context and runs the bounded model/Skill/Tool
+   loop, verification, inhibition and completion judgment.
+9. Persistent Activity owns validated work that survives the current Turn,
+   including waiting, wake-up, retry, cancellation, idempotency and receipts.
+10. Cognitive Consolidation performs interruptible, budgeted, no-external-
+    side-effect review during sleep or idle periods and emits only validated
+    update candidates or a later internal trigger.
+
+Context assembly, decision governance, settlement, journal, checkpoint and
+receipt reconciliation are required mechanisms inside or underneath these
+owners, not additional peer mind systems. Authoritative state changes use a
+candidate-validation-commit protocol; model text never directly rewrites
+Profile, Selfhood, Memory, Activity or execution facts.
+
+## Genesis
+
+Genesis is a one-time creation flow, not a runtime organ and not a second Brain.
+It may generate an ephemeral bundle containing a Profile draft, personality and
+selfhood seeds, no more than five key pre-adoption memory events, relationship
+seeds and a bounded biography-enrichment plan. After deterministic validation,
+each value is committed to its final owner. Genesis keeps only creation status
+and provenance and cannot directly choose permissions, available channels,
+device abilities, tool scope, model budget or real account bindings.
+
+Later biography enrichment, when enabled, is a temporary bounded Persistent
+Activity executed through Cognitive Consolidation. It cannot invent unlimited
+major history, rewrite Profile or remain as a permanent background storyteller.
+
+## Body candidates and one active body
+
+An Elfie may register authorized virtual and physical body candidates. Every
+candidate has a stable `BodyId`, capability revision and independent technical
+lifecycle, and implements the same `BodyPort`. Registration makes a candidate
+available; it never grants concurrent sensor or action authority.
 
 `BodyRegistry` owns the available body instances and `BodyBinding` owns the
-explicit current routing relationship. The initial binding policy may select one
-primary command body while retaining multiple registered bodies. Commands and
-events always carry `BodyId`, so future role-based or concurrent bindings do not
-require a new transport-specific contract. Any simultaneous-body policy must be
-explicit; it cannot be inferred from connection state.
+explicit selected-body relationship. Virtual-active and physical-active states
+are mutually exclusive. A switch is an explicit transaction with generation,
+rollback and recovery semantics; stale events or receipts from an earlier body
+generation cannot regain authority. Commands and authoritative perceptions are
+accepted only for the selected body and always carry `BodyId`.
 
 The Registry contains only Adapter views already discovered, granted and
 associated by App Device use-cases. Connection or health state does not grant,
-associate or bind a body. Events from different bodies have stable event IDs and
-timestamps; there is no implicit global ordering across bodies.
+associate or bind a body. Non-selected-body events may be retained as diagnostic
+facts but cannot update current Orientation or trigger ordinary embodied action.
 
 `BodyPort` is the stable aggregate boundary. Narrow sensor and actuator
 Protocols may exist inside a body implementation when they provide real
@@ -186,11 +268,11 @@ testability, but callers do not receive a duplicate family of public body APIs.
 
 Body commands, sensor events, capabilities and lifecycle receipts remain in
 `elfie/body/`. A deterministic pure-domain reference body or test fake may stay
-with domain tests; product Headless hosting and all Godot transport, device
-sessions, Bluetooth/LAN, credentials and process control belong to
-Infrastructure. App Device features own discovery, enrollment, authorization
-and Elfie/body association; cross-authority hosting, switching or return-to-Nest
-workflows belong to App Orchestration.
+with domain tests; Headless is not a third product embodiment. Product hosting
+and all Godot transport, device sessions, Bluetooth/LAN, credentials and process
+control belong to Infrastructure. App Device features own discovery, enrollment,
+authorization and Elfie/body association; cross-authority hosting, switching or
+return-to-Nest workflows belong to App Orchestration.
 
 The Body channel carries only actor-scoped commands, perceptions,
 proprioception and receipts. Authoritative house geometry, coordinates,
@@ -240,7 +322,9 @@ NervousSystem translates Body events into Brain perception, applies physical
 limits and reflexes, and translates validated body intents toward the current
 Body Port. Communication converts canonical envelopes and delivery receipts
 into a separate digital-perception stream. Body and digital communication are
-not collapsed into one generic input channel.
+not collapsed into one generic input channel. NervousSystem accepts ordinary
+commands and perceptions only for the selected body generation; deterministic
+low-latency safety reflexes remain here rather than entering an open model Turn.
 
 Internal bridges such as a perception adapter or intent executor may remain in
 Elfie when both sides are Elfie-owned semantic contracts. They are internal
@@ -268,8 +352,9 @@ Godot authority or a shared Adapter resource.
 ## Dependency rules
 
 ```text
-Elfie Facade -> Profile + private coordination
-private coordination -> Brain + NervousSystem + Body + Communication
+Genesis -> Profile + Brain seeds
+Elfie Facade -> Profile + private Brain coordination
+private Brain coordination -> Brain + NervousSystem + Body + Communication
 Brain -> its own Food/Model/Tool/Memory Ports
 NervousSystem -> Body semantic contracts and Brain perception Port
 Communication -> its own channel Port and Brain perception Port
@@ -297,11 +382,14 @@ caller, remove the old implementation and compatibility path, then close the
 matching conformance gap. Existing system baselines only shrink; this contract
 does not create a second legacy baseline.
 
-Recommended order is: public Facade and boundary inventory, Brain Skills,
-Food/Model/Tool Ports, Memory persistence, Profile persistence, Body technical
-Adapters, Communication platform Adapters, then final Factory and public-export
-cleanup. A slice must remain runnable and keep one active authority for every
-fact.
+The Ports/Adapters migration accepted by ADR-0005 is complete and remains a
+permanent boundary. Life-system implementation now proceeds as independently
+accepted vertical slices: Brain Kernel and communication loop, Reasoning Core,
+virtual embodied loop, continuous life state and Profile transfer, Persistent
+Activity, Motivation, then Cognitive Consolidation and Genesis completion. A
+slice must remain runnable, keep one active authority for every fact, delete the
+path it replaces and provide one visible result, one boundary attack, one
+failure/restart check and an explicit non-goal.
 
 ## Explicitly rejected designs
 
@@ -309,4 +397,6 @@ This contract rejects a flat package where every submodule imports every other,
 one universal `ElfiePort`, one Protocol per helper, a generic Runtime proxy,
 technical Body or channel SDKs inside Elfie, App Orchestration proxying ordinary
 cognition, multiple active persistence writers, compatibility aliases, fallback
-reads and a Service Locator hidden in `ElfieFactory`.
+reads, simultaneously active virtual and physical bodies, an empty package per
+conceptual Brain system, Genesis as a daily runtime, and a Service Locator hidden
+in `ElfieFactory`.

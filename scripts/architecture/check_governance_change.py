@@ -296,6 +296,8 @@ def validate_contract_changes(base_sha: str, paths: Iterable[str]) -> List[str]:
         if mirror not in changed:
             failures.append(f"contract mirror not changed with {path}: {mirror}")
             continue
+        if path.endswith("/index.md"):
+            continue
         for current_path in sorted(pair):
             current_source = Path(current_path).read_text(encoding="utf-8")
             base_source = _base_source(base_sha, current_path)

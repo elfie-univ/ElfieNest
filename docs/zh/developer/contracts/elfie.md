@@ -1,10 +1,11 @@
 # Elfie 内部架构契约
 
-**契约版本：** 1.0
+**契约版本：** 2.0
 **采用日期：** 2026-08-11
+**修订日期：** 2026-08-12
 **适用范围：** `elfie/`，以及 Infrastructure 为单只 Elfie 限定作用域的 Port View
 
-> **规范性目标。** 本契约定义一只完整 Elfie 的内部所有权、依赖方向、公开 Facade
+> **规范性目标。** 本契约定义一只完整 Elfie 的生命系统所有权、依赖方向、公开 Facade
 > 和出站 Port。它细化但不改变已冻结的[系统架构契约](./system)。当前实现尚未完全
 > 合规；精确迁移缺口记录在 [Elfie 一致性台账](../conformance/elfie)。
 
@@ -14,10 +15,10 @@
 
 ## 目标与明确不做的事
 
-`elfie/` 拥有一只完整、可独立测试的精灵：稳定 Profile、认知、情绪、记忆语义、
-Skills、神经系统处理、身体语义、数字通信语义和自身生命周期。内部采用轻量嵌套
-Ports/Adapters，使领域行为不依赖 SQLite、用户可变 YAML、Provider SDK、Godot 帧、
-设备传输或通信平台协议。
+`elfie/` 拥有一只完整、可独立测试的精灵：不可变 Profile、连续 Brain、神经系统
+处理、身体语义、数字通信语义、创建期 Genesis 规则和自身内部生命周期。内部采用
+轻量嵌套 Ports/Adapters，使领域行为不依赖 SQLite、用户可变 YAML、Provider SDK、
+Godot 帧、设备传输或通信平台协议。
 
 本契约不引入微服务、事件总线、通用依赖注入框架、万能 Repository、每个 helper 一个
 Protocol 或第二套 App Orchestration。稳定的 `Elfie` 和 `ElfieFactory` Facade 不需要
@@ -25,23 +26,26 @@ Protocol 或第二套 App Orchestration。稳定的 `Elfie` 和 `ElfieFactory` F
 
 ## 聚合形态
 
-一只 Elfie 是一个聚合，也是一个内部生命周期边界；它不是系统 Runtime authority：
+一只 Elfie 是一个聚合，也是一个内部生命周期边界；它不是系统 Runtime authority。
+Genesis 在普通聚合生命周期之前运行，并把产物提交给最终所有者：
 
 ```text
+Genesis ---> Profile + Brain seeds
+
 Elfie / ElfieFactory Facade
             |
             v
-私有 Elfie 认知协调
-   |          |             |
-   v          v             v
- Brain   NervousSystem   Communication
-   |          |             |
-   |       BodyPort    CommunicationChannel
-   |
-   +--> FoodPort / ModelPort / ToolPort
-   +--> MemoryStorePort
+ Profile + 私有 Brain 协调
+              |          |             |
+              v          v             v
+            Brain   NervousSystem   Communication
+              |          |             |
+              |       BodyPort    CommunicationChannel
+              |
+              +--> FoodPort / ModelPort / ToolPort
+              +--> MemoryStorePort
 
-Profile --> ProfileStorePort
+Profile ---------------------------> ProfileStorePort
 ```
 
 根 Facade 协调各子模块。Brain 拥有认知和决策；它不构造或导入具体 Body、Channel、
@@ -52,19 +56,40 @@ Runtime、Infrastructure Adapter 或公开产品 API。
 
 | 模块 | 拥有 | 不得拥有 |
 | --- | --- | --- |
-| `elfie/profile/` | 身份、物种、外貌、人格、稳定能力、限制、来源和随源码发布的不可变默认资源 | YAML/文件持久化、用户路径、App 领养或账户规则 |
-| `elfie/brain/` | 感知工作区、上下文、评估、认知、决策计划、输出路由、情绪、能量、记忆语义和 Skills | Provider 选择/配置、SDK 请求、具体工具执行或产品工作流 |
+| `elfie/profile/` | 不可变固有身份、物种、虚拟外貌、生成来源和不可变外貌默认资源 | 人格、记忆、权限、运行限制、当前能力/状态、YAML/文件持久化、用户路径、App 领养或账户规则 |
+| `elfie/brain/` | 事件工作区、自我定位、自我认知、情绪、能量、动机、记忆、思考中枢、跨回合活动、心智整理和 Skills | Provider 选择/配置、SDK 请求、具体工具执行、设备/渠道传输或产品工作流 |
 | `elfie/brain/memory/` | 记忆节点、关系、编码、检索、巩固和语义存储 Port | SQLite 连接、Schema、路径或持久化 Record |
 | `elfie/brain/skills/` | Skill 声明、单只精灵的目录、策略和语义工具请求授权 | Runtime 代理、平台工具、工作区路径或工具执行 |
 | `elfie/nervous_system/` | 身体事件规范化、过滤、反射、感知投递和已校验身体意图转换 | 设备传输、Godot 协议、几何或身体注册策略 |
-| `elfie/body/` | 身体身份、能力、解剖、命令、传感事件、回执、注册和绑定语义 | Godot/WebSocket/设备传输、凭据、进程所有权或设备产品授权 |
+| `elfie/body/` | 身体身份、能力、解剖、命令、传感事件、回执、候选 Registry、切换和唯一当前 Binding | 虚拟/实体并发 authority、Godot/WebSocket/设备传输、凭据、进程所有权或设备产品授权 |
 | `elfie/communication/` | 标准 Envelope、准入与投递语义、策略、Inbox/Outbox、Hub 和渠道路由 | 产品会话 authority/历史、账户成员、平台 SDK、凭据或网络传输 |
+| `elfie/genesis/` | 创建期生成规则、校验和临时初始化 Bundle | 日常认知、永久重复状态、技术 Adapter 构造或生命周期 authority |
 
 Skills 属于 Brain，因为它们影响认知并授权某只 Elfie 可以提出哪些语义工具请求。
 Skill 只命名语义 `tool_key` 或能力，不包装 Runtime 对象，也不自行执行工具。
 随源码发布的 Skill 声明和单只 Elfie 的内存策略不需要持久化 Port。可变 Skill 安装、
 修改或单只 Elfie 持久 Skill 状态不在本契约范围内；引入它们必须先有单独获批的契约
 决策，不能从 Brain 直接写文件开始。
+
+上述 Brain 系统是概念所有者，不是部署模型。它们不等于十个进程、数据库、Worker 或
+必须预建的包。只有实现提供真实状态、契约或行为时，系统才获得目录；禁止为了架构图
+建立空包。
+
+## 生命系统守恒规则
+
+- Profile 回答“客观上是哪一只 Elfie”，创建后不可变；Brain Selfhood 回答“我现在
+  怎样理解自己”，只能根据经过校验的长期证据缓慢变化。
+- Elfie 只有两条对外线路：经 NervousSystem 和 Body 的具身线路，以及经
+  Communication 的数字消息线路。两者可以处于同一生活阶段，但同一个 Turn 不能共享
+  输出 authority。
+- Brain 接收通信事件、具身事件和内部触发三类来源。每个被接纳的 Turn 只有一个
+  `SourceDomain`，模型输出不能扩大其 `ResponseScope`。
+- 跨域后果必须形成新的内部事件和后续 Turn。聊天 Turn 可以申请未来具身工作，但
+  当前 Turn 不能输出身体指令。
+- Brain 的外部决策边界只接受通信指令、神经系统指令、跨回合活动请求或 No-op。
+  Model、Skill、Tool 调用属于内部认知操作。
+- 可以注册多个已授权身体候选，但虚拟和实体具身互斥。除明确切换事务外，任何时刻
+  只有一个选中身体拥有传感与动作 authority。Headless 只是确定性开发/测试替身。
 
 ## 对上的公开入站面
 
@@ -133,29 +158,62 @@ App Configuration 管理全局可用性、分配和授权，但不代理运行�
 不是模型或工具 Gateway。当前宽泛的 `CorticalRuntimePort` 与 `RuntimeSkillAdapter`
 属于迁移路径，不是目标所有权。
 
-## Body Port 与多具身体
+## Brain 认知所有权
 
-一只 Elfie 可以注册多具身体。每个身体实例拥有稳定 `BodyId`、能力 revision 和独立
-生命周期，并实现同一份 `BodyPort`。具体实例可以是 Godot actor 身体、一具或多具
-玩具身体、设备身体，以及 Headless/测试身体。
+下位 [Brain 内部架构契约](./brain)负责 Turn 生命周期、心智状态提交、有界思考和跨回合
+活动语义；本节只固定它们在 Elfie 聚合中的所有权。
 
-`BodyRegistry` 拥有可用身体实例，`BodyBinding` 拥有明确的当前路由关系。初始绑定策略
-可以在保留多具已注册身体的同时选择一具主要命令身体。命令和事件始终携带 `BodyId`，
-因此未来扩展角色化或并发绑定时无需另建技术专用契约。任何多身体并发策略都必须显式
-定义，不能根据连接状态自行推断。
+Brain 拥有十个 authority 不同的概念系统：
+
+1. 事件工作区把通信、具身和内部事件准入为有界、单域 Turn；
+2. 自我定位维护带来源的当前身体、地点、时间、附近人物、会话和活动承诺快照；
+3. 自我认知维护由不可变 Profile 锚定、缓慢变化的自我模型、人格和规范；
+4. 情绪维护持续且会衰减的情感状态；
+5. 能量维护稳态、昼夜状态、认知/行动预算、紧急储备和确定性降级；
+6. 动机把固定内部需要转换成注意、Goal 或内部触发候选，不能直接行动；
+7. 记忆拥有主观经历、知识、关系、检索、遗忘和语义巩固；
+8. 思考中枢组装 Turn 上下文并执行有界 Model/Skill/Tool 循环、验证、抑制和完成判断；
+9. 跨回合活动拥有超出当前 Turn 的已校验工作，包括等待、唤醒、重试、取消、幂等和回执；
+10. 心智整理在睡眠或空闲期进行可中断、有预算、无外部副作用的整理，只输出经过校验
+    的更新候选或后续内部触发。
+
+上下文组装、决策治理、结算、Journal、Checkpoint 和回执对账是这些所有者内部或底层
+必需机制，不是额外平级心智系统。权威状态变化统一采用“候选—校验—提交”；模型文本
+不能直接改写 Profile、Selfhood、Memory、Activity 或执行事实。
+
+## Genesis
+
+Genesis 是一次性创建流程，不是运行器官，也不是第二个 Brain。它可以生成临时 Bundle：
+Profile 草稿、人格与自我认知种子、不超过五个关键领养前记忆事件、关系种子和有界人生
+补全计划。确定性校验后，每个值分别提交给最终所有者。Genesis 只保留创建状态和来源，
+不能自行决定权限、可用渠道、设备能力、Tool 范围、模型预算或真实账户绑定。
+
+后续人生补全若启用，是通过心智整理执行的临时有界跨回合活动。它不能无限发明重大
+历史、改写 Profile，或长期作为后台编剧运行。
+
+## 身体候选与唯一当前身体
+
+一只 Elfie 可以注册已授权的虚拟和实体身体候选。每个候选拥有稳定 `BodyId`、能力
+revision 和独立技术生命周期，并实现同一份 `BodyPort`。注册只代表候选可用，不能
+授予并发传感或动作 authority。
+
+`BodyRegistry` 拥有可用身体实例，`BodyBinding` 拥有明确的当前身体关系。虚拟激活与
+实体激活状态互斥。切换是具有 generation、回滚和恢复语义的明确事务；旧身体
+generation 的事件或回执不能重新取得 authority。只有选中身体的命令和权威感知会被
+接纳，并始终携带 `BodyId`。
 
 Registry 只包含已经由 App Device 用例发现、授权和关联的 Adapter View。连接或健康
-状态不能自动授予、关联或绑定身体。不同身体的事件携带稳定事件 ID 和时间，不存在隐式
-的跨身体全局顺序。
+状态不能自动授予、关联或绑定身体。非选中身体事件可以保留为诊断事实，但不能更新当前
+Orientation 或触发普通具身行动。
 
 `BodyPort` 是稳定的聚合边界。身体实现内部确有测试价值时可以使用更窄的 Sensor/
 Actuator Protocol，但调用方不获得第二套重复公开身体 API。
 
 身体命令、传感事件、能力和生命周期回执留在 `elfie/body/`。确定性的纯领域参考身体或
-测试 Fake 可以留在领域测试中；产品 Headless 托管以及所有 Godot 传输、设备 Session、
-蓝牙/LAN、凭据和进程控制属于 Infrastructure。App Device Feature 拥有发现、登记、
-授权和 Elfie/body 关联；跨 authority 的托管、身体切换或归巢工作流属于 App
-Orchestration。
+测试 Fake 可以留在领域测试中；Headless 不是第三种产品具身。产品托管以及所有 Godot
+传输、设备 Session、蓝牙/LAN、凭据和进程控制属于 Infrastructure。App Device Feature
+拥有发现、登记、授权和 Elfie/body 关联；跨 authority 的托管、身体切换或归巢工作流
+属于 App Orchestration。
 
 Body Channel 只承载 Actor 作用域的命令、感知、本体感觉和回执。权威房屋几何、坐标、
 碰撞/导航及全局互动事实通过 World Channel 进入 Nest；Orchestration 只把由此产生且已
@@ -190,7 +248,8 @@ Elfie 只拥有交流与认知语义。Communication Inbox/Outbox 只是有界�
 
 NervousSystem 把 Body 事件转换为 Brain 感知，应用物理限制与反射，并把已校验身体意图
 送往当前 Body Port。Communication 把标准 Envelope 和投递回执转换为独立的数字感知流。
-身体与数字通信不能折叠成一条通用输入通道。
+身体与数字通信不能折叠成一条通用输入通道。NervousSystem 只接受当前身体 generation
+的普通命令与感知；确定性低延迟安全反射仍留在这里，不能被迫进入开放式模型 Turn。
 
 当两端都是 Elfie 自有语义契约时，Perception Adapter 或 Intent Executor 等内部桥接
 可以保留在 Elfie。它们是内部协调，不授权在领域包中嵌入外部技术 Adapter。
@@ -211,8 +270,9 @@ Gateway、Godot authority 或共享 Adapter 资源。
 ## 依赖规则
 
 ```text
-Elfie Facade -> Profile + 私有协调
-私有协调 -> Brain + NervousSystem + Body + Communication
+Genesis -> Profile + Brain 种子
+Elfie Facade -> Profile + 私有 Brain 协调
+私有 Brain 协调 -> Brain + NervousSystem + Body + Communication
 Brain -> 自有 Food/Model/Tool/Memory Port
 NervousSystem -> Body 语义契约 + Brain 感知 Port
 Communication -> 自有 Channel Port + Brain 感知 Port
@@ -235,13 +295,16 @@ Port，不依赖 SQLite、用户可变 YAML、网络、Godot 或物理设备。I
 Port，实现并注入 Adapter，迁移全部生产调用方，删除旧实现与兼容路径，然后关闭对应
 一致性缺口。现有系统 Baseline 只能缩减；本契约不创建第二份旧架构 Baseline。
 
-建议顺序为：公开 Facade 和边界盘点、Brain Skills、Food/Model/Tool Ports、Memory
-持久化、Profile 持久化、Body 技术 Adapter、Communication 平台 Adapter，最后完成
-Factory 和公开导出清理。每个切片必须保持可运行，并确保每项事实只有一个活动 authority。
+ADR-0005 接受的 Ports/Adapters 迁移已经完成，并继续作为永久边界。生命系统实现以后
+按独立获批的纵向切片推进：Brain Kernel 与通信闭环、思考中枢、虚拟具身闭环、连续
+生命状态与 Profile 转移、跨回合活动、动机，最后是心智整理和 Genesis 收束。每个切片
+必须保持可运行、确保每项事实只有一个活动 authority、删除其替代的旧路径，并提供一个
+可见结果、一个边界攻击、一个失败/重启检查和明确非目标。
 
 ## 明确拒绝的设计
 
 本契约拒绝各子模块任意互相导入的扁平包、一个万能 `ElfiePort`、每个 helper 一个
 Protocol、通用 Runtime 代理、Elfie 内的技术 Body/Channel SDK、让 App Orchestration
-代理普通认知、多写入者持久化、兼容 Alias、Fallback Read，以及藏在 `ElfieFactory`
-中的 Service Locator。
+代理普通认知、多写入者持久化、兼容 Alias、Fallback Read、虚拟与实体身体同时激活、
+为每个概念系统建立空包、把 Genesis 当作日常 Runtime，以及藏在 `ElfieFactory` 中的
+Service Locator。

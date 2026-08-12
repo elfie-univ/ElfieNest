@@ -81,12 +81,14 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-internal-architecture",
-        version="1.0",
+        version="2.0",
         english_path="docs/developer/contracts/elfie.md",
         chinese_path="docs/zh/developer/contracts/elfie.md",
         decision_paths=(
             "docs/developer/decisions/0005-elfie-internal-ports-adapters.md",
             "docs/zh/developer/decisions/0005-elfie-internal-ports-adapters.md",
+            "docs/developer/decisions/0006-elfie-life-system-ownership.md",
+            "docs/zh/developer/decisions/0006-elfie-life-system-ownership.md",
         ),
         agent_paths=(
             "elfie/AGENTS.md",
@@ -102,6 +104,23 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
         conformance_paths=(
             "docs/developer/conformance/elfie.md",
             "docs/zh/developer/conformance/elfie.md",
+        ),
+    ),
+    ContractRegistration(
+        contract_id="elfie-brain-internal-architecture",
+        version="1.0",
+        english_path="docs/developer/contracts/brain.md",
+        chinese_path="docs/zh/developer/contracts/brain.md",
+        decision_paths=(
+            "docs/developer/decisions/0007-brain-turn-state-and-activity-ownership.md",
+            "docs/zh/developer/decisions/0007-brain-turn-state-and-activity-ownership.md",
+        ),
+        agent_paths=("elfie/brain/AGENTS.md",),
+        scanner_paths=(),
+        test_paths=("test/architecture/test_elfie_brain_contract.py",),
+        conformance_paths=(
+            "docs/developer/conformance/brain.md",
+            "docs/zh/developer/conformance/brain.md",
         ),
     ),
     ContractRegistration(
