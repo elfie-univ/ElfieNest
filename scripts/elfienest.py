@@ -220,7 +220,12 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
     elif args.command == "desktop":
         _exit_on_lifecycle_failure(start_desktop_application(lifecycle))
     elif args.command == "mobile":
-        raise SystemExit(show_mobile_access(lifecycle))
+        raise SystemExit(
+            show_mobile_access(
+                lifecycle,
+                build_operations_facade(str(get_db_path())),
+            )
+        )
     elif args.command == "start":
         command = default_service_command(_service_options_from_args(args))
         owner_id = getattr(args, "owner_id", None)

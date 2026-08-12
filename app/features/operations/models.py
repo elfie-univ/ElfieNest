@@ -49,6 +49,15 @@ class GetRuntimeStatusQuery:
 
 
 @dataclass(frozen=True)
+class GetMobileAccessQuery:
+    http_port: int
+
+    def __post_init__(self) -> None:
+        if not 1 <= self.http_port <= 65535:
+            raise ValueError("http_port must be between 1 and 65535")
+
+
+@dataclass(frozen=True)
 class SpeciesCountResult:
     species_id: str
     count: int
@@ -117,15 +126,23 @@ class RuntimeStatusResult:
     observer: RuntimeObserverResult
 
 
+@dataclass(frozen=True)
+class MobileAccessResult:
+    urls: Tuple[str, ...]
+    network_name: Optional[str]
+
+
 __all__ = (
     "ActiveSessionResult",
     "ActiveSessionsResult",
     "BackupDatabasesCommand",
     "DatabaseBackupResult",
+    "GetMobileAccessQuery",
     "GetRuntimeStatusQuery",
     "GetUsageStatsQuery",
     "ListActiveSessionsQuery",
     "ListTableCountsQuery",
+    "MobileAccessResult",
     "ResetDatabasesCommand",
     "RuntimeEventResult",
     "RuntimeEventStatus",
