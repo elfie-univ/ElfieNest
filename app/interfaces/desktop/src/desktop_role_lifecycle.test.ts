@@ -4,11 +4,9 @@ import test from "node:test";
 import {
   DesktopRoleController,
   DESKTOP_UI_INSTANCE_NAMESPACE,
-  GODOT_AUTHORITY_INSTANCE_NAMESPACE,
   type LifecycleClient,
   type RuntimeAttachment,
 } from "./desktop_role_lifecycle.js";
-import { resolveElectronRole } from "./role_dispatch.js";
 
 function lifecycleClient(attachment: RuntimeAttachment): LifecycleClient & {
   readonly stops: string[];
@@ -23,16 +21,8 @@ function lifecycleClient(attachment: RuntimeAttachment): LifecycleClient & {
   };
 }
 
-test("desktop UI and Godot authority retain independent instance namespaces", () => {
-  // Given / When: one installed Electron binary receives explicit roles.
-
-  // Then: the visible UI cannot consume the hidden authority's instance lock.
-  assert.notEqual(DESKTOP_UI_INSTANCE_NAMESPACE, GODOT_AUTHORITY_INSTANCE_NAMESPACE);
-  assert.equal(resolveElectronRole([]), "desktop-ui");
-  assert.equal(
-    resolveElectronRole(["--elfienest-role=godot-authority"]),
-    "godot-authority",
-  );
+test("desktop UI owns only its visible observer instance namespace", () => {
+  assert.equal(DESKTOP_UI_INSTANCE_NAMESPACE, "elfienest.desktop-ui");
 });
 
 test("desktop UI attaches to a CLI-owned runtime and closing its window does not stop it", async () => {

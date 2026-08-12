@@ -1,5 +1,4 @@
 export const DESKTOP_UI_INSTANCE_NAMESPACE = "elfienest.desktop-ui";
-export const GODOT_AUTHORITY_INSTANCE_NAMESPACE = "elfienest.godot-authority";
 
 export type RuntimeAttachment =
   | Readonly<{ readonly kind: "attached"; readonly generation: number }>
