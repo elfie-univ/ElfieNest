@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from collections.abc import Mapping
+from typing import List
+
+from pydantic import JsonValue
 
 from elfie.body.contracts import BodySensorEvent
 
@@ -11,7 +14,7 @@ class NativeSensors:
     def __init__(self, body_id: str):
         self.body_id = body_id
 
-    def receive(self, event_name: str, payload: Dict[str, Any]) -> None:
+    def receive(self, event_name: str, payload: Mapping[str, JsonValue]) -> None:
         """Runtime v2 physical perceptions are delivered by Nest orchestration."""
         _ = event_name, payload
 

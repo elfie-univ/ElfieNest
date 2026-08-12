@@ -3,23 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from infrastructure.models.local_profiles import (
-    recommend_local_profile,
-    select_local_profile,
-)
 from infrastructure.models.providers.ollama import OllamaManager, OllamaNotReadyError
-
-
-def test_select_local_profile_by_memory_size():
-    assert select_local_profile(4).text_model == "qwen2.5:0.5b"
-    assert select_local_profile(8).text_model == "qwen3.5:0.8b"
-    assert select_local_profile(16).text_model == "qwen2.5:3b"
-    assert select_local_profile(32).text_model == "qwen2.5:7b"
-
-
-def test_local_model_recommendation_requires_at_least_four_gb():
-    assert recommend_local_profile(3) is None
-    assert recommend_local_profile(4).text_model == "qwen2.5:0.5b"
 
 
 def test_ollama_manager_lists_installed_models():

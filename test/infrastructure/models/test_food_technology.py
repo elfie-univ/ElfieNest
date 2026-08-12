@@ -25,18 +25,18 @@ def test_adapter_delegates_evidence_health_and_planning_to_owned_rules(
         observed_at=now,
         fresh=True,
     )
-    monkeypatch.setattr(
-        "infrastructure.models.food_technology.query_model_evidence",
-        lambda: {evidence.reference: evidence},
-    )
+
+    class Evidence:
+        def list_model_evidence(self):
+            return (evidence,)
+
+        def validate_package(self, package):
+            validated.append(package)
+
+    validated: list[StoredFoodPackage] = []
     monkeypatch.setattr(
         "infrastructure.models.food_technology.project_food_health",
         lambda package, items: StoredFoodHealth("healthy", "remote", now),
-    )
-    validated: list[StoredFoodPackage] = []
-    monkeypatch.setattr(
-        "infrastructure.models.food_technology.validate_food_package_model_references",
-        lambda package: validated.append(package),
     )
 
     class Planner:
@@ -50,7 +50,7 @@ def test_adapter_delegates_evidence_health_and_planning_to_owned_rules(
             )
 
     monkeypatch.setattr("infrastructure.models.food_technology.FoodPlanner", Planner)
-    adapter = RuntimeFoodTechnologyAdapter()
+    adapter = RuntimeFoodTechnologyAdapter(Evidence())
     package = StoredFoodPackage("food_custom", "Custom")
     defaults = adapter.food_defaults()
     stored_evidence = adapter.list_model_evidence()

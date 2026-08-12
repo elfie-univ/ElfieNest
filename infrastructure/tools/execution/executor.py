@@ -5,7 +5,9 @@ import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from time import perf_counter
-from typing import Any, Callable, Dict, Protocol
+from typing import Callable, Protocol
+
+from pydantic import JsonValue
 
 from infrastructure.tools.execution.config import SAFE_TOOL_KEYS
 from infrastructure.tools.execution.observation import (
@@ -16,7 +18,7 @@ from infrastructure.tools.execution.observation import (
 
 logger = logging.getLogger("infrastructure.tools.executor")
 
-ToolData = Dict[str, ToolMetadataValue]
+ToolData = dict[str, ToolMetadataValue]
 
 
 class SearchPlugin(Protocol):
@@ -26,7 +28,7 @@ class SearchPlugin(Protocol):
 class PermissionManager(Protocol):
     def verify_action(
         self, action: str, file_path: str | None = None, token: str | None = None
-    ) -> object: ...
+    ) -> bool: ...
 
 
 class FileAccessPlugin(Protocol):
@@ -55,7 +57,7 @@ class ToolExecutionContext:
     max_total_result_bytes: int = 48000
     max_tool_calls: int = 3
     runtime_enabled_tools: tuple[str, ...] = SAFE_TOOL_KEYS
-    tool_configs: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    tool_configs: Mapping[str, Mapping[str, JsonValue]] = field(default_factory=dict)
 
 
 class ToolExecutor:
@@ -234,9 +236,14 @@ class ToolExecutor:
         configured_max = configured.get(
             "max_result_bytes", self.context.max_result_bytes
         )
-        try:
-            per_tool = max(1, int(configured_max))
-        except (TypeError, ValueError):
+        if isinstance(configured_max, bool):
+            per_tool = self.context.max_result_bytes
+        elif isinstance(configured_max, (int, float, str)):
+            try:
+                per_tool = max(1, int(configured_max))
+            except (TypeError, ValueError):
+                per_tool = self.context.max_result_bytes
+        else:
             per_tool = self.context.max_result_bytes
         return min(per_tool, self._remaining_result_bytes())
 
@@ -266,7 +273,7 @@ def _bounded(content: str, max_bytes: int) -> tuple[str, bool]:
     raw = content.encode("utf-8")
     if len(raw) <= max_bytes:
         return content, False
-    envelope: dict[str, Any] = {
+    envelope: dict[str, JsonValue] = {
         "truncated": True,
         "original_bytes": len(raw),
         "content": "",
@@ -275,7 +282,13 @@ def _bounded(content: str, max_bytes: int) -> tuple[str, bool]:
     retained_budget = max(max_bytes - overhead, 0)
     envelope["content"] = raw[:retained_budget].decode("utf-8", errors="ignore")
     bounded = json.dumps(envelope, ensure_ascii=False)
-    while len(bounded.encode("utf-8")) > max_bytes and envelope["content"]:
-        envelope["content"] = envelope["content"][:-1]
+    content_value = envelope.get("content")
+    while (
+        len(bounded.encode("utf-8")) > max_bytes
+        and isinstance(content_value, str)
+        and content_value
+    ):
+        content_value = content_value[:-1]
+        envelope["content"] = content_value
         bounded = json.dumps(envelope, ensure_ascii=False)
     return bounded, True

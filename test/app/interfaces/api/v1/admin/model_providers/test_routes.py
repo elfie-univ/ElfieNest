@@ -16,11 +16,12 @@ from app.features.configuration import (
 from app.features.configuration.food import StoredModelEvidence
 from app.interfaces.api.v1.admin.model_providers.routes import router
 from app.interfaces.api.v1.auth import require_user
-from infrastructure.models.food_technology import record_model_evidence
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.validation.provider_validation import DiscoveredModel
+from infrastructure.persistence.food_evidence import record_model_evidence
 from infrastructure.persistence.reports.report_repository import ReportRepository
+from test.support.provider import provider_models_adapter
 
 
 class NoProviderReferences:
@@ -48,7 +49,7 @@ def _client(
     local_technology=None,
 ) -> TestClient:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    adapter = ProviderModelsAdapter(
+    adapter = provider_models_adapter(
         tmp_path / "providers.yaml",
         tmp_path / "auth.env",
     )
@@ -71,7 +72,7 @@ def _client(
 
 def _anonymous_client(tmp_path, monkeypatch) -> TestClient:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    adapter = ProviderModelsAdapter(
+    adapter = provider_models_adapter(
         tmp_path / "providers.yaml",
         tmp_path / "auth.env",
     )
@@ -186,7 +187,9 @@ def test_local_provider_start_persists_the_observed_binding(
 
     assert response.status_code == 200, response.text
     assert response.json()["state"] == "healthy"
-    adapter = ProviderModelsAdapter(tmp_path / "providers.yaml", tmp_path / "auth.env")
+    adapter = provider_models_adapter(
+        tmp_path / "providers.yaml", tmp_path / "auth.env"
+    )
     assert adapter.load_local_binding() is not None
 
 

@@ -8,7 +8,10 @@ from app.features.accounts import AccountsService
 from app.features.configuration import ProviderLocalStatePort
 from app.features.setup import SetupService
 from app.orchestration.setup_installation import SetupInstallationService
-from infrastructure.models.food_technology import RuntimeFoodTechnologyAdapter
+from infrastructure.models.food_technology import (
+    FoodEvidencePort,
+    RuntimeFoodTechnologyAdapter,
+)
 from infrastructure.models.setup_catalog import ProviderSetupCatalogAdapter
 from infrastructure.models.setup_food import SetupFoodAdapter
 from infrastructure.models.setup_ollama import SetupOllamaAdapter
@@ -39,6 +42,7 @@ def build_setup_services(
     accounts: AccountsService,
     nest: SQLiteNestManagementAdapter,
     provider_state: ProviderLocalStatePort,
+    food_evidence: FoodEvidencePort | None = None,
 ) -> SetupServices:
     state = SQLiteSetupAdapter(db_path)
     setup_accounts = SetupAccountsAdapter(accounts)
@@ -50,6 +54,11 @@ def build_setup_services(
         save_model=providers.save_ollama_model,
     )
     food_persistence = SQLiteFoodAdapter(db_path)
+    evidence_port = food_evidence
+    if evidence_port is None:
+        from app.bootstrap.app_wiring.food import build_food_evidence
+
+        evidence_port = build_food_evidence(db_path)
     return SetupServices(
         setup=SetupService(
             state=state,
@@ -66,7 +75,8 @@ def build_setup_services(
             providers=providers,
             food=SetupFoodAdapter(
                 catalog=food_persistence,
-                technology=RuntimeFoodTechnologyAdapter(),
+                technology=RuntimeFoodTechnologyAdapter(evidence_port),
+                evidence=evidence_port,
             ),
             nest=SetupNestAdapter(nest),
             runner=ThreadSetupInstallationRunner(),

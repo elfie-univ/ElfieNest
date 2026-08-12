@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-import sqlite3
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import Any, Mapping, Optional, Sequence, cast
+from typing import Literal, Mapping, Optional, Protocol, cast
+
+from pydantic import JsonValue
 
 from app.features.configuration.food import (
     EVIDENCE_MAX_AGE,
     FoodPlanner,
     FoodPortError,
     FoodPortInvalid,
-    FoodSystemRole,
     StoredFoodDefaults,
     StoredFoodHealth,
     StoredFoodPackage,
@@ -30,15 +30,11 @@ from infrastructure.models.model_reference import (
     ModelReferenceError,
     parse_model_reference,
 )
-from infrastructure.models.providers.profiles import get_product
-from infrastructure.persistence.provider_connections import (
+from infrastructure.models.provider_records import (
     ProviderConnection,
-    ProviderConnectionStore,
-    ProviderConnectionStoreError,
     ProviderModelRecord,
 )
-from infrastructure.persistence.reports.report_records import ValidationObservation
-from infrastructure.persistence.reports.report_repository import ReportRepository
+from infrastructure.models.report_records import ValidationObservation
 
 FOOD_CATALOG_VERSION = 1
 FOOD_EMERGENCY_ID = "food_emergency"
@@ -48,6 +44,9 @@ SYSTEM_FOOD_IDS = frozenset({FOOD_EMERGENCY_ID, FOOD_COMMON_ID})
 
 class RuntimeFoodTechnologyAdapter:
     """Implement the Food feature's model-evidence and policy Port."""
+
+    def __init__(self, evidence_port: FoodEvidencePort) -> None:
+        self._evidence_port = evidence_port
 
     def food_defaults(self) -> StoredFoodDefaults:
         return StoredFoodDefaults(
@@ -59,25 +58,15 @@ class RuntimeFoodTechnologyAdapter:
 
     def list_model_evidence(self) -> tuple[StoredModelEvidence, ...]:
         try:
-            evidence = query_model_evidence()
-        except (
-            OSError,
-            ValueError,
-            sqlite3.Error,
-            ProviderConnectionStoreError,
-        ) as error:
+            evidence = self._evidence_port.list_model_evidence()
+        except (OSError, ValueError) as error:
             raise FoodPortError("Unable to read model evidence") from error
-        return tuple(evidence.values())
+        return tuple(evidence)
 
     def validate_package(self, package: StoredFoodPackage) -> None:
         try:
-            validate_food_package_model_references(package)
-        except (
-            ModelReferenceError,
-            OSError,
-            ValueError,
-            ProviderConnectionStoreError,
-        ) as error:
+            self._evidence_port.validate_package(package)
+        except (ModelReferenceError, OSError, ValueError) as error:
             raise FoodPortInvalid(str(error)) from error
 
     def project_health(
@@ -114,78 +103,25 @@ class RuntimeFoodTechnologyAdapter:
             raise FoodPortError("Unable to generate Food preview") from error
 
 
-def query_model_evidence(
-    *,
-    repository: Optional[ReportRepository] = None,
-    connection_store: Optional[ProviderConnectionStore] = None,
-    connections: Optional[Mapping[str, ProviderConnection]] = None,
-    observations: Optional[Sequence[ValidationObservation]] = None,
-    now: Optional[datetime] = None,
-) -> dict[str, StoredModelEvidence]:
-    """Project endpoint models and their latest immutable validation facts."""
-    latest = observations
-    if latest is None:
-        latest = (repository or ReportRepository()).current(subject_kind="model")
-    by_subject = {
-        item.subject_id: item for item in latest if item.subject_kind == "model"
-    }
-    current = now or datetime.now(timezone.utc)
-    result: dict[str, StoredModelEvidence] = {}
-    inventory = (
-        connections
-        if connections is not None
-        else (connection_store or ProviderConnectionStore()).load().connections
-    )
-    for connection in inventory.values():
-        if not connection.enabled or connection.archived:
-            continue
-        profile = get_product(connection.catalog_id)
-        is_local = bool(profile and profile.connection_method == "local")
-        for model in connection.models:
-            subject_id = f"{connection.connection_id}/{model.endpoint_model_id}"
-            result[subject_id] = _project_model(
-                subject_id,
-                model,
-                by_subject.get(subject_id),
-                is_local=is_local,
-                now=current,
-            )
-    return result
+class FoodEvidencePort(Protocol):
+    def list_model_evidence(self) -> tuple[StoredModelEvidence, ...]: ...
+
+    def record_model_evidence(
+        self,
+        evidence: list[StoredModelEvidence] | tuple[StoredModelEvidence, ...],
+        *,
+        scope: str,
+        trigger: str,
+    ) -> Optional[str]: ...
+
+    def validate_package(self, package: StoredFoodPackage) -> None: ...
 
 
-def record_model_evidence(
-    evidence: Sequence[StoredModelEvidence],
-    *,
-    repository: Optional[ReportRepository] = None,
-    scope: str,
-    trigger: str,
-) -> Optional[str]:
-    """Append validation results through the report repository's only writer API."""
-    if not evidence:
-        return None
-    report_repository = repository or ReportRepository()
-    run_id = report_repository.start_run(scope=scope, trigger=trigger)
-    for item in evidence:
-        report_repository.append_observation(
-            run_id=run_id,
-            subject_kind="model",
-            subject_id=item.reference,
-            observed_at=item.observed_at or None,
-            status="passed" if item.verified else "failed",
-            latency_ms=item.latency_ms,
-            details={
-                "capabilities": sorted(item.capabilities),
-                "cost_grade": item.cost_grade,
-                "tool_test_passed": item.tool_test_passed,
-            },
-        )
-    report_repository.finish_run(run_id, status="complete")
-    return run_id
-
-
-def validate_food_package_model_references(package: StoredFoodPackage) -> None:
-    """Validate one Food against the current provider/model inventory."""
-    connections = ProviderConnectionStore().load().connections
+def validate_food_package_model_references(
+    package: StoredFoodPackage,
+    connections: Mapping[str, ProviderConnection],
+) -> None:
+    """Validate one Food against an injected Provider inventory."""
     for reference_value in package.model_references:
         try:
             reference = parse_model_reference(reference_value)
@@ -214,7 +150,7 @@ def stored_food_package(package: RuntimeFoodPackage) -> StoredFoodPackage:
         food_id=package.key,
         display_name=package.display_name,
         system_role=cast(
-            Optional[FoodSystemRole],
+            Optional[Literal["emergency", "common"]],
             package.system_role
             if package.system_role in {"emergency", "common"}
             else None,
@@ -238,7 +174,7 @@ def _project_model(
     now: datetime,
 ) -> StoredModelEvidence:
     state = _validation_state(model, observation, now)
-    details: Mapping[str, Any] = observation.details if observation else {}
+    details: Mapping[str, JsonValue] = observation.details if observation else {}
     raw_capabilities = details.get("capabilities", ())
     observed_capabilities = (
         frozenset(str(item) for item in raw_capabilities)
@@ -296,7 +232,7 @@ def _validation_state(
     return "verified" if now - observed <= EVIDENCE_MAX_AGE else "stale"
 
 
-def _int_value(data: Mapping[str, Any], key: str, default: int) -> int:
+def _int_value(data: Mapping[str, JsonValue], key: str, default: int) -> int:
     value = data.get(key)
     return (
         int(value)
@@ -306,9 +242,8 @@ def _int_value(data: Mapping[str, Any], key: str, default: int) -> int:
 
 
 __all__ = (
+    "FoodEvidencePort",
     "RuntimeFoodTechnologyAdapter",
-    "query_model_evidence",
-    "record_model_evidence",
     "stored_food_package",
     "validate_food_package_model_references",
 )

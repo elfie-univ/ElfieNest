@@ -5,13 +5,11 @@
 
 from __future__ import annotations
 
+import os
 from copy import deepcopy
-from typing import Any, Mapping
+from typing import Callable, Mapping, Optional
 
-from infrastructure.persistence.configuration.secrets import (
-    resolve_secret,
-    tool_secret_name,
-)
+from pydantic import JsonValue
 
 SAFE_TOOL_KEYS: tuple[str, ...] = (
     "web_search",
@@ -19,15 +17,21 @@ SAFE_TOOL_KEYS: tuple[str, ...] = (
 )
 # Compatibility name for callers that enumerate the phase-one safe registry.
 TOOL_KEYS = SAFE_TOOL_KEYS
+SecretResolver = Callable[[str], str]
 
 
-def default_tool_configs() -> dict[str, dict[str, Any]]:
+def _environment_secret(name: str) -> str:
+    """Return an explicitly injected-process secret without owning storage."""
+    return os.environ.get(name, "")
+
+
+def default_tool_configs() -> dict[str, dict[str, JsonValue]]:
     return {
         "web_search": {
             "enabled": True,
             "provider": "duckduckgo",
             "api_base": "",
-            "api_key_env": tool_secret_name("web_search"),
+            "api_key_env": "ELFIE_WEB_SEARCH_API_KEY",
             "max_results": 3,
             "max_result_bytes": 16000,
             "timeout_seconds": 5.0,
@@ -48,8 +52,10 @@ def default_tool_configs() -> dict[str, dict[str, Any]]:
 
 
 def load_tool_configs(
-    runtime_policy: Mapping[str, Any] | None,
-) -> dict[str, dict[str, Any]]:
+    runtime_policy: Mapping[str, JsonValue] | None,
+    *,
+    secret_resolver: Optional[SecretResolver] = None,
+) -> dict[str, dict[str, JsonValue]]:
     configs = default_tool_configs()
     raw_tools = (
         runtime_policy.get("tools", {}) if isinstance(runtime_policy, Mapping) else {}
@@ -60,36 +66,48 @@ def load_tool_configs(
             if isinstance(raw, Mapping):
                 configs[tool_key].update(dict(raw))
     search = configs["web_search"]
-    secret_name = str(search.get("api_key_env") or tool_secret_name("web_search"))
+    secret_name = str(search.get("api_key_env") or "ELFIE_WEB_SEARCH_API_KEY")
     search["api_key_env"] = secret_name
-    search["api_key"] = resolve_secret(secret_name)
+    search["api_key"] = (secret_resolver or _environment_secret)(secret_name)
     return configs
 
 
 def public_tool_configs(
-    runtime_policy: Mapping[str, Any] | None,
-) -> dict[str, dict[str, Any]]:
-    configs = deepcopy(load_tool_configs(runtime_policy))
+    runtime_policy: Mapping[str, JsonValue] | None,
+    *,
+    secret_resolver: Optional[SecretResolver] = None,
+) -> dict[str, dict[str, JsonValue]]:
+    configs = deepcopy(
+        load_tool_configs(runtime_policy, secret_resolver=secret_resolver)
+    )
     for config in configs.values():
         api_key = str(config.pop("api_key", "") or "")
         config["has_api_key"] = bool(api_key)
     return configs
 
 
-def enabled_tool_keys(runtime_policy: Mapping[str, Any] | None) -> tuple[str, ...]:
+def enabled_tool_keys(
+    runtime_policy: Mapping[str, JsonValue] | None,
+    *,
+    secret_resolver: Optional[SecretResolver] = None,
+) -> tuple[str, ...]:
     return tuple(
         key
-        for key, config in load_tool_configs(runtime_policy).items()
+        for key, config in load_tool_configs(
+            runtime_policy, secret_resolver=secret_resolver
+        ).items()
         if config.get("enabled") is True
     )
 
 
 def effective_tool_keys(
-    runtime_policy: Mapping[str, Any] | None,
+    runtime_policy: Mapping[str, JsonValue] | None,
     requested_tools: tuple[str, ...],
+    *,
+    secret_resolver: Optional[SecretResolver] = None,
 ) -> tuple[str, ...]:
     """Return the ordered, duplicate-free safe tool authorization intersection."""
-    enabled = set(enabled_tool_keys(runtime_policy))
+    enabled = set(enabled_tool_keys(runtime_policy, secret_resolver=secret_resolver))
     result: list[str] = []
     for tool_key in requested_tools:
         if (

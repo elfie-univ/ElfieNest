@@ -71,3 +71,25 @@ def test_real_setup_chain_creates_owner_session_and_nest_once(tmp_path: Path) ->
             application.state.nest_management.get_rooms(principal)[0].desired_bed_count
             == 8
         )
+
+
+def test_real_setup_chain_replaces_stale_session_cookie_before_writing_owner(
+    tmp_path: Path,
+) -> None:
+    application = create_app(db_path=str(tmp_path / "nest.db"))
+    with TestClient(application) as client:
+        client.cookies.set("session_token", "stale-session-token")
+        status = client.get("/api/v1/setup/status")
+        csrf = status.headers["X-CSRF-Token"]
+        response = client.put(
+            "/api/v1/setup/draft/owner",
+            headers={"X-CSRF-Token": csrf},
+            json={
+                "account_id": "owner",
+                "display_name": "Owner",
+                "password": "owner-secret",
+                "confirm_password": "owner-secret",
+            },
+        )
+
+    assert response.status_code == 200

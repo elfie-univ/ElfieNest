@@ -81,6 +81,29 @@ def test_elfie_does_not_reverse_import_application_or_runtime_layers() -> None:
     assert offenders == []
 
 
+def test_app_inbound_callers_use_curated_elfie_and_nest_surfaces() -> None:
+    """App callers do not reach through domain internals for production entry points."""
+    offenders: list[str] = []
+    for relative_root in ("app/orchestration", "app/interfaces"):
+        for path in (PROJECT_ROOT / relative_root).rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                module: str | None = None
+                if isinstance(node, ast.ImportFrom):
+                    module = node.module
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name in {"elfie", "nest"}:
+                            offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+                if module in {"elfie", "nest"} or (
+                    module is not None
+                    and (module.startswith("elfie.") or module.startswith("nest."))
+                    and module not in {"elfie.public", "nest.public"}
+                ):
+                    offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+    assert offenders == []
+
+
 def test_root_public_surface_is_the_stable_aggregate_facades() -> None:
     # Given / When / Then
     assert elfie_api.__all__ == ["Elfie", "ElfieFactory"]

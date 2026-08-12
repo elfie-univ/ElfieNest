@@ -1,6 +1,18 @@
+from app.bootstrap.system_wiring.runtime import build_agent_validation_composition
 from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.validation.agent_validation import ModelAgentValidationRunner
 from infrastructure.models.validation.validation_models import CheckStatus
+
+
+def _runner(config, **kwargs):
+    composition = build_agent_validation_composition()
+    return ModelAgentValidationRunner(
+        config,
+        tool_port_factory=composition.tool_port_factory,
+        tool_loop_factory=composition.tool_loop_factory,
+        prompt_injector=composition.prompt_injector,
+        **kwargs,
+    )
 
 
 def scripted_model(provider, model, messages, temperature, max_tokens):
@@ -16,7 +28,7 @@ def test_model_agent_runner_proves_model_tool_loop_with_deterministic_model(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    runner = ModelAgentValidationRunner(LLMRuntimeConfig(), model_caller=scripted_model)
+    runner = _runner(LLMRuntimeConfig(), model_caller=scripted_model)
 
     suite = runner.verify("fake", "model")
 
@@ -29,7 +41,7 @@ def test_model_agent_runner_reports_model_that_does_not_call_tools(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    runner = ModelAgentValidationRunner(
+    runner = _runner(
         LLMRuntimeConfig(),
         model_caller=lambda *args: "我直接回答，不调用工具。",
     )

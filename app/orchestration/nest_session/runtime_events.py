@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Protocol
 
+from pydantic import JsonValue
+
 from app.orchestration.message_delivery import OwnerMessageBroadcaster
 from app.orchestration.nest_session.models import (
     IntentProgress,
@@ -20,8 +22,8 @@ from app.orchestration.nest_session.models import (
 )
 from app.orchestration.nest_session.ports import WorldRuntimePort
 from app.orchestration.nest_session.runtime_sync import NestRuntimeSynchronizer
-from elfie import Elfie
-from nest import Nest
+from elfie.public import Elfie
+from nest.public import Nest
 
 
 class _BroadcasterProvider(Protocol):
@@ -134,10 +136,10 @@ class NestRuntimeEventRouter:
             )
 
 
-def _body_payload(event: WorldEvent) -> dict[str, object]:
+def _body_payload(event: WorldEvent) -> dict[str, JsonValue]:
     payload = event.payload
     if isinstance(payload, (IntentProgress, IntentTerminal)):
-        result: dict[str, object] = {
+        result: dict[str, JsonValue] = {
             "command_id": payload.command_id,
             "actor_id": payload.actor_id,
         }

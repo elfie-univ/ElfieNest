@@ -4,11 +4,11 @@ from app.features.configuration.food import StoredModelEvidence
 from elfie.brain.food_port import FoodAssignment, FoodCatalog, FoodPackage
 from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.runtime_overview import (
-    RuntimeOverviewStore,
     build_overview,
     configured_provider_ids,
     render_provider_model_matrix,
 )
+from infrastructure.persistence.runtime_overview import RuntimeOverviewStore
 
 
 def test_only_configured_providers_are_listed(monkeypatch, tmp_path):

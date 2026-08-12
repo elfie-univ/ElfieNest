@@ -1,4 +1,4 @@
-"""Machine gates for the temporary model, Food and tool behavior contract."""
+"""Machine gates for the model, Food and tool behavior contract."""
 
 from __future__ import annotations
 
@@ -6,7 +6,13 @@ import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-AI_RUNTIME = PROJECT_ROOT / "ai_runtime"
+RETIRED_RUNTIME_ROOT = PROJECT_ROOT / "ai_runtime"
+LEGACY_CONTRACT_PATHS = (
+    PROJECT_ROOT / "docs/developer/contracts/ai-runtime.md",
+    PROJECT_ROOT / "docs/zh/developer/contracts/ai-runtime.md",
+    PROJECT_ROOT / "docs/developer/conformance/ai-runtime.md",
+    PROJECT_ROOT / "docs/zh/developer/conformance/ai-runtime.md",
+)
 API = PROJECT_ROOT / "app" / "interfaces" / "api"
 
 
@@ -15,20 +21,21 @@ def _source(relative_path: str) -> str:
 
 
 def test_model_food_tool_contract_defers_target_ownership_to_system() -> None:
-    english = _source("docs/developer/contracts/ai-runtime.md")
-    chinese = _source("docs/zh/developer/contracts/ai-runtime.md")
+    english = _source("docs/developer/contracts/model-food-tool-behavior.md")
+    chinese = _source("docs/zh/developer/contracts/model-food-tool-behavior.md")
 
+    assert all(not path.exists() for path in LEGACY_CONTRACT_PATHS)
     assert "**Contract version:** 1.5" in english
     assert "**契约版本：** 1.5" in chinese
-    assert "does not define a target AI Runtime module" in english
-    assert "不定义目标 AI Runtime 模块" in chinese
+    assert "does not define a target Runtime module" in english
+    assert "不定义目标 Runtime 模块" in chinese
     assert "infrastructure/ai_runtime" not in english
     assert "infrastructure/ai_runtime" not in chinese
 
 
 def test_food_model_contract_keeps_independent_ports_and_semantic_authority() -> None:
-    english = _source("docs/developer/contracts/ai-runtime.md")
-    chinese = _source("docs/zh/developer/contracts/ai-runtime.md")
+    english = _source("docs/developer/contracts/model-food-tool-behavior.md")
+    chinese = _source("docs/zh/developer/contracts/model-food-tool-behavior.md")
 
     assert 'EL["Elfie cognition"] --> FPOR["Elfie FoodPort"]' in english
     assert 'EL --> MPOR["Elfie ModelPort"]' in english
@@ -40,8 +47,8 @@ def test_food_model_contract_keeps_independent_ports_and_semantic_authority() ->
 
 
 def test_behavior_contract_keeps_fallback_and_tool_scope_narrow() -> None:
-    english = _source("docs/developer/contracts/ai-runtime.md")
-    chinese = _source("docs/zh/developer/contracts/ai-runtime.md")
+    english = _source("docs/developer/contracts/model-food-tool-behavior.md")
+    chinese = _source("docs/zh/developer/contracts/model-food-tool-behavior.md")
 
     assert "one optional `fallback` model" in english
     assert "一个可选的 `fallback` 模型" in chinese
@@ -71,7 +78,7 @@ def test_legacy_provider_and_model_owner_routes_are_removed() -> None:
     assert '"/model-benchmarks"' in versioned_source
     assert '"/model-validations"' in versioned_source
 
-    assert not (AI_RUNTIME / "storage" / "runtime_config_bundle.py").exists()
+    assert not (RETIRED_RUNTIME_ROOT / "storage" / "runtime_config_bundle.py").exists()
     product_sources = [
         *(PROJECT_ROOT / "app").rglob("*.py"),
         *(PROJECT_ROOT / "infrastructure").rglob("*.py"),
@@ -90,18 +97,23 @@ def test_legacy_provider_and_model_owner_routes_are_removed() -> None:
 
 
 def test_model_consumers_share_the_sqlite_evidence_projection() -> None:
-    consumers = {
-        "infrastructure/models/runtime_agent.py",
-        "devtools/runtime_lab/lab.py",
-        "infrastructure/models/runtime_overview.py",
-        "infrastructure/models/food_technology.py",
-        "infrastructure/models/validation/provider_model_matrix.py",
-    }
-    assert all("query_model_evidence" in _source(path) for path in consumers)
-    evidence_source = _source("infrastructure/models/food_technology.py")
-    assert "ProviderConnectionStore" in evidence_source
-    assert "ReportRepository" in evidence_source
-    assert "read_yaml" not in evidence_source
+    # Model capabilities consume semantic evidence through Ports.  The sole
+    # SQLite implementation belongs to persistence and is composed by
+    # Bootstrap/devtools; model code must not reach into either repository.
+    runtime_source = _source("infrastructure/models/runtime_agent.py")
+    overview_source = _source("infrastructure/models/runtime_overview.py")
+    food_source = _source("infrastructure/models/food_technology.py")
+    matrix_source = _source("infrastructure/models/validation/provider_model_matrix.py")
+    assert "model_evidence_source" in runtime_source
+    assert "self.evidence" in overview_source
+    assert "FoodEvidencePort" in food_source
+    assert "provider_validation_reader" in matrix_source
+    assert "ProviderConnectionStore" not in food_source
+    assert "ReportRepository" not in food_source
+    assert "read_yaml" not in food_source
+    persistence_source = _source("infrastructure/persistence/food_evidence.py")
+    assert "ProviderConnectionStore" in persistence_source
+    assert "ReportRepository" in persistence_source
 
 
 def test_product_runtime_has_one_food_resolver_and_no_direct_model_route() -> None:
@@ -111,10 +123,10 @@ def test_product_runtime_has_one_food_resolver_and_no_direct_model_route() -> No
     assert "def generate_stream(" not in source
     assert "def run_with_food(" in source
     assert "def generate_structured(" in source
-    assert not (AI_RUNTIME / "models" / "registry.py").exists()
+    assert not (RETIRED_RUNTIME_ROOT / "models" / "registry.py").exists()
 
-    assert not (AI_RUNTIME / "setup").exists()
-    assert not (AI_RUNTIME / "policy").exists()
+    assert not (RETIRED_RUNTIME_ROOT / "setup").exists()
+    assert not (RETIRED_RUNTIME_ROOT / "policy").exists()
 
     config_source = _source("infrastructure/models/runtime_config.py")
     for legacy_field in (
@@ -140,16 +152,15 @@ def test_provider_catalogs_do_not_encode_runtime_model_selection_groups() -> Non
     for source_path in catalog_sources:
         source = _source(source_path)
         assert all(group not in source for group in forbidden_groups)
-    assert not any((AI_RUNTIME / "models").rglob("*.py"))
-    assert not any((AI_RUNTIME / "providers").rglob("*.py"))
+        assert not any((RETIRED_RUNTIME_ROOT / "models").rglob("*.py"))
+        assert not any((RETIRED_RUNTIME_ROOT / "providers").rglob("*.py"))
 
 
 def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
     prompt_source = _source("infrastructure/tools/execution/skills_prompt.py")
-    streaming_source = _source("infrastructure/models/inference/streaming.py")
     for forbidden in ("[CODE]", "[SKILL_CREATE]", "[SKILL_MODIFY]"):
         assert forbidden not in prompt_source
-        assert forbidden not in streaming_source
+        assert forbidden not in _source("infrastructure/models/inference/llm_api.py")
     assert "[SEARCH]" in prompt_source
     assert "[READ_FILE]" in prompt_source
     config_source = _source("infrastructure/tools/execution/config.py")
@@ -161,7 +172,8 @@ def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
         "multimodal.py",
         "streaming.py",
     ):
-        assert not (AI_RUNTIME / "gateway" / legacy_gateway_leaf).exists()
+        assert not (RETIRED_RUNTIME_ROOT / "gateway" / legacy_gateway_leaf).exists()
+    assert not (PROJECT_ROOT / "infrastructure/models/inference/streaming.py").exists()
     assert '"code_sandbox"' not in config_source
     for source_path in (
         "infrastructure/models/runtime_agent.py",
@@ -207,6 +219,63 @@ def test_runtime_coordinator_uses_bootstrap_ports_for_technical_capabilities() -
     assert "PermissionManager" in wiring_source
     assert "LocalFileAccessPlugin" in wiring_source
     assert "WebSearchPlugin" in wiring_source
+
+
+def test_model_and_tool_capabilities_do_not_construct_persistence_adapters() -> None:
+    """Infrastructure capabilities stay shallow and receive storage through Ports."""
+    offenders: list[str] = []
+    for relative_root in ("infrastructure/models", "infrastructure/tools"):
+        root = PROJECT_ROOT / relative_root
+        for path in root.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                module: str | None = None
+                if isinstance(node, ast.ImportFrom):
+                    module = node.module
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if (
+                            alias.name == "infrastructure.persistence"
+                            or alias.name.startswith("infrastructure.persistence.")
+                        ):
+                            offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+                if module == "infrastructure.persistence" or (
+                    module is not None
+                    and module.startswith("infrastructure.persistence.")
+                ):
+                    offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+    assert offenders == []
+
+
+def test_platform_adapters_do_not_reach_other_infrastructure_capabilities() -> None:
+    """Platform mechanics receive App-owned ports instead of storage/model adapters."""
+    offenders: list[str] = []
+    root = PROJECT_ROOT / "infrastructure/platform"
+    for path in root.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            module: str | None = None
+            if isinstance(node, ast.ImportFrom):
+                module = node.module
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.startswith(
+                        (
+                            "infrastructure.models",
+                            "infrastructure.persistence",
+                            "infrastructure.tools",
+                        )
+                    ):
+                        offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+            if module is not None and module.startswith(
+                (
+                    "infrastructure.models",
+                    "infrastructure.persistence",
+                    "infrastructure.tools",
+                )
+            ):
+                offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+    assert offenders == []
 
 
 def test_reports_and_food_facts_use_only_contract_paths() -> None:

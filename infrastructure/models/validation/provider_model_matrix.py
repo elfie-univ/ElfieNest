@@ -3,32 +3,29 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Mapping
 from typing import Any, Dict, Optional
 
+from app.features.configuration.food import StoredModelEvidence
 from infrastructure.models.capabilities import known_capabilities
-from infrastructure.models.food_technology import query_model_evidence
-from infrastructure.persistence.provider_connections import (
+from infrastructure.models.provider_records import (
     ProviderConnection,
     ProviderModelRecord,
 )
-from infrastructure.persistence.reports.report_records import ValidationObservation
-from infrastructure.persistence.reports.validation_reports import (
-    read_latest_provider_validation,
-)
+from infrastructure.models.report_records import ValidationObservation
 
 
 def build_model_matrix(
     connections: Dict[str, ProviderConnection],
     *,
     observations: tuple[ValidationObservation, ...] = (),
+    model_evidence: Mapping[str, StoredModelEvidence] | None = None,
+    provider_validation_reader: Callable[[str], Mapping[str, object]] | None = None,
     snapshot: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     evidence = {(item.subject_kind, item.subject_id): item for item in observations}
     allow_latest_fallback = snapshot is None or snapshot.get("mode") == "current"
-    model_evidence = query_model_evidence(
-        connections=connections,
-        observations=observations,
-    )
+    projected_evidence = dict(model_evidence or {})
     enabled = [
         connection
         for connection in connections.values()
@@ -42,6 +39,7 @@ def build_model_matrix(
                 connection.connection_id,
                 evidence.get(("provider", connection.connection_id)),
                 allow_latest_fallback=allow_latest_fallback,
+                provider_validation_reader=provider_validation_reader,
             ),
         }
         for connection in enabled
@@ -75,6 +73,7 @@ def build_model_matrix(
                             connection.connection_id,
                             evidence.get(("provider", connection.connection_id)),
                             allow_latest_fallback=allow_latest_fallback,
+                            provider_validation_reader=provider_validation_reader,
                         )["status"],
                         "benchmark_status": None,
                         "latency_ms": None,
@@ -84,9 +83,11 @@ def build_model_matrix(
                 )
                 continue
             subject_id = f"{connection.connection_id}/{entry_model.endpoint_model_id}"
-            projected = model_evidence[subject_id]
+            projected = projected_evidence.get(subject_id)
             capabilities.update(
-                projected.capabilities or _model_capabilities(entry_model)
+                projected.capabilities
+                if projected is not None
+                else _model_capabilities(entry_model)
             )
             observation = evidence.get(("model", subject_id))
             cells.append(
@@ -98,6 +99,7 @@ def build_model_matrix(
                         connection.connection_id,
                         evidence.get(("provider", connection.connection_id)),
                         allow_latest_fallback=allow_latest_fallback,
+                        provider_validation_reader=provider_validation_reader,
                     )["status"],
                     "benchmark_status": (
                         observation.status if observation is not None else None
@@ -133,12 +135,13 @@ def _provider_verification(
     observation: Optional[ValidationObservation] = None,
     *,
     allow_latest_fallback: bool = True,
+    provider_validation_reader: Callable[[str], Mapping[str, object]] | None = None,
 ) -> dict[str, Any]:
     latest = (
         _observation_payload(observation)
         if observation is not None
-        else read_latest_provider_validation(connection_id)
-        if allow_latest_fallback
+        else provider_validation_reader(connection_id)
+        if allow_latest_fallback and provider_validation_reader is not None
         else {}
     )
     return {

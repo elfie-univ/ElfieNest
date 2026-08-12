@@ -16,6 +16,7 @@ from elfie import ElfieFactory
 from elfie.communication import InboundDisposition, InboundDispositionStatus
 from elfie.factory import ElfieAssembly
 from elfie.message_types import EventId
+from infrastructure.persistence.configuration.settings import RuntimeSettingsAdapter
 from infrastructure.persistence.elfie_workspace.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.elfie_workspace.elfie_chat_history import (
     ElfieChatMessageInput,
@@ -31,7 +32,6 @@ from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.memory.schema import KNOWLEDGE_TABLES
 from infrastructure.persistence.nest_db.store import get_db, init_db
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
-from infrastructure.platform import RuntimeSettingsAdapter
 from test.app.interfaces.api._helpers import (
     adopt_test_elfie,
     complete_test_setup,

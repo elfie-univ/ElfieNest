@@ -6,9 +6,16 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from elfie.body import BodyId, BodySensorEvent, TactileImpact, UtteranceFinal
-from elfie.message_types import ActorId, ActorRef, EventId
-from nest import Nest
+from elfie.public import (
+    ActorId,
+    ActorRef,
+    BodyId,
+    BodySensorEvent,
+    EventId,
+    TactileImpact,
+    UtteranceFinal,
+)
+from nest.public import Nest
 
 if TYPE_CHECKING:
     from app.orchestration.nest_session.session import NestSession

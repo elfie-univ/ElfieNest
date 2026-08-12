@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.features.accounts import AccountPrincipal, is_manager
-from nest import NestConfig, NestConfigError
+from nest.public import NestConfig, NestConfigError
 
 from .errors import (
     NestBedConflict,

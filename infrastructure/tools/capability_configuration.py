@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import FrozenSet, cast
+
+from pydantic import JsonValue
 
 from app.features.configuration.capabilities import (
     CapabilitiesPortError,
@@ -16,17 +18,11 @@ from app.features.configuration.capabilities import (
     StoredWebSearchCapability,
     WebSearchUpdateField,
 )
-from infrastructure.persistence.configuration.config_store import (
-    ConfigStoreError,
-    read_yaml_mapping,
-    write_yaml_mapping,
-)
-from infrastructure.persistence.configuration.runtime_settings import (
-    read_runtime_settings,
-    write_runtime_settings,
-)
-from infrastructure.persistence.layout.data_home import get_config_path
 from infrastructure.tools.execution.config import default_tool_configs
+
+DocumentReader = Callable[[Path], Mapping[str, JsonValue]]
+DocumentWriter = Callable[[Path, Mapping[str, JsonValue]], None]
+ToolDefaults = Callable[[], Mapping[str, Mapping[str, JsonValue]]]
 
 _SEARCH_PROVIDERS = frozenset({"duckduckgo", "brave", "tavily"})
 
@@ -34,8 +30,18 @@ _SEARCH_PROVIDERS = frozenset({"duckduckgo", "brave", "tavily"})
 class RuntimeCapabilitiesAdapter:
     """Read and atomically update the sole logical ``runtime_policy.tools`` fact."""
 
-    def __init__(self, config_path: Path | None = None) -> None:
-        self._config_path = config_path or get_config_path()
+    def __init__(
+        self,
+        config_path: Path,
+        *,
+        read_document: DocumentReader,
+        write_document: DocumentWriter,
+        defaults: ToolDefaults = default_tool_configs,
+    ) -> None:
+        self._config_path = config_path
+        self._read_document_impl = read_document
+        self._write_document_impl = write_document
+        self._defaults = defaults
 
     def load_capabilities(self) -> StoredCapabilities:
         try:
@@ -78,7 +84,7 @@ class RuntimeCapabilitiesAdapter:
             )
         except CapabilitiesPortError:
             raise
-        except (ConfigStoreError, OSError, TypeError, ValueError) as error:
+        except (OSError, TypeError, ValueError) as error:
             raise CapabilitiesPortError("系统能力配置不可用") from error
 
     def save_web_search(
@@ -86,7 +92,7 @@ class RuntimeCapabilitiesAdapter:
         capability: StoredWebSearchCapability,
         fields: FrozenSet[WebSearchUpdateField],
     ) -> StoredCapabilities:
-        values: dict[str, object] = {"api_key_env": capability.credential_ref}
+        values: dict[str, JsonValue] = {"api_key_env": capability.credential_ref}
         if "enabled" in fields:
             values["enabled"] = capability.enabled
         if "provider" in fields:
@@ -105,7 +111,7 @@ class RuntimeCapabilitiesAdapter:
         capability: StoredLocalFileCapability,
         fields: FrozenSet[LocalFileUpdateField],
     ) -> StoredCapabilities:
-        values: dict[str, object] = {}
+        values: dict[str, JsonValue] = {}
         if "enabled" in fields:
             values["enabled"] = capability.enabled
         if "max_read_bytes" in fields:
@@ -116,7 +122,7 @@ class RuntimeCapabilitiesAdapter:
     def _update_capability(
         self,
         capability_key: str,
-        values: Mapping[str, object],
+        values: Mapping[str, JsonValue],
     ) -> None:
         try:
             document = self._read_document()
@@ -134,77 +140,70 @@ class RuntimeCapabilitiesAdapter:
             self._write_document(document)
         except CapabilitiesPortError:
             raise
-        except (ConfigStoreError, OSError, TypeError, ValueError) as error:
+        except (OSError, TypeError, ValueError) as error:
             raise CapabilitiesPortError("无法保存系统能力配置") from error
 
-    def _read_document(self) -> dict[str, object]:
-        raw: object
-        if self._config_path == get_config_path():
-            raw = read_runtime_settings()
-        else:
-            raw = read_yaml_mapping(self._config_path)
-        return self._mutable_mapping(raw, "configuration")
+    def _read_document(self) -> dict[str, JsonValue]:
+        return self._mutable_mapping(
+            cast(JsonValue, self._read_document_impl(self._config_path)),
+            "configuration",
+        )
 
-    def _write_document(self, document: Mapping[str, object]) -> None:
-        payload = copy.deepcopy(dict(document))
-        if self._config_path == get_config_path():
-            write_runtime_settings(payload)
-        else:
-            write_yaml_mapping(self._config_path, payload)
+    def _write_document(self, document: Mapping[str, JsonValue]) -> None:
+        self._write_document_impl(self._config_path, copy.deepcopy(dict(document)))
 
     @staticmethod
-    def _mapping_value(value: object, field: str) -> Mapping[str, object]:
+    def _mapping_value(value: JsonValue, field: str) -> Mapping[str, JsonValue]:
         if not isinstance(value, Mapping):
             raise CapabilitiesPortError(f"{field} 必须是对象")
         if not all(isinstance(key, str) for key in value):
             raise CapabilitiesPortError(f"{field} 的字段名必须是字符串")
-        return cast(Mapping[str, object], value)
+        return cast(Mapping[str, JsonValue], value)
 
-    @classmethod
     def _effective_configs(
-        cls, runtime_policy: Mapping[str, object]
-    ) -> dict[str, dict[str, object]]:
-        raw_defaults: object = default_tool_configs()
-        defaults = cls._mapping_value(raw_defaults, "capability defaults")
-        raw_tools = cls._mapping_value(runtime_policy.get("tools", {}), "tools")
-        effective: dict[str, dict[str, object]] = {}
+        self, runtime_policy: Mapping[str, JsonValue]
+    ) -> dict[str, dict[str, JsonValue]]:
+        raw_defaults = cast(JsonValue, self._defaults())
+        defaults = self._mapping_value(raw_defaults, "capability defaults")
+        raw_tools = self._mapping_value(runtime_policy.get("tools", {}), "tools")
+        effective: dict[str, dict[str, JsonValue]] = {}
         for capability_key in ("web_search", "local_file"):
-            current = cls._mutable_mapping(
+            current = self._mutable_mapping(
                 defaults.get(capability_key), f"default {capability_key}"
             )
             raw_capability = raw_tools.get(capability_key)
             if raw_capability is not None:
-                current.update(cls._mutable_mapping(raw_capability, capability_key))
+                current.update(self._mutable_mapping(raw_capability, capability_key))
             effective[capability_key] = current
         return effective
 
     @classmethod
-    def _mutable_mapping(cls, value: object, field: str) -> dict[str, object]:
+    def _mutable_mapping(cls, value: JsonValue, field: str) -> dict[str, JsonValue]:
         return copy.deepcopy(dict(cls._mapping_value(value, field)))
 
     @staticmethod
-    def _boolean(values: Mapping[str, object], field: str) -> bool:
+    def _boolean(values: Mapping[str, JsonValue], field: str) -> bool:
         value = values.get(field)
         if not isinstance(value, bool):
             raise CapabilitiesPortError(f"{field} 必须是布尔值")
         return value
 
     @staticmethod
-    def _integer(values: Mapping[str, object], field: str) -> int:
+    def _integer(values: Mapping[str, JsonValue], field: str) -> int:
         value = values.get(field)
         if isinstance(value, bool) or not isinstance(value, int):
             raise CapabilitiesPortError(f"{field} 必须是整数")
         return value
 
     @staticmethod
-    def _number(values: Mapping[str, object], field: str) -> float:
+    def _number(values: Mapping[str, JsonValue], field: str) -> float:
         value = values.get(field)
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise CapabilitiesPortError(f"{field} 必须是数字")
         return float(value)
 
     @staticmethod
-    def _string(values: Mapping[str, object], field: str) -> str:
+    def _string(values: Mapping[str, JsonValue], field: str) -> str:
         value = values.get(field)
         if not isinstance(value, str):
             raise CapabilitiesPortError(f"{field} 必须是字符串")

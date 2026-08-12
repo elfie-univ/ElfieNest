@@ -82,7 +82,10 @@ def test_runtime_lab_defaults_use_the_catalog_test_model_for_vision(tmp_path):
     document = store.default_document()
 
     # Then: its vision slot keeps a current catalog model instead of the retired role map.
-    assert document["multimodal_model"] == PROVIDER_DEFAULTS["ollama"]["test_model"]
+    assert (
+        document["runtime_policy"]["model_selection"]["remote_multimodal"]["model"]
+        == PROVIDER_DEFAULTS["ollama"]["test_model"]
+    )
 
 
 def test_provider_configuration_separates_secret_and_non_secret_data(tmp_path):
@@ -100,8 +103,14 @@ def test_provider_configuration_separates_secret_and_non_secret_data(tmp_path):
 
     document = yaml.safe_load(store.config_path.read_text(encoding="utf-8"))
     assert "unit-test-secret" not in store.config_path.read_text(encoding="utf-8")
-    assert document["deep_provider"] == "openai"
-    assert document["deep_model"] == "example-model"
+    assert (
+        document["runtime_policy"]["model_selection"]["remote_deep"]["provider"]
+        == "openai"
+    )
+    assert (
+        document["runtime_policy"]["model_selection"]["remote_deep"]["model"]
+        == "example-model"
+    )
     assert status["ready_for_attempt"] is True
     assert status["model_key"] == "remote_deep"
     assert store.env_path.read_text(encoding="utf-8").strip() == (

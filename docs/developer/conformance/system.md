@@ -9,12 +9,12 @@
 
 | ID | Severity | Status | Current deviation | Closure gate |
 | --- | --- | --- | --- | --- |
-| SYS-001 | P0 | in progress | Root `infrastructure/` owns the target capability areas, Data Home, persistence, model/provider and Runtime technology, tool technology, terminal hosting, Godot Gateway, authority hosting and artifact validation. The former `app/infrastructure/`, `godot_runtime/` and `ai_runtime/` roots are gone. Remaining ownership debt is limited to registered Elfie/Nest Core internals and Infrastructure cross-capability composition. | Keep the retired roots absent and close the separately registered Elfie/Nest residuals without compatibility imports. |
+| SYS-001 | P0 | closed | Root `infrastructure/` owns the target capability areas, Data Home, persistence, model/provider and Runtime technology, tool technology, terminal hosting, Godot Gateway, authority hosting and artifact validation. The former `app/infrastructure/`, `godot_runtime/` and `ai_runtime/` roots are absent, and the exact Elfie/Nest and cross-capability ownership gates are clear. | Retired roots remain absent; the deny-all system scanner and Port/Adapter ratchets stay green. |
 | SYS-002 | P0 | closed | The Elfie memory/profile and Factory slices no longer construct SQLite/YAML/path implementations or know concrete Godot transport. Storage, profile and tool adapters live in Infrastructure and are injected by Bootstrap. | The exact Elfie/Nest technical-import baseline is empty; Brain Memory tests use Fakes, Infrastructure owns persistence integration tests, and typed Factory/ToolPort assembly tests pass. |
 | SYS-003 | P0 | closed | Raw WebSocket, JSON, bundle, protocol and session implementations live in `infrastructure/godot/gateway/`; Nest has no Gateway transport or Observer implementation directory. Nest Session consumes the App-owned semantic Observer Port Model, while `infrastructure/godot/observer_world.py` only translates typed world facts and high-level intents. | Keep the retired `nest/godot_gateway/` path absent and preserve world semantics, state, events and protocol behavior with the existing Gateway and Observer boundary tests. |
 | SYS-004 | P0 | closed | Production service and interactive entry scripts request Runtime, storage, Nest Session and Elfie restoration from `app/bootstrap/`. Bootstrap constructs the authenticated management WebSocket gateway and injects API startup/shutdown callbacks; Runtime, management Gateway and Godot channels start and stop only through Lifecycle. Interfaces retain protocol mapping only. | Permanent architecture tests keep concrete construction out of Interfaces and assert that API lifespan delegates channel control to Lifecycle. |
-| SYS-005 | P1 | open | System facades and outbound Ports are partially present but not exposed through one stable, strict boundary inventory; some paths still use `Any`, concrete paths or protocol details. | Elfie and Nest facades plus Food, model, tool, body, world, communication and persistence Ports use strict models; duplicate or technology-named boundary APIs are removed. |
-| SYS-006 | P1 | open | Existing permanent rules cover only part of the target: the exact System scanner focuses on Elfie/Nest technical imports, while Bootstrap completeness, Infrastructure cross-capability composition and packaging ownership are not yet fully ratcheted. | Core tests use fake/in-memory Ports, adapter tests are separate, Bootstrap has wiring tests, migrated paths have end-to-end proof, and the exact system baseline is empty. |
+| SYS-005 | P1 | closed | System facades and outbound Ports have one strict machine-checked inventory. Port methods use named models or bounded JSON values; concrete peer Adapters and unvalidated boundary objects are rejected. | Keep `test_system_ports_contract.py`, the App/Elfie/Nest boundary tests and strict focused type checks green. |
+| SYS-006 | P1 | closed | Bootstrap wiring, Infrastructure peer-composition rules, communication ingress and packaging ownership are now permanently ratcheted alongside the exact system scanner. Core/Adapter separation and migrated end-to-end evidence are covered by focused and full architecture tests. | Keep the Bootstrap, cross-capability, packaging and deny-all gates green; the exact system baseline remains empty. |
 | SYS-007 | P0 | closed | The former `ai_runtime/` root and imports are absent. Provider/model clients and Runtime technology live in `infrastructure/models/`, tool technology in `infrastructure/tools/`, Food policy in the App Food Feature, and the read-only Food Port in Elfie. Runtime execution and model validation now receive the Brain-owned ToolPort instead of constructing concrete tool plugins in the call path. | Provider → Food → model → tool → emergency fallback behavior, scoped tool execution and the focused Runtime/Tool end-to-end path remain green; no `infrastructure/ai_runtime/` or broad Runtime tool bridge is restored. |
 
 ## Current execution boundary
@@ -36,12 +36,11 @@ Nest-internal item rather than being forced into Infrastructure.
 
 The exact system scanner and `system_layer.py` baseline cover `SYS-002` and
 `SYS-003`: forbidden cross-root imports and direct technical imports in Elfie
-and Nest. `SYS-002` is now closed with an empty technical-import set. Other architecture tests protect existing Runtime,
-Observer, storage, Godot and project-structure safety rules, but they do not by
-themselves close the remaining target rows. `SYS-001`, `SYS-005`, `SYS-006`
-still require a complete migrated call chain, focused
-behavior evidence and maintainer review; a passing scanner alone cannot close
-them.
+and Nest. `test_system_ports_contract.py` ratchets strict Port annotations,
+peer-capability imports, authenticated communication ingress and Bootstrap
+composition. Bootstrap, Runtime, Observer, storage, Godot, packaging and
+project-structure tests provide the remaining wiring and behavior evidence.
+The exact system baseline and deny-all scan are both empty.
 
 ## Migration order
 

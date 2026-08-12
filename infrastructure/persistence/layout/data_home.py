@@ -139,9 +139,10 @@ def get_reports_dir() -> Path:
     return get_elfie_home() / "reports"
 
 
-def get_report_database_path() -> Path:
-    """返回 AI Runtime 追加式报告数据库。"""
-    return get_reports_dir() / "ai-runtime.sqlite"
+def get_report_database_path(data_home: Optional[Path] = None) -> Path:
+    """Return the append-only model/Food/tool report database for one data root."""
+    root = data_home or get_elfie_home()
+    return root / "reports" / "ai-runtime.sqlite"
 
 
 def get_report_exports_dir() -> Path:

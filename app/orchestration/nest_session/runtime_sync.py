@@ -15,18 +15,21 @@ from app.orchestration.nest_session.models import (
     WorldSnapshot,
 )
 from app.orchestration.nest_session.ports import WorldRuntimePort
-from nest import Nest
-from nest.state.models import (
+from nest.public import (
     AnchorKind,
+    BedConflictError,
     InteractionAnchor,
+    Nest,
+    NestPersistenceError,
+    NestRepository,
+    NoHomeAvailableError,
     PersistentResidentState,
     ResidentPresence,
     RuntimeResidentMirror,
+    UnknownAnchorError,
     WorldCatalog,
     ZoneDescriptor,
 )
-from nest.state.repository import NestPersistenceError, NestRepository
-from nest.state.store import BedConflictError, NoHomeAvailableError, UnknownAnchorError
 
 ActorCatalogProvider = Callable[[], tuple[ActorDescriptor, ...]]
 

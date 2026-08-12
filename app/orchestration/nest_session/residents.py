@@ -5,11 +5,14 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from app.orchestration.nest_session.models import ActorDescriptor
-from elfie import Elfie
-from elfie.profile import AppearanceResolver, ElfieProfile
-from nest import Nest
-from nest.state.models import PersistentResidentState, ResidentPresence
-from nest.state.repository import NestPersistenceSnapshot, NestRepository
+from elfie.public import AppearanceResolver, Elfie, ElfieProfile
+from nest.public import (
+    Nest,
+    NestPersistenceSnapshot,
+    NestRepository,
+    PersistentResidentState,
+    ResidentPresence,
+)
 
 
 def actor_catalog(elfies: Mapping[str, Elfie]) -> tuple[ActorDescriptor, ...]:

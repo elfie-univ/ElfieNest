@@ -10,7 +10,7 @@ from app.features.bodies import (
     BodyPrincipal,
     RecordBodyActivityCommand,
 )
-from elfie.body.contracts import BodyCommand, BodySensorEvent, CommandReceipt
+from elfie.public import BodyCommand, BodySensorEvent, CommandReceipt
 
 from .ports import BodyDeviceGatewayPort
 

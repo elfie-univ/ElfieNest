@@ -14,7 +14,7 @@ from app.features.nest_management import (
     NestSnapshotRecord,
 )
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
-from nest import NestConfig
+from nest.public import NestConfig
 
 DEFAULT_TICK_INTERVAL_SECONDS: Final = 1.0
 

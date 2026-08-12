@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from app.features.configuration.food import StoredModelEvidence
-from infrastructure.models.food_technology import (
+from infrastructure.persistence.food_evidence import (
     query_model_evidence,
     record_model_evidence,
 )

@@ -6,7 +6,6 @@ import asyncio
 import threading
 from dataclasses import replace
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Literal, Mapping, Optional, cast
 
 from app.features.configuration import (
@@ -40,6 +39,10 @@ from app.features.configuration import (
 from app.features.configuration.providers import (
     ValidationStatus as ProviderValidationStatus,
 )
+from infrastructure.models.provider_records import (
+    ProviderConnection,
+    ProviderModelRecord,
+)
 from infrastructure.models.providers.discovery import (
     bundled_catalog_models,
     merge_refreshed_models,
@@ -51,6 +54,12 @@ from infrastructure.models.providers.remote_catalog import (
     RemoteCatalogUnavailable,
     fetch_remote_models,
 )
+from infrastructure.models.storage_ports import (
+    ModelEvidencePort,
+    ProviderStorageError,
+    ProviderStoragePort,
+    ReportStoragePort,
+)
 from infrastructure.models.validation.provider_model_benchmark import (
     bounded_benchmark,
     validate_combinations,
@@ -61,29 +70,11 @@ from infrastructure.models.validation.provider_validation import (
     discover_provider_models,
 )
 from infrastructure.models.validation.provider_validation_runtime import (
-    connection_api_key,
     runtime_projection,
 )
 from infrastructure.models.validation.provider_validation_service import (
     summarize_connection_validation,
     validate_connection,
-)
-from infrastructure.persistence.configuration.secrets import resolve_secret
-from infrastructure.persistence.provider_connection_mutations import (
-    delete_connection_with_secret,
-    finalize_created_connection,
-    replace_connection_with_secret,
-)
-from infrastructure.persistence.provider_connections import (
-    ProviderConnection,
-    ProviderConnectionStore,
-    ProviderConnectionStoreError,
-    ProviderModelRecord,
-)
-from infrastructure.persistence.reports.report_repository import ReportRepository
-from infrastructure.persistence.reports.validation_reports import (
-    read_latest_model_validation,
-    write_model_validation_report,
 )
 
 from .provider_errors import sanitize_error
@@ -98,11 +89,13 @@ class ProviderModelsAdapter:
 
     def __init__(
         self,
-        connection_path: Path | None = None,
-        secret_path: Path | None = None,
+        storage: ProviderStoragePort,
+        reports: ReportStoragePort,
+        evidence: ModelEvidencePort,
     ) -> None:
-        self._store = ProviderConnectionStore(connection_path)
-        self._secret_path = secret_path
+        self._store = storage
+        self._reports = reports
+        self._evidence = evidence
 
     def list_products(self) -> tuple[StoredProviderProduct, ...]:
         try:
@@ -124,7 +117,7 @@ class ProviderModelsAdapter:
         try:
             if any(
                 item.catalog_id == product.catalog_id
-                for item in self._store.load().connections.values()
+                for item in self._store.load_connections().values()
             ):
                 return
             self._store.create(
@@ -134,7 +127,7 @@ class ProviderModelsAdapter:
                 api_mode=product.api_mode,
                 auth_type=product.auth_type,
             )
-        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+        except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError(
                 "Unable to create local Provider connection"
             ) from error
@@ -143,16 +136,16 @@ class ProviderModelsAdapter:
         try:
             return tuple(
                 self._connection(item)
-                for item in self._store.load().connections.values()
+                for item in self._store.load_connections().values()
             )
-        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+        except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError("Unable to read Provider connections") from error
 
     def get_connection(self, connection_id: str) -> StoredProviderConnection | None:
         try:
-            item = self._store.load().connections.get(connection_id)
+            item = self._store.load_connections().get(connection_id)
             return None if item is None else self._connection(item)
-        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+        except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError("Unable to read Provider connection") from error
 
     def create_connection(
@@ -169,14 +162,9 @@ class ProviderModelsAdapter:
                 auth_type=connection.auth_type,
                 models=tuple(self._runtime_model(item) for item in connection.models),
             )
-            created = finalize_created_connection(
-                self._store,
-                created,
-                api_key,
-                secret_path=self._secret_path,
-            )
+            created = self._store.create_with_secret(created, api_key)
             return self._connection(created)
-        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+        except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError("Unable to create Provider connection") from error
 
     def replace_connection(
@@ -189,34 +177,25 @@ class ProviderModelsAdapter:
         runtime = self._runtime_connection(connection)
         try:
             if update_credential:
-                runtime = replace_connection_with_secret(
-                    self._store,
-                    runtime,
-                    api_key,
-                    secret_path=self._secret_path,
-                )
+                runtime = self._store.replace_with_secret(runtime, api_key)
             else:
                 self._store.replace(runtime)
             return self._connection(runtime)
-        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+        except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError("Unable to replace Provider connection") from error
 
     def delete_connection(self, connection_id: str) -> bool:
         try:
-            return delete_connection_with_secret(
-                self._store,
-                connection_id,
-                secret_path=self._secret_path,
-            )
-        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+            return self._store.delete_with_secret(connection_id)
+        except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError("Unable to delete Provider connection") from error
 
     def has_credential(self, credential_ref: str) -> bool:
         if not credential_ref:
             return False
         try:
-            return bool(resolve_secret(credential_ref, self._secret_path))
-        except OSError as error:
+            return self._store.has_secret(credential_ref)
+        except (ProviderStorageError, OSError) as error:
             raise ProviderPortError("Unable to resolve Provider credential") from error
 
     def load_local_binding(self) -> StoredLocalProviderBinding | None:
@@ -241,7 +220,7 @@ class ProviderModelsAdapter:
                 installer_source_url=str(raw.get("installer_source_url", "")),
                 installer_sha256=str(raw.get("installer_sha256", "")),
             )
-        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+        except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError("Unable to read local Provider binding") from error
 
     def save_local_binding(
@@ -279,7 +258,7 @@ class ProviderModelsAdapter:
                         archived=False,
                     )
                 )
-        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+        except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError("Unable to save local Provider binding") from error
         return binding
 
@@ -291,7 +270,7 @@ class ProviderModelsAdapter:
                 if connection is not None
                 else ()
             )
-        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+        except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError("Unable to read local Provider models") from error
 
     def save_local_model(self, model_id: str) -> str:
@@ -309,7 +288,7 @@ class ProviderModelsAdapter:
             return f"{connection.connection_id}/{model_id}"
         except ProviderPortError:
             raise
-        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+        except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError("Unable to save local Provider model") from error
 
     def local_model_reference(self, model_id: str) -> str | None:
@@ -320,7 +299,7 @@ class ProviderModelsAdapter:
             ):
                 return None
             return f"{connection.connection_id}/{model_id}"
-        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+        except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError("Unable to read local Provider model") from error
 
     def replace_local_models(self, model_ids: tuple[str, ...]) -> None:
@@ -342,7 +321,7 @@ class ProviderModelsAdapter:
             self._store.replace(replace(connection, models=models))
         except ProviderPortError:
             raise
-        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+        except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError(
                 "Unable to replace local Provider models"
             ) from error
@@ -351,7 +330,7 @@ class ProviderModelsAdapter:
         return next(
             (
                 item
-                for item in self._store.load().connections.values()
+                for item in self._store.load_connections().values()
                 if item.catalog_id == "ollama"
             ),
             None,
@@ -398,7 +377,11 @@ class ProviderModelsAdapter:
     ) -> StoredVerification:
         try:
             return self._verification(
-                summarize_connection_validation(self._runtime_connection(connection))
+                summarize_connection_validation(
+                    self._runtime_connection(connection),
+                    reports=self._reports,
+                    secret_resolver=self._store.resolve_secret,
+                )
             )
         except (ValueError, OSError) as error:
             raise ProviderPortError("Unable to read Provider validation") from error
@@ -410,7 +393,7 @@ class ProviderModelsAdapter:
     ) -> StoredModelVerification:
         try:
             return self._model_verification(
-                read_latest_model_validation(
+                self._reports.read_latest_model_validation(
                     connection_id,
                     model_id,
                     validation_mode="full",
@@ -428,7 +411,9 @@ class ProviderModelsAdapter:
         try:
             result = await validate_connection(
                 self._runtime_connection(connection),
-                runtime_projection=runtime_projection,
+                runtime_projection=self._runtime_projection,
+                reports=self._reports,
+                secret_resolver=self._store.resolve_secret,
                 force_full=force_full,
             )
             return self._verification(result)
@@ -471,7 +456,7 @@ class ProviderModelsAdapter:
                 )
             message = sanitize_error(
                 str(error),
-                secrets=(connection_api_key(runtime),),
+                secrets=(self._store.resolve_secret(runtime.credential_ref),),
             )
             return StoredModelRefresh(
                 status="failed",
@@ -513,7 +498,7 @@ class ProviderModelsAdapter:
         as_of: str | None,
         run_id: str | None,
     ) -> StoredModelMatrix:
-        repository = ReportRepository()
+        repository = self._reports
         observations = (
             repository.observations_for_run(run_id)
             if run_id
@@ -539,6 +524,10 @@ class ProviderModelsAdapter:
                 for item in connections
             },
             observations=observations,
+            model_evidence={
+                item.reference: item for item in self._evidence.list_model_evidence()
+            },
+            provider_validation_reader=self._reports.read_latest_provider_validation,
             snapshot=snapshot,
         )
         return self._matrix(payload)
@@ -555,12 +544,17 @@ class ProviderModelsAdapter:
         semaphore = asyncio.Semaphore(_BENCHMARK_CONCURRENCY)
         raw_results = await asyncio.gather(
             *(
-                bounded_benchmark(item, by_id[item.connection_id], semaphore)
+                bounded_benchmark(
+                    item,
+                    by_id[item.connection_id],
+                    semaphore,
+                    runtime_projection=self._runtime_projection,
+                )
                 for item in combinations
             )
         )
         checked_at = datetime.now(timezone.utc).isoformat()
-        repository = ReportRepository()
+        repository = self._reports
         run_id = repository.start_run(
             scope="model-selection",
             trigger="benchmark",
@@ -575,9 +569,9 @@ class ProviderModelsAdapter:
             latency_class = self._latency_class(raw.get("latency_class"))
             error = sanitize_error(
                 cast(Optional[str], raw.get("error")),
-                secrets=(connection_api_key(connection),),
+                secrets=(self._store.resolve_secret(connection.credential_ref),),
             )
-            write_model_validation_report(
+            self._reports.write_model_validation_report(
                 combination.connection_id,
                 combination.model_id,
                 status=status,
@@ -611,7 +605,7 @@ class ProviderModelsAdapter:
         connections: tuple[StoredProviderConnection, ...],
         cancelled: CancellationCheck,
     ) -> StoredValidationRun:
-        repository = ReportRepository()
+        repository = self._reports
         started_at = datetime.now(timezone.utc).isoformat()
         run_id = repository.start_run(
             scope="all-enabled-connections-and-models",
@@ -627,7 +621,9 @@ class ProviderModelsAdapter:
                     break
                 verification = await validate_connection(
                     self._runtime_connection(stored),
-                    runtime_projection=runtime_projection,
+                    runtime_projection=self._runtime_projection,
+                    reports=self._reports,
+                    secret_resolver=self._store.resolve_secret,
                     run_id=run_id,
                     trigger="batch",
                     force_full=True,
@@ -668,12 +664,13 @@ class ProviderModelsAdapter:
             )
         return StoredValidationRun(run_id, status, tuple(results))
 
-    @staticmethod
-    def _discover_with_slot(connection: ProviderConnection) -> list[DiscoveredModel]:
+    def _discover_with_slot(
+        self, connection: ProviderConnection
+    ) -> list[DiscoveredModel]:
         if not _DISCOVERY_SLOTS.acquire(blocking=False):
             raise RuntimeError("模型发现任务过多，请稍后重试")
         try:
-            runtime_id, config = runtime_projection(connection)
+            runtime_id, config = self._runtime_projection(connection)
             return discover_provider_models(
                 runtime_id,
                 config,
@@ -682,6 +679,12 @@ class ProviderModelsAdapter:
             )
         finally:
             _DISCOVERY_SLOTS.release()
+
+    def _runtime_projection(self, connection: ProviderConnection) -> tuple[str, Any]:
+        return runtime_projection(
+            connection,
+            secret_resolver=self._store.resolve_secret,
+        )
 
     @staticmethod
     def _product(catalog_id: str) -> StoredProviderProduct:

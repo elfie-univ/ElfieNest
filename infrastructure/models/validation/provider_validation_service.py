@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Any, Callable, Literal, Mapping
 
-from infrastructure.persistence.provider_connections import ProviderConnection
-from infrastructure.persistence.reports.validation_reports import (
-    read_latest_provider_validation,
-)
+from infrastructure.models.provider_records import ProviderConnection
+from infrastructure.models.storage_ports import ReportStoragePort
 
 from .provider_validation_checks import RuntimeProjection
 from .provider_validation_policy import (
@@ -19,12 +17,15 @@ from .provider_validation_policy import (
 )
 
 ValidationTrigger = Literal["single", "batch"]
+SecretResolver = Callable[[str], str]
 
 
 async def validate_connection(
     connection: ProviderConnection,
     *,
     runtime_projection: RuntimeProjection,
+    reports: ReportStoragePort,
+    secret_resolver: SecretResolver,
     run_id: str | None = None,
     trigger: ValidationTrigger = "single",
     force_full: bool = False,
@@ -32,8 +33,13 @@ async def validate_connection(
     """Validate one connection using cache, heartbeat, or full model checks."""
     from .provider_validation_runs import run_full, run_heartbeat
 
-    latest = read_latest_provider_validation(connection.connection_id)
-    decision = choose_validation_mode(connection, latest, force_full=force_full)
+    latest = reports.read_latest_provider_validation(connection.connection_id)
+    decision = choose_validation_mode(
+        connection,
+        latest,
+        force_full=force_full,
+        secret_resolver=secret_resolver,
+    )
     if decision.mode == "cached":
         return _cached_result(latest, decision)
     if decision.mode == "heartbeat":
@@ -41,12 +47,16 @@ async def validate_connection(
             connection,
             decision,
             runtime_projection=runtime_projection,
+            reports=reports,
+            secret_resolver=secret_resolver,
             trigger=trigger,
         )
     return await run_full(
         connection,
         decision,
         runtime_projection=runtime_projection,
+        reports=reports,
+        secret_resolver=secret_resolver,
         run_id=run_id,
         trigger=trigger,
     )
@@ -54,9 +64,12 @@ async def validate_connection(
 
 def summarize_connection_validation(
     connection: ProviderConnection,
+    *,
+    reports: ReportStoragePort,
+    secret_resolver: SecretResolver,
 ) -> dict[str, Any]:
     """Project current validation freshness without making a network request."""
-    latest = read_latest_provider_validation(connection.connection_id)
+    latest = reports.read_latest_provider_validation(connection.connection_id)
     if not latest:
         return {
             "status": "never",
@@ -72,16 +85,18 @@ def summarize_connection_validation(
             "heartbeat_checked_at": None,
             "representative_model_id": representative_model_id(connection),
         }
-    decision = choose_validation_mode(connection, latest)
+    decision = choose_validation_mode(
+        connection, latest, secret_resolver=secret_resolver
+    )
     metadata = latest.get("metadata")
     metadata = metadata if isinstance(metadata, dict) else {}
-    heartbeat_checked_at = metadata.get("heartbeat_checked_at")
+    heartbeat_checked_at = _optional_text(metadata.get("heartbeat_checked_at"))
     heartbeat_age = _age_since(heartbeat_checked_at)
     return _verification_payload(
         status=str(latest.get("status") or "never"),
-        checked_at=latest.get("checked_at"),
+        checked_at=_optional_text(latest.get("checked_at")),
         latency_ms=latest.get("latency_ms"),
-        error=latest.get("error"),
+        error=_optional_text(latest.get("error")),
         validation_mode=decision.mode,
         cache_hit=decision.mode == "cached",
         decision=decision,
@@ -101,7 +116,7 @@ def summarize_connection_validation(
 
 
 def _cached_result(
-    latest: dict[str, Any],
+    latest: Mapping[str, Any],
     decision: ValidationDecision,
 ) -> dict[str, Any]:
     metadata = latest.get("metadata")
@@ -114,8 +129,8 @@ def _cached_result(
         validation_mode="cached",
         cache_hit=True,
         decision=decision,
-        heartbeat_checked_at=metadata.get("heartbeat_checked_at"),
-        heartbeat_status=metadata.get("heartbeat_status"),
+        heartbeat_checked_at=_optional_text(metadata.get("heartbeat_checked_at")),
+        heartbeat_status=_optional_text(metadata.get("heartbeat_status")),
     )
 
 
@@ -162,6 +177,10 @@ def _verification_payload(
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _optional_text(value: object) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 def _age_since(value: Any) -> float | None:

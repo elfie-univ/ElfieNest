@@ -10,13 +10,13 @@ from app.features.configuration import (
     StoredProviderConnection,
     StoredProviderModel,
 )
-from infrastructure.models.provider_administration import ProviderModelsAdapter
+from test.support.provider import provider_models_adapter
 
 
 def test_provider_adapter_keeps_secret_out_of_connection_fact(tmp_path) -> None:
     provider_path = tmp_path / "providers.yaml"
     secret_path = tmp_path / "auth.env"
-    adapter = ProviderModelsAdapter(provider_path, secret_path)
+    adapter = provider_models_adapter(provider_path, secret_path)
 
     created = adapter.create_connection(
         StoredProviderConnection(
@@ -39,7 +39,7 @@ def test_provider_adapter_keeps_secret_out_of_connection_fact(tmp_path) -> None:
 
 
 def test_provider_adapter_uses_authoritative_catalog_defaults(tmp_path) -> None:
-    adapter = ProviderModelsAdapter(
+    adapter = provider_models_adapter(
         tmp_path / "providers.yaml",
         tmp_path / "auth.env",
     )
@@ -55,7 +55,7 @@ def test_provider_adapter_uses_authoritative_catalog_defaults(tmp_path) -> None:
 
 
 def test_provider_adapter_preserves_stable_connection_counter(tmp_path) -> None:
-    adapter = ProviderModelsAdapter(
+    adapter = provider_models_adapter(
         tmp_path / "providers.yaml",
         tmp_path / "auth.env",
     )
@@ -103,7 +103,7 @@ def _validation_connection() -> StoredProviderConnection:
 
 
 def test_validate_all_finalizes_partial_run_after_disconnect(tmp_path) -> None:
-    adapter = ProviderModelsAdapter(
+    adapter = provider_models_adapter(
         tmp_path / "providers.yaml",
         tmp_path / "auth.env",
     )
@@ -112,9 +112,10 @@ def test_validate_all_finalizes_partial_run_after_disconnect(tmp_path) -> None:
     async def disconnected() -> bool:
         return True
 
+    adapter._reports = run
     with patch(
-        "infrastructure.models.provider_administration.ReportRepository",
-        return_value=run,
+        "infrastructure.models.provider_administration.validate_connection",
+        new=AsyncMock(return_value={"status": "passed", "model_results": []}),
     ):
         result = asyncio.run(
             adapter.validate_all((_validation_connection(),), disconnected)
@@ -125,7 +126,7 @@ def test_validate_all_finalizes_partial_run_after_disconnect(tmp_path) -> None:
 
 
 def test_validate_all_finalizes_partial_run_after_cancellation(tmp_path) -> None:
-    adapter = ProviderModelsAdapter(
+    adapter = provider_models_adapter(
         tmp_path / "providers.yaml",
         tmp_path / "auth.env",
     )
@@ -134,11 +135,8 @@ def test_validate_all_finalizes_partial_run_after_cancellation(tmp_path) -> None
     async def connected() -> bool:
         return False
 
+    adapter._reports = run
     with (
-        patch(
-            "infrastructure.models.provider_administration.ReportRepository",
-            return_value=run,
-        ),
         patch(
             "infrastructure.models.provider_administration.validate_connection",
             new=AsyncMock(side_effect=asyncio.CancelledError),
@@ -151,7 +149,7 @@ def test_validate_all_finalizes_partial_run_after_cancellation(tmp_path) -> None
 
 
 def test_validate_all_finalizes_failed_run_after_error(tmp_path) -> None:
-    adapter = ProviderModelsAdapter(
+    adapter = provider_models_adapter(
         tmp_path / "providers.yaml",
         tmp_path / "auth.env",
     )
@@ -160,11 +158,8 @@ def test_validate_all_finalizes_failed_run_after_error(tmp_path) -> None:
     async def connected() -> bool:
         return False
 
+    adapter._reports = run
     with (
-        patch(
-            "infrastructure.models.provider_administration.ReportRepository",
-            return_value=run,
-        ),
         patch(
             "infrastructure.models.provider_administration.validate_connection",
             new=AsyncMock(side_effect=RuntimeError("connection broken")),

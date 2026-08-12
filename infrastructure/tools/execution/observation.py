@@ -5,6 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Mapping, Protocol, Union
 
+from infrastructure.models.runtime_ports import (
+    ToolCallObservationPortModel,
+    ToolPermissionObservationPortModel,
+)
+
 ToolMetadataValue = Union[str, int, bool]
 
 
@@ -25,10 +30,12 @@ class PermissionDecisionObservation:
 
 
 class ToolObservationPort(Protocol):
-    def record_tool_observation(self, observation: ToolCallObservation) -> None: ...
+    def record_tool_observation(
+        self, observation: ToolCallObservationPortModel
+    ) -> None: ...
 
     def record_permission_observation(
-        self, observation: PermissionDecisionObservation
+        self, observation: ToolPermissionObservationPortModel
     ) -> None: ...
 
 

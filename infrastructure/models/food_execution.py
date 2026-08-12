@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from elfie.brain.food_port import (
     FoodAssignment,
@@ -16,8 +16,7 @@ from infrastructure.models.model_reference import (
     parse_model_reference,
 )
 from infrastructure.models.runtime_config import LLMRuntimeConfig
-from infrastructure.tools.execution.loop import PortToolLoop
-from infrastructure.tools.execution.skills_prompt import inject_skills_system_prompt
+from infrastructure.models.runtime_ports import RuntimeToolLoopPort
 
 
 @dataclass(frozen=True)
@@ -44,10 +43,18 @@ class FoodExecutor:
         model_caller: Callable[
             [str, str, list[dict[str, Any]], float, int, dict[str, Any]], str
         ],
+        tool_loop_factory: Callable[
+            [ToolPort, tuple[str, ...], Optional[str]], RuntimeToolLoopPort
+        ],
+        prompt_injector: Callable[
+            [list[dict[str, Any]], list[str]], list[dict[str, Any]]
+        ],
     ) -> None:
         self.config = config
         self.tool_port = tool_port
         self.model_caller = model_caller
+        self.tool_loop_factory = tool_loop_factory
+        self.prompt_injector = prompt_injector
 
     def execute(
         self,
@@ -152,12 +159,8 @@ class FoodExecutor:
             and (tool != "local_file" or scope_id is not None)
         )
         if effective_tools:
-            messages = inject_skills_system_prompt(messages, list(effective_tools))
-        loop = PortToolLoop(
-            self.tool_port,
-            allowed_tool_keys=effective_tools,
-            scope_id=scope_id,
-        )
+            self.prompt_injector(messages, list(effective_tools))
+        loop = self.tool_loop_factory(self.tool_port, effective_tools, scope_id)
 
         def invoke(loop_messages: list[dict[str, Any]]) -> str:
             return self.model_caller(

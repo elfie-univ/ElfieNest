@@ -5,27 +5,31 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timezone
 
-from app.features.configuration.food import FoodPortError, StoredModelEvidence
+from app.features.configuration.food import (
+    FoodCatalogPort,
+    FoodPortError,
+    StoredModelEvidence,
+)
 from app.orchestration.setup_installation import SetupInstallationPortError
 from infrastructure.models.capabilities import (
     canonical_display_name,
     known_capabilities,
 )
-from infrastructure.models.food_technology import record_model_evidence
-from infrastructure.persistence.food import SQLiteFoodAdapter
 
-from .food_technology import RuntimeFoodTechnologyAdapter
+from .food_technology import FoodEvidencePort, RuntimeFoodTechnologyAdapter
 
 
 class SetupFoodAdapter:
     def __init__(
         self,
         *,
-        catalog: SQLiteFoodAdapter,
+        catalog: FoodCatalogPort,
         technology: RuntimeFoodTechnologyAdapter,
+        evidence: FoodEvidencePort,
     ) -> None:
         self._catalog = catalog
         self._technology = technology
+        self._evidence = evidence
 
     def ensure_emergency_food(self, model_reference: str) -> None:
         try:
@@ -39,7 +43,7 @@ class SetupFoodAdapter:
                 local=True,
                 observed_at=datetime.now(timezone.utc).isoformat(),
             )
-            record_model_evidence(
+            self._evidence.record_model_evidence(
                 (evidence,),
                 scope=f"setup:{model_reference}",
                 trigger="setup",

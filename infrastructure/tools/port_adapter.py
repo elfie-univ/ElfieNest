@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Mapping, Optional, Protocol, Tuple, cast
+
+from pydantic import JsonValue
 
 from elfie.brain.tool_port import ToolKey, ToolRequest, ToolResult
 from elfie.message_types import ErrorInfo
 
-from .execution.config import enabled_tool_keys, load_tool_configs
+from .execution.config import load_tool_configs
 from .execution.executor import (
     FileAccessPlugin,
     PermissionManager,
@@ -24,7 +26,14 @@ from .local_file.local_files import LocalFileAccessPlugin
 from .web_search.search import WebSearchPlugin
 
 WorkspaceResolver = Callable[[Optional[str]], Optional[Path]]
+ToolConfigLoader = Callable[
+    [Optional[Mapping[str, JsonValue]]], Mapping[str, Mapping[str, JsonValue]]
+]
 _TOOL_KEYS: Tuple[ToolKey, ...] = ("web_search", "local_file")
+
+
+class RuntimePolicySource(Protocol):
+    runtime_policy: Mapping[str, JsonValue]
 
 
 class DisabledToolPort:
@@ -52,10 +61,11 @@ class ToolPortAdapter:
     def __init__(
         self,
         *,
-        config: object,
+        config: RuntimePolicySource,
         search_plugin: SearchPlugin,
         permission_manager: PermissionManager,
         observation_port: ToolObservationPort,
+        tool_config_loader: ToolConfigLoader = load_tool_configs,
         workspace_resolver: WorkspaceResolver | None = None,
         allowed_tool_keys: Iterable[str] = (),
     ) -> None:
@@ -63,15 +73,17 @@ class ToolPortAdapter:
         self._search_plugin = search_plugin
         self._permission_manager = permission_manager
         self._observation_port = observation_port
+        self._tool_config_loader = tool_config_loader
         self._workspace_resolver = workspace_resolver or (lambda _scope_id: None)
         self._allowed_tool_keys = frozenset(allowed_tool_keys)
 
     @classmethod
     def from_runtime_config(
         cls,
-        config: object,
+        config: RuntimePolicySource,
         *,
         observation_port: ToolObservationPort,
+        tool_config_loader: ToolConfigLoader = load_tool_configs,
         workspace_resolver: WorkspaceResolver | None = None,
         allowed_tool_keys: Iterable[str] | None = None,
     ) -> ToolPortAdapter:
@@ -83,16 +95,23 @@ class ToolPortAdapter:
         )
         return cls(
             config=config,
-            search_plugin=WebSearchPlugin.from_runtime_policy(runtime_policy),
+            search_plugin=WebSearchPlugin.from_runtime_policy(
+                runtime_policy, config_loader=tool_config_loader
+            ),
             permission_manager=ConcretePermissionManager(config, observation_port),
             observation_port=observation_port,
+            tool_config_loader=tool_config_loader,
             workspace_resolver=workspace_resolver,
             allowed_tool_keys=configured,
         )
 
     def available_tool_keys(self) -> Tuple[ToolKey, ...]:
         runtime_policy = getattr(self._config, "runtime_policy", {})
-        enabled = set(enabled_tool_keys(runtime_policy))
+        enabled = {
+            key
+            for key, config in self._tool_config_loader(runtime_policy).items()
+            if config.get("enabled") is True
+        }
         return tuple(
             key
             for key in _TOOL_KEYS
@@ -115,7 +134,9 @@ class ToolPortAdapter:
             observation_port=self._observation_port,
             file_access_plugin=file_access,
             runtime_enabled_tools=self.available_tool_keys(),
-            tool_configs=load_tool_configs(getattr(self._config, "runtime_policy", {})),
+            tool_configs=self._tool_config_loader(
+                getattr(self._config, "runtime_policy", {})
+            ),
         )
         technical = self._technical_request(request)
         result = self._executor(context).execute(technical)
@@ -134,13 +155,16 @@ class ToolPortAdapter:
         root = self._workspace_resolver(scope_id)
         if root is None:
             return None
-        config = load_tool_configs(getattr(self._config, "runtime_policy", {}))[
+        config = self._tool_config_loader(getattr(self._config, "runtime_policy", {}))[
             "local_file"
         ]
-        return LocalFileAccessPlugin(
-            root,
-            max_read_bytes=int(config.get("max_read_bytes") or 65536),
-            max_items=int(config.get("max_items") or 200),
+        return cast(
+            FileAccessPlugin,
+            LocalFileAccessPlugin(
+                root,
+                max_read_bytes=_int_setting(config.get("max_read_bytes"), 65536),
+                max_items=_int_setting(config.get("max_items"), 200),
+            ),
         )
 
     @staticmethod
@@ -190,6 +214,17 @@ class ToolPortAdapter:
             content=message,
             error=ErrorInfo(code=code, message=message, retryable=False),
         )
+
+
+def _int_setting(value: JsonValue, default: int) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float, str)):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+    return default
 
 
 __all__ = ("DisabledToolPort", "ToolPortAdapter", "WorkspaceResolver")

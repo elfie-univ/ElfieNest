@@ -1,4 +1,4 @@
-"""SQLite schema and connection policy for AI Runtime reports."""
+"""SQLite schema and connection policy for model/food/tool reports."""
 
 from __future__ import annotations
 

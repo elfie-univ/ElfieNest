@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, unique
-from typing import Annotated, Any, Mapping, Optional, Tuple
+from typing import Annotated, Mapping, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints
 
@@ -21,8 +21,8 @@ class RuntimeRequest:
         "web_search",
         "local_file",
     )
-    messages: tuple[dict[str, Any], ...] = ()
-    metadata: tuple[tuple[str, Any], ...] = ()
+    messages: tuple[dict[str, JsonValue], ...] = ()
+    metadata: tuple[tuple[str, JsonValue], ...] = ()
     elfie_id: str | None = None
     food_key: str | None = None
     semantic_role: str = "primary"
@@ -36,7 +36,7 @@ class RuntimeResult:
     text: str
     mode: str
     model_key: str
-    decision: dict[str, Any]
+    decision: dict[str, JsonValue]
     degraded: bool = False
     food_requested: str | None = None
     food_used: str | None = None

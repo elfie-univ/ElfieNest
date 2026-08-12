@@ -19,16 +19,6 @@ from infrastructure.persistence.layout.data_home import (
 )
 
 CONFIG_DOCUMENT_VERSION = 1
-_LEGACY_ROUTING_FIELDS = frozenset(
-    {
-        "cheap_model",
-        "cheap_provider",
-        "deep_model",
-        "deep_provider",
-        "multimodal_model",
-        "multimodal_provider",
-    }
-)
 
 
 def _backup(path: Path) -> None:
@@ -84,8 +74,6 @@ def write_runtime_settings(
         )
     ensure_elfie_home()
     safe_config = copy.deepcopy(dict(config))
-    for field_name in _LEGACY_ROUTING_FIELDS:
-        safe_config.pop(field_name, None)
     runtime_policy = safe_config.get("runtime_policy")
     tools: Any = {}
     if isinstance(runtime_policy, dict):

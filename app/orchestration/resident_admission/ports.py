@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from app.features.adoption import AcceptedAdoptionReservation
-from elfie import Elfie
+from elfie.public import Elfie
 
 
 class ResidentAdmissionPortError(RuntimeError):

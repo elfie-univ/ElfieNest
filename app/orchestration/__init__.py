@@ -1,4 +1,4 @@
-"""Elfie、Nest 与 AI Runtime 的跨模块编排。"""
+"""Elfie、Nest 与跨 authority 运行流程的编排。"""
 
 from app.orchestration.nest_session import ElfieNestEngine, NestSession
 

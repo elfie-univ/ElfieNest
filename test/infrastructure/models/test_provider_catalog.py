@@ -6,9 +6,9 @@ import yaml
 
 from infrastructure.models.providers.catalog import (
     BUNDLED_PROVIDER_CATALOG_PATH,
-    load_provider_catalog,
 )
 from infrastructure.models.providers.profiles import BUILTIN_PROFILES
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 
 
 def _provider(

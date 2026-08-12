@@ -2,14 +2,27 @@
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Any, Dict, Mapping
+
+import yaml
 
 from infrastructure.models.providers.catalog import (
+    BUNDLED_PROVIDER_CATALOG_PATH,
+    ProviderCatalog,
     ProviderProfile,
-    load_provider_catalog,
+    parse_provider_catalog,
 )
 
-PROVIDER_CATALOG = load_provider_catalog()
+
+def _bundled_provider_catalog() -> ProviderCatalog:
+    with BUNDLED_PROVIDER_CATALOG_PATH.open(encoding="utf-8") as file:
+        document: Any = yaml.safe_load(file) or {}
+    if not isinstance(document, Mapping):
+        raise RuntimeError("bundled Provider catalog must be an object")
+    return parse_provider_catalog(document, BUNDLED_PROVIDER_CATALOG_PATH)
+
+
+PROVIDER_CATALOG = _bundled_provider_catalog()
 BUILTIN_PROFILES: Dict[str, ProviderProfile] = PROVIDER_CATALOG.profiles
 BUILTIN_PRODUCTS: Dict[str, ProviderProfile] = PROVIDER_CATALOG.products
 

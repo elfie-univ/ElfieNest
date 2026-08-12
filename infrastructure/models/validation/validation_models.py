@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import json
-import os
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
-from typing import Any, Mapping
+from typing import Mapping
 
-from infrastructure.persistence.layout.data_home import get_runtime_validation_dir
+from pydantic import JsonValue
 
 
 class CheckStatus(str, Enum):
@@ -28,9 +25,9 @@ class CheckResult:
     duration_ms: float | None = None
     provider: str | None = None
     model: str | None = None
-    details: Mapping[str, Any] = field(default_factory=dict)
+    details: Mapping[str, JsonValue] = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, JsonValue]:
         payload = asdict(self)
         payload["status"] = self.status.value
         payload["details"] = dict(self.details)
@@ -46,7 +43,7 @@ class ValidationSuite:
     def passed(self) -> bool:
         return not any(result.status is CheckStatus.FAILED for result in self.results)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, JsonValue]:
         return {
             "name": self.name,
             "passed": self.passed,
@@ -71,26 +68,9 @@ class ValidationReport:
     def passed(self) -> bool:
         return all(suite.passed for suite in self.suites)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, JsonValue]:
         return {
             "created_at": self.created_at,
             "passed": self.passed,
             "suites": [suite.to_dict() for suite in self.suites],
         }
-
-    def save(self, directory: Path | None = None) -> Path:
-        report_dir = directory or get_runtime_validation_dir()
-        report_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-        if os.name != "nt":
-            os.chmod(report_dir, 0o700)
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        path = report_dir / f"runtime-validation-{stamp}.json"
-        temp_path = path.with_name(f".{path.name}.tmp")
-        temp_path.write_text(
-            json.dumps(self.to_dict(), ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        if os.name != "nt":
-            os.chmod(temp_path, 0o600)
-        temp_path.replace(path)
-        return path

@@ -12,10 +12,10 @@
 > [System conformance](../conformance/system).
 
 The system contract governs root placement and cross-module boundaries. The
-Application contract governs behavior inside `app/`. The older AI Runtime
-contract remains only a behavior inventory for the current migration package;
-it does not define a target module and cannot reverse this contract. Where an
-older child contract names a legacy owner or path, this contract controls the
+Application contract governs behavior inside `app/`. The Model, Food and tool
+behavior contract remains only a behavior inventory for the current migration
+package; it does not define a target module and cannot reverse this contract.
+Where a child contract names a legacy owner or path, this contract controls the
 target while the conformance register records the transition.
 
 ## Target system shape

@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from infrastructure.persistence.layout.data_home import get_report_database_path
+from infrastructure.persistence.report_storage import ReportStorageAdapter
 from infrastructure.persistence.reports.validation_reports import (
     InvalidReportIdentityError,
     ReportRepository,
@@ -74,6 +75,32 @@ def test_model_validation_uses_connection_and_endpoint_identity(
         "latency_class": "fast",
         "error": None,
     }
+
+
+def test_report_storage_adapter_keeps_injected_repository_as_fact_source(
+    tmp_path: Path,
+) -> None:
+    repository = ReportRepository(tmp_path / "injected-report.sqlite")
+    reports = ReportStorageAdapter(repository)
+
+    reports.write_model_validation_report(
+        "openai_api_0001",
+        "injected-model",
+        status="passed",
+        checked_at="2026-07-29T01:02:03+00:00",
+        latency_ms=5.0,
+        latency_class="fast",
+        error=None,
+        trigger="full",
+    )
+
+    assert (
+        reports.read_latest_model_validation("openai_api_0001", "injected-model")[
+            "status"
+        ]
+        == "passed"
+    )
+    assert (tmp_path / "injected-report.sqlite").exists()
 
 
 def test_repository_projects_latest_as_of_and_complete_run(

@@ -7,19 +7,10 @@ which leaves a narrow persistence seam for a future remote updater.
 
 from __future__ import annotations
 
-import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Literal, Mapping
-
-from infrastructure.persistence.configuration.config_store import (
-    ConfigStoreError,
-    read_yaml_mapping,
-)
-from infrastructure.persistence.layout.data_home import get_provider_catalog_path
-
-logger = logging.getLogger("infrastructure.models.providers.catalog")
 
 PROVIDER_CATALOG_VERSION = 2
 BUNDLED_PROVIDER_CATALOG_PATH = Path(__file__).with_name("provider-catalog.yaml")
@@ -45,7 +36,7 @@ _DISCOVERY_STRATEGIES = frozenset(
 )
 
 
-class ProviderCatalogError(ConfigStoreError):
+class ProviderCatalogError(RuntimeError):
     """Provider catalog is missing or violates its versioned schema."""
 
 
@@ -119,34 +110,14 @@ class ProviderCatalog:
         return []
 
 
-def load_provider_catalog(
-    override_path: Path | None = None,
+def parse_provider_catalog(
+    document: Mapping[str, Any], source: Path
 ) -> ProviderCatalog:
-    """Load a validated local full-catalog override or the bundled baseline."""
-    candidate = override_path or get_provider_catalog_path()
-    if candidate.exists():
-        try:
-            return _load_catalog_file(candidate)
-        except ProviderCatalogError as exc:
-            logger.warning(
-                "Ignoring invalid Provider catalog override %s: %s",
-                candidate,
-                exc,
-            )
-    return _load_catalog_file(BUNDLED_PROVIDER_CATALOG_PATH)
+    """Parse one already-loaded catalog document.
 
-
-def _load_catalog_file(path: Path) -> ProviderCatalog:
-    if not path.is_file():
-        raise ProviderCatalogError(f"Provider catalog does not exist: {path}")
-    try:
-        document = read_yaml_mapping(path)
-    except ConfigStoreError as exc:
-        raise ProviderCatalogError(str(exc)) from exc
-    return _parse_catalog(document, path)
-
-
-def _parse_catalog(document: Mapping[str, Any], source: Path) -> ProviderCatalog:
+    File selection and YAML I/O belong to the persistence adapter; this module
+    only owns the provider semantic schema and validation rules.
+    """
     if _contains_secret_field(document):
         raise ProviderCatalogError(
             f"Provider catalog must not contain plaintext credentials: {source}"

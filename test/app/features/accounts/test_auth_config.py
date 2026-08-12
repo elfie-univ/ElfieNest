@@ -6,7 +6,8 @@ from app.features.configuration.settings import (
     StoredLoginRateLimit,
     StoredSecuritySettings,
 )
-from infrastructure.platform import RuntimeSecurityPolicyAdapter, RuntimeSettingsAdapter
+from infrastructure.persistence.configuration.settings import RuntimeSettingsAdapter
+from infrastructure.platform import RuntimeSecurityPolicyAdapter
 
 
 def test_runtime_security_policy_reads_selected_product_root(tmp_path: Path) -> None:

@@ -14,7 +14,9 @@ from typing import Final, Optional, Sequence
 from app.interfaces.web.build_discovery import discover_web_build
 
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[3]
-FRONTEND_SOURCE_DIRECTORY: Final = PROJECT_ROOT / "app" / "interfaces" / "web" / "frontend"
+FRONTEND_SOURCE_DIRECTORY: Final = (
+    PROJECT_ROOT / "app" / "interfaces" / "web" / "frontend"
+)
 WEB_BUILD_DIRECTORY: Final = PROJECT_ROOT / "build" / "web"
 BUILD_MANIFEST_NAME: Final = "build-manifest.json"
 PNPM_VERSION: Final = "10.12.1"
@@ -99,7 +101,9 @@ def ensure_frontend_build(
     try:
         _write_build_marker(output_directory, completed_digest)
     except OSError as error:
-        raise FrontendBuildError(f"Could not record frontend build state: {error}") from error
+        raise FrontendBuildError(
+            f"Could not record frontend build state: {error}"
+        ) from error
     if not bundle_is_current(output_directory, source_directory):
         raise FrontendBuildError(
             "Frontend build completed but the generated Web shell could not be verified"
@@ -124,7 +128,9 @@ def _run_pnpm(frontend_root: Path, arguments: Sequence[str]) -> None:
         else:
             subprocess.run(command, cwd=frontend_root, check=True)
     except OSError as error:
-        raise FrontendBuildError(f"Could not run frontend build command: {error}") from error
+        raise FrontendBuildError(
+            f"Could not run frontend build command: {error}"
+        ) from error
     except subprocess.CalledProcessError as error:
         output = "\n".join(
             value.strip()

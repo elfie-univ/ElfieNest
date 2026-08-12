@@ -104,7 +104,7 @@ boundaries, see [`docs/developer/`](../docs/developer/).
 ## Corresponding tests
 
 - `test/app/features/`: product use-cases;
-- `test/app/infrastructure/`: persistence and other infrastructure;
+- `test/infrastructure/`: persistence and other infrastructure;
 - `test/app/interfaces/`: API, CLI and Web boundaries;
 - `test/app/orchestration/`: engine, cognitive loop and platform lifecycle;
 - `test/architecture/test_project_structure.py`: top-level directories, legacy

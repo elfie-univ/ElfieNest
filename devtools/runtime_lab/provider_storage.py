@@ -6,13 +6,13 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping, Optional, Tuple
 
+from infrastructure.models.provider_records import ProviderModelRecord
 from infrastructure.models.providers.profiles import BUILTIN_PROFILES, get_product
 from infrastructure.persistence.provider_connection_mutations import (
     delete_connection_with_secret,
     finalize_created_connection,
     replace_connection_with_secret,
 )
-from infrastructure.persistence.provider_connection_records import ProviderModelRecord
 from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,

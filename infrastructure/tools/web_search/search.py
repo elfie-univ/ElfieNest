@@ -4,9 +4,11 @@ import json
 import logging
 import urllib.parse
 import urllib.request
-from typing import Any, Dict, List, Mapping
+from typing import Callable, Dict, List, Mapping, Optional
 
-from infrastructure.tools.execution.config import load_tool_configs
+from pydantic import JsonValue
+
+from infrastructure.tools.execution.config import SecretResolver, load_tool_configs
 
 logger = logging.getLogger("infrastructure.tools.search")
 
@@ -38,15 +40,29 @@ class WebSearchPlugin:
 
     @classmethod
     def from_runtime_policy(
-        cls, runtime_policy: Mapping[str, Any] | None
+        cls,
+        runtime_policy: Mapping[str, JsonValue] | None,
+        *,
+        secret_resolver: Optional[SecretResolver] = None,
+        config_loader: Optional[
+            Callable[
+                [Optional[Mapping[str, JsonValue]]],
+                Mapping[str, Mapping[str, JsonValue]],
+            ]
+        ] = None,
     ) -> WebSearchPlugin:
-        config = load_tool_configs(runtime_policy)["web_search"]
+        configs = (
+            config_loader(runtime_policy)
+            if config_loader is not None
+            else load_tool_configs(runtime_policy, secret_resolver=secret_resolver)
+        )
+        config = configs["web_search"]
         return cls(
             provider=str(config.get("provider") or "duckduckgo"),
             api_base=str(config.get("api_base") or ""),
             api_key=str(config.get("api_key") or ""),
-            max_results=int(config.get("max_results") or 3),
-            timeout_seconds=float(config.get("timeout_seconds") or 5.0),
+            max_results=_int_setting(config.get("max_results"), 3),
+            timeout_seconds=_float_setting(config.get("timeout_seconds"), 5.0),
         )
 
     def search(self, query: str, max_results: int | None = None) -> str:
@@ -196,3 +212,25 @@ class WebSearchPlugin:
                 f"    摘要: {res.get('snippet', '')}"
             )
         return "\n\n".join(formatted)
+
+
+def _int_setting(value: JsonValue, default: int) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float, str)):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+    return default
+
+
+def _float_setting(value: JsonValue, default: float) -> float:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+    return default

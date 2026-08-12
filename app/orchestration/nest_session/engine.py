@@ -10,9 +10,8 @@ from app.orchestration.nest_session.session import NestSession
 from app.orchestration.nest_session.world_perception import (
     collect_world_sensory_events,
 )
-from elfie.body import BodySensorEvent
-from nest import Nest, NestConfig
-from nest.state.repository import NestRepository
+from elfie.public import BodySensorEvent
+from nest.public import Nest, NestConfig, NestRepository
 
 logger = logging.getLogger("app.orchestration.engine")
 

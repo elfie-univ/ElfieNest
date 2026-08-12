@@ -7,27 +7,35 @@ import time
 from collections.abc import Callable, Sequence
 from copy import deepcopy
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Any
+from typing import Protocol
 
+from elfie.brain.tool_port import ToolPort
 from infrastructure.models.inference.llm_api import call_llm_api
 from infrastructure.models.runtime_config import LLMRuntimeConfig
-from infrastructure.models.runtime_observations import get_runtime_observer
 from infrastructure.models.validation.validation_models import (
     CheckResult,
     CheckStatus,
     ValidationSuite,
 )
-from infrastructure.tools.execution.loop import PortToolLoop
-from infrastructure.tools.execution.permissions import PermissionManager
-from infrastructure.tools.execution.skills_prompt import inject_skills_system_prompt
-from infrastructure.tools.port_adapter import ToolPortAdapter
-from infrastructure.tools.web_search.search import WebSearchPlugin
 
 AgentModelCaller = Callable[
-    [str, str, list[dict[str, Any]], float, int],
+    [str, str, list[dict[str, str]], float, int],
     str,
 ]
+
+
+class AgentToolLoop(Protocol):
+    def run(
+        self,
+        messages: list[dict[str, str]],
+        max_loops: int,
+        call_llm: Callable[[list[dict[str, str]]], str],
+    ) -> str: ...
+
+
+AgentToolPortFactory = Callable[[LLMRuntimeConfig, Path, str], ToolPort]
+AgentToolLoopFactory = Callable[[ToolPort, tuple[str, ...], str], AgentToolLoop]
+AgentPromptInjector = Callable[[list[dict[str, str]], list[str]], list[dict[str, str]]]
 
 
 class ModelAgentValidationRunner:
@@ -36,11 +44,15 @@ class ModelAgentValidationRunner:
         config: LLMRuntimeConfig,
         *,
         model_caller: AgentModelCaller | None = None,
-        search_plugin: Any = None,
+        tool_port_factory: AgentToolPortFactory,
+        tool_loop_factory: AgentToolLoopFactory,
+        prompt_injector: AgentPromptInjector,
     ) -> None:
         self.config = config
         self.model_caller = model_caller or self._call_model
-        self.search_plugin = search_plugin or WebSearchPlugin()
+        self._tool_port_factory = tool_port_factory
+        self._tool_loop_factory = tool_loop_factory
+        self._prompt_injector = prompt_injector
 
     def verify(
         self,
@@ -74,32 +86,20 @@ class ModelAgentValidationRunner:
                 (files_root / "probe.txt").write_text(
                     "ELFIE_LOCAL_FILE_OK", encoding="utf-8"
                 )
-                observer = get_runtime_observer()
                 policy = deepcopy(getattr(self.config, "runtime_policy", {}))
                 tools = policy.setdefault("tools", {})
                 tools.setdefault(tool_name, {})["enabled"] = True
-                validation_config = SimpleNamespace(runtime_policy=policy)
-                tool_port = ToolPortAdapter(
-                    config=validation_config,
-                    search_plugin=self.search_plugin,
-                    permission_manager=PermissionManager(validation_config, observer),
-                    observation_port=observer,
-                    workspace_resolver=lambda scope_id: (
-                        files_root if scope_id == "validation" else None
-                    ),
-                    allowed_tool_keys=(tool_name,),
+                validation_config = LLMRuntimeConfig(runtime_policy=policy)
+                tool_port = self._tool_port_factory(
+                    validation_config, files_root, tool_name
                 )
-                loop = PortToolLoop(
-                    tool_port,
-                    allowed_tool_keys=(tool_name,),
-                    scope_id="validation",
-                )
-                messages: list[dict[str, Any]] = [
+                loop = self._tool_loop_factory(tool_port, (tool_name,), "validation")
+                messages: list[dict[str, str]] = [
                     {"role": "user", "content": _tool_probe_prompt(tool_name)}
                 ]
-                inject_skills_system_prompt(messages, [tool_name])
+                self._prompt_injector(messages, [tool_name])
 
-                def invoke(loop_messages: list[dict[str, Any]]) -> str:
+                def invoke(loop_messages: list[dict[str, str]]) -> str:
                     return self.model_caller(
                         provider,
                         model,
@@ -139,7 +139,7 @@ class ModelAgentValidationRunner:
         self,
         provider: str,
         model: str,
-        messages: list[dict[str, Any]],
+        messages: list[dict[str, str]],
         temperature: float,
         max_tokens: int,
     ) -> str:

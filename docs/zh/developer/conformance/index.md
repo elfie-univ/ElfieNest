@@ -6,4 +6,4 @@
 - [系统架构一致性](./system)
 - [Elfie 内部架构一致性](./elfie)
 - [应用架构一致性](./application)
-- [当前 AI Runtime 迁移一致性](./ai-runtime)
+- [当前 Model/Food/Tool 一致性](./model-food-tool-conformance)

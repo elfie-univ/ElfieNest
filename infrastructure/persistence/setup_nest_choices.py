@@ -1,6 +1,6 @@
 """NestConfig-backed validation Adapter for Setup's bed-count choice."""
 
-from nest import NestConfig, NestConfigError
+from nest.public import NestConfig, NestConfigError
 
 
 class NestConfigSetupChoiceAdapter:

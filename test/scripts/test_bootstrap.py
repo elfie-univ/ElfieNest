@@ -201,13 +201,13 @@ def test_bootstrap_report_marks_absent_ollama_as_optional_missing(
     }
 
 
-def test_bootstrap_report_ignores_removed_project_private_ollama(
+def test_bootstrap_report_ignores_unrelated_project_private_ollama(
     tmp_path: Path,
 ) -> None:
     project_root = tmp_path / "project"
     scripts_dir = copy_bootstrap(project_root)
     prepare_build_runtime(project_root)
-    make_executable(project_root / "ai_runtime/setup/bin/ollama")
+    make_executable(project_root / "legacy-private/setup/bin/ollama")
     elfie_home = tmp_path / "elfie-home"
     elfie_home.mkdir()
 

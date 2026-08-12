@@ -6,7 +6,9 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from threading import Condition
-from typing import Protocol, TypedDict
+from typing import Mapping, Protocol, TypedDict
+
+from pydantic import JsonValue
 
 
 class RuntimeIntentPayload(TypedDict, total=False):
@@ -37,7 +39,7 @@ class GodotGateway(Protocol):
     ) -> bool: ...
 
 
-NativeEventHandler = Callable[[str, dict[str, object]], None]
+NativeEventHandler = Callable[[str, Mapping[str, JsonValue]], None]
 
 
 @dataclass(frozen=True)
@@ -117,7 +119,7 @@ class GodotTransport:
     def receive_runtime_event(
         self,
         event_name: str,
-        payload: dict[str, object],
+        payload: Mapping[str, JsonValue],
     ) -> None:
         command_id_value = payload.get("command_id")
         if not isinstance(command_id_value, str):

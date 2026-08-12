@@ -52,7 +52,7 @@ and the [Developer Docs](docs/developer/index.md) layer by layer.
   internal effectors;
 - A Nest that only holds resident IDs and in-nest semantic state, plus a Godot
   project that owns rooms, geometry, motion, collision and rendering;
-- A standalone AI Runtime, a product application layer, an Electron desktop
+- Model, Food and tool runtime capabilities, a product application layer, an Electron desktop
   host and isolated module workbenches.
 
 ## Core experience

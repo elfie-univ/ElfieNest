@@ -144,7 +144,7 @@ def test_config_llm_redirects_model_management_to_runtime_lab(
 
     config_editors.config_llm()
 
-    assert "managed in AI Runtime" in capsys.readouterr().out
+    assert "managed in Config Center" in capsys.readouterr().out
 
 
 def test_security_editor_writes_typed_security_settings(

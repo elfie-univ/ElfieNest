@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from infrastructure.persistence.layout.data_home import get_runtime_dir
-
 
 class LocalFileAccessError(RuntimeError):
     pass
@@ -14,16 +12,12 @@ class LocalFileAccessError(RuntimeError):
 class LocalFileAccessPlugin:
     def __init__(
         self,
-        root: str | Path | None = None,
+        root: str | Path,
         *,
         max_read_bytes: int = 65536,
         max_items: int = 200,
     ) -> None:
-        self.root = (
-            Path(root)
-            if root is not None
-            else get_runtime_dir() / "unbound-elfie-workspace"
-        )
+        self.root = Path(root)
         self.max_read_bytes = max_read_bytes
         self.max_items = max_items
         self.last_read_bytes = 0

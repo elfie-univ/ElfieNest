@@ -15,6 +15,7 @@ from elfie.brain.decision_types import (
     CancelPolicy,
     DecisionIntent,
     DecisionPlan,
+    MessageIntent,
     NoOpIntent,
     SpeechIntent,
 )
@@ -30,6 +31,7 @@ from elfie.message_types import (
 )
 
 RepairCallback = Callable[[str, Tuple[str, ...]], str]
+_OWNER_MESSAGE_FALLBACK = "我收到你的消息了，正在想一想。"
 _FENCED_JSON_PATTERN = re.compile(
     r"^```(?:json)?\s*(?P<body>.*?)\s*```$",
     flags=re.IGNORECASE | re.DOTALL,
@@ -197,7 +199,20 @@ class DecisionPlanDecoder:
         plan_id = PlanId(f"fallback-{seed.turn_id}")
         intent_id = IntentId(f"fallback-intent-{seed.turn_id}")
         intent: DecisionIntent
-        if meaningful:
+        if seed.reply_channel_id and seed.reply_conversation_id:
+            intent = MessageIntent(
+                type="message",
+                intent_id=intent_id,
+                cause_event_ids=seed.cause_event_ids,
+                dependency_ids=(),
+                deadline=seed.deadline,
+                cancel_policy=CancelPolicy.ALWAYS,
+                channel_id=seed.reply_channel_id,
+                conversation_id=seed.reply_conversation_id,
+                content=text if meaningful else _OWNER_MESSAGE_FALLBACK,
+            )
+            fallback_reason = reason or "owner_message_fallback"
+        elif meaningful:
             intent = SpeechIntent(
                 type="speech",
                 intent_id=intent_id,

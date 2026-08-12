@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from app.features.accounts import AccountPrincipal, is_manager
-from elfie import Elfie
-from elfie.body import BodyPort
+from elfie.public import BodyPort, Elfie
 
 from .errors import EmbodimentForbidden, EmbodimentUnavailable
 from .models import (

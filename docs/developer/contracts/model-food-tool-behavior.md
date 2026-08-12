@@ -5,10 +5,10 @@
 
 > **Behavior authority during decomposition.** This document preserves the
 > accepted Provider, model, Food and tool behavior formerly implemented under
-> `ai_runtime/`. It does not define a target AI Runtime module. Target ownership,
-> dependencies and physical placement are controlled by the
+> the retired `ai_runtime/` root. It does not define a target Runtime module.
+> Target ownership, dependencies and physical placement are controlled by the
 > [system architecture contract](system). Current deviations are recorded in
-> [AI Runtime conformance](../conformance/ai-runtime).
+> [Model/Food/Tool conformance](../conformance/model-food-tool-conformance).
 > The English and Chinese files are synchronized language mirrors of one
 > logical contract and must change together.
 

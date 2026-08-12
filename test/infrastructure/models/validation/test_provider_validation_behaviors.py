@@ -11,7 +11,6 @@ from app.features.configuration import (
     StoredProviderConnection,
     StoredProviderModel,
 )
-from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.validation.provider_validation_policy import (
     choose_validation_mode,
     connection_validation_fingerprint,
@@ -22,15 +21,21 @@ from infrastructure.models.validation.provider_validation_runtime import (
 from infrastructure.models.validation.provider_validation_service import (
     validate_connection,
 )
-from infrastructure.persistence.configuration.secrets import set_connection_secret
+from infrastructure.persistence.configuration.secrets import (
+    resolve_secret,
+    set_connection_secret,
+)
 from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,
     ProviderModelRecord,
 )
+from infrastructure.persistence.report_storage import ReportStorageAdapter
+from infrastructure.persistence.reports.report_repository import ReportRepository
 from infrastructure.persistence.reports.validation_reports import (
     read_latest_model_validation,
 )
+from test.support.provider import provider_models_adapter
 
 
 def _full_report(connection, checked_at: str) -> dict[str, object]:
@@ -46,7 +51,9 @@ def _full_report(connection, checked_at: str) -> dict[str, object]:
             "validation_mode": "full",
             "full_run_id": "run-full",
             "full_checked_at": checked_at,
-            "config_fingerprint": connection_validation_fingerprint(connection),
+            "config_fingerprint": connection_validation_fingerprint(
+                connection, secret_resolver=resolve_secret
+            ),
             "model_ids": list(model_ids),
         },
     }
@@ -166,12 +173,22 @@ def test_connection_fingerprint_ignores_another_connection_secret_change(
     )
 
     set_connection_secret(jdcloud.connection_id, "jd-key")
-    jdcloud_before = connection_validation_fingerprint(jdcloud)
-    deepseek_before = connection_validation_fingerprint(deepseek)
+    jdcloud_before = connection_validation_fingerprint(
+        jdcloud, secret_resolver=resolve_secret
+    )
+    deepseek_before = connection_validation_fingerprint(
+        deepseek, secret_resolver=resolve_secret
+    )
     set_connection_secret(deepseek.connection_id, "deepseek-key")
 
-    assert connection_validation_fingerprint(jdcloud) == jdcloud_before
-    assert connection_validation_fingerprint(deepseek) != deepseek_before
+    assert (
+        connection_validation_fingerprint(jdcloud, secret_resolver=resolve_secret)
+        == jdcloud_before
+    )
+    assert (
+        connection_validation_fingerprint(deepseek, secret_resolver=resolve_secret)
+        != deepseek_before
+    )
 
 
 def test_runtime_projection_uses_connection_id_for_builtin_connection() -> None:
@@ -203,6 +220,7 @@ def test_single_validation_checks_configured_models_without_provider_models_prob
         ),
     )
     ProviderConnectionStore().replace(connection)
+    reports = ReportStorageAdapter(ReportRepository())
     calls: list[str] = []
 
     def model_check(connection, model_id, runtime_projection):
@@ -223,6 +241,8 @@ def test_single_validation_checks_configured_models_without_provider_models_prob
             validate_connection(
                 connection,
                 runtime_projection=runtime_projection,
+                reports=reports,
+                secret_resolver=resolve_secret,
             )
         )
 
@@ -245,6 +265,7 @@ def test_single_validation_reuses_recent_full_result_without_new_model_requests(
         models=(ProviderModelRecord(endpoint_model_id="model-a"),),
     )
     ProviderConnectionStore().replace(connection)
+    reports = ReportStorageAdapter(ReportRepository())
 
     def model_check(connection, model_id, runtime_projection):
         _ = connection, model_id, runtime_projection
@@ -263,6 +284,8 @@ def test_single_validation_reuses_recent_full_result_without_new_model_requests(
             validate_connection(
                 connection,
                 runtime_projection=runtime_projection,
+                reports=reports,
+                secret_resolver=resolve_secret,
             )
         )
         check.reset_mock()
@@ -270,6 +293,8 @@ def test_single_validation_reuses_recent_full_result_without_new_model_requests(
             validate_connection(
                 connection,
                 runtime_projection=runtime_projection,
+                reports=reports,
+                secret_resolver=resolve_secret,
             )
         )
 
@@ -427,7 +452,7 @@ def test_validate_all_writes_each_enabled_model_and_skips_hidden(
         side_effect=model_check,
     ):
         payload = asyncio.run(
-            ProviderModelsAdapter().validate_all(
+            provider_models_adapter().validate_all(
                 (
                     StoredProviderConnection(
                         connection_id=connection.connection_id,

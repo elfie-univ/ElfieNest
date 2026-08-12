@@ -6,4 +6,4 @@
 - [仓库架构治理](./repository-governance)
 - [系统架构](./system)
 - [应用架构](./application)
-- [模型、Food 与工具行为](./ai-runtime)
+- [模型、Food 与工具行为](./model-food-tool-behavior)

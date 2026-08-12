@@ -7,17 +7,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple
 
-from infrastructure.persistence.configuration.config_store import (
-    ConfigStoreError,
-    read_yaml_mapping,
-)
+import yaml
 
 MODEL_CATALOG_VERSION = 1
 BUNDLED_MODEL_CATALOG_PATH = Path(__file__).with_name("model-catalog.yaml")
 _SEPARATORS = re.compile(r"[\s_]+")
 
 
-class ModelIdentityCatalogError(ConfigStoreError):
+class ModelIdentityCatalogError(RuntimeError):
     """The curated model identity catalog is malformed."""
 
 
@@ -36,7 +33,13 @@ class CanonicalModelIdentity:
 def load_model_identities(
     path: Path = BUNDLED_MODEL_CATALOG_PATH,
 ) -> Dict[str, CanonicalModelIdentity]:
-    document = read_yaml_mapping(path)
+    try:
+        with path.open(encoding="utf-8") as file:
+            document: Any = yaml.safe_load(file) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        raise ModelIdentityCatalogError(f"无法读取标准模型目录: {path}") from exc
+    if not isinstance(document, Mapping):
+        raise ModelIdentityCatalogError("标准模型目录顶层必须是对象")
     if document.get("version") != MODEL_CATALOG_VERSION:
         raise ModelIdentityCatalogError("不支持的标准模型目录版本")
     raw_models = document.get("models")

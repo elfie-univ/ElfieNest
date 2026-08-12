@@ -28,9 +28,15 @@ class PublicOllamaSetupTechnologyAdapter:
 
     def default_binding(self) -> SetupOllamaBinding:
         try:
-            target, install_kind = official_launch_target(self._platform.platform)
+            target, _ = official_launch_target(self._platform.platform)
         except RuntimeError:
             target, install_kind = "", "existing-public"
+        else:
+            # A default binding describes an already present public installation.
+            # Official provenance is only available after the explicit installer
+            # flow records its source and digest; treating this initial binding as
+            # ``official-script`` makes a healthy existing Ollama look corrupt.
+            install_kind = "existing-public"
         return SetupOllamaBinding(
             api_base="http://127.0.0.1:11434",
             platform=self._platform.platform,

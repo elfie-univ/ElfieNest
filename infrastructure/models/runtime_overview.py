@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import json
-import os
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from app.features.configuration.food import StoredModelEvidence, project_food_health
@@ -15,13 +12,10 @@ from infrastructure.models.capabilities import (
     known_capabilities,
 )
 from infrastructure.models.catalog import BUILTIN_MODEL_CATALOG
-from infrastructure.models.food_technology import (
-    query_model_evidence,
-    record_model_evidence,
-    stored_food_package,
-)
+from infrastructure.models.food_technology import stored_food_package
 from infrastructure.models.providers.profiles import BUILTIN_PROFILES
 from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.models.storage_ports import ModelEvidencePort
 from infrastructure.models.validation.provider_validation import (
     ProviderValidationRunner,
     discover_provider_models,
@@ -31,8 +25,6 @@ from infrastructure.models.validation.validation_models import (
     CheckStatus,
     ValidationSuite,
 )
-from infrastructure.persistence.layout.data_home import get_model_validation_dir
-from infrastructure.persistence.reports.report_repository import ReportRepository
 
 
 def configured_provider_ids(config: LLMRuntimeConfig) -> list[str]:
@@ -53,67 +45,16 @@ def configured_provider_ids(config: LLMRuntimeConfig) -> list[str]:
     return configured
 
 
-class RuntimeOverviewStore:
-    def __init__(self, directory: Path | None = None) -> None:
-        self.directory = directory or get_model_validation_dir()
-        self.current_path = self.directory / "runtime-overview-current.json"
-
-    def load_current(self) -> dict[str, Any] | None:
-        return self._read(self.current_path)
-
-    def save(self, report: Mapping[str, Any]) -> Path:
-        self.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-        if os.name != "nt":
-            os.chmod(self.directory, 0o700)
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-        history_path = self.directory / f"runtime-overview-{stamp}.json"
-        payload = json.dumps(dict(report), ensure_ascii=False, indent=2)
-        self._atomic_write(history_path, payload)
-        self._atomic_write(self.current_path, payload)
-        return history_path
-
-    def history(self) -> list[Path]:
-        if not self.directory.exists():
-            return []
-        return sorted(
-            (
-                path
-                for path in self.directory.glob("runtime-overview-*.json")
-                if path.name != self.current_path.name
-            ),
-            reverse=True,
-        )
-
-    def load_path(self, path: Path) -> dict[str, Any] | None:
-        return self._read(path)
-
-    @staticmethod
-    def _read(path: Path) -> dict[str, Any] | None:
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return None
-        return payload if isinstance(payload, dict) else None
-
-    @staticmethod
-    def _atomic_write(path: Path, payload: str) -> None:
-        temp_path = path.with_name(f".{path.name}.tmp")
-        temp_path.write_text(payload, encoding="utf-8")
-        if os.name != "nt":
-            os.chmod(temp_path, 0o600)
-        temp_path.replace(path)
-
-
 class RuntimeOverviewGenerator:
     def __init__(
         self,
         config: LLMRuntimeConfig,
         *,
-        report_repository: ReportRepository | None = None,
+        evidence: ModelEvidencePort,
         food_store: FoodPort | None = None,
     ) -> None:
         self.config = config
-        self.report_repository = report_repository or ReportRepository()
+        self.evidence = evidence
         self.food_store = food_store
 
     def _load_food_catalog(self) -> FoodCatalog:
@@ -124,12 +65,14 @@ class RuntimeOverviewGenerator:
     def snapshot(self) -> dict[str, Any]:
         return build_overview(
             self.config,
-            list(query_model_evidence(repository=self.report_repository).values()),
+            list(self.evidence.list_model_evidence()),
             self._load_food_catalog(),
         )
 
     def regenerate(self) -> dict[str, Any]:
-        evidence_before = query_model_evidence(repository=self.report_repository)
+        evidence_before = {
+            item.reference: item for item in self.evidence.list_model_evidence()
+        }
         provider_evidence: dict[str, list[StoredModelEvidence]] = {}
         suites: list[ValidationSuite] = []
         provider_health: dict[str, str] = {}
@@ -216,15 +159,14 @@ class RuntimeOverviewGenerator:
             suites.append(ValidationSuite(f"provider:{provider_id}", tuple(results)))
 
         for provider_id, evidence in provider_evidence.items():
-            record_model_evidence(
+            self.evidence.record_model_evidence(
                 evidence,
-                repository=self.report_repository,
                 scope=f"overview:{provider_id}",
                 trigger="overview",
             )
         report = build_overview(
             self.config,
-            list(query_model_evidence(repository=self.report_repository).values()),
+            list(self.evidence.list_model_evidence()),
             self._load_food_catalog(),
             provider_health=provider_health,
         )

@@ -72,6 +72,18 @@ def test_versioned_status_issues_restricted_setup_cookie(tmp_path: Path) -> None
     assert response.headers["X-CSRF-Token"] == response.json()["csrf_token"]
 
 
+def test_setup_status_replaces_stale_session_cookie_with_setup_cookie(
+    tmp_path: Path,
+) -> None:
+    with _client(tmp_path) as client:
+        client.cookies.set("session_token", "stale-session-token")
+        response = client.get("/api/v1/setup/status")
+
+    assert response.status_code == 200
+    assert response.cookies.get("setup_token")
+    assert response.headers["X-CSRF-Token"] == response.json()["csrf_token"]
+
+
 def test_model_catalog_is_a_collection_resource(tmp_path: Path) -> None:
     with _client(tmp_path) as client:
         response = client.get("/api/v1/setup/models")

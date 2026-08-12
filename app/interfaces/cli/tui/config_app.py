@@ -42,7 +42,7 @@ def run_config_tui(
         print_banner()
         print_tui_panel(
             "Config Center / Runtime Config",
-            "AI runtime core config; other settings in Web console",
+            "Provider, model, Food and tool configuration; other settings in Web console",
         )
         choice = menu.choose(
             "Config Center",

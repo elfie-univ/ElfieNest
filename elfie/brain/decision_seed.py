@@ -1,6 +1,6 @@
 """Host-owned envelope fields for one model decision decode."""
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 from elfie.message_types import EventId, FrozenContractModel, TurnId, UTCDateTime
 
@@ -15,6 +15,10 @@ class DecisionDecodeSeed(FrozenContractModel):
     created_at: UTCDateTime
     deadline: UTCDateTime
     cause_event_ids: Tuple[EventId, ...]
+    # A trusted inbound owner conversation may receive a safe text fallback.
+    # These are host-derived targets, never taken from model output.
+    reply_channel_id: Optional[str] = None
+    reply_conversation_id: Optional[str] = None
 
 
 __all__ = ("DecisionDecodeSeed",)

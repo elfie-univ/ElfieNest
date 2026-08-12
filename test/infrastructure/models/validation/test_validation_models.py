@@ -7,6 +7,7 @@ from infrastructure.models.validation.validation_models import (
     ValidationReport,
     ValidationSuite,
 )
+from infrastructure.persistence.validation_artifacts import save_validation_report
 
 
 def test_validation_report_summarizes_and_saves_without_secrets(tmp_path):
@@ -23,7 +24,7 @@ def test_validation_report_summarizes_and_saves_without_secrets(tmp_path):
     )
     report = ValidationReport((suite,))
 
-    path = report.save(tmp_path)
+    path = save_validation_report(report, tmp_path)
     payload = json.loads(path.read_text(encoding="utf-8"))
 
     assert payload["passed"] is True
@@ -50,7 +51,7 @@ def test_validation_report_defaults_to_runtime_validation_directory(
     report = ValidationReport(())
 
     # When
-    path = report.save()
+    path = save_validation_report(report)
 
     # Then
     assert path.parent == tmp_path / "reports" / "runtime-validations"

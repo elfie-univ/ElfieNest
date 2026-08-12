@@ -26,7 +26,7 @@ class _FakeRuntime:
 def test_fallback_runtime_preserves_configured_tick_interval(monkeypatch) -> None:
     monkeypatch.setattr(
         runtime_bootstrap,
-        "LLMRuntimeConfig",
+        "load_runtime_config",
         lambda **_kwargs: SimpleNamespace(
             system={"engine": {"tick_interval_sec": 2.25}}
         ),
@@ -53,7 +53,7 @@ def test_model_runtime_receives_existing_food_and_warmup_dependencies(
     loader = object()
     monkeypatch.setattr(
         runtime_bootstrap,
-        "LLMRuntimeConfig",
+        "load_runtime_config",
         lambda **_kwargs: config,
     )
     monkeypatch.setattr(runtime_bootstrap, "RuntimeAgent", _FakeRuntime)

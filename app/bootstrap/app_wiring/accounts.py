@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.features.accounts import AccountsService
 from infrastructure.persistence.accounts import SQLiteAccountsAdapter
+from infrastructure.persistence.configuration.settings import RuntimeSettingsAdapter
 from infrastructure.persistence.layout.data_home import (
     data_home_from_db_path,
     get_config_path,
@@ -11,7 +12,6 @@ from infrastructure.persistence.layout.data_home import (
 from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.platform import (
     RuntimeSecurityPolicyAdapter,
-    RuntimeSettingsAdapter,
     SettingsAccountQuotaPolicyAdapter,
 )
 

@@ -249,6 +249,34 @@ def test_failed_json_repair_suppresses_json_like_raw_text() -> None:
     )
 
 
+def test_invalid_owner_model_output_falls_back_to_the_trusted_chat_target() -> None:
+    # Given: the host has proven the inbound owner conversation and the model
+    # returned an unusable JSON-shaped response.
+    seed = _seed().model_copy(
+        update={
+            "reply_channel_id": "godot-owner",
+            "reply_conversation_id": "owner:7",
+        }
+    )
+    result = DecisionPlanDecoder().decode(
+        seed=seed,
+        generation=ModelGenerationResult(
+            text='{"decision_plan":"not a DecisionPlan"}',
+            selected_mode=StructuredOutputMode.JSON_TEXT,
+            model_key="qwen2.5:0.5b",
+            provider="ollama",
+        ),
+        capabilities=_capabilities(supports_json_schema=False, supports_json_mode=True),
+    )
+
+    # Then: only the trusted target is used; model output cannot choose a route.
+    intent = result.plan.intents[0]
+    assert intent.type == "message"
+    assert intent.channel_id == "godot-owner"  # type: ignore[attr-defined]
+    assert intent.conversation_id == "owner:7"  # type: ignore[attr-defined]
+    assert intent.content == "我收到你的消息了，正在想一想。"  # type: ignore[attr-defined]
+
+
 def test_known_legacy_decision_plan_wrapper_extracts_reply_without_repair() -> None:
     # Given: the legacy fenced DecisionPlan wrapper shown by the product chat.
     calls: list[tuple[str, tuple[str, ...]]] = []

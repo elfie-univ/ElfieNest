@@ -8,15 +8,17 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
-from elfie import Elfie
-from elfie.communication import CommunicationEnvelope, MessageDirection, TextPart
-from elfie.communication.contracts import InboundDisposition
-from elfie.message_types import (
+from elfie.public import (
     ActorId,
     ActorRef,
+    CommunicationEnvelope,
+    Elfie,
     ElfieId,
     EventId,
+    InboundDisposition,
+    MessageDirection,
     MessageMeta,
+    TextPart,
     TraceId,
 )
 

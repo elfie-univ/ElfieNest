@@ -109,7 +109,7 @@ class GodotNestSessionAdapter:
         correlation_id: str,
     ) -> bool:
         return self._gateway.send_body_command(
-            dict(payload),
+            payload,
             correlation_id=correlation_id,
         )
 

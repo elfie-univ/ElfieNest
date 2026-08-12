@@ -8,8 +8,8 @@ from typing import Callable, Protocol
 
 from pydantic import JsonValue
 
-from app.features.communication import CommunicationError
-from elfie.communication import CommunicationEnvelope, DeliveryReceipt, DeliveryStatus
+from app.features.communication import CommunicationError, RecordedElfieMessageResult
+from elfie.public import CommunicationEnvelope, DeliveryReceipt, DeliveryStatus
 
 from .errors import MessageDeliveryError
 from .models import DeliverElfieReplyCommand
@@ -19,7 +19,9 @@ logger = logging.getLogger("app.orchestration.message_delivery")
 
 
 class ElfieReplyDelivery(Protocol):
-    def deliver_elfie_reply(self, command: DeliverElfieReplyCommand) -> object: ...
+    def deliver_elfie_reply(
+        self, command: DeliverElfieReplyCommand
+    ) -> RecordedElfieMessageResult: ...
 
 
 class MessageDeliveryOwnerBroadcaster:

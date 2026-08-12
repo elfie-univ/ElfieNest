@@ -2,6 +2,8 @@ from elfie.brain.food_port import FoodAssignment, FoodPackage
 from infrastructure.models.food_execution import FoodExecutor
 from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.tools import DisabledToolPort
+from infrastructure.tools.execution.loop import PortToolLoop
+from infrastructure.tools.execution.skills_prompt import inject_skills_system_prompt
 
 
 def test_executor_uses_role_then_one_fallback(monkeypatch, tmp_path):
@@ -23,6 +25,10 @@ def test_executor_uses_role_then_one_fallback(monkeypatch, tmp_path):
         config=config,
         tool_port=DisabledToolPort(),
         model_caller=caller,
+        tool_loop_factory=lambda port, allowed, scope: PortToolLoop(
+            port, allowed_tool_keys=allowed, scope_id=scope
+        ),
+        prompt_injector=inject_skills_system_prompt,
     )
     result = executor.execute(
         FoodPackage(

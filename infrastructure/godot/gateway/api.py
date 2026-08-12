@@ -8,10 +8,11 @@ import logging
 import os
 import secrets
 import threading
-from typing import Any
+from typing import Any, cast
 
 import websockets
 
+from infrastructure.godot.body_transport import RuntimeIntentPayload
 from infrastructure.godot.gateway.api_v2 import GodotProtocolV2Handler
 from infrastructure.godot.gateway.messages import (
     CommandName,
@@ -209,7 +210,7 @@ class GodotAPIServer:
 
     def send_body_command(
         self,
-        payload: dict[str, Any],
+        payload: RuntimeIntentPayload,
         *,
         correlation_id: str,
     ) -> bool:
@@ -219,7 +220,7 @@ class GodotAPIServer:
         return (
             self.send_runtime_command(
                 CommandName.EXECUTE_INTENT,
-                payload,
+                cast(JsonObject, payload),
                 world_revision=revision,
                 correlation_id=correlation_id,
             )

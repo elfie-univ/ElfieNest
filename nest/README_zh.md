@@ -22,7 +22,7 @@
 - 创建、恢复或持有真实 `Elfie` / `ElfieIndividual` 对象；
 - 执行单精灵认知、记忆、身体或通信生命周期；
 - 定义房屋几何、世界坐标、碰撞体、导航网格、家具资源和渲染；
-- 编排 AI Runtime 或产品账户流程。
+- 编排跨 authority 运行流程或产品账户流程。
 
 `NestState` 只保存精灵 ID、长期住处和巢内语义状态，不保存家具副本、坐标或
 真实精灵对象。房屋、几何、坐标、移动、碰撞判定与渲染的唯一源码来源是独立
@@ -60,7 +60,7 @@ infrastructure/godot ──> 协议、宿主与产物适配器
 godot_project/ ──> 场景与几何的唯一事实源
 ```
 
-`nest/` 不依赖 `app/`、`elfie/` 或 `ai_runtime/`。需要把 Nest 事件交给真实
+`nest/` 不依赖 `app/`、`elfie/` 或模型、Food、工具 Adapter。需要把 Nest 事件交给真实
 精灵时，由 `app/orchestration/` 按 ID 查找并调用精灵对象。
 
 ## Runtime 权威与 Observer 生命周期

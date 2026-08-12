@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Protocol, cast
 
+from pydantic import JsonValue
+
 from app.features.configuration.capabilities import (
     CapabilitiesPortError,
     CapabilityKey,
@@ -26,7 +28,7 @@ RunnerFactory = Callable[[LLMRuntimeConfig], ValidationRunner]
 
 
 class DirectCapabilityValidationAdapter:
-    """Translate the sole AI Runtime validator into the App-owned Port model."""
+    """Translate the sole safe-tool validator into the App-owned Port model."""
 
     def __init__(
         self,
@@ -53,7 +55,7 @@ class DirectCapabilityValidationAdapter:
         status = result.status.value
         if status not in {"passed", "failed", "warning", "skipped"}:
             raise CapabilitiesPortError("系统能力验证返回未知状态")
-        details: Mapping[str, object] = result.details
+        details: Mapping[str, JsonValue] = result.details
         raw_error_type = details.get("error_type")
         error_type = raw_error_type if isinstance(raw_error_type, str) else None
         return StoredValidationResult(

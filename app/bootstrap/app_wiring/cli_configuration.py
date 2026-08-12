@@ -14,15 +14,20 @@ from app.features.configuration import (
 from infrastructure.models.cli_catalog import CliModelCatalogAdapter
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.provider_administration import ProviderModelsAdapter
+from infrastructure.persistence.configuration.settings import RuntimeSettingsAdapter
+from infrastructure.persistence.food_evidence import SQLiteFoodEvidenceAdapter
 from infrastructure.persistence.layout.data_home import (
     data_home_from_db_path,
     get_config_path,
 )
 from infrastructure.persistence.layout.data_layout import final_root_layout
+from infrastructure.persistence.provider_connections import ProviderConnectionStore
 from infrastructure.persistence.provider_references import (
     SQLiteProviderReferenceAdapter,
 )
-from infrastructure.platform import RuntimeSettingsAdapter
+from infrastructure.persistence.provider_storage import ProviderStorageAdapter
+from infrastructure.persistence.report_storage import ReportStorageAdapter
+from infrastructure.persistence.reports.report_repository import ReportRepository
 
 
 class RuntimeConfigMenus(Protocol):
@@ -48,13 +53,24 @@ def build_cli_configuration(
     runtime_menus: RuntimeConfigMenus,
 ) -> CliConfigurationContainer:
     config_path = get_config_path()
-    provider_models = ProviderModelsAdapter()
+    provider_reports = ReportStorageAdapter(ReportRepository())
+    provider_store = ProviderConnectionStore()
+    provider_models = ProviderModelsAdapter(
+        ProviderStorageAdapter(provider_store),
+        provider_reports,
+        SQLiteFoodEvidenceAdapter(provider_store, ReportRepository()),
+    )
     if db_path != ":memory:":
         layout = final_root_layout(data_home_from_db_path(db_path))
         config_path = layout.runtime_config
+        provider_store = ProviderConnectionStore(layout.providers_config)
         provider_models = ProviderModelsAdapter(
-            layout.providers_config,
-            layout.auth_env,
+            ProviderStorageAdapter(
+                provider_store,
+                secret_path=layout.auth_env,
+            ),
+            provider_reports,
+            SQLiteFoodEvidenceAdapter(provider_store, ReportRepository()),
         )
     providers = ProvidersService(
         catalog=provider_models,

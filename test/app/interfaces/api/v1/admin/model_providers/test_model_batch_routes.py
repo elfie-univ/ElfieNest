@@ -12,7 +12,6 @@ from app.features.configuration import ProvidersService
 from app.interfaces.api.v1.admin.model_providers.routes import router
 from app.interfaces.api.v1.auth import require_user
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
-from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
@@ -20,6 +19,7 @@ from infrastructure.persistence.provider_connections import (
 from infrastructure.persistence.reports.validation_reports import (
     write_model_validation_report,
 )
+from test.support.provider import provider_models_adapter
 
 
 class NoProviderReferences:
@@ -39,7 +39,7 @@ class NoProviderReferences:
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    adapter = ProviderModelsAdapter()
+    adapter = provider_models_adapter()
     application = FastAPI()
     application.state.providers = ProvidersService(
         catalog=adapter,

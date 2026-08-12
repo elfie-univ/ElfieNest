@@ -9,7 +9,7 @@ from app.orchestration.nest_session.models import (
     RuntimeConnection,
     WorldEvent,
 )
-from elfie.brain.runtime_port import ModelPort
+from elfie.public import ModelPort
 
 
 class ModelPortFactory(Protocol):

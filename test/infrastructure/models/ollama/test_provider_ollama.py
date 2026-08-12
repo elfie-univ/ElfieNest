@@ -17,6 +17,7 @@ def test_provider_ollama_adapter_projects_the_authoritative_candidates() -> None
     adapter = PublicOllamaProviderAdapter(platform=HealthyPlatform())  # type: ignore[arg-type]
     binding = adapter.default_binding()
 
+    assert binding.install_kind == "existing-public"
     probe = adapter.probe(binding)
     candidates = adapter.candidate_models()
 

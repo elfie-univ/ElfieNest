@@ -7,11 +7,11 @@ import json
 import tempfile
 import threading
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
 from infrastructure.models.inference.token_usage import TokenTracker, get_token_tracker
+from infrastructure.persistence.token_usage import FileTokenUsageWriter
 
 
 class TestTokenTracker:
@@ -76,30 +76,22 @@ class TestTokenTracker:
 
     def test_flush_tick_persists_to_file_and_resets_counter(self):
         """TokenTracker.flush_tick() 应持久化到文件并重置计数器"""
-        tracker = TokenTracker()
-
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch(
-                "infrastructure.models.inference.token_usage.get_elfie_home",
-                return_value=Path(tmpdir),
-            ):
-                tracker.record(
-                    "openai", {"prompt_tokens": 100, "completion_tokens": 50}
-                )
+            usage_file = Path(tmpdir) / "token_usage.jsonl"
+            tracker = TokenTracker(FileTokenUsageWriter(usage_file))
+            tracker.record("openai", {"prompt_tokens": 100, "completion_tokens": 50})
+            tracker.flush_tick("tick_001")
 
-                tracker.flush_tick("tick_001")
+            # 验证计数器已重置
+            assert tracker.get_tick_summary() == {}
 
-                # 验证计数器已重置
-                assert tracker.get_tick_summary() == {}
+            # 验证文件已写入
+            assert usage_file.exists()
 
-                # 验证文件已写入
-                usage_file = Path(tmpdir) / "token_usage.jsonl"
-                assert usage_file.exists()
-
-                with open(usage_file, encoding="utf-8") as f:
-                    record = json.loads(f.readline())
-                    assert record["tick_id"] == "tick_001"
-                    assert "openai" in record["usage"]
+            with open(usage_file, encoding="utf-8") as f:
+                record = json.loads(f.readline())
+                assert record["tick_id"] == "tick_001"
+                assert "openai" in record["usage"]
 
     def test_thread_safety_concurrent_record_calls(self):
         """TokenTracker.record() 应线程安全，并发调用不丢数据"""

@@ -8,12 +8,24 @@ from app.features.configuration.capabilities import (
     StoredLocalFileCapability,
     StoredWebSearchCapability,
 )
+from infrastructure.persistence.configuration.config_store import (
+    read_yaml_mapping,
+    write_yaml_mapping,
+)
 from infrastructure.tools import RuntimeCapabilitiesAdapter
+
+
+def _adapter(path: Path) -> RuntimeCapabilitiesAdapter:
+    return RuntimeCapabilitiesAdapter(
+        path,
+        read_document=read_yaml_mapping,
+        write_document=write_yaml_mapping,
+    )
 
 
 def test_adapter_reads_defaults_without_writing(tmp_path: Path):
     path = tmp_path / "runtime.yaml"
-    adapter = RuntimeCapabilitiesAdapter(path)
+    adapter = _adapter(path)
 
     result = adapter.load_capabilities()
 
@@ -28,7 +40,7 @@ def test_adapter_updates_only_explicit_web_search_fields(tmp_path: Path):
         "system:\n  marker: keep\nruntime_policy:\n  other: keep\n",
         encoding="utf-8",
     )
-    adapter = RuntimeCapabilitiesAdapter(path)
+    adapter = _adapter(path)
     current = adapter.load_capabilities().web_search
     updated = StoredWebSearchCapability(
         enabled=True,
@@ -61,7 +73,7 @@ def test_adapter_updates_only_explicit_web_search_fields(tmp_path: Path):
 
 def test_adapter_updates_only_editable_local_file_fields(tmp_path: Path):
     path = tmp_path / "runtime.yaml"
-    adapter = RuntimeCapabilitiesAdapter(path)
+    adapter = _adapter(path)
     current = adapter.load_capabilities().local_file
     updated = StoredLocalFileCapability(
         enabled=True,

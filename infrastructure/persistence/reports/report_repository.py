@@ -1,4 +1,4 @@
-"""Append-oriented SQLite repository for AI Runtime reports."""
+"""Append-oriented SQLite repository for model/food/tool reports."""
 
 from __future__ import annotations
 
@@ -7,18 +7,19 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Mapping, Optional
 
+from pydantic import JsonValue
+
+from infrastructure.models.report_records import (
+    ReportRun,
+    ValidationObservation,
+)
 from infrastructure.persistence.layout.data_home import get_report_database_path
 from infrastructure.persistence.reports.report_queries import (
     latest_observations,
     observations_for_run,
     observations_for_subject,
-)
-from infrastructure.persistence.reports.report_records import (
-    ReportRun,
-    ValidationObservation,
-    run_from_row,
 )
 from infrastructure.persistence.reports.report_schema import (
     connect_report_database,
@@ -94,7 +95,7 @@ class ReportRepository:
         time_to_first_token_ms: Optional[float] = None,
         error_category: Optional[str] = None,
         error_message: Optional[str] = None,
-        details: Optional[Mapping[str, Any]] = None,
+        details: Optional[Mapping[str, JsonValue]] = None,
     ) -> int:
         _validate_observation(subject_kind, status)
         _validate_latency(latency_ms, "latency_ms")
@@ -222,6 +223,20 @@ class ReportRepository:
 
     def _connect(self) -> sqlite3.Connection:
         return connect_report_database(self.path)
+
+
+def run_from_row(row: sqlite3.Row) -> ReportRun:
+    """Decode a SQLite row at the persistence boundary."""
+    return ReportRun(
+        run_id=str(row["run_id"]),
+        scope=str(row["scope"]),
+        trigger=str(row["trigger"]),
+        started_at=str(row["started_at"]),
+        finished_at=(
+            str(row["finished_at"]) if row["finished_at"] is not None else None
+        ),
+        status=str(row["status"]),
+    )
 
 
 def _validate_observation(subject_kind: str, status: str) -> None:

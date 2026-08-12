@@ -13,6 +13,14 @@ from app.features.configuration import (
 )
 from app.interfaces.api.v1.admin.settings.capabilities import router
 from app.interfaces.api.v1.auth import require_user
+from infrastructure.persistence.configuration.config_store import (
+    read_yaml_mapping,
+    write_yaml_mapping,
+)
+from infrastructure.persistence.configuration.secrets import (
+    resolve_secret,
+    set_tool_secret,
+)
 from infrastructure.tools import (
     RuntimeCapabilitiesAdapter,
     ToolCapabilitySecretAdapter,
@@ -37,8 +45,16 @@ def _client(tmp_path: Path, role="owner") -> tuple[TestClient, Path, Path]:
     secret_path = tmp_path / "auth.env"
     app = FastAPI()
     app.state.capabilities = CapabilitiesService(
-        RuntimeCapabilitiesAdapter(config_path),
-        ToolCapabilitySecretAdapter(secret_path),
+        RuntimeCapabilitiesAdapter(
+            config_path,
+            read_document=read_yaml_mapping,
+            write_document=write_yaml_mapping,
+        ),
+        ToolCapabilitySecretAdapter(
+            secret_path,
+            resolve=resolve_secret,
+            write=set_tool_secret,
+        ),
         PassingValidator(),
     )
     app.dependency_overrides[require_user] = lambda: AccountPrincipal(

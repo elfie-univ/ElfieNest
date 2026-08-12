@@ -1,4 +1,4 @@
-"""Thread-safe Adapter between Brain contracts and AI Runtime contracts."""
+"""Thread-safe Adapter between Brain and model/tool runtime contracts."""
 
 from __future__ import annotations
 

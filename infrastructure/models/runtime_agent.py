@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 from time import perf_counter
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, cast
+
+from pydantic import JsonValue
 
 from elfie.brain.food_port import (
     FOOD_COMMON_ID,
@@ -22,7 +24,6 @@ from infrastructure.models.food_execution import (
     FoodExecutionResult,
     FoodExecutor,
 )
-from infrastructure.models.food_technology import query_model_evidence
 from infrastructure.models.inference.llm_api import call_llm_api
 from infrastructure.models.inference.multimodal import assemble_multimodal_payload
 from infrastructure.models.model_reference import parse_model_reference
@@ -106,7 +107,7 @@ class RuntimeAgent:
         current_mtimes = self._config_mtimes()
         if current_mtimes == self._config_mtimes_ns:
             return
-        self.config = LLMRuntimeConfig.load()
+        self.config = self._ports.runtime_config_loader()
         self._config_mtimes_ns = current_mtimes
         self._mount_runtime_dependencies()
 
@@ -213,6 +214,7 @@ class RuntimeAgent:
             catalog,
             food_key,
             unavailable=food_unavailable,
+            is_usable=self._package_usable,
         )
         assignment = catalog.packages[selected_food].primary
         if assignment is None:
@@ -222,12 +224,18 @@ class RuntimeAgent:
         native = (
             provider == "openai" or provider_config.get("catalog_id") == "openai_api"
         )
+        api_mode = str(provider_config.get("api_mode") or "")
+        is_ollama = (
+            provider == "ollama"
+            or provider.startswith("ollama_")
+            or api_mode == "ollama"
+        )
         return StructuredRuntimeCapabilities(
             provider=provider,
             model_key=assignment.model,
             supports_json_schema=native,
             supports_tool_calling=native,
-            supports_json_mode=native,
+            supports_json_mode=native or is_ollama,
             supports_plain_text=True,
             max_output_tokens=4096,
         )
@@ -243,6 +251,7 @@ class RuntimeAgent:
             catalog,
             request.food_key,
             unavailable=request.food_unavailable,
+            is_usable=self._package_usable,
         )
         attempts = [(selected_food, request.selected_mode)]
         if selected_food != FOOD_EMERGENCY_ID:
@@ -329,6 +338,11 @@ class RuntimeAgent:
                     "function": {"name": request.response_schema_name},
                 },
             }
+        # Ollama's JSON_TEXT mode still needs an explicit JSON constraint;
+        # without it small local models commonly echo the prompt or markdown.
+        provider = request.provider or ""
+        if provider == "ollama" or provider.startswith("ollama_"):
+            return {"format": "json"}
         return {}
 
     def _think_with_food(self, request: RuntimeRequest) -> RuntimeResult:
@@ -355,6 +369,8 @@ class RuntimeAgent:
             config=self.config,
             tool_port=self.tool_port,
             model_caller=self._call_food_llm_api,
+            tool_loop_factory=self._ports.tool_loop_factory,
+            prompt_injector=self._ports.prompt_injector,
         )
         fallback_used = False
         failed_attempts: tuple[dict[str, str], ...] = ()
@@ -443,15 +459,18 @@ class RuntimeAgent:
             text=execution.text,
             mode="local" if provider == "ollama" else "remote",
             model_key=execution.model,
-            decision={
-                "food": {
-                    "requested": requested_food,
-                    "actual": selected_food,
-                    "reason": selection_reason,
+            decision=cast(
+                dict[str, JsonValue],
+                {
+                    "food": {
+                        "requested": requested_food,
+                        "actual": selected_food,
+                        "reason": selection_reason,
+                    },
+                    "scene": request.scene,
+                    "attempts": [*failed_attempts, *execution.attempts],
                 },
-                "scene": request.scene,
-                "attempts": [*failed_attempts, *execution.attempts],
-            },
+            ),
             degraded=execution.technical_fallback_used or clamped,
             food_requested=requested_food,
             food_used=selected_food,
@@ -490,11 +509,13 @@ class RuntimeAgent:
         requested_food: str | None,
         *,
         unavailable: bool = False,
+        is_usable: Callable[[FoodPackage], bool] | None = None,
     ) -> str:
         return resolve_main_food(
             catalog,
             MainFoodSelection(requested_food, unavailable=unavailable),
-            is_usable=RuntimeAgent._package_usable,
+            is_usable=is_usable
+            or (lambda package: package.enabled and not package.archived),
         ).food_id
 
     def _main_food_selection(self, request: RuntimeRequest) -> MainFoodSelection:
@@ -502,9 +523,8 @@ class RuntimeAgent:
             return self._main_food_loader(request.elfie_id)
         return MainFoodSelection(request.food_key)
 
-    @staticmethod
-    def _package_usable(package: FoodPackage) -> bool:
-        evidence = query_model_evidence()
+    def _package_usable(self, package: FoodPackage) -> bool:
+        evidence = self._ports.model_evidence_source()
         if not is_food_executable(
             package,
             is_model_available=lambda reference: bool(
@@ -515,8 +535,7 @@ class RuntimeAgent:
         try:
             assert package.primary is not None
             provider = RuntimeAgent._provider_for_model(package.primary.model)
-            config = LLMRuntimeConfig.load()
-            return provider in config.providers
+            return provider in self.config.providers
         except Exception:
             return False
 
@@ -548,6 +567,8 @@ class RuntimeAgent:
             config=self.config,
             tool_port=self.tool_port,
             model_caller=caller,
+            tool_loop_factory=self._ports.tool_loop_factory,
+            prompt_injector=self._ports.prompt_injector,
         )
 
     def _load_food_catalog(self) -> FoodCatalog:

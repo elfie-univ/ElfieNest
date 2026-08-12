@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, Literal, Mapping, Optional
+from typing import Literal, Mapping, Optional, cast
 
-from infrastructure.persistence.reports.report_records import ValidationObservation
+from pydantic import JsonValue
+
+from infrastructure.models.report_records import ValidationObservation
 from infrastructure.persistence.reports.report_repository import ReportRepository
 
 REPORT_VERSION = 1
@@ -33,14 +35,15 @@ def write_provider_validation_report(
     error: Optional[str],
     trigger: Literal["batch", "single"],
     run_id: Optional[str] = None,
-    details: Optional[Mapping[str, Any]] = None,
+    details: Optional[Mapping[str, JsonValue]] = None,
+    repository: ReportRepository | None = None,
 ) -> int:
     """Append one Provider observation and return its database identity."""
     _validate_provider_id(provider_id)
     _validate_status(status)
     if trigger not in _PROVIDER_TRIGGER:
         raise ValueError(f"不支持的 Provider 验证触发方式: {trigger}")
-    repository = ReportRepository()
+    repository = repository or ReportRepository()
     owns_run = run_id is None
     if run_id is None:
         run_id = repository.start_run(
@@ -65,17 +68,21 @@ def write_provider_validation_report(
             status="complete" if status == "passed" else "failed",
             finished_at=checked_at,
         )
-    return observation_id
+    return int(observation_id)
 
 
-def read_latest_provider_validation(provider_id: str) -> dict[str, Any]:
+def read_latest_provider_validation(
+    provider_id: str,
+    *,
+    repository: ReportRepository | None = None,
+) -> dict[str, JsonValue]:
     _validate_provider_id(provider_id)
-    repository = ReportRepository()
+    repository = repository or ReportRepository()
     observation = repository.latest("provider", provider_id)
     if observation is None:
         return {}
     run = repository.get_run(observation.run_id)
-    payload = {
+    payload: dict[str, JsonValue] = {
         "version": REPORT_VERSION,
         "kind": "provider_validation",
         "provider_id": provider_id,
@@ -86,7 +93,7 @@ def read_latest_provider_validation(provider_id: str) -> dict[str, Any]:
         "error": observation.error_message,
     }
     if observation.details:
-        payload["metadata"] = dict(observation.details)
+        payload["metadata"] = cast(JsonValue, dict(observation.details))
     return payload
 
 
@@ -101,7 +108,8 @@ def write_model_validation_report(
     error: Optional[str],
     trigger: Literal["benchmark", "full"],
     run_id: Optional[str] = None,
-    details: Optional[Mapping[str, Any]] = None,
+    details: Optional[Mapping[str, JsonValue]] = None,
+    repository: ReportRepository | None = None,
 ) -> int:
     """Append one endpoint-model observation without creating report files."""
     _validate_provider_id(provider_id)
@@ -109,7 +117,7 @@ def write_model_validation_report(
     _validate_status(status)
     if trigger not in _MODEL_TRIGGER:
         raise ValueError(f"不支持的模型验证触发方式: {trigger}")
-    repository = ReportRepository()
+    repository = repository or ReportRepository()
     owns_run = run_id is None
     if run_id is None:
         run_id = repository.start_run(
@@ -117,7 +125,7 @@ def write_model_validation_report(
             trigger=trigger,
             started_at=checked_at,
         )
-    metadata = {"latency_class": latency_class}
+    metadata: dict[str, JsonValue] = {"latency_class": latency_class}
     metadata.update(details or {})
     observation_id = repository.append_observation(
         run_id=run_id,
@@ -136,7 +144,7 @@ def write_model_validation_report(
             status="complete" if status == "passed" else "failed",
             finished_at=checked_at,
         )
-    return observation_id
+    return int(observation_id)
 
 
 def read_latest_model_validation(
@@ -144,10 +152,11 @@ def read_latest_model_validation(
     model_id: str,
     *,
     validation_mode: Literal["any", "full"] = "any",
-) -> dict[str, Any]:
+    repository: ReportRepository | None = None,
+) -> dict[str, JsonValue]:
     _validate_provider_id(provider_id)
     normalized_model_id = _validate_model_id(model_id)
-    repository = ReportRepository()
+    repository = repository or ReportRepository()
     subject_id = f"{provider_id}/{normalized_model_id}"
     observation = (
         repository.latest("model", subject_id)
@@ -178,8 +187,8 @@ def _model_payload(
     model_id: str,
     observation: ValidationObservation,
     trigger: str,
-) -> dict[str, Any]:
-    payload = {
+) -> dict[str, JsonValue]:
+    payload: dict[str, JsonValue] = {
         "version": REPORT_VERSION,
         "kind": "model_validation",
         "provider_id": provider_id,

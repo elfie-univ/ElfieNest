@@ -26,7 +26,7 @@ Not responsible for:
 - Running a single Elfie's cognition, memory, body or communication lifecycle;
 - Defining house geometry, world coordinates, collision shapes, navigation
   meshes, furniture assets or rendering;
-- Orchestrating the AI Runtime or product account flows.
+- Orchestrating cross-authority runtime flows or product account flows.
 
 `NestState` only stores Elfie IDs, long-term homes and in-nest semantic state —
 it does not store furniture copies, coordinates or real Elfie objects. The
@@ -67,7 +67,7 @@ infrastructure/godot ──> protocol, host and artifact adapters
 godot_project/ ──> single source of truth for scenes and geometry
 ```
 
-`nest/` does not depend on `app/`, `elfie/` or `ai_runtime/`. When Nest events
+`nest/` does not depend on `app/`, `elfie/` or model, Food or tool adapters. When Nest events
 must reach a real Elfie, `app/orchestration/` looks the Elfie up by ID and
 invokes it.
 

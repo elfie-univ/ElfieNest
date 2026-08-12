@@ -1,4 +1,4 @@
-"""Read-only SQLite projections for AI Runtime validation reports."""
+"""Read-only SQLite projections for model/food/tool validation reports."""
 
 from __future__ import annotations
 

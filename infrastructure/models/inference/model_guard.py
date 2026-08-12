@@ -1,15 +1,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Protocol, TypedDict
 
 
 class UnsupportedModalError(Exception):
     pass
 
 
+class RuntimeModelInfo(TypedDict):
+    """Validated model capability projection consumed by the readiness guard."""
+
+    active: bool
+    name: str
+    provider: str
+    is_vision: bool
+    is_audio: bool
+
+
 class ModelRegistry(Protocol):
-    def get_model_info(self, model_key: str) -> dict[str, Any]: ...
+    def get_model_info(self, model_key: str) -> RuntimeModelInfo: ...
 
 
 class OllamaManager(Protocol):

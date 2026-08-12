@@ -7,7 +7,7 @@ from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from elfie.body.contracts import BodyCommand, BodySensorEvent, CommandReceipt
+from elfie.public import BodyCommand, BodySensorEvent, CommandReceipt
 
 
 class StrictFrame(BaseModel):

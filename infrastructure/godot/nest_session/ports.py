@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from infrastructure.godot.body_transport import RuntimeIntentPayload
 from infrastructure.godot.gateway.messages import (
     CommandName,
     JsonObject,
@@ -52,7 +53,7 @@ class GatewayRuntimePort(Protocol):
 
     def send_body_command(
         self,
-        payload: dict[str, object],
+        payload: RuntimeIntentPayload,
         *,
         correlation_id: str,
     ) -> bool: ...

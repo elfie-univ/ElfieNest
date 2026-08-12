@@ -13,12 +13,7 @@ from elfie.brain.food_port import (
     FOOD_EMERGENCY_ID,
     NoAvailableFoodError,
 )
-from infrastructure.models.food_technology import (
-    query_model_evidence,
-    record_model_evidence,
-)
 from infrastructure.models.runtime_agent import RuntimeAgent
-from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.runtime_contracts import (
     StructuredGenerationMode,
     StructuredRuntimeRequest,
@@ -29,6 +24,10 @@ from infrastructure.persistence.configuration.runtime_settings import (
 )
 from infrastructure.persistence.configuration.secrets import set_connection_secret
 from infrastructure.persistence.food import SQLiteFoodAdapter
+from infrastructure.persistence.food_evidence import (
+    query_model_evidence,
+    record_model_evidence,
+)
 from infrastructure.persistence.layout.data_home import (
     get_provider_config_path,
 )
@@ -38,6 +37,7 @@ from infrastructure.persistence.provider_connections import (
     ProviderModelRecord,
 )
 from infrastructure.persistence.reports.report_repository import ReportRepository
+from infrastructure.persistence.runtime_config import load_runtime_config
 from infrastructure.tools import ToolPortAdapter
 from test.support.runtime_agent import runtime_agent_ports
 
@@ -193,7 +193,7 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
             }
         }
     )
-    runtime_config = LLMRuntimeConfig()
+    runtime_config = load_runtime_config()
     tool_port = ToolPortAdapter.from_runtime_config(
         runtime_config,
         observation_port=get_runtime_observer(),

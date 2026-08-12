@@ -25,7 +25,9 @@ def config_llm(config: object | None = None) -> None:
     print("  🤖 LLM and Food Strategy")
     print("  " + "=" * 45)
     print()
-    print("  Provider connections, models and food packages are managed in AI Runtime.")
+    print(
+        "  Provider connections, models and food packages are managed in Config Center."
+    )
     try:
         input("Press Enter to return...")
     except (EOFError, KeyboardInterrupt):

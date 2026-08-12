@@ -1,4 +1,4 @@
-"""Read-only Adapter over the existing AI Runtime observer fact source."""
+"""Read-only Adapter over the existing model/food/tool observer fact source."""
 
 from __future__ import annotations
 

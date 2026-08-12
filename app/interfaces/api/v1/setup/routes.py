@@ -68,8 +68,8 @@ def get_status(
         result = service.get_status(GetSetupStatusQuery())
     except SetupUnavailable as error:
         return _error(error)
-    source = request.cookies.get("setup_token") or request.cookies.get("session_token")
-    if result.need_setup and source is None:
+    setup_token = request.cookies.get("setup_token")
+    if result.need_setup and setup_token is None:
         source = secrets.token_hex(32)
         csrf = generate_csrf_token(source)
         response = JSONResponse(
@@ -87,6 +87,7 @@ def get_status(
         )
         response.headers["X-CSRF-Token"] = csrf
         return response
+    source = setup_token or request.cookies.get("session_token")
     return SetupStatusResponse.from_result(
         result, csrf_token=generate_csrf_token(source) if source else None
     )

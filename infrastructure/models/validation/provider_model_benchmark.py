@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Protocol
+from typing import Callable, Protocol
 
-from infrastructure.persistence.provider_connections import ProviderConnection
+from pydantic import JsonValue
+
+from infrastructure.models.provider_records import ProviderConnection
+from infrastructure.models.runtime_config import LLMRuntimeConfig
 
 from .provider_validation_checks import run_connection_model_check
-from .provider_validation_runtime import runtime_projection
 
 _BENCHMARK_TIMEOUT_SECONDS = 20.0
+RuntimeProjection = Callable[[ProviderConnection], tuple[str, LLMRuntimeConfig]]
 
 
 class BenchmarkCombination(Protocol):
@@ -44,11 +47,15 @@ async def bounded_benchmark(
     combination: BenchmarkCombination,
     connection: ProviderConnection,
     semaphore: asyncio.Semaphore,
-) -> dict[str, Any]:
+    *,
+    runtime_projection: RuntimeProjection,
+) -> dict[str, JsonValue]:
     async with semaphore:
         try:
             return await asyncio.wait_for(
-                run_connection_model_benchmark(combination, connection),
+                run_connection_model_benchmark(
+                    combination, connection, runtime_projection=runtime_projection
+                ),
                 timeout=_BENCHMARK_TIMEOUT_SECONDS,
             )
         except asyncio.TimeoutError:
@@ -70,14 +77,19 @@ async def bounded_benchmark(
 async def run_connection_model_benchmark(
     combination: BenchmarkCombination,
     connection: ProviderConnection,
-) -> dict[str, Any]:
-    return await asyncio.to_thread(_benchmark_sync, combination, connection)
+    *,
+    runtime_projection: RuntimeProjection,
+) -> dict[str, JsonValue]:
+    return await asyncio.to_thread(
+        _benchmark_sync, combination, connection, runtime_projection
+    )
 
 
 def _benchmark_sync(
     combination: BenchmarkCombination,
     connection: ProviderConnection,
-) -> dict[str, Any]:
+    runtime_projection: RuntimeProjection,
+) -> dict[str, JsonValue]:
     return run_connection_model_check(
         connection,
         combination.model_id,

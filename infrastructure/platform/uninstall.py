@@ -5,12 +5,15 @@ from __future__ import annotations
 import shutil
 
 from app.orchestration.lifecycle import UninstallState
-from infrastructure.persistence.layout.data_home import get_elfie_home
+from app.orchestration.lifecycle.ports import LifecycleLocalDataPort
 
 
 class LocalUninstallAdapter:
+    def __init__(self, *, local_data: LifecycleLocalDataPort) -> None:
+        self._local_data = local_data
+
     def state(self) -> UninstallState:
-        home = get_elfie_home()
+        home = self._local_data.home()
         return UninstallState(
             data_home=home,
             home_exists=home.exists(),
@@ -19,14 +22,14 @@ class LocalUninstallAdapter:
         )
 
     def delete_config(self) -> bool:
-        configs = get_elfie_home() / "configs"
+        configs = self._local_data.home() / "configs"
         if not configs.exists():
             return False
         shutil.rmtree(configs)
         return True
 
     def delete_all(self) -> None:
-        home = get_elfie_home()
+        home = self._local_data.home()
         if home.exists():
             shutil.rmtree(home)
 

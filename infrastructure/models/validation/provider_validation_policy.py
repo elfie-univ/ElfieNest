@@ -7,22 +7,23 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Literal, Mapping
+from typing import Any, Callable, Literal, Mapping
 
-from infrastructure.models.providers.profiles import get_product
-from infrastructure.persistence.configuration.secrets import (
-    connection_secret_name,
-    read_secrets,
-)
-from infrastructure.persistence.provider_connections import (
+from infrastructure.models.provider_records import (
     ProviderConnection,
     ProviderModelRecord,
 )
+from infrastructure.models.providers.profiles import get_product
 
 ValidationMode = Literal["full", "cached", "heartbeat"]
 
 FULL_CACHE_WINDOW = timedelta(hours=24)
 HEARTBEAT_WINDOW = timedelta(days=30)
+SecretResolver = Callable[[str], str]
+
+
+def _empty_secret(_name: str) -> str:
+    return ""
 
 
 @dataclass(frozen=True)
@@ -78,12 +79,14 @@ def representative_model_id(connection: ProviderConnection) -> str | None:
     return min(model.endpoint_model_id for model in active)
 
 
-def connection_validation_fingerprint(connection: ProviderConnection) -> str:
+def connection_validation_fingerprint(
+    connection: ProviderConnection,
+    *,
+    secret_resolver: SecretResolver = _empty_secret,
+) -> str:
     """Build a non-secret fingerprint for the effective validation inputs."""
-    secret_name = connection.credential_ref or connection_secret_name(
-        connection.connection_id
-    )
-    secret_revision, cacheable = _credential_revision(secret_name)
+    secret_name = _credential_name(connection)
+    secret_revision, cacheable = _credential_revision(secret_name, secret_resolver)
     payload = {
         "catalog_id": connection.catalog_id,
         "api_base": connection.api_base,
@@ -115,10 +118,13 @@ def choose_validation_mode(
     *,
     now: datetime | None = None,
     force_full: bool = False,
+    secret_resolver: SecretResolver = _empty_secret,
 ) -> ValidationDecision:
     """Choose full, cached, or heartbeat validation without making a request."""
     current_time = _utc(now or datetime.now(timezone.utc))
-    fingerprint = connection_validation_fingerprint(connection)
+    fingerprint = connection_validation_fingerprint(
+        connection, secret_resolver=secret_resolver
+    )
     representative = representative_model_id(connection)
     active_ids = tuple(
         sorted(
@@ -129,7 +135,7 @@ def choose_validation_mode(
         return _full_decision(fingerprint, representative, "强制全量验证")
     if not active_ids:
         return _full_decision(fingerprint, representative, "没有可验证模型")
-    if not _credential_cacheable(connection):
+    if not _credential_cacheable(connection, secret_resolver):
         return _full_decision(fingerprint, representative, "凭据来自进程环境")
 
     snapshot = _snapshot_from_report(latest)
@@ -246,20 +252,29 @@ def _model_fingerprint(model: ProviderModelRecord) -> dict[str, Any]:
     }
 
 
-def _credential_revision(secret_name: str) -> tuple[str, bool]:
+def _credential_name(connection: ProviderConnection) -> str:
+    return connection.credential_ref or (
+        f"ELFIE_PROVIDER_{connection.connection_id.upper()}_API_KEY"
+    )
+
+
+def _credential_revision(
+    secret_name: str,
+    secret_resolver: SecretResolver,
+) -> tuple[str, bool]:
     if secret_name in os.environ:
         return "process-environment", False
-    secret_value = read_secrets().get(secret_name, "")
+    secret_value = secret_resolver(secret_name)
     if not secret_value:
         return "missing", True
     return hashlib.sha256(secret_value.encode("utf-8")).hexdigest(), True
 
 
-def _credential_cacheable(connection: ProviderConnection) -> bool:
-    secret_name = connection.credential_ref or connection_secret_name(
-        connection.connection_id
-    )
-    return _credential_revision(secret_name)[1]
+def _credential_cacheable(
+    connection: ProviderConnection,
+    secret_resolver: SecretResolver,
+) -> bool:
+    return _credential_revision(_credential_name(connection), secret_resolver)[1]
 
 
 def _parse_timestamp(value: Any) -> datetime | None:

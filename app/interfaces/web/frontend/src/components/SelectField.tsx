@@ -45,7 +45,7 @@ export function SelectField({
 
   return <FieldRow
     control={({ inputId, labelId }) => <Select disabled={disabled} onValueChange={onValueChange} value={value}>
-      <SelectTrigger aria-labelledby={labelId} className="w-full bg-secondary" id={inputId}>
+      <SelectTrigger aria-labelledby={labelId} className="w-full bg-secondary" disabled={disabled} id={inputId}>
         <SelectValue placeholder={placeholder}>{selectedOption?.label}</SelectValue>
       </SelectTrigger>
       <SelectContent position="popper">

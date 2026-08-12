@@ -1,11 +1,12 @@
 """Token 使用追踪器 — 线程安全，按 provider + tick 累计 token 用量。"""
 
-import json
+from __future__ import annotations
+
 import logging
 import threading
-from typing import Any, Dict, Optional
+from typing import Mapping, Optional, Protocol, cast
 
-from infrastructure.persistence.layout.data_home import get_elfie_home
+from pydantic import JsonValue
 
 logger = logging.getLogger("infrastructure.models.inference.token_usage")
 
@@ -21,12 +22,13 @@ class TokenTracker:
     - Ollama: {"prompt_eval_count": N, "eval_count": N}
     """
 
-    def __init__(self) -> None:
+    def __init__(self, writer: TokenUsageWriter | None = None) -> None:
         self._lock = threading.Lock()
+        self._writer = writer
         # {provider: {prompt_tokens, completion_tokens, total_tokens}}
-        self._tick_totals: Dict[str, Dict[str, int]] = {}
+        self._tick_totals: dict[str, dict[str, int]] = {}
 
-    def record(self, provider: str, usage: Dict[str, Any]) -> None:
+    def record(self, provider: str, usage: Mapping[str, JsonValue]) -> None:
         """记录一次 API 调用的 token 使用量（线程安全）
 
         Args:
@@ -48,17 +50,22 @@ class TokenTracker:
                 }
 
             # 兼容多种命名格式
-            prompt = (
-                usage.get("prompt_tokens", 0)
-                or usage.get("input_tokens", 0)
-                or usage.get("prompt_eval_count", 0)
+            prompt = self._token_count(
+                usage.get("prompt_tokens")
+                or usage.get("input_tokens")
+                or usage.get("prompt_eval_count")
             )
-            completion = (
-                usage.get("completion_tokens", 0)
-                or usage.get("output_tokens", 0)
-                or usage.get("eval_count", 0)
+            completion = self._token_count(
+                usage.get("completion_tokens")
+                or usage.get("output_tokens")
+                or usage.get("eval_count")
             )
-            total = usage.get("total_tokens", prompt + completion)
+            total_value = usage.get("total_tokens")
+            total = (
+                self._token_count(total_value)
+                if total_value is not None
+                else prompt + completion
+            )
 
             self._tick_totals[provider]["prompt_tokens"] += prompt
             self._tick_totals[provider]["completion_tokens"] += completion
@@ -82,7 +89,7 @@ class TokenTracker:
         other_chars = len(text) - chinese_chars
         return int(chinese_chars * 1.5 + other_chars / 4)
 
-    def get_tick_summary(self) -> Dict[str, Dict[str, int]]:
+    def get_tick_summary(self) -> dict[str, dict[str, int]]:
         """获取当前 tick 的累计使用量（线程安全副本）
 
         Returns:
@@ -102,15 +109,16 @@ class TokenTracker:
         with self._lock:
             if not self._tick_totals:
                 return
-            record = {"tick_id": tick_id, "usage": dict(self._tick_totals)}
+            record = cast(
+                Mapping[str, JsonValue],
+                {"tick_id": tick_id, "usage": dict(self._tick_totals)},
+            )
             self._tick_totals = {}
 
+        if self._writer is None:
+            return
         try:
-            home = get_elfie_home()
-            home.mkdir(parents=True, exist_ok=True)
-            path = home / "token_usage.jsonl"
-            with open(path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            self._writer.write(record)
         except Exception as e:
             logger.warning("Token 追踪数据持久化失败: %s", e)
 
@@ -119,17 +127,31 @@ class TokenTracker:
         with self._lock:
             self._tick_totals = {}
 
+    @staticmethod
+    def _token_count(value: JsonValue | None) -> int:
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, float)):
+            return max(0, int(value))
+        return 0
+
 
 # 全局单例
+class TokenUsageWriter(Protocol):
+    def write(self, record: Mapping[str, JsonValue]) -> None: ...
+
+
 _token_tracker: Optional[TokenTracker] = None
 _token_tracker_lock = threading.Lock()
 
 
-def get_token_tracker() -> TokenTracker:
+def get_token_tracker(writer: TokenUsageWriter | None = None) -> TokenTracker:
     """获取全局 TokenTracker 单例（线程安全）"""
     global _token_tracker
     if _token_tracker is None:
         with _token_tracker_lock:
             if _token_tracker is None:
-                _token_tracker = TokenTracker()
+                _token_tracker = TokenTracker(writer)
+    elif writer is not None:
+        _token_tracker._writer = writer
     return _token_tracker

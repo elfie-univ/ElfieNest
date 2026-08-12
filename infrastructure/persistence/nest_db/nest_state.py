@@ -6,7 +6,7 @@ import sqlite3
 from typing import Final
 
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
-from nest import NestConfig
+from nest.public import NestConfig
 from nest.state.models import PersistentResidentState, ResidentPresence, WorldCatalog
 from nest.state.repository import NestPersistenceError, NestPersistenceSnapshot
 

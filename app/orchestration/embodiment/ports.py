@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from elfie.body.contracts import BodyCommand, BodySensorEvent, CommandReceipt
+from elfie.public import BodyCommand, BodySensorEvent, CommandReceipt
 
 from .models import EmbodimentSession
 

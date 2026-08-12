@@ -3,15 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.orchestration.setup_installation import SetupOllamaBinding
-from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.setup_provider import SetupProviderAdapter
+from test.support.provider import provider_models_adapter
 
 
 def test_setup_provider_round_trips_one_ollama_binding_and_model(
     tmp_path: Path,
 ) -> None:
     adapter = SetupProviderAdapter(
-        ProviderModelsAdapter(tmp_path / "providers.yaml", tmp_path / "auth.env")
+        provider_models_adapter(tmp_path / "providers.yaml", tmp_path / "auth.env")
     )
     binding = SetupOllamaBinding(
         api_base="http://127.0.0.1:11434",

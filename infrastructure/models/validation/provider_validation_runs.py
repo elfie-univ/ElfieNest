@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Literal
+from typing import Any, Callable, Literal, Mapping, cast
+
+from pydantic import JsonValue
 
 from infrastructure.models.provider_errors import sanitize_error
-from infrastructure.persistence.provider_connections import ProviderConnection
-from infrastructure.persistence.reports.report_repository import ReportRepository
-from infrastructure.persistence.reports.validation_reports import (
-    write_model_validation_report,
-    write_provider_validation_report,
-)
+from infrastructure.models.provider_records import ProviderConnection
+from infrastructure.models.storage_ports import ReportStoragePort
 
 from .provider_validation_checks import (
     RuntimeProjection,
@@ -25,6 +23,7 @@ from .provider_validation_runtime import connection_api_key
 from .provider_validation_service import _now, _verification_payload
 
 _MODEL_CONCURRENCY = 2
+SecretResolver = Callable[[str], str]
 
 
 async def run_full(
@@ -32,14 +31,15 @@ async def run_full(
     decision: ValidationDecision,
     *,
     runtime_projection: RuntimeProjection,
+    reports: ReportStoragePort,
+    secret_resolver: SecretResolver,
     run_id: str | None,
     trigger: Literal["batch", "single"],
 ) -> dict[str, Any]:
-    repository = ReportRepository()
     owns_run = run_id is None
     started_at = _now()
     if run_id is None:
-        run_id = repository.start_run(
+        run_id = reports.start_run(
             scope=f"connection:{connection.connection_id}:models",
             trigger=trigger,
             started_at=started_at,
@@ -59,15 +59,17 @@ async def run_full(
             checked_at = _now()
             status = "passed" if raw.get("status") == "passed" else "failed"
             error = sanitize_error(
-                raw.get("error"),
-                secrets=(connection_api_key(connection),),
+                _optional_text(raw.get("error")),
+                secrets=(
+                    connection_api_key(connection, secret_resolver=secret_resolver),
+                ),
             )
             latency = raw.get("latency_ms")
             latency_ms = float(latency) if isinstance(latency, (int, float)) else None
             latency_class = (
                 str(raw.get("latency_class")) if raw.get("latency_class") else None
             )
-            write_model_validation_report(
+            reports.write_model_validation_report(
                 connection.connection_id,
                 model.endpoint_model_id,
                 status=status,
@@ -116,7 +118,7 @@ async def run_full(
                 1 for item in model_results if item["status"] == "passed"
             ),
         }
-        write_provider_validation_report(
+        reports.write_provider_validation_report(
             connection.connection_id,
             status=status,
             checked_at=finished_at,
@@ -124,10 +126,10 @@ async def run_full(
             error=error,
             trigger=trigger,
             run_id=run_id,
-            details=metadata,
+            details=cast(Mapping[str, JsonValue], metadata),
         )
         if owns_run:
-            repository.finish_run(run_id, status="complete", finished_at=finished_at)
+            reports.finish_run(run_id, status="complete", finished_at=finished_at)
         return _verification_payload(
             status=status,
             checked_at=finished_at,
@@ -144,11 +146,11 @@ async def run_full(
         )
     except asyncio.CancelledError:
         if owns_run:
-            repository.finish_run(run_id, status="partial", finished_at=_now())
+            reports.finish_run(run_id, status="partial", finished_at=_now())
         raise
     except Exception:  # Report boundary closes owned runs.
         if owns_run:
-            repository.finish_run(run_id, status="failed", finished_at=_now())
+            reports.finish_run(run_id, status="failed", finished_at=_now())
         raise
 
 
@@ -157,11 +159,12 @@ async def run_heartbeat(
     decision: ValidationDecision,
     *,
     runtime_projection: RuntimeProjection,
+    reports: ReportStoragePort,
+    secret_resolver: SecretResolver,
     trigger: Literal["batch", "single"],
 ) -> dict[str, Any]:
-    repository = ReportRepository()
     started_at = _now()
-    run_id = repository.start_run(
+    run_id = reports.start_run(
         scope=f"connection:{connection.connection_id}:heartbeat",
         trigger=trigger,
         started_at=started_at,
@@ -180,8 +183,8 @@ async def run_heartbeat(
     checked_at = _now()
     status = "passed" if raw.get("status") == "passed" else "failed"
     error = sanitize_error(
-        raw.get("error"),
-        secrets=(connection_api_key(connection),),
+        _optional_text(raw.get("error")),
+        secrets=(connection_api_key(connection, secret_resolver=secret_resolver),),
     )
     metadata = {
         "validation_mode": "heartbeat",
@@ -196,21 +199,17 @@ async def run_heartbeat(
             model.endpoint_model_id for model in active_validation_models(connection)
         ],
     }
-    write_provider_validation_report(
+    reports.write_provider_validation_report(
         connection.connection_id,
         status=status,
         checked_at=checked_at,
-        latency_ms=(
-            float(raw["latency_ms"])
-            if isinstance(raw.get("latency_ms"), (int, float))
-            else None
-        ),
+        latency_ms=_optional_float(raw.get("latency_ms")),
         error=error,
         trigger=trigger,
         run_id=run_id,
-        details=metadata,
+        details=cast(Mapping[str, JsonValue], metadata),
     )
-    repository.finish_run(run_id, status="complete", finished_at=checked_at)
+    reports.finish_run(run_id, status="complete", finished_at=checked_at)
     return _verification_payload(
         status=status,
         checked_at=checked_at,
@@ -223,3 +222,13 @@ async def run_heartbeat(
         heartbeat_status=status,
         model_id=model_id,
     )
+
+
+def _optional_text(value: JsonValue) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def _optional_float(value: JsonValue) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)

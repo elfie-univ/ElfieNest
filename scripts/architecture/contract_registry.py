@@ -69,6 +69,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "test/architecture/test_elfie_cognitive_contracts.py",
             "test/architecture/test_gateway_runtime_boundaries.py",
             "test/architecture/test_runtime_import_boundaries.py",
+            "test/architecture/test_system_ports_contract.py",
             "test/architecture/test_runtime_observer_contracts.py",
             "test/architecture/test_storage_boundaries.py",
         ),
@@ -149,8 +150,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ContractRegistration(
         contract_id="model-food-tool-behavior",
         version="1.5",
-        english_path="docs/developer/contracts/ai-runtime.md",
-        chinese_path="docs/zh/developer/contracts/ai-runtime.md",
+        english_path="docs/developer/contracts/model-food-tool-behavior.md",
+        chinese_path="docs/zh/developer/contracts/model-food-tool-behavior.md",
         decision_paths=(
             "docs/developer/decisions/0002-system-ports-adapters.md",
             "docs/zh/developer/decisions/0002-system-ports-adapters.md",
@@ -163,10 +164,10 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "infrastructure/AGENTS.md",
         ),
         scanner_paths=(),
-        test_paths=("test/architecture/test_ai_runtime_contract.py",),
+        test_paths=("test/architecture/test_model_food_tool_contract.py",),
         conformance_paths=(
-            "docs/developer/conformance/ai-runtime.md",
-            "docs/zh/developer/conformance/ai-runtime.md",
+            "docs/developer/conformance/model-food-tool-conformance.md",
+            "docs/zh/developer/conformance/model-food-tool-conformance.md",
         ),
     ),
 )

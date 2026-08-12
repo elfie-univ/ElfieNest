@@ -28,9 +28,15 @@ class PublicOllamaProviderAdapter:
 
     def default_binding(self) -> StoredLocalProviderBinding:
         try:
-            target, install_kind = official_launch_target(self._platform.platform)
+            target, _ = official_launch_target(self._platform.platform)
         except (OSError, RuntimeError):
             target, install_kind = "", "existing-public"
+        else:
+            # The default binding represents an installation already present on
+            # this machine.  Official source/digest provenance is recorded only
+            # by the explicit install flow below, so it must not be required for
+            # a healthy pre-existing Ollama service.
+            install_kind = "existing-public"
         return StoredLocalProviderBinding(
             api_base=DEFAULT_OLLAMA_ENDPOINT,
             platform=self._platform.platform,

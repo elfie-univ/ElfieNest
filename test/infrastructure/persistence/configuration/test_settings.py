@@ -10,7 +10,7 @@ from app.features.configuration.settings import (
     StoredRuntimeSettings,
     StoredSecuritySettings,
 )
-from infrastructure.platform import RuntimeSettingsAdapter
+from infrastructure.persistence.configuration.settings import RuntimeSettingsAdapter
 
 
 def _runtime_path(root: Path) -> Path:

@@ -4,33 +4,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import dataclass
-from typing import Any, Mapping, Optional
+from typing import Mapping
 
-
-@dataclass(frozen=True)
-class ReportRun:
-    run_id: str
-    scope: str
-    trigger: str
-    started_at: str
-    finished_at: Optional[str]
-    status: str
-
-
-@dataclass(frozen=True)
-class ValidationObservation:
-    observation_id: int
-    run_id: str
-    subject_kind: str
-    subject_id: str
-    observed_at: str
-    status: str
-    latency_ms: Optional[float]
-    time_to_first_token_ms: Optional[float]
-    error_category: Optional[str]
-    error_message: Optional[str]
-    details: Mapping[str, Any]
+from infrastructure.models.report_records import ReportRun, ValidationObservation
 
 
 def run_from_row(row: sqlite3.Row) -> ReportRun:

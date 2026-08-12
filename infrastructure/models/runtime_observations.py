@@ -4,15 +4,15 @@ import logging
 import threading
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Union
+from typing import Mapping, Union
 
-from infrastructure.persistence.reports.report_repository import ReportRepository
-from infrastructure.tools.execution.observation import (
-    PermissionDecisionObservation as ToolPermissionDecisionObservation,
+from pydantic import JsonValue
+
+from infrastructure.models.runtime_ports import (
+    ToolCallObservationPortModel,
+    ToolPermissionObservationPortModel,
 )
-from infrastructure.tools.execution.observation import (
-    ToolCallObservation as ToolCallRecord,
-)
+from infrastructure.models.storage_ports import ReportStoragePort
 
 logger = logging.getLogger("infrastructure.models.runtime_observations")
 
@@ -187,9 +187,10 @@ class FoodDecisionObservation:
 
 
 class RuntimeObserver:
-    def __init__(self) -> None:
+    def __init__(self, report_writer: ReportStoragePort | None = None) -> None:
         self._lock = threading.Lock()
         self._events: list[RuntimeEvent] = []
+        self._report_writer = report_writer
 
     def record_model_call(self, observation: ModelCallObservation) -> None:
         self._record(observation.to_event())
@@ -202,7 +203,9 @@ class RuntimeObserver:
     ) -> None:
         self._record(observation.to_event())
 
-    def record_tool_observation(self, observation: ToolCallRecord) -> None:
+    def record_tool_observation(
+        self, observation: ToolCallObservationPortModel
+    ) -> None:
         """Implement the Tools-owned observation Port without reversing ownership."""
         self.record_tool_call(
             ToolCallObservation(
@@ -212,12 +215,12 @@ class RuntimeObserver:
                     if observation.ok
                     else RuntimeEventStatus.ERROR
                 ),
-                metadata=dict(observation.metadata),
+                metadata=_runtime_metadata(observation.metadata),
             )
         )
 
     def record_permission_observation(
-        self, observation: ToolPermissionDecisionObservation
+        self, observation: ToolPermissionObservationPortModel
     ) -> None:
         """Map a Tools permission record into the shared Runtime projection."""
         self.record_permission_decision(
@@ -256,12 +259,13 @@ class RuntimeObserver:
         with self._lock:
             self._events.append(event)
         try:
-            repository = ReportRepository()
-            run_id = repository.start_run(
+            if self._report_writer is None:
+                return
+            run_id = self._report_writer.start_run(
                 scope=f"runtime:{event.event_type.value}",
                 trigger="runtime",
             )
-            repository.append_observation(
+            self._report_writer.append_observation(
                 run_id=run_id,
                 subject_kind=_report_subject_kind(event.event_type),
                 subject_id=event.subject,
@@ -273,7 +277,7 @@ class RuntimeObserver:
                     **event.metadata,
                 },
             )
-            repository.finish_run(run_id, status="complete")
+            self._report_writer.finish_run(run_id, status="complete")
         except Exception as failure:
             logger.warning("Runtime 观测事件持久化失败: %s", failure)
 
@@ -290,14 +294,32 @@ def _report_subject_kind(event_type: RuntimeEventType) -> str:
     return "runtime"
 
 
+def _runtime_metadata(
+    metadata: Mapping[str, JsonValue],
+) -> dict[str, RuntimeMetadataValue]:
+    return {
+        key: value
+        for key, value in metadata.items()
+        if isinstance(value, (str, int, float, bool))
+    }
+
+
 _runtime_observer: RuntimeObserver | None = None
 _runtime_observer_lock = threading.Lock()
 
 
-def get_runtime_observer() -> RuntimeObserver:
+def get_runtime_observer(
+    report_writer: ReportStoragePort | None = None,
+) -> RuntimeObserver:
     global _runtime_observer
     if _runtime_observer is None:
         with _runtime_observer_lock:
             if _runtime_observer is None:
-                _runtime_observer = RuntimeObserver()
+                _runtime_observer = RuntimeObserver(report_writer)
+    elif report_writer is not None:
+        # Composition roots may be rebuilt against a new data home (tests and
+        # local recovery do this as well).  Preserve the singleton's in-memory
+        # event identity, but always bind persistence to the latest injected
+        # writer instead of retaining a stale database path.
+        _runtime_observer._report_writer = report_writer
     return _runtime_observer

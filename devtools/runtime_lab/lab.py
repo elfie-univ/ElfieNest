@@ -6,11 +6,12 @@ import copy
 import getpass
 import re
 import shutil
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import partial
 from pathlib import Path
 from typing import Any
 
+from app.bootstrap.system_wiring.runtime import build_agent_validation_composition
 from app.features.configuration.food import FoodPlanner, StoredModelEvidence
 from devtools.runtime_lab.provider_storage import (
     delete_provider_connection,
@@ -22,20 +23,14 @@ from infrastructure.models.capabilities import (
     known_capabilities,
 )
 from infrastructure.models.catalog import BUILTIN_MODEL_CATALOG
-from infrastructure.models.food_technology import (
-    query_model_evidence,
-    record_model_evidence,
-)
 from infrastructure.models.providers.model_hints import (
     ProviderModelSpec,
     configured_model_specs,
     suggested_model_names,
 )
 from infrastructure.models.providers.profiles import BUILTIN_PROFILES
-from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.runtime_overview import (
     RuntimeOverviewGenerator,
-    RuntimeOverviewStore,
     configured_provider_ids,
     render_provider_model_matrix,
 )
@@ -60,11 +55,21 @@ from infrastructure.persistence.configuration.secrets import (
     set_tool_secret,
 )
 from infrastructure.persistence.food import SQLiteFoodAdapter
+from infrastructure.persistence.food_evidence import (
+    SQLiteFoodEvidenceAdapter,
+    query_model_evidence,
+    record_model_evidence,
+)
 from infrastructure.persistence.layout.data_home import (
     get_config_path,
     get_elfie_developer_home,
 )
 from infrastructure.persistence.nest_db.store import init_db
+from infrastructure.persistence.provider_connections import ProviderConnectionStore
+from infrastructure.persistence.reports.report_repository import ReportRepository
+from infrastructure.persistence.runtime_config import load_runtime_config
+from infrastructure.persistence.runtime_overview import RuntimeOverviewStore
+from infrastructure.persistence.validation_artifacts import save_validation_report
 from infrastructure.platform.terminal_menu import MenuItem, TerminalMenu
 from infrastructure.tools.execution.config import TOOL_KEYS, load_tool_configs
 from infrastructure.tools.validation.direct_validation import DirectToolValidationRunner
@@ -104,7 +109,7 @@ class RuntimeLab:
             key_reader=key_reader,
             interactive=False if custom_io and interactive is None else interactive,
         )
-        self.config = LLMRuntimeConfig.load(config_home=self.config_home)
+        self.config = load_runtime_config(config_home=self.config_home)
 
     def _config_file_path(self) -> Path:
         if self.config_home:
@@ -134,6 +139,18 @@ class RuntimeLab:
         db_path = root / "nest.db"
         init_db(str(db_path))
         return SQLiteFoodAdapter(db_path)
+
+    def _evidence_port(self) -> SQLiteFoodEvidenceAdapter:
+        return SQLiteFoodEvidenceAdapter(ProviderConnectionStore(), ReportRepository())
+
+    def _agent_validation_runner(self) -> ModelAgentValidationRunner:
+        composition = build_agent_validation_composition()
+        return ModelAgentValidationRunner(
+            self.config,
+            tool_port_factory=composition.tool_port_factory,
+            tool_loop_factory=composition.tool_loop_factory,
+            prompt_injector=composition.prompt_injector,
+        )
 
     def run(self) -> None:
         while True:
@@ -418,7 +435,7 @@ class RuntimeLab:
             list(query_model_evidence().values()),
         )
         report = ValidationReport((tool_suite, food_suite))
-        path = report.save()
+        path = save_validation_report(report)
         self._print_suite(tool_suite)
         self._print_suite(food_suite)
         self.output(f"Report saved: {path}")
@@ -445,6 +462,7 @@ class RuntimeLab:
     def _show_current_overview(self) -> None:
         report = RuntimeOverviewGenerator(
             self.config,
+            evidence=self._evidence_port(),
             food_store=self._food_store(),
         ).snapshot()
         self._render_overview(report)
@@ -465,6 +483,7 @@ class RuntimeLab:
             return
         report = RuntimeOverviewGenerator(
             self.config,
+            evidence=self._evidence_port(),
             food_store=self._food_store(),
         ).regenerate()
         path = RuntimeOverviewStore().save(report)
@@ -522,6 +541,7 @@ class RuntimeLab:
     def _provider_hint(self, provider_id: str) -> str:
         report = RuntimeOverviewGenerator(
             self.config,
+            evidence=self._evidence_port(),
             food_store=self._food_store(),
         ).snapshot()
         provider = next(
@@ -547,6 +567,7 @@ class RuntimeLab:
     def _show_provider_model_matrix(self) -> None:
         report = RuntimeOverviewGenerator(
             self.config,
+            evidence=self._evidence_port(),
             food_store=self._food_store(),
         ).snapshot()
         width = shutil.get_terminal_size(fallback=(100, 30)).columns
@@ -745,7 +766,8 @@ class RuntimeLab:
                 min(int(max_bytes), 1024 * 1024),
             )
         policy = dict(self.config.runtime_policy)
-        tools = dict(policy.get("tools", {}))
+        raw_tools = policy.get("tools", {})
+        tools = dict(raw_tools) if isinstance(raw_tools, Mapping) else {}
         tools[tool_key] = current
         policy["tools"] = tools
         self.config.runtime_policy = policy
@@ -758,7 +780,7 @@ class RuntimeLab:
                 pending_secret,
                 self._secret_file_path(),
             )
-        self.config = LLMRuntimeConfig.load(config_home=self.config_home)
+        self.config = load_runtime_config(config_home=self.config_home)
         self.output("Tool Configuration saved securely to local storage.")
         return True
 
@@ -968,7 +990,7 @@ class RuntimeLab:
             tool_model = query_model_evidence().get(tool_recipe.tool.model)
             if tool_model and tool_model.verified:
                 provider_id, model_name = tool_recipe.tool.model.split("/", 1)
-                agent_suite = ModelAgentValidationRunner(self.config).verify(
+                agent_suite = self._agent_validation_runner().verify(
                     provider_id, model_name
                 )
                 live_suites.append(agent_suite)
@@ -994,7 +1016,7 @@ class RuntimeLab:
             catalog, list(query_model_evidence().values())
         )
         self._print_suite(suite)
-        path = ValidationReport((*live_suites, suite)).save()
+        path = save_validation_report(ValidationReport((*live_suites, suite)))
         self.output(f"Food Validation Report Saved: {path}")
 
     @staticmethod
@@ -1259,7 +1281,7 @@ class RuntimeLab:
                 )
         else:
             save_provider_connection(provider_id, provider, pending_secret)
-        self.config = LLMRuntimeConfig.load(config_home=self.config_home)
+        self.config = load_runtime_config(config_home=self.config_home)
 
     def _next_custom_provider_id(self, display_name: str) -> str:
         slug = re.sub(r"[^a-z0-9]+", "_", display_name.lower()).strip("_")
@@ -1469,7 +1491,7 @@ class RuntimeLab:
                 scope=f"runtime-lab:provider:{provider_id}",
                 trigger="runtime_lab",
             )
-            path = ValidationReport((suite,)).save()
+            path = save_validation_report(ValidationReport((suite,)))
             self.output(f"\nValidation evidence and Report Saved: {path}")
             self.output(
                 "Next: Enter Layer 3 to generate/update Food, validated models will enter routing."
@@ -1520,7 +1542,7 @@ class RuntimeLab:
         ):
             self.output("Cancelled.")
             return
-        runner = ModelAgentValidationRunner(self.config)
+        runner = self._agent_validation_runner()
         suites: list[ValidationSuite] = []
         evidence_updates: list[StoredModelEvidence] = []
         for index, selected in enumerate(selected_models, 1):
@@ -1549,7 +1571,7 @@ class RuntimeLab:
             scope="runtime-lab:model-agent",
             trigger="runtime_lab",
         )
-        path = ValidationReport(tuple(suites)).save()
+        path = save_validation_report(ValidationReport(tuple(suites)))
         passed_count = sum(suite.passed for suite in suites)
         self.output(
             f"\nModel + Agent Validation complete: Passed {passed_count} / {len(suites)}."
@@ -1626,7 +1648,7 @@ class RuntimeLab:
             elif not delete_provider_connection(provider_id):
                 raise ValueError(f"Provider connection not found: {provider_id}")
 
-            self.config = LLMRuntimeConfig.load(config_home=self.config_home)
+            self.config = load_runtime_config(config_home=self.config_home)
 
             self.output(f"✅ Provider '{provider_id}' has been deleted.")
             return True

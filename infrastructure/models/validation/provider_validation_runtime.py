@@ -2,22 +2,25 @@
 
 from __future__ import annotations
 
+from typing import Callable
+
+from infrastructure.models.provider_records import ProviderConnection
 from infrastructure.models.providers.profiles import get_product
 from infrastructure.models.runtime_config import LLMRuntimeConfig
-from infrastructure.persistence.configuration.secrets import (
-    connection_secret_name,
-    resolve_secret,
-)
-from infrastructure.persistence.provider_connections import ProviderConnection
 
 from .provider_validation_policy import (
+    _credential_name,
     active_validation_models,
     representative_model_id,
 )
 
+SecretResolver = Callable[[str], str]
+
 
 def runtime_projection(
     connection: ProviderConnection,
+    *,
+    secret_resolver: SecretResolver = lambda _name: "",
 ) -> tuple[str, LLMRuntimeConfig]:
     """Project one stable connection into the regular model adapter config."""
     profile = get_product(connection.catalog_id)
@@ -30,7 +33,7 @@ def runtime_projection(
         "api_base": connection.api_base or profile.api_base,
         "api_mode": connection.api_mode or profile.api_mode,
         "auth_type": connection.auth_type or profile.auth_type,
-        "api_key": connection_api_key(connection),
+        "api_key": connection_api_key(connection, secret_resolver=secret_resolver),
         "models": [
             {"id": model.endpoint_model_id, "display_name": model.display_name}
             for model in active_models
@@ -40,9 +43,10 @@ def runtime_projection(
     return runtime_id, config
 
 
-def connection_api_key(connection: ProviderConnection) -> str:
+def connection_api_key(
+    connection: ProviderConnection,
+    *,
+    secret_resolver: SecretResolver = lambda _name: "",
+) -> str:
     """Resolve a connection secret without exposing it to API projections."""
-    secret_name = connection.credential_ref or connection_secret_name(
-        connection.connection_id
-    )
-    return resolve_secret(secret_name)
+    return secret_resolver(_credential_name(connection))

@@ -5,39 +5,34 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from app.orchestration.lifecycle import DoctorRepairResult, DoctorValidationResult
-from infrastructure.persistence.layout.data_home import (
-    ensure_elfie_home,
-    get_elfie_home,
-    get_logs_dir,
-    get_model_validation_dir,
-    get_runtime_locks_dir,
-    get_runtime_validation_dir,
-)
+from app.orchestration.lifecycle.ports import LifecycleLocalDataPort
 
 
 class LocalDoctorAdapter:
     def __init__(
         self,
         *,
+        local_data: LifecycleLocalDataPort,
         offline_validator: Callable[[], bool] | None = None,
     ) -> None:
+        self._local_data = local_data
         self._offline_validator = offline_validator
 
     def repair_local_state(self) -> DoctorRepairResult:
-        home = get_elfie_home()
+        home = self._local_data.home()
         expected_dirs = (
             home,
             home / "assets",
             home / "assets" / "users",
             home / "configs",
             home / "elfies",
-            get_logs_dir(),
-            get_model_validation_dir(),
-            get_runtime_validation_dir(),
-            get_runtime_locks_dir(),
+            self._local_data.logs_dir(),
+            self._local_data.model_validation_dir(),
+            self._local_data.runtime_validation_dir(),
+            self._local_data.runtime_locks_dir(),
         )
         missing = any(not path.exists() for path in expected_dirs)
-        ensure_elfie_home()
+        self._local_data.ensure_home()
         return DoctorRepairResult(
             ("Created missing ~/.elfienest data directories",) if missing else ()
         )

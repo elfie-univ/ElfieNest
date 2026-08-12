@@ -5,6 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Mapping, Optional, Tuple
 
+from infrastructure.models.provider_records import (
+    CONNECTION_DOCUMENT_VERSION,
+    CONNECTION_ID_PATTERN,
+    ModelSource,
+    ProviderConnection,
+    ProviderModelRecord,
+    is_connection_id,
+)
 from infrastructure.persistence.configuration.config_store import (
     ConfigStoreError,
     read_yaml_mapping,
@@ -15,14 +23,8 @@ from infrastructure.persistence.layout.data_home import (
     get_provider_config_path,
 )
 from infrastructure.persistence.provider_connection_records import (
-    CONNECTION_DOCUMENT_VERSION,
-    CONNECTION_ID_PATTERN,
     InvalidProviderConnectionDocument,
-    ModelSource,
-    ProviderConnection,
     ProviderConnectionDocument,
-    ProviderModelRecord,
-    is_connection_id,
     parse_provider_document,
 )
 

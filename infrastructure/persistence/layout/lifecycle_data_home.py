@@ -9,6 +9,12 @@ from typing import Final, Optional
 
 from infrastructure.persistence.layout.data_home import (
     DataHomeSelectionError,
+    ensure_elfie_home,
+    get_elfie_home,
+    get_logs_dir,
+    get_model_validation_dir,
+    get_runtime_locks_dir,
+    get_runtime_validation_dir,
     resolve_elfie_home,
 )
 
@@ -16,6 +22,24 @@ _RECEIPT_NAME: Final = "selected-data-home"
 
 
 class LifecycleDataHomeAdapter:
+    def home(self) -> Path:
+        return get_elfie_home()
+
+    def ensure_home(self) -> None:
+        ensure_elfie_home()
+
+    def logs_dir(self) -> Path:
+        return get_logs_dir()
+
+    def model_validation_dir(self) -> Path:
+        return get_model_validation_dir()
+
+    def runtime_validation_dir(self) -> Path:
+        return get_runtime_validation_dir()
+
+    def runtime_locks_dir(self) -> Path:
+        return get_runtime_locks_dir()
+
     def select(
         self,
         explicit_home: Optional[str],

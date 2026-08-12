@@ -92,7 +92,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 ## 对应测试
 
 - `test/app/features/`：产品用例；
-- `test/app/infrastructure/`：持久化等基础设施；
+- `test/infrastructure/`：持久化等基础设施；
 - `test/app/interfaces/`：API、CLI 和 Web 边界；
 - `test/app/orchestration/`：引擎、认知循环和平台生命周期；
 - `test/architecture/test_project_structure.py`：顶层目录、旧包与质量门契约。

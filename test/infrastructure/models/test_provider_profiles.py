@@ -3,7 +3,6 @@ from infrastructure.models.providers.profiles import (
     get_default_api_mode,
     get_profile,
 )
-from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.persistence.configuration.secrets import (
     set_connection_secret,
     set_provider_secret,
@@ -13,6 +12,7 @@ from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
+from infrastructure.persistence.runtime_config import load_runtime_config
 
 
 class TestBuiltinProfiles:
@@ -85,7 +85,7 @@ class TestLLMRuntimeConfigProviderProfiles:
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
         set_provider_secret("openai", "sk-test")
 
-        config = LLMRuntimeConfig()
+        config = load_runtime_config()
         assert "api_mode" in config.providers["openai"]
         assert config.providers["openai"]["api_mode"] == "chat_completions"
         assert config.providers["ollama"]["api_mode"] == "ollama"
@@ -96,7 +96,7 @@ class TestLLMRuntimeConfigProviderProfiles:
         # 使用默认已知的 provider (deepseek) 来测试 api_mode 合并
         set_provider_secret("deepseek", "sk-test")
 
-        config = LLMRuntimeConfig()
+        config = load_runtime_config()
         assert "api_mode" in config.providers["deepseek"]
         assert config.providers["deepseek"]["api_mode"] == "chat_completions"
 
@@ -105,7 +105,7 @@ class TestLLMRuntimeConfigProviderProfiles:
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
         set_provider_secret("custom_provider", "test-key")
 
-        config = LLMRuntimeConfig()
+        config = load_runtime_config()
         assert "custom_provider" not in config.providers
 
     def test_status_defaults_based_on_api_key(self, monkeypatch, tmp_path):
@@ -113,14 +113,14 @@ class TestLLMRuntimeConfigProviderProfiles:
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
         set_provider_secret("openai", "sk-test")
 
-        config = LLMRuntimeConfig()
+        config = load_runtime_config()
         assert config.providers["openai"]["status"] == "active"
         assert config.providers["deepseek"]["status"] == "inactive"
 
     def test_ollama_status_always_active(self, monkeypatch, tmp_path):
         """Ollama status 始终为 active"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
+        config = load_runtime_config()
         assert config.providers["ollama"]["status"] == "active"
 
     def test_loads_custom_openai_credentials_from_env_file(self, monkeypatch, tmp_path):
@@ -132,7 +132,7 @@ class TestLLMRuntimeConfigProviderProfiles:
             }
         )
 
-        config = LLMRuntimeConfig()
+        config = load_runtime_config()
 
         provider = config.providers["custom_openai"]
         assert provider["api_key"] == "test-key"
@@ -156,7 +156,7 @@ class TestLLMRuntimeConfigProviderProfiles:
         )
         set_connection_secret(connection.connection_id, "connection-key")
 
-        config = LLMRuntimeConfig()
+        config = load_runtime_config()
 
         runtime_provider = config.providers[connection.connection_id]
         assert runtime_provider["catalog_id"] == "openai_api"
