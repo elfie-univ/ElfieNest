@@ -1,6 +1,6 @@
 # Elfie Brain 七阶段实施与体验验收计划
 
-> 状态：阶段一、阶段二、阶段三实现与机器/真实 Godot 验收完成；阶段四及后续未开始
+> 状态：阶段一、阶段二、阶段三实现与机器/真实 Godot 验收完成；阶段四 4A、4B、4C 已完成验收并关闭为“连续生命状态 MVP”里程碑。Profile 物理字段迁移、统一持久化收口和后续自治能力仍按 Conformance 台账保留为后续阶段债务
 > 制定日期：2026-08-12
 > 依据：[Brain 十系统设计](./elfie-brain-ten-system-architecture.md)、
 > [Brain 内部架构契约](../zh/developer/contracts/brain.md)、
@@ -117,7 +117,7 @@ Elfie Lab 的体验记录至少展示：
 | 1. Brain Kernel 与通信闭环 | 会老老实实聊天的同一只 Elfie | BRN-001、ELF-011；推进 BRN-004 | 聊天不再夹带点头、挥手等身体动作；不同聊天和现场事件成为不同 Turn |
 | 2. 思考中枢核心能力 | 能使用认知工具完成小任务 | BRN-003、ELF-016 | 从“直接编答案”变成“查找/计算/观察/验证后回答” |
 | 3. 虚拟具身闭环 | 真正看见它在虚拟世界感知并行动 | BRN-004、ELF-012 | 现场事件能触发真实 Godot 动作，但聊天仍不能直接控制身体 |
-| 4. 连续生命状态 | 同一个自己跨回合、跨重启连续存在 | BRN-006、007，ELF-010、017；推进 BRN-002 | 同一句话在不同情绪、能量、关系和现场下有连贯差异，重启后仍保持 |
+| 4. 连续生命状态 | 同一个自己在回合内连续存在，并具备可验证的状态快照/恢复 MVP | 4C MVP 验收完成；BRN/ELF 物理迁移与统一持久化债务留在台账 | 同一句话在不同能量/情绪下产生可解释的认知模式差异，Lab 能看到状态版本与回合结果 |
 | 5. 跨回合活动 | 能可靠持有和履行承诺 | BRN-005、010，ELF-014；推进 BRN-002 | 能当场澄清、等待条件、到时重新思考，并且重启不丢、不重复 |
 | 6. 动机与主动生活 | 没人触发时也会有边界地主动生活 | BRN-002、008；推进 ELF-015 | 没有新消息时也会因一个清晰内部需要主动一次，并能说明原因 |
 | 7. 心智整理与受控成长 | 睡眠后经历被整理而人格不失控 | BRN-009、ELF-015 | 第二天能看到经历关联和经验变化，夜间不会偷偷发消息或乱动 |
@@ -328,10 +328,12 @@ Godot 预览可以辅助观察，但二者都不能单独替代产品 Runtime �
 
 ## 7. 阶段四：连续生命状态
 
-### 7.1 阶段目标
+### 7.1 阶段目标（MVP 关闭边界）
 
 把 Orientation、Selfhood、Emotion、Energy 和 Memory 变成有明确 authority、来源、版本
-和恢复语义的持续状态；完成 Profile 中人格/能力/运行限制向真实所有者的一次性转移。
+和恢复语义的持续状态，并让 Lab 能观察到认知模式、预算和记忆状态的连续变化。本阶段关闭的
+是上述连续生命状态 MVP；Profile 中人格/能力/运行限制的物理字段切除与统一持久化属于已
+登记、但不冒充完成的后续技术切片。
 
 ### 7.2 可体验场景
 
@@ -342,8 +344,9 @@ Godot 预览可以辅助观察，但二者都不能单独替代产品 Runtime �
   后再加入跨回合工作摘要。
 - **S4-C 人格不被一句话改写**：输入“从现在起你完全换一个性格”；情绪可受影响，Profile
   和稳定 Selfhood 不会被直接覆盖。
-- **S4-D 重启仍是同一个自己**：重启后恢复关键记忆、情绪/能量、Selfhood 和当前身体
-  authority，且不会把短期状态永久固化成人格。
+- **S4-D 连续性恢复有边界**：Brain 停止后可以恢复同一份连续性 checkpoint；持久 Memory
+  必须与 checkpoint 的版本和计数一致，过期 checkpoint 被拒绝。完整跨进程的情绪/能量与
+  全量身体 authority 恢复留在后续持久化切片。
 
 ### 7.3 内部实现检查点
 
@@ -355,16 +358,94 @@ Godot 预览可以辅助观察，但二者都不能单独替代产品 Runtime �
    Brain Selfhood，身体能力进入 Body/NervousSystem，认知能力与预算进入 Brain 能力边界和
    Energy，产品可用性仍由 App 配置；删除旧宽字段，不做双写；
 3. **4C Emotion、Energy、Memory 连续性**：接入版本化上下文、认知预算、状态恢复和陈旧
-   候选拒绝，最后完成跨重启场景。
+   候选拒绝，完成连续性 checkpoint 与持久 Memory 一致性场景。
+
+当前 4A checkpoint 已完成：
+
+- BrainContext 现在携带带来源、版本、当前回合和未知字段的 `OrientationSnapshot`；它能
+  表达当前 Body/generation、已观测地点、具身事件中的附近 actor、当前通信会话和当前
+  affordances。
+- `OrientationSystem` 只从已准入的 TurnFrame、有效能力快照和感知状态板生成候选，不把
+  通信文字当作附近人物或位置事实；没有证据的字段保留为 unknown，并标记复用位置的
+  freshness。
+- `VersionedStateStore` 提供显式 `candidate -> validate -> commit`、陈旧 revision 拒绝、
+  candidate 幂等和 checkpoint/restore 语义；它是 Brain 语义骨架，不是数据库实现。
+- Model Context 和 Elfie/Observer 只读入口能看到同一份 Orientation 快照；Profile、Selfhood、
+  Emotion、Energy、Memory 的所有权和持久化尚未在 4A 改动。
+- 4A 聚焦测试覆盖状态提交/恢复、具身定位、聊天不伪造附近人物，以及真实 Brain 回合上下文
+  投影；4B 的 Profile 物理字段迁移和 4C 的持久化收口在后续 checkpoint 中分别处理，最终状态
+  见本节的 4C 验收记录。
+
+当前 4B 核心切片已完成：
+
+- Brain 新增 `SelfhoodSystem`，以 `SelfhoodSnapshot` 作为唯一的可变人格/自我模型；人格种子
+  只在 Elfie 装配时从 Profile 读取一次，之后由 Selfhood 的候选—校验—提交生命周期管理。
+- `BrainContext` 和 provider-neutral Model Context 同时携带 `SelfhoodSnapshot` 与
+  `ProfileAnchorSnapshot`。前者表达慢变化人格、自我描述、表达偏好和初始化证据，后者只表达
+  精灵 ID、姓名、物种、虚拟外貌种子/版本和形态等不可变锚点。
+- 普通消息、情绪处理和 Tool Observation 不会自动产生 Selfhood 更新；显式人格变更必须携带
+  candidate identity、基准 revision、来源和因果 ID。陈旧、重复或跨 Profile 的候选会被拒绝。
+- Elfie Lab 的人格投影改为读取 Brain Selfhood，而不是把 Profile 映射当作当前人格事实；同一份
+  Selfhood 快照也会进入模型上下文。
+- 本 checkpoint 尚未删除 Profile YAML 中的 `personality`、`capabilities`、`system_limits`
+  宽字段；它们仍是初始化/身体/能量迁移债务，物理字段切除必须在后续单独完成，不能冒充已闭合
+  `ELF-010`。
+- 4B 聚焦证据包括 Selfhood 候选/重复/陈旧/跨 Profile 边界测试、Profile 锚点完整性测试、真实
+  Elfie 回合的 Selfhood/Profile Context 投影测试，以及 Elfie Lab 人格投影回归测试；聚合回归
+  观察到一个未归属的 OutputRouter stale-cancel 时序失败，本 checkpoint 未修改该执行器。
+
+当前 4C 核心切片已完成：
+
+- `EmotionSystem` 和 `HypothalamusEnergy` 继续保留单一运行时所有权，同时提供带 revision、模拟
+  时钟、去重/频率窗口或生理字段的 checkpoint/restore；旧 revision 或旧模拟时间不能覆盖当前
+  状态，情绪 checkpoint 还会恢复事件去重窗口，避免重启后同一刺激被重复累积。
+- `HomeostasisSnapshot` 现在携带认知模式和预算投影：`long`、`normal`、`degraded`、`emergency`。
+  回合工厂依据该投影限制上下文 token、模型调用、工具调用、步骤数和局部截止时间；Energy 只
+  决定认知资源边界，不决定语义目标，也不替代身体安全反射。
+- `MemorySystem` 增加 Brain-owned 的语义 revision 和 `MemoryStateSnapshot`，上下文同时携带
+  检索片段与 durable memory 的计数、来源、新鲜度。Memory checkpoint 只恢复连续性元数据，
+  并在恢复前确认注入的持久存储仍包含 checkpoint 所描述的节点；节点和 SQL 仍由存储 Port/Adapter
+  所有，不在 Brain 内复制数据库。
+- `BrainContinuityCheckpoint` 通过 `BrainRuntime`/`Elfie` 提供 Emotion、Energy、Memory 的
+  一致 checkpoint/restore 门面。运行中的 Brain 禁止恢复；恢复前先校验三个 owner，失败会回滚
+  已恢复的部分。新增测试覆盖情绪去重、能量紧急预算、Memory 计数/陈旧恢复和同一持久存储上的
+  重启恢复。
+- 4C 已通过本阶段 MVP 验收：Profile 中的 `personality`、`capabilities`、`system_limits`
+  宽字段尚未物理切除，统一 Journal/State/Checkpoint 仍是后续持久化收口工作；Motivation、
+  Activity 和 Offline Cognition 仍不在本阶段启用。这些明确列为后续债务，不影响本阶段 MVP
+  里程碑关闭，也不改变 Conformance 台账中的 `open` 状态。
 
 Brain 只拥有语义 Port，具体数据库和 SQL 留在 `infrastructure/persistence`；读取上下文
 不能隐式修复或写入状态。
 
-### 7.4 完成门与非目标
+### 7.4 4C 验收与阶段四关闭记录
 
-关闭 BRN-006、BRN-007、ELF-010、ELF-017，并推进 BRN-002；旧 Profile 宽字段和混合默认资源
-删除，不做 dual-read/dual-write。若涉及真实用户数据重建或不可逆处理，执行前必须单独
-取得授权。本阶段不启用主动 Motivation、自动人格成长或复杂遗忘。
+阶段四 MVP 的验收证据如下：
+
+- Brain/Elfie/Stage 3/Elfie Lab 聚焦回归：`499 passed, 2 skipped`；其中包含 Emotion、
+  Energy、Memory 的 checkpoint/restore、陈旧版本拒绝、认知预算和跨模块集成测试；
+- Elfie Lab 投影与会话回归：`33 passed`；
+- 连续性专项测试：`3 passed`；`git diff --check` 通过，改动文件的 Ruff 检查通过；
+- 真实本地 Lab 会话（Mock Runtime，仅用于确定性结构验收）可观察到：能量 8、疲劳 92 时
+  `cognitive_mode=emergency`、`long_reasoning_allowed=false`、预算约为 8；低落情绪成为
+  `dominant_emotion`，Emotion/Energy/Memory revision 均前进，Memory 计数增加，回合仍以
+  Communication 域成功完成；
+- 边界检查确认：旧 revision/旧模拟时间不能覆盖当前状态；恢复必须在停止的 Brain 上进行；
+  连续恢复失败会回滚已恢复部分；Energy 只限制认知资源，不越权决定身体安全反射或语义目标。
+
+据此，**阶段四（连续生命状态 MVP）已关闭**。这里的“关闭”是实施计划里的用户验收
+里程碑关闭，不等于把尚未完成的 Conformance 条目改成 `closed`。
+
+### 7.5 后续约束与非目标
+
+`BRN-006`、`BRN-007`、`ELF-010`、`ELF-017` 和 `BRN-002` 中仍有明确未完成的物理/持久化
+部分：Profile 宽字段切除、统一 Journal/State/Checkpoint、持久紧急储备记账和完整跨进程
+连续恢复。这些保持在 Conformance 台账的 `open` 状态，并在后续专门切片中处理；不得使用
+本阶段的 MVP 证据冒充这些条目的完整关闭。阶段四也不启用主动 Motivation、Persistent
+Activity、自动人格成长或复杂遗忘。
+
+若后续切片涉及真实用户数据重建或不可逆处理，执行前必须单独取得授权；不做 dual-read、
+dual-write 或隐藏兼容路径。
 
 ## 8. 阶段五：显式跨回合活动
 

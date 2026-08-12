@@ -20,7 +20,20 @@ MemorySystem 是图记忆系统的统一入口门面（Facade），
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Any, Callable, Dict, List, Optional
+from uuid import uuid4
+
+from elfie.brain.context_types import MemoryStateSnapshot
+from elfie.brain.state_lifecycle import (
+    StateCandidate,
+    StateCheckpoint,
+    StateCommitStatus,
+    StateRestoreError,
+    VersionedState,
+    VersionedStateStore,
+)
+from elfie.message_types import EventId
 
 from .consolidation import MemoryConsolidator
 from .context_assembly import ContextAssembler
@@ -48,10 +61,31 @@ class MemorySystem:
         *,
         elfie_id: str | None = None,
         personality_data: Optional[dict] = None,
+        clock: Callable[[], datetime] | None = None,
+        initial_at: datetime | None = None,
     ):
         """初始化所有语义组件；具体存储由 Bootstrap 注入。"""
         self.storage = storage
         self._owns_storage = False
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
+        state_at = initial_at or self._clock()
+        total_count = storage.count_nodes()
+        initial_state = MemoryStateSnapshot(
+            revision=0,
+            captured_at=state_at,
+            episodic_count=storage.count_nodes("episodic"),
+            total_count=total_count,
+            freshness="current" if total_count else "unknown",
+        )
+        self._state = VersionedStateStore(
+            VersionedState(
+                revision=0,
+                committed_at=state_at,
+                source_event_ids=(),
+                causation_id=None,
+                value=initial_state,
+            )
+        )
         self.sensory_buffer = SensoryBuffer()
         self.core_cognition = CoreCognition(
             storage=storage,
@@ -97,6 +131,7 @@ class MemorySystem:
         stimulus: Optional[str] = None,
         sensory: Optional[dict] = None,
         runtime_agent: MemoryModelPort | None = None,
+        source_event_ids: tuple[EventId, ...] = (),
         # 兼容旧API关键字参数名
         event_description: Optional[str] = None,
         emotion_tag: Optional[str] = None,
@@ -126,7 +161,19 @@ class MemorySystem:
             raise TypeError(
                 "record_episode() missing required argument: 'content' or 'event_description'"
             )
-        return self.encoder.encode(event, emo, inte, stimulus, sensory, runtime_agent)
+        node_id = self.encoder.encode(
+            event,
+            emo,
+            inte,
+            stimulus,
+            sensory,
+            runtime_agent,
+        )
+        self._commit_state(
+            source_event_ids=source_event_ids,
+            causation_id=EventId(f"memory-record:{uuid4().hex}"),
+        )
+        return node_id
 
     def retrieve_relevant_memories(
         self,
@@ -166,7 +213,58 @@ class MemorySystem:
             巩固结果字典
             {"consolidated_count": int, "knowledge_created": int, "edges_created": int}
         """
-        return self.consolidator.run_consolidation(runtime_agent)
+        result = self.consolidator.run_consolidation(runtime_agent)
+        if any(isinstance(value, int) and value > 0 for value in result.values()):
+            self._commit_state(
+                causation_id=EventId(f"memory-consolidation:{uuid4().hex}")
+            )
+        return result
+
+    @property
+    def revision(self) -> int:
+        """Return the committed semantic memory-state revision."""
+        return self._state.snapshot().revision
+
+    def snapshot(
+        self,
+        captured_at: datetime | None = None,
+    ) -> MemoryStateSnapshot:
+        """Return durable-memory counts and provenance at a context cutoff."""
+        state = self._state.snapshot().value
+        return state.model_copy(update={"captured_at": captured_at or self._clock()})
+
+    def checkpoint(self) -> StateCheckpoint[MemoryStateSnapshot]:
+        """Return a persistence-neutral checkpoint for memory continuity."""
+        return self._state.checkpoint()
+
+    def validate_checkpoint(
+        self,
+        checkpoint: StateCheckpoint[MemoryStateSnapshot],
+    ) -> None:
+        """Validate revision and durable-store containment before restore."""
+        current = self._state.snapshot()
+        if checkpoint.revision < current.revision:
+            raise StateRestoreError(
+                "memory checkpoint revision is older than current state"
+            )
+        current_episodic = self.storage.count_nodes("episodic")
+        current_total = self.storage.count_nodes()
+        if current_episodic < checkpoint.value.episodic_count:
+            raise StateRestoreError(
+                "memory store no longer contains the checkpoint episodic state"
+            )
+        if current_total < checkpoint.value.total_count:
+            raise StateRestoreError(
+                "memory store no longer contains the checkpoint state"
+            )
+
+    def restore(
+        self,
+        checkpoint: StateCheckpoint[MemoryStateSnapshot],
+    ) -> None:
+        """Restore continuity metadata only after the durable store is present."""
+        self.validate_checkpoint(checkpoint)
+        self._state.restore(checkpoint)
 
     def get_core_cognition(self) -> Dict[str, str]:
         """获取核心认知文本
@@ -239,3 +337,35 @@ class MemorySystem:
     def close(self) -> None:
         """Retain the injected store's lifecycle for Bootstrap ownership."""
         return None
+
+    def _commit_state(
+        self,
+        *,
+        source_event_ids: tuple[EventId, ...] = (),
+        causation_id: EventId | None = None,
+    ) -> None:
+        """Advance the semantic revision after a successful storage mutation."""
+        current = self._state.snapshot()
+        captured_at = self._clock()
+        value = current.value.model_copy(
+            update={
+                "revision": current.revision + 1,
+                "captured_at": captured_at,
+                "episodic_count": self.storage.count_nodes("episodic"),
+                "total_count": self.storage.count_nodes(),
+                "source_event_ids": tuple(dict.fromkeys(source_event_ids)),
+                "freshness": "current",
+            }
+        )
+        candidate = StateCandidate(
+            candidate_id=EventId(f"memory-state:{uuid4().hex}"),
+            owner="memory",
+            base_revision=current.revision,
+            source_event_ids=value.source_event_ids,
+            causation_id=causation_id,
+            created_at=captured_at,
+            value=value,
+        )
+        receipt = self._state.commit(candidate)
+        if receipt.status is not StateCommitStatus.COMMITTED:
+            raise RuntimeError(f"memory state commit failed: {receipt.status.value}")

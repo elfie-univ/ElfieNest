@@ -10,6 +10,12 @@ from typing import Iterable
 from elfie.body import BodyBinding, BodyRegistry
 from elfie.body.contracts import BodySensorEvent
 from elfie.body.port import BodyPort
+from elfie.brain.context_types import (
+    OrientationSnapshot,
+    ProfileAnchorSnapshot,
+    SelfhoodSnapshot,
+)
+from elfie.brain.continuity import BrainContinuityCheckpoint
 from elfie.brain.decision_types import TurnDecision
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import HypothalamusEnergy
@@ -21,6 +27,7 @@ from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.brain.reasoning import ReasoningRunResult
 from elfie.brain.runtime import BrainRuntime
 from elfie.brain.runtime_port import ModelPort
+from elfie.brain.selfhood import SelfhoodSystem
 from elfie.brain.skills import SkillManager
 from elfie.brain.tool_port import ToolPort
 from elfie.brain.turn_outcome import TurnOutcome
@@ -59,11 +66,23 @@ class Elfie:
             self.character_profile.system_limits,
             clock=lambda: self._elapsed_time,
         )
-        self.amygdala = EmotionSystem(clock=lambda: self._elapsed_time)
+        self.selfhood = SelfhoodSystem.from_personality_data(
+            self.character_profile.personality,
+            initial_at=self.cognitive_datetime,
+            profile_revision=self.character_profile.schema_version,
+        )
+        self.amygdala = EmotionSystem(
+            personality=self.selfhood.big_five_dict(),
+            clock=lambda: self._elapsed_time,
+        )
         self.memory = MemorySystem(
             elfie_id=self.character_profile.identity.elfie_id,
-            personality_data=self.character_profile.personality or None,
+            personality_data=self.selfhood.seed_data(
+                display_name=self.character_profile.identity.display_name
+            ),
             storage=memory_store,
+            clock=lambda: self.cognitive_datetime,
+            initial_at=self.cognitive_datetime,
         )
         workspace_id = ElfieId(self.character_profile.identity.elfie_id)
         self.perceptual_workspace = PerceptualWorkspace(workspace_id)
@@ -215,6 +234,8 @@ class Elfie:
             memory=self.memory,
             emotion=self.amygdala,
             homeostasis=self.hypothalamus,
+            selfhood=self.selfhood,
+            profile_anchors=self._profile_anchor_snapshot(clock()),
             nervous_system=self.nervous_system,
             communication=self.communication,
             skills=self.skills,
@@ -299,6 +320,49 @@ class Elfie:
 
     def turn_reasoning(self, turn_id: TurnId) -> ReasoningRunResult | None:
         return self._require_brain_runtime().reasoning(turn_id)
+
+    def orientation_snapshot(self) -> OrientationSnapshot:
+        """Return the latest committed self/world orientation snapshot."""
+        return self._require_brain_runtime().orientation_snapshot()
+
+    def selfhood_snapshot(self) -> SelfhoodSnapshot:
+        """Return the Brain-owned self-model, never the mutable Profile seed."""
+        runtime = self._brain_runtime
+        return (
+            runtime.selfhood_snapshot()
+            if runtime is not None
+            else self.selfhood.snapshot()
+        )
+
+    def profile_anchor_snapshot(self) -> ProfileAnchorSnapshot:
+        """Return the immutable identity/appearance projection used by Brain."""
+        runtime = self._brain_runtime
+        return (
+            runtime.profile_anchors()
+            if runtime is not None
+            else self._profile_anchor_snapshot(self.cognitive_datetime)
+        )
+
+    def continuity_checkpoint(self) -> BrainContinuityCheckpoint:
+        """Capture continuous Emotion/Energy/Memory state for restart tests."""
+        return self._require_brain_runtime().continuity_checkpoint()
+
+    def restore_continuity(self, checkpoint: BrainContinuityCheckpoint) -> None:
+        """Restore a committed continuity checkpoint while Brain is stopped."""
+        self._require_brain_runtime().restore_continuity(checkpoint)
+
+    def _profile_anchor_snapshot(self, captured_at: datetime) -> ProfileAnchorSnapshot:
+        profile = self.character_profile
+        return ProfileAnchorSnapshot(
+            revision=profile.schema_version,
+            captured_at=captured_at,
+            elfie_id=profile.identity.elfie_id,
+            display_name=profile.identity.display_name,
+            species_id=profile.identity.species_id,
+            appearance_seed=profile.appearance.seed,
+            appearance_genome_version=profile.appearance.genome_version,
+            primary_morphology=profile.embodiment.primary_morphology,
+        )
 
     def _require_brain_runtime(self) -> BrainRuntime:
         runtime = self._brain_runtime

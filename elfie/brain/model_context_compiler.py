@@ -11,6 +11,10 @@ from elfie.brain.context_types import (
     EffectiveCapabilities,
     EmotionSnapshot,
     HomeostasisSnapshot,
+    MemoryStateSnapshot,
+    OrientationSnapshot,
+    ProfileAnchorSnapshot,
+    SelfhoodSnapshot,
 )
 from elfie.brain.perception_types import (
     ExecutionPayload,
@@ -104,8 +108,16 @@ class CompiledModelContext(FrozenContractModel):
     memories: Tuple[CompiledMemory, ...]
     emotion: EmotionSnapshot
     homeostasis: HomeostasisSnapshot
+    orientation: OrientationSnapshot
     capabilities: EffectiveCapabilities
     truncated: bool
+    selfhood: SelfhoodSnapshot = Field(default_factory=SelfhoodSnapshot.unknown)
+    profile_anchors: ProfileAnchorSnapshot = Field(
+        default_factory=ProfileAnchorSnapshot.unknown
+    )
+    memory_state: MemoryStateSnapshot = Field(
+        default_factory=MemoryStateSnapshot.unknown
+    )
 
 
 class _BudgetCursor:
@@ -189,8 +201,12 @@ class ModelContextCompiler:
             memories=memories,
             emotion=context.emotion,
             homeostasis=context.homeostasis,
+            orientation=context.orientation,
             capabilities=context.capabilities,
             truncated=cursor.truncated,
+            selfhood=context.selfhood,
+            profile_anchors=context.profile_anchors,
+            memory_state=context.memory.state,
         )
 
     @staticmethod

@@ -23,9 +23,9 @@ def build_profile(
 ) -> Dict[str, Any]:
     """Build the stable profile payload consumed by the Lab UI."""
     character_profile = elfie.profile
-    personality = character_profile.personality
+    selfhood = elfie.selfhood.snapshot()
     resolved = AppearanceResolver().resolve(character_profile).to_payload()
-    big_five = personality.get("big_five", {})
+    big_five = selfhood.big_five.model_dump()
     return {
         **spec.to_dict(),
         "configured_name": character_profile.identity.display_name,
@@ -36,8 +36,11 @@ def build_profile(
         "personality_summary": _personality_summary(big_five),
         "personality_tags": _personality_tags(big_five),
         "big_five": big_five,
-        "personality_derivation": personality.get("derivation", {}),
-        "speech_style": personality.get("speech_style", {}),
+        "personality_derivation": selfhood.derivation.model_dump(),
+        "speech_style": {
+            "greetings": list(selfhood.speech_style.greetings),
+            "verbal_ticks": selfhood.speech_style.verbal_tick,
+        },
         "appearance": resolved,
         "appearance_genome": asdict(character_profile.appearance),
         "portrait_url": (
@@ -59,14 +62,23 @@ def build_profile(
 def build_snapshot(elfie: Elfie, spec: ElfieSpec) -> Dict[str, Any]:
     """Build the current in-memory state shown by the Lab."""
     expression = elfie.amygdala.get_expression() or {}
+    cognitive_mode, long_reasoning_allowed, available_budget = (
+        elfie.hypothalamus.cognitive_policy()
+    )
+    memory_state = elfie.memory.snapshot(elfie.cognitive_datetime)
     return {
         "energy": round(elfie.hypothalamus.get_energy(), 2),
         "fatigue": round(elfie.hypothalamus.get_fatigue(), 2),
         "is_sleeping": bool(elfie.hypothalamus.is_sleeping),
+        "cognitive_mode": cognitive_mode,
+        "long_reasoning_allowed": long_reasoning_allowed,
+        "available_cognitive_budget": round(available_budget, 2),
+        "energy_revision": elfie.hypothalamus.revision,
         "emotions": {
             name: round(value, 2) for name, value in elfie.amygdala.emotions.items()
         },
         "dominant_emotion": elfie.amygdala.get_dominant_mood(),
+        "emotion_revision": elfie.amygdala.revision,
         "expression": expression,
         "attention_network": "cortical_worker",
         "species_id": spec.species_id,
@@ -78,6 +90,9 @@ def build_snapshot(elfie: Elfie, spec: ElfieSpec) -> Dict[str, Any]:
         },
         "elapsed_time": round(elfie.elapsed_time, 3),
         "memory_count": len(elfie.memory.get_all_episodes()),
+        "memory_revision": memory_state.revision,
+        "memory_episodic_count": memory_state.episodic_count,
+        "memory_total_count": memory_state.total_count,
     }
 
 

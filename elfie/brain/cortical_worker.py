@@ -82,6 +82,10 @@ class CorticalTaskView(Protocol):
     def tool_scope_id(self) -> ElfieId | None:
         """Return the owning Elfie scope for local semantic tools."""
 
+    @property
+    def reasoning_budget(self) -> ReasoningBudget | None:
+        """Return the per-Turn budget selected by Energy, if any."""
+
 
 @dataclass(frozen=True)
 class CorticalTask:
@@ -90,6 +94,7 @@ class CorticalTask:
     request: ModelGenerationRequest
     seed: DecisionDecodeSeed
     tool_scope_id: ElfieId | None = None
+    reasoning_budget: ReasoningBudget | None = None
 
 
 @dataclass(frozen=True)
@@ -302,7 +307,7 @@ class CorticalWorker:
             model_port=self._model_port,
             decoder=self._decoder,
             tool_port=self._tool_port,
-            budget=self._reasoning_budget,
+            budget=getattr(task, "reasoning_budget", None) or self._reasoning_budget,
         ).run(task, cancellation=cancellation)
         return CorticalTurnResult(
             decode=reasoning.decode,

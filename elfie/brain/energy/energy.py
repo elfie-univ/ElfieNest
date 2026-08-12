@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Literal
 
 from elfie.brain.context_types import HomeostasisSnapshot
+from elfie.brain.state_lifecycle import StateRestoreError
 
 logger = logging.getLogger("elfie.brain.energy")
 
@@ -23,6 +25,17 @@ class EnergyTimeRegressionError(Exception):
             "homeostasis simulation time cannot move backwards: "
             f"{self.previous_timestamp} -> {self.requested_timestamp}"
         )
+
+
+@dataclass(frozen=True)
+class EnergyCheckpoint:
+    """Persistence-neutral checkpoint for homeostasis and its clock."""
+
+    revision: int
+    last_updated_at: float
+    energy: float
+    fatigue: float
+    sleeping: bool
 
 
 class HypothalamusEnergy:
@@ -59,6 +72,26 @@ class HypothalamusEnergy:
         self._clock = clock
         self.last_updated_at = float(clock())
         self.revision = 0
+
+        cognitive = config.get("cognitive", {})
+        self.long_reasoning_min_energy = float(
+            cognitive.get("long_reasoning_min_energy", 70.0)
+        )
+        self.degraded_energy_threshold = float(
+            cognitive.get("degraded_energy_threshold", 30.0)
+        )
+        self.emergency_energy_threshold = float(
+            cognitive.get("emergency_energy_threshold", 10.0)
+        )
+        self.long_reasoning_max_fatigue = float(
+            cognitive.get("long_reasoning_max_fatigue", 50.0)
+        )
+        self.degraded_fatigue_threshold = float(
+            cognitive.get("degraded_fatigue_threshold", 75.0)
+        )
+        self.emergency_fatigue_threshold = float(
+            cognitive.get("emergency_fatigue_threshold", 90.0)
+        )
 
     def update_clock(self, dt: float) -> None:
         """
@@ -161,10 +194,82 @@ class HypothalamusEnergy:
     def snapshot(self, at: float) -> HomeostasisSnapshot:
         """Advance first, then seal immutable homeostasis state."""
         self.advance_to(at)
+        mode, long_allowed, budget = self.cognitive_policy()
         return HomeostasisSnapshot(
             revision=self.revision,
             captured_at=datetime.fromtimestamp(at, timezone.utc),
             energy=self.energy,
             fatigue=self.fatigue,
             sleeping=self.is_sleeping,
+            cognitive_mode=mode,
+            long_reasoning_allowed=long_allowed,
+            available_cognitive_budget=budget,
         )
+
+    def cognitive_policy(
+        self,
+    ) -> tuple[Literal["normal", "long", "degraded", "emergency"], bool, float]:
+        """Return deterministic cognitive admission derived from homeostasis.
+
+        The policy only limits reasoning depth and budget. It does not select a
+        semantic goal or produce an external action.
+        """
+        budget = max(0.0, min(100.0, (self.energy / self.max_energy) * 100.0))
+        if (
+            self.is_sleeping
+            or self.energy <= self.emergency_energy_threshold
+            or self.fatigue >= self.emergency_fatigue_threshold
+        ):
+            return "emergency", False, budget
+        if (
+            self.energy <= self.degraded_energy_threshold
+            or self.fatigue >= self.degraded_fatigue_threshold
+        ):
+            return "degraded", False, budget
+        if (
+            self.energy >= self.long_reasoning_min_energy
+            and self.fatigue <= self.long_reasoning_max_fatigue
+        ):
+            return "long", True, budget
+        return "normal", False, budget
+
+    def can_start_long_reasoning(self) -> bool:
+        """Whether the current state permits a bounded long cognitive run."""
+        return self.cognitive_policy()[1]
+
+    def checkpoint(self) -> EnergyCheckpoint:
+        """Seal mutable energy, fatigue, sleep and simulation-clock state."""
+        return EnergyCheckpoint(
+            revision=self.revision,
+            last_updated_at=self.last_updated_at,
+            energy=self.energy,
+            fatigue=self.fatigue,
+            sleeping=self.is_sleeping,
+        )
+
+    def validate_checkpoint(self, checkpoint: EnergyCheckpoint) -> None:
+        """Reject an older or physically impossible homeostasis checkpoint."""
+        if checkpoint.revision < self.revision:
+            raise StateRestoreError(
+                "energy checkpoint revision is older than current state"
+            )
+        if (
+            checkpoint.revision == self.revision
+            and checkpoint.last_updated_at < self.last_updated_at
+        ):
+            raise StateRestoreError(
+                "energy checkpoint simulation time is older than current state"
+            )
+        if not 0.0 <= checkpoint.energy <= self.max_energy:
+            raise ValueError("energy checkpoint value out of range")
+        if not 0.0 <= checkpoint.fatigue <= self.max_fatigue:
+            raise ValueError("fatigue checkpoint value out of range")
+
+    def restore(self, checkpoint: EnergyCheckpoint) -> None:
+        """Restore a committed homeostasis checkpoint without rewinding it."""
+        self.validate_checkpoint(checkpoint)
+        self.last_updated_at = checkpoint.last_updated_at
+        self.revision = checkpoint.revision
+        self.energy = checkpoint.energy
+        self.fatigue = checkpoint.fatigue
+        self.is_sleeping = checkpoint.sleeping

@@ -7,6 +7,9 @@ from elfie.brain.context_types import (
     EffectiveCapabilities,
     EmotionSnapshot,
     MemoryContext,
+    OrientationSnapshot,
+    ProfileAnchorSnapshot,
+    SelfhoodSnapshot,
 )
 from elfie.brain.decision_types import TurnDecision
 from elfie.brain.perception_types import TurnFrame
@@ -33,6 +36,21 @@ class BrainContextSource(Protocol):
 
     def capabilities(self, captured_at: UTCDateTime) -> EffectiveCapabilities:
         """Return current Body and connected-channel capabilities."""
+
+    def orientation(
+        self,
+        frame: TurnFrame,
+        captured_at: UTCDateTime,
+        turn_id: TurnId,
+        capabilities: EffectiveCapabilities,
+    ) -> OrientationSnapshot:
+        """Observe the admitted frame and return current self/world placement."""
+
+    def selfhood(self, captured_at: UTCDateTime) -> SelfhoodSnapshot:
+        """Return the committed mutable self-model at the Turn cutoff."""
+
+    def profile_anchors(self, captured_at: UTCDateTime) -> ProfileAnchorSnapshot:
+        """Return immutable identity and appearance anchors at the Turn cutoff."""
 
 
 class TurnDecisionSink(Protocol):

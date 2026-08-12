@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
 from elfie import ElfieFactory
 from elfie.body import BodyId, BodySensorEvent, HeadlessBody, UtteranceFinal
@@ -117,6 +116,14 @@ def test_physical_observation_drives_current_virtual_body_and_returns_receipt() 
     assert decision.interaction_scope.body_generation == elfie.current_body_generation
     assert runtime.requests[0].interaction_scope.body_generation == 1
     assert runtime.requests[0].response_scope.body_generation == 1
+    compiled_context = json.loads(runtime.requests[0].user_prompt)
+    assert compiled_context["orientation"]["body_id"] == body.body_id
+    assert compiled_context["orientation"]["current_turn_id"] == str(outcome.turn_id)
+    orientation = elfie.orientation_snapshot()
+    assert orientation.current_turn_id == outcome.turn_id
+    assert orientation.body_id == body.body_id
+    assert orientation.body_generation == elfie.current_body_generation
+    assert "activity" in orientation.unknown_fields
     receipts = elfie.execution_receipts(outcome.turn_id)
     assert receipts[-1].status.value == "completed"
     assert body.snapshot_body(now=elfie.cognitive_datetime).last_status is not None

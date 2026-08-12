@@ -12,6 +12,7 @@ from elfie.brain.context_types import (
     BodyCapabilityDescriptor,
     ConnectedChannelDescriptor,
     EffectiveCapabilities,
+    ProfileAnchorSnapshot,
 )
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import HypothalamusEnergy
@@ -20,6 +21,7 @@ from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.brain.runtime import BrainRuntime
 from elfie.brain.runtime_port import ModelPort
+from elfie.brain.selfhood import SelfhoodSystem
 from elfie.brain.skills import SkillManager
 from elfie.brain.tool_port import ToolPort
 from elfie.communication import CommunicationHub
@@ -113,6 +115,8 @@ def assemble_brain_runtime(
     memory: MemorySystem,
     emotion: EmotionSystem,
     homeostasis: HypothalamusEnergy,
+    selfhood: SelfhoodSystem,
+    profile_anchors: ProfileAnchorSnapshot,
     nervous_system: NervousSystem,
     communication: CommunicationHub,
     skills: SkillManager,
@@ -133,6 +137,8 @@ def assemble_brain_runtime(
         memory=memory,
         capability_reader=capabilities.current,
         clock=clock,
+        selfhood=selfhood,
+        profile_anchors=profile_anchors,
     )
     return BrainRuntime(
         elfie_id=elfie_id,

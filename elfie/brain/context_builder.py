@@ -12,6 +12,9 @@ from elfie.brain.context_types import (
     EmotionSnapshot,
     HomeostasisSnapshot,
     MemoryContext,
+    OrientationSnapshot,
+    ProfileAnchorSnapshot,
+    SelfhoodSnapshot,
 )
 from elfie.brain.perception_types import TurnFrame
 from elfie.message_types import UTCDateTime
@@ -31,6 +34,9 @@ class ThalamusContextBuilder:
         conversation: ConversationContext,
         memory: MemoryContext,
         capabilities: EffectiveCapabilities,
+        orientation: Optional[OrientationSnapshot] = None,
+        selfhood: Optional[SelfhoodSnapshot] = None,
+        profile_anchors: Optional[ProfileAnchorSnapshot] = None,
         captured_at: Optional[UTCDateTime] = None,
         revision: Optional[int] = None,
     ) -> BrainContext:
@@ -49,4 +55,19 @@ class ThalamusContextBuilder:
             conversation=conversation,
             memory=memory,
             capabilities=capabilities,
+            orientation=orientation
+            if orientation is not None
+            else OrientationSnapshot.unknown().model_copy(
+                update={"captured_at": context_captured_at}
+            ),
+            selfhood=selfhood
+            if selfhood is not None
+            else SelfhoodSnapshot.unknown().model_copy(
+                update={"captured_at": context_captured_at}
+            ),
+            profile_anchors=profile_anchors
+            if profile_anchors is not None
+            else ProfileAnchorSnapshot.unknown().model_copy(
+                update={"captured_at": context_captured_at}
+            ),
         )

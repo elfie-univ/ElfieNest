@@ -13,10 +13,15 @@ from elfie.brain.context_types import (
     EmotionSnapshot,
     MemoryContext,
     MemoryItem,
+    OrientationSnapshot,
+    ProfileAnchorSnapshot,
+    SelfhoodSnapshot,
 )
 from elfie.brain.memory import MemorySystem
+from elfie.brain.orientation import OrientationSystem
 from elfie.brain.perception_types import SocialPayload, TurnFrame
-from elfie.message_types import EventId, UTCDateTime
+from elfie.brain.selfhood import SelfhoodSystem
+from elfie.message_types import EventId, TurnId, UTCDateTime
 
 CapabilityReader = Callable[
     [UTCDateTime, Mapping[str, Tuple[str, ...]]], EffectiveCapabilities
@@ -32,6 +37,9 @@ class BrainContextState:
         memory: MemorySystem,
         capability_reader: CapabilityReader,
         clock: Callable[[], UTCDateTime],
+        orientation: OrientationSystem | None = None,
+        selfhood: SelfhoodSystem | None = None,
+        profile_anchors: ProfileAnchorSnapshot | None = None,
         history_capacity: int = 32,
         event_identity_capacity: int = 2048,
         conversations_per_channel: int = 128,
@@ -39,6 +47,14 @@ class BrainContextState:
         self._memory = memory
         self._capability_reader = capability_reader
         self._clock = clock
+        self._orientation = orientation or OrientationSystem(initial_at=clock())
+        self._selfhood = selfhood or SelfhoodSystem(initial_at=clock())
+        self._profile_anchors = (
+            profile_anchors
+            or ProfileAnchorSnapshot.unknown().model_copy(
+                update={"captured_at": clock()}
+            )
+        )
         self._history_capacity = history_capacity
         self._histories: dict[tuple[str, str], Deque[ConversationMessage]] = {}
         self._event_identity_capacity = event_identity_capacity
@@ -58,6 +74,7 @@ class BrainContextState:
         """Append only the admitted conversation and return its bounded history."""
         conversation_ids: list[str] = []
         active_key: Optional[tuple[str, str]] = None
+        history: Tuple[ConversationMessage, ...] = ()
         with self._lock:
             for event in frame.events:
                 payload = event.payload
@@ -67,11 +84,11 @@ class BrainContextState:
                 active_key = (payload.channel_id, payload.conversation_id)
                 self._remember_conversation(payload.channel_id, payload.conversation_id)
                 if event.meta.event_id not in self._seen_conversation_events:
-                    history = self._histories.setdefault(
+                    conversation_history = self._histories.setdefault(
                         active_key,
                         deque(maxlen=self._history_capacity),
                     )
-                    history.append(
+                    conversation_history.append(
                         ConversationMessage(
                             event_id=event.meta.event_id,
                             sender=payload.sender,
@@ -121,13 +138,16 @@ class BrainContextState:
                     emotion=dominant,
                     intensity=intensity * 100.0,
                     stimulus=f"owner:{event.meta.event_id}",
+                    source_event_ids=(event.meta.event_id,),
                 )
                 self._remember_recorded_owner_event(event.meta.event_id)
+        state = self._memory.snapshot(captured_at)
         if not query_parts:
             return MemoryContext(
                 revision=frame.revision,
                 captured_at=captured_at,
                 items=(),
+                state=state,
             )
         content = self._memory.get_context(
             query="\n".join(query_parts),
@@ -152,7 +172,20 @@ class BrainContextState:
             revision=frame.revision,
             captured_at=captured_at,
             items=items,
+            state=state,
         )
+
+    def memory_checkpoint(self):
+        """Expose the Memory owner's persistence-neutral continuity checkpoint."""
+        return self._memory.checkpoint()
+
+    def restore_memory_checkpoint(self, checkpoint) -> None:
+        """Restore Memory continuity after the durable store is verified."""
+        self._memory.restore(checkpoint)
+
+    def validate_memory_checkpoint(self, checkpoint) -> None:
+        """Validate Memory continuity without mutating the owner."""
+        self._memory.validate_checkpoint(checkpoint)
 
     def capabilities(self, captured_at: UTCDateTime) -> EffectiveCapabilities:
         """Read a sibling-free capability projection through the injected reader."""
@@ -162,6 +195,39 @@ class BrainContextState:
                 for channel_id, conversations in self._authorized_conversations.items()
             }
         return self._capability_reader(captured_at, authorized)
+
+    def orientation(
+        self,
+        frame: TurnFrame,
+        captured_at: UTCDateTime,
+        turn_id: TurnId,
+        capabilities: EffectiveCapabilities,
+    ) -> OrientationSnapshot:
+        """Explicitly observe the admitted frame before context assembly."""
+        snapshot, _receipt = self._orientation.observe(
+            frame=frame,
+            capabilities=capabilities,
+            turn_id=turn_id,
+            captured_at=captured_at,
+        )
+        return snapshot
+
+    def orientation_snapshot(self) -> OrientationSnapshot:
+        """Return the latest committed orientation without mutating it."""
+        return self._orientation.snapshot()
+
+    def selfhood(self, captured_at: UTCDateTime) -> SelfhoodSnapshot:
+        """Read the committed Selfhood snapshot without accepting Turn text."""
+        snapshot = self._selfhood.snapshot()
+        return snapshot.model_copy(update={"captured_at": captured_at})
+
+    def selfhood_snapshot(self) -> SelfhoodSnapshot:
+        """Return the latest committed Selfhood without changing its revision."""
+        return self._selfhood.snapshot()
+
+    def profile_anchors(self, captured_at: UTCDateTime) -> ProfileAnchorSnapshot:
+        """Project immutable Profile anchors at the current context cutoff."""
+        return self._profile_anchors.model_copy(update={"captured_at": captured_at})
 
     def current(self) -> EffectiveCapabilities:
         """Return a fresh capability snapshot for decision validation."""

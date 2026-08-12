@@ -7,6 +7,11 @@ from typing import Tuple
 from uuid import uuid4
 
 from elfie.brain.context_builder import ThalamusContextBuilder
+from elfie.brain.context_types import (
+    OrientationSnapshot,
+    ProfileAnchorSnapshot,
+    SelfhoodSnapshot,
+)
 from elfie.brain.coordinator_ports import BrainContextSource
 from elfie.brain.cortical_worker import CorticalTask
 from elfie.brain.decision_decoder import DecisionDecodeSeed
@@ -22,6 +27,7 @@ from elfie.brain.perception_types import (
     SocialPayload,
     TurnFrame,
 )
+from elfie.brain.reasoning import ReasoningBudget
 from elfie.brain.runtime_port import JsonSchemaDocument, ModelGenerationRequest
 from elfie.message_types import (
     ActorId,
@@ -78,6 +84,30 @@ class CoordinatorTurnFactory:
         conversation = self._context_source.conversation(frame, captured_at)
         memory = self._context_source.memory(frame, emotion, captured_at)
         capabilities = self._context_source.capabilities(captured_at)
+        orientation_reader = getattr(self._context_source, "orientation", None)
+        orientation = (
+            orientation_reader(frame, captured_at, turn_id, capabilities)
+            if orientation_reader is not None
+            else OrientationSnapshot.unknown().model_copy(
+                update={"captured_at": captured_at, "current_turn_id": turn_id}
+            )
+        )
+        selfhood_reader = getattr(self._context_source, "selfhood", None)
+        selfhood = (
+            selfhood_reader(captured_at)
+            if selfhood_reader is not None
+            else SelfhoodSnapshot.unknown().model_copy(
+                update={"captured_at": captured_at}
+            )
+        )
+        profile_reader = getattr(self._context_source, "profile_anchors", None)
+        profile_anchors = (
+            profile_reader(captured_at)
+            if profile_reader is not None
+            else ProfileAnchorSnapshot.unknown().model_copy(
+                update={"captured_at": captured_at}
+            )
+        )
         context = self._context_builder.assemble(
             frame=frame,
             emotion=emotion,
@@ -85,10 +115,15 @@ class CoordinatorTurnFactory:
             conversation=conversation,
             memory=memory,
             capabilities=capabilities,
+            orientation=orientation,
+            selfhood=selfhood,
+            profile_anchors=profile_anchors,
             captured_at=captured_at,
         )
+        reasoning_budget = self._reasoning_budget(homeostasis)
         compiled = self._compiler.compile(
-            context, budget=ModelTokenBudget(max_tokens=1024)
+            context,
+            budget=ModelTokenBudget(max_tokens=self._model_token_budget(homeostasis)),
         )
         cause_ids = tuple(
             item.meta.event_id
@@ -130,7 +165,45 @@ class CoordinatorTurnFactory:
             request=request,
             seed=seed,
             tool_scope_id=self._elfie_id,
+            reasoning_budget=reasoning_budget,
         )
+
+    @staticmethod
+    def _model_token_budget(homeostasis) -> int:
+        """Map the Energy snapshot to a bounded provider-neutral context size."""
+        if homeostasis.cognitive_mode == "emergency":
+            return 256
+        if homeostasis.cognitive_mode == "degraded":
+            return 512
+        if homeostasis.cognitive_mode == "normal":
+            return 768
+        return 1024
+
+    @staticmethod
+    def _reasoning_budget(homeostasis) -> ReasoningBudget:
+        """Map Energy mode to bounded model/tool/step admission."""
+        if homeostasis.cognitive_mode == "emergency":
+            return ReasoningBudget(
+                max_steps=2,
+                max_model_calls=1,
+                max_tool_calls=0,
+                deadline_seconds=5.0,
+            )
+        if homeostasis.cognitive_mode == "degraded":
+            return ReasoningBudget(
+                max_steps=4,
+                max_model_calls=2,
+                max_tool_calls=1,
+                deadline_seconds=15.0,
+            )
+        if homeostasis.cognitive_mode == "normal":
+            return ReasoningBudget(
+                max_steps=8,
+                max_model_calls=3,
+                max_tool_calls=1,
+                deadline_seconds=30.0,
+            )
+        return ReasoningBudget()
 
     @staticmethod
     def _owner_reply_target(

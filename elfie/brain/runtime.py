@@ -5,6 +5,12 @@ from __future__ import annotations
 from typing import Callable, Optional, Tuple
 
 from elfie.brain.context_source import BrainContextState
+from elfie.brain.context_types import (
+    OrientationSnapshot,
+    ProfileAnchorSnapshot,
+    SelfhoodSnapshot,
+)
+from elfie.brain.continuity import BrainContinuityCheckpoint
 from elfie.brain.coordinator import BrainCoordinator
 from elfie.brain.cortical_worker import CorticalWorker
 from elfie.brain.decision_decoder import DecisionPlanDecoder
@@ -73,6 +79,8 @@ class BrainRuntime:
         )
         self._started = False
         self._workspace = workspace
+        self._emotion = emotion
+        self._homeostasis = homeostasis
 
     def start(self) -> None:
         if self._started:
@@ -118,6 +126,45 @@ class BrainRuntime:
 
     def execution_receipts(self, turn_id: TurnId) -> Tuple[ExecutionReceipt, ...]:
         return self.router.receipts(turn_id)
+
+    def orientation_snapshot(self) -> OrientationSnapshot:
+        """Expose the latest committed orientation for Lab/Observer inspection."""
+        return self.context.orientation_snapshot()
+
+    def selfhood_snapshot(self) -> SelfhoodSnapshot:
+        """Expose the latest committed mutable self-model for inspection."""
+        return self.context.selfhood_snapshot()
+
+    def profile_anchors(self) -> ProfileAnchorSnapshot:
+        """Expose the immutable Profile projection used by Brain context."""
+        return self.context.profile_anchors(self._clock())
+
+    def continuity_checkpoint(self) -> BrainContinuityCheckpoint:
+        """Capture one checkpoint for the Stage 4C continuous state owners."""
+        return BrainContinuityCheckpoint(
+            captured_at=self._clock(),
+            emotion=self._emotion.checkpoint(),
+            energy=self._homeostasis.checkpoint(),
+            memory=self.context.memory_checkpoint(),
+        )
+
+    def restore_continuity(self, checkpoint: BrainContinuityCheckpoint) -> None:
+        """Restore Emotion/Energy/Memory atomically while Brain is stopped."""
+        if self._started:
+            raise RuntimeError("cannot restore Brain continuity while it is running")
+        current = self.continuity_checkpoint()
+        self._emotion.validate_checkpoint(checkpoint.emotion)
+        self._homeostasis.validate_checkpoint(checkpoint.energy)
+        self.context.validate_memory_checkpoint(checkpoint.memory)
+        try:
+            self._emotion.restore(checkpoint.emotion)
+            self._homeostasis.restore(checkpoint.energy)
+            self.context.restore_memory_checkpoint(checkpoint.memory)
+        except Exception:
+            self._emotion.restore(current.emotion)
+            self._homeostasis.restore(current.energy)
+            self.context.restore_memory_checkpoint(current.memory)
+            raise
 
     def decision(self, turn_id: TurnId) -> Optional[TurnDecision]:
         return self.router.decision(turn_id)
