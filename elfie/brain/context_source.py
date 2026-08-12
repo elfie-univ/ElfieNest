@@ -13,11 +13,17 @@ from elfie.brain.context_types import (
     EmotionSnapshot,
     MemoryContext,
     MemoryItem,
+    MotivationSnapshot,
     OrientationSnapshot,
     ProfileAnchorSnapshot,
     SelfhoodSnapshot,
 )
 from elfie.brain.memory import MemorySystem
+from elfie.brain.motivation import (
+    MotivationCheckpoint,
+    MotivationSystem,
+    RecoveryDriveCandidate,
+)
 from elfie.brain.orientation import OrientationSystem
 from elfie.brain.perception_types import SocialPayload, TurnFrame
 from elfie.brain.selfhood import SelfhoodSystem
@@ -39,6 +45,7 @@ class BrainContextState:
         clock: Callable[[], UTCDateTime],
         orientation: OrientationSystem | None = None,
         selfhood: SelfhoodSystem | None = None,
+        motivation: MotivationSystem | None = None,
         profile_anchors: ProfileAnchorSnapshot | None = None,
         history_capacity: int = 32,
         event_identity_capacity: int = 2048,
@@ -49,6 +56,7 @@ class BrainContextState:
         self._clock = clock
         self._orientation = orientation or OrientationSystem(initial_at=clock())
         self._selfhood = selfhood or SelfhoodSystem(initial_at=clock())
+        self._motivation = motivation or MotivationSystem(initial_at=clock())
         self._profile_anchors = (
             profile_anchors
             or ProfileAnchorSnapshot.unknown().model_copy(
@@ -220,6 +228,65 @@ class BrainContextState:
         """Read the committed Selfhood snapshot without accepting Turn text."""
         snapshot = self._selfhood.snapshot()
         return snapshot.model_copy(update={"captured_at": captured_at})
+
+    def motivation(self, captured_at: UTCDateTime) -> MotivationSnapshot:
+        """Read the fixed-drive snapshot without evaluating or triggering it."""
+        with self._lock:
+            return self._motivation.snapshot(captured_at)
+
+    def motivation_snapshot(self) -> MotivationSnapshot:
+        """Return the latest fixed-drive snapshot for Lab/continuity reads."""
+        with self._lock:
+            return self._motivation.snapshot(self._clock())
+
+    def evaluate_motivation(
+        self,
+        *,
+        energy: float,
+        fatigue: float,
+        sleeping: bool,
+        now: UTCDateTime,
+        blocked: bool,
+    ) -> Optional[RecoveryDriveCandidate]:
+        """Evaluate the one fixed drive under Brain-owned state."""
+        with self._lock:
+            return self._motivation.evaluate(
+                energy=energy,
+                fatigue=fatigue,
+                sleeping=sleeping,
+                now=now,
+                blocked=blocked,
+            )
+
+    def settle_motivation(
+        self,
+        candidate_id: EventId,
+        *,
+        now: UTCDateTime,
+        success: bool,
+    ) -> bool:
+        """Record one handled Internal Turn for the fixed drive."""
+        with self._lock:
+            return self._motivation.mark_handled(
+                candidate_id,
+                now=now,
+                success=success,
+            )
+
+    def motivation_checkpoint(self) -> MotivationCheckpoint:
+        """Capture the drive suppression state for continuity restore."""
+        with self._lock:
+            return self._motivation.checkpoint()
+
+    def validate_motivation_checkpoint(self, checkpoint: MotivationCheckpoint) -> None:
+        """Validate a drive checkpoint without changing the owner."""
+        with self._lock:
+            self._motivation.validate_checkpoint(checkpoint)
+
+    def restore_motivation_checkpoint(self, checkpoint: MotivationCheckpoint) -> None:
+        """Restore a validated drive checkpoint."""
+        with self._lock:
+            self._motivation.restore(checkpoint)
 
     def selfhood_snapshot(self) -> SelfhoodSnapshot:
         """Return the latest committed Selfhood without changing its revision."""

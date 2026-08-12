@@ -12,6 +12,7 @@ from elfie.brain.context_types import (
     EmotionSnapshot,
     HomeostasisSnapshot,
     MemoryContext,
+    MotivationSnapshot,
     OrientationSnapshot,
     ProfileAnchorSnapshot,
     SelfhoodSnapshot,
@@ -31,6 +32,7 @@ class ThalamusContextBuilder:
         frame: TurnFrame,
         emotion: EmotionSnapshot,
         homeostasis: HomeostasisSnapshot,
+        motivation: Optional[MotivationSnapshot] = None,
         conversation: ConversationContext,
         memory: MemoryContext,
         capabilities: EffectiveCapabilities,
@@ -52,6 +54,11 @@ class ThalamusContextBuilder:
             frame=frame,
             emotion=emotion,
             homeostasis=homeostasis,
+            motivation=motivation
+            if motivation is not None
+            else MotivationSnapshot.unknown().model_copy(
+                update={"captured_at": context_captured_at}
+            ),
             conversation=conversation,
             memory=memory,
             capabilities=capabilities,

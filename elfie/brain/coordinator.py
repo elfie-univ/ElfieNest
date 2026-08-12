@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from threading import Event
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 from uuid import uuid4
 
 from elfie.brain.coordinator_completion import CoordinatorCompletionHandler
@@ -28,6 +28,7 @@ from elfie.brain.decision_governance import govern_decision
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import HypothalamusEnergy
 from elfie.brain.limbic_appraiser import BrainClockPulse, LimbicAppraiser
+from elfie.brain.motivation import recovery_candidate_to_perception
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.brain.reasoning import ReasoningRunResult
 from elfie.brain.turn_outcome import TerminalStatus, TurnOutcome
@@ -54,6 +55,7 @@ class BrainCoordinator:
         hard_timeout_seconds: float = 45.0,
         trigger_policy: Optional[TurnTriggerPolicy] = None,
         allowed_tools: Tuple[str, ...] = (),
+        motivation_blocked: Optional[Callable[[], bool]] = None,
     ) -> None:
         self._elfie_id = elfie_id
         self._workspace = workspace
@@ -67,6 +69,11 @@ class BrainCoordinator:
         self._next_autonomous_at = next_autonomous_at
         self._hard_timeout = hard_timeout_seconds
         self._policy = trigger_policy or TurnTriggerPolicy()
+        self._motivation_blocked = motivation_blocked or (lambda: False)
+        # A low-salience drive candidate still deserves one Brain turn.  Keep
+        # this admission bit separate from event salience so Motivation cannot
+        # accidentally be starved by the normal input thresholds.
+        self._motivation_due = False
         self._turn_factory = CoordinatorTurnFactory(
             elfie_id=elfie_id,
             emotion=emotion,
@@ -150,6 +157,7 @@ class BrainCoordinator:
         self._emotion.advance_to(pulse.timestamp)
         self._homeostasis.advance_to(pulse.timestamp)
         self._timestamp = pulse.timestamp
+        self._maybe_emit_motivation()
         if (
             self._inflight is not None
             and self._inflight.terminal_status is None
@@ -158,10 +166,28 @@ class BrainCoordinator:
             self._timeout_turn(self._inflight)
         self._maybe_start_turn()
 
+    def _maybe_emit_motivation(self) -> None:
+        evaluator = getattr(self._context_source, "evaluate_motivation", None)
+        if evaluator is None:
+            return
+        now = datetime.fromtimestamp(self._timestamp, timezone.utc)
+        candidate = evaluator(
+            energy=self._homeostasis.energy,
+            fatigue=self._homeostasis.fatigue,
+            sleeping=self._homeostasis.is_sleeping,
+            now=now,
+            blocked=self._inflight is not None or self._motivation_blocked(),
+        )
+        if candidate is not None:
+            self._motivation_due = True
+            self._workspace.publish(
+                recovery_candidate_to_perception(candidate, elfie_id=self._elfie_id)
+            )
+
     def _maybe_start_turn(self) -> None:
         if self._inflight is not None:
             return
-        autonomous_due = self._ensure_autonomous_event()
+        autonomous_due = self._ensure_autonomous_event() or self._motivation_due
         metrics = self._workspace.metrics()
         now = datetime.fromtimestamp(self._timestamp, timezone.utc)
         decision = self._policy.evaluate(
@@ -191,6 +217,11 @@ class BrainCoordinator:
                 )
             )
             return
+        if self._motivation_due and any(
+            str(event.meta.event_id).startswith("motivation:recovery:")
+            for event in frame.events
+        ):
+            self._motivation_due = False
         inflight = InFlightTurn(
             frame=frame,
             task=task,

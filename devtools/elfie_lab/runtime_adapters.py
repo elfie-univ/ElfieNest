@@ -300,11 +300,16 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
             },
         ]
     else:
+        recovery_trigger = "internal:motivation" in request.user_prompt
         intents = [
             {
                 "type": "noop",
                 "intent_id": "mock-noop",
-                "reason": "internal trigger has no external scope",
+                "reason": (
+                    "恢复驱力已处理：保持安静并等待能量恢复"
+                    if recovery_trigger
+                    else "internal trigger has no external scope"
+                ),
                 "cancel_policy": "if_not_started",
                 **{
                     key: value

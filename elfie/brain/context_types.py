@@ -57,6 +57,30 @@ class HomeostasisSnapshot(FrozenContractModel):
     available_cognitive_budget: _Percent = 0.0
 
 
+class MotivationSnapshot(FrozenContractModel):
+    """Bounded fixed-drive state captured for one cortical turn."""
+
+    revision: _Revision
+    captured_at: UTCDateTime
+    recovery_pressure: _Ratio
+    recovery_status: Literal["ready", "blocked", "cooldown", "satisfied", "unknown"] = (
+        "unknown"
+    )
+    last_trigger_id: Optional[EventId] = None
+    cooldown_until: Optional[UTCDateTime] = None
+    satisfaction_until: Optional[UTCDateTime] = None
+
+    @classmethod
+    def unknown(cls) -> MotivationSnapshot:
+        """Return an explicit unknown drive state for isolated context tests."""
+        return cls(
+            revision=0,
+            captured_at=datetime.fromtimestamp(0, timezone.utc),
+            recovery_pressure=0.0,
+            recovery_status="unknown",
+        )
+
+
 class ConversationMessage(FrozenContractModel):
     """A source-preserving conversation item used as model context."""
 
@@ -379,6 +403,7 @@ class BrainContext(FrozenContractModel):
     frame: TurnFrame
     emotion: EmotionSnapshot
     homeostasis: HomeostasisSnapshot
+    motivation: MotivationSnapshot = Field(default_factory=MotivationSnapshot.unknown)
     conversation: ConversationContext
     memory: MemoryContext
     capabilities: EffectiveCapabilities
@@ -397,6 +422,7 @@ class BrainContext(FrozenContractModel):
             self.frame.captured_at,
             self.emotion.captured_at,
             self.homeostasis.captured_at,
+            self.motivation.captured_at,
             self.conversation.captured_at,
             self.memory.captured_at,
             self.capabilities.captured_at,
@@ -423,6 +449,7 @@ __all__ = (
     "EmotionValue",
     "BigFiveTraits",
     "HomeostasisSnapshot",
+    "MotivationSnapshot",
     "MemoryContext",
     "MemoryItem",
     "MemoryStateSnapshot",

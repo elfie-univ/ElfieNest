@@ -18,6 +18,7 @@ from elfie.brain.context_types import (
     BigFiveTraits,
     BrainContext,
     MemoryStateSnapshot,
+    MotivationSnapshot,
     OrientationSnapshot,
     ProfileAnchorSnapshot,
     SelfhoodDerivation,
@@ -31,6 +32,11 @@ from elfie.brain.emotion.decay_calculator import EmotionDecayCalculator
 from elfie.brain.emotion.emotion_system import EmotionCheckpoint, EmotionSystem
 from elfie.brain.emotion.emotional_state import AmygdalaEmotionalState
 from elfie.brain.energy.energy import EnergyCheckpoint, HypothalamusEnergy
+from elfie.brain.motivation import (
+    MotivationCheckpoint,
+    MotivationSystem,
+    RecoveryDriveCandidate,
+)
 from elfie.brain.orientation import OrientationSystem
 from elfie.brain.perception_types import TurnFrame
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
@@ -75,6 +81,10 @@ __all__ = [
     "OrientationSnapshot",
     "ProfileAnchorSnapshot",
     "MemoryStateSnapshot",
+    "MotivationSnapshot",
+    "MotivationCheckpoint",
+    "MotivationSystem",
+    "RecoveryDriveCandidate",
     "SelfhoodDerivation",
     "SelfhoodSnapshot",
     "SelfhoodSpeechStyle",

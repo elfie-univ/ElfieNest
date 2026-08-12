@@ -33,7 +33,7 @@ function List({ values, diff = false }: Readonly<{ values: Readonly<Record<strin
 function snapshot(value: unknown): Record<string, unknown> {
   const state = record(value);
   const dominant = typeof state.dominant_emotion === "string" ? state.dominant_emotion : "";
-  return { "能量": state.energy, "疲劳": state.fatigue, "睡眠": state.is_sleeping === true ? "是" : "否", "主导情绪": emotionLabels[dominant] ?? dominant, "注意力": state.attention_network, "动作意图": state.action_intent, "记忆数": state.memory_count, "活动数": state.activity_count, "活动": state.activities, "情绪全景": state.emotions };
+  return { "能量": state.energy, "疲劳": state.fatigue, "睡眠": state.is_sleeping === true ? "是" : "否", "主导情绪": emotionLabels[dominant] ?? dominant, "注意力": state.attention_network, "动作意图": state.action_intent, "恢复驱力": state.motivation, "记忆数": state.memory_count, "活动数": state.activity_count, "活动": state.activities, "情绪全景": state.emotions };
 }
 
 function difference(value: unknown, prefix = ""): Record<string, unknown> {

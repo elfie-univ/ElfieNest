@@ -1,6 +1,6 @@
 # Elfie Brain 七阶段实施与体验验收计划
 
-> 状态：阶段一、阶段二、阶段三实现与机器/真实 Godot 验收完成；阶段四 4A、4B、4C 已完成验收并关闭为“连续生命状态 MVP”里程碑。Profile 物理字段迁移、统一持久化收口和后续自治能力仍按 Conformance 台账保留为后续阶段债务
+> 状态：阶段一、阶段二、阶段三实现与机器/真实 Godot 验收完成；阶段四 4A、4B、4C 已完成验收并关闭为“连续生命状态 MVP”里程碑；阶段五 Persistent Activity MVP 与阶段六恢复 Motivation MVP 已完成机器和 Lab 验收。Profile 物理字段迁移、统一持久化收口、完整 ELF-015 和阶段七心智整理仍按 Conformance 台账保留为后续阶段债务
 > 制定日期：2026-08-12
 > 依据：[Brain 十系统设计](./elfie-brain-ten-system-architecture.md)、
 > [Brain 内部架构契约](../zh/developer/contracts/brain.md)、
@@ -531,13 +531,35 @@ Activity 稳定后另行实现。
 
 ### 9.3 完成门与非目标
 
-关闭 BRN-008，并在 Motivation 快照进入上下文后关闭 BRN-002；ELF-015 继续保持 open，直到
-阶段七完成心智整理。阶段只开放一个固定、低风险、
+关闭 BRN-008，并推进 BRN-002：Motivation 快照已经进入 BrainContext，但 Activity 统一快照
+与既有 owner-memory 兼容写入仍保留在台账中；ELF-015 继续保持 open，直到阶段七完成心智整理。阶段只开放一个固定、低风险、
 可快速满足的恢复 Drive，不实现强化学习需求模型、自由 Goal 树、社交主动消息或高风险
 主动行为。
 
 阶段六是“活跃自主智能体 MVP”的完成点：它已经能回应、具身行动、保持连续状态、履行承诺，
 并在边界内主动生活。
+
+### 9.4 阶段六验收记录
+
+阶段六完成一个固定的低风险“恢复驱力”纵向切片：
+
+- `MotivationSystem` 只根据能量/疲劳和当前阻塞状态产生 `RecoveryDriveCandidate`，候选带
+  稳定 ID、压力值、原因和因果事件；它不直接创建 Activity，也不直接触发通信或身体动作；
+- 候选以 `InternalSignal.MOTIVATION` 进入 Perceptual Workspace，并由 Coordinator 强制
+  形成一次独立 Internal Turn；思考中枢最终只能提交受限 No-op/休息决定；
+- `BrainContext` 与 provider-neutral Model Context 都携带版本化 `MotivationSnapshot`，
+  Lab 只读投影展示恢复压力、状态和触发 ID；
+- 满足期、冷却期、阻塞和检查点恢复均有边界；持续低能量不会重复产生自唤醒风暴，成功处理
+  后不会重复创建休息 Activity；
+- Elfie Lab 场景 `test_recovery_drive_creates_one_bounded_internal_turn` 已证明：低能量
+  → Motivation 候选 → Internal Turn → Mock Runtime 安全 No-op → satisfied，随后再次推进
+  时钟仍只有一个终态回合；
+- 阶段六聚焦回归共 37 项通过，覆盖 Motivation、Context、Coordinator、Lab、Activity 和
+  SQLite Activity Store；改动 Python 文件 Ruff 检查通过。
+
+本阶段明确不实现：多驱力调度、强化学习/自由 Goal 树、社交主动消息、主动身体动作、Motivation
+直接创建 Activity、离线心智整理，以及统一 Journal/State/Checkpoint 收口。上述能力分别保留
+给阶段七或 BRN-002/BRN-010 后续切片。
 
 ## 10. 阶段七：心智整理与受控成长
 

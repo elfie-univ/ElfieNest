@@ -66,6 +66,7 @@ def build_snapshot(elfie: Elfie, spec: ElfieSpec) -> Dict[str, Any]:
         elfie.hypothalamus.cognitive_policy()
     )
     memory_state = elfie.memory.snapshot(elfie.cognitive_datetime)
+    motivation = elfie.motivation_snapshot() if elfie.cognition_configured else None
     activities = [
         record.model_dump(mode="json")
         for record in (elfie.activities() if elfie.cognition_configured else ())
@@ -99,6 +100,9 @@ def build_snapshot(elfie: Elfie, spec: ElfieSpec) -> Dict[str, Any]:
         "memory_total_count": memory_state.total_count,
         "activities": activities,
         "activity_count": len(activities),
+        "motivation": (
+            motivation.model_dump(mode="json") if motivation is not None else None
+        ),
     }
 
 

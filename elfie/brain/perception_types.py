@@ -71,6 +71,7 @@ class InternalSignal(str, Enum):
     HOMEOSTASIS = "homeostasis"
     PROCESSING_FAILURE = "processing_failure"
     ACTIVITY = "activity"
+    MOTIVATION = "motivation"
 
 
 @unique

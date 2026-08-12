@@ -12,6 +12,7 @@ from elfie.body.contracts import BodySensorEvent
 from elfie.body.port import BodyPort
 from elfie.brain.activity import ActivityStorePort, InMemoryActivityStore
 from elfie.brain.context_types import (
+    MotivationSnapshot,
     OrientationSnapshot,
     ProfileAnchorSnapshot,
     SelfhoodSnapshot,
@@ -350,6 +351,15 @@ class Elfie:
             if runtime is not None
             else self._profile_anchor_snapshot(self.cognitive_datetime)
         )
+
+    def motivation_snapshot(self) -> MotivationSnapshot:
+        """Return the Brain-owned fixed-drive snapshot for observation."""
+        runtime = self._brain_runtime
+        if runtime is None:
+            return MotivationSnapshot.unknown().model_copy(
+                update={"captured_at": self.cognitive_datetime}
+            )
+        return runtime.motivation_snapshot()
 
     def continuity_checkpoint(self) -> BrainContinuityCheckpoint:
         """Capture continuous Emotion/Energy/Memory state for restart tests."""

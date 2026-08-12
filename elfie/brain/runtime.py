@@ -31,6 +31,7 @@ from elfie.brain.decision_types import (
     ExpressionIntent,
     MessageIntent,
     MotionIntent,
+    NoOpIntent,
     PersistentActivityIntent,
     SpeechIntent,
     TurnDecision,
@@ -111,6 +112,7 @@ class BrainRuntime:
             plan_sink=self.router,
             initial_timestamp=clock().timestamp(),
             allowed_tools=skills.allowed_tool_keys(),
+            motivation_blocked=self._motivation_blocked,
         )
         self._started = False
         self._workspace = workspace
@@ -175,6 +177,10 @@ class BrainRuntime:
         """Expose the immutable Profile projection used by Brain context."""
         return self.context.profile_anchors(self._clock())
 
+    def motivation_snapshot(self):
+        """Expose the current fixed-drive state for Lab/Observer inspection."""
+        return self.context.motivation_snapshot()
+
     def continuity_checkpoint(self) -> BrainContinuityCheckpoint:
         """Capture one checkpoint for the Stage 4C continuous state owners."""
         return BrainContinuityCheckpoint(
@@ -182,6 +188,7 @@ class BrainRuntime:
             emotion=self._emotion.checkpoint(),
             energy=self._homeostasis.checkpoint(),
             memory=self.context.memory_checkpoint(),
+            motivation=self.context.motivation_checkpoint(),
         )
 
     def restore_continuity(self, checkpoint: BrainContinuityCheckpoint) -> None:
@@ -192,14 +199,17 @@ class BrainRuntime:
         self._emotion.validate_checkpoint(checkpoint.emotion)
         self._homeostasis.validate_checkpoint(checkpoint.energy)
         self.context.validate_memory_checkpoint(checkpoint.memory)
+        self.context.validate_motivation_checkpoint(checkpoint.motivation)
         try:
             self._emotion.restore(checkpoint.emotion)
             self._homeostasis.restore(checkpoint.energy)
             self.context.restore_memory_checkpoint(checkpoint.memory)
+            self.context.restore_motivation_checkpoint(checkpoint.motivation)
         except Exception:
             self._emotion.restore(current.emotion)
             self._homeostasis.restore(current.energy)
             self.context.restore_memory_checkpoint(current.memory)
+            self.context.restore_motivation_checkpoint(current.motivation)
             raise
 
     def decision(self, turn_id: TurnId) -> Optional[TurnDecision]:
@@ -254,6 +264,7 @@ class BrainRuntime:
         receipt: ExecutionReceipt,
     ) -> None:
         """Bind a child external receipt to the Activity step that requested it."""
+        self._settle_motivation_receipt(intent, receipt)
         if receipt.status is not ExecutionStatus.COMPLETED or isinstance(
             intent, PersistentActivityIntent
         ):
@@ -294,6 +305,46 @@ class BrainRuntime:
                     )
                 except Exception:
                     continue
+
+    def _settle_motivation_receipt(
+        self,
+        intent: DecisionIntent,
+        receipt: ExecutionReceipt,
+    ) -> None:
+        """Mark one bounded drive handled after its Internal Turn settles."""
+        if receipt.status is not ExecutionStatus.COMPLETED or not isinstance(
+            intent, (NoOpIntent, PersistentActivityIntent)
+        ):
+            return
+        candidate_id = next(
+            (
+                event_id
+                for event_id in intent.cause_event_ids
+                if str(event_id).startswith("motivation:recovery:")
+            ),
+            None,
+        )
+        if candidate_id is not None:
+            self.context.settle_motivation(
+                candidate_id,
+                now=receipt.occurred_at,
+                success=True,
+            )
+
+    def _motivation_blocked(self) -> bool:
+        """Treat pending external work as higher priority than a drive."""
+        with self._activity_lock:
+            active_activity = any(
+                record.state
+                in {
+                    ActivityState.VALIDATED,
+                    ActivityState.WAITING,
+                    ActivityState.RUNNING,
+                    ActivityState.PAUSED,
+                }
+                for record in self.activity_store.list()
+            )
+        return active_activity or self._workspace.metrics().reliable_event_count > 0
 
     def stop(self) -> None:
         if not self._started:

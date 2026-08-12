@@ -120,6 +120,41 @@ def test_mock_activity_wakes_and_settles_from_child_receipt(tmp_path, session_fa
         restored.close()
 
 
+def test_recovery_drive_creates_one_bounded_internal_turn(tmp_path, session_factory):
+    # Given: the local Elfie has crossed the fixed recovery-drive threshold.
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("恢复驱力")
+    session = session_factory(spec, storage)
+    # Autonomous turns still use the Lab's explicitly selected local food;
+    # there is no user message in this scenario to select it implicitly.
+    session._turn_adapter._runtime.select(session_module.create_runtime("mock"))
+    session.elfie.hypothalamus.energy = 10.0
+    session.elfie.hypothalamus.revision += 1
+
+    # When: a clock pulse gives Motivation a chance to evaluate without input.
+    session.elfie.advance_clock(1.0)
+    session.elfie.wait_for_outcome_count(1, timeout=5)
+    for outcome in session.elfie.turn_outcomes():
+        session.elfie.wait_for_output(outcome.turn_id, timeout=5)
+
+    # Then: one explainable Internal Turn settles to No-op and enters satisfaction.
+    outcomes = session.elfie.turn_outcomes()
+    assert len(outcomes) == 1
+    decision = session.elfie.turn_decision(outcomes[0].turn_id)
+    assert decision is not None
+    assert decision.plan.intents[0].type == "noop"
+    assert "恢复驱力" in decision.plan.intents[0].reason
+    snapshot = session.snapshot()
+    assert snapshot["motivation"]["recovery_status"] == "satisfied"
+    assert snapshot["motivation"]["last_trigger_id"].startswith("motivation:recovery:")
+
+    # And: sustained low energy does not create a self-waking storm.
+    session.elfie.advance_clock(1.0)
+    session.elfie._brain_runtime.coordinator.synchronize(2)
+    assert len(session.elfie.turn_outcomes()) == 1
+    assert session.snapshot()["activity_count"] == 0
+
+
 def test_state_injection_is_visible_and_persistent(tmp_path, session_factory):
     storage = ElfieLabStorage(str(tmp_path))
     spec = storage.create_elfie("边界测试")

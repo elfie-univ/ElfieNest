@@ -1,17 +1,19 @@
 """Narrow typed dependencies consumed by BrainCoordinator."""
 
-from typing import Protocol
+from typing import Optional, Protocol
 
 from elfie.brain.context_types import (
     ConversationContext,
     EffectiveCapabilities,
     EmotionSnapshot,
     MemoryContext,
+    MotivationSnapshot,
     OrientationSnapshot,
     ProfileAnchorSnapshot,
     SelfhoodSnapshot,
 )
 from elfie.brain.decision_types import TurnDecision
+from elfie.brain.motivation import RecoveryDriveCandidate
 from elfie.brain.perception_types import TurnFrame
 from elfie.message_types import TurnId, UTCDateTime
 
@@ -48,6 +50,20 @@ class BrainContextSource(Protocol):
 
     def selfhood(self, captured_at: UTCDateTime) -> SelfhoodSnapshot:
         """Return the committed mutable self-model at the Turn cutoff."""
+
+    def motivation(self, captured_at: UTCDateTime) -> MotivationSnapshot:
+        """Return the committed fixed-drive state at the Turn cutoff."""
+
+    def evaluate_motivation(
+        self,
+        *,
+        energy: float,
+        fatigue: float,
+        sleeping: bool,
+        now: UTCDateTime,
+        blocked: bool,
+    ) -> Optional[RecoveryDriveCandidate]:
+        """Evaluate the bounded fixed drive at a coordinator clock boundary."""
 
     def profile_anchors(self, captured_at: UTCDateTime) -> ProfileAnchorSnapshot:
         """Return immutable identity and appearance anchors at the Turn cutoff."""
