@@ -47,3 +47,25 @@ def test_optional_runtime_component_stays_behind_lifecycle_facade() -> None:
 
     optional_component.ready.assert_called_once_with()
     optional_component.prepare.assert_called_once_with()
+
+
+def test_frontend_preparation_stays_behind_lifecycle_facade() -> None:
+    frontend = Mock()
+    godot_web = Mock()
+    godot_web.prepare.return_value = True
+    lifecycle = LifecycleFacade(
+        process_port=Mock(),
+        recovery_lock=Mock(),
+        desktop_host=Mock(),
+        http_probe=Mock(),
+        runtime_record_factory=Mock(),
+        authority_host_factory=Mock(),
+        frontend_preparation=frontend,
+        godot_web_preparation=godot_web,
+    )
+
+    lifecycle.prepare_frontend("development")
+
+    frontend.prepare.assert_called_once_with("development")
+    assert lifecycle.prepare_godot_web("release", is_frozen=True) is True
+    godot_web.prepare.assert_called_once_with("release", is_frozen=True)

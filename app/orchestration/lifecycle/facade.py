@@ -15,6 +15,8 @@ from app.orchestration.lifecycle.ports import (
     DoctorPort,
     DoctorRepairResult,
     DoctorValidationResult,
+    FrontendPreparationPort,
+    GodotWebPreparationPort,
     HttpProbePort,
     HttpProbeResult,
     LifecycleDataHomePort,
@@ -68,6 +70,8 @@ class LifecycleFacade:
         runtime_record_factory: RuntimeRecordFactory,
         authority_host_factory: AuthorityHostFactory,
         optional_component: Optional[OptionalRuntimeComponentPort] = None,
+        frontend_preparation: Optional[FrontendPreparationPort] = None,
+        godot_web_preparation: Optional[GodotWebPreparationPort] = None,
         data_home: Optional[LifecycleDataHomePort] = None,
         doctor: Optional[DoctorPort] = None,
         uninstall: Optional[UninstallPort] = None,
@@ -79,9 +83,24 @@ class LifecycleFacade:
         self._runtime_record_factory = runtime_record_factory
         self._authority_host_factory = authority_host_factory
         self._optional_component = optional_component
+        self._frontend_preparation = frontend_preparation
+        self._godot_web_preparation = godot_web_preparation
         self._data_home = data_home
         self._doctor = doctor
         self._uninstall = uninstall
+
+    def prepare_frontend(self, runtime_mode: str) -> None:
+        if self._frontend_preparation is None:
+            raise RuntimeError("Frontend preparation adapter is unavailable")
+        self._frontend_preparation.prepare(runtime_mode)
+
+    def prepare_godot_web(self, runtime_mode: str, *, is_frozen: bool) -> bool:
+        if self._godot_web_preparation is None:
+            raise RuntimeError("Godot Web preparation adapter is unavailable")
+        return self._godot_web_preparation.prepare(
+            runtime_mode,
+            is_frozen=is_frozen,
+        )
 
     def repair_local_state(self) -> DoctorRepairResult:
         if self._doctor is None:

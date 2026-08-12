@@ -5,7 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from functools import partial
 
+from app.interfaces.web.build_discovery import discover_web_build
 from app.orchestration.lifecycle import LifecycleFacade
+from infrastructure.godot.artifacts.web_build import GodotWebBuildAdapter
 from infrastructure.godot.lifecycle.authority import GodotAuthorityHostAdapter
 from infrastructure.models.ollama.lifecycle_ollama import OllamaLifecycleAdapter
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
@@ -21,6 +23,7 @@ from infrastructure.persistence.layout.lifecycle_data_home import (
 from infrastructure.persistence.runtime_config import load_runtime_config
 from infrastructure.persistence.validation_artifacts import save_validation_report
 from infrastructure.platform.doctor import LocalDoctorAdapter
+from infrastructure.platform.frontend_build import FrontendBuildAdapter
 from infrastructure.platform.lifecycle.desktop import LocalDesktopHostAdapter
 from infrastructure.platform.lifecycle.http_probe import UrllibHttpProbeAdapter
 from infrastructure.platform.lifecycle.process import (
@@ -73,6 +76,8 @@ def create_lifecycle_facade() -> LifecycleFacade:
             inspector=inspector,
         ),
         optional_component=OllamaLifecycleAdapter(PublicOllamaProviderAdapter()),
+        frontend_preparation=FrontendBuildAdapter(discover_web_build),
+        godot_web_preparation=GodotWebBuildAdapter(),
         data_home=local_data,
         doctor=LocalDoctorAdapter(
             local_data=local_data,

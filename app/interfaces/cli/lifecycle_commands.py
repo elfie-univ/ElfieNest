@@ -12,11 +12,11 @@ import webbrowser
 from pathlib import Path
 from typing import Optional, Sequence
 
-from app.interfaces.web.frontend_build import FrontendBuildError, ensure_frontend_build
 from app.orchestration.lifecycle import (
     DEFAULT_HTTP_PORT,
     AuthorityHostConfig,
     ComponentHealth,
+    FrontendPreparationError,
     LaunchFailedError,
     LifecycleFacade,
     RuntimeComponent,
@@ -207,12 +207,12 @@ def _remember_lifecycle_data_home(
     )
 
 
-def _prepare_frontend_for_launch() -> None:
+def _prepare_frontend_for_launch(lifecycle: LifecycleFacade) -> None:
     """Refresh the source Web bundle only for an explicit development launch."""
     runtime_mode = os.environ.get("ELFIENEST_RUNTIME_MODE")
     if runtime_mode != "development":
         return
-    ensure_frontend_build(runtime_mode=runtime_mode)
+    lifecycle.prepare_frontend(runtime_mode)
 
 
 def _runtime_is_stably_running(supervisor: RuntimeLifecycle) -> bool:
@@ -249,8 +249,8 @@ def start_background_service(
     supervisor = _supervisor_for(lifecycle, launch_command, http_port)
     try:
         if not _runtime_is_stably_running(supervisor):
-            _prepare_frontend_for_launch()
-    except FrontendBuildError as error:
+            _prepare_frontend_for_launch(lifecycle)
+    except FrontendPreparationError as error:
         progress.stop(success=False)
         result = ServiceLifecycleResult(
             status="failed",
@@ -321,8 +321,8 @@ def restart_background_service(lifecycle: LifecycleFacade) -> ServiceLifecycleRe
         use_remembered_home=True,
     )
     try:
-        _prepare_frontend_for_launch()
-    except FrontendBuildError as error:
+        _prepare_frontend_for_launch(lifecycle)
+    except FrontendPreparationError as error:
         progress.stop(success=False, message="Service restart failed")
         result = ServiceLifecycleResult(
             status="failed",

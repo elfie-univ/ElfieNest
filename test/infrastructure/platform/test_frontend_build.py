@@ -6,7 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from app.interfaces.web import frontend_build
+from app.interfaces.web.build_discovery import discover_web_build
+from app.orchestration.lifecycle import FrontendPreparationError
+from infrastructure.platform import frontend_build
 
 
 def _write_bundle(output: Path, source_digest: str) -> None:
@@ -33,16 +35,22 @@ def test_bundle_is_current_only_when_source_and_generated_shell_match(
     output = tmp_path / "build" / "web"
     _write_bundle(output, frontend_build.source_digest(source))
 
-    assert frontend_build.bundle_is_current(output, source)
+    assert frontend_build.bundle_is_current(
+        output, source, verify_build=discover_web_build
+    )
 
     (source / "package.json").write_text('{"name":"changed"}', encoding="utf-8")
 
-    assert not frontend_build.bundle_is_current(output, source)
+    assert not frontend_build.bundle_is_current(
+        output, source, verify_build=discover_web_build
+    )
 
     (source / "package.json").write_text('{"name":"test"}', encoding="utf-8")
     (output / "index.html").unlink()
 
-    assert not frontend_build.bundle_is_current(output, source)
+    assert not frontend_build.bundle_is_current(
+        output, source, verify_build=discover_web_build
+    )
 
 
 def test_ensure_rebuilds_stale_frontend_and_records_post_build_digest(
@@ -64,11 +72,17 @@ def test_ensure_rebuilds_stale_frontend_and_records_post_build_digest(
 
     monkeypatch.setattr(frontend_build, "_run_pnpm", run_pnpm)
 
-    frontend_build.ensure_frontend_build(runtime_mode="development")
-    frontend_build.ensure_frontend_build(runtime_mode="development")
+    frontend_build.ensure_frontend_build(
+        runtime_mode="development", verify_build=discover_web_build
+    )
+    frontend_build.ensure_frontend_build(
+        runtime_mode="development", verify_build=discover_web_build
+    )
 
     assert calls == [("install", "--frozen-lockfile"), ("build",)]
-    assert frontend_build.bundle_is_current(output, source)
+    assert frontend_build.bundle_is_current(
+        output, source, verify_build=discover_web_build
+    )
 
 
 def test_ensure_does_not_touch_release_runtime(
@@ -85,6 +99,7 @@ def test_ensure_does_not_touch_release_runtime(
         runtime_mode="release",
         source=tmp_path / "missing-source",
         output=tmp_path / "missing-output",
+        verify_build=discover_web_build,
     )
 
 
@@ -183,7 +198,22 @@ def test_build_failure_is_typed(
             runtime_mode="development",
             source=source,
             output=tmp_path / "build" / "web",
+            verify_build=discover_web_build,
         )
+
+
+def test_adapter_translates_build_failure_to_lifecycle_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        frontend_build,
+        "FRONTEND_SOURCE_DIRECTORY",
+        tmp_path / "missing-source",
+    )
+
+    with pytest.raises(FrontendPreparationError, match="does not exist"):
+        frontend_build.FrontendBuildAdapter(discover_web_build).prepare("development")
 
 
 def test_ensure_fails_if_source_changes_during_build(
@@ -205,7 +235,10 @@ def test_ensure_fails_if_source_changes_during_build(
 
     with pytest.raises(frontend_build.FrontendBuildError, match="changed during build"):
         frontend_build.ensure_frontend_build(
-            runtime_mode="development", source=source, output=output
+            runtime_mode="development",
+            source=source,
+            output=output,
+            verify_build=discover_web_build,
         )
 
 
@@ -230,7 +263,10 @@ def test_ensure_fails_closed_when_build_marker_cannot_be_verified(
         frontend_build.FrontendBuildError, match="could not be verified"
     ):
         frontend_build.ensure_frontend_build(
-            runtime_mode="development", source=source, output=output
+            runtime_mode="development",
+            source=source,
+            output=output,
+            verify_build=discover_web_build,
         )
 
 
