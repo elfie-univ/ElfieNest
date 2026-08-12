@@ -2,7 +2,7 @@
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
 
@@ -72,6 +72,7 @@ class ElfieSpec:
 
 @dataclass
 class StimulusBundle:
+    source_domain: Literal["communication", "embodied"] = "communication"
     message: str = ""
     vision_media: Optional[Dict[str, Any]] = None
     temperature: float = 24.0

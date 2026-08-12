@@ -9,7 +9,7 @@ from typing_extensions import TypeAlias
 
 from elfie.brain.cortical_worker import CorticalTask, CorticalTurnResult
 from elfie.brain.limbic_appraiser import BrainClockPulse
-from elfie.brain.perception_types import PerceptionFrame
+from elfie.brain.perception_types import TurnFrame
 from elfie.brain.turn_outcome import TerminalStatus
 from elfie.message_types import TurnId
 
@@ -48,7 +48,7 @@ ControlMessage: TypeAlias = Union[
 class InFlightTurn:
     """Mutable turn state accessed only by the coordinator owner thread."""
 
-    frame: PerceptionFrame
+    frame: TurnFrame
     task: CorticalTask
     future: Future[CorticalTurnResult]
     timeout_at: float

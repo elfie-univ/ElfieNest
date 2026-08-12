@@ -121,7 +121,7 @@ def test_app_create_elfie_and_chat(tmp_path, monkeypatch, client_for):
 
     turn = client.post(
         f"/api/elfies/{elfie_id}/turns",
-        json={"message": "跟我打个招呼", "food_key": "mock"},
+        json={"source_domain": "communication", "message": "跟我打个招呼", "food_key": "mock"},
     )
     assert turn.status_code == 200
     payload = turn.json()
@@ -163,7 +163,7 @@ def test_app_lifespan_stops_registered_elfie_sessions(tmp_path):
             "/api/elfies", json=complete_elfie_payload("生命周期测试")
         ).json()
         session = app.state.sessions.get(created["elfie_id"])
-        runtime = session.elfie._cognitive_runtime
+        runtime = session.elfie._brain_runtime
         assert runtime is not None
         assert runtime.is_running is True
 
@@ -196,7 +196,7 @@ def test_app_rejects_empty_stimulus(tmp_path, client_for):
 
     response = client.post(
         f"/api/elfies/{created['elfie_id']}/turns",
-        json={"message": "", "food_key": "mock"},
+        json={"source_domain": "embodied", "message": "", "food_key": "mock"},
     )
 
     assert response.status_code == 422

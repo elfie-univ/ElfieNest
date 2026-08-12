@@ -9,12 +9,14 @@ from elfie.brain.perception_types import (
     IngestDisposition,
     InternalSignal,
     PerceptionEvent,
-    PerceptionFrame,
     PerceptionMediaSample,
     PerceptionStateUpdate,
     PhysicalModality,
     PhysicalPayload,
+    SocialPayload,
+    SourceDomain,
     TriggerReason,
+    TurnFrame,
 )
 from elfie.brain.perceptual_workspace import (
     ActiveClaimError,
@@ -76,6 +78,7 @@ def _event(index: int) -> PerceptionEvent:
 def _state(index: int, key: str) -> PerceptionStateUpdate:
     return PerceptionStateUpdate(
         meta=_meta(f"state-{index}"),
+        body_id="body-1",
         state_key=key,
         revision=index,
         value=float(index),
@@ -85,6 +88,7 @@ def _state(index: int, key: str) -> PerceptionStateUpdate:
 def _media(index: int, stream_id: str = "camera") -> PerceptionMediaSample:
     return PerceptionMediaSample(
         meta=_meta(f"media-{index}"),
+        body_id="body-1",
         stream_id=stream_id,
         ordinal=index,
         captured_at=NOW,
@@ -236,7 +240,7 @@ def test_third_release_emits_one_reliable_failure_event_without_recursion() -> N
     assert failure_frame.events[0].failed_frame_id == original.frame_id
     assert failure_frame.events[0].payload.signal is InternalSignal.PROCESSING_FAILURE
     assert len(workspace.dead_letters()) == 1
-    restored = PerceptionFrame.model_validate_json(failure_frame.model_dump_json())
+    restored = TurnFrame.model_validate_json(failure_frame.model_dump_json())
     assert isinstance(restored.events[0], ProcessingFailureEvent)
     assert restored.events[0].failed_frame_id == original.frame_id
 
@@ -250,6 +254,45 @@ def test_third_release_emits_one_reliable_failure_event_without_recursion() -> N
     # Then: it is committed without recursively generating another event.
     assert len(workspace.dead_letters()) == 1
     assert workspace.seal(reason=TriggerReason.MANUAL, captured_at=NOW) is None
+
+
+def test_commit_keeps_other_conversations_and_embodied_events() -> None:
+    workspace = PerceptualWorkspace(elfie_id=ELFIE_ID)
+    sender = ActorRef(actor_id=ActorId("user"), source_kind="human")
+    for index, conversation_id in enumerate(("conversation-a", "conversation-b")):
+        workspace.publish(
+            PerceptionEvent(
+                meta=_meta(f"message-{index}"),
+                payload=SocialPayload(
+                    type="social",
+                    channel_id="chat",
+                    conversation_id=conversation_id,
+                    sender=sender,
+                    content=conversation_id,
+                ),
+            )
+        )
+    workspace.publish(_event(9))
+
+    frames = []
+    for index in range(3):
+        frame = workspace.claim_frame(
+            workspace.metrics().latest_ingest_seq,
+            turn_id=TurnId(f"turn-domain-{index}"),
+            reason=TriggerReason.MANUAL,
+            captured_at=NOW,
+        )
+        frames.append(frame)
+        workspace.commit(frame.frame_id, TurnId(f"turn-domain-{index}"))
+
+    assert tuple(frame.source_domain for frame in frames) == (
+        SourceDomain.COMMUNICATION,
+        SourceDomain.COMMUNICATION,
+        SourceDomain.EMBODIED,
+    )
+    assert frames[0].interaction_scope.conversation_id == "conversation-a"
+    assert frames[1].interaction_scope.conversation_id == "conversation-b"
+    assert frames[2].interaction_scope.body_id == "body-1"
 
 
 def test_active_claim_is_exclusive_and_stop_wakes_waiter() -> None:

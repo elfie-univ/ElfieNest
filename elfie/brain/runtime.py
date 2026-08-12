@@ -1,47 +1,29 @@
-"""Lifecycle assembly for one Elfie's asynchronous cognitive loop."""
+"""Lifecycle owner for one Elfie's private asynchronous Brain loop."""
 
 from __future__ import annotations
 
 from typing import Callable, Optional, Tuple
 
-from elfie.body.port import BodyPort
+from elfie.brain.context_source import BrainContextState
 from elfie.brain.coordinator import BrainCoordinator
 from elfie.brain.cortical_worker import CorticalWorker
 from elfie.brain.decision_decoder import DecisionPlanDecoder
-from elfie.brain.decision_types import DecisionPlan, InternalIntent
+from elfie.brain.decision_types import TurnDecision
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import HypothalamusEnergy
-from elfie.brain.internal_output import InternalIntentExecutor
 from elfie.brain.limbic_appraiser import BrainClockPulse, LimbicAppraiser
-from elfie.brain.memory import MemorySystem
+from elfie.brain.output_ports import IntentExecutor
 from elfie.brain.output_router import OutputRouter
-from elfie.brain.output_types import ExecutionReceipt, IntentExecutionResult
+from elfie.brain.output_types import ExecutionReceipt
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
 from elfie.brain.turn_outcome import TurnOutcome
-from elfie.cognitive_context import ElfieContextSource
-from elfie.communication import CommunicationHub
-from elfie.communication.output_executor import CommunicationIntentExecutor
 from elfie.message_types import ElfieId, TurnId, UTCDateTime
-from elfie.nervous_system import NervousSystem
-from elfie.nervous_system.output_executor import NervousSystemIntentExecutor
 
 
-class DefaultInternalIntentSink:
-    """Acknowledge closed internal intents until richer memory work is enabled."""
-
-    def execute(
-        self,
-        plan: DecisionPlan,
-        intent: InternalIntent,
-    ) -> IntentExecutionResult:
-        del plan, intent
-        return IntentExecutionResult.completed()
-
-
-class ElfieCognitiveRuntime:
-    """Own Coordinator, cortical worker, OutputRouter, and their shutdown order."""
+class BrainRuntime:
+    """Own Brain coordinator, worker, decision boundary, and shutdown order."""
 
     def __init__(
         self,
@@ -50,36 +32,19 @@ class ElfieCognitiveRuntime:
         workspace: PerceptualWorkspace,
         emotion: EmotionSystem,
         homeostasis: HypothalamusEnergy,
-        memory: MemorySystem,
-        nervous_system: NervousSystem,
-        communication: CommunicationHub,
-        current_body: Callable[[], Optional[BodyPort]],
+        context: BrainContextState,
         clock: Callable[[], UTCDateTime],
         model_port: ModelPort,
         skills: SkillManager,
+        body_executor: IntentExecutor,
+        message_executor: IntentExecutor,
+        internal_executor: IntentExecutor,
     ) -> None:
         self._clock = clock
-        self.context_source = ElfieContextSource(
-            memory=memory,
-            current_body=current_body,
-            communication=communication,
-            clock=clock,
-        )
-        body_executor = NervousSystemIntentExecutor(
-            nervous_system=nervous_system,
-            current_body=current_body,
-            clock=clock,
-        )
-        message_executor = CommunicationIntentExecutor(
-            hub=communication,
-            elfie_id=elfie_id,
-            capabilities=self.context_source,
-            clock=clock,
-        )
-        internal_executor = InternalIntentExecutor(DefaultInternalIntentSink())
+        self.context = context
         self.router = OutputRouter(
             elfie_id=elfie_id,
-            capabilities=self.context_source,
+            capabilities=context,
             perception_sink=workspace,
             body_executor=body_executor,
             message_executor=message_executor,
@@ -96,7 +61,7 @@ class ElfieCognitiveRuntime:
             emotion=emotion,
             homeostasis=homeostasis,
             appraiser=LimbicAppraiser(),
-            context_source=self.context_source,
+            context_source=context,
             cortical_worker=worker,
             plan_sink=self.router,
             initial_timestamp=clock().timestamp(),
@@ -104,8 +69,6 @@ class ElfieCognitiveRuntime:
         )
         self._started = False
         self._workspace = workspace
-        self._nervous_system = nervous_system
-        self._communication = communication
 
     def start(self) -> None:
         if self._started:
@@ -152,15 +115,13 @@ class ElfieCognitiveRuntime:
     def execution_receipts(self, turn_id: TurnId) -> Tuple[ExecutionReceipt, ...]:
         return self.router.receipts(turn_id)
 
-    def decision_plan(self, turn_id: TurnId) -> Optional[DecisionPlan]:
-        return self.router.decision_plan(turn_id)
+    def decision(self, turn_id: TurnId) -> Optional[TurnDecision]:
+        return self.router.decision(turn_id)
 
     def stop(self) -> None:
         if not self._started:
             return
         self._workspace.stop()
-        self._communication.close()
-        self._nervous_system.close_perception()
         self.coordinator.stop()
         self.router.stop()
 
@@ -176,4 +137,4 @@ class ElfieCognitiveRuntime:
         return self._started and self.coordinator.is_alive
 
 
-__all__ = ("DefaultInternalIntentSink", "ElfieCognitiveRuntime")
+__all__ = ("BrainRuntime",)

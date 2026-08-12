@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class CreateElfieRequest(BaseModel):
@@ -29,6 +29,7 @@ class BigFiveUpdateRequest(BaseModel):
 class TurnRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    source_domain: Literal["communication", "embodied"]
     message: str = Field(default="", max_length=8000)
     vision_media_id: Optional[str] = Field(default=None, max_length=70)
     food_key: str = Field(min_length=1, max_length=40)
@@ -39,6 +40,20 @@ class TurnRequest(BaseModel):
     impact_direction: str = Field(default="none", max_length=40)
     gentle_stroke: float = Field(default=0.0, ge=0.0, le=100.0)
     state_injection: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_source_domain(self) -> "TurnRequest":
+        if self.source_domain == "communication":
+            if not self.message.strip():
+                raise ValueError("通信输入必须包含消息")
+            if (
+                self.vision_media_id is not None
+                or self.impact_force > 0
+                or self.gentle_stroke > 0
+                or self.salience_score >= 70
+            ):
+                raise ValueError("通信输入不能混入具身刺激")
+        return self
 
 
 class PortraitRequest(BaseModel):

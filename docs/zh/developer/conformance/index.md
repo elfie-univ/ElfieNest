@@ -5,5 +5,6 @@
 
 - [系统架构一致性](./system)
 - [Elfie 内部架构一致性](./elfie)
+- [Elfie Brain 内部架构一致性](./brain)
 - [应用架构一致性](./application)
 - [当前 Model/Food/Tool 一致性](./model-food-tool-conformance)

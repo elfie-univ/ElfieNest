@@ -14,6 +14,7 @@ from elfie.brain.cortical_worker import (
     WorkerQueueFullError,
 )
 from elfie.brain.decision_decoder import DecisionDecodeSeed, DecisionPlanDecoder
+from elfie.brain.perception_types import InternalScope, ResponseScope, SourceDomain
 from elfie.brain.runtime_port import (
     JsonSchemaDocument,
     ModelGenerationCapabilities,
@@ -64,6 +65,9 @@ def _task(turn_id: str) -> CorticalTask:
             created_at=NOW,
             deadline=DEADLINE,
             cause_event_ids=(EventId("event-1"),),
+            source_domain=SourceDomain.INTERNAL,
+            interaction_scope=InternalScope(cause_id="event-1"),
+            response_scope=ResponseScope(external_domain=None),
             system_prompt="Return a safe DecisionPlan.",
             user_prompt="event data",
             response_schema=JsonSchemaDocument(

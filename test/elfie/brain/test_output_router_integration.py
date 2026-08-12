@@ -20,14 +20,14 @@ from test.elfie.brain.test_output_router import (
     StaticCapabilities,
     _base,
     _capabilities,
-    _message,
+    _embodied_decision,
     _plan,
 )
 from test.elfie.communication.test_output_executor import RecordingChannel
 
 
-def test_real_body_and_communication_execute_one_multi_intent_plan() -> None:
-    # Given: one real in-memory Body and one connected Communication channel.
+def test_real_body_executes_one_embodied_turn() -> None:
+    # Given: one real in-memory Body behind the nervous-system executor.
     capabilities = StaticCapabilities(_capabilities())
     body = HeadlessBody(body_id="body-1")
     body.connect()
@@ -66,18 +66,17 @@ def test_real_body_and_communication_execute_one_multi_intent_plan() -> None:
             **_base("expression"),
         ),
     )
-    plan = _plan(physical + tuple(_message(index) for index in range(5)))
+    plan = _plan(physical)
 
     # When: the asynchronous router accepts and finishes the complete plan.
     router.start()
-    assert router.accept(plan) is True
+    assert router.accept(_embodied_decision(plan)) is True
     router.wait_for_turn(plan.turn_id, timeout=1)
 
-    # Then: all real boundaries executed and every lifecycle transition returned.
-    assert len(channel.sent) == 5
-    assert [envelope.ordinal for envelope in channel.sent] == list(range(5))
+    # Then: only the embodied boundary executes.
+    assert channel.sent == []
     assert body.snapshot_body(now=NOW).last_status is not None
-    assert len(router.receipts(plan.turn_id)) == 24
-    assert workspace.metrics().reliable_event_count == 24
+    assert len(router.receipts(plan.turn_id)) == 9
+    assert workspace.metrics().reliable_event_count == 9
     router.stop()
     router.join()

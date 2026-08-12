@@ -9,4 +9,6 @@ The current contract always states the enforceable rule.
 - [ADR-0003: Contract-driven architecture ratchet](./0003-architecture-governance-ratchet)
 - [ADR-0004: App business domains and vertical migration slices](./0004-app-domain-slices)
 - [ADR-0005: Elfie internal Ports and Adapters](./0005-elfie-internal-ports-adapters)
-- [ADR-0006: Public documentation information architecture](./0006-documentation-information-architecture)
+- [ADR-0006: Elfie life-system ownership and one-body authority](./0006-elfie-life-system-ownership)
+- [ADR-0007: Brain Turn, mental-state and persistent-activity ownership](./0007-brain-turn-state-and-activity-ownership)
+- [ADR-0008: Public documentation information architecture](./0008-documentation-information-architecture)

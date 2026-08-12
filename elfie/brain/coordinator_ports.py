@@ -8,8 +8,8 @@ from elfie.brain.context_types import (
     EmotionSnapshot,
     MemoryContext,
 )
-from elfie.brain.decision_types import DecisionPlan
-from elfie.brain.perception_types import PerceptionFrame
+from elfie.brain.decision_types import TurnDecision
+from elfie.brain.perception_types import TurnFrame
 from elfie.message_types import TurnId, UTCDateTime
 
 
@@ -18,14 +18,14 @@ class BrainContextSource(Protocol):
 
     def conversation(
         self,
-        frame: PerceptionFrame,
+        frame: TurnFrame,
         captured_at: UTCDateTime,
     ) -> ConversationContext:
         """Return bounded conversation history for the frame."""
 
     def memory(
         self,
-        frame: PerceptionFrame,
+        frame: TurnFrame,
         emotion: EmotionSnapshot,
         captured_at: UTCDateTime,
     ) -> MemoryContext:
@@ -35,14 +35,14 @@ class BrainContextSource(Protocol):
         """Return current Body and connected-channel capabilities."""
 
 
-class DecisionPlanSink(Protocol):
-    """Atomic plan-acceptance boundary implemented by OutputRouter."""
+class TurnDecisionSink(Protocol):
+    """Atomic governed-decision boundary implemented by OutputRouter."""
 
-    def accept(self, plan: DecisionPlan) -> bool:
-        """Accept the complete plan before its frame is committed."""
+    def accept(self, decision: TurnDecision) -> bool:
+        """Accept the scoped decision before its frame is committed."""
 
     def cancel_stale(self, turn_id: TurnId, reason: str) -> None:
         """Cancel not-yet-started work for a stale turn."""
 
 
-__all__ = ("BrainContextSource", "DecisionPlanSink")
+__all__ = ("BrainContextSource", "TurnDecisionSink")

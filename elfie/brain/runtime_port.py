@@ -7,6 +7,7 @@ from typing import Annotated, Mapping, Optional, Protocol, Tuple
 
 from pydantic import AliasChoices, Field, JsonValue, StringConstraints
 
+from elfie.brain.perception_types import InteractionScope, ResponseScope, SourceDomain
 from elfie.message_types import EventId, FrozenContractModel, TurnId, UTCDateTime
 
 _NonBlankText = Annotated[
@@ -64,6 +65,9 @@ class ModelGenerationRequest(FrozenContractModel):
     created_at: UTCDateTime
     deadline: UTCDateTime
     cause_event_ids: Tuple[EventId, ...]
+    source_domain: SourceDomain
+    interaction_scope: InteractionScope
+    response_scope: ResponseScope
     system_prompt: _NonBlankText
     user_prompt: _NonBlankText
     response_schema: JsonSchemaDocument

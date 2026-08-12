@@ -1,4 +1,4 @@
-# ADR-0006: Public documentation information architecture
+# ADR-0008: Public documentation information architecture
 
 - **Status:** accepted
 - **Date:** 2026-08-12

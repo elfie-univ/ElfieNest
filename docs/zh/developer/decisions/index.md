@@ -8,4 +8,6 @@
 - [ADR-0003：契约驱动的架构棘轮](./0003-architecture-governance-ratchet)
 - [ADR-0004：App 业务域与纵向迁移切片](./0004-app-domain-slices)
 - [ADR-0005：Elfie 内部 Ports and Adapters](./0005-elfie-internal-ports-adapters)
-- [ADR-0006：公开文档信息架构](./0006-documentation-information-architecture)
+- [ADR-0006：Elfie 生命系统所有权与单一身体权威](./0006-elfie-life-system-ownership)
+- [ADR-0007：Brain 回合、心智状态与跨回合活动所有权](./0007-brain-turn-state-and-activity-ownership)
+- [ADR-0008：公开文档信息架构](./0008-documentation-information-architecture)

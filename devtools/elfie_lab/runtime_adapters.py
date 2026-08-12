@@ -19,6 +19,7 @@ from elfie.brain.runtime_port import (
     ModelGenerationResult,
     StructuredOutputMode,
 )
+from infrastructure.models.runtime_adapter import SerializedRuntimeAdapter
 from infrastructure.models.runtime_agent import RuntimeAgent
 from infrastructure.models.runtime_observations import get_runtime_observer
 from infrastructure.models.runtime_ports import RuntimeAgentPorts
@@ -111,11 +112,12 @@ class TracingRuntimeAgent:
             self.calls.append(call)
 
     def capabilities(self) -> ModelGenerationCapabilities:
-        structured_mock = self.food_key == "mock"
+        if self.food_key != "mock":
+            return self.inner.capabilities()
         return ModelGenerationCapabilities(
             provider=self._provider_name(),
             model_key=self._model_name(2),
-            supports_json_schema=structured_mock,
+            supports_json_schema=True,
             supports_tool_calling=False,
             supports_json_mode=False,
             supports_plain_text=True,
@@ -123,6 +125,40 @@ class TracingRuntimeAgent:
         )
 
     def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
+        if self.food_key != "mock":
+            started = time.perf_counter()
+            call: Dict[str, Any] = {
+                "food_key": self.food_key,
+                "energy": 100.0,
+                "task_complexity": 2,
+            }
+            try:
+                result = self.inner.generate(request)
+                call.update(
+                    {
+                        "provider": result.provider,
+                        "model": result.model_key,
+                        "food_used": self.food_key,
+                        "execution_stage": "primary",
+                        "degraded": False,
+                    }
+                )
+                return result
+            except Exception as exc:
+                call.update(
+                    {
+                        "provider": self._provider_name(),
+                        "model": self._model_name(2),
+                        "error": type(exc).__name__,
+                    }
+                )
+                raise
+            finally:
+                call["duration_ms"] = round(
+                    (time.perf_counter() - started) * 1000,
+                    2,
+                )
+                self.calls.append(call)
         speech = self.ask(request.user_prompt, energy=100.0, task_complexity=2)
         text = (
             _mock_decision_json(request, speech) if self.food_key == "mock" else speech
@@ -140,7 +176,10 @@ class TracingRuntimeAgent:
 
     def abandon(self, request: ModelGenerationRequest) -> None:
         """Detach the Lab request; the temporary adapter owns no call gate."""
-        del request
+        if self.food_key == "mock":
+            del request
+            return
+        self.inner.abandon(request)
 
     def _model_name(self, task_complexity: int) -> str:
         if self.food_key == "mock":
@@ -162,6 +201,33 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
         "deadline": request.deadline.isoformat(),
         "cancel_policy": "always",
     }
+    if request.source_domain.value == "communication":
+        intents = [
+            {
+                "type": "message",
+                "intent_id": "mock-message",
+                "channel_id": request.response_scope.channel_id,
+                "conversation_id": request.response_scope.conversation_id,
+                "content": speech,
+                **common,
+            }
+        ]
+    else:
+        intents = [
+            {
+                "type": "speech",
+                "intent_id": "mock-speech",
+                "text": speech,
+                **common,
+            },
+            {
+                "type": "motion",
+                "intent_id": "mock-motion",
+                "motion": "nod_head",
+                "target": None,
+                **common,
+            },
+        ]
     return json.dumps(
         {
             "schema_version": 1,
@@ -173,21 +239,7 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
             "created_at": request.created_at.isoformat(),
             "deadline": request.deadline.isoformat(),
             "cause_event_ids": [str(item) for item in request.cause_event_ids],
-            "intents": [
-                {
-                    "type": "speech",
-                    "intent_id": "mock-speech",
-                    "text": speech,
-                    **common,
-                },
-                {
-                    "type": "motion",
-                    "intent_id": "mock-motion",
-                    "motion": "nod_head",
-                    "target": None,
-                    **common,
-                },
-            ],
+            "intents": intents,
         },
         ensure_ascii=False,
     )
@@ -203,6 +255,22 @@ class FoodRuntimeAgent:
         self.selected_model = package.primary.model if package.primary else ""
         self.selected_provider = _provider_from_model(self.selected_model)
         self.last_result = None
+        self._adapter = SerializedRuntimeAdapter(
+            runtime,
+            food_key_resolver=lambda: self.food_key,
+        )
+
+    def capabilities(self) -> ModelGenerationCapabilities:
+        return self._adapter.capabilities()
+
+    def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
+        result = self._adapter.generate(request)
+        self.selected_model = result.model_key
+        self.selected_provider = result.provider
+        return result
+
+    def abandon(self, request: ModelGenerationRequest) -> None:
+        self._adapter.abandon(request)
 
     def ask(self, prompt: str, energy: float, task_complexity: int) -> str:
         result = self.runtime.run_with_food(

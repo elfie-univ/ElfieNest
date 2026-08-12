@@ -4,7 +4,6 @@ from datetime import timedelta
 from threading import Event
 
 from elfie.brain.decision_types import (
-    CancelPolicy,
     MotionIntent,
     SpeechIntent,
 )
@@ -20,6 +19,8 @@ from test.elfie.brain.test_output_router import (
     StaticCapabilities,
     _base,
     _capabilities,
+    _communication_decision,
+    _embodied_decision,
     _message,
     _plan,
 )
@@ -86,7 +87,7 @@ def test_failed_dependency_cancels_downstream_without_calling_executor() -> None
     )
 
     # When: the dependency graph executes.
-    assert router.accept(_plan((speech, motion))) is True
+    assert router.accept(_embodied_decision(_plan((speech, motion)))) is True
     router.wait_for_turn(TurnId("turn-router"), timeout=1)
 
     # Then: only speech reaches the executor and motion is cancelled by dependency.
@@ -104,33 +105,21 @@ def test_failed_dependency_cancels_downstream_without_calling_executor() -> None
 
 
 def test_stale_cancel_keeps_sent_message_and_cancels_pending_sequence() -> None:
-    # Given: message zero can finish while a physical intent remains running.
-    body = InterruptibleBody()
+    # Given: message zero can finish while later messages remain pending.
+    body = RecordingExecutor()
     message = FirstMessageThenBlock()
     router = _router(body, message)
     router.start()
-    motion = MotionIntent(
-        type="motion",
-        motion="walk",
-        **{
-            **_base("motion"),
-            "cancel_policy": CancelPolicy.ALWAYS,
-        },
-    )
-    plan = _plan((motion,) + tuple(_message(index) for index in range(3)))
-    assert router.accept(plan) is True
-    assert body.started.wait(1)
+    plan = _plan(tuple(_message(index) for index in range(3)))
+    assert router.accept(_communication_decision(plan)) is True
     assert message.first_sent.wait(1)
 
     # When: an emergency marks the turn stale before the next sequence item starts.
     router.cancel_for_stale_turn(plan.turn_id, "emergency_stop")
     router.wait_for_turn(plan.turn_id, timeout=1)
 
-    # Then: sent truth is retained, pending messages cancel, and motion is interrupted.
+    # Then: sent truth is retained and pending messages cancel.
     assert message.calls == [IntentId("message-0")]
-    assert body.interrupts == [
-        (TurnId("turn-router"), IntentId("motion"), "emergency_stop")
-    ]
     terminal = {
         receipt.intent_id: receipt.status
         for receipt in router.receipts(plan.turn_id)
@@ -145,7 +134,6 @@ def test_stale_cancel_keeps_sent_message_and_cancels_pending_sequence() -> None:
     assert terminal[IntentId("message-0")] is ExecutionStatus.COMPLETED
     assert terminal[IntentId("message-1")] is ExecutionStatus.CANCELLED
     assert terminal[IntentId("message-2")] is ExecutionStatus.CANCELLED
-    assert terminal[IntentId("motion")] is ExecutionStatus.INTERRUPTED
     router.stop()
     router.join()
 
@@ -157,7 +145,7 @@ def test_stale_cancel_wakes_message_waiting_for_send_after() -> None:
     router.start()
     delayed = _message(0).model_copy(update={"send_after": NOW + timedelta(seconds=5)})
     plan = _plan((delayed,))
-    assert router.accept(plan) is True
+    assert router.accept(_communication_decision(plan)) is True
 
     # When: stale cancellation arrives before the scheduled send time.
     router.cancel_for_stale_turn(plan.turn_id, "emergency_stop")

@@ -10,7 +10,7 @@ from typing import Iterable
 from elfie.body import BodyBinding, BodyRegistry
 from elfie.body.contracts import BodySensorEvent
 from elfie.body.port import BodyPort
-from elfie.brain.decision_types import DecisionPlan
+from elfie.brain.decision_types import TurnDecision
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import HypothalamusEnergy
 from elfie.brain.memory.memory_store import MemoryStorePort
@@ -18,10 +18,11 @@ from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.output_types import ExecutionReceipt
 from elfie.brain.perception_types import IngestReceipt
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
+from elfie.brain.runtime import BrainRuntime
 from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
 from elfie.brain.turn_outcome import TurnOutcome
-from elfie.cognitive_runtime import ElfieCognitiveRuntime
+from elfie.brain_wiring import assemble_brain_runtime
 from elfie.communication import CommunicationEnvelope, CommunicationHub
 from elfie.communication.contracts import InboundDisposition, InboundDispositionStatus
 from elfie.communication.perception_adapter import CommunicationPerceptionAdapter
@@ -78,7 +79,7 @@ class Elfie:
         self.communication = communication or CommunicationHub(str(workspace_id))
         self.communication.bind_identity(str(workspace_id))
         self.skills = skills or SkillManager()
-        self._cognitive_runtime: ElfieCognitiveRuntime | None = None
+        self._brain_runtime: BrainRuntime | None = None
         if model_port is not None:
             self.configure_cognition(model_port)
 
@@ -105,12 +106,12 @@ class Elfie:
 
     @property
     def is_running(self) -> bool:
-        runtime = self._cognitive_runtime
+        runtime = self._brain_runtime
         return runtime is not None and runtime.is_running
 
     @property
     def cognition_configured(self) -> bool:
-        return self._cognitive_runtime is not None
+        return self._brain_runtime is not None
 
     def bind_identity(self, elfie_id: str) -> None:
         if self.cognition_configured and elfie_id != self.identity.elfie_id:
@@ -170,35 +171,37 @@ class Elfie:
         )
 
     def configure_cognition(self, model_port: ModelPort) -> None:
-        if self._cognitive_runtime is not None:
+        if self._brain_runtime is not None:
             raise ElfieLifecycleError("Elfie cognition is already configured")
-        self.communication.bind_perception_adapter(
-            CommunicationPerceptionAdapter(self.perceptual_workspace)
-        )
-        self._cognitive_runtime = ElfieCognitiveRuntime(
+        def clock() -> datetime:
+            return self.cognitive_datetime
+
+        self._brain_runtime = assemble_brain_runtime(
             elfie_id=ElfieId(self.identity.elfie_id),
             workspace=self.perceptual_workspace,
+            memory=self.memory,
             emotion=self.amygdala,
             homeostasis=self.hypothalamus,
-            memory=self.memory,
             nervous_system=self.nervous_system,
             communication=self.communication,
-            current_body=lambda: self.current_body,
-            clock=lambda: self.cognitive_datetime,
-            model_port=model_port,
             skills=self.skills,
+            current_body=lambda: self.current_body,
+            clock=clock,
+            model_port=model_port,
         )
 
     def start(self) -> None:
-        self._require_cognitive_runtime().start()
+        self._require_brain_runtime().start()
 
     def stop(self) -> None:
-        if self._cognitive_runtime is not None:
-            self._cognitive_runtime.stop()
+        if self._brain_runtime is not None:
+            self.communication.close()
+            self.nervous_system.close_perception()
+            self._brain_runtime.stop()
 
     def join(self) -> None:
-        if self._cognitive_runtime is not None:
-            self._cognitive_runtime.join()
+        if self._brain_runtime is not None:
+            self._brain_runtime.join()
 
     def advance_clock(self, seconds: float) -> None:
         if seconds < 0:
@@ -206,7 +209,7 @@ class Elfie:
         with self._clock_lock:
             self._elapsed_time += seconds
             timestamp = self._elapsed_time
-        self._require_cognitive_runtime().post_clock(timestamp)
+        self._require_brain_runtime().post_clock(timestamp)
 
     def pump_body_events(
         self,
@@ -220,7 +223,7 @@ class Elfie:
         retries = self.nervous_system.retry_pending()
         communication_retries = self.communication.retry_perception()
         if events or retries or communication_retries:
-            self._require_cognitive_runtime().notify_perception(
+            self._require_brain_runtime().notify_perception(
                 urgent_reason=(
                     "body_reflex"
                     if self.nervous_system.urgent_revision > previous_urgent_revision
@@ -235,26 +238,26 @@ class Elfie:
     ) -> InboundDisposition:
         disposition = self.communication.receive_envelope(envelope)
         if disposition.status is InboundDispositionStatus.ACCEPTED:
-            self._require_cognitive_runtime().notify_perception()
+            self._require_brain_runtime().notify_perception()
         return disposition
 
     def turn_outcomes(self) -> tuple[TurnOutcome, ...]:
-        return self._require_cognitive_runtime().outcomes()
+        return self._require_brain_runtime().outcomes()
 
     def wait_for_outcome_count(self, count: int, *, timeout: float) -> None:
-        self._require_cognitive_runtime().wait_for_outcome_count(count, timeout=timeout)
+        self._require_brain_runtime().wait_for_outcome_count(count, timeout=timeout)
 
     def wait_for_output(self, turn_id: TurnId, *, timeout: float) -> None:
-        self._require_cognitive_runtime().wait_for_output(turn_id, timeout=timeout)
+        self._require_brain_runtime().wait_for_output(turn_id, timeout=timeout)
 
     def execution_receipts(self, turn_id: TurnId) -> tuple[ExecutionReceipt, ...]:
-        return self._require_cognitive_runtime().execution_receipts(turn_id)
+        return self._require_brain_runtime().execution_receipts(turn_id)
 
-    def decision_plan(self, turn_id: TurnId) -> DecisionPlan | None:
-        return self._require_cognitive_runtime().decision_plan(turn_id)
+    def turn_decision(self, turn_id: TurnId) -> TurnDecision | None:
+        return self._require_brain_runtime().decision(turn_id)
 
-    def _require_cognitive_runtime(self) -> ElfieCognitiveRuntime:
-        runtime = self._cognitive_runtime
+    def _require_brain_runtime(self) -> BrainRuntime:
+        runtime = self._brain_runtime
         if runtime is None:
             raise ElfieLifecycleError("Elfie cognition is not configured")
         return runtime

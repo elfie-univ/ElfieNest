@@ -22,6 +22,18 @@ class InternalIntentSink(Protocol):
         """Execute one operation from the closed InternalOperation set."""
 
 
+class ClosedInternalIntentSink:
+    """Acknowledge the current closed operations until Activity exists."""
+
+    def execute(
+        self,
+        plan: DecisionPlan,
+        intent: InternalIntent,
+    ) -> IntentExecutionResult:
+        del plan, intent
+        return IntentExecutionResult.completed()
+
+
 class InternalIntentExecutor:
     """Keep internal operations explicit and make NoOp audit-only."""
 
@@ -66,4 +78,8 @@ def _complete_noop(
     return IntentExecutionResult.completed()
 
 
-__all__ = ("InternalIntentExecutor", "InternalIntentSink")
+__all__ = (
+    "ClosedInternalIntentSink",
+    "InternalIntentExecutor",
+    "InternalIntentSink",
+)

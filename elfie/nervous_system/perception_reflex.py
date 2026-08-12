@@ -149,6 +149,7 @@ class BodyReflexController:
     ) -> PerceptionStateUpdate:
         return PerceptionStateUpdate(
             meta=self._derived_meta(event, "urgent-revision", Priority.CRITICAL),
+            body_id=str(event.body_id),
             state_key=f"body:{event.body_id}:nervous:urgent_revision",
             revision=revision,
             value=revision,

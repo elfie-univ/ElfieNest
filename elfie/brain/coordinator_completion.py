@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from elfie.brain.coordinator_outcomes import cortical_failure_outcome
-from elfie.brain.coordinator_ports import DecisionPlanSink
+from elfie.brain.coordinator_ports import TurnDecisionSink
 from elfie.brain.coordinator_runtime import TurnOutcomeBuffer
 from elfie.brain.coordinator_types import InFlightTurn, WorkerDoneControl
+from elfie.brain.decision_governance import govern_decision
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.brain.turn_outcome import TerminalStatus
 
@@ -17,7 +18,7 @@ class CoordinatorCompletionHandler:
         self,
         *,
         workspace: PerceptualWorkspace,
-        plan_sink: DecisionPlanSink,
+        plan_sink: TurnDecisionSink,
         outcomes: TurnOutcomeBuffer,
     ) -> None:
         self._workspace = workspace
@@ -56,11 +57,12 @@ class CoordinatorCompletionHandler:
                 )
             )
             return
-        if self._plan_sink.accept(result.decode.plan):
+        decision = govern_decision(inflight.frame, result.decode.plan)
+        if self._plan_sink.accept(decision):
             self._workspace.commit(inflight.frame.frame_id, inflight.task.seed.turn_id)
             self._outcomes.record(
                 result.decode.report.to_turn_outcome(
-                    plan=result.decode.plan,
+                    plan=decision.plan,
                     status=TerminalStatus.COMPLETED,
                 )
             )
@@ -72,7 +74,7 @@ class CoordinatorCompletionHandler:
         )
         self._outcomes.record(
             result.decode.report.to_turn_outcome(
-                plan=result.decode.plan,
+                plan=decision.plan,
                 status=TerminalStatus.FAILED,
                 error_code="router_rejected",
             )

@@ -19,8 +19,8 @@ from elfie.brain.perception_types import (
     InternalPayload,
     InternalSignal,
     PerceptionEvent,
-    PerceptionFrame,
     SocialPayload,
+    TurnFrame,
 )
 from elfie.brain.runtime_port import JsonSchemaDocument, ModelGenerationRequest
 from elfie.message_types import (
@@ -61,7 +61,7 @@ class CoordinatorTurnFactory:
 
     def build_task(
         self,
-        frame: PerceptionFrame,
+        frame: TurnFrame,
         turn_id: TurnId,
         timestamp: float,
     ) -> CorticalTask:
@@ -113,6 +113,9 @@ class CoordinatorTurnFactory:
             created_at=seed.created_at,
             deadline=seed.deadline,
             cause_event_ids=seed.cause_event_ids,
+            source_domain=frame.source_domain,
+            interaction_scope=frame.interaction_scope,
+            response_scope=frame.response_scope,
             system_prompt="\n".join(compiled.policies),
             user_prompt=compiled.model_dump_json(),
             response_schema=JsonSchemaDocument(
@@ -125,7 +128,7 @@ class CoordinatorTurnFactory:
 
     @staticmethod
     def _owner_reply_target(
-        frame: PerceptionFrame,
+        frame: TurnFrame,
     ) -> tuple[str | None, str | None]:
         """Return only the channel/conversation proven by an owner event."""
         for event in frame.events:
