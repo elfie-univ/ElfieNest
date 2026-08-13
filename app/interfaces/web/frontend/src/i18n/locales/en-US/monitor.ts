@@ -13,7 +13,7 @@ export const monitor = {
     retry: "Retry 3D",
     fallback: {
       insecureTitle: "Mobile browsers need a secure connection for 3D room monitoring.",
-      insecureDetail: "Use localhost on this device, or serve the local-network address over HTTPS. Browsers block insecure HTTP addresses such as 192.168.*.",
+      insecureDetail: "Use HTTPS, or open the service through its LAN address. Private 10.*, 172.16.*–172.31.*, and 192.168.* addresses are supported.",
       unsupportedTitle: "This device cannot run 3D room monitoring right now.",
       unavailableTitle: "3D monitoring is unavailable.",
       entityCount: "{{count}} Elfies are currently visible.",
@@ -48,7 +48,7 @@ export const monitor = {
     controls: "Switch between overview and runtime camera views, reset the view, or pause and resume monitoring.",
     disabled: "3D monitoring is not enabled for this session. Other features remain available.",
     idle: "The 3D scene loads when monitoring opens without blocking chat or management.",
-    insecureContext: "Mobile browsers require a secure HTTPS connection. You can use localhost on this device.",
+    insecureContext: "This HTTP address is outside the supported LAN range. Use HTTPS or the service device's LAN address.",
     loading: "The local 3D scene is starting. This can take a moment.",
     offline: "No Observer is available in this session.",
     runtime: "The local 3D runtime stopped responding. You can retry without leaving this page.",

@@ -13,7 +13,7 @@ export const monitor = {
     retry: "重试 3D",
     fallback: {
       insecureTitle: "手机浏览器需要安全连接才能打开 3D 房间观察。",
-      insecureDetail: "请改用本机 localhost 访问，或把局域网地址配置为 HTTPS 后再打开预览。HTTP 的 192.168.* 地址会被浏览器拦截。",
+      insecureDetail: "请改用 HTTPS，或通过运行服务设备的局域网地址打开；10.*、172.16.*–172.31.*、192.168.* 地址可以直接打开。",
       unsupportedTitle: "当前设备暂时无法运行 3D 房间观察。",
       unavailableTitle: "当前无法运行 3D 观察。",
       entityCount: "当前可见 {{count}} 位精灵。",
@@ -48,7 +48,7 @@ export const monitor = {
     controls: "可切换总览或运行时机位、复位视角，并暂停或恢复观察。",
     disabled: "当前会话未启用 3D 监控，可继续使用其他功能。",
     idle: "3D 场景会在监控打开时加载，不会阻塞聊天或管理。",
-    insecureContext: "手机浏览器需要 HTTPS 安全连接；可改用本机 localhost。",
+    insecureContext: "当前 HTTP 地址不在受支持的局域网范围内；请改用 HTTPS 或运行服务设备的局域网地址。",
     loading: "本地 3D 场景正在启动，请稍候。",
     offline: "当前会话没有可用的 Observer。",
     runtime: "本地 3D Runtime 已停止响应，可留在本页重试。",

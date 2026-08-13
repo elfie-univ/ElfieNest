@@ -22,6 +22,34 @@ DEFAULT_OUTPUT = PROJECT_ROOT / "build" / "components" / "godot-web"
 PRESET_NAME = "Web"
 ENTRY_NAME = "elfienest.html"
 REQUIRED_SUFFIXES = (".html", ".js", ".wasm", ".pck")
+LAN_HTTP_COMPATIBILITY_VERSION = "lan-http-v1"
+LAN_HTTP_COMPATIBILITY_MARKER = "elfienest:lan-http-compatibility"
+_SECURE_CONTEXT_FEATURE = "Secure Context - Check web server configuration (use HTTPS)"
+_MISSING_FEATURES_STATEMENT = (
+    "\tconst missing = Engine.getMissingFeatures({\n"
+    "\t\tthreads: GODOT_THREADS_ENABLED,\n"
+    "\t});"
+)
+_LAN_HTTP_COMPATIBILITY_SCRIPT = """// elfienest:lan-http-compatibility
+// Godot's Web export requires this check even for the single-threaded observer.
+// The service access policy limits this page to the explicitly enabled LAN.
+function isPrivateLanHttpOrigin() {
+\tif (window.location.protocol !== 'http:') return false;
+\tconst octets = window.location.hostname.split('.');
+\tif (octets.length !== 4 || octets.some((octet) => !/^\\d+$/.test(octet))) return false;
+\tconst values = octets.map(Number);
+\tif (values.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return false;
+\tconst [first, second] = values;
+\treturn first === 127 || first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
+}
+const ELFIE_NEST_LAN_HTTP = isPrivateLanHttpOrigin();
+if (ELFIE_NEST_LAN_HTTP && window.AudioContext && !window.AudioContext.prototype.audioWorklet) {
+\tObject.defineProperty(window.AudioContext.prototype, 'audioWorklet', {
+\t\tconfigurable: true,
+\t\tget: () => ({ addModule: () => Promise.resolve() }),
+\t});
+}
+"""
 
 
 def parse_args() -> argparse.Namespace:
@@ -126,6 +154,8 @@ def _export_runtime_locked(
         _print_template_hint(required_version or actual_version or "matching")
         return result.returncode or 1
 
+    patch_web_entry_for_lan_http(entry)
+
     missing = _missing_artifacts(staging)
     if missing:
         shutil.rmtree(staging, ignore_errors=True)
@@ -188,8 +218,10 @@ def _write_manifest(
 
 
 def current_source_fingerprint() -> str:
-    """Return a fingerprint of Godot source files that affect Web export, excluding editor cache."""
+    """Return a fingerprint of the Godot source and Web entry compatibility version."""
     digest = hashlib.sha256()
+    digest.update(LAN_HTTP_COMPATIBILITY_VERSION.encode("utf-8"))
+    digest.update(b"\0")
     if not GODOT_PROJECT.is_dir():
         return digest.hexdigest()
     for path in sorted(item for item in GODOT_PROJECT.rglob("*") if item.is_file()):
@@ -201,6 +233,34 @@ def current_source_fingerprint() -> str:
         digest.update(path.read_bytes())
         digest.update(b"\0")
     return digest.hexdigest()
+
+
+def patch_web_entry_for_lan_http(entry: Path) -> None:
+    """Make the single-threaded Godot observer start on an explicitly enabled LAN HTTP origin."""
+    text = entry.read_text(encoding="utf-8")
+    if LAN_HTTP_COMPATIBILITY_MARKER in text:
+        return
+    if _MISSING_FEATURES_STATEMENT not in text:
+        raise RuntimeError(
+            f"Godot Web entry format is unsupported; cannot patch {entry}"
+        )
+    config_marker = "const GODOT_CONFIG ="
+    if config_marker not in text:
+        raise RuntimeError(
+            f"Godot Web entry is missing its configuration block; cannot patch {entry}"
+        )
+    text = text.replace(
+        config_marker,
+        f"{_LAN_HTTP_COMPATIBILITY_SCRIPT}\n{config_marker}",
+        1,
+    )
+    text = text.replace(
+        _MISSING_FEATURES_STATEMENT,
+        _MISSING_FEATURES_STATEMENT[:-1]
+        + f".filter((feature) => !(ELFIE_NEST_LAN_HTTP && feature === '{_SECURE_CONTEXT_FEATURE}'));",
+        1,
+    )
+    entry.write_text(text, encoding="utf-8")
 
 
 def runtime_is_current(output: Path) -> bool:

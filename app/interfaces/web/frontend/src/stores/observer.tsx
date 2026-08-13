@@ -66,6 +66,26 @@ function isLowMemoryDevice(): boolean {
   return typeof value === "number" && value > 0 && value < 2
 }
 
+function isPrivateLanIpv4(hostname: string): boolean {
+  const octets = hostname.split(".")
+  if (octets.length !== 4 || octets.some((octet) => !/^\d+$/.test(octet))) return false
+  const values = octets.map(Number)
+  if (values.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return false
+  const [first = -1, second = -1] = values
+  return first === 127
+    || first === 10
+    || (first === 172 && second >= 16 && second <= 31)
+    || (first === 192 && second === 168)
+}
+
+export function isObserverContextAllowed(
+  location: Pick<Location, "hostname" | "protocol"> = window.location,
+  secureContext: boolean = window.isSecureContext,
+): boolean {
+  if (secureContext === true) return true
+  return location.protocol === "http:" && isPrivateLanIpv4(location.hostname)
+}
+
 function mergeFrame(
   frame: ObserverFrame,
   current: Readonly<Record<string, ObserverEntity>>,
@@ -297,7 +317,7 @@ export function ObserverProvider({
       setStatus("fallback")
       return
     }
-    if (window.isSecureContext === false) {
+    if (!isObserverContextAllowed()) {
       setFallbackReason("insecure-context")
       setStatus("fallback")
       return
