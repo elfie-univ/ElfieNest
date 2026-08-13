@@ -249,6 +249,7 @@ class LifecycleFacade:
             elfie_home,
             project_root,
             process_port=self._process_port,
+            expected_command=self._service_launch_command,
         )
 
     def start_desktop(
@@ -325,7 +326,12 @@ class LifecycleFacade:
     def existing_service_command(
         self, elfie_home: Path, project_root: Path
     ) -> tuple[int, tuple[str, ...]] | None:
-        return existing_service_command(elfie_home, project_root, self._process_port)
+        return existing_service_command(
+            elfie_home,
+            project_root,
+            self._process_port,
+            self._service_launch_command,
+        )
 
     def recorded_pid(self, elfie_home: Path) -> int | InvalidPidFileError | None:
         return recorded_pid(elfie_home, self._process_port)

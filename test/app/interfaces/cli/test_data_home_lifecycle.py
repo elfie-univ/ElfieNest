@@ -102,6 +102,15 @@ def test_started_service_remembers_selected_home_for_later_commands(
     assert remembered == selected_home.resolve()
 
 
+def test_installed_lifecycle_uses_the_packaged_application_root(
+    monkeypatch, tmp_path: Path
+) -> None:
+    application_root = tmp_path / "ElfieNest.app"
+    monkeypatch.setenv("ELFIENEST_PROJECT_ROOT", str(application_root))
+
+    assert lifecycle_commands._runtime_project_root() == application_root.resolve()
+
+
 def test_lifecycle_receipt_repairs_owner_only_control_directories(
     monkeypatch,
     tmp_path: Path,

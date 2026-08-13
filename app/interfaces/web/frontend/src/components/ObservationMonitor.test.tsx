@@ -87,10 +87,10 @@ function createObserver(cameraCatalog: ObserverCameraCatalog | null): ObserverFi
   }
 }
 
-function renderMonitor(locale: SupportedLocale = "zh-CN", bedCount = 4): i18n {
+function renderMonitor(locale: SupportedLocale = "zh-CN", bedCount = 4, showBackToManagement = false): i18n {
   const instance = createI18n()
   void instance.changeLanguage(locale)
-  render(<I18nextProvider i18n={instance}><ObservationMonitor bedCount={bedCount} roomId="local-nest" /></I18nextProvider>)
+  render(<I18nextProvider i18n={instance}><ObservationMonitor bedCount={bedCount} roomId="local-nest" showBackToManagement={showBackToManagement} /></I18nextProvider>)
   return instance
 }
 
@@ -123,6 +123,15 @@ describe("ObservationMonitor", () => {
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-auto-start", "true")
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-bed-count", "4")
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-show-header", "false")
+  })
+
+  it("keeps a standalone return-to-management link outside the hideable controls", () => {
+    renderMonitor("zh-CN", 4, true)
+
+    const back = screen.getByRole("link", { name: "返回管理" })
+    expect(back).toHaveAttribute("href", "/manage")
+    expect(back).toHaveClass("observation-monitor__back")
+    expect(screen.getByRole("toolbar", { name: "监控工具栏" })).toBeInTheDocument()
   })
 
   it("dispatches only high-level view and local-presentation commands", async () => {

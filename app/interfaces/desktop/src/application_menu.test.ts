@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   applicationMenuTemplate,
+  backgroundMenuTemplate,
   normalizeApplicationMenuLocale,
 } from "./application_menu.js";
 
@@ -10,6 +11,8 @@ test("application menu renders Chinese labels on macOS and preserves Electron ro
   let quitRequests = 0;
   const template = applicationMenuTemplate(
     "darwin",
+    () => undefined,
+    () => undefined,
     () => {
       quitRequests += 1;
     },
@@ -45,6 +48,8 @@ test("application menu renders English labels on non-macOS and preserves quit be
   let quitRequests = 0;
   const template = applicationMenuTemplate(
     "linux",
+    () => undefined,
+    () => undefined,
     () => {
       quitRequests += 1;
     },
@@ -73,7 +78,13 @@ test("application menu renders English labels on non-macOS and preserves quit be
 
 test("application menu keeps edit and window role wiring in both locales", () => {
   for (const locale of ["zh-CN", "en-US"] as const) {
-    const template = applicationMenuTemplate("win32", () => undefined, locale);
+    const template = applicationMenuTemplate(
+      "win32",
+      () => undefined,
+      () => undefined,
+      () => undefined,
+      locale,
+    );
     const editMenu = template[1];
     const windowMenu = template[2];
     assert.ok(editMenu && Array.isArray(editMenu.submenu));
@@ -88,9 +99,27 @@ test("application menu keeps edit and window role wiring in both locales", () =>
       windowMenu.submenu.map((item) =>
         typeof item === "object" && item !== null && "role" in item ? item.role : undefined,
       ),
-      ["minimize", "close"],
+      ["minimize", undefined],
     );
   }
+});
+
+test("background menu exposes only open and explicit quit actions", () => {
+  const events: string[] = [];
+  const template = backgroundMenuTemplate(
+    () => events.push("open"),
+    () => events.push("quit"),
+    "zh-CN",
+  );
+
+  assert.deepEqual(template.map((item) => item.label ?? item.type), [
+    "打开管理窗口",
+    "separator",
+    "退出 ElfieNest",
+  ]);
+  template[0]?.click?.({} as never, {} as never, {} as never);
+  template[2]?.click?.({} as never, {} as never, {} as never);
+  assert.deepEqual(events, ["open", "quit"]);
 });
 
 test("system locale normalization supports English and Chinese with Chinese fallback", () => {

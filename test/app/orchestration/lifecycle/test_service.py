@@ -52,6 +52,28 @@ def test_stop_verified_process_and_remove_receipt(tmp_path: Path) -> None:
     assert not (home / "elfienest.pid").exists()
 
 
+def test_stop_accepts_the_injected_frozen_core_command(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    core = tmp_path / "ElfieNest.app" / "Contents" / "Resources" / "python-core" / "ElfieNestCore"
+    command = (str(core), "--port", "8002")
+    write_pid(home, 4105)
+    port = FakeProcessPort(
+        cwd=tmp_path.resolve(),
+        command=command,
+        existence=(True, True, False),
+    )
+
+    result = stop_service(
+        home,
+        tmp_path,
+        process_port=port,
+        expected_command=(str(core),),
+    )
+
+    assert result.status == "stopped"
+    assert port.terminations == [(4105, False)]
+
+
 def test_stop_timeout_keeps_receipt(tmp_path: Path) -> None:
     home = tmp_path / "home"
     write_pid(home, 4103)

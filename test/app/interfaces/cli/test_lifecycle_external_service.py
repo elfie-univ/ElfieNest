@@ -1,14 +1,30 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import lifecycle_commands
-from app.orchestration.lifecycle import ServicePortStatus
+from app.orchestration.lifecycle import (
+    RuntimeHealth,
+    RuntimeHealthState,
+    ServicePortStatus,
+)
 from app.orchestration.lifecycle.ports import ProcessSnapshot
 
 LIFECYCLE = create_lifecycle_facade()
 PID_FILENAME = "elfienest.pid"
+
+
+class _StoppedSupervisor:
+    def status(self) -> RuntimeHealth:
+        return RuntimeHealth(
+            state=RuntimeHealthState.STOPPED,
+            generation=0,
+            owner_lease=None,
+            components=(),
+        )
 
 
 def test_status_marks_default_ports_as_external_when_pid_belongs_elsewhere(
@@ -116,3 +132,95 @@ def test_web_reports_external_port_owner_when_default_health_fails(
     assert opened == []
     assert start_calls == []
     assert "occupied by external process" in capsys.readouterr().out
+
+
+def test_json_status_attaches_to_an_existing_elfienest_runtime(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    # Given: this installation has no lifecycle receipt, while another checkout
+    # already serves an authenticated ElfieNest Core on the default port.
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "select_data_home",
+        lambda *_args, **_kwargs: tmp_path / "home",
+    )
+    monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_supervisor_for",
+        lambda *_args, **_kwargs: _StoppedSupervisor(),
+    )
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "http_get",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            status=200,
+            body=json.dumps(
+                {
+                    "status": "ok",
+                    "engine_ready": True,
+                    "godot_web_ready": True,
+                    "godot_runtime_ready": False,
+                }
+            ).encode("utf-8"),
+        ),
+    )
+    monkeypatch.setattr(LIFECYCLE, "optional_component_ready", lambda: False)
+
+    # When: packaged Desktop asks its embedded CLI for attachable Runtime state.
+    lifecycle_commands.show_service_status(LIFECYCLE, json_output=True)
+
+    # Then: it sees an attached degraded Runtime and does not try to start a
+    # second Core. The missing owner lease also prevents Desktop from stopping it.
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["state"] == "degraded"
+    assert payload["generation"] == 0
+    assert payload["owner_lease"] is None
+    assert {item["name"]: item["state"] for item in payload["components"]} == {
+        "core": "ready",
+        "gateway": "ready",
+        "godot_authority": "failed",
+        "ollama": "failed",
+    }
+
+
+def test_json_status_rejects_an_unrelated_http_service(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    # Given: an unrelated HTTP server happens to answer successfully on port 8000.
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "select_data_home",
+        lambda *_args, **_kwargs: tmp_path / "home",
+    )
+    monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_supervisor_for",
+        lambda *_args, **_kwargs: _StoppedSupervisor(),
+    )
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "http_get",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            status=200,
+            body=b'{"status":"ok"}',
+        ),
+    )
+    monkeypatch.setattr(LIFECYCLE, "optional_component_ready", lambda: False)
+
+    # When: packaged Desktop asks for lifecycle status.
+    lifecycle_commands.show_service_status(LIFECYCLE, json_output=True)
+
+    # Then: the unrelated endpoint is not treated as an attachable ElfieNest Runtime.
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "components": [],
+        "generation": 0,
+        "owner_lease": None,
+        "state": "stopped",
+    }

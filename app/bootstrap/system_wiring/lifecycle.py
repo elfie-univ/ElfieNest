@@ -68,7 +68,9 @@ def create_lifecycle_facade() -> LifecycleFacade:
     inspector = DefaultProcessInspector()
     db_path = str(get_db_path())
     local_data = LifecycleDataHomeAdapter()
-    project_root = Path(__file__).resolve().parents[3]
+    project_root = Path(
+        os.environ.get("ELFIENEST_PROJECT_ROOT", Path(__file__).resolve().parents[3])
+    ).resolve()
     packaged_core = os.environ.get("ELFIENEST_CORE_BIN")
     service_launch_command = (
         (packaged_core,)

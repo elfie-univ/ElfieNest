@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -8,6 +9,12 @@ import pytest
 
 from scripts import release, release_pipeline, release_planning
 from test.support.paths import PROJECT_ROOT
+
+
+def _create_built_desktop_interface(build_root: Path) -> None:
+    interface = build_root / "components" / "desktop-interface"
+    interface.mkdir(parents=True)
+    (interface / "main.js").write_text("export {};\n", encoding="utf-8")
 
 
 def test_release_plan_keeps_non_native_targets_as_explicit_runner_work() -> None:
@@ -252,6 +259,43 @@ def test_native_pipeline_stops_before_packaging_when_godot_build_fails() -> None
     assert events == ["web"]
 
 
+def test_default_release_steps_use_the_current_desktop_interface_manifest() -> None:
+    # Given: the Desktop interface has moved under the frozen App interface boundary.
+
+    # When: the concrete release pipeline resolves its package roots.
+
+    # Then: it never falls back to the retired top-level desktop directory.
+    assert release_pipeline.DESKTOP_DIR == (
+        PROJECT_ROOT / "app" / "interfaces" / "desktop"
+    )
+    assert (release_pipeline.DESKTOP_DIR / "package.json").is_file()
+    manifest = json.loads(
+        (release_pipeline.DESKTOP_DIR / "package.json").read_text(encoding="utf-8")
+    )
+    assert manifest["devDependencies"]["electron"] == "37.10.3"
+
+
+def test_desktop_packaging_uses_only_the_current_brand_icon() -> None:
+    # Given: the public App icon is the current brand source approved for releases.
+    current_brand_icon = PROJECT_ROOT / "docs/public/assets/elfienest-app-icon.png"
+    desktop_icon = release_pipeline.DESKTOP_DIR / "assets/elfienest-app-icon.png"
+    macos_icon = release_pipeline.DESKTOP_DIR / "assets/elfienest-macos-app-icon.png"
+    retired_icon = release_pipeline.DESKTOP_DIR / "assets/elfienest.png"
+    builder_config = (PROJECT_ROOT / "app/bootstrap/desktop_host/electron-builder.yml").read_text(
+        encoding="utf-8"
+    )
+
+    # When/Then: Windows/Linux retain the identical brand source, while macOS uses
+    # a padded transparent app-icon canvas instead of the retired full-bleed square.
+    assert desktop_icon.read_bytes() == current_brand_icon.read_bytes()
+    assert macos_icon.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert macos_icon.read_bytes() != desktop_icon.read_bytes()
+    assert "mac:\n  icon: assets/elfienest-macos-app-icon.png" in builder_config
+    assert "win:\n  icon: assets/elfienest-app-icon.png" in builder_config
+    assert "linux:\n  icon: assets/elfienest-app-icon.png" in builder_config
+    assert not retired_icon.exists()
+
+
 def test_release_cli_only_reports_success_after_its_native_pipeline_finishes(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -389,12 +433,24 @@ def test_packager_publishes_only_the_verified_single_native_installer(
     dist_root = tmp_path / "dist"
     resources = build_root / "staging" / "darwin-arm64" / "resources"
     resources.mkdir(parents=True)
+    _create_built_desktop_interface(build_root)
     observed_environment: dict[str, str] = {}
 
     def run_builder(command, cwd, environment) -> None:
         observed_environment.update(environment or {})
-        if "electron-builder" not in command:
+        if not any("electron-builder" in argument for argument in command):
             return
+        assert cwd == build_root / "desktop-host-app" / "darwin-arm64"
+        assert (cwd / "bootstrap" / "desktop_host.mjs").is_file()
+        assert (cwd / "desktop-interface" / "main.js").is_file()
+        assert (cwd / "packaged-resources").is_dir()
+        assert (cwd / "assets" / "elfienest-tray-icon.png").read_bytes() == (
+            PROJECT_ROOT
+            / "docs"
+            / "public"
+            / "assets"
+            / "elfienest-logo-mark-transparent.png"
+        ).read_bytes()
         output_argument = next(
             value
             for value in command
@@ -419,7 +475,9 @@ def test_packager_publishes_only_the_verified_single_native_installer(
     assert artifact == dist_root / "ElfieNest-0.1.0-internal-mac-arm64.dmg"
     assert artifact.read_bytes() == b"installer"
     assert observed_environment["ELFIENEST_TARGET"] == "darwin-arm64"
+    assert observed_environment["ELFIENEST_PROJECT_ROOT"] == str(PROJECT_ROOT)
     assert not (build_root / "package-output" / "darwin-arm64").exists()
+    assert not (build_root / "desktop-host-app" / "darwin-arm64").exists()
 
 
 def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
@@ -431,11 +489,12 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
     dist_root = tmp_path / "dist"
     resources = build_root / "staging" / "darwin-arm64" / "resources"
     resources.mkdir(parents=True)
+    _create_built_desktop_interface(build_root)
     commands: list[tuple[str, ...]] = []
 
     def run_builder(command, cwd, environment) -> None:
         commands.append(command)
-        if "electron-builder" not in command:
+        if not any("electron-builder" in argument for argument in command):
             return
         output_argument = next(
             value
@@ -457,11 +516,19 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
         {"ELFIENEST_TARGET": "darwin-arm64"},
     )
 
-    # Then: TypeScript compilation is an explicit required predecessor of electron-builder.
-    assert commands[0] == ("npx", "--yes", "pnpm@10.12.1", "build")
-    assert "electron-builder" in commands[1]
-    config_index = commands[1].index("--config")
-    assert commands[1][config_index + 1].endswith(
+    # Then: locked dependencies and TypeScript compilation precede electron-builder.
+    assert commands[0] == (
+        "npx",
+        "--yes",
+        "pnpm@10.12.1",
+        "install",
+        "--frozen-lockfile",
+    )
+    assert commands[1] == ("npx", "--yes", "pnpm@10.12.1", "build")
+    assert commands[2][0] == "node"
+    assert "electron-builder/out/cli/cli.js" in commands[2][1]
+    config_index = commands[2].index("--config")
+    assert commands[2][config_index + 1].endswith(
         "app/bootstrap/desktop_host/electron-builder.yml"
     )
 
@@ -475,12 +542,13 @@ def test_packager_replaces_a_previous_same_version_local_artifact(
     dist_root = tmp_path / "dist"
     resources = build_root / "staging" / "darwin-arm64" / "resources"
     resources.mkdir(parents=True)
+    _create_built_desktop_interface(build_root)
     destination = dist_root / "ElfieNest-0.1.0-internal-mac-arm64.dmg"
     destination.parent.mkdir()
     destination.write_bytes(b"previous")
 
     def run_builder(command, cwd, environment) -> None:
-        if "electron-builder" not in command:
+        if not any("electron-builder" in argument for argument in command):
             return
         output_argument = next(
             value

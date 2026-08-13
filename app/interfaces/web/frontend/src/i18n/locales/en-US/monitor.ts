@@ -24,6 +24,7 @@ export const monitor = {
     label: "Monitoring controls",
   },
   controls: {
+    backToManagement: "Back to management",
     resetAria: "Reset view",
     reset: "Reset",
     overview: "Overview",

@@ -19,6 +19,13 @@ def test_hidden_authority_window_has_a_process_lifetime_reference() -> None:
     assert "authorityWindow = new BrowserWindow" in source
 
 
+def test_hidden_macos_authority_does_not_occupy_the_dock() -> None:
+    source = AUTHORITY_MAIN.read_text(encoding="utf-8")
+
+    assert 'process.platform === "darwin"' in source
+    assert "app.dock.hide()" in source
+
+
 def test_bootstrap_host_loads_and_packages_the_authority_entrypoint() -> None:
     package_source = (PROJECT_ROOT / "app/interfaces/desktop/package.json").read_text(
         encoding="utf-8"
@@ -35,3 +42,6 @@ def test_bootstrap_host_loads_and_packages_the_authority_entrypoint() -> None:
     assert "ELFIENEST_LIFECYCLE_COMMAND" not in main_source
     assert "authority_main.mjs" in host_source
     assert "infrastructure/godot/lifecycle/electron" in host_config
+    assert "from: packaged-resources" in host_config
+    assert "icon: assets/elfienest-macos-app-icon.png" in host_config
+    assert "icon: assets/elfienest-app-icon.png" in host_config

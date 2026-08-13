@@ -20,9 +20,15 @@ PROJECT_ROOT: Final = Path(__file__).resolve().parents[1]
 BUILD_DIR: Final = PROJECT_ROOT / "build"
 DIST_DIR: Final = PROJECT_ROOT / "dist"
 FRONTEND_DIR: Final = PROJECT_ROOT / "app" / "interfaces" / "web" / "frontend"
-DESKTOP_DIR: Final = PROJECT_ROOT / "desktop"
+DESKTOP_DIR: Final = PROJECT_ROOT / "app" / "interfaces" / "desktop"
 DESKTOP_HOST_CONFIG: Final = (
     PROJECT_ROOT / "app" / "bootstrap" / "desktop_host" / "electron-builder.yml"
+)
+DESKTOP_HOST_MAIN: Final = (
+    PROJECT_ROOT / "app" / "bootstrap" / "desktop_host" / "host_main.mjs"
+)
+DESKTOP_AUTHORITY_DIR: Final = (
+    PROJECT_ROOT / "infrastructure" / "godot" / "lifecycle" / "electron"
 )
 StageResult = TypeVar("StageResult")
 
@@ -68,6 +74,7 @@ def run_native_release(
     _run_stage("manifest", lambda: steps.validate(resources))
     environment = dict(os.environ)
     environment["ELFIENEST_TARGET"] = target
+    environment["ELFIENEST_PROJECT_ROOT"] = str(PROJECT_ROOT)
     return _run_stage("package", lambda: steps.package(target, resources, environment))
 
 
@@ -192,25 +199,46 @@ def _package_installer(
     target: str, resources: Path, environment: Dict[str, str]
 ) -> Path:
     """Create one native installer in build first, then publish only a complete file."""
+    environment = {
+        **environment,
+        "ELFIENEST_PROJECT_ROOT": str(PROJECT_ROOT),
+    }
     if resources != BUILD_DIR / "staging" / target / "resources":
         raise ReleasePipelineError(f"release-resources-target-mismatch target={target}")
     output = BUILD_DIR / "package-output" / target
+    application = BUILD_DIR / "desktop-host-app" / target
     if output.exists():
         shutil.rmtree(output)
     try:
-        _run_command(
-            ("npx", "--yes", "pnpm@10.12.1", "build"),
-            DESKTOP_DIR,
-            environment,
-        )
-        target_arguments = _electron_target_arguments(target)
         _run_command(
             (
                 "npx",
                 "--yes",
                 "pnpm@10.12.1",
-                "exec",
-                "electron-builder",
+                "install",
+                "--frozen-lockfile",
+            ),
+            DESKTOP_DIR,
+            environment,
+        )
+        _run_command(
+            ("npx", "--yes", "pnpm@10.12.1", "build"),
+            DESKTOP_DIR,
+            environment,
+        )
+        _stage_desktop_application(target, resources)
+        target_arguments = _electron_target_arguments(target)
+        _run_command(
+            (
+                "node",
+                str(
+                    DESKTOP_DIR
+                    / "node_modules"
+                    / "electron-builder"
+                    / "out"
+                    / "cli"
+                    / "cli.js"
+                ),
                 "--publish",
                 "never",
                 "--config",
@@ -218,7 +246,7 @@ def _package_installer(
                 f"--config.directories.output={output}",
                 *target_arguments,
             ),
-            DESKTOP_DIR,
+            application,
             environment,
         )
         artifacts = tuple(
@@ -235,6 +263,40 @@ def _package_installer(
     finally:
         if output.exists():
             shutil.rmtree(output)
+        if application.exists():
+            shutil.rmtree(application)
+
+
+def _stage_desktop_application(target: str, resources: Path) -> Path:
+    """Assemble one self-contained Electron application input under build/."""
+    application = BUILD_DIR / "desktop-host-app" / target
+    if application.exists():
+        shutil.rmtree(application)
+    application.mkdir(parents=True)
+
+    shutil.copytree(
+        BUILD_DIR / "components" / "desktop-interface",
+        application / "desktop-interface",
+    )
+    bootstrap = application / "bootstrap"
+    bootstrap.mkdir()
+    shutil.copy2(DESKTOP_HOST_MAIN, bootstrap / "desktop_host.mjs")
+    shutil.copytree(
+        DESKTOP_AUTHORITY_DIR,
+        application / "infrastructure" / "godot" / "lifecycle" / "electron",
+    )
+    shutil.copy2(DESKTOP_DIR / "package.json", application / "package.json")
+    shutil.copytree(DESKTOP_DIR / "assets", application / "assets")
+    shutil.copy2(
+        PROJECT_ROOT / "docs/public/assets/elfienest-logo-mark-transparent.png",
+        application / "assets/elfienest-tray-icon.png",
+    )
+    shutil.copytree(
+        resources,
+        application / "packaged-resources",
+        symlinks=True,
+    )
+    return application
 
 
 def _project_python() -> str:

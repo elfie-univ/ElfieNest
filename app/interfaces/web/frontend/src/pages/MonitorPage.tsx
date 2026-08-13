@@ -37,5 +37,5 @@ export function MonitorPage({ roomId = "local-nest" }: MonitorPageProps) {
   if (loading) return <main className="page"><p className="empty">{t("session.verifying")}</p></main>
   if (!authorized) { window.location.assign(user === null ? "/login?next=/monitor" : "/chat"); return <main /> }
   if (bedCount === null) return <main className="monitor-page"><p className="empty">{roomLoadFailed ? t("status.offline") : t("surface.loading")}</p></main>
-  return <main className="monitor-page"><ObservationMonitor bedCount={bedCount} roomId={roomId} /></main>
+  return <main className="monitor-page"><ObservationMonitor bedCount={bedCount} roomId={roomId} showBackToManagement /></main>
 }

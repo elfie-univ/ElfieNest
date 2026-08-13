@@ -69,6 +69,14 @@
   touch-action: pan-x;
   white-space: nowrap;
 }
+.observation-monitor__back {
+  position: absolute;
+  z-index: 6;
+  top: 12px;
+  left: 12px;
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--shadow-color) 16%, transparent);
+}
+.observation-monitor--standalone .observation-monitor__toolbar { inset-inline-start: 164px; }
 .observation-monitor__toolbar::-webkit-scrollbar { height: 4px; }
 .observation-monitor__toolbar::-webkit-scrollbar-track { background: transparent; }
 .observation-monitor__toolbar::-webkit-scrollbar-thumb {
@@ -95,7 +103,9 @@
 
 @media (max-width: 760px) {
   .monitor-page { height: 100dvh; }
-  .observation-monitor__toolbar { inset: 8px 8px auto; }
+  .observation-monitor__toolbar { inset: 8px; }
+  .observation-monitor--standalone .observation-monitor__toolbar { inset-inline-start: 132px; }
+  .observation-monitor__back { top: 8px; left: 8px; }
   .observation-monitor__restore { top: 8px; right: 8px; }
   .manage-dialog--camera .observation-monitor { height: min(58vh, 560px); min-height: 360px; }
 }

@@ -10,6 +10,10 @@ if (authorityUrl === undefined || authorityUrl === "") {
   throw new Error("ELFIENEST_GODOT_URL is required for the Godot authority role");
 }
 
+if (process.platform === "darwin") {
+  app.dock.hide();
+}
+
 app.setPath("userData", join(app.getPath("userData"), authorityNamespace));
 
 if (!app.requestSingleInstanceLock()) {

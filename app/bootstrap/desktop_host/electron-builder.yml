@@ -5,26 +5,20 @@ asar: true
 extraMetadata:
   main: bootstrap/desktop_host.mjs
 files:
-  - from: ../../../build/components/desktop-interface
-    to: desktop-interface
-    filter: ["**/*"]
-  - from: ../../../app/bootstrap/desktop_host/host_main.mjs
-    to: bootstrap/desktop_host.mjs
-  - from: ../../../infrastructure/godot/lifecycle/electron
-    to: infrastructure/godot/lifecycle/electron
-    filter: ["**/*"]
+  - desktop-interface/**/*
+  - bootstrap/desktop_host.mjs
+  - infrastructure/godot/lifecycle/electron/**/*
+  - assets/elfienest-tray-icon.png
   - package.json
 extraResources:
-  - from: ../../../build/staging/${env.ELFIENEST_TARGET}/resources
+  - from: packaged-resources
     to: .
 mac:
-  icon: assets/elfienest.png
+  icon: assets/elfienest-macos-app-icon.png
   target: [dmg]
 win:
-  icon: assets/elfienest.png
+  icon: assets/elfienest-app-icon.png
   target: [nsis]
 linux:
-  icon: assets/elfienest.png
+  icon: assets/elfienest-app-icon.png
   target: [AppImage]
-directories:
-  output: ../../../dist

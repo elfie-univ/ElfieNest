@@ -99,6 +99,14 @@ def prepare_frontend_web_runtime(
         lifecycle.prepare_frontend(runtime_mode)
 
 
+def register_service_process_for_start(
+    lifecycle, elfie_home: Path, *, managed_start: bool
+) -> None:
+    """Let the parent Supervisor own managed receipts, including frozen Core parents."""
+    if not managed_start:
+        lifecycle.register_current_service(elfie_home)
+
+
 def build_server_runtime_services(
     db_path: str, *, use_fallback: bool
 ) -> RuntimeServices:
@@ -328,7 +336,11 @@ def main():
             sys.exit(1)
 
     try:
-        lifecycle.register_current_service(get_elfie_home())
+        register_service_process_for_start(
+            lifecycle,
+            get_elfie_home(),
+            managed_start=managed_start,
+        )
         _remember_lifecycle_data_home(lifecycle, get_elfie_home())
     except OSError as error:
         start_lease.release()

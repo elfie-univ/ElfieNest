@@ -10,11 +10,18 @@ import {
 
 function lifecycleClient(attachment: RuntimeAttachment): LifecycleClient & {
   readonly stops: string[];
+  readonly recoveries: string[];
 } {
   const stops: string[] = [];
+  const recoveries: string[] = [];
   return {
     stops,
+    recoveries,
     attachOrStart: async (): Promise<RuntimeAttachment> => attachment,
+    recoverOwnedRuntime: async (ownerLease: string): Promise<RuntimeAttachment> => {
+      recoveries.push(ownerLease);
+      return attachment;
+    },
     stopOwnedRuntime: async (ownerLease: string): Promise<void> => {
       stops.push(ownerLease);
     },
@@ -53,6 +60,41 @@ test("desktop-owned explicit exit requests an ordered stop only for its own leas
   assert.equal(controller.state.kind, "stopped");
 });
 
+test("explicit exit clears the owned state even when Runtime stop reports an error", async () => {
+  const client = lifecycleClient({ kind: "owned", generation: 10, ownerLease: "desktop-10" });
+  client.stopOwnedRuntime = async (): Promise<void> => {
+    throw new Error("Runtime stop failed");
+  };
+  const controller = new DesktopRoleController(client);
+  await controller.start();
+
+  await assert.rejects(controller.exitApplication(), /Runtime stop failed/);
+
+  assert.equal(controller.state.kind, "stopped");
+});
+
+test("explicit exit waits for an in-flight Runtime start before stopping its lease", async () => {
+  let resolveStart: ((attachment: RuntimeAttachment) => void) | undefined;
+  const startPending = new Promise<RuntimeAttachment>((resolve) => {
+    resolveStart = resolve;
+  });
+  const client = lifecycleClient({ kind: "owned", generation: 11, ownerLease: "desktop-11" });
+  client.attachOrStart = async (): Promise<RuntimeAttachment> => startPending;
+  const controller = new DesktopRoleController(client);
+
+  const starting = controller.start();
+  const exiting = controller.exitApplication();
+  await Promise.resolve();
+  assert.deepEqual(client.stops, []);
+
+  resolveStart?.({ kind: "owned", generation: 11, ownerLease: "desktop-11" });
+  await starting;
+  await exiting;
+
+  assert.deepEqual(client.stops, ["desktop-11"]);
+  assert.equal(controller.state.kind, "stopped");
+});
+
 test("authority failure is presented as a recoverable Supervisor failure", async () => {
   // Given: full health reports a failed Godot authority after the UI attached.
   const client = lifecycleClient({
@@ -71,4 +113,30 @@ test("authority failure is presented as a recoverable Supervisor failure", async
     reason: "godot authority exited",
     recoverable: true,
   });
+});
+
+test("background maintenance recovers only a Desktop-owned Runtime", async () => {
+  const client = lifecycleClient({
+    kind: "owned",
+    generation: 9,
+    ownerLease: "desktop-9",
+  });
+  const controller = new DesktopRoleController(client);
+  await controller.start();
+
+  const result = await controller.maintainOwnedRuntime();
+
+  assert.equal(result.kind, "owned");
+  assert.deepEqual(client.recoveries, ["desktop-9"]);
+});
+
+test("background maintenance never takes over an attached external Runtime", async () => {
+  const client = lifecycleClient({ kind: "attached", generation: 3 });
+  const controller = new DesktopRoleController(client);
+  await controller.start();
+
+  const result = await controller.maintainOwnedRuntime();
+
+  assert.equal(result.kind, "attached");
+  assert.deepEqual(client.recoveries, []);
 });

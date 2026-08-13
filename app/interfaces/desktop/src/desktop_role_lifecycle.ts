@@ -17,11 +17,13 @@ export type DesktopRoleState = RuntimeAttachment | Readonly<{ readonly kind: "st
 
 export interface LifecycleClient {
   attachOrStart(): Promise<RuntimeAttachment>;
+  recoverOwnedRuntime(ownerLease: string): Promise<RuntimeAttachment>;
   stopOwnedRuntime(ownerLease: string): Promise<void>;
 }
 
 export class DesktopRoleController {
   private currentState: DesktopRoleState = { kind: "stopped" };
+  private startPromise: Promise<RuntimeAttachment> | undefined;
 
   constructor(private readonly lifecycleClient: LifecycleClient) {}
 
@@ -30,18 +32,48 @@ export class DesktopRoleController {
   }
 
   async start(): Promise<DesktopRoleState> {
-    this.currentState = await this.lifecycleClient.attachOrStart();
-    return this.currentState;
+    const pending = this.lifecycleClient.attachOrStart();
+    this.startPromise = pending;
+    try {
+      this.currentState = await pending;
+      return this.currentState;
+    } finally {
+      if (this.startPromise === pending) {
+        this.startPromise = undefined;
+      }
+    }
   }
 
   async closeWindow(): Promise<void> {
     // Closing an observer window intentionally has no lifecycle side effect.
   }
 
-  async exitApplication(): Promise<void> {
-    if (this.currentState.kind === "owned") {
-      await this.lifecycleClient.stopOwnedRuntime(this.currentState.ownerLease);
+  async maintainOwnedRuntime(): Promise<DesktopRoleState> {
+    if (this.currentState.kind !== "owned") {
+      return this.currentState;
     }
-    this.currentState = { kind: "stopped" };
+    const recovered = await this.lifecycleClient.recoverOwnedRuntime(
+      this.currentState.ownerLease,
+    );
+    if (recovered.kind === "owned") {
+      this.currentState = recovered;
+    }
+    return recovered;
+  }
+
+  async exitApplication(): Promise<void> {
+    try {
+      if (this.startPromise !== undefined) {
+        await this.startPromise;
+      }
+      if (this.currentState.kind === "owned") {
+        await this.lifecycleClient.stopOwnedRuntime(this.currentState.ownerLease);
+      }
+    } finally {
+      // The Desktop process is leaving regardless of whether the public stop
+      // command succeeded. Never leave the controller in an owned state after
+      // an explicit quit has been requested.
+      this.currentState = { kind: "stopped" };
+    }
   }
 }

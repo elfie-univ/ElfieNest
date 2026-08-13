@@ -27,8 +27,18 @@ def test_frozen_cli_discovers_its_sibling_core_without_a_checkout(
         environment=environment,
     )
 
-    # Then: lifecycle operations receive only the sibling Core executable path.
-    assert environment == {"ELFIENEST_CORE_BIN": str(core)}
+    # Then: every installed-runtime consumer resolves only packaged resources.
+    assert environment == {
+        "ELFIENEST_CORE_BIN": str(core),
+        "ELFIENEST_WEB_BUILD_DIR": str(resources / "web"),
+        "ELFIENEST_GODOT_WEB_DIR": str(resources / "godot-web"),
+        "ELFIENEST_RUNTIME_MODE": "release",
+        "ELFIENEST_PROJECT_ROOT": str(resources.parent.parent),
+        "ELFIENEST_DESKTOP_BIN": str(
+            resources.parent / "MacOS" / "ElfieNest"
+        ),
+        "PYINSTALLER_RESET_ENVIRONMENT": "1",
+    }
 
 
 def test_frozen_cli_reads_the_packaged_manifest_version_without_distribution_metadata(

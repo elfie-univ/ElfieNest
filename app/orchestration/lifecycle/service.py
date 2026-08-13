@@ -8,7 +8,7 @@ from typing import Callable, Mapping, Optional, Sequence
 from app.orchestration.lifecycle.commands import (
     DEFAULT_SERVICE_PORTS,
     MANAGED_START_ENV,
-    command_runs_service,
+    command_matches_service,
     restart_command_from_process,
     service_ports_from_command,
 )
@@ -41,6 +41,7 @@ def stop_service(
     poll_interval_seconds: float = 0.1,
     monotonic: Callable[[], float] = time.monotonic,
     sleeper: Callable[[float], None] = time.sleep,
+    expected_command: Sequence[str] = (),
 ) -> ServiceLifecycleResult:
     """Stop the service only when the PID identity exactly matches this project."""
     pid_path = elfie_home / "elfienest.pid"
@@ -89,8 +90,11 @@ def stop_service(
 
     expected_cwd = project_root.resolve()
     expected_script = (expected_cwd / "scripts" / "serve.py").resolve()
-    if actual_cwd != expected_cwd or not command_runs_service(
-        actual_command, actual_cwd, expected_script
+    if actual_cwd != expected_cwd or not command_matches_service(
+        actual_command,
+        actual_cwd,
+        expected_script,
+        expected_command,
     ):
         mismatch = ProcessIdentityMismatchError(
             pid, expected_cwd, actual_cwd, expected_script, actual_command
@@ -185,7 +189,12 @@ def start_service(
         )
     lease_released = False
     try:
-        existing = existing_service_command(elfie_home, resolved_root, process_port)
+        existing = existing_service_command(
+            elfie_home,
+            resolved_root,
+            process_port,
+            launch_command,
+        )
         if existing is not None:
             existing_pid, existing_command = existing
             requested_ports = service_ports_from_command(launch_command)
@@ -251,6 +260,7 @@ def start_service(
                 process_port=process_port,
                 expected_cwd=resolved_root,
                 expected_script=(resolved_root / "scripts" / "serve.py").resolve(),
+                expected_command=launch_command,
                 timeout_seconds=timeout_seconds,
                 poll_interval_seconds=poll_interval_seconds,
                 monotonic=monotonic,
@@ -281,6 +291,7 @@ def start_service(
                     process_port=process_port,
                     expected_cwd=resolved_root,
                     expected_script=(resolved_root / "scripts" / "serve.py").resolve(),
+                    expected_command=launch_command,
                     timeout_seconds=timeout_seconds,
                     poll_interval_seconds=poll_interval_seconds,
                     monotonic=monotonic,
@@ -298,6 +309,7 @@ def start_service(
                     process_port=process_port,
                     expected_cwd=resolved_root,
                     expected_script=(resolved_root / "scripts" / "serve.py").resolve(),
+                    expected_command=launch_command,
                     timeout_seconds=timeout_seconds,
                     poll_interval_seconds=poll_interval_seconds,
                     monotonic=monotonic,

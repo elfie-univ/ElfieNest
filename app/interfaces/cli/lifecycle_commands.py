@@ -36,6 +36,12 @@ BACKGROUND_START_TIMEOUT_SECONDS = 60.0
 AUTHORITY_START_TIMEOUT_SECONDS = 120.0
 
 
+def _runtime_project_root() -> Path:
+    """Resolve the installed application root before the source checkout default."""
+    configured = os.environ.get("ELFIENEST_PROJECT_ROOT")
+    return Path(configured).resolve() if configured else PROJECT_ROOT
+
+
 def _supervisor_for(
     lifecycle: LifecycleFacade,
     command: Sequence[str],
@@ -52,12 +58,13 @@ def _supervisor_for(
     )
     _, godot_ws_port = service_ports_from_command(launch_command)
     generation_nonce = secrets.token_urlsafe(32)
+    project_root = _runtime_project_root()
     return lifecycle.runtime_supervisor(
         elfie_home=selected_home,
-        project_root=PROJECT_ROOT,
+        project_root=project_root,
         launch_command=launch_command,
         authority_config=AuthorityHostConfig(
-            project_root=PROJECT_ROOT,
+            project_root=project_root,
             http_port=http_port,
             ws_port=godot_ws_port,
             nonce=generation_nonce,
@@ -79,20 +86,33 @@ def _full_runtime_health(lifecycle: LifecycleFacade, port: int) -> RuntimeHealth
     core = failed
     gateway = failed
     authority = failed
+    core_detail = "Core health endpoint unavailable"
+    gateway_detail = "Gateway readiness unavailable"
+    authority_detail = "Godot authority handshake unavailable"
     try:
         response = lifecycle.http_get(
             f"http://127.0.0.1:{port}/api/health", timeout_seconds=2.0
         )
         payload = json.loads(response.body.decode("utf-8"))
-        if response.status == 200 and isinstance(payload, dict):
+        if (
+            response.status == 200
+            and isinstance(payload, dict)
+            and payload.get("status") == "ok"
+            and payload.get("godot_web_ready") is True
+        ):
             engine_ready = payload.get("engine_ready") is True
             core = RuntimeHealthState.READY if engine_ready else failed
             gateway = RuntimeHealthState.READY if engine_ready else failed
+            if engine_ready:
+                core_detail = ""
+                gateway_detail = ""
             authority = (
                 RuntimeHealthState.READY
                 if payload.get("godot_runtime_ready") is True
                 else failed
             )
+            if authority is RuntimeHealthState.READY:
+                authority_detail = ""
     except (OSError, TimeoutError, ValueError):
         pass
     ollama = (
@@ -105,9 +125,13 @@ def _full_runtime_health(lifecycle: LifecycleFacade, port: int) -> RuntimeHealth
         generation=0,
         owner_lease=None,
         components=(
-            ComponentHealth(RuntimeComponent.CORE, core),
-            ComponentHealth(RuntimeComponent.GATEWAY, gateway),
-            ComponentHealth(RuntimeComponent.GODOT_AUTHORITY, authority),
+            ComponentHealth(RuntimeComponent.CORE, core, detail=core_detail),
+            ComponentHealth(RuntimeComponent.GATEWAY, gateway, detail=gateway_detail),
+            ComponentHealth(
+                RuntimeComponent.GODOT_AUTHORITY,
+                authority,
+                detail=authority_detail,
+            ),
             ComponentHealth(RuntimeComponent.OLLAMA, ollama),
         ),
     )
@@ -163,7 +187,7 @@ def _data_home_for_command(
     explicit_home = _option_value(command, "--data-home")
     return lifecycle.select_data_home(
         explicit_home,
-        project_root=PROJECT_ROOT,
+        project_root=_runtime_project_root(),
         runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
         use_remembered=use_remembered_home,
     )
@@ -188,7 +212,7 @@ def _remember_lifecycle_data_home(
     """Ask the lifecycle boundary to persist the current checkout selection."""
     lifecycle.remember_data_home(
         selected_home,
-        project_root=PROJECT_ROOT,
+        project_root=_runtime_project_root(),
         runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
     )
 
@@ -411,7 +435,7 @@ def show_service_status(
         lifecycle.default_service_command(),
         use_remembered_home=True,
     )
-    running = lifecycle.existing_service_command(elfie_home, PROJECT_ROOT)
+    running = lifecycle.existing_service_command(elfie_home, _runtime_project_root())
     status_command = (
         running[1] if running is not None else lifecycle.default_service_command()
     )
@@ -422,6 +446,13 @@ def show_service_status(
         status_port,
         use_remembered_home=running is None,
     ).status()
+    if running is None and health.state in {
+        RuntimeHealthState.STOPPED,
+        RuntimeHealthState.FAILED,
+    }:
+        external_health = _attachable_external_runtime_health(lifecycle, status_port)
+        if external_health is not None:
+            health = external_health
     if json_output:
         print(
             json.dumps(
@@ -498,10 +529,10 @@ def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
     """Ensure a healthy service and open the Web management console."""
     default_home = lifecycle.select_data_home(
         None,
-        project_root=PROJECT_ROOT,
+        project_root=_runtime_project_root(),
         runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
     )
-    running = lifecycle.existing_service_command(default_home, PROJECT_ROOT)
+    running = lifecycle.existing_service_command(default_home, _runtime_project_root())
     if running is not None:
         _, running_command = running
         port = http_port_from_command(running_command)
@@ -560,10 +591,10 @@ def start_desktop_application(lifecycle: LifecycleFacade) -> ServiceLifecycleRes
     result = lifecycle.start_desktop(
         lifecycle.select_data_home(
             None,
-            project_root=PROJECT_ROOT,
+            project_root=_runtime_project_root(),
             runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
         ),
-        PROJECT_ROOT,
+        _runtime_project_root(),
         health_checker=lambda: _web_is_healthy(lifecycle),
     )
     if result.status in {"started", "already_running"}:
@@ -579,6 +610,39 @@ def _web_is_healthy(lifecycle: LifecycleFacade, port: int = 8000) -> bool:
         return lifecycle.http_get(health_url, timeout_seconds=2.0).status == 200
     except (OSError, TimeoutError):
         return False
+
+
+def _attachable_external_runtime_health(
+    lifecycle: LifecycleFacade,
+    port: int,
+) -> RuntimeHealth | None:
+    """Map a verified ElfieNest Core owned elsewhere to a non-owned attachment."""
+    observed = _full_runtime_health(lifecycle, port)
+    components = {item.component: item.state for item in observed.components}
+    if any(
+        components.get(component) is not RuntimeHealthState.READY
+        for component in (RuntimeComponent.CORE, RuntimeComponent.GATEWAY)
+    ):
+        return None
+    full_runtime_ready = all(
+        components.get(component) is RuntimeHealthState.READY
+        for component in (
+            RuntimeComponent.CORE,
+            RuntimeComponent.GATEWAY,
+            RuntimeComponent.GODOT_AUTHORITY,
+            RuntimeComponent.OLLAMA,
+        )
+    )
+    return RuntimeHealth(
+        state=(
+            RuntimeHealthState.READY
+            if full_runtime_ready
+            else RuntimeHealthState.DEGRADED
+        ),
+        generation=0,
+        owner_lease=None,
+        components=observed.components,
+    )
 
 
 def _external_recorded_service(
@@ -598,7 +662,7 @@ def _external_recorded_service(
         command = snapshot.command
     except (OSError, RuntimeError, ValueError):
         return None
-    if cwd == PROJECT_ROOT.resolve():
+    if cwd == _runtime_project_root().resolve():
         return None
     return pid_result, cwd, tuple(command)
 

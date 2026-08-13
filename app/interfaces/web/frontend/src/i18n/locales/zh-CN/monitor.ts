@@ -24,6 +24,7 @@ export const monitor = {
     label: "监控工具栏",
   },
   controls: {
+    backToManagement: "返回管理",
     resetAria: "复位视角",
     reset: "复位",
     overview: "总览",

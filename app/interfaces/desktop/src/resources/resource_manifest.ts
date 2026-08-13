@@ -23,6 +23,13 @@ const PRODUCT_WEB_RESOURCE_PATHS = [
   "web/index.html",
 ] as const;
 
+const PACKAGED_RESOURCE_DIRECTORIES = [
+  "web",
+  "godot-web",
+  "python-core",
+  "management-cli",
+] as const;
+
 export type ResourcePath = string;
 
 export type ResourceFile = Readonly<{
@@ -141,11 +148,7 @@ export function requiredResourcePathsForTarget(
   ];
 }
 
-function productWebAssetPaths(root: string): readonly ResourcePath[] {
-  const webRoot = join(root, "web");
-  if (!existsSync(webRoot)) {
-    return [];
-  }
+function packagedComponentPaths(root: string): readonly ResourcePath[] {
   const resourcePaths: string[] = [];
   const visit = (directory: string, prefix: string): void => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -158,12 +161,22 @@ function productWebAssetPaths(root: string): readonly ResourcePath[] {
       }
     }
   };
-  visit(webRoot, "web");
+  for (const component of PACKAGED_RESOURCE_DIRECTORIES) {
+    const componentRoot = join(root, component);
+    if (existsSync(componentRoot)) {
+      visit(componentRoot, component);
+    }
+  }
   return resourcePaths;
 }
 
 function manifestResourcePaths(root: string, target: ResourceTarget): readonly ResourcePath[] {
-  return [...new Set([...requiredResourcePathsForTarget(target), ...productWebAssetPaths(root)])];
+  return [
+    ...new Set([
+      ...requiredResourcePathsForTarget(target),
+      ...packagedComponentPaths(root),
+    ]),
+  ];
 }
 
 export function buildResourceManifest(
@@ -202,7 +215,7 @@ export function validateResourceManifest(
   const errors: string[] = [];
   const expectedPaths = new Set<ResourcePath>([
     ...requiredResourcePathsForTarget(manifest.target),
-    ...productWebAssetPaths(root),
+    ...packagedComponentPaths(root),
   ]);
   for (const resourcePath of Object.keys(manifest.files)) {
     if (!isSafeResourcePath(resourcePath)) {

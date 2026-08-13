@@ -24,6 +24,19 @@ def command_runs_service(
     return False
 
 
+def command_matches_service(
+    command: Sequence[str],
+    process_cwd: Path,
+    expected_script: Path,
+    expected_command: Sequence[str] = (),
+) -> bool:
+    """Match either the injected frozen Core or the source serve entrypoint."""
+    prefix = tuple(expected_command)
+    if prefix and tuple(command[: len(prefix)]) == prefix:
+        return True
+    return command_runs_service(command, process_cwd, expected_script)
+
+
 def restart_command_from_process(command: Sequence[str]) -> Tuple[str, ...]:
     """Preserve service arguments while removing the foreground-only --force flag."""
     return tuple(argument for argument in command if argument != "--force")

@@ -10,6 +10,7 @@ import { ObserverSurface } from "./ObserverSurface"
 type ObservationMonitorProps = {
   readonly bedCount: number
   readonly roomId: string
+  readonly showBackToManagement?: boolean
 }
 
 type MonitorStatusKey =
@@ -58,7 +59,7 @@ function monitorHelpKey(
   }
 }
 
-export function ObservationMonitor({ bedCount, roomId }: ObservationMonitorProps) {
+export function ObservationMonitor({ bedCount, roomId, showBackToManagement = false }: ObservationMonitorProps) {
   const { t } = useTranslation("monitor")
   const observer = useOptionalObserver()
   const [toolbarVisible, setToolbarVisible] = useState(true)
@@ -77,8 +78,9 @@ export function ObservationMonitor({ bedCount, roomId }: ObservationMonitorProps
     && observer !== null
     && observer.fallbackReason !== "insecure-context"
 
-  return <section className="observation-monitor" data-slot="observation-monitor">
+  return <section className={showBackToManagement ? "observation-monitor observation-monitor--standalone" : "observation-monitor"} data-slot="observation-monitor">
     <ObserverSurface autoStart bedCount={bedCount} kind="room" roomId={roomId} showHeader={false} title={t("surface.title")} />
+    {showBackToManagement ? <Button asChild aria-label={t("controls.backToManagement")} className="observation-monitor__back" size="sm" variant="outline"><a href="/manage"><Icon name="arrow-left" size={16} /><span>{t("controls.backToManagement")}</span></a></Button> : null}
     {showStatusOverlay ? <div aria-live="polite" className="observer-surface__fallback absolute inset-0 z-[2]" role="status">
       <p>{statusCopy}</p>
       <p>{t(monitorHelpKey(statusKey, observer?.fallbackReason))}</p>
