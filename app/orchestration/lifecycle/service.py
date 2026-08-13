@@ -31,6 +31,9 @@ from app.orchestration.lifecycle.types import (
     StopTimeoutError,
 )
 
+SERVICE_STOP_GRACE_SECONDS = 2.0
+SERVICE_STOP_FORCE_GRACE_SECONDS = 2.0
+
 
 def stop_service(
     elfie_home: Path,
@@ -124,10 +127,55 @@ def stop_service(
         return ServiceLifecycleResult(status="failed", pid=pid, error=signal_error)
 
     deadline = monotonic() + timeout_seconds
+    graceful_deadline = min(
+        deadline,
+        monotonic() + SERVICE_STOP_GRACE_SECONDS,
+    )
     while process_port.exists(pid):
-        if monotonic() >= deadline:
-            timeout_error = StopTimeoutError(pid, timeout_seconds)
-            return ServiceLifecycleResult(status="failed", pid=pid, error=timeout_error)
+        now = monotonic()
+        if now >= graceful_deadline:
+            if now >= deadline:
+                timeout_error = StopTimeoutError(pid, timeout_seconds)
+                return ServiceLifecycleResult(
+                    status="failed", pid=pid, error=timeout_error
+                )
+            try:
+                if not process_port.exists(pid):
+                    break
+                force_snapshot = process_port.inspect(pid)
+                force_cwd = force_snapshot.cwd.resolve()
+                force_command = force_snapshot.command
+            except (OSError, RuntimeError, ValueError) as error:
+                inspection_error = ProcessInspectionError(pid, str(error))
+                return ServiceLifecycleResult(
+                    status="failed", pid=pid, error=inspection_error
+                )
+            if force_cwd != actual_cwd or force_command != actual_command:
+                mismatch = ProcessIdentityMismatchError(
+                    pid, expected_cwd, force_cwd, expected_script, force_command
+                )
+                return ServiceLifecycleResult(
+                    status="failed", pid=pid, error=mismatch
+                )
+            try:
+                process_port.terminate(pid, force=True)
+            except OSError as error:
+                signal_error = SignalProcessError(pid, str(error))
+                return ServiceLifecycleResult(
+                    status="failed", pid=pid, error=signal_error
+                )
+            force_deadline = min(
+                deadline,
+                now + SERVICE_STOP_FORCE_GRACE_SECONDS,
+            )
+            while process_port.exists(pid):
+                if monotonic() >= force_deadline:
+                    timeout_error = StopTimeoutError(pid, timeout_seconds)
+                    return ServiceLifecycleResult(
+                        status="failed", pid=pid, error=timeout_error
+                    )
+                sleeper(poll_interval_seconds)
+            break
         sleeper(poll_interval_seconds)
     try:
         target_ports = service_ports_from_command(actual_command)

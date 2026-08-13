@@ -32,7 +32,10 @@ from app.orchestration.lifecycle.ports import (
     UninstallPort,
     UninstallState,
 )
-from app.orchestration.lifecycle.runtime_health import RuntimeHealth
+from app.orchestration.lifecycle.runtime_health import (
+    RuntimeHealth,
+    RuntimeProgressPhase,
+)
 from app.orchestration.lifecycle.runtime_supervisor import (
     PrepareOptionalComponent,
     RuntimeSupervisor,
@@ -200,6 +203,7 @@ class LifecycleFacade:
         authority_timeout_seconds: float = 10.0,
         core_timeout_seconds: float = 10.0,
         child_environment: Optional[Mapping[str, str]] = None,
+        progress_callback: Optional[Callable[[RuntimeProgressPhase], None]] = None,
     ) -> RuntimeLifecycle:
         """Construct the lifecycle workflow from already injected Port factories."""
         command = tuple(launch_command)
@@ -216,9 +220,18 @@ class LifecycleFacade:
             ),
             stop_core=lambda: self.stop_service(elfie_home, project_root),
             prepare_optional_component=prepare_optional_component,
-            owns_pid_record=lambda: self._process_port.receipt_exists(elfie_home),
+            owns_pid_record=lambda: (
+                existing_service_command(
+                    elfie_home,
+                    project_root,
+                    self._process_port,
+                    command,
+                )
+                is not None
+            ),
             authority_host=self._authority_host_factory(authority_config),
             authority_timeout_seconds=authority_timeout_seconds,
+            progress_callback=progress_callback,
         )
 
     def start_service(

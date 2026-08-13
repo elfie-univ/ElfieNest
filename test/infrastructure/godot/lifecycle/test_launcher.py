@@ -250,4 +250,4 @@ def test_stop_targets_only_the_process_started_by_this_launcher(
 
     # Then: only that owned start_new_session process group is terminated.
     assert groups == [(18161, signal.SIGTERM)]
-    assert calls == [("wait", 5.0)]
+    assert calls == [("wait", launcher.AUTHORITY_STOP_GRACE_SECONDS)]

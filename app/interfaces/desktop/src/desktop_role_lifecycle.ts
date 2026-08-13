@@ -1,3 +1,5 @@
+import type { RuntimeStartupPhase } from "./lifecycle_client.js";
+
 export const DESKTOP_UI_INSTANCE_NAMESPACE = "elfienest.desktop-ui";
 
 export type RuntimeAttachment =
@@ -16,9 +18,10 @@ export type RuntimeAttachment =
 export type DesktopRoleState = RuntimeAttachment | Readonly<{ readonly kind: "stopped" }>;
 
 export interface LifecycleClient {
-  attachOrStart(): Promise<RuntimeAttachment>;
+  attachOrStart(onProgress?: (phase: RuntimeStartupPhase) => void): Promise<RuntimeAttachment>;
   recoverOwnedRuntime(ownerLease: string): Promise<RuntimeAttachment>;
   stopOwnedRuntime(ownerLease: string): Promise<void>;
+  cancelStart(): Promise<void>;
 }
 
 export class DesktopRoleController {
@@ -31,8 +34,10 @@ export class DesktopRoleController {
     return this.currentState;
   }
 
-  async start(): Promise<DesktopRoleState> {
-    const pending = this.lifecycleClient.attachOrStart();
+  async start(
+    onProgress?: (phase: RuntimeStartupPhase) => void,
+  ): Promise<DesktopRoleState> {
+    const pending = this.lifecycleClient.attachOrStart(onProgress);
     this.startPromise = pending;
     try {
       this.currentState = await pending;
@@ -62,9 +67,19 @@ export class DesktopRoleController {
   }
 
   async exitApplication(): Promise<void> {
+    let cleanupError: unknown;
     try {
       if (this.startPromise !== undefined) {
-        await this.startPromise;
+        try {
+          await this.lifecycleClient.cancelStart();
+        } catch (error: unknown) {
+          cleanupError = error;
+        }
+        try {
+          await this.startPromise;
+        } catch (error: unknown) {
+          cleanupError ??= error;
+        }
       }
       if (this.currentState.kind === "owned") {
         await this.lifecycleClient.stopOwnedRuntime(this.currentState.ownerLease);
@@ -75,5 +90,6 @@ export class DesktopRoleController {
       // an explicit quit has been requested.
       this.currentState = { kind: "stopped" };
     }
+    if (cleanupError !== undefined) throw cleanupError;
   }
 }

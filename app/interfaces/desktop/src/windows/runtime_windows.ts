@@ -18,8 +18,29 @@ function loadDocument(window: BrowserWindow, document: string): void {
   void window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(document)}`);
 }
 
-export function showStartupProgress(window: BrowserWindow): void {
-  const document = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>ElfieNest</title><style>html,body{height:100%;margin:0}body{display:grid;place-items:center;font:16px system-ui,sans-serif;color:#66584b;background:#fffaf1}main{text-align:center}h1{margin:0 0 12px;color:#3f352d;font-size:28px}p{margin:0;color:#887767}.pulse{width:34px;height:34px;margin:0 auto 22px;border:3px solid #ead6c0;border-top-color:#ae6038;border-radius:50%;animation:spin .9s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style><main><div class="pulse"></div><h1>ElfieNest 正在启动</h1><p>正在准备后台服务与精灵巢…</p></main></html>`;
+export type StartupProgressPhase =
+  | "starting"
+  | "core_ready"
+  | "authority_starting"
+  | "ready"
+  | "stopping"
+  | "failed";
+
+const startupCopy: Readonly<Record<StartupProgressPhase, string>> = {
+  starting: "正在准备核心服务…",
+  core_ready: "核心服务已就绪，正在打开监控页面…",
+  authority_starting: "正在连接精灵巢…",
+  ready: "精灵巢已连接…",
+  stopping: "正在安全关闭后台服务…",
+  failed: "后台服务启动失败",
+};
+
+export function showStartupProgress(
+  window: BrowserWindow,
+  phase: StartupProgressPhase = "starting",
+): void {
+  const detail = startupCopy[phase];
+  const document = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>ElfieNest</title><style>html,body{height:100%;margin:0}body{display:grid;place-items:center;font:16px system-ui,sans-serif;color:#66584b;background:#fffaf1}main{text-align:center}h1{margin:0 0 12px;color:#3f352d;font-size:28px}p{margin:0;color:#887767}.pulse{width:34px;height:34px;margin:0 auto 22px;border:3px solid #ead6c0;border-top-color:#ae6038;border-radius:50%;animation:spin .9s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style><main><div aria-hidden="true" class="pulse"></div><h1>ElfieNest 正在启动</h1><p>${escapeHtml(detail)}</p></main></html>`;
   loadDocument(window, document);
 }
 

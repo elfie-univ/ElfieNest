@@ -222,5 +222,6 @@ def test_json_status_rejects_an_unrelated_http_service(
         "components": [],
         "generation": 0,
         "owner_lease": None,
+        "startup_owner_id": None,
         "state": "stopped",
     }

@@ -11,12 +11,15 @@ import {
 function lifecycleClient(attachment: RuntimeAttachment): LifecycleClient & {
   readonly stops: string[];
   readonly recoveries: string[];
+  readonly cancels: number;
 } {
   const stops: string[] = [];
   const recoveries: string[] = [];
+  let cancels = 0;
   return {
     stops,
     recoveries,
+    get cancels(): number { return cancels; },
     attachOrStart: async (): Promise<RuntimeAttachment> => attachment,
     recoverOwnedRuntime: async (ownerLease: string): Promise<RuntimeAttachment> => {
       recoveries.push(ownerLease);
@@ -24,6 +27,9 @@ function lifecycleClient(attachment: RuntimeAttachment): LifecycleClient & {
     },
     stopOwnedRuntime: async (ownerLease: string): Promise<void> => {
       stops.push(ownerLease);
+    },
+    cancelStart: async (): Promise<void> => {
+      cancels += 1;
     },
   };
 }
@@ -91,6 +97,7 @@ test("explicit exit waits for an in-flight Runtime start before stopping its lea
   await starting;
   await exiting;
 
+  assert.equal(client.cancels, 1);
   assert.deepEqual(client.stops, ["desktop-11"]);
   assert.equal(controller.state.kind, "stopped");
 });

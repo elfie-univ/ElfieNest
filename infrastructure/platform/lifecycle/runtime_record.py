@@ -32,11 +32,16 @@ class FileRuntimeRecordAdapter:
                 return self._failed_record()
             generation = payload["generation"]
             owner_id = payload.get("owner_id")
+            startup_owner_id = payload.get("startup_owner_id")
             state = RuntimeHealthState(payload["state"])
             raw_components = payload["components"]
         except (FileNotFoundError, OSError, ValueError, KeyError, TypeError):
             return self._empty_record()
         if not isinstance(generation, int) or generation < 0:
+            return self._failed_record()
+        if startup_owner_id == "":
+            startup_owner_id = None
+        if startup_owner_id is not None and not isinstance(startup_owner_id, str):
             return self._failed_record()
         if not isinstance(raw_components, list):
             return self._failed_record()
@@ -65,7 +70,7 @@ class FileRuntimeRecordAdapter:
             return self._failed_record()
         owner_lease = (
             OwnerLease(owner_id=owner_id, generation=generation)
-            if isinstance(owner_id, str) and generation > 0
+            if isinstance(owner_id, str) and owner_id != "" and generation > 0
             else None
         )
         return RuntimeHealth(
@@ -73,6 +78,7 @@ class FileRuntimeRecordAdapter:
             generation=generation,
             owner_lease=owner_lease,
             components=tuple(components),
+            startup_owner_id=startup_owner_id,
         )
 
     def write(self, health: RuntimeHealth) -> None:
@@ -87,6 +93,7 @@ class FileRuntimeRecordAdapter:
             {
                 "generation": health.generation,
                 "owner_id": health.owner_lease.owner_id if health.owner_lease else "",
+                "startup_owner_id": health.startup_owner_id or "",
                 "state": health.state.value,
                 "components": [
                     {

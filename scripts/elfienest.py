@@ -125,6 +125,10 @@ def main() -> None:
     start_parser.add_argument("--no-seed-elfie", action="store_true")
     start_parser.add_argument("--data-home", default=None)
     start_parser.add_argument("--owner-id", default="cli", help=argparse.SUPPRESS)
+    start_parser.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    start_parser.add_argument(
+        "--progress-json", action="store_true", help=argparse.SUPPRESS
+    )
     start_network_group = start_parser.add_mutually_exclusive_group()
     start_network_group.add_argument(
         "--lan",
@@ -232,7 +236,18 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
             start_background_service(
                 lifecycle,
                 command,
-                **({"owner_id": owner_id} if owner_id is not None else {}),
+                **(
+                    {
+                        "owner_id": owner_id,
+                        "json_output": getattr(args, "json", False),
+                        "progress_json": getattr(args, "progress_json", False),
+                    }
+                    if owner_id is not None
+                    else {
+                        "json_output": getattr(args, "json", False),
+                        "progress_json": getattr(args, "progress_json", False),
+                    }
+                ),
             )
         )
     elif args.command == "stop":

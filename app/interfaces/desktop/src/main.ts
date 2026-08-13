@@ -33,7 +33,8 @@ const managementWindow = new SingleWindowRegistry<BrowserWindow>();
 let backgroundTray: Tray | undefined;
 let maintenanceTimer: NodeJS.Timeout | undefined;
 let maintenanceRunning = false;
-let runtimeReady = false;
+let runtimeUiAvailable = false;
+let managementUiLoaded = false;
 
 const uiUrl = process.env["ELFIENEST_UI_URL"] ?? DEFAULT_MANAGEMENT_UI_URL;
 
@@ -57,10 +58,21 @@ function ensureManagementWindow(): Readonly<{ window: BrowserWindow; created: bo
     showStartupProgress(window);
     return window;
   });
-  if (result.created && runtimeReady) {
-    void result.window.loadURL(uiUrl);
+  if (result.created && runtimeUiAvailable) {
+    void loadManagementUi(result.window);
   }
   return result;
+}
+
+async function loadManagementUi(window: BrowserWindow): Promise<void> {
+  if (managementUiLoaded || !runtimeUiAvailable || window.isDestroyed()) return;
+  managementUiLoaded = true;
+  try {
+    await window.loadURL(uiUrl);
+  } catch (error: unknown) {
+    managementUiLoaded = false;
+    throw error;
+  }
 }
 
 function showManagementWindow(): void {
@@ -97,6 +109,7 @@ function bindManagementWindow(window: BrowserWindow): void {
   });
   window.on("closed", () => {
     managementWindow.clear(window);
+    managementUiLoaded = false;
   });
 }
 
@@ -155,14 +168,27 @@ async function startDesktop(): Promise<void> {
       new ProcessLifecycleCommandRunner(lifecycleCommand),
     ),
   );
-  const state = await roleController.start();
+  const state = await roleController.start((phase) => {
+    const window = managementWindow.current();
+    if (window === undefined) return;
+    if (phase === "core_ready") {
+      runtimeUiAvailable = true;
+      void loadManagementUi(window).catch((error: unknown) => {
+        console.error("ElfieNest management UI failed to load", error);
+      });
+      return;
+    }
+    if (!runtimeUiAvailable) {
+      showStartupProgress(window, phase);
+    }
+  });
   if (state.kind === "failed") {
     throw new Error(state.reason);
   }
-  runtimeReady = true;
   const window = managementWindow.current();
   if (window !== undefined) {
-    await window.loadURL(uiUrl);
+    runtimeUiAvailable = true;
+    await loadManagementUi(window);
   }
 }
 

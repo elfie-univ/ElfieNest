@@ -34,7 +34,7 @@ class GodotAuthorityHostAdapter:
         config: AuthorityHostConfig,
         *,
         inspector: ProcessInspectorPort,
-        stop_timeout_seconds: float = 5.0,
+        stop_timeout_seconds: float = 1.0,
     ) -> None:
         self._request = AuthorityLaunchRequest(
             project_root=config.project_root,

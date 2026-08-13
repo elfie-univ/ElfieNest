@@ -23,6 +23,7 @@ from app.orchestration.lifecycle.runtime_health import (
     RuntimeComponent,
     RuntimeHealth,
     RuntimeHealthState,
+    RuntimeProgressPhase,
 )
 from app.orchestration.lifecycle.types import (
     FrontendPreparationError,
@@ -47,6 +48,7 @@ __all__ = [
     "RecoveryInProgressError",
     "RuntimeComponent",
     "RuntimeHealth",
+    "RuntimeProgressPhase",
     "RuntimeHealthState",
     "RuntimeLifecycle",
     "ServiceLifecycleResult",
