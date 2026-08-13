@@ -82,13 +82,11 @@ def test_vitepress_navigation_uses_the_protected_paths() -> None:
         'link: "/developer/architecture/"',
         'link: "/developer/contracts/"',
         'link: "/developer/conformance/elfie"',
-        'link: "/developer/conformance/brain"',
         'link: "/developer/decisions/"',
         'link: "/developer/engineering/quality-governance"',
         'link: "/zh/developer/architecture/"',
         'link: "/zh/developer/contracts/"',
         'link: "/zh/developer/conformance/elfie"',
-        'link: "/zh/developer/conformance/brain"',
         'link: "/zh/developer/decisions/"',
         'link: "/zh/developer/engineering/quality-governance"',
     }

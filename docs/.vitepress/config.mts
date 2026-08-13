@@ -91,8 +91,7 @@ export default defineConfig({
                   collapsed: true,
                   items: [
                     { text: "Conformance overview", link: "/developer/conformance/" },
-                    { text: "Elfie architecture conformance", link: "/developer/conformance/elfie" },
-                    { text: "Elfie Brain conformance", link: "/developer/conformance/brain" }
+                    { text: "Elfie architecture conformance", link: "/developer/conformance/elfie" }
                   ]
                 },
                 {
@@ -226,8 +225,7 @@ export default defineConfig({
                   collapsed: true,
                   items: [
                     { text: "架构一致性总览", link: "/zh/developer/conformance/" },
-                    { text: "Elfie 内部架构一致性", link: "/zh/developer/conformance/elfie" },
-                    { text: "Elfie Brain 内部架构一致性", link: "/zh/developer/conformance/brain" }
+                    { text: "Elfie 内部架构一致性", link: "/zh/developer/conformance/elfie" }
                   ]
                 },
                 {

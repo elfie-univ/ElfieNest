@@ -6,8 +6,8 @@
 
 > **Normative target.** This contract defines how one continuous Elfie admits
 > events, maintains mental state, reasons, commits decisions and resumes work.
-> Current implementation gaps live in the
-> [Brain conformance register](../conformance/brain).
+> The accepted Brain migration is complete; permanent architecture tests now
+> enforce these boundaries directly.
 
 The [Elfie internal architecture contract](./elfie) remains authoritative for
 Profile, Brain, NervousSystem, Body, Communication and Genesis ownership. This
