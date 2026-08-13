@@ -38,7 +38,7 @@ class CognitiveBudgetReservation(FrozenContractModel):
 
     turn_id: TurnId
     mode: Literal["normal", "long", "degraded", "emergency"]
-    source: Literal["normal", "emergency_reserve"]
+    source: Literal["normal", "emergency_reserve", "responsive"]
     granted: _PositiveBudget
     owner_revision: _Revision
     purpose: _NonBlankText = "reasoning_turn"

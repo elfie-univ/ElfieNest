@@ -13,12 +13,19 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationRequest,
     StructuredOutputMode,
 )
-from elfie.brain.workspace.contracts import InternalScope, ResponseScope, SourceDomain
+from elfie.brain.workspace.contracts import (
+    CommunicationScope,
+    ExternalExecutionDomain,
+    InternalScope,
+    ResponseScope,
+    SourceDomain,
+)
 from elfie.brain.workspace.system import EventWorkspace
 from infrastructure.models.runtime_adapter import (
     RuntimeRequestAbandonedError,
     SerializedRuntimeAdapter,
 )
+from infrastructure.models.runtime_contracts import StructuredGenerationMode
 from test.elfie.brain.reasoning.test_coordinator import (
     ELFIE_ID,
     NOW,
@@ -175,6 +182,31 @@ def test_adapter_propagates_brain_reasoning_mode_to_runtime():
     adapter.generate(_request().model_copy(update={"reasoning_mode": "long"}))
 
     assert runtime.requests[0].reasoning_mode == "long"
+
+
+def test_adapter_uses_plain_text_for_fast_owner_communication():
+    runtime = FakeStructuredRuntime(_schema_capabilities())
+    adapter = SerializedRuntimeAdapter(runtime)
+    request = _request().model_copy(
+        update={
+            "source_domain": SourceDomain.COMMUNICATION,
+            "interaction_scope": CommunicationScope(
+                channel_id="chat",
+                conversation_id="owner:1",
+            ),
+            "response_scope": ResponseScope(
+                external_domain=ExternalExecutionDomain.COMMUNICATION,
+                channel_id="chat",
+                conversation_id="owner:1",
+            ),
+            "reasoning_mode": "fast",
+        }
+    )
+
+    result = adapter.generate(request)
+
+    assert result.selected_mode is StructuredOutputMode.PLAIN_TEXT
+    assert runtime.requests[0].selected_mode is StructuredGenerationMode.PLAIN_TEXT
 
 
 def test_adapter_abandon_rotates_serialization_lease_for_replacement_call():

@@ -258,7 +258,12 @@ class RuntimeAgent:
         if selected_food != FOOD_EMERGENCY_ID:
             emergency = catalog.packages.get(FOOD_EMERGENCY_ID)
             if emergency and self._package_usable(emergency):
-                attempts.append((FOOD_EMERGENCY_ID, StructuredGenerationMode.JSON_TEXT))
+                fallback_mode = (
+                    StructuredGenerationMode.PLAIN_TEXT
+                    if request.selected_mode is StructuredGenerationMode.PLAIN_TEXT
+                    else StructuredGenerationMode.JSON_TEXT
+                )
+                attempts.append((FOOD_EMERGENCY_ID, fallback_mode))
         messages = (
             [message.model_dump(mode="python") for message in request.messages]
             if request.messages
@@ -337,6 +342,8 @@ class RuntimeAgent:
         request: StructuredRuntimeRequest,
         selected_mode: StructuredGenerationMode,
     ) -> Dict[str, Any]:
+        if selected_mode is StructuredGenerationMode.PLAIN_TEXT:
+            return {}
         if selected_mode is StructuredGenerationMode.JSON_SCHEMA:
             return {
                 "response_format": {

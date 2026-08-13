@@ -14,6 +14,7 @@ from elfie.brain.reasoning.model_port import (
     StructuredOutputMode,
 )
 from elfie.brain.reasoning.tool_port import ToolPort
+from elfie.brain.workspace.contracts import ExternalExecutionDomain
 from elfie.message_types import TurnId
 from infrastructure.models.runtime_contracts import (
     StructuredGenerationMode,
@@ -119,7 +120,7 @@ class SerializedRuntimeAdapter:
             selection.unavailable,
         )
         capabilities = self._convert_capabilities(raw_capabilities)
-        selected_mode = self._select_mode(capabilities)
+        selected_mode = self._select_mode(capabilities, request)
         runtime_request = StructuredRuntimeRequest(
             prompt=request.user_prompt,
             messages=(
@@ -195,7 +196,15 @@ class SerializedRuntimeAdapter:
     @staticmethod
     def _select_mode(
         capabilities: ModelGenerationCapabilities,
+        request: ModelGenerationRequest,
     ) -> StructuredOutputMode:
+        if (
+            request.reasoning_mode == "fast"
+            and request.response_scope.external_domain
+            is ExternalExecutionDomain.COMMUNICATION
+            and capabilities.supports_plain_text
+        ):
+            return StructuredOutputMode.PLAIN_TEXT
         if capabilities.supports_json_schema:
             return StructuredOutputMode.JSON_SCHEMA
         if capabilities.supports_tool_calling:

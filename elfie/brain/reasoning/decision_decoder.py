@@ -22,6 +22,7 @@ from elfie.brain.reasoning.decision_types import (
 from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationResult,
+    StructuredOutputMode,
 )
 from elfie.brain.reasoning.turn_outcome import ModelMode, TerminalStatus, TurnOutcome
 from elfie.message_types import (
@@ -109,7 +110,7 @@ class DecisionPlanDecoder:
         repair_callback: Optional[RepairCallback] = None,
     ) -> DecisionDecodeResult:
         """Validate once, optionally repair once, then degrade safely."""
-        selected_mode = self._mode(capabilities)
+        selected_mode = self._mode(capabilities, generation.selected_mode)
         is_legacy_wrapper, legacy_text = self._legacy_response_wrapper(generation.text)
         if is_legacy_wrapper:
             return self._fallback(
@@ -173,7 +174,12 @@ class DecisionPlanDecoder:
         )
 
     @staticmethod
-    def _mode(capabilities: ModelGenerationCapabilities) -> DecisionDecodeMode:
+    def _mode(
+        capabilities: ModelGenerationCapabilities,
+        selected_mode: StructuredOutputMode,
+    ) -> DecisionDecodeMode:
+        if selected_mode is StructuredOutputMode.PLAIN_TEXT:
+            return DecisionDecodeMode.PLAIN_TEXT
         if capabilities.plain_text_only:
             return DecisionDecodeMode.PLAIN_TEXT
         if capabilities.supports_json_schema:

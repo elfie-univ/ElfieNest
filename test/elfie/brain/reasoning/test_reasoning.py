@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from threading import Event
 
@@ -27,7 +28,13 @@ from elfie.brain.reasoning.run import (
 )
 from elfie.brain.reasoning.tool_port import ToolPort, ToolRequest, ToolResult
 from elfie.brain.reasoning.worker import ReasoningTask
-from elfie.brain.workspace.contracts import InternalScope, ResponseScope, SourceDomain
+from elfie.brain.workspace.contracts import (
+    CommunicationScope,
+    ExternalExecutionDomain,
+    InternalScope,
+    ResponseScope,
+    SourceDomain,
+)
 from elfie.message_types import ElfieId, ErrorInfo, EventId, TurnId
 
 NOW = datetime(2026, 8, 12, 8, 0, tzinfo=timezone.utc)
@@ -244,6 +251,57 @@ def test_reasoning_run_completes_tool_observation_loop_without_external_action()
         CognitiveStepKind.MODEL,
         CognitiveStepKind.VERIFY,
     ]
+
+
+def test_fast_owner_plain_text_never_enters_the_tool_loop() -> None:
+    class PlainOwnerRuntime(SearchRuntime):
+        def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
+            self.calls.append(request)
+            return ModelGenerationResult(
+                text="本地模型快路径已生效",
+                selected_mode=StructuredOutputMode.PLAIN_TEXT,
+                provider="fake",
+                model_key="fake/schema",
+            )
+
+    base = _task()
+    task = replace(
+        base,
+        request=base.request.model_copy(
+            update={
+                "source_domain": SourceDomain.COMMUNICATION,
+                "interaction_scope": CommunicationScope(
+                    channel_id="chat",
+                    conversation_id="owner:1",
+                ),
+                "response_scope": ResponseScope(
+                    external_domain=ExternalExecutionDomain.COMMUNICATION,
+                    channel_id="chat",
+                    conversation_id="owner:1",
+                ),
+                "reasoning_mode": "fast",
+            }
+        ),
+        seed=base.seed.model_copy(
+            update={
+                "reply_channel_id": "chat",
+                "reply_conversation_id": "owner:1",
+            }
+        ),
+    )
+    tools = SearchTools()
+
+    result = ReasoningRun(
+        model_port=PlainOwnerRuntime(),
+        decoder=DecisionPlanDecoder(),
+        tool_port=tools,
+        budget=ReasoningBudget(max_steps=3, max_model_calls=1, max_tool_calls=0),
+    ).run(task)
+
+    assert result.decode.plan.intents[0].type == "message"
+    assert result.decode.plan.intents[0].content == "本地模型快路径已生效"
+    assert result.tool_calls == 0
+    assert tools.requests == []
 
 
 def test_reasoning_run_attaches_host_activity_preflight_before_settlement() -> None:

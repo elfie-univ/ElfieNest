@@ -243,6 +243,25 @@ class TestEnergySystem:
         assert system.energy == 5.0
         assert system.emergency_reserve == system.emergency_reserve_capacity - 1.0
 
+    def test_owner_interaction_keeps_one_fast_reply_when_reserve_is_empty(self):
+        system = EnergySystem(
+            {"limits": {"energy": {"initial_value": 5.0}}},
+            clock=lambda: 0.0,
+        )
+        system.emergency_reserve = 0.0
+
+        reservation = system.reserve_cognitive_budget(
+            TurnId("turn-owner"),
+            responsive=True,
+        )
+
+        assert reservation.mode == "emergency"
+        assert reservation.source == "responsive"
+        assert reservation.granted == 1.0
+        system.settle_cognitive_budget(TurnId("turn-owner"), consumed=1.0)
+        assert system.energy == 5.0
+        assert system.emergency_reserve == 0.0
+
     def test_checkpoint_preserves_reserve_but_never_revives_active_reservations(self):
         system = EnergySystem(clock=lambda: 0.0)
         system.reserve_cognitive_budget(TurnId("turn-before-checkpoint"))

@@ -53,6 +53,7 @@ class _FrozenRuntimeModel(BaseModel):
 class StructuredGenerationMode(str, Enum):
     """Runtime wire strategy selected by the orchestration adapter."""
 
+    PLAIN_TEXT = "plain_text"
     JSON_SCHEMA = "json_schema"
     TOOL_CALL = "tool_call"
     JSON_TEXT = "json_text"

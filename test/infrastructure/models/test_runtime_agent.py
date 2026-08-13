@@ -39,6 +39,29 @@ def test_ollama_json_text_requests_explicit_json_format() -> None:
         request, StructuredGenerationMode.JSON_TEXT
     ) == {"format": "json"}
 
+
+def test_plain_text_request_has_no_schema_prompt_or_json_format() -> None:
+    request = StructuredRuntimeRequest(
+        prompt="hello",
+        messages=(),
+        response_schema_name="DecisionPlan",
+        response_schema={"type": "object", "required": ["intents"]},
+        selected_mode=StructuredGenerationMode.PLAIN_TEXT,
+        allowed_tools=(),
+        provider="ollama_0001",
+        model_key="ollama_0001/qwen2.5:0.5b",
+    )
+    original = [{"role": "system", "content": "Reply briefly."}]
+
+    assert RuntimeAgent._structured_request_options(
+        request, StructuredGenerationMode.PLAIN_TEXT
+    ) == {}
+    assert RuntimeAgent._structured_messages(
+        request,
+        StructuredGenerationMode.PLAIN_TEXT,
+        original,
+    ) == original
+
     request = request.model_copy(update={"provider": "ollama_0001"})
     assert RuntimeAgent._structured_request_options(
         request, StructuredGenerationMode.JSON_TEXT

@@ -24,6 +24,7 @@ _NonBlankText = Annotated[
 class StructuredOutputMode(str, Enum):
     """Single structured-output strategy selected before generation."""
 
+    PLAIN_TEXT = "plain_text"
     JSON_SCHEMA = "json_schema"
     TOOL_CALL = "tool_call"
     JSON_TEXT = "json_text"

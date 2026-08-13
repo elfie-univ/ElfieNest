@@ -102,7 +102,7 @@ def prepare_frontend_web_runtime(
 def build_server_runtime_services(
     db_path: str, *, use_fallback: bool
 ) -> RuntimeServices:
-    """Select a runtime only after its configured model has proved reachable."""
+    """Build the configured live-reloading model service for product chat."""
     if use_fallback:
         services = build_runtime_services(
             db_path,
@@ -113,32 +113,24 @@ def build_server_runtime_services(
         print("  ⚡ Using built-in dialogue engine (--fallback mode)")
         return services
 
+    services = build_runtime_services(
+        db_path,
+        use_fallback=False,
+        live_reload=True,
+        resolve_main_food=True,
+    )
     try:
-        services = build_runtime_services(
-            db_path,
-            use_fallback=False,
-            live_reload=True,
-            resolve_main_food=True,
-        )
         print("  ⏳ Connecting to the configured model...")
         assert services.warmup is not None
         services.warmup()
         print("  ✅ Model connection verified, ready to chat!")
-        return services
     except Exception as error:  # noqa: BLE001
         print(f"  ⚠️  Configured model is unavailable: {error}")
-        services = build_runtime_services(
-            db_path,
-            use_fallback=True,
-            live_reload=True,
-            resolve_main_food=False,
-        )
-        print("  ⚡ Using built-in dialogue engine until the next service restart")
         print(
-            "  💡 Configure a reachable model and restart ElfieNest "
-            "to restore full cognition"
+            "  💡 Product chat will retry the latest saved model package "
+            "on the next request"
         )
-        return services
+    return services
 
 
 def main():

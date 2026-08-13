@@ -233,6 +233,8 @@ class EnergySystem:
     def reserve_cognitive_budget(
         self,
         turn_id: TurnId,
+        *,
+        responsive: bool = False,
     ) -> CognitiveBudgetReservation:
         """Reserve a bounded allowance before one ReasoningRun is admitted."""
         existing = self._cognitive_reservations.get(turn_id)
@@ -247,7 +249,15 @@ class EnergySystem:
         }[mode]
         if mode == "emergency":
             available = self._emergency_reserve_available()
-            source: Literal["normal", "emergency_reserve"] = "emergency_reserve"
+            source: Literal[
+                "normal", "emergency_reserve", "responsive"
+            ] = "emergency_reserve"
+            if responsive and available <= 0.0:
+                # Energy controls reasoning depth, but an owner interaction
+                # must retain one bounded fast reply even after a previous
+                # failure consumed the persistent reserve.
+                available = 1.0
+                source = "responsive"
         else:
             available = self.activity_budget_available()
             source = "normal"
@@ -280,7 +290,7 @@ class EnergySystem:
         charged = min(reservation.granted, max(0.0, float(consumed)))
         if reservation.source == "emergency_reserve":
             self.emergency_reserve = max(0.0, self.emergency_reserve - charged)
-        else:
+        elif reservation.source == "normal":
             self.energy = max(0.0, self.energy - charged)
         self.revision += 1
         return charged

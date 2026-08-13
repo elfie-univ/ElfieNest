@@ -15,6 +15,7 @@ from elfie.brain.reasoning.decision_types import (
     CancelPolicy,
     DecisionIntent,
     DecisionPlan,
+    NoOpIntent,
     TurnDecision,
 )
 from elfie.brain.reasoning.execution_ports import (
@@ -308,6 +309,11 @@ class OutputRouter:
             executor=kind,
             status=status,
             error=error,
+            # A NoOp is already the terminal interpretation of the current
+            # frame. Re-publishing its own receipts would create an endless
+            # receipt-only cognition loop. The receipt remains available to
+            # journaling and settlement below.
+            publish_to_workspace=not isinstance(intent, NoOpIntent),
         )
         if self._journal is not None:
             self._journal.record_receipt(receipt)

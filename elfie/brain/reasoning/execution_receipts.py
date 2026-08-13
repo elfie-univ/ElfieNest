@@ -65,6 +65,7 @@ class ExecutionReceiptPublisher:
         executor: ExecutorKind,
         status: ExecutionStatus,
         error: ErrorInfo | None = None,
+        publish_to_workspace: bool = True,
     ) -> ExecutionReceipt:
         """Create one transition and publish its normalized perception event."""
         receipt = ExecutionReceipt(
@@ -77,12 +78,14 @@ class ExecutionReceiptPublisher:
             occurred_at=self._clock(),
             error=error,
         )
-        event = self._event(plan, intent, receipt)
         with self._lock:
             if len(self._receipts) >= self._max_receipts:
                 self._receipts.popleft()
                 self._evicted_receipt_count += 1
             self._receipts.append(receipt)
+        if not publish_to_workspace:
+            return receipt
+        event = self._event(plan, intent, receipt)
         ingest = self._sink.publish(event)
         if ingest.disposition is IngestDisposition.BACKPRESSURED:
             with self._lock:

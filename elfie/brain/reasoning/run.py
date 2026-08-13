@@ -41,6 +41,7 @@ from elfie.brain.reasoning.model_port import (
     ModelPort,
 )
 from elfie.brain.reasoning.tool_port import ToolPort, ToolRequest, ToolResult
+from elfie.brain.workspace.contracts import ExternalExecutionDomain
 from elfie.message_types import FrozenContractModel, IntentId, PlanId
 
 if TYPE_CHECKING:
@@ -253,7 +254,11 @@ class ReasoningRun:
                     "returned",
                     self._model_summary(generation.text),
                 )
-                marker = self._marker(generation.text)
+                marker = (
+                    None
+                    if self._is_fast_owner_reply(current_request)
+                    else self._marker(generation.text)
+                )
                 if marker is not None:
                     guard(next_kind=CognitiveStepKind.TOOL, tool=True)
                     try:
@@ -431,8 +436,9 @@ class ReasoningRun:
         *,
         final_schema: bool = False,
     ) -> ModelGenerationRequest:
+        direct_reply = self._is_fast_owner_reply(base)
         response_schema = base.response_schema
-        if not final_schema:
+        if not final_schema and not direct_reply:
             response_schema = JsonSchemaDocument(
                 name="ReasoningStep",
                 document={
@@ -444,7 +450,11 @@ class ReasoningRun:
             )
         return base.model_copy(
             update={
-                "system_prompt": base.system_prompt + _TOOL_INSTRUCTIONS,
+                "system_prompt": (
+                    base.system_prompt
+                    if direct_reply
+                    else base.system_prompt + _TOOL_INSTRUCTIONS
+                ),
                 "user_prompt": user_prompt,
                 "response_schema": response_schema,
                 # Tool execution is owned by this loop; do not activate a
@@ -453,6 +463,14 @@ class ReasoningRun:
                 if self._tool_port is not None
                 else base.allowed_tools,
             }
+        )
+
+    @staticmethod
+    def _is_fast_owner_reply(request: ModelGenerationRequest) -> bool:
+        return (
+            request.reasoning_mode == "fast"
+            and request.response_scope.external_domain
+            is ExternalExecutionDomain.COMMUNICATION
         )
 
     @staticmethod

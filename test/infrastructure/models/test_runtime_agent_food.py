@@ -146,6 +146,36 @@ def test_runtime_uses_the_injected_main_food_for_an_elfie(
     assert result.actual_model == "ollama_0001/main"
 
 
+def test_runtime_uses_a_saved_food_package_change_without_reconstruction(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    # Given: one long-lived model executor using the current main food package.
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    agent = _agent(monkeypatch, MainFoodSelection("food_main"))
+    monkeypatch.setattr(agent, "_call_food_llm_api", lambda *_args: "ok")
+    first = agent.think(
+        RuntimeRequest(prompt="first", elfie_id="00000001", allowed_tools=())
+    )
+
+    # When: management saves another primary model into the same package.
+    repository = agent.food_catalog_repository
+    assert isinstance(repository, _InMemoryFoodPort)
+    repository.update(
+        FoodPackage(
+            "food_main",
+            "主粮",
+            primary=FoodAssignment("ollama_0001/reason"),
+        )
+    )
+    second = agent.think(
+        RuntimeRequest(prompt="second", elfie_id="00000001", allowed_tools=())
+    )
+
+    # Then: the next request reads the saved package without rebuilding or restart.
+    assert first.actual_model == "ollama_0001/main"
+    assert second.actual_model == "ollama_0001/reason"
+
+
 def test_runtime_uses_emergency_when_the_persisted_main_food_is_unavailable(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:

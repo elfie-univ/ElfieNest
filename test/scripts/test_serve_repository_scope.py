@@ -222,7 +222,7 @@ def test_service_entrypoint_uses_bootstrap_instead_of_concrete_adapters() -> Non
     assert "init_db(" not in source
 
 
-def test_server_runtime_falls_back_when_configured_model_cannot_warm_up(
+def test_server_runtime_keeps_live_reload_when_configured_model_cannot_warm_up(
     monkeypatch,
 ) -> None:
     # Given: configuration loads, but the selected provider is unreachable.
@@ -256,7 +256,7 @@ def test_server_runtime_falls_back_when_configured_model_cannot_warm_up(
     # When
     selected = serve.build_server_runtime_services(":memory:", use_fallback=False)
 
-    # Then: product chat receives a working bounded runtime instead of silently
-    # accepting turns that can only terminate as model_unavailable.
-    assert calls == [False, True]
-    assert isinstance(selected.runtime, FallbackRuntimeAdapter)
+    # Then: the configured live-reloading runtime remains installed so a model
+    # package saved after startup can recover on the very next request.
+    assert calls == [False]
+    assert selected is configured
