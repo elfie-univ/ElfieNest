@@ -59,6 +59,10 @@ invokes electron-builder:
 .venv/bin/python scripts/release.py
 ```
 
+For the complete native package set, use `.github/workflows/release.yml`:
+`workflow_dispatch` keeps four validated installers as Actions artifacts, while
+pushing a matching `v<version>` tag also publishes them as a GitHub Release.
+
 Typical usage:
 
 ```bash

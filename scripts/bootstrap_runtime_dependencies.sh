@@ -9,6 +9,21 @@ GODOT_RESOLVED_BIN=""
 GODOT_RESOLVED_USER_HOME=""
 GODOT_RESOLVED_VERSION=""
 
+project_python() {
+    local candidate
+    for candidate in \
+        "$PROJECT_ROOT/.venv/Scripts/python.exe" \
+        "$PROJECT_ROOT/.venv/Scripts/python" \
+        "$PROJECT_ROOT/.venv/bin/python3" \
+        "$PROJECT_ROOT/.venv/bin/python"; do
+        if [[ -f "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
 check_pnpm() {
     local package_dir="$1"
     local pnpm_bin
@@ -341,15 +356,27 @@ ensure_godot_web() {
         return 1
     fi
     if [[ -n "$GODOT_RESOLVED_USER_HOME" ]]; then
+        local python_bin
+        python_bin="$(project_python)" || {
+            echo "${RED}  ❌ Repository Python environment is unavailable.${RESET}" >&2
+            return 1
+        }
         if ! GODOT_BIN="$GODOT_RESOLVED_BIN" GODOT_USER_HOME="$GODOT_RESOLVED_USER_HOME" \
-            "$PROJECT_ROOT/.venv/bin/python3" "$PROJECT_ROOT/scripts/build_godot_web.py" --ensure; then
+            "$python_bin" "$PROJECT_ROOT/scripts/build_godot_web.py" --ensure; then
             echo "${RED}  ❌ Godot $GODOT_PROJECT_VERSION.x or matching Web Export Templates cannot export Web Runtime.${RESET}" >&2
             return 1
         fi
-    elif ! GODOT_BIN="$GODOT_RESOLVED_BIN" \
-        "$PROJECT_ROOT/.venv/bin/python3" "$PROJECT_ROOT/scripts/build_godot_web.py" --ensure; then
-        echo "${RED}  ❌ Godot $GODOT_PROJECT_VERSION.x or matching Web Export Templates cannot export Web Runtime.${RESET}" >&2
-        return 1
+    else
+        local python_bin
+        python_bin="$(project_python)" || {
+            echo "${RED}  ❌ Repository Python environment is unavailable.${RESET}" >&2
+            return 1
+        }
+        if ! GODOT_BIN="$GODOT_RESOLVED_BIN" \
+            "$python_bin" "$PROJECT_ROOT/scripts/build_godot_web.py" --ensure; then
+            echo "${RED}  ❌ Godot $GODOT_PROJECT_VERSION.x or matching Web Export Templates cannot export Web Runtime.${RESET}" >&2
+            return 1
+        fi
     fi
     check_godot_web
 }

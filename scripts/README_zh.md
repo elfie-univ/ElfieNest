@@ -56,6 +56,10 @@ bash scripts/check_node_toolchain.sh
 .venv/bin/python scripts/release.py
 ```
 
+要生成完整的多平台安装包，请运行 `.github/workflows/release.yml`：
+`workflow_dispatch` 会把四个校验后的安装包保存为 Actions artifacts；推送匹配的
+`v<version>` tag 还会把它们发布为 GitHub Release。
+
 正常使用示例：
 
 ```bash

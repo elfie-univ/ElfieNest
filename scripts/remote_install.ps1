@@ -14,7 +14,7 @@ $ErrorActionPreference = "Stop"
 $Target = "win32-x64"
 
 if ($Version) {
-    Write-Output "ElfieNest remote bootstrap 0.1.0"
+    Write-Output "ElfieNest remote bootstrap 0.1.0-beta.1"
     exit 0
 }
 if (-not [Environment]::Is64BitOperatingSystem) {
