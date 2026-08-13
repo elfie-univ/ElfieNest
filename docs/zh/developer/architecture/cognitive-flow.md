@@ -1,28 +1,27 @@
 # 认知信息流
 
-> 本页说明当前可执行链路。所有权、Facade，以及目标 Food/模型/工具、Body、通信和
-> 持久化 Port 以 [Elfie 内部架构契约](../contracts/elfie)为规范；当前偏差见
-> [Elfie 一致性台账](../conformance/elfie)。
+> 本页说明当前可执行链路。所有权、Facade，以及 Food/模型/工具、Body、通信和持久化
+> Port 以 [Elfie 内部架构契约](../contracts/elfie)为规范，并由永久架构测试执行。
 
 Elfie 的输入和输出不是一段统一的聊天字符串，而是按身体、通信和内部执行分别路由
 的类型化事件。
 
 ```text
 Body → NervousSystem ───────┐
-                            ├→ PerceptualWorkspace
+                            ├→ EventWorkspace
 Communication ─────────────┘
                                       ↓
                               BrainCoordinator
                                       ↓
                                BrainContext
                                       ↓
-                               DecisionPlan
+                         ReasoningRun → DecisionPlan
                          ┌────────────┼────────────┐
                          ↓            ↓            ↓
-                       Body     Communication   Internal
+                       Body     Communication   Activity
                          └────── ExecutionReceipt ────┘
                                       ↓
-                              PerceptualWorkspace
+                               EventWorkspace
 ```
 
 ## 一次回合

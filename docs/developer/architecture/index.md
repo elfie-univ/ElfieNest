@@ -22,8 +22,8 @@ instance; runtime operations then use the returned `elfie.py` facade.
 Runtime. It is not downstream of `app/features`. In the product
 use-case plane, Interfaces call concrete Feature use-cases; Features declare
 the Ports they need, Infrastructure implements those Ports, and Bootstrap is
-the only composition root. Current historical deviations are tracked in the
-[App conformance register](../conformance/application).
+the only composition root. Permanent architecture tests enforce these
+boundaries directly.
 
 The core source is split by responsibility:
 
@@ -118,12 +118,12 @@ input channels:
 
 ```text
 Body -> NervousSystem --------\
-                               -> PerceptualWorkspace
+                               -> EventWorkspace
 Communication ----------------/          │
                                           ▼
                                   BrainCoordinator
                                           │
-                              BrainContext + model turn
+                           BrainContext + ReasoningRun
                                           │
                                           ▼
                                     DecisionPlan
@@ -132,10 +132,10 @@ Communication ----------------/          │
                                      OutputRouter
                           ┌───────────────┼───────────────┐
                           ▼               ▼               ▼
-                        Body     Communication     Internal effector
+                        Body     Communication     Activity request
                           └──────── ExecutionReceipt ─────┘
                                           │
-                                          └──> PerceptualWorkspace
+                                          └──> EventWorkspace
 ```
 
 `ElfieNestEngine.tick_once()` advances the Nest and the Elfie's own clock, then
@@ -158,7 +158,7 @@ Runtime Supervisor
   ├── Python Core + Gateway
   ├── one selected Godot authority host
   │   ├── graphical Web authority
-  │   ├── graphical Electron authority role
+  │   ├── Bootstrap-hosted Infrastructure Electron authority
   │   └── displayless Linux dedicated authority
   └── public Ollama health (optional; may be degraded)
 

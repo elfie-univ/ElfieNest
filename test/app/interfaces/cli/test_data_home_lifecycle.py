@@ -85,7 +85,7 @@ def test_started_service_remembers_selected_home_for_later_commands(
         lambda *args, **kwargs: _StartedSupervisor(),
     )
     monkeypatch.setattr(
-        lifecycle_commands, "_prepare_frontend_for_launch", lambda: None
+        lifecycle_commands, "_prepare_frontend_for_launch", lambda *_args: None
     )
     monkeypatch.setenv("ELFIENEST_RUNTIME_MODE", "development")
     monkeypatch.delenv("ELFIE_HOME", raising=False)

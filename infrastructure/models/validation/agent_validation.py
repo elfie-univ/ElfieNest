@@ -9,7 +9,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Protocol
 
-from elfie.brain.tool_port import ToolPort
+from elfie.brain.reasoning.tool_port import ToolPort
 from infrastructure.models.inference.llm_api import call_llm_api
 from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.validation.validation_models import (

@@ -2,10 +2,11 @@
 
 import pytest
 
-from elfie.brain.energy.energy import EnergyTimeRegressionError, HypothalamusEnergy
+from elfie.brain.energy.energy import EnergySystem, EnergyTimeRegressionError
+from elfie.message_types import TurnId
 
 
-class TestHypothalamusEnergy:
+class TestEnergySystem:
     """能量系统测试套件"""
 
     @pytest.fixture
@@ -35,12 +36,12 @@ class TestHypothalamusEnergy:
     @pytest.fixture
     def energy_system(self, default_config):
         """创建能量系统实例"""
-        return HypothalamusEnergy(default_config)
+        return EnergySystem(default_config)
 
     # ===== 初始化测试 =====
     def test_init_default_values(self):
         """测试默认初始化值"""
-        system = HypothalamusEnergy()
+        system = EnergySystem()
         assert system.max_energy == 100.0
         assert system.energy == 100.0
         assert system.depletion_rate == 0.005
@@ -50,6 +51,7 @@ class TestHypothalamusEnergy:
         assert system.hibernation_threshold == 95.0
         assert system.wakeup_threshold == 15.0
         assert system.is_sleeping is False
+        assert system.emergency_reserve == system.emergency_reserve_capacity
 
     def test_init_with_config(self, energy_system):
         """测试使用配置初始化"""
@@ -206,6 +208,51 @@ class TestHypothalamusEnergy:
         dt = 100.0
         energy_system.update_clock(dt)
         assert energy_system.fatigue <= energy_system.max_fatigue
+
+    def test_normal_turn_reserves_and_settles_without_spending_emergency_reserve(
+        self, energy_system
+    ):
+        before_energy = energy_system.energy
+        before_reserve = energy_system.emergency_reserve
+        reservation = energy_system.reserve_cognitive_budget(TurnId("turn-normal"))
+
+        assert reservation.source == "normal"
+        assert energy_system.reserved_cognitive_budget() == reservation.granted
+        assert energy_system.activity_budget_available() < before_energy
+        charged = energy_system.settle_cognitive_budget(
+            TurnId("turn-normal"), consumed=1.5
+        )
+
+        assert charged == 1.5
+        assert energy_system.energy == pytest.approx(before_energy - 1.5)
+        assert energy_system.emergency_reserve == before_reserve
+        assert energy_system.reserved_cognitive_budget() == 0.0
+
+    def test_emergency_turn_uses_only_persistent_reserve(self):
+        system = EnergySystem(
+            {"limits": {"energy": {"initial_value": 5.0}}},
+            clock=lambda: 0.0,
+        )
+        reservation = system.reserve_cognitive_budget(TurnId("turn-emergency"))
+
+        assert reservation.mode == "emergency"
+        assert reservation.source == "emergency_reserve"
+        assert reservation.granted == 1.0
+        assert system.activity_budget_available() == 0.0
+        system.settle_cognitive_budget(TurnId("turn-emergency"), consumed=1.0)
+        assert system.energy == 5.0
+        assert system.emergency_reserve == system.emergency_reserve_capacity - 1.0
+
+    def test_checkpoint_preserves_reserve_but_never_revives_active_reservations(self):
+        system = EnergySystem(clock=lambda: 0.0)
+        system.reserve_cognitive_budget(TurnId("turn-before-checkpoint"))
+        checkpoint = system.checkpoint()
+
+        restored = EnergySystem(clock=lambda: 0.0)
+        restored.restore(checkpoint)
+
+        assert restored.emergency_reserve == checkpoint.emergency_reserve
+        assert restored.reserved_cognitive_budget() == 0.0
 
     def test_sleep_state_persists_until_wakeup_threshold(self, energy_system):
         """测试睡眠状态保持直到疲劳降到唤醒阈值"""

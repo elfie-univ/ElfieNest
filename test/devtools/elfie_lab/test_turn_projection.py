@@ -1,15 +1,15 @@
 from datetime import datetime, timedelta, timezone
 
 from devtools.elfie_lab.turn_projection import project_decision
-from elfie.brain.decision_types import (
+from elfie.brain.reasoning.decision_types import (
     CancelPolicy,
     DecisionPlan,
     ExpressionIntent,
     MotionIntent,
     SpeechIntent,
 )
-from elfie.brain.output_types import ExecutionReceipt, ExecutorKind
-from elfie.brain.perception_types import ExecutionStatus
+from elfie.brain.reasoning.execution_types import ExecutionReceipt, ExecutorKind
+from elfie.brain.workspace.contracts import ExecutionStatus
 from elfie.message_types import EventId, IntentId, PlanId, TurnId
 
 

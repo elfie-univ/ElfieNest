@@ -6,6 +6,7 @@ from elfie import Elfie
 from elfie.body import BodyId, CommandStatus, HeadlessBody, MotionCommand
 from elfie.body.native.anatomy.biped import BipedAnatomy
 from elfie.brain.emotion import EmotionSystem
+from elfie.diagnostics import ElfieDiagnostics
 from elfie.message_types import CommandId, IntentId, TurnId
 from elfie.nervous_system import NervousSystem
 from elfie.profile import create_visual_profile
@@ -36,12 +37,12 @@ def test_elfie_owns_one_canonical_nervous_system() -> None:
         memory_store=SQLiteMemoryStoreAdapter.in_memory(),
     )
 
-    assert elfie.nervous_system.speech_actuator is not None
-    assert elfie.nervous_system.motion_actuator is not None
-    assert elfie.nervous_system.mutter_actuator is not None
-    assert elfie.nervous_system.signal_filter is not None
-    assert elfie.nervous_system.physical_limits is not None
-    assert elfie.nervous_system.reflex is not None
+    assert ElfieDiagnostics(elfie).nervous_system.speech_actuator is not None
+    assert ElfieDiagnostics(elfie).nervous_system.motion_actuator is not None
+    assert ElfieDiagnostics(elfie).nervous_system.mutter_actuator is not None
+    assert ElfieDiagnostics(elfie).nervous_system.signal_filter is not None
+    assert ElfieDiagnostics(elfie).nervous_system.physical_limits is not None
+    assert ElfieDiagnostics(elfie).nervous_system.reflex is not None
 
 
 def test_nervous_system_filters_signals_through_existing_filter() -> None:

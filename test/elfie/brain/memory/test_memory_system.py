@@ -15,13 +15,13 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from elfie.brain.memory import (
-    ContextAssembler,
-    CoreCognition,
     EbbinghausDecay,
     EmotionWeighting,
     MemoryConsolidator,
     MemoryEncoder,
+    MemoryRecallFormatter,
     MemoryRetriever,
+    MemorySelfNarrativeProjection,
     MemorySystem,
     SensoryBuffer,
     SensoryIndexer,
@@ -59,8 +59,8 @@ class TestMemorySystem:
         assert isinstance(ms.storage, FakeMemoryStore)
         assert ms.sensory_buffer is not None
         assert isinstance(ms.sensory_buffer, SensoryBuffer)
-        assert ms.core_cognition is not None
-        assert isinstance(ms.core_cognition, CoreCognition)
+        assert ms.self_narrative is not None
+        assert isinstance(ms.self_narrative, MemorySelfNarrativeProjection)
         assert ms.encoder is not None
         assert isinstance(ms.encoder, MemoryEncoder)
         assert ms.retriever is not None
@@ -73,8 +73,8 @@ class TestMemorySystem:
         assert isinstance(ms.weighting, EmotionWeighting)
         assert ms.consolidator is not None
         assert isinstance(ms.consolidator, MemoryConsolidator)
-        assert ms.context_assembler is not None
-        assert isinstance(ms.context_assembler, ContextAssembler)
+        assert ms.recall_formatter is not None
+        assert isinstance(ms.recall_formatter, MemoryRecallFormatter)
         assert ms.sensory_indexer is not None
         assert isinstance(ms.sensory_indexer, SensoryIndexer)
 
@@ -171,23 +171,23 @@ class TestMemorySystem:
         assert isinstance(result, dict)
         assert result["consolidated_count"] == 0
 
-    def test_get_core_cognition(self):
+    def test_get_self_narrative(self):
         """获取核心认知"""
         ms = _new_memory_system()
-        core_text = ms.get_core_cognition()
+        core_text = ms.get_self_narrative()
         assert isinstance(core_text, dict)
         assert "identity" in core_text
         assert "relation" in core_text
         assert "world" in core_text
         assert "tendency" in core_text
 
-    def test_get_context(self):
+    def test_recall_context(self):
         """获取5区域上下文文本"""
         ms = _new_memory_system()
         ms.record_episode(content="主人喂我吃了鸡肉", emotion="happy", intensity=80.0)
         ms.record_episode(content="今天去了公园", emotion="happy", intensity=60.0)
 
-        context = ms.get_context(
+        context = ms.recall_context(
             query="主人",
             emotion="happy",
             intensity=0.8,
@@ -209,7 +209,7 @@ class TestMemorySystem:
         assert node_id, "使用旧API参数名应正常工作"
 
     def test_backward_compatible_retrieve(self):
-        """兼容旧API调用方式（ThalamusContextBuilder使用方式）"""
+        """兼容旧API调用方式（MemoryRecallFormatter使用方式）"""
         ms = _new_memory_system()
         ms.record_episode(content="和主人一起玩耍", emotion="happy", intensity=90.0)
 

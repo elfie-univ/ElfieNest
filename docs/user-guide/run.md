@@ -17,10 +17,10 @@ shuts down the local service.
 The run pipeline includes:
 
 1. The Nest advances environment time;
-2. Body and communication events enter the perceptual workspace;
+2. Body and communication events enter the Event Workspace;
 3. The `BrainCoordinator` organizes one cognitive turn;
-4. The `OutputRouter` routes the `DecisionPlan` to body, communication or
-   internal effectors;
+4. The `OutputRouter` routes the `DecisionPlan` to body, communication or a
+   validated Persistent Activity request;
 5. Execution receipts flow back into the next round of perception.
 
 ## Common entry points

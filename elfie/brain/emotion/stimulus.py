@@ -21,7 +21,7 @@ class StimulusSource(str, Enum):
 
 
 class EmotionStimulusEvent(FrozenContractModel):
-    """One deduplicable emotion stimulus produced by LimbicAppraiser."""
+    """One deduplicable emotion stimulus produced by EmotionAppraiser."""
 
     event_id: EventId
     emotion: EmotionType

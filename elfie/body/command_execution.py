@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List, Mapping, Union
+from typing import Annotated, List, Mapping, Union
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 from typing_extensions import TypeAlias
 
 from elfie.body.capabilities import BodyCapabilities
@@ -42,6 +42,7 @@ class _CommandIdentity(BaseModel):
     intent_id: IntentId
     body_id: BodyId
     capability_revision: int
+    body_generation: Annotated[int, Field(strict=True, ge=1)] = 1
 
 
 def utc_now() -> datetime:
@@ -139,6 +140,14 @@ def parse_wire_command(
             identity = _CommandIdentity.model_validate(dict(payload))
         except ValidationError:
             revision = payload.get("capability_revision")
+            body_generation_value = payload.get("body_generation")
+            body_generation = (
+                body_generation_value
+                if isinstance(body_generation_value, int)
+                and not isinstance(body_generation_value, bool)
+                and body_generation_value >= 1
+                else 1
+            )
             identity = _CommandIdentity(
                 command_id=CommandId(
                     _fallback_identifier(payload.get("command_id"), "invalid-command")
@@ -159,6 +168,7 @@ def parse_wire_command(
                     and revision >= 1
                     else 1
                 ),
+                body_generation=body_generation,
             )
         return CommandReceipt(
             receipt_id=EventId(f"receipt_{uuid4().hex}"),
@@ -169,6 +179,7 @@ def parse_wire_command(
             status=CommandStatus.REJECTED,
             occurred_at=occurred_at,
             capability_revision=identity.capability_revision,
+            body_generation=identity.body_generation,
             error=ErrorInfo(
                 code="bad_payload",
                 message="command payload failed strict validation",

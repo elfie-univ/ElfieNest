@@ -11,8 +11,8 @@ from elfie.body.contracts import (
 )
 from elfie.body.native.anatomy.base import SomaticAnatomy, VoiceProfile
 from elfie.body.port import BodyPort
-from elfie.brain.perception_types import IngestReceipt
-from elfie.brain.workspace_ports import PerceptionSink
+from elfie.brain.workspace.contracts import IngestReceipt
+from elfie.brain.workspace.ports import PerceptionSink
 from elfie.message_types import ElfieId
 from elfie.nervous_system.actuators import (
     MotionActuator,
@@ -41,6 +41,7 @@ class NervousSystem:
         perception_sink: Optional[PerceptionSink] = None,
         elfie_id: Optional[ElfieId] = None,
         body_port: Optional[BodyPort] = None,
+        body_generation: int | None = None,
     ) -> None:
         self.vision_sensor = VisionSensor()
         self.audio_sensor = AudioSensor()
@@ -60,6 +61,7 @@ class NervousSystem:
                 elfie_id=elfie_id,
                 normalizer=BodyPerceptionNormalizer(elfie_id, self.signal_filter),
                 body_port=body_port,
+                body_generation=body_generation,
             )
         elif perception_sink is not None or elfie_id is not None:
             raise PerceptionBridgeNotConfiguredError(
@@ -100,9 +102,17 @@ class NervousSystem:
         """Process one Body event through reflex, filter, and Brain publish."""
         return self._require_perception_bridge().receive_body_event(event)
 
-    def bind_body_port(self, body_port: Optional[BodyPort]) -> None:
+    def bind_body_port(
+        self,
+        body_port: Optional[BodyPort],
+        *,
+        body_generation: int | None = None,
+    ) -> None:
         """Keep the immediate reflex target aligned with the active Body."""
-        self._require_perception_bridge().bind_body_port(body_port)
+        self._require_perception_bridge().bind_body_port(
+            body_port,
+            body_generation=body_generation,
+        )
 
     def retry_pending(self) -> Tuple[IngestReceipt, ...]:
         """Retry reliable writes retained after Workspace backpressure."""

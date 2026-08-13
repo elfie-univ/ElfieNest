@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
 
 from app.features.accounts import AccountPrincipal
 from app.features.configuration import (
+    CapabilitiesService,
     EnsureDefaultLocalProviderConnectionCommand,
     ProvidersService,
     SettingsService,
 )
+from app.features.configuration.food import FoodService
 from infrastructure.models.cli_catalog import CliModelCatalogAdapter
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.provider_administration import ProviderModelsAdapter
@@ -29,48 +30,47 @@ from infrastructure.persistence.provider_storage import ProviderStorageAdapter
 from infrastructure.persistence.report_storage import ReportStorageAdapter
 from infrastructure.persistence.reports.report_repository import ReportRepository
 
-
-class RuntimeConfigMenus(Protocol):
-    """Developer CLI menus supplied by the Runtime Lab entrypoint."""
-
-    def tool_menu(self) -> None: ...
-
-    def food_menu(self) -> None: ...
+from .capabilities import build_capability_adapters
+from .food import build_food_service
 
 
 @dataclass(frozen=True)
 class CliConfigurationContainer:
     providers: ProvidersService
+    food: FoodService
+    capabilities: CapabilitiesService
     settings: SettingsService
     principal: AccountPrincipal
     models: CliModelCatalogAdapter
-    runtime_menus: RuntimeConfigMenus
 
 
-def build_cli_configuration(
-    db_path: str,
-    *,
-    runtime_menus: RuntimeConfigMenus,
-) -> CliConfigurationContainer:
+def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
     config_path = get_config_path()
+    secret_path = None
     provider_reports = ReportStorageAdapter(ReportRepository())
     provider_store = ProviderConnectionStore()
+    provider_evidence = SQLiteFoodEvidenceAdapter(provider_store, ReportRepository())
     provider_models = ProviderModelsAdapter(
         ProviderStorageAdapter(provider_store),
         provider_reports,
-        SQLiteFoodEvidenceAdapter(provider_store, ReportRepository()),
+        provider_evidence,
     )
     if db_path != ":memory:":
         layout = final_root_layout(data_home_from_db_path(db_path))
         config_path = layout.runtime_config
+        secret_path = layout.auth_env
         provider_store = ProviderConnectionStore(layout.providers_config)
+        provider_evidence = SQLiteFoodEvidenceAdapter(
+            provider_store,
+            ReportRepository(),
+        )
         provider_models = ProviderModelsAdapter(
             ProviderStorageAdapter(
                 provider_store,
                 secret_path=layout.auth_env,
             ),
             provider_reports,
-            SQLiteFoodEvidenceAdapter(provider_store, ReportRepository()),
+            provider_evidence,
         )
     providers = ProvidersService(
         catalog=provider_models,
@@ -85,8 +85,17 @@ def build_cli_configuration(
             EnsureDefaultLocalProviderConnectionCommand()
         )
 
+    capability_config, capability_secrets, capability_validation = (
+        build_capability_adapters(config_path, secret_path)
+    )
     return CliConfigurationContainer(
         providers=providers,
+        food=build_food_service(db_path, evidence=provider_evidence),
+        capabilities=CapabilitiesService(
+            capability_config,
+            capability_secrets,
+            capability_validation,
+        ),
         settings=SettingsService(RuntimeSettingsAdapter(config_path)),
         principal=AccountPrincipal(
             user_id=0,
@@ -95,7 +104,6 @@ def build_cli_configuration(
             default_landing_page="manage",
         ),
         models=CliModelCatalogAdapter(),
-        runtime_menus=runtime_menus,
     )
 
 

@@ -8,6 +8,8 @@ from typing import Optional
 from app.orchestration.resident_admission import ResidentAdmissionPortError
 from elfie import Elfie, ElfieFactory
 from elfie.body.port import BodyPort
+from elfie.brain.activity.system import ActivityStorePort
+from elfie.brain.journal import BrainJournalPort
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.factory import ElfieAssembly
 from elfie.profile import ProfileStorePort
@@ -15,6 +17,8 @@ from elfie.profile import ProfileStorePort
 BodyFactory = Callable[[str, str], Optional[BodyPort]]
 ProfileStoreFactory = Callable[[str], ProfileStorePort]
 MemoryStoreFactory = Callable[[str], MemoryStorePort]
+ActivityStoreFactory = Callable[[str], ActivityStorePort]
+BrainJournalFactory = Callable[[str], BrainJournalPort]
 
 
 class ElfieFactoryAdapter:
@@ -24,11 +28,15 @@ class ElfieFactoryAdapter:
         body_factory: BodyFactory,
         profile_store_factory: ProfileStoreFactory,
         memory_store_factory: MemoryStoreFactory,
+        activity_store_factory: ActivityStoreFactory | None = None,
+        journal_store_factory: BrainJournalFactory | None = None,
     ) -> None:
         self._factory = factory
         self._body_factory = body_factory
         self._profile_store_factory = profile_store_factory
         self._memory_store_factory = memory_store_factory
+        self._activity_store_factory = activity_store_factory
+        self._journal_store_factory = journal_store_factory
 
     def restore(self, elfie_id: str, workspace: str) -> Elfie:
         try:
@@ -37,6 +45,16 @@ class ElfieFactoryAdapter:
                 ElfieAssembly(
                     profile=profile_store.load(),
                     memory_store=self._memory_store_factory(workspace),
+                    activity_store=(
+                        None
+                        if self._activity_store_factory is None
+                        else self._activity_store_factory(workspace)
+                    ),
+                    journal_store=(
+                        None
+                        if self._journal_store_factory is None
+                        else self._journal_store_factory(workspace)
+                    ),
                     body=self._body_factory(elfie_id, workspace),
                 )
             )
@@ -48,6 +66,8 @@ class ElfieFactoryAdapter:
 
 __all__ = (
     "BodyFactory",
+    "ActivityStoreFactory",
+    "BrainJournalFactory",
     "ElfieFactoryAdapter",
     "MemoryStoreFactory",
     "ProfileStoreFactory",

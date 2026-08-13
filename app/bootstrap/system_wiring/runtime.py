@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import cast
 
 from app.features.configuration.food import StoredModelEvidence
-from elfie.brain.tool_port import ToolPort
+from elfie.public import ToolPort
 from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.runtime_observations import get_runtime_observer
 from infrastructure.models.runtime_ports import (

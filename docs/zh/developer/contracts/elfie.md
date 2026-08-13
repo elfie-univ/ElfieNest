@@ -59,7 +59,7 @@ Runtime、Infrastructure Adapter 或公开产品 API。
 | `elfie/profile/` | 不可变固有身份、物种、虚拟外貌、生成来源和不可变外貌默认资源 | 人格、记忆、权限、运行限制、当前能力/状态、YAML/文件持久化、用户路径、App 领养或账户规则 |
 | `elfie/brain/` | 事件工作区、自我定位、自我认知、情绪、能量、动机、记忆、思考中枢、跨回合活动、心智整理和 Skills | Provider 选择/配置、SDK 请求、具体工具执行、设备/渠道传输或产品工作流 |
 | `elfie/brain/memory/` | 记忆节点、关系、编码、检索、巩固和语义存储 Port | SQLite 连接、Schema、路径或持久化 Record |
-| `elfie/brain/skills/` | Skill 声明、单只精灵的目录、策略和语义工具请求授权 | Runtime 代理、平台工具、工作区路径或工具执行 |
+| `elfie/brain/reasoning/skills/` | Skill 声明、单只精灵的目录、策略和语义工具请求授权 | Runtime 代理、平台工具、工作区路径或工具执行 |
 | `elfie/nervous_system/` | 身体事件规范化、过滤、反射、感知投递和已校验身体意图转换 | 设备传输、Godot 协议、几何或身体注册策略 |
 | `elfie/body/` | 身体身份、能力、解剖、命令、传感事件、回执、候选 Registry、切换和唯一当前 Binding | 虚拟/实体并发 authority、Godot/WebSocket/设备传输、凭据、进程所有权或设备产品授权 |
 | `elfie/communication/` | 标准 Envelope、准入与投递语义、策略、Inbox/Outbox、Hub 和渠道路由 | 产品会话 authority/历史、账户成员、平台 SDK、凭据或网络传输 |

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from elfie.brain.food_port import (
+from elfie.brain.reasoning.food_port import (
     FOOD_EMERGENCY_ID,
     FoodAssignment,
     FoodCatalog,
@@ -197,6 +197,36 @@ def test_structured_runtime_uses_emergency_when_main_food_is_unavailable(
     )
 
     assert result.model_key == "ollama_0001/emergency"
+
+
+def test_structured_runtime_maps_reasoning_mode_to_provider_thinking(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    agent = _agent(monkeypatch, MainFoodSelection("food_main"))
+    thinking_values: list[bool] = []
+
+    def caller(*args):
+        thinking_values.append(args[6])
+        return "ok"
+
+    monkeypatch.setattr(agent, "_call_food_llm_api", caller)
+    base_request = StructuredRuntimeRequest(
+        prompt="structured",
+        messages=(),
+        response_schema_name="answer",
+        response_schema={"type": "object"},
+        selected_mode=StructuredGenerationMode.JSON_TEXT,
+        allowed_tools=(),
+        food_key="food_main",
+    )
+
+    agent.generate_structured(base_request)
+    agent.generate_structured(
+        base_request.model_copy(update={"reasoning_mode": "long"})
+    )
+
+    assert thinking_values == [False, True]
 
 
 def test_runtime_does_not_upgrade_primary_to_reasoning_from_task_complexity(

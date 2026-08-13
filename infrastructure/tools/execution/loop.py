@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from elfie.brain.tool_port import ToolPort, ToolRequest
+from elfie.brain.reasoning.tool_port import ToolPort, ToolRequest
 from elfie.message_types import ElfieId
 
 

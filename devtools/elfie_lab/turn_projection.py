@@ -5,16 +5,16 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, DefaultDict, Dict, Iterable, List, Optional
 
-from elfie.brain.decision_types import (
+from elfie.brain.reasoning.decision_types import (
     DecisionPlan,
     ExpressionIntent,
-    InternalIntent,
     MessageIntent,
     MotionIntent,
     NoOpIntent,
+    PersistentActivityRequest,
     SpeechIntent,
 )
-from elfie.brain.output_types import ExecutionReceipt
+from elfie.brain.reasoning.execution_types import ExecutionReceipt
 
 
 def project_decision(
@@ -34,6 +34,7 @@ def project_decision(
         "expression_intents": [],
         "action_intents": [],
         "internal_intents": [],
+        "activity_intents": [],
         "noop_intents": [],
     }
     if plan is None:
@@ -75,12 +76,19 @@ def project_decision(
             }
             projected["expression_intents"].append(action)
             projected["action_intents"].append({"type": "expression", **action})
-        elif isinstance(intent, InternalIntent):
-            projected["internal_intents"].append(
+        elif isinstance(intent, PersistentActivityRequest):
+            projected["activity_intents"].append(
                 {
                     **common,
-                    "operation": intent.operation.value,
-                    "content": intent.content,
+                    "activity_id": str(intent.draft.activity_id),
+                    "goal": intent.draft.goal,
+                    "state": "pending",
+                    "wake_at": (
+                        intent.draft.wake_at.isoformat()
+                        if intent.draft.wake_at is not None
+                        else None
+                    ),
+                    "step_count": len(intent.draft.steps),
                 }
             )
         elif isinstance(intent, NoOpIntent):

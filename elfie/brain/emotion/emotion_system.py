@@ -7,19 +7,23 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import deque
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Callable, Dict, Final, Mapping, Optional
+from typing import TYPE_CHECKING, Callable, Dict, Final, Mapping, Optional, Tuple
 
-from elfie.brain.context_types import EmotionSnapshot, EmotionValue
 from elfie.brain.emotion.accumulator.decay import decay
 from elfie.brain.emotion.accumulator.frequency import FrequencyTracker
 from elfie.brain.emotion.accumulator.saturation import calculate_accumulation_delta
+from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
 from elfie.brain.emotion.emotion_input import EmotionInput
 from elfie.brain.emotion.emotion_types import EMOTION_CONFIGS, resolve_emotion_name
 from elfie.brain.emotion.fusion.deduplicator import EventDeduplicator
 from elfie.brain.emotion.interactions import EmotionInteractionSystem
 from elfie.brain.emotion.personality import PersonalityModifier
 from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
+from elfie.brain.state_lifecycle import StateRestoreError
+from elfie.message_types import EventId
 
 if TYPE_CHECKING:
     from elfie.brain.emotion.expression_mapper import EmotionExpression
@@ -48,6 +52,18 @@ class EmotionTimeRegressionError(Exception):
         )
 
 
+@dataclass(frozen=True)
+class EmotionCheckpoint:
+    """Persistence-neutral checkpoint for the mutable affect owner."""
+
+    revision: int
+    last_updated_at: float
+    emotions: Tuple[Tuple[str, float], ...]
+    frequency_expire_times: Tuple[Tuple[str, Tuple[float, ...]], ...]
+    processed_events: Tuple[Tuple[str, float], ...]
+    source_event_ids: Tuple[EventId, ...]
+
+
 class EmotionSystem:
     """情绪系统 - 整合所有情绪处理组件"""
 
@@ -65,6 +81,7 @@ class EmotionSystem:
         self._clock = clock
         self.last_updated_at = float(clock())
         self.revision = 0
+        self._source_event_ids: deque[EventId] = deque(maxlen=32)
 
         # 初始化8种情绪为baseline值
         self.emotions: Dict[str, float] = {
@@ -117,6 +134,7 @@ class EmotionSystem:
             logger.debug(f"重复事件，跳过: {emotion_input.event_id}")
             return
         self.deduplicator.mark_processed(emotion_input.event_id)
+        self._source_event_ids.append(EventId(emotion_input.event_id))
 
         # 记录频率
         self.frequency_trackers[emotion].record_input()
@@ -262,7 +280,60 @@ class EmotionSystem:
                 for name, value in self.emotions.items()
             ),
             dominant=self.get_dominant_mood() if self.emotions else None,
+            source_event_ids=tuple(self._source_event_ids),
         )
+
+    def checkpoint(self) -> EmotionCheckpoint:
+        """Seal all mutable affect state, including deduplication windows."""
+        return EmotionCheckpoint(
+            revision=self.revision,
+            last_updated_at=self.last_updated_at,
+            emotions=tuple(sorted(self.emotions.items())),
+            frequency_expire_times=tuple(
+                (
+                    name,
+                    tuple(tracker.expire_times),
+                )
+                for name, tracker in sorted(self.frequency_trackers.items())
+            ),
+            processed_events=tuple(sorted(self.deduplicator.processed_events.items())),
+            source_event_ids=tuple(self._source_event_ids),
+        )
+
+    def validate_checkpoint(self, checkpoint: EmotionCheckpoint) -> None:
+        """Reject an older or structurally incompatible affect checkpoint."""
+        if checkpoint.revision < self.revision:
+            raise StateRestoreError(
+                "emotion checkpoint revision is older than current state"
+            )
+        if (
+            checkpoint.revision == self.revision
+            and checkpoint.last_updated_at < self.last_updated_at
+        ):
+            raise StateRestoreError(
+                "emotion checkpoint simulation time is older than current state"
+            )
+        expected = set(EMOTION_CONFIGS)
+        actual = {name for name, _value in checkpoint.emotions}
+        if actual != expected:
+            raise ValueError("emotion checkpoint contains an incompatible emotion set")
+        for name, value in checkpoint.emotions:
+            if not 0.0 <= value <= EMOTION_CONFIGS[name]["max_value"]:
+                raise ValueError(f"emotion checkpoint value out of range: {name}")
+        if {name for name, _values in checkpoint.frequency_expire_times} != expected:
+            raise ValueError("emotion checkpoint contains incompatible frequency state")
+
+    def restore(self, checkpoint: EmotionCheckpoint) -> None:
+        """Restore a committed affect checkpoint without rewinding the owner."""
+        self.validate_checkpoint(checkpoint)
+        self.emotions = dict(checkpoint.emotions)
+        self.last_updated_at = checkpoint.last_updated_at
+        self.revision = checkpoint.revision
+        for name, values in checkpoint.frequency_expire_times:
+            self.frequency_trackers[name].expire_times.clear()
+            self.frequency_trackers[name].expire_times.extend(values)
+        self.deduplicator.processed_events = dict(checkpoint.processed_events)
+        self._source_event_ids = deque(checkpoint.source_event_ids, maxlen=32)
 
     def get_dominant_mood(self) -> str:
         """获取主导情绪

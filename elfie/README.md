@@ -8,12 +8,10 @@
 brain, memory and homeostasis, a nervous system, a swappable body, digital
 communication and the skills usable during cognition.
 
-This page describes the current package. The normative migration target is the
-[Elfie internal architecture contract](../docs/developer/contracts/elfie.md);
-known implementation debt is tracked in
-[Elfie conformance](../docs/developer/conformance/elfie.md). In particular,
-technical body/channel/persistence implementations move to Infrastructure and
-Skills move under Brain without changing the macro system contract.
+This page describes the current package. The normative authority is the
+[Elfie internal architecture contract](../docs/developer/contracts/elfie.md),
+enforced by permanent architecture tests without changing the macro system
+contract.
 
 ## Responsibilities and non-responsibilities
 
@@ -21,12 +19,12 @@ Responsible for:
 
 - A single Elfie's identity, appearance, personality, capabilities and stable
   limits;
-- The perceptual-frame → context → cortical decision → output routing →
+- The event-frame → context → reasoning decision → output routing →
   execution-receipt loop;
 - Emotion, energy, long-term memory and the Elfie's own clock;
 - Body identity, capabilities, typed commands/events, registry, binding and
-  nervous-system semantics; the current Headless, Native and External
-  implementations are migration paths rather than final technical ownership;
+  nervous-system semantics; deterministic no-I/O references and fakes may stay
+  here, while concrete platform and device I/O belongs to Infrastructure;
 - The Elfie's own digital message channel and its skill allowlist.
 
 Not responsible for:
@@ -48,23 +46,23 @@ elfie/
 ├── cognitive_runtime.py # Coordinator, Router and worker lifecycle composition
 ├── message_types.py     # cross-boundary ID, Actor, time and error base types
 ├── profile/             # identity, species, appearance and the stable Profile
-├── brain/               # Workspace, context, emotion, energy, memory and decisions
+├── brain/               # ten-system cognitive core and private runtime
 ├── nervous_system/      # perception normalization, filtering, reflexes and physical output
 ├── body/                # Headless, Native, External swappable bodies
 ├── communication/       # digital message channel bypassing the NervousSystem
-└── brain/skills/        # semantic Skill catalog and authorization policy
+└── brain/reasoning/skills/ # semantic Skill catalog used inside a ReasoningRun
 ```
 
 ## Entry points
 
 - `elfie.Elfie` — facade and async lifecycle of a complete Elfie;
 - `elfie.ElfieFactory` — create an Elfie or restore it from a config directory;
-- `elfie.brain.PerceptualWorkspace` — receives and wraps typed perception;
+- `elfie.brain.EventWorkspace` — admits typed events into isolated Turns;
 - `elfie.brain.BrainCoordinator` — produces cognitive frames, context and
-  cortical turns;
-- `elfie.brain.DecisionPlan` — the typed decision produced by the cortex;
-- `elfie.brain.output_router.OutputRouter` — routes a decision to body,
-  communication or internal effectors.
+  reasoning runs;
+- `elfie.brain.DecisionPlan` — the typed decision produced by Reasoning Core;
+- `elfie.brain.reasoning.execution_router.OutputRouter` — routes a decision to body,
+  communication or Persistent Activity.
 
 Only `elfie.Elfie` and `elfie.ElfieFactory` are stable production aggregate
 entry points. The deeper imports above describe current internal module APIs
@@ -75,10 +73,10 @@ The core loop is:
 
 ```text
 Body -> NervousSystem ----\
-                          -> PerceptualWorkspace -> BrainCoordinator
+                          -> EventWorkspace -> BrainCoordinator
 Communication ------------/                         -> DecisionPlan
                                                      -> OutputRouter
-ExecutionReceipt ----------------------------------> PerceptualWorkspace
+ExecutionReceipt ----------------------------------> EventWorkspace
 ```
 
 The physical clock, perception collection, model inference and output execution
@@ -115,9 +113,9 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest -q \
   test/elfie/test_cognitive_lifecycle.py \
-  test/elfie/brain/test_perceptual_workspace.py \
-  test/elfie/brain/test_coordinator.py \
-  test/elfie/brain/test_output_router.py
+  test/elfie/brain/workspace/test_system.py \
+  test/elfie/brain/reasoning/test_coordinator.py \
+  test/elfie/brain/reasoning/test_output_router.py
 ```
 
 For the full environment setup and quality gate see
@@ -132,6 +130,6 @@ For the full environment setup and quality gate see
   memory;
 - `test/elfie/body/`, `test/elfie/nervous_system/`: body and physical
   boundaries;
-- `test/elfie/communication/`, `test/elfie/brain/skills/`: messages and Skills;
+- `test/elfie/communication/`, `test/elfie/brain/reasoning/skills/`: messages and Skills;
 - `test/architecture/test_elfie_cognitive_contracts.py`: cognitive entry
   points, dependency direction, Pydantic contracts and the on-disk Schema ban.

@@ -139,6 +139,20 @@ class ElfieLabStorage:
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
+    def activity_path(self, elfie_id: str) -> Path:
+        """Return the durable Activity store path for one Lab Elfie."""
+        self._validate_id(elfie_id)
+        path = self.elfies_dir / elfie_id / "activity" / "activity.sqlite"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def journal_path(self, elfie_id: str) -> Path:
+        """Return the durable Brain journal path for one Lab Elfie."""
+        self._validate_id(elfie_id)
+        path = self.elfies_dir / elfie_id / "brain" / "journal.sqlite"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
     def save_portrait(self, elfie_id: str, content: bytes) -> Path:
         if not content.startswith(b"\x89PNG\r\n\x1a\n"):
             raise ValueError("头像必须是 PNG 图片")

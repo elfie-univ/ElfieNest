@@ -13,7 +13,7 @@ from elfie.body.contracts import (
     VisionChange,
     VisionSample,
 )
-from elfie.brain.perception_types import (
+from elfie.brain.workspace.contracts import (
     PerceptionEvent,
     PerceptionMediaSample,
     PerceptionStateUpdate,
@@ -115,6 +115,7 @@ class BodyPerceptionNormalizer:
                 payload=PhysicalPayload(
                     type="physical",
                     body_id=str(event.body_id),
+                    body_generation=event.body_generation,
                     modality=modality,
                     content=content,
                     media=media,
@@ -135,6 +136,7 @@ class BodyPerceptionNormalizer:
         return PerceptionMediaSample(
             meta=self._meta(event, event.event_id),
             body_id=str(event.body_id),
+            body_generation=event.body_generation,
             stream_id=stream_id,
             ordinal=ordinal,
             captured_at=event.occurred_at,
@@ -191,6 +193,7 @@ class BodyPerceptionNormalizer:
         return PerceptionStateUpdate(
             meta=self._meta(event, EventId(f"{event.event_id}:{suffix}")),
             body_id=str(event.body_id),
+            body_generation=event.body_generation,
             state_key=state_key,
             revision=revision,
             value=value,

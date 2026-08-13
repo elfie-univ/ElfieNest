@@ -16,9 +16,9 @@
 运行链路包含：
 
 1. Nest 推进环境时间；
-2. 身体与通信事件进入感知工作区；
+2. 身体与通信事件进入事件工作区；
 3. BrainCoordinator 组织一次认知回合；
-4. OutputRouter 将 DecisionPlan 分别路由到身体、通信或内部执行器；
+4. OutputRouter 将 DecisionPlan 分别路由到身体、通信或经过校验的跨回合活动请求；
 5. 执行回执回到下一轮感知。
 
 ## 常用入口

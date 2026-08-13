@@ -14,10 +14,12 @@ from .models import (
     ActiveSessionsResult,
     BackupDatabasesCommand,
     DatabaseBackupResult,
+    GetMobileAccessQuery,
     GetRuntimeStatusQuery,
     GetUsageStatsQuery,
     ListActiveSessionsQuery,
     ListTableCountsQuery,
+    MobileAccessResult,
     ResetDatabasesCommand,
     RuntimeEventResult,
     RuntimeMetadataEntry,
@@ -31,6 +33,7 @@ from .models import (
 from .port_models import StoredRuntimeEvent
 from .ports import (
     DatabaseMaintenancePort,
+    NetworkAccessProjectionPort,
     OperationsPortError,
     OperationsPortUnsafeTarget,
     OperationsProjectionPort,
@@ -44,10 +47,27 @@ class OperationsFacade:
         projection: OperationsProjectionPort,
         maintenance: DatabaseMaintenancePort,
         runtime_observer: RuntimeObserverProjectionPort,
+        network_access: NetworkAccessProjectionPort,
     ) -> None:
         self._projection = projection
         self._maintenance = maintenance
         self._runtime_observer = runtime_observer
+        self._network_access = network_access
+
+    def get_mobile_access(self, query: GetMobileAccessQuery) -> MobileAccessResult:
+        try:
+            address = self._network_access.preferred_lan_address()
+            network_name = (
+                self._network_access.current_wifi_name()
+                if address is not None
+                else None
+            )
+        except OperationsPortError as error:
+            raise OperationsUnavailable(str(error)) from error
+        return MobileAccessResult(
+            urls=(f"http://{address}:{query.http_port}",) if address else (),
+            network_name=network_name,
+        )
 
     def get_usage_stats(self, query: GetUsageStatsQuery) -> UsageStatsResult:
         _ = query

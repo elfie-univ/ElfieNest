@@ -25,6 +25,8 @@ from devtools.elfie_lab.turn_summary import model_call_summary, stimulus_modalit
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
 from elfie.factory import ElfieAssembly
+from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
+from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
@@ -68,6 +70,12 @@ class ElfieLabSession:
                 memory_store=SQLiteMemoryStoreAdapter(
                     storage.memory_path(spec.elfie_id)
                 ),
+                activity_store=SQLiteActivityStoreAdapter(
+                    storage.activity_path(spec.elfie_id)
+                ),
+                journal_store=SQLiteBrainJournalAdapter(
+                    storage.journal_path(spec.elfie_id)
+                ),
                 body=self.body,
             ),
         )
@@ -108,8 +116,16 @@ class ElfieLabSession:
             result: Dict[str, Any] = {}
             error: Optional[str] = None
             try:
-                runtime = create_runtime(food_key, self.runtime_config_dir)
-                outcome, turn_decision, receipts = self._turn_adapter.run(
+                runtime = create_runtime(
+                    food_key,
+                    self.runtime_config_dir,
+                    workspace_resolver=lambda scope_id: (
+                        self.storage.elfie_dir(scope_id)
+                        if scope_id is not None
+                        else None
+                    ),
+                )
+                outcome, turn_decision, receipts, reasoning = self._turn_adapter.run(
                     stimulus,
                     turn_id,
                     runtime,
@@ -139,6 +155,11 @@ class ElfieLabSession:
                         "output_receipts": [
                             receipt.model_dump(mode="json") for receipt in receipts
                         ],
+                        "reasoning": (
+                            reasoning.model_dump(mode="json")
+                            if reasoning is not None
+                            else None
+                        ),
                     },
                     "warnings": [],
                 }
@@ -201,6 +222,7 @@ class ElfieLabSession:
             self.created_at = utc_now()
             self.turns = []
             self._turn_adapter.close()
+            self.elfie.close_resources()
             self.body.disconnect()
             self.body = HeadlessBody(body_id=f"{self.spec.elfie_id}:headless")
             self.body.connect()
@@ -211,6 +233,12 @@ class ElfieLabSession:
                     profile=profile_store.load(),
                     memory_store=SQLiteMemoryStoreAdapter(
                         self.storage.memory_path(self.spec.elfie_id)
+                    ),
+                    activity_store=SQLiteActivityStoreAdapter(
+                        self.storage.activity_path(self.spec.elfie_id)
+                    ),
+                    journal_store=SQLiteBrainJournalAdapter(
+                        self.storage.journal_path(self.spec.elfie_id)
                     ),
                     body=self.body,
                 ),
@@ -263,6 +291,7 @@ class ElfieLabSession:
             return
         self._closed = True
         self._turn_adapter.close()
+        self.elfie.close_resources()
         self.body.disconnect()
 
     def _ensure_open(self) -> None:

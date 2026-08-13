@@ -9,7 +9,7 @@
 | ID | 严重度 | 状态 | 当前偏差 | 关闭条件 |
 | --- | --- | --- | --- | --- |
 | ELF-001 | P1 | closed | App 编排与接口生产调用方只使用受控的 `elfie.public`/`nest.public` 表面，深层领域导入已由机器门禁保护。 | `Elfie`/`ElfieFactory` 成为唯一生产聚合入口，只暴露批准的类型化能力，并删除和拦截深层调用方导入。 |
-| ELF-002 | P0 | closed | Skills 已由 Brain 在 `elfie/brain/skills/` 拥有；旧根包及其 Runtime 代理已删除。 | Brain 声明、内存策略和语义工具 key 授权有聚焦测试；已废弃的 Skill 包不再包含 Runtime Adapter、Store、路径或工具执行实现。 |
+| ELF-002 | P0 | closed | Skills 已由 Brain 在 `elfie/brain/reasoning/skills/` 拥有；旧根包及其 Runtime 代理已删除。 | Brain 声明、内存策略和语义工具 key 授权有聚焦测试；已废弃的 Skill 包不再包含 Runtime Adapter、Store、路径或工具执行实现。 |
 | ELF-003 | P0 | closed | Brain 已分别暴露强类型 `FoodPort`、`ModelPort`、`ToolPort`；Runtime 模型执行通过 Bootstrap 注入限定作用域的 Tool Adapter。 | `ToolRequest`/`ToolResult` 是封闭不可变契约，Adapter 保留全局与每只精灵的安全否决，结构化与普通路径都使用注入 Port，历史宽 Runtime 桥已移除。 |
 | ELF-004 | P0 | closed | `elfie/brain/memory/` 已移除 SQLite/Schema/Record 映射；语义算法依赖 `MemoryStorePort` 与已校验的 `MemoryMetadata`。 | Brain Memory 测试使用内存 Fake，持久化测试位于 Infrastructure，系统技术 import 精确基线清零，最终知识库重新打开行为仍有覆盖。 |
 | ELF-005 | P0 | closed | Profile 加载和路径解析由 Infrastructure/Bootstrap 拥有；`assemble_profile` 与 `ElfieFactory` 只接收类型化档案/依赖。 | `ProfileStorePort` 仍是领域边界，打包默认值来自资源，Elfie 初始化和 Factory API 不再接收存储路径或具体 Profile Repository。 |
@@ -19,12 +19,12 @@
 | ELF-009 | P1 | closed | Profile、Body、Communication、Nest Session、Runtime observation 及 Infrastructure Port 模型的公开边界均使用命名不可变模型或受限 JSON 值。永久 Port 棘轮拒绝 `Any`、`object` 和具体对等 Adapter 签名；身体/通信/Bootstrap 证据已有机器门禁。 | 保持严格 Port 棘轮和证据通过；内部算法局部映射不属于公开边界契约。 |
 | ELF-010 | P0 | open | `ElfieProfile` 仍保存 `personality`、`capabilities`、`system_limits`；`elfie/profile/defaults/` 仍把自我认知、身体能力、能量/运行默认值与不可变外貌事实混在一起。 | 先建立接收它们的 Brain/Body/NervousSystem 所有者，再在一个获批切片中迁移全部生产调用方和持久字段，最后删除三个宽泛 Profile 映射及混合默认资源，不保留 fallback read 或双 authority。 |
 | ELF-011 | P0 | closed | 私有认知协调与上下文组装已经归 Brain；Communication、Embodied、Internal 输入形成类型化单域 Turn，宿主强制响应范围，旧根认知文件已删除。 | Brain 生命周期、Lane、Scope 和决策边界聚焦测试通过；Elfie Lab 展示通信闭环的来源域、Scope、决定与投递回执。后续 Brain 能力扩展必须保持这一边界门禁。 |
-| ELF-012 | P0 | open | Body Registry/Binding 已选择当前命令身体，但尚未实现完整的虚拟/实体互斥切换、authority generation、旧回执拒绝、回滚和重启恢复契约。 | 一个明确切换状态机始终保持唯一选中传感/动作 authority，拒绝旧 generation，并在失败或重启后确定性恢复或回滚。 |
+| ELF-012 | P0 | closed | Body Registry/Binding 现在为当前身体分配 authority generation；NervousSystem 只接收当前身体代际，输出执行器拒绝切换后的旧回执，中断也回到原身体；失败切换保留旧身体。 | 阶段三 Headless/真实 Godot 验收通过；身体切换、旧事件拒绝、旧回执拒绝、连接失败回滚以及唯一当前身体均有聚焦测试和真实 `world_ready`/`intent_terminal` 证据。 |
 | ELF-013 | P1 | open | `elfie/initialization.py` 只装配 Profile 与 Anatomy，尚无 `genesis/` 所有者承载经过校验的临时创建 Bundle、Brain 种子和有界人生补全。 | Genesis 生成并校验类型化创建产物，每项只提交一次给最终所有者，不保留重复生命状态，完成后退出普通运行期。 |
-| ELF-014 | P0 | open | 当前认知已有 Workspace、Model Worker、DecisionPlan 和内部占位操作，但缺少已接受的 Persistent Activity 所有者、确定性 Preflight/Commit 分离、持久内部唤醒和回执对账。 | 已校验 Activity 跨 Turn/重启存续，只通过类型化内部事件唤醒，保持通信/具身 Step 分离，并以真实回执达到无重复副作用的终态。 |
-| ELF-015 | P1 | open | Motivation 和 Cognitive Consolidation 仍只有设计，主动自治与离线成长尚无有界运行所有者。 | 只在 Activity 稳定后实现：固定驱力带冷却地产生有界候选；无副作用整理在独立预算内只产生已校验状态候选或后续内部触发。 |
-| ELF-016 | P0 | open | 当前 Cortex 路径能够调用模型并解码 `DecisionPlan`，但 Brain 尚未拥有已接受的有界多步 Model/Skill/Tool Observation 循环、验证、抑制和完成判断。 | 一个 Reasoning Run 可以执行有界认知步骤和真实 Tool Observation，但只有结算后的 `TurnDecision` 能进入外部决策边界；超时、预算耗尽和虚假执行声明必须以无伪造成功的方式终止。 |
-| ELF-017 | P0 | open | 情绪、能量和记忆已有实现，但 Orientation 与 Selfhood 尚未成为独立 authority，完整连续生命状态也未在跨 Turn、身体切换和进程重启后统一恢复。 | 类型化 Orientation/Selfhood/Emotion/Energy/Memory Snapshot 具有明确所有者、来源/版本规则和最小持久恢复；Profile 保持不可变，短期情绪不能直接改写人格。 |
+| ELF-014 | P0 | closed | Brain 现在拥有 Persistent Activity 语义 Port 和输出边界；Lab 为每只 Elfie 注入独立 SQLite Adapter。已校验 Draft 幂等提交，等待任务通过类型化 Internal 事件唤醒，通信/具身子回执结算 Activity 进度，重启后不重复投递。 | Activity、持久化和 Lab 聚焦测试覆盖跨回合状态、唤醒、Scope 校验、回执终态、重启恢复和无重复投递。 |
+| ELF-015 | P1 | closed | 首个有界恢复 Motivation 驱力和首个有界 Cognitive Consolidation 切片现在都有 Brain 所有者与 Lab 证据。整理工作仅处理睡眠窗口中的 Episodic 记忆，不能产生外部副作用；更多主动驱力与成长仍是独立范围。 | Motivation 以冷却/满足状态控制候选；Cognitive Consolidation 以 Checkpoint 候选和固定经历预算进入内部回合，并且只有内部回执完成后才提交 Memory。Brain/Lab 聚焦测试与 Web build 通过；夜间路径不创建消息、身体动作或 Activity。 |
+| ELF-016 | P0 | closed | Brain 已拥有单个 Turn 内有界的 `ReasoningRun`：模型、认知 Tool、真实 Observation、验证和完成/失败收束均在 Brain 内部完成，外部行动仍只能由结算后的决定进入既有边界。 | 26 项聚焦 Brain/Lab 测试通过；真实 Elfie Lab 展示 Tool→Observation，虚假外部执行声明不产生外部回执，模型不可用进入明确 `failed/no_op`，紧急事件形成独立新 Turn。纯文本 Provider 的 `owner_message_fallback` 被记录为降级而非成功事实。 |
+| ELF-017 | P0 | closed | Orientation 与 Selfhood 已成为独立 authority；Emotion、Energy、Memory、Orientation、Selfhood、Motivation 与 Cognitive Consolidation 进入统一连续状态 Checkpoint。自我定位从当前 Body generation、会话、地点与 Activity 生成候选，并在 Turn Settlement 中提交。 | 聚焦状态、结算和跨模块恢复测试覆盖明确所有者、来源/版本规则、跨 Turn 恢复、陈旧 Checkpoint 拒绝，以及单轮消息不能改写人格/规范。 |
 
 ## 机器覆盖
 

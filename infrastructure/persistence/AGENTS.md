@@ -18,8 +18,8 @@
 - 不创建 `users/` 聊天目录，不在 Nest 根保留新的聊天副本；禁止创建、读取、写入或
   迁移已废弃的 `nest.db.chat_messages`。
 - Developer Tools 默认根为 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，其下分别保存
-  `elfie_lab/`、`nest_lab/`、`runtime_lab/`，不得读写生产 `ELFIE_HOME`。
+  `elfie_lab/`、`nest_lab/`，不得读写生产 `ELFIE_HOME`。
 - 新增永久数据路径必须通过 `infrastructure.persistence.layout.data_home` resolver；不得在
   局部任务中复制第二套路径规则、环境变量解析或数据布局。
-- MVP 阶段默认更新当前调用方并删除旧实现；未经用户明确批准，不新增 migration、
+- 0.x 首版阶段默认更新当前调用方并删除旧实现；未经用户明确批准，不新增 migration、
   fallback read、dual write、旧字段 alias、兼容 Repository 或长期兼容壳。

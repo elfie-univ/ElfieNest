@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, unique
-from typing import Annotated, Mapping, Optional, Tuple
+from typing import Annotated, Literal, Mapping, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints
 
@@ -85,6 +85,7 @@ class StructuredRuntimeRequest(_FrozenRuntimeModel):
     response_schema_name: _NonBlankText
     response_schema: Mapping[str, JsonValue]
     selected_mode: StructuredGenerationMode
+    reasoning_mode: Literal["fast", "long"] = "fast"
     allowed_tools: Tuple[_NonBlankText, ...]
     provider: Optional[_NonBlankText] = None
     model_key: Optional[_NonBlankText] = None

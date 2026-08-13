@@ -8,13 +8,12 @@ The unified entry point is:
 ./developer.sh --help
 ```
 
-The tools split into three mutually isolated workbenches:
+The tools split into two mutually isolated workbenches:
 
 | Tool | Entry point | Focus |
 | --- | --- | --- |
 | Elfie Lab | `./developer.sh elfie-lab` | A single Elfie's profile, perception, decisions and turns |
 | Nest Lab | `./developer.sh nest-lab` | Fixed rooms, temporary characters, Godot events and semantic motion |
-| Runtime Lab | `./developer.sh runtime-lab` | Providers, models, food, tools and safety |
 
 They can reuse the underlying libraries and the same Godot Web Runtime, but they
 must not depend on end-user auth, `ElfieNestEngine` or production data to start.
@@ -38,25 +37,24 @@ export as the real desktop run; each just provides an isolated web shell, data
 root and local protocol entry.
 
 Local ports are layered by convention: the real App uses `8000` / `8765`,
-Elfie Lab uses `9001`, Nest Lab uses `9002` / `9003`, and Runtime Lab
-does not listen on a web port. Running the default Lab command again safely
+Elfie Lab uses `9001`, and Nest Lab uses `9002` / `9003`. Running the default Lab command again safely
 restarts the old same-kind instance in the current workspace; only an explicit
 port keeps parallel instances alive, and an unknown port occupant is never
 terminated.
 
 Elfie Lab reads the isolated Runtime `nest.db` food catalog on first launch.
 The database seeds the two system rows, which appear as unconfigured until
-Ollama or a remote provider is configured; no synthetic food row is injected.
+Ollama or an OpenAI-compatible provider is configured in the page; no synthetic
+food row is injected. The configuration form only saves the selected model and
+connection. The first real turn is the model connection attempt.
 
 ## Data root
 
-The three workbenches default to `${ELFIE_DEV_HOME:-~/.elfienest-dev}` and
-write their own configuration, sessions and debug data under `elfie_lab/`,
-`nest_lab/` and `runtime_lab/` respectively. They never default to
-`${ELFIE_HOME:-~/.elfienest}`; if you explicitly pass the production root to
-Elfie Lab's Runtime configuration, it is rejected. When a Runtime Lab
-subprocess is needed, its dev root must also be explicitly passed as that
-process's `ELFIE_HOME`.
+The two workbenches default to `${ELFIE_DEV_HOME:-~/.elfienest-dev}` and
+write their own configuration, sessions and debug data under `elfie_lab/` and
+`nest_lab/`. They never default to `${ELFIE_HOME:-~/.elfienest}`; if you
+explicitly pass the production root to Elfie Lab's Runtime configuration, it
+is rejected.
 
 Local acceptance can isolate both kinds of data at once:
 

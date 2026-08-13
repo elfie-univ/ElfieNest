@@ -6,32 +6,49 @@ MemorySystem 是图记忆系统的统一入口门面（Facade），
 子系统列表：
 - MemoryStorePort: injected semantic memory persistence
 - SensoryBuffer: 短期感知缓冲
-- CoreCognition: 核心认知（4段人格信念）
+- MemorySelfNarrativeProjection: 核心认知（4段人格信念）
 - MemoryEncoder: 编码引擎
 - MemoryRetriever: 多维检索引擎
 - SpreadingActivation: 扩散激活
 - EbbinghausDecay: 衰减遗忘计算
 - EmotionWeighting: 情绪自适应加权
 - MemoryConsolidator: 巩固引擎
-- ContextAssembler: 5区域上下文组装
+- MemoryRecallFormatter: 5区域上下文组装
 - SensoryIndexer: 感官索引
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from collections import deque
+from datetime import datetime, timezone
+from threading import RLock
+from typing import Any, Callable, Dict, List, Optional
+from uuid import uuid4
 
+from elfie.brain.memory.contracts import MemoryStateSnapshot
+from elfie.brain.state_lifecycle import (
+    StateCandidate,
+    StateCheckpoint,
+    StateCommitReceipt,
+    StateCommitStatus,
+    StateRestoreError,
+    VersionedState,
+    VersionedStateStore,
+)
+from elfie.message_types import EventId
+
+from .candidates import EpisodicMemoryCandidate
 from .consolidation import MemoryConsolidator
-from .context_assembly import ContextAssembler
-from .core_cognition import CoreCognition
 from .ebbinghaus_decay import EbbinghausDecay
 from .emotion_weighting import EmotionWeighting
 from .encoding import MemoryEncoder
 from .memory_store import MemoryStorePort
 from .node_types import RetrievalQuery
+from .recall_formatter import MemoryRecallFormatter
 from .retrieval import MemoryRetriever
 from .runtime_food import MemoryModelPort
+from .self_narrative import MemorySelfNarrativeProjection
 from .sensory_buffer import SensoryBuffer
 from .sensory_index import SensoryIndexer
 from .spreading_activation import SpreadingActivation
@@ -48,12 +65,36 @@ class MemorySystem:
         *,
         elfie_id: str | None = None,
         personality_data: Optional[dict] = None,
+        clock: Callable[[], datetime] | None = None,
+        initial_at: datetime | None = None,
     ):
         """初始化所有语义组件；具体存储由 Bootstrap 注入。"""
         self.storage = storage
         self._owns_storage = False
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
+        state_at = initial_at or self._clock()
+        total_count = storage.count_nodes()
+        initial_state = MemoryStateSnapshot(
+            revision=0,
+            captured_at=state_at,
+            episodic_count=storage.count_nodes("episodic"),
+            total_count=total_count,
+            freshness="current" if total_count else "unknown",
+        )
+        self._state = VersionedStateStore(
+            VersionedState(
+                revision=0,
+                committed_at=state_at,
+                source_event_ids=(),
+                causation_id=None,
+                value=initial_state,
+            )
+        )
+        self._episode_candidate_lock = RLock()
+        self._committed_episode_candidate_ids: set[EventId] = set()
+        self._committed_episode_candidate_order = deque(maxlen=2048)
         self.sensory_buffer = SensoryBuffer()
-        self.core_cognition = CoreCognition(
+        self.self_narrative = MemorySelfNarrativeProjection(
             storage=storage,
             personality_data=personality_data,
         )
@@ -70,16 +111,16 @@ class MemorySystem:
         self.weighting = EmotionWeighting()
         self.consolidator = MemoryConsolidator(
             self.storage,
-            self.core_cognition,
+            self.self_narrative,
             elfie_id=elfie_id,
         )
-        self.context_assembler = ContextAssembler(
+        self.recall_formatter = MemoryRecallFormatter(
             self.storage,
             self.retriever,
             self.spreading,
             self.decay,
             self.weighting,
-            self.core_cognition,
+            self.self_narrative,
         )
 
     def bind_elfie_identity(
@@ -97,6 +138,7 @@ class MemorySystem:
         stimulus: Optional[str] = None,
         sensory: Optional[dict] = None,
         runtime_agent: MemoryModelPort | None = None,
+        source_event_ids: tuple[EventId, ...] = (),
         # 兼容旧API关键字参数名
         event_description: Optional[str] = None,
         emotion_tag: Optional[str] = None,
@@ -126,7 +168,62 @@ class MemorySystem:
             raise TypeError(
                 "record_episode() missing required argument: 'content' or 'event_description'"
             )
-        return self.encoder.encode(event, emo, inte, stimulus, sensory, runtime_agent)
+        node_id = self.encoder.encode(
+            event,
+            emo,
+            inte,
+            stimulus,
+            sensory,
+            runtime_agent,
+        )
+        self._commit_state(
+            source_event_ids=source_event_ids,
+            causation_id=EventId(f"memory-record:{uuid4().hex}"),
+        )
+        return node_id
+
+    def commit_episode_candidate(
+        self,
+        candidate: EpisodicMemoryCandidate,
+    ) -> StateCommitReceipt:
+        """Validate and commit one explicit Turn candidate exactly once."""
+        with self._episode_candidate_lock:
+            if candidate.candidate_id in self._committed_episode_candidate_ids:
+                return StateCommitReceipt(
+                    candidate_id=candidate.candidate_id,
+                    status=StateCommitStatus.DUPLICATE,
+                    revision=self.revision,
+                    reason="candidate_already_committed",
+                )
+            if candidate.base_revision != self.revision:
+                return StateCommitReceipt(
+                    candidate_id=candidate.candidate_id,
+                    status=StateCommitStatus.STALE,
+                    revision=self.revision,
+                    reason="base_revision_mismatch",
+                )
+            self.encoder.encode(
+                candidate.content,
+                candidate.emotion,
+                candidate.intensity,
+                candidate.stimulus,
+                None,
+                None,
+            )
+            self._commit_state(
+                source_event_ids=candidate.source_event_ids,
+                causation_id=candidate.candidate_id,
+            )
+            if len(self._committed_episode_candidate_order) == 2048:
+                oldest = self._committed_episode_candidate_order[0]
+                self._committed_episode_candidate_ids.discard(oldest)
+            self._committed_episode_candidate_order.append(candidate.candidate_id)
+            self._committed_episode_candidate_ids.add(candidate.candidate_id)
+            return StateCommitReceipt(
+                candidate_id=candidate.candidate_id,
+                status=StateCommitStatus.COMMITTED,
+                revision=self.revision,
+            )
 
     def retrieve_relevant_memories(
         self,
@@ -154,8 +251,22 @@ class MemorySystem:
         nodes = self.retriever.retrieve(retrieval_query, top_k)
         return [node.content for node in nodes]
 
+    def pending_consolidation_ids(self, limit: int = 8) -> tuple[str, ...]:
+        """Return a bounded, read-only view of episodic work awaiting consolidation."""
+        if limit < 1:
+            return ()
+        return tuple(
+            node.id
+            for node in self.storage.get_unconsolidated_nodes(node_type="episodic")[
+                :limit
+            ]
+        )
+
     def run_consolidation(
-        self, runtime_agent: MemoryModelPort | None = None
+        self,
+        runtime_agent: MemoryModelPort | None = None,
+        *,
+        max_episodes: int | None = None,
     ) -> Dict[str, Any]:
         """运行巩固流程
 
@@ -166,15 +277,69 @@ class MemorySystem:
             巩固结果字典
             {"consolidated_count": int, "knowledge_created": int, "edges_created": int}
         """
-        return self.consolidator.run_consolidation(runtime_agent)
+        result = self.consolidator.run_consolidation(
+            runtime_agent,
+            max_episodes=max_episodes,
+        )
+        if any(isinstance(value, int) and value > 0 for value in result.values()):
+            self._commit_state(
+                causation_id=EventId(f"memory-consolidation:{uuid4().hex}")
+            )
+        return result
 
-    def get_core_cognition(self) -> Dict[str, str]:
+    @property
+    def revision(self) -> int:
+        """Return the committed semantic memory-state revision."""
+        return self._state.snapshot().revision
+
+    def snapshot(
+        self,
+        captured_at: datetime | None = None,
+    ) -> MemoryStateSnapshot:
+        """Return durable-memory counts and provenance at a context cutoff."""
+        state = self._state.snapshot().value
+        return state.model_copy(update={"captured_at": captured_at or self._clock()})
+
+    def checkpoint(self) -> StateCheckpoint[MemoryStateSnapshot]:
+        """Return a persistence-neutral checkpoint for memory continuity."""
+        return self._state.checkpoint()
+
+    def validate_checkpoint(
+        self,
+        checkpoint: StateCheckpoint[MemoryStateSnapshot],
+    ) -> None:
+        """Validate revision and durable-store containment before restore."""
+        current = self._state.snapshot()
+        if checkpoint.revision < current.revision:
+            raise StateRestoreError(
+                "memory checkpoint revision is older than current state"
+            )
+        current_episodic = self.storage.count_nodes("episodic")
+        current_total = self.storage.count_nodes()
+        if current_episodic < checkpoint.value.episodic_count:
+            raise StateRestoreError(
+                "memory store no longer contains the checkpoint episodic state"
+            )
+        if current_total < checkpoint.value.total_count:
+            raise StateRestoreError(
+                "memory store no longer contains the checkpoint state"
+            )
+
+    def restore(
+        self,
+        checkpoint: StateCheckpoint[MemoryStateSnapshot],
+    ) -> None:
+        """Restore continuity metadata only after the durable store is present."""
+        self.validate_checkpoint(checkpoint)
+        self._state.restore(checkpoint)
+
+    def get_self_narrative(self) -> Dict[str, str]:
         """获取核心认知文本
 
         Returns:
             {identity: str, relation: str, world: str, tendency: str}
         """
-        return self.core_cognition.get_core_text()
+        return self.self_narrative.get_core_text()
 
     def get_all_episodes(self) -> List[Dict[str, Any]]:
         """获取所有episodic节点（兼容旧API EpisodeMemoryManager.get_all_episodes()）
@@ -202,7 +367,7 @@ class MemorySystem:
             )
         return episodes
 
-    def get_context(
+    def recall_context(
         self,
         query: str,
         emotion: str = "calm",
@@ -213,7 +378,7 @@ class MemorySystem:
     ) -> str:
         """获取5区域上下文文本
 
-        构造RetrievalQuery并调用context_assembler.assemble()，
+        构造RetrievalQuery并调用recall_formatter.assemble()，
         返回格式化上下文文本（≤800 tokens）。
 
         Args:
@@ -234,8 +399,40 @@ class MemorySystem:
             current_entities=entities or [],
             current_time=current_time or "",
         )
-        return self.context_assembler.assemble(retrieval_query, top_k=top_k)
+        return self.recall_formatter.assemble(retrieval_query, top_k=top_k)
 
     def close(self) -> None:
         """Retain the injected store's lifecycle for Bootstrap ownership."""
         return None
+
+    def _commit_state(
+        self,
+        *,
+        source_event_ids: tuple[EventId, ...] = (),
+        causation_id: EventId | None = None,
+    ) -> None:
+        """Advance the semantic revision after a successful storage mutation."""
+        current = self._state.snapshot()
+        captured_at = self._clock()
+        value = current.value.model_copy(
+            update={
+                "revision": current.revision + 1,
+                "captured_at": captured_at,
+                "episodic_count": self.storage.count_nodes("episodic"),
+                "total_count": self.storage.count_nodes(),
+                "source_event_ids": tuple(dict.fromkeys(source_event_ids)),
+                "freshness": "current",
+            }
+        )
+        candidate = StateCandidate(
+            candidate_id=EventId(f"memory-state:{uuid4().hex}"),
+            owner="memory",
+            base_revision=current.revision,
+            source_event_ids=value.source_event_ids,
+            causation_id=causation_id,
+            created_at=captured_at,
+            value=value,
+        )
+        receipt = self._state.commit(candidate)
+        if receipt.status is not StateCommitStatus.COMMITTED:
+            raise RuntimeError(f"memory state commit failed: {receipt.status.value}")

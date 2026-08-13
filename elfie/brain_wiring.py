@@ -7,20 +7,31 @@ from threading import Lock
 from typing import Callable, Mapping
 
 from elfie.body.port import BodyPort
-from elfie.brain.context_source import BrainContextState
-from elfie.brain.context_types import (
+from elfie.brain.activity.context import ActivityContextReader
+from elfie.brain.activity.system import ActivityStorePort, InMemoryActivityStore
+from elfie.brain.consolidation.system import CognitiveConsolidationSystem
+from elfie.brain.emotion.emotion_system import EmotionSystem
+from elfie.brain.energy.energy import EnergySystem
+from elfie.brain.journal import BrainJournalPort
+from elfie.brain.memory.memory_system import MemorySystem
+from elfie.brain.motivation.system import MotivationSystem
+from elfie.brain.orientation.system import OrientationSystem
+from elfie.brain.reasoning.context_source import BrainContextProvider
+from elfie.brain.reasoning.context_types import (
     BodyCapabilityDescriptor,
     ConnectedChannelDescriptor,
     EffectiveCapabilities,
 )
-from elfie.brain.emotion.emotion_system import EmotionSystem
-from elfie.brain.energy.energy import HypothalamusEnergy
-from elfie.brain.internal_output import ClosedInternalIntentSink, InternalIntentExecutor
-from elfie.brain.memory.memory_system import MemorySystem
-from elfie.brain.perceptual_workspace import PerceptualWorkspace
+from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot
+from elfie.brain.reasoning.conversation_context import ConversationContextStore
+from elfie.brain.reasoning.internal_execution import NoOpExecutor
+from elfie.brain.reasoning.memory_context import MemoryContextReader
+from elfie.brain.reasoning.model_port import ModelPort
+from elfie.brain.reasoning.skills import SkillManager
+from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.runtime import BrainRuntime
-from elfie.brain.runtime_port import ModelPort
-from elfie.brain.skills import SkillManager
+from elfie.brain.selfhood.system import SelfhoodSystem
+from elfie.brain.workspace.system import EventWorkspace
 from elfie.communication import CommunicationHub
 from elfie.communication.output_executor import CommunicationIntentExecutor
 from elfie.communication.perception_adapter import CommunicationPerceptionAdapter
@@ -36,9 +47,11 @@ class EffectiveCapabilityProjection:
         self,
         *,
         current_body: Callable[[], BodyPort | None],
+        current_body_generation: Callable[[], int | None] | None = None,
         communication: CommunicationHub,
     ) -> None:
         self._current_body = current_body
+        self._current_body_generation = current_body_generation or (lambda: 1)
         self._communication = communication
         self._signature: tuple[str, ...] | None = None
         self._revision = 0
@@ -54,8 +67,10 @@ class EffectiveCapabilityProjection:
         signature: list[str] = []
         if body is not None:
             capabilities = body.capabilities
+            body_generation = self._current_body_generation() or 1
             current_body = BodyCapabilityDescriptor(
                 body_id=body.body_id,
+                body_generation=body_generation,
                 capability_revision=capabilities.revision,
                 sensors=tuple(sorted(capabilities.sensors)),
                 actions=tuple(sorted(capabilities.actions)),
@@ -63,6 +78,7 @@ class EffectiveCapabilityProjection:
             signature.extend(
                 (
                     f"body:{body.body_id}",
+                    f"body-generation:{body_generation}",
                     f"body-revision:{capabilities.revision}",
                     f"body-connected:{body.snapshot_body(now=captured_at).connected}",
                 )
@@ -103,27 +119,48 @@ class EffectiveCapabilityProjection:
 def assemble_brain_runtime(
     *,
     elfie_id: ElfieId,
-    workspace: PerceptualWorkspace,
+    workspace: EventWorkspace,
     memory: MemorySystem,
     emotion: EmotionSystem,
-    homeostasis: HypothalamusEnergy,
+    homeostasis: EnergySystem,
+    selfhood: SelfhoodSystem,
+    profile_anchors: ProfileAnchorSnapshot,
     nervous_system: NervousSystem,
     communication: CommunicationHub,
     skills: SkillManager,
     current_body: Callable[[], BodyPort | None],
+    current_body_generation: Callable[[], int | None] | None = None,
     clock: Callable[[], datetime],
     model_port: ModelPort,
+    tool_port: ToolPort | None = None,
+    activity_store: ActivityStorePort | None = None,
+    journal_store: BrainJournalPort | None = None,
+    restore_clock: Callable[[datetime], None] | None = None,
 ) -> BrainRuntime:
     """Assemble Brain once while keeping sibling adapters outside Brain ownership."""
     communication.bind_perception_adapter(CommunicationPerceptionAdapter(workspace))
     capabilities = EffectiveCapabilityProjection(
         current_body=current_body,
+        current_body_generation=current_body_generation,
         communication=communication,
     )
-    context = BrainContextState(
-        memory=memory,
+    resolved_activity_store = activity_store or InMemoryActivityStore()
+    initial_at = clock()
+    context = BrainContextProvider(
+        memory=MemoryContextReader(memory),
+        conversations=ConversationContextStore(),
+        activities=ActivityContextReader(resolved_activity_store),
         capability_reader=capabilities.current,
         clock=clock,
+        orientation=OrientationSystem(initial_at=initial_at),
+        selfhood=selfhood,
+        motivation=MotivationSystem(initial_at=initial_at),
+        consolidation=CognitiveConsolidationSystem(
+            pending_episode_ids=memory.pending_consolidation_ids,
+            consolidate=lambda limit: memory.run_consolidation(max_episodes=limit),
+            initial_at=initial_at,
+        ),
+        profile_anchors=profile_anchors,
     )
     return BrainRuntime(
         elfie_id=elfie_id,
@@ -131,12 +168,15 @@ def assemble_brain_runtime(
         emotion=emotion,
         homeostasis=homeostasis,
         context=context,
+        memory=memory,
         clock=clock,
         model_port=model_port,
+        tool_port=tool_port,
         skills=skills,
         body_executor=NervousSystemIntentExecutor(
             nervous_system=nervous_system,
             current_body=current_body,
+            current_body_generation=current_body_generation,
             clock=clock,
         ),
         message_executor=CommunicationIntentExecutor(
@@ -145,7 +185,10 @@ def assemble_brain_runtime(
             capabilities=context,
             clock=clock,
         ),
-        internal_executor=InternalIntentExecutor(ClosedInternalIntentSink()),
+        internal_executor=NoOpExecutor(),
+        activity_store=resolved_activity_store,
+        journal_store=journal_store,
+        restore_clock=restore_clock,
     )
 
 

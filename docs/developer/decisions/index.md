@@ -12,3 +12,7 @@ The current contract always states the enforceable rule.
 - [ADR-0006: Elfie life-system ownership and one-body authority](./0006-elfie-life-system-ownership)
 - [ADR-0007: Brain Turn, mental-state and persistent-activity ownership](./0007-brain-turn-state-and-activity-ownership)
 - [ADR-0008: Public documentation information architecture](./0008-documentation-information-architecture)
+- [ADR-0009: Atomic zero-debt governance closure](./0009-zero-debt-governance-closure)
+- [ADR-0010: Desktop authority host structure follows ownership](./0010-desktop-authority-host-structure)
+- [ADR-0011: Repository-wide implementation change classification](./0011-repository-wide-change-classification)
+- [ADR-0012: Effective dependencies include dynamic execution targets](./0012-effective-dependency-targets)

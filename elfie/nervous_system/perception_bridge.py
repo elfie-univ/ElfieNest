@@ -7,18 +7,19 @@ from threading import Lock
 from typing import Deque, Iterable, List, Optional, Tuple
 
 from elfie.body.contracts import (
+    BodyId,
     BodySensorEvent,
     EmergencyStopCommand,
     TactileImpact,
 )
 from elfie.body.port import BodyPort
-from elfie.brain.perception_types import (
+from elfie.brain.workspace.contracts import (
     IngestDisposition,
     IngestReceipt,
     PerceptionEvent,
     PerceptionWrite,
 )
-from elfie.brain.workspace_ports import PerceptionSink
+from elfie.brain.workspace.ports import PerceptionSink
 from elfie.message_types import ElfieId
 from elfie.nervous_system.perception_normalizer import BodyPerceptionNormalizer
 from elfie.nervous_system.perception_reflex import (
@@ -37,6 +38,7 @@ class BodyPerceptionBridge:
         elfie_id: ElfieId,
         normalizer: BodyPerceptionNormalizer,
         body_port: Optional[BodyPort] = None,
+        body_generation: int | None = None,
         max_pending_events: int = 512,
     ) -> None:
         self._sink = sink
@@ -50,9 +52,20 @@ class BodyPerceptionBridge:
         self._state_lock = Lock()
         self._pending_lock = Lock()
         self._draining = False
+        # Bare NervousSystem tests may use this adapter without a bound Body;
+        # Elfie explicitly binds (including ``None``) and therefore enables
+        # the authority check below.
+        self._enforce_body_binding = body_port is not None
         self._reflex = BodyReflexController(
             elfie_id=elfie_id,
             body_port=body_port,
+            body_generation=body_generation,
+        )
+        self._body_id = (
+            BodyId(str(body_port.body_id)) if body_port is not None else None
+        )
+        self._body_generation = (
+            (body_generation or 1) if body_port is not None else None
         )
 
     @property
@@ -78,9 +91,22 @@ class BodyPerceptionBridge:
     def last_reflex_command(self) -> Optional[EmergencyStopCommand]:
         return self._reflex.last_command
 
-    def bind_body_port(self, body_port: Optional[BodyPort]) -> None:
+    def bind_body_port(
+        self,
+        body_port: Optional[BodyPort],
+        *,
+        body_generation: int | None = None,
+    ) -> None:
         """Update the reflex target after a Body lifecycle transition."""
-        self._reflex.bind_body_port(body_port)
+        self._reflex.bind_body_port(body_port, body_generation=body_generation)
+        with self._state_lock:
+            self._enforce_body_binding = True
+            self._body_id = (
+                BodyId(str(body_port.body_id)) if body_port is not None else None
+            )
+            self._body_generation = (
+                (body_generation or 1) if body_port is not None else None
+            )
 
     def receive(self, events: Iterable[BodySensorEvent]) -> Tuple[IngestReceipt, ...]:
         receipts: Tuple[IngestReceipt, ...] = ()
@@ -103,6 +129,42 @@ class BodyPerceptionBridge:
                         reason="body_perception_closed",
                     ),
                 )
+        with self._state_lock:
+            expected_body_id = self._body_id
+            expected_generation = self._body_generation
+        if self._enforce_body_binding and expected_body_id is None:
+            return (
+                IngestReceipt(
+                    event_id=event.event_id,
+                    disposition=IngestDisposition.REJECTED,
+                    ingest_seq=None,
+                    retryable=False,
+                    reason="no_current_body",
+                ),
+            )
+        if expected_body_id is not None and event.body_id != expected_body_id:
+            return (
+                IngestReceipt(
+                    event_id=event.event_id,
+                    disposition=IngestDisposition.REJECTED,
+                    ingest_seq=None,
+                    retryable=False,
+                    reason="foreign_body",
+                ),
+            )
+        if (
+            expected_generation is not None
+            and event.body_generation != expected_generation
+        ):
+            return (
+                IngestReceipt(
+                    event_id=event.event_id,
+                    disposition=IngestDisposition.REJECTED,
+                    ingest_seq=None,
+                    retryable=False,
+                    reason="stale_body_generation",
+                ),
+            )
         with self._state_lock:
             writes = self._normalizer.normalize(event)
             if not writes:

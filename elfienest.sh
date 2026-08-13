@@ -101,9 +101,10 @@ show_help() {
     echo "    serve --fallback       Use built-in engine (no Ollama)"
     echo "    serve --force          Force takeover conflicting ports"
     echo "    serve --port <PORT>    Specify HTTP port"
-    echo "    serve --ws-port <PORT> Specify WebSocket port"
+    echo "    serve --godot-ws-port <PORT> Specify Godot WebSocket port"
     echo "    serve --data-home PATH  Use an explicit data root"
     echo "    start --port <PORT>    Specify HTTP port for background start"
+    echo "    start --godot-ws-port <PORT> Specify Godot WebSocket port"
     echo "    start --fallback       Use built-in engine for background start"
     echo "    start --data-home PATH  Use an explicit data root"
     echo ""
@@ -182,9 +183,10 @@ interactive_mode() {
         case "$cmd" in
             "" ) continue ;;
             exit|quit|q) echo ""; echo "  Goodbye! 🦊"; echo ""; exit 0 ;;
-            help|h|?) show_help ;;
+            help|h|\?) show_help ;;
             serve) ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py serve "${args[@]}" ;;
-            config|owner|doctor|status|web|desktop|mobile|stop|restart|start|version|v|setup|uninstall)
+            v) ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py version "${args[@]}" ;;
+            config|owner|doctor|status|web|desktop|mobile|stop|restart|start|version|setup|uninstall)
                 ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py "$cmd" "${args[@]}" ;;
             *)
                 echo ""
@@ -208,10 +210,13 @@ else
         shift
         "$PYTHON_BIN" scripts/elfienest.py serve "$@"
         ;;
-    --help|-h)
+    help|h|\?|--help|-h)
         show_logo
         show_help
         exit 0
+        ;;
+    v)
+        "$PYTHON_BIN" scripts/elfienest.py version
         ;;
     *)
         "$PYTHON_BIN" scripts/elfienest.py "$@"

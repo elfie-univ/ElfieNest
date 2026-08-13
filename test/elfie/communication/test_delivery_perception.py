@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from elfie.brain.perception_types import ExecutionStatus, IngestReceipt, TriggerReason
-from elfie.brain.perceptual_workspace import PerceptualWorkspace
+from elfie.brain.workspace.contracts import ExecutionStatus, IngestReceipt, TriggerReason
+from elfie.brain.workspace.system import EventWorkspace
 from elfie.communication import (
     CommunicationEnvelope,
     CommunicationHub,
@@ -104,7 +104,7 @@ def outbound(index: int) -> CommunicationEnvelope:
 
 def test_outbound_terminal_receipts_preserve_full_correlation() -> None:
     # Given: one connected channel returning three terminal delivery states.
-    workspace = PerceptualWorkspace(elfie_id=ELFIE_ID)
+    workspace = EventWorkspace(elfie_id=ELFIE_ID)
     hub = CommunicationHub(
         "elfie-1",
         perception_adapter=CommunicationPerceptionAdapter(workspace),
@@ -155,7 +155,7 @@ def test_outbound_terminal_receipts_preserve_full_correlation() -> None:
 
 def test_hub_retry_perception_flattens_delivery_ingest_receipts() -> None:
     # Given: a full workspace retains one outbound delivery fact for retry.
-    workspace = PerceptualWorkspace(elfie_id=ELFIE_ID, journal_capacity=1)
+    workspace = EventWorkspace(elfie_id=ELFIE_ID, journal_capacity=1)
     hub = CommunicationHub(
         "elfie-1",
         perception_adapter=CommunicationPerceptionAdapter(workspace),

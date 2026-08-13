@@ -265,10 +265,11 @@ class TestCallOllamaApi:
 
                 assert data["model"] == "llama3"
                 assert data["stream"] is False
+                assert data["think"] is False
                 assert "options" in data
                 assert data["options"]["temperature"] == 0.7
                 assert data["options"]["num_predict"] == 100
-                assert data["options"]["think"] is False
+                assert "think" not in data["options"]
 
 
 class TestCallOpenaiCompatibleApi:

@@ -30,7 +30,7 @@ uv lock --check
 ```bash
 # 示例：只修改认知协调器
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/elfie/brain/test_coordinator.py
+  uv run --no-sync pytest test/elfie/brain/reasoning/test_coordinator.py
 
 # 所有跨模块或目录边界改动都要运行
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
@@ -71,15 +71,14 @@ pre-commit 与 CI 还会运行 Gitleaks。不要用 `--no-verify` 绕过密钥�
 
 ./developer.sh nest-lab \
   --data-dir /tmp/elfienest-nest-lab --port 9002
-
-./developer.sh runtime-lab \
-  --config-dir /tmp/elfienest-runtime-lab show
 ```
 
 - Elfie Lab 检查单精灵档案、感知、决策与回合；
 - Nest Lab 启动隔离 Nest、独立的 Godot v2 网关和可选的浏览器房间预览；它不启动
   `ElfieNestEngine`，也不读取生产数据；
-- Runtime Lab 检查 Provider、模型配置和连接，不监听端口。
+- Elfie Lab 的实验配置可以选择本地已安装的 Ollama 模型，或保存 OpenAI 兼容服务的
+  URL、Token 和模型作为一份 Lab 测试粮食。它不提前验证连接，第一次真实回合才会尝试
+  调用模型。
 
 默认端口只是本地开发值。不要把实验台接入普通用户导航，也不要让它们使用默认
 生产数据。正式 App 使用 `8000` / `8765`，Elfie Lab 使用 `9001`，Nest Lab

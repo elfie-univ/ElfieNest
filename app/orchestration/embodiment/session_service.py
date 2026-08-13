@@ -57,10 +57,9 @@ class EmbodimentSessionService:
             current = self._leases.get(elfie_id)
             return EmbodimentConflict(state=current.state, reason=str(error))
 
-        existing = elfie.body_registry.get(body.body_id)
-        if existing is None:
+        if not elfie.has_body(body.body_id):
             elfie.register_body(body)
-        elif existing is not body:
+        elif not elfie.is_registered_body(body):
             restored = self._leases.abort_hosting(elfie_id, switching.lease_version)
             return HostingFailed(
                 restored_state=restored.state,
@@ -105,7 +104,7 @@ class EmbodimentSessionService:
         current = self._leases.expire(elfie_id, now=now)
         if (
             current.state is EmbodimentState.OFFLINE
-            and before.body_id == elfie.body_binding.current_body_id
+            and before.body_id == elfie.current_body_id
         ):
             elfie.unbind_body()
         return current

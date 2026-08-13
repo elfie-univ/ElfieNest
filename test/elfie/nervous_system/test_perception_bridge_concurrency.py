@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 
 from elfie.body.contracts import UtteranceFinal
-from elfie.brain.perception_types import (
+from elfie.brain.workspace.contracts import (
     IngestDisposition,
     IngestReceipt,
     PerceptionWrite,

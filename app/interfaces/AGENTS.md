@@ -11,3 +11,6 @@
 - 页面和客户端不是业务事实源。Web、Desktop、CLI、Setup 和未来移动端复用同一产品
   用例，只获得不同权限投影。
 - 子目录可细化各自协议，但不能新建重复的业务实现或 Runtime authority。
+- 动态启动与动态加载也算依赖：不得通过 `python -m`、脚本路径、subprocess、Node
+  子进程、Shell 命令、`importlib` 或 `runpy` 绕开公开 Feature/Orchestration 边界。
+  Interface 需要进程能力时只能调用公开 lifecycle facade 或注入的窄 Port。

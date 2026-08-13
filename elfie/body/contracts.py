@@ -30,6 +30,7 @@ _PositiveDimension = Annotated[int, Field(strict=True, gt=0)]
 _NonNegativeFloat = Annotated[float, Field(strict=True, ge=0)]
 _Ratio = Annotated[float, Field(strict=True, ge=0, le=1)]
 _Revision = Annotated[int, Field(strict=True, ge=1)]
+_Generation = Annotated[int, Field(strict=True, ge=1)]
 
 BodyId = NewType("BodyId", _NonBlankText)
 
@@ -95,6 +96,7 @@ SensorPayload: TypeAlias = Annotated[
 class BodySensorEvent(FrozenContractModel):
     event_id: EventId
     body_id: BodyId
+    body_generation: _Generation = 1
     source: ActorRef
     occurred_at: UTCDateTime
     received_at: UTCDateTime
@@ -109,6 +111,7 @@ class _CommandBase(FrozenContractModel):
     issued_at: UTCDateTime
     deadline: UTCDateTime
     capability_revision: _Revision
+    body_generation: _Generation = 1
 
     @model_validator(mode="after")
     def deadline_follows_issue_time(self) -> _CommandBase:
@@ -176,6 +179,7 @@ class CommandReceipt(FrozenContractModel):
     status: CommandStatus
     occurred_at: UTCDateTime
     capability_revision: _Revision
+    body_generation: _Generation = 1
     error: Optional[ErrorInfo] = None
 
     @model_validator(mode="after")
@@ -215,6 +219,7 @@ class CommandReceipt(FrozenContractModel):
             status=status,
             occurred_at=occurred_at,
             capability_revision=command.capability_revision,
+            body_generation=command.body_generation,
             error=error,
         )
 
@@ -237,6 +242,7 @@ class BodySnapshot(FrozenContractModel):
     captured_at: UTCDateTime
     connected: bool
     capability_revision: _Revision
+    body_generation: _Generation = 1
     pending_event_count: Annotated[int, Field(strict=True, ge=0)] = 0
     last_command_id: Optional[CommandId] = None
     last_status: Optional[CommandStatus] = None

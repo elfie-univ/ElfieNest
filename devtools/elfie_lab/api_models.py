@@ -1,6 +1,6 @@
 """Elfie Lab HTTP 边界请求模型。"""
 
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -26,12 +26,47 @@ class BigFiveUpdateRequest(BaseModel):
     neuroticism: float = Field(ge=0.0, le=1.0)
 
 
+class ConfigureFoodRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["local", "openai"]
+    model: str = Field(min_length=1, max_length=200)
+    api_base: Optional[str] = Field(default=None, max_length=500)
+    api_key: Optional[str] = Field(default=None, max_length=2000)
+    alias: Optional[str] = Field(default=None, max_length=80)
+
+    @model_validator(mode="after")
+    def validate_connection_fields(self) -> "ConfigureFoodRequest":
+        if self.mode == "openai":
+            if not self.api_base or not self.api_base.strip():
+                raise ValueError("OpenAI 兼容服务必须填写 URL")
+            if not self.api_key or not self.api_key.strip():
+                raise ValueError("OpenAI 兼容服务必须填写 Token")
+        elif self.api_key and self.api_key.strip():
+            raise ValueError("本地模型不需要 Token")
+        return self
+
+
+class MessageAttachmentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    media_id: str = Field(min_length=1, max_length=70)
+    filename: str = Field(
+        min_length=1,
+        max_length=160,
+        pattern=r"^\S(?:.*\S)?$",
+    )
+
+
 class TurnRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     source_domain: Literal["communication", "embodied"]
     message: str = Field(default="", max_length=8000)
     vision_media_id: Optional[str] = Field(default=None, max_length=70)
+    attachments: List[MessageAttachmentRequest] = Field(
+        default_factory=list, max_length=5
+    )
     food_key: str = Field(min_length=1, max_length=40)
     temperature: float = Field(default=24.0, ge=-50.0, le=100.0)
     is_network_online: bool = True
@@ -44,8 +79,8 @@ class TurnRequest(BaseModel):
     @model_validator(mode="after")
     def validate_source_domain(self) -> "TurnRequest":
         if self.source_domain == "communication":
-            if not self.message.strip():
-                raise ValueError("通信输入必须包含消息")
+            if not self.message.strip() and not self.attachments:
+                raise ValueError("通信输入必须包含消息或附件")
             if (
                 self.vision_media_id is not None
                 or self.impact_force > 0
@@ -53,6 +88,8 @@ class TurnRequest(BaseModel):
                 or self.salience_score >= 70
             ):
                 raise ValueError("通信输入不能混入具身刺激")
+        elif self.attachments:
+            raise ValueError("具身输入不能混入通信附件")
         return self
 
 
@@ -62,7 +99,9 @@ class PortraitRequest(BaseModel):
 
 __all__ = (
     "BigFiveUpdateRequest",
+    "ConfigureFoodRequest",
     "CreateElfieRequest",
+    "MessageAttachmentRequest",
     "PortraitRequest",
     "TurnRequest",
 )

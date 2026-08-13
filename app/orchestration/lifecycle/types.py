@@ -11,6 +11,10 @@ class ServiceLifecycleError(Exception):
     """Base class for expected service lifecycle errors."""
 
 
+class FrontendPreparationError(ServiceLifecycleError):
+    """The source Web client could not be prepared for Runtime launch."""
+
+
 @dataclass(frozen=True)
 class RecoveryInProgressError(ServiceLifecycleError):
     """A startup or recovery operation could not acquire the lifecycle lease."""

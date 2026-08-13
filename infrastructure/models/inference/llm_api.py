@@ -24,6 +24,7 @@ def call_llm_api(
     temperature: float,
     max_tokens: int,
     *,
+    thinking: bool = False,
     request_options: dict[str, Any] | None = None,
 ) -> str:
     provider_cfg: dict[str, Any] = config.providers.get(provider, {})
@@ -82,6 +83,12 @@ def call_llm_api(
             )
         if api_mode == "codex_responses":
             pass
+        elif api_mode == "ollama":
+            response_text, usage = dispatch_fn(
+                *args,
+                thinking=thinking,
+                request_options=dict(request_options) if request_options else None,
+            )
         elif request_options:
             response_text, usage = dispatch_fn(
                 *args, request_options=dict(request_options)

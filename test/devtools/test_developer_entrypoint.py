@@ -21,7 +21,7 @@ def test_developer_tools_are_explicit_and_do_not_include_user_service() -> None:
     names = tuple(tool.name for tool in tools)
 
     # Then
-    assert names == ("elfie-lab", "runtime-lab", "nest-lab")
+    assert names == ("elfie-lab", "nest-lab")
     assert "serve" not in names
 
 
@@ -48,7 +48,6 @@ def test_default_developer_tools_resolve_under_developer_home(
 
     assert tuple(tool.data_root for tool in tools) == (
         developer_home / "elfie_lab",
-        developer_home / "runtime_lab",
         developer_home / "nest_lab",
     )
 

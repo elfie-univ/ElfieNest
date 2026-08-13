@@ -32,7 +32,6 @@ from devtools.elfie_lab.session_registry import SessionBusyError, SessionRegistr
 from devtools.elfie_lab.static_host import mount_static_surfaces
 from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.elfie_lab.system_routes import build_system_router
-from devtools.runtime_lab import RuntimeLabConfigStore
 from devtools.web_host import frontend_shell
 from infrastructure.persistence.layout.data_home import (
     get_elfie_developer_home,
@@ -47,17 +46,16 @@ def create_app(
     on_ready: Optional[Callable[[], None]] = None,
 ) -> FastAPI:
     storage = ElfieLabStorage(data_dir)
-    runtime_root = runtime_config_dir or str(get_elfie_developer_home() / "runtime_lab")
+    runtime_root = runtime_config_dir or str(storage.root / "runtime")
     if Path(runtime_root).expanduser().resolve() == get_elfie_home().resolve():
         raise ValueError("Elfie Lab 不得使用生产 ELFIE_HOME 作为运行时配置目录")
-    runtime_store = RuntimeLabConfigStore(runtime_root)
-    food_store = runtime_food_support.runtime_food_catalog_store(runtime_store)
-    configure_runtime_command = runtime_food_support.runtime_lab_command(runtime_store)
+    runtime = runtime_food_support.ElfieLabRuntime(runtime_root)
+    food_store = runtime_food_support.runtime_food_catalog_store(runtime)
     developer_runtime = (
-        Path(runtime_store.root).resolve()
-        == (get_elfie_developer_home() / "runtime_lab").resolve()
+        runtime.root.resolve()
+        == (get_elfie_developer_home() / "elfie_lab" / "runtime").resolve()
     )
-    sessions = SessionRegistry(storage, str(runtime_store.root))
+    sessions = SessionRegistry(storage, str(runtime.root))
     recycle_store = RecycleStore(storage.root)
     media_store = ElfieLabMediaStore(storage.root)
 
@@ -81,15 +79,14 @@ def create_app(
     app.state.sessions = sessions
     app.state.recycle_store = recycle_store
     app.state.media_store = media_store
-    app.state.runtime_store = runtime_store
+    app.state.runtime = runtime
     app.state.food_store = food_store
     mount_static_surfaces(app)
     app.include_router(build_profile_router(storage, sessions))
     app.include_router(
         build_system_router(
-            runtime_store,
+            runtime,
             food_store,
-            configure_runtime_command,
             developer_runtime=developer_runtime,
         )
     )
@@ -199,9 +196,8 @@ def create_app(
         try:
             food = find_food_item(
                 food_key,
-                runtime_store,
+                runtime,
                 food_store,
-                configure_runtime_command,
             )
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -211,15 +207,14 @@ def create_app(
                 detail=f"Runtime 粮食目录中不存在粮食: {food_key}",
             )
         if not food["ready_for_attempt"]:
-            command = next(iter(food["setup_commands"]), "")
-            command_hint = f"；请运行：{command}" if command else ""
             raise HTTPException(
                 status_code=422,
-                detail=f"粮食“{food['display_name']}”尚未就绪：{food['unavailable_reason']}{command_hint}",
+                detail=f"粮食“{food['display_name']}”尚未配置：{food['unavailable_reason']}",
             )
         if (
             not request.message.strip()
             and request.vision_media_id is None
+            and not request.attachments
             and not request.state_injection
             and not any(
                 [
@@ -236,10 +231,20 @@ def create_app(
                 if request.vision_media_id is not None
                 else None
             )
+            message_attachments = [
+                {
+                    **media_store.descriptor_for(
+                        elfie_id, attachment.media_id
+                    )._asdict(),
+                    "filename": attachment.filename,
+                }
+                for attachment in request.attachments
+            ]
             stimulus = StimulusBundle(
                 source_domain=request.source_domain,
                 message=request.message,
                 vision_media=vision_media,
+                message_attachments=message_attachments,
                 temperature=request.temperature,
                 is_network_online=request.is_network_online,
                 salience_score=request.salience_score,

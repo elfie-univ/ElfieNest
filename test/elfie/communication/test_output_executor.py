@@ -1,6 +1,6 @@
 """Integration tests for MessageIntent crossing CommunicationHub."""
 
-from elfie.brain.output_types import IntentExecutionResult
+from elfie.brain.reasoning.execution_types import IntentExecutionResult
 from elfie.communication import (
     CommunicationEnvelope,
     CommunicationHub,
@@ -8,7 +8,7 @@ from elfie.communication import (
     DeliveryStatus,
 )
 from elfie.communication.output_executor import CommunicationIntentExecutor
-from test.elfie.brain.test_output_router import (
+from test.elfie.brain.reasoning.test_output_router import (
     ELFIE_ID,
     NOW,
     StaticCapabilities,

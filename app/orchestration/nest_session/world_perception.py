@@ -35,11 +35,13 @@ def collect_world_sensory_events(
     body_id = BodyId(
         str(getattr(current_body, "body_id", "") or f"nest-body:{elfie_id}")
     )
+    body_generation = int(getattr(elfie, "current_body_generation", 1) or 1)
     for speech in nest.consume_speech_events(elfie_id):
         events.append(
             BodySensorEvent(
                 event_id=EventId(speech["event_id"]),
                 body_id=body_id,
+                body_generation=body_generation,
                 source=ActorRef(
                     actor_id=ActorId(speech["sender_id"]),
                     source_kind="elfie",
@@ -59,6 +61,7 @@ def collect_world_sensory_events(
             BodySensorEvent(
                 event_id=EventId(f"nest-touch:{uuid4().hex}"),
                 body_id=body_id,
+                body_generation=body_generation,
                 source=ActorRef(
                     actor_id=ActorId("nest-room"),
                     source_kind="room",

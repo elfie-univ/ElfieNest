@@ -1,15 +1,14 @@
 # Application architecture contract
 
-**Contract version:** 1.5
-**Adopted:** 2026-08-10
-**Scope:** `app/` and App-owned adapters migrating to root `infrastructure/`
+**Contract version:** 1.7
+**Adopted:** 2026-08-12
+**Scope:** `app/` and App-owned adapters in root `infrastructure/`
 
 > **Normative target.** This document is the long-term architecture authority
-> for new and migrated code under `app/`. It defines ownership, dependency
-> direction and boundary semantics; it does not claim that every legacy path
-> already conforms. Current deviations are listed in
-> [Application conformance](../conformance/application). The English and Chinese
-> files are language mirrors and change together.
+> for code under `app/`. It defines ownership, dependency direction and boundary
+> semantics. The registered App migration debt is closed; permanent scanners and
+> architecture tests enforce this target directly. The English and Chinese files
+> are language mirrors and change together.
 
 The authority order is:
 
@@ -17,11 +16,12 @@ The authority order is:
 2. `app/AGENTS.md` summarizes the contract for implementation work;
 3. child `AGENTS.md` files may refine local rules but may not reverse this contract;
 4. architecture tests enforce machine-checkable parts;
-5. the conformance register records temporary gaps and never grants a new exception.
+5. temporary gaps require a registered conformance entry and never grant a new
+   exception.
 
 A deliberate change to ownership or dependency direction requires an explicit
-contract-version change before implementation. Ordinary migration work updates
-code, tests and the conformance register without rewriting the target.
+contract-version change before implementation. Ordinary implementation work does
+not rewrite the target.
 
 ## Goals and deliberate non-goals
 
@@ -55,9 +55,9 @@ the table because the App dependency contract must define that edge explicitly.
 
 ## Target App business and workflow map
 
-The following directory map is normative for migrated App code. It freezes
-ownership and migration units; it does not require empty directories to exist
-before their real slice starts.
+The following directory map is normative for App code. It freezes ownership;
+it does not require empty directories to exist before a real capability needs
+them.
 
 ```text
 app/features/
@@ -128,7 +128,7 @@ directory names use snake_case while public URLs follow the API contract's
 kebab-case rules. `/api/health` remains the sole unversioned technical probe.
 
 `app/bootstrap/` remains one composition root and has no business-domain mirror
-requirement. Each vertical migration slice adds only the wiring it needs.
+requirement. Each vertical capability slice adds only the wiring it needs.
 
 There are two application planes. `features/` handles product use-cases that can
 be reasoned about inside one business authority. `orchestration/` coordinates a
@@ -156,6 +156,14 @@ The detailed matrix is:
 | Orchestration | public Feature contracts, orchestration-owned Ports, public `elfie`/`nest` APIs | Interface, Bootstrap, concrete Infrastructure |
 | Infrastructure | Feature/Orchestration contracts it implements; technical libraries | Interface, Bootstrap, product rules or private Feature internals |
 | Bootstrap | all construction targets | Any product decision beyond wiring and lifecycle |
+
+The matrix applies to effective dependencies, not only Python imports. A CLI,
+Desktop, API or Web entry cannot bypass its Interface boundary by launching a
+forbidden repository module through `python -m`, a script path, subprocess,
+Node child process, shell command or dynamic loader. A resolvable process target
+is checked as though the caller imported that target directly. Variable launch
+plans belong behind an injected Port or in Bootstrap; putting a module name in a
+string is not dependency inversion.
 
 No App layer may form an import cycle. A Feature exposes its stable use-cases and
 boundary models through its package facade; another Feature or Interface does
@@ -324,23 +332,26 @@ The API-specific resource, versioning and DTO rules are refined in
 `app/interfaces/api/AGENTS.md`. The App contract remains authoritative for
 dependency direction and ownership.
 
-## Machine enforcement and migration
+## Machine enforcement and change acceptance
 
 `scripts/architecture/app_layer_scan.py` scans the dependency graph, Feature
 isolation, composition boundary, route model requirements and selected public
 typing rules. `test/architecture/test_app_layer_boundaries.py` protects that
-scanner and the surrounding contract. Its exact legacy baseline is temporary
-and linked to gap IDs in the conformance register. The baseline must match
-current debt exactly: removing debt requires shrinking it in the same change;
-adding or restoring an entry fails.
+scanner and the surrounding contract. The scanner runs permanently in deny-all
+mode without a legacy App baseline; every detected entry fails.
 
-The repository-level change process, contract/ledger lifecycle and base-branch
+`scripts/architecture/effective_dependency_scan.py` also scans repository-owned
+Python, Node, Godot and shell execution surfaces for resolvable dynamic module
+and script targets. It reuses this contract's dependency matrix, has no legacy
+baseline and runs permanently in deny-all mode.
+
+The repository-level change process, temporary-debt lifecycle and base-branch
 ratchet are defined by the
 [repository architecture governance contract](./repository-governance). This
 contract defines the App target; it cannot approve its own machine exceptions.
 
-Migration is completed one business domain at a time. A domain is done only
-when all of the following are true:
+A new or changed business-domain slice is done only when all of the following
+are true:
 
 1. routes, callers, services, adapters and fact sources are inventoried;
 2. one public Feature facade and strict command/query/result models exist;
@@ -350,10 +361,9 @@ when all of the following are true:
 6. authorization and Principal behavior have focused tests;
 7. transaction/file/external-workflow semantics have focused tests;
 8. errors, timeouts, retries and idempotency are tested where applicable;
-9. all production callers use the new path;
-10. old routes, DTOs, adapters, compatibility branches and fixtures are removed;
-11. the exact architecture baseline and conformance rows are reduced;
-12. at least one real end-to-end use-case proves the final chain.
+9. all production callers use the authoritative path;
+10. replaced routes, DTOs, adapters, compatibility branches and fixtures are removed;
+11. at least one real end-to-end use-case proves the final chain.
 
-An item can be marked closed only with code and test evidence. A registered gap
-does not permit new code to repeat it.
+Any future temporary gap follows the repository governance contract and does
+not permit new code to repeat it.

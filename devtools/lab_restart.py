@@ -115,7 +115,7 @@ class DefaultRestartInspector:
 
 
 def default_lab_ports(tool: DeveloperTool) -> tuple[int, ...]:
-    """返回网页 Lab 的默认监听端口；Runtime Lab 没有网页端口。"""
+    """Return the default web port(s) for a web Lab."""
     if tool.default_port is None:
         return ()
     if tool.name == "nest-lab":

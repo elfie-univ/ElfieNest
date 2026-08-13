@@ -38,11 +38,11 @@ class MemoryConsolidator:
     def __init__(
         self,
         storage: MemoryStorePort,
-        core_cognition=None,
+        self_narrative=None,
         elfie_id: str | None = None,
     ):
         self.storage = storage
-        self.core_cognition = core_cognition
+        self.self_narrative = self_narrative
         self._consolidation_count = 0  # 巩固次数计数
         self._knowledge_counter = 0  # 知识节点ID计数器
         self._pattern_counter = 0  # pattern节点ID计数器
@@ -51,7 +51,10 @@ class MemoryConsolidator:
         self.elfie_id = elfie_id
 
     def run_consolidation(
-        self, runtime_agent: MemoryModelPort | None = None
+        self,
+        runtime_agent: MemoryModelPort | None = None,
+        *,
+        max_episodes: int | None = None,
     ) -> Dict[str, Any]:
         """执行巩固流程（8.5步骤，含pattern发现）
 
@@ -76,7 +79,7 @@ class MemoryConsolidator:
         }
 
         # 步骤1：收集未巩固episodic节点
-        episodic_nodes = self._collect_unconsolidated()
+        episodic_nodes = self._collect_unconsolidated(limit=max_episodes)
         if not episodic_nodes:
             logger.info("巩固跳过：没有未巩固的episodic节点")
             return result
@@ -154,9 +157,9 @@ class MemoryConsolidator:
         result["knowledge_created"] = len(all_knowledge_ids)
 
         # 核心认知更新
-        if self.core_cognition is not None:
+        if self.self_narrative is not None:
             try:
-                self.core_cognition.update(
+                self.self_narrative.update(
                     consolidation_results=result,
                     runtime_agent=runtime_agent,
                 )
@@ -176,9 +179,10 @@ class MemoryConsolidator:
     # 步骤1：收集
     # ------------------------------------------------------------------
 
-    def _collect_unconsolidated(self) -> List[MemoryNode]:
+    def _collect_unconsolidated(self, limit: int | None = None) -> List[MemoryNode]:
         """步骤1：收集未巩固episodic节点"""
-        return self.storage.get_unconsolidated_nodes(node_type="episodic")
+        nodes = self.storage.get_unconsolidated_nodes(node_type="episodic")
+        return nodes if limit is None else nodes[: max(0, limit)]
 
     # ------------------------------------------------------------------
     # 步骤2：分组

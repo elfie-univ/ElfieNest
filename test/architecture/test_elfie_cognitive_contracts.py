@@ -14,7 +14,7 @@ from elfie.body.contracts import BodyCommand as ContractBodyCommand
 from elfie.brain import (
     BrainContext,
     DecisionPlan,
-    PerceptualWorkspace,
+    EventWorkspace,
     ToolPort,
     ToolRequest,
     ToolResult,
@@ -27,27 +27,49 @@ from elfie.communication import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ELFIE_ROOT = PROJECT_ROOT / "elfie"
-REQUIRED_BRAIN_FILES = frozenset(
+REQUIRED_BRAIN_SYSTEMS = frozenset(
     {
+        "workspace",
+        "orientation",
+        "selfhood",
+        "emotion",
+        "energy",
+        "motivation",
+        "memory",
+        "reasoning",
+        "activity",
+        "consolidation",
+    }
+)
+FORBIDDEN_FLAT_BRAIN_MODULES = frozenset(
+    {
+        "activity.py",
+        "context_builder.py",
+        "context_source.py",
         "context_types.py",
-        "decision_types.py",
+        "cortical_worker.py",
+        "limbic_appraiser.py",
+        "motivation.py",
+        "offline_cognition.py",
+        "orientation.py",
         "perception_types.py",
         "perceptual_workspace.py",
-        "runtime_port.py",
+        "selfhood.py",
     }
 )
 
 
-def test_brain_root_contains_facilities_without_a_fourth_layer_package() -> None:
+def test_brain_has_ten_owned_system_packages_without_flat_legacy_duplicates() -> None:
     # Given
     brain_root = ELFIE_ROOT / "brain"
     entries = {path.name for path in brain_root.iterdir()}
 
     # When / Then
-    assert REQUIRED_BRAIN_FILES <= entries
-    assert not any((brain_root / "perception").glob("*.py"))
-    assert not any((brain_root / "cognition").glob("*.py"))
-    assert not (brain_root / "brain_types.py").exists()
+    assert REQUIRED_BRAIN_SYSTEMS <= entries
+    assert all(
+        (brain_root / name / "__init__.py").is_file() for name in REQUIRED_BRAIN_SYSTEMS
+    )
+    assert FORBIDDEN_FLAT_BRAIN_MODULES.isdisjoint(entries)
 
 
 def test_elfie_does_not_reverse_import_application_or_runtime_layers() -> None:
@@ -84,7 +106,7 @@ def test_elfie_does_not_reverse_import_application_or_runtime_layers() -> None:
 def test_app_inbound_callers_use_curated_elfie_and_nest_surfaces() -> None:
     """App callers do not reach through domain internals for production entry points."""
     offenders: list[str] = []
-    for relative_root in ("app/orchestration", "app/interfaces"):
+    for relative_root in ("app/bootstrap", "app/orchestration", "app/interfaces"):
         for path in (PROJECT_ROOT / relative_root).rglob("*.py"):
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             for node in ast.walk(tree):
@@ -121,9 +143,9 @@ def test_brain_tool_port_is_consumer_owned_and_the_legacy_skill_package_is_gone(
     None
 ):
     assert getattr(ToolPort, "_is_protocol", False)
-    assert ToolPort.__module__ == "elfie.brain.tool_port"
-    assert ToolRequest.__module__ == "elfie.brain.tool_port"
-    assert ToolResult.__module__ == "elfie.brain.tool_port"
+    assert ToolPort.__module__ == "elfie.brain.reasoning.tool_port"
+    assert ToolRequest.__module__ == "elfie.brain.reasoning.tool_port"
+    assert ToolResult.__module__ == "elfie.brain.reasoning.tool_port"
     assert not (ELFIE_ROOT / "skills").exists()
 
 
@@ -145,7 +167,7 @@ def test_canonical_cross_module_contracts_are_public() -> None:
         assert schema["type"] == "object"
     assert BodyCommand is not None
     assert BodyCommand is ContractBodyCommand
-    assert PerceptualWorkspace is not None
+    assert EventWorkspace is not None
 
 
 def test_old_product_cognition_entry_points_are_absent() -> None:

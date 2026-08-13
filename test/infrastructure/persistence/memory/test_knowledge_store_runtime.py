@@ -4,6 +4,7 @@ import sqlite3
 from pathlib import Path
 
 from elfie import ElfieFactory
+from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.memory.schema import KNOWLEDGE_TABLES
@@ -34,7 +35,7 @@ def test_factory_workspace_uses_only_final_knowledge_database(tmp_path: Path) ->
     assert db_path.is_file()
     assert _user_tables(db_path) == set(KNOWLEDGE_TABLES)
     assert not list(workspace.rglob("graph_memory.db"))
-    elfie.memory.storage.close()
+    ElfieDiagnostics(elfie).memory.storage.close()
 
 
 def test_record_reopen_retrieve_and_consolidate_uses_final_store(
@@ -50,12 +51,12 @@ def test_record_reopen_retrieve_and_consolidate_uses_final_store(
             ),
         )
     )
-    first.memory.record_episode(
+    ElfieDiagnostics(first).memory.record_episode(
         content="今天在花园看到了金色的花",
         emotion="happy",
         intensity=80.0,
     )
-    first.memory.storage.close()
+    ElfieDiagnostics(first).memory.storage.close()
 
     reopened = ElfieFactory().restore(
         ElfieAssembly(
@@ -65,13 +66,13 @@ def test_record_reopen_retrieve_and_consolidate_uses_final_store(
             ),
         )
     )
-    memories = reopened.memory.retrieve_relevant_memories("金色的花")
-    result = reopened.memory.run_consolidation()
+    memories = ElfieDiagnostics(reopened).memory.retrieve_relevant_memories("金色的花")
+    result = ElfieDiagnostics(reopened).memory.run_consolidation()
 
     assert "今天在花园看到了金色的花" in memories
     assert result["consolidated_count"] == 1
     assert not list(workspace.rglob("graph_memory.db"))
-    reopened.memory.storage.close()
+    ElfieDiagnostics(reopened).memory.storage.close()
 
 
 def test_product_memory_modules_do_not_reference_legacy_graph_store() -> None:
@@ -81,7 +82,7 @@ def test_product_memory_modules_do_not_reference_legacy_graph_store() -> None:
         "encoding.py",
         "retrieval.py",
         "spreading_activation.py",
-        "core_cognition.py",
+        "self_narrative.py",
         "consolidation.py",
         "sensory_index.py",
         "context_assembly.py",

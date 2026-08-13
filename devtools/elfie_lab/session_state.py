@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from elfie import Elfie
+from elfie.diagnostics import ElfieDiagnostics
 
 
 class StateInjectionError(ValueError):
@@ -24,41 +25,54 @@ def apply_state_injection(
         raise StateInjectionError(f"不支持的状态注入字段: {', '.join(sorted(unknown))}")
 
     changes: Dict[str, Any] = {}
+    diagnostics = ElfieDiagnostics(elfie)
+    energy = diagnostics.energy
+    emotion = diagnostics.emotion
+    energy_changed = False
+    emotion_changed = False
     if "energy" in injection:
         value = _bounded_number(injection["energy"], "energy")
         changes["energy"] = {
-            "before": elfie.hypothalamus.energy,
+            "before": energy.energy,
             "after": value,
         }
-        elfie.hypothalamus.energy = value
+        energy.energy = value
+        energy_changed = True
     if "fatigue" in injection:
         value = _bounded_number(injection["fatigue"], "fatigue")
         changes["fatigue"] = {
-            "before": elfie.hypothalamus.fatigue,
+            "before": energy.fatigue,
             "after": value,
         }
-        elfie.hypothalamus.fatigue = value
+        energy.fatigue = value
+        energy_changed = True
     if "is_sleeping" in injection:
         value = bool(injection["is_sleeping"])
         changes["is_sleeping"] = {
-            "before": elfie.hypothalamus.is_sleeping,
+            "before": energy.is_sleeping,
             "after": value,
         }
-        elfie.hypothalamus.is_sleeping = value
+        energy.is_sleeping = value
+        energy_changed = True
     if "emotions" in injection:
         emotions = injection["emotions"]
         if not isinstance(emotions, dict):
             raise StateInjectionError("emotions 必须是字典")
         changes["emotions"] = {}
         for name, raw_value in emotions.items():
-            if name not in elfie.amygdala.emotions:
+            if name not in emotion.emotions:
                 raise StateInjectionError(f"未知情绪: {name}")
             value = _bounded_number(raw_value, name)
             changes["emotions"][name] = {
-                "before": elfie.amygdala.emotions[name],
+                "before": emotion.emotions[name],
                 "after": value,
             }
-            elfie.amygdala.emotions[name] = value
+            emotion.emotions[name] = value
+            emotion_changed = True
+    if energy_changed:
+        energy.revision += 1
+    if emotion_changed:
+        emotion.revision += 1
     return changes
 
 

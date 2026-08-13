@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import getpass
+import io
 import warnings
+from unittest.mock import patch
 
 from _pytest.monkeypatch import MonkeyPatch
 
 from app.interfaces.cli.tui import common
 from app.interfaces.cli.tui.config_editors import config_llm
 from infrastructure.platform.terminal_menu import MenuItem, TerminalMenu
+
+
+class InteractiveStream(io.StringIO):
+    def isatty(self) -> bool:
+        return True
 
 
 def test_input_password_fails_closed_when_getpass_cannot_hide_input(
@@ -30,6 +37,19 @@ def test_input_text_returns_none_on_eof(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr("builtins.input", raise_eof)
 
     assert common.input_text("Owner") is None
+
+
+def test_clear_screen_renders_terminal_escape_without_starting_a_shell(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    stream = InteractiveStream()
+    monkeypatch.setattr(common.sys, "stdout", stream)
+
+    with patch("os.system") as system:
+        common.clear_screen()
+
+    system.assert_not_called()
+    assert stream.getvalue() == "\033[2J\033[H"
 
 
 def test_terminal_menu_line_mode_returns_none_on_eof() -> None:

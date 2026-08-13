@@ -14,12 +14,11 @@
 ./developer.sh --help
 ```
 
-当前有三个入口：
+当前有两个入口：
 
 | 工具 | 真实入口 | 本地默认 | 用途 |
 | --- | --- | --- | --- |
 | Elfie Lab | `./developer.sh elfie-lab` | `127.0.0.1:9001` | 单精灵档案、感知、决策和回合调试 |
-| Runtime Lab | `./developer.sh runtime-lab <command>` | 命令行，无监听端口 | Provider、模型配置和连接实验 |
 | Nest Lab | `./developer.sh nest-lab` | HTTP `127.0.0.1:9002`、Godot WS `127.0.0.1:9003` | 固定房间、临时角色与 Godot Runtime 实验 |
 
 正式 App 使用 HTTP `8000`、Godot WebSocket `8765` 和管理 WebSocket `8766`，与 Lab
@@ -39,12 +38,12 @@
 ```bash
 ./developer.sh elfie-lab --data-dir /tmp/elfienest-elfie-lab --port 9001
 ./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab --port 9002 --godot-ws-port 9003
-./developer.sh runtime-lab --config-dir /tmp/elfienest-runtime-lab show
 ```
 
-Elfie Lab 也会为会话维护独立 Runtime 配置；Runtime Lab 的密钥写入开发配置
-目录中权限受限的 `.env`，状态命令不会显示密钥内容。不得把任何实验数据、密钥
-或本机配置复制到 Git 跟踪文件。
+Elfie Lab 会在隔离的 Lab 数据根中保存模型连接和测试粮食。页面的实验配置里可以选择
+已安装的本地 Ollama 模型，也可以填写 OpenAI 兼容服务的 URL、Token 和模型。保存会
+创建或更新一份测试粮食；Lab 不提前验证连接，第一次真实回合才会实际调用模型。不得把
+任何实验数据、密钥或本机配置复制到 Git 跟踪文件。
 
 ## 各工具命令
 
@@ -54,18 +53,6 @@ Elfie Lab 和 Nest Lab 是本地 FastAPI 服务，会一直运行到进程退出
 ./developer.sh elfie-lab --host 127.0.0.1 --port 9001
 ./developer.sh nest-lab --host 127.0.0.1 --port 9002 --godot-ws-port 9003
 ```
-
-Runtime Lab 提供四个子命令：
-
-```bash
-./developer.sh runtime-lab show
-./developer.sh runtime-lab configure
-./developer.sh runtime-lab test
-./developer.sh runtime-lab chat
-```
-
-`configure` 可以通过隐藏输入保存开发 API Key；不要把密钥放进命令参数、文档或
-shell 历史。`test` 和 `chat` 会真实访问所选模型服务，运行前确认目标与费用。
 
 Elfie Lab 和 Nest Lab 启动后都会自动打开网页，并自动复用或更新同一份
 `build/components/godot-web/` 导出物：缺失或 Godot 源码变化时才重新导出，未变化时

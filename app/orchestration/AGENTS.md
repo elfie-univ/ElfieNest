@@ -23,5 +23,5 @@
 - `message_delivery` 协调已授权会话、用户可见历史、真实 Elfie 投递与回执；
 - `observer` 协调受限主体/能力、授权投影和允许的高层意图。
 
-当前根目录平铺工作流文件是迁移期位置。迁移时按以上工作流归组；模型、Godot、通信或
-平台的具体技术 Adapter 必须进入对应根 Infrastructure 能力包，不能留在 Orchestration。
+不得在 Orchestration 根恢复平铺工作流文件；工作流必须进入以上固定目录。模型、Godot、
+通信或平台的具体技术 Adapter 必须进入对应根 Infrastructure 能力包。

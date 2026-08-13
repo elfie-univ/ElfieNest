@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from app.features.configuration.food import StoredModelEvidence, project_food_health
-from elfie.brain.food_port import FoodCatalog
+from elfie.brain.reasoning.food_port import FoodCatalog
 from infrastructure.models.food_technology import stored_food_package
 from infrastructure.models.validation.validation_models import (
     CheckResult,

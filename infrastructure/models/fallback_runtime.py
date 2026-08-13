@@ -10,8 +10,8 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
-from elfie.brain.decision_types import CancelPolicy, DecisionPlan, MessageIntent
-from elfie.brain.model_context_compiler import CompiledModelContext
+from elfie.brain.reasoning.decision_types import CancelPolicy, DecisionPlan, MessageIntent
+from elfie.brain.reasoning.context_compiler import CompiledModelContext
 from elfie.message_types import EventId, IntentId, PlanId, TurnId
 from infrastructure.models.runtime_contracts import (
     StructuredRuntimeCapabilities,

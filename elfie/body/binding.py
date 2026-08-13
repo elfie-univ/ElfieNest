@@ -20,6 +20,8 @@ class BodyBinding:
     def __init__(self, registry: Optional[BodyRegistry] = None) -> None:
         self.registry = registry if registry is not None else BodyRegistry()
         self._current: Optional[BodyPort] = None
+        self._generation = 0
+        self._current_generation: Optional[int] = None
         self._lock = RLock()
 
     @property
@@ -31,6 +33,12 @@ class BodyBinding:
     def current_body_id(self) -> Optional[str]:
         current = self.current
         return current.body_id if current is not None else None
+
+    @property
+    def current_generation(self) -> Optional[int]:
+        """The authority generation of the currently selected body."""
+        with self._lock:
+            return self._current_generation
 
     def register(self, body: BodyPort, *, replace: bool = False) -> BodyPort:
         return self.registry.register(body, replace=replace)
@@ -69,6 +77,8 @@ class BodyBinding:
                         ) from connect_error
                 raise
             self._current = candidate
+            self._generation += 1
+            self._current_generation = self._generation
             return candidate
 
     def unbind(self) -> Optional[BodyPort]:
@@ -78,6 +88,8 @@ class BodyBinding:
                 return None
             previous.disconnect()
             self._current = None
+            self._generation += 1
+            self._current_generation = None
             return previous
 
     def unregister(self, body_id: str) -> BodyPort:
@@ -91,9 +103,13 @@ class BodyBinding:
         with self._lock:
             if body is None:
                 self._current = None
+                self._generation += 1
+                self._current_generation = None
                 return
             self.registry.register(body, replace=True)
             self._current = body
+            self._generation = max(self._generation, 1)
+            self._current_generation = self._generation
 
     def available(self) -> List[BodyDescriptor]:
         return self.registry.describe_all()

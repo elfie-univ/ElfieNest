@@ -6,13 +6,14 @@ from _thread import LockType
 from threading import Lock
 from typing import Callable, Dict, Protocol, Set
 
-from elfie.brain.food_port import MainFoodSelection
-from elfie.brain.runtime_port import (
+from elfie.brain.reasoning.food_port import MainFoodSelection
+from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
     StructuredOutputMode,
 )
+from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.message_types import TurnId
 from infrastructure.models.runtime_contracts import (
     StructuredGenerationMode,
@@ -91,6 +92,11 @@ class SerializedRuntimeAdapter:
         )
         return self._convert_capabilities(raw)
 
+    @property
+    def tool_port(self) -> ToolPort | None:
+        """Expose the already-scoped semantic tool view to Brain."""
+        return getattr(self._runtime, "tool_port", None)
+
     @staticmethod
     def _convert_capabilities(
         raw: StructuredCapabilityView,
@@ -123,6 +129,7 @@ class SerializedRuntimeAdapter:
             response_schema_name=request.response_schema.name,
             response_schema=request.response_schema.document,
             selected_mode=StructuredGenerationMode(selected_mode.value),
+            reasoning_mode=request.reasoning_mode,
             allowed_tools=request.allowed_tools,
             provider=capabilities.provider,
             model_key=capabilities.model_key,

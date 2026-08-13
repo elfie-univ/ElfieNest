@@ -166,17 +166,15 @@ end-user product entry:
 ./developer.sh --help
 ./developer.sh elfie-lab --data-dir /tmp/elfienest-elfie-lab
 ./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab
-./developer.sh runtime-lab --config-dir /tmp/elfienest-runtime-lab show
 ```
 
 - Elfie Lab listens on `127.0.0.1:8877` by default;
-- Nest Lab listens on `127.0.0.1:8890` by default;
-- Runtime Lab is a CLI tool with no listening port.
+- Nest Lab listens on `127.0.0.1:8890` by default.
 
-Ports are only local defaults, not production guarantees. `runtime-lab test`
-and `runtime-lab chat` make real requests to the model service; confirm the
-provider, model, network and cost before running them. For the detailed
-boundaries see `devtools/README.md`.
+Ports are only local defaults, not production guarantees. Configure the model
+from Elfie Lab's experiment panel; saving does not validate the connection and
+the first real turn makes the model request. For the detailed boundaries see
+`devtools/README.md`.
 
 ## Quality checks and tests
 

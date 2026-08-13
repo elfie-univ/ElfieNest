@@ -98,7 +98,7 @@ printf '%s\n' "$*" >> "$ENTRYPOINT_LOG"
         [str(project_root / "elfienest.sh")],
         cwd=project_root,
         env=environment,
-        input="start --port 8100\nserve --fallback\nexit\n",
+        input="start --port 8100\nserve --fallback\nv\nexit\n",
         capture_output=True,
         text=True,
         check=False,
@@ -110,6 +110,7 @@ printf '%s\n' "$*" >> "$ENTRYPOINT_LOG"
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "scripts/elfienest.py start --port 8100",
         "scripts/elfienest.py serve --fallback",
+        "scripts/elfienest.py version",
     ]
 
 

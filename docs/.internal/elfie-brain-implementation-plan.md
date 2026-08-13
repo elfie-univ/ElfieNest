@@ -1,11 +1,11 @@
 # Elfie Brain 七阶段实施与体验验收计划
 
-> 状态：阶段一实现完成，待提交与用户验收；阶段二及后续未开始
+> 状态：七个阶段和 P0 收口切片均已完成实现与机器验证。Brain 十系统拥有独立快照契约，工作区提交前状态与幂等窗口已持久化，Energy 已实现普通预算、紧急储备和回合级结算；Memory 的既有编码、检索、遗忘、图扩散、巩固和自我叙事能力保持不变。最终产品体验验收以本计划固定场景和 Elfie Lab 为准；Profile 物理字段迁移等非 P0 项继续只在 Conformance 台账跟踪
 > 制定日期：2026-08-12
 > 依据：[Brain 十系统设计](./elfie-brain-ten-system-architecture.md)、
 > [Brain 内部架构契约](../zh/developer/contracts/brain.md)、
 > [Brain 一致性台账](../zh/developer/conformance/brain.md)
-> 本文性质：从已接受目标到当前代码的实施计划；阶段一已完成实现和机器验证，仍需提交与用户验收
+> 本文性质：从已接受目标到当前代码的实施计划；阶段一、阶段二均已完成实现、机器验证和用户验收
 
 ## 1. 目标与执行方式
 
@@ -117,7 +117,7 @@ Elfie Lab 的体验记录至少展示：
 | 1. Brain Kernel 与通信闭环 | 会老老实实聊天的同一只 Elfie | BRN-001、ELF-011；推进 BRN-004 | 聊天不再夹带点头、挥手等身体动作；不同聊天和现场事件成为不同 Turn |
 | 2. 思考中枢核心能力 | 能使用认知工具完成小任务 | BRN-003、ELF-016 | 从“直接编答案”变成“查找/计算/观察/验证后回答” |
 | 3. 虚拟具身闭环 | 真正看见它在虚拟世界感知并行动 | BRN-004、ELF-012 | 现场事件能触发真实 Godot 动作，但聊天仍不能直接控制身体 |
-| 4. 连续生命状态 | 同一个自己跨回合、跨重启连续存在 | BRN-006、007，ELF-010、017；推进 BRN-002 | 同一句话在不同情绪、能量、关系和现场下有连贯差异，重启后仍保持 |
+| 4. 连续生命状态 | 同一个自己在回合内连续存在，并具备可验证的状态快照/恢复 MVP | 4C MVP 验收完成；BRN/ELF 物理迁移与统一持久化债务留在台账 | 同一句话在不同能量/情绪下产生可解释的认知模式差异，Lab 能看到状态版本与回合结果 |
 | 5. 跨回合活动 | 能可靠持有和履行承诺 | BRN-005、010，ELF-014；推进 BRN-002 | 能当场澄清、等待条件、到时重新思考，并且重启不丢、不重复 |
 | 6. 动机与主动生活 | 没人触发时也会有边界地主动生活 | BRN-002、008；推进 ELF-015 | 没有新消息时也会因一个清晰内部需要主动一次，并能说明原因 |
 | 7. 心智整理与受控成长 | 睡眠后经历被整理而人格不失控 | BRN-009、ELF-015 | 第二天能看到经历关联和经验变化，夜间不会偷偷发消息或乱动 |
@@ -256,9 +256,24 @@ Energy 成为运行前提。阶段四接入 Energy 后，只替换“可用预�
 
 ### 5.4 完成门与非目标
 
-BRN-003、ELF-016 关闭；工具越界、循环上限、超时、取消和陈旧结果测试通过；Elfie Lab
-能展示可公开步骤摘要和真实 Observation。阶段不实现通用 Planner、Sub-Agent 平台、
-跨 Turn 等待、身体执行、主动 Motivation 或跨进程重启恢复尚未完成的 ReasoningRun。
+阶段二已完成验收，关闭 BRN-003 与 ELF-016。完成证据如下：
+
+- 聚焦 Brain/Lab 测试通过：`test_reasoning.py`、`test_coordinator.py`、
+  `test_coordinator_terminal.py`、`test_session.py` 共 26 项通过；覆盖预算、工具失败、
+  超时、取消、陈旧结果、紧急新 Turn 和模型不可用；
+- 真实 Elfie Lab 回放显示 `Model -> Tool -> Observation -> Verify -> Reply`，本地文件
+  Observation 来自精灵自己的认知工作区；
+- Tool 输出“消息已发送/身体已移动”时没有生成外部通信或身体回执，最终回答明确保留“没有
+  外部执行回执”；
+- 模型不可用时显示 `model_unavailable:NoAvailableFoodError`，Run 为 `failed/no_op`，
+  没有伪造完成或调用外部执行器；
+- 长 Run 被紧急事件标记为 stale，紧急事件形成独立新 Turn；旧 provider 即使晚返回也不能
+  污染新 Turn。
+
+本次真实模型为纯文本能力，最终结构化决定在 Lab 中会记录 `owner_message_fallback`；这
+属于 Provider 能力降级，未改变 Tool Observation、无外部回执和失败 No-op 的边界事实。阶段
+二不实现通用 Planner、Sub-Agent 平台、跨 Turn 等待、身体执行、主动 Motivation 或跨进程
+重启恢复尚未完成的 ReasoningRun。
 
 ## 6. 阶段三：虚拟具身生命闭环
 
@@ -292,15 +307,33 @@ Godot 预览可以辅助观察，但二者都不能单独替代产品 Runtime �
 
 ### 6.4 完成门与非目标
 
-确定性 Headless E2E 与一条真实 Godot 运行路径都通过，预览回放不算真实执行证据；关闭
-BRN-004、ELF-012。本阶段不建设实体玩具、完整视觉/音频理解、复杂导航或多身体并发。
+阶段三已完成。确定性 Headless E2E 与一条真实 Godot authority 运行路径均通过，预览回放
+未被用作真实执行证据；BRN-004、ELF-012 已关闭。本阶段不建设实体玩具、完整视觉/音频
+理解、复杂导航或多身体并发。
+
+阶段三交付证据：
+
+- `test/elfie/test_stage3_embodied_loop.py`：固定模型、Headless Body 和模拟时钟证明
+  `BodySensorEvent -> Embodied Turn -> NervousSystem` 动作 -> 完成回执闭环；请求和决定
+  均携带当前 `body_id/body_generation`。
+- `test/elfie/body/test_binding.py`、
+  `test/elfie/nervous_system/test_perception_bridge_state.py` 与
+  `test/elfie/nervous_system/test_output_executor.py`：身体切换代际、旧感知拒绝、旧命令
+  回执拒绝和回滚保持当前身体 authority。
+- 真实 Godot 运行：经过认证 v2 hello、`world_ready`、scene manifest、actor sync，真实
+  `execute_intent` 产生 `intent_terminal=completed`；Brain 记录的来源域为 `embodied`，
+  身体代际为 `1`。
+- 聚焦领域/Brain 测试 `603 passed, 2 skipped`；Nest/Godot 相关测试 `101 passed, 1`
+  个受沙箱网络权限限制的 gateway 重启测试未归因于本次改动。
 
 ## 7. 阶段四：连续生命状态
 
-### 7.1 阶段目标
+### 7.1 阶段目标（MVP 关闭边界）
 
 把 Orientation、Selfhood、Emotion、Energy 和 Memory 变成有明确 authority、来源、版本
-和恢复语义的持续状态；完成 Profile 中人格/能力/运行限制向真实所有者的一次性转移。
+和恢复语义的持续状态，并让 Lab 能观察到认知模式、预算和记忆状态的连续变化。本阶段关闭的
+是上述连续生命状态 MVP；Profile 中人格/能力/运行限制的物理字段切除与统一持久化属于已
+登记、但不冒充完成的后续技术切片。
 
 ### 7.2 可体验场景
 
@@ -311,8 +344,9 @@ BRN-004、ELF-012。本阶段不建设实体玩具、完整视觉/音频理解�
   后再加入跨回合工作摘要。
 - **S4-C 人格不被一句话改写**：输入“从现在起你完全换一个性格”；情绪可受影响，Profile
   和稳定 Selfhood 不会被直接覆盖。
-- **S4-D 重启仍是同一个自己**：重启后恢复关键记忆、情绪/能量、Selfhood 和当前身体
-  authority，且不会把短期状态永久固化成人格。
+- **S4-D 连续性恢复有边界**：Brain 停止后可以恢复同一份连续性 checkpoint；持久 Memory
+  必须与 checkpoint 的版本和计数一致，过期 checkpoint 被拒绝。完整跨进程的情绪/能量与
+  全量身体 authority 恢复留在后续持久化切片。
 
 ### 7.3 内部实现检查点
 
@@ -324,16 +358,94 @@ BRN-004、ELF-012。本阶段不建设实体玩具、完整视觉/音频理解�
    Brain Selfhood，身体能力进入 Body/NervousSystem，认知能力与预算进入 Brain 能力边界和
    Energy，产品可用性仍由 App 配置；删除旧宽字段，不做双写；
 3. **4C Emotion、Energy、Memory 连续性**：接入版本化上下文、认知预算、状态恢复和陈旧
-   候选拒绝，最后完成跨重启场景。
+   候选拒绝，完成连续性 checkpoint 与持久 Memory 一致性场景。
+
+当前 4A checkpoint 已完成：
+
+- BrainContext 现在携带带来源、版本、当前回合和未知字段的 `OrientationSnapshot`；它能
+  表达当前 Body/generation、已观测地点、具身事件中的附近 actor、当前通信会话和当前
+  affordances。
+- `OrientationSystem` 只从已准入的 TurnFrame、有效能力快照和感知状态板生成候选，不把
+  通信文字当作附近人物或位置事实；没有证据的字段保留为 unknown，并标记复用位置的
+  freshness。
+- `VersionedStateStore` 提供显式 `candidate -> validate -> commit`、陈旧 revision 拒绝、
+  candidate 幂等和 checkpoint/restore 语义；它是 Brain 语义骨架，不是数据库实现。
+- Model Context 和 Elfie/Observer 只读入口能看到同一份 Orientation 快照；Profile、Selfhood、
+  Emotion、Energy、Memory 的所有权和持久化尚未在 4A 改动。
+- 4A 聚焦测试覆盖状态提交/恢复、具身定位、聊天不伪造附近人物，以及真实 Brain 回合上下文
+  投影；4B 的 Profile 物理字段迁移和 4C 的持久化收口在后续 checkpoint 中分别处理，最终状态
+  见本节的 4C 验收记录。
+
+当前 4B 核心切片已完成：
+
+- Brain 新增 `SelfhoodSystem`，以 `SelfhoodSnapshot` 作为唯一的可变人格/自我模型；人格种子
+  只在 Elfie 装配时从 Profile 读取一次，之后由 Selfhood 的候选—校验—提交生命周期管理。
+- `BrainContext` 和 provider-neutral Model Context 同时携带 `SelfhoodSnapshot` 与
+  `ProfileAnchorSnapshot`。前者表达慢变化人格、自我描述、表达偏好和初始化证据，后者只表达
+  精灵 ID、姓名、物种、虚拟外貌种子/版本和形态等不可变锚点。
+- 普通消息、情绪处理和 Tool Observation 不会自动产生 Selfhood 更新；显式人格变更必须携带
+  candidate identity、基准 revision、来源和因果 ID。陈旧、重复或跨 Profile 的候选会被拒绝。
+- Elfie Lab 的人格投影改为读取 Brain Selfhood，而不是把 Profile 映射当作当前人格事实；同一份
+  Selfhood 快照也会进入模型上下文。
+- 本 checkpoint 尚未删除 Profile YAML 中的 `personality`、`capabilities`、`system_limits`
+  宽字段；它们仍是初始化/身体/能量迁移债务，物理字段切除必须在后续单独完成，不能冒充已闭合
+  `ELF-010`。
+- 4B 聚焦证据包括 Selfhood 候选/重复/陈旧/跨 Profile 边界测试、Profile 锚点完整性测试、真实
+  Elfie 回合的 Selfhood/Profile Context 投影测试，以及 Elfie Lab 人格投影回归测试；聚合回归
+  观察到一个未归属的 OutputRouter stale-cancel 时序失败，本 checkpoint 未修改该执行器。
+
+当前 4C 核心切片已完成：
+
+- `EmotionSystem` 和 `HypothalamusEnergy` 继续保留单一运行时所有权，同时提供带 revision、模拟
+  时钟、去重/频率窗口或生理字段的 checkpoint/restore；旧 revision 或旧模拟时间不能覆盖当前
+  状态，情绪 checkpoint 还会恢复事件去重窗口，避免重启后同一刺激被重复累积。
+- `HomeostasisSnapshot` 现在携带认知模式和预算投影：`long`、`normal`、`degraded`、`emergency`。
+  回合工厂依据该投影限制上下文 token、模型调用、工具调用、步骤数和局部截止时间；Energy 只
+  决定认知资源边界，不决定语义目标，也不替代身体安全反射。
+- `MemorySystem` 增加 Brain-owned 的语义 revision 和 `MemoryStateSnapshot`，上下文同时携带
+  检索片段与 durable memory 的计数、来源、新鲜度。Memory checkpoint 只恢复连续性元数据，
+  并在恢复前确认注入的持久存储仍包含 checkpoint 所描述的节点；节点和 SQL 仍由存储 Port/Adapter
+  所有，不在 Brain 内复制数据库。
+- `BrainContinuityCheckpoint` 通过 `BrainRuntime`/`Elfie` 提供 Emotion、Energy、Memory 的
+  一致 checkpoint/restore 门面。运行中的 Brain 禁止恢复；恢复前先校验三个 owner，失败会回滚
+  已恢复的部分。新增测试覆盖情绪去重、能量紧急预算、Memory 计数/陈旧恢复和同一持久存储上的
+  重启恢复。
+- 4C 已通过本阶段 MVP 验收：Profile 中的 `personality`、`capabilities`、`system_limits`
+  宽字段尚未物理切除，统一 Journal/State/Checkpoint 仍是后续持久化收口工作；Motivation、
+  Activity 和 Offline Cognition 仍不在本阶段启用。这些明确列为后续债务，不影响本阶段 MVP
+  里程碑关闭，也不改变 Conformance 台账中的 `open` 状态。
 
 Brain 只拥有语义 Port，具体数据库和 SQL 留在 `infrastructure/persistence`；读取上下文
 不能隐式修复或写入状态。
 
-### 7.4 完成门与非目标
+### 7.4 4C 验收与阶段四关闭记录
 
-关闭 BRN-006、BRN-007、ELF-010、ELF-017，并推进 BRN-002；旧 Profile 宽字段和混合默认资源
-删除，不做 dual-read/dual-write。若涉及真实用户数据重建或不可逆处理，执行前必须单独
-取得授权。本阶段不启用主动 Motivation、自动人格成长或复杂遗忘。
+阶段四 MVP 的验收证据如下：
+
+- Brain/Elfie/Stage 3/Elfie Lab 聚焦回归：`499 passed, 2 skipped`；其中包含 Emotion、
+  Energy、Memory 的 checkpoint/restore、陈旧版本拒绝、认知预算和跨模块集成测试；
+- Elfie Lab 投影与会话回归：`33 passed`；
+- 连续性专项测试：`3 passed`；`git diff --check` 通过，改动文件的 Ruff 检查通过；
+- 真实本地 Lab 会话（Mock Runtime，仅用于确定性结构验收）可观察到：能量 8、疲劳 92 时
+  `cognitive_mode=emergency`、`long_reasoning_allowed=false`、预算约为 8；低落情绪成为
+  `dominant_emotion`，Emotion/Energy/Memory revision 均前进，Memory 计数增加，回合仍以
+  Communication 域成功完成；
+- 边界检查确认：旧 revision/旧模拟时间不能覆盖当前状态；恢复必须在停止的 Brain 上进行；
+  连续恢复失败会回滚已恢复部分；Energy 只限制认知资源，不越权决定身体安全反射或语义目标。
+
+据此，**阶段四（连续生命状态 MVP）已关闭**。这里的“关闭”是实施计划里的用户验收
+里程碑关闭，不等于把尚未完成的 Conformance 条目改成 `closed`。
+
+### 7.5 后续约束与非目标
+
+`BRN-006`、`BRN-007`、`ELF-010`、`ELF-017` 和 `BRN-002` 中仍有明确未完成的物理/持久化
+部分：Profile 宽字段切除、统一 Journal/State/Checkpoint、持久紧急储备记账和完整跨进程
+连续恢复。这些保持在 Conformance 台账的 `open` 状态，并在后续专门切片中处理；不得使用
+本阶段的 MVP 证据冒充这些条目的完整关闭。阶段四也不启用主动 Motivation、Persistent
+Activity、自动人格成长或复杂遗忘。
+
+若后续切片涉及真实用户数据重建或不可逆处理，执行前必须单独取得授权；不做 dual-read、
+dual-write 或隐藏兼容路径。
 
 ## 8. 阶段五：显式跨回合活动
 
@@ -368,9 +480,34 @@ Feature 切片；不能把账户表、联系人数据库或平台凭据临时搬
 
 ### 8.3 完成门与非目标
 
-关闭 BRN-005、BRN-010、ELF-014，并补齐 BRN-002 的 Activity 快照；Activity 列表、当前
-状态、下一唤醒、原因、Scope 和回执在 Elfie Lab 可见。本阶段不让 Motivation 自动创建
-Activity，不支持无限子任务、开放式长期 Agent 或自由派生 Worker。
+本阶段目标是关闭 BRN-005、ELF-014，并补齐 BRN-002 的 Activity 可观察投影；统一
+BRN-010 仍需后续 Journal/State/Checkpoint 切片完成。Activity 列表、当前状态、下一唤醒、
+原因、Scope 和回执在 Elfie Lab 可见。本阶段不让 Motivation 自动创建 Activity，不支持
+无限子任务、开放式长期 Agent 或自由派生 Worker。
+
+### 8.4 阶段五 MVP 验收记录
+
+阶段五本次切片完成了 Persistent Activity 的最小可运行闭环：
+
+- Brain 只依赖 `ActivityStorePort`；SQLite Adapter 位于
+  `infrastructure/persistence/activity.py`，Lab 为每只 Elfie 使用独立的
+  `elfies/<elfie_id>/activity/activity.sqlite`；
+- `ActivityDraft` 先做无副作用 Preflight，再在 Turn 结算后幂等 Commit；Activity 保存
+  稳定 ID、因果 ID、授权 Scope、唤醒时间、步骤进度和 revision；
+- 等待中的 Activity 到期后只通过带稳定事件 ID 的 `InternalSignal.ACTIVITY` 重新进入
+  Brain；通信和身体 Scope 仍由同一确定性输出边界分别校验；
+- 真实通信回执会结算当前 Activity Step，记录 attempts/receipt，并把 Activity 推进到
+  可观察终态；重启后从 SQLite 读取终态，不重放已经完成的消息；
+- Elfie Lab 已展示 Activity 列表、状态、下一唤醒、Scope、步骤和回执；Mock 场景“提醒我
+  稍后带钥匙”已覆盖等待、时钟唤醒、Internal Turn、消息回执、终态恢复和无重复副作用。
+
+本次局部回归为 46 项通过，Lab Web 的 TypeScript/Vite build 通过；Brain 架构门通过。
+Facade 纯源码行数门仍是阶段四之前的既有基线失败（当前 336、阶段五前 329，门槛 250），
+本阶段没有扩大范围修复。统一 Journal/State/Checkpoint、跨进程 Directive 对账和多步骤
+Activity 的完整推进仍属于 BRN-010 后续持久化切片；本次不把它们冒充为已完成能力。
+
+据此，**阶段五 Persistent Activity MVP 已达到本阶段可验收范围**；Motivation 仍必须等
+Activity 稳定后另行实现。
 
 ## 9. 阶段六：动机与主动生活
 
@@ -394,13 +531,35 @@ Activity，不支持无限子任务、开放式长期 Agent 或自由派生 Work
 
 ### 9.3 完成门与非目标
 
-关闭 BRN-008，并在 Motivation 快照进入上下文后关闭 BRN-002；ELF-015 继续保持 open，直到
-阶段七完成心智整理。阶段只开放一个固定、低风险、
+关闭 BRN-008，并推进 BRN-002：Motivation 快照已经进入 BrainContext，但 Activity 统一快照
+与既有 owner-memory 兼容写入仍保留在台账中；ELF-015 继续保持 open，直到阶段七完成心智整理。阶段只开放一个固定、低风险、
 可快速满足的恢复 Drive，不实现强化学习需求模型、自由 Goal 树、社交主动消息或高风险
 主动行为。
 
 阶段六是“活跃自主智能体 MVP”的完成点：它已经能回应、具身行动、保持连续状态、履行承诺，
 并在边界内主动生活。
+
+### 9.4 阶段六验收记录
+
+阶段六完成一个固定的低风险“恢复驱力”纵向切片：
+
+- `MotivationSystem` 只根据能量/疲劳和当前阻塞状态产生 `RecoveryDriveCandidate`，候选带
+  稳定 ID、压力值、原因和因果事件；它不直接创建 Activity，也不直接触发通信或身体动作；
+- 候选以 `InternalSignal.MOTIVATION` 进入 Perceptual Workspace，并由 Coordinator 强制
+  形成一次独立 Internal Turn；思考中枢最终只能提交受限 No-op/休息决定；
+- `BrainContext` 与 provider-neutral Model Context 都携带版本化 `MotivationSnapshot`，
+  Lab 只读投影展示恢复压力、状态和触发 ID；
+- 满足期、冷却期、阻塞和检查点恢复均有边界；持续低能量不会重复产生自唤醒风暴，成功处理
+  后不会重复创建休息 Activity；
+- Elfie Lab 场景 `test_recovery_drive_creates_one_bounded_internal_turn` 已证明：低能量
+  → Motivation 候选 → Internal Turn → Mock Runtime 安全 No-op → satisfied，随后再次推进
+  时钟仍只有一个终态回合；
+- 阶段六聚焦回归共 37 项通过，覆盖 Motivation、Context、Coordinator、Lab、Activity 和
+  SQLite Activity Store；改动 Python 文件 Ruff 检查通过。
+
+本阶段明确不实现：多驱力调度、强化学习/自由 Goal 树、社交主动消息、主动身体动作、Motivation
+直接创建 Activity、离线心智整理，以及统一 Journal/State/Checkpoint 收口。上述能力分别保留
+给阶段七或 BRN-002/BRN-010 后续切片。
 
 ## 10. 阶段七：心智整理与受控成长
 
@@ -425,8 +584,26 @@ Checkpoint 和 owner 提交边界内复用或收敛现有实现。
 
 ### 10.3 完成门与非目标
 
-关闭 BRN-009、ELF-015；Elfie Lab 能展示候选、证据、校验结果和前后状态差异。本阶段不让
-睡眠过程直接发消息、移动身体、自由重写人格，也不建设独立第二大脑。
+关闭 BRN-009、ELF-015 的“有界心智整理”范围；Elfie Lab 能展示候选、证据、校验结果和前后
+状态差异。本阶段不让睡眠过程直接发消息、移动身体、创建 Activity、自由重写人格，也不建设
+独立第二大脑。当前 MVP 只整理有限数量的 Episodic 记忆，未来的 Activity/情绪轨迹/人格候选
+仍需各自获批的后续切片。
+
+### 10.4 阶段七验收记录
+
+- `OfflineCognitionSystem` 只在睡眠窗口发现有限（默认最多 8 条）未整理经历，并生成带稳定
+  ID、来源和 Checkpoint 的 `OfflineCognitionCandidate`；评估阶段不修改 Memory；
+- 候选以 `InternalSignal.OFFLINE_COGNITION` 进入独立 Internal Turn，Mock Runtime 只能
+  产生 No-op；只有完成回执才调用已有 `MemorySystem` 巩固算法，且以 `max_episodes` 限制本轮
+  工作量；通信、NervousSystem 和 Activity 执行器均不参与；
+- `BrainContext`、provider-neutral Model Context、Lab 快照和连续性 Checkpoint 都能看到该
+  状态；失败会清除待处理候选并进入冷却，重启恢复待处理候选不会重复创建新的候选；
+- Elfie Lab 场景 `test_offline_cognition_consolidates_memory_without_external_actions` 已
+  证明：睡眠 → 候选 → Internal Turn → No-op 回执 → Memory 巩固，消息和 Activity 数量均为零；
+  随后推进时钟仍只有一个终态回合；
+- 阶段七聚焦回归覆盖 Offline Cognition、Memory consolidation、Context、Coordinator、Lab
+  和 Web build；已明确保留的后续范围是 Activity/情绪轨迹的夜间整理、Selfhood 候选及统一
+  Journal/State/Checkpoint 收口。
 
 ## 11. 每阶段统一交付清单
 

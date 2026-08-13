@@ -8,7 +8,7 @@ from typing import Mapping, Optional, Protocol, Tuple, cast
 
 from pydantic import JsonValue
 
-from elfie.brain.tool_port import ToolKey, ToolRequest, ToolResult
+from elfie.brain.reasoning.tool_port import ToolKey, ToolRequest, ToolResult
 from elfie.message_types import ErrorInfo
 
 from .execution.config import load_tool_configs

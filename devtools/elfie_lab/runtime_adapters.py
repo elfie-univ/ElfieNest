@@ -5,15 +5,19 @@ from __future__ import annotations
 import json
 import re
 import time
+from datetime import datetime, timezone
 from functools import partial
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any, Callable, Dict, List
 
 from devtools.elfie_lab.runtime_foods import (
+    ElfieLabRuntime,
+    default_runtime_config_dir,
     load_runtime_food_catalog,
     runtime_food_catalog_store,
 )
-from elfie.brain.food_port import FoodPackage
-from elfie.brain.runtime_port import (
+from elfie.brain.reasoning.food_port import FoodPackage
+from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
@@ -23,14 +27,12 @@ from infrastructure.models.runtime_adapter import SerializedRuntimeAdapter
 from infrastructure.models.runtime_agent import RuntimeAgent
 from infrastructure.models.runtime_observations import get_runtime_observer
 from infrastructure.models.runtime_ports import RuntimeAgentPorts
-from infrastructure.persistence.configuration.secrets import resolve_secret
-from infrastructure.persistence.food_evidence import query_model_evidence
-from infrastructure.persistence.layout.data_home import get_elfie_developer_home
 from infrastructure.tools.execution.config import effective_tool_keys, load_tool_configs
 from infrastructure.tools.execution.loop import PortToolLoop
 from infrastructure.tools.execution.permissions import PermissionManager
 from infrastructure.tools.execution.skills_prompt import inject_skills_system_prompt
 from infrastructure.tools.local_file.local_files import LocalFileAccessPlugin
+from infrastructure.tools.port_adapter import ToolPortAdapter
 from infrastructure.tools.web_search.search import WebSearchPlugin
 
 _SECRET_PATTERNS = (
@@ -181,6 +183,11 @@ class TracingRuntimeAgent:
             return
         self.inner.abandon(request)
 
+    @property
+    def tool_port(self) -> Any:
+        """Expose the selected runtime's semantic tools to Brain only."""
+        return getattr(self.inner, "tool_port", None)
+
     def _model_name(self, task_complexity: int) -> str:
         if self.food_key == "mock":
             return "elfie-mock"
@@ -201,6 +208,7 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
         "deadline": request.deadline.isoformat(),
         "cancel_policy": "always",
     }
+    intents: list[dict[str, object]]
     if request.source_domain.value == "communication":
         intents = [
             {
@@ -212,21 +220,111 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
                 **common,
             }
         ]
-    else:
+        if "提醒" in request.user_prompt or "稍后" in request.user_prompt:
+            wake_at = request.created_at.timestamp() + 30
+            activity_deadline = request.created_at.timestamp() + 300
+            intents.append(
+                {
+                    "type": "activity",
+                    "intent_id": "mock-activity-intent",
+                    "draft": {
+                        "schema_version": 1,
+                        "activity_id": "mock-activity",
+                        "goal": "在约定时间提醒主人",
+                        "success_criteria": "通过当前已授权会话发送提醒",
+                        "steps": [
+                            {
+                                "step_id": "mock-activity-step",
+                                "ordinal": 0,
+                                "kind": "communication",
+                                "operation": "send_message",
+                                "deadline": datetime.fromtimestamp(
+                                    activity_deadline, timezone.utc
+                                ).isoformat(),
+                                "scope": {
+                                    "external_domain": "communication",
+                                    "target_actor_id": "elfie-lab-owner",
+                                    "channel_id": request.response_scope.channel_id,
+                                    "conversation_id": request.response_scope.conversation_id,
+                                    "capability_revision": request.capability_revision,
+                                    "allowed_operations": ["send_message"],
+                                    "expires_at": datetime.fromtimestamp(
+                                        activity_deadline, timezone.utc
+                                    ).isoformat(),
+                                },
+                                "retry_limit": 1,
+                            }
+                        ],
+                        "cause_event_ids": [
+                            str(item) for item in request.cause_event_ids
+                        ],
+                        "idempotency_key": f"mock-activity:{request.turn_id}",
+                        "created_at": request.created_at.isoformat(),
+                        "deadline": datetime.fromtimestamp(
+                            activity_deadline, timezone.utc
+                        ).isoformat(),
+                        "wake_at": datetime.fromtimestamp(
+                            wake_at, timezone.utc
+                        ).isoformat(),
+                        "estimated_budget": 1.0,
+                    },
+                    **common,
+                }
+            )
+    elif (
+        request.response_scope.external_domain is not None
+        and request.response_scope.external_domain.value == "communication"
+    ):
+        intents = [
+            {
+                "type": "message",
+                "intent_id": "mock-internal-message",
+                "channel_id": request.response_scope.channel_id,
+                "conversation_id": request.response_scope.conversation_id,
+                "content": speech,
+                **common,
+            }
+        ]
+    elif (
+        request.response_scope.external_domain is not None
+        and request.response_scope.external_domain.value == "nervous_system"
+    ):
         intents = [
             {
                 "type": "speech",
-                "intent_id": "mock-speech",
+                "intent_id": "mock-internal-speech",
                 "text": speech,
                 **common,
             },
             {
                 "type": "motion",
-                "intent_id": "mock-motion",
+                "intent_id": "mock-internal-motion",
                 "motion": "nod_head",
                 "target": None,
                 **common,
             },
+        ]
+    else:
+        recovery_trigger = "internal:motivation" in request.user_prompt
+        offline_trigger = "internal:consolidation" in request.user_prompt
+        intents = [
+            {
+                "type": "noop",
+                "intent_id": "mock-noop",
+                "reason": (
+                    "恢复驱力已处理：保持安静并等待能量恢复"
+                    if recovery_trigger
+                    else "离线整理已完成：只更新记忆，不产生外部动作"
+                    if offline_trigger
+                    else "internal trigger has no external scope"
+                ),
+                "cancel_policy": "if_not_started",
+                **{
+                    key: value
+                    for key, value in common.items()
+                    if key != "cancel_policy"
+                },
+            }
         ]
     return json.dumps(
         {
@@ -248,13 +346,20 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
 class FoodRuntimeAgent:
     """让精灵实验通过粮食语义调用 Runtime。"""
 
-    def __init__(self, runtime: Any, food_key: str, package: FoodPackage):
+    def __init__(
+        self,
+        runtime: Any,
+        food_key: str,
+        package: FoodPackage,
+        brain_tool_port: Any = None,
+    ):
         self.runtime = runtime
         self.config = runtime.config
         self.food_key = food_key
         self.selected_model = package.primary.model if package.primary else ""
         self.selected_provider = _provider_from_model(self.selected_model)
         self.last_result = None
+        self._brain_tool_port = brain_tool_port
         self._adapter = SerializedRuntimeAdapter(
             runtime,
             food_key_resolver=lambda: self.food_key,
@@ -272,6 +377,11 @@ class FoodRuntimeAgent:
     def abandon(self, request: ModelGenerationRequest) -> None:
         self._adapter.abandon(request)
 
+    @property
+    def tool_port(self) -> Any:
+        """Expose the runtime-injected semantic tool view to Brain."""
+        return self._brain_tool_port or getattr(self.runtime, "tool_port", None)
+
     def ask(self, prompt: str, energy: float, task_complexity: int) -> str:
         result = self.runtime.run_with_food(
             prompt=prompt,
@@ -286,33 +396,49 @@ class FoodRuntimeAgent:
         return result.text
 
 
-def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRuntimeAgent:
+def create_runtime(
+    food_key: str,
+    config_dir: str | None = None,
+    workspace_resolver: Callable[[str | None], Path | None] | None = None,
+) -> TracingRuntimeAgent:
     normalized = food_key.lower().strip()
     if normalized == "mock":
         return TracingRuntimeAgent(MockRuntimeAgent(), "mock")
 
-    from devtools.runtime_lab import RuntimeLabConfigStore
-
-    store = RuntimeLabConfigStore(config_dir or default_runtime_config_dir())
-    config = store.load_runtime_config()
-    food_store = runtime_food_catalog_store(store)
-    catalog = load_runtime_food_catalog(store, food_store)
+    runtime = ElfieLabRuntime(config_dir or default_runtime_config_dir())
+    config = runtime.load_runtime_config()
+    food_store = runtime_food_catalog_store(runtime)
+    catalog = load_runtime_food_catalog(runtime, food_store)
     package = catalog.packages.get(normalized)
     if package is None:
         raise ValueError(f"Runtime 粮食目录中不存在粮食: {normalized}")
 
     agent = RuntimeAgent(
         config,
-        ports=_runtime_agent_ports(store),
+        ports=_runtime_agent_ports(runtime),
         food_catalog_repository=food_store,
     )
-    food_agent = FoodRuntimeAgent(agent, normalized, package)
+    brain_tool_port = ToolPortAdapter.from_runtime_config(
+        config,
+        observation_port=get_runtime_observer(),
+        allowed_tool_keys=("web_search", "local_file"),
+        workspace_resolver=workspace_resolver,
+    )
+    food_agent = FoodRuntimeAgent(
+        agent,
+        normalized,
+        package,
+        brain_tool_port=brain_tool_port,
+    )
     return TracingRuntimeAgent(food_agent, normalized)
 
 
-def _runtime_agent_ports(store: Any) -> RuntimeAgentPorts:
+def _runtime_agent_ports(runtime: ElfieLabRuntime) -> RuntimeAgentPorts:
     observer = get_runtime_observer()
-    tool_config_loader = partial(load_tool_configs, secret_resolver=resolve_secret)
+    tool_config_loader = partial(
+        load_tool_configs,
+        secret_resolver=runtime.resolve_secret,
+    )
 
     def build_permission_manager(
         config: Any, observation_port: Any
@@ -330,31 +456,27 @@ def _runtime_agent_ports(store: Any) -> RuntimeAgentPorts:
 
     return RuntimeAgentPorts(
         observer=observer,
-        config_paths=lambda: (store.config_path, store.env_path),
+        config_paths=runtime.config_paths,
         search_factory=partial(
             WebSearchPlugin.from_runtime_policy,
-            secret_resolver=resolve_secret,
+            secret_resolver=runtime.resolve_secret,
         ),
         permission_factory=build_permission_manager,
         tool_config_loader=tool_config_loader,
         effective_tool_keys=partial(
-            effective_tool_keys, secret_resolver=resolve_secret
+            effective_tool_keys,
+            secret_resolver=runtime.resolve_secret,
         ),
         file_access_factory=build_file_access,
-        model_evidence_source=query_model_evidence,
+        model_evidence_source=runtime.model_evidence,
         tool_loop_factory=lambda tool_port, allowed, scope: PortToolLoop(
             tool_port,
             allowed_tool_keys=allowed,
             scope_id=scope,
         ),
         prompt_injector=inject_skills_system_prompt,
-        runtime_config_loader=store.load_runtime_config,
+        runtime_config_loader=runtime.load_runtime_config,
     )
-
-
-def default_runtime_config_dir() -> str:
-    """返回 Elfie Lab 专属的开发 Runtime Lab 根目录。"""
-    return str(get_elfie_developer_home() / "runtime_lab")
 
 
 def _provider_from_model(model_ref: str) -> str:

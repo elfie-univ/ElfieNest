@@ -5,6 +5,7 @@ from __future__ import annotations
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
 from elfie.communication import CommunicationHub, InboundDispositionStatus
+from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
@@ -69,7 +70,7 @@ def test_external_message_replay_is_deduplicated_at_communication_edge() -> None
 
     assert first.status is InboundDispositionStatus.ACCEPTED
     assert replay.status is InboundDispositionStatus.DUPLICATE
-    assert len(elfie.communication.inbox.history) == 1
+    assert len(ElfieDiagnostics(elfie).communication.inbox.history) == 1
     elfie.stop()
     elfie.join()
 

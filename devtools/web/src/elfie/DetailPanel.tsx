@@ -33,7 +33,7 @@ function List({ values, diff = false }: Readonly<{ values: Readonly<Record<strin
 function snapshot(value: unknown): Record<string, unknown> {
   const state = record(value);
   const dominant = typeof state.dominant_emotion === "string" ? state.dominant_emotion : "";
-  return { "能量": state.energy, "疲劳": state.fatigue, "睡眠": state.is_sleeping === true ? "是" : "否", "主导情绪": emotionLabels[dominant] ?? dominant, "注意力": state.attention_network, "动作意图": state.action_intent, "记忆数": state.memory_count, "情绪全景": state.emotions };
+  return { "能量": state.energy, "疲劳": state.fatigue, "睡眠": state.is_sleeping === true ? "是" : "否", "认知模式": state.cognitive_mode, "普通认知配额": state.normal_budget_available, "紧急储备": state.emergency_reserve_available, "已预留认知配额": state.reserved_cognitive_budget, "主导情绪": emotionLabels[dominant] ?? dominant, "注意力": state.attention_network, "自我定位": state.orientation, "自我认知": state.selfhood, "Profile 锚点": state.profile_anchor, "动作意图": state.action_intent, "恢复驱力": state.motivation, "心智整理": state.cognitive_consolidation, "认知日志": state.journal, "记忆数": state.memory_count, "活动数": state.activity_count, "活动": state.activities, "情绪全景": state.emotions };
 }
 
 function difference(value: unknown, prefix = ""): Record<string, unknown> {
@@ -56,7 +56,7 @@ function Section({ title, children }: Readonly<{ title: string; children: React.
 }
 
 function DecisionSection({ turn }: Readonly<{ turn: ElfieTurn }>): React.JSX.Element {
-  const groups: readonly (readonly [string, readonly unknown[]])[] = [["Speech", turn.decision.speech_intents], ["Message", turn.decision.message_intents], ["Motion", turn.decision.motion_intents], ["Expression", turn.decision.expression_intents], ["Internal", turn.decision.internal_intents], ["No-op", turn.decision.noop_intents]];
+  const groups: readonly (readonly [string, readonly unknown[]])[] = [["Speech", turn.decision.speech_intents], ["Message", turn.decision.message_intents], ["Motion", turn.decision.motion_intents], ["Expression", turn.decision.expression_intents], ["Internal", turn.decision.internal_intents], ["Activity", turn.decision.activity_intents], ["No-op", turn.decision.noop_intents]];
   const cards = groups.flatMap(([label, intents]) => intents.map((intent) => <Card key={`${label}-${text(intent)}`} label={label} meta={typeof record(intent).status === "string" ? String(record(intent).status) : "pending"} value={intent} />));
   return <Section title="决策意图">{cards.length ? cards : <Card label="无决策计划" meta="只读" value="本轮没有持久化 typed intent" />}</Section>;
 }
@@ -67,6 +67,15 @@ function ReceiptSection({ turn }: Readonly<{ turn: ElfieTurn }>): React.JSX.Elem
   return <Section title="执行回执">{rows.length ? rows.map((item, index) => { const value = record(item); return <Card key={`${String(value.intent_id)}-${index}`} label={typeof value.intent_id === "string" ? value.intent_id : "未知 intent"} meta={typeof value.status === "string" ? value.status : "unknown"} value={record(value.error).message ?? "无错误"} />; }) : <Card label="无执行回执" meta="只读" value="本轮没有持久化回执" />}</Section>;
 }
 
+function ReasoningSection({ turn }: Readonly<{ turn: ElfieTurn }>): React.JSX.Element {
+  const reasoning = record(stageValue(turn, "reasoning"));
+  const steps = Array.isArray(reasoning.steps) ? reasoning.steps : [];
+  return <Section title="思考步骤">{steps.length ? steps.map((item, index) => {
+    const step = record(item);
+    return <Card key={`${String(step.kind)}-${index}`} label={String(step.kind ?? "step")} meta={String(step.status ?? "unknown")} value={step.summary ?? step} />;
+  }) : <Card label="无思考步骤" meta="只读" value={reasoning.status ?? "本轮未记录思考轨迹"} />}</Section>;
+}
+
 function Summary({ turn, preview }: Readonly<{ turn: ElfieTurn; preview: PreviewResult | null }>): React.JSX.Element {
   const previewCard = preview !== null && preview.turnId === turn.turn_id ? <Section title="动作回放"><Card label={preview.intentId} meta={preview.status === "completed" ? "已播放" : "不支持"} value={preview.reason || (preview.status === "completed" ? "Godot 已完成该动作回放" : "Godot 未支持该动作")} /></Section> : null;
   return <><Section title="本轮输入"><Card label="开发者刺激" meta={typeof turn.food_key === "string" ? turn.food_key : "mock"} value={turn.stimulus_bundle.message || "非文字刺激"} />{turn.used_state_injection ? <Card label="状态注入" meta="已永久标记" value={turn.stimulus_bundle.state_injection} /> : null}</Section><Section title="历史状态"><Card label="处理前" meta="state_before" value={turn.state_before} /><Card label="字段变化" meta="state_diff" value={turn.state_diff} /><Card label="处理后" meta="state_after" value={turn.state_after} /></Section><DecisionSection turn={turn} />{previewCard}<ReceiptSection turn={turn} /></>;
@@ -74,9 +83,9 @@ function Summary({ turn, preview }: Readonly<{ turn: ElfieTurn; preview: Preview
 
 function Chain({ turn }: Readonly<{ turn: ElfieTurn }>): React.JSX.Element {
   const stages = record(record(turn.trace).stages);
-  const labels: Readonly<Record<string, string>> = { state_injection: "状态注入", sleep_gate: "睡眠门控", brainstem_reflex: "脑干反射", sensory_filter: "感知过滤", thalamus_context: "丘脑上下文", decision: "注意力与决策", action_validation: "动作校验", execution: "身体执行", memory_write: "记忆写入" };
+  const labels: Readonly<Record<string, string>> = { state_injection: "状态注入", sleep_gate: "睡眠门控", brainstem_reflex: "脑干反射", sensory_filter: "感知过滤", thalamus_context: "丘脑上下文", reasoning: "思考步骤", decision: "注意力与决策", action_validation: "动作校验", execution: "身体执行", memory_write: "记忆写入" };
   const model = record(turn.model_call);
-  return <><Section title="执行阶段">{Object.entries(stages).map(([name, value]) => <Card key={name} label={labels[name] ?? name} meta={name} value={value} />)}</Section><Section title="模型调用"><Card label={model.skipped === true ? "未调用模型" : `${String(model.provider ?? "unknown")} · ${String(model.model ?? "unknown")}`} meta={typeof model.duration_ms === "number" ? `${model.duration_ms} ms` : "跳过"} value={model.skipped === true ? model.reason : model.prompt} /></Section></>;
+  return <><ReasoningSection turn={turn} /><Section title="执行阶段">{Object.entries(stages).map(([name, value]) => <Card key={name} label={labels[name] ?? name} meta={name} value={value} />)}</Section><Section title="模型调用"><Card label={model.skipped === true ? "未调用模型" : `${String(model.provider ?? "unknown")} · ${String(model.model ?? "unknown")}`} meta={typeof model.duration_ms === "number" ? `${model.duration_ms} ms` : "跳过"} value={model.skipped === true ? model.reason : model.prompt} /></Section></>;
 }
 
 export function DetailPanel({ session, selectedTurn, open, initialTab, focus, previewResult, onClose }: Props): React.JSX.Element {

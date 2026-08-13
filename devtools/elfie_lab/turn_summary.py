@@ -29,6 +29,12 @@ def model_call_summary(call: Dict[str, Any]) -> Dict[str, Any]:
 def stimulus_modalities(stimulus: StimulusBundle) -> List[str]:
     """Project a stimulus bundle into the modalities shown in the trace."""
     modalities: List[str] = []
+    if stimulus.source_domain == "communication":
+        if stimulus.message.strip():
+            modalities.append("text")
+        if stimulus.message_attachments:
+            modalities.append("attachment")
+        return modalities
     if stimulus.message.strip():
         modalities.append("hearing")
     if stimulus.vision_media is not None:

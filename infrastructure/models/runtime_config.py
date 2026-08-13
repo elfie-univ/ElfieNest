@@ -165,7 +165,7 @@ class LLMRuntimeConfig:
     )
     runtime_policy: Mapping[str, JsonValue] = field(default_factory=dict)
 
-    # 开发 Runtime Lab 使用独立配置目录，避免误读正式环境的密钥和策略。
+    # 开发工具使用独立配置目录，避免误读正式环境的密钥和策略。
     config_home: str | None = None
     source: Optional[RuntimeConfigSource] = field(
         default=None,

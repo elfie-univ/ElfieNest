@@ -1,4 +1,4 @@
-"""Runtime Lab single-screen keyboard menu."""
+"""Single-screen keyboard menu adapter."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ class TerminalMenu:
         title: str,
         items: Sequence[MenuItem],
         *,
-        breadcrumb: str = "Runtime Lab",
+        breadcrumb: str = "ElfieNest",
         back_label: str = "Back",
     ) -> str | None:
         if not items:

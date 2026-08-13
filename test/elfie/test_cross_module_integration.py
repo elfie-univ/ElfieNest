@@ -2,19 +2,29 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
+import pytest
+
 from elfie import ElfieFactory
 from elfie.body import BodyId, BodySensorEvent, HeadlessBody, UtteranceFinal
+from elfie.brain.state_lifecycle import StateRestoreError
 from elfie.communication import (
     CommunicationEnvelope,
     CommunicationHub,
     MessageDirection,
     TextPart,
 )
+from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
 from elfie.message_types import ActorRef, MessageMeta
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
-from test.elfie.test_cognitive_lifecycle import RecordingChannel, TwoTurnRuntime
+from test.elfie.test_cognitive_lifecycle import (
+    RecordingChannel,
+    TwoTurnRuntime,
+    _owner_message,
+)
 
 
 def test_body_source_identity_reaches_cortical_context() -> None:
@@ -105,9 +115,106 @@ def test_non_owner_social_input_is_not_written_as_owner_memory() -> None:
 
     # Then: identity reaches context but owner-compatible memory is untouched.
     assert "peer-1" in runtime.requests[0].user_prompt
-    assert elfie.memory.get_all_episodes() == []
+    assert ElfieDiagnostics(elfie).memory.get_all_episodes() == []
     elfie.stop()
     elfie.join()
+
+
+def test_selfhood_and_profile_anchors_are_separate_model_context_sections() -> None:
+    # Given: one immutable Profile seed with a deliberately distinctive personality.
+    profile = replace(
+        _profile("selfhood-elfie"),
+        personality={
+            "metadata": {"description": "安静又好奇"},
+            "big_five": {
+                "openness": 0.91,
+                "conscientiousness": 0.62,
+                "extraversion": 0.21,
+                "agreeableness": 0.83,
+                "neuroticism": 0.31,
+            },
+            "speech_style": {"verbal_ticks": "哒"},
+        },
+    )
+    hub = CommunicationHub("selfhood-elfie")
+    hub.register_channel(RecordingChannel(), connect=True)
+    runtime = TwoTurnRuntime()
+    runtime.release_first.set()
+    elfie = ElfieFactory().create(
+        ElfieAssembly(
+            profile=profile,
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            communication=hub,
+            model_port=runtime,
+        )
+    )
+    elfie.start()
+    elfie.receive_communication_envelope(
+        _owner_message(elfie.cognitive_datetime, elfie_id="selfhood-elfie")
+    )
+    elfie.advance_clock(0.5)
+    elfie.wait_for_outcome_count(1, timeout=1.0)
+
+    # When: a source Profile mapping is changed after Brain construction.
+    profile.personality["big_five"]["openness"] = 0.01
+
+    # Then: the Run still sees Brain Selfhood plus immutable Profile anchors.
+    prompt = runtime.requests[0].user_prompt
+    assert '"openness":0.91' in prompt
+    assert '"selfhood"' in prompt
+    assert '"profile_anchors"' in prompt
+    assert '"display_name":"selfhood-elfie"' in prompt
+    assert elfie.selfhood_snapshot().big_five.openness == 0.91
+    assert elfie.profile_anchor_snapshot().display_name == "selfhood-elfie"
+    elfie.stop()
+    elfie.join()
+
+
+def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> None:
+    # Given: one assembled Brain whose three Stage 4C owners have committed state.
+    store = SQLiteMemoryStoreAdapter.in_memory()
+    elfie = ElfieFactory().create(
+        ElfieAssembly(
+            profile=_profile("continuity-elfie"),
+            memory_store=store,
+            model_port=TwoTurnRuntime(),
+        )
+    )
+    ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 25.0)
+    ElfieDiagnostics(elfie).energy.consume_energy_by_action(token_count=100)
+    ElfieDiagnostics(elfie).memory.record_episode(
+        content="我把这件事记住了",
+        emotion="happiness",
+        intensity=80.0,
+        source_event_ids=("continuity-source",),
+    )
+    checkpoint = elfie.continuity_checkpoint()
+
+    # A new runtime over the same durable memory can restore that checkpoint.
+    restored = ElfieFactory().create(
+        ElfieAssembly(
+            profile=_profile("continuity-elfie"),
+            memory_store=store,
+            model_port=TwoTurnRuntime(),
+        )
+    )
+    restored.restore_continuity(checkpoint)
+
+    # When: newer uncommitted-in-the-checkpoint state is produced.
+    ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 20.0)
+    ElfieDiagnostics(elfie).energy.consume_energy_by_action(token_count=100)
+    ElfieDiagnostics(elfie).memory.record_episode(
+        content="这件事后来又发生了",
+        emotion="happiness",
+        intensity=80.0,
+    )
+    with pytest.raises(StateRestoreError):
+        elfie.restore_continuity(checkpoint)
+
+    # Then: the restarted runtime has the same committed state.
+    assert ElfieDiagnostics(restored).emotion.checkpoint() == checkpoint.emotion
+    assert ElfieDiagnostics(restored).energy.checkpoint() == checkpoint.energy
+    assert ElfieDiagnostics(restored).memory.checkpoint() == checkpoint.memory
 
 
 def _profile(elfie_id: str):

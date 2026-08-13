@@ -11,6 +11,7 @@ const client = ky.create({
 type RequestOptions = Readonly<{
   readonly method?: "get" | "post" | "put" | "patch" | "delete";
   readonly json?: unknown;
+  readonly timeout?: number;
 }>;
 
 type FormRequestOptions = Readonly<{

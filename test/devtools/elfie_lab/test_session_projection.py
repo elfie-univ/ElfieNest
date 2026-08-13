@@ -17,10 +17,10 @@ from test.devtools.elfie_lab.projection_test_support import add_node
 def projection_subject():
     storage = SQLiteMemoryStoreAdapter.in_memory()
     memory = SimpleNamespace(
-        storage=storage, get_core_cognition=lambda: {"world": "世界仍在展开。"}
+        storage=storage, get_self_narrative=lambda: {"world": "世界仍在展开。"}
     )
     yield (
-        SimpleNamespace(memory=memory),
+        SimpleNamespace(_memory=memory),
         ElfieSpec(elfie_id="test", name="艾菲"),
         storage,
     )

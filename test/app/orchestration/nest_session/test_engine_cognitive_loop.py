@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from app.orchestration.nest_session import ElfieNestEngine
 from elfie import Elfie
-from elfie.brain.runtime_port import ModelPort
+from elfie.brain.reasoning.model_port import ModelPort
 from test.app.orchestration.nest_session.fakes import FakeWorldRuntime
 
 

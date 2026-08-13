@@ -11,10 +11,12 @@ from app.orchestration.nest_session import (
     ModelPortFactory,
     NestSession,
 )
-from elfie import ElfieFactory
-from elfie.brain.food_port import MainFoodSelection
-from elfie.factory import ElfieAssembly
-from elfie.initialization import assemble_profile
+from elfie.public import (
+    ElfieAssembly,
+    ElfieFactory,
+    MainFoodSelection,
+    assemble_profile,
+)
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.godot.gateway.api import GodotAPIServer
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
@@ -22,6 +24,8 @@ from infrastructure.models.runtime_adapter import (
     SerializedRuntimeAdapter,
     StructuredRuntime,
 )
+from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
+from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
 from infrastructure.persistence.elfie_workspace.elfies import (
     SQLiteElfiesProjectionAdapter,
 )
@@ -120,6 +124,12 @@ def restore_registered_elfies(
                 ElfieAssembly(
                     profile=profile,
                     memory_store=memory_store,
+                    activity_store=SQLiteActivityStoreAdapter(
+                        config_dir / "activity" / "activity.sqlite"
+                    ),
+                    journal_store=SQLiteBrainJournalAdapter(
+                        config_dir / "brain" / "journal.sqlite"
+                    ),
                     body=NativeBody(
                         body_id=row.elfie_id,
                         transport=GodotTransport(

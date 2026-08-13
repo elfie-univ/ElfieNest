@@ -1,6 +1,6 @@
 """5区域上下文组装单元测试
 
-测试 ContextAssembler 的5个区域组装方法及完整上下文组装流程。
+测试 MemoryRecallFormatter 的5个区域组装方法及完整上下文组装流程。
 每个区域独立测试，最后测试完整的 assemble 入口。
 """
 
@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from elfie.brain.memory.context_assembly import ContextAssembler
 from elfie.brain.memory.node_types import MemoryNode, RetrievalQuery
+from elfie.brain.memory.recall_formatter import MemoryRecallFormatter
 
 
 def _make_node(node_id: str, content: str, **meta) -> MemoryNode:
@@ -27,39 +27,39 @@ def _make_node(node_id: str, content: str, **meta) -> MemoryNode:
     )
 
 
-class TestContextAssembler:
+class TestMemoryRecallFormatter:
     """5区域上下文组装测试"""
 
     @pytest.fixture
     def assembler(self):
-        """创建全部mock的 ContextAssembler 实例"""
+        """创建全部mock的 MemoryRecallFormatter 实例"""
         storage = MagicMock()
         retriever = MagicMock()
         spreading = MagicMock()
         decay = MagicMock()
         weighting = MagicMock()
-        core_cognition = MagicMock()
+        self_narrative = MagicMock()
 
         # 默认核心认知返回值
-        core_cognition.get_core_text.return_value = {
+        self_narrative.get_core_text.return_value = {
             "identity": "我是一只小狐狸，充满活力。",
             "relation": "主人是我最信任的人。",
             "world": "这个世界充满了有趣的事物。",
             "tendency": "开心时我会很活跃。",
         }
 
-        return ContextAssembler(
+        return MemoryRecallFormatter(
             storage=storage,
             retriever=retriever,
             spreading=spreading,
             decay=decay,
             weighting=weighting,
-            core_cognition=core_cognition,
+            self_narrative=self_narrative,
         )
 
     # ──────────── 核心认知 ────────────
 
-    def test_format_core_cognition(self, assembler):
+    def test_format_self_narrative(self, assembler):
         """核心认知格式化：4段内容按顺序列出"""
         core_text = {
             "identity": "我是一只小狐狸，充满活力。",
@@ -67,16 +67,16 @@ class TestContextAssembler:
             "world": "这个世界充满了有趣的事物。",
             "tendency": "开心时我会很活跃。",
         }
-        result = assembler._format_core_cognition(core_text)
+        result = assembler._format_self_narrative(core_text)
         assert "【核心认知】" in result
         assert "我是一只小狐狸" in result
         assert "主人是我最信任的人" in result
         assert "这个世界充满了有趣的事物" in result
         assert "开心时我会很活跃" in result
 
-    def test_format_core_cognition_empty(self, assembler):
+    def test_format_self_narrative_empty(self, assembler):
         """核心认知格式化：空字典返回空字符串"""
-        result = assembler._format_core_cognition({})
+        result = assembler._format_self_narrative({})
         assert result == ""
 
     # ──────────── 区域1：实体 ────────────
@@ -294,7 +294,7 @@ class TestContextAssembler:
         assert "预测灵感" not in result
         assert "当前情绪" not in result
 
-    def test_assemble_with_core_cognition(self, assembler):
+    def test_assemble_with_self_narrative(self, assembler):
         """包含核心认知和部分区域的上下文"""
         assembler.retriever.retrieve.return_value = [
             _make_node("ep_1", "主人喂了我鱼味食物"),

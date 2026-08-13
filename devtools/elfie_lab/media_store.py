@@ -1,4 +1,4 @@
-"""Elfie Lab 的内容寻址图片存储。"""
+"""Elfie Lab 的内容寻址媒体存储。"""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ class UnsupportedMediaError(MediaStoreError):
     __slots__ = ()
 
     def __str__(self) -> str:
-        return "只支持 PNG、JPEG 或 WebP 图片"
+        return "只支持 PNG、JPEG、WebP、PDF 或 UTF-8 文本附件"
 
 
 class MediaTooLargeError(MediaStoreError):
@@ -57,7 +57,7 @@ class MediaTooLargeError(MediaStoreError):
         super().__init__(actual_bytes, maximum_bytes)
 
     def __str__(self) -> str:
-        return f"图片不能超过 {self.maximum_bytes} 字节"
+        return f"附件不能超过 {self.maximum_bytes} 字节"
 
 
 class MediaNotFoundError(MediaStoreError):
@@ -81,7 +81,7 @@ class MediaDescriptor(NamedTuple):
     sha256: str
 
 
-class _ImageFormat(NamedTuple):
+class _MediaFormat(NamedTuple):
     extension: str
     mime_type: str
     magic: bytes
@@ -98,41 +98,48 @@ class _ImageFormat(NamedTuple):
         )
 
 
-_IMAGE_FORMATS: Final = (
-    _ImageFormat(extension="png", mime_type="image/png", magic=b"\x89PNG\r\n\x1a\n"),
-    _ImageFormat(extension="jpg", mime_type="image/jpeg", magic=b"\xff\xd8\xff"),
-    _ImageFormat(
+_BINARY_FORMATS: Final = (
+    _MediaFormat(extension="png", mime_type="image/png", magic=b"\x89PNG\r\n\x1a\n"),
+    _MediaFormat(extension="jpg", mime_type="image/jpeg", magic=b"\xff\xd8\xff"),
+    _MediaFormat(
         extension="webp",
         mime_type="image/webp",
         magic=b"RIFF",
         secondary_magic=b"WEBP",
         secondary_offset=8,
     ),
+    _MediaFormat(extension="pdf", mime_type="application/pdf", magic=b"%PDF-"),
 )
+_TEXT_FORMAT: Final = _MediaFormat(
+    extension="txt",
+    mime_type="text/plain",
+    magic=b"",
+)
+_MEDIA_FORMATS: Final = (*_BINARY_FORMATS, _TEXT_FORMAT)
 
 
 class ElfieLabMediaStore:
-    """在 Lab 数据根目录内按内容哈希原子保存图片。"""
+    """在 Lab 数据根目录内按内容哈希原子保存媒体。"""
 
     def __init__(self, data_dir: str | Path) -> None:
         self.root = Path(data_dir).expanduser()
         self.media_dir = self.root / "media"
 
     def store(self, elfie_id: str, content: bytes) -> MediaDescriptor:
-        """校验图片内容并返回不含本机绝对路径的稳定描述符。"""
+        """校验媒体内容并返回不含本机绝对路径的稳定描述符。"""
         self._require_elfie_id(elfie_id)
         if len(content) > MAX_MEDIA_BYTES:
             raise MediaTooLargeError(actual_bytes=len(content))
 
-        image_format = self._detect_format(content)
+        media_format = self._detect_format(content)
         digest = hashlib.sha256(content).hexdigest()
         media_id = f"media_{digest}"
         directory = self.media_dir / elfie_id
-        destination = directory / f"{digest}.{image_format.extension}"
+        destination = directory / f"{digest}.{media_format.extension}"
         descriptor = MediaDescriptor(
             media_id=media_id,
             uri=f"{_URI_SCHEME}://{elfie_id}/{destination.name}",
-            mime_type=image_format.mime_type,
+            mime_type=media_format.mime_type,
             size_bytes=len(content),
             sha256=digest,
         )
@@ -160,8 +167,8 @@ class ElfieLabMediaStore:
         if _MEDIA_ID_PATTERN.fullmatch(media_id) is None:
             raise InvalidMediaIdError(media_id=media_id)
         digest = media_id.removeprefix("media_")
-        for image_format in _IMAGE_FORMATS:
-            candidate = self.media_dir / elfie_id / f"{digest}.{image_format.extension}"
+        for media_format in _MEDIA_FORMATS:
+            candidate = self.media_dir / elfie_id / f"{digest}.{media_format.extension}"
             if candidate.is_file():
                 return candidate
         raise MediaNotFoundError(media_id=media_id)
@@ -170,7 +177,8 @@ class ElfieLabMediaStore:
         """重新构造安全描述符，供回合请求按 ID 引用已上传媒体。"""
         path = self.path_for(elfie_id, media_id)
         mime_by_suffix = {
-            f".{item.extension}": item.mime_type for item in _IMAGE_FORMATS
+            f".{item.extension}": item.mime_type
+            for item in _MEDIA_FORMATS
         }
         digest = media_id.removeprefix("media_")
         return MediaDescriptor(
@@ -187,10 +195,17 @@ class ElfieLabMediaStore:
             raise InvalidElfieIdError(elfie_id=elfie_id)
 
     @staticmethod
-    def _detect_format(content: bytes) -> _ImageFormat:
-        for image_format in _IMAGE_FORMATS:
-            if image_format.matches(content):
-                return image_format
+    def _detect_format(content: bytes) -> _MediaFormat:
+        for media_format in _BINARY_FORMATS:
+            if media_format.matches(content):
+                return media_format
+        if content and not content.startswith(b"data:") and b"\x00" not in content:
+            try:
+                content.decode("utf-8")
+            except UnicodeDecodeError:
+                pass
+            else:
+                return _TEXT_FORMAT
         raise UnsupportedMediaError
 
 

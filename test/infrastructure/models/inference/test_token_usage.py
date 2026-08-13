@@ -159,9 +159,9 @@ class TestConsumeEnergyByActionTokenBased:
 
     def test_consume_energy_with_token_count_higher_cost(self, default_config):
         """consume_energy_by_action(token_count=1000, cost_tier=3) 应计算更高消耗"""
-        from elfie.brain.energy.energy import HypothalamusEnergy
+        from elfie.brain.energy.energy import EnergySystem
 
-        energy = HypothalamusEnergy(default_config)
+        energy = EnergySystem(default_config)
         initial = energy.energy
 
         # token_count=1000, cost_tier=3
@@ -172,9 +172,9 @@ class TestConsumeEnergyByActionTokenBased:
 
     def test_consume_energy_backward_compat_remote(self, default_config):
         """consume_energy_by_action(is_remote=True) 应仍正常工作（向后兼容）"""
-        from elfie.brain.energy.energy import HypothalamusEnergy
+        from elfie.brain.energy.energy import EnergySystem
 
-        energy = HypothalamusEnergy(default_config)
+        energy = EnergySystem(default_config)
         initial = energy.energy
 
         energy.consume_energy_by_action(is_remote=True)
@@ -183,9 +183,9 @@ class TestConsumeEnergyByActionTokenBased:
 
     def test_consume_energy_backward_compat_local(self, default_config):
         """consume_energy_by_action(is_remote=False) 应仍正常工作（向后兼容）"""
-        from elfie.brain.energy.energy import HypothalamusEnergy
+        from elfie.brain.energy.energy import EnergySystem
 
-        energy = HypothalamusEnergy(default_config)
+        energy = EnergySystem(default_config)
         initial = energy.energy
 
         energy.consume_energy_by_action(is_remote=False)
@@ -194,9 +194,9 @@ class TestConsumeEnergyByActionTokenBased:
 
     def test_consume_energy_token_count_zero_uses_legacy(self, default_config):
         """consume_energy_by_action(is_remote=True, token_count=0) 应使用旧方式"""
-        from elfie.brain.energy.energy import HypothalamusEnergy
+        from elfie.brain.energy.energy import EnergySystem
 
-        energy = HypothalamusEnergy(default_config)
+        energy = EnergySystem(default_config)
         initial = energy.energy
 
         # 当 token_count=0 时，使用 is_remote 参数
@@ -206,11 +206,11 @@ class TestConsumeEnergyByActionTokenBased:
 
     def test_consume_energy_different_cost_tiers(self, default_config):
         """不同 cost_tier 应产生不同消耗"""
-        from elfie.brain.energy.energy import HypothalamusEnergy
+        from elfie.brain.energy.energy import EnergySystem
 
-        energy1 = HypothalamusEnergy(default_config)
-        energy2 = HypothalamusEnergy(default_config)
-        energy3 = HypothalamusEnergy(default_config)
+        energy1 = EnergySystem(default_config)
+        energy2 = EnergySystem(default_config)
+        energy3 = EnergySystem(default_config)
 
         # cost_tier=1: cost = 2.5 * (500/1000) * (1/2) = 0.625
         energy1.consume_energy_by_action(token_count=500, cost_tier=1)

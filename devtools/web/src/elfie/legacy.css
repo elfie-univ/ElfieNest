@@ -152,6 +152,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .model-controls p { margin: 7px 0 0; color: var(--text-tertiary); font-size: 10px; }
 .model-controls p.is-ready { color: var(--accent-primary); }
 .model-controls p.is-error { color: var(--status-error); }
+.food-configure-button { width: 100%; margin-top: 10px; }
 .food-setup-list { margin-top: 8px; border-top: 1px solid var(--border-subtle); padding-top: 7px; }
 .food-setup-list div { display: grid; gap: 3px; padding: 5px 0; color: var(--text-tertiary); font-size: 10px; }
 .food-setup-list code { color: var(--text-secondary); font-family: "SF Mono", Menlo, monospace; line-height: 1.5; overflow-wrap: anywhere; user-select: text; }

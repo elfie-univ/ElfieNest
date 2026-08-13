@@ -23,6 +23,14 @@ def _prepare_dev_project(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
         '{"packageManager":"pnpm@10.12.1"}\n',
         encoding="utf-8",
     )
+    host_main = project_root / "app/bootstrap/desktop_host/host_main.mjs"
+    host_main.parent.mkdir(parents=True)
+    host_main.write_text("host\n", encoding="utf-8")
+    authority_main = (
+        project_root / "infrastructure/godot/lifecycle/electron/authority_main.mjs"
+    )
+    authority_main.parent.mkdir(parents=True)
+    authority_main.write_text("authority\n", encoding="utf-8")
     elfie_home = tmp_path / "elfie-home"
     elfie_home.mkdir()
     fake_bin = project_root / ".fake-bin"

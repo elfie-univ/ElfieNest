@@ -1,4 +1,4 @@
-from elfie.brain.food_port import FoodAssignment, FoodPackage
+from elfie.brain.reasoning.food_port import FoodAssignment, FoodPackage
 from infrastructure.models.food_execution import FoodExecutor
 from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.tools import DisabledToolPort

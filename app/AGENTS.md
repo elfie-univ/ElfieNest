@@ -5,9 +5,8 @@
 的代理执行摘要，并受
 [`System architecture contract`](../docs/developer/contracts/system.md) 的顶层边界
 约束。当前用户指令和根目录 `AGENTS.md` 优先；子目录 `AGENTS.md` 只能
-细化本文件，不能改变依赖方向、所有权或契约。当前历史偏差记录在
-[`Application conformance`](../docs/developer/conformance/application.md)，台账不是
-放宽规则的依据。
+细化本文件，不能改变依赖方向、所有权或契约。App 架构债务已清零；以下长期边界由
+永久 Scanner 和架构测试直接执行。
 
 ## 目标依赖方向
 
@@ -35,11 +34,11 @@ bootstrap     -> 以上所有模块（仅创建、注入、生命周期装配）
   清理装配；Runtime 组件启停与重启流程只属于 `orchestration/lifecycle`。Bootstrap
   不写业务分支、SQL、协议映射或第二套配置事实。
 
-新代码不得反向依赖。历史反向依赖只能在对应迁移闭环中删除，不能复制到新文件。
+禁止反向依赖，也不得恢复已退役路径。
 
 ## 最终业务与工作流目录
 
-App 迁移按应用架构契约冻结的纵向切片执行，不照当前目录机械搬迁：
+应用架构契约冻结以下业务与工作流所有权：
 
 ```text
 features/
@@ -68,12 +67,12 @@ orchestration/
 ```
 
 - 目录只表达最终所有权，不批准新功能，也不要求提前创建空目录。
-- `administration`、`chat`、`elfie_profile`、`nest_registration` 和当前 Feature 层
-  `embodiment` 是迁移期位置，只能按一致性台账映射收缩。
+- 禁止恢复已退役的 `administration`、`chat`、`elfie_profile`、`nest_registration`
+  和 Feature 层 `embodiment` 目录。
 - Orchestration 按真实跨 authority 工作流命名，不为每个 Feature 机械建立同名目录。
-- 每个纵向切片同时完成必要的 Interface、Feature/Orchestration、Port、根
-  Infrastructure Adapter、Bootstrap 装配和调用方迁移；Bootstrap 与 Infrastructure
-  不作为独立横向搬迁阶段。
+- 新能力以可运行的纵向切片完成必要的 Interface、Feature/Orchestration、Port、根
+  Infrastructure Adapter、Bootstrap 装配和真实调用方；Bootstrap 与 Infrastructure
+  不作为独立横向阶段。
 
 ## Feature、Port 与公开门面
 
@@ -83,7 +82,7 @@ orchestration/
   的边界；普通纯函数和领域内部 helper 不为“形式统一”创建 Port。
 - Port、命令、查询、结果和业务错误由使用它的 Feature 或 Orchestration 拥有；具体
   Adapter 目标位于根 `infrastructure/`，由 `bootstrap/` 注入。
-- 已完成迁移的 Feature 通过 `__init__.py` 暴露稳定用例和模型；调用方不得绕过门面
+- Feature 通过 `__init__.py` 暴露稳定用例和模型；调用方不得绕过门面
   读取内部实现。
 - 不新增万能 Repository、Service Locator、自动扫描式 DI、事件总线、完整 CQRS、
   Event Sourcing 或分布式事务框架，除非用户单独批准。
@@ -96,7 +95,7 @@ orchestration/
   动态字段和仅靠类型断言成立的契约。
 - Pydantic 负责协议/配置校验；领域内部可使用 dataclass、Protocol、Enum 和明确的
   值对象。不要为同一事实维护第二份手写 Schema。
-- 已迁移业务域必须进入严格 MyPy 范围；未迁移目录保留现有基线，但不得新增类型债。
+- 新增或修改的公开边界必须进入严格类型检查范围，不得新增类型债。
 
 ## 身份、授权与错误
 
@@ -132,17 +131,12 @@ orchestration/
 - 请求、任务和外部工作流传递关联 ID；日志只记录安全上下文，不记录密码、Token、
   API Key 或完整设备凭据。
 
-## 迁移和验证
+## 验证与防回退
 
-- 迁移按一个业务域闭环：盘点调用链和事实源，先定义模型与 Port，再实现 Adapter 并
-  由 Bootstrap 注入，迁移全部调用方，删除旧 Route/DTO/实现，最后收紧机器基线。
-- 不保留长期兼容壳、双写、fallback read 或未登记例外。MVP 历史实现只有在台账中
-  有 ID、负责人范围、删除门槛和机器基线时才可暂存。
-- `test/architecture/test_app_layer_boundaries.py` 是 App 依赖和边界硬门禁。精确历史
-  基线 `test/architecture/baselines/app_layer.py` 必须“只减不增”；新增违规、恢复
-  已删除违规或未同步台账都会失败。
-- 一个领域只有在契约测试、授权/事务/错误/超时/幂等测试、调用方迁移、旧代码删除、
-  基线删除和至少一条真实端到端路径全部成立后，才能标记迁移完成。
-- 迁移切片在合入主分支前必须保持应用可构建、可测试、真实调用链可运行。先完成新
-  Port/Adapter 与 Bootstrap 装配，再切换全部调用方，最后删除旧实现；不得合入半条
-  调用链、长期双写、隐藏 Fallback 或只靠兼容 Alias 维持的中间状态。
+- `scripts/architecture/app_layer_scan.py --mode deny-all` 与
+  `test/architecture/test_app_layer_boundaries.py` 是 App 依赖、目录和协议边界的永久门禁；
+  不得恢复空基线或为回退增加 allowlist。
+- 新能力必须同时验证直接契约、授权/事务/错误/超时/幂等语义和至少一条真实调用路径；
+  不得交付半条调用链、长期双写、隐藏 Fallback 或只靠兼容 Alias 维持的状态。
+- 临时缺口只有在仓库治理契约要求的台账、精确证据和删除门齐全时才能存在；最后一个
+  缺口清零后必须执行零债务治理收口。

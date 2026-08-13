@@ -47,7 +47,7 @@ def config_providers(
         choice = menu.choose(
             "Provider Config",
             tuple(items),
-            breadcrumb="Runtime Lab / Provider Config",
+            breadcrumb="ElfieNest / Config / Providers",
             back_label="Back",
         )
         if choice is None:
@@ -93,7 +93,7 @@ def _provider_detail_menu(
                 MenuItem("3", "Validate Connectivity"),
                 MenuItem("4", "Delete Provider"),
             ),
-            breadcrumb=f"Runtime Lab / Layer 1 / {current.catalog_id}",
+            breadcrumb=f"ElfieNest / Config / Providers / {current.catalog_id}",
             back_label="Back to Provider List",
         )
         if choice is None:

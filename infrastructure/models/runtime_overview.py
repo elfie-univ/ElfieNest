@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
 from app.features.configuration.food import StoredModelEvidence, project_food_health
-from elfie.brain.food_port import FoodCatalog, FoodPort
+from elfie.brain.reasoning.food_port import FoodCatalog, FoodPort
 from infrastructure.models.capabilities import (
     canonical_display_name,
     known_capabilities,

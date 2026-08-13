@@ -5,12 +5,12 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from elfie.brain.energy.energy import EnergyTimeRegressionError, HypothalamusEnergy
+from elfie.brain.energy.energy import EnergySystem, EnergyTimeRegressionError
 
 
 def test_update_clock_depletes_awake_state_by_exact_delta() -> None:
     # Given: the existing awake default state.
-    energy = HypothalamusEnergy()
+    energy = EnergySystem()
 
     # When: the compatibility clock API advances ten seconds.
     energy.update_clock(10.0)
@@ -22,7 +22,7 @@ def test_update_clock_depletes_awake_state_by_exact_delta() -> None:
 
 def test_snapshot_advances_to_absolute_simulation_time() -> None:
     # Given: homeostasis initialized at a deterministic simulation instant.
-    energy = HypothalamusEnergy(clock=lambda: 100.0)
+    energy = EnergySystem(clock=lambda: 100.0)
 
     # When: a snapshot is requested five seconds later.
     snapshot = energy.snapshot(105.0)
@@ -36,7 +36,7 @@ def test_snapshot_advances_to_absolute_simulation_time() -> None:
 
 def test_advance_to_rejects_time_regression_with_typed_error() -> None:
     # Given: homeostasis already advanced past its initial instant.
-    energy = HypothalamusEnergy(clock=lambda: 10.0)
+    energy = EnergySystem(clock=lambda: 10.0)
     energy.advance_to(15.0)
 
     # When / Then: an older timestamp is rejected with structured evidence.
@@ -48,7 +48,7 @@ def test_advance_to_rejects_time_regression_with_typed_error() -> None:
 
 def test_homeostasis_snapshot_is_immutable() -> None:
     # Given: a sealed homeostasis snapshot.
-    snapshot = HypothalamusEnergy(clock=lambda: 0.0).snapshot(0.0)
+    snapshot = EnergySystem(clock=lambda: 0.0).snapshot(0.0)
 
     # When / Then: callers cannot write state back through the snapshot.
     with pytest.raises(ValidationError):

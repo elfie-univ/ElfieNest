@@ -75,6 +75,7 @@ class StimulusBundle:
     source_domain: Literal["communication", "embodied"] = "communication"
     message: str = ""
     vision_media: Optional[Dict[str, Any]] = None
+    message_attachments: List[Dict[str, Any]] = field(default_factory=list)
     temperature: float = 24.0
     is_network_online: bool = True
     salience_score: float = 20.0

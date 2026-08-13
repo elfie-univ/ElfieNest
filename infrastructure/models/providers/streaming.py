@@ -22,10 +22,10 @@ def stream_ollama_api(
         "model": model_name,
         "messages": messages,
         "stream": True,
+        "think": False,
         "options": {
             "temperature": temperature,
             "num_predict": max_tokens,
-            "think": False,
         },
     }
 
