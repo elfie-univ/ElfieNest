@@ -7,27 +7,27 @@ from typing import Callable
 
 from pydantic import JsonValue
 
+from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.provider_records import ProviderConnection
-from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.validation.provider_validation import (
     ProviderValidationRunner,
     classify_latency,
 )
 from infrastructure.models.validation.validation_models import CheckStatus
 
-RuntimeProjection = Callable[[ProviderConnection], tuple[str, LLMRuntimeConfig]]
+ModelExecutionProjection = Callable[[ProviderConnection], tuple[str, ModelExecutionConfig]]
 _MODEL_TIMEOUT_SECONDS = 20.0
 
 
 def run_connection_model_check(
     connection: ProviderConnection,
     model_id: str,
-    runtime_projection: RuntimeProjection,
+    model_execution_projection: ModelExecutionProjection,
 ) -> dict[str, JsonValue]:
     """Execute one configured model through the normal Provider adapter."""
-    runtime_id, config = runtime_projection(connection)
+    execution_id, config = model_execution_projection(connection)
     suite = ProviderValidationRunner(config).verify_models(
-        runtime_id,
+        execution_id,
         [model_id],
         max_models=1,
     )
@@ -52,7 +52,7 @@ async def bounded_connection_model_check(
     connection: ProviderConnection,
     model_id: str,
     semaphore: asyncio.Semaphore,
-    runtime_projection: RuntimeProjection,
+    model_execution_projection: ModelExecutionProjection,
 ) -> dict[str, JsonValue]:
     """Bound one model request without retrying or spending extra tokens."""
     async with semaphore:
@@ -62,7 +62,7 @@ async def bounded_connection_model_check(
                     run_connection_model_check,
                     connection,
                     model_id,
-                    runtime_projection,
+                    model_execution_projection,
                 ),
                 timeout=_MODEL_TIMEOUT_SECONDS,
             )

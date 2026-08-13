@@ -17,13 +17,15 @@ from app.features.operations import (
 from app.interfaces.api.service_access import ServiceAccessPolicy
 from app.interfaces.api.v1.admin.runtime import router
 from app.interfaces.api.v1.auth import require_manager, require_user
-from infrastructure.models.runtime_observations import (
+from infrastructure.models.model_execution_observations import (
     FallbackObservation,
-    RuntimeEventStatus,
-    RuntimeObserver,
+    ModelExecutionEventStatus,
+    ModelExecutionObserver,
     ToolCallObservation,
 )
-from infrastructure.models.runtime_observer import RuntimeObserverProjectionAdapter
+from infrastructure.models.model_execution_observer import (
+    ModelExecutionObserverProjectionAdapter,
+)
 
 
 class UnusedDatabaseAdapter:
@@ -61,13 +63,13 @@ def _principal(role: str) -> AccountPrincipal:
     )
 
 
-def _client(observer: RuntimeObserver, role: str) -> TestClient:
+def _client(observer: ModelExecutionObserver, role: str) -> TestClient:
     app = FastAPI()
     database = UnusedDatabaseAdapter()
     app.state.operations = OperationsFacade(
         database,
         database,
-        RuntimeObserverProjectionAdapter(observer),
+        ModelExecutionObserverProjectionAdapter(observer),
         UnusedNetworkAccessProjection(),
     )
     app.dependency_overrides[require_user] = lambda: _principal(role)
@@ -81,11 +83,11 @@ def isolated_runtime_reports(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
 
 
 def test_manager_runtime_status_preserves_the_existing_projection() -> None:
-    observer = RuntimeObserver()
+    observer = ModelExecutionObserver()
     observer.record_tool_call(
         ToolCallObservation(
             tool_name="web_search",
-            status=RuntimeEventStatus.OK,
+            status=ModelExecutionEventStatus.OK,
             metadata={"query": "ElfieNest"},
         )
     )
@@ -124,7 +126,7 @@ def test_manager_runtime_status_preserves_the_existing_projection() -> None:
 
 
 def test_non_manager_receives_the_standard_error_envelope() -> None:
-    with _client(RuntimeObserver(), "user") as client:
+    with _client(ModelExecutionObserver(), "user") as client:
         response = client.get("/api/v1/admin/runtime/status")
 
     assert response.status_code == 403

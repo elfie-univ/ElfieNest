@@ -10,22 +10,22 @@ from fastapi.responses import JSONResponse
 from app.features.accounts import AccountPrincipal
 from app.features.operations import (
     GetRuntimeStatusQuery,
+    ModelExecutionEventResult,
     OperationsError,
     OperationsFacade,
     OperationsForbidden,
     OperationsUnavailable,
-    RuntimeEventResult,
 )
 from app.interfaces.api.service_access import MobileAccessProjection
 from app.interfaces.api.v1.auth import require_manager, require_user
 
 from .models import (
     MobileAccessResponse,
+    ModelExecutionEventResponse,
+    ModelExecutionObserverResponse,
     RuntimeErrorDetails,
     RuntimeErrorItem,
     RuntimeErrorResponse,
-    RuntimeEventResponse,
-    RuntimeObserverResponse,
     RuntimeStatusResponse,
 )
 
@@ -65,7 +65,7 @@ def get_runtime_status(
     )
     return RuntimeStatusResponse(
         status=result.status,
-        observer=RuntimeObserverResponse(
+        observer=ModelExecutionObserverResponse(
             event_count=result.observer.event_count,
             last_event=last_event,
         ),
@@ -117,8 +117,8 @@ def runtime_error_response(error: OperationsError) -> JSONResponse:
     return JSONResponse(status_code=status_code, content=body.model_dump(mode="json"))
 
 
-def _event_response(event: RuntimeEventResult) -> RuntimeEventResponse:
-    return RuntimeEventResponse(
+def _event_response(event: ModelExecutionEventResult) -> ModelExecutionEventResponse:
+    return ModelExecutionEventResponse(
         event_type=event.event_type,
         status=event.status,
         subject=event.subject,

@@ -12,14 +12,14 @@ from infrastructure.models.provider_records import ProviderConnection
 from infrastructure.models.storage_ports import ReportStoragePort
 
 from .provider_validation_checks import (
-    RuntimeProjection,
+    ModelExecutionProjection,
     bounded_connection_model_check,
 )
+from .provider_validation_execution import connection_api_key
 from .provider_validation_policy import (
     ValidationDecision,
     active_validation_models,
 )
-from .provider_validation_runtime import connection_api_key
 from .provider_validation_service import _now, _verification_payload
 
 _MODEL_CONCURRENCY = 2
@@ -30,7 +30,7 @@ async def run_full(
     connection: ProviderConnection,
     decision: ValidationDecision,
     *,
-    runtime_projection: RuntimeProjection,
+    model_execution_projection: ModelExecutionProjection,
     reports: ReportStoragePort,
     secret_resolver: SecretResolver,
     run_id: str | None,
@@ -54,7 +54,7 @@ async def run_full(
                 connection,
                 model.endpoint_model_id,
                 semaphore,
-                runtime_projection,
+                model_execution_projection,
             )
             checked_at = _now()
             status = "passed" if raw.get("status") == "passed" else "failed"
@@ -158,7 +158,7 @@ async def run_heartbeat(
     connection: ProviderConnection,
     decision: ValidationDecision,
     *,
-    runtime_projection: RuntimeProjection,
+    model_execution_projection: ModelExecutionProjection,
     reports: ReportStoragePort,
     secret_resolver: SecretResolver,
     trigger: Literal["batch", "single"],
@@ -175,7 +175,7 @@ async def run_heartbeat(
             connection,
             model_id,
             asyncio.Semaphore(1),
-            runtime_projection,
+            model_execution_projection,
         )
         if model_id
         else {"status": "failed", "error": "没有可验证模型"}

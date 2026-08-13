@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
+from infrastructure.models.oauth_credentials import OAuthToken
 from infrastructure.persistence.layout.data_home import (
     ensure_elfie_home,
     get_oauth_credentials_dir,
@@ -187,6 +188,46 @@ class OAuthCredentialStore:
     def _path(self, provider_id: str) -> Path:
         _validate_credential_id(provider_id)
         return self.directory / f"{provider_id}.json"
+
+
+class OAuthCredentialAdapter:
+    """Implement the Models-owned OAuth credential port over the secure store."""
+
+    def __init__(self, store: OAuthCredentialStore | None = None) -> None:
+        self._store = store or OAuthCredentialStore()
+
+    def load(self, credential_ref: str) -> OAuthToken | None:
+        item = self._store.load(credential_ref)
+        if item is None:
+            return None
+        return OAuthToken(
+            credential_ref=item.provider_id,
+            access_token=item.access_token,
+            refresh_token=item.refresh_token,
+            expires_at=item.expires_at,
+            scopes=item.scopes,
+            account_id=item.account_id,
+            token_type=item.token_type,
+        )
+
+    def save(self, token: OAuthToken) -> None:
+        self._store.save(
+            OAuthCredential(
+                provider_id=token.credential_ref,
+                access_token=token.access_token,
+                refresh_token=token.refresh_token,
+                expires_at=token.expires_at,
+                scopes=token.scopes,
+                account_id=token.account_id,
+                token_type=token.token_type,
+            )
+        )
+
+    def delete(self, credential_ref: str) -> bool:
+        return self._store.delete(credential_ref)
+
+    def has(self, credential_ref: str) -> bool:
+        return self._store.load(credential_ref) is not None
 
 
 def _validate_credential_id(credential_id: str) -> None:

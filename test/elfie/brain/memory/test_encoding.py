@@ -356,15 +356,15 @@ class TestMemoryEncoder:
         assert entities == []
 
     def test_extract_entities_llm_fallback(self, encoder):
-        """LLM降级：runtime_agent=None时只返回规则匹配，不抛异常"""
+        """LLM降级：model_port=None时只返回规则匹配，不抛异常"""
         # 有规则匹配时的正常行为
         entities_with_agent_none = encoder.extract_entities(
-            "花园里有只猫", runtime_agent=None
+            "花园里有只猫", model_port=None
         )
         assert "花园" in entities_with_agent_none
         assert "猫" in entities_with_agent_none
         # 无规则匹配时返回空列表（即使内容非空）
-        entities_no_match = encoder.extract_entities("今天心情不错", runtime_agent=None)
+        entities_no_match = encoder.extract_entities("今天心情不错", model_port=None)
         assert entities_no_match == []
 
     def test_check_entity_exists(self, encoder, storage):

@@ -13,7 +13,7 @@ from app.features.configuration.capabilities import (
     StoredValidationResult,
     ValidationStatus,
 )
-from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.validation.validation_models import CheckResult
 from infrastructure.tools.validation.direct_validation import DirectToolValidationRunner
 
@@ -24,7 +24,7 @@ class ValidationRunner(Protocol):
     def verify_file_sandbox(self) -> CheckResult: ...
 
 
-RunnerFactory = Callable[[LLMRuntimeConfig], ValidationRunner]
+RunnerFactory = Callable[[ModelExecutionConfig], ValidationRunner]
 
 
 class DirectCapabilityValidationAdapter:
@@ -32,7 +32,7 @@ class DirectCapabilityValidationAdapter:
 
     def __init__(
         self,
-        config_loader: Callable[[], LLMRuntimeConfig] = LLMRuntimeConfig.load,
+        config_loader: Callable[[], ModelExecutionConfig] = ModelExecutionConfig.load,
         runner_factory: RunnerFactory = DirectToolValidationRunner,
     ) -> None:
         self._config_loader = config_loader

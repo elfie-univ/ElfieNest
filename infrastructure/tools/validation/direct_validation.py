@@ -28,7 +28,7 @@ class DirectToolValidationRunner:
         search_plugin: SearchPlugin | None = None,
     ) -> None:
         self.config = config
-        self.search_plugin = search_plugin or WebSearchPlugin.from_runtime_policy(
+        self.search_plugin = search_plugin or WebSearchPlugin.from_model_execution_policy(
             getattr(config, "runtime_policy", {})
         )
 

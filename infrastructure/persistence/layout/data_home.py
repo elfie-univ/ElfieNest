@@ -170,8 +170,8 @@ def get_tool_config_path() -> Path:
     return get_configs_dir() / "tools.yaml"
 
 
-def get_runtime_config_paths() -> tuple[Path, Path, Path]:
-    """返回影响 Runtime 热加载的全部正式配置文件。"""
+def get_model_execution_config_paths() -> tuple[Path, Path, Path]:
+    """返回影响模型执行热加载的全部正式配置文件。"""
     return (
         get_config_path(),
         get_provider_config_path(),

@@ -326,7 +326,7 @@ class ModelCatalog:
         """初始化模型目录。
 
         Args:
-            config: LLMRuntimeConfig 实例，用于确定 provider 状态
+            config: ModelExecutionConfig 实例，用于确定 provider 状态
         """
         self.config = config
         # 深拷贝内置目录，避免修改原数据
@@ -671,7 +671,7 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
 
     Args:
         provider_id: 服务商标识符 (ollama, openai, anthropic, etc.)
-        config: LLMRuntimeConfig 实例
+        config: ModelExecutionConfig 实例
 
     Returns:
         {"status": "active"|"inactive"|"unverified", "latency_ms": float|None, "error": str|None}

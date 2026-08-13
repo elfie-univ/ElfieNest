@@ -21,7 +21,7 @@ from app.features.configuration.food import (
     is_model_evidence_fresh,
     project_food_health,
 )
-from elfie.brain.reasoning.food_port import FoodPackage as RuntimeFoodPackage
+from elfie.brain.reasoning.food_port import FoodPackage as ModelExecutionFoodPackage
 from infrastructure.models.capabilities import (
     canonical_display_name,
     known_capabilities,
@@ -42,7 +42,7 @@ FOOD_COMMON_ID = "food_common"
 SYSTEM_FOOD_IDS = frozenset({FOOD_EMERGENCY_ID, FOOD_COMMON_ID})
 
 
-class RuntimeFoodTechnologyAdapter:
+class ModelFoodTechnologyAdapter:
     """Implement the Food feature's model-evidence and policy Port."""
 
     def __init__(self, evidence_port: FoodEvidencePort) -> None:
@@ -144,7 +144,7 @@ def validate_food_package_model_references(
             raise ModelReferenceError(f"粮食 '{package.food_id}' 引用了不可用模型")
 
 
-def stored_food_package(package: RuntimeFoodPackage) -> StoredFoodPackage:
+def stored_food_package(package: ModelExecutionFoodPackage) -> StoredFoodPackage:
     """Map the Elfie-owned read projection to the App Food boundary model."""
     return StoredFoodPackage(
         food_id=package.key,
@@ -243,7 +243,7 @@ def _int_value(data: Mapping[str, JsonValue], key: str, default: int) -> int:
 
 __all__ = (
     "FoodEvidencePort",
-    "RuntimeFoodTechnologyAdapter",
+    "ModelFoodTechnologyAdapter",
     "stored_food_package",
     "validate_food_package_model_references",
 )

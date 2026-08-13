@@ -1,11 +1,11 @@
 from app.features.configuration.capabilities import StoredValidationResult
-from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.validation.validation_models import CheckResult, CheckStatus
 from infrastructure.tools import DirectCapabilityValidationAdapter
 
 
 class FakeRunner:
-    def __init__(self, config: LLMRuntimeConfig) -> None:
+    def __init__(self, config: ModelExecutionConfig) -> None:
         self.config = config
 
     def verify_web_search(self) -> CheckResult:
@@ -24,13 +24,13 @@ class FakeRunner:
         )
 
 
-def _factory(config: LLMRuntimeConfig):
+def _factory(config: ModelExecutionConfig):
     return FakeRunner(config)
 
 
 def test_validation_adapter_delegates_and_keeps_only_typed_details():
     adapter = DirectCapabilityValidationAdapter(
-        config_loader=lambda: LLMRuntimeConfig(),
+        config_loader=lambda: ModelExecutionConfig(),
         runner_factory=_factory,
     )
 
@@ -43,7 +43,7 @@ def test_validation_adapter_delegates_and_keeps_only_typed_details():
 
 def test_validation_adapter_uses_existing_file_sandbox_check():
     adapter = DirectCapabilityValidationAdapter(
-        config_loader=lambda: LLMRuntimeConfig(),
+        config_loader=lambda: ModelExecutionConfig(),
         runner_factory=_factory,
     )
 

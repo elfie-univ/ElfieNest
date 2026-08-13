@@ -1,4 +1,4 @@
-from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.validation.validation_models import CheckStatus
 from infrastructure.tools.validation.direct_validation import DirectToolValidationRunner
 
@@ -12,7 +12,7 @@ def test_direct_tool_suite_validates_local_tools_and_skips_network(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    runner = DirectToolValidationRunner(LLMRuntimeConfig())
+    runner = DirectToolValidationRunner(ModelExecutionConfig())
 
     suite = runner.run()
 
@@ -25,7 +25,7 @@ def test_direct_tool_suite_validates_local_tools_and_skips_network(
 
 def test_network_tool_can_be_verified_with_injected_search(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    runner = DirectToolValidationRunner(LLMRuntimeConfig(), search_plugin=FakeSearch())
+    runner = DirectToolValidationRunner(ModelExecutionConfig(), search_plugin=FakeSearch())
 
     result = runner.verify_web_search()
 

@@ -16,8 +16,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from .memory_store import MemoryStorePort
+from .model_food import MemoryModelPort, ask_memory_model
 from .node_types import EdgeTypes, MemoryNode, NodeTypes
-from .runtime_food import MemoryModelPort, ask_memory_model
 from .sensory_buffer import SensoryBuffer
 from .sensory_index import SensoryIndexer
 
@@ -60,7 +60,7 @@ class MemoryEncoder:
         intensity: float,
         stimulus: str = None,
         sensory: dict = None,
-        runtime_agent: MemoryModelPort | None = None,
+        model_port: MemoryModelPort | None = None,
     ) -> str:
         """编码流程：
         1. 写入SensoryBuffer（事件先进缓冲）
@@ -96,7 +96,7 @@ class MemoryEncoder:
                 self.sensory_indexer.index_sensory(node_id, sensory)
 
             # 提取实体名称 → 转换为节点ID
-            entity_names = self.extract_entities(event_content, runtime_agent)
+            entity_names = self.extract_entities(event_content, model_port)
             entity_ids = [self.create_or_get_entity(name) for name in entity_names]
 
             # 建立编码边
@@ -263,18 +263,18 @@ class MemoryEncoder:
     def extract_entities(
         self,
         content: str,
-        runtime_agent: MemoryModelPort | None = None,
+        model_port: MemoryModelPort | None = None,
     ) -> List[str]:
         """提取实体名称（规则优先+LLM兜底）
 
         1. 先用内置词典匹配内容中的关键词
-        2. 如果runtime_agent可用且词典匹配不足，用LLM提取更多实体
+        2. 如果model_port可用且词典匹配不足，用LLM提取更多实体
         3. LLM失败时降级为纯规则匹配
         4. 返回实体名称列表（去重，保留出现顺序）
 
         Args:
             content: 待提取实体的文本内容
-            runtime_agent: 可选的LLM运行时代理，为None时只使用规则匹配
+            model_port: 可选的LLM运行时代理，为None时只使用规则匹配
 
         Returns:
             实体名称列表
@@ -292,8 +292,8 @@ class MemoryEncoder:
         matched_entities.sort(key=lambda x: x[0])
         matched_keywords = [keyword for _, keyword in matched_entities]
 
-        # 2. 如果runtime_agent可用，尝试LLM提取补充实体
-        if runtime_agent is not None:
+        # 2. 如果model_port可用，尝试LLM提取补充实体
+        if model_port is not None:
             try:
                 prompt = (
                     "从以下文本中提取出所有实体名称（人名、地名、物品名等），"
@@ -301,7 +301,7 @@ class MemoryEncoder:
                     f"{content}"
                 )
                 response = ask_memory_model(
-                    runtime_agent,
+                    model_port,
                     prompt,
                     elfie_id=self.elfie_id,
                     semantic_role="primary",

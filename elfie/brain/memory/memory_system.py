@@ -44,10 +44,10 @@ from .ebbinghaus_decay import EbbinghausDecay
 from .emotion_weighting import EmotionWeighting
 from .encoding import MemoryEncoder
 from .memory_store import MemoryStorePort
+from .model_food import MemoryModelPort
 from .node_types import RetrievalQuery
 from .recall_formatter import MemoryRecallFormatter
 from .retrieval import MemoryRetriever
-from .runtime_food import MemoryModelPort
 from .self_narrative import MemorySelfNarrativeProjection
 from .sensory_buffer import SensoryBuffer
 from .sensory_index import SensoryIndexer
@@ -137,7 +137,7 @@ class MemorySystem:
         intensity: float = 0.0,
         stimulus: Optional[str] = None,
         sensory: Optional[dict] = None,
-        runtime_agent: MemoryModelPort | None = None,
+        model_port: MemoryModelPort | None = None,
         source_event_ids: tuple[EventId, ...] = (),
         # 兼容旧API关键字参数名
         event_description: Optional[str] = None,
@@ -156,7 +156,7 @@ class MemorySystem:
             intensity: 情绪强度 (0~100)
             stimulus: 刺激源
             sensory: 感官数据字典
-            runtime_agent: LLM运行时代理（可选）
+            model_port: LLM运行时代理（可选）
 
         Returns:
             创建的episodic节点ID，低强度无刺激源时返回空字符串
@@ -174,7 +174,7 @@ class MemorySystem:
             inte,
             stimulus,
             sensory,
-            runtime_agent,
+            model_port,
         )
         self._commit_state(
             source_event_ids=source_event_ids,
@@ -264,21 +264,21 @@ class MemorySystem:
 
     def run_consolidation(
         self,
-        runtime_agent: MemoryModelPort | None = None,
+        model_port: MemoryModelPort | None = None,
         *,
         max_episodes: int | None = None,
     ) -> Dict[str, Any]:
         """运行巩固流程
 
         Args:
-            runtime_agent: LLM运行时代理（可选）
+            model_port: LLM运行时代理（可选）
 
         Returns:
             巩固结果字典
             {"consolidated_count": int, "knowledge_created": int, "edges_created": int}
         """
         result = self.consolidator.run_consolidation(
-            runtime_agent,
+            model_port,
             max_episodes=max_episodes,
         )
         if any(isinstance(value, int) and value > 0 for value in result.values()):

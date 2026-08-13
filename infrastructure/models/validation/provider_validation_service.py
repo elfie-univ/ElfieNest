@@ -8,7 +8,7 @@ from typing import Any, Callable, Literal, Mapping
 from infrastructure.models.provider_records import ProviderConnection
 from infrastructure.models.storage_ports import ReportStoragePort
 
-from .provider_validation_checks import RuntimeProjection
+from .provider_validation_checks import ModelExecutionProjection
 from .provider_validation_policy import (
     ValidationDecision,
     active_validation_models,
@@ -23,7 +23,7 @@ SecretResolver = Callable[[str], str]
 async def validate_connection(
     connection: ProviderConnection,
     *,
-    runtime_projection: RuntimeProjection,
+    model_execution_projection: ModelExecutionProjection,
     reports: ReportStoragePort,
     secret_resolver: SecretResolver,
     run_id: str | None = None,
@@ -46,7 +46,7 @@ async def validate_connection(
         return await run_heartbeat(
             connection,
             decision,
-            runtime_projection=runtime_projection,
+            model_execution_projection=model_execution_projection,
             reports=reports,
             secret_resolver=secret_resolver,
             trigger=trigger,
@@ -54,7 +54,7 @@ async def validate_connection(
     return await run_full(
         connection,
         decision,
-        runtime_projection=runtime_projection,
+        model_execution_projection=model_execution_projection,
         reports=reports,
         secret_resolver=secret_resolver,
         run_id=run_id,

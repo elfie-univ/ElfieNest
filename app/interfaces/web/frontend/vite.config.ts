@@ -1,12 +1,12 @@
 import { resolve } from "node:path"
-import { readFile, writeFile } from "node:fs/promises"
+import { readdir, readFile, writeFile } from "node:fs/promises"
 
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import type { Plugin } from "vite"
 import { defineConfig } from "vitest/config"
 
-import { exposeDynamicImportAssets } from "./src/vite-manifest"
+import { exposeDynamicImportAssets, exposePublicAssets } from "./src/vite-manifest"
 
 const frontendRoot = resolve(import.meta.dirname)
 const webBuildDirectory = resolve(frontendRoot, "../../../../build/web")
@@ -17,9 +17,13 @@ function exposeLazyAssetsToWebHost(): Plugin {
     async closeBundle() {
       const manifestPath = resolve(webBuildDirectory, "manifest.json")
       const manifest: unknown = JSON.parse(await readFile(manifestPath, "utf8"))
+      const brandAssets = (await readdir(resolve(frontendRoot, "public/brands")))
+        .filter((name) => name.endsWith(".svg"))
+        .sort()
+        .map((name) => `brands/${name}`)
       await writeFile(
         manifestPath,
-        `${JSON.stringify(exposeDynamicImportAssets(manifest), null, 2)}\n`,
+        `${JSON.stringify(exposePublicAssets(exposeDynamicImportAssets(manifest), brandAssets), null, 2)}\n`,
         "utf8",
       )
     },

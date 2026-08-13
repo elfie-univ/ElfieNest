@@ -146,6 +146,10 @@ class FinalRootLayout:
         return self.data_home / "configs" / "auth.env"
 
     @property
+    def oauth_credentials(self) -> Path:
+        return self.data_home / "configs" / "credentials" / "oauth"
+
+    @property
     def runtime_config(self) -> Path:
         return self.data_home / "configs" / "runtime.yaml"
 
@@ -191,6 +195,7 @@ def _root_directories(layout: FinalRootLayout) -> tuple[Path, ...]:
         root,
         root / "configs",
         root / "configs" / "credentials",
+        layout.oauth_credentials,
         root / "reports",
         layout.model_validations,
         layout.runtime_validations,

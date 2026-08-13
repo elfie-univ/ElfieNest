@@ -7,6 +7,19 @@ export function exposeDynamicImportAssets(manifest: unknown): Manifest {
   )
 }
 
+export function exposePublicAssets(manifest: unknown, assetPaths: readonly string[]): Manifest {
+  if (!isRecord(manifest)) throw new TypeError("Vite manifest must be an object")
+  const entry = manifest["index.html"]
+  if (!isRecord(entry)) throw new TypeError("Vite manifest must include index.html")
+  return {
+    ...manifest,
+    "index.html": {
+      ...entry,
+      assets: [...new Set([...stringList(entry["assets"]), ...assetPaths])],
+    },
+  }
+}
+
 function exposeEntry(value: unknown): unknown {
   if (!isRecord(value)) return value
   const dynamicImports = stringList(value["dynamicImports"])

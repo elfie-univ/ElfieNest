@@ -16,6 +16,8 @@ from .port_models import (
     StoredModelVerification,
     StoredProviderConnection,
     StoredProviderModel,
+    StoredProviderOAuthLoginStart,
+    StoredProviderOAuthLoginStatus,
     StoredProviderProduct,
     StoredValidationRun,
     StoredVerification,
@@ -60,6 +62,16 @@ class ProviderConnectionPort(Protocol):
     def delete_connection(self, connection_id: str) -> bool: ...
 
     def has_credential(self, credential_ref: str) -> bool: ...
+
+
+class ProviderOAuthPort(Protocol):
+    async def start_login(
+        self, catalog_id: str
+    ) -> StoredProviderOAuthLoginStart: ...
+
+    async def poll_login(
+        self, login_id: str
+    ) -> StoredProviderOAuthLoginStatus: ...
 
 
 class ProviderLocalStatePort(Protocol):
@@ -172,6 +184,7 @@ __all__ = (
     "CancellationCheck",
     "ProviderCatalogPort",
     "ProviderConnectionPort",
+    "ProviderOAuthPort",
     "ProviderLocalStatePort",
     "ProviderLocalTechnologyPort",
     "BackgroundTaskScheduler",

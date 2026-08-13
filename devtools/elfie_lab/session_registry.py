@@ -28,10 +28,10 @@ class SessionRegistry:
     def __init__(
         self,
         storage: ElfieLabStorage,
-        runtime_config_dir: str | None = None,
+        model_execution_config_dir: str | None = None,
     ) -> None:
         self.storage = storage
-        self.runtime_config_dir = runtime_config_dir
+        self.model_execution_config_dir = model_execution_config_dir
         self._sessions: Dict[str, ElfieLabSession] = {}
         self._lock = Lock()
 
@@ -41,7 +41,7 @@ class SessionRegistry:
                 self._sessions[elfie_id] = ElfieLabSession(
                     self.storage.get_elfie(elfie_id),
                     self.storage,
-                    self.runtime_config_dir,
+                    self.model_execution_config_dir,
                 )
             return self._sessions[elfie_id]
 
@@ -67,7 +67,7 @@ class SessionRegistry:
                 return ElfieLabSession(
                     self.storage.get_elfie(elfie_id),
                     self.storage,
-                    self.runtime_config_dir,
+                    self.model_execution_config_dir,
                 )
 
             if session is not None:

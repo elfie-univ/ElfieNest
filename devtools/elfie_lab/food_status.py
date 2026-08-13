@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import List, TypedDict
 
-from devtools.elfie_lab.runtime_foods import (
-    ElfieLabRuntime,
-    load_runtime_food_catalog,
+from devtools.elfie_lab.model_execution_foods import (
+    ElfieLabModelEnvironment,
+    load_model_execution_food_catalog,
 )
 from elfie.brain.reasoning.food_port import FoodPackage, FoodPort, system_food_packages
 
@@ -24,11 +24,11 @@ class FoodStatusItem(TypedDict):
 
 
 def build_food_items(
-    runtime: ElfieLabRuntime,
+    model_environment: ElfieLabModelEnvironment,
     food_store: FoodPort,
 ) -> List[FoodStatusItem]:
     """Build rows without performing model or connection validation."""
-    catalog = load_runtime_food_catalog(runtime, food_store)
+    catalog = load_model_execution_food_catalog(model_environment, food_store)
     foods: List[FoodStatusItem] = []
     for key, package in catalog.packages.items():
         primary_model = package.primary.model if package.primary else ""
@@ -76,10 +76,10 @@ def unconfigured_food_item(package: FoodPackage) -> FoodStatusItem:
 
 def find_food_item(
     food_key: str,
-    runtime: ElfieLabRuntime,
+    model_environment: ElfieLabModelEnvironment,
     food_store: FoodPort,
 ) -> FoodStatusItem | None:
     """Resolve one normalized Food key from the Lab projection."""
-    return {item["key"]: item for item in build_food_items(runtime, food_store)}.get(
+    return {item["key"]: item for item in build_food_items(model_environment, food_store)}.get(
         food_key
     )

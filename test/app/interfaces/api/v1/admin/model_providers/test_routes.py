@@ -12,6 +12,8 @@ from app.features.configuration import (
     StoredLocalProviderBinding,
     StoredLocalProviderCandidate,
     StoredLocalProviderProbe,
+    StoredProviderOAuthLoginStart,
+    StoredProviderOAuthLoginStatus,
 )
 from app.features.configuration.food import StoredModelEvidence
 from app.interfaces.api.v1.admin.model_providers.routes import router
@@ -47,6 +49,7 @@ def _client(
     monkeypatch,
     role: AccountRole = "owner",
     local_technology=None,
+    oauth=None,
 ) -> TestClient:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     adapter = provider_models_adapter(
@@ -64,6 +67,7 @@ def _client(
         technology=adapter,
         local_state=adapter,
         local_technology=local_technology or PublicOllamaProviderAdapter(),
+        oauth=oauth,
     )
     application.dependency_overrides[require_user] = lambda: _principal(role)
     application.include_router(router)
@@ -153,6 +157,45 @@ class FakeLocalTechnology:
     def pull_model(self, binding: StoredLocalProviderBinding, model_id: str) -> None:
         _ = binding
         self.models.append(model_id)
+
+
+class FakeOAuth:
+    async def start_login(self, catalog_id: str) -> StoredProviderOAuthLoginStart:
+        return StoredProviderOAuthLoginStart(
+            catalog_id,
+            "login-1",
+            "https://auth.openai.com/codex/device",
+            "ABCD-1234",
+            8,
+            "2026-08-13T12:10:00+00:00",
+        )
+
+    async def poll_login(self, login_id: str) -> StoredProviderOAuthLoginStatus:
+        return StoredProviderOAuthLoginStatus(
+            "openai_chatgpt", login_id, "pending"
+        )
+
+
+def test_chatgpt_oauth_routes_expose_device_code_without_tokens(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    client = _client(tmp_path, monkeypatch, oauth=FakeOAuth())
+
+    started = client.post(
+        "/api/v1/admin/model-providers/oauth-logins",
+        json={"catalog_id": "openai_chatgpt"},
+    )
+    pending = client.post(
+        "/api/v1/admin/model-providers/oauth-logins/login-1/complete",
+        json={"catalog_id": "openai_chatgpt", "alias": "My ChatGPT"},
+    )
+
+    assert started.status_code == 200, started.text
+    assert started.json()["user_code"] == "ABCD-1234"
+    assert pending.status_code == 200, pending.text
+    assert pending.json()["state"] == "pending"
+    assert "token" not in started.text.lower()
 
 
 def test_local_provider_status_is_a_versioned_provider_resource(

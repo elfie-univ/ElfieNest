@@ -17,12 +17,6 @@ class ModelReference:
     connection_id: str
     model_id: str
 
-    @property
-    def provider_id(self) -> str:
-        """Compatibility alias while Runtime call sites migrate terminology."""
-        return self.connection_id
-
-
 def parse_model_reference(value: str) -> ModelReference:
     """Parse exactly ``connection_id/model_id`` without guessing a connection."""
     if not isinstance(value, str) or "/" not in value:

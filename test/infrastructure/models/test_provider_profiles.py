@@ -8,11 +8,13 @@ from infrastructure.persistence.configuration.secrets import (
     set_provider_secret,
     write_secrets,
 )
+from infrastructure.persistence.model_execution_config import (
+    load_model_execution_config,
+)
 from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
-from infrastructure.persistence.runtime_config import load_runtime_config
 
 
 class TestBuiltinProfiles:
@@ -46,7 +48,7 @@ class TestBuiltinProfiles:
         assert ollama.api_mode == "ollama"
 
     def test_bundled_models_are_a_flat_nonempty_list(self):
-        """Bundled model candidates do not encode runtime selection groups."""
+        """Bundled model candidates do not encode execution-selection groups."""
         for provider_name, profile in BUILTIN_PROFILES.items():
             assert profile.bundled_models, f"{provider_name} 缺少内置模型列表"
             assert len(profile.bundled_models) == len(set(profile.bundled_models))
@@ -77,15 +79,15 @@ class TestProviderProfileHelpers:
         assert get_default_api_mode("unknown_provider") == "chat_completions"
 
 
-class TestLLMRuntimeConfigProviderProfiles:
-    """LLMRuntimeConfig 内置 Provider 档案投影测试。"""
+class TestModelExecutionConfigProviderProfiles:
+    """ModelExecutionConfig 内置 Provider 档案投影测试。"""
 
     def test_loads_old_config_without_api_mode(self, monkeypatch, tmp_path):
         """加载无 api_mode 字段的旧配置时自动补充"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
         set_provider_secret("openai", "sk-test")
 
-        config = load_runtime_config()
+        config = load_model_execution_config()
         assert "api_mode" in config.providers["openai"]
         assert config.providers["openai"]["api_mode"] == "chat_completions"
         assert config.providers["ollama"]["api_mode"] == "ollama"
@@ -96,16 +98,16 @@ class TestLLMRuntimeConfigProviderProfiles:
         # 使用默认已知的 provider (deepseek) 来测试 api_mode 合并
         set_provider_secret("deepseek", "sk-test")
 
-        config = load_runtime_config()
+        config = load_model_execution_config()
         assert "api_mode" in config.providers["deepseek"]
         assert config.providers["deepseek"]["api_mode"] == "chat_completions"
 
     def test_unknown_legacy_provider_is_not_loaded(self, monkeypatch, tmp_path):
-        """Provider 实例只从 providers.yaml 加载，不复活旧 runtime 配置。"""
+        """Provider 实例只从 providers.yaml 加载，不复活旧执行配置。"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
         set_provider_secret("custom_provider", "test-key")
 
-        config = load_runtime_config()
+        config = load_model_execution_config()
         assert "custom_provider" not in config.providers
 
     def test_status_defaults_based_on_api_key(self, monkeypatch, tmp_path):
@@ -113,14 +115,14 @@ class TestLLMRuntimeConfigProviderProfiles:
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
         set_provider_secret("openai", "sk-test")
 
-        config = load_runtime_config()
+        config = load_model_execution_config()
         assert config.providers["openai"]["status"] == "active"
         assert config.providers["deepseek"]["status"] == "inactive"
 
     def test_ollama_status_always_active(self, monkeypatch, tmp_path):
         """Ollama status 始终为 active"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = load_runtime_config()
+        config = load_model_execution_config()
         assert config.providers["ollama"]["status"] == "active"
 
     def test_loads_custom_openai_credentials_from_env_file(self, monkeypatch, tmp_path):
@@ -132,7 +134,7 @@ class TestLLMRuntimeConfigProviderProfiles:
             }
         )
 
-        config = load_runtime_config()
+        config = load_model_execution_config()
 
         provider = config.providers["custom_openai"]
         assert provider["api_key"] == "test-key"
@@ -156,13 +158,13 @@ class TestLLMRuntimeConfigProviderProfiles:
         )
         set_connection_secret(connection.connection_id, "connection-key")
 
-        config = load_runtime_config()
+        config = load_model_execution_config()
 
-        runtime_provider = config.providers[connection.connection_id]
-        assert runtime_provider["catalog_id"] == "openai_api"
-        assert runtime_provider["display_name"] == "工作账号"
-        assert runtime_provider["api_key"] == "connection-key"
-        assert runtime_provider["models"] == [
+        provider_config = config.providers[connection.connection_id]
+        assert provider_config["catalog_id"] == "openai_api"
+        assert provider_config["display_name"] == "工作账号"
+        assert provider_config["api_key"] == "connection-key"
+        assert provider_config["models"] == [
             {"id": "gpt-test", "display_name": "GPT Test"}
         ]
 

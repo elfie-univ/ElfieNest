@@ -5,7 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-ApiMode = Literal["ollama", "chat_completions", "anthropic_messages"]
+ApiMode = Literal[
+    "ollama", "chat_completions", "anthropic_messages", "codex_responses"
+]
 AuthType = Literal["none", "bearer", "x-api-key"]
 ConnectionMethod = Literal["local", "api_key", "oauth"]
 DiscoveryStrategy = Literal[
@@ -77,6 +79,26 @@ class StoredProviderConnection:
     models: tuple[StoredProviderModel, ...]
     enabled: bool = True
     archived: bool = False
+
+
+@dataclass(frozen=True)
+class StoredProviderOAuthLoginStart:
+    catalog_id: str
+    login_id: str
+    authorization_url: str
+    user_code: str
+    poll_interval_seconds: int
+    expires_at: str
+
+
+@dataclass(frozen=True)
+class StoredProviderOAuthLoginStatus:
+    catalog_id: str
+    login_id: str
+    state: Literal["pending", "completed"]
+    credential_ref: str = ""
+    account_id: str | None = None
+    expires_at: str | None = None
 
 
 @dataclass(frozen=True)

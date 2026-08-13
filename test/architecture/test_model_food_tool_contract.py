@@ -107,11 +107,11 @@ def test_model_consumers_share_the_sqlite_evidence_projection() -> None:
     # Model capabilities consume semantic evidence through Ports.  The sole
     # SQLite implementation belongs to persistence and is composed by
     # Bootstrap/devtools; model code must not reach into either repository.
-    runtime_source = _source("infrastructure/models/runtime_agent.py")
-    overview_source = _source("infrastructure/models/runtime_overview.py")
+    execution_source = _source("infrastructure/models/model_execution_agent.py")
+    overview_source = _source("infrastructure/models/model_execution_overview.py")
     food_source = _source("infrastructure/models/food_technology.py")
     matrix_source = _source("infrastructure/models/validation/provider_model_matrix.py")
-    assert "model_evidence_source" in runtime_source
+    assert "model_evidence_source" in execution_source
     assert "self.evidence" in overview_source
     assert "FoodEvidencePort" in food_source
     assert "provider_validation_reader" in matrix_source
@@ -124,7 +124,7 @@ def test_model_consumers_share_the_sqlite_evidence_projection() -> None:
 
 
 def test_product_runtime_has_one_food_resolver_and_no_direct_model_route() -> None:
-    source = _source("infrastructure/models/runtime_agent.py")
+    source = _source("infrastructure/models/model_execution_agent.py")
     assert "ModelRegistry" not in source
     assert "ensure_model_ready" not in source
     assert "def generate_stream(" not in source
@@ -135,7 +135,7 @@ def test_product_runtime_has_one_food_resolver_and_no_direct_model_route() -> No
     assert not (RETIRED_RUNTIME_ROOT / "setup").exists()
     assert not (RETIRED_RUNTIME_ROOT / "policy").exists()
 
-    config_source = _source("infrastructure/models/runtime_config.py")
+    config_source = _source("infrastructure/models/model_execution_config.py")
     for legacy_field in (
         "cheap_model",
         "cheap_provider",
@@ -183,7 +183,7 @@ def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
     assert not (PROJECT_ROOT / "infrastructure/models/inference/streaming.py").exists()
     assert '"code_sandbox"' not in config_source
     for source_path in (
-        "infrastructure/models/runtime_agent.py",
+        "infrastructure/models/model_execution_agent.py",
         "infrastructure/models/food_execution.py",
     ):
         source = _source(source_path)
@@ -191,18 +191,18 @@ def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
         assert "SkillsSelfEvolutionPlugin" not in source
 
 
-def test_runtime_coordinator_uses_bootstrap_ports_for_technical_capabilities() -> None:
-    """Keep RuntimeAgent behavior in Models while wiring Tools at Bootstrap."""
-    runtime_path = PROJECT_ROOT / "infrastructure/models/runtime_agent.py"
-    tree = ast.parse(runtime_path.read_text(encoding="utf-8"))
-    runtime_class = next(
+def test_model_execution_uses_bootstrap_ports_for_technical_capabilities() -> None:
+    """Keep ModelExecutionAgent behavior in Models while wiring Tools at Bootstrap."""
+    execution_path = PROJECT_ROOT / "infrastructure/models/model_execution_agent.py"
+    tree = ast.parse(execution_path.read_text(encoding="utf-8"))
+    execution_class = next(
         node
         for node in tree.body
-        if isinstance(node, ast.ClassDef) and node.name == "RuntimeAgent"
+        if isinstance(node, ast.ClassDef) and node.name == "ModelExecutionAgent"
     )
     constructor = next(
         node
-        for node in runtime_class.body
+        for node in execution_class.body
         if isinstance(node, ast.FunctionDef) and node.name == "__init__"
     )
     assert any(argument.arg == "ports" for argument in constructor.args.kwonlyargs)
@@ -221,8 +221,8 @@ def test_runtime_coordinator_uses_bootstrap_ports_for_technical_capabilities() -
     }
     assert concrete_imports == set()
 
-    wiring_source = _source("app/bootstrap/system_wiring/runtime.py")
-    assert "build_runtime_agent_ports" in wiring_source
+    wiring_source = _source("app/bootstrap/system_wiring/model_execution.py")
+    assert "build_model_execution_agent_ports" in wiring_source
     assert "PermissionManager" in wiring_source
     assert "LocalFileAccessPlugin" in wiring_source
     assert "WebSearchPlugin" in wiring_source
@@ -289,7 +289,7 @@ def test_reports_and_food_facts_use_only_contract_paths() -> None:
     data_home_source = _source("infrastructure/persistence/layout/data_home.py")
     assert "ai-runtime.sqlite" in data_home_source
     assert "runtime_events.jsonl" not in _source(
-        "infrastructure/models/runtime_observations.py"
+        "infrastructure/models/model_execution_observations.py"
     )
 
     forbidden_names = {

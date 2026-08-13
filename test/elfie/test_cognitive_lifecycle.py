@@ -225,6 +225,17 @@ def test_cognitive_lifecycle_runs_two_turns_without_blocking_clock() -> None:
     assert runtime.second_started.wait(1)
     elfie.wait_for_outcome_count(2, timeout=1)
     assert "execution:receipt" in runtime.requests[1].user_prompt
+    second = elfie.turn_outcomes()[1]
+    elfie.wait_for_output(second.turn_id, timeout=1)
+
+    # When: the second turn deliberately completes with NoOp and time advances.
+    elfie.advance_clock(5.0)
+
+    # Then: recording that NoOp does not feed another receipt-only turn back
+    # into cognition forever.
+    with pytest.raises(TimeoutError):
+        elfie.wait_for_outcome_count(3, timeout=0.2)
+    assert len(runtime.requests) == 2
     journal_kinds = {entry.kind for entry in elfie.brain_journal()}
     assert BrainJournalKind.RUN_STARTED in journal_kinds
     assert BrainJournalKind.RUN_TERMINATED in journal_kinds
@@ -302,8 +313,9 @@ def test_two_conversations_form_separate_turns_without_temporary_context_leak() 
 
     assert runtime.requests[0].interaction_scope.conversation_id == "conversation-a"
     assert runtime.requests[1].interaction_scope.conversation_id == "conversation-b"
-    second_context = json.loads(runtime.requests[1].user_prompt)
-    assert [row["content"] for row in second_context["conversation"]] == ["only-for-b"]
+    second_context = runtime.requests[1].user_prompt
+    assert "only-for-b" in second_context
+    assert "secret-from-a" not in second_context
     elfie.stop()
     elfie.join()
 

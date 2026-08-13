@@ -20,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger("chat")
 
 from app.bootstrap.app_wiring.storage import ensure_application_storage
-from app.bootstrap.runtime import build_runtime_services
+from app.bootstrap.model_execution import build_model_execution_services
 from app.bootstrap.system_wiring.entrypoints import get_db_path
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.bootstrap.system_wiring.nest_session import (
@@ -40,7 +40,7 @@ def main():
         # 1. Assemble services, mirroring the main.py flow in one thread.
         db_path = str(get_db_path())
         ensure_application_storage(db_path)
-        runtime_services = build_runtime_services(
+        model_execution_services = build_model_execution_services(
             db_path,
             use_fallback=False,
             live_reload=False,
@@ -48,7 +48,7 @@ def main():
         )
         nest_session = build_nest_session_services(
             db_path,
-            runtime=runtime_services.runtime,
+            model_execution=model_execution_services.execution,
             godot_ws_port=8765,
             http_port=8000,
             tick_interval_sec=1.5,

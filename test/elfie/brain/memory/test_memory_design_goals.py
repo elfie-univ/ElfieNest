@@ -532,7 +532,7 @@ class TestConsolidationSafetyDesignGoals:
             assert node is not None
             assert node.metadata.get("consolidated") is not True
 
-        consolidator.run_consolidation(runtime_agent=None)
+        consolidator.run_consolidation(model_port=None)
 
         # 巩固后：原始节点仍然存在
         for eid in ep_ids:
@@ -551,7 +551,7 @@ class TestConsolidationSafetyDesignGoals:
         self._add_episodes_about_master(storage)
         source_ids = {"ep_m_0", "ep_m_1", "ep_m_2"}
 
-        result = consolidator.run_consolidation(runtime_agent=None)
+        result = consolidator.run_consolidation(model_port=None)
 
         assert result["knowledge_created"] > 0, "应有knowledge节点被创建"
 
@@ -575,13 +575,13 @@ class TestConsolidationSafetyDesignGoals:
         self._add_episodes_about_master(storage)
 
         # 第一次巩固
-        result1 = consolidator.run_consolidation(runtime_agent=None)
+        result1 = consolidator.run_consolidation(model_port=None)
         assert result1["consolidated_count"] > 0
         assert result1["knowledge_created"] > 0
         knowledge_after_first = storage.count_nodes(NodeTypes.KNOWLEDGE.value)
 
         # 第二次巩固（所有节点已巩固）
-        result2 = consolidator.run_consolidation(runtime_agent=None)
+        result2 = consolidator.run_consolidation(model_port=None)
         assert result2["consolidated_count"] == 0, "不应处理任何节点"
         assert result2["knowledge_created"] == 0, "不应创建新knowledge节点"
 
@@ -636,7 +636,7 @@ class TestConsolidationPatternDesignGoals:
             storage.add_node(ep)
 
         # 运行巩固（无LLM，使用规则降级）
-        consolidator.run_consolidation(runtime_agent=None)
+        consolidator.run_consolidation(model_port=None)
 
         # 验证产生了pattern节点
         pattern_nodes = storage.get_nodes_by_type(NodeTypes.PATTERN.value)
@@ -899,7 +899,7 @@ class TestConsolidationEntityDesignGoals:
             storage.add_node(ep)
 
         # 运行巩固
-        result = consolidator.run_consolidation(runtime_agent=None)
+        result = consolidator.run_consolidation(model_port=None)
 
         # 所有3条episodic都应被巩固
         assert result["consolidated_count"] >= 3

@@ -28,7 +28,9 @@ _SECRET_FIELDS = frozenset(
     }
 )
 _AUTH_TYPES = frozenset({"bearer", "none", "x-api-key"})
-_API_MODES = frozenset({"anthropic_messages", "chat_completions", "ollama"})
+_API_MODES = frozenset(
+    {"anthropic_messages", "chat_completions", "codex_responses", "ollama"}
+)
 _CONNECTION_METHODS = frozenset({"api_key", "local", "oauth"})
 _USAGE_SCOPES = frozenset({"coding_only", "general", "local"})
 _DISCOVERY_STRATEGIES = frozenset(

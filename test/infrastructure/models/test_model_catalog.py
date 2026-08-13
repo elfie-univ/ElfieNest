@@ -8,7 +8,7 @@ from infrastructure.models.catalog import (
     ModelCatalog,
     verify_provider,
 )
-from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.models.model_execution_config import ModelExecutionConfig
 
 
 class TestBuiltinModelCatalog:
@@ -144,7 +144,7 @@ class TestModelCatalog:
     ):
         """refresh_status 根据 API key 更新 active 状态"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
+        config = ModelExecutionConfig()
         config.providers["openai"]["api_key"] = "sk-test"
         config.providers["deepseek"]["api_key"] = ""
 
@@ -162,7 +162,7 @@ class TestModelCatalog:
     def test_refresh_status_keeps_ollama_active(self, monkeypatch, tmp_path):
         """refresh_status 保持 Ollama 模型为 active"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
+        config = ModelExecutionConfig()
         catalog = ModelCatalog(config)
 
         ollama_models = catalog.get_models_by_provider("ollama")
@@ -196,7 +196,7 @@ class TestVerifyProvider:
     def test_verify_ollama_returns_active(self, monkeypatch, tmp_path):
         """verify_provider 对 Ollama 返回 active（模拟成功）"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
+        config = ModelExecutionConfig()
 
         # Mock the credential-safe Provider transport.
         mock_response = MagicMock()
@@ -217,7 +217,7 @@ class TestVerifyProvider:
     def test_verify_openai_with_api_key(self, monkeypatch, tmp_path):
         """verify_provider 对 OpenAI 使用 Bearer token"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
+        config = ModelExecutionConfig()
         config.providers["openai"]["api_key"] = "sk-test"
 
         mock_response = MagicMock()
@@ -245,7 +245,7 @@ class TestVerifyProvider:
     def test_verify_anthropic_with_api_key(self, monkeypatch, tmp_path):
         """verify_provider 对 Anthropic 使用 x-api-key header"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
+        config = ModelExecutionConfig()
         config.providers["anthropic"] = {
             "api_key": "sk-ant-test",
             "api_base": "https://api.anthropic.com/v1",
@@ -276,7 +276,7 @@ class TestVerifyProvider:
     def test_verify_provider_timeout(self, monkeypatch, tmp_path):
         """verify_provider 超时时返回 inactive"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
+        config = ModelExecutionConfig()
 
         def raise_timeout(*args, **kwargs):
             raise TimeoutError("Connection timed out")
@@ -293,7 +293,7 @@ class TestVerifyProvider:
     def test_verify_provider_connection_error(self, monkeypatch, tmp_path):
         """verify_provider 连接错误时返回 inactive"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
+        config = ModelExecutionConfig()
 
         def raise_url_error(*args, **kwargs):
             raise urllib.error.URLError("Connection refused")
@@ -310,7 +310,7 @@ class TestVerifyProvider:
     def test_verify_provider_http_error(self, monkeypatch, tmp_path):
         """verify_provider HTTP 错误时返回 inactive"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
+        config = ModelExecutionConfig()
 
         def raise_http_error(*args, **kwargs):
             raise urllib.error.HTTPError(
@@ -329,7 +329,7 @@ class TestVerifyProvider:
     def test_verify_unknown_provider(self, monkeypatch, tmp_path):
         """verify_provider 对未知 provider 返回 unverified"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
+        config = ModelExecutionConfig()
 
         result = verify_provider("unknown_provider", config)
 
@@ -338,7 +338,7 @@ class TestVerifyProvider:
 
     def test_verify_configured_dynamic_custom_provider(self, monkeypatch, tmp_path):
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
+        config = ModelExecutionConfig()
         config.providers["custom_gateway"] = {
             "api_base": "https://gateway.example/v1",
             "api_mode": "chat_completions",

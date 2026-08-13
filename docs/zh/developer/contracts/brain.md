@@ -5,8 +5,8 @@
 **适用范围：** `elfie/brain/` 和单只 Elfie 的私有认知协调
 
 > **规范性目标。** 本契约定义同一只持续存在的 Elfie 如何接纳事件、维护心智状态、
-> 思考、提交决定和恢复跨回合工作。当前实现缺口记录在
-> [Brain 一致性台账](../conformance/brain)。
+> 思考、提交决定和恢复跨回合工作。已接受的 Brain 迁移现已完成，这些边界由永久
+> 架构测试直接守护。
 
 [Elfie 内部架构契约](./elfie)仍然是 Profile、Brain、NervousSystem、Body、
 Communication 和 Genesis 所有权的上位权威。本契约只细化 Brain 内部，不增加第三条

@@ -8,7 +8,7 @@ from dataclasses import asdict
 from typing import Any, Callable, Dict, List, Optional
 
 from devtools.elfie_lab.brain_turn_adapter import BrainTurnAdapter
-from devtools.elfie_lab.runtime_adapters import create_runtime
+from devtools.elfie_lab.model_execution_adapters import create_model_execution
 from devtools.elfie_lab.schemas import (
     ElfieSpec,
     StimulusBundle,
@@ -47,11 +47,11 @@ class ElfieLabSession:
         self,
         spec: ElfieSpec,
         storage: ElfieLabStorage,
-        runtime_config_dir: str | None = None,
+        model_execution_config_dir: str | None = None,
     ):
         self.spec = spec
         self.storage = storage
-        self.runtime_config_dir = runtime_config_dir or str(
+        self.model_execution_config_dir = model_execution_config_dir or str(
             storage.root / "runtime_config"
         )
         latest = storage.load_latest_session(spec.elfie_id)
@@ -111,14 +111,14 @@ class ElfieLabSession:
                 stimulus.state_injection,
             )
             state_before = self.snapshot()
-            runtime = None
+            model_execution = None
             started = time.perf_counter()
             result: Dict[str, Any] = {}
             error: Optional[str] = None
             try:
-                runtime = create_runtime(
+                model_execution = create_model_execution(
                     food_key,
-                    self.runtime_config_dir,
+                    self.model_execution_config_dir,
                     workspace_resolver=lambda scope_id: (
                         self.storage.elfie_dir(scope_id)
                         if scope_id is not None
@@ -128,7 +128,7 @@ class ElfieLabSession:
                 outcome, turn_decision, receipts, reasoning = self._turn_adapter.run(
                     stimulus,
                     turn_id,
-                    runtime,
+                    model_execution,
                 )
                 plan = turn_decision.plan if turn_decision is not None else None
                 decision = project_decision(plan, receipts)
@@ -184,8 +184,8 @@ class ElfieLabSession:
                 }
             state_after = self.snapshot()
             model_call = model_call_summary(
-                runtime.calls[-1]
-                if runtime is not None and runtime.calls
+                model_execution.calls[-1]
+                if model_execution is not None and model_execution.calls
                 else {
                     "food_key": food_key,
                     "skipped": True,

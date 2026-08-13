@@ -21,7 +21,9 @@ from infrastructure.persistence.configuration.secrets import (
     resolve_secret,
     set_tool_secret,
 )
-from infrastructure.persistence.runtime_config import load_runtime_config
+from infrastructure.persistence.model_execution_config import (
+    load_model_execution_config,
+)
 from infrastructure.tools import (
     DirectCapabilityValidationAdapter,
     RuntimeCapabilitiesAdapter,
@@ -62,10 +64,10 @@ def build_capability_adapters(
             write=set_tool_secret,
         ),
         DirectCapabilityValidationAdapter(
-            config_loader=load_runtime_config,
+            config_loader=load_model_execution_config,
             runner_factory=lambda config: DirectToolValidationRunner(
                 config,
-                search_plugin=WebSearchPlugin.from_runtime_policy(
+                search_plugin=WebSearchPlugin.from_model_execution_policy(
                     config.runtime_policy,
                     secret_resolver=resolve_secret,
                 ),

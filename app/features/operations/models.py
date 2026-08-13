@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional, Tuple, Union
 
-RuntimeEventType = Literal[
+ModelExecutionEventType = Literal[
     "model_call",
     "tool_call",
     "permission_decision",
@@ -14,8 +14,8 @@ RuntimeEventType = Literal[
     "provider_verify",
     "food_decision",
 ]
-RuntimeEventStatus = Literal["ok", "error"]
-RuntimeMetadataValue = Union[str, int, float, bool]
+ModelExecutionEventStatus = Literal["ok", "error"]
+ModelExecutionMetadataValue = Union[str, int, float, bool]
 
 
 @dataclass(frozen=True)
@@ -101,29 +101,29 @@ class DatabaseBackupResult:
 
 
 @dataclass(frozen=True)
-class RuntimeMetadataEntry:
+class ModelExecutionMetadataEntry:
     key: str
-    value: RuntimeMetadataValue
+    value: ModelExecutionMetadataValue
 
 
 @dataclass(frozen=True)
-class RuntimeEventResult:
-    event_type: RuntimeEventType
-    status: RuntimeEventStatus
+class ModelExecutionEventResult:
+    event_type: ModelExecutionEventType
+    status: ModelExecutionEventStatus
     subject: str
-    metadata: Tuple[RuntimeMetadataEntry, ...]
+    metadata: Tuple[ModelExecutionMetadataEntry, ...]
 
 
 @dataclass(frozen=True)
-class RuntimeObserverResult:
+class ModelExecutionObserverResult:
     event_count: int
-    last_event: Optional[RuntimeEventResult]
+    last_event: Optional[ModelExecutionEventResult]
 
 
 @dataclass(frozen=True)
 class RuntimeStatusResult:
     status: Literal["ok"]
-    observer: RuntimeObserverResult
+    observer: ModelExecutionObserverResult
 
 
 @dataclass(frozen=True)
@@ -144,12 +144,12 @@ __all__ = (
     "ListTableCountsQuery",
     "MobileAccessResult",
     "ResetDatabasesCommand",
-    "RuntimeEventResult",
-    "RuntimeEventStatus",
-    "RuntimeEventType",
-    "RuntimeMetadataEntry",
-    "RuntimeMetadataValue",
-    "RuntimeObserverResult",
+    "ModelExecutionEventResult",
+    "ModelExecutionEventStatus",
+    "ModelExecutionEventType",
+    "ModelExecutionMetadataEntry",
+    "ModelExecutionMetadataValue",
+    "ModelExecutionObserverResult",
     "RuntimeStatusResult",
     "SpeciesCountResult",
     "TableCountResult",

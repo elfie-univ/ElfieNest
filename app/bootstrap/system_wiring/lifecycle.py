@@ -23,7 +23,9 @@ from infrastructure.persistence.layout.data_home import get_db_path
 from infrastructure.persistence.layout.lifecycle_data_home import (
     LifecycleDataHomeAdapter,
 )
-from infrastructure.persistence.runtime_config import load_runtime_config
+from infrastructure.persistence.model_execution_config import (
+    load_model_execution_config,
+)
 from infrastructure.persistence.validation_artifacts import save_validation_report
 from infrastructure.platform.doctor import LocalDoctorAdapter
 from infrastructure.platform.frontend_build import FrontendBuildAdapter
@@ -41,13 +43,13 @@ from infrastructure.tools.web_search.search import WebSearchPlugin
 
 
 def _build_offline_validator(db_path: str) -> Callable[[], bool]:
-    """Compose the existing offline suites without making Doctor own model Runtime."""
+    """Compose offline suites without making Doctor own model execution."""
 
     def validate() -> bool:
-        config = load_runtime_config()
+        config = load_model_execution_config()
         tool_suite = DirectToolValidationRunner(
             config,
-            search_plugin=WebSearchPlugin.from_runtime_policy(
+            search_plugin=WebSearchPlugin.from_model_execution_policy(
                 config.runtime_policy,
                 secret_resolver=resolve_secret,
             ),

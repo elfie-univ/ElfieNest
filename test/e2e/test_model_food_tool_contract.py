@@ -13,12 +13,14 @@ from elfie.brain.reasoning.food_port import (
     FOOD_EMERGENCY_ID,
     NoAvailableFoodError,
 )
-from infrastructure.models.runtime_agent import RuntimeAgent
-from infrastructure.models.runtime_contracts import (
+from infrastructure.models.model_execution_agent import ModelExecutionAgent
+from infrastructure.models.model_execution_contracts import (
     StructuredGenerationMode,
-    StructuredRuntimeRequest,
+    StructuredModelExecutionRequest,
 )
-from infrastructure.models.runtime_observations import get_runtime_observer
+from infrastructure.models.model_execution_observations import (
+    get_model_execution_observer,
+)
 from infrastructure.persistence.configuration.runtime_settings import (
     write_runtime_settings,
 )
@@ -31,15 +33,17 @@ from infrastructure.persistence.food_evidence import (
 from infrastructure.persistence.layout.data_home import (
     get_provider_config_path,
 )
+from infrastructure.persistence.model_execution_config import (
+    load_model_execution_config,
+)
 from infrastructure.persistence.nest_db.store import get_db, init_db
 from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
 from infrastructure.persistence.reports.report_repository import ReportRepository
-from infrastructure.persistence.runtime_config import load_runtime_config
 from infrastructure.tools import ToolPortAdapter
-from test.support.runtime_agent import runtime_agent_ports
+from test.support.model_execution_agent import model_execution_agent_ports
 
 
 def _evidence(model: str, capabilities: set[str], *, local: bool = False):
@@ -193,17 +197,17 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
             }
         }
     )
-    runtime_config = load_runtime_config()
-    tool_port = ToolPortAdapter.from_runtime_config(
+    runtime_config = load_model_execution_config()
+    tool_port = ToolPortAdapter.from_model_execution_config(
         runtime_config,
-        observation_port=get_runtime_observer(),
+        observation_port=get_model_execution_observer(),
         workspace_resolver=lambda scope_id: (
             workspace if scope_id == "00000001" else None
         ),
     )
-    agent = RuntimeAgent(
+    agent = ModelExecutionAgent(
         runtime_config,
-        ports=runtime_agent_ports(),
+        ports=model_execution_agent_ports(),
         live_reload=True,
         food_catalog_repository=food_repository,
         tool_port=tool_port,
@@ -252,7 +256,7 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
 
     structured_probe["pending"] = True
     structured = agent.generate_structured(
-        StructuredRuntimeRequest(
+        StructuredModelExecutionRequest(
             prompt="structured read",
             messages=(),
             response_schema_name="answer",

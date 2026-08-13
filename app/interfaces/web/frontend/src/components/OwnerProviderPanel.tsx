@@ -4,10 +4,12 @@ import { useTranslation } from "react-i18next"
 
 import {
   changeProviderConnectionLifecycle,
+  completeProviderOAuthLogin,
   createProviderConnection,
   deleteProviderConnection,
   ownerProviderCatalog,
   ownerProviderConnections,
+  startProviderOAuthLogin,
   updateProviderConnection,
   validateAllProviderModels,
   verifyProviderConnection,
@@ -35,17 +37,32 @@ import { useToast } from "./ui/toast"
 
 type EditTarget = {
   readonly connection: ProviderConnection | null
-  readonly product: ProviderProduct
+  readonly products: readonly ProviderProduct[]
+}
+
+type ProviderBrandGroup = {
+  readonly brand: ProviderProduct["brand"]
+  readonly products: readonly ProviderProduct[]
 }
 
 type OtherSubscriptionOption =
-  | { readonly kind: "catalog"; readonly label: string; readonly product: ProviderProduct; readonly value: string }
+  | { readonly group: ProviderBrandGroup; readonly kind: "catalog"; readonly label: string; readonly value: string }
   | { readonly kind: "interface"; readonly label: string; readonly preset: CustomProviderPreset; readonly value: string }
 
 const NO_PRODUCT = "__none__"
 const OPENAI_INTERFACE_OPTION = "__openai_interface__"
 const ANTHROPIC_INTERFACE_OPTION = "__anthropic_interface__"
-const FEATURED_PRODUCT_LIMIT = 8
+const FEATURED_BRAND_LIMIT = 8
+const FEATURED_BRAND_ORDER = [
+  "google",
+  "openai",
+  "anthropic",
+  "deepseek",
+  "alibaba",
+  "zhipu",
+  "moonshot",
+  "minimax",
+] as const
 
 export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }) {
   const { i18n, t } = useTranslation("manage")
@@ -84,25 +101,24 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
   const configured = connections
     .filter((connection) => connection.catalog_id !== "ollama")
     .sort((left, right) => compareLocalizedText(left.alias, right.alias, locale))
-  const featuredProducts = useMemo(() => catalog
-    .filter((product) => product.catalog_id !== "ollama" && product.catalog_id !== "custom_openai")
-    .slice(0, FEATURED_PRODUCT_LIMIT), [catalog])
-  const featuredProductIds = useMemo(() => new Set(featuredProducts.map((product) => product.catalog_id)), [featuredProducts])
-  const otherProducts = useMemo(() => catalog.filter((product) => product.catalog_id !== "ollama"
-    && product.catalog_id !== "custom_openai"
-    && !featuredProductIds.has(product.catalog_id)), [catalog, featuredProductIds])
+  const brandGroups = useMemo(() => groupRemoteProductsByBrand(catalog), [catalog])
+  const featuredBrands = useMemo(() => [...brandGroups]
+    .sort((left, right) => featuredBrandRank(left.brand.brand_id) - featuredBrandRank(right.brand.brand_id))
+    .slice(0, FEATURED_BRAND_LIMIT), [brandGroups])
+  const featuredBrandIds = useMemo(() => new Set(featuredBrands.map((group) => group.brand.brand_id)), [featuredBrands])
+  const otherBrands = useMemo(() => brandGroups.filter((group) => !featuredBrandIds.has(group.brand.brand_id)), [brandGroups, featuredBrandIds])
   const otherOptions = useMemo<readonly OtherSubscriptionOption[]>(() => [
-    ...otherProducts.map((product) => ({ kind: "catalog" as const, label: product.name, product, value: product.catalog_id })),
     { kind: "interface" as const, label: t("providerConnections.other.openaiInterface"), preset: "openai" as const, value: OPENAI_INTERFACE_OPTION },
     { kind: "interface" as const, label: t("providerConnections.other.anthropicInterface"), preset: "anthropic" as const, value: ANTHROPIC_INTERFACE_OPTION },
-  ], [otherProducts, t])
+    ...otherBrands.map((group) => ({ group, kind: "catalog" as const, label: group.brand.name, value: group.brand.brand_id })),
+  ], [otherBrands, t])
 
-  const save = async (draft: ProviderConnectionUpdate): Promise<void> => {
+  const save = async (catalogId: string, draft: ProviderConnectionUpdate): Promise<void> => {
     if (!editing) return
     try {
       const result = editing.connection
         ? await updateProviderConnection(editing.connection.connection_id, draft, csrfToken)
-        : await createProviderConnection({ catalog_id: editing.product.catalog_id, ...draft }, csrfToken)
+        : await createProviderConnection({ catalog_id: catalogId, ...draft }, csrfToken)
       show({ kind: "success", message: result.model_refresh?.message ?? t("providerConnections.notices.saved", { name: result.alias }) })
       setEditing(null)
       await load()
@@ -116,6 +132,33 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     show({ kind: "success", message: result.model_refresh?.message ?? t("providerConnections.notices.added", { name: result.alias }) })
     setCreatingCustom(false)
     await load()
+  }
+
+  const authorize = async (
+    catalogId: string,
+    alias: string | undefined,
+    onStarted: (started: Awaited<ReturnType<typeof startProviderOAuthLogin>>) => void,
+    signal: AbortSignal,
+  ): Promise<void> => {
+    if (!editing) return
+    const started = await startProviderOAuthLogin(catalogId, csrfToken)
+    signal.throwIfAborted()
+    onStarted(started)
+    for (;;) {
+      await waitForOAuthPoll(started.poll_interval_seconds * 1000, signal)
+      const status = await completeProviderOAuthLogin(started.login_id, catalogId, alias, csrfToken)
+      signal.throwIfAborted()
+      if (status.state === "pending") continue
+      const connection = status.connection
+      const product = editing.products.find((item) => item.catalog_id === catalogId)
+      show({
+        kind: "success",
+        message: t("providerConnections.notices.authorized", { name: connection?.alias ?? product?.name ?? editing.products[0]?.brand.name ?? catalogId }),
+      })
+      setEditing(null)
+      await load()
+      return
+    }
   }
 
   const verify = async (connection: ProviderConnection): Promise<void> => {
@@ -190,7 +233,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     setOtherOpen(false)
     setOtherProductId(NO_PRODUCT)
     if (option.kind === "catalog") {
-      setEditing({ connection: null, product: option.product })
+      setEditing({ connection: null, products: option.group.products })
       return
     }
     setCustomPreset(option.preset)
@@ -211,7 +254,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
         busy={pending?.endsWith(connection.connection_id) ?? false}
         connection={connection}
         key={connection.connection_id}
-        onEdit={() => { const product = productsById.get(connection.catalog_id); if (product) setEditing({ connection, product }) }}
+        onEdit={() => { const product = productsById.get(connection.catalog_id); if (product) setEditing({ connection, products: [product] }) }}
         onModels={() => setViewingModels(connection)}
         onDelete={() => setDeleting(connection)}
         onLifecycle={(action) => { void lifecycle(connection, action) }}
@@ -220,16 +263,50 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
       />)}</div>}
     </section>
     <section aria-labelledby="available-provider-title" className="provider-section provider-section--available"><div className="provider-section__heading"><div><h3 id="available-provider-title">{t("providerConnections.available.title")}</h3></div></div><div className="provider-grid">
-      {featuredProducts.map((product) => <button aria-label={t("providerConnections.actions.configure", { name: product.name })} className="provider-card provider-card--available" key={product.catalog_id} onClick={() => setEditing({ connection: null, product })} type="button"><span className="provider-card__brand"><ProviderBrandLogo product={product} /><strong>{product.name}</strong></span></button>)}
+      {featuredBrands.map((group) => <button aria-label={t("providerConnections.actions.configure", { name: group.brand.name })} className="provider-card provider-card--available" key={group.brand.brand_id} onClick={() => setEditing({ connection: null, products: group.products })} type="button"><span className="provider-card__brand"><ProviderBrandLogo brand={group.brand} /><strong>{group.brand.name}</strong></span></button>)}
       <button aria-label={t("providerConnections.actions.addOther")} className="provider-card provider-card--add" onClick={() => setOtherOpen(true)} type="button"><span className="provider-card__add-mark"><Icon name="plus" size={24} /></span><strong>{t("providerConnections.actions.addOther")}</strong></button>
     </div></section>
-    <ProviderFormDialog connection={editing?.connection ?? null} onOpenChange={(open) => { if (!open) setEditing(null) }} onSave={save} open={editing !== null} product={editing?.product ?? null} />
+    <ProviderFormDialog connection={editing?.connection ?? null} onAuthorize={authorize} onOpenChange={(open) => { if (!open) setEditing(null) }} onSave={save} open={editing !== null} products={editing?.products ?? []} />
     <CustomProviderDialog onOpenChange={setCreatingCustom} onSave={saveCustom} open={creatingCustom} preset={customPreset} />
     <ProviderModelsDialog connection={viewingModels} csrfToken={csrfToken} onChanged={load} onOpenChange={(open) => { if (!open) setViewingModels(null) }} open={viewingModels !== null} />
     <ModelMatrixDialog csrfToken={csrfToken} onOpenChange={setMatrixOpen} open={matrixOpen} />
     <ManageDialog onOpenChange={setOtherOpen} open={otherOpen} title={t("providerConnections.other.title")}><SelectField label={t("providerConnections.other.product")} onValueChange={setOtherProductId} options={[{ label: t("providerConnections.other.placeholder"), value: NO_PRODUCT }, ...otherOptions.map(({ label, value }) => ({ label, value }))]} value={otherProductId} /><div className="manage-actions"><Button disabled={otherProductId === NO_PRODUCT} onClick={chooseOther} type="button">{t("providerConnections.actions.choose")}</Button><Button onClick={() => setOtherOpen(false)} type="button" variant="outline">{t("providerConnections.actions.cancel")}</Button></div></ManageDialog>
     <ConfirmDialog confirmLabel={t("providerConnections.delete.confirm")} danger description={deleting ? t("providerConnections.delete.description", { name: deleting.alias }) : t("providerConnections.delete.descriptionGeneric")} onConfirm={() => { void remove() }} onOpenChange={(open) => { if (!open && pending === null) setDeleting(null) }} open={deleting !== null} pending={pending?.startsWith("delete:") ?? false} title={t("providerConnections.delete.title")} />
   </section>
+}
+
+function groupRemoteProductsByBrand(catalog: readonly ProviderProduct[]): readonly ProviderBrandGroup[] {
+  const groups = new Map<string, { brand: ProviderProduct["brand"]; products: ProviderProduct[] }>()
+  for (const product of catalog) {
+    if (product.catalog_id === "ollama" || product.brand.brand_id === "custom") continue
+    const existing = groups.get(product.brand.brand_id)
+    if (existing) existing.products.push(product)
+    else groups.set(product.brand.brand_id, { brand: product.brand, products: [product] })
+  }
+  return [...groups.values()]
+}
+
+function featuredBrandRank(brandId: string): number {
+  const rank = FEATURED_BRAND_ORDER.indexOf(brandId as typeof FEATURED_BRAND_ORDER[number])
+  return rank === -1 ? FEATURED_BRAND_ORDER.length : rank
+}
+
+function waitForOAuthPoll(delayMs: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason ?? new DOMException("Authorization cancelled", "AbortError"))
+      return
+    }
+    const aborted = (): void => {
+      window.clearTimeout(timeout)
+      reject(signal.reason ?? new DOMException("Authorization cancelled", "AbortError"))
+    }
+    const timeout = window.setTimeout(() => {
+      signal.removeEventListener("abort", aborted)
+      resolve()
+    }, delayMs)
+    signal.addEventListener("abort", aborted, { once: true })
+  })
 }
 
 function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onForceFull, onLifecycle, onModels, onVerify }: {

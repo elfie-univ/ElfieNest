@@ -32,7 +32,7 @@ ToolConfigLoader = Callable[
 _TOOL_KEYS: Tuple[ToolKey, ...] = ("web_search", "local_file")
 
 
-class RuntimePolicySource(Protocol):
+class ModelExecutionPolicySource(Protocol):
     runtime_policy: Mapping[str, JsonValue]
 
 
@@ -61,7 +61,7 @@ class ToolPortAdapter:
     def __init__(
         self,
         *,
-        config: RuntimePolicySource,
+        config: ModelExecutionPolicySource,
         search_plugin: SearchPlugin,
         permission_manager: PermissionManager,
         observation_port: ToolObservationPort,
@@ -78,9 +78,9 @@ class ToolPortAdapter:
         self._allowed_tool_keys = frozenset(allowed_tool_keys)
 
     @classmethod
-    def from_runtime_config(
+    def from_model_execution_config(
         cls,
-        config: RuntimePolicySource,
+        config: ModelExecutionPolicySource,
         *,
         observation_port: ToolObservationPort,
         tool_config_loader: ToolConfigLoader = load_tool_configs,
@@ -95,7 +95,7 @@ class ToolPortAdapter:
         )
         return cls(
             config=config,
-            search_plugin=WebSearchPlugin.from_runtime_policy(
+            search_plugin=WebSearchPlugin.from_model_execution_policy(
                 runtime_policy, config_loader=tool_config_loader
             ),
             permission_manager=ConcretePermissionManager(config, observation_port),

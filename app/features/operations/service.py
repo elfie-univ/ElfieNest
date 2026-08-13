@@ -20,24 +20,24 @@ from .models import (
     ListActiveSessionsQuery,
     ListTableCountsQuery,
     MobileAccessResult,
+    ModelExecutionEventResult,
+    ModelExecutionMetadataEntry,
+    ModelExecutionObserverResult,
     ResetDatabasesCommand,
-    RuntimeEventResult,
-    RuntimeMetadataEntry,
-    RuntimeObserverResult,
     RuntimeStatusResult,
     SpeciesCountResult,
     TableCountResult,
     TableCountsResult,
     UsageStatsResult,
 )
-from .port_models import StoredRuntimeEvent
+from .port_models import StoredModelExecutionEvent
 from .ports import (
     DatabaseMaintenancePort,
+    ModelExecutionObserverProjectionPort,
     NetworkAccessProjectionPort,
     OperationsPortError,
     OperationsPortUnsafeTarget,
     OperationsProjectionPort,
-    RuntimeObserverProjectionPort,
 )
 
 
@@ -46,12 +46,12 @@ class OperationsFacade:
         self,
         projection: OperationsProjectionPort,
         maintenance: DatabaseMaintenancePort,
-        runtime_observer: RuntimeObserverProjectionPort,
+        model_execution_observer: ModelExecutionObserverProjectionPort,
         network_access: NetworkAccessProjectionPort,
     ) -> None:
         self._projection = projection
         self._maintenance = maintenance
-        self._runtime_observer = runtime_observer
+        self._model_execution_observer = model_execution_observer
         self._network_access = network_access
 
     def get_mobile_access(self, query: GetMobileAccessQuery) -> MobileAccessResult:
@@ -142,12 +142,12 @@ class OperationsFacade:
         if not is_manager(principal.role):
             raise OperationsForbidden("Runtime status requires a manager")
         try:
-            snapshot = self._runtime_observer.snapshot()
+            snapshot = self._model_execution_observer.snapshot()
         except OperationsPortError as error:
             raise OperationsUnavailable(str(error)) from error
         return RuntimeStatusResult(
             status="ok",
-            observer=RuntimeObserverResult(
+            observer=ModelExecutionObserverResult(
                 event_count=snapshot.event_count,
                 last_event=(
                     None
@@ -158,13 +158,13 @@ class OperationsFacade:
         )
 
     @staticmethod
-    def _event_result(event: StoredRuntimeEvent) -> RuntimeEventResult:
-        return RuntimeEventResult(
+    def _event_result(event: StoredModelExecutionEvent) -> ModelExecutionEventResult:
+        return ModelExecutionEventResult(
             event_type=event.event_type,
             status=event.status,
             subject=event.subject,
             metadata=tuple(
-                RuntimeMetadataEntry(key=item.key, value=item.value)
+                ModelExecutionMetadataEntry(key=item.key, value=item.value)
                 for item in event.metadata
             ),
         )

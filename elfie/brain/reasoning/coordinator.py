@@ -37,8 +37,10 @@ from elfie.brain.reasoning.run import ReasoningRunResult
 from elfie.brain.reasoning.settlement import TurnSettlementPort
 from elfie.brain.reasoning.turn_outcome import TerminalStatus, TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningExecutionPort
+from elfie.brain.workspace.contracts import IngestDisposition
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.brain.workspace.trigger_policy import TurnTriggerPolicy
+from elfie.brain.workspace.types import FrameLifecycleError
 from elfie.message_types import ElfieId, TurnId
 
 
@@ -217,10 +219,10 @@ class BrainCoordinator:
             blocked=self._inflight is not None or self._motivation_blocked(),
         )
         if candidate is not None:
-            self._motivation_due = True
-            self._workspace.publish(
+            ingest = self._workspace.publish(
                 recovery_candidate_to_perception(candidate, elfie_id=self._elfie_id)
             )
+            self._motivation_due = ingest.disposition is IngestDisposition.ACCEPTED
 
     def _maybe_emit_consolidation(self) -> None:
         evaluator = getattr(self._context_source, "evaluate_consolidation", None)
@@ -233,11 +235,13 @@ class BrainCoordinator:
             blocked=self._inflight is not None or self._consolidation_blocked(),
         )
         if candidate is not None:
-            self._consolidation_due = True
-            self._workspace.publish(
+            ingest = self._workspace.publish(
                 consolidation_candidate_to_perception(
                     candidate, elfie_id=self._elfie_id
                 )
+            )
+            self._consolidation_due = (
+                ingest.disposition is IngestDisposition.ACCEPTED
             )
 
     def _maybe_start_turn(self) -> None:
@@ -258,12 +262,19 @@ class BrainCoordinator:
         if decision.reason is None or decision.cutoff_seq is None:
             return
         turn_id = TurnId(f"turn_{uuid4().hex}")
-        frame = self._workspace.claim_frame(
-            decision.cutoff_seq,
-            turn_id=turn_id,
-            reason=decision.reason,
-            captured_at=now,
-        )
+        try:
+            frame = self._workspace.claim_frame(
+                decision.cutoff_seq,
+                turn_id=turn_id,
+                reason=decision.reason,
+                captured_at=now,
+            )
+        except FrameLifecycleError as error:
+            if error.reason != "no perception writes are available":
+                raise
+            self._motivation_due = False
+            self._consolidation_due = False
+            return
         try:
             if self._journal is not None:
                 self._journal.record_run_started(frame, turn_id)

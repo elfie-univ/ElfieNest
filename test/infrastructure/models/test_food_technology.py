@@ -10,7 +10,7 @@ from app.features.configuration.food import (
     StoredFoodProposal,
     StoredModelEvidence,
 )
-from infrastructure.models.food_technology import RuntimeFoodTechnologyAdapter
+from infrastructure.models.food_technology import ModelFoodTechnologyAdapter
 
 
 def test_adapter_delegates_evidence_health_and_planning_to_owned_rules(
@@ -50,7 +50,7 @@ def test_adapter_delegates_evidence_health_and_planning_to_owned_rules(
             )
 
     monkeypatch.setattr("infrastructure.models.food_technology.FoodPlanner", Planner)
-    adapter = RuntimeFoodTechnologyAdapter(Evidence())
+    adapter = ModelFoodTechnologyAdapter(Evidence())
     package = StoredFoodPackage("food_custom", "Custom")
     defaults = adapter.food_defaults()
     stored_evidence = adapter.list_model_evidence()

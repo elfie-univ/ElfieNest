@@ -67,6 +67,7 @@ const ProviderConnectionSchema = z.object({
   api_mode: z.string(),
   auth_type: z.string(),
   has_api_key: z.boolean(),
+  has_credential: z.boolean().optional(),
   enabled: z.boolean(),
   archived: z.boolean(),
   usage_scope: z.string(),
@@ -137,8 +138,28 @@ const VerifyConnectionResultSchema = z.object({
   verification: VerificationSchema,
 })
 
+const ProviderOAuthLoginStartSchema = z.object({
+  catalog_id: z.string(),
+  login_id: z.string(),
+  authorization_url: z.string().url(),
+  user_code: z.string(),
+  poll_interval_seconds: z.number().int().positive(),
+  expires_at: z.string(),
+})
+
+const ProviderOAuthLoginStatusSchema = z.object({
+  catalog_id: z.string(),
+  login_id: z.string(),
+  state: z.enum(["pending", "completed"]),
+  account_id: z.string().nullable(),
+  expires_at: z.string().nullable(),
+  connection: ProviderConnectionSchema.nullable(),
+})
+
 export type ProviderProduct = z.infer<typeof ProviderProductSchema>
 export type ProviderConnection = z.infer<typeof ProviderConnectionSchema>
+export type ProviderOAuthLoginStart = z.infer<typeof ProviderOAuthLoginStartSchema>
+export type ProviderOAuthLoginStatus = z.infer<typeof ProviderOAuthLoginStatusSchema>
 export type ProviderModel = z.infer<typeof ProviderModelSchema>
 export type ModelMatrix = z.infer<typeof ModelMatrixSchema>
 export type ProviderModelDraft = {
@@ -180,6 +201,32 @@ export async function ownerProviderConnections(): Promise<readonly ProviderConne
   return z.object({ items: z.array(ProviderConnectionSchema) }).parse(
     await ownerRead("/api/v1/admin/model-providers/connections"),
   ).items
+}
+
+export async function startProviderOAuthLogin(
+  catalogId: string,
+  csrfToken: string,
+): Promise<ProviderOAuthLoginStart> {
+  return ProviderOAuthLoginStartSchema.parse(await ownerWrite(
+    "/api/v1/admin/model-providers/oauth-logins",
+    "POST",
+    csrfToken,
+    { catalog_id: catalogId },
+  ))
+}
+
+export async function completeProviderOAuthLogin(
+  loginId: string,
+  catalogId: string,
+  alias: string | undefined,
+  csrfToken: string,
+): Promise<ProviderOAuthLoginStatus> {
+  return ProviderOAuthLoginStatusSchema.parse(await ownerWrite(
+    `/api/v1/admin/model-providers/oauth-logins/${encodeURIComponent(loginId)}/complete`,
+    "POST",
+    csrfToken,
+    { catalog_id: catalogId, ...(alias ? { alias } : {}) },
+  ))
 }
 
 export async function createProviderConnection(

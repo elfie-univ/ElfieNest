@@ -93,13 +93,12 @@ def test_brain_contract_keeps_activity_and_state_commit_boundaries() -> None:
     assert "数字通信渠道、身体控制和设备状态不是 Tool" in chinese
 
 
-def test_brain_conformance_tracks_every_accepted_gap() -> None:
-    english = _read("docs/developer/conformance/brain.md")
-    chinese = _read("docs/zh/developer/conformance/brain.md")
+def test_closed_brain_conformance_registers_do_not_return() -> None:
+    retired_registers = (
+        "docs/developer/conformance/brain.md",
+        "docs/zh/developer/conformance/brain.md",
+    )
 
-    for number in range(1, 11):
-        gap_id = f"BRN-{number:03d}"
-        assert gap_id in english
-        assert gap_id in chinese
-    assert "Motivation" in english
-    assert "跨回合活动" in chinese
+    assert all(not (PROJECT_ROOT / path).exists() for path in retired_registers)
+    assert "conformance/brain" not in _read("docs/developer/contracts/brain.md")
+    assert "conformance/brain" not in _read("docs/zh/developer/contracts/brain.md")

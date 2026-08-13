@@ -8,10 +8,10 @@ import pytest
 from pydantic import ValidationError
 
 from elfie.brain.reasoning.decision_types import DecisionPlan, MessageIntent
-from infrastructure.models.fallback_runtime import FallbackRuntimeAdapter
-from infrastructure.models.runtime_contracts import (
+from infrastructure.models.fallback_model_execution import FallbackModelExecutionAdapter
+from infrastructure.models.model_execution_contracts import (
     StructuredGenerationMode,
-    StructuredRuntimeRequest,
+    StructuredModelExecutionRequest,
 )
 from scripts import serve
 
@@ -118,8 +118,8 @@ def test_engine_worker_uses_module_repository_without_uninitialized_closure() ->
 
 def test_fallback_agent_satisfies_the_structured_runtime_contract() -> None:
     # Given: the service must remain able to run cognition without a model provider.
-    fallback = FallbackRuntimeAdapter()
-    request = StructuredRuntimeRequest(
+    fallback = FallbackModelExecutionAdapter()
+    request = StructuredModelExecutionRequest(
         prompt="hello",
         messages=(),
         response_schema_name="DecisionPlan",
@@ -144,8 +144,8 @@ def test_fallback_agent_satisfies_the_structured_runtime_contract() -> None:
 
 def test_fallback_agent_emits_owner_message_plan_for_social_context() -> None:
     # Given: a trusted compiled context containing one Owner chat event.
-    fallback = FallbackRuntimeAdapter()
-    request = StructuredRuntimeRequest(
+    fallback = FallbackModelExecutionAdapter()
+    request = StructuredModelExecutionRequest(
         prompt=_compiled_owner_prompt(),
         messages=(),
         response_schema_name="DecisionPlan",
@@ -170,8 +170,8 @@ def test_fallback_agent_emits_owner_message_plan_for_social_context() -> None:
 
 def test_fallback_does_not_route_uncompiled_root_json() -> None:
     # Given: an untrusted caller-shaped JSON object that resembles an event.
-    fallback = FallbackRuntimeAdapter()
-    request = StructuredRuntimeRequest(
+    fallback = FallbackModelExecutionAdapter()
+    request = StructuredModelExecutionRequest(
         prompt=json.dumps(
             {
                 "events": [
@@ -214,19 +214,19 @@ def test_serve_does_not_call_the_removed_runtime_owned_ollama_manager() -> None:
 def test_service_entrypoint_uses_bootstrap_instead_of_concrete_adapters() -> None:
     source = inspect.getsource(serve)
 
-    assert "RuntimeAgent(" not in source
-    assert "LLMRuntimeConfig(" not in source
+    assert "ModelExecutionAgent(" not in source
+    assert "ModelExecutionConfig(" not in source
     assert "SQLiteFoodPackageRepository(" not in source
     assert "SQLiteElfiesProjectionAdapter(" not in source
     assert "ElfieFactory(" not in source
     assert "init_db(" not in source
 
 
-def test_server_runtime_falls_back_when_configured_model_cannot_warm_up(
+def test_server_runtime_keeps_live_reload_when_configured_model_cannot_warm_up(
     monkeypatch,
 ) -> None:
     # Given: configuration loads, but the selected provider is unreachable.
-    configured = serve.build_runtime_services(
+    configured = serve.build_model_execution_services(
         ":memory:",
         use_fallback=True,
         live_reload=True,
@@ -238,7 +238,7 @@ def test_server_runtime_falls_back_when_configured_model_cannot_warm_up(
 
     configured = replace(configured, warmup=fail_warmup)
     calls: list[bool] = []
-    original_build = serve.build_runtime_services
+    original_build = serve.build_model_execution_services
 
     def build(_db_path: str, *, use_fallback: bool, **_kwargs):
         calls.append(use_fallback)
@@ -251,12 +251,12 @@ def test_server_runtime_falls_back_when_configured_model_cannot_warm_up(
             )
         return configured
 
-    monkeypatch.setattr(serve, "build_runtime_services", build)
+    monkeypatch.setattr(serve, "build_model_execution_services", build)
 
     # When
-    selected = serve.build_server_runtime_services(":memory:", use_fallback=False)
+    selected = serve.build_server_model_execution_services(":memory:", use_fallback=False)
 
-    # Then: product chat receives a working bounded runtime instead of silently
-    # accepting turns that can only terminate as model_unavailable.
-    assert calls == [False, True]
-    assert isinstance(selected.runtime, FallbackRuntimeAdapter)
+    # Then: the configured live-reloading runtime remains installed so a model
+    # package saved after startup can recover on the very next request.
+    assert calls == [False]
+    assert selected is configured

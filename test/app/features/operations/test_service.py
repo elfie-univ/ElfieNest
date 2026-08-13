@@ -21,9 +21,9 @@ from app.features.operations import (
     ResetDatabasesCommand,
     StoredActiveSession,
     StoredDatabaseBackup,
-    StoredRuntimeEvent,
-    StoredRuntimeMetadata,
-    StoredRuntimeSnapshot,
+    StoredModelExecutionEvent,
+    StoredModelExecutionMetadata,
+    StoredModelExecutionSnapshot,
     StoredSpeciesCount,
     StoredTableCount,
     StoredUsageStats,
@@ -72,20 +72,20 @@ class MemoryOperationsAdapter:
             raise self.failure
 
 
-class MemoryRuntimeObserver:
+class MemoryModelExecutionObserver:
     def __init__(self) -> None:
         self.read_count = 0
 
-    def snapshot(self) -> StoredRuntimeSnapshot:
+    def snapshot(self) -> StoredModelExecutionSnapshot:
         self.read_count += 1
-        return StoredRuntimeSnapshot(
+        return StoredModelExecutionSnapshot(
             event_count=2,
-            last_event=StoredRuntimeEvent(
+            last_event=StoredModelExecutionEvent(
                 event_type="fallback",
                 status="ok",
                 subject="local_fast",
                 metadata=(
-                    StoredRuntimeMetadata(key="reason", value="remote unavailable"),
+                    StoredModelExecutionMetadata(key="reason", value="remote unavailable"),
                 ),
             ),
         )
@@ -110,10 +110,10 @@ def _principal(role: str) -> AccountPrincipal:
 
 
 def _facade() -> tuple[
-    OperationsFacade, MemoryOperationsAdapter, MemoryRuntimeObserver
+    OperationsFacade, MemoryOperationsAdapter, MemoryModelExecutionObserver
 ]:
     adapter = MemoryOperationsAdapter()
-    observer = MemoryRuntimeObserver()
+    observer = MemoryModelExecutionObserver()
     return (
         OperationsFacade(adapter, adapter, observer, MemoryNetworkAccessProjection()),
         adapter,

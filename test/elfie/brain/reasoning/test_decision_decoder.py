@@ -147,6 +147,37 @@ def test_json_mode_valid_text_decodes_without_repair() -> None:
     assert report.fallback_reason is None
 
 
+def test_selected_plain_text_mode_bypasses_schema_for_owner_reply() -> None:
+    capabilities = _capabilities(
+        supports_json_schema=True,
+        supports_json_mode=True,
+    )
+    seed = _seed().model_copy(
+        update={
+            "reply_channel_id": "chat",
+            "reply_conversation_id": "owner:1",
+        }
+    )
+
+    result = DecisionPlanDecoder().decode(
+        seed=seed,
+        generation=ModelGenerationResult(
+            text="本地模型已生效",
+            selected_mode=StructuredOutputMode.PLAIN_TEXT,
+            model_key="mock-model",
+            provider="mock-provider",
+        ),
+        capabilities=capabilities,
+        repair_callback=lambda *_args: (_ for _ in ()).throw(
+            AssertionError("plain text must not enter JSON repair")
+        ),
+    )
+
+    assert result.plan.intents[0].type == "message"
+    assert result.plan.intents[0].content == "本地模型已生效"
+    assert result.report.selected_mode is DecisionDecodeMode.PLAIN_TEXT
+
+
 def test_model_output_cannot_override_trusted_turn_envelope() -> None:
     # Given: valid JSON whose model-owned envelope points at a forged turn and future.
     forged = json.loads(_plan_json())

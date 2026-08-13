@@ -10,7 +10,35 @@ from app.features.configuration import (
     StoredProviderConnection,
     StoredProviderModel,
 )
+from infrastructure.models.provider_records import ProviderModelRecord
+from infrastructure.models.providers.discovery import merge_refreshed_models
 from test.support.provider import provider_models_adapter
+
+
+def test_refresh_replaces_stale_discovered_models_but_keeps_manual_entries() -> None:
+    existing = (
+        ProviderModelRecord(
+            "current",
+            display_name="Custom current name",
+            source="bundled_catalog",
+        ),
+        ProviderModelRecord(
+            "expired",
+            available=False,
+            source="bundled_catalog",
+        ),
+        ProviderModelRecord("manual-only", source="manual"),
+    )
+    refreshed = (ProviderModelRecord("current", source="official"),)
+
+    merged = merge_refreshed_models(existing, refreshed)
+
+    assert [model.endpoint_model_id for model in merged] == [
+        "current",
+        "manual-only",
+    ]
+    assert merged[0].available is True
+    assert merged[1].source == "manual"
 
 
 def test_provider_adapter_keeps_secret_out_of_connection_fact(tmp_path) -> None:
