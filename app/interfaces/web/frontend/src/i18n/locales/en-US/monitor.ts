@@ -23,15 +23,19 @@ export const monitor = {
   toolbar: {
     label: "Monitoring controls",
   },
+  navigation: {
+    controls: "Monitor navigation",
+    exitImmersive: "Exit immersive monitoring",
+    immersive: "Enter immersive monitoring",
+    mobileAccess: "Open monitor on a phone",
+    railLabel: "Monitor navigation rail",
+  },
   controls: {
-    backToManagement: "Back to management",
     resetAria: "Reset view",
     reset: "Reset",
     overview: "Overview",
     pause: "Pause monitoring",
     resume: "Resume monitoring",
-    hide: "Hide controls",
-    show: "Show controls",
     retry: "Retry 3D monitoring",
   },
   status: {

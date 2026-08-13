@@ -125,16 +125,42 @@ def _run_command(
 def _ensure_dependencies() -> None:
     """Verify every production runtime input after the buildable Godot gate ran."""
     _run_command(
-        (str(PROJECT_ROOT / "scripts" / "bootstrap.sh"), "check", "--tier=build"),
+        _bash_script_command(
+            PROJECT_ROOT / "scripts" / "bootstrap.sh", "check", "--tier=build"
+        ),
         PROJECT_ROOT,
     )
+
+
+def _bash_script_command(script: Path, *arguments: str) -> tuple[str, ...]:
+    """Build a Git-Bash-compatible command for shell-based repository tooling."""
+    bash = shutil.which("bash") or "bash"
+    script_path = str(script)
+    if os.name == "nt":
+        cygpath = shutil.which("cygpath")
+        if cygpath is not None:
+            converted = subprocess.run(
+                (cygpath, "--unix", script_path),
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            if converted:
+                script_path = converted
+    return (bash, script_path, *arguments)
+
+
+def _node_command(command: str, *arguments: str) -> tuple[str, ...]:
+    """Resolve npm shims on Windows while preserving POSIX command names in tests."""
+    executable = f"{command}.cmd" if os.name == "nt" and command == "npx" else command
+    return (executable, *arguments)
 
 
 def _build_web() -> None:
     """Build the product React shell using the repository-pinned pnpm release."""
     environment = {**os.environ, "CI": "true"}
     _run_command(
-        (
+        _node_command(
             "npx",
             "--yes",
             "pnpm@10.12.1",
@@ -146,7 +172,7 @@ def _build_web() -> None:
         environment,
     )
     _run_command(
-        ("npx", "--yes", "pnpm@10.12.1", "build"),
+        _node_command("npx", "--yes", "pnpm@10.12.1", "build"),
         FRONTEND_DIR,
         environment,
     )
@@ -211,18 +237,14 @@ def _package_installer(
         shutil.rmtree(output)
     try:
         _run_command(
-            (
-                "npx",
-                "--yes",
-                "pnpm@10.12.1",
-                "install",
-                "--frozen-lockfile",
+            _node_command(
+                "npx", "--yes", "pnpm@10.12.1", "install", "--frozen-lockfile"
             ),
             DESKTOP_DIR,
             environment,
         )
         _run_command(
-            ("npx", "--yes", "pnpm@10.12.1", "build"),
+            _node_command("npx", "--yes", "pnpm@10.12.1", "build"),
             DESKTOP_DIR,
             environment,
         )
@@ -301,10 +323,19 @@ def _stage_desktop_application(target: str, resources: Path) -> Path:
 
 def _project_python() -> str:
     """Return the repository-controlled interpreter required by the release contract."""
-    executable = PROJECT_ROOT / ".venv" / "bin" / "python"
-    if not executable.is_file():
-        raise ReleasePipelineError(f"release-python-missing path={executable}")
-    return str(executable)
+    candidates = (
+        PROJECT_ROOT / ".venv" / "Scripts" / "python.exe",
+        PROJECT_ROOT / ".venv" / "Scripts" / "python",
+        PROJECT_ROOT / ".venv" / "bin" / "python3",
+        PROJECT_ROOT / ".venv" / "bin" / "python",
+    )
+    for executable in candidates:
+        if executable.is_file():
+            return str(executable)
+    raise ReleasePipelineError(
+        "release-python-missing "
+        + " ".join(f"path={candidate}" for candidate in candidates)
+    )
 
 
 def _electron_target_arguments(target: str) -> tuple[str, str]:

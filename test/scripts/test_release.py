@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 from scripts import release, release_pipeline, release_planning
 from test.support.paths import PROJECT_ROOT
@@ -39,6 +40,69 @@ def test_release_plan_rejects_an_unknown_target() -> None:
             requested_targets=("darwin-arm64", "freebsd-x64"),
             host_target="darwin-arm64",
         )
+
+
+def test_release_pipeline_accepts_windows_venv_layout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Given: a Windows runner's repository-controlled virtual environment.
+    executable = tmp_path / ".venv" / "Scripts" / "python.exe"
+    executable.parent.mkdir(parents=True)
+    executable.write_bytes(b"python")
+    monkeypatch.setattr(release_pipeline, "PROJECT_ROOT", tmp_path)
+
+    # When: the native pipeline resolves the interpreter for a build stage.
+    resolved = release_pipeline._project_python()
+
+    # Then: it uses the Windows venv rather than assuming POSIX bin/.
+    assert resolved == str(executable)
+
+
+def test_release_pipeline_uses_bash_for_bootstrap_and_npx_cmd_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Given: a Windows-native release runner with Git Bash and npm shims.
+    monkeypatch.setattr(release_pipeline.os, "name", "nt")
+    monkeypatch.setattr(
+        release_pipeline.shutil,
+        "which",
+        lambda name: "C:/Program Files/Git/bin/bash.exe" if name == "bash" else None,
+    )
+
+    # When: shell and Node commands are assembled for the runner.
+    bootstrap = release_pipeline._bash_script_command(tmp_path / "scripts/bootstrap.sh")
+    npx = release_pipeline._node_command("npx", "--version")
+
+    # Then: Bash owns shell scripts and npx resolves through its Windows shim.
+    assert bootstrap == (
+        "C:/Program Files/Git/bin/bash.exe",
+        str(tmp_path / "scripts/bootstrap.sh"),
+    )
+    assert npx == ("npx.cmd", "--version")
+
+
+def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate() -> None:
+    # Given: the checked-in GitHub Actions desktop release workflow.
+    workflow_path = PROJECT_ROOT / ".github" / "workflows" / "release.yml"
+    source = workflow_path.read_text(encoding="utf-8")
+    workflow = yaml.safe_load(source)
+    matrix = workflow["jobs"]["build"]["strategy"]["matrix"]["include"]
+
+    # Then: each supported package is assigned to a native runner and publication is tag-gated.
+    assert {entry["target"] for entry in matrix} == set(release.SUPPORTED_TARGETS)
+    assert {entry["runner"] for entry in matrix} == {
+        "macos-latest",
+        "macos-15-intel",
+        "windows-latest",
+        "ubuntu-latest",
+    }
+    assert 'tags:\n      - "v*"' in source
+    assert "workflow_dispatch:" in source
+    assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in source
+    assert "gh release create" in source
+    assert "release_args+=(--prerelease)" in source
 
 
 def test_release_session_dispatches_all_targets_and_requires_artifact_hash_and_smoke(

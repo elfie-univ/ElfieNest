@@ -18,7 +18,7 @@ try {
     process.argv[2] ??
     join(process.cwd(), "..", "..", "..", "build", "staging", target, "resources");
   const outputPath = process.argv[3] ?? join(resourcesRoot, "manifest.json");
-  const manifest = buildResourceManifest(resourcesRoot, "0.1.0", target);
+  const manifest = buildResourceManifest(resourcesRoot, "0.1.0-beta.1", target);
   writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   console.log(`已生成资源 manifest: ${outputPath}`);
 } catch (error: unknown) {

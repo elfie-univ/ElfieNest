@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -74,6 +75,21 @@ describe("MonitorPage", () => {
     expect(screen.getByRole("region", { name: "房间 3D 观察" })).toHaveAttribute("data-bed-count", "4")
     expect(screen.queryByRole("heading")).toBeNull()
     expect(redirects.assign).not.toHaveBeenCalled()
+  })
+
+  it("shows the monitor rail and hides it when immersive mode is entered", async () => {
+    const user = userEvent.setup()
+    renderMonitor()
+
+    expect(screen.getByRole("link", { name: "进入管理" })).toHaveAttribute("href", "/manage")
+    expect(screen.getByRole("link", { name: "进入聊天" })).toHaveAttribute("href", "/chat")
+    expect(screen.getByRole("button", { name: "进入沉浸观察" })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "进入沉浸观察" }))
+
+    expect(screen.queryByRole("link", { name: "进入管理" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "进入沉浸观察" })).not.toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
   })
 
   it("fills the product viewport for an Admin", async () => {

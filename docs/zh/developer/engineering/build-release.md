@@ -32,10 +32,10 @@ GitHub Pages 使用 `/ElfieNest/` base。Pull Request 只构建；只有经过�
 4. 用户完成页面目视验收；
 5. 再由负责人决定何时提交、推送和部署。
 
-## 0.1.0 内测桌面安装包
+## 0.1.0-beta.1 内测桌面安装包
 
-当前只构建内部测试安装包：版本固定为 `0.1.0`，不配置自动更新、不上传公开
-Release，也不打包任何模型权重。每个平台必须在对应原生 runner 上构建：macOS
+当前只构建内部测试安装包：版本固定为 `0.1.0-beta.1`，不配置自动更新，也不打包任何
+模型权重。每个平台必须在对应原生 runner 上构建：macOS
 ARM64、macOS x64、Windows x64、Linux x64。安装包不包含 Ollama 引擎或模型，也不
 创建私有 sidecar；公共 Ollama 是 Setup 中可选的用户决策。
 
@@ -51,6 +51,24 @@ ARM64、macOS x64、Windows x64、Linux x64。安装包不包含 Ollama 引擎�
 # 请求完整矩阵；不可用 runner 保持 incomplete
 .venv/bin/python scripts/release.py
 ```
+
+仓库内的 `.github/workflows/release.yml` 是多平台发布 Pipeline。它分别使用
+macOS arm64、macOS Intel、Windows x64 和 Linux x64 的原生 GitHub runner。手动运行
+`workflow_dispatch` 会构建四个安装包并保存为 Actions artifacts；推送与项目版本一致
+的 tag（例如 `v0.1.0-beta.1`）会运行同一套矩阵，校验各平台安装包内容，并把四个安装包、
+`SHA256SUMS` 和 Release `manifest.json` 发布到 GitHub Releases。带预发布后缀的 tag
+会被标记为 GitHub Pre-release；手动运行只有在开启
+`publish_release` 且填写匹配的 `release_tag` 时才会创建 Release。
+
+当前版本的正常发布命令是：
+
+```bash
+git tag -a v0.1.0-beta.1 -m "ElfieNest 0.1.0-beta.1"
+git push origin v0.1.0-beta.1
+```
+
+Workflow 会在各平台校验安装后的资源布局，但当前内测包仍未签名或公证。交给测试者
+之前，仍必须按上面的发布门记录完整的安装、启动、`/api/health` 和干净退出证据。
 
 每个安装包包含 Electron、前端、Godot Web、目标原生 Python Core 和管理 CLI。
 `./install.sh` 只构建当前机器 target，并安装到与手动原生安装包相同的 canonical

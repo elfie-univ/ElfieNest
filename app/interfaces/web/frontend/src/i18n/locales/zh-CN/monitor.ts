@@ -23,15 +23,19 @@ export const monitor = {
   toolbar: {
     label: "监控工具栏",
   },
+  navigation: {
+    controls: "监控导航",
+    exitImmersive: "退出沉浸观察",
+    immersive: "进入沉浸观察",
+    mobileAccess: "扫码用手机打开监控",
+    railLabel: "监控导航栏",
+  },
   controls: {
-    backToManagement: "返回管理",
     resetAria: "复位视角",
     reset: "复位",
     overview: "总览",
     pause: "暂停观察",
     resume: "继续观察",
-    hide: "隐藏工具栏",
-    show: "显示工具栏",
     retry: "重试 3D 监控",
   },
   status: {

@@ -64,9 +64,10 @@ fi
 # ============================================================================
 
 check_python() {
-    local venv_python="$PROJECT_ROOT/.venv/bin/python3"
+    local venv_python
+    venv_python="$(project_python 2>/dev/null || true)"
 
-    if [[ ! -x "$venv_python" ]]; then
+    if [[ -z "$venv_python" || ! -f "$venv_python" ]]; then
         return 1
     fi
 
@@ -206,7 +207,9 @@ ensure_elfie_home() {
 
     echo "${CYAN}  🔧 Creating data directory...${RESET}"
 
-    if ! "$PROJECT_ROOT/.venv/bin/python" -c "from app.bootstrap.system_wiring.entrypoints import ensure_elfie_home; ensure_elfie_home()" >&2; then
+    local python_bin
+    python_bin="$(project_python)" || return 1
+    if ! "$python_bin" -c "from app.bootstrap.system_wiring.entrypoints import ensure_elfie_home; ensure_elfie_home()" >&2; then
         echo "${RED}  ❌ Failed to create ELFIE_HOME${RESET}" >&2
         return 1
     fi
