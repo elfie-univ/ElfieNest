@@ -53,7 +53,7 @@ export const manage = {
     verifyingSession: "正在验证会话…",
   },
   providerConnections: {
-    actions: { addOther: "添加其他订阅", archive: "归档", batchValidate: "批量验证", cancel: "取消", choose: "继续", configure: "配置 {{name}}", delete: "删除", disable: "停用", edit: "修改", enable: "启用", forceFullValidate: "强制全量验证", matrix: "同模型对比", models: "模型", more: "更多", refresh: "重新读取", restore: "恢复", save: "保存配置", saving: "保存中…", validate: "验证", validating: "验证中…" },
+    actions: { addOther: "添加其他订阅", archive: "归档", authorize: "使用 OpenAI 账号登录", authorizing: "正在生成授权码…", back: "上一步", batchValidate: "批量验证", cancel: "取消", cancelWaiting: "取消等待", choose: "继续", configure: "配置 {{name}}", copyCode: "复制授权码", delete: "删除", disable: "停用", edit: "修改", enable: "启用", forceFullValidate: "强制全量验证", matrix: "同模型对比", models: "模型", more: "更多", refresh: "重新读取", regenerateCode: "重新生成授权码", restore: "恢复", save: "保存配置", saving: "保存中…", validate: "验证", validating: "验证中…" },
     available: { title: "添加新的远程订阅" },
     card: { cached: "24 小时内沿用上次验证结果", modelStats: "共 {{total}} 个模型（已启用 {{enabled}} 个 · 验证通过 {{verified}} 个）", needsFullValidation: "需要重新进行全量验证", needsHeartbeat: "需要验证一个代表模型" },
     ollama: {
@@ -68,8 +68,8 @@ export const manage = {
     custom: { anthropicTitle: "配置 Anthropic 接口", apiKey: "API 密钥", apiMode: "API 协议", authType: "认证方式", displayName: "显示名称", displayNamePlaceholder: "例如 京东 Coding Plan", noAuth: "无认证", openaiTitle: "配置 OpenAI 接口" },
     delete: { confirm: "确认删除", description: "将删除 {{name}} 的本机密钥和模型清单。", descriptionGeneric: "确认删除这个订阅连接吗？", title: "删除模型订阅" },
     errors: { save: "订阅配置没有保存" },
-    form: { alias: "订阅别名", apiKey: "API 密钥", oauthAvailable: "登录授权可用。", oauthUnavailable: "这个产品的登录授权尚未接入。", titleConfigure: "配置 {{name}}", titleEdit: "修改 {{name}}" },
-    notices: { added: "{{name}} 已添加。", forceValidated: "{{name}} 已完成强制全量验证。", saved: "{{name}} 已保存。", validated: "{{name}} 验证已完成。", validatedAll: "批量验证完成：{{count}} 项通过，报告 {{runId}}。" },
+    form: { alias: "订阅别名", apiKey: "API 密钥", method: "连接方式", methods: { apiKey: "API Key", chatgpt: "ChatGPT 账号授权（订阅）", openaiApi: "OpenAI API Key（按量计费）" }, oauthAvailable: "先生成一次性授权码，再打开 OpenAI 设备授权页；无需安装 Codex。", oauthCancelled: "已停止等待；可以重新生成授权码。", oauthCatalogNotice: "实验性候选目录：模型不是从账号实时读取，将按账号逐个验证。", oauthCode: "请在授权页输入代码：{{code}}", oauthCodeLabel: "在授权页输入此一次性代码", oauthOpen: "打开 OpenAI 授权页", oauthUnavailable: "这个产品的登录授权尚未接入。", oauthWaiting: "正在等待账号授权；授权码会一直保留在这里。", titleConfigure: "配置 {{name}}", titleEdit: "修改 {{name}}" },
+    notices: { added: "{{name}} 已添加。", authorized: "{{name}} 已通过 OpenAI 账号授权。", forceValidated: "{{name}} 已完成强制全量验证。", saved: "{{name}} 已保存。", validated: "{{name}} 验证已完成。", validatedAll: "批量验证完成：{{count}} 项通过，报告 {{runId}}。" },
     other: { anthropicInterface: "Anthropic 接口", openaiInterface: "OpenAI 接口", placeholder: "请选择", product: "订阅产品", title: "添加其他订阅" },
     section: { configuredEmpty: "尚未配置远程模型订阅。", configuredTitle: "已配置的远程订阅", count: "{{count}} 个" },
     status: { failed: "验证失败", never: "未验证", partial: "部分可用", passed: "验证通过" },

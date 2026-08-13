@@ -214,6 +214,7 @@ def create_app(
         if (
             not request.message.strip()
             and request.vision_media_id is None
+            and not request.attachments
             and not request.state_injection
             and not any(
                 [
@@ -230,10 +231,20 @@ def create_app(
                 if request.vision_media_id is not None
                 else None
             )
+            message_attachments = [
+                {
+                    **media_store.descriptor_for(
+                        elfie_id, attachment.media_id
+                    )._asdict(),
+                    "filename": attachment.filename,
+                }
+                for attachment in request.attachments
+            ]
             stimulus = StimulusBundle(
                 source_domain=request.source_domain,
                 message=request.message,
                 vision_media=vision_media,
+                message_attachments=message_attachments,
                 temperature=request.temperature,
                 is_network_online=request.is_network_online,
                 salience_score=request.salience_score,

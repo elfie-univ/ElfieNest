@@ -160,7 +160,7 @@ export const configureFoodSchema = foodsSchema.extend({
   selected_food: z.string(),
 });
 
-export const mediaSchema = z.object({ media_id: z.string(), media_url: z.string().optional() }).passthrough();
+export const mediaSchema = z.object({ media_id: z.string(), mime_type: z.string(), media_url: z.string().optional() }).passthrough();
 export type ElfieListItem = z.infer<typeof elfieListSchema>["items"][number];
 export type ElfieSession = z.infer<typeof sessionSchema>;
 export type ElfieTurn = ElfieSession["turns"][number];

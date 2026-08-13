@@ -4,14 +4,20 @@ import json
 import logging
 import urllib.error
 import urllib.request
-from typing import Any, cast
+import uuid
+from datetime import datetime, timezone
+from typing import Any, Mapping, cast
 
+from infrastructure.models.oauth_credentials import OAuthCredentialPort, OAuthToken
 from infrastructure.models.providers.http import (
     ProviderHttpResponse,
     open_provider_request,
     read_provider_response,
 )
 from infrastructure.models.providers.ollama import OllamaNotReadyError
+from infrastructure.models.providers.openai_chatgpt import (
+    refresh_openai_chatgpt_token,
+)
 
 logger = logging.getLogger("infrastructure.models.providers.dispatch")
 
@@ -196,10 +202,86 @@ def call_anthropic_api(
         raise RuntimeError(f"❌ 物理层无法连通 Anthropic 服务: {e}") from e
 
 
+def call_codex_responses_api(
+    api_base: str,
+    api_key: str,
+    model_name: str,
+    messages: list[dict[str, Any]],
+    temperature: float,
+    max_tokens: int,
+    provider: str = "openai_chatgpt",
+    *,
+    request_options: dict[str, Any] | None = None,
+    credential_ref: str = "",
+    account_id: str | None = None,
+    oauth_credentials: OAuthCredentialPort | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Call the ChatGPT Codex Responses transport with a refreshable user token."""
+    _ = temperature, max_tokens
+    token: OAuthToken | None = None
+    if oauth_credentials is not None and credential_ref:
+        token = oauth_credentials.load(credential_ref)
+        if token is not None and _token_expired(token.expires_at):
+            token = refresh_openai_chatgpt_token(token, oauth_credentials)
+    access_token = token.access_token if token is not None else api_key
+    account_id = token.account_id if token is not None else account_id
+    if not access_token:
+        raise ValueError("ChatGPT 授权已失效，请重新登录")
+    instructions = "\n\n".join(
+        str(item.get("content") or "")
+        for item in messages
+        if item.get("role") == "system"
+    ).strip()
+    payload: dict[str, Any] = {
+        "model": model_name,
+        "input": [item for item in messages if item.get("role") != "system"],
+        "stream": True,
+        "store": False,
+    }
+    if instructions:
+        payload["instructions"] = instructions
+    _merge_codex_request_options(payload, request_options)
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+        "Accept": "text/event-stream",
+        "originator": "elfienest",
+        "User-Agent": "ElfieNest/0.1",
+        "session-id": uuid.uuid4().hex,
+    }
+    if account_id:
+        headers["ChatGPT-Account-Id"] = account_id
+    url = f"{api_base.rstrip('/')}/responses"
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with open_provider_request(request, timeout=300) as response:
+            raw = read_provider_response(
+                response, max_bytes=32 * 1024 * 1024, deadline_seconds=300
+            ).decode("utf-8")
+        return _parse_codex_response(raw)
+    except urllib.error.HTTPError as error:
+        summary = _http_error_summary(error)
+        raise RuntimeError(
+            f"❌ ChatGPT Codex 接口返回 HTTP {error.code} 错误。响应详情: {summary}"
+        ) from error
+    except Exception as error:
+        if isinstance(error, (RuntimeError, ValueError)):
+            raise
+        raise RuntimeError(
+            f"❌ 物理层无法连通 ChatGPT Codex 服务 ({provider}): {error}"
+        ) from error
+
+
 API_DISPATCH = {
     "ollama": call_ollama_api,
     "chat_completions": call_openai_compatible_api,
     "anthropic_messages": call_anthropic_api,
+    "codex_responses": call_codex_responses_api,
 }
 
 
@@ -231,6 +313,134 @@ def _merge_request_options(
             payload["options"] = merged
         else:
             payload[key] = value
+
+
+def _merge_codex_request_options(
+    payload: dict[str, Any], request_options: dict[str, Any] | None
+) -> None:
+    if not request_options:
+        return
+    response_format = request_options.get("response_format")
+    if isinstance(response_format, dict):
+        format_value = dict(response_format)
+        json_schema = format_value.pop("json_schema", None)
+        if isinstance(json_schema, dict):
+            format_value.update(json_schema)
+        payload["text"] = {"format": format_value}
+    tools = request_options.get("tools")
+    if isinstance(tools, list):
+        payload["tools"] = [
+            {"type": "function", **item["function"]}
+            if isinstance(item, dict)
+            and item.get("type") == "function"
+            and isinstance(item.get("function"), dict)
+            else item
+            for item in tools
+        ]
+    if "tool_choice" in request_options:
+        choice = request_options["tool_choice"]
+        if (
+            isinstance(choice, dict)
+            and choice.get("type") == "function"
+            and isinstance(choice.get("function"), dict)
+        ):
+            payload["tool_choice"] = {
+                "type": "function",
+                "name": choice["function"].get("name"),
+            }
+        else:
+            payload["tool_choice"] = choice
+
+
+def _parse_codex_response(raw: str) -> tuple[str, dict[str, Any]]:
+    stripped = raw.lstrip()
+    if stripped.startswith("{"):
+        payload = json.loads(stripped)
+        return _responses_text(payload), _responses_usage(payload)
+    deltas: list[str] = []
+    function_deltas: list[str] = []
+    completed: dict[str, Any] | None = None
+    for line in raw.splitlines():
+        if not line.startswith("data:"):
+            continue
+        data = line[5:].strip()
+        if not data or data == "[DONE]":
+            continue
+        event = json.loads(data)
+        if event.get("type") == "response.output_text.delta":
+            deltas.append(str(event.get("delta") or ""))
+        if event.get("type") == "response.function_call_arguments.delta":
+            function_deltas.append(str(event.get("delta") or ""))
+        if event.get("type") == "response.completed" and isinstance(
+            event.get("response"), dict
+        ):
+            completed = event["response"]
+    if completed is not None:
+        text = (
+            "".join(deltas)
+            or "".join(function_deltas)
+            or _responses_text(completed)
+            or _responses_function_arguments(completed)
+        )
+        return text, _responses_usage(completed)
+    if deltas:
+        return "".join(deltas), {}
+    if function_deltas:
+        return "".join(function_deltas), {}
+    raise ValueError("ChatGPT Codex 响应没有返回文本")
+
+
+def _responses_text(payload: Mapping[str, Any]) -> str:
+    direct = payload.get("output_text")
+    if isinstance(direct, str):
+        return direct
+    parts: list[str] = []
+    output = payload.get("output")
+    if isinstance(output, list):
+        for item in output:
+            if not isinstance(item, dict):
+                continue
+            content = item.get("content")
+            if not isinstance(content, list):
+                continue
+            for part in content:
+                if isinstance(part, dict) and isinstance(part.get("text"), str):
+                    parts.append(part["text"])
+    return "".join(parts)
+
+
+def _responses_function_arguments(payload: Mapping[str, Any]) -> str:
+    output = payload.get("output")
+    if not isinstance(output, list):
+        return ""
+    for item in output:
+        if (
+            isinstance(item, dict)
+            and item.get("type") == "function_call"
+            and isinstance(item.get("arguments"), str)
+        ):
+            return item["arguments"]
+    return ""
+
+
+def _responses_usage(payload: Mapping[str, Any]) -> dict[str, Any]:
+    usage = payload.get("usage")
+    if not isinstance(usage, dict):
+        return {}
+    return {
+        "prompt_tokens": usage.get("input_tokens", 0),
+        "completion_tokens": usage.get("output_tokens", 0),
+    }
+
+
+def _token_expired(expires_at: str | None) -> bool:
+    if not expires_at:
+        return False
+    try:
+        expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+        return expiry <= datetime.now(timezone.utc)
+    except ValueError:
+        return True
 
 
 def _http_error_summary(error: urllib.error.HTTPError) -> str:

@@ -14,13 +14,17 @@ from app.features.configuration import (
     ProviderModelMatrixResult,
     ProviderModelRefreshResult,
     ProviderModelResult,
+    ProviderOAuthLoginStartResult,
+    ProviderOAuthLoginStatusResult,
     ProviderProductResult,
     ProviderValidationRunResult,
     ProviderVerificationResult,
 )
 
 StrictModel = ConfigDict(extra="forbid", strict=True)
-ApiMode = Literal["ollama", "chat_completions", "anthropic_messages"]
+ApiMode = Literal[
+    "ollama", "chat_completions", "anthropic_messages", "codex_responses"
+]
 AuthType = Literal["none", "bearer", "x-api-key"]
 
 
@@ -148,6 +152,32 @@ class ProviderConnectionPatchRequest(BaseModel):
     @classmethod
     def valid_api_base(cls, value: Optional[str]) -> Optional[str]:
         return _validate_api_base(value)
+
+
+class ProviderOAuthLoginStartRequest(BaseModel):
+    model_config = StrictModel
+
+    catalog_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z][a-z0-9_]{0,63}$",
+    )
+
+
+class ProviderOAuthLoginCompleteRequest(BaseModel):
+    model_config = StrictModel
+
+    catalog_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z][a-z0-9_]{0,63}$",
+    )
+    alias: Optional[str] = Field(default=None, max_length=100)
+
+    @field_validator("alias")
+    @classmethod
+    def strip_alias(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else value.strip() or None
 
 
 class BenchmarkCombinationRequest(BaseModel):
@@ -306,6 +336,7 @@ class ProviderConnectionResponse(BaseModel):
     api_mode: ApiMode
     auth_type: AuthType
     has_api_key: bool
+    has_credential: bool
     enabled: bool
     archived: bool
     usage_scope: str
@@ -326,6 +357,7 @@ class ProviderConnectionResponse(BaseModel):
             api_mode=item.api_mode,
             auth_type=item.auth_type,
             has_api_key=item.has_api_key,
+            has_credential=item.has_credential,
             enabled=item.enabled,
             archived=item.archived,
             usage_scope=item.usage_scope,
@@ -344,6 +376,49 @@ class ProviderConnectionResponse(BaseModel):
 class ProviderConnectionsResponse(BaseModel):
     model_config = StrictModel
     items: tuple[ProviderConnectionResponse, ...]
+
+
+class ProviderOAuthLoginStartResponse(BaseModel):
+    model_config = StrictModel
+    catalog_id: str
+    login_id: str
+    authorization_url: str
+    user_code: str
+    poll_interval_seconds: int
+    expires_at: str
+
+    @classmethod
+    def from_result(
+        cls, item: ProviderOAuthLoginStartResult
+    ) -> ProviderOAuthLoginStartResponse:
+        return cls(**vars(item))
+
+
+class ProviderOAuthLoginStatusResponse(BaseModel):
+    model_config = StrictModel
+    catalog_id: str
+    login_id: str
+    state: Literal["pending", "completed"]
+    account_id: Optional[str]
+    expires_at: Optional[str]
+    connection: Optional[ProviderConnectionResponse]
+
+    @classmethod
+    def from_result(
+        cls, item: ProviderOAuthLoginStatusResult
+    ) -> ProviderOAuthLoginStatusResponse:
+        return cls(
+            catalog_id=item.catalog_id,
+            login_id=item.login_id,
+            state=item.state,
+            account_id=item.account_id,
+            expires_at=item.expires_at,
+            connection=(
+                None
+                if item.connection is None
+                else ProviderConnectionResponse.from_result(item.connection)
+            ),
+        )
 
 
 class LocalProviderTaskResponse(BaseModel):

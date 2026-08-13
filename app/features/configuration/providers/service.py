@@ -20,6 +20,7 @@ from .models import (
     AddProviderModelCommand,
     BenchmarkProviderModelsCommand,
     ChangeProviderConnectionLifecycleCommand,
+    CompleteProviderOAuthLoginCommand,
     CreateProviderConnectionCommand,
     DefaultLocalProviderConnectionResult,
     DeleteProviderConnectionCommand,
@@ -47,6 +48,8 @@ from .models import (
     ProviderModelMatrixResult,
     ProviderModelRefreshResult,
     ProviderModelResult,
+    ProviderOAuthLoginStartResult,
+    ProviderOAuthLoginStatusResult,
     ProviderProductResult,
     ProviderValidationItemResult,
     ProviderValidationRunResult,
@@ -56,6 +59,7 @@ from .models import (
     RemoveLocalProviderConnectionCommand,
     ReplaceProviderModelsCommand,
     StartLocalProviderCommand,
+    StartProviderOAuthLoginCommand,
     UpdateProviderConnectionCommand,
     UpdateProviderModelCommand,
     ValidateAllProviderModelsCommand,
@@ -78,6 +82,7 @@ from .ports import (
     ProviderConnectionPort,
     ProviderLocalStatePort,
     ProviderLocalTechnologyPort,
+    ProviderOAuthPort,
     ProviderPortError,
     ProviderReferencePort,
     ProviderTechnologyPort,
@@ -94,6 +99,7 @@ class ProvidersService:
         technology: ProviderTechnologyPort,
         local_state: ProviderLocalStatePort,
         local_technology: ProviderLocalTechnologyPort,
+        oauth: ProviderOAuthPort | None = None,
     ) -> None:
         self._catalog = catalog
         self._connections = connections
@@ -101,7 +107,86 @@ class ProvidersService:
         self._technology = technology
         self._local_state = local_state
         self._local_technology = local_technology
+        self._oauth = oauth
         self._local_jobs = LocalProviderJobManager()
+
+    async def start_oauth_login(
+        self,
+        principal: AccountPrincipal,
+        command: StartProviderOAuthLoginCommand,
+    ) -> ProviderOAuthLoginStartResult:
+        self._require_manager(principal)
+        product = self._product(command.catalog_id)
+        if product.connection_method != "oauth" or not product.oauth_available:
+            raise ProvidersValidationError("Provider does not support OAuth login")
+        if self._oauth is None:
+            raise ProvidersUnavailable("Provider OAuth login unavailable")
+        try:
+            started = await self._oauth.start_login(command.catalog_id)
+        except ProviderPortError as error:
+            raise ProvidersUnavailable("Provider OAuth login unavailable") from error
+        return ProviderOAuthLoginStartResult(**vars(started))
+
+    async def complete_oauth_login(
+        self,
+        principal: AccountPrincipal,
+        command: CompleteProviderOAuthLoginCommand,
+    ) -> ProviderOAuthLoginStatusResult:
+        self._require_manager(principal)
+        product = self._product(command.catalog_id)
+        if product.connection_method != "oauth" or not product.oauth_available:
+            raise ProvidersValidationError("Provider does not support OAuth login")
+        if self._oauth is None:
+            raise ProvidersUnavailable("Provider OAuth login unavailable")
+        try:
+            status = await self._oauth.poll_login(command.login_id)
+            if status.catalog_id != command.catalog_id:
+                raise ProvidersValidationError("OAuth login does not match Provider")
+            if status.state == "pending":
+                return ProviderOAuthLoginStatusResult(
+                    status.catalog_id,
+                    status.login_id,
+                    status.state,
+                    status.account_id,
+                    status.expires_at,
+                    None,
+                )
+            existing = next(
+                (
+                    item
+                    for item in self._connections.list_connections()
+                    if item.credential_ref == status.credential_ref
+                ),
+                None,
+            )
+            connection = existing or self._connections.create_connection(
+                StoredProviderConnection(
+                    connection_id="",
+                    catalog_id=product.catalog_id,
+                    alias=(command.alias or "").strip() or product.name,
+                    api_base=product.api_base,
+                    api_mode=product.api_mode,
+                    auth_type=product.auth_type,
+                    credential_ref=status.credential_ref,
+                    models=(),
+                ),
+                None,
+            )
+            if not connection.models:
+                await self._refresh(connection)
+                connection = self._require_connection(connection.connection_id)
+            return ProviderOAuthLoginStatusResult(
+                status.catalog_id,
+                status.login_id,
+                status.state,
+                status.account_id,
+                status.expires_at,
+                self._connection_result(connection),
+            )
+        except ProvidersValidationError:
+            raise
+        except ProviderPortError as error:
+            raise ProvidersUnavailable("Provider OAuth login unavailable") from error
 
     def ensure_default_local_connection(
         self,
@@ -353,6 +438,10 @@ class ProvidersService:
         product = self._product(command.catalog_id)
         if product.connection_method == "local" and command.api_key:
             raise ProvidersValidationError("Local connections do not accept an API key")
+        if product.connection_method == "oauth":
+            raise ProvidersValidationError(
+                "OAuth connections must be created through authorization"
+            )
         api_base = product.api_base if command.api_base is None else command.api_base
         if command.catalog_id == "custom_openai" and not api_base:
             raise ProvidersValidationError("Custom connections require an API base URL")
@@ -898,7 +987,13 @@ class ProvidersService:
                 api_base=connection.api_base,
                 api_mode=connection.api_mode,
                 auth_type=connection.auth_type,
-                has_api_key=self._connections.has_credential(connection.credential_ref),
+                has_api_key=(
+                    product.connection_method == "api_key"
+                    and self._connections.has_credential(connection.credential_ref)
+                ),
+                has_credential=self._connections.has_credential(
+                    connection.credential_ref
+                ),
                 enabled=connection.enabled,
                 archived=connection.archived,
                 usage_scope=product.usage_scope,

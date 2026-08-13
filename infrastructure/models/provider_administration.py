@@ -39,6 +39,7 @@ from app.features.configuration import (
 from app.features.configuration.providers import (
     ValidationStatus as ProviderValidationStatus,
 )
+from infrastructure.models.oauth_credentials import OAuthCredentialPort
 from infrastructure.models.provider_records import (
     ProviderConnection,
     ProviderModelRecord,
@@ -92,10 +93,12 @@ class ProviderModelsAdapter:
         storage: ProviderStoragePort,
         reports: ReportStoragePort,
         evidence: ModelEvidencePort,
+        oauth_credentials: OAuthCredentialPort | None = None,
     ) -> None:
         self._store = storage
         self._reports = reports
         self._evidence = evidence
+        self._oauth_credentials = oauth_credentials
 
     def list_products(self) -> tuple[StoredProviderProduct, ...]:
         try:
@@ -160,6 +163,7 @@ class ProviderModelsAdapter:
                 api_base=connection.api_base,
                 api_mode=connection.api_mode,
                 auth_type=connection.auth_type,
+                credential_ref=connection.credential_ref,
                 models=tuple(self._runtime_model(item) for item in connection.models),
             )
             created = self._store.create_with_secret(created, api_key)
@@ -186,7 +190,16 @@ class ProviderModelsAdapter:
 
     def delete_connection(self, connection_id: str) -> bool:
         try:
-            return self._store.delete_with_secret(connection_id)
+            connection = self._store.load_connections().get(connection_id)
+            deleted = self._store.delete_with_secret(connection_id)
+            if (
+                deleted
+                and connection is not None
+                and connection.credential_ref.startswith("oauth.")
+                and self._oauth_credentials is not None
+            ):
+                self._oauth_credentials.delete(connection.credential_ref)
+            return deleted
         except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError("Unable to delete Provider connection") from error
 
@@ -194,6 +207,11 @@ class ProviderModelsAdapter:
         if not credential_ref:
             return False
         try:
+            if credential_ref.startswith("oauth."):
+                return (
+                    self._oauth_credentials is not None
+                    and self._oauth_credentials.has(credential_ref)
+                )
             return self._store.has_secret(credential_ref)
         except (ProviderStorageError, OSError) as error:
             raise ProviderPortError("Unable to resolve Provider credential") from error
@@ -380,7 +398,7 @@ class ProviderModelsAdapter:
                 summarize_connection_validation(
                     self._runtime_connection(connection),
                     reports=self._reports,
-                    secret_resolver=self._store.resolve_secret,
+                    secret_resolver=self._resolve_credential,
                 )
             )
         except (ValueError, OSError) as error:
@@ -413,7 +431,7 @@ class ProviderModelsAdapter:
                 self._runtime_connection(connection),
                 runtime_projection=self._runtime_projection,
                 reports=self._reports,
-                secret_resolver=self._store.resolve_secret,
+                secret_resolver=self._resolve_credential,
                 force_full=force_full,
             )
             return self._verification(result)
@@ -429,6 +447,15 @@ class ProviderModelsAdapter:
         if profile is None:
             raise ProviderPortError("Provider product catalog entry is missing")
         checked_at = datetime.now(timezone.utc).isoformat()
+        if profile.discovery_strategy == "catalog_only":
+            bundled_models = bundled_catalog_models(profile.bundled_models)
+            merged = merge_refreshed_models(runtime.models, bundled_models)
+            return StoredModelRefresh(
+                status="bundled_catalog",
+                checked_at=checked_at,
+                message=None,
+                models=tuple(self._model(item) for item in merged),
+            )
         try:
             discovered = await asyncio.wait_for(
                 asyncio.to_thread(self._discover_with_slot, runtime),
@@ -456,7 +483,7 @@ class ProviderModelsAdapter:
                 )
             message = sanitize_error(
                 str(error),
-                secrets=(self._store.resolve_secret(runtime.credential_ref),),
+                secrets=(self._resolve_credential(runtime.credential_ref),),
             )
             return StoredModelRefresh(
                 status="failed",
@@ -569,7 +596,7 @@ class ProviderModelsAdapter:
             latency_class = self._latency_class(raw.get("latency_class"))
             error = sanitize_error(
                 cast(Optional[str], raw.get("error")),
-                secrets=(self._store.resolve_secret(connection.credential_ref),),
+                secrets=(self._resolve_credential(connection.credential_ref),),
             )
             self._reports.write_model_validation_report(
                 combination.connection_id,
@@ -623,7 +650,7 @@ class ProviderModelsAdapter:
                     self._runtime_connection(stored),
                     runtime_projection=self._runtime_projection,
                     reports=self._reports,
-                    secret_resolver=self._store.resolve_secret,
+                    secret_resolver=self._resolve_credential,
                     run_id=run_id,
                     trigger="batch",
                     force_full=True,
@@ -681,10 +708,28 @@ class ProviderModelsAdapter:
             _DISCOVERY_SLOTS.release()
 
     def _runtime_projection(self, connection: ProviderConnection) -> tuple[str, Any]:
-        return runtime_projection(
+        runtime_id, config = runtime_projection(
             connection,
-            secret_resolver=self._store.resolve_secret,
+            secret_resolver=self._resolve_credential,
         )
+        if connection.credential_ref.startswith("oauth."):
+            token = (
+                None
+                if self._oauth_credentials is None
+                else self._oauth_credentials.load(connection.credential_ref)
+            )
+            config.oauth_credentials = self._oauth_credentials
+            config.providers[runtime_id]["credential_ref"] = connection.credential_ref
+            config.providers[runtime_id]["account_id"] = (
+                None if token is None else token.account_id
+            )
+        return runtime_id, config
+
+    def _resolve_credential(self, credential_ref: str) -> str:
+        if credential_ref.startswith("oauth.") and self._oauth_credentials is not None:
+            token = self._oauth_credentials.load(credential_ref)
+            return "" if token is None else token.access_token
+        return self._store.resolve_secret(credential_ref)
 
     @staticmethod
     def _product(catalog_id: str) -> StoredProviderProduct:

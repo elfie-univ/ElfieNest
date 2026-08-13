@@ -10,6 +10,7 @@ from typing import Callable, Dict, Mapping, Optional, Protocol, cast
 
 from pydantic import JsonValue
 
+from infrastructure.models.oauth_credentials import OAuthCredentialPort
 from infrastructure.models.providers.profiles import (
     BUILTIN_PROFILES,
     get_default_api_mode,
@@ -167,6 +168,11 @@ class LLMRuntimeConfig:
     # 开发工具使用独立配置目录，避免误读正式环境的密钥和策略。
     config_home: str | None = None
     source: Optional[RuntimeConfigSource] = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
+    oauth_credentials: OAuthCredentialPort | None = field(
         default=None,
         repr=False,
         compare=False,

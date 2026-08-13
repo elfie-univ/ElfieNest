@@ -50,6 +50,27 @@ def call_llm_api(
             )
         elif api_mode == "anthropic_messages":
             args = (api_base, api_key, model_name, messages, temperature, max_tokens)
+        elif api_mode == "codex_responses":
+            response_text, usage = dispatch_fn(
+                api_base,
+                api_key,
+                model_name,
+                messages,
+                temperature,
+                max_tokens,
+                provider,
+                request_options=(
+                    dict(request_options) if request_options else None
+                ),
+                credential_ref=str(provider_cfg.get("credential_ref") or ""),
+                account_id=(
+                    str(provider_cfg["account_id"])
+                    if provider_cfg.get("account_id")
+                    else None
+                ),
+                oauth_credentials=config.oauth_credentials,
+            )
+            args = ()
         else:
             args = (
                 api_base,
@@ -60,7 +81,9 @@ def call_llm_api(
                 max_tokens,
                 provider,
             )
-        if api_mode == "ollama":
+        if api_mode == "codex_responses":
+            pass
+        elif api_mode == "ollama":
             response_text, usage = dispatch_fn(
                 *args,
                 thinking=thinking,

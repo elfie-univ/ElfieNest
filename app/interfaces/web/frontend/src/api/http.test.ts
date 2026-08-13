@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { ApiError, requestJson } from "./http"
+import { ApiError, ownerRead, requestJson } from "./http"
 
 describe("requestJson", () => {
   afterEach(() => {
@@ -42,5 +42,19 @@ describe("requestJson", () => {
     await expect(requestJson("http://localhost/api/v1/auth/login", { method: "POST" })).rejects.toEqual(
       new ApiError(401, "登录账号或密码错误", [], "authentication_failed"),
     )
+  })
+
+  it("bypasses the browser cache when reloading owner state", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    await ownerRead("http://localhost/api/v1/admin/model-providers/connections")
+
+    const request = fetchMock.mock.calls[0]?.[0]
+    expect(request).toBeInstanceOf(Request)
+    expect((request as Request).cache).toBe("no-store")
   })
 })

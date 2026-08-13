@@ -3,13 +3,13 @@ import { useState } from "react"
 import type { ProviderProduct } from "../api/owner-providers"
 
 type ProviderBrandLogoProps = {
-  readonly product: ProviderProduct
+  readonly brand: ProviderProduct["brand"]
 }
 
-export function ProviderBrandLogo({ product }: ProviderBrandLogoProps) {
+export function ProviderBrandLogo({ brand }: ProviderBrandLogoProps) {
   const [imageFailed, setImageFailed] = useState(false)
-  const assetPath = product.brand.logo_asset.trim().replace(/^\/+/, "")
-  const initial = product.brand.name.trim().slice(0, 1).toUpperCase() || "?"
+  const assetPath = brand.logo_asset.trim().replace(/^\/+/, "")
+  const initial = brand.name.trim().slice(0, 1).toUpperCase() || "?"
 
   return <span aria-hidden="true" className="provider-brand-mark">
     {assetPath && !imageFailed

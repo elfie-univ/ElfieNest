@@ -26,12 +26,15 @@ def client(tmp_path: Path, db_path: str) -> TestClient:
 def _web_build(tmp_path: Path) -> Path:
     build_dir = tmp_path / "build" / "web"
     assets = build_dir / "assets"
+    brands = build_dir / "brands"
     assets.mkdir(parents=True)
+    brands.mkdir(parents=True)
     (build_dir / "index.html").write_text("app", encoding="utf-8")
     (assets / "app.js").write_text("app", encoding="utf-8")
+    (brands / "openai.svg").write_text("<svg />", encoding="utf-8")
     (build_dir / "manifest.json").write_text(
         """{
-          "index.html": {"file": "assets/app.js"}
+          "index.html": {"file": "assets/app.js", "assets": ["brands/openai.svg"]}
         }""",
         encoding="utf-8",
     )
@@ -106,6 +109,15 @@ def test_anonymous_clients_receive_public_shell_assets_but_no_product_data(
     # Then: JavaScript is public but data remains session-protected.
     assert shell_asset.status_code == 200
     assert conversations.status_code == 401
+
+
+def test_anonymous_clients_receive_manifest_listed_brand_assets(
+    client: TestClient,
+) -> None:
+    response = client.get("/brands/openai.svg")
+
+    assert response.status_code == 200
+    assert response.text == "<svg />"
 
 
 def test_asset_request_refreshes_the_manifest_after_a_frontend_rebuild(

@@ -25,6 +25,15 @@ brands:
   alibaba:
     name: Alibaba Cloud
     logo_asset: brands/alibaba-cloud.svg
+  zhipu:
+    name: Zhipu AI (GLM)
+    logo_asset: brands/zhipu.svg
+  moonshot:
+    name: Kimi (Moonshot AI)
+    logo_asset: brands/kimi.svg
+  minimax:
+    name: MiniMax
+    logo_asset: brands/minimax.svg
   xai:
     name: xAI
     logo_asset: brands/xai.svg
@@ -68,13 +77,34 @@ products:
     usage_scope: general
     discovery_strategy: standard_models
     oauth_available: false
-    test_model: gpt-4o-mini
+    test_model: gpt-5.4-mini
     bundled_models:
+      - gpt-5.6-luna
+      - gpt-5.4-mini
+      - gpt-5.4-nano
+      - gpt-5-mini
       - gpt-4o-mini
-      - gpt-3.5-turbo
-      - gpt-4o
-      - o1-mini
-      - o3-mini
+  openai_chatgpt:
+    brand_id: openai
+    legacy_provider_id: openai_chatgpt
+    name: OpenAI (ChatGPT)
+    api_base: https://chatgpt.com/backend-api/codex
+    auth_type: bearer
+    api_mode: codex_responses
+    base_url_env_var: ""
+    api_key_env_var: ""
+    connection_method: oauth
+    usage_scope: general
+    discovery_strategy: catalog_only
+    oauth_available: true
+    test_model: gpt-5.6-luna
+    bundled_models:
+      - gpt-5.6-sol
+      - gpt-5.6-terra
+      - gpt-5.6-luna
+      - gpt-5.5
+      - gpt-5.4
+      - gpt-5.4-mini
   anthropic_api:
     brand_id: anthropic
     legacy_provider_id: anthropic
@@ -151,6 +181,59 @@ products:
       - qwen-max
       - qwen-vl-plus
       - qwen-vl-max
+  glm_api:
+    brand_id: zhipu
+    legacy_provider_id: zhipu
+    name: Zhipu AI (GLM)
+    api_base: https://open.bigmodel.cn/api/paas/v4
+    auth_type: bearer
+    api_mode: chat_completions
+    base_url_env_var: ZHIPU_API_BASE
+    api_key_env_var: ZHIPU_API_KEY
+    connection_method: api_key
+    usage_scope: general
+    discovery_strategy: standard_models
+    oauth_available: false
+    test_model: glm-4.7-flash
+    bundled_models:
+      - glm-4.7-flash
+      - glm-4.5-air
+      - glm-5.2
+  kimi_api:
+    brand_id: moonshot
+    legacy_provider_id: kimi
+    name: Kimi (Moonshot AI)
+    api_base: https://api.moonshot.cn/v1
+    auth_type: bearer
+    api_mode: chat_completions
+    base_url_env_var: MOONSHOT_API_BASE
+    api_key_env_var: MOONSHOT_API_KEY
+    connection_method: api_key
+    usage_scope: general
+    discovery_strategy: standard_models
+    oauth_available: false
+    test_model: kimi-k2.6
+    bundled_models:
+      - kimi-k2.6
+      - kimi-k3
+  minimax_api:
+    brand_id: minimax
+    legacy_provider_id: minimax
+    name: MiniMax
+    api_base: https://api.minimaxi.com/v1
+    auth_type: bearer
+    api_mode: chat_completions
+    base_url_env_var: MINIMAX_API_BASE
+    api_key_env_var: MINIMAX_API_KEY
+    connection_method: api_key
+    usage_scope: general
+    discovery_strategy: standard_models
+    oauth_available: false
+    test_model: MiniMax-M2.5
+    bundled_models:
+      - MiniMax-M2.5
+      - MiniMax-M2.7
+      - MiniMax-M3
   xai_api:
     brand_id: xai
     legacy_provider_id: xai
