@@ -35,6 +35,7 @@ def call_ollama_api(
     temperature: float,
     max_tokens: int,
     *,
+    thinking: bool = False,
     request_options: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     headers: dict[str, str] = {"Content-Type": "application/json"}
@@ -46,10 +47,13 @@ def call_ollama_api(
         "options": {
             "temperature": temperature,
             "num_predict": max_tokens,
-            "think": False,
         },
     }
     _merge_request_options(payload, request_options)
+    payload["think"] = thinking
+    options = payload.get("options")
+    if isinstance(options, dict):
+        options.pop("think", None)
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
@@ -200,7 +204,14 @@ API_DISPATCH = {
 
 
 _RESERVED_REQUEST_FIELDS = frozenset(
-    {"model", "messages", "system", "stream", "temperature", "max_tokens"}
+    {
+        "model",
+        "messages",
+        "system",
+        "stream",
+        "temperature",
+        "max_tokens",
+    }
 )
 
 

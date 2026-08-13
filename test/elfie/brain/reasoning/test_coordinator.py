@@ -214,10 +214,15 @@ def _coordinator(
     sink: RecordingPlanSink,
     *,
     next_autonomous_at: float | None = None,
+    allowed_tools: tuple[str, ...] = (),
+    initial_energy: float = 100.0,
 ) -> tuple[BrainCoordinator, EmotionSystem, EnergySystem]:
     initial = NOW.timestamp()
     emotion = EmotionSystem(clock=lambda: initial)
-    energy = EnergySystem(clock=lambda: initial)
+    energy = EnergySystem(
+        {"limits": {"energy": {"initial_value": initial_energy}}},
+        clock=lambda: initial,
+    )
     worker = ReasoningWorker(model_port=runtime, decoder=DecisionPlanDecoder())
     coordinator = BrainCoordinator(
         elfie_id=ELFIE_ID,
@@ -231,8 +236,98 @@ def _coordinator(
         settlement=NoopSettlement(),
         initial_timestamp=initial,
         next_autonomous_at=next_autonomous_at,
+        allowed_tools=allowed_tools,
     )
     return coordinator, emotion, energy
+
+
+def test_owner_conversation_stays_fast_when_energy_allows_long_reasoning() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _emotion, _energy = _coordinator(
+        workspace,
+        runtime,
+        sink,
+        allowed_tools=("web_search",),
+    )
+    coordinator.start()
+    workspace.publish(_social(1, 0))
+    coordinator.notify_perception()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+    assert runtime.started.wait(1)
+    coordinator.synchronize()
+
+    try:
+        request = runtime.calls[0]
+        assert request.reasoning_mode == "fast"
+        assert request.allowed_tools == ()
+        assert coordinator._inflight is not None
+        assert coordinator._inflight.task.reasoning_budget.max_model_calls == 1
+        assert coordinator._inflight.task.reasoning_budget.max_tool_calls == 0
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_internal_turn_uses_long_reasoning_only_when_energy_allows_it() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _emotion, _energy = _coordinator(
+        workspace,
+        runtime,
+        sink,
+        next_autonomous_at=NOW.timestamp(),
+        allowed_tools=("web_search",),
+    )
+    coordinator.start()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp()))
+    assert runtime.started.wait(1)
+    coordinator.synchronize()
+
+    try:
+        request = runtime.calls[0]
+        assert request.reasoning_mode == "long"
+        assert request.allowed_tools == ("web_search",)
+        assert coordinator._inflight is not None
+        assert coordinator._inflight.task.reasoning_budget.max_model_calls == 4
+        assert coordinator._inflight.task.reasoning_budget.max_tool_calls == 2
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_internal_turn_stays_fast_when_energy_denies_long_reasoning() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _emotion, _energy = _coordinator(
+        workspace,
+        runtime,
+        sink,
+        next_autonomous_at=NOW.timestamp(),
+        allowed_tools=("web_search",),
+        initial_energy=50.0,
+    )
+    coordinator.start()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp()))
+    assert runtime.started.wait(1)
+    coordinator.synchronize()
+
+    try:
+        request = runtime.calls[0]
+        assert request.reasoning_mode == "fast"
+        assert request.allowed_tools == ()
+        assert coordinator._inflight is not None
+        assert coordinator._inflight.task.reasoning_budget.max_model_calls == 1
+        assert coordinator._inflight.task.reasoning_budget.max_tool_calls == 0
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
 
 
 def test_slow_runtime_does_not_block_clock_or_next_frame_ingest() -> None:

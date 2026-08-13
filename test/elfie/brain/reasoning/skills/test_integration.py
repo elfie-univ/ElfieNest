@@ -14,7 +14,7 @@ from test.elfie.test_cognitive_lifecycle import (
 )
 
 
-def test_elfie_passes_authorized_tool_keys_to_reasoning_request() -> None:
+def test_elfie_keeps_authorized_tools_out_of_fast_owner_conversation() -> None:
     manager = SkillManager(
         policy=SkillPolicy(allowed_skill_ids=frozenset({"web_search"}))
     )
@@ -44,6 +44,7 @@ def test_elfie_passes_authorized_tool_keys_to_reasoning_request() -> None:
     elfie.advance_clock(0.5)
     elfie.wait_for_outcome_count(1, timeout=1.0)
 
-    assert runtime.requests[0].allowed_tools == ("web_search",)
+    assert runtime.requests[0].reasoning_mode == "fast"
+    assert runtime.requests[0].allowed_tools == ()
     elfie.stop()
     elfie.join()

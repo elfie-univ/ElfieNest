@@ -129,6 +129,7 @@ class SerializedRuntimeAdapter:
             response_schema_name=request.response_schema.name,
             response_schema=request.response_schema.document,
             selected_mode=StructuredGenerationMode(selected_mode.value),
+            reasoning_mode=request.reasoning_mode,
             allowed_tools=request.allowed_tools,
             provider=capabilities.provider,
             model_key=capabilities.model_key,

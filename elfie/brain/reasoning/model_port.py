@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum, unique
-from typing import Annotated, Mapping, Optional, Protocol, Tuple
+from typing import Annotated, Literal, Mapping, Optional, Protocol, Tuple
 
 from pydantic import AliasChoices, Field, JsonValue, StringConstraints
 
@@ -75,6 +75,7 @@ class ModelGenerationRequest(FrozenContractModel):
     system_prompt: _NonBlankText
     user_prompt: _NonBlankText
     response_schema: JsonSchemaDocument
+    reasoning_mode: Literal["fast", "long"] = "fast"
     allowed_tools: Tuple[_NonBlankText, ...] = ()
     temperature: Annotated[float, Field(strict=True, ge=0.0, le=2.0)] = 0.2
     max_tokens: Annotated[int, Field(strict=True, ge=1)] = 512

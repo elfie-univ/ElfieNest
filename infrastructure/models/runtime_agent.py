@@ -278,6 +278,7 @@ class RuntimeAgent:
                 ),
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
+                thinking=request.reasoning_mode == "long",
             )
             try:
                 execution = executor.execute(
@@ -570,6 +571,7 @@ class RuntimeAgent:
         provider_options: Dict[str, Any] | None = None,
         temperature: float = 0.7,
         max_tokens: int = 1500,
+        thinking: bool = False,
     ) -> FoodExecutor:
         def caller(
             provider: str,
@@ -586,6 +588,7 @@ class RuntimeAgent:
                 temperature,
                 max_tokens,
                 {**options, **(provider_options or {})},
+                thinking,
             )
 
         return FoodExecutor(
@@ -637,6 +640,7 @@ class RuntimeAgent:
         temperature: float,
         max_tokens: int,
         request_options: Dict[str, Any],
+        thinking: bool = False,
     ) -> str:
         return call_llm_api(
             self.config,
@@ -645,5 +649,6 @@ class RuntimeAgent:
             messages,
             temperature,
             max_tokens,
+            thinking=thinking,
             request_options=request_options,
         )

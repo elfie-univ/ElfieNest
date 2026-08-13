@@ -168,6 +168,15 @@ def test_adapter_uses_json_text_for_plain_runtime():
     assert runtime.requests[0].selected_mode.value == "json_text"
 
 
+def test_adapter_propagates_brain_reasoning_mode_to_runtime():
+    runtime = FakeStructuredRuntime(_schema_capabilities())
+    adapter = SerializedRuntimeAdapter(runtime)
+
+    adapter.generate(_request().model_copy(update={"reasoning_mode": "long"}))
+
+    assert runtime.requests[0].reasoning_mode == "long"
+
+
 def test_adapter_abandon_rotates_serialization_lease_for_replacement_call():
     # Given: the first provider call holds the current healthy serialization lease.
     runtime = BlockingStructuredRuntime(_schema_capabilities())

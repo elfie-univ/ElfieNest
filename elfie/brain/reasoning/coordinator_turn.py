@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Tuple
+from typing import Literal, Tuple
 from uuid import uuid4
 
 from elfie.brain.activity.context import ActivityContext
 from elfie.brain.consolidation.contracts import CognitiveConsolidationSnapshot
 from elfie.brain.emotion.appraiser import EmotionAppraiser
 from elfie.brain.emotion.emotion_system import EmotionSystem
+from elfie.brain.energy.contracts import EnergySnapshot
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.orientation.contracts import OrientationSnapshot
@@ -31,6 +32,7 @@ from elfie.brain.workspace.contracts import (
     InternalSignal,
     PerceptionEvent,
     SocialPayload,
+    SourceDomain,
     TurnFrame,
 )
 from elfie.message_types import (
@@ -174,7 +176,8 @@ class CoordinatorTurnFactory:
             profile_anchors=profile_anchors,
             captured_at=captured_at,
         )
-        reasoning_budget = self._reasoning_budget(homeostasis)
+        reasoning_mode = self._reasoning_mode(frame, homeostasis)
+        reasoning_budget = self._reasoning_budget(homeostasis, reasoning_mode)
         compiled = self._compiler.compile(
             context,
             budget=ModelTokenBudget(max_tokens=self._model_token_budget(homeostasis)),
@@ -213,8 +216,9 @@ class CoordinatorTurnFactory:
                 name="DecisionPlan",
                 document=DecisionPlan.model_json_schema(),
             ),
-            allowed_tools=self._allowed_tools,
-            max_tokens=self._model_output_budget(homeostasis),
+            reasoning_mode=reasoning_mode,
+            allowed_tools=self._allowed_tools if reasoning_mode == "long" else (),
+            max_tokens=self._model_output_budget(homeostasis, reasoning_mode),
         )
         return ReasoningTask(
             request=request,
@@ -237,8 +241,13 @@ class CoordinatorTurnFactory:
         return 1024
 
     @staticmethod
-    def _model_output_budget(homeostasis) -> int:
+    def _model_output_budget(
+        homeostasis: EnergySnapshot,
+        reasoning_mode: Literal["fast", "long"],
+    ) -> int:
         """Reserve enough output for one typed plan while retaining Energy tiers."""
+        if reasoning_mode == "fast":
+            return 768
         if homeostasis.cognitive_mode == "emergency":
             return 768
         if homeostasis.cognitive_mode == "degraded":
@@ -248,8 +257,19 @@ class CoordinatorTurnFactory:
         return 2048
 
     @staticmethod
-    def _reasoning_budget(homeostasis) -> ReasoningBudget:
+    def _reasoning_budget(
+        homeostasis: EnergySnapshot,
+        reasoning_mode: Literal["fast", "long"],
+    ) -> ReasoningBudget:
         """Map Energy mode to bounded model/tool/step admission."""
+        if reasoning_mode == "fast":
+            deadline = 5.0 if homeostasis.cognitive_mode == "emergency" else 12.0
+            return ReasoningBudget(
+                max_steps=3,
+                max_model_calls=1,
+                max_tool_calls=0,
+                deadline_seconds=deadline,
+            )
         if homeostasis.cognitive_mode == "emergency":
             return ReasoningBudget(
                 max_steps=2,
@@ -272,6 +292,19 @@ class CoordinatorTurnFactory:
                 deadline_seconds=30.0,
             )
         return ReasoningBudget()
+
+    @staticmethod
+    def _reasoning_mode(
+        frame: TurnFrame,
+        homeostasis: EnergySnapshot,
+    ) -> Literal["fast", "long"]:
+        """Keep external interaction responsive; only internal work may go long."""
+        if (
+            frame.source_domain is SourceDomain.INTERNAL
+            and homeostasis.long_reasoning_allowed
+        ):
+            return "long"
+        return "fast"
 
     @staticmethod
     def _owner_reply_target(
