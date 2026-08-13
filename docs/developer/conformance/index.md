@@ -8,6 +8,9 @@ its machine baseline is empty and every recorded gap is closed.
 The registered System, App, Model/Food/Tool and Brain debt has reached zero, so
 those temporary registers and empty baselines were removed. The Brain contract
 is now enforced directly by permanent architecture tests. The current Elfie
-2.0 life-system work still has open aggregate gaps:
+2.0 life-system and Nest–Godot semantic-world work still have open aggregate
+gaps:
 
 - [Elfie internal architecture conformance](./elfie)
+- [Nest–Godot semantic-world conformance](./nest-godot-semantic-world)
+  - [Approved migration specification](./nest-godot-semantic-world-migration)

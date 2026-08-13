@@ -16,3 +16,4 @@ The current contract always states the enforceable rule.
 - [ADR-0010: Desktop authority host structure follows ownership](./0010-desktop-authority-host-structure)
 - [ADR-0011: Repository-wide implementation change classification](./0011-repository-wide-change-classification)
 - [ADR-0012: Effective dependencies include dynamic execution targets](./0012-effective-dependency-targets)
+- [ADR-0013: Nest–Godot semantic-world ownership and event routing](./0013-nest-godot-semantic-world-boundary)

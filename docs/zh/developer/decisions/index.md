@@ -15,3 +15,4 @@
 - [ADR-0010：Desktop authority host 结构遵循所有权](./0010-desktop-authority-host-structure)
 - [ADR-0011：全仓实现变更分类](./0011-repository-wide-change-classification)
 - [ADR-0012：有效依赖包含动态执行目标](./0012-effective-dependency-targets)
+- [ADR-0013：Nest–Godot 语义世界所有权与事件路由](./0013-nest-godot-semantic-world-boundary)
