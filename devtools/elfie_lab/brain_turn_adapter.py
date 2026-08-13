@@ -31,8 +31,11 @@ from elfie.brain.reasoning.tool_port import ToolKey, ToolRequest, ToolResult
 from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.communication import (
     CommunicationEnvelope,
+    ContentPart,
     DeliveryReceipt,
     DeliveryStatus,
+    FilePart,
+    ImagePart,
     MessageDirection,
     TextPart,
 )
@@ -232,6 +235,18 @@ class BrainTurnAdapter:
     ) -> CommunicationEnvelope:
         now = self._elfie.cognitive_datetime
         owner = ActorRef(actor_id=ActorId("elfie-lab-owner"), source_kind="owner")
+        parts: list[ContentPart] = []
+        if stimulus.message.strip():
+            parts.append(TextPart(text=stimulus.message.strip()))
+        for attachment in stimulus.message_attachments:
+            filename = str(attachment["filename"])
+            media = MediaRef.model_validate(
+                {key: value for key, value in attachment.items() if key != "filename"}
+            )
+            if media.mime_type.startswith("image/"):
+                parts.append(ImagePart(media=media, caption=filename))
+            else:
+                parts.append(FilePart(media=media, filename=filename))
         return CommunicationEnvelope(
             meta=MessageMeta(
                 event_id=EventId(event_id),
@@ -254,7 +269,7 @@ class BrainTurnAdapter:
             direction=MessageDirection.INBOUND,
             external_message_id=event_id,
             dedupe_key=event_id,
-            parts=(TextPart(text=stimulus.message.strip()),),
+            parts=tuple(parts),
         )
 
     def _events(

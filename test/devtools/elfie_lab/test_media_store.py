@@ -23,9 +23,11 @@ WEBP = b"RIFF\x0b\x00\x00\x00WEBP" + b"fixture"
         (PNG, ".png", "image/png"),
         (JPEG, ".jpg", "image/jpeg"),
         (WEBP, ".webp", "image/webp"),
+        (b"%PDF-1.7\nfixture", ".pdf", "application/pdf"),
+        (b"plain text", ".txt", "text/plain"),
     ],
 )
-def test_store_identifies_supported_images_from_magic_bytes(
+def test_store_identifies_supported_media_from_content(
     tmp_path: Path,
     content: bytes,
     expected_suffix: str,
@@ -64,7 +66,6 @@ def test_store_deduplicates_repeated_content_by_sha256(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "content",
     [
-        b"plain text",
         b"data:image/png;base64,iVBORw0KGgo=",
         b"RIFF\x00\x00\x00\x00NOPE",
     ],
