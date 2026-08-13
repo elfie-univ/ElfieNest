@@ -8,7 +8,7 @@ class UnsupportedModalError(Exception):
     pass
 
 
-class RuntimeModelInfo(TypedDict):
+class ModelEndpointInfo(TypedDict):
     """Validated model capability projection consumed by the readiness guard."""
 
     active: bool
@@ -19,7 +19,7 @@ class RuntimeModelInfo(TypedDict):
 
 
 class ModelRegistry(Protocol):
-    def get_model_info(self, model_key: str) -> RuntimeModelInfo: ...
+    def get_model_info(self, model_key: str) -> ModelEndpointInfo: ...
 
 
 class OllamaManager(Protocol):
@@ -27,7 +27,7 @@ class OllamaManager(Protocol):
 
 
 @dataclass(frozen=True)
-class RuntimeModelTarget:
+class ModelTarget:
     model_name: str
     provider: str
 
@@ -38,7 +38,7 @@ def ensure_model_ready(
     ollama_manager: OllamaManager,
     images: list[str] | None = None,
     audio: str | None = None,
-) -> RuntimeModelTarget:
+) -> ModelTarget:
     model_info = registry.get_model_info(model_key)
     if not model_info["active"]:
         raise ValueError(
@@ -60,4 +60,4 @@ def ensure_model_ready(
     if provider == "ollama":
         ollama_manager.ensure_service_started()
 
-    return RuntimeModelTarget(model_name=model_name, provider=provider)
+    return ModelTarget(model_name=model_name, provider=provider)

@@ -20,9 +20,9 @@ from elfie.public import (
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.godot.gateway.api import GodotAPIServer
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
-from infrastructure.models.runtime_adapter import (
-    SerializedRuntimeAdapter,
-    StructuredRuntime,
+from infrastructure.models.model_execution_adapter import (
+    SerializedModelExecutionAdapter,
+    StructuredModelExecution,
 )
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
@@ -39,7 +39,7 @@ MainFoodLoader = Callable[[str], Optional[Union[str, MainFoodSelection]]]
 
 @dataclass(frozen=True)
 class NestSessionServices:
-    """One assembled live Nest and its injected Runtime boundaries."""
+    """One assembled live Nest and its injected execution boundaries."""
 
     engine: ElfieNestEngine
     world_runtime: GodotNestSessionAdapter
@@ -68,7 +68,7 @@ class ElfieRestoreResult:
 def build_nest_session_services(
     db_path: str,
     *,
-    runtime: StructuredRuntime,
+    model_execution: StructuredModelExecution,
     godot_ws_port: int,
     http_port: int,
     tick_interval_sec: float,
@@ -84,9 +84,9 @@ def build_nest_session_services(
         gateway=gateway,
     )
 
-    def model_port_factory(elfie_id: str) -> SerializedRuntimeAdapter:
-        return SerializedRuntimeAdapter(
-            runtime,
+    def model_port_factory(elfie_id: str) -> SerializedModelExecutionAdapter:
+        return SerializedModelExecutionAdapter(
+            model_execution,
             scope_id=elfie_id,
             food_key_resolver=lambda: (
                 main_food_loader(elfie_id) if main_food_loader is not None else None

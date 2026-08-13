@@ -11,12 +11,12 @@ from app.features.configuration import (
     StoredProviderConnection,
     StoredProviderModel,
 )
+from infrastructure.models.validation.provider_validation_execution import (
+    model_execution_projection,
+)
 from infrastructure.models.validation.provider_validation_policy import (
     choose_validation_mode,
     connection_validation_fingerprint,
-)
-from infrastructure.models.validation.provider_validation_runtime import (
-    runtime_projection,
 )
 from infrastructure.models.validation.provider_validation_service import (
     validate_connection,
@@ -191,7 +191,7 @@ def test_connection_fingerprint_ignores_another_connection_secret_change(
     )
 
 
-def test_runtime_projection_uses_connection_id_for_builtin_connection() -> None:
+def test_model_execution_projection_uses_connection_id_for_builtin_connection() -> None:
     connection = ProviderConnection(
         connection_id="jdcloud_coding_plan_0001",
         catalog_id="jdcloud_coding_plan",
@@ -199,9 +199,9 @@ def test_runtime_projection_uses_connection_id_for_builtin_connection() -> None:
         models=(ProviderModelRecord(endpoint_model_id="GLM-5"),),
     )
 
-    runtime_id, _config = runtime_projection(connection)
+    execution_id, _config = model_execution_projection(connection)
 
-    assert runtime_id == connection.connection_id
+    assert execution_id == connection.connection_id
 
 
 def test_single_validation_checks_configured_models_without_provider_models_probe(
@@ -223,8 +223,8 @@ def test_single_validation_checks_configured_models_without_provider_models_prob
     reports = ReportStorageAdapter(ReportRepository())
     calls: list[str] = []
 
-    def model_check(connection, model_id, runtime_projection):
-        _ = connection, runtime_projection
+    def model_check(connection, model_id, model_execution_projection):
+        _ = connection, model_execution_projection
         calls.append(model_id)
         return {
             "status": "passed",
@@ -240,7 +240,7 @@ def test_single_validation_checks_configured_models_without_provider_models_prob
         payload = asyncio.run(
             validate_connection(
                 connection,
-                runtime_projection=runtime_projection,
+                model_execution_projection=model_execution_projection,
                 reports=reports,
                 secret_resolver=resolve_secret,
             )
@@ -267,8 +267,8 @@ def test_single_validation_reuses_recent_full_result_without_new_model_requests(
     ProviderConnectionStore().replace(connection)
     reports = ReportStorageAdapter(ReportRepository())
 
-    def model_check(connection, model_id, runtime_projection):
-        _ = connection, model_id, runtime_projection
+    def model_check(connection, model_id, model_execution_projection):
+        _ = connection, model_id, model_execution_projection
         return {
             "status": "passed",
             "latency_ms": 10.0,
@@ -283,7 +283,7 @@ def test_single_validation_reuses_recent_full_result_without_new_model_requests(
         first = asyncio.run(
             validate_connection(
                 connection,
-                runtime_projection=runtime_projection,
+                model_execution_projection=model_execution_projection,
                 reports=reports,
                 secret_resolver=resolve_secret,
             )
@@ -292,7 +292,7 @@ def test_single_validation_reuses_recent_full_result_without_new_model_requests(
         second = asyncio.run(
             validate_connection(
                 connection,
-                runtime_projection=runtime_projection,
+                model_execution_projection=model_execution_projection,
                 reports=reports,
                 secret_resolver=resolve_secret,
             )
@@ -304,7 +304,7 @@ def test_single_validation_reuses_recent_full_result_without_new_model_requests(
     check.assert_not_called()
 
 
-def test_runtime_projection_keeps_jdcloud_profile_test_model() -> None:
+def test_model_execution_projection_keeps_jdcloud_profile_test_model() -> None:
     connection = ProviderConnection(
         connection_id="jdcloud_coding_plan_0001",
         catalog_id="jdcloud_coding_plan",
@@ -315,10 +315,10 @@ def test_runtime_projection_keeps_jdcloud_profile_test_model() -> None:
         ),
     )
 
-    runtime_id, config = runtime_projection(connection)
+    execution_id, config = model_execution_projection(connection)
 
-    assert runtime_id == connection.connection_id
-    assert config.providers[runtime_id]["test_model"] == "GLM-5"
+    assert execution_id == connection.connection_id
+    assert config.providers[execution_id]["test_model"] == "GLM-5"
 
 
 def test_jdcloud_health_check_falls_back_to_configured_model(
@@ -437,8 +437,8 @@ def test_validate_all_writes_each_enabled_model_and_skips_hidden(
     )
     ProviderConnectionStore().replace(connection)
 
-    def model_check(connection, model_id, runtime_projection):
-        _ = connection, runtime_projection
+    def model_check(connection, model_id, model_execution_projection):
+        _ = connection, model_execution_projection
         status = "passed" if model_id == "passed-model" else "failed"
         return {
             "status": status,

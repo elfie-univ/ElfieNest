@@ -14,7 +14,7 @@ vi.mock("../api/http", async (loadOriginal) => {
   return { ...original, ownerRead: read, requestJson: read }
 })
 
-type RuntimeEventFixture = {
+type ModelExecutionEventFixture = {
   readonly event_type: string
   readonly status: string
   readonly subject: string
@@ -111,7 +111,7 @@ function renderWithLocale(node: React.ReactNode, locale: SupportedLocale): Retur
   return instance
 }
 
-function monitorPayload(path: string, lastEvent: RuntimeEventFixture | null = null): unknown {
+function monitorPayload(path: string, lastEvent: ModelExecutionEventFixture | null = null): unknown {
   switch (path) {
     case "/api/health":
       return { status: "ok", engine_ready: true, godot_web_ready: true, godot_runtime_ready: true }

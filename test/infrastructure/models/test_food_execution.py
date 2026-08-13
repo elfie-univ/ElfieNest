@@ -1,6 +1,6 @@
 from elfie.brain.reasoning.food_port import FoodAssignment, FoodPackage
 from infrastructure.models.food_execution import FoodExecutor
-from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.tools import DisabledToolPort
 from infrastructure.tools.execution.loop import PortToolLoop
 from infrastructure.tools.execution.skills_prompt import inject_skills_system_prompt
@@ -16,7 +16,7 @@ def test_executor_uses_role_then_one_fallback(monkeypatch, tmp_path):
             raise RuntimeError("down")
         return "ok"
 
-    config = LLMRuntimeConfig()
+    config = ModelExecutionConfig()
     config.providers["cloud_0001"] = {
         "api_mode": "chat_completions",
         "api_key": "test",

@@ -7,7 +7,7 @@ from typing import Protocol, Tuple
 from .port_models import (
     StoredActiveSession,
     StoredDatabaseBackup,
-    StoredRuntimeSnapshot,
+    StoredModelExecutionSnapshot,
     StoredTableCount,
     StoredUsageStats,
 )
@@ -39,8 +39,8 @@ class DatabaseMaintenancePort(Protocol):
     def reset_databases(self) -> None: ...
 
 
-class RuntimeObserverProjectionPort(Protocol):
-    def snapshot(self) -> StoredRuntimeSnapshot: ...
+class ModelExecutionObserverProjectionPort(Protocol):
+    def snapshot(self) -> StoredModelExecutionSnapshot: ...
 
 
 class NetworkAccessProjectionPort(Protocol):
@@ -56,5 +56,5 @@ __all__ = (
     "OperationsPortError",
     "OperationsPortUnsafeTarget",
     "OperationsProjectionPort",
-    "RuntimeObserverProjectionPort",
+    "ModelExecutionObserverProjectionPort",
 )

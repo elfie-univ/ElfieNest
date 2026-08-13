@@ -3,14 +3,14 @@ from pathlib import Path
 import pytest
 
 from devtools.elfie_lab.app import create_app
-from devtools.elfie_lab.runtime_foods import ElfieLabRuntime
+from devtools.elfie_lab.model_execution_foods import ElfieLabModelEnvironment
 from devtools.elfie_lab.storage import ElfieLabStorage
 from elfie.brain.reasoning.food_port import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
-from infrastructure.models.runtime_agent import RuntimeAgent
-from infrastructure.models.runtime_contracts import (
+from infrastructure.models.model_execution_agent import ModelExecutionAgent
+from infrastructure.models.model_execution_contracts import (
     StructuredGenerationMode,
-    StructuredRuntimeCapabilities,
-    StructuredRuntimeResult,
+    StructuredModelExecutionCapabilities,
+    StructuredModelExecutionResult,
 )
 from infrastructure.persistence.food import SQLiteFoodAdapter
 
@@ -35,7 +35,7 @@ def elfie_payload(name: str) -> dict[str, object]:
 
 
 def _configure_local(runtime_dir: Path, model: str = "qwen3.5:0.8b") -> None:
-    ElfieLabRuntime(runtime_dir).configure(mode="local", model=model)
+    ElfieLabModelEnvironment(runtime_dir).configure(mode="local", model=model)
 
 
 def test_default_app_uses_elfie_lab_root_and_keeps_production_isolated(
@@ -47,7 +47,7 @@ def test_default_app_uses_elfie_lab_root_and_keeps_production_isolated(
     monkeypatch.setenv("ELFIE_HOME", str(production_home))
     monkeypatch.setenv("ELFIE_DEV_HOME", str(developer_home))
     monkeypatch.setattr(
-        "devtools.elfie_lab.runtime_foods.OllamaManager.list_installed_models",
+        "devtools.elfie_lab.model_execution_foods.OllamaManager.list_installed_models",
         lambda _manager: (),
     )
 
@@ -56,7 +56,7 @@ def test_default_app_uses_elfie_lab_root_and_keeps_production_isolated(
 
     expected_root = elfie_data / "runtime"
     assert app.state.storage.root == elfie_data
-    assert app.state.runtime.root == expected_root.resolve()
+    assert app.state.model_execution.root == expected_root.resolve()
     assert (expected_root / "nest.db").exists()
     assert client.get("/api/runtime/status").json()["scope"] == "override"
     payload = client.get("/api/runtime/foods").json()
@@ -74,7 +74,7 @@ def test_app_accepts_existing_lab_storage_with_independent_runtime_root(
     ElfieLabStorage(lab_root)
     assert (lab_root / "sessions").is_dir()
     monkeypatch.setattr(
-        "devtools.elfie_lab.runtime_foods.OllamaManager.list_installed_models",
+        "devtools.elfie_lab.model_execution_foods.OllamaManager.list_installed_models",
         lambda _manager: (),
     )
 
@@ -83,14 +83,14 @@ def test_app_accepts_existing_lab_storage_with_independent_runtime_root(
 
     assert client.get("/api/health").json()["status"] == "ok"
     assert app.state.storage.root == lab_root
-    assert app.state.runtime.root == (lab_root / "runtime").resolve()
+    assert app.state.model_execution.root == (lab_root / "runtime").resolve()
     assert (lab_root / "runtime" / "nest.db").is_file()
 
 
 def test_configure_local_model_creates_one_test_food(tmp_path, monkeypatch, client_for):
     runtime_dir = tmp_path / "elfie-lab"
     monkeypatch.setattr(
-        "devtools.elfie_lab.runtime_foods.OllamaManager.list_installed_models",
+        "devtools.elfie_lab.model_execution_foods.OllamaManager.list_installed_models",
         lambda _manager: ("qwen3.5:0.8b",),
     )
     client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
@@ -114,7 +114,7 @@ def test_configure_openai_compatible_saves_secret_without_preflight(
 ):
     runtime_dir = tmp_path / "elfie-lab"
     monkeypatch.setattr(
-        "devtools.elfie_lab.runtime_foods.OllamaManager.list_installed_models",
+        "devtools.elfie_lab.model_execution_foods.OllamaManager.list_installed_models",
         lambda _manager: (),
     )
     client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
@@ -135,8 +135,8 @@ def test_configure_openai_compatible_saves_secret_without_preflight(
         item for item in response.json()["items"] if item["key"] == "elfie_lab_test"
     )
     assert item["ready_for_attempt"] is True
-    runtime = ElfieLabRuntime(runtime_dir)
-    config = runtime.load_runtime_config()
+    runtime = ElfieLabModelEnvironment(runtime_dir)
+    config = runtime.load_model_execution_config()
     connection = next(
         value
         for key, value in config.providers.items()
@@ -149,7 +149,7 @@ def test_configure_openai_compatible_saves_secret_without_preflight(
 def test_configure_replaces_the_previous_test_food(tmp_path, client_for, monkeypatch):
     runtime_dir = tmp_path / "elfie-lab"
     monkeypatch.setattr(
-        "devtools.elfie_lab.runtime_foods.OllamaManager.list_installed_models",
+        "devtools.elfie_lab.model_execution_foods.OllamaManager.list_installed_models",
         lambda _manager: (),
     )
     client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
@@ -182,7 +182,7 @@ def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
         captured["food_key"] = food_key
         assert food_unavailable is False
         captured["catalog_path"] = runtime.food_catalog_repository._db_path
-        return StructuredRuntimeCapabilities(
+        return StructuredModelExecutionCapabilities(
             provider="ollama",
             model_key="ollama/test-food-model",
             supports_json_schema=False,
@@ -194,7 +194,7 @@ def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
 
     def fake_generate_structured(runtime, request):
         assert request.food_key == "elfie_lab_test"
-        return StructuredRuntimeResult(
+        return StructuredModelExecutionResult(
             text="粮食调用成功。[ACTION]nod_head[/ACTION]",
             selected_mode=StructuredGenerationMode.JSON_TEXT,
             provider="ollama",
@@ -202,9 +202,9 @@ def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
         )
 
     monkeypatch.setattr(
-        RuntimeAgent, "structured_capabilities", fake_structured_capabilities
+        ModelExecutionAgent, "structured_capabilities", fake_structured_capabilities
     )
-    monkeypatch.setattr(RuntimeAgent, "generate_structured", fake_generate_structured)
+    monkeypatch.setattr(ModelExecutionAgent, "generate_structured", fake_generate_structured)
     client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
     created = client.post("/api/elfies", json=elfie_payload("粮食交互测试")).json()
 

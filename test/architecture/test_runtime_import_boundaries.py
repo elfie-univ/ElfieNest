@@ -70,7 +70,7 @@ def test_runtime_import_scanner_flags_raw_protocol_control(tmp_path: Path) -> No
     # Given: an interface implementation tries to import a raw protocol frame.
     source = tmp_path / "runtime_route.py"
     source.write_text(
-        "from infrastructure.godot.gateway.messages import RuntimeEventFrame\n",
+        "from infrastructure.godot.gateway.messages import ModelExecutionEventFrame\n",
         encoding="utf-8",
     )
 
@@ -82,8 +82,8 @@ def test_runtime_import_scanner_flags_raw_protocol_control(tmp_path: Path) -> No
 
 
 def test_runtime_model_path_uses_the_injected_tool_port() -> None:
-    runtime_source = (
-        PROJECT_ROOT / "infrastructure" / "models" / "runtime_agent.py"
+    execution_source = (
+        PROJECT_ROOT / "infrastructure" / "models" / "model_execution_agent.py"
     ).read_text(encoding="utf-8")
     validation_source = (
         PROJECT_ROOT
@@ -93,7 +93,7 @@ def test_runtime_model_path_uses_the_injected_tool_port() -> None:
         / "agent_validation.py"
     ).read_text(encoding="utf-8")
 
-    for source in (runtime_source, validation_source):
+    for source in (execution_source, validation_source):
         assert "RuntimeToolLoop" not in source
         assert "LocalFileAccessPlugin" not in source
     assert not hasattr(

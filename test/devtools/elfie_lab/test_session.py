@@ -128,7 +128,7 @@ def test_recovery_drive_creates_one_bounded_internal_turn(tmp_path, session_fact
     session = session_factory(spec, storage)
     # Autonomous turns still use the Lab's explicitly selected local food;
     # there is no user message in this scenario to select it implicitly.
-    session._turn_adapter._runtime.select(session_module.create_runtime("mock"))
+    session._turn_adapter._runtime.select(session_module.create_model_execution("mock"))
     ElfieDiagnostics(session.elfie).energy.energy = 10.0
     ElfieDiagnostics(session.elfie).energy.revision += 1
 
@@ -163,7 +163,7 @@ def test_consolidation_consolidates_memory_without_external_actions(
     storage = ElfieLabStorage(str(tmp_path))
     spec = storage.create_elfie("离线整理")
     session = session_factory(spec, storage)
-    session._turn_adapter._runtime.select(session_module.create_runtime("mock"))
+    session._turn_adapter._runtime.select(session_module.create_model_execution("mock"))
     ElfieDiagnostics(session.elfie).memory.record_episode(
         content="主人在窗边陪我玩耍",
         emotion="happy",
@@ -324,7 +324,7 @@ def test_failed_turn_does_not_persist_exception_secrets_or_paths(
     def fail_runtime(_food_key, _config_dir, **_kwargs):
         raise RuntimeError(f"sk-sensitive-secret at {tmp_path}/config.yaml")
 
-    monkeypatch.setattr(session_module, "create_runtime", fail_runtime)
+    monkeypatch.setattr(session_module, "create_model_execution", fail_runtime)
 
     turn = session.run_turn(StimulusBundle(message="触发失败"), "mock")
     persisted = str(storage.load_latest_session(spec.elfie_id))

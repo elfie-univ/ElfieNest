@@ -369,7 +369,7 @@ class TestMemoryConsolidator:
         """完整巩固流程（无LLM，使用规则提取降级）"""
         _setup_basic_data(storage)
 
-        result = consolidator.run_consolidation(runtime_agent=None)
+        result = consolidator.run_consolidation(model_port=None)
 
         # 验证结果
         assert result["consolidated_count"] == 6  # ep_0~4 + ep_orphan
@@ -451,7 +451,7 @@ class TestMemoryConsolidator:
         """LLM失败时保留原始数据，降级为规则提取"""
         _setup_basic_data(storage)
 
-        # 模拟一个会抛异常的runtime_agent
+        # 模拟一个会抛异常的model_port
         class FailingAgent:
             @staticmethod
             def ask_with_food(prompt, **kwargs):
@@ -463,7 +463,7 @@ class TestMemoryConsolidator:
         failing_agent = FailingAgent()
 
         # 运行巩固（LLM会失败，应降级为规则提取）
-        result = consolidator.run_consolidation(runtime_agent=failing_agent)
+        result = consolidator.run_consolidation(model_port=failing_agent)
 
         # 巩固仍应完成（使用规则提取降级）
         assert result["consolidated_count"] > 0
@@ -485,7 +485,7 @@ class TestMemoryConsolidator:
         """无LLM时不阻塞巩固，静默降级"""
         _setup_basic_data(storage)
 
-        # 不传入runtime_agent
+        # 不传入model_port
         result = consolidator.run_consolidation()
 
         # 巩固应正常完成
@@ -602,7 +602,7 @@ class TestPatternDiscovery:
 
         pattern_ids = consolidator._discover_patterns(
             knowledge_ids,
-            runtime_agent=PatternAgent(),
+            model_port=PatternAgent(),
         )
 
         assert len(pattern_ids) == 2
@@ -636,10 +636,10 @@ class TestPatternDiscovery:
             ],
         )
 
-        # 不传入runtime_agent，触发规则降级
+        # 不传入model_port，触发规则降级
         pattern_ids = consolidator._discover_patterns(
             knowledge_ids,
-            runtime_agent=None,
+            model_port=None,
         )
 
         assert len(pattern_ids) == 1
@@ -664,7 +664,7 @@ class TestPatternDiscovery:
 
         pattern_ids = consolidator._discover_patterns(
             knowledge_ids,
-            runtime_agent=None,
+            model_port=None,
         )
 
         # 无共同关键词，不创建pattern
@@ -689,7 +689,7 @@ class TestPatternDiscovery:
 
         pattern_ids = consolidator._discover_patterns(
             knowledge_ids,
-            runtime_agent=None,
+            model_port=None,
         )
 
         assert pattern_ids == []
@@ -698,7 +698,7 @@ class TestPatternDiscovery:
         """空列表时跳过pattern发现"""
         pattern_ids = consolidator._discover_patterns(
             [],
-            runtime_agent=None,
+            model_port=None,
         )
         assert pattern_ids == []
 
@@ -718,7 +718,7 @@ class TestPatternDiscovery:
 
         pattern_ids = consolidator._discover_patterns(
             knowledge_ids,
-            runtime_agent=None,
+            model_port=None,
         )
 
         assert len(pattern_ids) == 1
@@ -752,7 +752,7 @@ class TestPatternDiscovery:
 
         pattern_ids = consolidator._discover_patterns(
             knowledge_ids,
-            runtime_agent=None,
+            model_port=None,
         )
 
         assert len(pattern_ids) > 0
@@ -777,7 +777,7 @@ class TestPatternDiscovery:
 
         pattern_ids = consolidator._discover_patterns(
             knowledge_ids,
-            runtime_agent=None,
+            model_port=None,
         )
 
         assert len(pattern_ids) > 0
@@ -799,7 +799,7 @@ class TestPatternDiscovery:
         """完整巩固流程包含pattern发现步骤"""
         _setup_basic_data(storage)
 
-        result = consolidator.run_consolidation(runtime_agent=None)
+        result = consolidator.run_consolidation(model_port=None)
 
         # 验证结果中包含patterns_created
         assert "patterns_created" in result

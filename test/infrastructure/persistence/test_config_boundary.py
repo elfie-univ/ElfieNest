@@ -9,7 +9,9 @@ import json
 from pathlib import Path
 
 from infrastructure.persistence.layout.data_home import get_config_path, get_elfie_home
-from infrastructure.persistence.runtime_config import load_runtime_config
+from infrastructure.persistence.model_execution_config import (
+    load_model_execution_config,
+)
 
 
 def _write_legacy_runtime_config(path: Path, provider_id: str = "legacy_only") -> None:
@@ -31,7 +33,7 @@ def _write_legacy_runtime_config(path: Path, provider_id: str = "legacy_only") -
 
 
 def _patch_legacy_runtime_path(monkeypatch, legacy_path: Path) -> None:
-    config_module = importlib.import_module("infrastructure.models.runtime_config")
+    config_module = importlib.import_module("infrastructure.models.model_execution_config")
     fake_module_file = legacy_path.parent / "config.py"
     monkeypatch.setattr(config_module, "__file__", str(fake_module_file))
 
@@ -45,7 +47,7 @@ def test_isolated_home_does_not_read_legacy_json(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(isolated_home))
 
     # When: 读取当前生产配置。
-    config = load_runtime_config()
+    config = load_model_execution_config()
 
     # Then: 路径解析已隔离，legacy JSON 不得进入正常配置。
     assert get_elfie_home() == isolated_home
@@ -63,7 +65,7 @@ def test_normal_load_does_not_read_legacy_runtime_json(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(isolated_home))
 
     # When: 不调用任何迁移命令，直接创建运行时配置。
-    config = load_runtime_config()
+    config = load_model_execution_config()
 
     # Then: 目标边界要求 legacy provider 不得进入正常配置。
     provider_ids = tuple(config.providers)
@@ -83,7 +85,7 @@ def test_malformed_yaml_does_not_trigger_legacy_fallback(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(isolated_home))
 
     # When: YAML 解析失败时仍走正常配置加载路径。
-    config = load_runtime_config()
+    config = load_model_execution_config()
 
     # Then: 损坏的当前配置不能把加载流程导向 legacy JSON。
     provider_ids = tuple(config.providers)
@@ -100,7 +102,7 @@ def test_malformed_legacy_json_is_ignored_without_side_effects(monkeypatch, tmp_
     monkeypatch.setenv("ELFIE_HOME", str(isolated_home))
 
     # When: 解析损坏的旧 JSON。
-    config = load_runtime_config()
+    config = load_model_execution_config()
 
     # Then: 解析失败被隔离，且不会隐式初始化或写入生产数据目录。
     provider_ids = tuple(config.providers)
@@ -142,7 +144,7 @@ def test_existing_config_yaml_is_authoritative_over_legacy(monkeypatch, tmp_path
     monkeypatch.setenv("ELFIE_HOME", str(isolated_home))
 
     # When: 读取已有当前配置。
-    config = load_runtime_config()
+    config = load_model_execution_config()
 
     # Then: 当前 providers.yaml 是唯一来源，不被 legacy 状态污染。
     assert (
@@ -163,7 +165,7 @@ def test_normal_load_does_not_migrate_old_data_directory(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(isolated_home))
 
     # When: 只执行普通运行时配置加载。
-    load_runtime_config()
+    load_model_execution_config()
 
     # Then: 旧 data 保持原位，普通加载不创建迁移目标目录。
     assert old_data.exists()

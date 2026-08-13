@@ -15,7 +15,7 @@ from app.features.configuration import (
     StoredRuntimeSettings,
     StoredSecuritySettings,
 )
-from infrastructure.models.runtime_config import DEFAULT_SYSTEM_SETTINGS
+from infrastructure.models.model_execution_config import DEFAULT_SYSTEM_SETTINGS
 from infrastructure.persistence.configuration.config_store import (
     ConfigStoreError,
     read_yaml_mapping,

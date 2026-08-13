@@ -8,10 +8,10 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 STRICT_BOUNDARY_FILES = (
-    "infrastructure/models/runtime_ports.py",
+    "infrastructure/models/model_execution_ports.py",
     "infrastructure/models/storage_ports.py",
     "infrastructure/models/report_records.py",
-    "infrastructure/models/runtime_contracts.py",
+    "infrastructure/models/model_execution_contracts.py",
     "infrastructure/models/inference/model_guard.py",
     "infrastructure/godot/nest_session/ports.py",
     "infrastructure/godot/body_transport.py",
@@ -27,7 +27,7 @@ STRICT_BOUNDARY_FILES = (
     "infrastructure/models/inference/token_usage.py",
     "infrastructure/models/validation/agent_validation.py",
     "infrastructure/models/validation/provider_model_benchmark.py",
-    "infrastructure/models/runtime_observations.py",
+    "infrastructure/models/model_execution_observations.py",
     "infrastructure/tools/capability_configuration.py",
     "infrastructure/tools/port_adapter.py",
     "infrastructure/persistence/report_storage.py",

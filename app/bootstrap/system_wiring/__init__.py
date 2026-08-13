@@ -15,16 +15,16 @@ from .entrypoints import (
     select_elfie_home,
 )
 from .lifecycle import create_lifecycle_facade
+from .model_execution import build_model_execution_agent_ports
 from .nest_session import (
     build_nest_session_services,
     register_transient_elfie,
     restore_registered_elfies,
 )
-from .runtime import build_runtime_agent_ports
 
 __all__ = (
     "build_nest_session_services",
-    "build_runtime_agent_ports",
+    "build_model_execution_agent_ports",
     "create_lifecycle_facade",
     "DataHomeSelectionError",
     "get_db_path",

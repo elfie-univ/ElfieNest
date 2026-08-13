@@ -8,7 +8,7 @@ from pathlib import Path
 from app.features.configuration.food import FoodService
 from infrastructure.models.food_technology import (
     FoodEvidencePort,
-    RuntimeFoodTechnologyAdapter,
+    ModelFoodTechnologyAdapter,
 )
 from infrastructure.persistence.food import SQLiteFoodAdapter
 from infrastructure.persistence.food_evidence import SQLiteFoodEvidenceAdapter
@@ -41,7 +41,7 @@ def build_food_service(
     evidence_port = evidence or build_food_evidence(db_path)
     return FoodService(
         catalog=persistence,
-        technology=RuntimeFoodTechnologyAdapter(evidence_port),
+        technology=ModelFoodTechnologyAdapter(evidence_port),
         assignments=persistence,
     )
 

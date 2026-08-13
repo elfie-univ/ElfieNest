@@ -103,7 +103,7 @@ def test_data_home_declares_production_developer_and_elfie_workspace_roots() -> 
         "get_reports_dir",
         "get_report_database_path",
         "get_report_exports_dir",
-        "get_runtime_config_paths",
+        "get_model_execution_config_paths",
         "get_tool_config_path",
     } <= functions
     assert not (PROJECT_ROOT / "ai_runtime/storage/data_home.py").exists()

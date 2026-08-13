@@ -10,7 +10,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 
 import devtools.elfie_lab.api_models as api_models
-import devtools.elfie_lab.runtime_foods as runtime_food_support
+import devtools.elfie_lab.model_execution_foods as model_execution_food_support
 from devtools.elfie_lab.food_status import find_food_item
 from devtools.elfie_lab.host import LoopbackHostMiddleware
 from devtools.elfie_lab.media_store import (
@@ -41,21 +41,21 @@ from infrastructure.persistence.layout.data_home import (
 
 def create_app(
     data_dir: Optional[str] = None,
-    runtime_config_dir: Optional[str] = None,
+    model_execution_config_dir: Optional[str] = None,
     *,
     on_ready: Optional[Callable[[], None]] = None,
 ) -> FastAPI:
     storage = ElfieLabStorage(data_dir)
-    runtime_root = runtime_config_dir or str(storage.root / "runtime")
-    if Path(runtime_root).expanduser().resolve() == get_elfie_home().resolve():
-        raise ValueError("Elfie Lab 不得使用生产 ELFIE_HOME 作为运行时配置目录")
-    runtime = runtime_food_support.ElfieLabRuntime(runtime_root)
-    food_store = runtime_food_support.runtime_food_catalog_store(runtime)
-    developer_runtime = (
-        runtime.root.resolve()
+    config_root = model_execution_config_dir or str(storage.root / "runtime")
+    if Path(config_root).expanduser().resolve() == get_elfie_home().resolve():
+        raise ValueError("Elfie Lab 不得使用生产 ELFIE_HOME 作为模型执行配置目录")
+    model_environment = model_execution_food_support.ElfieLabModelEnvironment(config_root)
+    food_store = model_execution_food_support.model_execution_food_catalog_store(model_environment)
+    developer_scope = (
+        model_environment.root.resolve()
         == (get_elfie_developer_home() / "elfie_lab" / "runtime").resolve()
     )
-    sessions = SessionRegistry(storage, str(runtime.root))
+    sessions = SessionRegistry(storage, str(model_environment.root))
     recycle_store = RecycleStore(storage.root)
     media_store = ElfieLabMediaStore(storage.root)
 
@@ -79,15 +79,15 @@ def create_app(
     app.state.sessions = sessions
     app.state.recycle_store = recycle_store
     app.state.media_store = media_store
-    app.state.runtime = runtime
+    app.state.model_execution = model_environment
     app.state.food_store = food_store
     mount_static_surfaces(app)
     app.include_router(build_profile_router(storage, sessions))
     app.include_router(
         build_system_router(
-            runtime,
+            model_environment,
             food_store,
-            developer_runtime=developer_runtime,
+            developer_scope=developer_scope,
         )
     )
 
@@ -196,7 +196,7 @@ def create_app(
         try:
             food = find_food_item(
                 food_key,
-                runtime,
+                model_environment,
                 food_store,
             )
         except RuntimeError as exc:

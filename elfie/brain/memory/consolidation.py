@@ -25,8 +25,8 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from elfie.brain.memory.memory_store import MemoryStorePort
+from elfie.brain.memory.model_food import MemoryModelPort, ask_memory_model
 from elfie.brain.memory.node_types import EdgeTypes, MemoryNode, NodeTypes
-from elfie.brain.memory.runtime_food import MemoryModelPort, ask_memory_model
 from elfie.brain.memory.tokenizer import tokenize
 
 logger = logging.getLogger("elfie.brain.memory.consolidation")
@@ -52,7 +52,7 @@ class MemoryConsolidator:
 
     def run_consolidation(
         self,
-        runtime_agent: MemoryModelPort | None = None,
+        model_port: MemoryModelPort | None = None,
         *,
         max_episodes: int | None = None,
     ) -> Dict[str, Any]:
@@ -64,7 +64,7 @@ class MemoryConsolidator:
         8:   标记consolidated
 
         Args:
-            runtime_agent: 可选LLM运行时代理，提供ask()接口
+            model_port: 可选LLM运行时代理，提供ask()接口
 
         Returns:
             {"consolidated_count": int, "knowledge_created": int,
@@ -110,7 +110,7 @@ class MemoryConsolidator:
             knowledge_items = self._extract_knowledge_with_llm(
                 group_nodes,
                 entity_name,
-                runtime_agent,
+                model_port,
             )
             if not knowledge_items:
                 continue
@@ -131,7 +131,7 @@ class MemoryConsolidator:
             # 步骤6：提取因果边（LLM依赖，无LLM时跳过）
             causal_count = self._extract_causal_edges(
                 group_nodes,
-                runtime_agent,
+                model_port,
             )
             result["edges_created"] += causal_count
 
@@ -146,7 +146,7 @@ class MemoryConsolidator:
 
         # 步骤7.5：从knowledge节点中发现pattern（规律抽象）
         if all_knowledge_ids:
-            pattern_ids = self._discover_patterns(all_knowledge_ids, runtime_agent)
+            pattern_ids = self._discover_patterns(all_knowledge_ids, model_port)
             result["patterns_created"] = len(pattern_ids)
 
         # 步骤8：标记原始episodic为consolidated=True
@@ -161,7 +161,7 @@ class MemoryConsolidator:
             try:
                 self.self_narrative.update(
                     consolidation_results=result,
-                    runtime_agent=runtime_agent,
+                    model_port=model_port,
                 )
             except Exception as e:
                 logger.error("核心认知更新失败: %s", e)
@@ -250,7 +250,7 @@ class MemoryConsolidator:
         self,
         group: List[MemoryNode],
         entity_name: str,
-        runtime_agent: MemoryModelPort | None = None,
+        model_port: MemoryModelPort | None = None,
     ) -> List[Dict[str, Any]]:
         """步骤3：LLM知识提炼（降级为规则提取如果LLM不可用）
 
@@ -261,13 +261,13 @@ class MemoryConsolidator:
             [{"content": str, "type": str, "confidence": float}, ...]
         """
         if (
-            runtime_agent is not None
+            model_port is not None
             and self._llm_calls_this_cycle < self._max_llm_calls
         ):
             try:
                 prompt = self._build_extraction_prompt(group, entity_name)
                 response = ask_memory_model(
-                    runtime_agent,
+                    model_port,
                     prompt,
                     elfie_id=self.elfie_id,
                     semantic_role="reasoning",
@@ -477,7 +477,7 @@ class MemoryConsolidator:
     def _extract_causal_edges(
         self,
         group: List[MemoryNode],
-        runtime_agent: MemoryModelPort | None = None,
+        model_port: MemoryModelPort | None = None,
     ) -> int:
         """步骤6：提取因果边和entity间关系边（LLM）
 
@@ -492,13 +492,13 @@ class MemoryConsolidator:
         # 如果有至少2条episodic且有LLM
         if (
             len(group) >= 2
-            and runtime_agent is not None
+            and model_port is not None
             and self._llm_calls_this_cycle < self._max_llm_calls
         ):
             try:
                 prompt = self._build_causal_prompt(group)
                 response = ask_memory_model(
-                    runtime_agent,
+                    model_port,
                     prompt,
                     elfie_id=self.elfie_id,
                     semantic_role="reasoning",
@@ -644,7 +644,7 @@ class MemoryConsolidator:
     def _discover_patterns(
         self,
         knowledge_ids: List[str],
-        runtime_agent: MemoryModelPort | None = None,
+        model_port: MemoryModelPort | None = None,
     ) -> List[str]:
         """步骤7.5：从knowledge节点中发现pattern（更高层次的规律抽象）
 
@@ -680,13 +680,13 @@ class MemoryConsolidator:
 
         # 优先用LLM发现共同模式
         if (
-            runtime_agent is not None
+            model_port is not None
             and self._llm_calls_this_cycle < self._max_llm_calls
         ):
             try:
                 prompt = self._build_pattern_prompt(knowledge_nodes)
                 response = ask_memory_model(
-                    runtime_agent,
+                    model_port,
                     prompt,
                     elfie_id=self.elfie_id,
                     semantic_role="reasoning",

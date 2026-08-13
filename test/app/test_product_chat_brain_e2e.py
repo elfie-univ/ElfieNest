@@ -9,7 +9,7 @@ from app.bootstrap.system_wiring.nest_session import (
     build_nest_session_services,
     restore_registered_elfies,
 )
-from infrastructure.models.fallback_runtime import FallbackRuntimeAdapter
+from infrastructure.models.fallback_model_execution import FallbackModelExecutionAdapter
 from infrastructure.persistence.nest_db.store import init_db
 from test.app.interfaces.api._helpers import (
     adopt_test_elfie,
@@ -32,7 +32,7 @@ def test_web_chat_reaches_real_brain_and_persists_its_reply(
 
     services = build_nest_session_services(
         str(db_path),
-        runtime=FallbackRuntimeAdapter(),
+        model_execution=FallbackModelExecutionAdapter(),
         godot_ws_port=19003,
         http_port=19002,
         tick_interval_sec=0.01,

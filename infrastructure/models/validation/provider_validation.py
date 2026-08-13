@@ -12,13 +12,13 @@ from typing import Any
 
 from infrastructure.models.catalog import verify_provider
 from infrastructure.models.inference.llm_api import call_llm_api
+from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.providers.dispatch import detect_api_mode_for_url
 from infrastructure.models.providers.http import (
     open_provider_request,
     read_provider_response,
 )
 from infrastructure.models.providers.model_hints import configured_model_specs
-from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.validation.validation_models import (
     CheckResult,
     CheckStatus,
@@ -39,14 +39,14 @@ class DiscoveredModel:
 
 
 ModelCaller = Callable[
-    [LLMRuntimeConfig, str, str, list[dict[str, Any]], float, int],
+    [ModelExecutionConfig, str, str, list[dict[str, Any]], float, int],
     str,
 ]
 
 
 def discover_provider_models(
     provider_id: str,
-    config: LLMRuntimeConfig,
+    config: ModelExecutionConfig,
     *,
     timeout: float = 10.0,
     allow_configured_fallback: bool = True,
@@ -143,7 +143,7 @@ def _extract_model_names(api_mode: str, payload: Any) -> list[str]:
 class ProviderValidationRunner:
     def __init__(
         self,
-        config: LLMRuntimeConfig,
+        config: ModelExecutionConfig,
         *,
         model_caller: ModelCaller = call_llm_api,
     ) -> None:

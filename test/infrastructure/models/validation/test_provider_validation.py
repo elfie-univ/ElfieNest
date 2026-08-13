@@ -1,7 +1,7 @@
 import json
 import urllib.error
 
-from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.validation.provider_validation import (
     ProviderValidationRunner,
     classify_latency,
@@ -34,7 +34,7 @@ class FakeResponse:
 
 def test_discovers_ollama_models(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig()
+    config = ModelExecutionConfig()
     monkeypatch.setattr(
         "infrastructure.models.validation.provider_validation.open_provider_request",
         lambda request, timeout: FakeResponse(
@@ -52,7 +52,7 @@ def test_discovers_ollama_models(monkeypatch, tmp_path):
 
 def test_discovers_openai_compatible_models_with_bearer_header(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig()
+    config = ModelExecutionConfig()
     config.providers["openai"]["api_key"] = "local-test-key"
     captured = []
 
@@ -75,7 +75,7 @@ def test_batch_model_validation_uses_formal_call_path_and_collects_failures(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig()
+    config = ModelExecutionConfig()
     calls = []
 
     def fake_call(config, provider, model, messages, temperature, max_tokens):
@@ -98,7 +98,7 @@ def test_batch_model_validation_uses_formal_call_path_and_collects_failures(
 
 def test_model_discovery_failure_becomes_check_result(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig()
+    config = ModelExecutionConfig()
 
     def fail(request, timeout):
         raise urllib.error.URLError("offline")
@@ -117,7 +117,7 @@ def test_discovery_uses_manual_models_when_models_endpoint_is_unavailable(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig()
+    config = ModelExecutionConfig()
     config.providers["custom_gateway"] = {
         "api_base": "https://gateway.example/v1",
         "api_mode": "chat_completions",
@@ -143,7 +143,7 @@ def test_xfyun_coding_plan_uses_official_model_alias_when_listing_is_unavailable
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig()
+    config = ModelExecutionConfig()
     config.providers["custom_openai"]["api_base"] = (
         "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2"
     )

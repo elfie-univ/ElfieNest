@@ -42,7 +42,10 @@ from app.bootstrap import create_app
 from app.bootstrap.app_wiring.accounts import build_accounts_service
 from app.bootstrap.app_wiring.adoption import seed_single_elfie
 from app.bootstrap.app_wiring.storage import ensure_application_storage
-from app.bootstrap.runtime import RuntimeServices, build_runtime_services
+from app.bootstrap.model_execution import (
+    ModelExecutionServices,
+    build_model_execution_services,
+)
 from app.bootstrap.system_wiring.entrypoints import (
     DataHomeSelectionError,
     get_db_path,
@@ -99,12 +102,12 @@ def prepare_frontend_web_runtime(
         lifecycle.prepare_frontend(runtime_mode)
 
 
-def build_server_runtime_services(
+def build_server_model_execution_services(
     db_path: str, *, use_fallback: bool
-) -> RuntimeServices:
+) -> ModelExecutionServices:
     """Build the configured live-reloading model service for product chat."""
     if use_fallback:
-        services = build_runtime_services(
+        services = build_model_execution_services(
             db_path,
             use_fallback=True,
             live_reload=True,
@@ -113,7 +116,7 @@ def build_server_runtime_services(
         print("  ⚡ Using built-in dialogue engine (--fallback mode)")
         return services
 
-    services = build_runtime_services(
+    services = build_model_execution_services(
         db_path,
         use_fallback=False,
         live_reload=True,
@@ -338,8 +341,8 @@ def main():
         if seed_single_elfie(db_path):
             print('  🌱 Auto-seeded Elfie "Aifei" for Owner (--seed-elfie)')
 
-    # 3. Verify the selected cognition Runtime before accepting chat messages.
-    runtime_services = build_server_runtime_services(
+    # 3. Verify model execution before accepting chat messages.
+    model_execution_services = build_server_model_execution_services(
         db_path,
         use_fallback=args.fallback,
     )
@@ -351,11 +354,11 @@ def main():
     def engine_worker():
         nest_session = build_nest_session_services(
             db_path,
-            runtime=runtime_services.runtime,
+            model_execution=model_execution_services.execution,
             godot_ws_port=args.godot_ws_port,
             http_port=args.port,
-            tick_interval_sec=runtime_services.tick_interval_sec,
-            main_food_loader=runtime_services.main_food_loader,
+            tick_interval_sec=model_execution_services.tick_interval_sec,
+            main_food_loader=model_execution_services.main_food_loader,
         )
         lifecycle.start_runtime_channel(nest_session.world_runtime)
         engine = nest_session.engine

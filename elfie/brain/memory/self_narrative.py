@@ -11,8 +11,8 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from elfie.brain.memory.memory_store import MemoryStorePort
+from elfie.brain.memory.model_food import MemoryModelPort
 from elfie.brain.memory.node_types import MemoryNode
-from elfie.brain.memory.runtime_food import MemoryModelPort
 
 logger = logging.getLogger("elfie.brain.memory.self_narrative")
 
@@ -270,7 +270,7 @@ class MemorySelfNarrativeProjection:
     def update(
         self,
         consolidation_results: Optional[dict] = None,
-        runtime_agent: MemoryModelPort | None = None,
+        model_port: MemoryModelPort | None = None,
     ) -> None:
         """巩固时更新核心认知。
 
@@ -285,7 +285,7 @@ class MemorySelfNarrativeProjection:
                     "edges_created": int,
                     "entity_updates": [{"name": "主人", "properties": {"温柔": True}}],
                 }
-            runtime_agent: LLM运行时代理（预留，暂未实现LLM重写）
+            model_port: LLM运行时代理（预留，暂未实现LLM重写）
         """
         self._update_count += 1
 
@@ -319,7 +319,7 @@ class MemorySelfNarrativeProjection:
 
         # --- 周期性全量重写 ---
         if self._update_count % self.FULL_REWRITE_INTERVAL == 0:
-            self._full_rewrite(runtime_agent)
+            self._full_rewrite(model_port)
 
         # --- 保存到SQLite ---
         self._save_core_to_db()
@@ -428,12 +428,12 @@ class MemorySelfNarrativeProjection:
     # 全量重写（含备份与回滚）
     # ------------------------------------------------------------------
 
-    def _full_rewrite(self, runtime_agent: MemoryModelPort | None = None) -> None:
+    def _full_rewrite(self, model_port: MemoryModelPort | None = None) -> None:
         """全量重写核心认知，先保存旧版本以支持回滚。"""
         backup = self._backup_core()
 
         try:
-            if runtime_agent is not None:
+            if model_port is not None:
                 logger.info("🧠 [核心认知] LLM全量重写——待实现，当前使用模板回退")
             self._rewrite_all()
         except Exception as exc:

@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
 
-from .models import RuntimeEventStatus, RuntimeEventType, RuntimeMetadataValue
+from .models import (
+    ModelExecutionEventStatus,
+    ModelExecutionEventType,
+    ModelExecutionMetadataValue,
+)
 
 
 @dataclass(frozen=True)
@@ -43,31 +47,31 @@ class StoredDatabaseBackup:
 
 
 @dataclass(frozen=True)
-class StoredRuntimeMetadata:
+class StoredModelExecutionMetadata:
     key: str
-    value: RuntimeMetadataValue
+    value: ModelExecutionMetadataValue
 
 
 @dataclass(frozen=True)
-class StoredRuntimeEvent:
-    event_type: RuntimeEventType
-    status: RuntimeEventStatus
+class StoredModelExecutionEvent:
+    event_type: ModelExecutionEventType
+    status: ModelExecutionEventStatus
     subject: str
-    metadata: Tuple[StoredRuntimeMetadata, ...]
+    metadata: Tuple[StoredModelExecutionMetadata, ...]
 
 
 @dataclass(frozen=True)
-class StoredRuntimeSnapshot:
+class StoredModelExecutionSnapshot:
     event_count: int
-    last_event: Optional[StoredRuntimeEvent]
+    last_event: Optional[StoredModelExecutionEvent]
 
 
 __all__ = (
     "StoredActiveSession",
     "StoredDatabaseBackup",
-    "StoredRuntimeEvent",
-    "StoredRuntimeMetadata",
-    "StoredRuntimeSnapshot",
+    "StoredModelExecutionEvent",
+    "StoredModelExecutionMetadata",
+    "StoredModelExecutionSnapshot",
     "StoredSpeciesCount",
     "StoredTableCount",
     "StoredUsageStats",

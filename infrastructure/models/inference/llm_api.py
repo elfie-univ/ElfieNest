@@ -3,21 +3,21 @@ from __future__ import annotations
 from typing import Any, Callable, cast
 
 from infrastructure.models.inference.token_usage import get_token_tracker
+from infrastructure.models.model_execution_config import ModelExecutionConfig
+from infrastructure.models.model_execution_observations import (
+    ModelCallObservation,
+    ModelExecutionEventStatus,
+    get_model_execution_observer,
+)
 from infrastructure.models.providers.dispatch import (
     API_DISPATCH,
     call_openai_compatible_api,
     detect_api_mode_for_url,
 )
-from infrastructure.models.runtime_config import LLMRuntimeConfig
-from infrastructure.models.runtime_observations import (
-    ModelCallObservation,
-    RuntimeEventStatus,
-    get_runtime_observer,
-)
 
 
 def call_llm_api(
-    config: LLMRuntimeConfig,
+    config: ModelExecutionConfig,
     provider: str,
     model_name: str,
     messages: list[dict[str, Any]],
@@ -96,22 +96,22 @@ def call_llm_api(
         else:
             response_text, usage = dispatch_fn(*args)
     except (RuntimeError, ValueError) as failure:
-        get_runtime_observer().record_model_call(
+        get_model_execution_observer().record_model_call(
             ModelCallObservation(
                 provider=provider,
                 model_name=model_name,
-                status=RuntimeEventStatus.ERROR,
+                status=ModelExecutionEventStatus.ERROR,
                 prompt_chars=prompt_chars,
                 error_type=type(failure).__name__,
             )
         )
         raise
 
-    get_runtime_observer().record_model_call(
+    get_model_execution_observer().record_model_call(
         ModelCallObservation(
             provider=provider,
             model_name=model_name,
-            status=RuntimeEventStatus.OK,
+            status=ModelExecutionEventStatus.OK,
             prompt_chars=prompt_chars,
             response_chars=len(response_text),
         )

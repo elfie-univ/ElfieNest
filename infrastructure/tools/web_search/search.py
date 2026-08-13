@@ -39,7 +39,7 @@ class WebSearchPlugin:
         }
 
     @classmethod
-    def from_runtime_policy(
+    def from_model_execution_policy(
         cls,
         runtime_policy: Mapping[str, JsonValue] | None,
         *,

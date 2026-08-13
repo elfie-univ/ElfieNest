@@ -9,7 +9,7 @@ from app.features.configuration.providers import (
 
 
 class OllamaLifecycleAdapter:
-    """Expose only readiness and best-effort start to Runtime lifecycle."""
+    """Expose readiness and best-effort start to the process lifecycle."""
 
     def __init__(self, technology: ProviderLocalTechnologyPort) -> None:
         self._technology = technology

@@ -11,12 +11,12 @@ from elfie.brain.reasoning.food_port import (
 )
 from elfie.brain.reasoning.tool_port import ToolPort
 from infrastructure.models.inference.multimodal import assemble_multimodal_payload
+from infrastructure.models.model_execution_config import ModelExecutionConfig
+from infrastructure.models.model_execution_ports import ModelExecutionToolLoopPort
 from infrastructure.models.model_reference import (
     ModelReferenceError,
     parse_model_reference,
 )
-from infrastructure.models.runtime_config import LLMRuntimeConfig
-from infrastructure.models.runtime_ports import RuntimeToolLoopPort
 
 
 @dataclass(frozen=True)
@@ -38,13 +38,13 @@ class FoodExecutor:
     def __init__(
         self,
         *,
-        config: LLMRuntimeConfig,
+        config: ModelExecutionConfig,
         tool_port: ToolPort,
         model_caller: Callable[
             [str, str, list[dict[str, Any]], float, int, dict[str, Any]], str
         ],
         tool_loop_factory: Callable[
-            [ToolPort, tuple[str, ...], Optional[str]], RuntimeToolLoopPort
+            [ToolPort, tuple[str, ...], Optional[str]], ModelExecutionToolLoopPort
         ],
         prompt_injector: Callable[
             [list[dict[str, Any]], list[str]], list[dict[str, Any]]

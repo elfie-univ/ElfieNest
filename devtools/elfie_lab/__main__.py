@@ -13,10 +13,14 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1", type=loopback_host)
     parser.add_argument("--port", default=9001, type=int)
     parser.add_argument("--data-dir", default=None)
-    parser.add_argument("--runtime-config-dir", default=None)
+    parser.add_argument(
+        "--runtime-config-dir",
+        dest="model_execution_config_dir",
+        default=None,
+    )
     args = parser.parse_args()
     uvicorn.run(
-        create_app(args.data_dir, args.runtime_config_dir),
+        create_app(args.data_dir, args.model_execution_config_dir),
         host=args.host,
         port=args.port,
         access_log=False,

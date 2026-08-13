@@ -70,8 +70,8 @@ from infrastructure.models.validation.provider_validation import (
     DiscoveredModel,
     discover_provider_models,
 )
-from infrastructure.models.validation.provider_validation_runtime import (
-    runtime_projection,
+from infrastructure.models.validation.provider_validation_execution import (
+    model_execution_projection,
 )
 from infrastructure.models.validation.provider_validation_service import (
     summarize_connection_validation,
@@ -164,7 +164,7 @@ class ProviderModelsAdapter:
                 api_mode=connection.api_mode,
                 auth_type=connection.auth_type,
                 credential_ref=connection.credential_ref,
-                models=tuple(self._runtime_model(item) for item in connection.models),
+                models=tuple(self._provider_model(item) for item in connection.models),
             )
             created = self._store.create_with_secret(created, api_key)
             return self._connection(created)
@@ -178,13 +178,13 @@ class ProviderModelsAdapter:
         *,
         update_credential: bool,
     ) -> StoredProviderConnection:
-        runtime = self._runtime_connection(connection)
+        provider_connection = self._provider_connection(connection)
         try:
             if update_credential:
-                runtime = self._store.replace_with_secret(runtime, api_key)
+                provider_connection = self._store.replace_with_secret(provider_connection, api_key)
             else:
-                self._store.replace(runtime)
-            return self._connection(runtime)
+                self._store.replace(provider_connection)
+            return self._connection(provider_connection)
         except (ProviderStorageError, ValueError, OSError) as error:
             raise ProviderPortError("Unable to replace Provider connection") from error
 
@@ -396,7 +396,7 @@ class ProviderModelsAdapter:
         try:
             return self._verification(
                 summarize_connection_validation(
-                    self._runtime_connection(connection),
+                    self._provider_connection(connection),
                     reports=self._reports,
                     secret_resolver=self._resolve_credential,
                 )
@@ -428,8 +428,8 @@ class ProviderModelsAdapter:
     ) -> StoredVerification:
         try:
             result = await validate_connection(
-                self._runtime_connection(connection),
-                runtime_projection=self._runtime_projection,
+                self._provider_connection(connection),
+                model_execution_projection=self._model_execution_projection,
                 reports=self._reports,
                 secret_resolver=self._resolve_credential,
                 force_full=force_full,
@@ -442,14 +442,14 @@ class ProviderModelsAdapter:
         self,
         connection: StoredProviderConnection,
     ) -> StoredModelRefresh:
-        runtime = self._runtime_connection(connection)
+        provider_connection = self._provider_connection(connection)
         profile = get_product(connection.catalog_id)
         if profile is None:
             raise ProviderPortError("Provider product catalog entry is missing")
         checked_at = datetime.now(timezone.utc).isoformat()
         if profile.discovery_strategy == "catalog_only":
             bundled_models = bundled_catalog_models(profile.bundled_models)
-            merged = merge_refreshed_models(runtime.models, bundled_models)
+            merged = merge_refreshed_models(provider_connection.models, bundled_models)
             return StoredModelRefresh(
                 status="bundled_catalog",
                 checked_at=checked_at,
@@ -458,7 +458,7 @@ class ProviderModelsAdapter:
             )
         try:
             discovered = await asyncio.wait_for(
-                asyncio.to_thread(self._discover_with_slot, runtime),
+                asyncio.to_thread(self._discover_with_slot, provider_connection),
                 timeout=_DISCOVERY_TIMEOUT_SECONDS,
             )
         except Exception as error:
@@ -474,7 +474,7 @@ class ProviderModelsAdapter:
                 if not catalog_models:
                     catalog_models = bundled_catalog_models(profile.bundled_models)
             if catalog_models:
-                merged = merge_refreshed_models(runtime.models, catalog_models)
+                merged = merge_refreshed_models(provider_connection.models, catalog_models)
                 return StoredModelRefresh(
                     status=catalog_models[0].source,
                     checked_at=checked_at,
@@ -483,7 +483,7 @@ class ProviderModelsAdapter:
                 )
             message = sanitize_error(
                 str(error),
-                secrets=(self._resolve_credential(runtime.credential_ref),),
+                secrets=(self._resolve_credential(provider_connection.credential_ref),),
             )
             return StoredModelRefresh(
                 status="failed",
@@ -492,7 +492,7 @@ class ProviderModelsAdapter:
                 models=connection.models,
             )
         models = tuple(
-            self._runtime_model(
+            self._provider_model(
                 self.prepare_manual_model(
                     ProviderModelInput(
                         model_id=item.name,
@@ -510,7 +510,7 @@ class ProviderModelsAdapter:
                 message="模型接口未返回结果，请手工添加模型",
                 models=connection.models,
             )
-        merged = merge_refreshed_models(runtime.models, models)
+        merged = merge_refreshed_models(provider_connection.models, models)
         return StoredModelRefresh(
             status="updated",
             checked_at=checked_at,
@@ -547,7 +547,7 @@ class ProviderModelsAdapter:
             )
         payload = build_model_matrix(
             {
-                item.connection_id: self._runtime_connection(item)
+                item.connection_id: self._provider_connection(item)
                 for item in connections
             },
             observations=observations,
@@ -565,7 +565,7 @@ class ProviderModelsAdapter:
         combinations: tuple[StoredBenchmarkCombination, ...],
     ) -> StoredBenchmarkRun:
         by_id = {
-            item.connection_id: self._runtime_connection(item) for item in connections
+            item.connection_id: self._provider_connection(item) for item in connections
         }
         validate_combinations(list(combinations), by_id)
         semaphore = asyncio.Semaphore(_BENCHMARK_CONCURRENCY)
@@ -575,7 +575,7 @@ class ProviderModelsAdapter:
                     item,
                     by_id[item.connection_id],
                     semaphore,
-                    runtime_projection=self._runtime_projection,
+                    model_execution_projection=self._model_execution_projection,
                 )
                 for item in combinations
             )
@@ -647,8 +647,8 @@ class ProviderModelsAdapter:
                     status = "partial"
                     break
                 verification = await validate_connection(
-                    self._runtime_connection(stored),
-                    runtime_projection=self._runtime_projection,
+                    self._provider_connection(stored),
+                    model_execution_projection=self._model_execution_projection,
                     reports=self._reports,
                     secret_resolver=self._resolve_credential,
                     run_id=run_id,
@@ -697,9 +697,9 @@ class ProviderModelsAdapter:
         if not _DISCOVERY_SLOTS.acquire(blocking=False):
             raise RuntimeError("模型发现任务过多，请稍后重试")
         try:
-            runtime_id, config = self._runtime_projection(connection)
+            execution_id, config = self._model_execution_projection(connection)
             return discover_provider_models(
-                runtime_id,
+                execution_id,
                 config,
                 timeout=5.0,
                 allow_configured_fallback=False,
@@ -707,8 +707,8 @@ class ProviderModelsAdapter:
         finally:
             _DISCOVERY_SLOTS.release()
 
-    def _runtime_projection(self, connection: ProviderConnection) -> tuple[str, Any]:
-        runtime_id, config = runtime_projection(
+    def _model_execution_projection(self, connection: ProviderConnection) -> tuple[str, Any]:
+        execution_id, config = model_execution_projection(
             connection,
             secret_resolver=self._resolve_credential,
         )
@@ -719,11 +719,11 @@ class ProviderModelsAdapter:
                 else self._oauth_credentials.load(connection.credential_ref)
             )
             config.oauth_credentials = self._oauth_credentials
-            config.providers[runtime_id]["credential_ref"] = connection.credential_ref
-            config.providers[runtime_id]["account_id"] = (
+            config.providers[execution_id]["credential_ref"] = connection.credential_ref
+            config.providers[execution_id]["account_id"] = (
                 None if token is None else token.account_id
             )
-        return runtime_id, config
+        return execution_id, config
 
     def _resolve_credential(self, credential_ref: str) -> str:
         if credential_ref.startswith("oauth.") and self._oauth_credentials is not None:
@@ -768,7 +768,7 @@ class ProviderModelsAdapter:
         )
 
     @classmethod
-    def _runtime_connection(cls, item: StoredProviderConnection) -> ProviderConnection:
+    def _provider_connection(cls, item: StoredProviderConnection) -> ProviderConnection:
         return ProviderConnection(
             connection_id=item.connection_id,
             catalog_id=item.catalog_id,
@@ -777,7 +777,7 @@ class ProviderModelsAdapter:
             api_mode=item.api_mode,
             auth_type=item.auth_type,
             credential_ref=item.credential_ref,
-            models=tuple(cls._runtime_model(model) for model in item.models),
+            models=tuple(cls._provider_model(model) for model in item.models),
             enabled=item.enabled,
             archived=item.archived,
         )
@@ -800,7 +800,7 @@ class ProviderModelsAdapter:
         )
 
     @staticmethod
-    def _runtime_model(
+    def _provider_model(
         item: StoredProviderModel,
         *,
         source: ModelSource | None = None,

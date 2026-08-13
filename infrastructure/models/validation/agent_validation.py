@@ -11,7 +11,7 @@ from typing import Protocol
 
 from elfie.brain.reasoning.tool_port import ToolPort
 from infrastructure.models.inference.llm_api import call_llm_api
-from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.validation.validation_models import (
     CheckResult,
     CheckStatus,
@@ -33,7 +33,7 @@ class AgentToolLoop(Protocol):
     ) -> str: ...
 
 
-AgentToolPortFactory = Callable[[LLMRuntimeConfig, Path, str], ToolPort]
+AgentToolPortFactory = Callable[[ModelExecutionConfig, Path, str], ToolPort]
 AgentToolLoopFactory = Callable[[ToolPort, tuple[str, ...], str], AgentToolLoop]
 AgentPromptInjector = Callable[[list[dict[str, str]], list[str]], list[dict[str, str]]]
 
@@ -41,7 +41,7 @@ AgentPromptInjector = Callable[[list[dict[str, str]], list[str]], list[dict[str,
 class ModelAgentValidationRunner:
     def __init__(
         self,
-        config: LLMRuntimeConfig,
+        config: ModelExecutionConfig,
         *,
         model_caller: AgentModelCaller | None = None,
         tool_port_factory: AgentToolPortFactory,
@@ -89,7 +89,7 @@ class ModelAgentValidationRunner:
                 policy = deepcopy(getattr(self.config, "runtime_policy", {}))
                 tools = policy.setdefault("tools", {})
                 tools.setdefault(tool_name, {})["enabled"] = True
-                validation_config = LLMRuntimeConfig(runtime_policy=policy)
+                validation_config = ModelExecutionConfig(runtime_policy=policy)
                 tool_port = self._tool_port_factory(
                     validation_config, files_root, tool_name
                 )

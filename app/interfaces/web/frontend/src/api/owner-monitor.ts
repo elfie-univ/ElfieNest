@@ -11,7 +11,7 @@ const HealthSchema = z.object({
   godot_runtime_ready: z.boolean(),
 }).strict()
 
-const RuntimeEventSchema = z.object({
+const ModelExecutionEventSchema = z.object({
   event_type: z.string(),
   status: z.string(),
   subject: z.string(),
@@ -20,7 +20,7 @@ const RuntimeEventSchema = z.object({
 
 const RuntimeStatusSchema = z.object({
   status: z.string(),
-  observer: z.object({ event_count: z.number(), last_event: RuntimeEventSchema.nullable() }),
+  observer: z.object({ event_count: z.number(), last_event: ModelExecutionEventSchema.nullable() }),
 }).strict()
 
 const UserSummarySchema = z.object({

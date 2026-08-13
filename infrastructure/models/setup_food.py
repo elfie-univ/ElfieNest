@@ -1,4 +1,4 @@
-"""Setup Port Adapter delegating emergency Food planning to the current runtime."""
+"""Setup Adapter delegating emergency Food planning to model execution."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from infrastructure.models.capabilities import (
     known_capabilities,
 )
 
-from .food_technology import FoodEvidencePort, RuntimeFoodTechnologyAdapter
+from .food_technology import FoodEvidencePort, ModelFoodTechnologyAdapter
 
 
 class SetupFoodAdapter:
@@ -24,7 +24,7 @@ class SetupFoodAdapter:
         self,
         *,
         catalog: FoodCatalogPort,
-        technology: RuntimeFoodTechnologyAdapter,
+        technology: ModelFoodTechnologyAdapter,
         evidence: FoodEvidencePort,
     ) -> None:
         self._catalog = catalog

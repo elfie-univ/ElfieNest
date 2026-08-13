@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Mapping, Protocol, Union
 
-from infrastructure.models.runtime_ports import (
+from infrastructure.models.model_execution_ports import (
     ToolCallObservationPortModel,
     ToolPermissionObservationPortModel,
 )

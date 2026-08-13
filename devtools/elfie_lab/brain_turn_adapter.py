@@ -52,20 +52,20 @@ from elfie.message_types import (
 _TURN_WAIT_TIMEOUT_SECONDS = 180.0
 
 
-class RuntimeSelectionMissingError(RuntimeError):
-    """The Lab attempted a turn before selecting its requested runtime."""
+class ModelExecutionSelectionMissingError(RuntimeError):
+    """The Lab attempted a turn before selecting its requested model_execution."""
 
 
-class SelectedLabRuntime:
-    """Stable runtime port whose per-turn delegate is selected by the Lab."""
+class SelectedLabModelExecution:
+    """Stable model_execution port whose per-turn delegate is selected by the Lab."""
 
     def __init__(self) -> None:
         self._selected: ModelPort | None = None
         self._lock = Lock()
 
-    def select(self, runtime: ModelPort) -> None:
+    def select(self, model_execution: ModelPort) -> None:
         with self._lock:
-            self._selected = runtime
+            self._selected = model_execution
 
     def capabilities(self) -> ModelGenerationCapabilities:
         return self._current().capabilities()
@@ -83,15 +83,15 @@ class SelectedLabRuntime:
         with self._lock:
             selected = self._selected
         if selected is None:
-            raise RuntimeSelectionMissingError("Lab runtime is not selected")
+            raise ModelExecutionSelectionMissingError("Lab model_execution is not selected")
         return selected
 
 
 class SelectedLabToolPort:
-    """Forward semantic tools from the currently selected Lab runtime."""
+    """Forward semantic tools from the currently selected Lab model_execution."""
 
-    def __init__(self, runtime: SelectedLabRuntime) -> None:
-        self._runtime = runtime
+    def __init__(self, model_execution: SelectedLabModelExecution) -> None:
+        self._runtime = model_execution
 
     def available_tool_keys(self) -> tuple[ToolKey, ...]:
         tool_port = getattr(self._runtime.current(), "tool_port", None)
@@ -142,7 +142,7 @@ class BrainTurnAdapter:
 
     def __init__(self, elfie: Elfie) -> None:
         self._elfie = elfie
-        self._runtime = SelectedLabRuntime()
+        self._runtime = SelectedLabModelExecution()
         self._tools = SelectedLabToolPort(self._runtime)
         self.channel = LabCommunicationChannel()
         self._elfie.register_communication_channel(self.channel, connect=True)
@@ -153,14 +153,14 @@ class BrainTurnAdapter:
         self,
         stimulus: StimulusBundle,
         event_id: str,
-        runtime: ModelPort,
+        model_execution: ModelPort,
     ) -> tuple[
         TurnOutcome,
         TurnDecision | None,
         tuple[ExecutionReceipt, ...],
         ReasoningRunResult | None,
     ]:
-        self._runtime.select(runtime)
+        self._runtime.select(model_execution)
         previous_count = len(self._elfie.turn_outcomes())
         if stimulus.source_domain == "communication":
             envelope = self._communication_envelope(stimulus, event_id)
@@ -375,4 +375,4 @@ class BrainTurnAdapter:
         )
 
 
-__all__ = ("BrainTurnAdapter", "SelectedLabRuntime", "SelectedLabToolPort")
+__all__ = ("BrainTurnAdapter", "SelectedLabModelExecution", "SelectedLabToolPort")

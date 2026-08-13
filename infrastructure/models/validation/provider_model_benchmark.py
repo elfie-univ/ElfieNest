@@ -7,13 +7,13 @@ from typing import Callable, Protocol
 
 from pydantic import JsonValue
 
+from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.provider_records import ProviderConnection
-from infrastructure.models.runtime_config import LLMRuntimeConfig
 
 from .provider_validation_checks import run_connection_model_check
 
 _BENCHMARK_TIMEOUT_SECONDS = 20.0
-RuntimeProjection = Callable[[ProviderConnection], tuple[str, LLMRuntimeConfig]]
+ModelExecutionProjection = Callable[[ProviderConnection], tuple[str, ModelExecutionConfig]]
 
 
 class BenchmarkCombination(Protocol):
@@ -48,13 +48,13 @@ async def bounded_benchmark(
     connection: ProviderConnection,
     semaphore: asyncio.Semaphore,
     *,
-    runtime_projection: RuntimeProjection,
+    model_execution_projection: ModelExecutionProjection,
 ) -> dict[str, JsonValue]:
     async with semaphore:
         try:
             return await asyncio.wait_for(
                 run_connection_model_benchmark(
-                    combination, connection, runtime_projection=runtime_projection
+                    combination, connection, model_execution_projection=model_execution_projection
                 ),
                 timeout=_BENCHMARK_TIMEOUT_SECONDS,
             )
@@ -78,20 +78,20 @@ async def run_connection_model_benchmark(
     combination: BenchmarkCombination,
     connection: ProviderConnection,
     *,
-    runtime_projection: RuntimeProjection,
+    model_execution_projection: ModelExecutionProjection,
 ) -> dict[str, JsonValue]:
     return await asyncio.to_thread(
-        _benchmark_sync, combination, connection, runtime_projection
+        _benchmark_sync, combination, connection, model_execution_projection
     )
 
 
 def _benchmark_sync(
     combination: BenchmarkCombination,
     connection: ProviderConnection,
-    runtime_projection: RuntimeProjection,
+    model_execution_projection: ModelExecutionProjection,
 ) -> dict[str, JsonValue]:
     return run_connection_model_check(
         connection,
         combination.model_id,
-        runtime_projection,
+        model_execution_projection,
     )

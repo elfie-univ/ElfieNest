@@ -14,10 +14,10 @@ from pydantic import (
 )
 
 _STRICT = ConfigDict(extra="forbid", frozen=True)
-RuntimeMetadataValue = Union[StrictStr, StrictBool, StrictInt, StrictFloat]
+ModelExecutionMetadataValue = Union[StrictStr, StrictBool, StrictInt, StrictFloat]
 
 
-class RuntimeEventResponse(BaseModel):
+class ModelExecutionEventResponse(BaseModel):
     model_config = _STRICT
 
     event_type: Literal[
@@ -30,21 +30,21 @@ class RuntimeEventResponse(BaseModel):
     ]
     status: Literal["ok", "error"]
     subject: StrictStr
-    metadata: Dict[StrictStr, RuntimeMetadataValue]
+    metadata: Dict[StrictStr, ModelExecutionMetadataValue]
 
 
-class RuntimeObserverResponse(BaseModel):
+class ModelExecutionObserverResponse(BaseModel):
     model_config = _STRICT
 
     event_count: StrictInt
-    last_event: Optional[RuntimeEventResponse]
+    last_event: Optional[ModelExecutionEventResponse]
 
 
 class RuntimeStatusResponse(BaseModel):
     model_config = _STRICT
 
     status: Literal["ok"]
-    observer: RuntimeObserverResponse
+    observer: ModelExecutionObserverResponse
 
 
 class MobileAccessResponse(BaseModel):
@@ -77,7 +77,7 @@ __all__ = (
     "RuntimeErrorDetails",
     "RuntimeErrorItem",
     "RuntimeErrorResponse",
-    "RuntimeEventResponse",
-    "RuntimeObserverResponse",
+    "ModelExecutionEventResponse",
+    "ModelExecutionObserverResponse",
     "RuntimeStatusResponse",
 )

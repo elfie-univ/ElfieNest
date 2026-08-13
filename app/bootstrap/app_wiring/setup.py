@@ -10,7 +10,7 @@ from app.features.setup import SetupService
 from app.orchestration.setup_installation import SetupInstallationService
 from infrastructure.models.food_technology import (
     FoodEvidencePort,
-    RuntimeFoodTechnologyAdapter,
+    ModelFoodTechnologyAdapter,
 )
 from infrastructure.models.setup_catalog import ProviderSetupCatalogAdapter
 from infrastructure.models.setup_food import SetupFoodAdapter
@@ -75,7 +75,7 @@ def build_setup_services(
             providers=providers,
             food=SetupFoodAdapter(
                 catalog=food_persistence,
-                technology=RuntimeFoodTechnologyAdapter(evidence_port),
+                technology=ModelFoodTechnologyAdapter(evidence_port),
                 evidence=evidence_port,
             ),
             nest=SetupNestAdapter(nest),
