@@ -1,4 +1,8 @@
-import type { RuntimeStartupPhase } from "./lifecycle_client.js";
+import type {
+  DataHomeInspection,
+  DataHomeRecoveryResult,
+  RuntimeStartupPhase,
+} from "./lifecycle_client.js";
 
 export const DESKTOP_UI_INSTANCE_NAMESPACE = "elfienest.desktop-ui";
 
@@ -13,11 +17,15 @@ export type RuntimeAttachment =
       readonly kind: "failed";
       readonly reason: string;
       readonly recoverable: boolean;
+      readonly recovery?: DataHomeInspection;
     }>;
 
 export type DesktopRoleState = RuntimeAttachment | Readonly<{ readonly kind: "stopped" }>;
 
 export interface LifecycleClient {
+  inspectDataHome(explicitHome?: string): Promise<DataHomeInspection>;
+  recoverDataHome(explicitHome?: string): Promise<DataHomeRecoveryResult>;
+  activateDataHome(explicitHome: string): Promise<DataHomeInspection>;
   attachOrStart(onProgress?: (phase: RuntimeStartupPhase) => void): Promise<RuntimeAttachment>;
   recoverOwnedRuntime(ownerLease: string): Promise<RuntimeAttachment>;
   stopOwnedRuntime(ownerLease: string): Promise<void>;
@@ -27,6 +35,7 @@ export interface LifecycleClient {
 export class DesktopRoleController {
   private currentState: DesktopRoleState = { kind: "stopped" };
   private startPromise: Promise<RuntimeAttachment> | undefined;
+  private lastRecoveryResult: DataHomeRecoveryResult | undefined;
 
   constructor(private readonly lifecycleClient: LifecycleClient) {}
 
@@ -34,10 +43,25 @@ export class DesktopRoleController {
     return this.currentState;
   }
 
+  get lastRecovery(): DataHomeRecoveryResult | undefined {
+    return this.lastRecoveryResult;
+  }
+
   async start(
     onProgress?: (phase: RuntimeStartupPhase) => void,
   ): Promise<DesktopRoleState> {
-    const pending = this.lifecycleClient.attachOrStart(onProgress);
+    const pending = (async (): Promise<RuntimeAttachment> => {
+      const inspection = await this.lifecycleClient.inspectDataHome();
+      if (inspection.state !== "fresh" && inspection.state !== "ready") {
+        return {
+          kind: "failed",
+          reason: inspection.detail,
+          recoverable: inspection.recoverable,
+          ...(inspection.recoverable ? { recovery: inspection } : {}),
+        };
+      }
+      return this.lifecycleClient.attachOrStart(onProgress);
+    })();
     this.startPromise = pending;
     try {
       this.currentState = await pending;
@@ -47,6 +71,48 @@ export class DesktopRoleController {
         this.startPromise = undefined;
       }
     }
+  }
+
+  async recoverDataHome(
+    onProgress?: (phase: RuntimeStartupPhase) => void,
+  ): Promise<DesktopRoleState> {
+    try {
+      this.lastRecoveryResult = await this.lifecycleClient.recoverDataHome();
+    } catch (error: unknown) {
+      this.currentState = {
+        kind: "failed",
+        reason: error instanceof Error ? error.message : "Data-root recovery failed",
+        recoverable: true,
+      };
+      return this.currentState;
+    }
+    return this.start(onProgress);
+  }
+
+  async activateDataHome(
+    explicitHome: string,
+    onProgress?: (phase: RuntimeStartupPhase) => void,
+  ): Promise<DesktopRoleState> {
+    try {
+      const inspection = await this.lifecycleClient.activateDataHome(explicitHome);
+      if (inspection.state !== "fresh" && inspection.state !== "ready") {
+        this.currentState = {
+          kind: "failed",
+          reason: inspection.detail,
+          recoverable: inspection.recoverable,
+          ...(inspection.recoverable ? { recovery: inspection } : {}),
+        };
+        return this.currentState;
+      }
+    } catch (error: unknown) {
+      this.currentState = {
+        kind: "failed",
+        reason: error instanceof Error ? error.message : "Data-root selection failed",
+        recoverable: true,
+      };
+      return this.currentState;
+    }
+    return this.start(onProgress);
   }
 
   async closeWindow(): Promise<void> {

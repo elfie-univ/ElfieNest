@@ -64,6 +64,9 @@ bash scripts/check_node_toolchain.sh
 | `config` | 打开方向键配置中心 |
 | `setup` | 运行首次设置向导 |
 | `doctor` | 检查本地环境和配置 |
+| `data-home inspect` | 只读诊断当前数据根，不修改数据 |
+| `data-home recover` | 备份旧版/损坏数据根并创建新环境 |
+| `data-home activate --data-home PATH` | 选择另一个新的或可用的数据根供下次启动使用 |
 | `owner` | 在本机终端打开 Owner 账户菜单 |
 | `db` | 查看数据库信息，或执行 `backup`、`reset` |
 | `version` | 显示版本 |
@@ -103,7 +106,10 @@ Owner 恢复只在本机终端提供；密码通过隐藏输入填写，不应�
 ./elfienest.sh owner
 ./elfienest.sh db
 ./elfienest.sh db backup
+./elfienest.sh data-home inspect --json
 ```
+
+`data-home recover` 会先把旧版或损坏的数据根保留到带时间戳的旁侧备份目录，再创建符合当前契约的新数据根。它不会删除旧数据，也不会自动迁移旧数据。
 
 `db reset` 会重置本地数据库，执行前必须确认 `ELFIE_HOME` 指向的精确数据目录并
 保留备份。命令行不提供旧数据迁移入口；新配置与聊天只使用当前目录契约。

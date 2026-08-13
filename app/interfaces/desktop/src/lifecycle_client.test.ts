@@ -62,6 +62,78 @@ test("lifecycle command errors prefer stderr over stdout", () => {
   );
 });
 
+test("managed lifecycle client inspects the selected data root before startup", async () => {
+  const runner = commandRunner([
+    JSON.stringify({
+      state: "legacy",
+      home: "/Users/test/.elfienest",
+      detail: "检测到旧版数据目录结构",
+      recoverable: true,
+    }),
+  ]);
+  const client = new ManagedRuntimeLifecycleClient("desktop-inspect", runner);
+
+  const inspection = await client.inspectDataHome();
+
+  assert.deepEqual(inspection, {
+    state: "legacy",
+    home: "/Users/test/.elfienest",
+    detail: "检测到旧版数据目录结构",
+    recoverable: true,
+  });
+  assert.deepEqual(runner.calls, [
+    { argumentsList: ["data-home", "inspect", "--json"] },
+  ]);
+});
+
+test("managed lifecycle client recovers a data root through the public CLI", async () => {
+  const runner = commandRunner([
+    JSON.stringify({
+      state: "recovered",
+      home: "/Users/test/.elfienest",
+      backup_home: "/Users/test/.elfienest-backups/legacy",
+    }),
+  ]);
+  const client = new ManagedRuntimeLifecycleClient("desktop-recover", runner);
+
+  const recovery = await client.recoverDataHome();
+
+  assert.deepEqual(recovery, {
+    home: "/Users/test/.elfienest",
+    backupHome: "/Users/test/.elfienest-backups/legacy",
+  });
+  assert.deepEqual(runner.calls, [
+    { argumentsList: ["data-home", "recover", "--json"] },
+  ]);
+});
+
+test("managed lifecycle client activates a user-selected data root", async () => {
+  const runner = commandRunner([
+    JSON.stringify({
+      state: "ready",
+      home: "/Users/test/other-elfienest",
+      detail: "数据目录符合当前版本契约",
+      recoverable: false,
+    }),
+  ]);
+  const client = new ManagedRuntimeLifecycleClient("desktop-activate", runner);
+
+  const inspection = await client.activateDataHome("/Users/test/other-elfienest");
+
+  assert.equal(inspection.state, "ready");
+  assert.deepEqual(runner.calls, [
+    {
+      argumentsList: [
+        "data-home",
+        "activate",
+        "--data-home",
+        "/Users/test/other-elfienest",
+        "--json",
+      ],
+    },
+  ]);
+});
+
 test("managed lifecycle client attaches to a ready CLI-owned Runtime without starting it", async () => {
   // Given: the public CLI reports a ready Runtime leased by CLI.
   const runner = commandRunner([

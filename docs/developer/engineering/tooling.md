@@ -77,6 +77,9 @@ should pass an explicit subcommand:
 | `config` | Open the arrow-key configuration center |
 | `setup` | Run the first-time setup wizard |
 | `doctor` | Check the local environment and configuration |
+| `data-home inspect` | Diagnose the selected data root without changing it |
+| `data-home recover` | Back up a legacy/corrupt data root and create a fresh one |
+| `data-home activate --data-home PATH` | Select another fresh/ready data root for the next launch |
 | `owner` | Open the Owner account menu in the local terminal |
 | `db` | Show database info, or run `backup` / `reset` |
 | `version` | Show the version |
@@ -121,7 +124,12 @@ Git-ignored local configuration; example docs may only use placeholders.
 ./elfienest.sh owner
 ./elfienest.sh db
 ./elfienest.sh db backup
+./elfienest.sh data-home inspect --json
 ```
+
+`data-home recover` preserves a legacy or corrupt root in a timestamped sibling
+backup before creating a fresh final-contract root. It does not delete or
+automatically migrate the old data.
 
 `db reset` resets the local database; before running it you must confirm the
 exact data directory `ELFIE_HOME` points at and keep a backup. The CLI does not

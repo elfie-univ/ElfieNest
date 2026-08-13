@@ -15,6 +15,20 @@ type RuntimeStatus = Readonly<{
   readonly startupOwnerId: string | null;
 }>;
 
+export type DataHomeState = "fresh" | "ready" | "legacy" | "corrupt" | "permission";
+
+export type DataHomeInspection = Readonly<{
+  readonly state: DataHomeState;
+  readonly home: string;
+  readonly detail: string;
+  readonly recoverable: boolean;
+}>;
+
+export type DataHomeRecoveryResult = Readonly<{
+  readonly home: string;
+  readonly backupHome: string;
+}>;
+
 export type RuntimeStartupPhase =
   | "starting"
   | "core_ready"
@@ -153,6 +167,24 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     private readonly ownerLease: string,
     private readonly commandRunner: LifecycleCommandRunner = new ProcessLifecycleCommandRunner(),
   ) {}
+
+  async inspectDataHome(explicitHome?: string): Promise<DataHomeInspection> {
+    return this.parseDataHomeInspection(
+      await this.commandRunner.run(this.dataHomeArguments("inspect", explicitHome)),
+    );
+  }
+
+  async recoverDataHome(explicitHome?: string): Promise<DataHomeRecoveryResult> {
+    return this.parseDataHomeRecovery(
+      await this.commandRunner.run(this.dataHomeArguments("recover", explicitHome)),
+    );
+  }
+
+  async activateDataHome(explicitHome: string): Promise<DataHomeInspection> {
+    return this.parseDataHomeInspection(
+      await this.commandRunner.run(this.dataHomeArguments("activate", explicitHome)),
+    );
+  }
 
   async attachOrStart(
     onProgress?: (phase: RuntimeStartupPhase) => void,
@@ -341,6 +373,75 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     if (this.isStartupPhase(phase)) onProgress(phase);
   }
 
+  private parseDataHomeInspection(output: string): DataHomeInspection {
+    const payload = this.parseJsonObject(output, "Data-home inspection was not JSON");
+    const state = Reflect.get(payload, "state");
+    const home = Reflect.get(payload, "home");
+    const detail = Reflect.get(payload, "detail");
+    const recoverable = Reflect.get(payload, "recoverable");
+    if (
+      !this.isDataHomeState(state)
+      || typeof home !== "string"
+      || home === ""
+      || typeof detail !== "string"
+      || typeof recoverable !== "boolean"
+    ) {
+      throw new LifecycleClientError("Data-home inspection payload is invalid");
+    }
+    return { state, home, detail, recoverable };
+  }
+
+  private parseDataHomeRecovery(output: string): DataHomeRecoveryResult {
+    const payload = this.parseJsonObject(output, "Data-home recovery was not JSON");
+    const home = Reflect.get(payload, "home");
+    const backupHome = Reflect.get(payload, "backup_home");
+    if (
+      typeof home !== "string"
+      || home === ""
+      || typeof backupHome !== "string"
+      || backupHome === ""
+    ) {
+      throw new LifecycleClientError("Data-home recovery payload is invalid");
+    }
+    return { home, backupHome };
+  }
+
+  private dataHomeArguments(
+    action: "inspect" | "recover" | "activate",
+    explicitHome?: string,
+  ): readonly string[] {
+    return [
+      "data-home",
+      action,
+      ...(explicitHome === undefined ? [] : ["--data-home", explicitHome]),
+      "--json",
+    ];
+  }
+
+  private parseJsonObject(output: string, message: string): Record<string, unknown> {
+    const lines = output
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      const line = lines[index];
+      if (line === undefined) continue;
+      try {
+        const candidate: unknown = JSON.parse(line);
+        if (
+          typeof candidate === "object"
+          && candidate !== null
+          && !Array.isArray(candidate)
+        ) {
+          return candidate as Record<string, unknown>;
+        }
+      } catch {
+        // Inspect the next line for a structured command result.
+      }
+    }
+    throw new LifecycleClientError(message);
+  }
+
   private isStartupPhase(value: unknown): value is RuntimeStartupPhase {
     return value === "starting"
       || value === "core_ready"
@@ -348,6 +449,14 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       || value === "ready"
       || value === "stopping"
       || value === "failed";
+  }
+
+  private isDataHomeState(value: unknown): value is DataHomeState {
+    return value === "fresh"
+      || value === "ready"
+      || value === "legacy"
+      || value === "corrupt"
+      || value === "permission";
   }
 
   private isLifecycleState(value: unknown): value is RuntimeStatus["state"] {

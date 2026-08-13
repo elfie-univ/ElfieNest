@@ -32,6 +32,11 @@ from app.bootstrap.system_wiring.entrypoints import (
     resolve_elfie_home,
 )
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
+from app.interfaces.cli.data_home_commands import (
+    activate_data_home_command,
+    inspect_data_home_command,
+    recover_data_home_command,
+)
 from app.interfaces.cli.doctor_commands import run_doctor
 from app.interfaces.cli.foreground_runtime import run_foreground_service
 from app.interfaces.cli.lifecycle_commands import (
@@ -170,6 +175,18 @@ def main() -> None:
     subparsers.add_parser("uninstall", help="Uninstall and data cleanup")
     subparsers.add_parser("version", help="Show version")
     subparsers.add_parser("setup", help="First-time setup wizard")
+    data_home_parser = subparsers.add_parser(
+        "data-home", help="Inspect or recover the selected product data root"
+    )
+    data_home_parser.add_argument(
+        "data_home_command",
+        choices=["inspect", "recover", "activate"],
+        help="Read-only inspection or backup-and-rebuild recovery",
+    )
+    data_home_parser.add_argument(
+        "--json", action="store_true", help="Output structured JSON"
+    )
+    data_home_parser.add_argument("--data-home", default=None)
     db_parser = subparsers.add_parser("db", help="Database tools")
     db_parser.add_argument(
         "db_command", nargs="?", choices=["backup", "reset"], help="Database command"
@@ -289,6 +306,35 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
         from app.interfaces.cli.tui.setup_app import run_setup_wizard
 
         run_setup_wizard()
+    elif args.command == "data-home":
+        data_home_action = getattr(args, "data_home_command", None)
+        json_output = getattr(args, "json", False)
+        explicit_home = getattr(args, "data_home", None)
+        if data_home_action == "inspect":
+            raise SystemExit(
+                inspect_data_home_command(
+                    lifecycle,
+                    explicit_home=explicit_home,
+                    json_output=json_output,
+                )
+            )
+        if data_home_action == "recover":
+            raise SystemExit(
+                recover_data_home_command(
+                    lifecycle,
+                    explicit_home=explicit_home,
+                    json_output=json_output,
+                )
+            )
+        if data_home_action == "activate" and explicit_home is not None:
+            raise SystemExit(
+                activate_data_home_command(
+                    lifecycle,
+                    explicit_home,
+                    json_output=json_output,
+                )
+            )
+        raise SystemExit("data-home requires inspect, recover, or activate")
     elif args.command == "db":
         dispatch_db(
             build_operations_facade(str(get_db_path())),

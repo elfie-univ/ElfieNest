@@ -17,6 +17,29 @@ Check that another ElfieNest copy is not already open in the tray. If it still
 does not start, save a screenshot of the error page and contact the Nest
 administrator.
 
+## The app says that the data folder is from an older version
+
+The app will show a recovery page before starting Core or Godot. Choose
+**Back up old data and create a new environment** to keep the complete old
+folder in the displayed backup location and create a fresh environment at the
+original path. The old account, Elfie and history data is not migrated
+automatically. Do not delete the old backup unless you have confirmed that you
+no longer need it.
+
+If you prefer to inspect the result from a terminal, run:
+
+```bash
+elfienest data-home inspect --json
+```
+
+The recovery operation is also available as `elfienest data-home recover`; it
+backs up the old folder before rebuilding the active folder and never performs
+an in-place migration.
+
+If you already have another fresh data folder, use
+`elfienest data-home activate --data-home PATH` to select it instead of
+recovering the old folder.
+
 ## First setup failed
 
 Return to the locked setup page and choose **Retry from the failed stage**. The

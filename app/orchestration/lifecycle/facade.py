@@ -11,6 +11,8 @@ from app.orchestration.lifecycle.helpers import existing_service_command, record
 from app.orchestration.lifecycle.ports import (
     AuthorityHostConfig,
     AuthorityHostFactory,
+    DataHomeInspection,
+    DataHomeRecoveryResult,
     DesktopHostPort,
     DoctorPort,
     DoctorRepairResult,
@@ -42,6 +44,7 @@ from app.orchestration.lifecycle.runtime_supervisor import (
 )
 from app.orchestration.lifecycle.service import start_service, stop_service
 from app.orchestration.lifecycle.types import (
+    DataHomeRecoveryError,
     InvalidPidFileError,
     ServiceLifecycleResult,
 )
@@ -177,6 +180,80 @@ class LifecycleFacade:
             project_root=project_root,
             runtime_mode=runtime_mode,
         )
+
+    def inspect_data_home(
+        self,
+        explicit_home: Optional[str],
+        *,
+        project_root: Path,
+        runtime_mode: str,
+        use_remembered: bool = False,
+    ) -> DataHomeInspection:
+        if self._data_home is None:
+            raise RuntimeError("Lifecycle data-home adapter is unavailable")
+        selected = self._data_home.select(
+            explicit_home,
+            project_root=project_root,
+            runtime_mode=runtime_mode,
+            use_remembered=use_remembered,
+        )
+        return self._data_home.inspect(selected)
+
+    def recover_data_home(
+        self,
+        explicit_home: Optional[str],
+        *,
+        project_root: Path,
+        runtime_mode: str,
+        use_remembered: bool = False,
+    ) -> DataHomeRecoveryResult:
+        if self._data_home is None:
+            raise RuntimeError("Lifecycle data-home adapter is unavailable")
+        selected = self._data_home.select(
+            explicit_home,
+            project_root=project_root,
+            runtime_mode=runtime_mode,
+            use_remembered=use_remembered,
+        )
+        with self._recovery_lock.owner_recovery(selected):
+            if self.existing_service_command(selected, project_root) is not None:
+                raise DataHomeRecoveryError(
+                    "Runtime is still running; stop it before recovering the data root"
+                )
+            try:
+                result = self._data_home.recover(selected)
+            except OSError as error:
+                raise DataHomeRecoveryError(str(error)) from error
+        self._data_home.remember(
+            result.home,
+            project_root=project_root,
+            runtime_mode=runtime_mode,
+        )
+        return result
+
+    def activate_data_home(
+        self,
+        explicit_home: str,
+        *,
+        project_root: Path,
+        runtime_mode: str,
+    ) -> DataHomeInspection:
+        if self._data_home is None:
+            raise RuntimeError("Lifecycle data-home adapter is unavailable")
+        selected = self._data_home.select(
+            explicit_home,
+            project_root=project_root,
+            runtime_mode=runtime_mode,
+            use_remembered=False,
+        )
+        inspection = self._data_home.inspect(selected)
+        if inspection.state.value in {"fresh", "ready"}:
+            self._data_home.remember(
+                selected,
+                project_root=project_root,
+                runtime_mode=runtime_mode,
+            )
+        return inspection
 
     def optional_component_ready(self) -> bool:
         """Project optional Runtime readiness without exposing its technology."""
