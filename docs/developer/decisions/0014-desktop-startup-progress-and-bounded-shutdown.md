@@ -1,4 +1,4 @@
-# ADR-0013: Desktop startup progress and bounded shutdown
+# ADR-0014: Desktop startup progress and bounded shutdown
 
 **Status:** Accepted
 **Date:** 2026-08-13

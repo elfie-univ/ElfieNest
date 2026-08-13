@@ -6,6 +6,7 @@
 - [仓库架构治理](./repository-governance)
 - [文档结构](./documentation-structure)
 - [系统架构](./system)
+- [Nest–Godot 语义世界](./nest-godot-semantic-world)
 - [Elfie 内部架构](./elfie)
 - [Elfie Brain 内部架构](./brain)
 - [应用架构](./application)

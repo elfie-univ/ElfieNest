@@ -1,7 +1,8 @@
 # System architecture contract
 
-**Contract version:** 1.5
+**Contract version:** 1.6
 **Adopted:** 2026-08-12
+**Revised:** 2026-08-13
 **Scope:** repository-wide target architecture
 **Macro architecture baseline:** v1 (frozen)
 
@@ -16,6 +17,11 @@ behavior contract remains only a behavior inventory for the current migration
 package; it does not define a target module and cannot reverse this contract.
 Where a child contract names an owner or path, this contract controls the
 system-level target.
+
+The [Nest–Godot semantic-world contract](./nest-godot-semantic-world) refines
+Nest internal ownership, Godot semantic lanes and embodied-world event routing.
+It cannot reverse the root dependency direction or physical authority fixed
+here.
 
 ## Target system shape
 
@@ -160,17 +166,28 @@ body commands and perception models remain in Elfie.
 
 ### Nest
 
-Nest keeps residents, homes, world semantics, environment time, interaction
-propagation and rules such as speech audience and tactile consequences. Its
+Nest has four internal functional owners: Space and Facilities, Household
+Living Rules, Time and Environment, and Elfie–Nest Interaction. A common event
+mechanism crosses those owners without becoming a fifth business module. These
+are conceptual ownership boundaries, not mandatory packages or processes.
+
+Nest keeps resident IDs, homes, coordinate-free world semantics, household
+rules, environment time and desired environment state. It also owns the
+short-lived semantic correlation required for structured vision, virtual
+hearing and semantic action. It does not own an Elfie's independent body intent,
+physical calculation, real Elfie objects or concrete Godot transport. Its
 required capabilities include:
 
 - semantic Nest persistence through a Nest-owned repository Port;
-- world-authority configuration, synchronization and event intake through a
-  narrow world contract.
+- world-authority configuration and synchronization, environment commands and
+  facts, and spatial query/action results through narrow semantic world Ports;
+- typed Nest-event output with explicit targets after any household-audience
+  rule has been applied.
 
 Concrete SQLite, WebSocket, JSON transport, Godot bundle, environment and
 process implementations belong to Infrastructure. Nest semantic models and
-rules remain in Nest.
+rules remain in Nest. Exact internal ownership and event semantics are governed
+by the [Nest–Godot contract](./nest-godot-semantic-world).
 
 ### App
 
@@ -191,7 +208,7 @@ runtime fact has one semantic authority, one write path and explicit readers:
 | Adoption, ownership and per-member quota decisions | App adoption Features | Infrastructure persistence through App-owned Ports | Admin/member use-cases; Nest capacity is an input, not a duplicate owner |
 | Social relationships, conversation membership and user-visible message history | App communication Features | Infrastructure persistence through App-owned Ports | Authorized App use-cases; Elfie owns communication and memory semantics, not product conversation ownership |
 | One Elfie's profile, cognition and memory semantics | `elfie/` | Infrastructure persistence through Elfie-owned Ports | The owning Elfie and explicitly authorized App projections |
-| Nest residents, beds, environment time and interaction consequences | `nest/` | Infrastructure persistence through Nest-owned Ports | App Orchestration and authorized Observer projections |
+| Nest residents, homes, facility semantics, household rules, environment time/intent and semantic interaction results | `nest/` | Nest domain behavior plus Infrastructure persistence through Nest-owned Ports | App Orchestration, affected Elfies through typed delivery and authorized Observer projections |
 | Food package administration and global tool enablement | App configuration Features | Infrastructure persistence through App-owned Ports | Elfie receives only its effective typed projection through Elfie-owned Ports |
 | Provider-connection administration and credential references | App configuration Features | Infrastructure persistence and secret Adapters through App-owned Ports | Authorized App management use-cases; Infrastructure receives only scoped technical inputs |
 | Endpoint-model observations, technical validation and model calls | Infrastructure model capability | `infrastructure/models/` plus persistence/report Adapters | App management projections and Elfie `ModelPort` calls |
@@ -238,27 +255,36 @@ for the requested Elfie scope from those stored facts; it does not make a new
 authorization decision. Elfie selects the semantic role and invokes
 `ModelPort` separately.
 
-## Godot authority channels
+## Godot authority semantic lanes
 
 The Godot authority is reached through one shared, versioned and authenticated
-Gateway connection, not one raw connection per Elfie. The semantic boundary is
-split into two channels:
+Gateway connection, not one raw connection per Elfie. Sharing transport does
+not merge semantic ownership. The boundary has three lane families:
 
 1. **Actor body channel.** An Elfie emits semantic body intents through its
    body/actor Port. The Godot Adapter returns accepted, started, terminal,
-   blocked, cancelled or timed-out receipts to the originating body.
-2. **World channel.** Godot world facts enter the Nest boundary. Nest applies
-   room rules and interaction propagation; Orchestration delivers resulting
-   typed perceptions to the affected Elfies.
+   blocked, cancelled or timed-out receipts plus body-scoped perception to the
+   originating body. Known-target body traffic does not pass through Nest.
+2. **Nest semantic-world lanes.** Semantic action, structured vision, virtual
+   speech/hearing and environment commands/facts cross narrow Nest-owned
+   capabilities. Godot supplies physical candidates or actual results; Nest
+   supplies household meaning, rules, correlation and targeted semantic output.
+3. **Runtime control channel.** Readiness, generation, connection, health and
+   recovery belong to App Lifecycle and never become Nest or Body perception.
 
-Actor commands need not be mechanically relayed through Nest, while global
-world facts must not bypass Nest authority. Both Ports may be implemented by
-one shared Godot Gateway Adapter.
+One physical cause may produce a body receipt, body perception and environment
+fact, but these are distinct typed events with distinct recipients and a shared
+cause identity. Runtime events are classified before delivery; broadcasting a
+raw event to all Bodies or sending one semantic event through both Body and Nest
+paths is forbidden. The semantic lanes may be implemented by one shared Godot
+Gateway Adapter.
 
 Godot protocol transport, authority-host selection, artifacts and process
 launch belong to `infrastructure/godot/`. Godot source assets and physical
 authority remain in root `godot_project/`. Nest and Elfie never import
-Godot-specific transport or process implementations.
+Godot-specific transport or process implementations. The detailed path and
+event rules are normative in the
+[Nest–Godot semantic-world contract](./nest-godot-semantic-world).
 
 ## Bootstrap and Orchestration
 

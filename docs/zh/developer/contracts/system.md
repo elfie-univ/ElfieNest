@@ -1,7 +1,8 @@
 # 系统架构契约
 
-**契约版本：** 1.5
+**契约版本：** 1.6
 **采用日期：** 2026-08-12
+**修订日期：** 2026-08-13
 **适用范围：** 全仓目标架构
 **宏观架构基线：** v1（已冻结）
 
@@ -12,6 +13,9 @@
 系统契约管理根目录位置和跨模块边界；应用契约管理 `app/` 内部行为。模型、Food 与
 工具行为契约只作为当前迁移包的行为清单，不定义目标模块，也不能反转本契约。子契约
 命名所有者或路径时，系统级目标仍以本契约为准。
+
+[Nest–Godot 语义世界契约](./nest-godot-semantic-world)细化 Nest 内部所有权、Godot
+语义线路和具身世界事件路由，但不能反转本契约固定的根依赖方向或物理 authority。
 
 ## 目标系统形态
 
@@ -133,14 +137,21 @@ allow-list、身体命令和感知模型仍属于 Elfie。
 
 ### Nest
 
-Nest 保留居民、住处、世界语义、环境时间、互动传播，以及说话听众、触觉后果等规则。
-它需要的能力包括：
+Nest 有四个内部功能所有者：空间与设施、巢内生活规则、时间与环境、精灵与巢交互；
+一套公共事件机制横贯四者，但不是第五个业务模块。这些是概念所有权边界，不要求建立
+对应 Package 或进程。
+
+Nest 保存居民 ID、Home、不含坐标的世界语义、家庭规则、环境时间和期望环境状态，
+也拥有结构化视觉、虚拟听觉和语义行动所需的短期语义关联。它不拥有 Elfie 的独立身体
+意图、物理计算、真实 Elfie 对象或具体 Godot 传输。它需要的能力包括：
 
 - 通过 Nest 自有 Repository Port 持久化语义状态；
-- 通过窄世界契约完成 authority 配置、同步与世界事件输入。
+- 通过窄语义世界 Port 完成 authority 配置与同步、环境命令/事实、空间查询和行动结果；
+- 在家庭受众规则已经应用后，输出带显式目标的类型化 Nest 事件。
 
 具体 SQLite、WebSocket、JSON 传输、Godot Bundle、环境变量和进程实现属于
-Infrastructure。Nest 语义模型和规则仍属于 Nest。
+Infrastructure。Nest 语义模型和规则仍属于 Nest。内部所有权与事件语义由
+[Nest–Godot 契约](./nest-godot-semantic-world)治理。
 
 ### App
 
@@ -159,7 +170,7 @@ App Feature 可以为产品持久化、文件、时钟、Scheduler、Secret、�
 | 领养、归属和成员额度决策 | App Adoption Feature | Infrastructure 通过 App 自有 Port 持久化 | 管理员/成员用例；Nest 容量只是输入，不是重复所有者 |
 | 社交关系、会话成员和用户可见消息历史 | App Communication Feature | Infrastructure 通过 App 自有 Port 持久化 | 已授权 App 用例；Elfie 拥有交流和记忆语义，不拥有产品会话 |
 | 单只精灵的 Profile、认知和记忆语义 | `elfie/` | Infrastructure 通过 Elfie 自有 Port 持久化 | 精灵自身和明确获授权的 App 投影 |
-| Nest 居民、床位、环境时间和互动后果 | `nest/` | Infrastructure 通过 Nest 自有 Port 持久化 | App Orchestration 和获授权 Observer 投影 |
+| Nest 居民、Home、设施语义、家庭规则、环境时间/意图和语义交互结果 | `nest/` | Nest 领域行为与 Infrastructure 通过 Nest 自有 Port 持久化 | App Orchestration、经类型化投递受影响的 Elfie 和获授权 Observer 投影 |
 | Food 套餐管理和全局工具启用 | App Configuration Feature | Infrastructure 通过 App 自有 Port 持久化 | Elfie 只通过自有 Port 获得有效强类型投影 |
 | Provider 连接管理和凭据引用 | App Configuration Feature | Infrastructure 通过 App 自有 Port 执行持久化与 Secret Adapter | 已授权 App 管理用例；Infrastructure 只接收限定技术输入 |
 | Endpoint 模型观测、技术验证和模型调用 | Infrastructure 模型能力 | `infrastructure/models/` 与持久化/报告 Adapter | App 管理投影和 Elfie `ModelPort` 调用 |
@@ -201,22 +212,29 @@ App Configuration Feature 写入 Food 可见性、授权、分配和套餐选择
 根据这些已保存事实，为请求中的 Elfie 作用域解析有效投影，不重新作出授权决策。
 Elfie 自己选择语义角色，并单独调用 `ModelPort`。
 
-## Godot authority 双通道
+## Godot authority 语义线路
 
 Godot authority 通过一个共享、版本化且经过认证的 Gateway 连接访问，不能每只 Elfie
-各自建立原始连接。语义边界拆为两条通道：
+各自建立原始连接。共享传输不会合并语义所有权。边界分为三类线路：
 
 1. **Actor 身体通道。** Elfie 通过 body/actor Port 发出语义身体意图；Godot Adapter
-   向原身体返回 accepted、started、terminal、blocked、cancelled 或 timed-out 回执。
-2. **世界通道。** Godot 世界事实进入 Nest 边界；Nest 应用房间规则和互动传播；
-   Orchestration 把结果转成强类型感知投递给受影响的 Elfie。
+   向原身体返回 accepted、started、terminal、blocked、cancelled 或 timed-out 回执，
+   以及身体作用域感知。已知目标的身体流量不经过 Nest。
+2. **Nest 语义世界线路。** 语义行动、结构化视觉、虚拟说话/听见和环境命令/事实通过
+   Nest 拥有的窄能力跨界。Godot 提供物理候选或实际结果；Nest 提供家庭含义、规则、
+   关联和定向语义输出。
+3. **Runtime 控制通道。** 就绪、generation、连接、健康与恢复属于 App Lifecycle，
+   不能成为 Nest 或 Body 感知。
 
-Actor 命令不必机械经过 Nest；全局世界事实不得绕过 Nest authority。两个 Port 可以由
-同一个共享 Godot Gateway Adapter 实现。
+一次物理原因可以产生身体回执、身体感知和环境事实，但它们是面向不同接收者的不同
+类型事件，只共享 cause 身份。Runtime 事件必须先分类再投递；禁止把原始事件广播给
+全部 Body，也禁止让同一个语义事件同时走 Body 与 Nest 两条路径。多个语义线路可以
+由同一个共享 Godot Gateway Adapter 实现。
 
 Godot 协议传输、authority 宿主选择、产物与进程启动属于
 `infrastructure/godot/`；Godot 源资产和物理 authority 永久保留在根
-`godot_project/`。Nest 和 Elfie 永不导入 Godot 专用传输或进程实现。
+`godot_project/`。Nest 和 Elfie 永不导入 Godot 专用传输或进程实现。详细路径与事件
+规则以[Nest–Godot 语义世界契约](./nest-godot-semantic-world)为准。
 
 ## Bootstrap 与 Orchestration
 
