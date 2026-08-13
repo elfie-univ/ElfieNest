@@ -46,14 +46,14 @@ def create_app(
     on_ready: Optional[Callable[[], None]] = None,
 ) -> FastAPI:
     storage = ElfieLabStorage(data_dir)
-    runtime_root = runtime_config_dir or str(get_elfie_developer_home() / "elfie_lab")
+    runtime_root = runtime_config_dir or str(storage.root / "runtime")
     if Path(runtime_root).expanduser().resolve() == get_elfie_home().resolve():
         raise ValueError("Elfie Lab 不得使用生产 ELFIE_HOME 作为运行时配置目录")
     runtime = runtime_food_support.ElfieLabRuntime(runtime_root)
     food_store = runtime_food_support.runtime_food_catalog_store(runtime)
     developer_runtime = (
         runtime.root.resolve()
-        == (get_elfie_developer_home() / "elfie_lab").resolve()
+        == (get_elfie_developer_home() / "elfie_lab" / "runtime").resolve()
     )
     sessions = SessionRegistry(storage, str(runtime.root))
     recycle_store = RecycleStore(storage.root)

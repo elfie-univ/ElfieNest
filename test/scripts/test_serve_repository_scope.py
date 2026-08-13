@@ -2,6 +2,7 @@
 
 import inspect
 import json
+from dataclasses import replace
 
 import pytest
 from pydantic import ValidationError
@@ -219,3 +220,43 @@ def test_service_entrypoint_uses_bootstrap_instead_of_concrete_adapters() -> Non
     assert "SQLiteElfiesProjectionAdapter(" not in source
     assert "ElfieFactory(" not in source
     assert "init_db(" not in source
+
+
+def test_server_runtime_falls_back_when_configured_model_cannot_warm_up(
+    monkeypatch,
+) -> None:
+    # Given: configuration loads, but the selected provider is unreachable.
+    configured = serve.build_runtime_services(
+        ":memory:",
+        use_fallback=True,
+        live_reload=True,
+        resolve_main_food=False,
+    )
+
+    def fail_warmup() -> None:
+        raise RuntimeError("provider unavailable")
+
+    configured = replace(configured, warmup=fail_warmup)
+    calls: list[bool] = []
+    original_build = serve.build_runtime_services
+
+    def build(_db_path: str, *, use_fallback: bool, **_kwargs):
+        calls.append(use_fallback)
+        if use_fallback:
+            return original_build(
+                ":memory:",
+                use_fallback=True,
+                live_reload=True,
+                resolve_main_food=False,
+            )
+        return configured
+
+    monkeypatch.setattr(serve, "build_runtime_services", build)
+
+    # When
+    selected = serve.build_server_runtime_services(":memory:", use_fallback=False)
+
+    # Then: product chat receives a working bounded runtime instead of silently
+    # accepting turns that can only terminate as model_unavailable.
+    assert calls == [False, True]
+    assert isinstance(selected.runtime, FallbackRuntimeAdapter)

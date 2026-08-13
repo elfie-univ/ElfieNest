@@ -297,8 +297,8 @@ def load_runtime_food_catalog(
 
 
 def default_runtime_config_dir() -> str:
-    """Return the isolated Elfie Lab data root."""
-    return str(get_elfie_developer_home() / "elfie_lab")
+    """Return the Runtime subroot owned by the production-isolated Elfie Lab."""
+    return str(get_elfie_developer_home() / "elfie_lab" / "runtime")
 
 
 __all__ = (

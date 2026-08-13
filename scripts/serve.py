@@ -42,7 +42,7 @@ from app.bootstrap import create_app
 from app.bootstrap.app_wiring.accounts import build_accounts_service
 from app.bootstrap.app_wiring.adoption import seed_single_elfie
 from app.bootstrap.app_wiring.storage import ensure_application_storage
-from app.bootstrap.runtime import build_runtime_services
+from app.bootstrap.runtime import RuntimeServices, build_runtime_services
 from app.bootstrap.system_wiring.entrypoints import (
     DataHomeSelectionError,
     get_db_path,
@@ -97,6 +97,48 @@ def prepare_frontend_web_runtime(
     """Ensure the source Web client is current before a development launch."""
     if runtime_mode == "development":
         lifecycle.prepare_frontend(runtime_mode)
+
+
+def build_server_runtime_services(
+    db_path: str, *, use_fallback: bool
+) -> RuntimeServices:
+    """Select a runtime only after its configured model has proved reachable."""
+    if use_fallback:
+        services = build_runtime_services(
+            db_path,
+            use_fallback=True,
+            live_reload=True,
+            resolve_main_food=False,
+        )
+        print("  ⚡ Using built-in dialogue engine (--fallback mode)")
+        return services
+
+    try:
+        services = build_runtime_services(
+            db_path,
+            use_fallback=False,
+            live_reload=True,
+            resolve_main_food=True,
+        )
+        print("  ⏳ Connecting to the configured model...")
+        assert services.warmup is not None
+        services.warmup()
+        print("  ✅ Model connection verified, ready to chat!")
+        return services
+    except Exception as error:  # noqa: BLE001
+        print(f"  ⚠️  Configured model is unavailable: {error}")
+        services = build_runtime_services(
+            db_path,
+            use_fallback=True,
+            live_reload=True,
+            resolve_main_food=False,
+        )
+        print("  ⚡ Using built-in dialogue engine until the next service restart")
+        print(
+            "  💡 Configure a reachable model and restart ElfieNest "
+            "to restore full cognition"
+        )
+        return services
 
 
 def main():
@@ -304,57 +346,17 @@ def main():
         if seed_single_elfie(db_path):
             print('  🌱 Auto-seeded Elfie "Aifei" for Owner (--seed-elfie)')
 
-    # 3. Start the engine worker thread.
+    # 3. Verify the selected cognition Runtime before accepting chat messages.
+    runtime_services = build_server_runtime_services(
+        db_path,
+        use_fallback=args.fallback,
+    )
+
+    # 4. Start the engine worker thread.
     engine_holder: dict = {}
     engine_ready = threading.Event()
 
     def engine_worker():
-        if args.fallback:
-            runtime_services = build_runtime_services(
-                db_path,
-                use_fallback=True,
-                live_reload=True,
-                resolve_main_food=False,
-            )
-            print("  ⚡ Using built-in dialogue engine (--fallback mode)")
-        else:
-            try:
-                runtime_services = build_runtime_services(
-                    db_path,
-                    use_fallback=False,
-                    live_reload=True,
-                    resolve_main_food=True,
-                )
-                print(
-                    "  ✅ Runtime connected, will select local or cloud models via food policy"
-                )
-                print("  ⏳ Warming up model (first load takes 10-15 seconds)...")
-
-                def _warmup():
-                    try:
-                        assert runtime_services.warmup is not None
-                        runtime_services.warmup()
-                        print("  ✅ Model warm-up complete, ready to chat!")
-                    except Exception as e:
-                        print(f"  ⚠️  Model warm-up error: {e}")
-
-                threading.Thread(target=_warmup, daemon=True).start()
-            except Exception as error:  # noqa: BLE001
-                print(f"  ⚠️  Runtime initialization failed: {error}")
-                runtime_services = build_runtime_services(
-                    db_path,
-                    use_fallback=True,
-                    live_reload=True,
-                    resolve_main_food=False,
-                )
-                print(
-                    "  ⚡ Ollama auto-start failed or not installed, using built-in dialogue engine"
-                )
-                print(
-                    "  💡 For real AI responses, ensure Ollama is installed locally:\n"
-                    "     Setup guide: ./elfienest.sh setup"
-                )
-
         nest_session = build_nest_session_services(
             db_path,
             runtime=runtime_services.runtime,
@@ -384,7 +386,7 @@ def main():
     time.sleep(2.0)  # Wait for service readiness.
     print("  ℹ️ Godot Web Runtime is hosted by ElfieNest Desktop hidden window")
 
-    # 4. Dynamically load all Elfies from the database.
+    # 5. Dynamically load all Elfies from the database.
     loaded_elfies: list[dict] = []
     try:
         restore_result = restore_registered_elfies(db_path, engine.session)
@@ -399,7 +401,7 @@ def main():
     except Exception as e:
         print(f"  ⚠️  Failed to query Elfie list: {e}")
 
-    # 5. Print startup information.
+    # 6. Print startup information.
     print()
     print("=" * 56)
     print("  🦊 ElfieNest Embodied AI Creature Service")
@@ -417,7 +419,7 @@ def main():
     print("=" * 56)
     print()
 
-    # 6. Create the FastAPI app and start uvicorn on the main thread.
+    # 7. Create the FastAPI app and start uvicorn on the main thread.
     app = create_app(
         engine=engine,
         db_path=db_path,

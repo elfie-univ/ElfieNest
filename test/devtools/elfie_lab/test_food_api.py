@@ -4,6 +4,7 @@ import pytest
 
 from devtools.elfie_lab.app import create_app
 from devtools.elfie_lab.runtime_foods import ElfieLabRuntime
+from devtools.elfie_lab.storage import ElfieLabStorage
 from elfie.brain.reasoning.food_port import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
 from infrastructure.models.runtime_agent import RuntimeAgent
 from infrastructure.models.runtime_contracts import (
@@ -53,15 +54,37 @@ def test_default_app_uses_elfie_lab_root_and_keeps_production_isolated(
     app = create_app(str(elfie_data))
     client = client_for(app)
 
-    expected_root = developer_home / "elfie_lab"
+    expected_root = elfie_data / "runtime"
     assert app.state.storage.root == elfie_data
     assert app.state.runtime.root == expected_root.resolve()
     assert (expected_root / "nest.db").exists()
-    assert client.get("/api/runtime/status").json()["scope"] == "developer"
+    assert client.get("/api/runtime/status").json()["scope"] == "override"
     payload = client.get("/api/runtime/foods").json()
     assert payload["local_models"] == []
     assert "configuration_command" not in payload
     assert not production_home.exists()
+
+
+def test_app_accepts_existing_lab_storage_with_independent_runtime_root(
+    tmp_path, monkeypatch, client_for
+):
+    developer_home = tmp_path / "developer"
+    lab_root = developer_home / "elfie_lab"
+    monkeypatch.setenv("ELFIE_DEV_HOME", str(developer_home))
+    ElfieLabStorage(lab_root)
+    assert (lab_root / "sessions").is_dir()
+    monkeypatch.setattr(
+        "devtools.elfie_lab.runtime_foods.OllamaManager.list_installed_models",
+        lambda _manager: (),
+    )
+
+    app = create_app(str(lab_root))
+    client = client_for(app)
+
+    assert client.get("/api/health").json()["status"] == "ok"
+    assert app.state.storage.root == lab_root
+    assert app.state.runtime.root == (lab_root / "runtime").resolve()
+    assert (lab_root / "runtime" / "nest.db").is_file()
 
 
 def test_configure_local_model_creates_one_test_food(tmp_path, monkeypatch, client_for):
