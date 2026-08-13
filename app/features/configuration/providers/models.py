@@ -110,6 +110,18 @@ class CreateProviderConnectionCommand:
 
 
 @dataclass(frozen=True)
+class StartProviderOAuthLoginCommand:
+    catalog_id: str
+
+
+@dataclass(frozen=True)
+class CompleteProviderOAuthLoginCommand:
+    catalog_id: str
+    login_id: str
+    alias: str | None = None
+
+
+@dataclass(frozen=True)
 class UpdateProviderConnectionCommand:
     connection_id: str
     fields: FrozenSet[ConnectionUpdateField]
@@ -285,6 +297,27 @@ class ProviderConnectionResult:
     verification: ProviderVerificationResult
     models: tuple[ProviderModelResult, ...]
     model_refresh: ProviderModelRefreshResult | None = None
+    has_credential: bool = False
+
+
+@dataclass(frozen=True)
+class ProviderOAuthLoginStartResult:
+    catalog_id: str
+    login_id: str
+    authorization_url: str
+    user_code: str
+    poll_interval_seconds: int
+    expires_at: str
+
+
+@dataclass(frozen=True)
+class ProviderOAuthLoginStatusResult:
+    catalog_id: str
+    login_id: str
+    state: Literal["pending", "completed"]
+    account_id: str | None
+    expires_at: str | None
+    connection: ProviderConnectionResult | None
 
 
 @dataclass(frozen=True)

@@ -1,4 +1,4 @@
-"""Model-discovery records and non-destructive refresh merging."""
+"""Model-discovery records and authoritative refresh merging."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def merge_refreshed_models(
     existing_models: tuple[ProviderModelRecord, ...],
     refreshed_models: tuple[ProviderModelRecord, ...],
 ) -> tuple[ProviderModelRecord, ...]:
-    """Keep manual overrides while replacing discovered catalog availability."""
+    """Replace discovered entries while preserving explicit manual models."""
     existing_by_id = {model.endpoint_model_id: model for model in existing_models}
     refreshed_by_id = {model.endpoint_model_id: model for model in refreshed_models}
     merged: list[ProviderModelRecord] = []
@@ -85,12 +85,11 @@ def merge_refreshed_models(
             )
         )
     for existing in existing_models:
-        if existing.endpoint_model_id not in refreshed_by_id:
-            merged.append(
-                existing
-                if existing.source == "manual"
-                else replace(existing, available=False)
-            )
+        if (
+            existing.endpoint_model_id not in refreshed_by_id
+            and existing.source == "manual"
+        ):
+            merged.append(existing)
     return tuple(merged)
 
 

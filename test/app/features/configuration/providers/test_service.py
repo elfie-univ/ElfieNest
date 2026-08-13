@@ -9,6 +9,7 @@ from app.features.accounts import AccountPrincipal, AccountRole
 from app.features.configuration import (
     AddProviderModelCommand,
     ChangeProviderConnectionLifecycleCommand,
+    CompleteProviderOAuthLoginCommand,
     CreateProviderConnectionCommand,
     DeleteProviderConnectionCommand,
     EnsureDefaultLocalProviderConnectionCommand,
@@ -18,7 +19,9 @@ from app.features.configuration import (
     ProvidersConflict,
     ProvidersForbidden,
     ProvidersService,
+    ProvidersValidationError,
     RemoveLocalProviderConnectionCommand,
+    StartProviderOAuthLoginCommand,
     StoredBenchmarkRun,
     StoredLocalProviderBinding,
     StoredLocalProviderCandidate,
@@ -29,6 +32,8 @@ from app.features.configuration import (
     StoredProviderBrand,
     StoredProviderConnection,
     StoredProviderModel,
+    StoredProviderOAuthLoginStart,
+    StoredProviderOAuthLoginStatus,
     StoredProviderProduct,
     StoredValidationRun,
     StoredVerification,
@@ -81,7 +86,9 @@ class FakeProviderPort:
             connection,
             connection_id="openai_api_0001",
             credential_ref=(
-                "ELFIE_PROVIDER_OPENAI_API_0001_API_KEY" if api_key else ""
+                "ELFIE_PROVIDER_OPENAI_API_0001_API_KEY"
+                if api_key
+                else connection.credential_ref
             ),
         )
         self.items[created.connection_id] = created
@@ -218,6 +225,38 @@ class FakeLocalTechnology:
         _ = binding, model_id
 
 
+class FakeOAuth:
+    def __init__(self) -> None:
+        self.completed = False
+
+    async def start_login(self, catalog_id: str) -> StoredProviderOAuthLoginStart:
+        return StoredProviderOAuthLoginStart(
+            catalog_id=catalog_id,
+            login_id="login-1",
+            authorization_url="https://auth.openai.com/codex/device",
+            user_code="ABCD-1234",
+            poll_interval_seconds=8,
+            expires_at="2026-08-13T12:10:00+00:00",
+        )
+
+    async def poll_login(self, login_id: str) -> StoredProviderOAuthLoginStatus:
+        assert login_id == "login-1"
+        if not self.completed:
+            return StoredProviderOAuthLoginStatus(
+                catalog_id="openai_chatgpt",
+                login_id=login_id,
+                state="pending",
+            )
+        return StoredProviderOAuthLoginStatus(
+            catalog_id="openai_chatgpt",
+            login_id=login_id,
+            state="completed",
+            credential_ref="oauth.openai_chatgpt.login-1",
+            account_id="acct-1",
+            expires_at="2026-08-13T13:00:00+00:00",
+        )
+
+
 def _service() -> tuple[ProvidersService, FakeProviderPort, FakeReferences]:
     port = FakeProviderPort()
     references = FakeReferences()
@@ -229,10 +268,81 @@ def _service() -> tuple[ProvidersService, FakeProviderPort, FakeReferences]:
             technology=FakeTechnology(),
             local_state=port,
             local_technology=FakeLocalTechnology(),
+            oauth=FakeOAuth(),
         ),
         port,
         references,
     )
+
+
+def test_chatgpt_oauth_creates_a_separate_authenticated_connection() -> None:
+    service, port, _ = _service()
+    port.product = StoredProviderProduct(
+        catalog_id="openai_chatgpt",
+        name="OpenAI (ChatGPT)",
+        brand=StoredProviderBrand("openai", "OpenAI", "openai.svg"),
+        connection_method="oauth",
+        oauth_available=True,
+        usage_scope="general",
+        discovery_strategy="catalog_only",
+        api_mode="codex_responses",
+        api_base="https://chatgpt.com/backend-api/codex",
+        auth_type="bearer",
+    )
+    oauth = service._oauth
+    assert isinstance(oauth, FakeOAuth)
+
+    started = asyncio.run(
+        service.start_oauth_login(
+            _principal(), StartProviderOAuthLoginCommand("openai_chatgpt")
+        )
+    )
+    pending = asyncio.run(
+        service.complete_oauth_login(
+            _principal(),
+            CompleteProviderOAuthLoginCommand(
+                "openai_chatgpt", started.login_id, "My ChatGPT"
+            ),
+        )
+    )
+    oauth.completed = True
+    completed = asyncio.run(
+        service.complete_oauth_login(
+            _principal(),
+            CompleteProviderOAuthLoginCommand(
+                "openai_chatgpt", started.login_id, "My ChatGPT"
+            ),
+        )
+    )
+
+    assert pending.state == "pending"
+    assert pending.connection is None
+    assert completed.state == "completed"
+    assert completed.connection is not None
+    assert completed.connection.catalog_id == "openai_chatgpt"
+    assert completed.connection.has_api_key is False
+    assert completed.connection.has_credential is True
+    stored = port.items[completed.connection.connection_id]
+    assert stored.credential_ref == "oauth.openai_chatgpt.login-1"
+
+
+def test_chatgpt_oauth_connection_cannot_bypass_authorization() -> None:
+    service, port, _ = _service()
+    port.product = replace(
+        port.product,
+        catalog_id="openai_chatgpt",
+        connection_method="oauth",
+        oauth_available=True,
+        api_mode="codex_responses",
+    )
+
+    with pytest.raises(ProvidersValidationError):
+        asyncio.run(
+            service.create_connection(
+                _principal(),
+                CreateProviderConnectionCommand(catalog_id="openai_chatgpt"),
+            )
+        )
 
 
 def test_create_uses_catalog_defaults_and_exposes_only_credential_presence() -> None:

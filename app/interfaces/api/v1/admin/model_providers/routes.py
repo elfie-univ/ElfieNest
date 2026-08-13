@@ -13,6 +13,7 @@ from app.features.configuration import (
     BenchmarkCombination,
     BenchmarkProviderModelsCommand,
     ChangeProviderConnectionLifecycleCommand,
+    CompleteProviderOAuthLoginCommand,
     ConnectionUpdateField,
     CreateProviderConnectionCommand,
     DeleteProviderConnectionCommand,
@@ -39,6 +40,7 @@ from app.features.configuration import (
     RefreshProviderModelsCommand,
     ReplaceProviderModelsCommand,
     StartLocalProviderCommand,
+    StartProviderOAuthLoginCommand,
     UpdateProviderConnectionCommand,
     UpdateProviderModelCommand,
     ValidateAllProviderModelsCommand,
@@ -69,6 +71,10 @@ from .models import (
     ProviderModelResponse,
     ProviderModelsReplaceRequest,
     ProviderModelWriteRequest,
+    ProviderOAuthLoginCompleteRequest,
+    ProviderOAuthLoginStartRequest,
+    ProviderOAuthLoginStartResponse,
+    ProviderOAuthLoginStatusResponse,
     ProviderProductResponse,
     ProviderProductsResponse,
     ValidationRunResponse,
@@ -94,6 +100,8 @@ RouteResult = Union[
     VerifyConnectionResponse,
     JSONResponse,
     LocalProviderStatusResponse,
+    ProviderOAuthLoginStartResponse,
+    ProviderOAuthLoginStatusResponse,
 ]
 
 
@@ -189,6 +197,43 @@ def list_connections(
     return ProviderConnectionsResponse(
         items=tuple(ProviderConnectionResponse.from_result(item) for item in items)
     )
+
+
+@router.post("/oauth-logins", response_model=ProviderOAuthLoginStartResponse)
+async def start_oauth_login(
+    body: ProviderOAuthLoginStartRequest,
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: ProvidersService = ProvidersDependency,
+) -> RouteResult:
+    try:
+        result = await service.start_oauth_login(
+            principal, StartProviderOAuthLoginCommand(body.catalog_id)
+        )
+    except _PROVIDER_ERRORS as error:
+        return _error_response(error)
+    return ProviderOAuthLoginStartResponse.from_result(result)
+
+
+@router.post(
+    "/oauth-logins/{login_id}/complete",
+    response_model=ProviderOAuthLoginStatusResponse,
+)
+async def complete_oauth_login(
+    login_id: str,
+    body: ProviderOAuthLoginCompleteRequest,
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: ProvidersService = ProvidersDependency,
+) -> RouteResult:
+    try:
+        result = await service.complete_oauth_login(
+            principal,
+            CompleteProviderOAuthLoginCommand(
+                body.catalog_id, login_id, body.alias
+            ),
+        )
+    except _PROVIDER_ERRORS as error:
+        return _error_response(error)
+    return ProviderOAuthLoginStatusResponse.from_result(result)
 
 
 @router.post(

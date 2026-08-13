@@ -101,6 +101,17 @@ def _needs_setup(request: Request) -> bool:
 @router.get("/assets/{asset_path:path}")
 async def generated_asset(asset_path: str, request: Request) -> Response:
     """Serve manifest-listed static bundle assets; APIs enforce all data permissions."""
+    return _serve_generated_asset(request, f"assets/{asset_path}")
+
+
+@router.get("/brands/{asset_path:path}")
+async def generated_brand_asset(asset_path: str, request: Request) -> Response:
+    """Serve manifest-listed provider brand marks copied into the Web build."""
+    return _serve_generated_asset(request, f"brands/{asset_path}")
+
+
+def _serve_generated_asset(request: Request, relative_path: str) -> Response:
+    """Resolve one manifest-listed generated asset, refreshing after rebuilds."""
     web_build = getattr(request.app.state, "web_build", None)
     if web_build is None:
         error = getattr(
@@ -108,11 +119,11 @@ async def generated_asset(asset_path: str, request: Request) -> Response:
         )
         return PlainTextResponse(str(error), status_code=503)
     try:
-        path = web_build.asset_path(f"assets/{asset_path}")
+        path = web_build.asset_path(relative_path)
     except FileNotFoundError as error:
         try:
             refreshed_build = discover_web_build(web_build.directory)
-            path = refreshed_build.asset_path(f"assets/{asset_path}")
+            path = refreshed_build.asset_path(relative_path)
         except (
             FileNotFoundError,
             WebBuildManifestMalformedError,

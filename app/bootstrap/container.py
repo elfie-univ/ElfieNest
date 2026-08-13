@@ -32,6 +32,11 @@ from infrastructure.communication import OwnerMessageSession, SameOriginMessageP
 from infrastructure.devices import DeviceGateway
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.provider_administration import ProviderModelsAdapter
+from infrastructure.models.providers.openai_chatgpt import OpenAIChatGptOAuthAdapter
+from infrastructure.persistence.configuration.oauth_credentials import (
+    OAuthCredentialAdapter,
+    OAuthCredentialStore,
+)
 from infrastructure.persistence.configuration.settings import RuntimeSettingsAdapter
 from infrastructure.persistence.elfie_workspace.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.elfie_workspace.elfies import (
@@ -105,8 +110,9 @@ def build_application_container(
     provider_storage = ProviderStorageAdapter(provider_store)
     provider_reports = ReportStorageAdapter(report_repository)
     provider_evidence = SQLiteFoodEvidenceAdapter(provider_store, report_repository)
+    oauth_credentials = OAuthCredentialAdapter()
     provider_models = ProviderModelsAdapter(
-        provider_storage, provider_reports, provider_evidence
+        provider_storage, provider_reports, provider_evidence, oauth_credentials
     )
     if db_path != ":memory:":
         assert data_home is not None
@@ -118,8 +124,14 @@ def build_application_container(
             secret_path=layout.auth_env,
         )
         provider_evidence = SQLiteFoodEvidenceAdapter(provider_store, report_repository)
+        oauth_credentials = OAuthCredentialAdapter(
+            OAuthCredentialStore(layout.oauth_credentials)
+        )
         provider_models = ProviderModelsAdapter(
-            provider_storage, provider_reports, provider_evidence
+            provider_storage,
+            provider_reports,
+            provider_evidence,
+            oauth_credentials,
         )
     settings_adapter = RuntimeSettingsAdapter(config_path)
     elfies = ElfiesService(SQLiteElfiesProjectionAdapter(db_path))
@@ -162,6 +174,7 @@ def build_application_container(
         technology=provider_models,
         local_state=provider_models,
         local_technology=PublicOllamaProviderAdapter(),
+        oauth=OpenAIChatGptOAuthAdapter(oauth_credentials),
     )
     if db_path != ":memory:":
         providers.ensure_default_local_connection(

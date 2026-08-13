@@ -222,7 +222,9 @@ class RuntimeAgent:
         provider = self._provider_for_model(assignment.model)
         provider_config = self.config.providers.get(provider, {})
         native = (
-            provider == "openai" or provider_config.get("catalog_id") == "openai_api"
+            provider == "openai"
+            or provider_config.get("catalog_id")
+            in {"openai_api", "openai_chatgpt"}
         )
         api_mode = str(provider_config.get("api_mode") or "")
         is_ollama = (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { exposeDynamicImportAssets } from "./vite-manifest"
+import { exposeDynamicImportAssets, exposePublicAssets } from "./vite-manifest"
 
 describe("Vite manifest dynamic imports", () => {
   it("adds lazy entries to the transitive import allow-list", () => {
@@ -21,6 +21,22 @@ describe("Vite manifest dynamic imports", () => {
       "index.html": {
         ...manifest["index.html"],
         imports: ["src/profile-chart-runtime.ts"],
+      },
+    })
+  })
+
+  it("adds copied public brand assets to the shell allow-list", () => {
+    const manifest = {
+      "index.html": {
+        assets: ["assets/logo.png"],
+        file: "assets/app.js",
+      },
+    }
+
+    expect(exposePublicAssets(manifest, ["brands/openai.svg", "brands/google.svg"])).toEqual({
+      "index.html": {
+        assets: ["assets/logo.png", "brands/openai.svg", "brands/google.svg"],
+        file: "assets/app.js",
       },
     })
   })

@@ -71,9 +71,12 @@ def test_web_build_exposes_only_manifest_listed_public_assets(
     (assets / "app.js").write_text("app", encoding="utf-8")
     (assets / "shared.js").write_text("shared", encoding="utf-8")
     (assets / "logo.png").write_bytes(b"logo")
+    brands = build_dir / "brands"
+    brands.mkdir()
+    (brands / "openai.svg").write_text("<svg />", encoding="utf-8")
     (build_dir / "manifest.json").write_text(
         """{
-          "index.html": {"file": "assets/app.js", "imports": ["shared"], "assets": ["assets/logo.png"]},
+          "index.html": {"file": "assets/app.js", "imports": ["shared"], "assets": ["assets/logo.png", "brands/openai.svg"]},
           "shared": {"file": "assets/shared.js"}
         }""",
         encoding="utf-8",
@@ -87,5 +90,6 @@ def test_web_build_exposes_only_manifest_listed_public_assets(
     assert web_build.asset_path("assets/app.js").read_text() == "app"
     assert web_build.asset_path("assets/shared.js").read_text() == "shared"
     assert web_build.asset_path("assets/logo.png").read_bytes() == b"logo"
+    assert web_build.asset_path("brands/openai.svg").read_text() == "<svg />"
     with pytest.raises(FileNotFoundError):
         web_build.asset_path("assets/unknown.js")

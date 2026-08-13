@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   changeProviderConnectionLifecycle,
+  completeProviderOAuthLogin,
   ownerModelMatrix,
   ownerProviderCatalog,
+  startProviderOAuthLogin,
 } from "./owner-providers"
 import { ownerRead, ownerWrite } from "./http"
 
@@ -92,6 +94,50 @@ describe("versioned model Provider client", () => {
     expect(result.snapshot.mode).toBe("current")
     expect(ownerRead).toHaveBeenCalledWith(
       "/api/v1/admin/model-providers/model-matrix",
+    )
+  })
+
+  it("uses the versioned device authorization resources", async () => {
+    vi.mocked(ownerWrite)
+      .mockResolvedValueOnce({
+        catalog_id: "openai_chatgpt",
+        login_id: "login-1",
+        authorization_url: "https://auth.openai.com/codex/device",
+        user_code: "ABCD-1234",
+        poll_interval_seconds: 8,
+        expires_at: "2026-08-13T12:10:00Z",
+      })
+      .mockResolvedValueOnce({
+        catalog_id: "openai_chatgpt",
+        login_id: "login-1",
+        state: "pending",
+        account_id: null,
+        expires_at: null,
+        connection: null,
+      })
+
+    const started = await startProviderOAuthLogin("openai_chatgpt", "csrf")
+    const status = await completeProviderOAuthLogin(
+      started.login_id,
+      started.catalog_id,
+      "My ChatGPT",
+      "csrf",
+    )
+
+    expect(status.state).toBe("pending")
+    expect(ownerWrite).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/admin/model-providers/oauth-logins",
+      "POST",
+      "csrf",
+      { catalog_id: "openai_chatgpt" },
+    )
+    expect(ownerWrite).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/admin/model-providers/oauth-logins/login-1/complete",
+      "POST",
+      "csrf",
+      { catalog_id: "openai_chatgpt", alias: "My ChatGPT" },
     )
   })
 })

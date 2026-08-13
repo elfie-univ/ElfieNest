@@ -105,13 +105,20 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
         "Kimi-K2-Turbo",
         "Qwen3-Coder",
     ]
+    assert catalog.products["glm_api"].brand_id == "zhipu"
+    assert catalog.products["kimi_api"].brand_id == "moonshot"
+    assert catalog.products["minimax_api"].brand_id == "minimax"
     assert {
         "ollama",
         "openai",
+        "openai_chatgpt",
         "anthropic",
         "deepseek",
         "gemini",
         "qwen",
+        "zhipu",
+        "kimi",
+        "minimax",
         "xai",
         "mistral",
         "groq",
