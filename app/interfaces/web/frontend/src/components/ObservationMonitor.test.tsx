@@ -113,6 +113,7 @@ describe("ObservationMonitor", () => {
     renderMonitor()
 
     const toolbar = screen.getByRole("toolbar", { name: "监控工具栏" })
+    expect(toolbar.parentElement).toHaveClass("observation-monitor__stage")
     expect(within(toolbar).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
       "复位视角",
       "总览",

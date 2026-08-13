@@ -85,26 +85,28 @@ export function ObservationMonitor({ bedCount, immersive = false, mode = "embedd
     immersive ? "observation-monitor--immersive" : "",
   ].filter(Boolean).join(" ")
   return <section className={monitorClassName} data-slot="observation-monitor">
-    <ObserverSurface autoStart bedCount={bedCount} kind="room" roomId={roomId} showHeader={false} title={t("surface.title")} />
-    {showStatusOverlay ? <div aria-live="polite" className="observer-surface__fallback absolute inset-0 z-[2]" role="status">
-      <p>{statusCopy}</p>
-      <p>{t(monitorHelpKey(statusKey, observer?.fallbackReason))}</p>
-      {retryAvailable ? <Button aria-label={t("controls.retry")} onClick={() => { void observer.openRoom(roomId, createObserverWorldConfig(roomId, bedCount)) }} type="button">{t("controls.retry")}</Button> : null}
-    </div> : <p aria-live="polite" className="sr-only" role="status">{statusCopy}</p>}
-    <p className="sr-only">{t("help.controls")}</p>
-    {cameraViews.length === 0 ? <p className="sr-only">{t("empty.cameras")}</p> : null}
-    {showToolbar ? <div aria-label={t("toolbar.label")} className="observation-monitor__toolbar" role="toolbar">
-      <Button aria-label={t("controls.resetAria")} className="observation-monitor__command" disabled={cameraCommandDisabled} onClick={() => observer?.reset()} size="sm" type="button" variant="outline">
-        <Icon name="rotate-ccw" size={16} /><span>{t("controls.reset")}</span>
-      </Button>
-      <Button aria-label={t("controls.overview")} aria-pressed={cameraCatalog?.activeId === "overview"} className="observation-monitor__command" disabled={cameraCommandDisabled} onClick={() => observer?.overview()} size="sm" type="button" variant="outline">
-        <Icon name="cctv" size={16} /><span>{t("controls.overview")}</span>
-      </Button>
-      {cameraViews.map((view) => <Button aria-label={view.label} aria-pressed={cameraCatalog?.activeId === view.id} className="observation-monitor__camera" disabled={cameraCommandDisabled} key={view.id} onClick={() => observer?.select(view.id)} size="sm" type="button" variant="outline">{view.label}</Button>)}
-      <Button aria-label={pauseLabel} className="observation-monitor__command observation-monitor__pause" disabled={observer === null} onClick={() => observer?.setLocalPresentationPaused(!presentationPaused)} size="sm" type="button" variant="outline">
-        <Icon name={pauseIcon} size={16} /><span>{pauseLabel}</span>
-      </Button>
-    </div> : null}
+    <div className="observation-monitor__stage">
+      <ObserverSurface autoStart bedCount={bedCount} kind="room" roomId={roomId} showHeader={false} title={t("surface.title")} />
+      {showStatusOverlay ? <div aria-live="polite" className="observer-surface__fallback absolute inset-0 z-[2]" role="status">
+        <p>{statusCopy}</p>
+        <p>{t(monitorHelpKey(statusKey, observer?.fallbackReason))}</p>
+        {retryAvailable ? <Button aria-label={t("controls.retry")} onClick={() => { void observer.openRoom(roomId, createObserverWorldConfig(roomId, bedCount)) }} type="button">{t("controls.retry")}</Button> : null}
+      </div> : <p aria-live="polite" className="sr-only" role="status">{statusCopy}</p>}
+      <p className="sr-only">{t("help.controls")}</p>
+      {cameraViews.length === 0 ? <p className="sr-only">{t("empty.cameras")}</p> : null}
+      {showToolbar ? <div aria-label={t("toolbar.label")} className="observation-monitor__toolbar" role="toolbar">
+        <Button aria-label={t("controls.resetAria")} className="observation-monitor__command" disabled={cameraCommandDisabled} onClick={() => observer?.reset()} size="sm" type="button" variant="outline">
+          <Icon name="rotate-ccw" size={16} /><span>{t("controls.reset")}</span>
+        </Button>
+        <Button aria-label={t("controls.overview")} aria-pressed={cameraCatalog?.activeId === "overview"} className="observation-monitor__command" disabled={cameraCommandDisabled} onClick={() => observer?.overview()} size="sm" type="button" variant="outline">
+          <Icon name="cctv" size={16} /><span>{t("controls.overview")}</span>
+        </Button>
+        {cameraViews.map((view) => <Button aria-label={view.label} aria-pressed={cameraCatalog?.activeId === view.id} className="observation-monitor__camera" disabled={cameraCommandDisabled} key={view.id} onClick={() => observer?.select(view.id)} size="sm" type="button" variant="outline">{view.label}</Button>)}
+        <Button aria-label={pauseLabel} className="observation-monitor__command observation-monitor__pause" disabled={observer === null} onClick={() => observer?.setLocalPresentationPaused(!presentationPaused)} size="sm" type="button" variant="outline">
+          <Icon name={pauseIcon} size={16} /><span>{pauseLabel}</span>
+        </Button>
+      </div> : null}
+    </div>
     {immersive && onExitImmersive ? <Button aria-label={t("navigation.exitImmersive")} className="observation-monitor__exit-immersive" data-tooltip={t("navigation.exitImmersive")} onClick={onExitImmersive} size="icon" title={t("navigation.exitImmersive")} type="button" variant="outline">
       <Icon name="panel-left-open" size={18} />
     </Button> : null}

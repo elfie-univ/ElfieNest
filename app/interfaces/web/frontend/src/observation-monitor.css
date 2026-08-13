@@ -35,16 +35,25 @@
 .monitor-page--immersive { grid-template-columns: minmax(0, 1fr); }
 .monitor-page > .app-rail { min-height: 0; }
 .monitor-page__status { display: grid; min-width: 0; min-height: 0; margin: 0; padding: 24px; place-content: center; color: var(--text-muted); background: var(--code-bg); text-align: center; }
-.monitor-page > .observation-monitor { height: 100%; }
+.monitor-page > .observation-monitor { height: 100%; min-height: 0; }
 .observation-monitor {
   position: relative;
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: var(--code-bg);
 }
-.observation-monitor > .observer-surface { height: 100%; min-height: 0; }
+.observation-monitor__stage {
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+.observation-monitor__stage > .observer-surface { height: 100%; min-height: 0; }
 .observation-monitor .observer-surface__viewport,
 .observation-monitor .observer-surface__fallback {
   height: 100%;
@@ -102,7 +111,28 @@
   .monitor-page { grid-template-columns: minmax(0, 1fr); }
   .monitor-page > .app-rail { display: none; }
   .monitor-page { height: 100dvh; }
-  .observation-monitor__toolbar { inset: 8px; }
+  .observation-monitor__stage {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .observation-monitor__stage > .observer-surface { height: auto; }
+  .observation-monitor__toolbar {
+    position: relative;
+    inset: auto;
+    z-index: 5;
+    grid-row: 2;
+    width: 100%;
+    max-width: 100%;
+    min-height: 56px;
+    padding: 6px 8px max(6px, env(safe-area-inset-bottom));
+    padding-inline: max(8px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-right));
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 0;
+    box-shadow: 0 -8px 22px color-mix(in srgb, var(--shadow-color) 16%, transparent);
+    background: var(--surface-raised);
+  }
   .observation-monitor__exit-immersive { left: 8px; }
   .manage-dialog--camera .observation-monitor { height: min(58vh, 560px); min-height: 360px; }
 }
