@@ -22,7 +22,7 @@ DEFAULT_OUTPUT = PROJECT_ROOT / "build" / "components" / "godot-web"
 PRESET_NAME = "Web"
 ENTRY_NAME = "elfienest.html"
 REQUIRED_SUFFIXES = (".html", ".js", ".wasm", ".pck")
-LAN_HTTP_COMPATIBILITY_VERSION = "lan-http-v1"
+LAN_HTTP_COMPATIBILITY_VERSION = "lan-http-v2"
 LAN_HTTP_COMPATIBILITY_MARKER = "elfienest:lan-http-compatibility"
 _SECURE_CONTEXT_FEATURE = "Secure Context - Check web server configuration (use HTTPS)"
 _MISSING_FEATURES_STATEMENT = (
@@ -43,7 +43,7 @@ function isPrivateLanHttpOrigin() {
 \treturn first === 127 || first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
 }
 const ELFIE_NEST_LAN_HTTP = isPrivateLanHttpOrigin();
-if (ELFIE_NEST_LAN_HTTP && window.AudioContext && !window.AudioContext.prototype.audioWorklet) {
+if (ELFIE_NEST_LAN_HTTP && window.AudioContext && !('audioWorklet' in window.AudioContext.prototype)) {
 \tObject.defineProperty(window.AudioContext.prototype, 'audioWorklet', {
 \t\tconfigurable: true,
 \t\tget: () => ({ addModule: () => Promise.resolve() }),

@@ -80,6 +80,8 @@ def test_patch_web_entry_for_lan_http_adds_scoped_godot_compatibility(
 
     assert "elfienest:lan-http-compatibility" in patched
     assert "audioWorklet" in patched
+    assert "!('audioWorklet' in window.AudioContext.prototype)" in patched
+    assert "!window.AudioContext.prototype.audioWorklet" not in patched
     assert "addModule" in patched
     assert "window.location.protocol !== 'http:'" in patched
     assert "feature === 'Secure Context - Check web server configuration (use HTTPS)'" in patched
