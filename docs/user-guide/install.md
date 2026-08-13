@@ -1,77 +1,55 @@
-# Install & environment
+# Install and configure
 
-## Prerequisites
+## Before you begin
 
-- Git
-- [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- A network connection that can download CPython `3.9.25` and the project
-  dependencies
+You need a computer that can run one of the official ElfieNest packages. Choose
+the package that matches your system:
 
-## Get the source
+| Computer | Package to choose |
+| --- | --- |
+| Mac with Apple silicon | macOS arm64 |
+| Intel Mac | macOS x64 |
+| Windows PC | Windows x64 |
+| Linux PC | Linux x64 AppImage |
 
-```bash
-git clone https://github.com/elfie-univ/ElfieNest.git
-cd ElfieNest
-```
+Download only from the [official Releases page](https://github.com/elfie-univ/ElfieNest/releases).
+The preview packages are not automatically updated, so check the release notes
+when you install a newer version.
 
-## One development path
+> **No package listed yet?** The project is still in preview distribution. Do
+> not download source files or extra tools just to run ElfieNest. Wait for an
+> official package or ask your administrator for the approved file.
 
-Source development is not an installation method. In a checkout, run the one
-development entry point:
+## Install the app
 
-```bash
-./elfienest.sh
-```
+1. Download the file for your computer.
+2. Open it and follow the normal installer steps for your system.
+   - On macOS, open the disk image and move ElfieNest to Applications.
+   - On Windows, run the installer and keep the default location unless your
+     administrator tells you otherwise.
+   - On Linux, open the AppImage. Your desktop may ask you to allow it to run.
+3. Start **ElfieNest** from Applications, the Start menu or your desktop.
 
-It checks the locked development environment before opening the product menu.
+The first launch may take a little longer while the app prepares its local
+services. Do not open multiple copies of the app at the same time.
 
-## Exactly three installation methods
+Preview macOS and Windows packages may show a warning that the package is not
+signed or notarized. Confirm that the file came from the official Releases page;
+do not disable your computer's security settings for an unknown file.
 
-1. **Source installation on the current machine.** Use `./install.sh` from a
-   checkout; it installs the current native target for the current user.
-2. **Manual native installer.** Obtain the installer matching the current
-   platform from an authorized distribution channel, then use that platform's
-   normal installer flow.
-3. **Verified remote bootstrap.** This method is reserved for a published
-   bootstrap endpoint that downloads and verifies the matching native artifact.
-   No public bootstrap command is available yet.
+## What happens when you close the window?
 
-All three installation methods target the same Runtime artifact contract. This
-page does not assert that any particular installer is currently available.
+On the desktop app, closing the window hides ElfieNest and keeps its local
+services available in the background. Use **Quit ElfieNest** from the app menu
+or the tray menu when you want to stop it completely. This makes it possible to
+open a phone view without reopening the desktop window.
 
-## Source installation
+## Remove the app
 
-```bash
-./install.sh
-```
+Use your system's normal uninstall flow. Before removing the app, make sure you
+have decided whether the Nest data should be backed up or kept. If you are not
+sure, ask the Nest administrator; do not delete the data folder manually.
 
-The installer uses `uv.lock` to prepare a pinned environment and installs the
-global `elfienest` command for the current user. Do not use `sudo` or manually
-swap the Python version.
+## Next step
 
-## Verify
-
-```bash
-elfienest version
-```
-
-On success it prints version information and exits with status code `0`.
-
-## First-run Setup
-
-The first launch opens a four-step Setup wizard:
-
-1. Create the Owner account.
-2. Configure optional local offline support. This keeps the single public
-   Ollama installation enabled when selected and lets you choose one of the
-   three supported local models: `qwen2.5:0.5b` (recommended),
-   `qwen3.5:0.8b`, or `gemma3:270m`.
-3. Set the Elfie Nest bed count.
-4. Review the four saved choices and confirm installation.
-
-The first three steps only save a draft. Nothing is created, downloaded, or
-generated until the final confirmation. After confirmation, the configuration
-is locked and the installer runs five retryable phases: Owner, Ollama, model,
-emergency food, and Nest beds. The page shows one overall progress bar and
-the current phase. It does not provide a cancel or back action while these
-phases are running.
+After the app is installed, continue with [First-time configuration](./configuration).
