@@ -19,11 +19,31 @@ REPOSITORY_ROOTS = frozenset(
 SOURCE_SUFFIXES = frozenset({".cjs", ".gd", ".js", ".mjs", ".py", ".sh", ".ts", ".tsx"})
 
 
-def normalize_module_target(value: str) -> str:
-    """Return one repository module target or an empty external target."""
+def normalize_module_target(value: str, *, package: str = "") -> str:
+    """Return one repository module target or an empty external target.
+
+    ``importlib.import_module`` accepts package-relative module names such as
+    ``.api``. Resolve those against the caller package before applying the
+    repository-root check; command and script paths continue to use the
+    package-free form.
+    """
     cleaned = value.strip().replace("\\", "/")
-    while cleaned.startswith("./"):
-        cleaned = cleaned[2:]
+    if cleaned.startswith(".") and not cleaned.startswith("./"):
+        if not package:
+            return ""
+        level = len(cleaned) - len(cleaned.lstrip("."))
+        package_parts = package.split(".")
+        keep = len(package_parts) - (level - 1)
+        if keep < 0:
+            return ""
+        suffix = cleaned[level:].strip("/")
+        resolved_parts = package_parts[:keep]
+        if suffix:
+            resolved_parts.extend(suffix.split("/"))
+        cleaned = ".".join(resolved_parts)
+    else:
+        while cleaned.startswith("./"):
+            cleaned = cleaned[2:]
     if cleaned.endswith(tuple(SOURCE_SUFFIXES)):
         cleaned = cleaned.rsplit(".", 1)[0]
     cleaned = cleaned.strip("/").replace("/", ".")
