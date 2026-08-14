@@ -144,7 +144,7 @@ def test_adoption_service_creates_an_eight_digit_final_elfie_without_sql(
     _assert_only_final_tables(db_path)
 
 
-def test_nest_repositories_store_only_settings_presence_and_bed_number(
+def test_nest_repositories_store_settings_catalog_presence_and_home_anchor(
     tmp_path: Path,
 ) -> None:
     # Given: a final Elfie and a Runtime catalog containing geometry-owned labels.
@@ -159,22 +159,17 @@ def test_nest_repositories_store_only_settings_presence_and_bed_number(
         PersistentResidentState(elfie_id="00000001", presence=ResidentPresence.AWAY)
     )
     nest_repository = SQLiteNestManagementAdapter(db_path)
-    nest_repository.assign_bed("00000001", 4)
+    with pytest.raises(NestPortBedNotFound, match="home anchor not found"):
+        nest_repository.assign_home("00000001", "dorm-01/bed-04")
 
     # Then: reopening restores semantic state without storing a Godot catalog.
     restored = SQLiteNestStateAdapter(db_path).load_snapshot()
-    assert restored.catalog is None
+    assert restored.catalog == catalog
     assert restored.desired_bed_count == 4
     assert restored.residents == (
         PersistentResidentState(elfie_id="00000001", presence=ResidentPresence.AWAY),
     )
-    bed = nest_repository.load_snapshot().beds[3]
-    assert bed.occupant_id == "00000001"
-    assert bed.occupant_owner_user_id == 1
-    assert bed.occupant_owner_account_id == "owner"
-    assert bed.occupant_owner_display_name == "Owner Name"
-    with pytest.raises(NestPortBedNotFound, match="bed not found"):
-        nest_repository.assign_bed("00000001", 5)
+    assert nest_repository.load_snapshot().beds == ()
     _assert_only_final_tables(db_path)
 
 

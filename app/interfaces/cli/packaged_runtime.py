@@ -192,7 +192,9 @@ def configure_frozen_cli_runtime(
         "linux": resources.parent / "AppRun",
     }
     desktop = desktop_executables[platform]
-    application_root = resources.parent.parent if platform == "darwin" else resources.parent
+    application_root = (
+        resources.parent.parent if platform == "darwin" else resources.parent
+    )
     environment.update(
         {
             "ELFIENEST_CORE_BIN": str(core),

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from nest.state.store import NestState
+from nest.time_environment.clock import TimeEnvironmentState
 
 
 @dataclass(frozen=True)
@@ -20,7 +20,7 @@ class InvalidTickError(Exception):
 class NestEngine:
     """只推进 Nest 环境，不调用精灵认知或 3D 物理。"""
 
-    def __init__(self, state: NestState) -> None:
+    def __init__(self, state: TimeEnvironmentState) -> None:
         self._state = state
 
     def tick(self, seconds: float) -> None:
@@ -29,3 +29,4 @@ class NestEngine:
         if self._state.clock_paused:
             return
         self._state.elapsed_seconds += seconds * self._state.time_scale
+        self._state.apply_environment_rules()

@@ -260,10 +260,7 @@ class MemoryConsolidator:
         Returns:
             [{"content": str, "type": str, "confidence": float}, ...]
         """
-        if (
-            model_port is not None
-            and self._llm_calls_this_cycle < self._max_llm_calls
-        ):
+        if model_port is not None and self._llm_calls_this_cycle < self._max_llm_calls:
             try:
                 prompt = self._build_extraction_prompt(group, entity_name)
                 response = ask_memory_model(
@@ -679,10 +676,7 @@ class MemoryConsolidator:
         patterns: List[Dict[str, Any]] = []
 
         # 优先用LLM发现共同模式
-        if (
-            model_port is not None
-            and self._llm_calls_this_cycle < self._max_llm_calls
-        ):
+        if model_port is not None and self._llm_calls_this_cycle < self._max_llm_calls:
             try:
                 prompt = self._build_pattern_prompt(knowledge_nodes)
                 response = ask_memory_model(

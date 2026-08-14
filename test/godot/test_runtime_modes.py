@@ -46,7 +46,9 @@ def test_authority_semantic_replay_uses_the_shared_godot_event_path() -> None:
 
     # When: runtime controller events reach the WebSocket boundary.
     # Then: production and the fixture share the GDScript semantic projection.
-    assert (GODOT_ROOT / "runtime" / "authority_semantic_events.gd").is_file()
+    assert (
+        GODOT_ROOT / "runtime" / "endpoint" / "authority_semantic_events.gd"
+    ).is_file()
     assert (
         GODOT_ROOT / "scripts" / "test" / "test_authority_semantic_replay.gd"
     ).is_file()
@@ -61,7 +63,7 @@ def test_main_delegates_lab_bridge_behavior_to_a_dedicated_runtime() -> None:
 
     # When: either Lab mode starts.
     # Then: its bridge implementation lives in the dedicated runtime resource.
-    assert (GODOT_ROOT / "runtime" / "lab_runtime.gd").is_file()
+    assert (GODOT_ROOT / "runtime" / "lab" / "lab_runtime.gd").is_file()
     assert "LAB_RUNTIME" in main_source
     assert "_lab_runtime.setup_elfie_lab()" in main_source
     assert "_lab_runtime.setup_nest_lab()" in main_source

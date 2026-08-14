@@ -34,12 +34,19 @@ class FakeWebSocket:
         raise StopAsyncIteration
 
 
-def test_protocol_v2_world_ready_enters_runtime_queue() -> None:
+def test_protocol_v3_world_configuration_enters_nest_queue() -> None:
     server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
     websocket = FakeWebSocket(
         [
             _hello("runtime-a"),
-            _event("evt-1", "runtime-a", 1, "world_ready", 3, {"ready": True}),
+            _event(
+                "evt-1",
+                "runtime-a",
+                1,
+                "world_configured",
+                3,
+                {"configured": True, "navigation_ready": True},
+            ),
         ],
         origin="http://127.0.0.1:8000",
     )
@@ -48,16 +55,14 @@ def test_protocol_v2_world_ready_enters_runtime_queue() -> None:
 
     assert websocket.closed == []
     assert json.loads(websocket.sent[0])["payload"] == {
-        "protocol": 2,
+        "protocol": 3,
         "runtime_id": "runtime-a",
         "generation": 1,
     }
-    drained = server.drain_runtime_events()
-    assert [event.message_id for event in drained] == ["evt-1"]
-    assert server.runtime_ready is False
+    assert [event.message_id for event in server.drain_runtime_events()] == ["evt-1"]
 
 
-def test_protocol_v2_rejects_second_live_runtime() -> None:
+def test_protocol_v3_rejects_second_live_runtime() -> None:
     server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
     connection = server.runtime_session.acquire_authority("runtime-a")
     websocket = FakeWebSocket(
@@ -71,13 +76,20 @@ def test_protocol_v2_rejects_second_live_runtime() -> None:
     assert server.runtime_session.active == connection
 
 
-def test_protocol_v2_closes_when_runtime_queue_is_full() -> None:
+def test_protocol_v3_closes_when_nest_queue_is_full() -> None:
     server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
     server.runtime_session = server.runtime_session.__class__(max_queue_size=1)
     websocket = FakeWebSocket(
         [
             _hello("runtime-a"),
-            _event("evt-1", "runtime-a", 1, "world_ready", 0, {"ready": True}),
+            _event(
+                "evt-1",
+                "runtime-a",
+                1,
+                "world_configured",
+                0,
+                {"configured": True, "navigation_ready": True},
+            ),
             _event(
                 "evt-2",
                 "runtime-a",
@@ -101,7 +113,7 @@ def _hello(runtime_id: str) -> str:
         {
             "event": "hello",
             "payload": {
-                "protocol": 2,
+                "protocol": 3,
                 "nonce": "nonce-1",
                 "runtime_id": runtime_id,
             },
@@ -120,7 +132,8 @@ def _event(
     return json.dumps(
         {
             "kind": "event",
-            "protocol": 2,
+            "protocol": 3,
+            "lane": "nest",
             "name": name,
             "message_id": message_id,
             "runtime_id": runtime_id,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import (
     Callable,
@@ -79,6 +80,34 @@ class AuthorityHostConfig:
     http_port: int
     ws_port: int
     nonce: str
+
+
+class DataHomeState(str, Enum):
+    """Read-only classification of the selected product data root."""
+
+    FRESH = "fresh"
+    READY = "ready"
+    LEGACY = "legacy"
+    CORRUPT = "corrupt"
+    PERMISSION = "permission"
+
+
+@dataclass(frozen=True)
+class DataHomeInspection:
+    """Safe data-root diagnosis returned before Runtime bootstrap."""
+
+    state: DataHomeState
+    home: Path
+    detail: str
+    recoverable: bool
+
+
+@dataclass(frozen=True)
+class DataHomeRecoveryResult:
+    """Result of preserving the old root and activating a fresh root."""
+
+    home: Path
+    backup_home: Path
 
 
 @dataclass(frozen=True)
@@ -202,6 +231,10 @@ class LifecycleDataHomePort(Protocol):
         project_root: Path,
         runtime_mode: str,
     ) -> None: ...
+
+    def inspect(self, selected_home: Path) -> DataHomeInspection: ...
+
+    def recover(self, selected_home: Path) -> DataHomeRecoveryResult: ...
 
 
 class LifecycleLocalDataPort(Protocol):

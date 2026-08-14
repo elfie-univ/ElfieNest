@@ -1,12 +1,14 @@
 class_name NestActorRuntimeController
 extends Node
 
-const ACTOR_CATALOG := preload("res://runtime/actor_catalog.gd")
+const ACTOR_CATALOG := preload("res://runtime/actor/actor_catalog.gd")
+const SEMANTIC_SCENE_INDEX := preload("res://runtime/world/semantic_scene_index.gd")
+const VISUAL_MAX_RANGE_SQUARED: float = 324.0
 
 signal runtime_event(
 	event_name: String,
 	payload: Dictionary,
-	correlation_id: String,
+	cause_id: String,
 )
 
 var _nest: ModularNest
@@ -15,6 +17,8 @@ var _actor_scenes: Dictionary
 var _actors: Dictionary = {}
 var _actor_catalog: Dictionary = {}
 var _command_actor_ids: Dictionary = {}
+var _speech_reach_commands: Dictionary = {}
+var _visual_observation_commands: Dictionary = {}
 var _terminal_commands: Dictionary = {}
 var _install_actor_animations := true
 
@@ -112,6 +116,97 @@ func execute_intent(command: Dictionary) -> void:
 	_emit_command_event("intent_started", command_id, actor_id)
 
 
+func resolve_speech_reach(command: Dictionary) -> void:
+	var command_id := String(command.get("command_id", ""))
+	var actor_id := String(command.get("actor_id", ""))
+	var profile := String(command.get("acoustic_profile", "normal"))
+	if command_id.is_empty() or actor_id.is_empty() or _speech_reach_commands.has(command_id):
+		return
+	_speech_reach_commands[command_id] = actor_id
+	if profile not in ["quiet", "normal", "loud"]:
+		return
+	var speaker := actor(actor_id)
+	if speaker == null:
+		return
+	var audience: Array[String] = []
+	var speaker_zone := _nest.nearest_zone_id(speaker.global_position)
+	for other_actor_id: Variant in _actors.keys():
+		if String(other_actor_id) == actor_id:
+			continue
+		var other_actor := _actors[other_actor_id] as ElfieActor
+		if _nest.nearest_zone_id(other_actor.global_position) == speaker_zone:
+			audience.append(String(other_actor_id))
+	audience.sort()
+	runtime_event.emit(
+		"speech_reach",
+		{
+			"command_id": command_id,
+			"actor_id": actor_id,
+			"zone_id": speaker_zone,
+			"audience_actor_ids": audience,
+		},
+		command_id,
+	)
+
+
+func resolve_visual_observation(command: Dictionary) -> void:
+	var observation_id := String(command.get("observation_id", ""))
+	var actor_id := String(command.get("actor_id", ""))
+	if (
+		observation_id.is_empty()
+		or actor_id.is_empty()
+		or _visual_observation_commands.has(observation_id)
+	):
+		return
+	_visual_observation_commands[observation_id] = actor_id
+	var observer := actor(actor_id)
+	if observer == null:
+		return
+	var max_results := clampi(int(command.get("max_results", 32)), 1, 64)
+	var observer_zone := _nest.nearest_zone_id(observer.global_position)
+	var candidates: Array[String] = []
+	for other_actor_id: Variant in _actors.keys():
+		var other_id := String(other_actor_id)
+		if other_id == actor_id:
+			continue
+		var other_actor := _actors[other_actor_id] as ElfieActor
+		if (
+			_nest.nearest_zone_id(other_actor.global_position) == observer_zone
+			and observer.global_position.distance_squared_to(
+				other_actor.global_position
+			) <= VISUAL_MAX_RANGE_SQUARED
+		):
+			candidates.append("actor/%s" % other_id)
+	for anchor_id in SEMANTIC_SCENE_INDEX.sorted_anchor_ids(_nest.semantic_anchor_ids()):
+		var marker := _nest.resolve_anchor(anchor_id)
+		if marker == null:
+			continue
+		if (
+			_nest.nearest_zone_id(marker.global_position) == observer_zone
+			and observer.global_position.distance_squared_to(
+				marker.global_position
+			) <= VISUAL_MAX_RANGE_SQUARED
+		):
+			candidates.append("anchor/%s" % anchor_id)
+	var manifest := _nest.scene_manifest()
+	candidates.append_array(
+		SEMANTIC_SCENE_INDEX.active_facility_ids(manifest, observer_zone)
+	)
+	candidates.sort()
+	if candidates.size() > max_results:
+		candidates.resize(max_results)
+	runtime_event.emit(
+		"visual_observation",
+		{
+			"observation_id": observation_id,
+			"actor_id": actor_id,
+			"zone_id": observer_zone,
+			"visible_semantic_ids": candidates,
+		},
+		observation_id,
+	)
+
+
 func cancel_intent(command: Dictionary) -> void:
 	var command_id := String(command.get("command_id", ""))
 	var actor_id := String(_command_actor_ids.get(command_id, ""))
@@ -134,16 +229,16 @@ func _create_actor(actor_data: Dictionary) -> ElfieActor:
 	var actor := instance as ElfieActor
 	actor.install_shared_animations = _install_actor_animations
 	_characters.add_child(actor)
-	var home_anchor := _nest.resolve_anchor(
-		String(actor_data["home_anchor_id"])
+	var spawn_anchor := _nest.resolve_anchor(
+		String(actor_data["spawn_anchor_id"])
 	)
 	actor.configure(
 		String(actor_data["actor_id"]),
-		home_anchor.global_position,
+		spawn_anchor.global_position,
 		actor_data["appearance"] as Dictionary,
 	)
 	actor.set_meta("species", species)
-	actor.set_meta("home_anchor_id", String(actor_data["home_anchor_id"]))
+	actor.set_meta("spawn_anchor_id", String(actor_data["spawn_anchor_id"]))
 	actor.navigation_terminal.connect(
 		_on_actor_navigation_terminal.bind(String(actor_data["actor_id"]))
 	)
@@ -193,10 +288,12 @@ func _on_actor_movement_blocked(command_id: String, actor_id: String) -> void:
 
 
 func _on_actor_tactile_contact(contact: Dictionary, actor_id: String) -> void:
+	var actor_instance := actor(actor_id)
+	var cause_id := "" if actor_instance == null else actor_instance.active_command_id
 	runtime_event.emit(
 		"tactile_contact",
 		contact.merged({"actor_id": actor_id}),
-		"",
+		cause_id,
 	)
 
 
@@ -208,32 +305,8 @@ func _execute_non_movement_intent(
 	var actor_id := String(command["actor_id"])
 	var intent := String(command.get("intent", ""))
 	if intent == "speak":
-		var text := String(command.get("text", ""))
-		if text.strip_edges().is_empty():
-			_emit_terminal(command_id, actor_id, "failed", "invalid_speech")
-			return
 		_emit_command_event("intent_started", command_id, actor_id)
 		actor_instance.play_runtime_speech()
-		var audience: Array[String] = []
-		var speaker_zone := _nest.nearest_zone_id(actor_instance.global_position)
-		for other_actor_id: Variant in _actors.keys():
-			if String(other_actor_id) == actor_id:
-				continue
-			var other_actor := _actors[other_actor_id] as ElfieActor
-			if _nest.nearest_zone_id(other_actor.global_position) == speaker_zone:
-				audience.append(String(other_actor_id))
-		audience.sort()
-		runtime_event.emit(
-			"speech_audience",
-			{
-				"command_id": command_id,
-				"actor_id": actor_id,
-				"text": text,
-				"zone_id": speaker_zone,
-				"audience_actor_ids": audience,
-			},
-			command_id,
-		)
 		_emit_terminal(command_id, actor_id, "completed", "")
 		return
 	if intent == "emotion_expression":

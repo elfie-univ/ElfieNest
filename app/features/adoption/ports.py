@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from elfie.genesis import CandidateReveal, GenesisCandidate
+
 from .port_models import (
+    AdoptionNestCapacityRecord,
     AdoptionPolicyRecord,
     AdoptionQuotaRecord,
     AdoptionReservationRecord,
@@ -19,6 +22,12 @@ class AdoptionPortCapacityReached(AdoptionPortError):
     def __init__(self, limit: int) -> None:
         self.limit = limit
         super().__init__(f"adoption quota reached: {limit}")
+
+
+class AdoptionPortNestCapacityReached(AdoptionPortError):
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        super().__init__(f"Nest adoption capacity reached: {limit}")
 
 
 class AdoptionPortOwnerNotFound(AdoptionPortError):
@@ -36,6 +45,8 @@ class AdoptionPersistencePort(Protocol):
         default_limit: int,
     ) -> AdoptionQuotaRecord | None: ...
 
+    def get_nest_capacity(self) -> AdoptionNestCapacityRecord: ...
+
     def reserve(
         self,
         reservation: AdoptionReservationRecord,
@@ -45,10 +56,31 @@ class AdoptionPersistencePort(Protocol):
     def release(self, elfie_id: str) -> None: ...
 
 
+class CandidatePortraitPort(Protocol):
+    """Render two temporary candidate portraits from one Genesis appearance."""
+
+    def render(self, candidate: GenesisCandidate) -> tuple[str, str]: ...
+
+
+class AdoptionNarrativePort(Protocol):
+    """Strong-model boundary for post-acceptance names and personal stories."""
+
+    def is_ready(self) -> bool: ...
+
+    def reveal(
+        self,
+        candidate: GenesisCandidate,
+        invitation_message: str,
+    ) -> CandidateReveal: ...
+
+
 __all__ = (
     "AdoptionPersistencePort",
+    "CandidatePortraitPort",
+    "AdoptionNarrativePort",
     "AdoptionPolicyPort",
     "AdoptionPortCapacityReached",
+    "AdoptionPortNestCapacityReached",
     "AdoptionPortError",
     "AdoptionPortOwnerNotFound",
 )

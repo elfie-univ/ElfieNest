@@ -36,6 +36,21 @@ def test_runtime_record_round_trip_and_remove(tmp_path: Path) -> None:
     assert adapter.read().state is RuntimeHealthState.STOPPED
 
 
+def test_runtime_record_round_trips_a_transient_startup_owner(tmp_path: Path) -> None:
+    adapter = FileRuntimeRecordAdapter(tmp_path)
+    health = RuntimeHealth(
+        state=RuntimeHealthState.STARTING,
+        generation=4,
+        owner_lease=None,
+        components=(),
+        startup_owner_id="desktop-starting",
+    )
+
+    adapter.write(health)
+
+    assert adapter.read() == health
+
+
 def test_runtime_record_rejects_invalid_shape(tmp_path: Path) -> None:
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()

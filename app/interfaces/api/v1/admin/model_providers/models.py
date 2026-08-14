@@ -22,9 +22,7 @@ from app.features.configuration import (
 )
 
 StrictModel = ConfigDict(extra="forbid", strict=True)
-ApiMode = Literal[
-    "ollama", "chat_completions", "anthropic_messages", "codex_responses"
-]
+ApiMode = Literal["ollama", "chat_completions", "anthropic_messages", "codex_responses"]
 AuthType = Literal["none", "bearer", "x-api-key"]
 
 

@@ -1,3 +1,4 @@
+import base64
 from pathlib import Path
 
 import pytest
@@ -109,4 +110,34 @@ def test_workspace_adapter_uses_a_cat_compatible_pattern_for_marked_signature(
     assert profile.identity.species_id == "cat"
     assert profile.appearance.coat.pattern_id == "tabby"
     profile.validate()
+    adapter.release(reservation.elfie_id)
+
+
+def test_workspace_adapter_persists_both_accepted_portrait_views(
+    tmp_path: Path,
+) -> None:
+    png = b"\x89PNG\r\n\x1a\nportrait"
+    data_url = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+    adapter = FinalElfieWorkspaceAdapter(tmp_path)
+    reservation = AcceptedAdoptionReservation(
+        elfie_id="00000003",
+        owner_user_id=7,
+        name="星砂",
+        species_id="fox",
+        personality_style="好奇探索",
+        height="standard",
+        build="standard",
+        appearance_seed=42,
+        face="soft",
+        signature="warm",
+        gender="female",
+        birth_date="2000-01-01",
+        full_body_image_url=data_url,
+        headshot_image_url=data_url,
+    )
+
+    workspace = Path(adapter.materialize(reservation))
+
+    assert (workspace / "assets" / "portrait-full.png").read_bytes() == png
+    assert (workspace / "assets" / "portrait-head.png").read_bytes() == png
     adapter.release(reservation.elfie_id)

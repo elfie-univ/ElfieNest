@@ -1,4 +1,4 @@
-"""Translate temporary Lab actors into the established Godot v2 actor command."""
+"""Translate temporary Lab actors into the established Godot v3 actor command."""
 
 from __future__ import annotations
 

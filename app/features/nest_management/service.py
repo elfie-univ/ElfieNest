@@ -15,7 +15,7 @@ from .errors import (
     NestResidentNotFound,
 )
 from .models import (
-    AssignNestBedCommand,
+    AssignNestHomeCommand,
     NestBed,
     NestBedAssignment,
     NestConfiguration,
@@ -67,18 +67,18 @@ class NestManagementService:
             applied_world_revision=snapshot.applied_world_revision,
         )
 
-    def assign_bed(
+    def assign_home(
         self,
         principal: AccountPrincipal,
-        command: AssignNestBedCommand,
+        command: AssignNestHomeCommand,
     ) -> NestBedAssignment:
         self._require_manager(principal)
         if not command.elfie_id.strip():
             raise NestResidentNotFound("Elfie not found")
-        if command.bed_number is not None and command.bed_number < 1:
-            raise NestBedNotFound("bed not found")
+        if command.home_anchor_id is not None and not command.home_anchor_id.strip():
+            raise NestBedNotFound("home anchor not found")
         try:
-            self._persistence.assign_bed(command.elfie_id, command.bed_number)
+            self._persistence.assign_home(command.elfie_id, command.home_anchor_id)
         except NestPortResidentNotFound as error:
             raise NestResidentNotFound("Elfie not found") from error
         except NestPortBedNotFound as error:
@@ -87,12 +87,9 @@ class NestManagementService:
             raise NestBedConflict("bed already occupied") from error
         except NestPortError as error:
             raise NestManagementUnavailable("Nest management unavailable") from error
-        anchor_id = (
-            None if command.bed_number is None else f"bed-{command.bed_number:02d}"
-        )
         return NestBedAssignment(
             elfie_id=command.elfie_id,
-            home_anchor_id=anchor_id,
+            home_anchor_id=command.home_anchor_id,
         )
 
     @staticmethod
@@ -110,9 +107,9 @@ class NestManagementService:
             applied_world_revision=snapshot.applied_world_revision,
             beds=tuple(
                 NestBed(
-                    bed_number=bed.bed_number,
-                    anchor_id=f"bed-{bed.bed_number:02d}",
-                    label=f"Bed {bed.bed_number:02d}",
+                    anchor_id=bed.anchor_id,
+                    label=bed.label,
+                    order=bed.order,
                     occupant_id=bed.occupant_id,
                     occupant_name=bed.occupant_name,
                     occupant_owner_user_id=bed.occupant_owner_user_id,

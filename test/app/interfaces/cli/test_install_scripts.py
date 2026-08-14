@@ -256,11 +256,13 @@ def test_elfienest_entrypoint_delegates_development_dependencies_to_bootstrap() 
     assert "--env-only" not in script
     assert "serve)" in script
     assert "serve|server)" not in script
-    # Commands include mobile and uninstall in interactive mode
+    # Commands include mobile and uninstall in interactive mode. ``v`` has its
+    # own fast path, while the remaining commands share one dispatch arm.
     assert (
-        "config|owner|doctor|status|web|desktop|mobile|stop|restart|start|version|v|setup|uninstall)"
+        "config|owner|doctor|status|web|desktop|mobile|stop|restart|start|version|setup|uninstall)"
         in script
     )
+    assert "v) ELFIENEST_INTERACTIVE=1" in script
     # Direct command routing delegates to Python CLI, no build-godot-web case
     assert '""|exit|quit|q)' not in script
     assert '"" ) continue ;;' in script

@@ -204,7 +204,9 @@ def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
     monkeypatch.setattr(
         ModelExecutionAgent, "structured_capabilities", fake_structured_capabilities
     )
-    monkeypatch.setattr(ModelExecutionAgent, "generate_structured", fake_generate_structured)
+    monkeypatch.setattr(
+        ModelExecutionAgent, "generate_structured", fake_generate_structured
+    )
     client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
     created = client.post("/api/elfies", json=elfie_payload("粮食交互测试")).json()
 

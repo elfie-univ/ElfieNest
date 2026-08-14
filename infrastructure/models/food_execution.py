@@ -64,6 +64,7 @@ class FoodExecutor:
         semantic_role: str = "primary",
         allowed_tools: tuple[str, ...] = (),
         max_loops: int = 3,
+        allow_fallback: bool = True,
         images: tuple[str, ...] = (),
         audio: str | None = None,
         scope_id: str | None = None,
@@ -76,7 +77,11 @@ class FoodExecutor:
         candidates: list[tuple[str, FoodAssignment]] = []
         if selected is not None:
             candidates.append((stage, selected))
-        if package.fallback is not None and package.fallback != selected:
+        if (
+            allow_fallback
+            and package.fallback is not None
+            and package.fallback != selected
+        ):
             candidates.append(("fallback", package.fallback))
         attempts: list[dict[str, str]] = []
         for candidate_stage, assignment in candidates:

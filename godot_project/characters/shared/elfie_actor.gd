@@ -1,9 +1,9 @@
 class_name ElfieActor
 extends CharacterBody3D
 
-const ACTOR_PATH_PLANNER := preload("res://runtime/actor_path_planner.gd")
-const ACTOR_ANIMATION_RUNTIME := preload("res://runtime/actor_animation_runtime.gd")
-const ACTOR_APPEARANCE := preload("res://runtime/actor_appearance.gd")
+const ACTOR_PATH_PLANNER := preload("res://runtime/actor/actor_path_planner.gd")
+const ACTOR_ANIMATION_RUNTIME := preload("res://runtime/actor/actor_animation_runtime.gd")
+const ACTOR_APPEARANCE := preload("res://runtime/actor/actor_appearance.gd")
 const WALK_SPEED := 1.15
 const ARRIVAL_DISTANCE := 0.22
 const BLOCKED_SECONDS := 1.5

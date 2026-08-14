@@ -1,4 +1,4 @@
-"""Threaded WebSocket gateway for the Godot protocol v2 runtime."""
+"""Threaded WebSocket gateway for the Godot protocol v3 runtime."""
 
 from __future__ import annotations
 
@@ -8,16 +8,18 @@ import logging
 import os
 import secrets
 import threading
-from typing import Any, cast
+from threading import RLock
+from typing import Any, Protocol, cast
 
 import websockets
 
 from infrastructure.godot.body_transport import RuntimeIntentPayload
-from infrastructure.godot.gateway.api_v2 import GodotProtocolV2Handler
+from infrastructure.godot.gateway.api_v3 import GodotProtocolV3Handler
 from infrastructure.godot.gateway.messages import (
     CommandName,
     JsonObject,
     RuntimeEventFrame,
+    SemanticLane,
 )
 from infrastructure.godot.gateway.session import (
     RuntimeConnection,
@@ -26,7 +28,14 @@ from infrastructure.godot.gateway.session import (
 )
 
 logger = logging.getLogger("infrastructure.godot.gateway.api")
-GODOT_PROTOCOL_VERSION = 2
+GODOT_PROTOCOL_VERSION = 3
+GATEWAY_STOP_JOIN_TIMEOUT_SECONDS = 0.5
+
+
+class BodyEventSink(Protocol):
+    """One actor-scoped consumer of validated Body-lane frames."""
+
+    def receive_runtime_event(self, event: RuntimeEventFrame) -> None: ...
 
 
 class GodotAPIServer:
@@ -62,6 +71,8 @@ class GodotAPIServer:
         self._running = False
         self._ready = threading.Event()
         self._startup_error: BaseException | None = None
+        self._body_sinks: dict[str, BodyEventSink] = {}
+        self._body_sinks_lock = RLock()
 
     def start(self) -> None:
         if self._running:
@@ -92,7 +103,11 @@ class GodotAPIServer:
         if self._loop is not None and self._loop.is_running():
             asyncio.run_coroutine_threadsafe(self._async_stop(), self._loop)
         if self._thread is not None:
-            self._thread.join(timeout=2.0)
+            # The event loop's close coroutine has already been scheduled. Do
+            # not hold Core shutdown for the old 2-second thread-join ceiling;
+            # the thread is daemon-owned and the process-group stop remains the
+            # final safety net if a peer is slow to close.
+            self._thread.join(timeout=GATEWAY_STOP_JOIN_TIMEOUT_SECONDS)
 
     def _run_event_loop(self) -> None:
         if self._loop is None:
@@ -166,14 +181,15 @@ class GodotAPIServer:
         ):
             await websocket.close(4004, "Invalid Godot handshake")
             return
-        await GodotProtocolV2Handler(
+        await GodotProtocolV3Handler(
             session=self.runtime_session,
             clients=self.clients,
+            event_receiver=self.route_runtime_event,
         ).handle(websocket, payload)
 
     @property
     def runtime_ready(self) -> bool:
-        return self.runtime_session.ready_revision is not None
+        return self.runtime_session.active is not None
 
     @property
     def runtime_connection(self) -> RuntimeConnection | None:
@@ -181,7 +197,7 @@ class GodotAPIServer:
 
     @property
     def runtime_world_revision(self) -> int | None:
-        return self.runtime_session.ready_revision
+        return self.runtime_session.configured_revision
 
     def send_runtime_command(
         self,
@@ -189,7 +205,7 @@ class GodotAPIServer:
         payload: JsonObject,
         *,
         world_revision: int,
-        correlation_id: str | None = None,
+        cause_id: str | None = None,
     ) -> str | None:
         if self._loop is None or not self._loop.is_running():
             return None
@@ -198,7 +214,7 @@ class GodotAPIServer:
                 name,
                 payload,
                 world_revision=world_revision,
-                correlation_id=correlation_id,
+                cause_id=cause_id,
             )
         except RuntimeSessionNotReadyError:
             return None
@@ -212,9 +228,9 @@ class GodotAPIServer:
         self,
         payload: RuntimeIntentPayload,
         *,
-        correlation_id: str,
+        cause_id: str,
     ) -> bool:
-        revision = self.runtime_session.ready_revision
+        revision = self.runtime_session.configured_revision
         if revision is None:
             return False
         return (
@@ -222,13 +238,79 @@ class GodotAPIServer:
                 CommandName.EXECUTE_INTENT,
                 cast(JsonObject, payload),
                 world_revision=revision,
-                correlation_id=correlation_id,
+                cause_id=cause_id,
+            )
+            is not None
+        )
+
+    def request_speech_reach(
+        self,
+        *,
+        command_id: str,
+        actor_id: str,
+        acoustic_profile: str,
+        world_revision: int,
+    ) -> bool:
+        return (
+            self.send_runtime_command(
+                CommandName.REQUEST_SPEECH_REACH,
+                {
+                    "command_id": command_id,
+                    "actor_id": actor_id,
+                    "acoustic_profile": acoustic_profile,
+                },
+                world_revision=world_revision,
+                cause_id=command_id,
+            )
+            is not None
+        )
+
+    def request_visual_observation(
+        self,
+        *,
+        observation_id: str,
+        actor_id: str,
+        max_results: int,
+        world_revision: int,
+    ) -> bool:
+        return (
+            self.send_runtime_command(
+                CommandName.REQUEST_VISUAL_OBSERVATION,
+                {
+                    "observation_id": observation_id,
+                    "actor_id": actor_id,
+                    "max_results": max_results,
+                },
+                world_revision=world_revision,
+                cause_id=observation_id,
+            )
+            is not None
+        )
+
+    def apply_environment(
+        self,
+        *,
+        command_id: str,
+        lights_on: bool,
+        quiet_mode: bool,
+        world_revision: int,
+    ) -> bool:
+        return (
+            self.send_runtime_command(
+                CommandName.APPLY_ENVIRONMENT,
+                {
+                    "command_id": command_id,
+                    "lights_on": lights_on,
+                    "quiet_mode": quiet_mode,
+                },
+                world_revision=world_revision,
+                cause_id=command_id,
             )
             is not None
         )
 
     def cancel_body_command(self, *, command_id: str, actor_id: str) -> bool:
-        revision = self.runtime_session.ready_revision
+        revision = self.runtime_session.configured_revision
         if revision is None:
             return False
         return (
@@ -236,24 +318,55 @@ class GodotAPIServer:
                 CommandName.CANCEL_INTENT,
                 {"command_id": command_id, "actor_id": actor_id},
                 world_revision=revision,
-                correlation_id=command_id,
+                cause_id=command_id,
             )
             is not None
         )
 
     def drain_runtime_events(self) -> tuple[RuntimeEventFrame, ...]:
+        """Drain only Nest-lane events; Body events never enter this queue."""
         return self.runtime_session.drain_events()
 
-    def mark_runtime_ready(
+    def mark_world_configured(
         self,
         connection: RuntimeConnection,
         *,
         world_revision: int,
     ) -> None:
-        self.runtime_session.mark_ready(
+        self.runtime_session.mark_world_configured(
             connection,
             world_revision=world_revision,
         )
+
+    def register_body_sink(self, actor_id: str, sink: BodyEventSink) -> None:
+        """Register the sole direct Body destination for one actor ID."""
+        if not actor_id:
+            raise ValueError("actor_id must not be empty")
+        with self._body_sinks_lock:
+            existing = self._body_sinks.get(actor_id)
+            if existing is not None and existing is not sink:
+                raise RuntimeError(f"body sink already registered: {actor_id}")
+            self._body_sinks[actor_id] = sink
+
+    def unregister_body_sink(self, actor_id: str, sink: BodyEventSink) -> None:
+        with self._body_sinks_lock:
+            if self._body_sinks.get(actor_id) is sink:
+                self._body_sinks.pop(actor_id, None)
+
+    def route_runtime_event(self, event: RuntimeEventFrame) -> None:
+        """Validate authority and classify a frame before its first delivery."""
+        if event.lane is SemanticLane.BODY:
+            if not self.runtime_session.accept_event(event):
+                return
+            target_actor_id = event.target_actor_id
+            if target_actor_id is None:  # pragma: no cover - model already enforces it.
+                return
+            with self._body_sinks_lock:
+                sink = self._body_sinks.get(target_actor_id)
+            if sink is not None:
+                sink.receive_runtime_event(event)
+            return
+        self.runtime_session.enqueue_event(event)
 
     async def _broadcast(self, message: JsonObject) -> None:
         if not self.clients:
@@ -265,4 +378,4 @@ class GodotAPIServer:
         )
 
 
-__all__ = ("GODOT_PROTOCOL_VERSION", "GodotAPIServer")
+__all__ = ("BodyEventSink", "GODOT_PROTOCOL_VERSION", "GodotAPIServer")

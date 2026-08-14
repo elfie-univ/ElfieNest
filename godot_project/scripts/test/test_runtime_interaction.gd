@@ -1,7 +1,7 @@
 extends SceneTree
 
-const ACTOR_CONTROLLER_SCRIPT := preload("res://runtime/actor_controller.gd")
-const WORLD_CONTROLLER_SCRIPT := preload("res://runtime/world_controller.gd")
+const ACTOR_CONTROLLER_SCRIPT := preload("res://runtime/actor/actor_controller.gd")
+const WORLD_CONTROLLER_SCRIPT := preload("res://runtime/world/world_controller.gd")
 const ACTOR_SCENES := {
 	"dog": preload("res://characters/dog/dog.tscn"),
 	"fox": preload("res://characters/fox/fox.tscn"),
@@ -36,13 +36,13 @@ func _init() -> void:
 		{
 			"actor_id": "fox-1",
 			"species": "fox",
-			"home_anchor_id": "dorm-01/bed-02",
+			"spawn_anchor_id": "dorm-01/bed-02",
 			"appearance": {},
 		},
 		{
 				"actor_id": "dog-1",
 				"species": "dog",
-				"home_anchor_id": "dorm-01/bed-01",
+			"spawn_anchor_id": "dorm-01/bed-01",
 			"appearance": {},
 		},
 	]) as Dictionary
@@ -52,19 +52,36 @@ func _init() -> void:
 
 	var events: Array[Dictionary] = []
 	controller.runtime_event.connect(
-		func(name: String, payload: Dictionary, _correlation_id: String) -> void:
+		func(name: String, payload: Dictionary, _cause_id: String) -> void:
 			events.append({"name": name, "payload": payload})
 	)
+	controller.resolve_speech_reach({
+		"command_id": "speech-1",
+		"actor_id": "fox-1",
+		"acoustic_profile": "normal",
+	})
 	controller.execute_intent({
 		"command_id": "speech-1",
 		"actor_id": "fox-1",
 		"intent": "speak",
-		"text": "你好",
 		"deadline_seconds": 2.0,
 	})
-	var audience: Variant = _event_payload(events, "speech_audience", "speech-1")
+	var audience: Variant = _event_payload(events, "speech_reach", "speech-1")
 	if audience == null or audience.get("audience_actor_ids", []) != ["dog-1"]:
 		_fail("Speech audience was not limited to the active semantic zone")
+		return
+	controller.resolve_visual_observation({
+		"observation_id": "vision-1",
+		"actor_id": "fox-1",
+		"max_results": 8,
+	})
+	var visual: Variant = _event_payload(events, "visual_observation", "vision-1")
+	var visible_ids: Array = [] if visual == null else visual.get(
+		"visible_semantic_ids",
+		[],
+	)
+	if visual == null or "actor/dog-1" not in visible_ids:
+		_fail("Semantic visual observation did not include the nearby actor")
 		return
 
 	controller.execute_intent({
@@ -195,7 +212,9 @@ func _event_payload(
 		var payload := event["payload"] as Dictionary
 		if (
 			String(event["name"]) == event_name
-			and String(payload.get("command_id", "")) == command_id
+			and String(
+				payload.get("command_id", payload.get("observation_id", ""))
+			) == command_id
 		):
 			return payload
 	return null

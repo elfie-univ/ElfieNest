@@ -384,7 +384,9 @@ class FoodModelExecutionAgent:
     @property
     def tool_port(self) -> Any:
         """Expose the model-execution-injected semantic tool view to Brain."""
-        return self._brain_tool_port or getattr(self.model_environment, "tool_port", None)
+        return self._brain_tool_port or getattr(
+            self.model_environment, "tool_port", None
+        )
 
     def ask(self, prompt: str, energy: float, task_complexity: int) -> str:
         result = self.model_environment.run_with_food(
@@ -409,7 +411,9 @@ def create_model_execution(
     if normalized == "mock":
         return TracingModelExecutionAgent(MockModelExecutionAgent(), "mock")
 
-    model_environment = ElfieLabModelEnvironment(config_dir or default_model_execution_config_dir())
+    model_environment = ElfieLabModelEnvironment(
+        config_dir or default_model_execution_config_dir()
+    )
     config = model_environment.load_model_execution_config()
     food_store = model_execution_food_catalog_store(model_environment)
     catalog = load_model_execution_food_catalog(model_environment, food_store)
@@ -437,7 +441,9 @@ def create_model_execution(
     return TracingModelExecutionAgent(food_agent, normalized)
 
 
-def _model_execution_agent_ports(model_environment: ElfieLabModelEnvironment) -> ModelExecutionAgentPorts:
+def _model_execution_agent_ports(
+    model_environment: ElfieLabModelEnvironment,
+) -> ModelExecutionAgentPorts:
     observer = get_model_execution_observer()
     tool_config_loader = partial(
         load_tool_configs,

@@ -9,17 +9,19 @@ import type {
 } from "./adoption-model"
 
 type JourneyT = (key: string, options?: Record<string, unknown>) => string
-type CandidateImageUrl = (candidate: Pick<CandidateReply, "imageUrl" | "speciesId">) => string
+type CandidateImageUrl = (candidate: Pick<CandidateReply, "headshotImageUrl" | "fullBodyImageUrl" | "speciesId">, kind?: "headshot" | "fullBody") => string
 
 type RepliesScreenProps = {
+  readonly candidateLabel: (candidateId: string) => string
   readonly dispatch: React.Dispatch<AdoptionAction>
   readonly finalCandidateId: string | null
   readonly intro: ReactNode
   readonly replies: readonly CandidateReply[]
   readonly candidateImageUrl: CandidateImageUrl
+  readonly t: JourneyT
 }
 
-export function RepliesScreen({ candidateImageUrl, dispatch, finalCandidateId, intro, replies }: RepliesScreenProps) {
+export function RepliesScreen({ candidateImageUrl, candidateLabel, dispatch, finalCandidateId, intro, replies, t }: RepliesScreenProps) {
   return <section>
     {intro}
     <div className="adoption-reply-grid">
@@ -31,15 +33,17 @@ export function RepliesScreen({ candidateImageUrl, dispatch, finalCandidateId, i
           onClick={() => dispatch({ type: "select-final", candidateId: reply.candidateId })}
           type="button"
         >
-          <img alt="" src={candidateImageUrl(reply)} />
-          <strong>{reply.originalName}</strong>
+          <img alt="" src={candidateImageUrl(reply, "headshot")} />
+          <strong>{reply.reveal?.originalName ?? candidateLabel(reply.candidateId)}</strong>
           <span>{reply.message}</span>
+          {reply.reveal?.personalStory ? <small>{reply.reveal.personalStory}</small> : null}
           {finalCandidateId === reply.candidateId ? <span className="adoption-choice__check"><Icon name="check" size={16} /></span> : null}
         </button>
       ) : (
         <div className="adoption-reply-card adoption-reply-card--unsure" key={reply.candidateId}>
-          <img alt="" src={candidateImageUrl(reply)} />
-          <strong>{reply.originalName}</strong>
+          <img alt="" src={candidateImageUrl(reply, "headshot")} />
+          <strong>{candidateLabel(reply.candidateId)}</strong>
+          <small>{t("adoption.journey.replies.pending")}</small>
           <span>{reply.message}</span>
         </div>
       ))}
@@ -50,6 +54,7 @@ export function RepliesScreen({ candidateImageUrl, dispatch, finalCandidateId, i
 type NamingScreenProps = {
   readonly candidate: CandidateReply
   readonly candidateImageUrl: CandidateImageUrl
+  readonly candidateLabel: string
   readonly customName: string
   readonly dispatch: React.Dispatch<AdoptionAction>
   readonly intro: ReactNode
@@ -57,7 +62,7 @@ type NamingScreenProps = {
   readonly t: JourneyT
 }
 
-export function NamingScreen({ candidate, candidateImageUrl, customName, dispatch, intro, nameMode, t }: NamingScreenProps) {
+export function NamingScreen({ candidate, candidateImageUrl, candidateLabel, customName, dispatch, intro, nameMode, t }: NamingScreenProps) {
   const setNameMode = (value: string): void => {
     if (value === "original" || value === "suggested" || value === "custom") {
       dispatch({ type: "name-mode", mode: value })
@@ -68,8 +73,8 @@ export function NamingScreen({ candidate, candidateImageUrl, customName, dispatc
     {intro}
     <div className="adoption-naming-layout">
       <div className="adoption-naming-person">
-        <img alt={t("adoption.journey.naming.portraitAlt", { name: candidate.originalName })} src={candidateImageUrl(candidate)} />
-        <strong>{candidate.originalName}</strong>
+        <img alt={t("adoption.journey.naming.portraitAlt", { name: candidate.reveal?.originalName ?? candidateLabel })} src={candidateImageUrl(candidate, "headshot")} />
+        <strong>{candidate.reveal?.originalName ?? candidateLabel}</strong>
       </div>
       <fieldset className="adoption-name-options">
         <legend>{t("adoption.journey.naming.label")}</legend>
@@ -83,13 +88,13 @@ export function NamingScreen({ candidate, candidateImageUrl, customName, dispatc
             <span aria-hidden="true" className="adoption-name-option__radio">
               <RadioGroupPrimitive.Indicator className="adoption-name-option__indicator" forceMount><Icon name="check" size={14} /></RadioGroupPrimitive.Indicator>
             </span>
-            <span>{t("adoption.journey.naming.original", { name: candidate.originalName })}</span>
+            <span>{t("adoption.journey.naming.original", { name: candidate.reveal?.originalName ?? candidateLabel })}</span>
           </RadioGroupPrimitive.Item>
           <RadioGroupPrimitive.Item className="adoption-name-option" value="suggested">
             <span aria-hidden="true" className="adoption-name-option__radio">
               <RadioGroupPrimitive.Indicator className="adoption-name-option__indicator" forceMount><Icon name="check" size={14} /></RadioGroupPrimitive.Indicator>
             </span>
-            <span>{t("adoption.journey.naming.suggested", { name: candidate.suggestedName })}</span>
+            <span>{t("adoption.journey.naming.suggested", { name: candidate.reveal?.suggestedName ?? t("adoption.journey.naming.suggestedUnavailable") })}</span>
           </RadioGroupPrimitive.Item>
           <div className="adoption-name-option-row" data-selected={nameMode === "custom" ? "true" : "false"}>
             <RadioGroupPrimitive.Item className="adoption-name-option" value="custom">

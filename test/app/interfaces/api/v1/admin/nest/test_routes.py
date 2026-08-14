@@ -12,6 +12,7 @@ from infrastructure.persistence.nest_db.nest_management import (
 )
 from infrastructure.persistence.nest_db.store import get_db, init_db
 from nest import NestConfig
+from nest.public import AnchorKind, InteractionAnchor, WorldCatalog, ZoneDescriptor
 
 
 def _principal(role: AccountRole = "owner") -> AccountPrincipal:
@@ -57,6 +58,30 @@ def _seed_nest(db_path: str) -> None:
                VALUES (?, ?, 1.0)""",
             (config.nest_id, config.bed_count),
         )
+        catalog = WorldCatalog(
+            nest_id=config.nest_id,
+            revision=1,
+            zones=(
+                ZoneDescriptor(
+                    zone_id="dorm-01",
+                    label="Dorm 01",
+                    order=0,
+                    anchors=tuple(
+                        InteractionAnchor(
+                            anchor_id=f"dorm-01/bed-{index:02d}",
+                            kind=AnchorKind.BED,
+                            label=f"Bed {index:02d}",
+                            order=index - 1,
+                        )
+                        for index in range(1, config.bed_count + 1)
+                    ),
+                ),
+            ),
+        )
+        connection.execute(
+            "UPDATE nest_settings SET world_catalog_json=? WHERE nest_id=?",
+            (catalog.model_dump_json(), config.nest_id),
+        )
         connection.commit()
 
 
@@ -71,7 +96,7 @@ def test_versioned_admin_nest_real_chain(tmp_path) -> None:
     )
     assigned = client.put(
         "/api/v1/admin/nest/elfies/00000001/bed",
-        json={"home_anchor_id": "bed-02"},
+        json={"home_anchor_id": "dorm-01/bed-02"},
     )
     rooms = client.get("/api/v1/admin/nest/rooms")
 
@@ -81,7 +106,7 @@ def test_versioned_admin_nest_real_chain(tmp_path) -> None:
         "applied_world_revision": None,
     }
     assert assigned.status_code == 200
-    assert assigned.json()["home_anchor_id"] == "bed-02"
+    assert assigned.json()["home_anchor_id"] == "dorm-01/bed-02"
     assert rooms.status_code == 200
     assert rooms.json()["items"][0]["beds"][1]["occupant_id"] == "00000001"
 
@@ -93,12 +118,12 @@ def test_versioned_admin_nest_maps_conflict_to_error_envelope(tmp_path) -> None:
     _seed_elfie(db_path, "00000002")
     client.put(
         "/api/v1/admin/nest/elfies/00000001/bed",
-        json={"home_anchor_id": "bed-01"},
+        json={"home_anchor_id": "dorm-01/bed-01"},
     )
 
     response = client.put(
         "/api/v1/admin/nest/elfies/00000002/bed",
-        json={"home_anchor_id": "bed-01"},
+        json={"home_anchor_id": "dorm-01/bed-01"},
     )
 
     assert response.status_code == 409

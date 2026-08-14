@@ -177,8 +177,7 @@ class ElfieLabMediaStore:
         """重新构造安全描述符，供回合请求按 ID 引用已上传媒体。"""
         path = self.path_for(elfie_id, media_id)
         mime_by_suffix = {
-            f".{item.extension}": item.mime_type
-            for item in _MEDIA_FORMATS
+            f".{item.extension}": item.mime_type for item in _MEDIA_FORMATS
         }
         digest = media_id.removeprefix("media_")
         return MediaDescriptor(

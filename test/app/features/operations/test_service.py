@@ -85,7 +85,9 @@ class MemoryModelExecutionObserver:
                 status="ok",
                 subject="local_fast",
                 metadata=(
-                    StoredModelExecutionMetadata(key="reason", value="remote unavailable"),
+                    StoredModelExecutionMetadata(
+                        key="reason", value="remote unavailable"
+                    ),
                 ),
             ),
         )

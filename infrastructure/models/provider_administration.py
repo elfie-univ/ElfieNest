@@ -181,7 +181,9 @@ class ProviderModelsAdapter:
         provider_connection = self._provider_connection(connection)
         try:
             if update_credential:
-                provider_connection = self._store.replace_with_secret(provider_connection, api_key)
+                provider_connection = self._store.replace_with_secret(
+                    provider_connection, api_key
+                )
             else:
                 self._store.replace(provider_connection)
             return self._connection(provider_connection)
@@ -474,7 +476,9 @@ class ProviderModelsAdapter:
                 if not catalog_models:
                     catalog_models = bundled_catalog_models(profile.bundled_models)
             if catalog_models:
-                merged = merge_refreshed_models(provider_connection.models, catalog_models)
+                merged = merge_refreshed_models(
+                    provider_connection.models, catalog_models
+                )
                 return StoredModelRefresh(
                     status=catalog_models[0].source,
                     checked_at=checked_at,
@@ -707,7 +711,9 @@ class ProviderModelsAdapter:
         finally:
             _DISCOVERY_SLOTS.release()
 
-    def _model_execution_projection(self, connection: ProviderConnection) -> tuple[str, Any]:
+    def _model_execution_projection(
+        self, connection: ProviderConnection
+    ) -> tuple[str, Any]:
         execution_id, config = model_execution_projection(
             connection,
             secret_resolver=self._resolve_credential,

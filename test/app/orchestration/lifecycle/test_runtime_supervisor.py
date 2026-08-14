@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, replace
+from typing import Callable, Optional
 
 from app.orchestration.lifecycle.ports import AuthorityProcess
 from app.orchestration.lifecycle.runtime_health import (
     ComponentHealth,
+    OwnerLease,
     RuntimeComponent,
     RuntimeHealth,
     RuntimeHealthState,
+    RuntimeProgressPhase,
 )
 from app.orchestration.lifecycle.runtime_supervisor import RuntimeSupervisor
 from app.orchestration.lifecycle.types import (
@@ -121,6 +123,152 @@ def test_start_records_one_generation_and_degrades_only_for_ollama() -> None:
     assert health.generation == 1
     assert health.owner_lease is not None
     assert health.owner_lease.owner_id == "cli"
+
+
+def test_start_emits_progress_and_promotes_the_startup_claim() -> None:
+    record = MemoryRecord()
+    phases: list[RuntimeProgressPhase] = []
+    supervisor = _supervisor(
+        record=record,
+        start_core=lambda healthy: (
+            healthy() and ServiceLifecycleResult(status="started", pid=7111)
+        ),
+        progress_callback=phases.append,
+    )
+
+    result = supervisor.start(owner_id="desktop-progress")
+
+    assert result.status == "started"
+    assert phases[0] is RuntimeProgressPhase.STARTING
+    assert RuntimeProgressPhase.CORE_READY in phases
+    assert RuntimeProgressPhase.READY in phases
+    assert phases.index(RuntimeProgressPhase.CORE_READY) < phases.index(
+        RuntimeProgressPhase.READY
+    )
+    assert record.read().startup_owner_id is None
+    assert record.read().owner_lease is not None
+    assert record.read().owner_lease.owner_id == "desktop-progress"
+
+
+def test_start_rejects_a_runtime_already_claimed_by_another_startup() -> None:
+    record = MemoryRecord()
+    record.write(
+        RuntimeHealth(
+            state=RuntimeHealthState.STARTING,
+            generation=0,
+            owner_lease=None,
+            components=(),
+            startup_owner_id="desktop-existing",
+        )
+    )
+    calls: list[str] = []
+    supervisor = _supervisor(
+        record=record,
+        start_core=lambda healthy: (
+            calls.append("core") or ServiceLifecycleResult(status="started")
+        ),
+    )
+
+    result = supervisor.start(owner_id="desktop-new")
+
+    assert result.status == "failed"
+    assert calls == []
+    assert record.read().startup_owner_id == "desktop-existing"
+
+
+def test_start_recovers_stale_owner_lease_without_a_live_core_receipt() -> None:
+    record = MemoryRecord()
+    record.write(
+        replace(
+            _health(authority=RuntimeHealthState.FAILED),
+            generation=3,
+            owner_lease=OwnerLease(owner_id="cli", generation=3),
+        )
+    )
+    observations = iter(
+        (
+            _health(authority=RuntimeHealthState.FAILED),
+            _health(authority=RuntimeHealthState.FAILED),
+            _health(),
+            _health(),
+        )
+    )
+    live_core = False
+    host = AuthorityHost(process=Process(7114))
+
+    def start_core(healthy: Callable[[], bool]) -> ServiceLifecycleResult:
+        nonlocal live_core
+        ready = healthy()
+        live_core = True
+        return (
+            ServiceLifecycleResult(status="started", pid=7113)
+            if ready
+            else ServiceLifecycleResult(status="failed")
+        )
+
+    supervisor = _supervisor(
+        record=record,
+        health_probe=lambda: next(observations),
+        start_core=start_core,
+        authority_host=host,
+        owns_pid_record=lambda: live_core,
+    )
+
+    result = supervisor.start(owner_id="desktop-recovered")
+
+    assert result.status == "started"
+    assert record.read().owner_lease is not None
+    assert record.read().owner_lease.owner_id == "desktop-recovered"
+
+
+def test_start_cancellation_does_not_promote_a_stopping_claim() -> None:
+    record = MemoryRecord()
+
+    def cancel_before_core_finishes(
+        healthy: Callable[[], bool],
+    ) -> ServiceLifecycleResult:
+        current = record.read()
+        record.write(replace(current, state=RuntimeHealthState.STOPPING))
+        return ServiceLifecycleResult(status="started", pid=7110)
+
+    supervisor = _supervisor(
+        record=record,
+        start_core=cancel_before_core_finishes,
+        stop_core=lambda: ServiceLifecycleResult(status="stopped", pid=7110),
+    )
+
+    result = supervisor.start(owner_id="desktop-cancelled")
+
+    assert result.status == "failed"
+    assert record.read().state is RuntimeHealthState.STOPPING
+    assert record.read().startup_owner_id == "desktop-cancelled"
+
+
+def test_authority_launch_race_reaps_process_after_start_claim_is_cancelled() -> None:
+    record = MemoryRecord()
+    calls: list[str] = []
+
+    class CancellingAuthorityHost(AuthorityHost):
+        def start(self) -> Optional[AuthorityProcess]:
+            calls.append("authority")
+            record.write(replace(record.read(), state=RuntimeHealthState.STOPPING))
+            return Process(7112)
+
+    supervisor = _supervisor(
+        record=record,
+        start_core=lambda healthy: (
+            healthy() and ServiceLifecycleResult(status="started", pid=7113)
+        ),
+        stop_core=lambda: (
+            calls.append("stop-core") or ServiceLifecycleResult(status="stopped")
+        ),
+        authority_host=CancellingAuthorityHost(calls=calls),
+    )
+
+    result = supervisor.start(owner_id="desktop-race")
+
+    assert result.status == "failed"
+    assert calls == ["authority", "stop-authority:7112", "stop-core"]
 
 
 def test_start_rejects_failed_authority_health() -> None:

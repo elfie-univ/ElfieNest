@@ -5,25 +5,18 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Protocol
 
-from pydantic import JsonValue
-
 from app.orchestration.message_delivery import OwnerMessageBroadcaster
 from app.orchestration.nest_session.models import (
-    IntentProgress,
-    IntentTerminal,
-    RuntimeFailure,
-    SceneManifest,
-    SpeechAudience,
-    TactileContact,
+    EnvironmentState,
+    SpeechReach,
+    VisualObservation,
     WorldEvent,
     WorldEventName,
-    WorldReady,
-    WorldSnapshot,
 )
-from app.orchestration.nest_session.ports import WorldRuntimePort
+from app.orchestration.nest_session.ports import RuntimeEventPort
 from app.orchestration.nest_session.runtime_sync import NestRuntimeSynchronizer
 from elfie.public import Elfie
-from nest.public import Nest
+from nest.public import EnvironmentActualState, Nest
 
 
 class _BroadcasterProvider(Protocol):
@@ -37,7 +30,7 @@ class NestRuntimeEventRouter:
         self,
         *,
         nest: Nest,
-        world_runtime: WorldRuntimePort,
+        world_runtime: RuntimeEventPort,
         elfies: Mapping[str, Elfie],
         synchronizer: NestRuntimeSynchronizer,
         broadcaster_provider: _BroadcasterProvider,
@@ -61,37 +54,30 @@ class NestRuntimeEventRouter:
         ):
             return
         if (
-            event.name is WorldEventName.WORLD_READY
-            and self._synchronizer.ready_revision == event.world_revision
+            event.name is WorldEventName.WORLD_CONFIGURED
+            and self._synchronizer.configured_revision == event.world_revision
         ):
-            self._world_runtime.mark_ready(
+            self._world_runtime.mark_world_configured(
                 connection,
                 world_revision=event.world_revision,
             )
         if (
             event.name
             in {
-                WorldEventName.INTENT_ACCEPTED,
-                WorldEventName.INTENT_STARTED,
-                WorldEventName.INTENT_TERMINAL,
-                WorldEventName.MOVEMENT_BLOCKED,
-                WorldEventName.TACTILE_CONTACT,
-                WorldEventName.SPEECH_AUDIENCE,
+                WorldEventName.SPEECH_REACH,
+                WorldEventName.VISUAL_OBSERVATION,
+                WorldEventName.ENVIRONMENT_STATE,
                 WorldEventName.WORLD_SNAPSHOT,
             }
-            and event.world_revision != self._synchronizer.ready_revision
+            and event.world_revision != self._synchronizer.configured_revision
         ):
             return
-        payload = _body_payload(event)
-        for elfie in self._elfies.values():
-            transport = getattr(elfie.current_body, "transport", None)
-            receiver = getattr(transport, "receive_runtime_event", None)
-            if callable(receiver):
-                receiver(event.name.value, payload)
-        if event.name is WorldEventName.SPEECH_AUDIENCE:
+        if event.name is WorldEventName.SPEECH_REACH:
             self._consume_speech(event)
-        elif event.name is WorldEventName.TACTILE_CONTACT:
-            self._consume_tactile(event)
+        elif event.name is WorldEventName.VISUAL_OBSERVATION:
+            self._consume_visual(event)
+        elif event.name is WorldEventName.ENVIRONMENT_STATE:
+            self._consume_environment(event)
 
     def interrupt_native_bodies(self, reason: str) -> None:
         for elfie in self._elfies.values():
@@ -102,14 +88,20 @@ class NestRuntimeEventRouter:
 
     def _consume_speech(self, event: WorldEvent) -> None:
         payload = event.payload
-        if not isinstance(payload, SpeechAudience):
+        if not isinstance(payload, SpeechReach):
             return
-        self._nest.deliver_speech(
-            sender_id=payload.actor_id,
-            text=payload.text,
+        speech = self._nest.complete_speech_reach(
+            command_id=payload.command_id,
             audience_ids=payload.audience_actor_ids,
             event_id=event.event_id,
+            runtime_id=event.connection.runtime_id,
+            runtime_generation=event.connection.generation,
+            world_revision=event.world_revision,
+            occurred_at=event.occurred_at,
         )
+        if speech is None:
+            return
+        text, emotion = speech
         broadcaster = self._broadcaster_provider()
         if broadcaster is not None:
             broadcaster.broadcast_to_owners(
@@ -118,69 +110,40 @@ class NestRuntimeEventRouter:
                     "action": "speak_event",
                     "payload": {
                         "elfie_id": payload.actor_id,
-                        "text": payload.text,
+                        "text": text,
+                        "emotion": emotion,
                     },
                 },
             )
 
-    def _consume_tactile(self, event: WorldEvent) -> None:
+    def _consume_visual(self, event: WorldEvent) -> None:
         payload = event.payload
-        if isinstance(payload, TactileContact):
-            self._nest.submit_tactile_contact(
-                event_id=event.event_id,
-                receiver_id=payload.actor_id,
-                intensity=payload.intensity,
-                direction=payload.direction,
-                contact_kind=payload.contact_kind,
-                source_semantic_id=payload.source_semantic_id,
+        if not isinstance(payload, VisualObservation):
+            return
+        self._nest.complete_visual_observation(
+            observation_id=payload.observation_id,
+            zone_id=payload.zone_id,
+            visible_semantic_ids=payload.visible_semantic_ids,
+            event_id=event.event_id,
+            runtime_id=event.connection.runtime_id,
+            runtime_generation=event.connection.generation,
+            world_revision=event.world_revision,
+            occurred_at=event.occurred_at,
+        )
+
+    def _consume_environment(self, event: WorldEvent) -> None:
+        payload = event.payload
+        if not isinstance(payload, EnvironmentState):
+            return
+        self._nest.apply_environment_actual(
+            EnvironmentActualState(
+                command_id=payload.command_id,
+                lights_on=payload.lights_on,
+                quiet_mode=payload.quiet_mode,
+                applied=payload.applied,
+                reason=payload.reason,
             )
-
-
-def _body_payload(event: WorldEvent) -> dict[str, JsonValue]:
-    payload = event.payload
-    if isinstance(payload, (IntentProgress, IntentTerminal)):
-        result: dict[str, JsonValue] = {
-            "command_id": payload.command_id,
-            "actor_id": payload.actor_id,
-        }
-        if isinstance(payload, IntentTerminal):
-            result["status"] = payload.status
-            if payload.reason is not None:
-                result["reason"] = payload.reason
-            if payload.detail is not None:
-                result["detail"] = payload.detail
-        return result
-    if isinstance(payload, TactileContact):
-        return {
-            "actor_id": payload.actor_id,
-            "intensity": payload.intensity,
-            "direction": payload.direction,
-            "contact_kind": payload.contact_kind,
-            "source_semantic_id": payload.source_semantic_id,
-        }
-    if isinstance(payload, SpeechAudience):
-        return {
-            "command_id": payload.command_id,
-            "actor_id": payload.actor_id,
-            "text": payload.text,
-            "zone_id": payload.zone_id,
-            "audience_actor_ids": list(payload.audience_actor_ids),
-        }
-    if isinstance(payload, WorldReady):
-        return {
-            "ready": payload.ready,
-            "navigation_ready": payload.navigation_ready,
-        }
-    if isinstance(payload, RuntimeFailure):
-        result = {"code": payload.code}
-        if payload.accepted is not None:
-            result["accepted"] = payload.accepted
-        return result
-    if isinstance(payload, WorldSnapshot):
-        return {"world_revision": payload.revision}
-    if isinstance(payload, SceneManifest):
-        return {"nest_id": payload.catalog.nest_id}
-    return {}
+        )
 
 
 __all__ = ["NestRuntimeEventRouter"]

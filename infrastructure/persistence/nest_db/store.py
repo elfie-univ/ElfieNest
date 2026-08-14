@@ -11,6 +11,7 @@ from typing import Final, Iterator, Optional
 
 from app.features.accounts import hash_password
 from app.features.accounts import verify_password as verify_password
+from app.orchestration.lifecycle.ports import DataHomeInspection, DataHomeState
 from infrastructure.persistence.layout.data_home import data_home_from_db_path
 from infrastructure.persistence.layout.data_home import get_db_path as _get_db_path
 from infrastructure.persistence.layout.data_layout import ensure_final_root_layout
@@ -72,13 +73,48 @@ def init_db(db_path: Optional[str] = None) -> str:
 
 
 def _reject_legacy_root(database_path: Path) -> None:
-    root = database_path.parent
-    if any((root / entry).exists() for entry in _RETIRED_ROOT_ENTRIES):
+    inspection = inspect_data_home(database_path.parent)
+    if inspection.state not in {DataHomeState.FRESH, DataHomeState.READY}:
         raise LegacyDataRootError
-    if not database_path.exists() or database_path.stat().st_size == 0:
-        return
-    uri = f"{database_path.as_uri()}?mode=ro&immutable=1"
+
+
+def inspect_data_home(data_home: Path) -> DataHomeInspection:
+    """Classify a selected root without creating, migrating, or deleting files."""
+    raw_home = data_home.expanduser()
+    if raw_home.is_symlink() or (raw_home.exists() and not raw_home.is_dir()):
+        return DataHomeInspection(
+            state=DataHomeState.PERMISSION,
+            home=raw_home.resolve(strict=False),
+            detail="数据目录必须是当前用户可访问的真实目录",
+            recoverable=False,
+        )
+    home = raw_home.resolve(strict=False)
+    if not home.exists():
+        return DataHomeInspection(
+            state=DataHomeState.FRESH,
+            home=home,
+            detail="尚未创建数据目录",
+            recoverable=False,
+        )
+    if any((home / entry).exists() for entry in _RETIRED_ROOT_ENTRIES):
+        return DataHomeInspection(
+            state=DataHomeState.LEGACY,
+            home=home,
+            detail="检测到旧版 ElfieNest 数据目录结构",
+            recoverable=True,
+        )
+    database_path = home / "nest.db"
     try:
+        if not database_path.exists() or database_path.stat().st_size == 0:
+            return DataHomeInspection(
+                state=DataHomeState.FRESH,
+                home=home,
+                detail="数据目录为空，可以创建新环境",
+                recoverable=False,
+            )
+        if database_path.is_symlink():
+            raise sqlite3.DatabaseError("nest.db 不能是符号链接")
+        uri = f"{database_path.as_uri()}?mode=ro&immutable=1"
         with sqlite3.connect(uri, uri=True) as connection:
             tables = {
                 str(row[0])
@@ -89,13 +125,41 @@ def _reject_legacy_root(database_path: Path) -> None:
             users_sql_row = connection.execute(
                 "SELECT sql FROM sqlite_master WHERE type='table' AND name='users'"
             ).fetchone()
-    except sqlite3.DatabaseError as error:
-        raise LegacyDataRootError from error
+    except PermissionError:
+        return DataHomeInspection(
+            state=DataHomeState.PERMISSION,
+            home=home,
+            detail="没有权限读取当前数据目录，请检查目录权限",
+            recoverable=False,
+        )
+    except (OSError, sqlite3.DatabaseError):
+        return DataHomeInspection(
+            state=DataHomeState.CORRUPT,
+            home=home,
+            detail="nest.db 无法安全读取，建议先备份后创建新环境",
+            recoverable=True,
+        )
     if tables != _FINAL_TABLES:
-        raise LegacyDataRootError
+        return DataHomeInspection(
+            state=DataHomeState.LEGACY,
+            home=home,
+            detail="nest.db 使用旧版数据表结构",
+            recoverable=True,
+        )
     users_sql = "" if users_sql_row is None else str(users_sql_row[0] or "")
     if "roleIN('owner','user')" in "".join(users_sql.split()):
-        raise LegacyDataRootError
+        return DataHomeInspection(
+            state=DataHomeState.LEGACY,
+            home=home,
+            detail="nest.db 使用旧版账号结构",
+            recoverable=True,
+        )
+    return DataHomeInspection(
+        state=DataHomeState.READY,
+        home=home,
+        detail="数据目录符合当前版本契约",
+        recoverable=False,
+    )
 
 
 def seed_initial_owner_if_env_set(

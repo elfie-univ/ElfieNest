@@ -1,4 +1,12 @@
-import { app, BrowserWindow, Menu, nativeImage, Tray } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  Menu,
+  nativeImage,
+  shell,
+  Tray,
+} from "electron";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -17,6 +25,8 @@ import {
 import { loadAndValidateResourceManifest } from "./resources/resource_manifest.js";
 import {
   createMainWindow,
+  showDataHomeRecovery,
+  showDataHomeRecoverySuccess,
   showStartupFailure,
   showStartupProgress,
 } from "./windows/runtime_windows.js";
@@ -33,7 +43,18 @@ const managementWindow = new SingleWindowRegistry<BrowserWindow>();
 let backgroundTray: Tray | undefined;
 let maintenanceTimer: NodeJS.Timeout | undefined;
 let maintenanceRunning = false;
-let runtimeReady = false;
+let maintenanceStarted = false;
+let runtimeUiAvailable = false;
+let managementUiLoaded = false;
+let recoveryActionHandler: ((action: RecoveryAction) => void) | undefined;
+let recoveryActionRunning = false;
+
+type RecoveryAction =
+  | "recover-data-home"
+  | "choose-data-home"
+  | "open-data-home"
+  | "continue-start"
+  | "quit";
 
 const uiUrl = process.env["ELFIENEST_UI_URL"] ?? DEFAULT_MANAGEMENT_UI_URL;
 
@@ -57,10 +78,21 @@ function ensureManagementWindow(): Readonly<{ window: BrowserWindow; created: bo
     showStartupProgress(window);
     return window;
   });
-  if (result.created && runtimeReady) {
-    void result.window.loadURL(uiUrl);
+  if (result.created && runtimeUiAvailable) {
+    void loadManagementUi(result.window);
   }
   return result;
+}
+
+async function loadManagementUi(window: BrowserWindow): Promise<void> {
+  if (managementUiLoaded || !runtimeUiAvailable || window.isDestroyed()) return;
+  managementUiLoaded = true;
+  try {
+    await window.loadURL(uiUrl);
+  } catch (error: unknown) {
+    managementUiLoaded = false;
+    throw error;
+  }
 }
 
 function showManagementWindow(): void {
@@ -83,7 +115,34 @@ function hideManagementWindow(): void {
   void roleController?.closeWindow();
 }
 
+function recoveryActionFromUrl(url: string): RecoveryAction | undefined {
+  if (!url.startsWith("elfienest://")) return undefined;
+  const action = url.slice("elfienest://".length);
+  if (
+    action === "recover-data-home"
+    || action === "choose-data-home"
+    || action === "open-data-home"
+    || action === "continue-start"
+    || action === "quit"
+  ) {
+    return action;
+  }
+  return undefined;
+}
+
 function bindManagementWindow(window: BrowserWindow): void {
+  window.webContents.on("will-navigate", (event, url) => {
+    const action = recoveryActionFromUrl(url);
+    if (action === undefined) return;
+    event.preventDefault();
+    recoveryActionHandler?.(action);
+  });
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    const action = recoveryActionFromUrl(url);
+    if (action === undefined) return { action: "allow" };
+    recoveryActionHandler?.(action);
+    return { action: "deny" };
+  });
   window.on("close", (event) => {
     if (!closeKeepsBackgroundServiceRunning(explicitExitRequested)) {
       return;
@@ -97,6 +156,7 @@ function bindManagementWindow(window: BrowserWindow): void {
   });
   window.on("closed", () => {
     managementWindow.clear(window);
+    managementUiLoaded = false;
   });
 }
 
@@ -122,6 +182,8 @@ function createBackgroundTray(locale: ReturnType<typeof normalizeApplicationMenu
 }
 
 function startOwnedRuntimeMaintenance(): void {
+  if (maintenanceStarted) return;
+  maintenanceStarted = true;
   maintenanceTimer = setInterval(() => {
     if (maintenanceRunning || roleController === undefined) {
       return;
@@ -140,6 +202,93 @@ function startOwnedRuntimeMaintenance(): void {
   }, 30_000);
 }
 
+async function continueAfterDataHomeRecovery(): Promise<void> {
+  recoveryActionHandler = undefined;
+  const window = managementWindow.current();
+  const state = roleController?.state;
+  if (window === undefined || state === undefined) return;
+  if (state.kind === "failed") {
+    showStartupFailure(window, new Error(state.reason));
+    return;
+  }
+  runtimeUiAvailable = true;
+  await loadManagementUi(window);
+  startOwnedRuntimeMaintenance();
+}
+
+async function handleDataHomeRecoveryAction(action: RecoveryAction): Promise<void> {
+  const window = managementWindow.current();
+  if (window === undefined || roleController === undefined) return;
+  if (action === "quit") {
+    requestExplicitApplicationExit();
+    return;
+  }
+  if (action === "open-data-home") {
+    const inspection = roleController.state.kind === "failed"
+      ? roleController.state.recovery
+      : undefined;
+    if (inspection !== undefined) {
+      await shell.openPath(inspection.home);
+    }
+    return;
+  }
+  if (action === "choose-data-home") {
+    if (recoveryActionRunning) return;
+    const selection = await dialog.showOpenDialog(window, {
+      properties: ["openDirectory", "createDirectory"],
+      title: "选择 ElfieNest 数据目录",
+    });
+    const selectedHome = selection.filePaths[0];
+    if (selection.canceled || selectedHome === undefined) return;
+    recoveryActionRunning = true;
+    showStartupProgress(window, "starting");
+    try {
+      const state = await roleController.activateDataHome(selectedHome);
+      if (state.kind === "failed") {
+        if (state.recovery !== undefined) {
+          showDataHomeRecovery(window, state.recovery);
+        } else {
+          showStartupFailure(window, new Error(state.reason));
+        }
+        return;
+      }
+      await continueAfterDataHomeRecovery();
+    } finally {
+      recoveryActionRunning = false;
+    }
+    return;
+  }
+  if (action === "continue-start") {
+    await continueAfterDataHomeRecovery();
+    return;
+  }
+  if (recoveryActionRunning) return;
+  recoveryActionRunning = true;
+  showStartupProgress(window, "starting");
+  try {
+    const state = await roleController.recoverDataHome();
+    if (state.kind === "failed") {
+      if (state.recovery !== undefined) {
+        showDataHomeRecovery(window, state.recovery);
+      } else {
+        showStartupFailure(window, new Error(state.reason));
+      }
+      return;
+    }
+    const backupHome = roleController.lastRecovery?.backupHome;
+    if (backupHome === undefined) {
+      await continueAfterDataHomeRecovery();
+      return;
+    }
+    recoveryActionHandler = (nextAction) => {
+      void handleDataHomeRecoveryAction(nextAction);
+    };
+    showDataHomeRecoverySuccess(window, backupHome);
+  } finally {
+    recoveryActionRunning = false;
+  }
+}
+
 async function startDesktop(): Promise<void> {
   if (app.isPackaged) {
     loadAndValidateResourceManifest(process.resourcesPath, app.getVersion());
@@ -155,14 +304,35 @@ async function startDesktop(): Promise<void> {
       new ProcessLifecycleCommandRunner(lifecycleCommand),
     ),
   );
-  const state = await roleController.start();
+  const state = await roleController.start((phase) => {
+    const window = managementWindow.current();
+    if (window === undefined) return;
+    if (phase === "core_ready") {
+      runtimeUiAvailable = true;
+      void loadManagementUi(window).catch((error: unknown) => {
+        console.error("ElfieNest management UI failed to load", error);
+      });
+      return;
+    }
+    if (!runtimeUiAvailable) {
+      showStartupProgress(window, phase);
+    }
+  });
   if (state.kind === "failed") {
+    if (state.recovery !== undefined) {
+      recoveryActionHandler = (action) => {
+        void handleDataHomeRecoveryAction(action);
+      };
+      const window = managementWindow.current() ?? ensureManagementWindow().window;
+      showDataHomeRecovery(window, state.recovery);
+      return;
+    }
     throw new Error(state.reason);
   }
-  runtimeReady = true;
   const window = managementWindow.current();
   if (window !== undefined) {
-    await window.loadURL(uiUrl);
+    runtimeUiAvailable = true;
+    await loadManagementUi(window);
   }
 }
 
@@ -198,7 +368,9 @@ function startDesktopUiRole(): void {
       createBackgroundTray(locale);
       showManagementWindow();
       return startDesktop().then(() => {
-        startOwnedRuntimeMaintenance();
+        if (roleController?.state.kind !== "failed") {
+          startOwnedRuntimeMaintenance();
+        }
       });
     })
     .catch((error: unknown) => {

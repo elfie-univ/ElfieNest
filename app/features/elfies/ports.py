@@ -49,6 +49,7 @@ class ElfieProfileRecord:
     agreeableness: float | None = None
     neuroticism: float | None = None
     appearance: ElfieAppearanceRecord | None = None
+    portrait_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -119,6 +120,10 @@ class ElfiesQueryPort(Protocol):
     def load_profile(self, elfie_id: str) -> ElfieProfileRecord: ...
 
     def load_cognition(self, elfie_id: str) -> CognitionSnapshotRecord: ...
+
+    def load_portrait(
+        self, elfie_id: str, *, kind: str = "headshot"
+    ) -> bytes | None: ...
 
 
 __all__ = (

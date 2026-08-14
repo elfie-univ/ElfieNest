@@ -5,7 +5,11 @@ from __future__ import annotations
 from typing import Callable
 from uuid import uuid4
 
-from elfie.brain.reasoning.decision_types import DecisionIntent, DecisionPlan, MessageIntent
+from elfie.brain.reasoning.decision_types import (
+    DecisionIntent,
+    DecisionPlan,
+    MessageIntent,
+)
 from elfie.brain.reasoning.execution_ports import EffectiveCapabilitiesSource
 from elfie.brain.reasoning.execution_types import IntentExecutionResult
 from elfie.communication.contracts import (

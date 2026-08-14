@@ -390,7 +390,6 @@ def main():
         print("❌ Engine failed to become ready within 5s")
         sys.exit(1)
     engine = engine_holder["engine"]
-    time.sleep(2.0)  # Wait for service readiness.
     print("  ℹ️ Godot Web Runtime is hosted by ElfieNest Desktop hidden window")
 
     # 5. Dynamically load all Elfies from the database.
@@ -432,6 +431,7 @@ def main():
         db_path=db_path,
         http_port=args.port,
         service_mode=ServiceMode.LAN.value if args.lan else ServiceMode.LOOPBACK.value,
+        model_execution=model_execution_services.execution,
     )
 
     import uvicorn  # noqa: PLC0415

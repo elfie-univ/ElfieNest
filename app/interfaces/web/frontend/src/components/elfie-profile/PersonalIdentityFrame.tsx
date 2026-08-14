@@ -22,6 +22,8 @@ export function PersonalIdentityFrame({
   const profile = projection.publicProfile
   const species = speciesLabel(profile.speciesId, t)
   const gender = normalizedGender(profile.gender, t)
+  const biography = profile.biography.trim()
+  const showBiography = biography.toLowerCase() !== "genesis"
 
   return (
     <header className="profile-dossier__identity">
@@ -56,10 +58,10 @@ export function PersonalIdentityFrame({
           </div>
         </div>
         <IdentityMetadata projection={projection} t={t} />
-        <div className="profile-dossier__biography">
+        {showBiography ? <div className="profile-dossier__biography">
           <span>{t("profile.identity.biographyLabel")}</span>
-          <p>{profile.biography.trim() || t("profile.identity.missingBiography")}</p>
-        </div>
+          <p>{biography || t("profile.identity.missingBiography")}</p>
+        </div> : null}
       </div>
 
       <Button className="profile-dossier__chat" onClick={onChat} type="button">
@@ -80,12 +82,10 @@ function IdentityMetadata({ projection, t }: {
     <dl className="profile-dossier__metadata">
       <div><dt>{t("profile.identity.age")}</dt><dd>{localizedAge(ageLabel, t)}</dd></div>
       <div><dt>{t("profile.identity.owner")}</dt><dd>{projection.kind === "adopter" ? <strong>{t("profile.identity.me")}</strong> : projection.ownerDisplayName}</dd></div>
-      {projection.kind === "adopter" ? (
-        <>
-          <div><dt>{t("profile.identity.adoptedAt")}</dt><dd>{displayFallback(projection.adoption.adoptedAt, t)}</dd></div>
-          <div><dt>{t("profile.identity.id")}</dt><dd>{projection.publicProfile.elfieId}</dd></div>
-        </>
-      ) : null}
+      {projection.kind === "adopter" ? <>
+        <div><dt>{t("profile.identity.adoptedAt")}</dt><dd>{displayFallback(projection.adoption.adoptedAt, t)}</dd></div>
+        <div><dt>{t("profile.identity.id")}</dt><dd>{projection.publicProfile.elfieId}</dd></div>
+      </> : null}
     </dl>
   )
 }

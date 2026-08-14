@@ -1,8 +1,18 @@
 """One-time Elfie creation contracts."""
 
 from .contracts import (
+    BIG_FIVE_TRAITS,
+    CANDIDATE_ROLES,
+    BigFiveProfile,
     BiographyEnrichmentPlan,
+    CandidateReveal,
+    CandidateSignature,
+    GenesisAppearanceIntent,
+    GenesisBatch,
     GenesisBundle,
+    GenesisCandidate,
+    GenesisError,
+    GenesisPersonality,
     GenesisStatus,
     GenesisValidationError,
     InitializationManifest,
@@ -15,11 +25,23 @@ from .contracts import (
     SelfModelSeed,
     validate_genesis_bundle,
 )
+from .engine import GenesisEngine
 from .initializer import GenesisCommitReceipt, GenesisMemoryCommitter
 
 __all__ = (
+    "BIG_FIVE_TRAITS",
     "BiographyEnrichmentPlan",
+    "CANDIDATE_ROLES",
+    "BigFiveProfile",
+    "CandidateReveal",
+    "CandidateSignature",
+    "GenesisAppearanceIntent",
+    "GenesisBatch",
     "GenesisBundle",
+    "GenesisCandidate",
+    "GenesisEngine",
+    "GenesisError",
+    "GenesisPersonality",
     "GenesisCommitReceipt",
     "GenesisMemoryCommitter",
     "GenesisStatus",

@@ -85,7 +85,6 @@ def test_product_memory_modules_do_not_reference_legacy_graph_store() -> None:
         "self_narrative.py",
         "consolidation.py",
         "sensory_index.py",
-        "context_assembly.py",
     )
     sources = {
         name: (memory_dir / name).read_text(encoding="utf-8")

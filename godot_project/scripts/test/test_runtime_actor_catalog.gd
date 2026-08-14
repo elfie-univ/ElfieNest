@@ -1,6 +1,6 @@
 extends SceneTree
 
-const ACTOR_CONTROLLER_SCRIPT := preload("res://runtime/actor_controller.gd")
+const ACTOR_CONTROLLER_SCRIPT := preload("res://runtime/actor/actor_controller.gd")
 const ACTOR_SCENES := {
 	"dog": preload("res://characters/dog/dog.tscn"),
 	"fox": preload("res://characters/fox/fox.tscn"),
@@ -32,19 +32,19 @@ func _init() -> void:
 		{
 			"actor_id": "dog-1",
 			"species": "dog",
-			"home_anchor_id": "dorm-01/bed-02",
+			"spawn_anchor_id": "dorm-01/bed-02",
 			"appearance": {},
 		},
 		{
 			"actor_id": "fox-1",
 			"species": "fox",
-			"home_anchor_id": "dorm-01/bed-01",
+			"spawn_anchor_id": "dorm-01/bed-01",
 			"appearance": {},
 		},
 		{
 			"actor_id": "cat-1",
 			"species": "cat",
-			"home_anchor_id": "dorm-01/bed-03",
+			"spawn_anchor_id": "dorm-01/bed-03",
 			"appearance": {},
 		},
 	]
@@ -79,7 +79,7 @@ func _init() -> void:
 		{
 			"actor_id": "bird-1",
 			"species": "bird",
-			"home_anchor_id": "dorm-01/bed-03",
+			"spawn_anchor_id": "dorm-01/bed-03",
 			"appearance": {},
 		},
 	]) as Dictionary
@@ -95,7 +95,7 @@ func _init() -> void:
 		{
 			"actor_id": "dog-2",
 			"species": "dog",
-			"home_anchor_id": "dorm-01/door",
+			"spawn_anchor_id": "dorm-01/door",
 			"appearance": {},
 		},
 	]) as Dictionary

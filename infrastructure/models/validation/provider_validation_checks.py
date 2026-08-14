@@ -15,7 +15,9 @@ from infrastructure.models.validation.provider_validation import (
 )
 from infrastructure.models.validation.validation_models import CheckStatus
 
-ModelExecutionProjection = Callable[[ProviderConnection], tuple[str, ModelExecutionConfig]]
+ModelExecutionProjection = Callable[
+    [ProviderConnection], tuple[str, ModelExecutionConfig]
+]
 _MODEL_TIMEOUT_SECONDS = 20.0
 
 

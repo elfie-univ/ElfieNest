@@ -10,27 +10,15 @@ vi.mock("../http", async (loadOriginal) => {
 
 const candidate = {
   candidate_id: "candidate-1",
-  original_name: "阿洛",
-  suggested_name: "洛洛",
-  species_id: "fox" as const,
+  species_id: "fox",
   life_stage: "young_adult" as const,
+  age_months: 36,
   gender: "male" as const,
-  image_url: "/assets/adoption/fox.svg",
+  full_body_image_url: "",
+  headshot_image_url: "",
   appearance_tags: ["高挑"],
   personality_tags: ["好奇探索"],
-  introduction: "hello",
-  compatibility: "steady",
-}
-
-const species = {
-  species_id: "fox",
-  canon_id: "saevi",
-  display_name: "Saevi",
-  display_name_zh: "灵狐",
-  earth_shape_label: "fox-like",
-  avatar_url: "/assets/adoption/fox.svg",
-  scene_id: "fox",
-  sort_order: 0,
+  runtime_appearance: { species_id: "fox" },
 }
 
 describe("versioned current-member Adoption client", () => {
@@ -40,16 +28,49 @@ describe("versioned current-member Adoption client", () => {
     vi.mocked(requestJson)
       .mockResolvedValueOnce({
         personality_styles: ["好奇探索"],
-        species: [species],
+        species: [
+          {
+            species_id: "fox",
+            canon_id: "saevi",
+            display_name: "Saevi",
+            display_name_zh: "灵狐",
+            earth_shape_label: "fox-like",
+            avatar_url: "/assets/adoption/fox.svg",
+            scene_id: "fox",
+            sort_order: 0,
+          },
+          {
+            species_id: "dog",
+            canon_id: "tovren",
+            display_name: "Tovren",
+            display_name_zh: "灵犬",
+            earth_shape_label: "dog-like",
+            avatar_url: "/assets/adoption/dog.svg",
+            scene_id: "dog",
+            sort_order: 1,
+          },
+          {
+            species_id: "cat",
+            canon_id: "myelle",
+            display_name: "Myelle",
+            display_name_zh: "灵猫",
+            earth_shape_label: "cat-like",
+            avatar_url: "/assets/adoption/cat.svg",
+            scene_id: "cat",
+            sort_order: 2,
+          },
+        ],
         heights: ["standard"],
         builds: ["standard"],
         life_stages: ["any"],
         quota: { used: 0, max: 3, remaining: 3, can_adopt: true },
+        nest_capacity: { used: 0, max: 4, remaining: 4 },
+        availability: "available",
       })
-      .mockResolvedValueOnce({ candidate_set_id: "set-1", candidates: Array(5).fill(candidate) })
+      .mockResolvedValueOnce({ candidate_set_id: "set-1", adoption_session_id: "session-1", batch_number: 1, candidates: Array(5).fill(candidate) })
       .mockResolvedValueOnce({
         candidate_set_id: "set-1",
-        replies: [{ ...candidate, status: "accepted", message: "yes" }],
+        replies: [{ ...candidate, status: "accepted", message: "yes", reveal: null }],
       })
       .mockResolvedValueOnce({ elfie_id: "00000001", name: "阿洛", species_id: "fox" })
 
@@ -66,8 +87,9 @@ describe("versioned current-member Adoption client", () => {
         priority: "face",
       },
       answers: ["any", "any", "any", "any", "any"],
+      batch_number: 1,
     }, "csrf")
-    await adoptionReplies("set-1", ["candidate-1"], "csrf")
+    await adoptionReplies("set-1", ["candidate-1"], "", "csrf")
     await commitAdoption("set-1", "candidate-1", "阿洛", "csrf")
 
     expect(vi.mocked(requestJson).mock.calls.map(([path]) => path)).toEqual([

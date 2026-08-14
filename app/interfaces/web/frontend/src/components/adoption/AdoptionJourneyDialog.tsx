@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useState } from "react"
+import { useEffect, useMemo, useReducer, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import {
@@ -7,16 +7,28 @@ import {
   adoptionReplies,
   commitAdoption,
   type AdoptionCandidate,
+  type AdoptionCandidateSet,
   type AdoptionCandidateSetInput,
   type AdoptionInfo,
   type AdoptionReply,
-  type AdoptionSpecies,
 } from "../../api/me/adoption"
+import { ApiError } from "../../api/http"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../../i18n/errors"
 import { currentLocale } from "../../i18n/format"
 import { ConfirmDialog } from "../ConfirmDialog"
 import { Button } from "../ui/button"
 import { Checkbox } from "../ui/checkbox"
+import { Textarea } from "../ui/textarea"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../ui/alert-dialog"
 import {
   Dialog,
   DialogContent,
@@ -43,6 +55,11 @@ import {
   type SpeciesId,
 } from "./adoption-model"
 import { NamingScreen, RepliesScreen } from "./AdoptionReplyScreens"
+import {
+  createProfileGodotPreview,
+  ProfileGodotPreviewError,
+  type ProfileGodotPreview,
+} from "../elfie-profile/profile-godot-preview"
 
 type AdoptionJourneyDialogProps = {
   readonly accountId: string
@@ -109,7 +126,17 @@ function readDraft(accountId: string): AdoptionDraftState | null {
     if (!raw) return null
     const parsed: unknown = JSON.parse(raw)
     if (!parsed || typeof parsed !== "object" || !("draft" in parsed)) return null
-    return parsed as AdoptionDraftState
+    const saved = parsed as Partial<AdoptionDraftState> & { readonly draft: Partial<AdoptionDraftState["draft"]> }
+    return {
+      ...INITIAL_ADOPTION_STATE,
+      ...saved,
+      draft: { ...DEFAULT_DRAFT, ...saved.draft },
+      candidates: [],
+      replies: [],
+      finalCandidateId: null,
+      candidateSetId: null,
+      error: null,
+    }
   } catch {
     return null
   }
@@ -118,8 +145,20 @@ function readDraft(accountId: string): AdoptionDraftState | null {
 function saveDraft(accountId: string, state: AdoptionDraftState): void {
   if (!state.dirty || state.screen === "arrival") return
   try {
-    const resumableScreen = ["basic", "appearance", "companionship", "review"].includes(state.screen) ? state.screen : "review"
-    window.localStorage.setItem(draftStorageKey(accountId), JSON.stringify({ ...state, screen: resumableScreen, candidates: [], replies: [], selectedCandidateIds: [], finalCandidateId: null, candidateSetId: null }))
+    const hasRecoverableCandidates = state.candidateBatch > 0 && state.adoptionSessionId !== null
+    const resumableScreen = hasRecoverableCandidates
+      ? "shortlist"
+      : ["basic", "appearance", "companionship", "review"].includes(state.screen)
+        ? state.screen
+        : "review"
+    window.localStorage.setItem(draftStorageKey(accountId), JSON.stringify({
+      ...state,
+      screen: resumableScreen,
+      candidates: [],
+      replies: [],
+      finalCandidateId: null,
+      candidateSetId: null,
+    }))
   } catch {
     // A failed draft write must not block adoption.
   }
@@ -136,32 +175,97 @@ function clearDraft(accountId: string): void {
 function asCandidate(candidate: AdoptionCandidate): Candidate {
   return {
     candidateId: candidate.candidate_id,
-    originalName: candidate.original_name,
-    suggestedName: candidate.suggested_name,
     speciesId: candidate.species_id,
     lifeStage: candidate.life_stage as LifeStage,
+    ageMonths: candidate.age_months,
     gender: candidate.gender,
-    imageUrl: candidate.image_url,
+    fullBodyImageUrl: candidate.full_body_image_url,
+    headshotImageUrl: candidate.headshot_image_url,
     appearanceTags: candidate.appearance_tags,
     personalityTags: candidate.personality_tags,
-    introduction: candidate.introduction,
-    compatibility: candidate.compatibility,
+    runtimeAppearance: candidate.runtime_appearance ?? {},
   }
 }
 
-function asReply(reply: AdoptionReply): CandidateReply {
-  return { ...asCandidate(reply), status: reply.status, message: reply.message }
+function asReply(reply: AdoptionReply, previous?: Candidate): CandidateReply {
+  const mapped = asCandidate(reply)
+  const candidate = previous === undefined
+    ? mapped
+    : {
+        ...mapped,
+        fullBodyImageUrl: mapped.fullBodyImageUrl || previous.fullBodyImageUrl,
+        headshotImageUrl: mapped.headshotImageUrl || previous.headshotImageUrl,
+        runtimeAppearance: Object.keys(mapped.runtimeAppearance).length > 0
+          ? mapped.runtimeAppearance
+          : previous.runtimeAppearance,
+      }
+  return { ...candidate, status: reply.status, message: reply.message, reveal: reply.reveal === null ? null : {
+    originalName: reply.reveal.original_name,
+    suggestedName: reply.reveal.suggested_name,
+    personalStory: reply.reveal.personal_story,
+  } }
 }
 
-function candidateImageUrl(candidate: Pick<Candidate, "imageUrl">): string {
-  return candidate.imageUrl
+function speciesImageUrl(speciesId: SpeciesId): string {
+  return `/assets/adoption/${speciesId}.svg`
 }
 
-function speciesName(species: AdoptionSpecies | undefined, locale: string): string {
-  if (species === undefined) return ""
-  return locale === "zh-CN"
-    ? `${species.display_name}（${species.display_name_zh}）`
-    : `${species.display_name} (${species.earth_shape_label})`
+function candidateImageUrl(candidate: Pick<Candidate, "headshotImageUrl" | "fullBodyImageUrl" | "speciesId">, kind: "headshot" | "fullBody" = "headshot"): string {
+  const imageUrl = kind === "fullBody" ? candidate.fullBodyImageUrl : candidate.headshotImageUrl
+  return imageUrl || speciesImageUrl(candidate.speciesId)
+}
+
+function invitationMessageWithinLimit(value: string): boolean {
+  const cjkCount = (value.match(/[\u3400-\u9fff]/g) ?? []).length
+  const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0
+  return cjkCount > 0 ? cjkCount <= 50 && wordCount <= 50 : wordCount <= 50
+}
+
+function candidateSetInput(
+  draft: AdoptionDraftState["draft"],
+  batchNumber: number,
+  adoptionSessionId: string | null = null,
+): AdoptionCandidateSetInput {
+  if (draft.speciesId === null) throw new Error("Adoption species is required")
+  const answers = draft.answers.map((answer) => {
+    if (answer === null) throw new Error("Every Adoption answer is required")
+    return answer
+  })
+  return {
+    species_id: draft.speciesId,
+    life_stage: draft.lifeStage,
+    gender: draft.gender,
+    appearance: {
+      stature: draft.stature,
+      build: draft.build,
+      face: draft.face,
+      signature: draft.signature,
+      priority: draft.priority,
+    },
+    answers,
+    batch_number: batchNumber,
+    ...(adoptionSessionId === null ? {} : { adoption_session_id: adoptionSessionId }),
+  }
+}
+
+function candidateAgeLabel(t: JourneyT, ageMonths: number): string {
+  const years = Math.floor(ageMonths / 12)
+  const months = ageMonths % 12
+  if (years === 0) return t("adoption.journey.shortlist.ageMonths", { count: months })
+  if (months === 0) return t("adoption.journey.shortlist.ageYears", { count: years })
+  return t("adoption.journey.shortlist.ageYearsMonths", { years, months })
+}
+
+function speciesName(
+  t: (key: string) => string,
+  speciesId: SpeciesId,
+  species: AdoptionInfo["species"][number] | undefined,
+  locale: string,
+): string {
+  if (species !== undefined) {
+    return locale === "zh-CN" ? species.display_name_zh : species.display_name
+  }
+  return t(`adoption.journey.species.${speciesId}`)
 }
 
 function stageName(t: (key: string) => string, stage: LifeStage): string {
@@ -216,53 +320,133 @@ function TagList({ values }: { readonly values: readonly string[] }) {
   return <div className="adoption-tag-list">{values.map((value, index) => <span className="adoption-tag" key={`${index}-${value}`}>{value}</span>)}</div>
 }
 
+type AdoptionEntryBlock = "nest-full" | "member-full" | "unavailable"
+
+function AdoptionEntryCheck({ t }: { readonly t: JourneyT }) {
+  return <section aria-live="polite" className="adoption-entry-check">
+    <span aria-hidden="true" className="adoption-spinner" />
+    <h2>{t("adoption.journey.entryCheck.title")}</h2>
+    <p>{t("adoption.journey.entryCheck.description")}</p>
+  </section>
+}
+
+function AdoptionEntryBlockDialog({
+  block,
+  onExit,
+  onRetry,
+  open,
+  t,
+}: {
+  readonly block: AdoptionEntryBlock
+  readonly onExit: () => void
+  readonly onRetry: () => void
+  readonly open: boolean
+  readonly t: JourneyT
+}) {
+  const capacity = block !== "unavailable"
+  const titleKey = block === "unavailable"
+    ? "adoption.journey.entryBlock.unavailableTitle"
+    : "adoption.journey.entryBlock.quotaTitle"
+  const descriptionKey = block === "nest-full"
+    ? "adoption.journey.entryBlock.nestQuotaDescription"
+    : block === "member-full"
+      ? "adoption.journey.entryBlock.memberQuotaDescription"
+      : "adoption.journey.entryBlock.unavailableDescription"
+  return <AlertDialog onOpenChange={(nextOpen) => { if (!nextOpen) onExit() }} open={open}>
+    <AlertDialogContent className="adoption-entry-block-dialog">
+      <AlertDialogHeader>
+        <AlertDialogTitle>{t(titleKey)}</AlertDialogTitle>
+        <AlertDialogDescription>{t(descriptionKey)}</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        {capacity ? <AlertDialogAction onClick={onExit}>{t("adoption.journey.entryBlock.dismiss")}</AlertDialogAction> : <>
+          <AlertDialogCancel>{t("adoption.journey.entryBlock.exit")}</AlertDialogCancel>
+          <AlertDialogAction onClick={(event) => { event.preventDefault(); onRetry() }}>{t("adoption.journey.entryBlock.retry")}</AlertDialogAction>
+        </>}
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+}
+
 export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, onOpenChange }: AdoptionJourneyDialogProps) {
   const { i18n, t } = useTranslation("chat")
   const locale = currentLocale(i18n)
   const [state, dispatch] = useReducer(adoptionReducer, INITIAL_ADOPTION_STATE)
   const [info, setInfo] = useState<AdoptionInfo | null>(null)
   const [loadingInfo, setLoadingInfo] = useState(false)
+  const [entryRequest, setEntryRequest] = useState(0)
+  const [entryBlock, setEntryBlock] = useState<AdoptionEntryBlock | null>(null)
   const [closePrompt, setClosePrompt] = useState(false)
   const [intentConfirmOpen, setIntentConfirmOpen] = useState(false)
   const [finalConfirmOpen, setFinalConfirmOpen] = useState(false)
+  const [invitationFailureOpen, setInvitationFailureOpen] = useState(false)
+  const [messageDialogOpen, setMessageDialogOpen] = useState(false)
+  const [messageDraft, setMessageDraft] = useState("")
+  const [generationRequest, setGenerationRequest] = useState<AdoptionCandidateSetInput | null>(null)
+  const [sendingInvitations, setSendingInvitations] = useState(false)
   const [apiError, setApiError] = useState<LocalizedErrorState>(null)
-  const isBusy = state.screen === "generating" || state.screen === "inviting" || state.screen === "committing"
+  const retryingInvitationRef = useRef(false)
+  const isBusy = state.screen === "generating" || state.screen === "committing" || sendingInvitations
   const isIntentLocked = !["welcome", "basic", "appearance", "companionship", "review"].includes(state.screen)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setInfo(null)
+      setEntryBlock(null)
+      setLoadingInfo(false)
+      return
+    }
+    let active = true
     const saved = readDraft(accountId)
     if (saved?.dirty && saved.screen !== "arrival") {
-      dispatch({ type: "reset", screen: saved.screen })
-      for (const field of ["speciesId", "lifeStage", "gender"] as const) {
-        const value = saved.draft[field]
-        if (value !== DEFAULT_DRAFT[field] && !(field === "speciesId" && value === null)) dispatch({ type: "set-basic", field, value: value as SpeciesId | LifeStage | GenderPreference })
-      }
-      for (const field of ["stature", "build", "face", "signature", "priority"] as const) {
-        const value = saved.draft[field]
-        if (value !== DEFAULT_DRAFT[field]) dispatch({ type: "set-appearance", field, value })
-      }
-      saved.draft.answers.forEach((answer, index) => { if (answer !== null) dispatch({ type: "set-answer", index, value: answer }) })
+      dispatch({ type: "restore", state: saved })
     } else {
       dispatch({ type: "reset", screen: hasSkippedWelcome(accountId) ? "basic" : "welcome" })
     }
+    setInfo(null)
     setLoadingInfo(true)
     setApiError(null)
-    void adoptionInfo().then(setInfo).catch((reason: unknown) => setApiError(describeApiError(reason, "manage.load"))).finally(() => setLoadingInfo(false))
-  }, [accountId, open])
+    setEntryBlock(null)
+    setInvitationFailureOpen(false)
+    retryingInvitationRef.current = false
+    void adoptionInfo()
+      .then((nextInfo) => {
+        if (!active) return
+        setInfo(nextInfo)
+        if (nextInfo.availability === "nest_full") setEntryBlock("nest-full")
+        else if (nextInfo.availability === "member_quota_full") setEntryBlock("member-full")
+        else if (nextInfo.availability === "model_unavailable") setEntryBlock("unavailable")
+        else if (
+          saved?.dirty
+          && saved.screen === "shortlist"
+          && saved.adoptionSessionId !== null
+          && saved.candidateBatch > 0
+          && intentComplete(saved.draft)
+        ) {
+          setGenerationRequest(candidateSetInput(
+            saved.draft,
+            saved.candidateBatch,
+            saved.adoptionSessionId,
+          ))
+          dispatch({ type: "screen", screen: "generating" })
+        }
+      })
+      .catch((reason: unknown) => {
+        if (!active) return
+        setApiError(describeApiError(reason, "manage.load"))
+        setEntryBlock("unavailable")
+      })
+      .finally(() => { if (active) setLoadingInfo(false) })
+    return () => { active = false }
+  }, [accountId, entryRequest, open])
 
   useEffect(() => {
     if (open) saveDraft(accountId, state)
   }, [accountId, open, state])
 
-  const allowedSpecies = useMemo(
-    () => [...(info?.species ?? [])].sort((left, right) => left.sort_order - right.sort_order),
-    [info],
-  )
-  const speciesNameForId = (speciesId: SpeciesId): string => speciesName(
-    info?.species.find((species) => species.species_id === speciesId),
-    locale,
-  )
+  const allowedSpecies = useMemo(() => {
+    return [...(info?.species ?? [])].sort((left, right) => left.sort_order - right.sort_order)
+  }, [info])
 
   const requestClose = (): void => {
     if (isBusy) return
@@ -315,44 +499,17 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     }
   }
 
-  const intentPayload = (): AdoptionCandidateSetInput => {
-    const speciesId = state.draft.speciesId
-    if (speciesId === null) throw new Error("Adoption species is required")
-    const answers = state.draft.answers.map((answer) => {
-      if (answer === null) throw new Error("Every Adoption answer is required")
-      return answer
-    })
-    return {
-      species_id: speciesId,
-      life_stage: state.draft.lifeStage,
-      gender: state.draft.gender,
-      appearance: {
-        stature: state.draft.stature,
-        build: state.draft.build,
-        face: state.draft.face,
-        signature: state.draft.signature,
-        priority: state.draft.priority,
-      },
-      answers,
-    }
-  }
-
-  const generateCandidates = async (): Promise<void> => {
+  const generateCandidates = (): void => {
     if (!intentComplete(state.draft)) {
       dispatch({ type: "error", message: t("adoption.journey.validation.completeIntent") })
       return
     }
     const batch = state.candidateBatch + 1
     if (batch > MAX_CANDIDATE_BATCHES) return
+    const request = candidateSetInput(state.draft, batch, state.adoptionSessionId)
     setApiError(null)
+    setGenerationRequest(request)
     dispatch({ type: "screen", screen: "generating" })
-    try {
-      const result = await adoptionCandidates(intentPayload(), csrfToken)
-      dispatch({ type: "candidates-ready", batch, setId: result.candidate_set_id, candidates: result.candidates.map(asCandidate) })
-    } catch (reason: unknown) {
-      setApiError(describeApiError(reason, "manage.save"))
-      dispatch({ type: "error", message: t("adoption.journey.errors.generate") })
-    }
   }
 
   const sendInvitations = async (): Promise<void> => {
@@ -360,15 +517,72 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       dispatch({ type: "error", message: t("adoption.journey.validation.chooseCandidate") })
       return
     }
+    if (sendingInvitations) return
     setApiError(null)
+    setMessageDialogOpen(false)
+    setInvitationFailureOpen(false)
+    setSendingInvitations(true)
     dispatch({ type: "screen", screen: "inviting" })
     try {
-      const result = await adoptionReplies(state.candidateSetId, state.selectedCandidateIds, csrfToken)
-      dispatch({ type: "replies-ready", replies: result.replies.map(asReply) })
-    } catch (reason: unknown) {
-      setApiError(describeApiError(reason, "manage.save"))
-      dispatch({ type: "error", message: t("adoption.journey.errors.replies") })
+      let candidateSetId = state.candidateSetId
+      let result: Awaited<ReturnType<typeof adoptionReplies>> | null = null
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          result = await adoptionReplies(candidateSetId, state.selectedCandidateIds, state.invitationMessageEnabled ? state.invitationMessage : "", csrfToken)
+          break
+        } catch (reason: unknown) {
+          const canRecover = attempt === 0
+            && reason instanceof ApiError
+            && reason.code === "adoption_candidate_set_expired"
+            && state.adoptionSessionId !== null
+            && state.candidateBatch > 0
+          if (!canRecover) throw reason
+          const recovered = await adoptionCandidates(
+            candidateSetInput(state.draft, state.candidateBatch, state.adoptionSessionId),
+            csrfToken,
+          )
+          const currentIds = state.candidates.map((candidate) => candidate.candidateId)
+          const recoveredIds = recovered.candidates.map((candidate) => candidate.candidate_id)
+          const sameCandidates = currentIds.length === recoveredIds.length
+            && currentIds.every((candidateId, index) => candidateId === recoveredIds[index])
+          if (
+            recovered.adoption_session_id !== state.adoptionSessionId
+            || recovered.batch_number !== state.candidateBatch
+            || !sameCandidates
+          ) {
+            throw reason
+          }
+          candidateSetId = recovered.candidate_set_id
+          dispatch({ type: "candidate-set-recovered", setId: candidateSetId })
+        }
+      }
+      if (result === null) throw new Error("Invitation reply result is missing")
+      const previous = new Map(state.candidates.map((candidate) => [candidate.candidateId, candidate]))
+      dispatch({ type: "replies-ready", replies: result.replies.map((reply) => asReply(reply, previous.get(reply.candidate_id))) })
+    } catch {
+      setInvitationFailureOpen(true)
+    } finally {
+      setSendingInvitations(false)
     }
+  }
+
+  const openMessageEditor = (): void => {
+    if (state.candidateSetId === null || state.selectedCandidateIds.length === 0) {
+      dispatch({ type: "error", message: t("adoption.journey.validation.chooseCandidate") })
+      return
+    }
+    setMessageDraft(state.invitationMessage)
+    setMessageDialogOpen(true)
+  }
+
+  const saveInvitationMessage = (): void => {
+    const message = messageDraft.trim()
+    if (message.length === 0) {
+      dispatch({ type: "invitation-message-enabled", value: false })
+    } else {
+      dispatch({ type: "invitation-message", value: message })
+    }
+    setMessageDialogOpen(false)
   }
 
   const finishAdoption = async (): Promise<void> => {
@@ -381,15 +595,27 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       dispatch({ type: "error", message: t("adoption.journey.validation.name") })
       return
     }
-    setApiError(null)
     dispatch({ type: "screen", screen: "committing" })
     try {
-      const result = await commitAdoption(state.candidateSetId, state.finalCandidateId, name, csrfToken)
+      const finalCandidate = state.replies.find((candidate) => candidate.candidateId === state.finalCandidateId)
+      const result = await commitAdoption(state.candidateSetId, state.finalCandidateId, name, csrfToken, {
+        ...(finalCandidate?.fullBodyImageUrl ? { fullBodyImageUrl: finalCandidate.fullBodyImageUrl } : {}),
+        ...(finalCandidate?.headshotImageUrl ? { headshotImageUrl: finalCandidate.headshotImageUrl } : {}),
+      })
       clearDraft(accountId)
       await onAdopted(result.elfie_id)
       dispatch({ type: "screen", screen: "arrival" })
     } catch (reason: unknown) {
-      setApiError(describeApiError(reason, "manage.save"))
+      if (reason instanceof ApiError && reason.code === "nest_capacity_reached") {
+        dispatch({ type: "screen", screen: "shortlist" })
+        setEntryBlock("nest-full")
+        return
+      }
+      if (reason instanceof ApiError && reason.code === "elfie_capacity_reached") {
+        dispatch({ type: "screen", screen: "shortlist" })
+        setEntryBlock("member-full")
+        return
+      }
       dispatch({ type: "error", message: t("adoption.journey.errors.commit") })
     }
   }
@@ -451,10 +677,58 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
 
   const errorMessage = resolveLocalizedError(apiError, locale)
   const selectedCandidate = state.replies.find((candidate) => candidate.candidateId === state.finalCandidateId)
-  const title = state.screen === "welcome" ? t("adoption.journey.window.welcomeTitle") : t("adoption.journey.window.title")
+  const journeyReady = info !== null && !loadingInfo && entryBlock === null
+  const entryChecking = open && (loadingInfo || (info === null && entryBlock === null))
+  const title = !journeyReady
+    ? t("adoption.journey.entryCheck.title")
+    : state.screen === "welcome"
+      ? t("adoption.journey.window.welcomeTitle")
+      : t("adoption.journey.window.title")
   const stage = STAGE_FOR_SCREEN[state.screen]
-  const showFooter = !["welcome", "generating", "inviting", "committing", "arrival"].includes(state.screen)
+  const showFooter = journeyReady && !["welcome", "generating", "inviting", "committing", "arrival"].includes(state.screen)
   const showBack = state.screen === "naming" || (!isIntentLocked && state.screen !== "basic")
+  const onGenerationReady = (result: AdoptionCandidateSet, candidates: readonly Candidate[]): void => {
+    setGenerationRequest(null)
+    dispatch({
+      type: "candidates-ready",
+      batch: result.batch_number,
+      setId: result.candidate_set_id,
+      sessionId: result.adoption_session_id,
+      candidates,
+      selectedIds: state.selectedCandidateIds,
+    })
+  }
+  const onGenerationError = (reason: unknown): void => {
+    setGenerationRequest(null)
+    void reason
+    dispatch({ type: "error", message: t("adoption.journey.errors.generate") })
+  }
+
+  const candidateLabel = (candidateId: string): string => {
+    const index = state.candidates.findIndex((candidate) => candidate.candidateId === candidateId)
+    return t("adoption.journey.shortlist.candidate", { number: index >= 0 ? index + 1 : "" })
+  }
+
+  const exitEntryBlock = (): void => {
+    setEntryBlock(null)
+    onOpenChange(false)
+  }
+
+  const retryEntryCheck = (): void => {
+    setEntryBlock(null)
+    setInfo(null)
+    setLoadingInfo(true)
+    setEntryRequest((value) => value + 1)
+  }
+
+  const retryInvitation = (): void => {
+    retryingInvitationRef.current = true
+    setInvitationFailureOpen(false)
+    void sendInvitations()
+  }
+
+  const invitationFailureTitle = t("adoption.journey.invitationFailure.title")
+  const invitationFailureDescription = t("adoption.journey.invitationFailure.description")
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (nextOpen) onOpenChange(true); else requestClose() }}>
@@ -472,7 +746,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           <Button aria-label={t("adoption.close")} className="adoption-dialog__close" disabled={isBusy} onClick={requestClose} size="icon" type="button" variant="ghost"><Icon name="x" /></Button>
         </DialogHeader>
 
-        {state.screen !== "welcome" && state.screen !== "arrival" ? (
+        {journeyReady && state.screen !== "welcome" && state.screen !== "arrival" ? (
           <ol aria-label={t("adoption.journey.progress.label")} className="adoption-progress">
             {(["basic", "appearance", "companionship", "meeting"] as const).map((key, index) => (
               <li aria-current={stage === index ? "step" : undefined} key={key}>
@@ -485,21 +759,21 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
         ) : null}
 
         <div aria-live="polite" className="adoption-dialog__body">
-          {loadingInfo && state.screen === "basic" ? <div className="adoption-loading"><span className="adoption-spinner" aria-hidden="true" />{t("adoption.journey.loading")}</div> : null}
-          {!loadingInfo && state.screen === "welcome" ? <WelcomeScreen t={t} onStart={goToBasic} /> : null}
-          {!loadingInfo && state.screen === "basic" ? <BasicScreen allowedSpecies={allowedSpecies} canAdopt={info?.quota.can_adopt ?? true} draft={state.draft} dispatch={dispatch} speciesName={(id) => speciesNameForId(id)} stageName={(value) => stageName(t, value)} t={t} /> : null}
-          {state.screen === "appearance" ? <AppearanceScreen draft={state.draft} dispatch={dispatch} t={t} /> : null}
-          {state.screen === "companionship" ? <CompanionshipScreen draft={state.draft} dispatch={dispatch} onAnswer={answerCompanionship} questionIndex={state.questionIndex} t={t} /> : null}
-          {state.screen === "review" ? <ReviewScreen draft={state.draft} dispatch={dispatch} stageName={(value) => stageName(t, value)} speciesName={(id) => speciesNameForId(id)} t={t} /> : null}
-          {state.screen === "generating" ? <ProgressScreen icon="sparkles" title={t("adoption.journey.generating.title")} /> : null}
-          {state.screen === "shortlist" ? <ShortlistScreen candidates={state.candidates} candidateBatch={state.candidateBatch} dispatch={dispatch} onRegenerate={() => { void generateCandidates() }} selectedIds={state.selectedCandidateIds} stageName={(value) => stageName(t, value)} t={t} /> : null}
-          {state.screen === "inviting" ? <InvitingScreen candidates={state.candidates.filter((candidate) => state.selectedCandidateIds.includes(candidate.candidateId))} t={t} /> : null}
-          {state.screen === "replies" ? <RepliesScreen candidateImageUrl={candidateImageUrl} dispatch={dispatch} finalCandidateId={state.finalCandidateId} intro={<ScreenIntro title={t("adoption.journey.replies.title", { count: state.replies.filter((reply) => reply.status === "accepted").length })} />} replies={state.replies} /> : null}
-          {state.screen === "naming" && selectedCandidate ? <NamingScreen candidate={selectedCandidate} candidateImageUrl={candidateImageUrl} customName={state.customName} dispatch={dispatch} intro={<ScreenIntro title={t("adoption.journey.naming.title")} />} nameMode={state.nameMode} t={t} /> : null}
-          {state.screen === "committing" ? <ProgressScreen icon="house" title={t("adoption.journey.committing.title", { name: selectedName(state) })} /> : null}
-          {state.screen === "arrival" && selectedCandidate ? <ArrivalScreen candidate={selectedCandidate} name={selectedName(state)} onFinish={() => { onOpenChange(false) }} t={t} /> : null}
-          {state.error ? <p className="adoption-inline-error" role="alert">{state.error}</p> : null}
-          {errorMessage ? <p className="adoption-inline-error" role="alert">{errorMessage}</p> : null}
+          {journeyReady && state.error ? <p className="adoption-inline-error" role="alert">{state.error}</p> : null}
+          {journeyReady && errorMessage ? <p className="adoption-inline-error" role="alert">{errorMessage}</p> : null}
+          {entryChecking ? <AdoptionEntryCheck t={t} /> : null}
+          {journeyReady && state.screen === "welcome" ? <WelcomeScreen t={t} onStart={goToBasic} /> : null}
+          {journeyReady && state.screen === "basic" ? <BasicScreen allowedSpecies={allowedSpecies} canAdopt={info?.quota.can_adopt ?? true} draft={state.draft} dispatch={dispatch} locale={locale} speciesName={(id) => speciesName(t, id, info?.species.find((species) => species.species_id === id), locale)} stageName={(value) => stageName(t, value)} t={t} /> : null}
+          {journeyReady && state.screen === "appearance" ? <AppearanceScreen draft={state.draft} dispatch={dispatch} t={t} /> : null}
+          {journeyReady && state.screen === "companionship" ? <CompanionshipScreen draft={state.draft} dispatch={dispatch} onAnswer={answerCompanionship} questionIndex={state.questionIndex} t={t} /> : null}
+          {journeyReady && state.screen === "review" ? <ReviewScreen draft={state.draft} dispatch={dispatch} stageName={(value) => stageName(t, value)} speciesName={(id) => speciesName(t, id, info?.species.find((species) => species.species_id === id), locale)} t={t} /> : null}
+          {journeyReady && state.screen === "generating" && generationRequest !== null ? <GeneratingScreen csrfToken={csrfToken} onError={onGenerationError} onReady={onGenerationReady} request={generationRequest} title={t("adoption.journey.generating.title")} /> : null}
+          {journeyReady && state.screen === "shortlist" ? <ShortlistScreen candidates={state.candidates} candidateBatch={state.candidateBatch} dispatch={dispatch} onRegenerate={() => { void generateCandidates() }} selectedIds={state.selectedCandidateIds} t={t} /> : null}
+          {journeyReady && state.screen === "inviting" ? <SendingScreen candidates={state.candidates.filter((candidate) => state.selectedCandidateIds.includes(candidate.candidateId))} candidateLabel={candidateLabel} t={t} /> : null}
+          {journeyReady && state.screen === "replies" ? <RepliesScreen candidateImageUrl={candidateImageUrl} candidateLabel={candidateLabel} dispatch={dispatch} finalCandidateId={state.finalCandidateId} intro={<ScreenIntro title={t("adoption.journey.replies.title", { count: state.replies.filter((reply) => reply.status === "accepted").length })} />} replies={state.replies} t={t} /> : null}
+          {journeyReady && state.screen === "naming" && selectedCandidate ? <NamingScreen candidate={selectedCandidate} candidateImageUrl={candidateImageUrl} candidateLabel={candidateLabel(selectedCandidate.candidateId)} customName={state.customName} dispatch={dispatch} intro={<ScreenIntro title={t("adoption.journey.naming.title")} />} nameMode={state.nameMode} t={t} /> : null}
+          {journeyReady && state.screen === "committing" ? <ProgressScreen title={t("adoption.journey.committing.title", { name: selectedName(state) })} /> : null}
+          {journeyReady && state.screen === "arrival" && selectedCandidate ? <ArrivalScreen candidate={selectedCandidate} name={selectedName(state)} onFinish={() => { onOpenChange(false) }} t={t} /> : null}
         </div>
 
         {showFooter ? (
@@ -507,6 +781,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
             {showBack ? <Button onClick={back} type="button" variant="ghost">{t("adoption.journey.actions.back")}</Button> : null}
             <div>
               <span className="adoption-footer-hint">{footerHint(state, t)}</span>
+              {state.screen === "shortlist" ? <Button onClick={openMessageEditor} type="button" variant="outline">{state.invitationMessageEnabled ? t("adoption.journey.inviting.editMessage") : t("adoption.journey.inviting.writeMessage")}</Button> : null}
               <Button disabled={isNextDisabled(state, info)} onClick={next} type="button">{nextLabel(state, t)}</Button>
             </div>
           </footer>
@@ -531,6 +806,25 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           pending={state.screen === "committing"}
           title={t("adoption.journey.finalConfirm.title")}
         />
+        <ConfirmDialog
+          cancelLabel={t("adoption.journey.invitationFailure.exit")}
+          confirmLabel={t("adoption.journey.invitationFailure.retry")}
+          description={invitationFailureDescription}
+          onConfirm={retryInvitation}
+          onOpenChange={(nextOpen) => {
+            setInvitationFailureOpen(nextOpen)
+            if (nextOpen) return
+            if (retryingInvitationRef.current) {
+              retryingInvitationRef.current = false
+              return
+            }
+            onOpenChange(false)
+          }}
+          open={invitationFailureOpen}
+          title={invitationFailureTitle}
+        />
+
+        {entryBlock !== null ? <AdoptionEntryBlockDialog block={entryBlock} onExit={exitEntryBlock} onRetry={retryEntryCheck} open t={t} /> : null}
 
         {closePrompt ? (
           <div aria-labelledby="adoption-close-title" aria-modal="true" className="adoption-close-prompt" role="alertdialog">
@@ -538,6 +832,23 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
               <h2 id="adoption-close-title">{t("adoption.journey.closePrompt.title")}</h2>
               <p>{t("adoption.journey.closePrompt.description")}</p>
               <div><Button onClick={() => setClosePrompt(false)} type="button" variant="ghost">{t("adoption.journey.closePrompt.continue")}</Button><Button onClick={confirmDiscard} type="button" variant="destructive">{t("adoption.journey.closePrompt.discard")}</Button></div>
+            </div>
+          </div>
+        ) : null}
+
+        {messageDialogOpen ? (
+          <div aria-labelledby="adoption-message-title" aria-modal="true" className="adoption-message-prompt" role="dialog">
+            <div className="adoption-message-prompt__card">
+              <div className="adoption-message-prompt__header">
+                <h2 id="adoption-message-title">{t("adoption.journey.inviting.messageTitle")}</h2>
+                <Button aria-label={t("adoption.close")} onClick={() => setMessageDialogOpen(false)} size="icon-sm" type="button" variant="ghost"><Icon name="x" /></Button>
+              </div>
+              <Textarea aria-label={t("adoption.journey.inviting.messageLabel")} maxLength={400} onChange={(event) => { if (invitationMessageWithinLimit(event.target.value)) setMessageDraft(event.target.value) }} placeholder={t("adoption.journey.inviting.messagePlaceholder")} value={messageDraft} />
+              <p className="adoption-message-prompt__hint">{t("adoption.journey.inviting.messageLimit")}</p>
+              <div className="adoption-message-prompt__actions">
+                <Button onClick={() => setMessageDialogOpen(false)} type="button" variant="ghost">{t("adoption.journey.inviting.cancelMessage")}</Button>
+                <Button onClick={saveInvitationMessage} type="button">{t("adoption.journey.inviting.saveMessage")}</Button>
+              </div>
             </div>
           </div>
         ) : null}
@@ -555,12 +866,13 @@ function WelcomeScreen({ t, onStart }: { readonly t: JourneyT; readonly onStart:
 }
 
 function BasicScreen({
-  allowedSpecies, canAdopt, dispatch, draft, speciesName, stageName, t,
+  allowedSpecies, canAdopt, dispatch, draft, locale, speciesName, stageName, t,
 }: {
-  readonly allowedSpecies: readonly AdoptionSpecies[]
+  readonly allowedSpecies: readonly AdoptionInfo["species"][number][]
   readonly canAdopt: boolean
   readonly dispatch: React.Dispatch<AdoptionAction>
   readonly draft: AdoptionDraftState["draft"]
+  readonly locale: string
   readonly speciesName: (id: SpeciesId) => string
   readonly stageName: (stage: LifeStage) => string
   readonly t: JourneyT
@@ -568,7 +880,7 @@ function BasicScreen({
   return <section>
     <ScreenIntro badge={t("adoption.journey.badges.oneMinute")} title={t("adoption.journey.basic.title")} />
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.speciesLabel")}</legend><div className="adoption-species-grid">
-      {allowedSpecies.map((species) => <ChoiceButton className="adoption-species-choice" key={species.species_id} onClick={() => dispatch({ type: "set-basic", field: "speciesId", value: species.species_id })} selected={draft.speciesId === species.species_id}><img alt="" src={species.avatar_url} /><span><strong>{speciesName(species.species_id)}</strong></span></ChoiceButton>)}
+      {allowedSpecies.map((species) => <ChoiceButton className="adoption-species-choice" key={species.species_id} onClick={() => dispatch({ type: "set-basic", field: "speciesId", value: species.species_id })} selected={draft.speciesId === species.species_id}><img alt="" src={species.avatar_url || speciesImageUrl(species.species_id)} /><span><strong>{locale === "zh-CN" ? species.display_name_zh : species.display_name}</strong></span></ChoiceButton>)}
     </div></fieldset>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.lifeStageLabel")}</legend><div className="adoption-option-row">{LIFE_STAGES.map((stage) => <ChoiceButton key={stage} onClick={() => dispatch({ type: "set-basic", field: "lifeStage", value: stage })} selected={draft.lifeStage === stage}>{stageName(stage)}</ChoiceButton>)}</div></fieldset>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.genderLabel")}</legend><div className="adoption-option-row">{GENDERS.map((gender) => <ChoiceButton key={gender} onClick={() => dispatch({ type: "set-basic", field: "gender", value: gender })} selected={draft.gender === gender}>{t(`adoption.journey.genders.${gender}`)}</ChoiceButton>)}</div></fieldset>
@@ -607,16 +919,174 @@ function ReviewCard({ title, values, onEdit, t }: { readonly title: string; read
   return <section className="adoption-review-card"><div><h3>{title}</h3><Button aria-label={`${t("adoption.journey.actions.edit")} ${title}`} onClick={onEdit} size="icon-sm" type="button" variant="ghost"><Icon name="pencil" size={16} /></Button></div><TagList values={values} /></section>
 }
 
-function ProgressScreen({ icon, title }: { readonly icon: "sparkles" | "house"; readonly title: string }) {
-  return <section className="adoption-progress-screen"><div className="adoption-progress-screen__icon"><Icon name={icon === "house" ? "house" : "palette"} size={34} /></div><h2>{title}</h2><span className="adoption-spinner" aria-label={title} /></section>
+function ProgressScreen({ title }: { readonly title: string }) {
+  return <section className="adoption-progress-screen"><h2>{title}</h2><div aria-label={title} className="adoption-signal adoption-progress-signal" role="progressbar"><span /></div></section>
 }
 
-function ShortlistScreen({ candidates, candidateBatch, dispatch, onRegenerate, selectedIds, stageName, t }: { readonly candidates: readonly Candidate[]; readonly candidateBatch: number; readonly dispatch: React.Dispatch<AdoptionAction>; readonly onRegenerate: () => void; readonly selectedIds: readonly string[]; readonly stageName: (stage: LifeStage) => string; readonly t: JourneyT }) {
+type GeneratingScreenProps = {
+  readonly csrfToken: string
+  readonly onError: (reason: unknown) => void
+  readonly onReady: (result: AdoptionCandidateSet, candidates: readonly Candidate[]) => void
+  readonly request: AdoptionCandidateSetInput
+  readonly title: string
+}
+
+function GeneratingScreen({ csrfToken, onError, onReady, request, title }: GeneratingScreenProps) {
+  const frameRef = useRef<HTMLIFrameElement>(null)
+
+  useEffect(() => {
+    let active = true
+    let readyResolve: (() => void) | null = null
+    const ready = new Promise<void>((resolve) => {
+      readyResolve = resolve
+    })
+    const pendingActions = new Map<string, { readonly resolve: () => void; readonly reject: (reason: unknown) => void }>()
+    const frame = frameRef.current
+    if (frame === null) return undefined
+
+    let bridge: ProfileGodotPreview | null = null
+    const waitForAction = (action: string): Promise<void> => new Promise<void>((resolve, reject) => {
+      pendingActions.set(action, { resolve, reject })
+    })
+    bridge = createProfileGodotPreview({
+      frame,
+      onEvent: (event) => {
+        if (event.kind === "ready") {
+          readyResolve?.()
+          return
+        }
+        const pending = pendingActions.get(event.action)
+        if (pending === undefined) return
+        pendingActions.delete(event.action)
+        if (event.kind === "completed") pending.resolve()
+        else pending.reject(new ProfileGodotPreviewError(event.reason))
+      },
+    })
+
+    const run = async (): Promise<void> => {
+      try {
+        const result = await adoptionCandidates(request, csrfToken)
+        if (!active) return
+        const candidates = result.candidates.map(asCandidate)
+        if (candidates.some((candidate) => Object.keys(candidate.runtimeAppearance).length === 0)) {
+          const hasStaticPortraits = candidates.every((candidate) => candidate.fullBodyImageUrl.length > 0 && candidate.headshotImageUrl.length > 0)
+          if (hasStaticPortraits) onReady(result, candidates)
+          else onError(new ProfileGodotPreviewError("candidate_portrait_unavailable"))
+          return
+        }
+        await waitWithTimeout(ready, 20_000, "preview_timeout")
+        const rendered: Candidate[] = []
+        for (const candidate of candidates) {
+          if (!active || bridge === null) return
+          await sendAndWait(bridge, waitForAction, "configure", {
+            appearance: candidate.runtimeAppearance,
+            elfie_id: `candidate-${candidate.candidateId}`,
+            spec_revision: portraitRevision(candidate.candidateId),
+            species_id: candidate.speciesId,
+          })
+          const fullBody = await captureAndWait(bridge, waitForAction)
+          await sendAndWait(bridge, waitForAction, "focus", { target: "head" })
+          const headshot = await captureAndWait(bridge, waitForAction)
+          const fullBodyImageUrl = await captureDataUrl(fullBody)
+          const headshotImageUrl = await captureDataUrl(headshot)
+          URL.revokeObjectURL(fullBody.previewUrl)
+          URL.revokeObjectURL(headshot.previewUrl)
+          rendered.push({ ...candidate, fullBodyImageUrl, headshotImageUrl })
+        }
+        if (active) onReady(result, rendered)
+      } catch (reason: unknown) {
+        if (active) onError(reason)
+      }
+    }
+    void run()
+    return () => {
+      active = false
+      for (const pending of pendingActions.values()) pending.reject(new ProfileGodotPreviewError("preview_closed"))
+      pendingActions.clear()
+      bridge?.dispose()
+    }
+  }, [csrfToken, onError, onReady, request])
+
+  return <section className="adoption-progress-screen">
+    <h2>{title}</h2>
+    <div aria-label={title} className="adoption-signal adoption-progress-signal" role="progressbar"><span /></div>
+    <iframe
+      aria-hidden="true"
+      className="adoption-portrait-renderer"
+      onError={() => onError(new ProfileGodotPreviewError("preview_load_failed"))}
+      ref={frameRef}
+      src="/runtime/godot/elfienest.html?mode=elfie_lab"
+      title=""
+    />
+  </section>
+}
+
+async function sendAndWait(
+  bridge: ProfileGodotPreview,
+  waitForAction: (action: string) => Promise<void>,
+  action: string,
+  payload: Readonly<Record<string, unknown>>,
+): Promise<void> {
+  const completion = waitForAction(action)
+  bridge.send(action, payload)
+  await completion
+}
+
+async function captureAndWait(
+  bridge: ProfileGodotPreview,
+  waitForAction: (action: string) => Promise<void>,
+): Promise<{ readonly blob: Blob; readonly previewUrl: string }> {
+  const completion = waitForAction("capture")
+  const capture = bridge.capture()
+  await completion
+  return capture
+}
+
+async function captureDataUrl(capture: { readonly blob: Blob }): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result)
+      else reject(new ProfileGodotPreviewError("invalid_portrait"))
+    }
+    reader.onerror = () => reject(new ProfileGodotPreviewError("invalid_portrait"))
+    reader.readAsDataURL(capture.blob)
+  })
+}
+
+function portraitRevision(candidateId: string): number {
+  let hash = 2166136261
+  for (const character of candidateId) {
+    hash ^= character.charCodeAt(0)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
+async function waitWithTimeout<T>(promise: Promise<T>, milliseconds: number, reason: string): Promise<T> {
+  let timer: number | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = window.setTimeout(() => reject(new ProfileGodotPreviewError(reason)), milliseconds)
+      }),
+    ])
+  } finally {
+    if (timer !== undefined) window.clearTimeout(timer)
+  }
+}
+
+function ShortlistScreen({ candidates, candidateBatch, dispatch, onRegenerate, selectedIds, t }: { readonly candidates: readonly Candidate[]; readonly candidateBatch: number; readonly dispatch: React.Dispatch<AdoptionAction>; readonly onRegenerate: () => void; readonly selectedIds: readonly string[]; readonly t: JourneyT }) {
   const canRegenerate = candidateBatch < MAX_CANDIDATE_BATCHES
   return <section>
     <ScreenIntro badge={t("adoption.journey.badges.maxThree")} eyebrow={t("adoption.journey.shortlist.eyebrow")} title={t("adoption.journey.shortlist.title")} />
     <div className="adoption-candidate-grid">
-      {candidates.map((candidate) => <ChoiceButton className="adoption-candidate-card" key={candidate.candidateId} onClick={() => dispatch({ type: "toggle-candidate", candidateId: candidate.candidateId })} selected={selectedIds.includes(candidate.candidateId)}><img alt="" src={candidateImageUrl(candidate)} /><span className="adoption-candidate-card__copy"><strong>{candidate.originalName}</strong><small>{stageName(candidate.lifeStage)} · {t(`adoption.journey.genders.${candidate.gender}`)}</small><TagList values={candidate.appearanceTags.slice(0, 2)} /></span></ChoiceButton>)}
+      {candidates.map((candidate, index) => {
+        const selected = selectedIds.includes(candidate.candidateId)
+        const disabled = !selected && selectedIds.length >= 3
+        return <ChoiceButton aria-label={t("adoption.journey.shortlist.candidate", { number: index + 1 })} className="adoption-candidate-card" disabled={disabled} key={candidate.candidateId} onClick={() => dispatch({ type: "toggle-candidate", candidateId: candidate.candidateId })} selected={selected}><img alt="" src={candidateImageUrl(candidate, "fullBody")} /><span className="adoption-candidate-card__copy"><strong>{t("adoption.journey.shortlist.candidate", { number: index + 1 })}</strong><small>{candidateAgeLabel(t, candidate.ageMonths)} · {t(`adoption.journey.genders.${candidate.gender}`)}</small><TagList values={candidate.personalityTags.slice(0, 3)} /></span></ChoiceButton>
+      })}
     </div>
     <div className="adoption-shortlist-toolbar">
       <span>{t("adoption.journey.shortlist.selected", { count: selectedIds.length })}</span>
@@ -628,8 +1098,8 @@ function ShortlistScreen({ candidates, candidateBatch, dispatch, onRegenerate, s
   </section>
 }
 
-function InvitingScreen({ candidates, t }: { readonly candidates: readonly Candidate[]; readonly t: JourneyT }) {
-  return <section><ScreenIntro title={t("adoption.journey.inviting.title")} /><div className="adoption-signal" aria-hidden="true"><span /></div><div className="adoption-invite-grid">{candidates.map((candidate) => <div className="adoption-invite-card" key={candidate.candidateId}><img alt="" src={candidateImageUrl(candidate)} /><strong>{candidate.originalName}</strong></div>)}</div></section>
+function SendingScreen({ candidates, candidateLabel, t }: { readonly candidates: readonly Candidate[]; readonly candidateLabel: (candidateId: string) => string; readonly t: JourneyT }) {
+  return <section className="adoption-sending-screen"><ScreenIntro title={t("adoption.journey.inviting.title")} /><div className="adoption-invite-grid">{candidates.map((candidate) => <div className="adoption-invite-card" key={candidate.candidateId}><img alt="" src={candidateImageUrl(candidate, "headshot")} /><strong>{candidateLabel(candidate.candidateId)}</strong><TagList values={candidate.personalityTags.slice(0, 3)} /></div>)}</div><div aria-label={t("adoption.journey.inviting.title")} className="adoption-signal adoption-progress-signal" role="progressbar"><span /></div></section>
 }
 
 function ArrivalScreen({ candidate, name, onFinish, t }: { readonly candidate: CandidateReply; readonly name: string; readonly onFinish: () => void; readonly t: JourneyT }) {
@@ -637,11 +1107,15 @@ function ArrivalScreen({ candidate, name, onFinish, t }: { readonly candidate: C
 }
 
 function isNextDisabled(state: AdoptionDraftState, info: AdoptionInfo | null): boolean {
-  if (state.screen === "basic") return state.draft.speciesId === null || info?.quota.can_adopt === false
+  if (state.screen === "basic") return state.draft.speciesId === null || info?.availability !== "available"
   if (state.screen === "companionship") return state.draft.answers.some((answer) => answer === null)
   if (state.screen === "shortlist") return state.selectedCandidateIds.length === 0
   if (state.screen === "replies") return state.finalCandidateId === null
-  if (state.screen === "naming") return state.nameMode === "custom" && !state.customName.trim()
+  if (state.screen === "naming") {
+    const candidate = state.replies.find((item) => item.candidateId === state.finalCandidateId)
+    if (candidate?.reveal === null) return !state.customName.trim()
+    return state.nameMode === "custom" && !state.customName.trim()
+  }
   return false
 }
 
@@ -650,7 +1124,7 @@ function nextLabel(state: AdoptionDraftState, t: JourneyT): string {
   if (state.screen === "appearance") return t("adoption.journey.actions.toCompanionship")
   if (state.screen === "companionship") return t("adoption.journey.actions.nextPage")
   if (state.screen === "review") return t("adoption.journey.actions.generate")
-  if (state.screen === "shortlist") return t("adoption.journey.actions.invite")
+  if (state.screen === "shortlist") return t("adoption.journey.actions.sendIntent")
   if (state.screen === "replies") return t("adoption.journey.actions.toNaming")
   if (state.screen === "naming") return t("adoption.journey.actions.confirm")
   return t("adoption.journey.actions.continue")

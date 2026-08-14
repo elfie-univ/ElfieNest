@@ -1,5 +1,7 @@
 """Nest Session composition owns persisted Elfie construction."""
 
+from __future__ import annotations
+
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,6 +23,17 @@ class _FakeSession:
 
     def register_elfie(self, elfie_id: str, elfie: object) -> None:
         self.registered.append((elfie_id, elfie))
+
+    def prepare_speech(self, _payload: dict[str, object]) -> bool:
+        return True
+
+    def prepare_semantic_action(self, _payload: dict[str, object]) -> str | None:
+        return None
+
+    def complete_semantic_action(
+        self, _payload: dict[str, object], _result: object
+    ) -> None:
+        return None
 
 
 def test_restore_registered_elfies_isolates_one_invalid_profile(monkeypatch) -> None:

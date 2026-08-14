@@ -18,6 +18,19 @@
   - 只需要依据当前代码和测试判断已实现行为的任务；
   - 与 Elfie 产品故事、生命形态和总体架构无关的局部任务。
 
+### Nest 与 Godot 虚拟生活世界设计
+
+- file: `../../docs/.internal/nest-godot-virtual-world-functional-architecture.md`
+- status: `review-baseline`
+- read_when:
+  - 讨论 Nest 四个功能模块、公共事件/广播机制或 Nest Facade；
+  - 设计或迁移直接身体、语义行动、结构化视觉、虚拟听觉、环境控制等 Godot 语义线路；
+  - 审查 Elfie、Nest、Godot、App 的事实 authority、事件目标、cause ID 或恢复边界；
+  - 细化 Nest–Godot 规约、Conformance 条目或后续纵向迁移切片前。
+- do_not_read_when:
+  - 只需要判断当前 Godot 渲染结果、资产或单个脚本行为；
+  - 与 Nest 世界语义、Godot 边界和事件路由无关的局部任务。
+
 ### Elfie 大脑十三系统历史扩展稿
 
 - file: `architecture/elfie-brain-system-design.md`

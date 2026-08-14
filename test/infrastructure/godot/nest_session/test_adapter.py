@@ -12,6 +12,7 @@ from infrastructure.godot.gateway.messages import (
     CommandName,
     EventName,
     RuntimeEventFrame,
+    SemanticLane,
 )
 from infrastructure.godot.gateway.session import (
     RuntimeConnection as GatewayConnection,
@@ -41,7 +42,7 @@ def test_adapter_translates_world_operations_to_protocol_commands() -> None:
                     actor_id="elfie-1",
                     species="fox",
                     appearance={},
-                    home_anchor_id="dorm-01/bed-01",
+                    spawn_anchor_id="dorm-01/bed-01",
                 ),
             ),
             world_revision=1,
@@ -63,8 +64,9 @@ def test_adapter_maps_validated_manifest_without_exposing_protocol_frame() -> No
     gateway = MagicMock(spec=GodotAPIServer)
     gateway.drain_runtime_events.return_value = (
         RuntimeEventFrame(
-            protocol=2,
+            protocol=3,
             kind="event",
+            lane=SemanticLane.NEST,
             name=EventName.SCENE_MANIFEST,
             message_id="manifest-1",
             runtime_id="runtime-a",
@@ -95,6 +97,16 @@ def test_adapter_maps_validated_manifest_without_exposing_protocol_frame() -> No
                         "active": True,
                     }
                 ],
+                "facilities": [
+                    {
+                        "facility_id": "dorm-01/rest",
+                        "zone_id": "dorm-01",
+                        "kind": "rest",
+                        "label": "Rest area",
+                        "capabilities": ["sleep"],
+                        "active": True,
+                    }
+                ],
             },
         ),
     )
@@ -106,14 +118,17 @@ def test_adapter_maps_validated_manifest_without_exposing_protocol_frame() -> No
     assert isinstance(event.payload, SceneManifest)
     assert event.payload.catalog.nest_id == "local-nest"
     assert event.payload.catalog.zones[0].anchors[0].anchor_id == "dorm-01/bed-01"
+    assert event.payload.catalog.facilities[0].facility_id == "dorm-01/rest"
+    assert event.payload.catalog.facilities[0].capabilities == ("sleep",)
 
 
 def test_adapter_maps_snapshot_to_semantic_resident_mirrors() -> None:
     gateway = MagicMock(spec=GodotAPIServer)
     gateway.drain_runtime_events.return_value = (
         RuntimeEventFrame(
-            protocol=2,
+            protocol=3,
             kind="event",
+            lane=SemanticLane.NEST,
             name=EventName.WORLD_SNAPSHOT,
             message_id="snapshot-1",
             runtime_id="runtime-a",
@@ -141,3 +156,55 @@ def test_adapter_maps_snapshot_to_semantic_resident_mirrors() -> None:
     assert isinstance(event.payload, WorldSnapshot)
     assert event.payload.residents[0].elfie_id == "elfie-1"
     assert event.payload.residents[0].current_zone_id == "dorm-01"
+
+
+def test_adapter_requests_bounded_visual_observation_on_nest_lane() -> None:
+    gateway = MagicMock(spec=GodotAPIServer)
+    gateway.send_runtime_command.return_value = "visual-request-1"
+    adapter = GodotNestSessionAdapter(gateway=gateway)
+
+    assert (
+        adapter.request_visual_observation(
+            observation_id="vision-1",
+            actor_id="elfie-1",
+            max_results=8,
+            world_revision=3,
+        )
+        == "visual-request-1"
+    )
+    gateway.send_runtime_command.assert_called_once_with(
+        CommandName.REQUEST_VISUAL_OBSERVATION,
+        {
+            "observation_id": "vision-1",
+            "actor_id": "elfie-1",
+            "max_results": 8,
+        },
+        world_revision=3,
+        cause_id="vision-1",
+    )
+
+
+def test_adapter_sends_desired_environment_as_nest_command() -> None:
+    gateway = MagicMock(spec=GodotAPIServer)
+    gateway.send_runtime_command.return_value = "environment-request-1"
+    adapter = GodotNestSessionAdapter(gateway=gateway)
+
+    assert (
+        adapter.apply_environment(
+            command_id="environment-1",
+            lights_on=False,
+            quiet_mode=True,
+            world_revision=3,
+        )
+        == "environment-request-1"
+    )
+    gateway.send_runtime_command.assert_called_once_with(
+        CommandName.APPLY_ENVIRONMENT,
+        {
+            "command_id": "environment-1",
+            "lights_on": False,
+            "quiet_mode": True,
+        },
+        world_revision=3,
+        cause_id="environment-1",
+    )

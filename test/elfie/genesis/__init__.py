@@ -1,1 +1,1 @@
-"""Genesis contract tests."""
+"""Genesis domain tests."""

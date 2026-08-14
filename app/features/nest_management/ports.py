@@ -8,7 +8,9 @@ from typing import Protocol
 
 @dataclass(frozen=True)
 class NestBedRecord:
-    bed_number: int
+    anchor_id: str
+    label: str
+    order: int
     occupant_id: str | None
     occupant_name: str | None
     occupant_owner_user_id: int | None
@@ -45,7 +47,7 @@ class NestManagementPort(Protocol):
 
     def update_bed_count(self, bed_count: int) -> NestSnapshotRecord: ...
 
-    def assign_bed(self, elfie_id: str, bed_number: int | None) -> None: ...
+    def assign_home(self, elfie_id: str, home_anchor_id: str | None) -> None: ...
 
 
 __all__ = (

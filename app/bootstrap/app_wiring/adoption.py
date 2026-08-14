@@ -5,19 +5,28 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import cast
+from typing import Callable, Optional, cast
 from uuid import uuid4
 
 from app.features.adoption import (
     AcceptedAdoptionReservation,
     AdoptionReservationRecord,
     AdoptionService,
+    CandidatePortraitPort,
 )
 from app.features.configuration.settings import SettingsStorePort
 from app.orchestration.nest_session import NestSession
 from app.orchestration.resident_admission import ResidentAdmissionService
 from elfie.public import BodyPort, ElfieFactory
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
+from infrastructure.godot.body_transport import (
+    RuntimeIntentPayload,
+    RuntimeIntentResult,
+)
+from infrastructure.models.adoption_narrative import (
+    AdoptionStructuredModelExecution,
+    StructuredAdoptionNarrativeAdapter,
+)
 from infrastructure.persistence.account_repository import AccountRepository
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
@@ -60,6 +69,7 @@ def seed_single_elfie(db_path: str) -> bool:
             elfie_id=elfie_id,
             owner_user_id=owner.user_id,
             name="Aifei",
+            original_name="Aifei",
             species_id="fox",
             gender="female",
             birth_date=birth_date,
@@ -73,6 +83,7 @@ def seed_single_elfie(db_path: str) -> bool:
                 elfie_id=elfie_id,
                 owner_user_id=owner.user_id,
                 name="Aifei",
+                original_name="Aifei",
                 species_id="fox",
                 personality_style="好奇探索",
                 height="tall",
@@ -95,18 +106,42 @@ def build_adoption_services(
     *,
     settings: SettingsStorePort,
     nest_session: NestSession | None,
+    model_execution: AdoptionStructuredModelExecution | None = None,
+    portraits: CandidatePortraitPort | None = None,
 ) -> AdoptionServices:
     def body_factory(elfie_id: str, _workspace: str) -> BodyPort | None:
         if nest_session is None:
             return None
         return NativeBody(
             body_id=elfie_id,
-            transport=GodotTransport(cast(GodotGateway, nest_session.world_runtime)),
+            transport=GodotTransport(
+                cast(GodotGateway, nest_session.world_runtime),
+                actor_id=elfie_id,
+                speech_intent=cast(
+                    Callable[[RuntimeIntentPayload], bool],
+                    nest_session.prepare_speech,
+                ),
+                semantic_action=cast(
+                    Callable[[RuntimeIntentPayload], Optional[str]],
+                    nest_session.prepare_semantic_action,
+                ),
+                semantic_action_result=cast(
+                    Callable[[RuntimeIntentPayload, RuntimeIntentResult], None],
+                    nest_session.complete_semantic_action,
+                ),
+            ),
         )
 
+    narrative = (
+        None
+        if model_execution is None
+        else StructuredAdoptionNarrativeAdapter(model_execution)
+    )
     adoption = AdoptionService(
         SettingsAdoptionPolicyAdapter(settings),
         SQLiteAdoptionAdapter(db_path),
+        portraits=portraits,
+        narrative=narrative,
     )
     return AdoptionServices(
         adoption=adoption,

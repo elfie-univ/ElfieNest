@@ -13,6 +13,9 @@ from app.orchestration.lifecycle.commands import (
 from app.orchestration.lifecycle.facade import LifecycleFacade, RuntimeLifecycle
 from app.orchestration.lifecycle.ports import (
     AuthorityHostConfig,
+    DataHomeInspection,
+    DataHomeRecoveryResult,
+    DataHomeState,
     DoctorRepairResult,
     DoctorValidationResult,
     ServicePortStatus,
@@ -23,8 +26,10 @@ from app.orchestration.lifecycle.runtime_health import (
     RuntimeComponent,
     RuntimeHealth,
     RuntimeHealthState,
+    RuntimeProgressPhase,
 )
 from app.orchestration.lifecycle.types import (
+    DataHomeRecoveryError,
     FrontendPreparationError,
     LaunchFailedError,
     RecoveryInProgressError,
@@ -34,6 +39,10 @@ from app.orchestration.lifecycle.types import (
 
 __all__ = [
     "AuthorityHostConfig",
+    "DataHomeInspection",
+    "DataHomeRecoveryError",
+    "DataHomeRecoveryResult",
+    "DataHomeState",
     "ComponentHealth",
     "DEFAULT_GODOT_WS_PORT",
     "DEFAULT_HTTP_PORT",
@@ -47,6 +56,7 @@ __all__ = [
     "RecoveryInProgressError",
     "RuntimeComponent",
     "RuntimeHealth",
+    "RuntimeProgressPhase",
     "RuntimeHealthState",
     "RuntimeLifecycle",
     "ServiceLifecycleResult",

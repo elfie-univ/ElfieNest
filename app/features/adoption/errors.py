@@ -21,6 +21,14 @@ class AdoptionCapacityReached(AdoptionError):
         super().__init__(f"每用户最多领养 {limit} 只精灵")
 
 
+class AdoptionNestCapacityReached(AdoptionError):
+    """The Nest has no globally available bed."""
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        super().__init__(f"当前 Nest 最多容纳 {limit} 只精灵")
+
+
 class AdoptionInvalid(AdoptionError):
     """The requested adoption value violates current product policy."""
 
@@ -39,6 +47,7 @@ __all__ = (
     "AdoptionCapacityReached",
     "AdoptionError",
     "AdoptionInvalid",
+    "AdoptionNestCapacityReached",
     "AdoptionOwnerNotFound",
     "AdoptionUnavailable",
 )

@@ -1,8 +1,8 @@
 extends SceneTree
 
-const RUNTIME_MODE := preload("res://runtime/runtime_mode.gd")
+const RUNTIME_MODE := preload("res://runtime/endpoint/runtime_mode.gd")
 const AUTHORITY_SEMANTIC_EVENTS := preload(
-	"res://runtime/authority_semantic_events.gd"
+	"res://runtime/endpoint/authority_semantic_events.gd"
 )
 
 
@@ -32,7 +32,11 @@ func _replay_authority(host_name: String) -> Array[Dictionary]:
 	if not mode.allows_authority_transport():
 		return []
 	var events := AUTHORITY_SEMANTIC_EVENTS.new()
-	events.record("world_ready", {"ready": true, "host": host_name}, "")
+	events.record(
+		"world_configured",
+		{"configured": true, "navigation_ready": true, "host": host_name},
+		"",
+	)
 	events.record(
 		"intent_started",
 		{"command_id": "move-42", "process_id": 9999},

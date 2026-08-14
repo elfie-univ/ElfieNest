@@ -42,7 +42,7 @@ nest/
 ├── nest.py         # public Nest facade
 ├── state/          # config, residents, homes, world catalog and Runtime mirror
 ├── engine/         # environment clock advancement
-├── interaction/    # speech, user messages, collision and tactile propagation
+├── interaction/    # speech and world-event propagation
 └── events.py       # Nest domain event value objects
 ```
 
@@ -85,8 +85,8 @@ Startup sync converges in a fixed order:
    count and the world revision;
 2. The Runtime builds rooms and navigation, and replies with a
    `scene_manifest` that contains no coordinates;
-3. The Runtime replies with `world_ready`, after which Python sends the full
-   `sync_actors`;
+3. The Runtime replies with `world_configured`; Python sends the full
+   `sync_actors` only after both world configuration and navigation are ready;
 4. The Runtime replies with `world_snapshot`, and the Nest stores only a
    temporary semantic mirror.
 
@@ -135,7 +135,7 @@ to be running. For the dev environment and the unified quality gate see
   generation/sequence behavior;
 - `test/infrastructure/godot/`: host selection, launcher, artifact metadata and
   protocol transport;
-- `test/e2e/test_nest_runtime_v2.py`: world and full character catalog
+- `test/e2e/test_nest_runtime_v3.py`: world and full character catalog
   convergence after reconnection;
 - `test/architecture/test_project_structure.py`: Nest directory structure and
   legacy package bans;

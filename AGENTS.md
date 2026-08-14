@@ -119,7 +119,9 @@ ElfieNest 当前目标是完成一套可安装、可运行、可观察、可继�
 ## 系统与 authority 边界
 
 中英文 [`System architecture contract`](docs/developer/contracts/system.md) 是跨根模块
-所有权和依赖方向的长期权威。系统形态为：
+所有权和依赖方向的长期权威；Nest 内部所有权、Godot 语义线路和事件路由由中英文
+[`Nest–Godot semantic-world contract`](docs/developer/contracts/nest-godot-semantic-world.md)
+细化。系统形态为：
 
 ```text
 app/              产品入口、用例、编排与装配
@@ -130,10 +132,10 @@ godot_project/    独立 Godot 源工程与物理 authority
 
 一套运行中的 ElfieNest 永远只有一个精灵巢。
 
-- `elfie/` 只拥有一只完整精灵的档案、认知、记忆、身体、通信和技能；`nest/` 只拥有
-  活动空间、居民 ID、环境时间、互动传播和世界语义。两者不得互相导入，也不得导入
-  `app/` 或具体 Infrastructure。真实 Elfie 对象与 Nest 状态只在 `app/orchestration/`
-  组合。
+- `elfie/` 只拥有一只完整精灵的档案、认知、记忆、身体、通信和技能；`nest/` 通过
+  空间与设施、巢内生活规则、时间与环境、精灵与巢交互四个功能所有者管理世界语义，
+  公共事件机制横贯四者但不是第五个业务模块。两者不得互相导入，也不得导入 `app/`
+  或具体 Infrastructure。真实 Elfie 对象与 Nest 状态只在 `app/orchestration/` 组合。
 - 稳定强类型的 `Elfie`、`ElfieFactory`、`Nest` Facade 可以直接承担入站 Port；没有
   多实现、独立版本、进程边界或调用方隔离需求时，不为形式对称复制 Protocol。
 - `app/features/` 拥有产品用例，`app/interfaces/` 处理协议，`app/orchestration/` 只编排
@@ -143,7 +145,9 @@ godot_project/    独立 Godot 源工程与物理 authority
   App 管理配置，但不成为普通推理链路的中转层。
 - `godot_project/` 是房屋、几何、坐标、移动、碰撞、导航和渲染的唯一源码来源。
   Python 只通过共享、版本化、认证的 Gateway 发送高层语义命令并接收已发生事实，
-  不复制物理或渲染事实。
+  不复制物理或渲染事实。共享连接不能混淆语义线路：已知目标身体回执/感知直达所属
+  Elfie；语义行动、视觉、虚拟听觉和环境事实进入 Nest 窄边界；Runtime 生命周期事件
+  只进入 App Lifecycle。禁止默认广播原始 Runtime 事件。
 - `app/orchestration/lifecycle` 是 Core、Gateway 与 Godot authority 启停、重启和收束的
   唯一编排者。Desktop/Observer 只是受限 lifecycle client 和只读观察面，不持有
   authority 凭据、不启动 Runtime、不发送原始协议帧。Interface 与 Feature 也不得构造

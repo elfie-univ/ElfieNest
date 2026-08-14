@@ -196,13 +196,16 @@ class TestAdoptionJourney:
             headers=headers,
         )
         assert replies.status_code == 200, replies.text
-        assert replies.json()["replies"][0]["status"] == "accepted"
+        accepted = next(
+            item for item in replies.json()["replies"] if item["status"] == "accepted"
+        )
+        accepted_candidate = accepted
 
         committed = client.post(
             "/api/v1/me/adoption",
             json={
                 "candidate_set_id": candidate_set["candidate_set_id"],
-                "candidate_id": selected[0]["candidate_id"],
+                "candidate_id": accepted_candidate["candidate_id"],
                 "name": "星砂",
             },
             headers=headers,
@@ -213,5 +216,5 @@ class TestAdoptionJourney:
         ).json()
         profile = profile_detail["profile"]
         assert profile["name"] == "星砂"
-        assert profile["gender"] == selected[0]["gender"]
+        assert profile["gender"] == accepted_candidate["gender"]
         assert profile["birth_date"] is not None

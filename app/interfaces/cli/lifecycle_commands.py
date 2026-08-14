@@ -9,7 +9,7 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 from app.orchestration.lifecycle import (
     DEFAULT_HTTP_PORT,
@@ -22,6 +22,7 @@ from app.orchestration.lifecycle import (
     RuntimeHealth,
     RuntimeHealthState,
     RuntimeLifecycle,
+    RuntimeProgressPhase,
     ServiceLifecycleResult,
     ServicePortsActiveError,
     http_port_from_command,
@@ -48,6 +49,7 @@ def _supervisor_for(
     http_port: int,
     *,
     use_remembered_home: bool = False,
+    progress_callback: Optional[Callable[[RuntimeProgressPhase], None]] = None,
 ) -> RuntimeLifecycle:
     """Build the one Runtime Supervisor used by source and installed CLI commands."""
     launch_command = tuple(command)
@@ -77,6 +79,7 @@ def _supervisor_for(
             "ELFIE_HOME": str(selected_home),
             "ELFIENEST_GODOT_NONCE": generation_nonce,
         },
+        progress_callback=progress_callback,
     )
 
 
@@ -239,10 +242,15 @@ def start_background_service(
     command: Optional[Sequence[str]] = None,
     *,
     owner_id: str = "cli",
+    json_output: bool = False,
+    progress_json: bool = False,
 ) -> ServiceLifecycleResult:
     """Start the service once; a verified running process is left untouched."""
-    progress = ProgressIndicator("Starting service")
-    progress.start()
+    progress = (
+        None if json_output or progress_json else ProgressIndicator("Starting service")
+    )
+    if progress is not None:
+        progress.start()
 
     launch_command = (
         tuple(command)
@@ -252,31 +260,46 @@ def start_background_service(
     try:
         http_port = _validated_http_port(launch_command)
     except ValueError as error:
-        progress.stop(success=False)
+        if progress is not None:
+            progress.stop(success=False)
         result = ServiceLifecycleResult(
             status="failed", error=LaunchFailedError(f"Invalid service port: {error}")
         )
-        _print_start_result(lifecycle, result)
+        _print_start_result_or_json(lifecycle, result, json_output=json_output)
         return result
-    supervisor = _supervisor_for(lifecycle, launch_command, http_port)
+    progress_callback = (
+        (lambda phase: _print_runtime_progress_json(phase)) if progress_json else None
+    )
+    supervisor = _supervisor_for(
+        lifecycle,
+        launch_command,
+        http_port,
+        use_remembered_home=True,
+        progress_callback=progress_callback,
+    )
     try:
         if not _runtime_is_stably_running(supervisor):
             _prepare_frontend_for_launch(lifecycle)
     except FrontendPreparationError as error:
-        progress.stop(success=False)
+        if progress is not None:
+            progress.stop(success=False)
         result = ServiceLifecycleResult(
             status="failed",
             command=launch_command,
             error=LaunchFailedError(f"Frontend build failed: {error}"),
         )
-        _print_start_result(lifecycle, result)
+        _print_start_result_or_json(lifecycle, result, json_output=json_output)
         return result
     result = supervisor.start(owner_id=owner_id)
     if result.status in {"started", "already_running"}:
         try:
             _remember_lifecycle_data_home(
                 lifecycle,
-                _data_home_for_command(lifecycle, launch_command),
+                _data_home_for_command(
+                    lifecycle,
+                    launch_command,
+                    use_remembered_home=True,
+                ),
             )
         except OSError as error:
             result = ServiceLifecycleResult(
@@ -285,8 +308,14 @@ def start_background_service(
                 command=result.command,
                 error=LaunchFailedError(f"Cannot record selected data home: {error}"),
             )
-    progress.stop(success=result.status in {"started", "already_running"})
-    _print_start_result(lifecycle, result)
+    if progress is not None:
+        progress.stop(success=result.status in {"started", "already_running"})
+    _print_start_result_or_json(
+        lifecycle,
+        result,
+        supervisor=supervisor,
+        json_output=json_output,
+    )
     return result
 
 
@@ -302,7 +331,13 @@ def stop_background_service(
     )
     if owner_id != "cli":
         health = supervisor.status()
-        if health.owner_lease is not None and health.owner_lease.owner_id != owner_id:
+        owner_mismatch = (
+            health.owner_lease is not None and health.owner_lease.owner_id != owner_id
+        )
+        startup_owner_mismatch = (
+            health.startup_owner_id is not None and health.startup_owner_id != owner_id
+        )
+        if owner_mismatch or startup_owner_mismatch:
             result = ServiceLifecycleResult(
                 status="failed",
                 error=LaunchFailedError(
@@ -454,33 +489,7 @@ def show_service_status(
         if external_health is not None:
             health = external_health
     if json_output:
-        print(
-            json.dumps(
-                {
-                    "state": health.state.value,
-                    "generation": health.generation,
-                    "owner_lease": (
-                        {
-                            "owner_id": health.owner_lease.owner_id,
-                            "generation": health.owner_lease.generation,
-                        }
-                        if health.owner_lease is not None
-                        else None
-                    ),
-                    "components": [
-                        {
-                            "name": component.component.value,
-                            "state": component.state.value,
-                            "detail": component.detail,
-                            "pid": component.pid,
-                        }
-                        for component in health.components
-                    ],
-                },
-                ensure_ascii=False,
-                sort_keys=True,
-            )
-        )
+        _print_runtime_health_json(health)
         return
     print("  📊 Service Status")
     print("  " + "=" * 45)
@@ -717,3 +726,78 @@ def _print_start_result(
                     "  ℹ️  Service ports appear free but were occupied during startup."
                 )
                 print("     This might indicate a race condition or transient issue.")
+
+
+def _runtime_health_payload(health: RuntimeHealth) -> dict[str, object]:
+    """Serialize one lifecycle health snapshot for machine clients."""
+    return {
+        "state": health.state.value,
+        "generation": health.generation,
+        "owner_lease": (
+            {
+                "owner_id": health.owner_lease.owner_id,
+                "generation": health.owner_lease.generation,
+            }
+            if health.owner_lease is not None
+            else None
+        ),
+        "startup_owner_id": health.startup_owner_id,
+        "components": [
+            {
+                "name": component.component.value,
+                "state": component.state.value,
+                "detail": component.detail,
+                "pid": component.pid,
+            }
+            for component in health.components
+        ],
+    }
+
+
+def _print_runtime_health_json(health: RuntimeHealth) -> None:
+    print(
+        json.dumps(_runtime_health_payload(health), ensure_ascii=False, sort_keys=True)
+    )
+
+
+def _print_runtime_progress_json(phase: RuntimeProgressPhase) -> None:
+    print(
+        json.dumps(
+            {"event": "runtime_progress", "phase": phase.value},
+            ensure_ascii=False,
+            sort_keys=True,
+        ),
+        flush=True,
+    )
+
+
+def _print_start_result_or_json(
+    lifecycle: LifecycleFacade,
+    result: ServiceLifecycleResult,
+    *,
+    supervisor: RuntimeLifecycle | None = None,
+    json_output: bool,
+) -> None:
+    """Keep the human CLI unchanged while exposing one machine-readable start result."""
+    if not json_output:
+        _print_start_result(lifecycle, result)
+        return
+    if result.status in {"started", "already_running"} and supervisor is not None:
+        _print_runtime_health_json(supervisor.status())
+        return
+    print(
+        json.dumps(
+            {
+                "state": RuntimeHealthState.FAILED.value,
+                "generation": 0,
+                "owner_lease": None,
+                "startup_owner_id": None,
+                "components": [],
+                "error": str(result.error)
+                if result.error is not None
+                else "start failed",
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )

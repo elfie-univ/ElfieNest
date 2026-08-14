@@ -1,5 +1,7 @@
 """Focused tests for local lifecycle process mechanics."""
 
+import os
+import signal
 from pathlib import Path
 
 from infrastructure.platform.lifecycle.process import LocalServiceProcessAdapter
@@ -39,3 +41,19 @@ def test_process_adapter_pid_receipt_is_owned_and_private(tmp_path: Path) -> Non
     assert pid_path.exists()
     adapter.remove_receipt(tmp_path, 424242)
     assert not pid_path.exists()
+
+
+def test_process_adapter_terminates_the_managed_process_group(monkeypatch) -> None:
+    signals: list[tuple[int, signal.Signals]] = []
+    monkeypatch.setattr(os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(
+        os,
+        "killpg",
+        lambda process_group, requested_signal: signals.append(
+            (process_group, requested_signal)
+        ),
+    )
+
+    LocalServiceProcessAdapter().terminate(17)
+
+    assert signals == [(17, signal.SIGTERM)]

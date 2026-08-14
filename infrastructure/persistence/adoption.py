@@ -6,13 +6,16 @@ import sqlite3
 from datetime import datetime, timezone
 
 from app.features.adoption import (
+    AdoptionNestCapacityRecord,
     AdoptionPortCapacityReached,
     AdoptionPortError,
+    AdoptionPortNestCapacityReached,
     AdoptionPortOwnerNotFound,
     AdoptionQuotaRecord,
     AdoptionReservationRecord,
 )
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
+from nest.public import NestConfig
 
 
 class SQLiteAdoptionAdapter:
@@ -45,6 +48,22 @@ class SQLiteAdoptionAdapter:
         effective_limit = default_limit if owner[0] is None else int(owner[0])
         return AdoptionQuotaRecord(used=used, effective_limit=effective_limit)
 
+    def get_nest_capacity(self) -> AdoptionNestCapacityRecord:
+        try:
+            with app_sqlite_connection(self._db_path) as connection:
+                row = connection.execute(
+                    "SELECT bed_count FROM nest_settings WHERE nest_id='local-nest'"
+                ).fetchone()
+                used = int(
+                    connection.execute("SELECT COUNT(*) FROM elfies").fetchone()[0]
+                )
+        except AdoptionPortError:
+            raise
+        except sqlite3.Error as error:
+            raise AdoptionPortError("unable to read Nest capacity") from error
+        maximum = NestConfig().bed_count if row is None else int(row[0])
+        return AdoptionNestCapacityRecord(used=used, maximum=maximum)
+
     def reserve(
         self,
         reservation: AdoptionReservationRecord,
@@ -59,6 +78,15 @@ class SQLiteAdoptionAdapter:
                 ).fetchone()
                 if owner is None:
                     raise AdoptionPortOwnerNotFound
+                nest = connection.execute(
+                    "SELECT bed_count FROM nest_settings WHERE nest_id='local-nest'"
+                ).fetchone()
+                nest_limit = NestConfig().bed_count if nest is None else int(nest[0])
+                nest_used = int(
+                    connection.execute("SELECT COUNT(*) FROM elfies").fetchone()[0]
+                )
+                if nest_used >= nest_limit:
+                    raise AdoptionPortNestCapacityReached(nest_limit)
                 effective_limit = default_limit if owner[0] is None else int(owner[0])
                 used = int(
                     connection.execute(
@@ -70,12 +98,13 @@ class SQLiteAdoptionAdapter:
                     raise AdoptionPortCapacityReached(effective_limit)
                 connection.execute(
                     """INSERT INTO elfies(
-                           elfie_id, name, owner_user_id, species, gender,
-                           birth_date, adopted_at, bed_number, status, summary
-                       ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'offline', ?)""",
+                           elfie_id, name, original_name, owner_user_id, species, gender,
+                           birth_date, adopted_at, home_anchor_id, status, summary
+                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'offline', ?)""",
                     (
                         reservation.elfie_id,
                         reservation.name,
+                        reservation.original_name,
                         reservation.owner_user_id,
                         reservation.species_id,
                         reservation.gender,
@@ -85,7 +114,12 @@ class SQLiteAdoptionAdapter:
                     ),
                 )
                 connection.commit()
-        except (AdoptionPortCapacityReached, AdoptionPortOwnerNotFound):
+        except (
+            AdoptionPortCapacityReached,
+            AdoptionPortNestCapacityReached,
+            AdoptionPortOwnerNotFound,
+            AdoptionPortError,
+        ):
             raise
         except sqlite3.Error as error:
             raise AdoptionPortError("unable to reserve Adoption ownership") from error

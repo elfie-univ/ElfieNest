@@ -14,15 +14,15 @@ describe("owner Nest API boundary", () => {
   })
 
   it("normalizes semantic bed payloads into the floorplan contract", async () => {
-    // Given: the backend emits numeric bed ids and the semantic label field.
+    // Given: the backend emits stable anchor ids and the semantic label field.
     vi.mocked(requestJson).mockResolvedValue({ items: [{
       id: "local-nest",
       name: "Local Nest",
       desired_bed_count: 4,
       applied_world_revision: 1,
       beds: [{
-        id: 1,
-        anchor_id: "bed-01",
+        id: "dorm-01/bed-01",
+        anchor_id: "dorm-01/bed-01",
         kind: "bed",
         label: "Bed 01",
         order: 0,
@@ -41,8 +41,8 @@ describe("owner Nest API boundary", () => {
 
     // Then: the floorplan receives stable string ids and display names.
     expect(room?.beds).toEqual([{
-      id: "1",
-      anchor_id: "bed-01",
+      id: "dorm-01/bed-01",
+      anchor_id: "dorm-01/bed-01",
       name: "Bed 01",
       occupant_id: null,
       occupant_name: null,

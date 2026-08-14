@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, field
+from typing import Literal, Optional
+
+from elfie.genesis import CandidateReveal, GenesisCandidate
 
 SpeciesId = str
 LifeStage = Literal["youth", "young_adult", "mature", "elder", "any"]
 CandidateGender = Literal["male", "female", "any"]
 ElfieGender = Literal["male", "female"]
 CandidateReplyStatus = Literal["accepted", "unsure"]
+AdoptionAvailability = Literal[
+    "available", "nest_full", "member_quota_full", "model_unavailable"
+]
 
 
 @dataclass(frozen=True)
@@ -26,8 +31,15 @@ class AdoptionQuota:
 
 
 @dataclass(frozen=True)
+class AdoptionNestCapacity:
+    used: int
+    maximum: int
+    remaining: int
+
+
+@dataclass(frozen=True)
 class AdoptionSpecies:
-    """Stable species metadata consumed by the Adoption client."""
+    """Stable metadata projected from the immutable species registry."""
 
     species_id: SpeciesId
     canon_id: str
@@ -47,6 +59,8 @@ class AdoptionOptionsResult:
     builds: tuple[str, ...]
     life_stages: tuple[LifeStage, ...]
     quota: AdoptionQuota
+    nest_capacity: AdoptionNestCapacity
+    availability: AdoptionAvailability
 
 
 @dataclass(frozen=True)
@@ -65,21 +79,22 @@ class CreateCandidateSetCommand:
     gender: CandidateGender
     appearance: CandidateAppearance
     answers: tuple[str, ...]
+    batch_number: int = 1
+    adoption_session_id: Optional[str] = None
 
 
 @dataclass(frozen=True)
 class CandidateResult:
     candidate_id: str
-    original_name: str
-    suggested_name: str
     species_id: SpeciesId
     life_stage: ExposedLifeStage
+    age_months: int
     gender: ElfieGender
-    image_url: str
+    full_body_image_url: str
+    headshot_image_url: str
     appearance_tags: tuple[str, ...]
     personality_tags: tuple[str, ...]
-    introduction: str
-    compatibility: str
+    runtime_appearance: dict[str, object] = field(default_factory=dict)
 
 
 ExposedLifeStage = Literal["youth", "young_adult", "mature", "elder"]
@@ -88,6 +103,8 @@ ExposedLifeStage = Literal["youth", "young_adult", "mature", "elder"]
 @dataclass(frozen=True)
 class CandidateSetResult:
     candidate_set_id: str
+    adoption_session_id: str
+    batch_number: int
     candidates: tuple[CandidateResult, ...]
 
 
@@ -95,6 +112,7 @@ class CandidateSetResult:
 class ReplyToCandidatesCommand:
     candidate_set_id: str
     candidate_ids: tuple[str, ...]
+    invitation_message: str = ""
 
 
 @dataclass(frozen=True)
@@ -102,6 +120,7 @@ class CandidateReplyResult:
     candidate: CandidateResult
     status: CandidateReplyStatus
     message: str
+    reveal: Optional[CandidateReveal] = None
 
 
 @dataclass(frozen=True)
@@ -115,6 +134,8 @@ class ReserveAcceptedAdoptionCommand:
     candidate_set_id: str
     candidate_id: str
     name: str
+    full_body_image_url: str = ""
+    headshot_image_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -131,18 +152,28 @@ class AcceptedAdoptionReservation:
     signature: str
     gender: ElfieGender
     birth_date: str
+    original_name: str = ""
+    genesis_candidate: Optional[GenesisCandidate] = None
+    personal_story: str = ""
+    age_months: int = 0
+    life_stage: str = ""
+    full_body_image_url: str = ""
+    headshot_image_url: str = ""
 
 
 __all__ = (
     "AcceptedAdoptionReservation",
     "AdoptionSpecies",
     "AdoptionOptionsResult",
+    "AdoptionAvailability",
+    "AdoptionNestCapacity",
     "AdoptionQuota",
     "CandidateAppearance",
     "CandidateGender",
     "CandidateRepliesResult",
     "CandidateReplyResult",
     "CandidateReplyStatus",
+    "CandidateReveal",
     "CandidateResult",
     "CandidateSetResult",
     "CreateCandidateSetCommand",

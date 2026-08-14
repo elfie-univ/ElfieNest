@@ -249,9 +249,9 @@ class EnergySystem:
         }[mode]
         if mode == "emergency":
             available = self._emergency_reserve_available()
-            source: Literal[
-                "normal", "emergency_reserve", "responsive"
-            ] = "emergency_reserve"
+            source: Literal["normal", "emergency_reserve", "responsive"] = (
+                "emergency_reserve"
+            )
             if responsive and available <= 0.0:
                 # Energy controls reasoning depth, but an owner interaction
                 # must retain one bounded fast reply even after a previous

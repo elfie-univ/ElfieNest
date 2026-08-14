@@ -13,6 +13,7 @@ from app.interfaces.api.v1.elfies.routes import router as member_router
 from infrastructure.persistence.elfie_workspace.elfies import (
     SQLiteElfiesProjectionAdapter,
 )
+from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.nest_db.store import get_db, init_db
 
 
@@ -91,6 +92,26 @@ def test_member_profile_hides_another_members_elfie(tmp_path: Path) -> None:
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "elfie_not_found"
+
+
+def test_member_profile_exposes_a_private_persisted_headshot(tmp_path: Path) -> None:
+    client = _client(tmp_path, principal=_principal())
+    portrait = final_root_layout(tmp_path).elfie("00000001").portrait_headshot
+    portrait.parent.mkdir(parents=True, exist_ok=True)
+    payload = b"\x89PNG\r\n\x1a\nportrait"
+    portrait.write_bytes(payload)
+
+    listing = client.get("/api/v1/elfies")
+    assert listing.json()["items"][0]["profile"]["portrait_url"] == (
+        "/api/v1/elfies/00000001/portrait"
+    )
+    image = client.get("/api/v1/elfies/00000001/portrait")
+    assert image.status_code == 200
+    assert image.headers["content-type"] == "image/png"
+    assert image.content == payload
+
+    hidden = client.get("/api/v1/elfies/00000002/portrait")
+    assert hidden.status_code == 404
 
 
 def test_admin_directory_is_separate_and_feature_authorized(tmp_path: Path) -> None:

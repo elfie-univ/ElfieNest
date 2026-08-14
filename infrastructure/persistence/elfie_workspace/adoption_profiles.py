@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
+import os
 import random
 import shutil
 from dataclasses import replace
@@ -137,6 +140,7 @@ class FinalElfieWorkspaceAdapter:
                 GenesisMemoryCommitter().commit(
                     _genesis_bundle(reservation, profile), memory_store
                 )
+            _persist_portraits(layout.assets, reservation)
             return str(layout.workspace)
         except (OSError, TypeError, ValueError) as error:
             self._release_quietly(reservation.elfie_id)
@@ -209,6 +213,47 @@ def _personality(
     height_scale: float,
     build_scale: float,
 ) -> dict[str, object]:
+    if reservation.genesis_candidate is not None:
+        candidate = reservation.genesis_candidate
+        big_five = {
+            trait: round((value + 2.0) / 4.0, 4)
+            for trait, value in zip(
+                ("openness", "conscientiousness", "extraversion", "agreeableness", "neuroticism"),
+                candidate.personality.candidate.latent,
+            )
+        }
+        labels = candidate.personality.candidate.labels or ("独一无二",)
+        return {
+            "metadata": {
+                "name": reservation.name,
+                "original_name": reservation.original_name,
+                "personal_story": reservation.personal_story,
+                "age_months": reservation.age_months,
+                "life_stage": reservation.life_stage,
+                "gender": reservation.gender,
+                "version": "genesis-v1",
+                "description": "、".join(labels),
+                "appearance": {
+                    "height": reservation.height,
+                    "build": reservation.build,
+                    "species": reservation.species_id,
+                    "height_scale": height_scale,
+                    "build_scale": build_scale,
+                },
+                **_portrait_metadata(reservation),
+            },
+            "big_five": big_five,
+            "self_description": reservation.personal_story or "、".join(labels),
+            "speech_style": {
+                "greetings": ("你好，我来啦。", "很高兴见到你。"),
+                "verbal_ticks": "呢",
+            },
+            "derivation": {
+                "preset": "genesis-v1",
+                "provenance": "questionnaire",
+                "seed": candidate.seed,
+            },
+        }
     rng = random.Random(reservation.appearance_seed + 17)
     ranges = PERSONALITY_PRESETS.get(reservation.personality_style)
     if ranges is None:
@@ -397,6 +442,59 @@ def _genesis_bundle(
             status="validated",
         ),
     )
+
+
+def _portrait_metadata(reservation: AcceptedAdoptionReservation) -> dict[str, object]:
+    if not reservation.full_body_image_url and not reservation.headshot_image_url:
+        return {}
+    return {
+        "portraits": {
+            "full_body": "assets/portrait-full.png",
+            "headshot": "assets/portrait-head.png",
+        }
+    }
+
+
+def _persist_portraits(
+    assets: Path,
+    reservation: AcceptedAdoptionReservation,
+) -> None:
+    if not reservation.full_body_image_url and not reservation.headshot_image_url:
+        return
+    if not reservation.full_body_image_url or not reservation.headshot_image_url:
+        raise ValueError("accepted Adoption portraits must contain both views")
+    full_body = _decode_png_data_url(reservation.full_body_image_url)
+    headshot = _decode_png_data_url(reservation.headshot_image_url)
+    _write_private_asset(assets / "portrait-full.png", full_body)
+    _write_private_asset(assets / "portrait-head.png", headshot)
+
+
+def _decode_png_data_url(value: str) -> bytes:
+    prefix = "data:image/png;base64,"
+    if not value.startswith(prefix):
+        raise ValueError("accepted Adoption portrait must be a PNG data URL")
+    try:
+        content = base64.b64decode(value[len(prefix) :], validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ValueError("accepted Adoption portrait is not valid base64") from error
+    if not content.startswith(b"\x89PNG\r\n\x1a\n") or len(content) > 8 * 1024 * 1024:
+        raise ValueError("accepted Adoption portrait is not a valid PNG")
+    return content
+
+
+def _write_private_asset(path: Path, content: bytes) -> None:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    try:
+        with temporary.open("wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        if os.name != "nt":
+            os.chmod(path, 0o600)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def _capabilities(seed: int) -> dict[str, object]:

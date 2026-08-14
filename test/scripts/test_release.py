@@ -83,7 +83,9 @@ def test_release_pipeline_uses_bash_for_bootstrap_and_npx_cmd_on_windows(
     assert npx == ("npx.cmd", "--version")
 
 
-def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate() -> None:
+def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate() -> (
+    None
+):
     # Given: the checked-in GitHub Actions desktop release workflow.
     workflow_path = PROJECT_ROOT / ".github" / "workflows" / "release.yml"
     source = workflow_path.read_text(encoding="utf-8")
@@ -345,9 +347,9 @@ def test_desktop_packaging_uses_only_the_current_brand_icon() -> None:
     desktop_icon = release_pipeline.DESKTOP_DIR / "assets/elfienest-app-icon.png"
     macos_icon = release_pipeline.DESKTOP_DIR / "assets/elfienest-macos-app-icon.png"
     retired_icon = release_pipeline.DESKTOP_DIR / "assets/elfienest.png"
-    builder_config = (PROJECT_ROOT / "app/bootstrap/desktop_host/electron-builder.yml").read_text(
-        encoding="utf-8"
-    )
+    builder_config = (
+        PROJECT_ROOT / "app/bootstrap/desktop_host/electron-builder.yml"
+    ).read_text(encoding="utf-8")
 
     # When/Then: Windows/Linux retain the identical brand source, while macOS uses
     # a padded transparent app-icon canvas instead of the retired full-bleed square.

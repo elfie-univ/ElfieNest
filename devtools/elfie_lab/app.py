@@ -49,8 +49,12 @@ def create_app(
     config_root = model_execution_config_dir or str(storage.root / "runtime")
     if Path(config_root).expanduser().resolve() == get_elfie_home().resolve():
         raise ValueError("Elfie Lab 不得使用生产 ELFIE_HOME 作为模型执行配置目录")
-    model_environment = model_execution_food_support.ElfieLabModelEnvironment(config_root)
-    food_store = model_execution_food_support.model_execution_food_catalog_store(model_environment)
+    model_environment = model_execution_food_support.ElfieLabModelEnvironment(
+        config_root
+    )
+    food_store = model_execution_food_support.model_execution_food_catalog_store(
+        model_environment
+    )
     developer_scope = (
         model_environment.root.resolve()
         == (get_elfie_developer_home() / "elfie_lab" / "runtime").resolve()

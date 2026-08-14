@@ -61,6 +61,7 @@ export function ElfieProfilePanel({
       <ProfileAppearanceStage
         canCapture={projection.kind === "adopter"}
         capture={appearanceCapture}
+        interactive={false}
         onAvatarPreview={(previewUrl) => {
           setLocalAvatar({ elfieId: profile.elfieId, previewUrl })
         }}

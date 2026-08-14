@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 
 from app.features.accounts import AccountPrincipal
 from app.features.nest_management import (
-    AssignNestBedCommand,
+    AssignNestHomeCommand,
     NestBedConflict,
     NestBedNotFound,
     NestConfigurationConflict,
@@ -88,15 +88,13 @@ def assign_bed(
     principal: AccountPrincipal = CurrentPrincipal,
     service: NestManagementService = NestManagementDependency,
 ) -> Union[NestBedAssignmentResponse, JSONResponse]:
-    bed_number = (
-        None
-        if body.home_anchor_id is None
-        else int(body.home_anchor_id.removeprefix("bed-"))
-    )
     try:
-        result = service.assign_bed(
+        result = service.assign_home(
             principal,
-            AssignNestBedCommand(elfie_id=elfie_id, bed_number=bed_number),
+            AssignNestHomeCommand(
+                elfie_id=elfie_id,
+                home_anchor_id=body.home_anchor_id,
+            ),
         )
     except (
         NestBedConflict,

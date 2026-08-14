@@ -75,7 +75,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="system-architecture",
-        version="1.5",
+        version="1.6",
         english_path="docs/developer/contracts/system.md",
         chinese_path="docs/zh/developer/contracts/system.md",
         decision_paths=(
@@ -87,6 +87,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0010-desktop-authority-host-structure.md",
             "docs/developer/decisions/0012-effective-dependency-targets.md",
             "docs/zh/developer/decisions/0012-effective-dependency-targets.md",
+            "docs/developer/decisions/0013-nest-godot-semantic-world-boundary.md",
+            "docs/zh/developer/decisions/0013-nest-godot-semantic-world-boundary.md",
         ),
         agent_paths=(
             "elfie/AGENTS.md",
@@ -113,6 +115,29 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "test/architecture/test_system_ports_contract.py",
             "test/architecture/test_runtime_observer_contracts.py",
             "test/architecture/test_storage_boundaries.py",
+        ),
+    ),
+    ContractRegistration(
+        contract_id="nest-godot-semantic-world",
+        version="1.0",
+        english_path="docs/developer/contracts/nest-godot-semantic-world.md",
+        chinese_path="docs/zh/developer/contracts/nest-godot-semantic-world.md",
+        decision_paths=(
+            "docs/developer/decisions/0013-nest-godot-semantic-world-boundary.md",
+            "docs/zh/developer/decisions/0013-nest-godot-semantic-world-boundary.md",
+        ),
+        agent_paths=(
+            "AGENTS.md",
+            "nest/AGENTS.md",
+            "app/orchestration/AGENTS.md",
+            "infrastructure/godot/AGENTS.md",
+            "godot_project/AGENTS.md",
+        ),
+        scanner_paths=("scripts/architecture/system_layer_scan.py",),
+        test_paths=(
+            "test/architecture/test_system_layer_boundaries.py",
+            "test/architecture/test_gateway_runtime_boundaries.py",
+            "test/architecture/test_runtime_observer_contracts.py",
         ),
     ),
     ContractRegistration(

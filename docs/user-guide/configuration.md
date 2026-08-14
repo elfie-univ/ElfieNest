@@ -1,63 +1,70 @@
-# Configure models & data
+# First-time configuration
 
-## Data boundary
+The first time ElfieNest opens, it shows a four-step setup wizard. The wizard
+saves your choices as a draft while you move through the steps. Nothing is
+installed or created until you confirm the final page.
 
-Production configuration, databases, Elfie profiles and local keys all live
-under:
+## Step 1: create the first administrator
 
-```text
-${ELFIE_HOME:-~/.elfienest}
-```
+Enter:
 
-For tests and experiments you can point at an isolated directory:
+- a sign-in account;
+- the name shown in the app;
+- a password and its confirmation.
 
-```bash
-ELFIE_HOME=/tmp/elfienest-preview .venv/bin/python main.py
-```
+This first account is the Nest owner. Keep the password somewhere safe. The
+owner can later create ordinary members and other administrators from
+Management.
 
-Do not copy day-to-day data into the repository, and do not delete the entire
-user directory to debug an issue.
+## Step 2: choose local offline support
 
-## Model entry points
+**Use local Ollama** is optional:
 
-Model configuration is decided jointly by local configuration and environment
-variables. Common provider environment variables include:
+- Turn it on if you want a local model available on this computer. ElfieNest
+  checks the local service, downloads the selected model during installation,
+  and prepares a first **Emergency food (保底粮)** as a last-resort backup.
+- Leave it off if you plan to use a model subscription configured later by an
+  administrator.
 
-```text
-OLLAMA_HOST
-OPENAI_API_KEY
-DEEPSEEK_API_KEY
-GEMINI_API_KEY
-QWEN_API_KEY
-ZHIPU_API_KEY
-MOONSHOT_API_KEY
-MINIMAX_API_KEY
-```
+You do not need to understand model names to finish setup. If you are not the
+Nest administrator, ask the person who manages your Nest which option to use.
 
-Real keys may only live in environment variables or Git-ignored user
-configuration. Never write real keys into public docs, source code or command
-arguments.
+## Step 3: set the number of beds
 
-### Sign in with a ChatGPT account
+Choose how many places the Nest should have. The current setup accepts 4–32
+beds. This is the room capacity; it does not create that many Elfies.
 
-The Provider page displays one **OpenAI** company card. Enter a name and choose
-either **ChatGPT account (subscription)** or **OpenAI API key (usage-based)**.
-For account authorization, generate a one-time device code first, copy it, then
-open the authorization page. Codex does not need to be installed on the computer.
+## Step 4: review and install
 
-ElfieNest stores the resulting refreshable credential under
-`configs/credentials/oauth/`; `configs/providers.yaml` contains only an opaque
-credential reference. This connection uses the ChatGPT Codex Responses
-transport and the models allowed by the signed-in ChatGPT subscription. It is
-not an OpenAI API key or API-billing connection. The host-managed external-token
-path is still experimental upstream, so OpenAI may change its authorization or
-transport requirements. The current model list is an experimental candidate
-catalog, not a live account model list; ElfieNest verifies candidates against the
-signed-in account. A future Codex App Server integration can use its `model/list`
-capability instead.
+Check the summary and choose **Confirm configuration and start installation**.
+The page then shows an overall progress bar and the current stage. While it is
+working, wait for the page to finish; the setup page intentionally does not
+offer a cancel or back action.
 
-## Without Ollama
+If a stage fails, choose **Retry from the failed stage**. Completed stages are
+checked again, and you should not have to re-enter every choice.
 
-The minimal example can use the built-in fallback runtime to validate the basic
-pipeline. The fallback path confirms that the environment and system wiring are
-correct; it does not mean different models are interchangeable in capability.
+## After setup
+
+When installation completes, choose **Enter Management**. Installation creates
+the Nest, but it is not necessarily ready for daily conversation yet:
+
+- with local support on, the wizard prepares a last-resort Emergency food
+  (保底粮); an administrator should still prepare and enable a daily Common
+  food (常用粮);
+- with local support off, no model connection or Food is prepared by the
+  wizard, so an administrator must continue with [Core configuration](./ready).
+
+Complete that configuration check before inviting members to adopt or chat. Ordinary
+members can sign in with the account created for them and do not need to repeat
+the owner setup.
+
+## Model connections and Food later
+
+Administrators can open **Management → Model subscriptions** to add a remote
+model connection, authorize a supported ChatGPT subscription, or manage local
+Ollama. They then open **Management → Food strategy** to configure a daily
+Common food (常用粮) and a last-resort Emergency food (保底粮) for Elfies. See [Core configuration](./ready)
+for the complete checklist. The app keeps connections in local protected
+storage. Never paste an API key, password or one-time authorization code into a
+public document or send it to another user.

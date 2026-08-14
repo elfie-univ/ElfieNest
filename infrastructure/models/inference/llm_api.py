@@ -59,9 +59,7 @@ def call_llm_api(
                 temperature,
                 max_tokens,
                 provider,
-                request_options=(
-                    dict(request_options) if request_options else None
-                ),
+                request_options=(dict(request_options) if request_options else None),
                 credential_ref=str(provider_cfg.get("credential_ref") or ""),
                 account_id=(
                     str(provider_cfg["account_id"])

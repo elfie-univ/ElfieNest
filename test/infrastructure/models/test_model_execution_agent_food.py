@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+from app.features.configuration.food import StoredModelEvidence
 from elfie.brain.reasoning.food_port import (
+    FOOD_COMMON_ID,
     FOOD_EMERGENCY_ID,
     FoodAssignment,
     FoodCatalog,
@@ -227,6 +229,121 @@ def test_structured_runtime_uses_emergency_when_main_food_is_unavailable(
     )
 
     assert result.model_key == "ollama_0001/emergency"
+
+
+def test_structured_runtime_can_fail_fast_without_emergency_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    agent = _agent(monkeypatch, MainFoodSelection("food_main"))
+    monkeypatch.setattr(
+        ModelExecutionAgent,
+        "_package_usable",
+        staticmethod(lambda package: package.key in {"food_main", FOOD_EMERGENCY_ID}),
+    )
+    calls: list[str] = []
+
+    def caller(provider, model, messages, temperature, max_tokens, options, thinking):
+        calls.append(model)
+        raise RuntimeError("provider unavailable")
+
+    monkeypatch.setattr(agent, "_call_food_llm_api", caller)
+
+    with pytest.raises(NoAvailableFoodError):
+        agent.generate_structured(
+            StructuredModelExecutionRequest(
+                prompt="structured",
+                messages=(),
+                response_schema_name="answer",
+                response_schema={"type": "object"},
+                selected_mode=StructuredGenerationMode.JSON_TEXT,
+                allowed_tools=(),
+                food_key="food_main",
+                allow_fallback=False,
+            )
+        )
+
+    assert calls == ["main"]
+
+
+def _adoption_agent(evidence: StoredModelEvidence) -> ModelExecutionAgent:
+    ports = model_execution_agent_ports()
+    ports.model_evidence_source = lambda: {evidence.reference: evidence}
+    catalog = FoodCatalog(
+        packages={
+            FOOD_COMMON_ID: FoodPackage(
+                FOOD_COMMON_ID,
+                "常用粮",
+                system_role="common",
+                primary=FoodAssignment(evidence.reference),
+            ),
+            FOOD_EMERGENCY_ID: FoodPackage(
+                FOOD_EMERGENCY_ID,
+                "保底粮",
+                system_role="emergency",
+                primary=FoodAssignment("ollama/emergency:0.5b"),
+            ),
+        }
+    )
+    agent = ModelExecutionAgent(
+        ModelExecutionConfig(),
+        ports=ports,
+        food_catalog_repository=_InMemoryFoodPort(catalog),
+    )
+    provider = evidence.reference.split("/", 1)[0]
+    agent.config.providers.setdefault(provider, {})["status"] = "active"
+    return agent
+
+
+def test_adoption_accepts_latest_passed_remote_evidence_even_when_stale() -> None:
+    agent = _adoption_agent(
+        StoredModelEvidence(
+            reference="openai/gpt-5.2",
+            display_name="GPT-5.2",
+            capabilities=frozenset({"text"}),
+            verified=False,
+            local=False,
+            status="stale",
+            fresh=False,
+        )
+    )
+
+    capabilities = agent.adoption_capabilities()
+
+    assert capabilities.provider == "openai"
+    assert capabilities.model_key == "openai/gpt-5.2"
+
+
+@pytest.mark.parametrize(
+    "evidence",
+    (
+        StoredModelEvidence(
+            reference="ollama/qwen3:32b",
+            display_name="Qwen3 32B",
+            capabilities=frozenset({"text"}),
+            verified=True,
+            local=True,
+            status="verified",
+            fresh=True,
+        ),
+        StoredModelEvidence(
+            reference="openai/gpt-5.2",
+            display_name="GPT-5.2",
+            capabilities=frozenset({"text"}),
+            verified=False,
+            local=False,
+            status="failed",
+            fresh=False,
+        ),
+    ),
+)
+def test_adoption_rejects_local_models_and_latest_failed_remote_evidence(
+    evidence: StoredModelEvidence,
+) -> None:
+    agent = _adoption_agent(evidence)
+
+    with pytest.raises(NoAvailableFoodError):
+        agent.adoption_capabilities()
 
 
 def test_structured_runtime_maps_reasoning_mode_to_provider_thinking(

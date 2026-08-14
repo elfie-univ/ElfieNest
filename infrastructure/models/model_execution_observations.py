@@ -42,7 +42,9 @@ class ModelExecutionEvent:
 
     def to_dict(
         self,
-    ) -> dict[str, ModelExecutionMetadataValue | dict[str, ModelExecutionMetadataValue]]:
+    ) -> dict[
+        str, ModelExecutionMetadataValue | dict[str, ModelExecutionMetadataValue]
+    ]:
         return {
             "event_type": self.event_type.value,
             "status": self.status.value,
@@ -109,7 +111,9 @@ class PermissionDecisionObservation:
             metadata["reason"] = self.reason
         return ModelExecutionEvent(
             event_type=ModelExecutionEventType.PERMISSION_DECISION,
-            status=ModelExecutionEventStatus.OK if self.allowed else ModelExecutionEventStatus.ERROR,
+            status=ModelExecutionEventStatus.OK
+            if self.allowed
+            else ModelExecutionEventStatus.ERROR,
             subject=self.action,
             metadata=metadata,
         )
@@ -270,7 +274,9 @@ class ModelExecutionObserver:
                 subject_kind=_report_subject_kind(event.event_type),
                 subject_id=event.subject,
                 status=(
-                    "passed" if event.status is ModelExecutionEventStatus.OK else "failed"
+                    "passed"
+                    if event.status is ModelExecutionEventStatus.OK
+                    else "failed"
                 ),
                 details={
                     "event_type": event.event_type.value,

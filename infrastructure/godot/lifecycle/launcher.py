@@ -21,6 +21,8 @@ from infrastructure.godot.lifecycle.host_contract import (
 
 AUTHORITY_ROLE_ARGUMENT: Final = "--elfienest-role=godot-authority"
 RUNTIME_HOST_ENV: Final = "ELFIENEST_RUNTIME_HOST"
+AUTHORITY_STOP_GRACE_SECONDS: Final = 1.0
+AUTHORITY_STOP_FORCE_GRACE_SECONDS: Final = 1.0
 
 
 class AuthorityLaunchFailureKind(str, Enum):
@@ -267,12 +269,12 @@ def stop_godot_runtime(process: Optional[OwnedRuntimeProcess]) -> None:
             process.terminate()
         else:
             os.killpg(process.pid, signal.SIGTERM)
-        process.wait(timeout=5.0)
+        process.wait(timeout=AUTHORITY_STOP_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
         if os.name == "nt":
             process.kill()
         else:
             os.killpg(process.pid, signal.SIGKILL)
-        process.wait(timeout=2.0)
+        process.wait(timeout=AUTHORITY_STOP_FORCE_GRACE_SECONDS)
     except (OSError, ProcessLookupError):
         return

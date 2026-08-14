@@ -1,6 +1,8 @@
 # Orchestration 层执行规则
 
 本目录遵守 `app/AGENTS.md`，只负责跨 authority 或非原子外部副作用的产品流程。
+Nest–Godot 语义线路和事件路由必须遵守永久语义世界契约，禁止保留旧编排路径或全
+Elfie 事件 fan-out。
 
 - 可组合 Feature 公开契约和 `elfie`、`nest` 的公开 API；不得导入
   Interface、Bootstrap 或具体 Infrastructure。
@@ -16,7 +18,9 @@
 最终工作流目录固定为 `lifecycle`、`nest_session`、`resident_admission`、
 `setup_installation`、`message_delivery`、`embodiment`、`observer`：
 
-- `nest_session` 组合唯一 Nest、真实 Elfie、世界事件和共享 Godot world channel；
+- `nest_session` 组合唯一 Nest、真实 Elfie、世界事件和共享 Godot 连接；它按语义线路
+  协调直接 Body、Nest 语义世界和 Runtime 控制边界，只按目标 ID 投递已分类事件，
+  不把原始 Runtime 事件广播给所有 Body，也不替 Nest 决定家庭含义；
 - `resident_admission` 只协调已接受领养、Elfie 构造、Nest 接纳和失败补偿；
 - `setup_installation` 只协调 Setup 状态与 Accounts、Provider/模型、Food、Nest 和受管
   安装 Runner；

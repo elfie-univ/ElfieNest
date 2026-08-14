@@ -179,7 +179,9 @@ class ModelExecutionConfig:
 
     def __post_init__(self) -> None:
         config_home = Path(self.config_home).expanduser() if self.config_home else None
-        source: ModelExecutionConfigSource = self.source or DefaultModelExecutionConfigSource()
+        source: ModelExecutionConfigSource = (
+            self.source or DefaultModelExecutionConfigSource()
+        )
         defaults = _default_providers(
             source.load_env(config_home),
             source.provider_secret_name,

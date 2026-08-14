@@ -7,6 +7,8 @@ signal observer_camera_catalog_changed(catalog: Dictionary)
 const D := preload("res://rooms/room_dimensions.gd")
 const G := preload("res://rooms/room_geometry.gd")
 const P := preload("res://rooms/assets/themes/room_palette.gd")
+const SPATIAL_QUERIES := preload("res://runtime/world/spatial_queries.gd")
+const SEMANTIC_SCENE_INDEX := preload("res://runtime/world/semantic_scene_index.gd")
 const ACTIVITY_ROOM_SCENE := preload("res://rooms/activity_room.tscn")
 const DORM_ROOM_SCENE := preload("res://rooms/dorm_room.tscn")
 const PORTAL_ROOM_SCENE := preload("res://rooms/portal_room.tscn")
@@ -248,16 +250,39 @@ func resolve_anchor(anchor_id: String) -> Marker3D:
 	return _anchor_markers.get(anchor_id) as Marker3D
 
 
+func semantic_anchor_ids() -> Array[String]:
+	var ids: Array[String] = []
+	for anchor_id: Variant in _anchor_markers.keys():
+		ids.append(String(anchor_id))
+	return SEMANTIC_SCENE_INDEX.sorted_anchor_ids(ids)
+
+
+func apply_environment_state(lights_on: bool, quiet_mode: bool) -> Dictionary:
+	var generated := get_node_or_null("Generated")
+	if generated == null:
+		return {
+			"lights_on": lights_on,
+			"quiet_mode": quiet_mode,
+			"applied": false,
+			"reason": "world_not_built",
+		}
+	_set_light_visibility(generated, lights_on)
+	return {
+		"lights_on": lights_on,
+		"quiet_mode": quiet_mode,
+		"applied": true,
+	}
+
+
+func _set_light_visibility(node: Node, lights_on: bool) -> void:
+	for child: Node in node.get_children():
+		if child is Light3D:
+			(child as Light3D).visible = lights_on
+		_set_light_visibility(child, lights_on)
+
+
 func nearest_zone_id(world_position: Vector3) -> String:
-	var nearest_zone_id := ""
-	var nearest_distance := INF
-	for marker_value: Variant in _anchor_markers.values():
-		var marker := marker_value as Marker3D
-		var distance := marker.global_position.distance_squared_to(world_position)
-		if distance < nearest_distance:
-			nearest_distance = distance
-			nearest_zone_id = String(marker.get_meta("zone_id", ""))
-	return nearest_zone_id
+	return SPATIAL_QUERIES.nearest_zone_id(_anchor_markers, world_position)
 
 
 func bake_navigation() -> bool:
@@ -312,6 +337,7 @@ func scene_manifest() -> Dictionary:
 		],
 		"zones": _semantic_zones(room_count),
 		"anchors": _semantic_anchors(room_count),
+		"facilities": _semantic_facilities(room_count),
 	}
 
 
@@ -400,6 +426,38 @@ func _semantic_anchors(room_count: int) -> Array[Dictionary]:
 		"active": true,
 	})
 	return anchors
+
+
+func _semantic_facilities(room_count: int) -> Array[Dictionary]:
+	var facilities: Array[Dictionary] = []
+	for index in range(room_count):
+		var dorm_zone_id := _dorm_zone_id(index)
+		facilities.append({
+			"facility_id": "%s/rest" % dorm_zone_id,
+			"zone_id": dorm_zone_id,
+			"kind": "rest",
+			"label": "%02d 休息区" % (index + 1),
+			"capabilities": ["sleep", "rest"],
+			"active": true,
+		})
+		var activity_zone_id := _activity_zone_id(index)
+		facilities.append({
+			"facility_id": "%s/activity" % activity_zone_id,
+			"zone_id": activity_zone_id,
+			"kind": "activity",
+			"label": String(ACTIVITY_VIEW_LABELS[index % ACTIVITY_VIEW_LABELS.size()]),
+			"capabilities": ["social", "activity"],
+			"active": true,
+		})
+	facilities.append({
+		"facility_id": "portal/transit",
+		"zone_id": "portal",
+		"kind": "transit",
+		"label": "传送室",
+		"capabilities": ["transit"],
+		"active": true,
+	})
+	return facilities
 
 
 func _dorm_zone_id(index: int) -> String:
