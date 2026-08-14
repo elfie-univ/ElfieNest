@@ -140,7 +140,7 @@ while (( $# > 0 )); do
             shift
             ;;
         --version)
-            printf '%s\n' "ElfieNest remote bootstrap 0.1.0"
+            printf '%s\n' "ElfieNest remote bootstrap 0.1.0-beta.1"
             exit 0
             ;;
         --help|-h) usage; exit 0 ;;

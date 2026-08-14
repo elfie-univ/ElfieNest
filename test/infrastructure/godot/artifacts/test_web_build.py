@@ -6,6 +6,7 @@ from pathlib import Path
 
 from infrastructure.godot.artifacts.web_build import (
     current_source_fingerprint,
+    patch_web_entry_for_lan_http,
     runtime_is_current,
 )
 
@@ -58,3 +59,33 @@ def test_runtime_is_stale_when_godot_source_changes(
     scene.write_text('[node name="ChangedNest"]\n', encoding="utf-8")
 
     assert runtime_is_current(output) is False
+
+
+def test_patch_web_entry_for_lan_http_adds_scoped_godot_compatibility(
+    tmp_path: Path,
+) -> None:
+    entry = tmp_path / "elfienest.html"
+    entry.write_text(
+        '<script src="elfienest.js"></script>\n'
+        'const GODOT_CONFIG = {};\n'
+        'const GODOT_THREADS_ENABLED = false;\n'
+        '\tconst missing = Engine.getMissingFeatures({\n'
+        '\t\tthreads: GODOT_THREADS_ENABLED,\n'
+        '\t});\n',
+        encoding="utf-8",
+    )
+
+    patch_web_entry_for_lan_http(entry)
+    patched = entry.read_text(encoding="utf-8")
+
+    assert "elfienest:lan-http-compatibility" in patched
+    assert "audioWorklet" in patched
+    assert "!('audioWorklet' in window.AudioContext.prototype)" in patched
+    assert "!window.AudioContext.prototype.audioWorklet" not in patched
+    assert "addModule" in patched
+    assert "window.location.protocol !== 'http:'" in patched
+    assert "feature === 'Secure Context - Check web server configuration (use HTTPS)'" in patched
+    assert ".filter((feature) =>" in patched
+
+    patch_web_entry_for_lan_http(entry)
+    assert entry.read_text(encoding="utf-8") == patched

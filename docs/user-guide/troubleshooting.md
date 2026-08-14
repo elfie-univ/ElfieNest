@@ -1,52 +1,121 @@
 # Troubleshooting
 
-## `uv` command not found
+Start with the symptom that matches what you see. Do not delete the Nest data
+folder as a first step.
 
-Install uv following its official guide first, then re-run:
+## The installer will not open
 
-```bash
-./elfienest.sh
-```
+Confirm that the package matches your computer and came from the official
+[Releases page](https://github.com/elfie-univ/ElfieNest/releases). Preview macOS
+and Windows packages may show an unsigned-package warning. If the warning names
+an unknown file or publisher, stop and ask the person who provided the package.
 
-## Wrong Python version
+## The app stays on “Starting”
 
-The project is pinned to CPython `3.9.25`. Do not reuse other virtual
-environments — use `./elfienest.sh` for source development or `./install.sh`
-for a complete current-machine installation.
+Wait a little longer on the first launch, then close and reopen the app once.
+Check that another ElfieNest copy is not already open in the tray. If it still
+does not start, save a screenshot of the error page and contact the Nest
+administrator.
 
-## Port already in use
+## The app says that the data folder is from an older version
 
-First check the services registered by the current project:
+The app will show a recovery page before starting Core or Godot. Choose
+**Back up old data and create a new environment** to keep the complete old
+folder in the displayed backup location and create a fresh environment at the
+original path. The old account, Elfie and history data is not migrated
+automatically. Do not delete the old backup unless you have confirmed that you
+no longer need it.
 
-```bash
-./elfienest.sh status
-```
-
-Once you have confirmed they belong to the current project, run:
-
-```bash
-./elfienest.sh stop
-```
-
-Do not use broad `kill` commands against unknown processes.
-
-## Model connection failure
-
-Local Ollama is optional. Setup only reports whether it is installed; the
-actual health check happens after final confirmation. The installer reuses the
-single public Ollama when it is available, starts it when it is stopped,
-repairs it when startup or the health check fails, and installs it when it is
-absent. It never creates a second private Ollama instance.
-
-If the model phase fails, use the retry action on the locked Setup page. The
-installer rechecks completed phases and does not ask you to re-enter the
-configuration.
-
-## Abnormal data directory
-
-Set an isolated `ELFIE_HOME` for this experiment; do not delete the default data
-directory:
+If you prefer to inspect the result from a terminal, run:
 
 ```bash
-ELFIE_HOME=/tmp/elfienest-debug .venv/bin/python main.py
+elfienest data-home inspect --json
 ```
+
+The recovery operation is also available as `elfienest data-home recover`; it
+backs up the old folder before rebuilding the active folder and never performs
+an in-place migration.
+
+If you already have another fresh data folder, use
+`elfienest data-home activate --data-home PATH` to select it instead of
+recovering the old folder.
+
+## First setup failed
+
+Return to the locked setup page and choose **Retry from the failed stage**. The
+wizard keeps completed choices. If the local model stage fails, leave local
+support off and ask an administrator to complete [Core configuration](./ready)
+with another model source.
+
+## I cannot sign in
+
+Check the account name and password exactly as they were created. An
+administrator can reset a member password from **Management → Users**. Never
+send a password in a screenshot or chat.
+
+## My message was sent but there is no reply
+
+This usually means no usable Food is currently available. If you are a member,
+ask the administrator to do these checks in order:
+
+1. Open **Management → Status monitor** and refresh. If it says **No model
+   service** or shows `0 available models`, continue to Model subscriptions.
+2. In **Model subscriptions**, make sure a remote connection is validated, or
+   that local Ollama is running and has an installed model. For a remote service,
+   check internet access, authorization and any provider account limit.
+3. In **Food strategy**, make sure an enabled **Common food (常用粮)** has a healthy
+   primary model. If the Food is unconfigured, disabled, degraded or
+   unavailable, repair the connection, validate again, or choose another Food.
+4. Open the Elfie's profile and check its **Current food**. An owner can pick
+   another healthy Food that is visible to them. If the page says that no current
+   food is available, the administrator must prepare or enable one.
+
+Do not repeatedly send the same message while the service is recovering. A
+sent message can remain in the conversation even when its reply is delayed.
+
+## A model connection fails validation
+
+Check the provider name, connection address and authorization details, then
+save and choose **Validate** again. For a remote service, check the network and
+provider account. For local Ollama, start or restart the service and confirm a
+model is installed. A connection may stay saved while it is being repaired, but
+it is not ready for Food until validation succeeds.
+
+## Food is unavailable or degraded
+
+Open **Food strategy** and read the Food status. A provider may be offline, a
+model may have been disabled, or an optional role may no longer be available.
+The administrator can repair the provider, choose a different available model,
+or save another healthy Common food. Emergency food is only a last resort and
+cannot help if it was never configured or has no working model.
+
+## Local Ollama is stopped or missing
+
+In **Management → Model subscriptions**, open the Ollama card. Choose
+**Install**, **Start** or **Restart** as shown, then open **Models** and download
+one of the recommended models. If installation or download fails, check disk
+space and ask the administrator to use a remote model source instead.
+
+## The 3D profile or room is unavailable
+
+The 3D view loads separately from Chat. Choose **Retry 3D**, then continue using
+the text profile or Chat if it is still unavailable. On a phone, some devices
+cannot run the 3D view even though chat works.
+
+## The phone QR code does not work
+
+Keep the phone and computer on the same local network, scan a newly generated
+code, and make sure the displayed address is reachable from the phone. If the
+dialog says the service is local-only, ask the administrator to enable access
+from the local network. Do not share the code outside the Nest.
+
+## The app is still running after I close the window
+
+That is expected for the desktop app: closing the window hides it in the tray.
+Choose **Quit ElfieNest** from the app or tray menu to stop the local services.
+
+## What to send when asking for help
+
+Send the visible error text, the app version and the step where it happened.
+Screenshots are useful. Do not include passwords, API keys, one-time codes or
+your entire local data folder.

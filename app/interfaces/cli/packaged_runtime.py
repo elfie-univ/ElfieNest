@@ -182,7 +182,25 @@ def configure_frozen_cli_runtime(
         raise PackagedCliRuntimeError(
             f"packaged-cli-platform-unsupported platform={platform}"
         ) from error
-    core = executable.parent.parent / "python-core" / core_name
+    resources = executable.parent.parent
+    core = resources / "python-core" / core_name
     if not core.is_file():
         raise PackagedCliRuntimeError(f"packaged-cli-core-missing path={core}")
-    environment["ELFIENEST_CORE_BIN"] = str(core)
+    desktop_executables = {
+        "win32": resources.parent / "ElfieNest.exe",
+        "darwin": resources.parent / "MacOS" / "ElfieNest",
+        "linux": resources.parent / "AppRun",
+    }
+    desktop = desktop_executables[platform]
+    application_root = resources.parent.parent if platform == "darwin" else resources.parent
+    environment.update(
+        {
+            "ELFIENEST_CORE_BIN": str(core),
+            "ELFIENEST_WEB_BUILD_DIR": str(resources / "web"),
+            "ELFIENEST_GODOT_WEB_DIR": str(resources / "godot-web"),
+            "ELFIENEST_RUNTIME_MODE": "release",
+            "ELFIENEST_PROJECT_ROOT": str(application_root),
+            "ELFIENEST_DESKTOP_BIN": str(desktop),
+            "PYINSTALLER_RESET_ENVIRONMENT": "1",
+        }
+    )

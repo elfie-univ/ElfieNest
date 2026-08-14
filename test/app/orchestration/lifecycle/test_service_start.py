@@ -109,6 +109,34 @@ def test_start_health_timeout_cleans_process_and_receipt(tmp_path: Path) -> None
     assert not (home / "elfienest.pid").exists()
 
 
+def test_start_health_timeout_cleans_an_injected_frozen_core(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    clock = FakeClock()
+    core = tmp_path / "ElfieNestCore"
+    command = (str(core), "--port", "8002")
+    port = FakeProcessPort(
+        cwd=tmp_path,
+        command=command,
+        existence=(True, True, True, False),
+        launched_pid=5109,
+    )
+
+    result = start_service(
+        home,
+        tmp_path,
+        process_port=port,
+        recovery_lock=FakeRecoveryLock(),
+        command=command,
+        health_checker=lambda: False,
+        timeout_seconds=0.1,
+        monotonic=clock.monotonic,
+        sleeper=clock.sleep,
+    )
+
+    assert isinstance(result.error, HealthCheckFailedError)
+    assert port.terminations == [(5109, False)]
+
+
 def test_start_cleanup_refuses_reused_pid(tmp_path: Path) -> None:
     home = tmp_path / "home"
     port = FakeProcessPort(

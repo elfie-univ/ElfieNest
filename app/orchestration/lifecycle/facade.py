@@ -11,6 +11,8 @@ from app.orchestration.lifecycle.helpers import existing_service_command, record
 from app.orchestration.lifecycle.ports import (
     AuthorityHostConfig,
     AuthorityHostFactory,
+    DataHomeInspection,
+    DataHomeRecoveryResult,
     DesktopHostPort,
     DoctorPort,
     DoctorRepairResult,
@@ -32,13 +34,17 @@ from app.orchestration.lifecycle.ports import (
     UninstallPort,
     UninstallState,
 )
-from app.orchestration.lifecycle.runtime_health import RuntimeHealth
+from app.orchestration.lifecycle.runtime_health import (
+    RuntimeHealth,
+    RuntimeProgressPhase,
+)
 from app.orchestration.lifecycle.runtime_supervisor import (
     PrepareOptionalComponent,
     RuntimeSupervisor,
 )
 from app.orchestration.lifecycle.service import start_service, stop_service
 from app.orchestration.lifecycle.types import (
+    DataHomeRecoveryError,
     InvalidPidFileError,
     ServiceLifecycleResult,
 )
@@ -175,6 +181,80 @@ class LifecycleFacade:
             runtime_mode=runtime_mode,
         )
 
+    def inspect_data_home(
+        self,
+        explicit_home: Optional[str],
+        *,
+        project_root: Path,
+        runtime_mode: str,
+        use_remembered: bool = False,
+    ) -> DataHomeInspection:
+        if self._data_home is None:
+            raise RuntimeError("Lifecycle data-home adapter is unavailable")
+        selected = self._data_home.select(
+            explicit_home,
+            project_root=project_root,
+            runtime_mode=runtime_mode,
+            use_remembered=use_remembered,
+        )
+        return self._data_home.inspect(selected)
+
+    def recover_data_home(
+        self,
+        explicit_home: Optional[str],
+        *,
+        project_root: Path,
+        runtime_mode: str,
+        use_remembered: bool = False,
+    ) -> DataHomeRecoveryResult:
+        if self._data_home is None:
+            raise RuntimeError("Lifecycle data-home adapter is unavailable")
+        selected = self._data_home.select(
+            explicit_home,
+            project_root=project_root,
+            runtime_mode=runtime_mode,
+            use_remembered=use_remembered,
+        )
+        with self._recovery_lock.owner_recovery(selected):
+            if self.existing_service_command(selected, project_root) is not None:
+                raise DataHomeRecoveryError(
+                    "Runtime is still running; stop it before recovering the data root"
+                )
+            try:
+                result = self._data_home.recover(selected)
+            except OSError as error:
+                raise DataHomeRecoveryError(str(error)) from error
+        self._data_home.remember(
+            result.home,
+            project_root=project_root,
+            runtime_mode=runtime_mode,
+        )
+        return result
+
+    def activate_data_home(
+        self,
+        explicit_home: str,
+        *,
+        project_root: Path,
+        runtime_mode: str,
+    ) -> DataHomeInspection:
+        if self._data_home is None:
+            raise RuntimeError("Lifecycle data-home adapter is unavailable")
+        selected = self._data_home.select(
+            explicit_home,
+            project_root=project_root,
+            runtime_mode=runtime_mode,
+            use_remembered=False,
+        )
+        inspection = self._data_home.inspect(selected)
+        if inspection.state.value in {"fresh", "ready"}:
+            self._data_home.remember(
+                selected,
+                project_root=project_root,
+                runtime_mode=runtime_mode,
+            )
+        return inspection
+
     def optional_component_ready(self) -> bool:
         """Project optional Runtime readiness without exposing its technology."""
         return (
@@ -200,6 +280,7 @@ class LifecycleFacade:
         authority_timeout_seconds: float = 10.0,
         core_timeout_seconds: float = 10.0,
         child_environment: Optional[Mapping[str, str]] = None,
+        progress_callback: Optional[Callable[[RuntimeProgressPhase], None]] = None,
     ) -> RuntimeLifecycle:
         """Construct the lifecycle workflow from already injected Port factories."""
         command = tuple(launch_command)
@@ -216,9 +297,18 @@ class LifecycleFacade:
             ),
             stop_core=lambda: self.stop_service(elfie_home, project_root),
             prepare_optional_component=prepare_optional_component,
-            owns_pid_record=lambda: self._process_port.receipt_exists(elfie_home),
+            owns_pid_record=lambda: (
+                existing_service_command(
+                    elfie_home,
+                    project_root,
+                    self._process_port,
+                    command,
+                )
+                is not None
+            ),
             authority_host=self._authority_host_factory(authority_config),
             authority_timeout_seconds=authority_timeout_seconds,
+            progress_callback=progress_callback,
         )
 
     def start_service(
@@ -249,6 +339,7 @@ class LifecycleFacade:
             elfie_home,
             project_root,
             process_port=self._process_port,
+            expected_command=self._service_launch_command,
         )
 
     def start_desktop(
@@ -325,7 +416,12 @@ class LifecycleFacade:
     def existing_service_command(
         self, elfie_home: Path, project_root: Path
     ) -> tuple[int, tuple[str, ...]] | None:
-        return existing_service_command(elfie_home, project_root, self._process_port)
+        return existing_service_command(
+            elfie_home,
+            project_root,
+            self._process_port,
+            self._service_launch_command,
+        )
 
     def recorded_pid(self, elfie_home: Path) -> int | InvalidPidFileError | None:
         return recorded_pid(elfie_home, self._process_port)

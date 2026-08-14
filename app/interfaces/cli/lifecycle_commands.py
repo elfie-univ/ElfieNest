@@ -9,7 +9,7 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 from app.orchestration.lifecycle import (
     DEFAULT_HTTP_PORT,
@@ -22,6 +22,7 @@ from app.orchestration.lifecycle import (
     RuntimeHealth,
     RuntimeHealthState,
     RuntimeLifecycle,
+    RuntimeProgressPhase,
     ServiceLifecycleResult,
     ServicePortsActiveError,
     http_port_from_command,
@@ -36,12 +37,19 @@ BACKGROUND_START_TIMEOUT_SECONDS = 60.0
 AUTHORITY_START_TIMEOUT_SECONDS = 120.0
 
 
+def _runtime_project_root() -> Path:
+    """Resolve the installed application root before the source checkout default."""
+    configured = os.environ.get("ELFIENEST_PROJECT_ROOT")
+    return Path(configured).resolve() if configured else PROJECT_ROOT
+
+
 def _supervisor_for(
     lifecycle: LifecycleFacade,
     command: Sequence[str],
     http_port: int,
     *,
     use_remembered_home: bool = False,
+    progress_callback: Optional[Callable[[RuntimeProgressPhase], None]] = None,
 ) -> RuntimeLifecycle:
     """Build the one Runtime Supervisor used by source and installed CLI commands."""
     launch_command = tuple(command)
@@ -52,12 +60,13 @@ def _supervisor_for(
     )
     _, godot_ws_port = service_ports_from_command(launch_command)
     generation_nonce = secrets.token_urlsafe(32)
+    project_root = _runtime_project_root()
     return lifecycle.runtime_supervisor(
         elfie_home=selected_home,
-        project_root=PROJECT_ROOT,
+        project_root=project_root,
         launch_command=launch_command,
         authority_config=AuthorityHostConfig(
-            project_root=PROJECT_ROOT,
+            project_root=project_root,
             http_port=http_port,
             ws_port=godot_ws_port,
             nonce=generation_nonce,
@@ -70,6 +79,7 @@ def _supervisor_for(
             "ELFIE_HOME": str(selected_home),
             "ELFIENEST_GODOT_NONCE": generation_nonce,
         },
+        progress_callback=progress_callback,
     )
 
 
@@ -79,20 +89,33 @@ def _full_runtime_health(lifecycle: LifecycleFacade, port: int) -> RuntimeHealth
     core = failed
     gateway = failed
     authority = failed
+    core_detail = "Core health endpoint unavailable"
+    gateway_detail = "Gateway readiness unavailable"
+    authority_detail = "Godot authority handshake unavailable"
     try:
         response = lifecycle.http_get(
             f"http://127.0.0.1:{port}/api/health", timeout_seconds=2.0
         )
         payload = json.loads(response.body.decode("utf-8"))
-        if response.status == 200 and isinstance(payload, dict):
+        if (
+            response.status == 200
+            and isinstance(payload, dict)
+            and payload.get("status") == "ok"
+            and payload.get("godot_web_ready") is True
+        ):
             engine_ready = payload.get("engine_ready") is True
             core = RuntimeHealthState.READY if engine_ready else failed
             gateway = RuntimeHealthState.READY if engine_ready else failed
+            if engine_ready:
+                core_detail = ""
+                gateway_detail = ""
             authority = (
                 RuntimeHealthState.READY
                 if payload.get("godot_runtime_ready") is True
                 else failed
             )
+            if authority is RuntimeHealthState.READY:
+                authority_detail = ""
     except (OSError, TimeoutError, ValueError):
         pass
     ollama = (
@@ -105,9 +128,13 @@ def _full_runtime_health(lifecycle: LifecycleFacade, port: int) -> RuntimeHealth
         generation=0,
         owner_lease=None,
         components=(
-            ComponentHealth(RuntimeComponent.CORE, core),
-            ComponentHealth(RuntimeComponent.GATEWAY, gateway),
-            ComponentHealth(RuntimeComponent.GODOT_AUTHORITY, authority),
+            ComponentHealth(RuntimeComponent.CORE, core, detail=core_detail),
+            ComponentHealth(RuntimeComponent.GATEWAY, gateway, detail=gateway_detail),
+            ComponentHealth(
+                RuntimeComponent.GODOT_AUTHORITY,
+                authority,
+                detail=authority_detail,
+            ),
             ComponentHealth(RuntimeComponent.OLLAMA, ollama),
         ),
     )
@@ -163,7 +190,7 @@ def _data_home_for_command(
     explicit_home = _option_value(command, "--data-home")
     return lifecycle.select_data_home(
         explicit_home,
-        project_root=PROJECT_ROOT,
+        project_root=_runtime_project_root(),
         runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
         use_remembered=use_remembered_home,
     )
@@ -188,7 +215,7 @@ def _remember_lifecycle_data_home(
     """Ask the lifecycle boundary to persist the current checkout selection."""
     lifecycle.remember_data_home(
         selected_home,
-        project_root=PROJECT_ROOT,
+        project_root=_runtime_project_root(),
         runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
     )
 
@@ -215,10 +242,13 @@ def start_background_service(
     command: Optional[Sequence[str]] = None,
     *,
     owner_id: str = "cli",
+    json_output: bool = False,
+    progress_json: bool = False,
 ) -> ServiceLifecycleResult:
     """Start the service once; a verified running process is left untouched."""
-    progress = ProgressIndicator("Starting service")
-    progress.start()
+    progress = None if json_output or progress_json else ProgressIndicator("Starting service")
+    if progress is not None:
+        progress.start()
 
     launch_command = (
         tuple(command)
@@ -228,31 +258,48 @@ def start_background_service(
     try:
         http_port = _validated_http_port(launch_command)
     except ValueError as error:
-        progress.stop(success=False)
+        if progress is not None:
+            progress.stop(success=False)
         result = ServiceLifecycleResult(
             status="failed", error=LaunchFailedError(f"Invalid service port: {error}")
         )
-        _print_start_result(lifecycle, result)
+        _print_start_result_or_json(lifecycle, result, json_output=json_output)
         return result
-    supervisor = _supervisor_for(lifecycle, launch_command, http_port)
+    progress_callback = (
+        (lambda phase: _print_runtime_progress_json(phase))
+        if progress_json
+        else None
+    )
+    supervisor = _supervisor_for(
+        lifecycle,
+        launch_command,
+        http_port,
+        use_remembered_home=True,
+        progress_callback=progress_callback,
+    )
     try:
         if not _runtime_is_stably_running(supervisor):
             _prepare_frontend_for_launch(lifecycle)
     except FrontendPreparationError as error:
-        progress.stop(success=False)
+        if progress is not None:
+            progress.stop(success=False)
         result = ServiceLifecycleResult(
             status="failed",
             command=launch_command,
             error=LaunchFailedError(f"Frontend build failed: {error}"),
         )
-        _print_start_result(lifecycle, result)
+        _print_start_result_or_json(lifecycle, result, json_output=json_output)
         return result
     result = supervisor.start(owner_id=owner_id)
     if result.status in {"started", "already_running"}:
         try:
             _remember_lifecycle_data_home(
                 lifecycle,
-                _data_home_for_command(lifecycle, launch_command),
+                _data_home_for_command(
+                    lifecycle,
+                    launch_command,
+                    use_remembered_home=True,
+                ),
             )
         except OSError as error:
             result = ServiceLifecycleResult(
@@ -261,8 +308,14 @@ def start_background_service(
                 command=result.command,
                 error=LaunchFailedError(f"Cannot record selected data home: {error}"),
             )
-    progress.stop(success=result.status in {"started", "already_running"})
-    _print_start_result(lifecycle, result)
+    if progress is not None:
+        progress.stop(success=result.status in {"started", "already_running"})
+    _print_start_result_or_json(
+        lifecycle,
+        result,
+        supervisor=supervisor,
+        json_output=json_output,
+    )
     return result
 
 
@@ -278,7 +331,15 @@ def stop_background_service(
     )
     if owner_id != "cli":
         health = supervisor.status()
-        if health.owner_lease is not None and health.owner_lease.owner_id != owner_id:
+        owner_mismatch = (
+            health.owner_lease is not None
+            and health.owner_lease.owner_id != owner_id
+        )
+        startup_owner_mismatch = (
+            health.startup_owner_id is not None
+            and health.startup_owner_id != owner_id
+        )
+        if owner_mismatch or startup_owner_mismatch:
             result = ServiceLifecycleResult(
                 status="failed",
                 error=LaunchFailedError(
@@ -411,7 +472,7 @@ def show_service_status(
         lifecycle.default_service_command(),
         use_remembered_home=True,
     )
-    running = lifecycle.existing_service_command(elfie_home, PROJECT_ROOT)
+    running = lifecycle.existing_service_command(elfie_home, _runtime_project_root())
     status_command = (
         running[1] if running is not None else lifecycle.default_service_command()
     )
@@ -422,34 +483,15 @@ def show_service_status(
         status_port,
         use_remembered_home=running is None,
     ).status()
+    if running is None and health.state in {
+        RuntimeHealthState.STOPPED,
+        RuntimeHealthState.FAILED,
+    }:
+        external_health = _attachable_external_runtime_health(lifecycle, status_port)
+        if external_health is not None:
+            health = external_health
     if json_output:
-        print(
-            json.dumps(
-                {
-                    "state": health.state.value,
-                    "generation": health.generation,
-                    "owner_lease": (
-                        {
-                            "owner_id": health.owner_lease.owner_id,
-                            "generation": health.owner_lease.generation,
-                        }
-                        if health.owner_lease is not None
-                        else None
-                    ),
-                    "components": [
-                        {
-                            "name": component.component.value,
-                            "state": component.state.value,
-                            "detail": component.detail,
-                            "pid": component.pid,
-                        }
-                        for component in health.components
-                    ],
-                },
-                ensure_ascii=False,
-                sort_keys=True,
-            )
-        )
+        _print_runtime_health_json(health)
         return
     print("  📊 Service Status")
     print("  " + "=" * 45)
@@ -498,10 +540,10 @@ def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
     """Ensure a healthy service and open the Web management console."""
     default_home = lifecycle.select_data_home(
         None,
-        project_root=PROJECT_ROOT,
+        project_root=_runtime_project_root(),
         runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
     )
-    running = lifecycle.existing_service_command(default_home, PROJECT_ROOT)
+    running = lifecycle.existing_service_command(default_home, _runtime_project_root())
     if running is not None:
         _, running_command = running
         port = http_port_from_command(running_command)
@@ -560,10 +602,10 @@ def start_desktop_application(lifecycle: LifecycleFacade) -> ServiceLifecycleRes
     result = lifecycle.start_desktop(
         lifecycle.select_data_home(
             None,
-            project_root=PROJECT_ROOT,
+            project_root=_runtime_project_root(),
             runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
         ),
-        PROJECT_ROOT,
+        _runtime_project_root(),
         health_checker=lambda: _web_is_healthy(lifecycle),
     )
     if result.status in {"started", "already_running"}:
@@ -579,6 +621,39 @@ def _web_is_healthy(lifecycle: LifecycleFacade, port: int = 8000) -> bool:
         return lifecycle.http_get(health_url, timeout_seconds=2.0).status == 200
     except (OSError, TimeoutError):
         return False
+
+
+def _attachable_external_runtime_health(
+    lifecycle: LifecycleFacade,
+    port: int,
+) -> RuntimeHealth | None:
+    """Map a verified ElfieNest Core owned elsewhere to a non-owned attachment."""
+    observed = _full_runtime_health(lifecycle, port)
+    components = {item.component: item.state for item in observed.components}
+    if any(
+        components.get(component) is not RuntimeHealthState.READY
+        for component in (RuntimeComponent.CORE, RuntimeComponent.GATEWAY)
+    ):
+        return None
+    full_runtime_ready = all(
+        components.get(component) is RuntimeHealthState.READY
+        for component in (
+            RuntimeComponent.CORE,
+            RuntimeComponent.GATEWAY,
+            RuntimeComponent.GODOT_AUTHORITY,
+            RuntimeComponent.OLLAMA,
+        )
+    )
+    return RuntimeHealth(
+        state=(
+            RuntimeHealthState.READY
+            if full_runtime_ready
+            else RuntimeHealthState.DEGRADED
+        ),
+        generation=0,
+        owner_lease=None,
+        components=observed.components,
+    )
 
 
 def _external_recorded_service(
@@ -598,7 +673,7 @@ def _external_recorded_service(
         command = snapshot.command
     except (OSError, RuntimeError, ValueError):
         return None
-    if cwd == PROJECT_ROOT.resolve():
+    if cwd == _runtime_project_root().resolve():
         return None
     return pid_result, cwd, tuple(command)
 
@@ -653,3 +728,78 @@ def _print_start_result(
                     "  ℹ️  Service ports appear free but were occupied during startup."
                 )
                 print("     This might indicate a race condition or transient issue.")
+
+
+def _runtime_health_payload(health: RuntimeHealth) -> dict[str, object]:
+    """Serialize one lifecycle health snapshot for machine clients."""
+    return {
+        "state": health.state.value,
+        "generation": health.generation,
+        "owner_lease": (
+            {
+                "owner_id": health.owner_lease.owner_id,
+                "generation": health.owner_lease.generation,
+            }
+            if health.owner_lease is not None
+            else None
+        ),
+        "startup_owner_id": health.startup_owner_id,
+        "components": [
+            {
+                "name": component.component.value,
+                "state": component.state.value,
+                "detail": component.detail,
+                "pid": component.pid,
+            }
+            for component in health.components
+        ],
+    }
+
+
+def _print_runtime_health_json(health: RuntimeHealth) -> None:
+    print(
+        json.dumps(_runtime_health_payload(health), ensure_ascii=False, sort_keys=True)
+    )
+
+
+def _print_runtime_progress_json(phase: RuntimeProgressPhase) -> None:
+    print(
+        json.dumps(
+            {"event": "runtime_progress", "phase": phase.value},
+            ensure_ascii=False,
+            sort_keys=True,
+        ),
+        flush=True,
+    )
+
+
+def _print_start_result_or_json(
+    lifecycle: LifecycleFacade,
+    result: ServiceLifecycleResult,
+    *,
+    supervisor: RuntimeLifecycle | None = None,
+    json_output: bool,
+) -> None:
+    """Keep the human CLI unchanged while exposing one machine-readable start result."""
+    if not json_output:
+        _print_start_result(lifecycle, result)
+        return
+    if result.status in {"started", "already_running"} and supervisor is not None:
+        _print_runtime_health_json(supervisor.status())
+        return
+    print(
+        json.dumps(
+            {
+                "state": RuntimeHealthState.FAILED.value,
+                "generation": 0,
+                "owner_lease": None,
+                "startup_owner_id": None,
+                "components": [],
+                "error": str(result.error)
+                if result.error is not None
+                else "start failed",
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )

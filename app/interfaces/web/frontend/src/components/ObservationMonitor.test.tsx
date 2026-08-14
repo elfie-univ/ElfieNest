@@ -57,7 +57,10 @@ const catalog = {
   ],
 } satisfies ObserverCameraCatalog
 
-function createObserver(cameraCatalog: ObserverCameraCatalog | null): ObserverFixture {
+function createObserver(
+  cameraCatalog: ObserverCameraCatalog | null,
+  status: ObserverState["status"] = "ready",
+): ObserverFixture {
   const calls = {
     configureRoom: vi.fn(),
     detach: vi.fn(),
@@ -82,15 +85,21 @@ function createObserver(cameraCatalog: ObserverCameraCatalog | null): ObserverFi
       reset: calls.reset,
       select: calls.select,
       setLocalPresentationPaused: calls.setLocalPresentationPaused,
-      status: "ready",
+      status,
     },
   }
 }
 
-function renderMonitor(locale: SupportedLocale = "zh-CN", bedCount = 4): i18n {
+function renderMonitor(
+  locale: SupportedLocale = "zh-CN",
+  bedCount = 4,
+  mode: "embedded" | "standalone" = "embedded",
+  immersive = false,
+  onExitImmersive = vi.fn(),
+): i18n {
   const instance = createI18n()
   void instance.changeLanguage(locale)
-  render(<I18nextProvider i18n={instance}><ObservationMonitor bedCount={bedCount} roomId="local-nest" /></I18nextProvider>)
+  render(<I18nextProvider i18n={instance}><ObservationMonitor bedCount={bedCount} immersive={immersive} mode={mode} onExitImmersive={onExitImmersive} roomId="local-nest" /></I18nextProvider>)
   return instance
 }
 
@@ -103,17 +112,17 @@ describe("ObservationMonitor", () => {
     vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
   })
 
-  it("keeps reset, overview, generated cameras, pause, and hide in one ordered toolbar", () => {
+  it("keeps reset, overview, generated cameras, and pause in one ordered toolbar", () => {
     renderMonitor()
 
     const toolbar = screen.getByRole("toolbar", { name: "监控工具栏" })
+    expect(toolbar.parentElement).toHaveClass("observation-monitor__stage")
     expect(within(toolbar).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
       "复位视角",
       "总览",
       "活动区",
       "宿舍区",
       "暂停观察",
-      "隐藏工具栏",
     ])
     expect(within(toolbar).getAllByRole("button", { name: "总览" })).toHaveLength(1)
     expect(screen.getByRole("button", { name: "总览" }).querySelector("svg")).toHaveClass("lucide-cctv")
@@ -123,6 +132,25 @@ describe("ObservationMonitor", () => {
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-auto-start", "true")
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-bed-count", "4")
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-show-header", "false")
+  })
+
+  it("keeps the embedded preview free of standalone navigation controls", () => {
+    renderMonitor()
+
+    expect(screen.queryByRole("link", { name: "返回管理" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "进入沉浸观察" })).not.toBeInTheDocument()
+    expect(screen.getByRole("toolbar", { name: "监控工具栏" })).toBeInTheDocument()
+  })
+
+  it("hides standalone navigation and the camera toolbar in immersive mode", async () => {
+    const user = userEvent.setup()
+    const onExitImmersive = vi.fn()
+    renderMonitor("zh-CN", 4, "standalone", true, onExitImmersive)
+
+    expect(screen.queryByRole("toolbar", { name: "监控工具栏" })).toBeNull()
+    await user.click(screen.getByRole("button", { name: "退出沉浸观察" }))
+
+    expect(onExitImmersive).toHaveBeenCalledOnce()
   })
 
   it("dispatches only high-level view and local-presentation commands", async () => {
@@ -165,7 +193,6 @@ describe("ObservationMonitor", () => {
     expect(screen.getByRole("button", { name: "活动区" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "宿舍区" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "继续观察" })).toBeEnabled()
-    expect(screen.getByRole("button", { name: "隐藏工具栏" })).toBeEnabled()
 
     await user.click(screen.getByRole("button", { name: "复位视角" }))
     await user.click(screen.getByRole("button", { name: "总览" }))
@@ -180,36 +207,23 @@ describe("ObservationMonitor", () => {
     expect(fixture.calls.openRoom).not.toHaveBeenCalled()
   })
 
-  it("keeps local pause available before the camera catalog arrives without reopening the observer", async () => {
+  it("keeps all monitor controls disabled until the camera catalog arrives", async () => {
     const user = userEvent.setup()
-    fixture = createObserver(null)
+    fixture = createObserver(null, "loading")
     vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
     renderMonitor()
 
     const pause = screen.getByRole("button", { name: "暂停观察" })
-    expect(pause).toBeEnabled()
+    expect(pause).toBeDisabled()
+    expect(screen.getByRole("button", { name: "复位视角" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "总览" })).toBeDisabled()
 
     await user.click(pause)
 
-    expect(fixture.calls.setLocalPresentationPaused).toHaveBeenCalledWith(true)
+    expect(fixture.calls.setLocalPresentationPaused).not.toHaveBeenCalled()
     expect(fixture.calls.detach).not.toHaveBeenCalled()
     expect(fixture.calls.openRoom).not.toHaveBeenCalled()
     expect(screen.getByRole("button", { name: "暂停观察" })).toBeInTheDocument()
-  })
-
-  it("removes the complete toolbar until the small restore affordance is used", async () => {
-    const user = userEvent.setup()
-    renderMonitor()
-
-    await user.click(screen.getByRole("button", { name: "隐藏工具栏" }))
-
-    expect(screen.queryByRole("toolbar", { name: "监控工具栏" })).toBeNull()
-    expect(screen.getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["显示工具栏"])
-    expect(screen.getByRole("button", { name: "显示工具栏" })).toHaveAttribute("title", "显示工具栏")
-
-    await user.click(screen.getByRole("button", { name: "显示工具栏" }))
-
-    expect(screen.getByRole("toolbar", { name: "监控工具栏" })).toBeInTheDocument()
   })
 
   it("renders English controls and connection status while preserving runtime camera data", () => {
@@ -226,35 +240,19 @@ describe("ObservationMonitor", () => {
       "活动区",
       "宿舍区",
       "Pause monitoring",
-      "Hide controls",
     ])
     expect(screen.getByRole("status")).toHaveTextContent("Connected to local-nest")
     expect(screen.getByRole("region", { name: "3D room monitor" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "活动区" })).toHaveAttribute("aria-pressed", "true")
   })
 
-  it("preserves the deep link and paused hidden-control state across a locale switch", async () => {
-    // Given: a paused deep-linked monitor has its toolbar hidden.
-    const user = userEvent.setup()
-    window.history.replaceState({ source: "camera" }, "", "/monitor?room=local-nest#live")
-    const originalUrl = window.location.href
-    const originalHistoryState = window.history.state
-    fixture = createObserver({ ...catalog, presentationPaused: true })
-    vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
-    const instance = renderMonitor()
-    await user.click(screen.getByRole("button", { name: "隐藏工具栏" }))
+  it("localizes the immersive exit control", async () => {
+    const instance = renderMonitor("zh-CN", 4, "standalone", true)
 
-    // When: the global locale changes in place and controls are restored.
+    expect(screen.getByRole("button", { name: "退出沉浸观察" })).toBeInTheDocument()
     await instance.changeLanguage("en-US")
-    await user.click(screen.getByRole("button", { name: "Show controls" }))
 
-    // Then: route and control state survive without reopening the observer.
-    expect(window.location.href).toBe(originalUrl)
-    expect(window.history.state).toEqual(originalHistoryState)
-    expect(screen.getByRole("button", { name: "Resume monitoring" })).toBeEnabled()
-    expect(screen.getByRole("button", { name: "Reset view" })).toBeDisabled()
-    expect(fixture.calls.openRoom).not.toHaveBeenCalled()
-    expect(fixture.calls.detach).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Exit immersive monitoring" })).toBeInTheDocument()
   })
 
   it("reports offline and unknown monitor states with localized safe copy", () => {
@@ -282,7 +280,6 @@ describe("ObservationMonitor", () => {
     // Then: every label remains inside the existing overflow container.
     expect(toolbar).toHaveClass("observation-monitor__toolbar")
     expect(within(toolbar).getByRole("button", { name: "Pause monitoring" })).toHaveTextContent("Pause monitoring")
-    expect(within(toolbar).getByRole("button", { name: "Hide controls" })).toHaveAttribute("title", "Hide controls")
     expect(screen.getAllByRole("toolbar")).toHaveLength(1)
   })
 

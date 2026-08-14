@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { openObserverSession } from "../api/observer"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
-import { ObserverProvider } from "../stores/observer"
+import { isObserverContextAllowed, ObserverProvider } from "../stores/observer"
 import { ObserverSurface } from "./ObserverSurface"
 
 vi.mock("../api/observer", () => ({
@@ -23,6 +23,13 @@ describe("ObserverSurface", () => {
       configurable: true,
       value: true,
     })
+  })
+
+  it("allows insecure HTTP only for a private LAN IPv4 address", () => {
+    expect(isObserverContextAllowed({ hostname: "192.168.31.224", protocol: "http:" }, false)).toBe(true)
+    expect(isObserverContextAllowed({ hostname: "10.0.0.8", protocol: "http:" }, false)).toBe(true)
+    expect(isObserverContextAllowed({ hostname: "172.16.0.8", protocol: "http:" }, false)).toBe(true)
+    expect(isObserverContextAllowed({ hostname: "8.8.8.8", protocol: "http:" }, false)).toBe(false)
   })
 
   it("returns to idle immediately when observation ends", async () => {
@@ -81,7 +88,7 @@ describe("ObserverSurface", () => {
     expect(openObserverSession).toHaveBeenCalledWith({ kind: "room", room_id: "local-nest" }, "csrf")
   })
 
-  it("explains insecure mobile HTTP instead of loading the Godot iframe", async () => {
+  it("explains unsupported HTTP instead of loading the Godot iframe", async () => {
     Object.defineProperty(window, "isSecureContext", {
       configurable: true,
       value: false,
@@ -94,7 +101,7 @@ describe("ObserverSurface", () => {
     renderLocalized(<ObserverProvider csrfToken="csrf" enabled><ObserverSurface autoStart bedCount={4} kind="room" roomId="local-nest" showHeader={false} title="房间 3D 观察" /></ObserverProvider>)
 
     expect(await screen.findByText("手机浏览器需要安全连接才能打开 3D 房间观察。")).toBeInTheDocument()
-    expect(screen.getByText(/HTTP 的 192\.168\.\* 地址会被浏览器拦截/)).toBeInTheDocument()
+    expect(screen.getByText(/10\.\*、172\.16\.\*–172\.31\.\*、192\.168\.\* 地址可以直接打开/)).toBeInTheDocument()
     expect(openObserverSession).not.toHaveBeenCalled()
   })
 

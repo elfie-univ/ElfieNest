@@ -1,45 +1,59 @@
 # User Guide
 
-This is the user manual that goes from "building a Nest" to "meeting your first
-Elfie". You can read it in order or jump straight to the section you need.
+ElfieNest is a desktop app for keeping an Elfie at home. This guide is for
+ordinary computer users: it explains what to click, what each area is for, and
+what to do when something goes wrong. You do not need prior technical
+knowledge.
 
-## The path
+## The short version
 
 ```text
-Install environment → Configure data & models → Start the Nest → Meet an Elfie → Troubleshoot
+Download the app → first-time configuration → core configuration → adopt an Elfie → chat
 ```
 
-### 1. [Install & environment](./install)
+If you are joining a Nest that someone else already prepared, sign in and start
+with [Daily use](./run). If you are the owner or an administrator, complete
+[Core configuration](./ready) before inviting members.
 
-Get Git, uv and the pinned CPython 3.9.25 environment, and install the code on
-your computer.
+The administrator path is:
 
-### 2. [Configure models & data](./configuration)
+```text
+Open Management → choose a model source → configure Food for Elfies → check Status monitor → invite people
+```
 
-Understand `ELFIE_HOME`, local configuration, model providers and data
-directories — and know which configuration should stay on your machine.
+## Start here
 
-### 3. [Run your first Nest](./run)
+1. [Install and configure](./install) the desktop app for your computer.
+2. Complete [First-time configuration](./configuration) and create the first administrator.
+3. If you manage the Nest, complete [Core configuration](./ready): connect a model source,
+   prepare Food and check the status page.
+4. [Adopt your first Elfie](./adoption) through the in-app invitation journey.
+5. [Use ElfieNest every day](./run): chat, read an Elfie's profile, and use a
+   phone when you are on the same network.
+6. If you are an administrator, read [Management and Monitor](./manage).
+7. If something is not working, open [Troubleshooting](./troubleshooting).
 
-Start the minimal running pipeline and verify that the environment clock, Elfie
-perception and output routing are all connected.
+## What the main areas mean
 
-### 4. [Troubleshooting](./troubleshooting)
+| Area | What you do there | Who sees it |
+| --- | --- | --- |
+| Chat | Talk with an Elfie and read conversation history | Everyone |
+| Elfies | Find an Elfie, open its profile, and start a chat | Everyone |
+| Management | Maintain users, beds, model connections, Food and system settings | Administrators |
+| Status monitor | Check service health, available models and recent events | Administrators |
+| 3D Monitor | Watch activity in the Nest and change the viewing position | Administrators |
+| Me | Change your profile, password, language and appearance | Everyone |
 
-Locate installation, port, model, data-directory and Godot connection issues by
-symptom.
+The same Chat and Elfie views can also be opened on a phone by scanning the QR
+code shown in the app. A phone is an optional companion view; it is not a
+separate ElfieNest installation.
 
-### 5. [FAQ](./faq)
+## A note about releases
 
-Answers to questions like "What is an Elfie?", "What does the Nest store?" and
-"Can it run without Ollama?".
+ElfieNest is currently distributed as a preview. Download packages, when
+available, are listed on the [official Releases page](https://github.com/elfie-univ/ElfieNest/releases).
+If the page has no package yet, do not install the source tree just to use the
+app; wait for an official package or ask the person who gave you access.
 
-## Scope of this manual
-
-This manual covers how to *use* ElfieNest; it does not cover internal module
-implementations, test commands or the Godot development flow. To read code,
-debug modules or build the runtime, head to the [Developer docs](/developer/).
-
-Sections without screenshots keep their text and operation paths for now;
-formal UI screenshots will be added after the corresponding features are
-completed and accepted.
+The [Developer docs](/developer/) are for people who build, test or diagnose
+the project itself. They are intentionally separate from this guide.

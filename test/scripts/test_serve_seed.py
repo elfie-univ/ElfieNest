@@ -4,12 +4,47 @@ from pathlib import Path
 
 from app.bootstrap.app_wiring import adoption as adoption_bootstrap
 from infrastructure.persistence.nest_db.store import get_db, init_db
+from scripts import serve
 
 
 class _CapturingWorkspace:
     def materialize(self, reservation: object) -> str:
         self.reservation = reservation
         return "/unused"
+
+
+class _CapturingLifecycle:
+    def __init__(self) -> None:
+        self.registrations: list[Path] = []
+
+    def register_current_service(self, elfie_home: Path) -> None:
+        self.registrations.append(elfie_home)
+
+
+def test_managed_core_leaves_the_process_receipt_owned_by_its_supervisor(
+    tmp_path: Path,
+) -> None:
+    lifecycle = _CapturingLifecycle()
+
+    serve.register_service_process_for_start(
+        lifecycle,
+        tmp_path,
+        managed_start=True,
+    )
+
+    assert lifecycle.registrations == []
+
+
+def test_foreground_core_registers_its_own_process_receipt(tmp_path: Path) -> None:
+    lifecycle = _CapturingLifecycle()
+
+    serve.register_service_process_for_start(
+        lifecycle,
+        tmp_path,
+        managed_start=False,
+    )
+
+    assert lifecycle.registrations == [tmp_path]
 
 
 def test_default_seed_uses_a_workspace_safe_id(monkeypatch, tmp_path: Path) -> None:

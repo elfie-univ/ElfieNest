@@ -24,6 +24,31 @@ def command_runs_service(
     return False
 
 
+def command_matches_service(
+    command: Sequence[str],
+    process_cwd: Path,
+    expected_script: Path,
+    expected_command: Sequence[str] = (),
+) -> bool:
+    """Match either the injected frozen Core or the source serve entrypoint."""
+    prefix = tuple(expected_command)
+    if prefix and tuple(command[: len(prefix)]) == prefix:
+        return True
+    if prefix and " " in prefix[0]:
+        # macOS `ps -o command=` does not quote executable paths. The process
+        # inspector therefore receives a path containing spaces as multiple
+        # tokens; re-join only the expected executable prefix before falling
+        # back to the source-script matcher.
+        for split_at in range(1, len(command) + 1):
+            if " ".join(command[:split_at]) != prefix[0]:
+                continue
+            remaining = command[split_at:]
+            if tuple(remaining[: len(prefix) - 1]) == prefix[1:]:
+                return True
+            break
+    return command_runs_service(command, process_cwd, expected_script)
+
+
 def restart_command_from_process(command: Sequence[str]) -> Tuple[str, ...]:
     """Preserve service arguments while removing the foreground-only --force flag."""
     return tuple(argument for argument in command if argument != "--force")

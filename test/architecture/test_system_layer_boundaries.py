@@ -64,6 +64,20 @@ def test_system_contract_decision_and_agents_exist_in_both_languages() -> None:
     chinese_contract = (
         PROJECT_ROOT / "docs/zh/developer/contracts/system.md"
     ).read_text(encoding="utf-8")
+    english_nest_contract = (
+        PROJECT_ROOT / "docs/developer/contracts/nest-godot-semantic-world.md"
+    ).read_text(encoding="utf-8")
+    chinese_nest_contract = (
+        PROJECT_ROOT / "docs/zh/developer/contracts/nest-godot-semantic-world.md"
+    ).read_text(encoding="utf-8")
+    english_nest_migration = (
+        PROJECT_ROOT
+        / "docs/developer/conformance/nest-godot-semantic-world-migration.md"
+    ).read_text(encoding="utf-8")
+    chinese_nest_migration = (
+        PROJECT_ROOT
+        / "docs/zh/developer/conformance/nest-godot-semantic-world-migration.md"
+    ).read_text(encoding="utf-8")
     required_docs = {
         "docs/developer/decisions/0002-system-ports-adapters.md",
         "docs/zh/developer/decisions/0002-system-ports-adapters.md",
@@ -71,6 +85,8 @@ def test_system_contract_decision_and_agents_exist_in_both_languages() -> None:
         "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
         "docs/developer/decisions/0012-effective-dependency-targets.md",
         "docs/zh/developer/decisions/0012-effective-dependency-targets.md",
+        "docs/developer/decisions/0013-nest-godot-semantic-world-boundary.md",
+        "docs/zh/developer/decisions/0013-nest-godot-semantic-world-boundary.md",
     }
     required_agents = {
         "elfie/AGENTS.md",
@@ -81,8 +97,10 @@ def test_system_contract_decision_and_agents_exist_in_both_languages() -> None:
         "godot_project/AGENTS.md",
     }
 
-    assert "**Contract version:** 1.5" in english_contract
-    assert "**契约版本：** 1.5" in chinese_contract
+    assert "**Contract version:** 1.6" in english_contract
+    assert "**契约版本：** 1.6" in chinese_contract
+    assert "**Contract version:** 1.0" in english_nest_contract
+    assert "**契约版本：** 1.0" in chinese_nest_contract
     assert "**Macro architecture baseline:** v1 (frozen)" in english_contract
     assert "**宏观架构基线：** v1（已冻结）" in chinese_contract
     assert "always has exactly one Nest" in english_contract
@@ -97,6 +115,27 @@ def test_system_contract_decision_and_agents_exist_in_both_languages() -> None:
     assert "`godot_project/` 永久保持为独立 Godot 源工程" in chinese_contract
     assert "ordinary Food lookup, model call" in english_contract
     assert "单只精灵通过注入 Port 读取" in chinese_contract
+    assert "Nest has four first-level functional owners" in english_nest_contract
+    assert "Nest 有四个一级功能所有者" in chinese_nest_contract
+    assert "is not a fifth business module" in english_nest_contract
+    assert "不是第五个业务模块" in chinese_nest_contract
+    assert "Broadcast is an audience shape" in english_nest_contract
+    assert "广播只是" in chinese_nest_contract
+    migration_cards = [f"NG-M{index:02d}" for index in range(1, 16)]
+    assert all(card in english_nest_migration for card in migration_cards)
+    assert all(card in chinese_nest_migration for card in migration_cards)
+    assert "DATA-01" in english_nest_migration
+    assert "DATA-01" in chinese_nest_migration
+    assert "One active migration card" in english_nest_migration
+    assert "同一时间只做一张迁移卡" in chinese_nest_migration
+    assert "Replace protocol v2 with one clean protocol v3 cutover" in (
+        english_nest_migration
+    )
+    assert "协议 v2 干净切换到 v3" in chinese_nest_migration
+    assert "`InteractionHub` only now" in english_nest_migration
+    assert "才在本卡删除 `InteractionHub`" in chinese_nest_migration
+    assert "No compatibility architecture" in english_nest_migration
+    assert "禁止兼容架构" in chinese_nest_migration
     assert all((PROJECT_ROOT / path).is_file() for path in required_docs)
     assert all((PROJECT_ROOT / path).is_file() for path in required_agents)
     assert not (PROJECT_ROOT / "app/infrastructure").exists()

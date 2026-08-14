@@ -20,9 +20,15 @@ PROJECT_ROOT: Final = Path(__file__).resolve().parents[1]
 BUILD_DIR: Final = PROJECT_ROOT / "build"
 DIST_DIR: Final = PROJECT_ROOT / "dist"
 FRONTEND_DIR: Final = PROJECT_ROOT / "app" / "interfaces" / "web" / "frontend"
-DESKTOP_DIR: Final = PROJECT_ROOT / "desktop"
+DESKTOP_DIR: Final = PROJECT_ROOT / "app" / "interfaces" / "desktop"
 DESKTOP_HOST_CONFIG: Final = (
     PROJECT_ROOT / "app" / "bootstrap" / "desktop_host" / "electron-builder.yml"
+)
+DESKTOP_HOST_MAIN: Final = (
+    PROJECT_ROOT / "app" / "bootstrap" / "desktop_host" / "host_main.mjs"
+)
+DESKTOP_AUTHORITY_DIR: Final = (
+    PROJECT_ROOT / "infrastructure" / "godot" / "lifecycle" / "electron"
 )
 StageResult = TypeVar("StageResult")
 
@@ -68,6 +74,7 @@ def run_native_release(
     _run_stage("manifest", lambda: steps.validate(resources))
     environment = dict(os.environ)
     environment["ELFIENEST_TARGET"] = target
+    environment["ELFIENEST_PROJECT_ROOT"] = str(PROJECT_ROOT)
     return _run_stage("package", lambda: steps.package(target, resources, environment))
 
 
@@ -118,16 +125,42 @@ def _run_command(
 def _ensure_dependencies() -> None:
     """Verify every production runtime input after the buildable Godot gate ran."""
     _run_command(
-        (str(PROJECT_ROOT / "scripts" / "bootstrap.sh"), "check", "--tier=build"),
+        _bash_script_command(
+            PROJECT_ROOT / "scripts" / "bootstrap.sh", "check", "--tier=build"
+        ),
         PROJECT_ROOT,
     )
+
+
+def _bash_script_command(script: Path, *arguments: str) -> tuple[str, ...]:
+    """Build a Git-Bash-compatible command for shell-based repository tooling."""
+    bash = shutil.which("bash") or "bash"
+    script_path = str(script)
+    if os.name == "nt":
+        cygpath = shutil.which("cygpath")
+        if cygpath is not None:
+            converted = subprocess.run(
+                (cygpath, "--unix", script_path),
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            if converted:
+                script_path = converted
+    return (bash, script_path, *arguments)
+
+
+def _node_command(command: str, *arguments: str) -> tuple[str, ...]:
+    """Resolve npm shims on Windows while preserving POSIX command names in tests."""
+    executable = f"{command}.cmd" if os.name == "nt" and command == "npx" else command
+    return (executable, *arguments)
 
 
 def _build_web() -> None:
     """Build the product React shell using the repository-pinned pnpm release."""
     environment = {**os.environ, "CI": "true"}
     _run_command(
-        (
+        _node_command(
             "npx",
             "--yes",
             "pnpm@10.12.1",
@@ -139,7 +172,7 @@ def _build_web() -> None:
         environment,
     )
     _run_command(
-        ("npx", "--yes", "pnpm@10.12.1", "build"),
+        _node_command("npx", "--yes", "pnpm@10.12.1", "build"),
         FRONTEND_DIR,
         environment,
     )
@@ -192,25 +225,42 @@ def _package_installer(
     target: str, resources: Path, environment: Dict[str, str]
 ) -> Path:
     """Create one native installer in build first, then publish only a complete file."""
+    environment = {
+        **environment,
+        "ELFIENEST_PROJECT_ROOT": str(PROJECT_ROOT),
+    }
     if resources != BUILD_DIR / "staging" / target / "resources":
         raise ReleasePipelineError(f"release-resources-target-mismatch target={target}")
     output = BUILD_DIR / "package-output" / target
+    application = BUILD_DIR / "desktop-host-app" / target
     if output.exists():
         shutil.rmtree(output)
     try:
         _run_command(
-            ("npx", "--yes", "pnpm@10.12.1", "build"),
+            _node_command(
+                "npx", "--yes", "pnpm@10.12.1", "install", "--frozen-lockfile"
+            ),
             DESKTOP_DIR,
             environment,
         )
+        _run_command(
+            _node_command("npx", "--yes", "pnpm@10.12.1", "build"),
+            DESKTOP_DIR,
+            environment,
+        )
+        _stage_desktop_application(target, resources)
         target_arguments = _electron_target_arguments(target)
         _run_command(
             (
-                "npx",
-                "--yes",
-                "pnpm@10.12.1",
-                "exec",
-                "electron-builder",
+                "node",
+                str(
+                    DESKTOP_DIR
+                    / "node_modules"
+                    / "electron-builder"
+                    / "out"
+                    / "cli"
+                    / "cli.js"
+                ),
                 "--publish",
                 "never",
                 "--config",
@@ -218,7 +268,7 @@ def _package_installer(
                 f"--config.directories.output={output}",
                 *target_arguments,
             ),
-            DESKTOP_DIR,
+            application,
             environment,
         )
         artifacts = tuple(
@@ -235,14 +285,57 @@ def _package_installer(
     finally:
         if output.exists():
             shutil.rmtree(output)
+        if application.exists():
+            shutil.rmtree(application)
+
+
+def _stage_desktop_application(target: str, resources: Path) -> Path:
+    """Assemble one self-contained Electron application input under build/."""
+    application = BUILD_DIR / "desktop-host-app" / target
+    if application.exists():
+        shutil.rmtree(application)
+    application.mkdir(parents=True)
+
+    shutil.copytree(
+        BUILD_DIR / "components" / "desktop-interface",
+        application / "desktop-interface",
+    )
+    bootstrap = application / "bootstrap"
+    bootstrap.mkdir()
+    shutil.copy2(DESKTOP_HOST_MAIN, bootstrap / "desktop_host.mjs")
+    shutil.copytree(
+        DESKTOP_AUTHORITY_DIR,
+        application / "infrastructure" / "godot" / "lifecycle" / "electron",
+    )
+    shutil.copy2(DESKTOP_DIR / "package.json", application / "package.json")
+    shutil.copytree(DESKTOP_DIR / "assets", application / "assets")
+    shutil.copy2(
+        PROJECT_ROOT / "docs/public/assets/elfienest-logo-mark-transparent.png",
+        application / "assets/elfienest-tray-icon.png",
+    )
+    shutil.copytree(
+        resources,
+        application / "packaged-resources",
+        symlinks=True,
+    )
+    return application
 
 
 def _project_python() -> str:
     """Return the repository-controlled interpreter required by the release contract."""
-    executable = PROJECT_ROOT / ".venv" / "bin" / "python"
-    if not executable.is_file():
-        raise ReleasePipelineError(f"release-python-missing path={executable}")
-    return str(executable)
+    candidates = (
+        PROJECT_ROOT / ".venv" / "Scripts" / "python.exe",
+        PROJECT_ROOT / ".venv" / "Scripts" / "python",
+        PROJECT_ROOT / ".venv" / "bin" / "python3",
+        PROJECT_ROOT / ".venv" / "bin" / "python",
+    )
+    for executable in candidates:
+        if executable.is_file():
+            return str(executable)
+    raise ReleasePipelineError(
+        "release-python-missing "
+        + " ".join(f"path={candidate}" for candidate in candidates)
+    )
 
 
 def _electron_target_arguments(target: str) -> tuple[str, str]:

@@ -8,7 +8,7 @@ from typing import Callable, Mapping, Optional, Sequence
 from app.orchestration.lifecycle.commands import (
     DEFAULT_SERVICE_PORTS,
     MANAGED_START_ENV,
-    command_runs_service,
+    command_matches_service,
     restart_command_from_process,
     service_ports_from_command,
 )
@@ -31,6 +31,9 @@ from app.orchestration.lifecycle.types import (
     StopTimeoutError,
 )
 
+SERVICE_STOP_GRACE_SECONDS = 2.0
+SERVICE_STOP_FORCE_GRACE_SECONDS = 2.0
+
 
 def stop_service(
     elfie_home: Path,
@@ -41,6 +44,7 @@ def stop_service(
     poll_interval_seconds: float = 0.1,
     monotonic: Callable[[], float] = time.monotonic,
     sleeper: Callable[[float], None] = time.sleep,
+    expected_command: Sequence[str] = (),
 ) -> ServiceLifecycleResult:
     """Stop the service only when the PID identity exactly matches this project."""
     pid_path = elfie_home / "elfienest.pid"
@@ -89,8 +93,11 @@ def stop_service(
 
     expected_cwd = project_root.resolve()
     expected_script = (expected_cwd / "scripts" / "serve.py").resolve()
-    if actual_cwd != expected_cwd or not command_runs_service(
-        actual_command, actual_cwd, expected_script
+    if actual_cwd != expected_cwd or not command_matches_service(
+        actual_command,
+        actual_cwd,
+        expected_script,
+        expected_command,
     ):
         mismatch = ProcessIdentityMismatchError(
             pid, expected_cwd, actual_cwd, expected_script, actual_command
@@ -120,10 +127,55 @@ def stop_service(
         return ServiceLifecycleResult(status="failed", pid=pid, error=signal_error)
 
     deadline = monotonic() + timeout_seconds
+    graceful_deadline = min(
+        deadline,
+        monotonic() + SERVICE_STOP_GRACE_SECONDS,
+    )
     while process_port.exists(pid):
-        if monotonic() >= deadline:
-            timeout_error = StopTimeoutError(pid, timeout_seconds)
-            return ServiceLifecycleResult(status="failed", pid=pid, error=timeout_error)
+        now = monotonic()
+        if now >= graceful_deadline:
+            if now >= deadline:
+                timeout_error = StopTimeoutError(pid, timeout_seconds)
+                return ServiceLifecycleResult(
+                    status="failed", pid=pid, error=timeout_error
+                )
+            try:
+                if not process_port.exists(pid):
+                    break
+                force_snapshot = process_port.inspect(pid)
+                force_cwd = force_snapshot.cwd.resolve()
+                force_command = force_snapshot.command
+            except (OSError, RuntimeError, ValueError) as error:
+                inspection_error = ProcessInspectionError(pid, str(error))
+                return ServiceLifecycleResult(
+                    status="failed", pid=pid, error=inspection_error
+                )
+            if force_cwd != actual_cwd or force_command != actual_command:
+                mismatch = ProcessIdentityMismatchError(
+                    pid, expected_cwd, force_cwd, expected_script, force_command
+                )
+                return ServiceLifecycleResult(
+                    status="failed", pid=pid, error=mismatch
+                )
+            try:
+                process_port.terminate(pid, force=True)
+            except OSError as error:
+                signal_error = SignalProcessError(pid, str(error))
+                return ServiceLifecycleResult(
+                    status="failed", pid=pid, error=signal_error
+                )
+            force_deadline = min(
+                deadline,
+                now + SERVICE_STOP_FORCE_GRACE_SECONDS,
+            )
+            while process_port.exists(pid):
+                if monotonic() >= force_deadline:
+                    timeout_error = StopTimeoutError(pid, timeout_seconds)
+                    return ServiceLifecycleResult(
+                        status="failed", pid=pid, error=timeout_error
+                    )
+                sleeper(poll_interval_seconds)
+            break
         sleeper(poll_interval_seconds)
     try:
         target_ports = service_ports_from_command(actual_command)
@@ -185,7 +237,12 @@ def start_service(
         )
     lease_released = False
     try:
-        existing = existing_service_command(elfie_home, resolved_root, process_port)
+        existing = existing_service_command(
+            elfie_home,
+            resolved_root,
+            process_port,
+            launch_command,
+        )
         if existing is not None:
             existing_pid, existing_command = existing
             requested_ports = service_ports_from_command(launch_command)
@@ -251,6 +308,7 @@ def start_service(
                 process_port=process_port,
                 expected_cwd=resolved_root,
                 expected_script=(resolved_root / "scripts" / "serve.py").resolve(),
+                expected_command=launch_command,
                 timeout_seconds=timeout_seconds,
                 poll_interval_seconds=poll_interval_seconds,
                 monotonic=monotonic,
@@ -281,6 +339,7 @@ def start_service(
                     process_port=process_port,
                     expected_cwd=resolved_root,
                     expected_script=(resolved_root / "scripts" / "serve.py").resolve(),
+                    expected_command=launch_command,
                     timeout_seconds=timeout_seconds,
                     poll_interval_seconds=poll_interval_seconds,
                     monotonic=monotonic,
@@ -298,6 +357,7 @@ def start_service(
                     process_port=process_port,
                     expected_cwd=resolved_root,
                     expected_script=(resolved_root / "scripts" / "serve.py").resolve(),
+                    expected_command=launch_command,
                     timeout_seconds=timeout_seconds,
                     poll_interval_seconds=poll_interval_seconds,
                     monotonic=monotonic,

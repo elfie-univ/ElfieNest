@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
-from app.orchestration.lifecycle.commands import command_runs_service
+from app.orchestration.lifecycle.commands import command_matches_service
 from app.orchestration.lifecycle.ports import ServiceProcessPort
 from app.orchestration.lifecycle.types import (
     CleanupFailedError,
@@ -21,6 +21,7 @@ def cleanup_failed_start(
     process_port: ServiceProcessPort,
     expected_cwd: Path,
     expected_script: Path,
+    expected_command: Sequence[str],
     timeout_seconds: float,
     poll_interval_seconds: float,
     monotonic: Callable[[], float],
@@ -43,8 +44,11 @@ def cleanup_failed_start(
         return ServiceLifecycleResult(
             status="failed", pid=pid, error=CleanupFailedError(pid, str(error))
         )
-    if actual_cwd != expected_cwd or not command_runs_service(
-        actual_command, actual_cwd, expected_script
+    if actual_cwd != expected_cwd or not command_matches_service(
+        actual_command,
+        actual_cwd,
+        expected_script,
+        expected_command,
     ):
         return ServiceLifecycleResult(
             status="failed",

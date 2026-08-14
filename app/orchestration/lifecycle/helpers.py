@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Union
+from typing import Sequence, Union
 
-from app.orchestration.lifecycle.commands import command_runs_service
+from app.orchestration.lifecycle.commands import command_matches_service
 from app.orchestration.lifecycle.ports import ServiceProcessPort
 from app.orchestration.lifecycle.types import InvalidPidFileError
 
@@ -35,6 +35,7 @@ def existing_service_command(
     elfie_home: Path,
     project_root: Path,
     process_port: ServiceProcessPort,
+    expected_command: Sequence[str] = (),
 ) -> tuple[int, tuple[str, ...]] | None:
     """Return the PID and command of a verified project service, if any."""
     try:
@@ -52,7 +53,12 @@ def existing_service_command(
         return None
     if actual_root != expected_root:
         return None
-    if not command_runs_service(snapshot.command, actual_root, expected_script):
+    if not command_matches_service(
+        snapshot.command,
+        actual_root,
+        expected_script,
+        expected_command,
+    ):
         return None
     return pid_result, snapshot.command
 
@@ -65,5 +71,10 @@ def existing_service_pid(
 ) -> int | None:
     """Return the PID of a verified running project service, if any."""
     _ = command
-    details = existing_service_command(elfie_home, project_root, process_port)
+    details = existing_service_command(
+        elfie_home,
+        project_root,
+        process_port,
+        command,
+    )
     return details[0] if details is not None else None

@@ -352,3 +352,24 @@ def test_core_reads_the_packaged_web_build_directory_from_its_environment(
 
     assert response.status_code == 200
     assert response.text == "app"
+
+
+def test_core_serves_the_packaged_godot_bundle_from_its_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    build_dir = _web_build(tmp_path)
+    godot_dir = tmp_path / "installed-resources" / "godot-web"
+    godot_dir.mkdir(parents=True)
+    (godot_dir / "elfienest.html").write_text("packaged-godot", encoding="utf-8")
+    monkeypatch.setenv("ELFIENEST_GODOT_WEB_DIR", str(godot_dir))
+
+    application = create_app(
+        engine=None,
+        db_path=str(tmp_path / "nest.db"),
+        web_build_dir=build_dir,
+    )
+    with TestClient(application) as test_client:
+        response = test_client.get("/runtime/godot/elfienest.html")
+
+    assert response.status_code == 200
+    assert response.text == "packaged-godot"

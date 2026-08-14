@@ -35,12 +35,12 @@ Before releasing you must confirm:
 4. The user has completed visual acceptance of the pages;
 5. The maintainer then decides when to commit, push and deploy.
 
-## 0.1.0 internal-test desktop installer
+## 0.1.0-beta.1 internal-test desktop installer
 
 We currently build only internal-test installers: the version is pinned to
-`0.1.0`, with no auto-update configured, no public Release upload, and no model
-weights, Ollama engine or models packaged. Ollama is an optional public
-dependency selected during Setup; an installer never creates a private sidecar.
+`0.1.0-beta.1`, with no auto-update configured and no model weights, Ollama engine or
+models packaged. Ollama is an optional public dependency selected during Setup;
+an installer never creates a private sidecar.
 
 The coordinator always requests the full four-target matrix: `darwin-arm64`,
 `darwin-x64`, `win32-x64`, and `linux-x64`. A matching native runner must build
@@ -55,6 +55,28 @@ and final installers only in `dist/`.
 # Ask the coordinator for all targets. Unavailable runners remain incomplete.
 .venv/bin/python scripts/release.py
 ```
+
+The checked-in `.github/workflows/release.yml` is the multi-platform release
+pipeline. It uses native GitHub-hosted runners for macOS arm64, macOS Intel,
+Windows x64, and Linux x64. A `workflow_dispatch` run builds all four installers
+and keeps them as Actions artifacts. Pushing a tag matching the project version,
+for example `v0.1.0-beta.1`, runs the same matrix, validates the native installer
+contents, and publishes the four installers, `SHA256SUMS`, and a release
+`manifest.json` to GitHub Releases. Pre-release tags are published with GitHub's
+pre-release flag; a manual run only creates a Release when
+`publish_release` is enabled and `release_tag` is set to the matching tag.
+
+For the current version, the normal publication command is:
+
+```bash
+git tag -a v0.1.0-beta.1 -m "ElfieNest 0.1.0-beta.1"
+git push origin v0.1.0-beta.1
+```
+
+The workflow validates the installed resource layout for each package; it does
+not sign or notarize the internal-test artifacts. Before handing a package to a
+tester, still record the full install, launch, `/api/health`, and clean-exit
+evidence described by the release gate above.
 
 Each installer contains Electron, the frontend, Godot Web, the target-native
 Python Core and the management CLI. Source installation with `./install.sh`

@@ -41,9 +41,12 @@ export default defineConfig({
               text: "User Guide",
               items: [
                 { text: "User manual overview", link: "/user-guide/" },
-                { text: "Install & environment", link: "/user-guide/install" },
-                { text: "Configure models & data", link: "/user-guide/configuration" },
-                { text: "Run your first Nest", link: "/user-guide/run" },
+                { text: "Install and configure", link: "/user-guide/install" },
+                { text: "First-time configuration", link: "/user-guide/configuration" },
+                { text: "Core configuration", link: "/user-guide/ready" },
+                { text: "Adopt your first Elfie", link: "/user-guide/adoption" },
+                { text: "Daily use: chat and phone", link: "/user-guide/run" },
+                { text: "Management and Monitor", link: "/user-guide/manage" },
                 { text: "Troubleshooting", link: "/user-guide/troubleshooting" },
                 { text: "FAQ", link: "/user-guide/faq" }
               ]
@@ -91,8 +94,7 @@ export default defineConfig({
                   collapsed: true,
                   items: [
                     { text: "Conformance overview", link: "/developer/conformance/" },
-                    { text: "Elfie architecture conformance", link: "/developer/conformance/elfie" },
-                    { text: "Elfie Brain conformance", link: "/developer/conformance/brain" }
+                    { text: "Elfie architecture conformance", link: "/developer/conformance/elfie" }
                   ]
                 },
                 {
@@ -176,9 +178,12 @@ export default defineConfig({
               text: "用户指南",
               items: [
                 { text: "使用手册总览", link: "/zh/user-guide/" },
-                { text: "安装与环境", link: "/zh/user-guide/install" },
-                { text: "配置模型与数据", link: "/zh/user-guide/configuration" },
-                { text: "运行第一座 Nest", link: "/zh/user-guide/run" },
+                { text: "安装配置", link: "/zh/user-guide/install" },
+                { text: "首次配置", link: "/zh/user-guide/configuration" },
+                { text: "核心配置", link: "/zh/user-guide/ready" },
+                { text: "领养第一只 Elfie", link: "/zh/user-guide/adoption" },
+                { text: "日常使用：聊天与手机", link: "/zh/user-guide/run" },
+                { text: "管理台与房间监控", link: "/zh/user-guide/manage" },
                 { text: "故障排查", link: "/zh/user-guide/troubleshooting" },
                 { text: "常见问题", link: "/zh/user-guide/faq" }
               ]
@@ -226,8 +231,7 @@ export default defineConfig({
                   collapsed: true,
                   items: [
                     { text: "架构一致性总览", link: "/zh/developer/conformance/" },
-                    { text: "Elfie 内部架构一致性", link: "/zh/developer/conformance/elfie" },
-                    { text: "Elfie Brain 内部架构一致性", link: "/zh/developer/conformance/brain" }
+                    { text: "Elfie 内部架构一致性", link: "/zh/developer/conformance/elfie" }
                   ]
                 },
                 {

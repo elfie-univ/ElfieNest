@@ -18,7 +18,10 @@ from app.interfaces.web.build_discovery import (
     WebBuildManifestMissingError,
     discover_web_build,
 )
-from infrastructure.godot.gateway.bundle import GODOT_WEB_DIR, godot_web_bundle_present
+from infrastructure.godot.gateway.bundle import (
+    configured_godot_web_directory,
+    godot_web_bundle_present,
+)
 from infrastructure.models.model_execution_adapter import StructuredModelExecution
 from infrastructure.persistence.layout.data_home import get_db_path
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
@@ -84,7 +87,7 @@ def create_app(
         godot_runtime_ready=lambda: bool(
             engine is not None and engine.world_runtime.runtime_ready
         ),
-        godot_web_dir=GODOT_WEB_DIR,
+        godot_web_dir=configured_godot_web_directory(),
         service_access=service_access,
         web_build=web_build,
         web_build_error=web_build_error,

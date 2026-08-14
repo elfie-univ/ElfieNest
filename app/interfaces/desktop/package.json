@@ -1,13 +1,13 @@
 {
   "name": "elfienest-desktop",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "private": true,
   "type": "module",
   "description": "ElfieNest 跨平台桌面应用外壳",
   "main": "main.js",
   "scripts": {
     "build": "pnpm exec tsc -p tsconfig.json",
-    "test": "pnpm build && node --test ../../../build/components/desktop-interface/application_menu.test.js ../../../build/components/desktop-interface/resources/resource_manifest.test.js ../../../build/components/desktop-interface/desktop_role_lifecycle.test.js ../../../build/components/desktop-interface/lifecycle_client.test.js",
+    "test": "pnpm build && node --test ../../../build/components/desktop-interface/application_menu.test.js ../../../build/components/desktop-interface/resources/resource_manifest.test.js ../../../build/components/desktop-interface/desktop_role_lifecycle.test.js ../../../build/components/desktop-interface/lifecycle_client.test.js ../../../build/components/desktop-interface/windows/window_options.test.js ../../../build/components/desktop-interface/windows/window_registry.test.js",
     "build-resource-manifest": "pnpm build && node ../../../build/components/desktop-interface/resources/build_resource_manifest.js",
     "dev": "pnpm build && electron ../../../app/bootstrap/desktop_host/host_main.mjs",
     "package": "pnpm build && electron-builder --publish never --config ../../../app/bootstrap/desktop_host/electron-builder.yml"
@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "electron": "^37.0.0",
+    "electron": "37.10.3",
     "electron-builder": "^26.0.0",
     "typescript": "^5.8.0"
   }

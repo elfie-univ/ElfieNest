@@ -26,6 +26,12 @@ test("resource manifest records and validates every packaged component for one s
   // Given
   const root = createResourceTree("darwin-arm64");
   try {
+    writeFileSync(join(root, "godot-web/elfienest.audio.worklet.js"), "worklet");
+    mkdirSync(join(root, "web/assets"), { recursive: true });
+    writeFileSync(join(root, "web/assets/app.js"), "web-asset");
+    writeFileSync(join(root, "app.asar"), "electron-shell");
+    writeFileSync(join(root, "icon.icns"), "application-icon");
+
     // When
     const manifest = buildResourceManifest(root, "0.1.0", "darwin-arm64");
 
@@ -35,6 +41,10 @@ test("resource manifest records and validates every packaged component for one s
     assert.equal(manifest.target, "darwin-arm64");
     assert.ok(manifest.files["python-core/ElfieNestCore"]);
     assert.ok(manifest.files["management-cli/ElfieNestCli"]);
+    assert.ok(manifest.files["godot-web/elfienest.audio.worklet.js"]);
+    assert.ok(manifest.files["web/assets/app.js"]);
+    assert.equal(manifest.files["app.asar"], undefined);
+    assert.equal(manifest.files["icon.icns"], undefined);
     assert.equal(manifest.files["ollama/ollama"], undefined);
     assert.ok(manifest.files["web/index.html"]);
     assert.equal(manifest.files["web/login.html"], undefined);

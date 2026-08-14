@@ -148,19 +148,22 @@ def test_candidate_reply_and_reservation_preserve_accepted_snapshot() -> None:
             candidate_ids=tuple(candidate.candidate_id for candidate in selected),
         ),
     )
+    accepted_reply = next(
+        reply for reply in replies.replies if reply.status == "accepted"
+    )
 
     reservation = service.reserve_accepted(
         principal(),
         ReserveAcceptedAdoptionCommand(
             candidate_set_id=candidate_set.candidate_set_id,
-            candidate_id=replies.replies[0].candidate.candidate_id,
+            candidate_id=accepted_reply.candidate.candidate_id,
             name="星砂",
         ),
     )
 
     assert reservation.name == "星砂"
-    assert reservation.species_id == selected[0].species_id
-    assert reservation.gender == selected[0].gender
+    assert reservation.species_id == accepted_reply.candidate.species_id
+    assert reservation.gender == accepted_reply.candidate.gender
     assert persistence.reservations[0].owner_user_id == 7
 
 

@@ -10,12 +10,12 @@ import { Icon } from "./Icon"
 import { Notice } from "./Notice"
 import { SelectField } from "./SelectField"
 
-type MobileAccessDialogProps = { readonly onClose: () => void; readonly targetPath?: "/chat" | "/manage" }
+type MobileAccessDialogProps = { readonly onClose: () => void; readonly targetPath?: "/chat" | "/manage" | "/monitor" }
 type MobileAccessError =
   | { readonly kind: "api"; readonly reason: unknown }
   | { readonly kind: "qr" }
 
-function withTargetPath(url: string, targetPath: "/chat" | "/manage"): string {
+function withTargetPath(url: string, targetPath: "/chat" | "/manage" | "/monitor"): string {
   const target = new URL(url)
   target.pathname = targetPath
   return target.toString()

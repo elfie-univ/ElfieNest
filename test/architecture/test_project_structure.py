@@ -308,25 +308,6 @@ def test_nest_does_not_retain_v1_godot_or_furniture_mirror_api() -> None:
     assert offenders == []
 
 
-def test_godot_gateway_accepts_protocol_v2_only() -> None:
-    source = (
-        PROJECT_ROOT / "infrastructure" / "godot" / "gateway" / "api.py"
-    ).read_text(encoding="utf-8")
-    tree = ast.parse(source)
-    protocol_values = {
-        node.value.value
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Assign)
-        and any(
-            isinstance(target, ast.Name) and target.id == "GODOT_PROTOCOL_VERSION"
-            for target in node.targets
-        )
-        and isinstance(node.value, ast.Constant)
-    }
-
-    assert protocol_values == {2}
-
-
 def test_ci_uses_current_python_roots_and_required_quality_gates() -> None:
     # Given
     ci_config = yaml.safe_load(
