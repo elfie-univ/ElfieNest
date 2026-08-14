@@ -99,7 +99,7 @@ describe("owner user API boundary", () => {
     vi.mocked(ownerWrite)
       .mockResolvedValueOnce({ ...member, elfie_quota_override: 6, effective_elfie_limit: 6 })
       .mockResolvedValueOnce({})
-    vi.mocked(requestJson).mockResolvedValue({ temporary_password: "Temp12345678" })
+    vi.mocked(requestJson).mockResolvedValue({ temporary_password: "fixture-value" })
 
     // When: all member mutations run.
     await updateManagedUser(7, { elfie_quota_override: 6 }, "csrf")

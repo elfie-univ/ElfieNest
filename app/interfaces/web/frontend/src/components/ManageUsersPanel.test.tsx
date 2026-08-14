@@ -94,7 +94,7 @@ describe("ManageUsersPanel real-data states", () => {
     vi.clearAllMocks()
     vi.mocked(ownerUsers).mockResolvedValue([owner, member])
     vi.mocked(createManagedUser).mockResolvedValue(member)
-    vi.mocked(resetManagedUserPassword).mockResolvedValue({ temporary_password: "Temp12345678" })
+    vi.mocked(resetManagedUserPassword).mockResolvedValue({ temporary_password: "fixture-value" })
     vi.mocked(deleteManagedUser).mockResolvedValue()
     vi.mocked(updateManagedUser).mockResolvedValue(member)
   })
@@ -295,15 +295,15 @@ describe("ManageUsersPanel real-data states", () => {
     // When: reset completes and the result is copied.
     await user.click(await screen.findByRole("button", { name: "重置密码 member01" }))
     await user.click(screen.getByRole("button", { name: "确认重置" }))
-    expect(await screen.findByText("Temp12345678")).toBeInTheDocument()
+    expect(await screen.findByText("fixture-value")).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "复制临时密码" }))
 
     // Then: copy is localized and closing removes plaintext from the DOM.
     expect(resetManagedUserPassword).toHaveBeenCalledWith(7, "csrf")
-    expect(writeText).toHaveBeenCalledWith("Temp12345678")
+    expect(writeText).toHaveBeenCalledWith("fixture-value")
     expect(screen.getByText("临时密码已复制。")).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "关闭" }))
-    expect(screen.queryByText("Temp12345678")).not.toBeInTheDocument()
+    expect(screen.queryByText("fixture-value")).not.toBeInTheDocument()
   })
 
   it("localizes load and clipboard failures without exposing demo data", async () => {
@@ -329,7 +329,7 @@ describe("ManageUsersPanel real-data states", () => {
 
     // Then: copy failure is localized and plaintext remains only in the open result dialog.
     expect(screen.getByRole("alert")).toHaveTextContent("Unable to copy the temporary password.")
-    expect(screen.getByText("Temp12345678")).toBeInTheDocument()
+    expect(screen.getByText("fixture-value")).toBeInTheDocument()
   })
 
   it("places the create form inside the shared dialog fields container", async () => {
