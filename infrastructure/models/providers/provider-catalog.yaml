@@ -318,7 +318,7 @@ products:
     api_key_env_var: ARK_API_KEY
     connection_method: api_key
     usage_scope: coding_only
-    discovery_strategy: standard_models
+    discovery_strategy: catalog_only
     oauth_available: false
     test_model: deepseek-v4-flash-260425
     bundled_models:

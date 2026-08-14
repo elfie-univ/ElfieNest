@@ -96,6 +96,9 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
     assert catalog.products["volcengine_coding_plan"].api_base == (
         "https://ark.cn-beijing.volces.com/api/coding/v3"
     )
+    assert catalog.products["volcengine_coding_plan"].discovery_strategy == (
+        "catalog_only"
+    )
     assert catalog.products["volcengine_coding_plan"].bundled_models == [
         "deepseek-v4-flash-260425",
         "deepseek-v4-flash-ga-260731",

@@ -41,6 +41,51 @@ def test_refresh_replaces_stale_discovered_models_but_keeps_manual_entries() -> 
     assert merged[1].source == "manual"
 
 
+def test_volcengine_refresh_uses_coding_plan_catalog_and_drops_discovered_models(
+    tmp_path,
+) -> None:
+    adapter = provider_models_adapter(
+        tmp_path / "providers.yaml",
+        tmp_path / "auth.env",
+    )
+    product = adapter.get_product("volcengine_coding_plan")
+    assert product is not None
+    connection = adapter.create_connection(
+        StoredProviderConnection(
+            connection_id="",
+            catalog_id=product.catalog_id,
+            alias=product.name,
+            api_base=product.api_base,
+            api_mode=product.api_mode,
+            auth_type=product.auth_type,
+            credential_ref="",
+            models=(
+                StoredProviderModel(
+                    "wrong-model-from-generic-models-endpoint",
+                    "Wrong model",
+                    source="official",
+                ),
+            ),
+        ),
+        None,
+    )
+
+    refreshed = asyncio.run(adapter.refresh_models(connection))
+
+    assert refreshed.status == "bundled_catalog"
+    assert [model.model_id for model in refreshed.models] == [
+        "deepseek-v4-flash-260425",
+        "deepseek-v4-flash-ga-260731",
+        "deepseek-v4-pro-260425",
+        "doubao-seed-2-0-code-preview-260215",
+        "doubao-seed-2-0-pro-260215",
+        "doubao-seed-2-0-lite-260215",
+        "glm-4-7-251222",
+        "glm-5-2-260617",
+        "kimi-k2-250905",
+    ]
+
+
 def test_provider_adapter_keeps_secret_out_of_connection_fact(tmp_path) -> None:
     provider_path = tmp_path / "providers.yaml"
     secret_path = tmp_path / "auth.env"
