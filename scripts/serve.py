@@ -36,6 +36,61 @@ from typing import Callable, Sequence
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+
+def _build_argument_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="ElfieNest backend service")
+    parser.add_argument(
+        "--fallback",
+        action="store_true",
+        help="Use built-in dialogue engine (no Ollama connection)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="HTTP port (default 8000)",
+    )
+    parser.add_argument(
+        "--godot-ws-port",
+        type=int,
+        default=None,
+        help="Godot WebSocket port (default 8765)",
+    )
+    parser.add_argument(
+        "--no-seed-elfie",
+        action="store_true",
+        help="Do not auto-seed initial Elfie",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force restart: kill processes occupying ports",
+    )
+    parser.add_argument(
+        "--lan",
+        action="store_true",
+        help="Listen on LAN IPv4 address explicitly (default: localhost only)",
+    )
+    parser.add_argument(
+        "--runtime-mode",
+        choices=("development", "release"),
+        default=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+        help="Godot Web Runtime lifecycle mode (default: development)",
+    )
+    parser.add_argument(
+        "--data-home",
+        default=None,
+        help="Use an explicit ElfieNest data root for this serve process",
+    )
+    return parser
+
+
+# Reject invalid arguments before importing the service composition graph.  This
+# keeps help and parser errors responsive even when the full Runtime is expensive
+# to import on a cold Python process.
+if __name__ == "__main__":
+    _build_argument_parser().parse_args()
+
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
 from app.bootstrap import create_app
@@ -145,52 +200,11 @@ def build_server_model_execution_services(
 
 
 def main():
-    lifecycle = create_lifecycle_facade()
-    parser = argparse.ArgumentParser(description="ElfieNest backend service")
-    parser.add_argument(
-        "--fallback",
-        action="store_true",
-        help="Use built-in dialogue engine (no Ollama connection)",
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=8000,
-        help="HTTP port (default 8000)",
-    )
-    parser.add_argument(
-        "--godot-ws-port",
-        type=int,
-        default=DEFAULT_GODOT_WS_PORT,
-        help="Godot WebSocket port (default 8765)",
-    )
-    parser.add_argument(
-        "--no-seed-elfie",
-        action="store_true",
-        help="Do not auto-seed initial Elfie",
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Force restart: kill processes occupying ports",
-    )
-    parser.add_argument(
-        "--lan",
-        action="store_true",
-        help="Listen on LAN IPv4 address explicitly (default: localhost only)",
-    )
-    parser.add_argument(
-        "--runtime-mode",
-        choices=("development", "release"),
-        default=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-        help="Godot Web Runtime lifecycle mode (default: development)",
-    )
-    parser.add_argument(
-        "--data-home",
-        default=None,
-        help="Use an explicit ElfieNest data root for this serve process",
-    )
+    parser = _build_argument_parser()
     args = parser.parse_args()
+    lifecycle = create_lifecycle_facade()
+    if args.godot_ws_port is None:
+        args.godot_ws_port = DEFAULT_GODOT_WS_PORT
 
     try:
         select_elfie_home(

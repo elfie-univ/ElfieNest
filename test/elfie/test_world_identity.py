@@ -1,16 +1,15 @@
 from elfie import ElfieFactory
 from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
-from elfie.profile import create_visual_profile
+from elfie.profile import create_visual_profile, list_species_definitions
 from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
 
 def test_supported_species_carry_canon_into_selfhood_and_memory_identity() -> None:
-    expected = {
-        "fox": ("saevi", "Saevi"),
-        "dog": ("tovren", "Tovren"),
-    }
-    for species_id, (canon_id, species_name) in expected.items():
+    for definition in list_species_definitions():
+        species_id = definition.species_id
+        canon_id = definition.canon_id
+        species_name = definition.display_name
         elfie = ElfieFactory().assemble(
             ElfieAssembly(
                 profile=create_visual_profile(

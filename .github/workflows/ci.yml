@@ -181,8 +181,8 @@ jobs:
           raise SystemExit(0 if sys.implementation.name == "cpython" and
           platform.python_version() == "3.9.25" else 1)'
 
-      - name: Run entrypoint smoke test
-        run: ./elfienest.sh version
+      - name: Run CLI version smoke test
+        run: .venv/bin/python3 scripts/elfienest.py version
 
   lint:
     name: Lint
