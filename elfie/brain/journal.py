@@ -327,9 +327,12 @@ class BrainJournal:
         for key, entry in accepted_intents.items():
             if key in terminal_intents:
                 continue
+            directive_turn_id = entry.turn_id
+            if directive_turn_id is None:
+                continue
             fact = ReconciliationFact(
                 subject="directive",
-                turn_id=entry.turn_id,
+                turn_id=directive_turn_id,
                 plan_id=entry.plan_id,
                 intent_id=entry.intent_id,
                 cause_event_ids=entry.cause_event_ids,

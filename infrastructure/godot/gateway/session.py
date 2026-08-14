@@ -189,9 +189,7 @@ class RuntimeSession:
                 CommandName.EXECUTE_INTENT,
                 CommandName.CANCEL_INTENT,
             }
-            target_actor_id = (
-                str(payload.get("actor_id", "")) if body_lane else None
-            )
+            target_actor_id = str(payload.get("actor_id", "")) if body_lane else None
             self._command_sequence += 1
             return RuntimeCommandFrame(
                 protocol=3,

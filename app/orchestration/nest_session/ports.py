@@ -24,6 +24,7 @@ class RuntimeConnectionPort(Protocol):
     @property
     def runtime_connection(self) -> RuntimeConnection | None: ...
 
+
 class RuntimeEventPort(RuntimeConnectionPort, Protocol):
     """Lifecycle/event capability consumed by the tick and event router."""
 

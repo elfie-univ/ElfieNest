@@ -133,14 +133,18 @@ class SQLiteNestManagementAdapter:
                    WHERE e.home_anchor_id IS NOT NULL"""
             ).fetchall()
         }
-        beds = () if catalog is None else tuple(
-            SQLiteNestManagementAdapter._bed_record(
-                anchor_id=anchor.anchor_id,
-                label=anchor.label,
-                order=index,
-                occupant=occupants.get(anchor.anchor_id),
+        beds = (
+            ()
+            if catalog is None
+            else tuple(
+                SQLiteNestManagementAdapter._bed_record(
+                    anchor_id=anchor.anchor_id,
+                    label=anchor.label,
+                    order=index,
+                    occupant=occupants.get(anchor.anchor_id),
+                )
+                for index, anchor in enumerate(_ordered_bed_anchors(catalog))
             )
-            for index, anchor in enumerate(_ordered_bed_anchors(catalog))
         )
         return NestSnapshotRecord(
             desired_bed_count=desired_bed_count,
@@ -196,13 +200,17 @@ def _ordered_bed_anchors(catalog: WorldCatalog) -> tuple:
     return tuple(
         anchor
         for zone in sorted(catalog.zones, key=lambda item: (item.order, item.zone_id))
-        for anchor in sorted(zone.anchors, key=lambda item: (item.order, item.anchor_id))
+        for anchor in sorted(
+            zone.anchors, key=lambda item: (item.order, item.anchor_id)
+        )
         if anchor.kind is AnchorKind.BED and anchor.active
     )
 
 
 def _is_active_bed(catalog: WorldCatalog, anchor_id: str) -> bool:
-    return any(anchor.anchor_id == anchor_id for anchor in _ordered_bed_anchors(catalog))
+    return any(
+        anchor.anchor_id == anchor_id for anchor in _ordered_bed_anchors(catalog)
+    )
 
 
 __all__ = ("DEFAULT_TICK_INTERVAL_SECONDS", "SQLiteNestManagementAdapter")

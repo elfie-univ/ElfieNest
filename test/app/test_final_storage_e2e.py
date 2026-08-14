@@ -97,9 +97,7 @@ def test_fresh_root_survives_adoption_chat_memory_and_restart(tmp_path: Path) ->
     reopened = _restore(workspace)
     assert "今天看到了金色的花" in ElfieDiagnostics(
         reopened
-    ).memory.retrieve_relevant_memories(
-        "金色的花"
-    )
+    ).memory.retrieve_relevant_memories("金色的花")
     ElfieDiagnostics(reopened).memory.storage.close()
     assert [
         message.text

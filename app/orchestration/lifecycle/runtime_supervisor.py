@@ -113,7 +113,11 @@ class RuntimeSupervisor:
                 self._start_authority(owner_id)
             health = self._health_probe()
             core_ready = self._core_and_gateway_ready(health)
-            if core_ready and not core_ready_emitted and self._startup_claim_matches(owner_id):
+            if (
+                core_ready
+                and not core_ready_emitted
+                and self._startup_claim_matches(owner_id)
+            ):
                 self._write_starting_record(owner_id, health)
                 self._emit_progress(RuntimeProgressPhase.CORE_READY)
                 core_ready_emitted = True

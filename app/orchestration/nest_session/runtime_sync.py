@@ -133,7 +133,10 @@ class NestRuntimeSynchronizer:
                 return
             revision = event.payload.revision
             mirrors = tuple(_nest_mirror(mirror) for mirror in event.payload.residents)
-            if revision == event.world_revision and revision == self._configured_revision:
+            if (
+                revision == event.world_revision
+                and revision == self._configured_revision
+            ):
                 self._nest.apply_runtime_mirrors(mirrors)
 
     def flush(self) -> None:

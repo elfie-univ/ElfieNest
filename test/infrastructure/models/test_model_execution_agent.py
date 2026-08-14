@@ -53,14 +53,20 @@ def test_plain_text_request_has_no_schema_prompt_or_json_format() -> None:
     )
     original = [{"role": "system", "content": "Reply briefly."}]
 
-    assert ModelExecutionAgent._structured_request_options(
-        request, StructuredGenerationMode.PLAIN_TEXT
-    ) == {}
-    assert ModelExecutionAgent._structured_messages(
-        request,
-        StructuredGenerationMode.PLAIN_TEXT,
-        original,
-    ) == original
+    assert (
+        ModelExecutionAgent._structured_request_options(
+            request, StructuredGenerationMode.PLAIN_TEXT
+        )
+        == {}
+    )
+    assert (
+        ModelExecutionAgent._structured_messages(
+            request,
+            StructuredGenerationMode.PLAIN_TEXT,
+            original,
+        )
+        == original
+    )
 
     request = request.model_copy(update={"provider": "ollama_0001"})
     assert ModelExecutionAgent._structured_request_options(
@@ -72,7 +78,9 @@ def test_ollama_connection_advertises_json_mode_for_decision_decoding(
     monkeypatch,
 ) -> None:
     agent = object.__new__(ModelExecutionAgent)
-    agent.config = ModelExecutionConfig(providers={"ollama_0001": {"api_mode": "ollama"}})
+    agent.config = ModelExecutionConfig(
+        providers={"ollama_0001": {"api_mode": "ollama"}}
+    )
     agent._load_food_catalog = lambda: FoodCatalog(
         global_default_food_id="qa_food",
         packages={

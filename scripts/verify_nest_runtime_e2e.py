@@ -7,7 +7,7 @@ import json
 import time
 from collections.abc import Callable
 from threading import Thread
-from typing import List
+from typing import List, cast
 from unittest.mock import MagicMock
 
 from app.orchestration.nest_session import ElfieNestEngine
@@ -145,7 +145,9 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
         speech_transport = GodotTransport(
             server,
             actor_id="fox-1",
-            speech_intent=engine.session.prepare_speech,
+            speech_intent=cast(
+                Callable[[RuntimeIntentPayload], bool], engine.session.prepare_speech
+            ),
         )
         speech_transport.connect(speech_body_events.append)
         speak_id = "real-speak-body-1"
@@ -204,9 +206,14 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
             if event.name is EventName.VISUAL_OBSERVATION
             and event.payload.get("observation_id") == observation_id
         )
-        visible_ids = visual_event.payload.get("visible_semantic_ids", [])
+        visible_ids_value = visual_event.payload.get("visible_semantic_ids", [])
+        if not isinstance(visible_ids_value, list):
+            raise RuntimeError("visual observation returned invalid semantic IDs")
+        visible_ids = tuple(str(value) for value in visible_ids_value)
         if not any(str(value).startswith("actor/") for value in visible_ids):
-            raise RuntimeError(f"visual observation did not include an actor: {visible_ids}")
+            raise RuntimeError(
+                f"visual observation did not include an actor: {visible_ids}"
+            )
 
         environment_id = "real-environment-1"
         server.apply_environment(
@@ -232,7 +239,9 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
             and event.payload.get("command_id") == environment_id
         )
         if environment_event.payload.get("applied") is not True:
-            raise RuntimeError(f"environment command was not applied: {environment_event.payload}")
+            raise RuntimeError(
+                f"environment command was not applied: {environment_event.payload}"
+            )
 
         body_events: list[RuntimeEventFrame] = []
         fox_transport = GodotTransport(server, actor_id="fox-1")
@@ -284,7 +293,10 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
         worker.join(timeout=10.0)
         dog_transport.disconnect(dog_events.append)
         cancel_runtime_result = cancel_result.get("result")
-        if cancel_runtime_result is None or getattr(cancel_runtime_result, "terminal_status", None) != "cancelled":
+        if (
+            cancel_runtime_result is None
+            or getattr(cancel_runtime_result, "terminal_status", None) != "cancelled"
+        ):
             raise RuntimeError(f"cancel failed: {cancel_runtime_result}")
         result: dict[str, object] = {
             "runtime_id": server.runtime_connection.runtime_id

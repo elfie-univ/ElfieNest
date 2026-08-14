@@ -34,9 +34,7 @@ def test_frozen_cli_discovers_its_sibling_core_without_a_checkout(
         "ELFIENEST_GODOT_WEB_DIR": str(resources / "godot-web"),
         "ELFIENEST_RUNTIME_MODE": "release",
         "ELFIENEST_PROJECT_ROOT": str(resources.parent.parent),
-        "ELFIENEST_DESKTOP_BIN": str(
-            resources.parent / "MacOS" / "ElfieNest"
-        ),
+        "ELFIENEST_DESKTOP_BIN": str(resources.parent / "MacOS" / "ElfieNest"),
         "PYINSTALLER_RESET_ENVIRONMENT": "1",
     }
 

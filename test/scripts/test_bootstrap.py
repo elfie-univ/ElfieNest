@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -119,6 +120,13 @@ def test_bootstrap_ensure_dev_builds_electron_authority_host(tmp_path: Path) -> 
     desktop_dir = project_root / "app/interfaces/desktop"
     desktop_dir.mkdir(parents=True)
     (desktop_dir / "package.json").write_text("{}\n", encoding="utf-8")
+    for relative_path in (
+        "app/bootstrap/desktop_host/host_main.mjs",
+        "infrastructure/godot/lifecycle/electron/authority_main.mjs",
+    ):
+        destination = project_root / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(PROJECT_ROOT / relative_path, destination)
     make_executable(
         project_root / ".fake-bin/node",
         "#!/bin/sh\nprintf 'v20.12.0\\n'\n",

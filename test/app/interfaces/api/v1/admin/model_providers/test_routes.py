@@ -171,9 +171,7 @@ class FakeOAuth:
         )
 
     async def poll_login(self, login_id: str) -> StoredProviderOAuthLoginStatus:
-        return StoredProviderOAuthLoginStatus(
-            "openai_chatgpt", login_id, "pending"
-        )
+        return StoredProviderOAuthLoginStatus("openai_chatgpt", login_id, "pending")
 
 
 def test_chatgpt_oauth_routes_expose_device_code_without_tokens(

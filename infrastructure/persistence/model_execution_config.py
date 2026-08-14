@@ -81,7 +81,9 @@ class LocalModelExecutionConfigSource:
                 "api_mode": connection.api_mode or profile.api_mode,
                 "auth_type": connection.auth_type or profile.auth_type,
                 "api_key_env": secret_name,
-                "api_key": oauth.access_token if oauth is not None else resolve_secret(secret_name),
+                "api_key": oauth.access_token
+                if oauth is not None
+                else resolve_secret(secret_name),
                 "credential_ref": secret_name,
                 "account_id": oauth.account_id if oauth is not None else None,
                 "models": [

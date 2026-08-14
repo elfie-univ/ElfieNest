@@ -130,7 +130,9 @@ def test_model_execution_observer_records_permission_fallback_and_provider_event
     assert events[2].metadata["latency_ms"] == 12.5
 
 
-def test_model_execution_observer_flush_resets_without_creating_legacy_jsonl(tmp_path: Path):
+def test_model_execution_observer_flush_resets_without_creating_legacy_jsonl(
+    tmp_path: Path,
+):
     observer = ModelExecutionObserver()
     observer.record_tool_call(
         ToolCallObservation(

@@ -18,6 +18,10 @@ from elfie.public import (
     assemble_profile,
 )
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
+from infrastructure.godot.body_transport import (
+    RuntimeIntentPayload,
+    RuntimeIntentResult,
+)
 from infrastructure.godot.gateway.api import GodotAPIServer
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
 from infrastructure.models.model_execution_adapter import (
@@ -130,15 +134,26 @@ def restore_registered_elfies(
                     journal_store=SQLiteBrainJournalAdapter(
                         config_dir / "brain" / "journal.sqlite"
                     ),
-                body=NativeBody(
-                    body_id=row.elfie_id,
-                    transport=GodotTransport(
-                        cast(GodotGateway, session.world_runtime),
-                        actor_id=row.elfie_id,
-                        speech_intent=session.prepare_speech,
-                        semantic_action=session.prepare_semantic_action,
-                        semantic_action_result=session.complete_semantic_action,
-                    ),
+                    body=NativeBody(
+                        body_id=row.elfie_id,
+                        transport=GodotTransport(
+                            cast(GodotGateway, session.world_runtime),
+                            actor_id=row.elfie_id,
+                            speech_intent=cast(
+                                Callable[[RuntimeIntentPayload], bool],
+                                session.prepare_speech,
+                            ),
+                            semantic_action=cast(
+                                Callable[[RuntimeIntentPayload], Optional[str]],
+                                session.prepare_semantic_action,
+                            ),
+                            semantic_action_result=cast(
+                                Callable[
+                                    [RuntimeIntentPayload, RuntimeIntentResult], None
+                                ],
+                                session.complete_semantic_action,
+                            ),
+                        ),
                     ),
                 ),
             )
@@ -167,9 +182,17 @@ def register_transient_elfie(session: NestSession, elfie_id: str) -> None:
                 transport=GodotTransport(
                     cast(GodotGateway, session.world_runtime),
                     actor_id=elfie_id,
-                    speech_intent=session.prepare_speech,
-                    semantic_action=session.prepare_semantic_action,
-                    semantic_action_result=session.complete_semantic_action,
+                    speech_intent=cast(
+                        Callable[[RuntimeIntentPayload], bool], session.prepare_speech
+                    ),
+                    semantic_action=cast(
+                        Callable[[RuntimeIntentPayload], Optional[str]],
+                        session.prepare_semantic_action,
+                    ),
+                    semantic_action_result=cast(
+                        Callable[[RuntimeIntentPayload, RuntimeIntentResult], None],
+                        session.complete_semantic_action,
+                    ),
                 ),
             ),
         ),

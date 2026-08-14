@@ -22,7 +22,6 @@ from elfie.brain.reasoning.context_types import (
     ConnectedChannelDescriptor,
     EffectiveCapabilities,
 )
-from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot
 from elfie.brain.reasoning.conversation_context import ConversationContextStore
 from elfie.brain.reasoning.internal_execution import NoOpExecutor
 from elfie.brain.reasoning.memory_context import MemoryContextReader
@@ -30,6 +29,7 @@ from elfie.brain.reasoning.model_port import ModelPort
 from elfie.brain.reasoning.skills import SkillManager
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.runtime import BrainRuntime
+from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.communication import CommunicationHub

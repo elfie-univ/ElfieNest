@@ -246,7 +246,9 @@ def start_background_service(
     progress_json: bool = False,
 ) -> ServiceLifecycleResult:
     """Start the service once; a verified running process is left untouched."""
-    progress = None if json_output or progress_json else ProgressIndicator("Starting service")
+    progress = (
+        None if json_output or progress_json else ProgressIndicator("Starting service")
+    )
     if progress is not None:
         progress.start()
 
@@ -266,9 +268,7 @@ def start_background_service(
         _print_start_result_or_json(lifecycle, result, json_output=json_output)
         return result
     progress_callback = (
-        (lambda phase: _print_runtime_progress_json(phase))
-        if progress_json
-        else None
+        (lambda phase: _print_runtime_progress_json(phase)) if progress_json else None
     )
     supervisor = _supervisor_for(
         lifecycle,
@@ -332,12 +332,10 @@ def stop_background_service(
     if owner_id != "cli":
         health = supervisor.status()
         owner_mismatch = (
-            health.owner_lease is not None
-            and health.owner_lease.owner_id != owner_id
+            health.owner_lease is not None and health.owner_lease.owner_id != owner_id
         )
         startup_owner_mismatch = (
-            health.startup_owner_id is not None
-            and health.startup_owner_id != owner_id
+            health.startup_owner_id is not None and health.startup_owner_id != owner_id
         )
         if owner_mismatch or startup_owner_mismatch:
             result = ServiceLifecycleResult(

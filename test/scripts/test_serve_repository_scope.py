@@ -254,7 +254,9 @@ def test_server_runtime_keeps_live_reload_when_configured_model_cannot_warm_up(
     monkeypatch.setattr(serve, "build_model_execution_services", build)
 
     # When
-    selected = serve.build_server_model_execution_services(":memory:", use_fallback=False)
+    selected = serve.build_server_model_execution_services(
+        ":memory:", use_fallback=False
+    )
 
     # Then: the configured live-reloading runtime remains installed so a model
     # package saved after startup can recover on the very next request.

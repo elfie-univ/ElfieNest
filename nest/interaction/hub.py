@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Dict, List, TypedDict
+from typing import Dict, List, Literal, TypedDict, cast
 from uuid import uuid4
 
 from nest.events import (
@@ -28,6 +28,9 @@ class VisualInput(TypedDict):
     observer_id: str
     description: str
     occurred_at: datetime
+
+
+SemanticActionStatus = Literal["completed", "failed", "cancelled", "timed_out"]
 
 
 class NestEventBus:
@@ -107,12 +110,11 @@ class NestEventBus:
         if pending is None:
             return None
         actor_id, target, resolved_anchor_id = pending
-        normalized_status = status if status in {
-            "completed",
-            "failed",
-            "cancelled",
-            "timed_out",
-        } else "failed"
+        normalized_status: SemanticActionStatus = (
+            cast(SemanticActionStatus, status)
+            if status in {"completed", "failed", "cancelled", "timed_out"}
+            else "failed"
+        )
         result = SemanticActionResult(
             command_id=command_id,
             actor_id=actor_id,

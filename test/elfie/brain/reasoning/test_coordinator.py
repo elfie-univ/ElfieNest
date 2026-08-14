@@ -309,13 +309,17 @@ def test_owner_conversation_still_gets_one_fast_turn_when_energy_is_exhausted() 
 def test_empty_frame_race_does_not_stop_the_brain_owner_thread() -> None:
     class PhantomMetricsWorkspace(EventWorkspace):
         def metrics(self):
-            return super().metrics().model_copy(
-                update={
-                    "latest_ingest_seq": 1,
-                    "reliable_event_count": 1,
-                    "critical_event_count": 1,
-                    "max_salience": 1.0,
-                }
+            return (
+                super()
+                .metrics()
+                .model_copy(
+                    update={
+                        "latest_ingest_seq": 1,
+                        "reliable_event_count": 1,
+                        "critical_event_count": 1,
+                        "max_salience": 1.0,
+                    }
+                )
             )
 
     workspace = PhantomMetricsWorkspace(ELFIE_ID)

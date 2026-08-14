@@ -83,9 +83,7 @@ def test_web_chat_reaches_real_brain_and_persists_its_reply(
             assert reply["message"]["sender"] == "elfie"
             assert reply["message"]["text"]
 
-            history = client.get(
-                f"/api/v1/me/conversations/{elfie_id}/messages"
-            )
+            history = client.get(f"/api/v1/me/conversations/{elfie_id}/messages")
             assert history.status_code == 200
             assert [item["sender"] for item in history.json()["items"]] == [
                 "user",

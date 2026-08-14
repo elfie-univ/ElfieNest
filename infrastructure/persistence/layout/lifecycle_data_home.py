@@ -98,9 +98,7 @@ class LifecycleDataHomeAdapter:
     def recover(self, selected_home: Path) -> DataHomeRecoveryResult:
         inspection = self.inspect(selected_home)
         if inspection.state not in {DataHomeState.LEGACY, DataHomeState.CORRUPT}:
-            raise OSError(
-                "只允许对旧版或损坏的数据目录执行备份后重建"
-            )
+            raise OSError("只允许对旧版或损坏的数据目录执行备份后重建")
         home = inspection.home
         if not home.exists() or not home.is_dir() or home.is_symlink():
             raise OSError("数据目录不是可安全处理的真实目录")

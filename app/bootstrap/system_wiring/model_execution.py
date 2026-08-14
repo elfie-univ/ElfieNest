@@ -92,7 +92,9 @@ class AgentValidationComposition:
     """Concrete tool composition supplied to model validation probes."""
 
     tool_port_factory: Callable[[ModelExecutionConfig, Path, str], ToolPort]
-    tool_loop_factory: Callable[[ToolPort, tuple[str, ...], str], ModelExecutionToolLoopPort]
+    tool_loop_factory: Callable[
+        [ToolPort, tuple[str, ...], str], ModelExecutionToolLoopPort
+    ]
     prompt_injector: Callable[[list[dict[str, str]], list[str]], list[dict[str, str]]]
 
 

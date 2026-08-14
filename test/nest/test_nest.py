@@ -166,7 +166,9 @@ def test_nest_exposes_active_facilities_without_geometry() -> None:
     assert not hasattr(nest.facility("dorm-01/rest"), "position")
 
 
-def test_semantic_visual_observation_filters_candidates_and_emits_targeted_event() -> None:
+def test_semantic_visual_observation_filters_candidates_and_emits_targeted_event() -> (
+    None
+):
     from nest.state.models import (
         FacilityDescriptor,
         FacilityKind,
@@ -223,12 +225,15 @@ def test_semantic_visual_observation_filters_candidates_and_emits_targeted_event
     ]
     assert nest.consume_visual_events("fox-1")[0]["event_id"] == "vision-event-1:fox-1"
     assert nest.drain_event_outbox()[0].target_ids == ("fox-1",)
-    assert nest.complete_visual_observation(
-        observation_id="vision-1",
-        zone_id="dorm-01",
-        visible_semantic_ids=(),
-        event_id="vision-event-1",
-    ) is None
+    assert (
+        nest.complete_visual_observation(
+            observation_id="vision-1",
+            zone_id="dorm-01",
+            visible_semantic_ids=(),
+            event_id="vision-event-1",
+        )
+        is None
+    )
 
 
 def test_semantic_home_action_resolves_once_and_records_physical_terminal() -> None:
@@ -236,15 +241,21 @@ def test_semantic_home_action_resolves_once_and_records_physical_terminal() -> N
     nest.apply_catalog(_catalog_with_beds(2))
     nest.admit_resident("fox-1")
 
-    assert nest.queue_semantic_action(
-        command_id="home-1",
-        actor_id="fox-1",
-        target="home",
-    ) == "dorm-01/bed-01"
-    assert nest.resolve_semantic_action_target(
-        actor_id="fox-1",
-        target="home",
-    ) == "dorm-01/bed-01"
+    assert (
+        nest.queue_semantic_action(
+            command_id="home-1",
+            actor_id="fox-1",
+            target="home",
+        )
+        == "dorm-01/bed-01"
+    )
+    assert (
+        nest.resolve_semantic_action_target(
+            actor_id="fox-1",
+            target="home",
+        )
+        == "dorm-01/bed-01"
+    )
     result = nest.complete_semantic_action(
         command_id="home-1",
         status="completed",
@@ -267,7 +278,9 @@ def test_semantic_facility_action_resolves_to_one_zone_anchor() -> None:
     catalog = _catalog_with_beds(1).model_copy(
         update={
             "zones": (
-                _catalog_with_beds(1).zones[0].model_copy(
+                _catalog_with_beds(1)
+                .zones[0]
+                .model_copy(
                     update={
                         "anchors": (
                             *_catalog_with_beds(1).zones[0].anchors,
@@ -295,14 +308,20 @@ def test_semantic_facility_action_resolves_to_one_zone_anchor() -> None:
     nest.apply_catalog(catalog)
     nest.register_resident("fox-1")
 
-    assert nest.resolve_semantic_action_target(
-        actor_id="fox-1",
-        target="facility/dorm-01/activity",
-    ) == "dorm-01/activity"
-    assert nest.resolve_semantic_action_target(
-        actor_id="fox-1",
-        target="unapproved/dorm-01/activity",
-    ) is None
+    assert (
+        nest.resolve_semantic_action_target(
+            actor_id="fox-1",
+            target="facility/dorm-01/activity",
+        )
+        == "dorm-01/activity"
+    )
+    assert (
+        nest.resolve_semantic_action_target(
+            actor_id="fox-1",
+            target="unapproved/dorm-01/activity",
+        )
+        is None
+    )
 
 
 def test_nest_rejects_unknown_resident_update() -> None:

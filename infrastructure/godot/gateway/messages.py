@@ -354,7 +354,9 @@ class RuntimeCommandFrame(_RuntimeFrame):
         if self.name is CommandName.REQUEST_VISUAL_OBSERVATION:
             observation_id = self.payload.get("observation_id")
             if self.cause_id != observation_id:
-                raise ValueError("visual observation cause_id must equal observation_id")
+                raise ValueError(
+                    "visual observation cause_id must equal observation_id"
+                )
         if self.name is CommandName.APPLY_ENVIRONMENT:
             command_id = self.payload.get("command_id")
             if self.cause_id != command_id:

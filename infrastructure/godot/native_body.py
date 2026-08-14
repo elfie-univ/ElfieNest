@@ -195,9 +195,7 @@ class NativeBody:
                 CommandReceipt(
                     receipt_id=EventId(event.message_id),
                     cause_id=(
-                        EventId(event.cause_id)
-                        if event.cause_id is not None
-                        else None
+                        EventId(event.cause_id) if event.cause_id is not None else None
                     ),
                     command_id=command.command_id,
                     turn_id=command.turn_id,
@@ -222,7 +220,11 @@ class NativeBody:
                 message=result.reason or result.terminal_status,
             )
         terminal_event = next(
-            (event for event in reversed(result.events) if event.name.value == "intent_terminal"),
+            (
+                event
+                for event in reversed(result.events)
+                if event.name.value == "intent_terminal"
+            ),
             None,
         )
         if terminal_event is None:

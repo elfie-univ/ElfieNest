@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 
 from nest.engine.engine import InvalidTickError, NestEngine
 from nest.events import NestEventEnvelope, SemanticActionResult, SemanticVisualScene
-from nest.interaction.hub import NestEventBus, SpeechInput
+from nest.interaction.hub import NestEventBus, SpeechInput, VisualInput
 from nest.state.config import NestConfig
 from nest.state.models import (
     AnchorKind,
@@ -209,7 +209,9 @@ class Nest:
                 if anchor.active and anchor.kind is kind
             ]
             if candidates:
-                return min(candidates, key=lambda anchor: (anchor.order, anchor.anchor_id)).anchor_id
+                return min(
+                    candidates, key=lambda anchor: (anchor.order, anchor.anchor_id)
+                ).anchor_id
         return None
 
     def queue_semantic_action(
@@ -290,7 +292,7 @@ class Nest:
     def consume_speech_events(self, elfie_id: str) -> tuple[SpeechInput, ...]:
         return self._interaction.consume_speech_events(elfie_id)
 
-    def consume_visual_events(self, elfie_id: str) -> tuple[dict[str, str], ...]:
+    def consume_visual_events(self, elfie_id: str) -> tuple[VisualInput, ...]:
         return self._interaction.consume_visual_events(elfie_id)
 
     def tick(self, seconds: float) -> None:

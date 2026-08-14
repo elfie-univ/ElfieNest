@@ -492,9 +492,7 @@ def test_product_observer_accepts_only_semantic_actor_snapshots() -> None:
     source = GODOT_MAIN_PATH.read_text(encoding="utf-8")
     bridge_source = GODOT_OBSERVER_BRIDGE_PATH.read_text(encoding="utf-8")
     ready_body = _gdscript_function_body(GODOT_MAIN_PATH, "_ready")
-    setup_body = _gdscript_function_body(
-        GODOT_OBSERVER_BRIDGE_PATH, "setup_web_bridge"
-    )
+    setup_body = _gdscript_function_body(GODOT_OBSERVER_BRIDGE_PATH, "setup_web_bridge")
     poll_body = _gdscript_function_body(GODOT_OBSERVER_BRIDGE_PATH, "process_frame")
     accepts_body = _gdscript_function_body(
         GODOT_OBSERVER_BRIDGE_PATH, "_accepts_camera_command"
@@ -586,9 +584,7 @@ def test_product_observer_accepts_only_semantic_actor_snapshots() -> None:
     assert "String(message.get" not in accepts_body
     assert "int(message.get" not in accepts_body
     assert "return false" in accepts_body
-    assert "not _enabled or not _accepts_camera_command(message)" in (
-        parser_body
-    )
+    assert "not _enabled or not _accepts_camera_command(message)" in (parser_body)
     _assert_tokens_in_order(parser_body, ("_:", "return {}"))
     assert FORBIDDEN_GODOT_OBSERVER_BOUNDARY_FIELDS.isdisjoint(
         _gdscript_string_literals(parser_body)

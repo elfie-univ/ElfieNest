@@ -97,9 +97,7 @@ def test_upload_and_submit_communication_attachment(
             "source_domain": "communication",
             "message": "请看看附件",
             "food_key": "mock",
-            "attachments": [
-                {"media_id": descriptor["media_id"], "filename": filename}
-            ],
+            "attachments": [{"media_id": descriptor["media_id"], "filename": filename}],
         },
     )
 

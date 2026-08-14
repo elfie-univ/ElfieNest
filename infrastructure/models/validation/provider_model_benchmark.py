@@ -13,7 +13,9 @@ from infrastructure.models.provider_records import ProviderConnection
 from .provider_validation_checks import run_connection_model_check
 
 _BENCHMARK_TIMEOUT_SECONDS = 20.0
-ModelExecutionProjection = Callable[[ProviderConnection], tuple[str, ModelExecutionConfig]]
+ModelExecutionProjection = Callable[
+    [ProviderConnection], tuple[str, ModelExecutionConfig]
+]
 
 
 class BenchmarkCombination(Protocol):
@@ -54,7 +56,9 @@ async def bounded_benchmark(
         try:
             return await asyncio.wait_for(
                 run_connection_model_benchmark(
-                    combination, connection, model_execution_projection=model_execution_projection
+                    combination,
+                    connection,
+                    model_execution_projection=model_execution_projection,
                 ),
                 timeout=_BENCHMARK_TIMEOUT_SECONDS,
             )

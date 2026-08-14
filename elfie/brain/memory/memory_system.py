@@ -92,7 +92,7 @@ class MemorySystem:
         )
         self._episode_candidate_lock = RLock()
         self._committed_episode_candidate_ids: set[EventId] = set()
-        self._committed_episode_candidate_order = deque(maxlen=2048)
+        self._committed_episode_candidate_order: deque[EventId] = deque(maxlen=2048)
         self.sensory_buffer = SensoryBuffer()
         self.self_narrative = MemorySelfNarrativeProjection(
             storage=storage,

@@ -325,9 +325,7 @@ def test_runtime_receipts_preserve_source_event_cause_and_time() -> None:
         "runtime-event-2",
         "runtime-event-3",
     ]
-    assert {str(receipt.cause_id) for receipt in receipts} == {
-        "motion-source-identity"
-    }
+    assert {str(receipt.cause_id) for receipt in receipts} == {"motion-source-identity"}
     assert {receipt.occurred_at for receipt in receipts} == {NOW}
 
 
@@ -388,9 +386,9 @@ def test_native_body_timeout_sends_cancel_and_late_terminal_is_ignored() -> None
         gateway.runtime_event(
             EventName.INTENT_TERMINAL,
             {
-            "command_id": "runtime-timeout",
-            "actor_id": "elfie-1",
-            "status": "completed",
+                "command_id": "runtime-timeout",
+                "actor_id": "elfie-1",
+                "status": "completed",
             },
         )
     )

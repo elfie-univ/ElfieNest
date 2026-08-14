@@ -65,13 +65,9 @@ class ProviderConnectionPort(Protocol):
 
 
 class ProviderOAuthPort(Protocol):
-    async def start_login(
-        self, catalog_id: str
-    ) -> StoredProviderOAuthLoginStart: ...
+    async def start_login(self, catalog_id: str) -> StoredProviderOAuthLoginStart: ...
 
-    async def poll_login(
-        self, login_id: str
-    ) -> StoredProviderOAuthLoginStatus: ...
+    async def poll_login(self, login_id: str) -> StoredProviderOAuthLoginStatus: ...
 
 
 class ProviderLocalStatePort(Protocol):

@@ -33,9 +33,7 @@ class NativeSensors:
             return
         force_value = payload.get("force_newtons")
         force_newtons = (
-            float(force_value)
-            if isinstance(force_value, (int, float))
-            else None
+            float(force_value) if isinstance(force_value, (int, float)) else None
         )
         sensor_event = BodySensorEvent(
             event_id=EventId(event.message_id),

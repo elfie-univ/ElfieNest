@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from elfie.brain.workspace.contracts import ExecutionStatus, IngestReceipt, TriggerReason
+from elfie.brain.workspace.contracts import (
+    ExecutionStatus,
+    IngestReceipt,
+    TriggerReason,
+)
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.communication import (
     CommunicationEnvelope,

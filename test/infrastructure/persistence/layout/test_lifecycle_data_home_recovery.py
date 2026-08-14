@@ -41,7 +41,9 @@ def test_recover_moves_legacy_root_and_creates_a_fresh_active_root(
 
     assert result.home == home.resolve()
     assert result.backup_home.is_dir()
-    assert (result.backup_home / "user-notes.txt").read_text(encoding="utf-8") == "keep me"
+    assert (result.backup_home / "user-notes.txt").read_text(
+        encoding="utf-8"
+    ) == "keep me"
     assert (result.backup_home / "nest.db").is_file()
     assert adapter.inspect(home).state is DataHomeState.READY
     assert not (home / "backups").exists()

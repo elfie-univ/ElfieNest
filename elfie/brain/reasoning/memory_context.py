@@ -85,13 +85,16 @@ class MemoryContextReader:
         dominant = emotion.dominant or "calm"
         intensity = max((value.intensity for value in emotion.values), default=0.0)
         source_ids = tuple(event.meta.event_id for event in owner_events)
+        owner_messages: list[str] = []
+        for event in owner_events:
+            payload = event.payload
+            if isinstance(payload, SocialPayload):
+                owner_messages.append(f"主人对我说: '{payload.content}'。")
         return (
             EpisodicMemoryCandidate(
                 candidate_id=EventId(f"memory-episode:{frame.frame_id}"),
                 base_revision=self._memory.revision,
-                content="\n".join(
-                    f"主人对我说: '{event.payload.content}'。" for event in owner_events
-                ),
+                content="\n".join(owner_messages),
                 emotion=dominant,
                 intensity=intensity * 100.0,
                 stimulus=f"owner-turn:{frame.frame_id}",

@@ -5,9 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-ApiMode = Literal[
-    "ollama", "chat_completions", "anthropic_messages", "codex_responses"
-]
+ApiMode = Literal["ollama", "chat_completions", "anthropic_messages", "codex_responses"]
 AuthType = Literal["none", "bearer", "x-api-key"]
 ConnectionMethod = Literal["local", "api_key", "oauth"]
 DiscoveryStrategy = Literal[

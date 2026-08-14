@@ -152,7 +152,9 @@ class WorldCatalog(_StrictSemanticModel):
             if facility.facility_id in seen:
                 raise ValueError(f"duplicate facility_id: {facility.facility_id}")
             if facility.zone_id not in zone_ids:
-                raise ValueError(f"facility references unknown zone: {facility.zone_id}")
+                raise ValueError(
+                    f"facility references unknown zone: {facility.zone_id}"
+                )
             seen.add(facility.facility_id)
         return self
 

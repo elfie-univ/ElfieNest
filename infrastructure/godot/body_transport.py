@@ -6,7 +6,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from threading import Condition
-from typing import Optional, Protocol, TypedDict
+from typing import Optional, Protocol, TypedDict, cast
 
 from infrastructure.godot.gateway.messages import RuntimeEventFrame
 
@@ -76,7 +76,9 @@ class GodotTransport:
         actor_id: str,
         speech_intent: Callable[[RuntimeIntentPayload], bool] | None = None,
         semantic_action: SemanticActionResolver | None = None,
-        semantic_action_result: Callable[[RuntimeIntentPayload, RuntimeIntentResult], None]
+        semantic_action_result: Callable[
+            [RuntimeIntentPayload, RuntimeIntentResult], None
+        ]
         | None = None,
     ):
         self.gateway = gateway
@@ -116,7 +118,7 @@ class GodotTransport:
             if command_id in self._pending:
                 return RuntimeIntentResult((), "failed", "duplicate_command_id")
             self._pending[command_id] = _PendingIntent(actor_id=actor_id)
-        wire_payload = dict(payload)
+        wire_payload = cast(RuntimeIntentPayload, dict(payload))
         semantic_target = payload.get("anchor_id")
         semantic_action_requested = (
             payload.get("intent") == "move_to_anchor"

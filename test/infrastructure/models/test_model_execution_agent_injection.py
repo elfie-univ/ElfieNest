@@ -13,7 +13,9 @@ def test_runtime_food_loading_requires_an_explicit_repository(
 ) -> None:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
 
-    agent = ModelExecutionAgent(ModelExecutionConfig(), ports=model_execution_agent_ports())
+    agent = ModelExecutionAgent(
+        ModelExecutionConfig(), ports=model_execution_agent_ports()
+    )
 
     with pytest.raises(RuntimeError, match="粮食数据库仓储"):
         agent._load_food_catalog()

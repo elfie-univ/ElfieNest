@@ -164,11 +164,14 @@ def test_speech_reach_uses_nest_semantic_interaction() -> None:
     assert len(envelope) == 1
     assert envelope[0].target_ids == ("dog-1",)
     assert envelope[0].runtime_id == "runtime-a"
-    assert engine.nest.complete_speech_reach(
-        command_id="speech-1",
-        audience_ids=("dog-1",),
-        event_id="speech-event",
-    ) is None
+    assert (
+        engine.nest.complete_speech_reach(
+            command_id="speech-1",
+            audience_ids=("dog-1",),
+            event_id="speech-event",
+        )
+        is None
+    )
 
 
 def test_visual_observation_uses_nest_correlation_and_returns_semantic_input() -> None:

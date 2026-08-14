@@ -33,7 +33,9 @@ def _write_legacy_runtime_config(path: Path, provider_id: str = "legacy_only") -
 
 
 def _patch_legacy_runtime_path(monkeypatch, legacy_path: Path) -> None:
-    config_module = importlib.import_module("infrastructure.models.model_execution_config")
+    config_module = importlib.import_module(
+        "infrastructure.models.model_execution_config"
+    )
     fake_module_file = legacy_path.parent / "config.py"
     monkeypatch.setattr(config_module, "__file__", str(fake_module_file))
 

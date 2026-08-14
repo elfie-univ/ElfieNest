@@ -363,8 +363,7 @@ class CoordinatorTurnFactory:
         owner_messages = [
             event.content
             for event in compiled.events
-            if event.modality == "social:message"
-            and event.actor.source_kind == "owner"
+            if event.modality == "social:message" and event.actor.source_kind == "owner"
         ]
         latest = owner_messages[-1] if owner_messages else ""
         recent = tuple(compiled.conversation[-2:])

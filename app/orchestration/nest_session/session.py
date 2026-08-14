@@ -392,17 +392,18 @@ class NestSession:
         command_id = payload.get("command_id")
         actor_id = payload.get("actor_id")
         text = payload.get("text")
-        if not all(isinstance(value, str) for value in (command_id, actor_id, text)):
+        if (
+            not isinstance(command_id, str)
+            or not isinstance(actor_id, str)
+            or not isinstance(text, str)
+        ):
             return False
+        emotion_value = payload.get("emotion")
         if not self.nest.queue_speech(
             command_id=command_id,
             sender_id=actor_id,
             text=text,
-            emotion=(
-                payload.get("emotion")
-                if isinstance(payload.get("emotion"), str)
-                else None
-            ),
+            emotion=emotion_value if isinstance(emotion_value, str) else None,
         ):
             return False
         request = getattr(self.world_runtime, "request_speech_reach", None)
@@ -424,7 +425,7 @@ class NestSession:
         observation_id = payload.get("observation_id")
         actor_id = payload.get("actor_id")
         max_results = payload.get("max_results", 32)
-        if not all(isinstance(value, str) for value in (observation_id, actor_id)):
+        if not isinstance(observation_id, str) or not isinstance(actor_id, str):
             return False
         if not isinstance(max_results, int) or isinstance(max_results, bool):
             return False
@@ -453,7 +454,11 @@ class NestSession:
         command_id = payload.get("command_id")
         actor_id = payload.get("actor_id")
         target = payload.get("anchor_id")
-        if not all(isinstance(value, str) for value in (command_id, actor_id, target)):
+        if (
+            not isinstance(command_id, str)
+            or not isinstance(actor_id, str)
+            or not isinstance(target, str)
+        ):
             return None
         return self.nest.queue_semantic_action(
             command_id=command_id,
@@ -470,7 +475,11 @@ class NestSession:
         command_id = payload.get("command_id")
         actor_id = payload.get("actor_id")
         target = payload.get("anchor_id")
-        if not all(isinstance(value, str) for value in (command_id, actor_id, target)):
+        if (
+            not isinstance(command_id, str)
+            or not isinstance(actor_id, str)
+            or not isinstance(target, str)
+        ):
             return
         terminal_status = getattr(result, "terminal_status", "failed")
         reason = getattr(result, "reason", "")
@@ -495,14 +504,10 @@ class NestSession:
             reason=str(reason) if reason else None,
             event_id=event_id,
             runtime_id=(
-                str(terminal_event.runtime_id)
-                if terminal_event is not None
-                else None
+                str(terminal_event.runtime_id) if terminal_event is not None else None
             ),
             runtime_generation=(
-                int(terminal_event.generation)
-                if terminal_event is not None
-                else None
+                int(terminal_event.generation) if terminal_event is not None else None
             ),
             world_revision=(
                 int(terminal_event.world_revision)
@@ -615,6 +620,7 @@ class NestSession:
                 account_id=account_id,
                 channel_id=channel_id,
             )
+
 
 ElfieNestCoordinator = NestSession
 

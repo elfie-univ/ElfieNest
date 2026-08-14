@@ -17,6 +17,7 @@ class ModelReference:
     connection_id: str
     model_id: str
 
+
 def parse_model_reference(value: str) -> ModelReference:
     """Parse exactly ``connection_id/model_id`` without guessing a connection."""
     if not isinstance(value, str) or "/" not in value:

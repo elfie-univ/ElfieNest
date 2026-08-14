@@ -193,7 +193,10 @@ class SQLiteNestStateAdapter:
                         time_scale,
                         environment_desired.model_dump_json(),
                         json.dumps(
-                            [rule.model_dump(mode="json") for rule in environment_rules],
+                            [
+                                rule.model_dump(mode="json")
+                                for rule in environment_rules
+                            ],
                             separators=(",", ":"),
                         ),
                         NestConfig().nest_id,
@@ -220,9 +223,13 @@ def _environment_desired_from_row(row: sqlite3.Row | None) -> EnvironmentDesired
     if row is None or row["environment_desired_json"] is None:
         return EnvironmentDesiredState()
     try:
-        return EnvironmentDesiredState.model_validate_json(row["environment_desired_json"])
+        return EnvironmentDesiredState.model_validate_json(
+            row["environment_desired_json"]
+        )
     except ValueError as error:
-        raise NestPersistenceError("stored Nest environment state is invalid") from error
+        raise NestPersistenceError(
+            "stored Nest environment state is invalid"
+        ) from error
 
 
 def _environment_rules_from_row(row: sqlite3.Row | None) -> tuple[EnvironmentRule, ...]:
@@ -232,7 +239,9 @@ def _environment_rules_from_row(row: sqlite3.Row | None) -> tuple[EnvironmentRul
         values = json.loads(row["environment_rules_json"])
         return tuple(EnvironmentRule.model_validate(value) for value in values)
     except (TypeError, ValueError) as error:
-        raise NestPersistenceError("stored Nest environment rules are invalid") from error
+        raise NestPersistenceError(
+            "stored Nest environment rules are invalid"
+        ) from error
 
 
 def _zone_for_home_anchor(catalog: WorldCatalog | None, home_anchor_id: str) -> str:

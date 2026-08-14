@@ -227,9 +227,7 @@ async def complete_oauth_login(
     try:
         result = await service.complete_oauth_login(
             principal,
-            CompleteProviderOAuthLoginCommand(
-                body.catalog_id, login_id, body.alias
-            ),
+            CompleteProviderOAuthLoginCommand(body.catalog_id, login_id, body.alias),
         )
     except _PROVIDER_ERRORS as error:
         return _error_response(error)

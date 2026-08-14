@@ -222,20 +222,34 @@ class WorkspaceStorage:
 
     def pending_writes(self) -> Tuple[PerceptionWrite, ...]:
         """Return the complete current semantic cut in ingest order."""
-        entries = tuple(self._failure_queue) + tuple(self._journal)
-        entries += tuple(self._state.values())
-        entries += tuple(entry for stream in self._media.values() for entry in stream)
-        return tuple(entry.item for entry in sorted(entries, key=lambda item: item.seq))
+        entries: list[tuple[int, PerceptionWrite]] = [
+            (entry.seq, entry.item)
+            for entry in tuple(self._failure_queue) + tuple(self._journal)
+        ]
+        entries.extend((entry.seq, entry.item) for entry in self._state.values())
+        entries.extend(
+            (entry.seq, entry.item)
+            for stream in self._media.values()
+            for entry in stream
+        )
+        return tuple(item for _, item in sorted(entries, key=lambda item: item[0]))
 
     def pending_entries(self) -> Tuple[WorkspacePendingWrite, ...]:
         """Return pending writes with their stable original sequences."""
-        entries = tuple(self._failure_queue) + tuple(self._journal)
-        entries += tuple(self._state.values())
-        entries += tuple(entry for stream in self._media.values() for entry in stream)
-        return tuple(
+        entries: list[WorkspacePendingWrite] = [
             WorkspacePendingWrite(ingest_seq=entry.seq, write=entry.item)
-            for entry in sorted(entries, key=lambda item: item.seq)
+            for entry in tuple(self._failure_queue) + tuple(self._journal)
+        ]
+        entries.extend(
+            WorkspacePendingWrite(ingest_seq=entry.seq, write=entry.item)
+            for entry in self._state.values()
         )
+        entries.extend(
+            WorkspacePendingWrite(ingest_seq=entry.seq, write=entry.item)
+            for stream in self._media.values()
+            for entry in stream
+        )
+        return tuple(sorted(entries, key=lambda item: item.ingest_seq))
 
     def loss_records(self) -> Tuple[WorkspaceLossRecord, ...]:
         """Return restart-safe observable-loss evidence."""
