@@ -331,7 +331,19 @@ class LocalServiceProcessAdapter:
     def terminate(self, pid: int, *, force: bool = False) -> None:
         import signal
 
-        os.kill(pid, signal.SIGKILL if force else signal.SIGTERM)
+        requested_signal = signal.SIGKILL if force else signal.SIGTERM
+        try:
+            process_group = os.getpgid(pid)
+        except OSError:
+            os.kill(pid, requested_signal)
+            return
+        # LocalServiceProcessAdapter launches each managed Core with
+        # start_new_session=True. Signal that exact group so a frozen PyInstaller
+        # parent cannot leave its real Core child listening on the service ports.
+        if process_group == pid:
+            os.killpg(process_group, requested_signal)
+        else:
+            os.kill(pid, requested_signal)
 
     def ports_in_use(self, ports: Sequence[int]) -> bool:
         return any_service_port_in_use(ports)

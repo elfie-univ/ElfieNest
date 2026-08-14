@@ -42,12 +42,25 @@ attaches to it and receives the generation but no stop right. A client that
 started the generation receives the lease and may stop only that same lease.
 This prevents one Desktop window from stopping a Runtime it merely observes.
 
+Startup is still one lifecycle transaction, but it exposes a transient
+`startup_owner_id` receipt while the transaction is in progress. The receipt
+prevents a second client from starting the same Runtime and lets the owning
+Desktop cancel a start through the public `stop --owner-id` command. The
+receipt is promoted to the normal owner lease only after the complete Core,
+Gateway and Godot readiness contract passes; `ready` is never reported early.
+
 The Electron observer lives in `app/interfaces/desktop/`, not the removed
 top-level `desktop/` directory. Its public lifecycle client invokes the
 user-visible CLI commands and never imports Supervisor internals, Godot Gateway
-protocol frames or authority credentials. Closing an observer window has no
-lifecycle effect; an explicit application exit stops the Runtime only when the
-client holds the owner lease.
+protocol frames or authority credentials. It creates a local startup shell
+immediately, loads the real management page once Core and Gateway are ready,
+and keeps monitor controls disabled until the Godot Observer is ready. Closing
+an observer window has no lifecycle effect. An explicit application exit hides
+the UI first, cancels an in-flight start when necessary, and then asks the
+lifecycle owner to stop the Runtime only when the client holds the owner lease.
+The owner gives the hidden authority and managed Core a short graceful window,
+then force-stops only the re-validated process group so shutdown cannot hang on
+an unresponsive child.
 
 ## Observer permissions, camera catalog and the non-video first phase
 

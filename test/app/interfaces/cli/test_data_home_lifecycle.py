@@ -102,6 +102,30 @@ def test_started_service_remembers_selected_home_for_later_commands(
     assert remembered == selected_home.resolve()
 
 
+def test_start_uses_remembered_lifecycle_home_for_status_and_start_consistency(
+    monkeypatch,
+) -> None:
+    """Given a remembered data root, When start has no explicit root, Then it reuses it."""
+    remembered_flags: list[bool] = []
+
+    def supervisor(*_args, **kwargs) -> _StartedSupervisor:
+        remembered_flags.append(kwargs["use_remembered_home"])
+        return _StartedSupervisor()
+
+    monkeypatch.setattr(lifecycle_commands, "_supervisor_for", supervisor)
+    monkeypatch.setattr(
+        lifecycle_commands, "_prepare_frontend_for_launch", lambda *_args: None
+    )
+
+    result = lifecycle_commands.start_background_service(
+        LIFECYCLE,
+        command=("python", "scripts/serve.py"),
+    )
+
+    assert result.status == "started"
+    assert remembered_flags == [True]
+
+
 def test_installed_lifecycle_uses_the_packaged_application_root(
     monkeypatch, tmp_path: Path
 ) -> None:

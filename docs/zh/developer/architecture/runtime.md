@@ -35,10 +35,20 @@ interface 或 Infrastructure 权威；`app/interfaces/desktop/` 不导入或打�
 的客户端才获得 lease，并且只能停止同一个 lease。这样一个仅观察的 Desktop 窗口不能
 停止它没有创建的 Runtime。
 
+启动仍然是一个生命周期事务，但事务进行期间会写入临时的
+`startup_owner_id` 收据。这个收据既阻止第二个客户端重复启动同一个 Runtime，也让
+拥有者 Desktop 可以通过公开的 `stop --owner-id` 命令取消启动。只有 Core、Gateway 和
+Godot 的完整就绪契约全部通过后，收据才会提升为普通 owner lease；在此之前不会报告
+`ready`。
+
 Electron Observer 位于 `app/interfaces/desktop/`，不在已移除的顶层 `desktop/` 目录。
 它的公开 lifecycle client 调用用户可见的 CLI 命令，绝不导入 Supervisor 内部实现、
-Godot Gateway 协议帧或权威凭据。关闭 Observer 窗口没有生命周期副作用；只有客户端
-持有 owner lease 时，显式退出应用才会停止 Runtime。
+Godot Gateway 协议帧或权威凭据。它会立即创建本地启动壳，在 Core 和 Gateway ready 后
+加载真正的管理页面，并在 Godot Observer ready 前禁用监控控件。关闭 Observer 窗口没有
+生命周期副作用；显式退出会先隐藏界面，必要时取消正在进行的启动，再且仅在客户端持有
+owner lease 时请求生命周期所有者停止 Runtime。
+生命周期所有者会给隐藏 authority 和受管 Core 一个短暂的优雅退出窗口；若子进程无响应，
+则只对再次核验身份的同一进程组强制停止，避免关闭无限等待。
 
 ## Observer 权限、相机目录与非视频第一阶段
 

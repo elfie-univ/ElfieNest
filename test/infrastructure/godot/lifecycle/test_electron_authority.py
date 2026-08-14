@@ -26,6 +26,18 @@ def test_hidden_macos_authority_does_not_occupy_the_dock() -> None:
     assert "app.dock.hide()" in source
 
 
+def test_hidden_authority_retries_core_load_and_handles_owned_shutdown() -> None:
+    source = AUTHORITY_MAIN.read_text(encoding="utf-8")
+
+    assert "AUTHORITY_LOAD_MAX_ATTEMPTS" in source
+    assert "loadAuthorityWindow" in source
+    assert 'process.once("SIGTERM", requestShutdown)' in source
+    assert 'process.once("SIGINT", requestShutdown)' in source
+    assert "authorityWindow.close()" in source
+    assert "app.exit(0)" in source
+    assert "process.exit(0)" in source
+
+
 def test_bootstrap_host_loads_and_packages_the_authority_entrypoint() -> None:
     package_source = (PROJECT_ROOT / "app/interfaces/desktop/package.json").read_text(
         encoding="utf-8"

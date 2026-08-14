@@ -29,6 +29,7 @@ from infrastructure.godot.gateway.session import (
 
 logger = logging.getLogger("infrastructure.godot.gateway.api")
 GODOT_PROTOCOL_VERSION = 3
+GATEWAY_STOP_JOIN_TIMEOUT_SECONDS = 0.5
 
 
 class BodyEventSink(Protocol):
@@ -102,7 +103,11 @@ class GodotAPIServer:
         if self._loop is not None and self._loop.is_running():
             asyncio.run_coroutine_threadsafe(self._async_stop(), self._loop)
         if self._thread is not None:
-            self._thread.join(timeout=2.0)
+            # The event loop's close coroutine has already been scheduled. Do
+            # not hold Core shutdown for the old 2-second thread-join ceiling;
+            # the thread is daemon-owned and the process-group stop remains the
+            # final safety net if a peer is slow to close.
+            self._thread.join(timeout=GATEWAY_STOP_JOIN_TIMEOUT_SECONDS)
 
     def _run_event_loop(self) -> None:
         if self._loop is None:

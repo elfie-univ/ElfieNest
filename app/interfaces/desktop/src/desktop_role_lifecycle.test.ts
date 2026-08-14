@@ -7,16 +7,36 @@ import {
   type LifecycleClient,
   type RuntimeAttachment,
 } from "./desktop_role_lifecycle.js";
+import type {
+  DataHomeInspection,
+  DataHomeRecoveryResult,
+} from "./lifecycle_client.js";
 
 function lifecycleClient(attachment: RuntimeAttachment): LifecycleClient & {
   readonly stops: string[];
   readonly recoveries: string[];
+  readonly cancels: number;
 } {
   const stops: string[] = [];
   const recoveries: string[] = [];
+  let cancels = 0;
+  const inspection: DataHomeInspection = {
+    state: "ready",
+    home: "/tmp/elfienest",
+    detail: "ready",
+    recoverable: false,
+  };
+  const recovery: DataHomeRecoveryResult = {
+    home: inspection.home,
+    backupHome: "/tmp/elfienest-backups/legacy",
+  };
   return {
     stops,
     recoveries,
+    get cancels(): number { return cancels; },
+    inspectDataHome: async (): Promise<DataHomeInspection> => inspection,
+    recoverDataHome: async (): Promise<DataHomeRecoveryResult> => recovery,
+    activateDataHome: async (): Promise<DataHomeInspection> => inspection,
     attachOrStart: async (): Promise<RuntimeAttachment> => attachment,
     recoverOwnedRuntime: async (ownerLease: string): Promise<RuntimeAttachment> => {
       recoveries.push(ownerLease);
@@ -24,6 +44,9 @@ function lifecycleClient(attachment: RuntimeAttachment): LifecycleClient & {
     },
     stopOwnedRuntime: async (ownerLease: string): Promise<void> => {
       stops.push(ownerLease);
+    },
+    cancelStart: async (): Promise<void> => {
+      cancels += 1;
     },
   };
 }
@@ -91,6 +114,7 @@ test("explicit exit waits for an in-flight Runtime start before stopping its lea
   await starting;
   await exiting;
 
+  assert.equal(client.cancels, 1);
   assert.deepEqual(client.stops, ["desktop-11"]);
   assert.equal(controller.state.kind, "stopped");
 });
@@ -112,6 +136,68 @@ test("authority failure is presented as a recoverable Supervisor failure", async
     kind: "failed",
     reason: "godot authority exited",
     recoverable: true,
+  });
+});
+
+test("legacy data root is presented as a recoverable pre-start state", async () => {
+  const client = lifecycleClient({ kind: "attached", generation: 1 });
+  client.inspectDataHome = async (): Promise<DataHomeInspection> => ({
+    state: "legacy",
+    home: "/Users/test/.elfienest",
+    detail: "检测到旧版数据目录结构",
+    recoverable: true,
+  });
+  const controller = new DesktopRoleController(client);
+
+  const state = await controller.start();
+
+  assert.deepEqual(state, {
+    kind: "failed",
+    reason: "检测到旧版数据目录结构",
+    recoverable: true,
+    recovery: {
+      state: "legacy",
+      home: "/Users/test/.elfienest",
+      detail: "检测到旧版数据目录结构",
+      recoverable: true,
+    },
+  });
+  assert.deepEqual(client.stops, []);
+});
+
+test("data-root recovery preserves the backup result before Runtime start", async () => {
+  const client = lifecycleClient({ kind: "owned", generation: 4, ownerLease: "desktop-4" });
+  let recovered = false;
+  client.inspectDataHome = async (): Promise<DataHomeInspection> => recovered
+    ? {
+      state: "ready",
+      home: "/Users/test/.elfienest",
+      detail: "ready",
+      recoverable: false,
+    }
+    : {
+      state: "legacy",
+      home: "/Users/test/.elfienest",
+      detail: "旧版数据目录",
+      recoverable: true,
+    };
+  client.recoverDataHome = async (): Promise<DataHomeRecoveryResult> => ({
+    home: "/Users/test/.elfienest",
+    backupHome: "/Users/test/.elfienest-backups/legacy",
+  });
+  const originalRecover = client.recoverDataHome;
+  client.recoverDataHome = async (): Promise<DataHomeRecoveryResult> => {
+    recovered = true;
+    return originalRecover();
+  };
+  const controller = new DesktopRoleController(client);
+
+  const state = await controller.recoverDataHome();
+
+  assert.equal(state.kind, "owned");
+  assert.deepEqual(controller.lastRecovery, {
+    home: "/Users/test/.elfienest",
+    backupHome: "/Users/test/.elfienest-backups/legacy",
   });
 });
 

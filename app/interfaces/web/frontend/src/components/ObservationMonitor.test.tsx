@@ -57,7 +57,10 @@ const catalog = {
   ],
 } satisfies ObserverCameraCatalog
 
-function createObserver(cameraCatalog: ObserverCameraCatalog | null): ObserverFixture {
+function createObserver(
+  cameraCatalog: ObserverCameraCatalog | null,
+  status: ObserverState["status"] = "ready",
+): ObserverFixture {
   const calls = {
     configureRoom: vi.fn(),
     detach: vi.fn(),
@@ -82,7 +85,7 @@ function createObserver(cameraCatalog: ObserverCameraCatalog | null): ObserverFi
       reset: calls.reset,
       select: calls.select,
       setLocalPresentationPaused: calls.setLocalPresentationPaused,
-      status: "ready",
+      status,
     },
   }
 }
@@ -204,18 +207,20 @@ describe("ObservationMonitor", () => {
     expect(fixture.calls.openRoom).not.toHaveBeenCalled()
   })
 
-  it("keeps local pause available before the camera catalog arrives without reopening the observer", async () => {
+  it("keeps all monitor controls disabled until the camera catalog arrives", async () => {
     const user = userEvent.setup()
-    fixture = createObserver(null)
+    fixture = createObserver(null, "loading")
     vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
     renderMonitor()
 
     const pause = screen.getByRole("button", { name: "暂停观察" })
-    expect(pause).toBeEnabled()
+    expect(pause).toBeDisabled()
+    expect(screen.getByRole("button", { name: "复位视角" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "总览" })).toBeDisabled()
 
     await user.click(pause)
 
-    expect(fixture.calls.setLocalPresentationPaused).toHaveBeenCalledWith(true)
+    expect(fixture.calls.setLocalPresentationPaused).not.toHaveBeenCalled()
     expect(fixture.calls.detach).not.toHaveBeenCalled()
     expect(fixture.calls.openRoom).not.toHaveBeenCalled()
     expect(screen.getByRole("button", { name: "暂停观察" })).toBeInTheDocument()

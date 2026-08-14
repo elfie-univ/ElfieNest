@@ -68,7 +68,8 @@ export function ObservationMonitor({ bedCount, immersive = false, mode = "embedd
   const presentationPaused = cameraCatalog?.presentationPaused ?? false
   const pauseIcon = presentationPaused ? "play" : "pause"
   const pauseLabel = presentationPaused ? t("controls.resume") : t("controls.pause")
-  const cameraCommandDisabled = observer === null || presentationPaused
+  const cameraCommandDisabled = observer === null || observer.status !== "ready" || presentationPaused
+  const pauseCommandDisabled = observer === null || observer.status !== "ready"
   const statusKey = monitorStatusKey(observer?.status ?? null)
   const statusCopy = statusKey === "connection.connectedTo" || statusKey === "status.loading"
     ? t(statusKey, { endpoint: roomId })
@@ -102,7 +103,7 @@ export function ObservationMonitor({ bedCount, immersive = false, mode = "embedd
           <Icon name="cctv" size={16} /><span>{t("controls.overview")}</span>
         </Button>
         {cameraViews.map((view) => <Button aria-label={view.label} aria-pressed={cameraCatalog?.activeId === view.id} className="observation-monitor__camera" disabled={cameraCommandDisabled} key={view.id} onClick={() => observer?.select(view.id)} size="sm" type="button" variant="outline">{view.label}</Button>)}
-        <Button aria-label={pauseLabel} className="observation-monitor__command observation-monitor__pause" disabled={observer === null} onClick={() => observer?.setLocalPresentationPaused(!presentationPaused)} size="sm" type="button" variant="outline">
+        <Button aria-label={pauseLabel} className="observation-monitor__command observation-monitor__pause" disabled={pauseCommandDisabled} onClick={() => observer?.setLocalPresentationPaused(!presentationPaused)} size="sm" type="button" variant="outline">
           <Icon name={pauseIcon} size={16} /><span>{pauseLabel}</span>
         </Button>
       </div> : null}

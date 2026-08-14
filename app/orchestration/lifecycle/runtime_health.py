@@ -27,6 +27,17 @@ class RuntimeHealthState(str, Enum):
     FAILED = "failed"
 
 
+class RuntimeProgressPhase(str, Enum):
+    """Transient phases emitted while a Runtime is becoming usable."""
+
+    STARTING = "starting"
+    CORE_READY = "core_ready"
+    AUTHORITY_STARTING = "authority_starting"
+    READY = "ready"
+    STOPPING = "stopping"
+    FAILED = "failed"
+
+
 @dataclass(frozen=True)
 class OwnerLease:
     """Identifies the client that created one Runtime generation."""
@@ -53,6 +64,7 @@ class RuntimeHealth:
     generation: int
     owner_lease: Optional[OwnerLease]
     components: Tuple[ComponentHealth, ...]
+    startup_owner_id: Optional[str] = None
 
     def component(self, component: RuntimeComponent) -> ComponentHealth:
         """Return one component health from the closed Runtime graph."""

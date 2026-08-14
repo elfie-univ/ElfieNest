@@ -16,6 +16,16 @@ class FrontendPreparationError(ServiceLifecycleError):
 
 
 @dataclass(frozen=True)
+class DataHomeRecoveryError(ServiceLifecycleError):
+    """The selected data root could not be preserved and rebuilt safely."""
+
+    detail: str
+
+    def __str__(self) -> str:
+        return f"Data-root recovery failed: {self.detail}"
+
+
+@dataclass(frozen=True)
 class RecoveryInProgressError(ServiceLifecycleError):
     """A startup or recovery operation could not acquire the lifecycle lease."""
 
