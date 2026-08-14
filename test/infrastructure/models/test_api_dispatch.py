@@ -367,7 +367,7 @@ class TestCallOpenaiCompatibleApi:
             result, usage = _call_openai_compatible_api(
                 api_base="https://ark.example/api/coding/v3",
                 api_key="test-key",
-                model_name="ark-code-latest",
+                model_name="deepseek-v4-flash-260425",
                 messages=[{"role": "user", "content": "Reply with OK."}],
                 temperature=0.0,
                 max_tokens=8,

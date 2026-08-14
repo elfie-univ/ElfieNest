@@ -97,15 +97,15 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
         "https://ark.cn-beijing.volces.com/api/coding/v3"
     )
     assert catalog.products["volcengine_coding_plan"].bundled_models == [
-        "ark-code-latest",
-        "doubao-seed-2.0-code",
-        "doubao-seed-2.0-pro",
-        "doubao-seed-2.0-lite",
-        "doubao-seed-code",
-        "minimax-m2.5",
-        "glm-4.7",
-        "deepseek-v3.2",
-        "kimi-k2.5",
+        "deepseek-v4-flash-260425",
+        "deepseek-v4-flash-ga-260731",
+        "deepseek-v4-pro-260425",
+        "doubao-seed-2-0-code-preview-260215",
+        "doubao-seed-2-0-pro-260215",
+        "doubao-seed-2-0-lite-260215",
+        "glm-4-7-251222",
+        "glm-5-2-260617",
+        "kimi-k2-250905",
     ]
     assert catalog.products["glm_api"].brand_id == "zhipu"
     assert catalog.products["kimi_api"].brand_id == "moonshot"

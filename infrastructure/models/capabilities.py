@@ -16,11 +16,18 @@ class ModelCapabilityProfile:
     source: str = "official_catalog"
 
 
-# 讯飞官方模型 ID 是确定性映射；ID 比用户手工填写的显示名更可信。
+# 官方模型 ID 是确定性映射；ID 比用户手工填写的显示名更可信。
 _EXACT_MODEL_IDS: dict[str, ModelCapabilityProfile] = {
+    "glm-4.7": ModelCapabilityProfile("GLM-4.7", frozenset({"text", "reasoning"})),
+    "glm-4-7-251222": ModelCapabilityProfile(
+        "GLM-4.7", frozenset({"text", "reasoning"})
+    ),
     "xopglm5": ModelCapabilityProfile("GLM-5", frozenset({"text", "reasoning"})),
     "xopglm51": ModelCapabilityProfile("GLM-5.1", frozenset({"text", "reasoning"})),
     "xopglm52": ModelCapabilityProfile("GLM-5.2", frozenset({"text", "reasoning"})),
+    "glm-5-2-260617": ModelCapabilityProfile(
+        "GLM-5.2", frozenset({"text", "reasoning"})
+    ),
     "xopkimik25": ModelCapabilityProfile(
         "Kimi-K2.5", frozenset({"text", "reasoning", "vision"})
     ),

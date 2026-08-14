@@ -299,7 +299,7 @@ func _notify_web_runtime_ready() -> void:
 		return
 	for _frame in range(4):
 		await get_tree().process_frame
-	var window := JavaScriptBridge.get_interface("window")
-	if window == null:
-		return
-	window.parent.postMessage("elfienest:godot-web-ready", window.location.origin)
+	JavaScriptBridge.eval(
+		"window.__elfieNestObserverReady = true;"
+		+ "window.parent.postMessage('elfienest:godot-web-ready', window.location.origin)"
+	)

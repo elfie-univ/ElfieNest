@@ -7,8 +7,7 @@ const OBSERVER_PROTOCOL_VERSION := 1
 var _nest: ModularNest
 var _presentation: Node
 var _enabled := false
-var _observer_window: JavaScriptObject
-var _observer_origin := ""
+var _observer_bridge_ready := false
 
 
 func setup(nest: ModularNest, presentation: Node, enabled: bool) -> void:
@@ -20,13 +19,9 @@ func setup(nest: ModularNest, presentation: Node, enabled: bool) -> void:
 func setup_web_bridge() -> void:
 	if not _enabled or not OS.has_feature("web"):
 		return
-	_observer_window = JavaScriptBridge.get_interface("window")
-	if _observer_window == null:
-		return
-	_observer_origin = String(_observer_window.location.origin)
 	_nest.observer_camera_catalog_changed.connect(_on_camera_catalog_changed)
 	JavaScriptBridge.eval(
-		"(() => { window.__elfieNestObserverQueue = [];"
+		"(() => { window.__elfieNestObserverQueue = window.__elfieNestObserverQueue || [];"
 		+ " window.addEventListener('message', (event) => {"
 		+ " if (event.origin !== window.location.origin) return;"
 		+ " if (event.source !== window.parent) return;"
@@ -37,6 +32,7 @@ func setup_web_bridge() -> void:
 		+ " window.__elfieNestObserverQueue.push(JSON.stringify(data));"
 		+ " }); })()"
 	)
+	_observer_bridge_ready = true
 
 
 func process_frame() -> void:
@@ -69,14 +65,18 @@ func process_frame() -> void:
 
 
 func publish_catalog() -> void:
-	if _observer_window == null:
+	if not _observer_bridge_ready:
 		return
 	var catalog := _nest.observer_camera_catalog().merged({
 		"channel": OBSERVER_CHANNEL,
 		"version": OBSERVER_PROTOCOL_VERSION,
 		"kind": "camera_catalog",
 	})
-	_observer_window.parent.postMessage(JSON.stringify(catalog), _observer_origin)
+	var serialized := JSON.stringify(catalog)
+	JavaScriptBridge.eval(
+		"window.parent.postMessage(%s, window.location.origin)"
+		% JSON.stringify(serialized)
+	)
 
 
 func _parse_world_config(message: Dictionary) -> Dictionary:

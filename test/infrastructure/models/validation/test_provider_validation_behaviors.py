@@ -163,7 +163,7 @@ def test_connection_fingerprint_ignores_another_connection_secret_change(
         connection_id="volcengine_coding_plan_0001",
         catalog_id="volcengine_coding_plan",
         alias="Volcengine",
-        models=(ProviderModelRecord(endpoint_model_id="ark-code-latest"),),
+        models=(ProviderModelRecord(endpoint_model_id="deepseek-v4-flash-260425"),),
     )
     deepseek = ProviderConnection(
         connection_id="deepseek_0001",
@@ -196,7 +196,7 @@ def test_model_execution_projection_uses_connection_id_for_builtin_connection() 
         connection_id="volcengine_coding_plan_0001",
         catalog_id="volcengine_coding_plan",
         alias="Volcengine",
-        models=(ProviderModelRecord(endpoint_model_id="ark-code-latest"),),
+        models=(ProviderModelRecord(endpoint_model_id="deepseek-v4-flash-260425"),),
     )
 
     execution_id, _config = model_execution_projection(connection)
@@ -310,15 +310,18 @@ def test_model_execution_projection_keeps_volcengine_profile_test_model() -> Non
         catalog_id="volcengine_coding_plan",
         alias="Volcengine",
         models=(
+            ProviderModelRecord(endpoint_model_id="deepseek-v4-flash-260425"),
             ProviderModelRecord(endpoint_model_id="deepseek-v3.2"),
-            ProviderModelRecord(endpoint_model_id="ark-code-latest"),
         ),
     )
 
     execution_id, config = model_execution_projection(connection)
 
     assert execution_id == connection.connection_id
-    assert config.providers[execution_id]["test_model"] == "ark-code-latest"
+    assert (
+        config.providers[execution_id]["test_model"]
+        == "deepseek-v4-flash-260425"
+    )
 
 
 def test_volcengine_health_check_falls_back_to_configured_model(
@@ -356,7 +359,7 @@ def test_volcengine_health_check_falls_back_to_configured_model(
                 "api_base": "https://volc.example/api/coding/v3",
                 "api_key": "test-key",
                 "api_mode": "chat_completions",
-                "test_model": "ark-code-latest",
+                "test_model": "deepseek-v4-flash-260425",
             }
         }
 
@@ -367,7 +370,7 @@ def test_volcengine_health_check_falls_back_to_configured_model(
         "https://volc.example/api/coding/v3/models",
         "https://volc.example/api/coding/v3/chat/completions",
     ]
-    assert b'"model": "ark-code-latest"' in requests[1].data
+    assert b'"model": "deepseek-v4-flash-260425"' in requests[1].data
 
 
 def test_volcengine_health_check_reports_unsupported_model(

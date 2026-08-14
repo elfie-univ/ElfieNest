@@ -8,6 +8,8 @@ import pytest
 
 from app.orchestration.nest_session import ElfieNestEngine
 from elfie import Elfie
+from elfie.communication import InboundDisposition, InboundDispositionStatus
+from elfie.message_types import EventId
 from test.app.orchestration.nest_session.fakes import FakeWorldRuntime
 
 
@@ -96,3 +98,23 @@ def test_elfie_items_snapshot_is_stable_during_later_admission(
     engine.session.register_elfie("second", _mock_elfie())
 
     assert tuple(elfie_id for elfie_id, _ in initial) == ("first",)
+
+
+def test_owner_message_catches_up_brain_clock_for_inactive_resident(
+    engine: ElfieNestEngine,
+) -> None:
+    elfie = _mock_elfie()
+    elfie.elapsed_time = 3.0
+    elfie.receive_communication_envelope.return_value = InboundDisposition(
+        status=InboundDispositionStatus.ACCEPTED,
+        message_id=EventId("owner:owner-message-1"),
+        channel_id="godot-owner",
+    )
+    engine.session.register_elfie("elfie-1", elfie)
+    engine.nest.tick(10.0)
+    engine.nest.update_resident_posture("elfie-1", "away")
+
+    engine.session.send_user_message("elfie-1", "你好")
+
+    elfie.advance_clock.assert_called_once_with(7.0)
+    assert elfie.receive_communication_envelope.call_count == 1
