@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
+from elfie.profile import SUPPORTED_SPECIES
 from infrastructure.persistence.nest_db.store import init_db
 
 from ._helpers import adopt_test_elfie, create_test_owner
@@ -56,17 +57,17 @@ def _create_user_and_login(client: TestClient) -> tuple[int, str]:
     return int(created.json()["user_id"]), login.headers["X-CSRF-Token"]
 
 
-def test_adoption_options_reflect_settings_filters(client: TestClient) -> None:
+def test_adoption_options_are_driven_by_the_species_registry(client: TestClient) -> None:
     owner_csrf = _login_owner(client)
     updated = client.patch(
         "/api/v1/admin/settings/elfies",
         json={
-            "allowed_species_ids": ["dog"],
             "personality_presets_enabled": {"安静温顺": False},
         },
         headers=_headers(owner_csrf),
     )
     assert updated.status_code == 200
+    assert "allowed_species_ids" not in updated.json()
     _user_id, user_csrf = _create_user_and_login(client)
 
     response = client.get(
@@ -75,7 +76,9 @@ def test_adoption_options_reflect_settings_filters(client: TestClient) -> None:
     )
 
     assert response.status_code == 200
-    assert response.json()["species_ids"] == ["dog"]
+    assert [item["species_id"] for item in response.json()["species"]] == list(
+        SUPPORTED_SPECIES
+    )
     assert "安静温顺" not in response.json()["personality_styles"]
 
 

@@ -2,14 +2,18 @@ import { Button } from "@/components/ui/button"
 import type { TFunction } from "i18next"
 import { useTranslation } from "react-i18next"
 
+import type { AdoptionSpecies } from "../../api/me/adoption"
 import { Icon } from "../Icon"
 import type { ElfieProfileProjection } from "./projection"
+
+type SpeciesPresentation = Pick<AdoptionSpecies, "display_name" | "display_name_zh">
 
 type PersonalIdentityFrameProps = {
   readonly onBack: () => void
   readonly onChat: () => void
   readonly portraitOverride?: string
   readonly projection: ElfieProfileProjection
+  readonly speciesDefinition?: SpeciesPresentation | undefined
 }
 
 export function PersonalIdentityFrame({
@@ -17,10 +21,11 @@ export function PersonalIdentityFrame({
   onChat,
   portraitOverride = "",
   projection,
+  speciesDefinition,
 }: PersonalIdentityFrameProps) {
-  const { t } = useTranslation("chat")
+  const { i18n, t } = useTranslation("chat")
   const profile = projection.publicProfile
-  const species = speciesLabel(profile.speciesId, t)
+  const species = speciesLabel(profile.speciesId, speciesDefinition, i18n.resolvedLanguage ?? i18n.language)
   const gender = normalizedGender(profile.gender, t)
   const biography = profile.biography.trim()
   const showBiography = biography.toLowerCase() !== "genesis"
@@ -53,7 +58,7 @@ export function PersonalIdentityFrame({
               </span>
             )}
             <span aria-label={species} className="profile-dossier__species">
-              {speciesIcon(profile.speciesId)}
+              {speciesIcon()}
             </span>
           </div>
         </div>
@@ -82,6 +87,10 @@ function IdentityMetadata({ projection, t }: {
     <dl className="profile-dossier__metadata">
       <div><dt>{t("profile.identity.age")}</dt><dd>{localizedAge(ageLabel, t)}</dd></div>
       <div><dt>{t("profile.identity.owner")}</dt><dd>{projection.kind === "adopter" ? <strong>{t("profile.identity.me")}</strong> : projection.ownerDisplayName}</dd></div>
+      {projection.kind === "adopter" ? <>
+        <div><dt>{t("profile.identity.adoptedAt")}</dt><dd>{displayFallback(projection.adoption.adoptedAt, t)}</dd></div>
+        <div><dt>{t("profile.identity.id")}</dt><dd>{projection.publicProfile.elfieId}</dd></div>
+      </> : null}
     </dl>
   )
 }
@@ -101,20 +110,19 @@ function Portrait({ name, portraitUrl, t }: PortraitProps) {
   )
 }
 
-function speciesLabel(speciesId: string, t: TFunction<"chat">): string {
-  switch (speciesId) {
-    case "dog": return t("profile.identity.species.dog")
-    case "fox": return t("profile.identity.species.fox")
-    default: return speciesId
+function speciesLabel(
+  speciesId: string,
+  definition: SpeciesPresentation | undefined,
+  language: string,
+): string {
+  if (definition !== undefined) {
+    return language.startsWith("zh") ? definition.display_name_zh : definition.display_name
   }
+  return speciesId
 }
 
-function speciesIcon(speciesId: string): string {
-  switch (speciesId) {
-    case "dog": return "🐶"
-    case "fox": return "🦊"
-    default: return "🐾"
-  }
+function speciesIcon(): string {
+  return "✦"
 }
 
 function displayFallback(value: string, t: TFunction<"chat">): string {

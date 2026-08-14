@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -103,14 +104,20 @@ def test_ensure_does_not_touch_release_runtime(
     )
 
 
-def test_run_pnpm_always_uses_repository_pinned_version(
+def test_run_pnpm_prefers_matching_local_pnpm(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     commands: list[tuple[tuple[str, ...], Path, bool]] = []
-    monkeypatch.setattr(frontend_build.shutil, "which", lambda _name: "/bin/npx")
 
-    def run(command: tuple[str, ...], *, cwd: Path, check: bool) -> None:
+    def which(name: str) -> str:
+        return "/bin/pnpm" if name == "pnpm" else "/bin/npx"
+
+    monkeypatch.setattr(frontend_build.shutil, "which", which)
+
+    def run(command: tuple[str, ...], *, cwd: Path, check: bool, **_kwargs):
+        if command == ("/bin/pnpm", "--version"):
+            return SimpleNamespace(stdout="10.12.1\n")
         commands.append((command, cwd, check))
 
     monkeypatch.setattr(frontend_build.subprocess, "run", run)
@@ -119,11 +126,35 @@ def test_run_pnpm_always_uses_repository_pinned_version(
 
     assert commands == [
         (
-            ("/bin/npx", "--yes", "pnpm@10.12.1", "build"),
+            ("/bin/pnpm", "build"),
             tmp_path,
             True,
         )
     ]
+
+
+def test_run_pnpm_falls_back_to_pinned_npx_for_mismatched_local_pnpm(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    commands: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        frontend_build.shutil,
+        "which",
+        lambda name: "/bin/pnpm" if name == "pnpm" else "/bin/npx",
+    )
+
+    def run(command: tuple[str, ...], **_kwargs):
+        if command == ("/bin/pnpm", "--version"):
+            return SimpleNamespace(stdout="9.0.0\n")
+        commands.append(command)
+        return None
+
+    monkeypatch.setattr(frontend_build.subprocess, "run", run)
+
+    frontend_build._run_pnpm(tmp_path, ("build",))
+
+    assert commands == [("/bin/npx", "--yes", "pnpm@10.12.1", "build")]
 
 
 def test_run_pnpm_hides_child_output_for_interactive_launches(
@@ -132,9 +163,15 @@ def test_run_pnpm_hides_child_output_for_interactive_launches(
 ) -> None:
     calls: list[dict[str, object]] = []
     monkeypatch.setenv("ELFIENEST_INTERACTIVE", "1")
-    monkeypatch.setattr(frontend_build.shutil, "which", lambda _name: "/bin/npx")
+    monkeypatch.setattr(
+        frontend_build.shutil,
+        "which",
+        lambda name: "/bin/pnpm" if name == "pnpm" else "/bin/npx",
+    )
 
-    def run(command, *, cwd, check, capture_output, text) -> None:
+    def run(command, *, cwd, check, capture_output, text):
+        if command == ("/bin/pnpm", "--version"):
+            return SimpleNamespace(stdout="10.12.1\n")
         calls.append(
             {
                 "command": command,
@@ -151,7 +188,7 @@ def test_run_pnpm_hides_child_output_for_interactive_launches(
 
     assert calls == [
         {
-            "command": ("/bin/npx", "--yes", "pnpm@10.12.1", "build"),
+            "command": ("/bin/pnpm", "build"),
             "cwd": tmp_path,
             "check": True,
             "capture_output": True,

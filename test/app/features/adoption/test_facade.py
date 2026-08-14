@@ -24,7 +24,6 @@ class Policy:
     def load_policy(self) -> AdoptionPolicyRecord:
         return AdoptionPolicyRecord(
             default_elfie_limit=3,
-            allowed_species_ids=("dog", "fox"),
             enabled_personality_styles=("好奇探索",),
         )
 
@@ -112,6 +111,10 @@ def test_options_expose_both_member_and_nest_capacity() -> None:
     assert options.nest_capacity.used == 1
     assert options.nest_capacity.maximum == 4
     assert options.nest_capacity.remaining == 3
+    assert tuple(species.species_id for species in options.species) == (
+        "fox",
+        "dog",
+    )
     assert options.availability == "model_unavailable"
 
 
@@ -132,6 +135,16 @@ def test_options_prioritize_nest_full_over_member_quota_and_model_state() -> Non
     options = service.get_options(principal(), GetAdoptionOptionsQuery())
 
     assert options.availability == "nest_full"
+
+
+def test_candidate_creation_rejects_a_species_without_a_complete_runtime_package() -> None:
+    service = AdoptionService(Policy(), Persistence())
+    command = CreateCandidateSetCommand(
+        **{**candidate_command().__dict__, "species_id": "cat"}
+    )
+
+    with pytest.raises(AdoptionInvalid, match="cat"):
+        service.create_candidate_set(principal(), command)
 
 
 def test_candidate_reply_and_reservation_preserve_accepted_snapshot() -> None:

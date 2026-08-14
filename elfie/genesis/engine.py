@@ -5,6 +5,8 @@ from __future__ import annotations
 import random
 from typing import Mapping, Sequence
 
+from elfie.profile import get_species_definition
+
 from .appearance import appearance_fit, distance, generate_appearance, signature
 from .contracts import (
     CANDIDATE_ROLES,
@@ -41,6 +43,18 @@ _STAGE_RANGES: Mapping[str, Mapping[str, tuple[int, int]]] = {
         "mature": (72, 167),
         "elder": (168, 240),
     },
+    "cat": {
+        "youth": (6, 23),
+        "young_adult": (24, 71),
+        "mature": (72, 167),
+        "elder": (168, 240),
+    },
+}
+_DEFAULT_STAGE_RANGES: Mapping[str, tuple[int, int]] = {
+    "youth": (6, 23),
+    "young_adult": (24, 71),
+    "mature": (72, 167),
+    "elder": (168, 240),
 }
 
 
@@ -232,7 +246,8 @@ class GenesisEngine:
 
     @staticmethod
     def _age_months(species_id: str, stage: str, rng: random.Random) -> int:
-        minimum, maximum = _STAGE_RANGES[species_id][stage]
+        ranges = _STAGE_RANGES.get(species_id, _DEFAULT_STAGE_RANGES)
+        minimum, maximum = ranges[stage]
         return rng.randint(minimum, maximum)
 
     @staticmethod
@@ -246,8 +261,10 @@ class GenesisEngine:
     ) -> None:
         if batch not in (1, 2, 3):
             raise GenesisError("Genesis候选批次必须是1、2或3")
-        if species not in ("dog", "fox"):
-            raise GenesisError(f"不支持的物种: {species}")
+        try:
+            get_species_definition(species)
+        except ValueError as error:
+            raise GenesisError(f"不支持的物种: {species}") from error
         if stage not in _STAGES + ("any",):
             raise GenesisError(f"不支持的生命阶段: {stage}")
         if gender not in _GENDERS + ("any",):

@@ -66,8 +66,8 @@ func _init() -> void:
 		return
 	var invalid := controller.sync_actors([
 		{
-			"actor_id": "cat-1",
-			"species": "cat",
+			"actor_id": "bird-1",
+			"species": "bird",
 			"spawn_anchor_id": "dorm-01/bed-03",
 			"appearance": {},
 		},

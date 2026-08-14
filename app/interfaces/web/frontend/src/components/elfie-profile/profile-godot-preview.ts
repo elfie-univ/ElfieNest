@@ -47,18 +47,44 @@ let requestSequence = 0
 
 export function createProfileGodotPreview({ frame, onEvent }: ProfileGodotPreviewOptions): ProfileGodotPreview {
   const pendingCaptures = new Map<string, PendingCapture>()
+  let readyNotified = false
+  let readyPollTimer: number | undefined
+
+  function notifyReady(): void {
+    if (readyNotified) return
+    readyNotified = true
+    if (readyPollTimer !== undefined) {
+      window.clearInterval(readyPollTimer)
+      readyPollTimer = undefined
+    }
+    onEvent({ kind: "ready" })
+  }
+
+  function pollReadyFlag(): void {
+    try {
+      if (frame.contentWindow?.__elfieLabReady === true) notifyReady()
+    } catch {
+      // The iframe may still be transitioning into its same-origin document.
+    }
+  }
 
   function sendWithId(requestId: string, action: string, payload: PreviewPayload): void {
     const receiver = frame.contentWindow?.elfieLabEnqueue
-    if (receiver === undefined) {
-      throw new ProfileGodotPreviewError("preview_not_ready")
-    }
-    receiver(JSON.stringify({
+    const encoded = JSON.stringify({
       channel: "elfie-lab",
       action,
       request_id: requestId,
       payload,
-    }))
+    })
+    if (receiver !== undefined) {
+      receiver(encoded)
+      return
+    }
+    const target = frame.contentWindow
+    if (target === null) {
+      throw new ProfileGodotPreviewError("preview_not_ready")
+    }
+    target.postMessage(encoded, window.location.origin)
   }
 
   function send(action: string, payload: PreviewPayload = {}): void {
@@ -93,7 +119,7 @@ export function createProfileGodotPreview({ frame, onEvent }: ProfileGodotPrevie
 
   function handleMessage(message: GodotPreviewMessage): void {
     if (message.event === "ready") {
-      onEvent({ kind: "ready" })
+      notifyReady()
       return
     }
     if (message.event === "portrait") {
@@ -133,12 +159,18 @@ export function createProfileGodotPreview({ frame, onEvent }: ProfileGodotPrevie
 
   function dispose(): void {
     window.removeEventListener("message", onMessage)
+    if (readyPollTimer !== undefined) {
+      window.clearInterval(readyPollTimer)
+      readyPollTimer = undefined
+    }
     const error = new ProfileGodotPreviewError("preview_closed")
     for (const pending of pendingCaptures.values()) pending.reject(error)
     pendingCaptures.clear()
   }
 
   window.addEventListener("message", onMessage)
+  readyPollTimer = window.setInterval(pollReadyFlag, 100)
+  pollReadyFlag()
   return { capture, dispose, send }
 }
 
@@ -175,6 +207,7 @@ function captureFromDataUrl(dataUrl: string): AppearanceCapture {
 
 declare global {
   interface Window {
+    __elfieLabReady?: boolean
     elfieLabEnqueue?: (payload: string) => void
   }
 }

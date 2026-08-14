@@ -7,6 +7,7 @@ import re
 from typing import Any, Mapping, Protocol
 
 from elfie.genesis import BIG_FIVE_TRAITS, CandidateReveal, GenesisCandidate
+from elfie.profile import get_species_definition
 
 from .model_execution_adapter import StructuredCapabilityView
 from .model_execution_contracts import (
@@ -232,9 +233,29 @@ def _validate_name(value: str, species_id: str) -> None:
         "anonymous",
         "匿名候选",
     }
-    species_tokens = (
-        {"fox", "狐", "狐狸"} if species_id == "fox" else {"dog", "狗", "小狗"}
-    )
+    species_tokens = {
+        "fox",
+        "狐",
+        "狐狸",
+        "dog",
+        "狗",
+        "小狗",
+        "cat",
+        "猫",
+        "小猫",
+    }
+    try:
+        species = get_species_definition(species_id)
+    except ValueError:
+        species = None
+    if species is not None:
+        species_tokens.update(
+            {
+                _normalized_name(species.display_name),
+                _normalized_name(species.display_name_zh),
+                _normalized_name(species.canon_id),
+            }
+        )
     if normalized in forbidden or any(token in normalized for token in species_tokens):
         raise ValueError(
             "Adoption reveal name must be a proper name, not a species label"

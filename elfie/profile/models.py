@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace
 from typing import Any, Dict, Type, TypeVar, cast
 
+from .species_registry import SUPPORTED_SPECIES
+
 PROFILE_SCHEMA_VERSION = 1
-SUPPORTED_SPECIES = ("dog", "fox")
 SUPPORTED_MORPHOLOGIES = ("biped", "quadruped")
 
 
@@ -138,10 +139,22 @@ class EmbodimentProfile:
 
 
 @dataclass(frozen=True)
+class ElfieOrigin:
+    """Immutable origin and arrival facts owned by the Elfie Profile."""
+
+    home_world_id: str = "elfaria"
+    home_region_id: str = "mistyville"
+    birth_at: str | None = None
+    arrival_mode: str = "earth_gateway"
+    arrival_base_id: str = "elfie_nest"
+
+
+@dataclass(frozen=True)
 class ElfieIdentity:
     elfie_id: str
     display_name: str
     species_id: str
+    origin: ElfieOrigin = field(default_factory=ElfieOrigin)
 
 
 @dataclass(frozen=True)
@@ -176,6 +189,17 @@ class ElfieProfile:
                 f"不支持的 species_id={self.identity.species_id!r}，"
                 f"可选: {', '.join(SUPPORTED_SPECIES)}"
             )
+        origin = self.identity.origin
+        for field_name in (
+            "home_world_id",
+            "home_region_id",
+            "arrival_mode",
+            "arrival_base_id",
+        ):
+            if not getattr(origin, field_name).strip():
+                raise ValueError(f"origin.{field_name} 不能为空")
+        if origin.home_world_id != "elfaria":
+            raise ValueError("当前 Profile 只支持 Elfaria 作为原生世界")
         if self.appearance.genome_version != 1:
             raise ValueError("当前只支持 appearance genome_version=1")
         if self.embodiment.primary_morphology not in SUPPORTED_MORPHOLOGIES:
@@ -264,9 +288,14 @@ class ElfieProfile:
                     str(item) for item in raw_morphologies
                 )
         provenance_raw = _mapping(raw.get("provenance"))
+        identity_fields = _construct(ElfieIdentity, identity_raw)
+        identity_fields = replace(
+            identity_fields,
+            origin=_construct(ElfieOrigin, _mapping(identity_raw.get("origin"))),
+        )
         profile = cls(
             schema_version=int(raw.get("schema_version", PROFILE_SCHEMA_VERSION)),
-            identity=_construct(ElfieIdentity, identity_raw),
+            identity=identity_fields,
             appearance=AppearanceGenome(
                 genome_version=int(appearance_raw.get("genome_version", 1)),
                 species_profile_version=int(

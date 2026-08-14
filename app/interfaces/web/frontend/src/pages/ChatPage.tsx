@@ -11,11 +11,13 @@ import {
 } from "../api/communication"
 import { ApiError } from "../api/http"
 import {
+  adoptionInfo,
   elfies,
   elfieFoodPolicy,
   profile,
   type ElfieFoodPolicy,
   type ElfieProfileDetail,
+  type AdoptionSpecies,
 } from "../api/client"
 import { AdoptionJourneyDialog } from "../components/adoption/AdoptionJourneyDialog"
 import { AccountMenuPanel } from "../components/AccountMenu"
@@ -81,6 +83,7 @@ export function ChatPage() {
   const [history, setHistory] = useState<readonly ChatMessage[]>([])
   const [selectedProfile, setSelectedProfile] = useState<ElfieProfileDetail | null>(null)
   const [selectedFoodPolicy, setSelectedFoodPolicy] = useState<ElfieFoodPolicy | null>(null)
+  const [speciesCatalog, setSpeciesCatalog] = useState<ReadonlyMap<string, AdoptionSpecies>>(() => new Map())
   const [failure, setFailure] = useState<ChatFailure | null>(null)
   const [draft, setDraft] = useState("")
   const [showAdoption, setShowAdoption] = useState(false)
@@ -144,6 +147,16 @@ export function ChatPage() {
         setData(null)
         setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
       })
+  }, [user])
+
+  useEffect(() => {
+    if (user === null) {
+      setSpeciesCatalog(new Map())
+      return
+    }
+    void adoptionInfo()
+      .then((info) => setSpeciesCatalog(new Map(info.species.map((species) => [species.species_id, species]))))
+      .catch(() => setSpeciesCatalog(new Map()))
   }, [user])
 
   useEffect(() => {
@@ -339,6 +352,7 @@ export function ChatPage() {
                 selectedId === null ? null : data?.adopterAccountIds[selectedId] ?? null,
                 selectedFoodPolicy,
               )}
+              speciesDefinition={speciesCatalog.get(selectedProfile?.species_id ?? selected?.species_id ?? "")}
             />
           </section>
         )}

@@ -108,7 +108,7 @@ authority role, or displayless Linux Dedicated. Godot is responsible for:
   zone/anchor semantic catalog;
 - Generating the navigation mesh, per-physics-frame pathfinding, collision and
   avoidance;
-- Loading the fox / dog character models and playing movement, posture and
+- Loading the fox / dog / cat character scenes and playing movement, posture and
   facial animations;
 - Computing tactile contacts and speech listeners and reporting typed events
   back with revision/generation.

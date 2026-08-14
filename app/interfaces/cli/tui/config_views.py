@@ -65,7 +65,6 @@ def show_config(
     adoption = settings.get_elfie_settings(principal, GetElfieSettingsQuery())
     print("  【Adoption Config】")
     print(f"    Max elfies per user: {adoption.max_elfies_per_user}")
-    print("    Allowed species: " + ", ".join(adoption.allowed_species_ids))
     enabled = tuple(
         name for name, is_enabled in adoption.personality_presets_enabled if is_enabled
     )

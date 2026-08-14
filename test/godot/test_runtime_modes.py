@@ -34,7 +34,7 @@ def test_observer_web_mode_keeps_the_same_origin_ready_signal_without_camera_upl
     # When: the observer mode completes startup.
     # Then: it posts the existing same-origin signal without a JPEG compatibility path.
     assert "requires_web_ready_signal()" in main_source
-    assert 'postMessage("elfienest:godot-web-ready", window.location.origin)' in (
+    assert "postMessage('elfienest:godot-web-ready', window.location.origin)" in (
         main_source
     )
     assert "/api/godot-camera" not in main_source

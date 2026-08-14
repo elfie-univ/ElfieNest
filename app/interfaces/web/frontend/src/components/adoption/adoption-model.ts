@@ -18,7 +18,7 @@ export type AdoptionScreen =
   | "committing"
   | "arrival"
 
-export type SpeciesId = "dog" | "fox"
+export type SpeciesId = string
 export type LifeStage = "youth" | "young_adult" | "mature" | "elder" | "any"
 export type GenderPreference = "male" | "female" | "any"
 export type AppearanceChoice = "small" | "standard" | "tall" | "any"

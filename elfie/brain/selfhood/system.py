@@ -85,6 +85,7 @@ class SelfhoodSystem:
         description = _optional_text(
             data.get("self_description") or metadata_map.get("description")
         )
+        species_name = _optional_text(data.get("species_name"))
         speech_style_data = data.get("speech_style")
         speech_style_map = (
             speech_style_data if isinstance(speech_style_data, Mapping) else {}
@@ -98,8 +99,22 @@ class SelfhoodSystem:
             unknown_fields.append("personality.big_five")
         if description is None:
             unknown_fields.append("self_description")
+        if species_name is None:
+            unknown_fields.append("species_name")
         if not greetings and verbal_tick is None:
             unknown_fields.append("speech_style")
+        identity_facts = _text_tuple(data.get("identity_facts"))
+        behavior_anchors = _text_tuple(data.get("behavior_anchors"))
+        knowledge_boundaries = _text_tuple(data.get("knowledge_boundaries"))
+        norms = _text_tuple(data.get("norms"))
+        if not identity_facts:
+            unknown_fields.append("identity_facts")
+        if not behavior_anchors:
+            unknown_fields.append("behavior_anchors")
+        if not knowledge_boundaries:
+            unknown_fields.append("knowledge_boundaries")
+        if not norms:
+            unknown_fields.append("norms")
         derivation_data = data.get("derivation")
         derivation_map = derivation_data if isinstance(derivation_data, Mapping) else {}
         snapshot = SelfhoodSnapshot(
@@ -108,6 +123,7 @@ class SelfhoodSystem:
             profile_revision=profile_revision,
             big_five=big_five,
             self_description=description,
+            species_name=species_name,
             speech_style=SelfhoodSpeechStyle(
                 greetings=greetings,
                 verbal_tick=verbal_tick,
@@ -124,7 +140,11 @@ class SelfhoodSystem:
                     else None
                 ),
             ),
+            norms=norms,
             unknown_fields=tuple(unknown_fields),
+            identity_facts=identity_facts,
+            behavior_anchors=behavior_anchors,
+            knowledge_boundaries=knowledge_boundaries,
             freshness="current" if data else "unknown",
         )
         return cls(
@@ -242,12 +262,16 @@ class SelfhoodSystem:
                 "description": snapshot.self_description or "",
             },
             "self_description": snapshot.self_description,
+            "species_name": snapshot.species_name,
             "speech_style": {
                 "greetings": list(snapshot.speech_style.greetings),
                 "verbal_ticks": snapshot.speech_style.verbal_tick,
             },
             "derivation": snapshot.derivation.model_dump(),
             "norms": list(snapshot.norms),
+            "identity_facts": list(snapshot.identity_facts),
+            "behavior_anchors": list(snapshot.behavior_anchors),
+            "knowledge_boundaries": list(snapshot.knowledge_boundaries),
         }
 
     def _validate_value(
@@ -259,6 +283,15 @@ class SelfhoodSystem:
             return "profile_revision_mismatch"
         if candidate.revision <= current.revision:
             return "selfhood_revision_not_advanced"
+        if any(
+            (
+                candidate.species_name != current.species_name,
+                candidate.identity_facts != current.identity_facts,
+                candidate.behavior_anchors != current.behavior_anchors,
+                candidate.knowledge_boundaries != current.knowledge_boundaries,
+            )
+        ):
+            return "selfhood_identity_anchors_immutable"
         changed_traits = tuple(
             key
             for key in _BIG_FIVE_KEYS

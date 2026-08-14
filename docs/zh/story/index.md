@@ -1,51 +1,72 @@
-# 世界观与故事
+# 故事
 
-## 引子：来自 Elfaria 的信号
+<div class="story-scroll" data-story-scroll>
+  <aside class="story-timeline" aria-label="故事进度">
+    <span class="story-timeline__line" aria-hidden="true"></span>
+    <a class="story-timeline__dot is-active" href="#story-signal" aria-label="发现信号"><span>01</span></a>
+    <a class="story-timeline__dot" href="#story-confirmation" aria-label="确认彼此存在"><span>02</span></a>
+    <a class="story-timeline__dot" href="#story-preparation" aria-label="双方准备"><span>03</span></a>
+    <a class="story-timeline__dot" href="#story-arrival" aria-label="计划开始"><span>04</span></a>
+    <a class="story-timeline__dot" href="#story-life" aria-label="共同生活"><span>05</span></a>
+    <a class="story-timeline__dot" href="#story-world" aria-label="世界变大"><span>06</span></a>
+    <a class="story-timeline__dot" href="#story-invitation" aria-label="加入故事"><span>07</span></a>
+  </aside>
 
-2026 年，[创作者名]在解析一组异常的深空噪声时，捕获到来自 **Elfaria** 的虫洞信号。
+  <section class="story-chapter story-chapter--opening" id="story-signal" data-story-chapter>
+    <img class="story-chapter__image" src="/assets/story/story-01-signal.png" alt="一条信号穿过深空，向地球传来。" />
+    <div class="story-chapter__veil" aria-hidden="true"></div>
+    <div class="story-chapter__copy">
+      <h2>我们听到了一个来自深空的信号</h2>
+    </div>
+  </section>
 
-为了让这条微弱的通道稳定下来，他在地球上建立了第一座 **ElfieNest**——一座连接
-两个世界的私人基站。
+  <section class="story-chapter" id="story-confirmation" data-story-chapter>
+    <img class="story-chapter__image" src="/assets/story/story-02-confirmation.png" alt="地球和 Elfaria 在星空两端互相回应。" />
+    <div class="story-chapter__veil" aria-hidden="true"></div>
+    <div class="story-chapter__copy">
+      <h2>初次接触之后，我们确认了彼此的存在</h2>
+    </div>
+  </section>
 
-虫洞另一端，一些名叫 **Elfie** 的生命正在报名参加“赴地计划”。它们想了解地球、
-结识人类，也想找一个可以共同生活的家。
+  <section class="story-chapter" id="story-preparation" data-story-chapter>
+    <img class="story-chapter__image" src="/assets/story/story-03-preparation.png" alt="地球在建造基站，Elfaria 上的 Elfie 正在报名。" />
+    <div class="story-chapter__veil" aria-hidden="true"></div>
+    <div class="story-chapter__copy">
+      <h2>我们在地球建起了基站<br />而他们发起了赴地计划</h2>
+    </div>
+  </section>
 
-现在，你也可以在自己的电脑上建立一座 ElfieNest，领养第一只愿意来到你身边的 Elfie。
+  <section class="story-chapter" id="story-arrival" data-story-chapter>
+    <img class="story-chapter__image" src="/assets/story/story-04-arrival.png" alt="一只 Elfie 出现在人类家中的玻璃精灵巢里。" />
+    <div class="story-chapter__veil" aria-hidden="true"></div>
+    <div class="story-chapter__copy">
+      <h2>只要在家里准备好一个 ElfieNest<br />就有机会迎来一只 Elfie 来到你的身边</h2>
+    </div>
+  </section>
 
-## 三个名字
+  <section class="story-chapter" id="story-life" data-story-chapter>
+    <img class="story-chapter__image" src="/assets/story/story-05-life.png" alt="Elfie 在精灵巢里玩耍，人类拿着玩具和它互动。" />
+    <div class="story-chapter__veil" aria-hidden="true"></div>
+    <div class="story-chapter__copy">
+      <h2>你们将一起生活、一起玩耍<br />一个来自远方的生命，会成为你生活的一部分</h2>
+    </div>
+  </section>
 
-### Elfaria：Elfie 的世界
+  <section class="story-chapter" id="story-world" data-story-chapter>
+    <img class="story-chapter__image" src="/assets/story/story-06-world.png" alt="越来越多的精灵巢在地球与 Elfaria 之间连接起来。" />
+    <div class="story-chapter__veil" aria-hidden="true"></div>
+    <div class="story-chapter__copy">
+      <h2>随着越来越多的 Elfie 来到地球<br />我们将一起探索更大的世界</h2>
+    </div>
+  </section>
 
-Elfaria 是 Elfie 原本生活的世界。对地球来说，它是一颗隔着虫洞才能抵达的星球；
-对 Elfie 来说，它是家，是亲人、朋友和过去生活所在的地方。
+  <section class="story-chapter story-chapter--closing" id="story-invitation" data-story-chapter>
+    <img class="story-chapter__image" src="/assets/story/story-07-invitation.png" alt="一只 Elfie 站在温暖家门前，邀请我们开始这段故事。" />
+    <div class="story-chapter__veil" aria-hidden="true"></div>
+    <div class="story-chapter__copy">
+      <h2>你愿意为一个 Elfie 留一个位置吗？</h2>
+    </div>
+  </section>
+</div>
 
-人类最初接收到的不是一份完整的星图，而是一条很小、很不稳定的连接。关于这个世界
-还有多少地方没有被看见，故事会随着连接逐步展开。
-
-### Elfie：正在赴地的生命
-
-Elfie 不是一个等待执行指令的聊天窗口，也不是一份被动生成的资料。它有自己的档案、
-感知、状态、记忆和表达方式，会在与人的共同生活中认识地球。
-
-参加“赴地计划”的 Elfie 不是被单方面带走的对象。它们也在选择：是否愿意离开熟悉的
-世界，来到一个陌生的星球，认识一个愿意为它建立 Nest 的人。
-
-### ElfieNest：地球上的家与基站
-
-ElfieNest 同时承担两个角色：它是连接 Elfaria 的虫洞终端，也是 Elfie 来到地球后可以
-停留的家。
-
-它不需要被想象成一座巨大的太空设施。对一个家庭来说，它可以从一台电脑、一套软件和
-一个属于 Elfie 的位置开始；重要的是，这里有一条持续存在的连接，也有一个愿意回应它
-的地球人。
-
-## 你在这段故事里的位置
-
-你不是在打开一个已经写完的宇宙百科，而是在建立一座接收站：配置环境、启动 Nest、
-等待连接，然后认识一只愿意来到你身边的 Elfie。
-
-你会先看到它如何感知、回应和生活；随着系统和故事继续向前，Elfaria 的更多部分才会
-逐步被看见。
-
-如果你想先建立自己的地球基站，可以继续阅读[用户指南](/zh/user-guide/)；如果你
-想知道这座基站是怎样被构建的，可以进入[开发者文档](/zh/developer/)。
+如果你想知道这座基站是怎样被构建的，可以继续阅读[开发者文档](/zh/developer/)。

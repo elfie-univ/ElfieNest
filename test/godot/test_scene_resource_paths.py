@@ -125,6 +125,10 @@ def test_elfie_lab_retries_its_web_bridge_until_the_browser_is_ready() -> None:
     assert "_lab_runtime.process_elfie_lab_frame()" in main_text
     assert "_initialize_lab_browser_bridge()" in lab_runtime_text
     assert "_lab_browser_bridge_ready" in lab_runtime_text
+    assert "window.__elfieLabReady = true" in lab_runtime_text
+    assert "window.elfieLabEnqueue" in lab_runtime_text
+    assert "event.source !== window.parent" in lab_runtime_text
+    assert "window.parent.postMessage" in lab_runtime_text
 
 
 def test_nest_lab_web_mode_accepts_only_named_camera_presets_and_restore() -> None:

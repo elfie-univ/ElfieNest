@@ -333,6 +333,10 @@ class BrainCoordinator:
         self._inflight = None
         if self._on_state_change is not None:
             self._on_state_change()
+        # Perception controls posted while the worker was running only wake
+        # the coordinator once. Re-evaluate the workspace after closing the
+        # claim so a queued follow-up message can form its own Turn.
+        self._maybe_start_turn()
 
     def _mark_stale(self, inflight: InFlightTurn, reason: str) -> None:
         if inflight.terminal_status is not None:

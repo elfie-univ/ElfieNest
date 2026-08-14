@@ -8,7 +8,6 @@ export const RuntimeSettingsSchema = z.object({
 
 export const ElfieSettingsSchema = z.object({
   max_elfies_per_user: z.number().int().min(1).max(32),
-  allowed_species_ids: z.array(z.enum(["dog", "fox"])).min(1),
   personality_presets_enabled: z.record(z.string(), z.boolean()),
 }).strict()
 

@@ -27,7 +27,7 @@ from infrastructure.platform import ElfieFactoryAdapter
 
 class Policy:
     def load_policy(self) -> AdoptionPolicyRecord:
-        return AdoptionPolicyRecord(3, ("dog", "fox"), ("好奇探索",))
+        return AdoptionPolicyRecord(3, ("好奇探索",))
 
 
 def _client(tmp_path: Path) -> tuple[TestClient, str]:

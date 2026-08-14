@@ -365,13 +365,13 @@ class TestCallOpenaiCompatibleApi:
             return_value=mock_response,
         ):
             result, usage = _call_openai_compatible_api(
-                api_base="https://jd.example/v1",
+                api_base="https://ark.example/api/coding/v3",
                 api_key="test-key",
-                model_name="GLM-5",
+                model_name="deepseek-v4-flash-260425",
                 messages=[{"role": "user", "content": "Reply with OK."}],
                 temperature=0.0,
                 max_tokens=8,
-                provider="jdcloud_coding_plan",
+                provider="volcengine_coding_plan",
             )
 
         assert result == "validated by reasoning"

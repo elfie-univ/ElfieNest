@@ -173,8 +173,12 @@ def test_application_contract_has_bilingual_authority_markers() -> None:
     chinese_contract = (
         PROJECT_ROOT / "docs/zh/developer/contracts/application.md"
     ).read_text(encoding="utf-8")
-    assert "**Contract version:** 1.7" in english_contract
-    assert "**契约版本：** 1.7" in chinese_contract
+    assert "**Contract version:** 1.8" in english_contract
+    assert "**契约版本：** 1.8" in chinese_contract
+    assert "immutable species registry" in english_contract
+    assert "不可变物种注册表" in chinese_contract
+    assert "must not expose, persist or enforce a species" in english_contract
+    assert "不得暴露、持久化或" in chinese_contract
     assert "test_app_layer_boundaries.py" in english_contract
     assert "test_app_layer_boundaries.py" in chinese_contract
 

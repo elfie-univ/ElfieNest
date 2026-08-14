@@ -24,7 +24,6 @@ class SettingsAdoptionPolicyAdapter:
             enabled = tuple(PERSONALITY_PRESETS)
         return AdoptionPolicyRecord(
             default_elfie_limit=settings.max_elfies_per_user,
-            allowed_species_ids=settings.allowed_species_ids,
             enabled_personality_styles=enabled,
         )
 

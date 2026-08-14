@@ -94,7 +94,7 @@ export function NamingScreen({ candidate, candidateImageUrl, candidateLabel, cus
             <span aria-hidden="true" className="adoption-name-option__radio">
               <RadioGroupPrimitive.Indicator className="adoption-name-option__indicator" forceMount><Icon name="check" size={14} /></RadioGroupPrimitive.Indicator>
             </span>
-            <span>{t("adoption.journey.naming.suggested", { name: candidate.reveal?.suggestedName ?? "暂未生成" })}</span>
+            <span>{t("adoption.journey.naming.suggested", { name: candidate.reveal?.suggestedName ?? t("adoption.journey.naming.suggestedUnavailable") })}</span>
           </RadioGroupPrimitive.Item>
           <div className="adoption-name-option-row" data-selected={nameMode === "custom" ? "true" : "false"}>
             <RadioGroupPrimitive.Item className="adoption-name-option" value="custom">

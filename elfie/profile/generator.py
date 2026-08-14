@@ -15,6 +15,7 @@ from .models import (
     BodyAppearance,
     CoatAppearance,
     ElfieIdentity,
+    ElfieOrigin,
     ElfieProfile,
     EmbodimentProfile,
     FaceAppearance,
@@ -123,7 +124,10 @@ class AppearanceGenerator:
                 ear_size_bias=local(),
                 ear_width_bias=local(),
                 ear_tilt_bias=local(0.28),
-                ear_droop=unit(0.18 if species_id == "fox" else 0.35, 0.17),
+                ear_droop=unit(
+                    0.10 if species_id == "cat" else 0.18 if species_id == "fox" else 0.35,
+                    0.17,
+                ),
                 ear_asymmetry=local(0.12),
                 tail_length_bias=local(),
                 tail_thickness_bias=local(),
@@ -163,6 +167,12 @@ class AppearanceGenerator:
                 }
                 if species_id == "fox"
                 else {
+                    "whisker_sensitivity_bias": local(),
+                    "ear_focus_bias": local(),
+                    "tail_balance_bias": local(),
+                }
+                if species_id == "cat"
+                else {
                     "jowl_fullness_bias": local(),
                     "ear_fold_bias": local(),
                     "tail_curl_bias": local(),
@@ -183,6 +193,7 @@ def create_visual_profile(
     height_direction: str = "standard",
     build_direction: str = "standard",
     appearance_overrides: Mapping[str, Any] | None = None,
+    origin: ElfieOrigin | None = None,
 ) -> ElfieProfile:
     """创建当前阶段可直接持久化的视觉个体档案。"""
     appearance = AppearanceGenerator(seed).generate(
@@ -197,6 +208,7 @@ def create_visual_profile(
             elfie_id=elfie_id,
             display_name=display_name,
             species_id=species_id,
+            origin=origin or ElfieOrigin(),
         ),
         appearance=appearance,
         embodiment=EmbodimentProfile(

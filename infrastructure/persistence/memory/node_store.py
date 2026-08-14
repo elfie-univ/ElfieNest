@@ -207,6 +207,50 @@ class KnowledgeNodeStoreMixin:
             )
         elif entity_type == "person":
             self.conn.execute(
-                "INSERT INTO people (entity_id, display_name, updated_at) VALUES (?, ?, ?)",
-                (node.id, node.content, now),
+                """INSERT INTO people (
+                       entity_id, display_name, relationship_label,
+                       closeness_score, trust_score, importance_score,
+                       is_owner, profile_summary, preferences_json, updated_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    node.id,
+                    node.metadata.get("display_name", node.content),
+                    node.metadata.get("relationship_label"),
+                    _bounded_score(node.metadata.get("closeness_score")),
+                    _bounded_score(node.metadata.get("trust_score")),
+                    _bounded_score(node.metadata.get("importance_score")),
+                    1 if node.metadata.get("is_owner") is True else 0,
+                    _joined_facts(node.metadata.get("shared_facts")),
+                    json.dumps(
+                        {"unknown_facts": node.metadata.get("unknown_facts", [])},
+                        ensure_ascii=False,
+                    ),
+                    node.updated_at or now,
+                ),
             )
+        elif entity_type == "elfie":
+            self.conn.execute(
+                """INSERT INTO known_elfies (
+                       entity_id, elfie_id, display_name, species, is_self,
+                       relationship_label, closeness_score, profile_summary,
+                       updated_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    node.id,
+                    node.metadata.get("elfie_id"),
+                    node.metadata.get("display_name", node.content),
+                    node.metadata.get("species"),
+                    1 if node.metadata.get("is_self") is True else 0,
+                    node.metadata.get("relationship_label"),
+                    _bounded_score(node.metadata.get("closeness_score")),
+                    node.content,
+                    node.updated_at or now,
+                ),
+            )
+
+
+def _joined_facts(value: object) -> str | None:
+    if not isinstance(value, (list, tuple)):
+        return None
+    facts = [str(item).strip() for item in value if str(item).strip()]
+    return "；".join(facts) or None

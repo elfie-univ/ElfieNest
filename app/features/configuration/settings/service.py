@@ -22,7 +22,6 @@ from .models import (
     UpdateSecuritySettingsCommand,
 )
 from .port_models import (
-    SpeciesId,
     StoredElfieSettings,
     StoredLoginRateLimit,
     StoredRuntimeSettings,
@@ -31,7 +30,6 @@ from .port_models import (
 from .ports import SecuritySettingsChangedPort, SettingsStorePort
 
 MAX_ELFIES_PER_MACHINE: Final = 32
-ALLOWED_SPECIES_IDS: Final[frozenset[SpeciesId]] = frozenset({"dog", "fox"})
 
 
 class SettingsService:
@@ -64,11 +62,6 @@ class SettingsService:
                 current.max_elfies_per_user
                 if command.max_elfies_per_user is None
                 else command.max_elfies_per_user
-            ),
-            allowed_species_ids=(
-                current.allowed_species_ids
-                if command.allowed_species_ids is None
-                else command.allowed_species_ids
             ),
             personality_presets_enabled=(
                 current.personality_presets_enabled
@@ -173,15 +166,6 @@ class SettingsService:
                 "max_elfies_per_user",
                 f"必须在 1 到 {MAX_ELFIES_PER_MACHINE} 之间",
             )
-        if not settings.allowed_species_ids:
-            raise SettingsValidationError("allowed_species_ids", "至少需要保留一个物种")
-        unknown = set(settings.allowed_species_ids) - ALLOWED_SPECIES_IDS
-        if unknown:
-            raise SettingsValidationError(
-                "allowed_species_ids",
-                f"不支持的物种: {', '.join(sorted(unknown))}",
-            )
-
     @staticmethod
     def _validate_security_settings(settings: StoredSecuritySettings) -> None:
         if settings.session_ttl_days < 1:
@@ -195,7 +179,6 @@ class SettingsService:
     def _elfie_result(settings: StoredElfieSettings) -> ElfieSettingsResult:
         return ElfieSettingsResult(
             max_elfies_per_user=settings.max_elfies_per_user,
-            allowed_species_ids=settings.allowed_species_ids,
             personality_presets_enabled=settings.personality_presets_enabled,
         )
 

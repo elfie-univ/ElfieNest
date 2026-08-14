@@ -90,6 +90,18 @@ static func visual_bounds(visual_root: Node3D) -> AABB:
 				has_bounds = true
 	if has_bounds:
 		return bounds.grow(0.14)
+	for node in visual_root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance == null or mesh_instance.mesh == null:
+			continue
+		var mesh_bounds := mesh_instance.global_transform * mesh_instance.get_aabb()
+		if has_bounds:
+			bounds = bounds.merge(mesh_bounds)
+		else:
+			bounds = mesh_bounds
+			has_bounds = true
+	if has_bounds:
+		return bounds.grow(0.14)
 	return bounds
 
 

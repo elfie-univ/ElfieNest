@@ -19,6 +19,12 @@ def test_xfyun_glm_ids_have_reasoning_but_not_vision():
     assert known_capabilities("xopglm51") == frozenset({"text", "reasoning"})
 
 
+def test_volcengine_glm_47_id_has_reasoning_capability():
+    assert known_capabilities("volcengine_coding_plan_0001/glm-4.7") == frozenset(
+        {"text", "reasoning"}
+    )
+
+
 def test_minimax_has_a_different_official_xfyun_id():
     profile = resolve_model_capability_profile("xminimaxm25")
 

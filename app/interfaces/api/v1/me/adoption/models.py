@@ -31,7 +31,7 @@ class CandidateAppearanceRequest(BaseModel):
 class CandidateSetRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    species_id: Literal["dog", "fox"]
+    species_id: str = Field(min_length=1)
     life_stage: Literal["youth", "young_adult", "mature", "elder", "any"]
     gender: Literal["male", "female", "any"]
     appearance: CandidateAppearanceRequest
@@ -107,11 +107,23 @@ class AdoptionNestCapacityResponse(BaseModel):
     remaining: int
 
 
+class AdoptionSpeciesResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    species_id: str = Field(min_length=1)
+    canon_id: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    display_name_zh: str = Field(min_length=1)
+    earth_shape_label: str = Field(min_length=1)
+    scene_id: str = Field(min_length=1)
+    sort_order: int
+
+
 class AdoptionOptionsResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     personality_styles: tuple[str, ...]
-    species_ids: tuple[Literal["dog", "fox"], ...]
+    species: tuple[AdoptionSpeciesResponse, ...]
     heights: tuple[str, ...]
     builds: tuple[str, ...]
     life_stages: tuple[str, ...]
@@ -125,7 +137,18 @@ class AdoptionOptionsResponse(BaseModel):
     def from_result(cls, result: AdoptionOptionsResult) -> AdoptionOptionsResponse:
         return cls(
             personality_styles=result.personality_styles,
-            species_ids=result.species_ids,
+            species=tuple(
+                AdoptionSpeciesResponse(
+                    species_id=species.species_id,
+                    canon_id=species.canon_id,
+                    display_name=species.display_name,
+                    display_name_zh=species.display_name_zh,
+                    earth_shape_label=species.earth_shape_label,
+                    scene_id=species.scene_id,
+                    sort_order=species.sort_order,
+                )
+                for species in result.species
+            ),
             heights=result.heights,
             builds=result.builds,
             life_stages=result.life_stages,
@@ -148,7 +171,7 @@ class AdoptionCandidateResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     candidate_id: str
-    species_id: Literal["dog", "fox"]
+    species_id: str = Field(min_length=1)
     life_stage: Literal["youth", "young_adult", "mature", "elder"]
     age_months: int = Field(ge=1, le=240)
     gender: Literal["male", "female"]
@@ -236,7 +259,7 @@ class AdoptionResultResponse(BaseModel):
 
     elfie_id: str = Field(pattern=r"^[0-9]{8}$")
     name: str
-    species_id: Literal["dog", "fox"]
+    species_id: str = Field(min_length=1)
 
     @classmethod
     def from_result(cls, result: ResidentAdmissionResult) -> AdoptionResultResponse:
@@ -276,6 +299,7 @@ __all__ = (
     "AdoptionOptionsResponse",
     "AdoptionNestCapacityResponse",
     "AdoptionResultResponse",
+    "AdoptionSpeciesResponse",
     "CandidateAppearanceRequest",
     "CandidateRepliesRequest",
     "CandidateRepliesResponse",

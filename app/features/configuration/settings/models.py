@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from .port_models import SpeciesId
-
 
 @dataclass(frozen=True)
 class GetElfieSettingsQuery:
@@ -26,7 +24,6 @@ class GetSecuritySettingsQuery:
 @dataclass(frozen=True)
 class UpdateElfieSettingsCommand:
     max_elfies_per_user: Optional[int] = None
-    allowed_species_ids: Optional[Tuple[SpeciesId, ...]] = None
     personality_presets_enabled: Optional[Tuple[Tuple[str, bool], ...]] = None
 
 
@@ -55,7 +52,6 @@ class ResetSettingsCommand:
 @dataclass(frozen=True)
 class ElfieSettingsResult:
     max_elfies_per_user: int
-    allowed_species_ids: Tuple[SpeciesId, ...]
     personality_presets_enabled: Tuple[Tuple[str, bool], ...]
 
 

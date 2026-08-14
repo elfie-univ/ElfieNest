@@ -8,7 +8,6 @@ var _lab_preview: Node3D
 var _lab_camera: Camera3D
 var _actor_scenes: Dictionary
 var _lab_controller: Node
-var _lab_window: JavaScriptObject
 var _lab_browser_bridge_ready := false
 
 
@@ -82,13 +81,18 @@ func process_nest_lab_frame() -> void:
 func _initialize_lab_browser_bridge() -> void:
 	if _lab_browser_bridge_ready:
 		return
-	_lab_window = JavaScriptBridge.get_interface("window")
-	if _lab_window == null:
-		return
 	JavaScriptBridge.eval(
-		"(() => { window.__elfieLabQueue = [];"
+		"(() => { window.__elfieLabQueue = window.__elfieLabQueue || [];"
+		+ " window.__elfieLabReady = true;"
 		+ " window.elfieLabEnqueue = (data) => {"
 		+ " if (typeof data === 'string') window.__elfieLabQueue.push(data); };"
+		+ " window.addEventListener('message', (event) => {"
+		+ " if (event.origin !== window.location.origin || event.source !== window.parent) return;"
+		+ " const data = event.data;"
+		+ " if (typeof data === 'string') window.__elfieLabQueue.push(data);"
+		+ " else if (data && data.channel === 'elfie-lab')"
+		+ " window.__elfieLabQueue.push(JSON.stringify(data));"
+		+ " });"
 		+ " })()"
 	)
 	_lab_browser_bridge_ready = true
@@ -178,9 +182,11 @@ func _capture_lab_portrait(request_id: String) -> void:
 
 
 func _post_lab_message(event_name: String, payload: Dictionary) -> void:
-	if _lab_window == null:
-		return
-	_lab_window.parent.postMessage(
-		JSON.stringify({"channel": "elfie-lab", "event": event_name}.merged(payload)),
-		String(_lab_window.location.origin),
+	var message := {"channel": "elfie-lab", "event": event_name}.merged(payload)
+	var serialized := JSON.stringify(message)
+	# Use eval for the outbound handshake too. It does not depend on a window
+	# proxy being exposed by the Web export at the exact startup frame.
+	JavaScriptBridge.eval(
+		"window.parent.postMessage(%s, window.location.origin)"
+		% JSON.stringify(serialized)
 	)

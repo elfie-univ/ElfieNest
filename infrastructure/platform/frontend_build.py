@@ -126,10 +126,8 @@ def ensure_frontend_build(
 
 def _run_pnpm(frontend_root: Path, arguments: Sequence[str]) -> None:
     """Run the package-manager version declared by the frontend package."""
-    npx = shutil.which("npx")
-    if npx is None:
-        raise FrontendBuildError("npx was not found; cannot build the frontend")
-    command = (npx, "--yes", f"pnpm@{PNPM_VERSION}", *arguments)
+    command_prefix = _resolve_pnpm_command(frontend_root)
+    command = (*command_prefix, *arguments)
     try:
         if os.environ.get("ELFIENEST_INTERACTIVE") == "1":
             subprocess.run(
@@ -161,6 +159,32 @@ def _run_pnpm(frontend_root: Path, arguments: Sequence[str]) -> None:
         raise FrontendBuildError(
             f"Frontend command {' '.join(arguments)} failed with exit code {error.returncode}{suffix}"
         ) from error
+
+
+def _resolve_pnpm_command(frontend_root: Path) -> tuple[str, ...]:
+    """Use a matching local pnpm before falling back to the network-backed npx path."""
+    pnpm = shutil.which("pnpm")
+    if pnpm is not None:
+        try:
+            version = subprocess.run(
+                (pnpm, "--version"),
+                cwd=frontend_root,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            pass
+        else:
+            if version.stdout.strip() == PNPM_VERSION:
+                return (pnpm,)
+
+    npx = shutil.which("npx")
+    if npx is None:
+        raise FrontendBuildError(
+            f"pnpm {PNPM_VERSION} is unavailable and npx was not found; cannot build the frontend"
+        )
+    return (npx, "--yes", f"pnpm@{PNPM_VERSION}")
 
 
 def _write_build_marker(output: Path, digest: str) -> None:

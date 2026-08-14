@@ -5,11 +5,10 @@ from __future__ import annotations
 import copy
 import shutil
 from pathlib import Path
-from typing import Any, Mapping, NoReturn, Sequence
+from typing import Any, Mapping, NoReturn
 
 from app.features.configuration import (
     SettingsStorageError,
-    SpeciesId,
     StoredElfieSettings,
     StoredLoginRateLimit,
     StoredRuntimeSettings,
@@ -43,11 +42,6 @@ class RuntimeSettingsAdapter:
             "max_elfies_per_user",
             self._integer(defaults, "max_elfies_per_user", 0),
         )
-        species = self._species_sequence(
-            section,
-            "allowed_species_ids",
-            self._species_sequence(defaults, "allowed_species_ids", ()),
-        )
         presets = self._boolean_mapping(
             section,
             "personality_presets_enabled",
@@ -55,7 +49,6 @@ class RuntimeSettingsAdapter:
         )
         return StoredElfieSettings(
             max_elfies_per_user=max_elfies,
-            allowed_species_ids=species,
             personality_presets_enabled=tuple(presets.items()),
         )
 
@@ -64,7 +57,6 @@ class RuntimeSettingsAdapter:
             "adoption",
             {
                 "max_elfies_per_user": settings.max_elfies_per_user,
-                "allowed_species_ids": list(settings.allowed_species_ids),
                 "personality_presets_enabled": dict(
                     settings.personality_presets_enabled
                 ),
@@ -219,26 +211,6 @@ class RuntimeSettingsAdapter:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             cls._invalid(field, "必须是数字")
         return float(value)
-
-    @classmethod
-    def _species_sequence(
-        cls,
-        section: Mapping[str, object],
-        field: str,
-        default: Sequence[SpeciesId],
-    ) -> tuple[SpeciesId, ...]:
-        value = section.get(field, default)
-        if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
-            cls._invalid(field, "必须是字符串数组")
-        result: list[SpeciesId] = []
-        for item in value:
-            if item == "dog":
-                result.append("dog")
-            elif item == "fox":
-                result.append("fox")
-            else:
-                cls._invalid(field, "只支持 dog 或 fox")
-        return tuple(result)
 
     @classmethod
     def _boolean_mapping(

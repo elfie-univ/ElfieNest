@@ -1,9 +1,6 @@
 extends Node3D
 
-const ACTOR_SCENES := {
-	"dog": preload("res://characters/dog/dog.tscn"),
-	"fox": preload("res://characters/fox/fox.tscn"),
-}
+const SPECIES_CATALOG := preload("res://runtime/species_catalog.gd")
 const GODOT_WS_URL := "ws://127.0.0.1:8765"
 const BODY_EVENT_NAMES := [
 	"intent_accepted",
@@ -43,6 +40,7 @@ var _observer_bridge: Node
 var _runtime_client: Node
 var _runtime_mode
 var _semantic_events
+var _actor_scenes: Dictionary = {}
 var _authority_endpoint
 
 
@@ -65,6 +63,7 @@ func add_character(
 
 
 func _ready() -> void:
+	_actor_scenes = SPECIES_CATALOG.discover_actor_scenes()
 	_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "elfie_lab"
 	_nest_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "nest_lab"
 	_product_observer_mode = (
@@ -115,7 +114,7 @@ func _process(_delta: float) -> void:
 func _setup_lab_runtime() -> void:
 	_lab_runtime = LAB_RUNTIME.new()
 	add_child(_lab_runtime)
-	_lab_runtime.setup(nest, characters, lab_preview, lab_camera, ACTOR_SCENES)
+	_lab_runtime.setup(nest, characters, lab_preview, lab_camera, _actor_scenes)
 
 
 func _start_authority_runtime() -> void:
@@ -127,7 +126,7 @@ func _start_authority_runtime() -> void:
 	_world_controller.runtime_event.connect(_on_runtime_event)
 	_actor_controller = ACTOR_RUNTIME_CONTROLLER.new()
 	add_child(_actor_controller)
-	_actor_controller.setup(nest, characters, ACTOR_SCENES)
+	_actor_controller.setup(nest, characters, _actor_scenes)
 	_actor_controller.runtime_event.connect(_on_runtime_event)
 	_environment_controller = ENVIRONMENT_RUNTIME_CONTROLLER.new()
 	add_child(_environment_controller)
@@ -143,7 +142,7 @@ func _start_authority_runtime() -> void:
 func _setup_observer_presentation() -> void:
 	_observer_presentation = OBSERVER_PRESENTATION_CONTROLLER.new()
 	add_child(_observer_presentation)
-	_observer_presentation.setup(nest, characters, ACTOR_SCENES)
+	_observer_presentation.setup(nest, characters, _actor_scenes)
 	_observer_bridge = OBSERVER_BRIDGE.new()
 	add_child(_observer_bridge)
 	_observer_bridge.setup(nest, _observer_presentation, _product_observer_mode)
@@ -300,7 +299,7 @@ func _notify_web_runtime_ready() -> void:
 		return
 	for _frame in range(4):
 		await get_tree().process_frame
-	var window := JavaScriptBridge.get_interface("window")
-	if window == null:
-		return
-	window.parent.postMessage("elfienest:godot-web-ready", window.location.origin)
+	JavaScriptBridge.eval(
+		"window.__elfieNestObserverReady = true;"
+		+ "window.parent.postMessage('elfienest:godot-web-ready', window.location.origin)"
+	)

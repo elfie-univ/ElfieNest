@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import random
 
-from elfie.profile import AppearanceGenerator, AppearanceGenome
+from elfie.profile import AppearanceGenerator, AppearanceGenome, get_species_definition
 
 from .contracts import CandidateSignature, GenesisAppearanceIntent
 from .personality import clamp
@@ -126,18 +126,22 @@ def _overrides(
             "muzzle_length_bias": rng.uniform(-0.55, 0.55),
         }
     if intent.signature == "warm":
-        palettes = (
-            ("golden", "silver", "pale")
-            if species_id == "fox"
-            else ("cream", "golden", "red_brown")
+        species = get_species_definition(species_id)
+        preferred = tuple(
+            option
+            for option in ("golden", "silver", "pale", "cream", "red_brown")
+            if option in species.appearance.palettes
         )
+        palettes = preferred or species.appearance.palettes
         overrides["coat"] = {"palette_id": rng.choice(palettes)}
     elif intent.signature == "marked":
-        patterns = (
-            ("bicolor", "face_mask", "cross")
-            if species_id == "fox"
-            else ("bicolor", "face_mask", "tricolor")
+        species = get_species_definition(species_id)
+        preferred = tuple(
+            option
+            for option in ("bicolor", "face_mask", "cross", "tricolor", "tabby")
+            if option in species.appearance.patterns
         )
+        patterns = preferred or species.appearance.patterns
         overrides["coat"] = {
             "pattern_id": rng.choice(patterns),
             "pattern_contrast_bias": 0.45,

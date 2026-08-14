@@ -19,7 +19,6 @@ describe("administrator Settings API boundary", () => {
       if (path.endsWith("/runtime")) return { tick_interval_sec: 1.5 }
       if (path.endsWith("/elfies")) return {
         max_elfies_per_user: 3,
-        allowed_species_ids: ["dog", "fox"],
         personality_presets_enabled: {},
       }
       if (path.endsWith("/security")) return {
@@ -37,7 +36,6 @@ describe("administrator Settings API boundary", () => {
   it("writes the existing Elfie settings resource with CSRF", async () => {
     const settings: ElfieSettings = {
       max_elfies_per_user: 4,
-      allowed_species_ids: ["dog", "fox"],
       personality_presets_enabled: {},
     }
     vi.mocked(ownerWrite).mockResolvedValue(settings)
@@ -55,7 +53,16 @@ describe("administrator Settings API boundary", () => {
   it("rejects values outside the backend Settings contract", async () => {
     vi.mocked(ownerRead).mockResolvedValue({
       max_elfies_per_user: 33,
-      allowed_species_ids: ["cat"],
+        personality_presets_enabled: {},
+    })
+
+    await expect(elfieSettings()).rejects.toThrow()
+  })
+
+  it("rejects the retired per-species administrator field", async () => {
+    vi.mocked(ownerRead).mockResolvedValue({
+      max_elfies_per_user: 3,
+      allowed_species_ids: ["fox"],
       personality_presets_enabled: {},
     })
 

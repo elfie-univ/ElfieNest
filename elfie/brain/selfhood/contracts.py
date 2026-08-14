@@ -46,9 +46,13 @@ class SelfhoodSnapshot(FrozenContractModel):
     profile_revision: _Revision
     big_five: BigFiveTraits
     self_description: Optional[_NonBlankText] = None
+    species_name: Optional[_NonBlankText] = None
     speech_style: SelfhoodSpeechStyle = Field(default_factory=SelfhoodSpeechStyle)
     derivation: SelfhoodDerivation = Field(default_factory=SelfhoodDerivation)
     norms: Tuple[_NonBlankText, ...] = ()
+    identity_facts: Tuple[_NonBlankText, ...] = ()
+    behavior_anchors: Tuple[_NonBlankText, ...] = ()
+    knowledge_boundaries: Tuple[_NonBlankText, ...] = ()
     source_event_ids: Tuple[EventId, ...] = ()
     unknown_fields: Tuple[_NonBlankText, ...] = ()
     freshness: Literal["current", "stale", "unknown"] = "current"
@@ -60,7 +64,16 @@ class SelfhoodSnapshot(FrozenContractModel):
             captured_at=datetime.fromtimestamp(0, timezone.utc),
             profile_revision=0,
             big_five=BigFiveTraits(),
-            unknown_fields=("personality", "self_description", "speech_style", "norms"),
+            unknown_fields=(
+                "personality",
+                "self_description",
+                "species_name",
+                "speech_style",
+                "norms",
+                "identity_facts",
+                "behavior_anchors",
+                "knowledge_boundaries",
+            ),
             freshness="unknown",
         )
 
@@ -89,6 +102,19 @@ class ProfileAnchorSnapshot(FrozenContractModel):
     appearance_seed: Optional[int] = Field(default=None, strict=True)
     appearance_genome_version: Optional[_Revision] = None
     primary_morphology: Optional[_NonBlankText] = None
+    species_canon_id: Optional[_NonBlankText] = None
+    species_name: Optional[_NonBlankText] = None
+    species_shape: Optional[_NonBlankText] = None
+    home_world_id: Optional[_NonBlankText] = None
+    home_world_name: Optional[_NonBlankText] = None
+    home_region_id: Optional[_NonBlankText] = None
+    home_region_name: Optional[_NonBlankText] = None
+    civilization_relation_to_earth: Optional[_NonBlankText] = None
+    earth_arrival_statement: Optional[_NonBlankText] = None
+    earth_home_name: Optional[_NonBlankText] = None
+    earth_home_role: Optional[_NonBlankText] = None
+    knowledge_boundaries: Tuple[_NonBlankText, ...] = ()
+    canon_version: Optional[_NonBlankText] = None
     unknown_fields: Tuple[_NonBlankText, ...] = ()
 
     @classmethod
@@ -96,7 +122,13 @@ class ProfileAnchorSnapshot(FrozenContractModel):
         return cls(
             revision=0,
             captured_at=datetime.fromtimestamp(0, timezone.utc),
-            unknown_fields=("identity", "appearance", "embodiment"),
+            unknown_fields=(
+                "identity",
+                "appearance",
+                "embodiment",
+                "species_canon",
+                "world_origin",
+            ),
         )
 
     @model_validator(mode="after")
@@ -112,6 +144,27 @@ class ProfileAnchorSnapshot(FrozenContractModel):
             raise PydanticCustomError(
                 "profile_anchor_revision",
                 "unknown profile anchors cannot contain identity values",
+            )
+        species_values = (self.species_canon_id, self.species_name, self.species_shape)
+        if any(value is not None for value in species_values) and not all(
+            value is not None for value in species_values
+        ):
+            raise PydanticCustomError(
+                "profile_anchor_species",
+                "profile species canon anchors must be complete",
+            )
+        world_values = (
+            self.home_world_id,
+            self.home_world_name,
+            self.home_region_id,
+            self.home_region_name,
+        )
+        if any(value is not None for value in world_values) and not all(
+            value is not None for value in world_values
+        ):
+            raise PydanticCustomError(
+                "profile_anchor_origin",
+                "profile world origin anchors must be complete",
             )
         return self
 

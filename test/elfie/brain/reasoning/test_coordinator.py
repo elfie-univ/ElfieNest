@@ -436,6 +436,38 @@ def test_slow_runtime_does_not_block_clock_or_next_frame_ingest() -> None:
     assert coordinator.is_alive is False
 
 
+def test_perception_arriving_during_a_turn_starts_after_completion() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _, _ = _coordinator(workspace, runtime, sink)
+    coordinator.start()
+    workspace.publish(_social(1, 0, source_kind="owner"))
+    coordinator.notify_perception()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+    assert runtime.started.wait(1)
+
+    # The second message is ingested while the first provider call owns the
+    # logical slot. Its wake-up is coalesced, so completion must re-check it.
+    workspace.publish(_social(2, 100, source_kind="owner"))
+    coordinator.notify_perception()
+    runtime.release.set()
+
+    try:
+        coordinator.wait_for_outcome_count(2, timeout=2.0)
+        coordinator.synchronize()
+        assert len(runtime.calls) == 2
+        assert runtime.second_started.is_set()
+        assert tuple(outcome.status for outcome in coordinator.outcomes()) == (
+            TerminalStatus.COMPLETED,
+            TerminalStatus.COMPLETED,
+        )
+        assert workspace.metrics().reliable_event_count == 0
+    finally:
+        coordinator.stop()
+        coordinator.join()
+
+
 def test_model_unavailable_is_not_reported_as_a_successful_turn() -> None:
     class UnavailableRuntime:
         def capabilities(self):

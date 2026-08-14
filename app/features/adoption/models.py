@@ -7,7 +7,7 @@ from typing import Literal, Optional
 
 from elfie.genesis import CandidateReveal, GenesisCandidate
 
-SpeciesId = Literal["dog", "fox"]
+SpeciesId = str
 LifeStage = Literal["youth", "young_adult", "mature", "elder", "any"]
 CandidateGender = Literal["male", "female", "any"]
 ElfieGender = Literal["male", "female"]
@@ -38,9 +38,22 @@ class AdoptionNestCapacity:
 
 
 @dataclass(frozen=True)
+class AdoptionSpecies:
+    """Stable metadata projected from the immutable species registry."""
+
+    species_id: SpeciesId
+    canon_id: str
+    display_name: str
+    display_name_zh: str
+    earth_shape_label: str
+    scene_id: str
+    sort_order: int
+
+
+@dataclass(frozen=True)
 class AdoptionOptionsResult:
     personality_styles: tuple[str, ...]
-    species_ids: tuple[SpeciesId, ...]
+    species: tuple[AdoptionSpecies, ...]
     heights: tuple[str, ...]
     builds: tuple[str, ...]
     life_stages: tuple[LifeStage, ...]
@@ -149,6 +162,7 @@ class AcceptedAdoptionReservation:
 
 __all__ = (
     "AcceptedAdoptionReservation",
+    "AdoptionSpecies",
     "AdoptionOptionsResult",
     "AdoptionAvailability",
     "AdoptionNestCapacity",

@@ -484,7 +484,8 @@ def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> Non
         == EXPECTED_GODOT_OBSERVER_TRANSPORT_FIELDS
     )
     assert '"kind": "camera_catalog"' in publish_body
-    assert "_observer_window.parent.postMessage" in publish_body
+    assert "JavaScriptBridge.eval" in publish_body
+    assert "window.parent.postMessage" in publish_body
 
 
 def test_product_observer_accepts_only_semantic_actor_snapshots() -> None:
@@ -540,7 +541,8 @@ def test_product_observer_accepts_only_semantic_actor_snapshots() -> None:
         setup_body,
         (
             'not OS.has_feature("web")',
-            "JavaScriptBridge.get_interface",
+            "JavaScriptBridge.eval",
+            "window.__elfieNestObserverQueue = window.__elfieNestObserverQueue || []",
             "event.origin !== window.location.origin",
             "event.source !== window.parent",
             "data.channel === 'elfienest.observer'",

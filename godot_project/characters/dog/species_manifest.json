@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "species_id": "dog",
+  "scene_file": "dog.tscn",
+  "model_file": "dog.glb",
+  "required_nodes": [
+    "VisualRoot",
+    "VisualRoot/character",
+    "AnimationPlayer",
+    "CollisionShape3D"
+  ],
+  "required_capabilities": [
+    "movement",
+    "appearance",
+    "portrait",
+    "preview"
+  ],
+  "required_animations": [
+    "idle",
+    "walking",
+    "running",
+    "jump",
+    "twist_dance",
+    "left_strafe",
+    "left_strafe_walking",
+    "left_turn",
+    "left_turn_90",
+    "right_strafe",
+    "right_strafe_walking",
+    "right_turn",
+    "right_turn_90"
+  ],
+  "shared_animation_files": {
+    "idle": "res://characters/animation/idle.fbx",
+    "walking": "res://characters/animation/walking.fbx",
+    "running": "res://characters/animation/running.fbx",
+    "jump": "res://characters/animation/jump.fbx",
+    "twist_dance": "res://characters/animation/Twist Dance.fbx",
+    "left_strafe": "res://characters/animation/left strafe.fbx",
+    "left_strafe_walking": "res://characters/animation/left strafe walking.fbx",
+    "left_turn": "res://characters/animation/left turn.fbx",
+    "left_turn_90": "res://characters/animation/left turn 90.fbx",
+    "right_strafe": "res://characters/animation/right strafe.fbx",
+    "right_strafe_walking": "res://characters/animation/right strafe walking.fbx",
+    "right_turn": "res://characters/animation/right turn.fbx",
+    "right_turn_90": "res://characters/animation/right turn 90.fbx"
+  }
+}

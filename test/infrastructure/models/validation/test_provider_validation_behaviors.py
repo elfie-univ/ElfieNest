@@ -159,11 +159,11 @@ def test_connection_fingerprint_ignores_another_connection_secret_change(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    jdcloud = ProviderConnection(
-        connection_id="jdcloud_coding_plan_0001",
-        catalog_id="jdcloud_coding_plan",
-        alias="JD Cloud",
-        models=(ProviderModelRecord(endpoint_model_id="GLM-5"),),
+    volcengine = ProviderConnection(
+        connection_id="volcengine_coding_plan_0001",
+        catalog_id="volcengine_coding_plan",
+        alias="Volcengine",
+        models=(ProviderModelRecord(endpoint_model_id="deepseek-v4-flash-260425"),),
     )
     deepseek = ProviderConnection(
         connection_id="deepseek_0001",
@@ -172,9 +172,9 @@ def test_connection_fingerprint_ignores_another_connection_secret_change(
         models=(ProviderModelRecord(endpoint_model_id="deepseek-chat"),),
     )
 
-    set_connection_secret(jdcloud.connection_id, "jd-key")
-    jdcloud_before = connection_validation_fingerprint(
-        jdcloud, secret_resolver=resolve_secret
+    set_connection_secret(volcengine.connection_id, "volc-key")
+    volcengine_before = connection_validation_fingerprint(
+        volcengine, secret_resolver=resolve_secret
     )
     deepseek_before = connection_validation_fingerprint(
         deepseek, secret_resolver=resolve_secret
@@ -182,8 +182,8 @@ def test_connection_fingerprint_ignores_another_connection_secret_change(
     set_connection_secret(deepseek.connection_id, "deepseek-key")
 
     assert (
-        connection_validation_fingerprint(jdcloud, secret_resolver=resolve_secret)
-        == jdcloud_before
+        connection_validation_fingerprint(volcengine, secret_resolver=resolve_secret)
+        == volcengine_before
     )
     assert (
         connection_validation_fingerprint(deepseek, secret_resolver=resolve_secret)
@@ -193,10 +193,10 @@ def test_connection_fingerprint_ignores_another_connection_secret_change(
 
 def test_model_execution_projection_uses_connection_id_for_builtin_connection() -> None:
     connection = ProviderConnection(
-        connection_id="jdcloud_coding_plan_0001",
-        catalog_id="jdcloud_coding_plan",
-        alias="JD Cloud",
-        models=(ProviderModelRecord(endpoint_model_id="GLM-5"),),
+        connection_id="volcengine_coding_plan_0001",
+        catalog_id="volcengine_coding_plan",
+        alias="Volcengine",
+        models=(ProviderModelRecord(endpoint_model_id="deepseek-v4-flash-260425"),),
     )
 
     execution_id, _config = model_execution_projection(connection)
@@ -304,30 +304,33 @@ def test_single_validation_reuses_recent_full_result_without_new_model_requests(
     check.assert_not_called()
 
 
-def test_model_execution_projection_keeps_jdcloud_profile_test_model() -> None:
+def test_model_execution_projection_keeps_volcengine_profile_test_model() -> None:
     connection = ProviderConnection(
-        connection_id="jdcloud_coding_plan_0001",
-        catalog_id="jdcloud_coding_plan",
-        alias="JD Cloud",
+        connection_id="volcengine_coding_plan_0001",
+        catalog_id="volcengine_coding_plan",
+        alias="Volcengine",
         models=(
-            ProviderModelRecord(endpoint_model_id="DeepSeek-V3.2"),
-            ProviderModelRecord(endpoint_model_id="GLM-5"),
+            ProviderModelRecord(endpoint_model_id="deepseek-v4-flash-260425"),
+            ProviderModelRecord(endpoint_model_id="deepseek-v3.2"),
         ),
     )
 
     execution_id, config = model_execution_projection(connection)
 
     assert execution_id == connection.connection_id
-    assert config.providers[execution_id]["test_model"] == "GLM-5"
+    assert (
+        config.providers[execution_id]["test_model"]
+        == "deepseek-v4-flash-260425"
+    )
 
 
-def test_jdcloud_health_check_falls_back_to_configured_model(
+def test_volcengine_health_check_falls_back_to_configured_model(
     monkeypatch,
 ) -> None:
     from infrastructure.models.catalog import verify_provider
 
     first_error = urllib.error.HTTPError(
-        "https://jd.example/models",
+        "https://volc.example/api/coding/v3/models",
         404,
         "Not Found",
         {},
@@ -352,31 +355,31 @@ def test_jdcloud_health_check_falls_back_to_configured_model(
 
     class Config:
         providers = {
-            "jdcloud_coding_plan": {
-                "api_base": "https://jd.example/v1",
+            "volcengine_coding_plan": {
+                "api_base": "https://volc.example/api/coding/v3",
                 "api_key": "test-key",
                 "api_mode": "chat_completions",
-                "test_model": "GLM-5",
+                "test_model": "deepseek-v4-flash-260425",
             }
         }
 
-    result = verify_provider("jdcloud_coding_plan", Config())
+    result = verify_provider("volcengine_coding_plan", Config())
 
     assert result["status"] == "active"
     assert [request.full_url for request in requests] == [
-        "https://jd.example/v1/models",
-        "https://jd.example/v1/chat/completions",
+        "https://volc.example/api/coding/v3/models",
+        "https://volc.example/api/coding/v3/chat/completions",
     ]
-    assert b'"model": "GLM-5"' in requests[1].data
+    assert b'"model": "deepseek-v4-flash-260425"' in requests[1].data
 
 
-def test_jdcloud_health_check_reports_unsupported_model(
+def test_volcengine_health_check_reports_unsupported_model(
     monkeypatch,
 ) -> None:
     from infrastructure.models.catalog import verify_provider
 
     list_error = urllib.error.HTTPError(
-        "https://jd.example/v1/models",
+        "https://volc.example/api/coding/v3/models",
         404,
         "Not Found",
         {},
@@ -401,18 +404,18 @@ def test_jdcloud_health_check_reports_unsupported_model(
 
     class Config:
         providers = {
-            "jdcloud_coding_plan": {
-                "api_base": "https://jd.example/v1",
+            "volcengine_coding_plan": {
+                "api_base": "https://volc.example/api/coding/v3",
                 "api_key": "test-key",
                 "api_mode": "chat_completions",
-                "test_model": "not-a-jd-model",
+                "test_model": "not-a-volc-model",
             }
         }
 
-    result = verify_provider("jdcloud_coding_plan", Config())
+    result = verify_provider("volcengine_coding_plan", Config())
 
     assert result["status"] == "inactive"
-    assert result["error"] == "HTTP 400（测试模型 not-a-jd-model）"
+    assert result["error"] == "HTTP 400（测试模型 not-a-volc-model）"
 
 
 class _ConnectedRequest:

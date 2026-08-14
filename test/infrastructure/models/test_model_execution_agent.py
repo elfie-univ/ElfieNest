@@ -48,8 +48,8 @@ def test_glm_fast_json_text_disables_provider_thinking() -> None:
         response_schema={"type": "object"},
         selected_mode=StructuredGenerationMode.JSON_TEXT,
         allowed_tools=(),
-        provider="jdcloud_coding_plan_0001",
-        model_key="jdcloud_coding_plan_0001/GLM-5",
+        provider="volcengine_coding_plan_0001",
+        model_key="volcengine_coding_plan_0001/glm-4.7",
         reasoning_mode="fast",
     )
 

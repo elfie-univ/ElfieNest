@@ -5,6 +5,7 @@ from __future__ import annotations
 import secrets
 
 from app.features.accounts import AccountPrincipal
+from elfie.profile import get_species_definition, list_species_definitions
 
 from ._candidate_registry import CandidateRegistry
 from .errors import (
@@ -20,6 +21,7 @@ from .models import (
     AdoptionNestCapacity,
     AdoptionOptionsResult,
     AdoptionQuota,
+    AdoptionSpecies,
     CandidateRepliesResult,
     CandidateSetResult,
     CreateCandidateSetCommand,
@@ -97,7 +99,10 @@ class AdoptionService:
         )
         return AdoptionOptionsResult(
             personality_styles=policy.enabled_personality_styles,
-            species_ids=policy.allowed_species_ids,
+            species=tuple(
+                _species_result(definition.species_id)
+                for definition in list_species_definitions()
+            ),
             heights=_HEIGHTS,
             builds=_BUILDS,
             life_stages=_LIFE_STAGES,
@@ -121,8 +126,10 @@ class AdoptionService:
         command: CreateCandidateSetCommand,
     ) -> CandidateSetResult:
         policy = self._load_policy()
-        if command.species_id not in policy.allowed_species_ids:
-            raise AdoptionInvalid(f"species_id 必须是 {policy.allowed_species_ids}")
+        try:
+            get_species_definition(command.species_id)
+        except ValueError as error:
+            raise AdoptionInvalid(f"不支持的 species_id={command.species_id!r}") from error
         return self._candidates.create(
             owner_user_id=principal.user_id,
             species_id=command.species_id,
@@ -161,8 +168,12 @@ class AdoptionService:
             candidate_id=command.candidate_id,
         )
         policy = self._load_policy()
-        if candidate.public.species_id not in policy.allowed_species_ids:
-            raise AdoptionInvalid(f"species_id 必须是 {policy.allowed_species_ids}")
+        try:
+            get_species_definition(candidate.public.species_id)
+        except ValueError as error:
+            raise AdoptionInvalid(
+                f"不支持的 species_id={candidate.public.species_id!r}"
+            ) from error
         elfie_id = f"{secrets.randbelow(100_000_000):08d}"
         reservation = AcceptedAdoptionReservation(
             elfie_id=elfie_id,
@@ -236,3 +247,16 @@ class AdoptionService:
 
 
 __all__ = ("AdoptionService",)
+
+
+def _species_result(species_id: str) -> AdoptionSpecies:
+    definition = get_species_definition(species_id)
+    return AdoptionSpecies(
+        species_id=definition.species_id,
+        canon_id=definition.canon_id,
+        display_name=definition.display_name,
+        display_name_zh=definition.display_name_zh,
+        earth_shape_label=definition.earth_shape_label,
+        scene_id=definition.scene_id,
+        sort_order=definition.sort_order,
+    )

@@ -11,3 +11,4 @@
 - [Elfie Brain 内部架构](./brain)
 - [应用架构](./application)
 - [模型、Food 与工具行为](./model-food-tool-behavior)
+- [物种资源包](./species-asset-package)

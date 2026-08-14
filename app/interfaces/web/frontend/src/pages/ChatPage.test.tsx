@@ -32,6 +32,7 @@ const session = vi.hoisted(() => ({
 }))
 
 const chatApi = vi.hoisted(() => ({
+  adoptionInfo: vi.fn(),
   conversations: vi.fn(),
   elfies: vi.fn(),
   elfieFoodPolicy: vi.fn(),
@@ -60,7 +61,7 @@ vi.mock("../stores/heartbeat", () => ({
 
 vi.mock("../api/client", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/client")>()
-  return { ...original, elfies: chatApi.elfies, elfieFoodPolicy: chatApi.elfieFoodPolicy, profile: chatApi.profile }
+  return { ...original, adoptionInfo: chatApi.adoptionInfo, elfies: chatApi.elfies, elfieFoodPolicy: chatApi.elfieFoodPolicy, profile: chatApi.profile }
 })
 
 vi.mock("../api/communication", () => ({
@@ -109,13 +110,14 @@ describe("ChatPage list pane headings", () => {
     session.user.role = "owner"
     session.user.avatar_url = null
     window.history.replaceState({}, "", "/chat?view=conversation&elfie=00000001")
-    chatApi.conversations.mockResolvedValue([{
+  chatApi.conversations.mockResolvedValue([{
       elfie_id: "00000001",
       name: "小羽",
       portrait_url: "",
       last_message_preview: "早上好",
       last_message_at: "2026-08-04T23:00:00Z",
-    }])
+  }])
+    chatApi.adoptionInfo.mockResolvedValue({ species: [], quota: { used: 0, max: 3, remaining: 3, can_adopt: true }, nest_capacity: { used: 0, max: 3, remaining: 3 }, availability: "available", personality_styles: [], heights: [], builds: [], life_stages: [] })
     chatApi.elfies.mockResolvedValue([elfie])
     chatApi.messages.mockResolvedValue([])
     chatApi.profile.mockResolvedValue(elfie)

@@ -9,7 +9,6 @@ from app.features.configuration import (
     GetSecuritySettingsQuery,
     LoginRateLimit,
     SettingsService,
-    SpeciesId,
     UpdateElfieSettingsCommand,
     UpdateRuntimeSettingsCommand,
     UpdateSecuritySettingsCommand,
@@ -142,7 +141,6 @@ def config_adoption(
 ) -> None:
     while True:
         current = settings.get_elfie_settings(principal, GetElfieSettingsQuery())
-        allowed: list[SpeciesId] = list(current.allowed_species_ids)
         enabled = dict(current.personality_presets_enabled)
         if not enabled:
             enabled.update(dict.fromkeys(_PERSONALITY_PRESETS, True))
@@ -150,8 +148,7 @@ def config_adoption(
             "Elfie Adoption",
             (
                 MenuItem("1", f"Max elfies per user: {current.max_elfies_per_user}"),
-                MenuItem("2", f"Allowed species: {', '.join(allowed)}"),
-                MenuItem("3", "Personality preset toggles"),
+                MenuItem("2", "Personality preset toggles"),
             ),
             breadcrumb="ElfieNest / Config / App / Elfie Adoption",
             back_label="Save and return",
@@ -171,12 +168,7 @@ def config_adoption(
                     principal,
                     UpdateElfieSettingsCommand(max_elfies_per_user=value),
                 )
-        elif choice == "2" and _toggle_species_menu(menu, allowed):
-            settings.update_elfie_settings(
-                principal,
-                UpdateElfieSettingsCommand(allowed_species_ids=tuple(allowed)),
-            )
-        elif choice == "3" and _toggle_personality_menu(menu, enabled):
+        elif choice == "2" and _toggle_personality_menu(menu, enabled):
             settings.update_elfie_settings(
                 principal,
                 UpdateElfieSettingsCommand(
@@ -186,36 +178,6 @@ def config_adoption(
 
 
 _PERSONALITY_PRESETS = ("Energetic", "Calm", "Curious", "Timid", "Tsundere", "Random")
-
-
-def _toggle_species_menu(menu: TerminalMenuPort, allowed: list[SpeciesId]) -> bool:
-    labels: dict[SpeciesId, str] = {"dog": "Dog", "fox": "Fox"}
-    changed = False
-    while True:
-        choice = menu.choose(
-            "Allowed Elfie Species",
-            tuple(
-                MenuItem(
-                    str(index),
-                    f"{labels[key]}: {'enabled' if key in allowed else 'disabled'}",
-                )
-                for index, key in enumerate(labels, 1)
-            ),
-            breadcrumb="ElfieNest / Config / App / Elfie Adoption / Species",
-            back_label="Back to adoption config",
-        )
-        if choice is None:
-            return changed
-        if choice not in {"1", "2"}:
-            continue
-        key = tuple(labels)[int(choice) - 1]
-        if key in allowed and len(allowed) == 1:
-            continue
-        if key in allowed:
-            allowed.remove(key)
-        else:
-            allowed.append(key)
-        changed = True
 
 
 def _toggle_personality_menu(

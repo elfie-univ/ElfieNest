@@ -16,6 +16,7 @@ from .models import (
     AdoptionNestCapacity,
     AdoptionOptionsResult,
     AdoptionQuota,
+    AdoptionSpecies,
     CandidateAppearance,
     CandidateRepliesResult,
     CandidateReplyResult,
@@ -47,6 +48,7 @@ from .ports import (
 
 __all__ = (
     "AcceptedAdoptionReservation",
+    "AdoptionSpecies",
     "AdoptionCandidateNotAccepted",
     "AdoptionCandidateSetExpired",
     "AdoptionCapacityReached",

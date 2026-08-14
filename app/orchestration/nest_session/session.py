@@ -609,11 +609,19 @@ class NestSession:
             elfie = self.elfies.get(elfie_id)
             if elfie is None or not elfie.is_running:
                 return None
+            # Away/inactive residents do not receive the physical tick, but
+            # owner chat remains a live cognitive input. Keep the Brain clock
+            # aligned before stamping the inbound event so it is never in the
+            # future from the coordinator's point of view.
+            elapsed_seconds = self.nest.state.elapsed_seconds
+            cognitive_elapsed = elfie.elapsed_time
+            if elapsed_seconds > cognitive_elapsed:
+                elfie.advance_clock(elapsed_seconds - cognitive_elapsed)
             return deliver_owner_message(
                 elfie=elfie,
                 elfie_id=elfie_id,
                 message=message,
-                elapsed_seconds=self.nest.state.elapsed_seconds,
+                elapsed_seconds=elapsed_seconds,
                 owner_id=owner_id,
                 conversation_id=conversation_id,
                 external_message_id=external_message_id,

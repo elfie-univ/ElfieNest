@@ -90,11 +90,6 @@ def update_elfie_settings(
             principal,
             UpdateElfieSettingsCommand(
                 max_elfies_per_user=body.max_elfies_per_user,
-                allowed_species_ids=(
-                    None
-                    if body.allowed_species_ids is None
-                    else tuple(body.allowed_species_ids)
-                ),
                 personality_presets_enabled=(
                     None
                     if body.personality_presets_enabled is None
@@ -228,7 +223,6 @@ def _error(status_code: int, code: str, message: str) -> JSONResponse:
 def _elfie_response(result: ElfieSettingsResult) -> ElfieSettingsResponse:
     return ElfieSettingsResponse(
         max_elfies_per_user=result.max_elfies_per_user,
-        allowed_species_ids=list(result.allowed_species_ids),
         personality_presets_enabled=dict(result.personality_presets_enabled),
     )
 

@@ -10,7 +10,7 @@ vi.mock("../http", async (loadOriginal) => {
 
 const candidate = {
   candidate_id: "candidate-1",
-  species_id: "fox" as const,
+  species_id: "fox",
   life_stage: "young_adult" as const,
   age_months: 36,
   gender: "male" as const,
@@ -28,7 +28,26 @@ describe("versioned current-member Adoption client", () => {
     vi.mocked(requestJson)
       .mockResolvedValueOnce({
         personality_styles: ["好奇探索"],
-        species_ids: ["fox"],
+        species: [
+          {
+            species_id: "fox",
+            canon_id: "saevi",
+            display_name: "Saevi",
+            display_name_zh: "灵狐",
+            earth_shape_label: "fox-like",
+            scene_id: "fox",
+            sort_order: 0,
+          },
+          {
+            species_id: "dog",
+            canon_id: "tovren",
+            display_name: "Tovren",
+            display_name_zh: "灵犬",
+            earth_shape_label: "dog-like",
+            scene_id: "dog",
+            sort_order: 1,
+          },
+        ],
         heights: ["standard"],
         builds: ["standard"],
         life_stages: ["any"],

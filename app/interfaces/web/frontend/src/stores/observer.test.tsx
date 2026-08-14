@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { nextObserverFrame, openObserverSession, type ObserverFrame } from "../api/observer"
 import { ObserverProvider, useOptionalObserver } from "./observer"
@@ -30,6 +30,13 @@ afterEach(() => {
   vi.useRealTimers()
   vi.mocked(openObserverSession).mockReset().mockResolvedValue("observer-capability")
   vi.mocked(nextObserverFrame).mockReset().mockResolvedValue(null)
+})
+
+beforeEach(() => {
+  Object.defineProperty(window, "isSecureContext", {
+    configurable: true,
+    value: true,
+  })
 })
 
 describe("ObserverProvider", () => {

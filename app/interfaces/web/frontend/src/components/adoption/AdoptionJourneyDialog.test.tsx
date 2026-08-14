@@ -16,6 +16,28 @@ const api = vi.hoisted(() => ({
 
 vi.mock("../../api/me/adoption", () => api)
 
+vi.mock("../elfie-profile/profile-godot-preview", () => ({
+  ProfileGodotPreviewError: class ProfileGodotPreviewError extends Error {
+    public readonly reason: string
+
+    public constructor(reason: string) {
+      super(reason)
+      this.reason = reason
+    }
+  },
+  createProfileGodotPreview: ({ onEvent }: { readonly onEvent: (event: { readonly kind: "ready" | "completed"; readonly action?: string; readonly requestId?: string }) => void }) => {
+    queueMicrotask(() => onEvent({ kind: "ready" }))
+    return {
+      capture: () => {
+        queueMicrotask(() => onEvent({ kind: "completed", action: "capture", requestId: "test-capture" }))
+        return Promise.resolve({ blob: new Blob(["png"], { type: "image/png" }), previewUrl: "preview://test" })
+      },
+      dispose: vi.fn(),
+      send: (action: string) => queueMicrotask(() => onEvent({ kind: "completed", action, requestId: "test-action" })),
+    }
+  },
+}))
+
 function candidate(index: number) {
   return {
     candidate_id: `candidate-${index}`,
@@ -27,17 +49,39 @@ function candidate(index: number) {
     headshot_image_url: `data:image/png;base64,head-${index}`,
     appearance_tags: ["Balanced", "Soft"],
     personality_tags: ["Curious", "Warm"],
-    runtime_appearance: {},
+    runtime_appearance: { species_id: "fox" },
   }
 }
+
+const species = [
+  {
+    species_id: "fox",
+    canon_id: "saevi",
+    display_name: "Saevi",
+    display_name_zh: "灵狐",
+    earth_shape_label: "fox-like",
+    scene_id: "fox",
+    sort_order: 0,
+  },
+  {
+    species_id: "dog",
+    canon_id: "tovren",
+    display_name: "Tovren",
+    display_name_zh: "灵犬",
+    earth_shape_label: "dog-like",
+    scene_id: "dog",
+    sort_order: 1,
+  },
+] as const
 
 describe("AdoptionJourneyDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() })
     window.localStorage.clear()
     api.adoptionInfo.mockResolvedValue({
       personality_styles: ["好奇探索"],
-      species_ids: ["fox", "dog"],
+      species,
       heights: ["short", "standard", "tall"],
       builds: ["slim", "standard", "plump"],
       quota: { used: 0, max: 3, remaining: 3, can_adopt: true },
@@ -55,7 +99,7 @@ describe("AdoptionJourneyDialog", () => {
     window.localStorage.setItem("elfienest.adoption-welcome.owner.v1", "skipped")
     api.adoptionInfo.mockResolvedValueOnce({
       personality_styles: ["好奇探索"],
-      species_ids: ["fox", "dog"],
+      species,
       heights: ["short", "standard", "tall"],
       builds: ["slim", "standard", "plump"],
       quota: { used: 3, max: 3, remaining: 0, can_adopt: false },
@@ -79,7 +123,7 @@ describe("AdoptionJourneyDialog", () => {
     const user = userEvent.setup()
     api.adoptionInfo.mockResolvedValueOnce({
       personality_styles: ["好奇探索"],
-      species_ids: ["fox", "dog"],
+      species,
       heights: ["short", "standard", "tall"],
       builds: ["slim", "standard", "plump"],
       quota: { used: 0, max: 3, remaining: 3, can_adopt: true },
@@ -111,7 +155,7 @@ describe("AdoptionJourneyDialog", () => {
     render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
 
     await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /狐狸/ }))
+    await user.click(screen.getByRole("button", { name: /灵狐/ }))
     await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
     await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
     for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
@@ -145,13 +189,13 @@ describe("AdoptionJourneyDialog", () => {
     expect(await screen.findByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).toBeInTheDocument()
     expect(screen.queryByText("第一步 · 基本意向")).not.toBeInTheDocument()
     expect(screen.queryByText("先确定物种、生命阶段和性别倾向。选择的是愿意见见的范围，不是在设置某一位精灵的身份。")).not.toBeInTheDocument()
-    expect(screen.queryByText("看看狐狸报名者")).not.toBeInTheDocument()
-    const speciesChoices = screen.getAllByRole("button", { name: /狐狸|小狗/ })
+    expect(screen.queryByText("看看灵狐报名者")).not.toBeInTheDocument()
+    const speciesChoices = screen.getAllByRole("button", { name: /灵狐|灵犬/ })
     expect(speciesChoices).toHaveLength(2)
-    expect(speciesChoices[0]).toHaveTextContent("狐狸")
+    expect(speciesChoices[0]).toHaveTextContent("灵狐")
     expect(speciesChoices[0]).toHaveAttribute("aria-pressed", "false")
-    expect(speciesChoices.every((choice) => /(?:fox|dog)-model\.png/.test(choice.querySelector("img")?.getAttribute("src") ?? ""))).toBe(true)
-    await user.click(screen.getByRole("button", { name: /狐狸/ }))
+    expect(speciesChoices.every((choice) => choice.querySelector("img") === null)).toBe(true)
+    await user.click(screen.getByRole("button", { name: /灵狐/ }))
     await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
     expect(screen.queryByText("第二步 · 外貌倾向")).not.toBeInTheDocument()
     expect(screen.queryByText("用容易理解的视觉印象表达偏好。每项都可以交给缘分，实际候选仍会保留自己的特点。")).not.toBeInTheDocument()
@@ -185,7 +229,7 @@ describe("AdoptionJourneyDialog", () => {
     render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
 
     await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /狐狸/ }))
+    await user.click(screen.getByRole("button", { name: /灵狐/ }))
     await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
     await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
     await user.click(screen.getByRole("button", { name: /生活节奏/ }))
@@ -211,7 +255,7 @@ describe("AdoptionJourneyDialog", () => {
     render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
 
     await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /狐狸/ }))
+    await user.click(screen.getByRole("button", { name: /灵狐/ }))
     await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
     await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
     for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
@@ -254,7 +298,7 @@ describe("AdoptionJourneyDialog", () => {
     const user = userEvent.setup()
     render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
     await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /狐狸/ }))
+    await user.click(screen.getByRole("button", { name: /灵狐/ }))
     await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
     await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
     for (let index = 0; index < 5; index += 1) {
@@ -302,7 +346,7 @@ describe("AdoptionJourneyDialog", () => {
     render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={onOpenChange} open /></I18nextProvider>)
 
     await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /狐狸/ }))
+    await user.click(screen.getByRole("button", { name: /灵狐/ }))
     await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
     await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
     for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
@@ -315,7 +359,7 @@ describe("AdoptionJourneyDialog", () => {
 
     const failureDialog = await screen.findByRole("alertdialog")
     expect(failureDialog).toHaveTextContent("邀请暂未送达")
-    expect(failureDialog).toHaveTextContent("刚才的连接中断了，邀请还没有发出。你的选择已经保留。")
+    expect(failureDialog).toHaveTextContent("虫洞信号暂时不稳，这份邀请还没有抵达。你的选择已经保留。")
     const sendingTitle = screen.getByRole("heading", { name: "正在发送你的邀请" })
     const sendingSection = sendingTitle.closest("section")
     const inviteGrid = sendingSection?.querySelector(".adoption-invite-grid")
@@ -351,7 +395,7 @@ describe("AdoptionJourneyDialog", () => {
     render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={onOpenChange} open /></I18nextProvider>)
 
     await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /狐狸/ }))
+    await user.click(screen.getByRole("button", { name: /灵狐/ }))
     await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
     await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
     for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
@@ -387,7 +431,7 @@ describe("AdoptionJourneyDialog", () => {
 
     render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
     await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /狐狸/ }))
+    await user.click(screen.getByRole("button", { name: /灵狐/ }))
     await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
     await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
     for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))

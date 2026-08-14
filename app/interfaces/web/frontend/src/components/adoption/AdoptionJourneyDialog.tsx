@@ -36,9 +36,7 @@ import {
   DialogTitle,
 } from "../ui/dialog"
 import { Icon } from "../Icon"
-import dogAvatar from "../../assets/adoption/dog-model.png"
 import elfariaArrivalImage from "../../assets/adoption/elfaria-arrival-square.png"
-import foxAvatar from "../../assets/adoption/fox-model.png"
 import {
   DEFAULT_DRAFT,
   INITIAL_ADOPTION_STATE,
@@ -74,8 +72,6 @@ type AdoptionJourneyDialogProps = {
 type JourneyT = (key: string, options?: Record<string, unknown>) => string
 
 const LIFE_STAGES: readonly LifeStage[] = ["youth", "young_adult", "mature", "elder", "any"]
-const SPECIES: readonly SpeciesId[] = ["fox", "dog"]
-const SPECIES_IMAGES: Readonly<Record<SpeciesId, string>> = { fox: foxAvatar, dog: dogAvatar }
 const GENDERS: readonly GenderPreference[] = ["male", "female", "any"]
 const APPEARANCE_GROUPS = ["stature", "build", "face", "signature"] as const
 const COMPANIONSHIP_OPTIONS: readonly (readonly CompanionAnswer[])[] = [
@@ -210,13 +206,9 @@ function asReply(reply: AdoptionReply, previous?: Candidate): CandidateReply {
   } }
 }
 
-function speciesImageUrl(speciesId: SpeciesId): string {
-  return SPECIES_IMAGES[speciesId]
-}
-
-function candidateImageUrl(candidate: Pick<Candidate, "headshotImageUrl" | "fullBodyImageUrl" | "speciesId">, kind: "headshot" | "fullBody" = "headshot"): string {
+function candidateImageUrl(candidate: Pick<Candidate, "headshotImageUrl" | "fullBodyImageUrl">, kind: "headshot" | "fullBody" = "headshot"): string {
   const imageUrl = kind === "fullBody" ? candidate.fullBodyImageUrl : candidate.headshotImageUrl
-  return imageUrl || speciesImageUrl(candidate.speciesId)
+  return imageUrl
 }
 
 function invitationMessageWithinLimit(value: string): boolean {
@@ -260,8 +252,15 @@ function candidateAgeLabel(t: JourneyT, ageMonths: number): string {
   return t("adoption.journey.shortlist.ageYearsMonths", { years, months })
 }
 
-function speciesName(t: (key: string) => string, speciesId: SpeciesId): string {
-  return t(`adoption.journey.species.${speciesId}`)
+function speciesName(
+  speciesId: SpeciesId,
+  species: AdoptionInfo["species"][number] | undefined,
+  locale: string,
+): string {
+  if (species !== undefined) {
+    return locale === "zh-CN" ? species.display_name_zh : species.display_name
+  }
+  return speciesId
 }
 
 function stageName(t: (key: string) => string, stage: LifeStage): string {
@@ -441,8 +440,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   }, [accountId, open, state])
 
   const allowedSpecies = useMemo(() => {
-    const configured = info?.species_ids.filter((value): value is SpeciesId => value === "dog" || value === "fox")
-    return [...(configured?.length ? configured : SPECIES)].sort((left, right) => Number(left !== "fox") - Number(right !== "fox"))
+    return [...(info?.species ?? [])].sort((left, right) => left.sort_order - right.sort_order)
   }, [info])
 
   const requestClose = (): void => {
@@ -760,10 +758,10 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           {journeyReady && errorMessage ? <p className="adoption-inline-error" role="alert">{errorMessage}</p> : null}
           {entryChecking ? <AdoptionEntryCheck t={t} /> : null}
           {journeyReady && state.screen === "welcome" ? <WelcomeScreen t={t} onStart={goToBasic} /> : null}
-          {journeyReady && state.screen === "basic" ? <BasicScreen allowedSpecies={allowedSpecies} canAdopt={info?.quota.can_adopt ?? true} draft={state.draft} dispatch={dispatch} speciesName={(id) => speciesName(t, id)} stageName={(value) => stageName(t, value)} t={t} /> : null}
+          {journeyReady && state.screen === "basic" ? <BasicScreen allowedSpecies={allowedSpecies} canAdopt={info?.quota.can_adopt ?? true} draft={state.draft} dispatch={dispatch} locale={locale} speciesName={(id) => speciesName(id, info?.species.find((species) => species.species_id === id), locale)} stageName={(value) => stageName(t, value)} t={t} /> : null}
           {journeyReady && state.screen === "appearance" ? <AppearanceScreen draft={state.draft} dispatch={dispatch} t={t} /> : null}
           {journeyReady && state.screen === "companionship" ? <CompanionshipScreen draft={state.draft} dispatch={dispatch} onAnswer={answerCompanionship} questionIndex={state.questionIndex} t={t} /> : null}
-          {journeyReady && state.screen === "review" ? <ReviewScreen draft={state.draft} dispatch={dispatch} stageName={(value) => stageName(t, value)} speciesName={(id) => speciesName(t, id)} t={t} /> : null}
+          {journeyReady && state.screen === "review" ? <ReviewScreen draft={state.draft} dispatch={dispatch} stageName={(value) => stageName(t, value)} speciesName={(id) => speciesName(id, info?.species.find((species) => species.species_id === id), locale)} t={t} /> : null}
           {journeyReady && state.screen === "generating" && generationRequest !== null ? <GeneratingScreen csrfToken={csrfToken} onError={onGenerationError} onReady={onGenerationReady} request={generationRequest} title={t("adoption.journey.generating.title")} /> : null}
           {journeyReady && state.screen === "shortlist" ? <ShortlistScreen candidates={state.candidates} candidateBatch={state.candidateBatch} dispatch={dispatch} onRegenerate={() => { void generateCandidates() }} selectedIds={state.selectedCandidateIds} t={t} /> : null}
           {journeyReady && state.screen === "inviting" ? <SendingScreen candidates={state.candidates.filter((candidate) => state.selectedCandidateIds.includes(candidate.candidateId))} candidateLabel={candidateLabel} t={t} /> : null}
@@ -863,12 +861,13 @@ function WelcomeScreen({ t, onStart }: { readonly t: JourneyT; readonly onStart:
 }
 
 function BasicScreen({
-  allowedSpecies, canAdopt, dispatch, draft, speciesName, stageName, t,
+  allowedSpecies, canAdopt, dispatch, draft, locale, speciesName, stageName, t,
 }: {
-  readonly allowedSpecies: readonly SpeciesId[]
+  readonly allowedSpecies: readonly AdoptionInfo["species"][number][]
   readonly canAdopt: boolean
   readonly dispatch: React.Dispatch<AdoptionAction>
   readonly draft: AdoptionDraftState["draft"]
+  readonly locale: string
   readonly speciesName: (id: SpeciesId) => string
   readonly stageName: (stage: LifeStage) => string
   readonly t: JourneyT
@@ -876,7 +875,7 @@ function BasicScreen({
   return <section>
     <ScreenIntro badge={t("adoption.journey.badges.oneMinute")} title={t("adoption.journey.basic.title")} />
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.speciesLabel")}</legend><div className="adoption-species-grid">
-      {allowedSpecies.map((speciesId) => <ChoiceButton className="adoption-species-choice" key={speciesId} onClick={() => dispatch({ type: "set-basic", field: "speciesId", value: speciesId })} selected={draft.speciesId === speciesId}><img alt="" src={speciesImageUrl(speciesId)} /><span><strong>{speciesName(speciesId)}</strong></span></ChoiceButton>)}
+      {allowedSpecies.map((species) => <ChoiceButton className="adoption-species-choice" key={species.species_id} onClick={() => dispatch({ type: "set-basic", field: "speciesId", value: species.species_id })} selected={draft.speciesId === species.species_id}><span><strong>{locale === "zh-CN" ? species.display_name_zh : species.display_name}</strong></span></ChoiceButton>)}
     </div></fieldset>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.lifeStageLabel")}</legend><div className="adoption-option-row">{LIFE_STAGES.map((stage) => <ChoiceButton key={stage} onClick={() => dispatch({ type: "set-basic", field: "lifeStage", value: stage })} selected={draft.lifeStage === stage}>{stageName(stage)}</ChoiceButton>)}</div></fieldset>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.genderLabel")}</legend><div className="adoption-option-row">{GENDERS.map((gender) => <ChoiceButton key={gender} onClick={() => dispatch({ type: "set-basic", field: "gender", value: gender })} selected={draft.gender === gender}>{t(`adoption.journey.genders.${gender}`)}</ChoiceButton>)}</div></fieldset>
@@ -965,9 +964,7 @@ function GeneratingScreen({ csrfToken, onError, onReady, request, title }: Gener
         if (!active) return
         const candidates = result.candidates.map(asCandidate)
         if (candidates.some((candidate) => Object.keys(candidate.runtimeAppearance).length === 0)) {
-          const hasStaticPortraits = candidates.every((candidate) => candidate.fullBodyImageUrl.length > 0 && candidate.headshotImageUrl.length > 0)
-          if (hasStaticPortraits) onReady(result, candidates)
-          else onError(new ProfileGodotPreviewError("candidate_portrait_unavailable"))
+          onError(new ProfileGodotPreviewError("candidate_portrait_unavailable"))
           return
         }
         await waitWithTimeout(ready, 20_000, "preview_timeout")

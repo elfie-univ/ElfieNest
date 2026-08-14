@@ -24,6 +24,24 @@ describe("profile Godot preview bridge", () => {
     frame.remove()
   })
 
+  it("replays a ready flag when the Web export announced before the listener attached", async () => {
+    const frame = document.createElement("iframe")
+    document.body.appendChild(frame)
+    if (frame.contentWindow === null) throw new TypeError("Expected the Godot frame window")
+    Object.defineProperty(frame.contentWindow, "__elfieLabReady", { configurable: true, value: true })
+    const events: ProfileGodotPreviewEvent[] = []
+    vi.useFakeTimers()
+    try {
+      const preview = createProfileGodotPreview({ frame, onEvent: (event) => events.push(event) })
+      await vi.advanceTimersByTimeAsync(100)
+      expect(events).toEqual([{ kind: "ready" }])
+      preview.dispose()
+    } finally {
+      vi.useRealTimers()
+      frame.remove()
+    }
+  })
+
   it("turns Godot's captured data URL into the existing capture contract", async () => {
     const frame = document.createElement("iframe")
     document.body.appendChild(frame)
@@ -59,5 +77,26 @@ describe("profile Godot preview bridge", () => {
     preview.dispose()
     frame.remove()
     Reflect.deleteProperty(URL, "createObjectURL")
+  })
+
+  it("falls back to a same-origin message when the Web export has no enqueue function", () => {
+    const frame = document.createElement("iframe")
+    document.body.appendChild(frame)
+    if (frame.contentWindow === null) throw new TypeError("Expected the Godot frame window")
+    const postMessage = vi.spyOn(frame.contentWindow, "postMessage")
+    const preview = createProfileGodotPreview({ frame, onEvent: () => undefined })
+
+    preview.send("reset")
+
+    expect(postMessage).toHaveBeenCalledOnce()
+    const [encoded, origin] = postMessage.mock.calls[0] ?? []
+    expect(origin).toBe(window.location.origin)
+    expect(JSON.parse(String(encoded))).toMatchObject({
+      action: "reset",
+      channel: "elfie-lab",
+    })
+
+    preview.dispose()
+    frame.remove()
   })
 })

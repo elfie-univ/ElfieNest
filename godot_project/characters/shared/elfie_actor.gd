@@ -47,11 +47,12 @@ func _ready() -> void:
 	_navigation_agent.avoidance_enabled = true
 	_navigation_agent.avoidance_priority = 1.0
 	_animation_runtime = ACTOR_ANIMATION_RUNTIME.new()
+	var has_skeleton := not _visual_root.find_children("*", "Skeleton3D", true, false).is_empty()
 	_animation_runtime.setup(
 		self,
 		_visual_root,
 		_animation_player,
-		install_shared_animations,
+		install_shared_animations and has_skeleton,
 	)
 
 

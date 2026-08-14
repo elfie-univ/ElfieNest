@@ -19,6 +19,12 @@ import {
   type ObserverWorldConfig,
 } from "./observer-protocol"
 
+declare global {
+  interface Window {
+    __elfieNestObserverReady?: boolean
+  }
+}
+
 export type ObserverStatus = "idle" | "loading" | "ready" | "fallback"
 export type ObserverFallbackReason = "disabled" | "insecure-context" | "unsupported-device" | "runtime"
 type ObserverScope =
@@ -203,6 +209,7 @@ export function ObserverProvider({
 
   const exportLooksReady = (engine: HTMLIFrameElement): boolean => {
     try {
+      if (engine.contentWindow?.__elfieNestObserverReady === true) return true
       const document = engine.contentDocument
       if (document === null) return false
       const canvas = document.querySelector("#canvas")
