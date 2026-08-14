@@ -1359,6 +1359,16 @@ body.story-mode .story-scroll + p {
  * desktop-only story header sizing before VitePress switches to its hamburger
  * and full-screen menu. */
 @media (max-width: 767px) {
+  /* Match the homepage navigation contract on the story route. Keeping the
+   * header in normal flow adds a second nav-height offset to the story
+   * canvas, which also collapses the mobile flyout to zero height. */
+  body.story-mode .VPNav {
+    position: fixed !important;
+    top: 0;
+    right: 0;
+    left: 0;
+  }
+
   body.story-mode .VPNavBar .wrapper {
     padding: 0 8px 0 24px !important;
   }
@@ -1395,13 +1405,22 @@ body.story-mode .story-scroll + p {
     z-index: 40;
   }
 
+  /* VitePress keeps the sidebar variant's screen at zero height. The story
+   * route still uses that variant for its header, so give its open flyout the
+   * same viewport-sized panel as the homepage. */
+  body.story-mode .VPNavBar.screen-open ~ .VPNavScreen {
+    top: var(--vp-nav-height);
+    bottom: 0;
+    height: calc(100dvh - var(--vp-nav-height)) !important;
+  }
+
   body.story-mode .story-timeline {
     z-index: 20;
   }
 
   body.story-mode .story-chapter__copy {
     right: 58px;
-    bottom: clamp(18px, 4vh, 32px);
+    bottom: max(28px, env(safe-area-inset-bottom));
     left: 18px;
   }
 
