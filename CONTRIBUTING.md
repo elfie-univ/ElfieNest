@@ -158,6 +158,19 @@ dedicated quality-debt change may update the baseline.
 
 ## Tests and quality gate
 
+Before running the repository-wide pytest command, run the loopback capability
+preflight once:
+
+```bash
+UV_CACHE_DIR=/tmp/elfienest-uv-cache \
+  uv run --no-sync python scripts/check_quality_environment.py
+```
+
+If it returns `2`, the current sandbox cannot bind `127.0.0.1:0`. Do not run
+the full suite there and then repeat it; run the same full command once in a
+host or elevated environment. A return code of `1` is an unexpected probe
+failure and must be diagnosed first.
+
 Run at least the following before submitting:
 
 ```bash

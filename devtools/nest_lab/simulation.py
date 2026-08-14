@@ -81,7 +81,10 @@ class WanderScheduler:
             CommandName.EXECUTE_INTENT,
             {
                 "command_id": command_id,
+                "intent_id": f"{command_id}-intent",
                 "actor_id": actor_id,
+                "body_generation": 1,
+                "initiator": "elfie",
                 "intent": "move_to_anchor",
                 "anchor_id": anchor_id,
                 "deadline_seconds": 10.0,

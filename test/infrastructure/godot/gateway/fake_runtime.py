@@ -84,14 +84,32 @@ class FakeRuntime:
         elif name is CommandName.EXECUTE_INTENT:
             progress = {
                 "command_id": str(payload["command_id"]),
+                "intent_id": str(payload.get("intent_id", payload["command_id"])),
                 "actor_id": str(payload["actor_id"]),
+                "body_generation": int(payload.get("body_generation", 1)),
             }
             self._emit(EventName.INTENT_ACCEPTED, progress, command_id)
             self._emit(EventName.INTENT_STARTED, progress, command_id)
             terminal = {**progress, "status": "completed", "detail": "contract_only"}
             self._emit(EventName.INTENT_TERMINAL, terminal, command_id)
         elif name is CommandName.CANCEL_INTENT:
-            terminal = dict(payload)
+            original = next(
+                (
+                    command_payload
+                    for command_name, command_payload, _revision in reversed(
+                        self.commands
+                    )
+                    if command_name is CommandName.EXECUTE_INTENT
+                    and command_payload.get("command_id") == payload.get("command_id")
+                ),
+                {},
+            )
+            terminal = {
+                "command_id": str(payload["command_id"]),
+                "actor_id": str(payload["actor_id"]),
+                "intent_id": str(original.get("intent_id", payload["command_id"])),
+                "body_generation": int(original.get("body_generation", 1)),
+            }
             terminal["status"] = "cancelled"
             self._emit(EventName.INTENT_TERMINAL, terminal, command_id)
         return command_id

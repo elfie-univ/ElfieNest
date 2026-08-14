@@ -17,6 +17,7 @@ environment.
 | `build_godot_web.py` | Build | Exports and validates the Godot Web Runtime; final output goes to `build/components/godot-web/` |
 | `release.py` | Release build | Assembles staging resources and invokes electron-builder |
 | `check_quality_baseline.py` | Quality gate | Compares current Ruff, Ruff format and MyPy diagnostics against the controlled historical baseline |
+| `check_quality_environment.py` | Quality preflight | Checks host capabilities required by repository-wide tests before the expensive full gate |
 | `check_node_toolchain.sh` | Quality gate | Verifies the root Node.js/pnpm anchor and all independent Node project manifests |
 | `architecture/app_layer_scan.py` | Architecture gate | Ratchets exact legacy App-layer violations and switches to deny-all after baseline removal |
 | `architecture/system_layer_scan.py` | Architecture gate | Ratchets exact Elfie/Nest system-boundary violations and switches to deny-all after baseline removal |
@@ -73,6 +74,18 @@ Typical usage:
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync python scripts/check_quality_baseline.py
 ```
+
+Before a repository-wide pytest run, probe the host once:
+
+```bash
+UV_CACHE_DIR=/tmp/elfienest-uv-cache \
+  uv run --no-sync python scripts/check_quality_environment.py
+```
+
+Exit code `0` means loopback binding is available. Exit code `2` means the
+current sandbox or host policy denied `127.0.0.1:0`; do not start the full
+suite there. Run the same full command once in an environment that permits the
+bind. Exit code `1` is an unexpected probe failure that needs diagnosis.
 
 ## Manual diagnosis scripts
 

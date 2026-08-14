@@ -130,7 +130,9 @@ def test_nest_semantic_payloads_enter_one_typed_embodied_perception_lane() -> No
                 SemanticActionResultPayload(
                     kind="semantic_action_result",
                     command_id="move-home-1",
+                    intent_id="intent-move-home-1",
                     actor_id="dog-1",
+                    body_generation=1,
                     target="home",
                     resolved_anchor_id="room-1/bed-1",
                     status="completed",

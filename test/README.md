@@ -63,8 +63,14 @@ Full test suite:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
+  uv run --no-sync python scripts/check_quality_environment.py
+UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest test/
 ```
+
+Run the preflight first. Exit `2` means the current sandbox cannot bind the
+loopback port used by the gateway tests; run the full command once in an
+environment that permits the bind instead of running the suite twice.
 
 Pytest markers currently declared:
 

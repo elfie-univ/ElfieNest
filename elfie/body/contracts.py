@@ -115,11 +115,33 @@ class SemanticActionResultPayload(FrozenContractModel):
 
     kind: Literal["semantic_action_result"]
     command_id: _NonBlankText
+    intent_id: _NonBlankText
     actor_id: _NonBlankText
+    body_generation: _Generation
     target: _NonBlankText
     resolved_anchor_id: _NonBlankText
     status: Literal["completed", "failed", "cancelled", "timed_out"]
     reason: Optional[_NonBlankText] = None
+
+
+class NestFactNoticePayload(FrozenContractModel):
+    """Structured semantic notice from a Nest owner other than interaction."""
+
+    kind: Literal["nest_fact_notice"]
+    fact_type: Literal[
+        "facility_state_changed",
+        "home_assignment_changed",
+        "environment_phase_changed",
+        "environment_desired_changed",
+        "environment_rule_changed",
+    ]
+    fact_id: _NonBlankText
+    summary: _NonBlankText
+    zone_id: Optional[_NonBlankText] = None
+    active: Optional[bool] = None
+    lights_on: Optional[bool] = None
+    quiet_mode: Optional[bool] = None
+    phase: Optional[_NonBlankText] = None
 
 
 SensorPayload: TypeAlias = Annotated[
@@ -133,6 +155,7 @@ SensorPayload: TypeAlias = Annotated[
         HeardUtterancePayload,
         SemanticVisualScenePayload,
         SemanticActionResultPayload,
+        NestFactNoticePayload,
     ],
     Field(discriminator="kind"),
 ]
@@ -307,6 +330,7 @@ __all__ = (
     "ExpressionCommand",
     "HeardUtterancePayload",
     "MotionCommand",
+    "NestFactNoticePayload",
     "ProprioceptionSample",
     "SemanticActionResultPayload",
     "SemanticVisualEntityPayload",

@@ -79,7 +79,9 @@ def test_body_sensor_event_preserves_identity_for_every_tagged_payload() -> None
         SemanticActionResultPayload(
             kind="semantic_action_result",
             command_id="command-1",
+            intent_id="intent-command-1",
             actor_id="fox-1",
+            body_generation=1,
             target="home",
             resolved_anchor_id="bed-1",
             status="completed",

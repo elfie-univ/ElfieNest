@@ -1,10 +1,33 @@
 # Testing & quality
 
+## Full-suite environment preflight
+
+Before starting the repository-wide pytest gate, check whether the current
+host can bind a loopback socket:
+
+```bash
+UV_CACHE_DIR=/tmp/elfienest-uv-cache \
+  uv run --no-sync python scripts/check_quality_environment.py
+```
+
+The preflight does not skip or downgrade any test. It returns:
+
+- `0`: loopback binding is available; run `pytest test/` once;
+- `2`: the sandbox or host policy denied `127.0.0.1:0`; do not run the full
+  suite in that environment, and run the same full command once with host or
+  elevated permissions;
+- `1`: an unexpected probe error; diagnose it before starting the full suite.
+
+The gateway restart test remains part of the full suite. A permission-denied
+preflight is an execution-environment result, not a reason to exclude that
+test or to rerun the entire suite after an isolated retry.
+
 ## Test layers
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/<changed-module>/
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/
+# Run this only after the preflight above returns 0.
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/
 ```
 

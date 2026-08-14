@@ -10,6 +10,7 @@ from nest.events import (
     HeardUtterance,
     NestDomainEvent,
     NestEventEnvelope,
+    NestFactNotice,
     SemanticActionResult,
     SemanticVisualEntity,
     SemanticVisualScene,
@@ -32,7 +33,7 @@ class NestEventBus:
         self._space = space
         self._pending_speech: Dict[str, tuple[str, str, str | None]] = {}
         self._pending_visual: Dict[str, tuple[str, int]] = {}
-        self._pending_actions: Dict[str, tuple[str, str, str]] = {}
+        self._pending_actions: Dict[str, tuple[str, str, str, str, int]] = {}
         self._event_outbox: List[NestEventEnvelope] = []
         self._emitted_event_ids: set[str] = set()
 
@@ -50,28 +51,35 @@ class NestEventBus:
         self._pending_actions = {
             command_id: pending
             for command_id, pending in self._pending_actions.items()
-            if pending[0] != elfie_id
+            if pending[1] != elfie_id
         }
 
     def queue_semantic_action(
         self,
         *,
         command_id: str,
+        intent_id: str,
         actor_id: str,
+        body_generation: int,
         target: str,
         resolved_anchor_id: str,
     ) -> bool:
         if (
             not command_id.strip()
+            or not intent_id.strip()
             or not self._living_rules.is_present(actor_id)
+            or isinstance(body_generation, bool)
+            or body_generation < 1
             or not target.strip()
             or not resolved_anchor_id.strip()
         ):
             return False
         self._pending_actions[command_id] = (
+            intent_id,
             actor_id,
             target,
             resolved_anchor_id,
+            body_generation,
         )
         return True
 
@@ -93,7 +101,7 @@ class NestEventBus:
         pending = self._pending_actions.pop(command_id, None)
         if pending is None:
             return None
-        actor_id, target, resolved_anchor_id = pending
+        intent_id, actor_id, target, resolved_anchor_id, body_generation = pending
         normalized_status: SemanticActionStatus = (
             cast(SemanticActionStatus, status)
             if status in {"completed", "failed", "cancelled", "timed_out"}
@@ -101,7 +109,9 @@ class NestEventBus:
         )
         result = SemanticActionResult(
             command_id=command_id,
+            intent_id=intent_id,
             actor_id=actor_id,
+            body_generation=body_generation,
             target=target,
             resolved_anchor_id=resolved_anchor_id,
             status=normalized_status,
@@ -378,6 +388,74 @@ class NestEventBus:
                 utterance_id=event_id,
                 sender_id=sender_id,
                 text=text,
+            ),
+            runtime_id=None,
+            runtime_generation=None,
+            world_revision=None,
+            occurred_at=None,
+        )
+
+    def emit_fact_notice(
+        self,
+        *,
+        fact_type: str,
+        fact_id: str,
+        summary: str,
+        cause_id: str | None = None,
+        target_ids: tuple[str, ...] | None = None,
+        zone_id: str | None = None,
+        active: bool | None = None,
+        lights_on: bool | None = None,
+        quiet_mode: bool | None = None,
+        phase: str | None = None,
+    ) -> bool:
+        """Emit one owner-created semantic fact through the common outbox."""
+        if not fact_id.strip() or not summary.strip():
+            return False
+        eligible_targets = self._living_rules.eligible_event_audience(
+            target_ids,
+        )
+        if not eligible_targets:
+            return False
+        if fact_type not in {
+            "facility_state_changed",
+            "home_assignment_changed",
+            "environment_phase_changed",
+            "environment_desired_changed",
+            "environment_rule_changed",
+        }:
+            return False
+        owner_by_fact_type = {
+            "facility_state_changed": "nest.space_facilities",
+            "home_assignment_changed": "nest.living_rules",
+            "environment_phase_changed": "nest.time_environment",
+            "environment_desired_changed": "nest.time_environment",
+            "environment_rule_changed": "nest.time_environment",
+        }
+        event_id = f"nest-fact:{uuid4().hex}"
+        return self._emit_event(
+            event_id=event_id,
+            owner=owner_by_fact_type[fact_type],
+            cause_id=cause_id or fact_id,
+            target_ids=eligible_targets,
+            payload=NestFactNotice(
+                fact_type=cast(
+                    Literal[
+                        "facility_state_changed",
+                        "home_assignment_changed",
+                        "environment_phase_changed",
+                        "environment_desired_changed",
+                        "environment_rule_changed",
+                    ],
+                    fact_type,
+                ),
+                fact_id=fact_id,
+                summary=summary,
+                zone_id=zone_id,
+                active=active,
+                lights_on=lights_on,
+                quiet_mode=quiet_mode,
+                phase=phase,
             ),
             runtime_id=None,
             runtime_generation=None,

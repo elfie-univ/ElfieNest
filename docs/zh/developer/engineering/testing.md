@@ -1,10 +1,30 @@
 # 测试与质量
 
+## 全量门禁的环境预检
+
+启动全仓 pytest 门禁前，先检查当前宿主是否能绑定回环端口：
+
+```bash
+UV_CACHE_DIR=/tmp/elfienest-uv-cache \
+  uv run --no-sync python scripts/check_quality_environment.py
+```
+
+预检不会跳过或降级任何测试，退出码含义如下：
+
+- `0`：允许回环端口绑定，运行一次 `pytest test/`；
+- `2`：沙箱或宿主策略拒绝 `127.0.0.1:0`，不要在当前环境运行全量测试，应使用宿主或
+  提升权限的环境把同一条全量命令运行一次；
+- `1`：预检出现未预期错误，先诊断再启动全量门禁。
+
+网关重启测试仍然属于全量套件。权限拒绝是执行环境结果，不是排除该测试或在单测重试后
+再次重跑整套测试的理由。
+
 ## 测试层级
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/<changed-module>/
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/
+# 仅在上方预检返回 0 后运行。
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/
 ```
 

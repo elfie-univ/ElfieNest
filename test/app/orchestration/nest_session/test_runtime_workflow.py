@@ -26,6 +26,7 @@ from app.orchestration.nest_session.models import (
 from elfie import Elfie
 from elfie.body.contracts import (
     HeardUtterancePayload,
+    NestFactNoticePayload,
     SemanticActionResultPayload,
     SemanticVisualScenePayload,
 )
@@ -148,6 +149,11 @@ def test_speech_reach_uses_nest_semantic_interaction() -> None:
         ),
     ):
         engine.session.consume_runtime_event(event)
+    baseline_calls = {
+        "fox": fox.pump_body_events.call_count,
+        "dog": dog.pump_body_events.call_count,
+        "cat": cat.pump_body_events.call_count,
+    }
     assert engine.nest.queue_speech(
         command_id="speech-1",
         sender_id="fox-1",
@@ -175,13 +181,14 @@ def test_speech_reach_uses_nest_semantic_interaction() -> None:
     assert event.payload.text == "你好"
     assert event.payload.emotion == "happy"
     assert event.payload.sender_id == "fox-1"
-    assert fox.pump_body_events.call_count == 0
-    assert cat.pump_body_events.call_count == 0
+    assert fox.pump_body_events.call_count == baseline_calls["fox"]
+    assert cat.pump_body_events.call_count == baseline_calls["cat"]
+    assert dog.pump_body_events.call_count == baseline_calls["dog"] + 1
     assert engine.nest.drain_event_outbox() == ()
 
     # A repeated Runtime frame cannot re-deliver a consumed semantic event.
     engine.session.consume_runtime_event(speech)
-    assert dog.pump_body_events.call_count == 1
+    assert dog.pump_body_events.call_count == baseline_calls["dog"] + 1
     assert (
         engine.nest.complete_speech_reach(
             command_id="speech-1",
@@ -190,6 +197,50 @@ def test_speech_reach_uses_nest_semantic_interaction() -> None:
         )
         is None
     )
+
+
+def test_owner_fact_notice_reaches_the_target_elfie_through_typed_delivery() -> None:
+    from nest.time_environment.models import EnvironmentRule, LifePhase
+
+    runtime = FakeWorldRuntime()
+    runtime.connection = RuntimeConnection("runtime-a", 1)
+    engine = ElfieNestEngine(runtime)
+    fox = MagicMock(spec=Elfie)
+    engine.session.register_elfie("fox-1", fox)
+
+    engine.nest.set_environment_rules(
+        (
+            EnvironmentRule(
+                rule_id="quiet-night",
+                phase=LifePhase.NIGHT,
+                lights_on=False,
+                quiet_mode=True,
+            ),
+        )
+    )
+    engine.session.consume_runtime_event(
+        _event(
+            WorldEventName.WORLD_CONFIGURED,
+            WorldConfigured(False, False),
+        )
+    )
+
+    delivered = fox.pump_body_events.call_args.args[0]
+    assert len(delivered) == 2
+    payloads = tuple(event.payload for event in delivered)
+    assert all(isinstance(payload, NestFactNoticePayload) for payload in payloads)
+    assert {payload.fact_type for payload in payloads} == {
+        "environment_rule_changed",
+        "environment_desired_changed",
+    }
+    rule_payload = next(
+        payload
+        for payload in payloads
+        if payload.fact_type == "environment_rule_changed"
+    )
+    assert rule_payload.fact_id == "quiet-night"
+    assert all(event.source.source_kind == "nest" for event in delivered)
+    assert engine.nest.drain_event_outbox() == ()
 
 
 def test_failed_target_delivery_requeues_only_that_target() -> None:
@@ -208,6 +259,9 @@ def test_failed_target_delivery_requeues_only_that_target() -> None:
         _event(WorldEventName.WORLD_CONFIGURED, WorldConfigured(True, True)),
     ):
         engine.session.consume_runtime_event(event)
+    dog.pump_body_events.reset_mock()
+    cat.pump_body_events.reset_mock()
+    dog.pump_body_events.side_effect = [RuntimeError("body offline"), ()]
     assert engine.nest.queue_speech(
         command_id="speech-retry-1",
         sender_id="fox-1",
@@ -313,10 +367,15 @@ def test_semantic_action_result_reaches_only_originating_elfie_once() -> None:
     engine.session.consume_runtime_event(
         _event(WorldEventName.SCENE_MANIFEST, SceneManifest(_catalog()))
     )
+    fox_calls_before_action = fox.pump_body_events.call_count
+    dog_calls_before_action = dog.pump_body_events.call_count
     assert engine.session.prepare_semantic_action(
         {
             "command_id": "home-1",
+            "intent_id": "intent-home-1",
             "actor_id": "fox-1",
+            "body_generation": 1,
+            "initiator": "elfie",
             "anchor_id": "home",
         }
     ) == engine.nest.home_anchor_id("fox-1")
@@ -336,9 +395,12 @@ def test_semantic_action_result_reaches_only_originating_elfie_once() -> None:
     assert isinstance(event.payload, SemanticActionResultPayload)
     assert event.event_id == "semantic-action:home-1"
     assert event.cause_id == "home-1"
+    assert event.payload.intent_id == "intent-home-1"
+    assert event.payload.body_generation == 1
     assert event.payload.resolved_anchor_id == engine.nest.home_anchor_id("fox-1")
     assert event.payload.status == "completed"
-    assert dog.pump_body_events.call_count == 0
+    assert fox.pump_body_events.call_count == fox_calls_before_action + 1
+    assert dog.pump_body_events.call_count == dog_calls_before_action
     assert engine.nest.drain_event_outbox() == ()
 
     engine.session.complete_semantic_action(
@@ -349,7 +411,7 @@ def test_semantic_action_result_reaches_only_originating_elfie_once() -> None:
         },
         SimpleNamespace(terminal_status="completed", reason="", events=()),
     )
-    assert fox.pump_body_events.call_count == 1
+    assert fox.pump_body_events.call_count == fox_calls_before_action + 1
 
 
 def test_environment_desired_state_syncs_once_and_accepts_actual_runtime_fact() -> None:
@@ -570,7 +632,14 @@ def test_runtime_generation_change_invalidates_projections_and_pending_work() ->
         observer_id="fox-1",
     )
     assert engine.session.prepare_semantic_action(
-        {"command_id": "action-old", "actor_id": "fox-1", "anchor_id": "home"}
+        {
+            "command_id": "action-old",
+            "intent_id": "intent-action-old",
+            "actor_id": "fox-1",
+            "body_generation": 1,
+            "initiator": "elfie",
+            "anchor_id": "home",
+        }
     ) == engine.nest.home_anchor_id("fox-1")
 
     runtime.connection = RuntimeConnection("runtime-b", 2)

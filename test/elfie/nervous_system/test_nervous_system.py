@@ -15,12 +15,9 @@ from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 NOW = datetime(2026, 7, 22, 8, 0, tzinfo=timezone.utc)
 
 
-def test_nervous_system_owns_sensors_and_processing_components() -> None:
+def test_nervous_system_owns_processing_components() -> None:
     nervous_system = NervousSystem()
 
-    assert nervous_system.vision_sensor is not None
-    assert nervous_system.audio_sensor is not None
-    assert nervous_system.environment_sensor is not None
     assert nervous_system.speech_actuator is not None
     assert nervous_system.motion_actuator is not None
     assert nervous_system.mutter_actuator is not None

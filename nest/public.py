@@ -5,6 +5,7 @@ from nest.config import NestConfig, NestConfigError
 from nest.events import (
     HeardUtterance,
     NestEventEnvelope,
+    NestFactNotice,
     SemanticActionResult,
     SemanticVisualEntity,
     SemanticVisualScene,
@@ -46,6 +47,7 @@ __all__ = [
     "EnvironmentRule",
     "InteractionAnchor",
     "HeardUtterance",
+    "NestFactNotice",
     "SemanticVisualEntity",
     "SemanticVisualScene",
     "SemanticActionResult",

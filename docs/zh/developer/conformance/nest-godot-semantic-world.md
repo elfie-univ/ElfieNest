@@ -17,6 +17,21 @@
 “零债务”结论仍由本台账守护。实现切片及其证据现已完成，下面每一行均已 closed；本台账
 暂时保留注册，等待 NGW-R11 所述的独立治理变更删除双语镜像。
 
+## 2026-08-15 最新收口审查
+
+最近一次契约审查提出的七项问题已按以下顺序关闭。这里记录具体实现和证据，不把目录名
+或一次通过的单元测试单独当作线路、所有权或清理完成的证明。
+
+| 问题 | 已关闭的实现 | 证据 |
+| --- | --- | --- |
+| Elfie、Nest、Godot 之间的语义行动身份可能丢失 | Gateway、Nest Session、Actor Controller 和结果 Payload 统一要求 `intent_id`、`body_generation`、Actor 身份及 `initiator=elfie`。 | 协议、分类入站、Native Body、Nest、Runtime workflow 测试；mypy 与架构扫描通过。 |
+| Snapshot 恢复可能残留旧居民和投影 | `Nest.restore_snapshot()` 现在替换居民、Home、Runtime mirror 和交互待处理状态，保留 AWAY 与显式 reconciliation。 | `test_restore_snapshot_replaces_residents_and_restores_presence` 及 Nest/session 持久化测试。 |
+| 旧的 raw vision/audio/environment sensors 仍存在 | 删除旧 sensors 包及测试；Nervous System 和公开 API 只使用规范化类型语义事件。 | 仓库引用扫描不再发现退役 sensor 符号；Elfie nervous-system/body 套件通过。 |
+| 设施视觉绕过 Godot 空间查询边界 | Godot 发布设施 marker，并和 anchor 共用距离/FOV/遮挡过滤路径。 | Runtime interaction/navigation headless 契约通过；没有新增 Camera3D、截图或媒体路径。 |
+| 非交互 Nest 所有者没有统一的类型化事件生产路径 | Space and Facilities、Living Rules、Time and Environment 通过公共 outbox 产生 `NestFactNotice`；受众仍由 Living Rules 解析。 | Nest owner-event 与 Runtime delivery 测试覆盖目标过滤、类型 Payload 和去重。 |
+| Observer camera reset 测试依赖环境隐含前提 | 前端测试显式设置 secure-context 前提。 | Web 前端 105 个文件/498 个测试通过；typecheck 和生产构建通过。 |
+| 未完成完整 inventory 就宣称目录/契约收口 | 重新执行结构、有效依赖、System 层和 App 层扫描，并分类 tracked/generated/support；Godot headless 检查后无未跟踪文件。 | 四项扫描均报告 0 个 forbidden target；无未跟踪文件或退役 sensor 引用。 |
+
 ## 目标源码归置
 
 Nest 的四个所有者是业务边界。公共聚合支撑不是第五个所有者，技术性大杂物包也不能
@@ -53,17 +68,17 @@ Godot 目录表达源码类别，不对应 Nest 的业务模块。下列归置�
 | ID | 严重度 | 状态 | 当前偏差 | 关闭条件 | 证据 |
 | --- | --- | --- | --- | --- | --- |
 | NGW-R01 | P0 | closed | 已删除临时 Nest 容器，事实、模型和错误均回到对应所有者。 | 目录、Facade 和旧导入清单由结构扫描器与项目结构测试守护。 | target=Nest 所有权条款；inventory=nest 根及四个所有者目录；references=无旧包或 NestState 调用方；verification=54 个聚焦测试及 49 个源文件 mypy 通过；residuals=none |
-| NGW-R02 | P0 | closed | 类型化 Nest 事件投递已成为唯一生产线路。 | 交互关联只产生一份类型化 Envelope，不再消费原始感知队列。 | target=公共事件机制；inventory=nest/elfie_interaction 与编排路由；references=事件线路扫描；verification=Nest 和 Runtime workflow 的重复/非目标测试通过；residuals=none |
-| NGW-R03 | P0 | closed | 结构化听觉、视觉和语义行动 Payload 在投递中保留情绪、因果和目标身份。 | 生产消费者向所属 Elfie 各投递一次结构化 Envelope。 | target=结构化语义感知条款；inventory=events.py、hub.py、world_perception.py；references=类型化投递测试；verification=正向、非目标和去重场景通过；residuals=none |
-| NGW-R04 | P0 | closed | 居民、环境和交互待处理状态统一带 Runtime/generation/revision 来源，并走一条 authority 换代失效路径。 | 陈旧帧被拒绝，只重新同步当前期望环境。 | target=generation 与恢复条款；inventory=runtime_sync、runtime_events 和 Nest invalidation；references=陈旧/恢复 workflow 测试；verification=聚焦 workflow 套件通过；residuals=none |
+| NGW-R02 | P0 | closed | 类型化 Nest 事件投递已成为唯一生产线路，也覆盖所有者产生的事实通知。 | 交互关联和四个所有者只产生一份类型化 Envelope；路由解析明确受众，并按同一事件身份重试。 | target=公共事件机制；inventory=nest/events.py、nest/elfie_interaction/hub.py、Nest 所有者生产者和编排路由；references=事件线路及退役 sensor 扫描；verification=Nest owner-event、说话、视觉和 workflow 的重复/非目标测试通过；residuals=none |
+| NGW-R03 | P0 | closed | 结构化听觉、视觉和语义行动 Payload 在投递中保留情绪、因果、目标及 intent 身份。 | 生产消费者向所属 Elfie 各投递一次 Envelope，也支持类型化 `NestFactNotice`。 | target=结构化语义感知条款；inventory=events.py、hub.py、body contracts、world_perception.py；references=类型化投递和协议身份测试；verification=正向、非目标、重试和去重场景通过；residuals=none |
+| NGW-R04 | P0 | closed | 居民、环境和交互待处理状态统一带 Runtime/generation/revision 来源，并走一条 authority 换代失效路径。 | 陈旧帧被拒绝；Snapshot 恢复是替换而非合并；只重新同步当前期望环境。 | target=generation 与恢复条款；inventory=runtime_sync、runtime_events、Nest restore 和 interaction invalidation；references=陈旧/恢复/restore workflow 测试；verification=最新 origin/main 上全仓 Python 2350 个测试通过、3 个跳过；residuals=none |
 | NGW-R05 | P1 | closed | 巢内生活规则统一拥有成员、Home、共享/访问、占用、受众过滤和环境覆盖决策，不引入企业角色。 | 语义行动和事件受众都调用同一 Nest 规则。 | target=巢内生活规则所有者；inventory=living_rules 与 Nest Facade；references=Home、受众和覆盖调用方；verification=Nest/workflow 测试通过；residuals=none |
-| NGW-R06 | P0 | closed | Godot World 拥有有界视觉空间查询，只返回候选，不把媒体或坐标带入 Nest。 | Runtime 源码和契约测试覆盖距离/FOV/遮挡归属与陈旧输入。 | target=Godot 空间查询条款；inventory=runtime/world 与空间查询测试；references=Actor 无世界查询所有权路径；verification=Godot 契约验证及 184 个聚焦测试通过；residuals=none |
-| NGW-R07 | P0 | closed | Godot World 计算说话可达候选，Nest 保留内容、情绪和最终居民受众规则。 | Elfie 听觉走类型化 Nest Bridge，不走 TTS/STT。 | target=SpeechBridge 条款；inventory=runtime/world、gateway 与 interaction hub；references=协议和说话 workflow 测试；verification=Godot Runtime 契约和定向投递测试通过；residuals=none |
+| NGW-R06 | P0 | closed | Godot World 拥有有界视觉空间查询，只返回候选，不把媒体或坐标带入 Nest。 | Anchor 和 facility marker 共用距离/FOV/遮挡路径；没有每个精灵的 Camera3D 或 screenshot/VLM 路径。 | target=Godot 空间查询条款；inventory=rooms/nest.gd、runtime/world 和空间查询测试；references=Actor 无世界查询所有权路径及退役 sensor 扫描；verification=Godot scene、environment、interaction、navigation headless 契约通过；residuals=none |
+| NGW-R07 | P0 | closed | Godot World 计算说话可达候选，Nest 保留内容、情绪和最终居民受众规则。 | 说话走类型化 Nest Bridge；只向 Godot 候选中经 Living Rules 过滤后的听者投递，不走 Elfie TTS/STT。 | target=SpeechBridge 条款；inventory=runtime/world、gateway、interaction hub 和 body contracts；references=协议身份和说话 workflow 测试；verification=Godot Runtime interaction 契约及定向/重试投递测试通过；residuals=none |
 | NGW-R08 | P1 | closed | 环境实际状态现在是由空间与设施拥有、带 Runtime 来源的稳定 `nest/environment` 对象投影。 | 期望状态仍由时间与环境拥有，恢复只重发该期望状态。 | target=EnvironmentChannel 条款；inventory=space_facilities 模型/目录、Adapter 和 Godot environment controller；references=对象 ID 校验；verification=29 个环境/持久化测试及 Godot Runtime 验证通过；residuals=none |
 | NGW-R09 | P1 | closed | Actor 代码只执行身体动作；World 和 `spatial_queries.gd` 拥有视觉/声音查询，Gateway 仍由 Bootstrap 唯一创建。 | 没有新增 Python 物理镜像或第二 Gateway。 | target=Godot authority 条款；inventory=godot_project/runtime 与 infrastructure/godot；references=World 所有权静态扫描；verification=Runtime Observer 和场景路径测试通过；residuals=none |
 | NGW-R10 | P1 | closed | Web 和 Linux Dedicated 导出预设共享完整的开发/创作排除边界，生成 Manifest 记录该边界。 | 创作源候选已分类，source 树中已跟踪 `.import` 边车已清理。 | target=导出边界条款；inventory=导出预设、export_boundary.py 和 source 候选；references=22 个导出/Runtime 测试及 source `.import` 数为零；verification=Manifest 与引用扫描通过；residuals=none |
-| NGW-R11 | P1 | closed | README 的所有权和线路描述已与四所有者实现一致；台账仍注册，等待独立治理删除。 | 保留结构和证据门禁，不再提前宣称零债务。 | target=ADR-0015 收口生命周期；inventory=中英文契约、README、扫描器和台账；references=双语行状态与注册表；verification=47 个治理/架构测试及聚焦套件通过；residuals=none |
-| NGW-R12 | P0 | closed | Nest 只暴露 `NestSnapshot` 与 Facade 导出/恢复；App 拥有 `NestStateStorePort` 和时机；SQLite 仍在 Infrastructure。 | 不再导出 Nest Repository，也不再深层修改 `nest.state`。 | target=ADR-0016 持久化所有权；inventory=Nest snapshot、App ports/session 和 SQLite Adapter；references=旧 repository/state 导入扫描；verification=50 个持久化/workflow 测试及 system-port 架构门通过；residuals=none |
+| NGW-R11 | P1 | closed | README 的所有权和线路描述已与四所有者实现一致；台账仍注册，等待独立治理删除。 | 以完整 tracked/generated/support inventory 重跑结构、有效依赖和层扫描，不从测试结果推断收口。 | target=ADR-0015 收口生命周期；inventory=中英文契约、README、全部 Nest/Godot 路径、扫描器和台账；references=双语行状态、退役路径扫描和当前主分支审查；verification=治理/架构套件及四项 deny-all 扫描通过；residuals=none |
+| NGW-R12 | P0 | closed | Nest 只暴露 `NestSnapshot` 与 Facade 导出/恢复；App 拥有 `NestStateStorePort` 和时机；SQLite 仍在 Infrastructure。 | 不再导出 Nest Repository、深层修改 `nest.state` 或保留旧 sensor 持久化。 | target=ADR-0016 持久化所有权；inventory=Nest snapshot、App ports/session 和 SQLite Adapter；references=旧 repository/state 与 sensor 导入扫描；verification=持久化/workflow 测试、mypy 及 system-port 架构门通过；residuals=none |
 
 **收口状态：** ready
 

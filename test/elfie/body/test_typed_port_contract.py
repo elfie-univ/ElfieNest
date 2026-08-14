@@ -40,7 +40,12 @@ class RecordingGodotGateway:
 
     def send_body_command(self, payload, *, cause_id) -> bool:
         self.sent.append(payload)
-        lifecycle = {"command_id": cause_id, "actor_id": payload["actor_id"]}
+        lifecycle = {
+            "command_id": cause_id,
+            "actor_id": payload["actor_id"],
+            "intent_id": payload["intent_id"],
+            "body_generation": payload["body_generation"],
+        }
         self.transport.receive_runtime_event(
             self._event(EventName.INTENT_ACCEPTED, lifecycle, 1)
         )
