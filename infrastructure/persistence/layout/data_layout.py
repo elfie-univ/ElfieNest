@@ -110,6 +110,14 @@ class FinalElfieLayout:
         return self.workspace / "conversations" / "attachments"
 
     @property
+    def portrait_headshot(self) -> Path:
+        return self.assets / "portrait-head.png"
+
+    @property
+    def portrait_full_body(self) -> Path:
+        return self.assets / "portrait-full.png"
+
+    @property
     def knowledge_database(self) -> Path:
         return self.workspace / "memory" / "knowledge.sqlite"
 

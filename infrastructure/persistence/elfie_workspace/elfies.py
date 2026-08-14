@@ -86,11 +86,15 @@ class SQLiteElfiesProjectionAdapter:
     def load_profile(self, elfie_id: str) -> ElfieProfileRecord:
         try:
             layout = final_root_layout(data_home_from_db_path(self._db_path))
-            repository = YamlProfileStoreAdapter(layout.elfie(elfie_id).profile.parent)
+            elfie_layout = layout.elfie(elfie_id)
+            repository = YamlProfileStoreAdapter(elfie_layout.profile.parent)
         except ValueError as error:
             raise ElfiesPortError("invalid Elfie identity") from error
         if not repository.exists():
-            return ElfieProfileRecord(status="empty")
+            return ElfieProfileRecord(
+                status="empty",
+                portrait_url=_portrait_url(elfie_layout, elfie_id),
+            )
         try:
             profile = repository.load()
             resolved = AppearanceResolver().resolve(profile)
@@ -99,6 +103,7 @@ class SQLiteElfiesProjectionAdapter:
                 return ElfieProfileRecord(
                     status="ready",
                     appearance=_appearance_record(resolved),
+                    portrait_url=_portrait_url(elfie_layout, elfie_id),
                 )
             values = {
                 key: _optional_number(raw_big_five.get(key)) for key in _BIG_FIVE_KEYS
@@ -113,7 +118,25 @@ class SQLiteElfiesProjectionAdapter:
             agreeableness=values["agreeableness"],
             neuroticism=values["neuroticism"],
             appearance=_appearance_record(resolved),
+            portrait_url=_portrait_url(elfie_layout, elfie_id),
         )
+
+    def load_portrait(self, elfie_id: str, *, kind: str = "headshot") -> bytes | None:
+        try:
+            layout = final_root_layout(data_home_from_db_path(self._db_path)).elfie(
+                elfie_id
+            )
+        except ValueError as error:
+            raise ElfiesPortError("invalid Elfie identity") from error
+        path = (
+            layout.portrait_full_body
+            if kind == "full_body"
+            else layout.portrait_headshot
+        )
+        try:
+            return path.read_bytes() if path.is_file() else None
+        except OSError as error:
+            raise ElfiesPortError("unable to read Elfie portrait") from error
 
     def load_cognition(self, elfie_id: str) -> CognitionSnapshotRecord:
         try:
@@ -179,6 +202,14 @@ def _directory_record(row: sqlite3.Row) -> ElfieDirectoryRecord:
         birth_date=(None if row["birth_date"] is None else str(row["birth_date"])),
         adopted_at=str(row["adopted_at"]),
         summary=None if row["summary"] is None else str(row["summary"]),
+    )
+
+
+def _portrait_url(layout, elfie_id: str) -> str:
+    return (
+        f"/api/v1/elfies/{elfie_id}/portrait"
+        if layout.portrait_headshot.is_file()
+        else ""
     )
 
 

@@ -21,6 +21,12 @@ class AdoptionQuotaRecord:
 
 
 @dataclass(frozen=True)
+class AdoptionNestCapacityRecord:
+    used: int
+    maximum: int
+
+
+@dataclass(frozen=True)
 class AdoptionReservationRecord:
     elfie_id: str
     owner_user_id: int
@@ -29,10 +35,12 @@ class AdoptionReservationRecord:
     gender: ElfieGender
     birth_date: str
     summary: str
+    original_name: str = ""
 
 
 __all__ = (
     "AdoptionPolicyRecord",
+    "AdoptionNestCapacityRecord",
     "AdoptionQuotaRecord",
     "AdoptionReservationRecord",
 )

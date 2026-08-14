@@ -83,6 +83,7 @@ EXPECTED_COLUMNS: Final = {
     "elfies": {
         "elfie_id",
         "name",
+        "original_name",
         "owner_user_id",
         "species",
         "gender",

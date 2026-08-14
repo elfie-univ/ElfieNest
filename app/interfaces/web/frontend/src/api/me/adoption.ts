@@ -16,12 +16,21 @@ const AdoptionInfoSchema = z.object({
     remaining: z.number().int(),
     can_adopt: z.boolean(),
   }),
+  nest_capacity: z.object({
+    used: z.number().int(),
+    max: z.number().int(),
+    remaining: z.number().int(),
+  }),
+  availability: z.enum([
+    "available",
+    "nest_full",
+    "member_quota_full",
+    "model_unavailable",
+  ]),
 })
 
 const AdoptionCandidateSchema = z.object({
   candidate_id: z.string(),
-  original_name: z.string(),
-  suggested_name: z.string(),
   species_id: z.union([z.literal("dog"), z.literal("fox")]),
   life_stage: z.union([
     z.literal("youth"),
@@ -30,21 +39,29 @@ const AdoptionCandidateSchema = z.object({
     z.literal("elder"),
   ]),
   gender: z.union([z.literal("male"), z.literal("female")]),
-  image_url: z.string(),
+  age_months: z.number().int().min(1).max(240),
+  full_body_image_url: z.string(),
+  headshot_image_url: z.string(),
   appearance_tags: z.array(z.string()),
   personality_tags: z.array(z.string()),
-  introduction: z.string(),
-  compatibility: z.string(),
+  runtime_appearance: z.record(z.string(), z.unknown()).default({}),
 })
 
 const AdoptionCandidateSetSchema = z.object({
   candidate_set_id: z.string(),
+  adoption_session_id: z.string(),
+  batch_number: z.number().int().min(1).max(3),
   candidates: z.array(AdoptionCandidateSchema).length(5),
 })
 
 const AdoptionReplySchema = AdoptionCandidateSchema.extend({
   status: z.union([z.literal("accepted"), z.literal("unsure")]),
   message: z.string(),
+  reveal: z.object({
+    original_name: z.string(),
+    suggested_name: z.string(),
+    personal_story: z.string(),
+  }).nullable(),
 })
 
 const AdoptionRepliesSchema = z.object({
@@ -76,6 +93,8 @@ export type AdoptionCandidateSetInput = {
     readonly priority: "stature" | "build" | "face" | "signature"
   }
   readonly answers: readonly string[]
+  readonly batch_number: number
+  readonly adoption_session_id?: string
 }
 
 export async function adoptionInfo(): Promise<AdoptionInfo> {
@@ -96,6 +115,7 @@ export async function adoptionCandidates(
 export async function adoptionReplies(
   candidateSetId: string,
   candidateIds: readonly string[],
+  invitationMessage: string,
   csrfToken: string,
 ): Promise<AdoptionReplies> {
   return AdoptionRepliesSchema.parse(await requestJson(
@@ -103,7 +123,7 @@ export async function adoptionReplies(
     {
       method: "POST",
       headers: csrfHeaders(csrfToken, true),
-      body: JSON.stringify({ candidate_ids: candidateIds }),
+      body: JSON.stringify({ candidate_ids: candidateIds, invitation_message: invitationMessage }),
     },
   ))
 }
@@ -113,6 +133,7 @@ export async function commitAdoption(
   candidateId: string,
   name: string,
   csrfToken: string,
+  portraits: { readonly fullBodyImageUrl?: string; readonly headshotImageUrl?: string } = {},
 ): Promise<z.infer<typeof AdoptionResultSchema>> {
   return AdoptionResultSchema.parse(await requestJson("/api/v1/me/adoption", {
     method: "POST",
@@ -121,6 +142,8 @@ export async function commitAdoption(
       candidate_set_id: candidateSetId,
       candidate_id: candidateId,
       name,
+      full_body_image_url: portraits.fullBodyImageUrl ?? "",
+      headshot_image_url: portraits.headshotImageUrl ?? "",
     }),
   }))
 }

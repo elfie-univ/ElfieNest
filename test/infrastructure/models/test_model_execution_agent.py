@@ -40,6 +40,24 @@ def test_ollama_json_text_requests_explicit_json_format() -> None:
     ) == {"format": "json"}
 
 
+def test_glm_fast_json_text_disables_provider_thinking() -> None:
+    request = StructuredModelExecutionRequest(
+        prompt="{}",
+        messages=(),
+        response_schema_name="AdoptionCandidateReveal",
+        response_schema={"type": "object"},
+        selected_mode=StructuredGenerationMode.JSON_TEXT,
+        allowed_tools=(),
+        provider="jdcloud_coding_plan_0001",
+        model_key="jdcloud_coding_plan_0001/GLM-5",
+        reasoning_mode="fast",
+    )
+
+    assert ModelExecutionAgent._structured_request_options(
+        request, StructuredGenerationMode.JSON_TEXT
+    ) == {"thinking": {"type": "disabled"}}
+
+
 def test_plain_text_request_has_no_schema_prompt_or_json_format() -> None:
     request = StructuredModelExecutionRequest(
         prompt="hello",

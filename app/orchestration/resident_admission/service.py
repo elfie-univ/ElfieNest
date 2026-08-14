@@ -48,6 +48,8 @@ class ResidentAdmissionService:
                 candidate_set_id=command.candidate_set_id,
                 candidate_id=command.candidate_id,
                 name=command.name,
+                full_body_image_url=command.full_body_image_url,
+                headshot_image_url=command.headshot_image_url,
             ),
         )
         try:

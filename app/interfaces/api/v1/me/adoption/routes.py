@@ -14,6 +14,7 @@ from app.features.adoption import (
     AdoptionCapacityReached,
     AdoptionError,
     AdoptionInvalid,
+    AdoptionNestCapacityReached,
     AdoptionOwnerNotFound,
     AdoptionService,
     AdoptionUnavailable,
@@ -82,6 +83,8 @@ def create_candidate_set(
                     priority=body.appearance.priority,
                 ),
                 answers=body.answers,
+                adoption_session_id=body.adoption_session_id,
+                batch_number=body.batch_number,
             ),
         )
     except AdoptionError as error:
@@ -105,6 +108,7 @@ def reply_to_candidates(
             ReplyToCandidatesCommand(
                 candidate_set_id=candidate_set_id,
                 candidate_ids=body.candidate_ids,
+                invitation_message=body.invitation_message,
             ),
         )
     except AdoptionError as error:
@@ -125,6 +129,8 @@ def commit_adoption(
                 candidate_set_id=body.candidate_set_id,
                 candidate_id=body.candidate_id,
                 name=body.name,
+                full_body_image_url=body.full_body_image_url,
+                headshot_image_url=body.headshot_image_url,
             ),
         )
     except (AdoptionError, ResidentAdmissionError) as error:
@@ -148,6 +154,10 @@ def _error_response(error: Exception) -> JSONResponse:
     elif isinstance(error, AdoptionCapacityReached):
         status_code = 409
         code = "elfie_capacity_reached"
+        details = AdoptionErrorDetails(limit=error.limit)
+    elif isinstance(error, AdoptionNestCapacityReached):
+        status_code = 409
+        code = "nest_capacity_reached"
         details = AdoptionErrorDetails(limit=error.limit)
     elif isinstance(error, AdoptionOwnerNotFound):
         status_code = 404

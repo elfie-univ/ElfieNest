@@ -10,6 +10,8 @@ class AdmitAcceptedAdoptionCommand:
     candidate_set_id: str
     candidate_id: str
     name: str
+    full_body_image_url: str = ""
+    headshot_image_url: str = ""
 
 
 @dataclass(frozen=True)

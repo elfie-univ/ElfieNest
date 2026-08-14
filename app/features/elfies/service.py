@@ -12,8 +12,10 @@ from .models import (
     ElfieAppearanceResult,
     ElfieOwnerResult,
     ElfiePermissionsResult,
+    ElfiePortraitResult,
     ElfieProfileDetailResult,
     ElfieProfileResult,
+    GetElfiePortraitQuery,
     GetElfieProfileQuery,
     ListAdminElfiesQuery,
     ListVisibleElfiesQuery,
@@ -84,6 +86,24 @@ class ElfiesService:
             private_cognition=cognition,
         )
 
+    def get_portrait(
+        self,
+        principal: AccountPrincipal,
+        query: GetElfiePortraitQuery,
+    ) -> ElfiePortraitResult:
+        if not query.elfie_id.strip() or query.kind not in ("headshot", "full_body"):
+            raise ElfieNotFound("Elfie not found")
+        try:
+            record = self._queries.get_directory(query.elfie_id)
+            if record is None or record.owner_user_id != principal.user_id:
+                raise ElfieNotFound("Elfie not found")
+            content = self._queries.load_portrait(query.elfie_id, kind=query.kind)
+        except ElfiesPortError as error:
+            raise ElfiesUnavailable("Elfie portrait unavailable") from error
+        if content is None:
+            raise ElfieNotFound("Elfie portrait not found")
+        return ElfiePortraitResult(content=content)
+
     def list_admin(
         self,
         principal: AccountPrincipal,
@@ -126,7 +146,7 @@ class ElfiesService:
             profile_status=source.status,
             big_five=big_five,
             personality_tags=_personality_tags(record.summary, big_five),
-            portrait_url="",
+            portrait_url=source.portrait_url,
             appearance=(
                 None
                 if source.appearance is None

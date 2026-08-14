@@ -92,6 +92,7 @@ class StructuredModelExecutionRequest(_FrozenModelExecutionContract):
     model_key: Optional[_NonBlankText] = None
     food_key: Optional[_NonBlankText] = None
     food_unavailable: bool = False
+    allow_fallback: bool = True
     scope_id: Optional[_NonBlankText] = None
     temperature: Annotated[float, Field(strict=True, ge=0.0, le=2.0)] = 0.2
     max_tokens: Annotated[int, Field(strict=True, ge=1)] = 512

@@ -10,11 +10,14 @@ from ._candidate_registry import CandidateRegistry
 from .errors import (
     AdoptionCapacityReached,
     AdoptionInvalid,
+    AdoptionNestCapacityReached,
     AdoptionOwnerNotFound,
     AdoptionUnavailable,
 )
 from .models import (
     AcceptedAdoptionReservation,
+    AdoptionAvailability,
+    AdoptionNestCapacity,
     AdoptionOptionsResult,
     AdoptionQuota,
     CandidateRepliesResult,
@@ -27,11 +30,14 @@ from .models import (
 )
 from .port_models import AdoptionPolicyRecord, AdoptionReservationRecord
 from .ports import (
+    AdoptionNarrativePort,
     AdoptionPersistencePort,
     AdoptionPolicyPort,
     AdoptionPortCapacityReached,
     AdoptionPortError,
+    AdoptionPortNestCapacityReached,
     AdoptionPortOwnerNotFound,
+    CandidatePortraitPort,
 )
 
 _HEIGHTS = ("short", "standard", "tall")
@@ -51,10 +57,15 @@ class AdoptionService:
         policy: AdoptionPolicyPort,
         persistence: AdoptionPersistencePort,
         candidates: CandidateRegistry | None = None,
+        portraits: CandidatePortraitPort | None = None,
+        narrative: AdoptionNarrativePort | None = None,
     ) -> None:
         self._policy = policy
         self._persistence = persistence
-        self._candidates = candidates or CandidateRegistry()
+        self._narrative = narrative
+        self._candidates = candidates or CandidateRegistry(
+            portraits=portraits, narrative=narrative
+        )
 
     def get_options(
         self,
@@ -68,11 +79,22 @@ class AdoptionService:
                 principal.user_id,
                 policy.default_elfie_limit,
             )
+            nest_capacity = self._persistence.get_nest_capacity()
         except AdoptionPortError as error:
             raise AdoptionUnavailable("领养额度暂不可用") from error
         if quota is None:
             raise AdoptionOwnerNotFound("用户不存在")
         remaining = max(0, quota.effective_limit - quota.used)
+        nest_remaining = max(0, nest_capacity.maximum - nest_capacity.used)
+        availability: AdoptionAvailability = (
+            "nest_full"
+            if nest_remaining == 0
+            else "member_quota_full"
+            if remaining == 0
+            else "available"
+            if self._narrative_ready()
+            else "model_unavailable"
+        )
         return AdoptionOptionsResult(
             personality_styles=policy.enabled_personality_styles,
             species_ids=policy.allowed_species_ids,
@@ -85,6 +107,12 @@ class AdoptionService:
                 remaining=remaining,
                 can_adopt=remaining > 0,
             ),
+            nest_capacity=AdoptionNestCapacity(
+                used=nest_capacity.used,
+                maximum=nest_capacity.maximum,
+                remaining=nest_remaining,
+            ),
+            availability=availability,
         )
 
     def create_candidate_set(
@@ -103,6 +131,8 @@ class AdoptionService:
             appearance=command.appearance,
             answers=command.answers,
             personality_styles=policy.enabled_personality_styles,
+            adoption_session_id=command.adoption_session_id,
+            batch_number=command.batch_number,
         )
 
     def reply_to_candidates(
@@ -114,6 +144,7 @@ class AdoptionService:
             owner_user_id=principal.user_id,
             candidate_set_id=command.candidate_set_id,
             candidate_ids=command.candidate_ids,
+            invitation_message=command.invitation_message,
         )
 
     def reserve_accepted(
@@ -132,13 +163,12 @@ class AdoptionService:
         policy = self._load_policy()
         if candidate.public.species_id not in policy.allowed_species_ids:
             raise AdoptionInvalid(f"species_id 必须是 {policy.allowed_species_ids}")
-        if candidate.personality_style not in policy.enabled_personality_styles:
-            raise AdoptionInvalid("当前候选的性格风格已停用，请重新生成候选名单")
         elfie_id = f"{secrets.randbelow(100_000_000):08d}"
         reservation = AcceptedAdoptionReservation(
             elfie_id=elfie_id,
             owner_user_id=principal.user_id,
             name=name,
+            original_name=candidate.original_name,
             species_id=candidate.public.species_id,
             personality_style=candidate.personality_style,
             height=candidate.height,
@@ -148,6 +178,16 @@ class AdoptionService:
             signature=candidate.signature,
             gender=candidate.public.gender,
             birth_date=candidate.birth_date,
+            genesis_candidate=candidate.genesis,
+            personal_story=candidate.personal_story,
+            age_months=candidate.public.age_months,
+            life_stage=candidate.public.life_stage,
+            full_body_image_url=(
+                command.full_body_image_url or candidate.public.full_body_image_url
+            ),
+            headshot_image_url=(
+                command.headshot_image_url or candidate.public.headshot_image_url
+            ),
         )
         try:
             self._persistence.reserve(
@@ -155,6 +195,7 @@ class AdoptionService:
                     elfie_id=reservation.elfie_id,
                     owner_user_id=reservation.owner_user_id,
                     name=reservation.name,
+                    original_name=reservation.original_name,
                     species_id=reservation.species_id,
                     gender=reservation.gender,
                     birth_date=reservation.birth_date,
@@ -164,6 +205,8 @@ class AdoptionService:
             )
         except AdoptionPortCapacityReached as error:
             raise AdoptionCapacityReached(error.limit) from error
+        except AdoptionPortNestCapacityReached as error:
+            raise AdoptionNestCapacityReached(error.limit) from error
         except AdoptionPortOwnerNotFound as error:
             raise AdoptionOwnerNotFound("用户不存在") from error
         except AdoptionPortError as error:
@@ -181,6 +224,15 @@ class AdoptionService:
             return self._policy.load_policy()
         except AdoptionPortError as error:
             raise AdoptionUnavailable("领养规则暂不可用") from error
+
+    def _narrative_ready(self) -> bool:
+        """Expose the same strong-model gate used by the reveal stage."""
+        if self._narrative is None:
+            return False
+        try:
+            return self._narrative.is_ready()
+        except (OSError, RuntimeError, ValueError):
+            return False
 
 
 __all__ = ("AdoptionService",)
