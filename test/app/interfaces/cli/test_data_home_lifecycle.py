@@ -237,6 +237,7 @@ def test_stop_uses_remembered_lifecycle_home(monkeypatch) -> None:
 def test_restart_stops_remembered_home_and_reuses_recorded_command(monkeypatch) -> None:
     """Given 已运行命令，When restart，Then 从原根停止并以原参数启动。"""
     calls: list[bool] = []
+    remembered: list[Path] = []
     recorded_command = ("python", "scripts/serve.py", "--data-home", "/tmp/selected")
 
     def supervisor(*_args, **kwargs):
@@ -246,11 +247,50 @@ def test_restart_stops_remembered_home_and_reuses_recorded_command(monkeypatch) 
         return _StartedSupervisor()
 
     monkeypatch.setattr(lifecycle_commands, "_supervisor_for", supervisor)
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_remember_lifecycle_data_home",
+        lambda _lifecycle, selected_home: remembered.append(selected_home),
+    )
 
     result = lifecycle_commands.restart_background_service(LIFECYCLE)
 
     assert result.status == "started"
     assert calls == [True, False]
+    assert remembered == [Path("/tmp/selected").resolve()]
+
+
+def test_web_uses_remembered_lifecycle_home_to_find_running_service(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Given restart 记录了临时根，When web，Then 查询同一根而非默认根。"""
+    remembered_home = tmp_path / "remembered"
+    selected_flags: list[bool] = []
+    opened: list[str] = []
+    command = ("python", "scripts/serve.py", "--port", "8100")
+
+    def select_data_home(_explicit_home, *, use_remembered=False, **_kwargs):
+        selected_flags.append(use_remembered)
+        return remembered_home if use_remembered else tmp_path / "default"
+
+    monkeypatch.setattr(LIFECYCLE, "select_data_home", select_data_home)
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "existing_service_command",
+        lambda home, *_args: (42, command) if home == remembered_home else None,
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_web_is_healthy",
+        lambda _lifecycle, port=8000: port == 8100,
+    )
+    monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
+
+    result = lifecycle_commands.open_web_console(LIFECYCLE)
+
+    assert result.status == "already_running"
+    assert selected_flags == [True]
+    assert opened == ["http://127.0.0.1:8100/"]
 
 
 def test_status_reads_remembered_lifecycle_home(monkeypatch, tmp_path: Path) -> None:
