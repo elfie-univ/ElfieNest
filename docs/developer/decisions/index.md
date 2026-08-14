@@ -18,3 +18,5 @@ The current contract always states the enforceable rule.
 - [ADR-0012: Effective dependencies include dynamic execution targets](./0012-effective-dependency-targets)
 - [ADR-0013: Nest–Godot semantic-world ownership and event routing](./0013-nest-godot-semantic-world-boundary)
 - [ADR-0014: Desktop startup progress and bounded shutdown](./0014-desktop-startup-progress-and-bounded-shutdown)
+- [ADR-0015: Cleanup closure requires inventory and residual evidence](./0015-evidence-backed-cleanup-closure)
+- [ADR-0016: App Orchestration owns the Nest state-store Port](./0016-nest-persistence-port-ownership)

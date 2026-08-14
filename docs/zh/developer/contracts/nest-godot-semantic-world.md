@@ -1,11 +1,13 @@
 # Nest–Godot 语义世界契约
 
-**契约版本：** 1.0
+**契约版本：** 1.1
 **采用日期：** 2026-08-13
+**修订日期：** 2026-08-14
 **适用范围：** `nest/`、Godot 语义边界及受影响的 App 编排
 
 > **规范性目标。** 本契约定义 Nest 内部事实所有权、与权威 Godot 世界的语义交互，
-> 以及面向 Elfie 的唯一事件路由。边界由永久架构测试和聚焦运行时测试直接执行。
+> 以及面向 Elfie 的唯一事件路由。当前实现缺口和强制清理顺序记录在临时
+> [Nest–Godot 一致性台账](../conformance/nest-godot-semantic-world)中。
 
 全仓所有者和依赖方向仍由[系统架构契约](./system)治理。本契约只细化该边界，不创建
 新的根模块、物理 authority、组合根或生命周期所有者。
@@ -37,6 +39,20 @@ Nest 有四个一级功能所有者：
 存在真实状态、契约或行为时才建立物理模块。稳定 `Nest` Facade 继续作为聚合入站边界，
 对外提供类型化用例而非可变内部子模块。
 
+四个所有者现在都已经有真实代码，因此一一对应的标准目录是 `space_facilities/`、
+`living_rules/`、`time_environment/` 和 `elfie_interaction/`。描述性名称避免 `space`、
+`rules` 或 `interaction` 再变成通用大杂物包。这不要求每个模型或 Service 都单独建文件，
+但禁止宽泛技术容器变成另一套所有权边界：
+
+- 时钟和推进驱动归时间与环境；通用 `engine/` 不是第五个所有者，不能重复时间推进，
+  也不能与 Godot Engine 混淆；
+- 聚合装配留在 `nest.py` 的 `Nest` 后面；宽泛公开的 `NestState` 兼容壳不是第二入站 API；
+- 所有者专属状态、模型和错误跟随所有者；通用 `state/` 不能收集四个所有者的无关事实；
+- 聚合配置和技术无关的 Nest 快照可以位于 `nest/` 根边界；App 自有 Nest 状态存储 Port
+  位于消费它的 Orchestration，具体存储仍位于根 Infrastructure；这些接缝都不是第五个
+  Nest 业务所有者；
+- `events.py` 可以保存公共事件机制；它仍是横切支撑，绝不成为第五个所有者。
+
 `nest/` 只保存居民 ID 和巢内状态，不持有或构造真实 Elfie。真实 Elfie 实例与 Nest
 状态只在 App Orchestration 中组合。
 
@@ -52,6 +68,8 @@ Nest 有四个一级功能所有者：
   可以共享一个 cause ID；
 - 重试保留事件身份；Runtime generation 和 world revision 用于拒绝过期物理输入，不能
   生成替代事件身份。
+- 可以使用类型化 Outbox、Stream 或 Queue 实现投递，但不得把同一事件再复制到无类型的
+  每居民感知队列。只有生产消费者已经按显式目标投递或可靠接收，事件才算完成。
 
 类型化 Nest 事件 Envelope 按需携带：
 
@@ -118,6 +136,19 @@ Godot 不保存 Home、居民归属、家庭权限或说话内容。Python 不�
 发布；空间与设施只拥有以这些 ID 为键的无坐标家庭语义目录与含义，不创建
 竞争的物理身份，也不把 NodePath 暴露为身份。
 
+Godot 源码路径按用途分类，不能拿目录数去对应 Nest 业务模块数：
+
+| 源码类别 | 仓库职责 |
+| --- | --- |
+| `rooms/`、`characters/` | 创作的物理场景、几何、角色资源和运行内容；它们是要保留的内容，不是额外业务模块 |
+| `runtime/actor/`、`runtime/world/`、`runtime/endpoint/` | 上述少量 authority 胶水；物理可见性和可听性归 World，不归 Actor |
+| `runtime/observer/`、`runtime/lab/`、`ui/` 及有引用的预览 Controller | 展示或开发模式；不因此取得物理、家庭或生命周期 authority |
+| `scripts/test/`、`scripts/tools/`、角色工具和创作 Source 树 | 仅供开发；所有发布导出都必须排除，且不得成为 Runtime 依赖 |
+
+`main.gd` 只做装配与模式分派。目录清理不授权删除有引用的场景或资产。反过来，使用
+All-resources 导出时必须明确排除所有开发/创作树；无引用 Helper 或生成边车只有具备已
+记录的创作/调用用途时才保留。
+
 ## 投递、编排与依赖
 
 Nest 与 Elfie 不得互相 import，也不得导入具体 Godot Infrastructure。消费方拥有的类型化
@@ -125,8 +156,9 @@ Port 由 `infrastructure/godot/` 实现，并由 Bootstrap 接线。一个具体
 多个窄能力；共享连接不会合并语义线路。
 
 App Orchestration 可以把真实 Elfie 实例与 Nest 居民 ID 关联，并把已经授权的类型化感知
-投递给目标聚合；它不选择家庭含义、不编造物理事实，也不代理直接身体流量。只有 App
-Lifecycle 可以启动、停止和恢复 Godot authority。
+投递给目标聚合；它不选择家庭含义、不编造物理事实，也不代理直接身体流量。Nest
+Session 还拥有当前状态存储 Port 和持久化时机，但只能保存或恢复由 Nest Facade 产生或
+接受的快照。只有 App Lifecycle 可以启动、停止和恢复 Godot authority。
 
 协议帧、WebSocket 状态、进程对象和 Runtime 凭据不得进入 Nest。领域命令、结果和事件
 不得暴露 NodePath、原始坐标、数据库 Record 或任意 JSON。
@@ -135,10 +167,10 @@ Lifecycle 可以启动、停止和恢复 Godot authority。
 
 | 状态 | Authority 与恢复规则 |
 | --- | --- |
-| 居民、Home、设施语义和家庭规则 | 通过 Nest 自有 Repository Port 恢复的持久 Nest 状态 |
+| 居民、Home、设施语义和家庭规则 | Nest 拥有快照语义，经 App 自有 Nest 状态存储 Port 和 Infrastructure Adapter 恢复 |
 | 巢内时间、生活阶段和期望环境状态 | 持久 Nest 状态；新 Godot generation 就绪后重新同步 |
 | actor 位置、速度、姿态、导航和对象实际状态 | 当前 Godot/Body Runtime；generation 改变后旧 Python 投影失效 |
-| 规则所需的离散环境投影 | 带来源 Nest 投影；generation/revision 改变后失效并重建 |
+| 规则所需的离散实际环境投影 | 带来源的空间与设施投影；generation/revision 改变后失效并重建；它与时间与环境的期望状态分离 |
 | utterance、observation 和 semantic intent 关联 | 短期 Nest 交互状态；换代时中断或对账，绝不盲目重放 |
 | 直接身体命令与回执 | 所属 Elfie Body 与 Godot；不通过 Nest 恢复 |
 | Runtime generation 与健康 | App Lifecycle |
@@ -148,9 +180,22 @@ Lifecycle 可以启动、停止和恢复 Godot authority。
 ## 验证与迁移纪律
 
 每次迁移只完成一个可独立审查的纵向切片：冻结类型化边界，迁移完整生产者到消费者
-调用链，证明定向路由和因果身份，并删除被替代路径。不得建立兼容 Alias、双写、第二世界
-投影或空架构包。
+调用链，证明定向路由和因果身份，删除被替代路径，并且只关闭对应一致性条目。不得建立
+兼容 Alias、双写、第二世界投影或空架构包。
 
 聚焦证据必须区分直接身体回执、身体感知、语义物理结果、VisibleSet、环境事实、声音
 可达、Nest 事件和 Runtime 生命周期事件。仅有传输测试通过，不能证明语义路由或
 authority 所有权正确。
+
+关闭任何一致性条目前，证据必须从精确契约条款与所有者追踪到真实生产者、类型化边界、
+唯一生产线路和最终消费者；必须包含正向场景、非目标或禁止线路场景、重试/去重身份；
+涉及物理状态时还必须包含旧 generation 和恢复行为。Godot 行为与导出声明必须有真实
+Godot 或发布产物证据。目录名、单元测试、传输 Round Trip 或截图中的任意一项都不能
+单独作为充分证据。
+
+结构清理还必须盘点已跟踪、未跟踪、被忽略和空路径，并把每个受治理 Nest/Godot 条目
+与获批准源码归置对账。未知条目由永久结构 Scanner 拒绝，映射到开放行的临时路径不能
+新增文件；只要相关路径或调用方仍存在，无论选中测试是否通过，清理都没有完成。
+
+产品迁移中不得删除临时一致性台账，任何条目 open 时也不得删除。只有当前实现、负向
+线路证据和恢复证据全部满足本契约后，才在独立治理变更中最终删除。

@@ -61,6 +61,14 @@
 只有任务前同命令基线、依赖诊断或已有 CI/Issue 能证明时，才把失败判定为既有问题；
 否则标记“归属未确认”。已确认的范围外失败只记录，不修复、不扩大当前任务。
 
+“测试通过”“工作区干净”或“已经推送”都不能单独支持“清理完成”或“符合契约”的
+结论。清理任务必须先明确目标条款与范围，递归盘点其中已跟踪、未跟踪、被忽略和空路径，
+把每个路径与目标归置逐项分类，并按需追踪 Import、动态入口、场景/资源、导出、CLI、
+文档和外部消费者引用。交付时分别报告已完成、保留和剩余项；只要存在未分类路径或受影响
+Conformance 行仍 open，就不得声称清理完成，即使所有选中测试都通过。关闭行时必须按
+仓库治理契约记录 `target`、`inventory`、`references`、`verification`、`residuals`
+五类证据。
+
 完成前按实际 diff 重新判断风险并补足最小验证；达到验收条件后停止。若验证即将超出
 预算，报告现有证据和缺口，由用户决定是否扩大。
 
@@ -152,6 +160,10 @@ godot_project/    独立 Godot 源工程与物理 authority
   唯一编排者。Desktop/Observer 只是受限 lifecycle client 和只读观察面，不持有
   authority 凭据、不启动 Runtime、不发送原始协议帧。Interface 与 Feature 也不得构造
   或接管 Engine、Gateway、Godot authority。
+- Nest 拥有持久语义事实和技术无关的聚合快照；当前加载、保存、回滚与恢复时机及
+  `NestStateStorePort` 归 `app/orchestration/nest_session`，具体 SQL/SQLite Adapter 归
+  `infrastructure/persistence/`，由 Bootstrap 注入。App 不得因此直接修改 Nest 内部状态
+  或成为家庭事实的第二 authority。
 - 禁止恢复旧顶层 Python 包 `runtime/`、`elfienest/`、`ai_runtime/`、`godot_runtime/`
   或 `app/infrastructure/`，也不得创建 `infrastructure/ai_runtime/`。
 - 依赖边界按实际目标判定，不只看静态 import。`python -m`、脚本路径、subprocess、

@@ -65,15 +65,29 @@ jobs:
           uv run --no-sync python scripts/architecture/effective_dependency_scan.py \
             --project-root .
 
+      - name: Check candidate structural cleanup scopes
+        run: |
+          uv run --no-sync python scripts/architecture/structural_scope_scan.py \
+            --project-root .
+
       - name: Reject governance and implementation files in one change
         run: |
           if git cat-file -e "$BASE_SHA:scripts/architecture/check_governance_change.py"; then
-            classifier="$RUNNER_TEMP/base-check-governance-change.py"
+            classifier_root="$RUNNER_TEMP/base-governance"
+            classifier_dir="$classifier_root/scripts/architecture"
+            mkdir -p "$classifier_dir"
+            classifier="$classifier_dir/check_governance_change.py"
             git show "$BASE_SHA:scripts/architecture/check_governance_change.py" > "$classifier"
+            if git cat-file -e "$BASE_SHA:scripts/architecture/structural_scope_scan.py"; then
+              git show "$BASE_SHA:scripts/architecture/structural_scope_scan.py" \
+                > "$classifier_dir/structural_scope_scan.py"
+            fi
           else
             classifier="scripts/architecture/check_governance_change.py"
+            classifier_root="$GITHUB_WORKSPACE"
           fi
-          uv run --no-sync python "$classifier" --base-sha "$BASE_SHA"
+          PYTHONPATH="$classifier_root" \
+            uv run --no-sync python "$classifier" --base-sha "$BASE_SHA"
 
       - name: Apply immutable base-branch architecture ratchet
         run: |

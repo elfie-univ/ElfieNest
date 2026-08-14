@@ -3,16 +3,25 @@
 from __future__ import annotations
 
 import runpy
+import subprocess
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Optional, Set
 
 import scripts.architecture.check_governance_change as governance_change
 from scripts.architecture.check_governance_change import (
+    ConformanceRow,
     classify_paths,
+    has_closure_ready_marker,
+    has_complete_closure_evidence,
+    parse_conformance_rows,
     validate_baseline_changes,
+    validate_conformance_changes,
     validate_contract_changes,
     validate_decision_mirrors,
     validate_governance_rule_changes,
+    validate_temporary_cleanup_changes,
 )
 from scripts.architecture.contract_registry import CONTRACT_REGISTRY
 
@@ -64,25 +73,24 @@ def test_every_architecture_test_is_owned_by_a_registered_contract() -> None:
     assert actual == _registered_paths("test_paths")
 
 
-def _conformance_statuses(relative_path: str) -> Set[str]:
+def _conformance_rows(relative_path: str) -> dict[str, ConformanceRow]:
     source = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
-    statuses: Set[str] = set()
-    for line in source.splitlines():
-        cells = [cell.strip().lower() for cell in line.split("|")]
-        if len(cells) > 3 and cells[3] in {"open", "in progress", "closed"}:
-            statuses.add(cells[3])
-    return statuses
+    return parse_conformance_rows(source)
 
 
 def test_registered_temporary_debt_artifacts_are_live() -> None:
     for registration in CONTRACT_REGISTRY:
         for relative_path in registration.conformance_paths:
-            statuses = _conformance_statuses(relative_path)
-            assert statuses, f"no conformance rows: {relative_path}"
-            assert statuses != {"closed"}, (
-                f"all-closed conformance must be removed from the registry: "
-                f"{relative_path}"
-            )
+            source = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
+            rows = _conformance_rows(relative_path)
+            assert rows, f"no conformance rows: {relative_path}"
+            if all(row.status == "closed" for row in rows.values()):
+                assert has_closure_ready_marker(source), (
+                    f"all-closed conformance must be marked ready: {relative_path}"
+                )
+                assert all(
+                    has_complete_closure_evidence(row) for row in rows.values()
+                ), f"closure-ready conformance needs row evidence: {relative_path}"
 
         if registration.baseline_path is None:
             continue
@@ -196,6 +204,272 @@ def test_contract_indexes_require_mirrors_but_not_contract_versions(
 
     assert validate_contract_changes("base", changed) == []
     assert validate_decision_mirrors(changed) == []
+
+
+def test_changed_path_inventory_includes_deletions(monkeypatch) -> None:
+    captured: list[str] = []
+
+    def fake_run(command, **_kwargs):
+        captured.extend(command)
+        return SimpleNamespace(stdout="docs/developer/conformance/example.md\n")
+
+    monkeypatch.setattr(governance_change.subprocess, "run", fake_run)
+
+    assert governance_change.changed_paths("base") == [
+        "docs/developer/conformance/example.md"
+    ]
+    assert "--diff-filter=ACDMRTUXB" in captured
+
+
+def test_governance_checker_supports_the_documented_direct_cli() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/architecture/check_governance_change.py",
+            "--help",
+        ],
+        cwd=PROJECT_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "--base-sha" in result.stdout
+
+
+def test_newly_closed_conformance_requires_inventory_and_reference_evidence(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    english = "docs/developer/conformance/example.md"
+    chinese = "docs/zh/developer/conformance/example.md"
+    registry = "scripts/architecture/contract_registry.py"
+    registry_source = f'conformance_paths=("{english}", "{chinese}")\n'
+    for path, source in (
+        (
+            english,
+            "| ID | Severity | Status | Deviation | Gate | Evidence |\n"
+            "| --- | --- | --- | --- | --- | --- |\n"
+            "| EX-001 | P0 | closed | fixed | met | tests passed |\n",
+        ),
+        (
+            chinese,
+            "| ID | 严重度 | 状态 | 偏差 | 条件 | 证据 |\n"
+            "| --- | --- | --- | --- | --- | --- |\n"
+            "| EX-001 | P0 | closed | 已修复 | 已满足 | 测试通过 |\n",
+        ),
+        (registry, registry_source),
+    ):
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    base_english = (
+        "| ID | Severity | Status | Deviation | Gate | Evidence |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        "| EX-001 | P0 | open | gap | gate | pending |\n"
+    )
+    base_chinese = (
+        "| ID | 严重度 | 状态 | 偏差 | 条件 | 证据 |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        "| EX-001 | P0 | open | 缺口 | 条件 | pending |\n"
+    )
+
+    def base_source(_base_sha: str, path: str) -> Optional[str]:
+        return {
+            english: base_english,
+            chinese: base_chinese,
+            registry: registry_source,
+        }.get(path)
+
+    monkeypatch.setattr(governance_change, "_base_source", base_source)
+    changed = {english, chinese}
+    failures = validate_conformance_changes(
+        "base", changed, governance=set(), production={"nest/example.py"}
+    )
+    assert any("lacks complete cleanup evidence" in item for item in failures)
+    assert any("not marked ready" in item for item in failures)
+
+    evidence = (
+        "target=contract-1; inventory=scope-list; references=callers-scan; "
+        "verification=positive-and-negative; residuals=zero"
+    )
+    (tmp_path / english).write_text(
+        "**Closure state:** ready\n"
+        "| ID | Severity | Status | Deviation | Gate | Evidence |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        f"| EX-001 | P0 | closed | fixed | met | {evidence} |\n",
+        encoding="utf-8",
+    )
+    (tmp_path / chinese).write_text(
+        "**收口状态：** ready\n"
+        "| ID | 严重度 | 状态 | 偏差 | 条件 | 证据 |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        f"| EX-001 | P0 | closed | 已修复 | 已满足 | {evidence} |\n",
+        encoding="utf-8",
+    )
+    assert (
+        validate_conformance_changes(
+            "base", changed, governance=set(), production={"nest/example.py"}
+        )
+        == []
+    )
+
+
+def test_conformance_removal_is_checked_against_the_base_register(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    english = "docs/developer/conformance/example.md"
+    chinese = "docs/zh/developer/conformance/example.md"
+    registry = "scripts/architecture/contract_registry.py"
+    base_registry = f'conformance_paths=("{english}", "{chinese}")\n'
+    candidate_registry = tmp_path / registry
+    candidate_registry.parent.mkdir(parents=True)
+    candidate_registry.write_text("conformance_paths=()\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    documents = {
+        english: "| EX-001 | P0 | open | gap | gate | pending |\n",
+        chinese: "| EX-001 | P0 | open | 缺口 | 条件 | pending |\n",
+    }
+
+    def base_source(_base_sha: str, path: str) -> Optional[str]:
+        if path == registry:
+            return base_registry
+        return documents.get(path)
+
+    monkeypatch.setattr(governance_change, "_base_source", base_source)
+    changed = {registry, english, chinese}
+    failures = validate_conformance_changes(
+        "base", changed, governance={registry}, production=set()
+    )
+    assert any("open base rows" in item for item in failures)
+
+    evidence = (
+        "target=contract-1; inventory=scope-list; references=callers-scan; "
+        "verification=positive-and-negative; residuals=zero"
+    )
+    documents[english] = (
+        "**Closure state:** ready\n"
+        f"| EX-001 | P0 | closed | fixed | met | {evidence} |\n"
+    )
+    documents[chinese] = (
+        "**收口状态：** ready\n"
+        f"| EX-001 | P0 | closed | 已修复 | 已满足 | {evidence} |\n"
+    )
+    assert (
+        validate_conformance_changes(
+            "base", changed, governance={registry}, production=set()
+        )
+        == []
+    )
+    failures = validate_conformance_changes(
+        "base", changed, governance={registry}, production={"nest/example.py"}
+    )
+    assert any("governance-only" in item for item in failures)
+
+
+def test_closed_conformance_evidence_cannot_be_weakened(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    english = "docs/developer/conformance/example.md"
+    chinese = "docs/zh/developer/conformance/example.md"
+    registry = "scripts/architecture/contract_registry.py"
+    registry_source = f'conformance_paths=("{english}", "{chinese}")\n'
+    complete = (
+        "target=contract-1; inventory=scope-list; references=callers-scan; "
+        "verification=positive-and-negative; residuals=zero"
+    )
+    candidate_sources = {
+        english: "| EX-001 | P0 | closed | fixed | met | pending |\n",
+        chinese: "| EX-001 | P0 | closed | 已修复 | 已满足 | pending |\n",
+        registry: registry_source,
+    }
+    for path, source in candidate_sources.items():
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    def base_source(_base_sha: str, path: str) -> Optional[str]:
+        if path == registry:
+            return registry_source
+        if path == english:
+            return f"| EX-001 | P0 | closed | fixed | met | {complete} |\n"
+        if path == chinese:
+            return f"| EX-001 | P0 | closed | 已修复 | 已满足 | {complete} |\n"
+        return None
+
+    monkeypatch.setattr(governance_change, "_base_source", base_source)
+    failures = validate_conformance_changes(
+        "base", {english, chinese}, governance=set(), production={"nest/example.py"}
+    )
+    assert any("evidence may not regress" in item for item in failures)
+
+
+def test_open_conformance_row_cannot_disappear_from_a_live_register(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    english = "docs/developer/conformance/example.md"
+    chinese = "docs/zh/developer/conformance/example.md"
+    registry = "scripts/architecture/contract_registry.py"
+    registry_source = f'conformance_paths=("{english}", "{chinese}")\n'
+    for path, source in (
+        (english, "| EX-002 | P0 | open | gap | gate | pending |\n"),
+        (chinese, "| EX-002 | P0 | open | 缺口 | 条件 | pending |\n"),
+        (registry, registry_source),
+    ):
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    def base_source(_base_sha: str, path: str) -> Optional[str]:
+        if path == registry:
+            return registry_source
+        if path == english:
+            return "| EX-001 | P0 | open | old | gate | pending |\n"
+        if path == chinese:
+            return "| EX-001 | P0 | open | 旧项 | 条件 | pending |\n"
+        return None
+
+    monkeypatch.setattr(governance_change, "_base_source", base_source)
+    failures = validate_conformance_changes(
+        "base", {english, chinese}, governance=set(), production={"nest/example.py"}
+    )
+    assert any("may close but not disappear" in item for item in failures)
+
+
+def test_temporary_cleanup_paths_can_shrink_but_cannot_gain_files(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    relative_path = "nest/state/new_compatibility.py"
+    candidate = tmp_path / relative_path
+    candidate.parent.mkdir(parents=True)
+    candidate.write_text("legacy = True\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        governance_change, "_base_source", lambda _base_sha, _path: None
+    )
+
+    failures = validate_temporary_cleanup_changes("base", {relative_path})
+    assert failures == [
+        "new file under temporary cleanup path is forbidden: "
+        "nest/state/new_compatibility.py (NGW-R01)"
+    ]
+
+    monkeypatch.setattr(
+        governance_change, "_base_source", lambda _base_sha, _path: "old\n"
+    )
+    assert validate_temporary_cleanup_changes("base", {relative_path}) == []
+
+    candidate.unlink()
+    assert validate_temporary_cleanup_changes("base", {relative_path}) == []
 
 
 def test_frozen_macro_contract_requires_a_new_standalone_bilingual_adr(
@@ -462,6 +736,9 @@ def test_architecture_ratchet_uses_immutable_base_on_pr_and_push() -> None:
     assert "github.event.pull_request.base.sha" in architecture_job
     assert "github.event.before" in architecture_job
     assert "if: github.event_name == 'pull_request'" not in architecture_job
+    assert "Check candidate structural cleanup scopes" in architecture_job
+    assert "$BASE_SHA:scripts/architecture/structural_scope_scan.py" in architecture_job
+    assert 'PYTHONPATH="$classifier_root"' in architecture_job
 
 
 def test_ci_full_test_job_covers_the_complete_architecture_suite_once() -> None:

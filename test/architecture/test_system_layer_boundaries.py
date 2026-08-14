@@ -5,6 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from scripts.architecture.check_governance_change import classify_paths
+from scripts.architecture.structural_scope_scan import (
+    collect_structural_scope_violations,
+)
 from scripts.architecture.system_layer_scan import (
     RULE_NAMES,
     collect_system_layer_violations,
@@ -70,6 +73,12 @@ def test_system_contract_decision_and_agents_exist_in_both_languages() -> None:
     chinese_nest_contract = (
         PROJECT_ROOT / "docs/zh/developer/contracts/nest-godot-semantic-world.md"
     ).read_text(encoding="utf-8")
+    english_nest_conformance = (
+        PROJECT_ROOT / "docs/developer/conformance/nest-godot-semantic-world.md"
+    ).read_text(encoding="utf-8")
+    chinese_nest_conformance = (
+        PROJECT_ROOT / "docs/zh/developer/conformance/nest-godot-semantic-world.md"
+    ).read_text(encoding="utf-8")
     required_docs = {
         "docs/developer/decisions/0002-system-ports-adapters.md",
         "docs/zh/developer/decisions/0002-system-ports-adapters.md",
@@ -79,6 +88,10 @@ def test_system_contract_decision_and_agents_exist_in_both_languages() -> None:
         "docs/zh/developer/decisions/0012-effective-dependency-targets.md",
         "docs/developer/decisions/0013-nest-godot-semantic-world-boundary.md",
         "docs/zh/developer/decisions/0013-nest-godot-semantic-world-boundary.md",
+        "docs/developer/decisions/0015-evidence-backed-cleanup-closure.md",
+        "docs/zh/developer/decisions/0015-evidence-backed-cleanup-closure.md",
+        "docs/developer/decisions/0016-nest-persistence-port-ownership.md",
+        "docs/zh/developer/decisions/0016-nest-persistence-port-ownership.md",
     }
     required_agents = {
         "elfie/AGENTS.md",
@@ -89,10 +102,10 @@ def test_system_contract_decision_and_agents_exist_in_both_languages() -> None:
         "godot_project/AGENTS.md",
     }
 
-    assert "**Contract version:** 1.6" in english_contract
-    assert "**契约版本：** 1.6" in chinese_contract
-    assert "**Contract version:** 1.0" in english_nest_contract
-    assert "**契约版本：** 1.0" in chinese_nest_contract
+    assert "**Contract version:** 1.7" in english_contract
+    assert "**契约版本：** 1.7" in chinese_contract
+    assert "**Contract version:** 1.1" in english_nest_contract
+    assert "**契约版本：** 1.1" in chinese_nest_contract
     assert "**Macro architecture baseline:** v1 (frozen)" in english_contract
     assert "**宏观架构基线：** v1（已冻结）" in chinese_contract
     assert "always has exactly one Nest" in english_contract
@@ -113,9 +126,43 @@ def test_system_contract_decision_and_agents_exist_in_both_languages() -> None:
     assert "不是第五个业务模块" in chinese_nest_contract
     assert "Broadcast is an audience shape" in english_nest_contract
     assert "广播只是" in chinese_nest_contract
+    assert "generic `engine/`" in english_nest_contract
+    assert "not a fifth owner" in english_nest_contract
+    assert "通用 `engine/`" in chinese_nest_contract
+    assert "`space_facilities/`" in english_nest_contract
+    assert "`living_rules/`" in english_nest_contract
+    assert "`space_facilities/`" in chinese_nest_contract
+    assert "`living_rules/`" in chinese_nest_contract
+    assert "developer-only inputs" in english_nest_contract
+    assert "仅供开发" in chinese_nest_contract
+    assert "App-owned Nest state-store Port" in english_nest_contract
+    assert "App 自有 Nest 状态存储 Port" in chinese_nest_contract
+    assert "NGW-R01" in english_nest_conformance
+    assert "NGW-R11" in english_nest_conformance
+    assert "NGW-R12" in english_nest_conformance
+    assert "NGW-R01" in chinese_nest_conformance
+    assert "NGW-R11" in chinese_nest_conformance
+    assert "NGW-R12" in chinese_nest_conformance
     assert all((PROJECT_ROOT / path).is_file() for path in required_docs)
     assert all((PROJECT_ROOT / path).is_file() for path in required_agents)
     assert not (PROJECT_ROOT / "app/infrastructure").exists()
+
+
+def test_nest_and_godot_structural_cleanup_scope_is_fully_classified() -> None:
+    assert collect_structural_scope_violations(PROJECT_ROOT) == []
+
+
+def test_structural_cleanup_scope_rejects_unclassified_directories(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "nest" / "forgotten").mkdir(parents=True)
+    (tmp_path / "godot_project" / "runtime" / "unowned").mkdir(parents=True)
+    (tmp_path / "godot_project" / "scripts").mkdir(parents=True)
+
+    assert collect_structural_scope_violations(tmp_path) == [
+        "nest/forgotten: unclassified structural path",
+        "godot_project/runtime/unowned: unclassified structural path",
+    ]
 
 
 def test_root_infrastructure_source_is_classified_as_production() -> None:

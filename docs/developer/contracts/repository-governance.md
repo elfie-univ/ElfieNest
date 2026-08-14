@@ -1,13 +1,16 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.6
+**Contract version:** 1.7
 **Adopted:** 2026-08-12
+**Revised:** 2026-08-14
 **Enforced scope:** Repository-wide change classification and architecture boundaries
 
 This contract defines how ElfieNest architecture rules are organized, changed
 and enforced. Exact baselines and conformance registers exist only while a
-registered architecture gap remains. App and system rules that have reached
-zero debt are enforced directly by permanent deny-all scanners and tests.
+registered architecture gap remains. Rule sets that have reached zero debt are
+enforced directly by permanent deny-all scanners and tests; active child
+conformance may still record semantic or structural gaps not represented by a
+retired general baseline.
 
 ## Four document classes
 
@@ -70,8 +73,10 @@ Every architecture-sensitive change follows one visible loop:
 6. after a migration proves its real call chain, remove the old implementation,
    reduce only the matching baseline entries and close only the evidenced
    conformance row;
-7. when the last gap in a rule set reaches zero, complete the zero-debt closure
-   workflow below; do not leave an all-closed register or empty baseline behind.
+7. when the last gap in a rule set reaches zero, mark the evidenced register
+   closure-ready and immediately complete the separate zero-debt governance
+   workflow below; never leave an all-closed register or empty baseline as a
+   steady state.
 
 The machine-readable registry at
 `scripts/architecture/contract_registry.py` links each contract version to its
@@ -79,6 +84,36 @@ language mirrors, ADR, local guidance, scanners, architecture tests,
 conformance register and legacy baseline. Architecture tests reject unowned
 test files and missing registered artifacts. Human review remains responsible
 for semantic claims that static analysis cannot prove.
+
+## Cleanup proof and completion claims
+
+Passing tests, a successful build, a clean worktree or a successful push proves
+only that result. None proves that an approved cleanup or migration is complete.
+Before claiming cleanup completion or contract conformance, the responsible
+review must:
+
+1. name the exact contract clauses, conformance rows and filesystem/runtime
+   scope being cleaned;
+2. recursively inventory tracked, untracked, ignored and empty paths in that
+   scope and compare them with the approved target disposition;
+3. classify every path as target source, retained content, developer input,
+   generated material, current registered debt or a proved deletion candidate;
+4. trace static imports plus dynamic launch, CLI, scene/resource, export,
+   documentation and external-consumer references as applicable;
+5. report completed, retained and remaining items separately, then run the
+   relevant scanner and positive/negative behavior checks.
+
+An unclassified path or an open affected conformance row makes a completion
+claim false even when every selected test passes. Contract-guarded cleanup roots
+use permanent structural classification. Unknown direct entries fail, and a
+temporary path owned by an open row may shrink or change but may not gain new
+files.
+
+A row newly marked `closed` must carry one compact evidence cell containing all
+five machine-stable fields: `target=`, `inventory=`, `references=`,
+`verification=` and `residuals=`. Tests alone cannot supply all fields. Human
+review checks their truth; the base-aware governance checker checks their
+presence, bilingual status parity and transition.
 
 ## Local execution rules
 
@@ -173,7 +208,11 @@ pre-push commit:
   repository targets;
 - a normal change may delete baseline entries but may not add or rewrite them;
 - a governance change may not edit a legacy baseline;
-- governance and implementation-side changes may not coexist.
+- governance and implementation-side changes may not coexist;
+- deleted paths participate in classification and closure validation;
+- a temporary cleanup path cannot gain a file absent from the base tree;
+- conformance status and registration changes are compared with the base
+  bilingual register rather than only with candidate files.
 
 Implementation classification is repository-wide and fail-closed. After
 governance artifacts and ordinary prose documentation are identified, every
@@ -199,9 +238,10 @@ this check before merge.
 ## Zero-debt state
 
 The final product/migration change removes the last production violation and
-the last exact baseline entry. It records the evidence but does not edit
-governance rules. An immediate, governance-only closure change then performs
-one atomic cleanup:
+the last exact baseline entry. It closes the final row with all five evidence
+fields and marks both all-closed mirrors `Closure state: ready`; it does not edit
+governance rules. This short-lived registered ready state is the handoff to an
+immediate governance-only closure change, which performs one atomic cleanup:
 
 1. inspect the active checkout, remove retired physical paths including empty,
    untracked and ignored directories, then run the permanent scanner in
@@ -220,22 +260,27 @@ one atomic cleanup:
    architecture tests, then verify bilingual mirrors, registry ownership and CI
    deny-all behavior before merge.
 
-The closure is incomplete if any empty baseline, all-closed registered
+The closure is incomplete if any empty baseline, closure-ready registered
 conformance page, retired physical path, stale local instruction or test that
 requires a retired debt artifact remains, or if any contract-owned architecture
-test has not passed. Registry tests reject registered all-closed conformance and
-registered empty baselines. The permanent scanner and architecture tests remain;
-CI's full test job includes the complete architecture suite and treats every
-detected entry as a failure without duplicating the same suite in another job.
+test has not passed. Registry tests allow an all-closed register only when it is
+explicitly ready and every row has complete evidence; registered empty baselines
+remain forbidden. The base checker includes deletions and rejects removal of an
+open, unproved, one-language-only or product-mixed register. Permanent scanners
+and architecture tests remain; CI's full test job includes the complete
+architecture suite and treats every detected entry as a failure without
+duplicating the same suite in another job.
 
 A new baseline cannot be created to accommodate regression; only a separate
 governance change with an accepted ADR may change the underlying contract and
 scanner.
 
 A conformance row may be marked `closed` only when every baseline rule mapped
-to that row has zero entries. Machine tests reject a closed row that still has
-an exact-baseline entry; human review remains responsible for non-machine
-closure conditions.
+to that row has zero entries, every temporary structural path mapped to it is
+gone, and its five evidence fields are complete. Machine tests reject a closed
+row that still has an exact-baseline entry or temporary path; human review
+remains responsible for whether the referenced inventory, route and behavior
+evidence is semantically sufficient.
 
 ## Ownership and external repository settings
 

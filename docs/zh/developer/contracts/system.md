@@ -1,14 +1,15 @@
 # 系统架构契约
 
-**契约版本：** 1.6
+**契约版本：** 1.7
 **采用日期：** 2026-08-12
-**修订日期：** 2026-08-13
+**修订日期：** 2026-08-14
 **适用范围：** 全仓目标架构
 **宏观架构基线：** v1（已冻结）
 
 > **规范性目标。** 本契约定义 ElfieNest 最终的模块所有权、依赖方向和系统级
-> Ports/Adapters，是根模块的权威。已登记的系统迁移债务已经关闭；当前目标由永久
-> Scanner 和架构测试直接执行。
+> Ports/Adapters，是根模块的权威。已退役的通用系统 Baseline 继续保持清零；当前
+> Nest–Godot 实现缺口记录在其子一致性台账中。永久 Scanner 和架构测试执行本目标中
+> 当前可机器检查的部分。
 
 系统契约管理根目录位置和跨模块边界；应用契约管理 `app/` 内部行为。模型、Food 与
 工具行为契约只作为当前迁移包的行为清单，不定义目标模块，也不能反转本契约。子契约
@@ -145,7 +146,9 @@ Nest 保存居民 ID、Home、不含坐标的世界语义、家庭规则、环�
 也拥有结构化视觉、虚拟听觉和语义行动所需的短期语义关联。它不拥有 Elfie 的独立身体
 意图、物理计算、真实 Elfie 对象或具体 Godot 传输。它需要的能力包括：
 
-- 通过 Nest 自有 Repository Port 持久化语义状态；
+- 提供技术无关的 Nest 快照及通过 Facade 导出/恢复合法状态的语义；
+- 当加载、保存、回滚和恢复时机归 App Orchestration 时，通过 App 自有 Nest 状态存储
+  Port 协调持久化；
 - 通过窄语义世界 Port 完成 authority 配置与同步、环境命令/事实、空间查询和行动结果；
 - 在家庭受众规则已经应用后，输出带显式目标的类型化 Nest 事件。
 
@@ -170,7 +173,7 @@ App Feature 可以为产品持久化、文件、时钟、Scheduler、Secret、�
 | 领养、归属和成员额度决策 | App Adoption Feature | Infrastructure 通过 App 自有 Port 持久化 | 管理员/成员用例；Nest 容量只是输入，不是重复所有者 |
 | 社交关系、会话成员和用户可见消息历史 | App Communication Feature | Infrastructure 通过 App 自有 Port 持久化 | 已授权 App 用例；Elfie 拥有交流和记忆语义，不拥有产品会话 |
 | 单只精灵的 Profile、认知和记忆语义 | `elfie/` | Infrastructure 通过 Elfie 自有 Port 持久化 | 精灵自身和明确获授权的 App 投影 |
-| Nest 居民、Home、设施语义、家庭规则、环境时间/意图和语义交互结果 | `nest/` | Nest 领域行为与 Infrastructure 通过 Nest 自有 Port 持久化 | App Orchestration、经类型化投递受影响的 Elfie 和获授权 Observer 投影 |
+| Nest 居民、Home、设施语义、家庭规则、环境时间/意图和语义交互结果 | `nest/` | Nest Facade 校验快照；App Orchestration 通过自有 `NestStateStorePort` 协调持久化；Infrastructure 实现存储 | App Orchestration、经类型化投递受影响的 Elfie 和获授权 Observer 投影 |
 | Food 套餐管理和全局工具启用 | App Configuration Feature | Infrastructure 通过 App 自有 Port 持久化 | Elfie 只通过自有 Port 获得有效强类型投影 |
 | Provider 连接管理和凭据引用 | App Configuration Feature | Infrastructure 通过 App 自有 Port 执行持久化与 Secret Adapter | 已授权 App 管理用例；Infrastructure 只接收限定技术输入 |
 | Endpoint 模型观测、技术验证和模型调用 | Infrastructure 模型能力 | `infrastructure/models/` 与持久化/报告 Adapter | App 管理投影和 Elfie `ModelPort` 调用 |
@@ -194,7 +197,7 @@ Infrastructure 可以把多个事实物理存入同一数据库，但存储共�
 | Provider 发现、模型列表、技术探测、请求转换、流式处理、重试与模型调用 | `infrastructure/models/` |
 | Food 管理、自动生成套餐、模型管理报告和全局工具设置 | App Feature |
 | 读取单只精灵的有效 Food、选择语义模型角色、决定工具使用并消费结果 | `elfie/` 通过自有 Port 完成 |
-| Food/配置等持久事实的物理存储 | `infrastructure/persistence/` 实现语义所有者的 Port；存储不是第二 authority |
+| Food/配置等持久事实的物理存储 | `infrastructure/persistence/` 基于语义所有者的类型化模型实现直接消费方的 Port；存储不是第二 authority |
 | 搜索、受限工作区文件、代码沙箱和设备支持的工具执行 | `infrastructure/tools/` |
 
 普通推理链路直接完成：
@@ -250,9 +253,11 @@ Food/模型/工具调用。Bootstrap 接线，Orchestration 指挥。
 
 ## 持久化、工具与静态资源
 
-领域 Core 拥有语义存储 Port 和领域模型。Infrastructure 拥有连接、SQL、Schema、
-事务、路径、序列化、原子写和技术 Record。数据库 Row、Connection、任意字典和用户
-路径不得穿过领域边界。
+直接消费外部存储能力的一方拥有出站 Port，语义 authority 仍拥有领域事实和模型。领域
+直接通过该能力加载或保存时，Port 归领域；当加载/保存、事务、回滚或恢复时机归 App
+Orchestration 时，Port 归 App，而且只能持久化由领域 Facade 接受或产生的快照。
+Infrastructure 拥有连接、SQL、Schema、事务、路径、序列化、原子写和技术 Record。
+数据库 Row、Connection、任意字典和用户路径不得穿过领域边界。
 
 Elfie Skills 描述某只精灵可以请求什么，保留在 Elfie；App Feature 拥有管理员可见的
 全局启用和配置。搜索、文件、代码或设备执行实现属于 `infrastructure/tools/`，并继续

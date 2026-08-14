@@ -17,3 +17,5 @@
 - [ADR-0012：有效依赖包含动态执行目标](./0012-effective-dependency-targets)
 - [ADR-0013：Nest–Godot 语义世界所有权与事件路由](./0013-nest-godot-semantic-world-boundary)
 - [ADR-0014：Desktop 启动进度与有界退出](./0014-desktop-startup-progress-and-bounded-shutdown)
+- [ADR-0015：清理收口必须具备目录盘点与残留证据](./0015-evidence-backed-cleanup-closure)
+- [ADR-0016：Nest 状态存储 Port 归 App Orchestration](./0016-nest-persistence-port-ownership)

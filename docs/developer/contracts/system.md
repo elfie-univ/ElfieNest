@@ -1,15 +1,17 @@
 # System architecture contract
 
-**Contract version:** 1.6
+**Contract version:** 1.7
 **Adopted:** 2026-08-12
-**Revised:** 2026-08-13
+**Revised:** 2026-08-14
 **Scope:** repository-wide target architecture
 **Macro architecture baseline:** v1 (frozen)
 
 > **Normative target.** This contract defines the final module ownership,
 > dependency direction and system-level Ports/Adapters for ElfieNest. It is the
-> authority for root modules. The registered system migration debt is closed;
-> permanent scanners and architecture tests now enforce this target directly.
+> authority for root modules. The retired general system baseline remains at
+> zero; active Nest–Godot implementation gaps are named in its child conformance
+> register. Permanent scanners and architecture tests enforce all currently
+> machine-checkable parts of this target.
 
 The system contract governs root placement and cross-module boundaries. The
 Application contract governs behavior inside `app/`. The Model, Food and tool
@@ -178,7 +180,9 @@ hearing and semantic action. It does not own an Elfie's independent body intent,
 physical calculation, real Elfie objects or concrete Godot transport. Its
 required capabilities include:
 
-- semantic Nest persistence through a Nest-owned repository Port;
+- a technology-neutral Nest snapshot plus Facade export/restore semantics;
+- persistence coordination through the App-owned Nest state-store Port when App
+  Orchestration owns load/save/rollback/recovery timing;
 - world-authority configuration and synchronization, environment commands and
   facts, and spatial query/action results through narrow semantic world Ports;
 - typed Nest-event output with explicit targets after any household-audience
@@ -208,7 +212,7 @@ runtime fact has one semantic authority, one write path and explicit readers:
 | Adoption, ownership and per-member quota decisions | App adoption Features | Infrastructure persistence through App-owned Ports | Admin/member use-cases; Nest capacity is an input, not a duplicate owner |
 | Social relationships, conversation membership and user-visible message history | App communication Features | Infrastructure persistence through App-owned Ports | Authorized App use-cases; Elfie owns communication and memory semantics, not product conversation ownership |
 | One Elfie's profile, cognition and memory semantics | `elfie/` | Infrastructure persistence through Elfie-owned Ports | The owning Elfie and explicitly authorized App projections |
-| Nest residents, homes, facility semantics, household rules, environment time/intent and semantic interaction results | `nest/` | Nest domain behavior plus Infrastructure persistence through Nest-owned Ports | App Orchestration, affected Elfies through typed delivery and authorized Observer projections |
+| Nest residents, homes, facility semantics, household rules, environment time/intent and semantic interaction results | `nest/` | Nest Facade validates snapshots; App Orchestration coordinates persistence through its `NestStateStorePort`; Infrastructure implements storage | App Orchestration, affected Elfies through typed delivery and authorized Observer projections |
 | Food package administration and global tool enablement | App configuration Features | Infrastructure persistence through App-owned Ports | Elfie receives only its effective typed projection through Elfie-owned Ports |
 | Provider-connection administration and credential references | App configuration Features | Infrastructure persistence and secret Adapters through App-owned Ports | Authorized App management use-cases; Infrastructure receives only scoped technical inputs |
 | Endpoint-model observations, technical validation and model calls | Infrastructure model capability | `infrastructure/models/` plus persistence/report Adapters | App management projections and Elfie `ModelPort` calls |
@@ -234,7 +238,7 @@ decomposed into the following owners:
 | Provider discovery, model lists, technical probes, request translation, streaming, retries and model calls | `infrastructure/models/` |
 | Food administration, automatic package generation, model-management reports and global tool settings | App Features |
 | Reading one Elfie's effective Food, selecting a semantic model role, deciding tool use and consuming results | `elfie/` through its Ports |
-| Physical storage of Food/configuration and other durable facts | `infrastructure/persistence/` implementing the semantic owner's Ports; storage is not a second authority |
+| Physical storage of Food/configuration and other durable facts | `infrastructure/persistence/` implementing the direct consumer's Port over the semantic owner's typed model; storage is not a second authority |
 | Search, bounded workspace files, code sandbox and device-backed tool execution | `infrastructure/tools/` |
 
 A normal inference path is direct:
@@ -304,10 +308,14 @@ Food/model/tool calls. Bootstrap wires; Orchestration conducts.
 
 ## Persistence, tools and static resources
 
-Domain cores own semantic storage Ports and domain models. Infrastructure owns
-connections, SQL, schemas, transactions, paths, serialization, atomic writes
-and technical records. No database row, connection, raw dictionary or user
-path crosses a domain boundary.
+The component that directly consumes an external storage capability owns its
+outbound Port; the semantic authority still owns its domain facts and models.
+A domain therefore owns the Port when it directly loads or saves through that
+capability. When App Orchestration owns load/save, transaction, rollback or
+recovery timing, App owns the Port and may persist only snapshots accepted or
+produced by the domain Facade. Infrastructure owns connections, SQL, schemas,
+transactions, paths, serialization, atomic writes and technical records. No
+database row, connection, raw dictionary or user path crosses a domain boundary.
 
 Elfie Skills describe what a particular Elfie may request and remain in Elfie.
 App Features own administrator-facing global enablement and configuration.

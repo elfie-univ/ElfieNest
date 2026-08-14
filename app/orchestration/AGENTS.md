@@ -20,7 +20,9 @@ Elfie 事件 fan-out。
 
 - `nest_session` 组合唯一 Nest、真实 Elfie、世界事件和共享 Godot 连接；它按语义线路
   协调直接 Body、Nest 语义世界和 Runtime 控制边界，只按目标 ID 投递已分类事件，
-  不把原始 Runtime 事件广播给所有 Body，也不替 Nest 决定家庭含义；
+  不把原始 Runtime 事件广播给所有 Body，也不替 Nest 决定家庭含义；它拥有当前 Nest
+  状态存储 Port 及加载/保存/回滚/恢复时机，但只能通过 Nest Facade 接受或产生快照，
+  不直接修改 Nest 内部状态；
 - `resident_admission` 只协调已接受领养、Elfie 构造、Nest 接纳和失败补偿；
 - `setup_installation` 只协调 Setup 状态与 Accounts、Provider/模型、Food、Nest 和受管
   安装 Runner；

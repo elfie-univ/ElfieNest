@@ -88,3 +88,33 @@ making events, residents, Gateway or recovery new business modules; routing all
 Godot events through Nest; routing all semantic interactions directly to
 Godot; storing coordinates or per-Elfie visible surroundings in Python; and
 using per-Elfie rendered cameras or TTS-to-STT loops as the MVP perception path.
+
+## Amendment — 2026-08-14 conformance reopening
+
+The subsequent protocol-v3 product migration removed the temporary register and
+migration specification in the same 141-file change and changed the index to
+report zero Nest–Godot debt. A later clause-by-clause, call-chain and full-directory
+audit found that typed transport and part of the structural migration had landed,
+but unique semantic delivery, final Elfie consumers, authority-generation
+invalidation, household rules, physical visibility/audibility and Godot export
+hygiene were not all proved. Several focused tests encoded positive current
+behavior and therefore could not prove the contract's negative routes.
+
+Contract 1.1 consequently clarifies, without changing authority or dependency
+direction, that:
+
+- the four descriptive owner packages map one-to-one to their responsibilities;
+  Time and Environment retains its domain name and driver, `engine/` is not a
+  Nest owner, and broad `state/` cannot remain a cross-owner catch-all;
+- Godot scene/character content, authority glue, presentation modes and
+  developer/authoring inputs are different source categories, and development
+  inputs must not ship in release exports;
+- every gap requires producer-to-consumer, negative-route and recovery evidence,
+  and the conformance register cannot be removed by a product migration.
+
+The bilingual Nest–Godot register is reopened with the current gaps and ordered
+cleanup phases. Because the four Nest owners, Godot physical authority, App
+Lifecycle ownership, root modules and system-level routes remain unchanged,
+this is a clarification and correction to ADR-0013 rather than a new macro
+architecture decision. Final register deletion remains a separate governance-only
+change after all rows are proved closed.

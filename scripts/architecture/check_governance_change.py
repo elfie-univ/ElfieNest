@@ -7,8 +7,20 @@ import ast
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
+
+try:
+    from scripts.architecture.structural_scope_scan import (
+        TEMPORARY_CLEANUP_PREFIXES,
+        temporary_cleanup_owner,
+    )
+except ModuleNotFoundError:  # Direct script execution puts this directory on sys.path.
+    from structural_scope_scan import (  # type: ignore[no-redef]
+        TEMPORARY_CLEANUP_PREFIXES,
+        temporary_cleanup_owner,
+    )
 
 NEUTRAL_DOCUMENT_EXACT = frozenset(
     {
@@ -40,6 +52,21 @@ ARCHITECTURE_BASELINE_SUPPORT_FILES = frozenset(
     {"test/architecture/baselines/__init__.py"}
 )
 GOVERNANCE_CONTRACT_PATH = "docs/developer/contracts/repository-governance.md"
+CONTRACT_REGISTRY_PATH = "scripts/architecture/contract_registry.py"
+CONFORMANCE_PREFIXES = (
+    "docs/developer/conformance/",
+    "docs/zh/developer/conformance/",
+)
+CONFORMANCE_PATH_PATTERN = re.compile(
+    r"[\"'](docs/(?:zh/)?developer/conformance/[^\"']+\.md)[\"']"
+)
+COMPLETE_EVIDENCE_KEYS = (
+    "target=",
+    "inventory=",
+    "references=",
+    "verification=",
+    "residuals=",
+)
 BASELINE_VARIABLES = {
     "test/architecture/baselines/app_layer.py": "LEGACY_APP_LAYER_VIOLATIONS",
     "test/architecture/baselines/system_layer.py": "LEGACY_SYSTEM_LAYER_VIOLATIONS",
@@ -50,6 +77,14 @@ FROZEN_MACRO_CONTRACTS = frozenset(
         "docs/zh/developer/contracts/system.md",
     }
 )
+
+
+@dataclass(frozen=True)
+class ConformanceRow:
+    """Machine-readable status and closure evidence from a Markdown row."""
+
+    status: str
+    evidence: str
 
 
 def is_governance_file(path: str) -> bool:
@@ -92,7 +127,7 @@ def changed_paths(base_sha: str) -> List[str]:
             "git",
             "diff",
             "--name-only",
-            "--diff-filter=ACMRTUXB",
+            "--diff-filter=ACDMRTUXB",
             f"{base_sha}...HEAD",
         ],
         check=True,
@@ -100,6 +135,56 @@ def changed_paths(base_sha: str) -> List[str]:
         text=True,
     )
     return [line for line in result.stdout.splitlines() if line]
+
+
+def _conformance_mirror(path: str) -> Optional[str]:
+    english_prefix = "docs/developer/conformance/"
+    chinese_prefix = "docs/zh/developer/conformance/"
+    if path.startswith(english_prefix):
+        return chinese_prefix + path[len(english_prefix) :]
+    if path.startswith(chinese_prefix):
+        return english_prefix + path[len(chinese_prefix) :]
+    return None
+
+
+def registered_conformance_paths(registry_source: str) -> Set[str]:
+    """Extract registered bilingual conformance paths without executing code."""
+
+    return set(CONFORMANCE_PATH_PATTERN.findall(registry_source))
+
+
+def parse_conformance_rows(source: str) -> Dict[str, ConformanceRow]:
+    """Parse status rows and an optional final evidence column."""
+
+    rows: Dict[str, ConformanceRow] = {}
+    for line in source.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|") or not stripped.endswith("|"):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if len(cells) < 3:
+            continue
+        status = cells[2].lower()
+        if status not in {"open", "in progress", "closed"}:
+            continue
+        evidence = cells[5] if len(cells) > 5 else ""
+        rows[cells[0]] = ConformanceRow(status=status, evidence=evidence)
+    return rows
+
+
+def has_complete_closure_evidence(row: ConformanceRow) -> bool:
+    """Require proof beyond a passing test before accepting a closed row."""
+
+    normalized = row.evidence.lower()
+    if normalized in {"", "-", "pending", "tbd"}:
+        return False
+    return all(key in normalized for key in COMPLETE_EVIDENCE_KEYS)
+
+
+def has_closure_ready_marker(source: str) -> bool:
+    """Return whether an all-closed register is awaiting governance removal."""
+
+    return "**Closure state:** ready" in source or "**收口状态：** ready" in source
 
 
 def _contract_mirror(path: str) -> Optional[str]:
@@ -366,6 +451,171 @@ def validate_decision_mirrors(paths: Iterable[str]) -> List[str]:
     return failures
 
 
+def _candidate_source(path: str) -> Optional[str]:
+    candidate = Path(path)
+    if not candidate.is_file():
+        return None
+    return candidate.read_text(encoding="utf-8")
+
+
+def _status_map(rows: Dict[str, ConformanceRow]) -> Dict[str, str]:
+    return {row_id: row.status for row_id, row in rows.items()}
+
+
+def validate_conformance_changes(
+    base_sha: str,
+    paths: Iterable[str],
+    *,
+    governance: Set[str],
+    production: Set[str],
+) -> List[str]:
+    """Validate closure evidence, bilingual state and base-aware deletion."""
+
+    changed = set(paths)
+    conformance_changes = {
+        path
+        for path in changed
+        if path.startswith(CONFORMANCE_PREFIXES) and path.endswith(".md")
+    }
+    failures: List[str] = []
+
+    for path in sorted(conformance_changes):
+        mirror = _conformance_mirror(path)
+        if mirror is not None and mirror not in changed:
+            failures.append(f"conformance mirror not changed with {path}: {mirror}")
+
+    checked_pairs: Set[frozenset[str]] = set()
+    for path in sorted(conformance_changes):
+        mirror = _conformance_mirror(path)
+        if mirror is None:
+            continue
+        pair = frozenset({path, mirror})
+        if pair in checked_pairs:
+            continue
+        checked_pairs.add(pair)
+        candidate_source = _candidate_source(path)
+        mirror_source = _candidate_source(mirror)
+        if candidate_source is None or mirror_source is None:
+            continue
+        rows = parse_conformance_rows(candidate_source)
+        mirror_rows = parse_conformance_rows(mirror_source)
+        if _status_map(rows) != _status_map(mirror_rows):
+            failures.append(f"conformance status mirrors differ: {sorted(pair)}")
+
+    for path in sorted(conformance_changes):
+        candidate_source = _candidate_source(path)
+        if candidate_source is None:
+            continue
+        candidate_rows = parse_conformance_rows(candidate_source)
+        base_rows = parse_conformance_rows(_base_source(base_sha, path) or "")
+        removed_rows = set(base_rows) - set(candidate_rows)
+        if removed_rows:
+            failures.append(
+                f"conformance rows may close but not disappear from a live register: "
+                f"{path}:{sorted(removed_rows)}"
+            )
+        for row_id, row in candidate_rows.items():
+            previous = base_rows.get(row_id)
+            if (
+                row.status == "closed"
+                and previous is not None
+                and previous.status == "closed"
+                and has_complete_closure_evidence(previous)
+                and not has_complete_closure_evidence(row)
+            ):
+                failures.append(
+                    f"closed conformance evidence may not regress: {path}:{row_id}"
+                )
+            if row.status != "closed" or (
+                previous is not None and previous.status == "closed"
+            ):
+                continue
+            if not has_complete_closure_evidence(row):
+                failures.append(
+                    f"closed conformance row lacks complete cleanup evidence: "
+                    f"{path}:{row_id}"
+                )
+            for prefix, owner in TEMPORARY_CLEANUP_PREFIXES:
+                if owner == row_id and Path(prefix).exists():
+                    failures.append(
+                        f"closed conformance row still has temporary path: "
+                        f"{path}:{row_id}:{prefix}"
+                    )
+        if (
+            candidate_rows
+            and all(row.status == "closed" for row in candidate_rows.values())
+            and not has_closure_ready_marker(candidate_source)
+        ):
+            failures.append(
+                f"all-closed conformance is not marked ready for closure: {path}"
+            )
+
+    base_registry = _base_source(base_sha, CONTRACT_REGISTRY_PATH)
+    candidate_registry = _candidate_source(CONTRACT_REGISTRY_PATH)
+    if base_registry is None or candidate_registry is None:
+        return failures
+    base_registered = registered_conformance_paths(base_registry)
+    candidate_registered = registered_conformance_paths(candidate_registry)
+    removed_registrations = base_registered - candidate_registered
+
+    for path in sorted(base_registered):
+        if path in changed and _candidate_source(path) is None:
+            if path in candidate_registered:
+                failures.append(
+                    f"deleted conformance remains registered in candidate: {path}"
+                )
+
+    for path in sorted(removed_registrations):
+        mirror = _conformance_mirror(path)
+        if path not in changed or _candidate_source(path) is not None:
+            failures.append(
+                f"removed conformance registration must delete its file: {path}"
+            )
+        if mirror is None or mirror not in removed_registrations:
+            failures.append(
+                f"removed conformance registration lacks mirror removal: {path}"
+            )
+        base_source = _base_source(base_sha, path)
+        base_rows = parse_conformance_rows(base_source or "")
+        if not base_rows or any(row.status != "closed" for row in base_rows.values()):
+            failures.append(f"cannot remove conformance with open base rows: {path}")
+            continue
+        incomplete = [
+            row_id
+            for row_id, row in base_rows.items()
+            if not has_complete_closure_evidence(row)
+        ]
+        if incomplete:
+            failures.append(
+                f"cannot remove conformance without row evidence: "
+                f"{path}:{sorted(incomplete)}"
+            )
+        if base_source is None or not has_closure_ready_marker(base_source):
+            failures.append(f"cannot remove conformance not closure-ready: {path}")
+        if not governance or production:
+            failures.append(
+                f"conformance removal must be a governance-only change: {path}"
+            )
+    return failures
+
+
+def validate_temporary_cleanup_changes(
+    base_sha: str, paths: Iterable[str]
+) -> List[str]:
+    """Allow temporary cleanup paths to shrink or change, never to grow."""
+
+    failures: List[str] = []
+    for path in sorted(set(paths)):
+        owner = temporary_cleanup_owner(path)
+        if owner is None or not Path(path).exists():
+            continue
+        if _base_source(base_sha, path) is None:
+            failures.append(
+                f"new file under temporary cleanup path is forbidden: {path} ({owner})"
+            )
+    return failures
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-sha", required=True)
@@ -386,6 +636,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         *validate_contract_changes(args.base_sha, paths),
         *validate_decision_mirrors(paths),
         *validate_governance_rule_changes(paths),
+        *validate_conformance_changes(
+            args.base_sha,
+            paths,
+            governance=governance,
+            production=production,
+        ),
+        *validate_temporary_cleanup_changes(args.base_sha, paths),
     ]
     if governance_failures:
         for failure in governance_failures:

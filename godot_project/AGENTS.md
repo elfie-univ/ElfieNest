@@ -14,6 +14,12 @@
 - Godot 负责可见实体、声音可达、路径、碰撞和实际对象状态的物理判断；不保存 Home、
   居民归属、家庭规则或说话内容。MVP 结构化视觉不要求每只 Elfie 建渲染 Viewport，
   虚拟听觉也不以 TTS→STT 作为听见判据。
+- `rooms/`、`characters/` 是物理场景与运行内容，不因不对应 Nest 业务模块而删除；
+  `runtime/actor` 只负责身体执行，空间可见性和可听性归 `runtime/world`。Observer、Lab
+  与 UI 是展示/开发模式，不取得 authority。
+- `scripts/test/`、`scripts/tools/`、角色创作工具和 Source 树属于开发/创作输入，必须从
+  每种发布导出中排除。无引用 Helper、参考场景或生成边车只能在 Scene、Preload、CLI、
+  文档和导出引用都已排除后逐项删除，不得把目录清理变成资产批量删除。
 - Python 侧宿主、Gateway 和协议 Adapter 只属于根 `infrastructure/godot/`；
   `godot_project/` 永久保持独立，本规则不授权移动 Godot 工程或修改协议。
 - 打开、运行、调试、截图或关闭 Godot 前，必须先读取并执行

@@ -25,7 +25,7 @@ class ContractRegistration:
 CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ContractRegistration(
         contract_id="repository-governance",
-        version="1.6",
+        version="1.7",
         english_path="docs/developer/contracts/repository-governance.md",
         chinese_path="docs/zh/developer/contracts/repository-governance.md",
         decision_paths=(
@@ -39,6 +39,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0011-repository-wide-change-classification.md",
             "docs/developer/decisions/0012-effective-dependency-targets.md",
             "docs/zh/developer/decisions/0012-effective-dependency-targets.md",
+            "docs/developer/decisions/0015-evidence-backed-cleanup-closure.md",
+            "docs/zh/developer/decisions/0015-evidence-backed-cleanup-closure.md",
         ),
         agent_paths=(
             "AGENTS.md",
@@ -52,6 +54,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "scripts/architecture/effective_dependency_scan.py",
             "scripts/architecture/effective_dependency_targets.py",
             "scripts/architecture/effective_dependency_text.py",
+            "scripts/architecture/structural_scope_scan.py",
         ),
         test_paths=(
             "test/architecture/test_architecture_governance.py",
@@ -75,7 +78,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="system-architecture",
-        version="1.6",
+        version="1.7",
         english_path="docs/developer/contracts/system.md",
         chinese_path="docs/zh/developer/contracts/system.md",
         decision_paths=(
@@ -89,6 +92,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0012-effective-dependency-targets.md",
             "docs/developer/decisions/0013-nest-godot-semantic-world-boundary.md",
             "docs/zh/developer/decisions/0013-nest-godot-semantic-world-boundary.md",
+            "docs/developer/decisions/0016-nest-persistence-port-ownership.md",
+            "docs/zh/developer/decisions/0016-nest-persistence-port-ownership.md",
         ),
         agent_paths=(
             "elfie/AGENTS.md",
@@ -119,12 +124,16 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="nest-godot-semantic-world",
-        version="1.0",
+        version="1.1",
         english_path="docs/developer/contracts/nest-godot-semantic-world.md",
         chinese_path="docs/zh/developer/contracts/nest-godot-semantic-world.md",
         decision_paths=(
             "docs/developer/decisions/0013-nest-godot-semantic-world-boundary.md",
             "docs/zh/developer/decisions/0013-nest-godot-semantic-world-boundary.md",
+            "docs/developer/decisions/0015-evidence-backed-cleanup-closure.md",
+            "docs/zh/developer/decisions/0015-evidence-backed-cleanup-closure.md",
+            "docs/developer/decisions/0016-nest-persistence-port-ownership.md",
+            "docs/zh/developer/decisions/0016-nest-persistence-port-ownership.md",
         ),
         agent_paths=(
             "AGENTS.md",
@@ -133,11 +142,18 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "infrastructure/godot/AGENTS.md",
             "godot_project/AGENTS.md",
         ),
-        scanner_paths=("scripts/architecture/system_layer_scan.py",),
+        scanner_paths=(
+            "scripts/architecture/structural_scope_scan.py",
+            "scripts/architecture/system_layer_scan.py",
+        ),
         test_paths=(
             "test/architecture/test_system_layer_boundaries.py",
             "test/architecture/test_gateway_runtime_boundaries.py",
             "test/architecture/test_runtime_observer_contracts.py",
+        ),
+        conformance_paths=(
+            "docs/developer/conformance/nest-godot-semantic-world.md",
+            "docs/zh/developer/conformance/nest-godot-semantic-world.md",
         ),
     ),
     ContractRegistration(
@@ -196,6 +212,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
             "docs/developer/decisions/0012-effective-dependency-targets.md",
             "docs/zh/developer/decisions/0012-effective-dependency-targets.md",
+            "docs/developer/decisions/0016-nest-persistence-port-ownership.md",
+            "docs/zh/developer/decisions/0016-nest-persistence-port-ownership.md",
         ),
         agent_paths=(
             "app/AGENTS.md",

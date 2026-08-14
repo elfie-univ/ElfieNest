@@ -1,13 +1,15 @@
 # Nest–Godot semantic-world contract
 
-**Contract version:** 1.0
+**Contract version:** 1.1
 **Adopted:** 2026-08-13
+**Amended:** 2026-08-14
 **Scope:** `nest/`, the Godot semantic boundary, and affected App orchestration
 
 > **Normative target.** This contract defines Nest internal fact ownership,
 > semantic interaction with the authoritative Godot world, and unique event
-> routing to Elfies. Its boundaries are enforced by the permanent architecture
-> and focused runtime tests.
+> routing to Elfies. Current implementation gaps and their mandatory cleanup
+> order are recorded in the temporary
+> [Nest–Godot conformance register](../conformance/nest-godot-semantic-world).
 
 The repository-wide owner and dependency direction remain governed by the
 [System architecture contract](./system). This contract refines that boundary;
@@ -44,6 +46,27 @@ only when it contains real state, contracts or behavior. The stable `Nest`
 facade remains the aggregate inbound boundary and exposes typed use-cases rather
 than mutable submodules.
 
+Now that all four owners have real code, their canonical one-to-one repository
+mapping is `space_facilities/`, `living_rules/`, `time_environment/` and
+`elfie_interaction/`. The descriptive names prevent `space`, `rules` or
+`interaction` from becoming generic catch-alls. This mapping does not require
+one file per model or service, but it does prohibit broad technical containers
+from becoming alternative ownership boundaries:
+
+- Time and Environment owns its clock and driver. A generic `engine/` package
+  is not a fifth owner and must not duplicate time advancement or be confused
+  with Godot Engine.
+- Aggregate composition stays behind `Nest` in `nest.py`; a broad public
+  `NestState` compatibility shell is not a second inbound API.
+- Owner-specific state, models and errors stay with their owner. A generic
+  `state/` package must not collect unrelated facts from all four owners.
+- Aggregate configuration and a technology-neutral Nest snapshot may live at
+  the `nest/` root. The App-owned Nest state-store Port lives with the
+  Orchestration consumer; concrete storage remains in root Infrastructure.
+  Neither seam is a fifth Nest business owner.
+- `events.py` may hold the common event mechanism. It remains cross-cutting
+  plumbing and never becomes a fifth owner.
+
 `nest/` stores resident IDs and Nest state only. It never holds or constructs a
 real Elfie. Real Elfie instances and Nest state are composed only in App
 Orchestration.
@@ -63,6 +86,10 @@ The event mechanism crosses all four owners and is not a fifth business module.
   physical occurrence use distinct event IDs and types and may share a cause ID.
 - Retries preserve event identity. Runtime generation and world revision reject
   stale physical input; they do not create replacement event identity.
+- A typed outbox, stream or queue may implement delivery, but the same event
+  must not also be copied into an untyped per-resident sensory queue. An event
+  is not complete until a production consumer has delivered or durably accepted
+  it according to its explicit targets.
 
 A typed Nest event envelope carries, where applicable:
 
@@ -146,6 +173,22 @@ Godot scene and published in its manifest. Space and Facilities owns the
 coordinate-free household catalogue and meaning keyed by those IDs; it neither
 creates a competing physical identity nor exposes NodePath as identity.
 
+Godot source paths are classified by purpose, not counted as Nest business
+modules:
+
+| Source category | Repository role |
+| --- | --- |
+| `rooms/`, `characters/` | authored physical scenes, geometry, actor resources and runtime content; these are retained content, not extra business modules |
+| `runtime/actor/`, `runtime/world/`, `runtime/endpoint/` | the small authority glue described above; spatial visibility and audibility belong to World rather than Actor |
+| `runtime/observer/`, `runtime/lab/`, `ui/` and referenced preview controllers | presentation or development modes; they do not gain physical, household or lifecycle authority |
+| `scripts/test/`, `scripts/tools/`, character tools and authoring-source trees | developer-only inputs; they must be excluded from every release export and are not Runtime dependencies |
+
+`main.gd` is assembly and mode dispatch. Directory cleanup does not justify
+deleting referenced scenes or assets. Conversely, an all-resources export must
+explicitly exclude every developer/authoring tree, and an unreferenced helper or
+generated sidecar is retained only with a documented authoring or invocation
+purpose.
+
 ## Delivery, orchestration and dependencies
 
 Nest and Elfie never import each other or concrete Godot Infrastructure.
@@ -156,7 +199,9 @@ sharing the connection does not merge their semantic lanes.
 App Orchestration may correlate real Elfie instances with Nest resident IDs and
 deliver a typed, already-authorized perception to the target aggregate. It does
 not choose household meaning, invent physical facts or proxy direct body
-traffic. App Lifecycle alone starts, stops and recovers the Godot authority.
+traffic. Nest Session also owns the current state-store Port and persistence
+timing, but can store or restore only snapshots produced or accepted through the
+Nest Facade. App Lifecycle alone starts, stops and recovers the Godot authority.
 
 Protocol frames, WebSocket state, process objects and Runtime credentials never
 enter Nest. Domain commands, results and events never expose NodePath, raw
@@ -166,10 +211,10 @@ coordinates, database records or arbitrary JSON.
 
 | State | Authority and recovery rule |
 | --- | --- |
-| residents, homes, facility semantics and household rules | durable Nest state restored through a Nest-owned repository Port |
+| residents, homes, facility semantics and household rules | Nest-owned snapshot semantics restored through the App-owned Nest state-store Port and an Infrastructure Adapter |
 | Nest time, life phase and desired environment state | durable Nest state resynchronized to a ready new Godot generation |
 | actor position, speed, pose, navigation and actual object state | current Godot/body Runtime; old Python projections are invalid after generation change |
-| discrete environment projection required by rules | source-labelled Nest projection invalidated and rebuilt after generation/revision change |
+| discrete actual environment projection required by rules | source-labelled Space and Facilities projection invalidated and rebuilt after generation/revision change; it is distinct from Time and Environment's desired state |
 | utterance, observation and semantic-intent correlation | short-lived Nest interaction state; interrupt or reconcile on generation change, never blindly replay |
 | direct body commands and receipts | owning Elfie Body plus Godot; never recovered through Nest |
 | Runtime generation and health | App Lifecycle |
@@ -181,11 +226,30 @@ animations, utterances and physical side effects are not replayed.
 
 Every migration is one independently reviewable vertical slice. It freezes the
 typed boundary, migrates the complete producer-to-consumer call chain, proves
-targeted routing and causal identity, and deletes the replaced path. No
-compatibility alias, dual write, second world
+targeted routing and causal identity, deletes the replaced path and closes only
+the matching conformance row. No compatibility alias, dual write, second world
 projection or empty architecture package is introduced.
 
 Focused evidence must distinguish direct body receipts, body perception,
 semantic physical results, visible sets, environment facts, speech reachability,
 Nest events and Runtime lifecycle events. A passing transport test alone cannot
 prove semantic routing or authority ownership.
+
+Before a conformance row closes, the evidence must trace the exact contract
+clause and owner through the real producer, typed boundary, single production
+route and final consumer. It must include a positive case, a non-target or
+forbidden-route case, retry/deduplication identity and—when physical state is
+involved—stale-generation and recovery behavior. Godot behavior and export
+claims require real Godot or release-artifact evidence. Folder names, unit tests,
+transport round trips and screenshots are individually insufficient.
+
+Structural cleanup additionally inventories tracked, untracked, ignored and
+empty paths and classifies every guarded Nest/Godot entry against the approved
+source disposition. Unknown entries fail the permanent structural scanner;
+temporary paths mapped to an open row cannot gain files. Cleanup is incomplete
+while any relevant path or caller remains, regardless of selected test results.
+
+The temporary conformance register cannot be removed in a product migration or
+while any row is open. Final deletion is a separate governance-only change
+after current implementation, negative-path evidence and recovery evidence all
+match this contract.
