@@ -17,6 +17,7 @@ from typing import Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
 from infrastructure.godot.artifacts.web_build import (
     _find_godot as find_godot_helper,
 )
@@ -178,6 +179,8 @@ def runtime_is_current(output: Path) -> bool:
         return False
     if not isinstance(manifest, dict):
         return False
+    if manifest.get("export_boundary") != export_boundary_manifest():
+        return False
     if manifest.get("source_fingerprint") != current_source_fingerprint():
         return False
     files = manifest.get("files")
@@ -203,6 +206,7 @@ def _write_manifest(directory: Path, godot_version: str, fingerprint: str) -> No
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "entry": ENTRY_NAME,
         "source_fingerprint": fingerprint,
+        "export_boundary": export_boundary_manifest(),
         "files": {
             ENTRY_NAME: {
                 "bytes": entry.stat().st_size,

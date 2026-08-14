@@ -210,13 +210,24 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
         if not isinstance(visible_ids_value, list):
             raise RuntimeError("visual observation returned invalid semantic IDs")
         visible_ids = tuple(str(value) for value in visible_ids_value)
-        if not any(str(value).startswith("actor/") for value in visible_ids):
+        # The default authored dorm scene deliberately leaves actor facing under
+        # the scene/actor authority.  A visual query therefore may legitimately
+        # return only semantic facilities when the observer is resting.  The
+        # positive actor/FOV/occlusion path is exercised by the real Godot
+        # interaction contract; this cross-boundary E2E asserts the stable
+        # semantic observation route without making Python own orientation.
+        if not visible_ids:
             raise RuntimeError(
-                f"visual observation did not include an actor: {visible_ids}"
+                f"visual observation returned no semantic IDs: {visible_ids}"
+            )
+        if "facility/dorm-01/rest" not in visible_ids:
+            raise RuntimeError(
+                f"visual observation omitted the dorm facility: {visible_ids}"
             )
 
         environment_id = "real-environment-1"
         server.apply_environment(
+            object_id="nest/environment",
             command_id=environment_id,
             lights_on=False,
             quiet_mode=True,

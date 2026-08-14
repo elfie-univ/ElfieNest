@@ -7,16 +7,21 @@ from infrastructure.persistence.nest_db.nest_management import (
 )
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.nest_db.store import get_db, init_db
-from nest.state.models import (
-    AnchorKind,
-    EnvironmentDesiredState,
-    EnvironmentRule,
-    InteractionAnchor,
-    LifePhase,
+from nest.living_rules.models import (
     PersistentResidentState,
     ResidentPresence,
+)
+from nest.snapshot import NestSnapshot
+from nest.space_facilities.models import (
+    AnchorKind,
+    InteractionAnchor,
     WorldCatalog,
     ZoneDescriptor,
+)
+from nest.time_environment.models import (
+    EnvironmentDesiredState,
+    EnvironmentRule,
+    LifePhase,
 )
 
 
@@ -62,21 +67,27 @@ def _seed_elfie(db_path: str) -> None:
         connection.commit()
 
 
-def test_repository_persists_runtime_catalog_revision_and_presence(tmp_path) -> None:
+def test_state_store_persists_runtime_catalog_revision_and_presence(tmp_path) -> None:
     db_path = init_db(str(tmp_path / "nest.db"))
     _seed_elfie(db_path)
-    repository = SQLiteNestStateAdapter(db_path)
+    state_store = SQLiteNestStateAdapter(db_path)
 
     catalog = WorldCatalog(nest_id="local-nest", revision=3, zones=())
-    repository.save_catalog(catalog)
-    repository.save_resident(
-        PersistentResidentState(
-            elfie_id="00000001",
-            presence=ResidentPresence.ACTIVE,
+    state_store.save_snapshot(
+        NestSnapshot(
+            desired_bed_count=4,
+            elapsed_seconds=0.0,
+            catalog=catalog,
+            residents=(
+                PersistentResidentState(
+                    elfie_id="00000001",
+                    presence=ResidentPresence.ACTIVE,
+                ),
+            ),
         )
     )
 
-    restored = repository.load_snapshot()
+    restored = state_store.load_snapshot()
     with get_db(db_path) as connection:
         applied_revision = connection.execute(
             "SELECT applied_world_revision FROM nest_settings WHERE nest_id='local-nest'"
@@ -104,10 +115,10 @@ def test_query_uses_public_defaults_without_writing_configuration(tmp_path) -> N
         )
 
 
-def test_repository_restores_clock_and_environment_rules(tmp_path) -> None:
+def test_state_store_restores_clock_and_environment_rules(tmp_path) -> None:
     db_path = init_db(str(tmp_path / "nest.db"))
     _seed_elfie(db_path)
-    repository = SQLiteNestStateAdapter(db_path)
+    state_store = SQLiteNestStateAdapter(db_path)
     rules = (
         EnvironmentRule(
             rule_id="night-lights-off",
@@ -117,15 +128,22 @@ def test_repository_restores_clock_and_environment_rules(tmp_path) -> None:
         ),
     )
 
-    repository.save_time_environment(
-        elapsed_seconds=7200.0,
-        clock_paused=True,
-        time_scale=2.0,
-        environment_desired=EnvironmentDesiredState(lights_on=False, quiet_mode=True),
-        environment_rules=rules,
+    state_store.save_snapshot(
+        NestSnapshot(
+            desired_bed_count=4,
+            elapsed_seconds=7200.0,
+            catalog=None,
+            residents=(),
+            clock_paused=True,
+            time_scale=2.0,
+            environment_desired=EnvironmentDesiredState(
+                lights_on=False, quiet_mode=True
+            ),
+            environment_rules=rules,
+        )
     )
 
-    restored = repository.load_snapshot()
+    restored = state_store.load_snapshot()
 
     assert restored.elapsed_seconds == 7200.0
     assert restored.clock_paused is True
@@ -136,9 +154,16 @@ def test_repository_restores_clock_and_environment_rules(tmp_path) -> None:
 
 def test_runtime_catalog_before_setup_does_not_create_configuration(tmp_path) -> None:
     db_path = init_db(str(tmp_path / "nest.db"))
-    repository = SQLiteNestStateAdapter(db_path)
+    state_store = SQLiteNestStateAdapter(db_path)
 
-    repository.save_catalog(WorldCatalog(nest_id="local-nest", revision=1, zones=()))
+    state_store.save_snapshot(
+        NestSnapshot(
+            desired_bed_count=4,
+            elapsed_seconds=0.0,
+            catalog=WorldCatalog(nest_id="local-nest", revision=1, zones=()),
+            residents=(),
+        )
+    )
 
     with get_db(db_path) as connection:
         assert (
@@ -156,7 +181,15 @@ def test_remove_resident_keeps_elfie_and_clears_home_anchor(tmp_path) -> None:
         )
         connection.commit()
 
-    SQLiteNestStateAdapter(db_path).remove_resident("00000001")
+    state_store = SQLiteNestStateAdapter(db_path)
+    state_store.save_snapshot(
+        NestSnapshot(
+            desired_bed_count=4,
+            elapsed_seconds=0.0,
+            catalog=None,
+            residents=(),
+        )
+    )
 
     with get_db(db_path) as connection:
         row = connection.execute(
@@ -169,14 +202,18 @@ def test_remove_resident_keeps_elfie_and_clears_home_anchor(tmp_path) -> None:
     ("anchor_id", "zone_id"),
     (("dorm-01/bed-02", "dorm-01"),),
 )
-def test_repository_exposes_persisted_bed_as_semantic_home_anchor(
+def test_state_store_exposes_persisted_bed_as_semantic_home_anchor(
     tmp_path, anchor_id: str, zone_id: str
 ) -> None:
     db_path = init_db(str(tmp_path / "nest.db"))
     _seed_elfie(db_path)
     SQLiteNestManagementAdapter(db_path).assign_home("00000001", anchor_id)
 
-    assignments = SQLiteNestStateAdapter(db_path).load_home_assignments()
+    assignments = {
+        resident.elfie_id: resident
+        for resident in SQLiteNestStateAdapter(db_path).load_snapshot().residents
+        if resident.home_anchor_id is not None
+    }
 
     assert assignments == {
         "00000001": PersistentResidentState(

@@ -9,6 +9,7 @@ signal runtime_event(
 
 var _nest: ModularNest
 var _commands: Dictionary = {}
+const ENVIRONMENT_OBJECT_ID := "nest/environment"
 
 
 func setup(nest: ModularNest) -> void:
@@ -20,12 +21,14 @@ func apply_environment(command: Dictionary) -> void:
 	if command_id.is_empty() or _commands.has(command_id):
 		return
 	_commands[command_id] = true
+	var object_id := String(command.get("object_id", ""))
 	var lights_on := bool(command.get("lights_on", true))
 	var quiet_mode := bool(command.get("quiet_mode", false))
-	var applied := _nest.apply_environment_state(lights_on, quiet_mode)
+	var applied := _nest.apply_environment_state(object_id, lights_on, quiet_mode)
 	runtime_event.emit(
 		"environment_state",
 		{
+			"object_id": String(applied.get("object_id", object_id)),
 			"command_id": command_id,
 			"lights_on": bool(applied.get("lights_on", lights_on)),
 			"quiet_mode": bool(applied.get("quiet_mode", quiet_mode)),

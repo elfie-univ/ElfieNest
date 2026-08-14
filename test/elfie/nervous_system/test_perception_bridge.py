@@ -8,7 +8,11 @@ from elfie.body import HeadlessBody
 from elfie.body.contracts import (
     EmergencyStopCommand,
     EnvironmentSample,
+    HeardUtterancePayload,
     ProprioceptionSample,
+    SemanticActionResultPayload,
+    SemanticVisualEntityPayload,
+    SemanticVisualScenePayload,
     TactileImpact,
     UtteranceFinal,
     VisionSample,
@@ -79,6 +83,78 @@ def test_receive_batch_preserves_each_utterance_and_source_identity() -> None:
         "主人二",
         "左边三",
     ]
+
+
+def test_nest_semantic_payloads_enter_one_typed_embodied_perception_lane() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    nervous_system = NervousSystem(
+        perception_sink=workspace,
+        elfie_id=ELFIE_ID,
+    )
+    nervous_system.receive_body_events(
+        (
+            body_event(
+                "heard-1",
+                ROOM,
+                HeardUtterancePayload(
+                    kind="heard_utterance",
+                    utterance_id="speech-1",
+                    sender_id="fox-1",
+                    text="你好",
+                    emotion="happy",
+                ),
+                cause_id="speech-command-1",
+            ),
+            body_event(
+                "visual-1",
+                ROOM,
+                SemanticVisualScenePayload(
+                    kind="semantic_visual_scene",
+                    observation_id="vision-1",
+                    observer_id="dog-1",
+                    zone_id="room-1",
+                    entities=(
+                        SemanticVisualEntityPayload(
+                            semantic_id="actor/fox-1",
+                            kind="actor",
+                            zone_id="room-1",
+                            label="fox-1",
+                        ),
+                    ),
+                ),
+                cause_id="vision-observation-1",
+            ),
+            body_event(
+                "action-1",
+                ROOM,
+                SemanticActionResultPayload(
+                    kind="semantic_action_result",
+                    command_id="move-home-1",
+                    actor_id="dog-1",
+                    target="home",
+                    resolved_anchor_id="room-1/bed-1",
+                    status="completed",
+                ),
+                cause_id="move-intent-1",
+            ),
+        )
+    )
+
+    frame = claim_all(workspace)
+    assert [event.meta.event_id for event in frame.events] == [
+        EventId("heard-1"),
+        EventId("visual-1"),
+        EventId("action-1"),
+    ]
+    assert [event.meta.causation_id for event in frame.events] == [
+        EventId("speech-command-1"),
+        EventId("vision-observation-1"),
+        EventId("move-intent-1"),
+    ]
+    contents = [event.payload.content for event in frame.events]
+    assert "sender=fox-1" in contents[0] and "emotion=happy" in contents[0]
+    assert "actor/fox-1" in contents[1]
+    assert "status=completed" in contents[2]
 
 
 def test_body_does_not_implement_the_brain_perception_sink() -> None:

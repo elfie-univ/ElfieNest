@@ -125,7 +125,7 @@ def test_full_product_chain_uses_one_explicit_final_root(
     owner_id = create_test_owner(str(db_path))
 
     engine = MagicMock()
-    engine.session.has_repository = True
+    engine.session.has_state_store = True
     engine.session.send_user_message.return_value = InboundDisposition(
         message_id=EventId("accepted-message"),
         channel_id="godot-owner",
@@ -140,7 +140,10 @@ def test_full_product_chain_uses_one_explicit_final_root(
         csrf_token = login.headers["X-CSRF-Token"]
         complete_test_setup(str(db_path))
         elfie_id = adopt_test_elfie(str(db_path), owner_id, name="小白")
-        SQLiteNestStateAdapter(str(db_path)).save_catalog(_test_world_catalog())
+        state_store = SQLiteNestStateAdapter(str(db_path))
+        state_store.save_snapshot(
+            replace(state_store.load_snapshot(), catalog=_test_world_catalog())
+        )
         bed = client.put(
             f"/api/v1/admin/nest/elfies/{elfie_id}/bed",
             json={"home_anchor_id": "dorm-01/bed-01"},

@@ -15,8 +15,9 @@ Responsible for:
 
 - Resident registration, removal, long-term bed allocation, posture and
   activity state;
-- Environment time advancement, speech propagation, collision and tactile and
-  other in-nest interactions;
+- Environment time advancement and desired environment rules;
+- Semantic speech, vision and intent correlation plus one typed Nest event
+  outbox;
 - The scene semantic catalog and the Runtime's temporary semantic mirror;
 - World rules applied after typed facts arrive through the NestSession boundary.
 
@@ -28,40 +29,43 @@ Not responsible for:
   meshes, furniture assets or rendering;
 - Orchestrating cross-authority runtime flows or product account flows.
 
-`NestState` only stores Elfie IDs, long-term homes and in-nest semantic state —
-it does not store furniture copies, coordinates or real Elfie objects. The
-single source of truth for houses, geometry, coordinates, motion, collision and
-rendering is the standalone Godot source project at `godot_project/`; the
-Python side only keeps the business-required semantic state and communication
+The `Nest` facade composes the four owner states and exposes typed use-cases. It
+does not store furniture copies, coordinates or real Elfie objects. The single
+source of truth for houses, geometry, coordinates, motion, collision and
+rendering is the standalone Godot source project at `godot_project/`; Python
+keeps only business-required semantic state and the typed communication
 boundary.
 
 ## Directory map
 
 ```text
 nest/
-├── nest.py         # public Nest facade
-├── state/          # config, residents, homes, world catalog and Runtime mirror
-├── engine/         # environment clock advancement
-├── interaction/    # speech and world-event propagation
-└── events.py       # Nest domain event value objects
+├── nest.py             # stable Nest facade and aggregate composition
+├── config.py           # aggregate configuration
+├── snapshot.py         # technology-neutral durable semantic snapshot
+├── space_facilities/   # coordinate-free catalog and environment facts
+├── living_rules/       # residents, homes, access and audience policy
+├── time_environment/   # clock, phases, schedules and desired state
+├── elfie_interaction/  # speech, vision and semantic-action correlation
+└── events.py           # cross-owner typed event value objects
 ```
 
 ## Public entry points
 
-- `nest.Nest` — composes state, environment clock and interaction propagation;
+- `nest.Nest` — the only Nest aggregate facade;
 - `nest.NestConfig` — configuration such as Nest capacity;
-- `nest.NestState` — runtime container holding only in-nest state;
+- `nest.NestSnapshot` — the durable semantic shape accepted by App state storage;
 - `app.orchestration.nest_session` — composes the Nest, real Elfies and typed world channel;
 - `infrastructure.godot.gateway` — owns the concrete WebSocket protocol implementation.
 
 Real Elfie registration is performed by `app.orchestration.NestSession`; do not
-push real objects into `NestState`.
+push real objects into the Nest aggregate.
 
 ## Dependency direction
 
 ```text
 app/orchestration ──> nest
-nest.nest ──> state + engine + interaction
+nest.nest ──> the four owner packages + events
 app/orchestration/nest_session ──> typed Nest world boundary
 infrastructure/godot ──> protocol, host and artifact adapters
 godot_project/ ──> single source of truth for scenes and geometry

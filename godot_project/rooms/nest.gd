@@ -27,6 +27,7 @@ const OVERVIEW_MARGIN: float = 1.2
 const PORTAL_ROOM_LENGTH: float = 3.0
 const TOP_DOWN_MIN_HEIGHT: float = 18.0
 const NAVIGATION_SOURCE_GROUP := &"nest_runtime_navigation_source"
+const ENVIRONMENT_OBJECT_ID := "nest/environment"
 const ACTIVITY_VIEW_LABELS := [
 	"厨房",
 	"会客厅",
@@ -257,10 +258,23 @@ func semantic_anchor_ids() -> Array[String]:
 	return SEMANTIC_SCENE_INDEX.sorted_anchor_ids(ids)
 
 
-func apply_environment_state(lights_on: bool, quiet_mode: bool) -> Dictionary:
+func apply_environment_state(
+	object_id: String,
+	lights_on: bool,
+	quiet_mode: bool,
+) -> Dictionary:
+	if object_id != ENVIRONMENT_OBJECT_ID:
+		return {
+			"object_id": object_id,
+			"lights_on": lights_on,
+			"quiet_mode": quiet_mode,
+			"applied": false,
+			"reason": "unsupported_environment_object",
+		}
 	var generated := get_node_or_null("Generated")
 	if generated == null:
 		return {
+			"object_id": object_id,
 			"lights_on": lights_on,
 			"quiet_mode": quiet_mode,
 			"applied": false,
@@ -268,6 +282,7 @@ func apply_environment_state(lights_on: bool, quiet_mode: bool) -> Dictionary:
 		}
 	_set_light_visibility(generated, lights_on)
 	return {
+		"object_id": object_id,
 		"lights_on": lights_on,
 		"quiet_mode": quiet_mode,
 		"applied": true,

@@ -35,9 +35,10 @@ source of truth.
   aggregate, life-system and Port ownership boundaries.
 - [Elfie Brain internal architecture contract](./contracts/brain): Turn,
   reasoning, mental-state and persistent-activity ownership.
-- [Elfie conformance](./conformance/elfie): the remaining temporary aggregate
-  life-system implementation gaps. Brain conformance is complete and its
-  contract is enforced by permanent architecture tests.
+- [Elfie conformance](./conformance/elfie): closure-ready evidence for the
+  aggregate life-system migration pending governance-only removal. Brain
+  conformance is complete and its contract is enforced by permanent
+  architecture tests.
 - [Application architecture contract](./contracts/application): the
   normative ownership, dependency, Port/Adapter and composition rules for new
   and migrated `app/` code.

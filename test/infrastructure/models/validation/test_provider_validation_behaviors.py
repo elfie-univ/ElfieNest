@@ -318,10 +318,7 @@ def test_model_execution_projection_keeps_volcengine_profile_test_model() -> Non
     execution_id, config = model_execution_projection(connection)
 
     assert execution_id == connection.connection_id
-    assert (
-        config.providers[execution_id]["test_model"]
-        == "deepseek-v4-flash-260425"
-    )
+    assert config.providers[execution_id]["test_model"] == "deepseek-v4-flash-260425"
 
 
 def test_volcengine_health_check_falls_back_to_configured_model(

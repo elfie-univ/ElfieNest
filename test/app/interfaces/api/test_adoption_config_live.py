@@ -57,7 +57,9 @@ def _create_user_and_login(client: TestClient) -> tuple[int, str]:
     return int(created.json()["user_id"]), login.headers["X-CSRF-Token"]
 
 
-def test_adoption_options_are_driven_by_the_species_registry(client: TestClient) -> None:
+def test_adoption_options_are_driven_by_the_species_registry(
+    client: TestClient,
+) -> None:
     owner_csrf = _login_owner(client)
     updated = client.patch(
         "/api/v1/admin/settings/elfies",

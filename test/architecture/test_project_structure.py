@@ -31,7 +31,18 @@ REQUIRED_APP_DIRECTORIES = frozenset(
 )
 REQUIRED_APP_INTERFACE_DIRECTORIES = frozenset({"api", "cli", "desktop", "web"})
 REQUIRED_NEST_ENTRIES = frozenset(
-    {"__init__.py", "engine", "events.py", "interaction"} | {"nest.py", "state"}
+    {
+        "__init__.py",
+        "config.py",
+        "elfie_interaction",
+        "events.py",
+        "living_rules",
+        "nest.py",
+        "public.py",
+        "snapshot.py",
+        "space_facilities",
+        "time_environment",
+    }
 )
 FORBIDDEN_NEST_DIRECTORIES = frozenset({"embodiment", "godot_gateway"})
 REQUIRED_DESKTOP_SOURCE_DIRECTORIES = frozenset({"resources", "windows"})

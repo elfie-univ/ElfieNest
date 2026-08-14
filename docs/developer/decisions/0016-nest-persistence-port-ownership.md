@@ -43,8 +43,9 @@ the real capability consumer; semantic fact ownership remains independent.
 ## Consequences
 
 The target does not contain `nest/persistence.py` or a Nest-exported Repository
-Protocol. The current implementation remains tracked by `NGW-R12` until the
-snapshot, Facade, App Port, Adapter typing, callers and tests migrate together.
+Protocol. The implementation was tracked by `NGW-R12` until the snapshot,
+Facade, App Port, Adapter typing, callers and tests migrated together; that row
+is now closure-ready.
 No compatibility alias, fallback read or dual write is introduced.
 
 This decision changes a frozen system-level Port semantic and therefore updates

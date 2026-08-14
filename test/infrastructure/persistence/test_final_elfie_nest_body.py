@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -32,7 +33,8 @@ from infrastructure.persistence.nest_db.nest_management import (
 )
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.nest_db.store import get_db
-from nest.state.models import PersistentResidentState, ResidentPresence, WorldCatalog
+from nest.living_rules.models import PersistentResidentState, ResidentPresence
+from nest.space_facilities.models import WorldCatalog
 from test.app.interfaces.api._helpers import adopt_test_elfie
 
 FINAL_TABLES = {
@@ -151,12 +153,19 @@ def test_nest_repositories_store_settings_catalog_presence_and_home_anchor(
     db_path = _final_database(tmp_path)
     _reserve_elfie(db_path)
     catalog = WorldCatalog(nest_id="local-nest", revision=7, zones=())
-    state_repository = SQLiteNestStateAdapter(db_path)
+    state_store = SQLiteNestStateAdapter(db_path)
 
     # When: Runtime revision/resident presence and a nullable bed are persisted.
-    state_repository.save_catalog(catalog)
-    state_repository.save_resident(
-        PersistentResidentState(elfie_id="00000001", presence=ResidentPresence.AWAY)
+    state_store.save_snapshot(
+        replace(
+            state_store.load_snapshot(),
+            catalog=catalog,
+            residents=(
+                PersistentResidentState(
+                    elfie_id="00000001", presence=ResidentPresence.AWAY
+                ),
+            ),
+        )
     )
     nest_repository = SQLiteNestManagementAdapter(db_path)
     with pytest.raises(NestPortBedNotFound, match="home anchor not found"):

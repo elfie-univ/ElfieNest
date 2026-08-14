@@ -9,8 +9,9 @@
 > dependency direction, public Facades and outbound Ports of one complete Elfie.
 > It refines,
 > but does not change, the frozen [system architecture contract](./system). The
-> current implementation is not yet fully conformant; exact migration gaps live
-> in the [Elfie conformance register](../conformance/elfie).
+> implementation evidence is maintained in the closure-ready
+> [Elfie conformance register](../conformance/elfie) until its governance-only
+> removal; permanent architecture gates remain authoritative after removal.
 
 The system contract remains authoritative for root modules, system authority and
 the final location of technical Adapters. This contract is authoritative inside

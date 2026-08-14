@@ -9,6 +9,10 @@ from elfie.factory import ElfieAssembly
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
 )
+from infrastructure.persistence.elfie_workspace.brain_state import (
+    YamlEnergyLimitsAdapter,
+    YamlSelfhoodSeedAdapter,
+)
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
@@ -39,6 +43,7 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(
     )
 
     workspace = adapter.materialize(reservation)
+    workspace_path = Path(workspace)
     profile_store = YamlProfileStoreAdapter(Path(workspace) / "profile")
     with SQLiteMemoryStoreAdapter(
         Path(workspace) / "memory" / "knowledge.sqlite"
@@ -46,6 +51,8 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(
         elfie = ElfieFactory().restore(
             ElfieAssembly(
                 profile=profile_store.load(),
+                selfhood_seed=YamlSelfhoodSeedAdapter(workspace_path / "brain").load(),
+                energy_limits=YamlEnergyLimitsAdapter(workspace_path / "brain").load(),
                 memory_store=memory_store,
             )
         )
@@ -53,13 +60,11 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(
         assert elfie.profile.identity.display_name == "星砂"
         assert elfie.profile.identity.species_id == species_id
         assert elfie.profile.identity.origin.home_world_id == "elfaria"
-        assert "big_five" in elfie.profile.personality
-        assert "actuators" in elfie.profile.capabilities
         assert elfie.selfhood_snapshot().species_name == species_name
         assert any(
             "Elfaria" in fact for fact in elfie.selfhood_snapshot().identity_facts
         )
-        assert "对不确定保持诚实。" in elfie.selfhood_snapshot().norms
+        assert any("尊重自愿选择" in norm for norm in elfie.selfhood_snapshot().norms)
         assert memory_store.count_nodes("episodic") == 5
         assert memory_store.get_node("genesis:self:00000001") is not None
         known_elfie = memory_store.conn.execute(
@@ -75,11 +80,13 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(
         )
 
     first_profile = profile_store.load()
+    first_selfhood = YamlSelfhoodSeedAdapter(workspace_path / "brain").load()
+    first_energy = YamlEnergyLimitsAdapter(workspace_path / "brain").load()
     adapter.materialize(reservation)
     second_profile = profile_store.load()
-    assert second_profile.personality == first_profile.personality
-    assert second_profile.capabilities == first_profile.capabilities
-    assert second_profile.system_limits == first_profile.system_limits
+    assert second_profile == first_profile
+    assert YamlSelfhoodSeedAdapter(workspace_path / "brain").load() == first_selfhood
+    assert YamlEnergyLimitsAdapter(workspace_path / "brain").load() == first_energy
 
     adapter.release(reservation.elfie_id)
     assert not Path(workspace).exists()

@@ -7,11 +7,11 @@ import binascii
 import os
 import random
 import shutil
-from dataclasses import replace
 from pathlib import Path
 
 from app.features.adoption import AcceptedAdoptionReservation
 from app.orchestration.resident_admission import ResidentAdmissionPortError
+from elfie.brain.selfhood import PERSONALITY_PRESETS
 from elfie.brain.selfhood.contracts import BigFiveTraits, SelfhoodSpeechStyle
 from elfie.genesis import (
     BiographyEnrichmentPlan,
@@ -26,7 +26,6 @@ from elfie.genesis import (
 )
 from elfie.profile import (
     ELFARIA_CANON,
-    PERSONALITY_PRESETS,
     SPECIES_CANON_VERSION,
     WORLD_CANON_VERSION,
     AppearanceResolver,
@@ -34,6 +33,10 @@ from elfie.profile import (
     create_visual_profile,
     get_species_canon_for_technical_id,
     get_species_definition,
+)
+from infrastructure.persistence.elfie_workspace.brain_state import (
+    YamlEnergyLimitsAdapter,
+    YamlSelfhoodSeedAdapter,
 )
 from infrastructure.persistence.layout.data_home import data_home_from_db_path
 from infrastructure.persistence.layout.data_layout import (
@@ -62,7 +65,6 @@ _MUTTER_TEMPLATES: dict[str, tuple[str, ...]] = {
         "({name}小声嘀咕着什么...)",
     ),
 }
-_ACTIONS = ("wag_tail", "wiggle_ears", "nod_head", "shake_head", "blink_eyes", "mutter")
 _DESCRIPTIONS = {
     "活泼好动": "一只活泼好动、精力旺盛的小精灵",
     "安静温顺": "一只安静温顺、乖巧懂事的小精灵",
@@ -123,22 +125,21 @@ class FinalElfieWorkspaceAdapter:
                 origin=ElfieOrigin(birth_at=reservation.birth_date),
             )
             resolved = AppearanceResolver().resolve(profile)
-            profile = replace(
-                profile,
-                personality=_personality(
-                    reservation, resolved.height_scale, resolved.build_scale
-                ),
-                capabilities=_capabilities(reservation.appearance_seed),
-                system_limits=_system_limits(
+            selfhood_seed = _selfhood_seed(
+                reservation, resolved.height_scale, resolved.build_scale
+            )
+            YamlProfileStoreAdapter(layout.profile.parent).save(profile)
+            YamlSelfhoodSeedAdapter(layout.brain).save(selfhood_seed)
+            YamlEnergyLimitsAdapter(layout.brain).save(
+                _energy_limits(
                     reservation.appearance_seed,
                     reservation.height,
                     reservation.build,
-                ),
+                )
             )
-            YamlProfileStoreAdapter(layout.profile.parent).save(profile)
             with SQLiteMemoryStoreAdapter(layout.knowledge_database) as memory_store:
                 GenesisMemoryCommitter().commit(
-                    _genesis_bundle(reservation, profile), memory_store
+                    _genesis_bundle(reservation, profile, selfhood_seed), memory_store
                 )
             _persist_portraits(layout.assets, reservation)
             return str(layout.workspace)
@@ -208,17 +209,24 @@ def _preferred_species_option(
     return next((item for item in preferred if item in options), options[0])
 
 
-def _personality(
+def _selfhood_seed(
     reservation: AcceptedAdoptionReservation,
     height_scale: float,
     build_scale: float,
 ) -> dict[str, object]:
     if reservation.genesis_candidate is not None:
         candidate = reservation.genesis_candidate
+        species = get_species_canon_for_technical_id(reservation.species_id)
         big_five = {
             trait: round((value + 2.0) / 4.0, 4)
             for trait, value in zip(
-                ("openness", "conscientiousness", "extraversion", "agreeableness", "neuroticism"),
+                (
+                    "openness",
+                    "conscientiousness",
+                    "extraversion",
+                    "agreeableness",
+                    "neuroticism",
+                ),
                 candidate.personality.candidate.latent,
             )
         }
@@ -244,6 +252,19 @@ def _personality(
             },
             "big_five": big_five,
             "self_description": reservation.personal_story or "、".join(labels),
+            "species_name": species.display_name,
+            "identity_facts": (
+                f"正式物种名是 {species.display_name}，{species.earth_shape_label} 只是地球侧形态说明。",
+                f"来自 {ELFARIA_CANON.display_name} 的 {ELFARIA_CANON.known_region_name}。",
+                ELFARIA_CANON.earth_arrival_statement,
+                f"{ELFARIA_CANON.earth_home_name} 是在地球生活的基地和家。",
+            ),
+            "behavior_anchors": species.earth_first_contact_cues,
+            "knowledge_boundaries": ELFARIA_CANON.knowledge_boundaries,
+            "norms": (
+                "尊重自愿选择，不把猜测说成亲历。",
+                "不知道时说明不知道，并在真实接触中学习地球。",
+            ),
             "speech_style": {
                 "greetings": ("你好，我来啦。", "很高兴见到你。"),
                 "verbal_ticks": "呢",
@@ -272,9 +293,8 @@ def _personality(
         reservation.personality_style,
         _GREETINGS["完全随机"],
     )
-    greetings = rng.sample(
-        greeting_pool, rng.randint(2, min(3, len(greeting_pool)))
-    )
+    greetings = rng.sample(greeting_pool, rng.randint(2, min(3, len(greeting_pool))))
+    species = get_species_canon_for_technical_id(reservation.species_id)
     return {
         "metadata": {
             "name": reservation.name,
@@ -292,6 +312,23 @@ def _personality(
             },
         },
         "big_five": big_five,
+        "self_description": (
+            f"我是 {reservation.name}，正式物种名是 {species.display_name}；"
+            f"我来自 {ELFARIA_CANON.display_name} 的 {ELFARIA_CANON.known_region_name}。"
+        ),
+        "species_name": species.display_name,
+        "identity_facts": (
+            f"正式物种名是 {species.display_name}，{species.earth_shape_label} 只是地球侧形态说明。",
+            f"来自 {ELFARIA_CANON.display_name} 的 {ELFARIA_CANON.known_region_name}。",
+            ELFARIA_CANON.earth_arrival_statement,
+            f"{ELFARIA_CANON.earth_home_name} 是在地球生活的基地和家。",
+        ),
+        "behavior_anchors": species.earth_first_contact_cues,
+        "knowledge_boundaries": ELFARIA_CANON.knowledge_boundaries,
+        "norms": (
+            "尊重自愿选择，不把猜测说成亲历。",
+            "不知道时说明不知道，并在真实接触中学习地球。",
+        ),
         "speech_style": {
             "greetings": greetings,
             "mutter_templates": mutter_templates,
@@ -303,11 +340,13 @@ def _personality(
 def _genesis_bundle(
     reservation: AcceptedAdoptionReservation,
     profile,
+    selfhood_seed: dict[str, object],
 ) -> GenesisBundle:
     """Build the small, explicit set of facts known at first arrival."""
     species = get_species_canon_for_technical_id(reservation.species_id)
-    personality = profile.personality
-    raw_big_five = personality.get("big_five", {})
+    raw_big_five = selfhood_seed.get("big_five", {})
+    if not isinstance(raw_big_five, dict):
+        raw_big_five = {}
     big_five = BigFiveTraits(
         **{
             key: float(raw_big_five.get(key, 0.5))
@@ -320,7 +359,9 @@ def _genesis_bundle(
             )
         }
     )
-    speech_style = personality.get("speech_style", {})
+    speech_style = selfhood_seed.get("speech_style", {})
+    if not isinstance(speech_style, dict):
+        speech_style = {}
     greeting_values = speech_style.get("greetings", ())
     verbal_tick = speech_style.get("verbal_ticks")
     manifest_id = f"genesis:{reservation.elfie_id}:{reservation.appearance_seed}:v0.1"
@@ -430,7 +471,11 @@ def _genesis_bundle(
             ),
         ),
         biography_plan=BiographyEnrichmentPlan(
-            allowed_memory_seed_ids=("arrival-gateway", "first-home", "earth-first-contact"),
+            allowed_memory_seed_ids=(
+                "arrival-gateway",
+                "first-home",
+                "earth-first-contact",
+            ),
             max_additional_memories=8,
             expires_after_events=12,
         ),
@@ -497,37 +542,7 @@ def _write_private_asset(path: Path, content: bytes) -> None:
             temporary.unlink()
 
 
-def _capabilities(seed: int) -> dict[str, object]:
-    rng = random.Random(seed + 31)
-    mandatory = ["nod_head", "blink_eyes"]
-    optional = [action for action in _ACTIONS if action not in mandatory]
-    actions = mandatory + rng.sample(optional, rng.randint(1, 3))
-    rng.shuffle(actions)
-    return {
-        "carrier_type": "smart_plush_toy",
-        "actuators": {
-            "speech": {
-                "enabled": True,
-                "max_words_per_minute": rng.randint(80, 150),
-            },
-            "motion": {
-                "enabled": True,
-                "supported_actions": actions,
-                "speed_limits": {
-                    "max_servo_angle_speed": round(rng.uniform(40, 80), 2)
-                },
-            },
-            "physics_limits": {
-                "can_fly": False,
-                "can_swim": False,
-                "max_height_jump": 0.0,
-                "requires_power_plug": False,
-            },
-        },
-    }
-
-
-def _system_limits(seed: int, height: str, build: str) -> dict[str, object]:
+def _energy_limits(seed: int, height: str, build: str) -> dict[str, object]:
     rng = random.Random(seed + 47)
     depletion_rate = rng.uniform(0.003, 0.008)
     if height == "tall":

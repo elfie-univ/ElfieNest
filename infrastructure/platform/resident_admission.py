@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Optional
 
 from app.orchestration.resident_admission import ResidentAdmissionPortError
@@ -19,6 +19,7 @@ ProfileStoreFactory = Callable[[str], ProfileStorePort]
 MemoryStoreFactory = Callable[[str], MemoryStorePort]
 ActivityStoreFactory = Callable[[str], ActivityStorePort]
 BrainJournalFactory = Callable[[str], BrainJournalPort]
+BrainSeedFactory = Callable[[str], Mapping[str, object]]
 
 
 class ElfieFactoryAdapter:
@@ -30,6 +31,8 @@ class ElfieFactoryAdapter:
         memory_store_factory: MemoryStoreFactory,
         activity_store_factory: ActivityStoreFactory | None = None,
         journal_store_factory: BrainJournalFactory | None = None,
+        selfhood_seed_factory: BrainSeedFactory | None = None,
+        energy_limits_factory: BrainSeedFactory | None = None,
     ) -> None:
         self._factory = factory
         self._body_factory = body_factory
@@ -37,6 +40,8 @@ class ElfieFactoryAdapter:
         self._memory_store_factory = memory_store_factory
         self._activity_store_factory = activity_store_factory
         self._journal_store_factory = journal_store_factory
+        self._selfhood_seed_factory = selfhood_seed_factory
+        self._energy_limits_factory = energy_limits_factory
 
     def restore(self, elfie_id: str, workspace: str) -> Elfie:
         try:
@@ -44,6 +49,16 @@ class ElfieFactoryAdapter:
             return self._factory.restore(
                 ElfieAssembly(
                     profile=profile_store.load(),
+                    selfhood_seed=(
+                        None
+                        if self._selfhood_seed_factory is None
+                        else self._selfhood_seed_factory(workspace)
+                    ),
+                    energy_limits=(
+                        None
+                        if self._energy_limits_factory is None
+                        else self._energy_limits_factory(workspace)
+                    ),
                     memory_store=self._memory_store_factory(workspace),
                     activity_store=(
                         None
@@ -68,6 +83,7 @@ __all__ = (
     "BodyFactory",
     "ActivityStoreFactory",
     "BrainJournalFactory",
+    "BrainSeedFactory",
     "ElfieFactoryAdapter",
     "MemoryStoreFactory",
     "ProfileStoreFactory",

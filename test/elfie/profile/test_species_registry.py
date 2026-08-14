@@ -32,11 +32,7 @@ def test_species_registry_is_complete_and_stably_ordered() -> None:
     for definition in definitions:
         manifest_path = package_root / definition.scene_id / "species_manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        scene_path = (
-            package_root
-            / definition.scene_id
-            / manifest["scene_file"]
-        )
+        scene_path = package_root / definition.scene_id / manifest["scene_file"]
         model_path = package_root / definition.scene_id / manifest["model_file"]
         assert manifest["species_id"] == definition.species_id
         assert scene_path.is_file()

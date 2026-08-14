@@ -2,6 +2,11 @@
 
 from pathlib import Path
 
+from infrastructure.godot.artifacts.export_boundary import (
+    GODOT_AUTHORING_ONLY_FILES,
+    GODOT_EXPORT_EXCLUDE_FILTER,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 GODOT_ROOT = PROJECT_ROOT / "godot_project"
 
@@ -82,3 +87,26 @@ def test_export_presets_define_one_web_and_one_linux_dedicated_runtime() -> None
     assert "dedicated_server=true" in presets
     assert 'binary_format/architecture="x86_64"' in presets
     assert "godot-linux-dedicated/ElfieNestRuntime" in presets
+
+
+def test_godot_exports_exclude_developer_and_authoring_inputs() -> None:
+    presets = (GODOT_ROOT / "export_presets.cfg").read_text(encoding="utf-8")
+    assert presets.count(f'exclude_filter="{GODOT_EXPORT_EXCLUDE_FILTER}"') == 2
+    for relative in GODOT_AUTHORING_ONLY_FILES:
+        path = GODOT_ROOT / relative
+        assert path.is_file(), relative
+        runtime_sources = tuple(
+            candidate
+            for candidate in (GODOT_ROOT / "runtime").rglob("*")
+            if candidate.is_file()
+        ) + (GODOT_ROOT / "main.gd",)
+        assert all(
+            f"res://{relative}" not in candidate.read_text(encoding="utf-8")
+            for candidate in runtime_sources
+            if candidate.suffix in {".gd", ".tscn"}
+        ), relative
+    assert not any(
+        path.name.endswith(".import")
+        for path in (GODOT_ROOT / "characters").rglob("*.import")
+        if "source" in path.parts
+    )

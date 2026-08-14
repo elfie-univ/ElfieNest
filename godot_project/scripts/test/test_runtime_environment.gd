@@ -29,6 +29,7 @@ func _init() -> void:
 			events.append({"name": event_name, "payload": payload})
 	)
 	controller.apply_environment({
+		"object_id": "nest/environment",
 		"command_id": "environment-1",
 		"lights_on": false,
 		"quiet_mode": true,
@@ -37,6 +38,9 @@ func _init() -> void:
 	if result == null or not bool(result.get("applied", false)):
 		_fail("Environment state was not applied")
 		return
+	if String(result.get("object_id", "")) != "nest/environment":
+		_fail("Environment state lost its stable object ID")
+		return
 	var generated := nest.get_node("Generated") as Node3D
 	var lights := generated.find_children("*", "Light3D", true, false)
 	for light_value: Node in lights:
@@ -44,12 +48,23 @@ func _init() -> void:
 			_fail("Environment off state left a light visible")
 			return
 	controller.apply_environment({
+		"object_id": "nest/environment",
 		"command_id": "environment-2",
 		"lights_on": true,
 		"quiet_mode": false,
 	})
 	if not _event_payload(events, "environment-2").get("applied", false):
 		_fail("Environment state did not restore lights")
+		return
+	controller.apply_environment({
+		"object_id": "unsupported/object",
+		"command_id": "environment-3",
+		"lights_on": false,
+		"quiet_mode": false,
+	})
+	var unsupported: Variant = _event_payload(events, "environment-3")
+	if unsupported == null or bool(unsupported.get("applied", true)):
+		_fail("Unsupported environment object was applied")
 		return
 	print("Runtime environment contract passed")
 	quit()

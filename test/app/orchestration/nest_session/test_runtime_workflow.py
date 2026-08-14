@@ -1,9 +1,11 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
 from app.orchestration.nest_session import (
     ElfieNestEngine,
+    NestStateStoreError,
     RuntimeConnection,
     WorldEvent,
     WorldEventName,
@@ -22,10 +24,13 @@ from app.orchestration.nest_session.models import (
     WorldZone,
 )
 from elfie import Elfie
-from nest.state.models import PersistentResidentState
-from nest.state.models import WorldCatalog as NestWorldCatalog
-from nest.state.repository import NestPersistenceError, NestPersistenceSnapshot
-from nest.state.store import ReconciliationRequiredError
+from elfie.body.contracts import (
+    HeardUtterancePayload,
+    SemanticActionResultPayload,
+    SemanticVisualScenePayload,
+)
+from nest.living_rules.errors import ReconciliationRequiredError
+from nest.snapshot import NestSnapshot
 from test.app.orchestration.nest_session.fakes import FakeWorldRuntime
 
 
@@ -117,8 +122,11 @@ def test_matching_snapshot_updates_only_transient_resident_mirror() -> None:
 
     engine.tick_once(0.0)
 
-    mirror = engine.nest.state.runtime_mirrors["fox-1"]
+    mirror = engine.nest.runtime_mirrors["fox-1"]
     assert mirror.current_zone_id == "activity-01"
+    assert mirror.runtime_id == "runtime-a"
+    assert mirror.runtime_generation == 1
+    assert mirror.world_revision == 1
     assert engine.nest.home_anchor_id("fox-1") == "dorm-01/bed-01"
 
 
@@ -126,8 +134,12 @@ def test_speech_reach_uses_nest_semantic_interaction() -> None:
     runtime = FakeWorldRuntime()
     runtime.connection = RuntimeConnection("runtime-a", 1)
     engine = ElfieNestEngine(runtime)
-    engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
-    engine.session.register_elfie("dog-1", MagicMock(spec=Elfie))
+    fox = MagicMock(spec=Elfie)
+    dog = MagicMock(spec=Elfie)
+    cat = MagicMock(spec=Elfie)
+    engine.session.register_elfie("fox-1", fox)
+    engine.session.register_elfie("dog-1", dog)
+    engine.session.register_elfie("cat-1", cat)
     for event in (
         _event(WorldEventName.SCENE_MANIFEST, SceneManifest(_catalog())),
         _event(
@@ -140,6 +152,7 @@ def test_speech_reach_uses_nest_semantic_interaction() -> None:
         command_id="speech-1",
         sender_id="fox-1",
         text="你好",
+        emotion="happy",
     )
     speech = _event(
         WorldEventName.SPEECH_REACH,
@@ -153,17 +166,22 @@ def test_speech_reach_uses_nest_semantic_interaction() -> None:
     )
     engine.session.consume_runtime_event(speech)
 
-    assert engine.nest.consume_speech_events("dog-1") == (
-        {
-            "event_id": "speech-event:dog-1",
-            "sender_id": "fox-1",
-            "text": "你好",
-        },
-    )
-    envelope = engine.nest.drain_event_outbox()
-    assert len(envelope) == 1
-    assert envelope[0].target_ids == ("dog-1",)
-    assert envelope[0].runtime_id == "runtime-a"
+    delivered = dog.pump_body_events.call_args.args[0]
+    assert len(delivered) == 1
+    event = delivered[0]
+    assert isinstance(event.payload, HeardUtterancePayload)
+    assert event.event_id == "speech-event"
+    assert event.cause_id == "speech-1"
+    assert event.payload.text == "你好"
+    assert event.payload.emotion == "happy"
+    assert event.payload.sender_id == "fox-1"
+    assert fox.pump_body_events.call_count == 0
+    assert cat.pump_body_events.call_count == 0
+    assert engine.nest.drain_event_outbox() == ()
+
+    # A repeated Runtime frame cannot re-deliver a consumed semantic event.
+    engine.session.consume_runtime_event(speech)
+    assert dog.pump_body_events.call_count == 1
     assert (
         engine.nest.complete_speech_reach(
             command_id="speech-1",
@@ -174,12 +192,56 @@ def test_speech_reach_uses_nest_semantic_interaction() -> None:
     )
 
 
+def test_failed_target_delivery_requeues_only_that_target() -> None:
+    runtime = FakeWorldRuntime()
+    runtime.connection = RuntimeConnection("runtime-a", 1)
+    engine = ElfieNestEngine(runtime)
+    fox = MagicMock(spec=Elfie)
+    dog = MagicMock(spec=Elfie)
+    cat = MagicMock(spec=Elfie)
+    dog.pump_body_events.side_effect = [RuntimeError("body offline"), ()]
+    engine.session.register_elfie("fox-1", fox)
+    engine.session.register_elfie("dog-1", dog)
+    engine.session.register_elfie("cat-1", cat)
+    for event in (
+        _event(WorldEventName.SCENE_MANIFEST, SceneManifest(_catalog())),
+        _event(WorldEventName.WORLD_CONFIGURED, WorldConfigured(True, True)),
+    ):
+        engine.session.consume_runtime_event(event)
+    assert engine.nest.queue_speech(
+        command_id="speech-retry-1",
+        sender_id="fox-1",
+        text="请回来",
+    )
+    speech = _event(
+        WorldEventName.SPEECH_REACH,
+        SpeechReach(
+            command_id="speech-retry-1",
+            actor_id="fox-1",
+            zone_id="dorm-01",
+            audience_actor_ids=("dog-1", "cat-1"),
+        ),
+        event_id="speech-retry-event",
+    )
+
+    engine.session.consume_runtime_event(speech)
+    assert dog.pump_body_events.call_count == 1
+    assert cat.pump_body_events.call_count == 1
+
+    engine.session.consume_runtime_event(speech)
+    assert dog.pump_body_events.call_count == 2
+    assert cat.pump_body_events.call_count == 1
+    assert engine.nest.drain_event_outbox() == ()
+
+
 def test_visual_observation_uses_nest_correlation_and_returns_semantic_input() -> None:
     runtime = FakeWorldRuntime()
     runtime.connection = RuntimeConnection("runtime-a", 1)
     engine = ElfieNestEngine(runtime)
-    engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
-    engine.session.register_elfie("dog-1", MagicMock(spec=Elfie))
+    fox = MagicMock(spec=Elfie)
+    dog = MagicMock(spec=Elfie)
+    engine.session.register_elfie("fox-1", fox)
+    engine.session.register_elfie("dog-1", dog)
     runtime.events.extend(
         (
             _event(WorldEventName.SCENE_MANIFEST, SceneManifest(_catalog())),
@@ -187,6 +249,7 @@ def test_visual_observation_uses_nest_correlation_and_returns_semantic_input() -
         )
     )
     engine.tick_once(0.0)
+    dog_call_count = dog.pump_body_events.call_count
 
     assert engine.session.prepare_visual_observation(
         {
@@ -209,9 +272,84 @@ def test_visual_observation_uses_nest_correlation_and_returns_semantic_input() -
         )
     )
 
-    visual = engine.nest.consume_visual_events("fox-1")
-    assert visual[0]["event_id"] == "vision-event:fox-1"
-    assert "dog-1<actor/dog-1>" in visual[0]["description"]
+    delivered = fox.pump_body_events.call_args.args[0]
+    assert len(delivered) == 1
+    event = delivered[0]
+    assert isinstance(event.payload, SemanticVisualScenePayload)
+    assert event.event_id == "vision-event"
+    assert event.cause_id == "vision-1"
+    assert event.payload.observation_id == "vision-1"
+    assert [entity.semantic_id for entity in event.payload.entities] == [
+        "actor/dog-1",
+        "anchor/dorm-01/bed-01",
+    ]
+    assert engine.nest.drain_event_outbox() == ()
+    assert dog.pump_body_events.call_count == dog_call_count
+    delivered_call_count = fox.pump_body_events.call_count
+
+    engine.session.consume_runtime_event(
+        _event(
+            WorldEventName.VISUAL_OBSERVATION,
+            VisualObservation(
+                observation_id="vision-1",
+                actor_id="fox-1",
+                zone_id="dorm-01",
+                visible_semantic_ids=("actor/dog-1",),
+            ),
+            event_id="vision-event",
+        )
+    )
+    assert fox.pump_body_events.call_count == delivered_call_count
+
+
+def test_semantic_action_result_reaches_only_originating_elfie_once() -> None:
+    runtime = FakeWorldRuntime()
+    runtime.connection = RuntimeConnection("runtime-a", 1)
+    engine = ElfieNestEngine(runtime)
+    fox = MagicMock(spec=Elfie)
+    dog = MagicMock(spec=Elfie)
+    engine.session.register_elfie("fox-1", fox)
+    engine.session.register_elfie("dog-1", dog)
+    engine.session.consume_runtime_event(
+        _event(WorldEventName.SCENE_MANIFEST, SceneManifest(_catalog()))
+    )
+    assert engine.session.prepare_semantic_action(
+        {
+            "command_id": "home-1",
+            "actor_id": "fox-1",
+            "anchor_id": "home",
+        }
+    ) == engine.nest.home_anchor_id("fox-1")
+
+    engine.session.complete_semantic_action(
+        {
+            "command_id": "home-1",
+            "actor_id": "fox-1",
+            "anchor_id": "home",
+        },
+        SimpleNamespace(terminal_status="completed", reason="", events=()),
+    )
+
+    delivered = fox.pump_body_events.call_args.args[0]
+    assert len(delivered) == 1
+    event = delivered[0]
+    assert isinstance(event.payload, SemanticActionResultPayload)
+    assert event.event_id == "semantic-action:home-1"
+    assert event.cause_id == "home-1"
+    assert event.payload.resolved_anchor_id == engine.nest.home_anchor_id("fox-1")
+    assert event.payload.status == "completed"
+    assert dog.pump_body_events.call_count == 0
+    assert engine.nest.drain_event_outbox() == ()
+
+    engine.session.complete_semantic_action(
+        {
+            "command_id": "home-1",
+            "actor_id": "fox-1",
+            "anchor_id": "home",
+        },
+        SimpleNamespace(terminal_status="completed", reason="", events=()),
+    )
+    assert fox.pump_body_events.call_count == 1
 
 
 def test_environment_desired_state_syncs_once_and_accepts_actual_runtime_fact() -> None:
@@ -234,13 +372,15 @@ def test_environment_desired_state_syncs_once_and_accepts_actual_runtime_fact() 
     engine.tick_once(0.0)
 
     assert len(runtime.environment_requests) == 1
-    _, lights_on, quiet_mode, revision = runtime.environment_requests[0]
+    object_id, _, lights_on, quiet_mode, revision = runtime.environment_requests[0]
+    assert object_id == "nest/environment"
     assert (lights_on, quiet_mode, revision) == (False, True, 1)
     engine.session.consume_runtime_event(
         _event(
             WorldEventName.ENVIRONMENT_STATE,
             EnvironmentState(
-                command_id=runtime.environment_requests[0][0],
+                object_id="nest/environment",
+                command_id=runtime.environment_requests[0][1],
                 lights_on=False,
                 quiet_mode=True,
                 applied=True,
@@ -249,18 +389,22 @@ def test_environment_desired_state_syncs_once_and_accepts_actual_runtime_fact() 
         )
     )
     assert engine.nest.actual_environment == EnvironmentActualState(
-        command_id=runtime.environment_requests[0][0],
+        object_id="nest/environment",
+        command_id=runtime.environment_requests[0][1],
         lights_on=False,
         quiet_mode=True,
         applied=True,
+        runtime_id="runtime-a",
+        runtime_generation=1,
+        world_revision=1,
     )
 
 
 def test_registration_rolls_back_when_persistence_fails() -> None:
     runtime = FakeWorldRuntime()
-    engine = ElfieNestEngine(runtime, nest_repository=FailingNestRepository())
+    engine = ElfieNestEngine(runtime, state_store=FailingNestStateStore())
 
-    with pytest.raises(NestPersistenceError, match="injected write failure"):
+    with pytest.raises(NestStateStoreError, match="injected write failure"):
         engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
 
     assert engine.session.get_elfie("fox-1") is None
@@ -291,7 +435,7 @@ def test_catalog_shrink_preserves_existing_home_and_blocks_new_admission() -> No
         )
     )
 
-    assert engine.nest.state.reconciliation_required is True
+    assert engine.nest.reconciliation_required is True
     assert engine.nest.home_anchor_id("dog-1") == dog_home
     with pytest.raises(ReconciliationRequiredError):
         engine.session.register_elfie("cat-1", MagicMock(spec=Elfie))
@@ -319,7 +463,7 @@ def test_manifest_below_resident_count_blocks_actor_synchronization() -> None:
 
     engine.tick_once(0.0)
 
-    assert engine.nest.state.reconciliation_required is True
+    assert engine.nest.reconciliation_required is True
     assert runtime.actor_syncs == []
 
 
@@ -355,7 +499,256 @@ def test_stale_snapshot_does_not_cross_configured_revision() -> None:
         )
     )
 
-    assert "fox-1" not in engine.nest.state.runtime_mirrors
+    assert "fox-1" not in engine.nest.runtime_mirrors
+
+
+def test_runtime_generation_change_invalidates_projections_and_pending_work() -> None:
+    from nest.public import EnvironmentActualState, EnvironmentDesiredState
+
+    runtime = FakeWorldRuntime()
+    runtime.connection = RuntimeConnection("runtime-a", 1)
+    engine = ElfieNestEngine(runtime)
+    fox = MagicMock(spec=Elfie)
+    dog = MagicMock(spec=Elfie)
+    fox_transport = MagicMock()
+    fox.current_body = MagicMock(transport=fox_transport)
+    engine.session.register_elfie("fox-1", fox)
+    engine.session.register_elfie("dog-1", dog)
+    engine.session.poll_runtime_connection()
+    initial_interrupt_count = fox_transport.interrupt_pending.call_count
+    for event in (
+        _event(WorldEventName.SCENE_MANIFEST, SceneManifest(_catalog())),
+        _event(WorldEventName.WORLD_CONFIGURED, WorldConfigured(True, True)),
+        _event(
+            WorldEventName.WORLD_SNAPSHOT,
+            WorldSnapshot(
+                revision=1,
+                residents=(
+                    ResidentMirror(
+                        elfie_id="fox-1",
+                        current_zone_id="dorm-01",
+                        posture="standing",
+                    ),
+                ),
+            ),
+        ),
+        _event(
+            WorldEventName.ENVIRONMENT_STATE,
+            EnvironmentState(
+                object_id="nest/environment",
+                command_id="environment-old",
+                lights_on=False,
+                quiet_mode=True,
+                applied=True,
+            ),
+            event_id="environment-old-event",
+        ),
+    ):
+        engine.session.consume_runtime_event(event)
+
+    engine.nest.set_desired_environment(
+        EnvironmentDesiredState(lights_on=False, quiet_mode=True)
+    )
+    assert engine.nest.runtime_mirrors
+    assert engine.nest.actual_environment == EnvironmentActualState(
+        object_id="nest/environment",
+        command_id="environment-old",
+        lights_on=False,
+        quiet_mode=True,
+        applied=True,
+        runtime_id="runtime-a",
+        runtime_generation=1,
+        world_revision=1,
+    )
+    assert engine.nest.queue_speech(
+        command_id="speech-old",
+        sender_id="fox-1",
+        text="旧 Runtime 内容",
+    )
+    assert engine.nest.queue_visual_observation(
+        observation_id="visual-old",
+        observer_id="fox-1",
+    )
+    assert engine.session.prepare_semantic_action(
+        {"command_id": "action-old", "actor_id": "fox-1", "anchor_id": "home"}
+    ) == engine.nest.home_anchor_id("fox-1")
+
+    runtime.connection = RuntimeConnection("runtime-b", 2)
+    engine.session.poll_runtime_connection()
+
+    assert fox_transport.interrupt_pending.call_count == initial_interrupt_count + 1
+    assert engine.nest.runtime_mirrors == {}
+    assert engine.nest.actual_environment is None
+    assert (
+        engine.nest.complete_speech_reach(
+            command_id="speech-old",
+            audience_ids=("dog-1",),
+            event_id="speech-old-event",
+        )
+        is None
+    )
+    assert (
+        engine.nest.complete_visual_observation(
+            observation_id="visual-old",
+            zone_id="dorm-01",
+            visible_semantic_ids=(),
+            event_id="visual-old-event",
+        )
+        is None
+    )
+    assert (
+        engine.nest.complete_semantic_action(
+            command_id="action-old",
+            status="completed",
+            reason=None,
+            event_id="action-old-event",
+        )
+        is None
+    )
+
+    engine.session.consume_runtime_event(
+        _event(
+            WorldEventName.WORLD_SNAPSHOT,
+            WorldSnapshot(
+                revision=1,
+                residents=(
+                    ResidentMirror(
+                        elfie_id="fox-1",
+                        current_zone_id="stale-zone",
+                        posture="walking",
+                    ),
+                ),
+            ),
+            runtime_id="runtime-a",
+            generation=1,
+        )
+    )
+    assert engine.nest.runtime_mirrors == {}
+
+    engine.session.consume_runtime_event(
+        _event(
+            WorldEventName.SCENE_MANIFEST,
+            SceneManifest(_catalog()),
+            runtime_id="runtime-b",
+            generation=2,
+        )
+    )
+    engine.session.consume_runtime_event(
+        _event(
+            WorldEventName.WORLD_CONFIGURED,
+            WorldConfigured(True, True),
+            runtime_id="runtime-b",
+            generation=2,
+        )
+    )
+    engine.session.flush_environment_state()
+    assert runtime.environment_requests[-1][2:] == (False, True, 1)
+
+    engine.session.consume_runtime_event(
+        _event(
+            WorldEventName.WORLD_SNAPSHOT,
+            WorldSnapshot(
+                revision=1,
+                residents=(
+                    ResidentMirror(
+                        elfie_id="fox-1",
+                        current_zone_id="dorm-01",
+                        posture="standing",
+                    ),
+                ),
+            ),
+            runtime_id="runtime-b",
+            generation=2,
+        )
+    )
+    mirror = engine.nest.runtime_mirrors["fox-1"]
+    assert (mirror.runtime_id, mirror.runtime_generation, mirror.world_revision) == (
+        "runtime-b",
+        2,
+        1,
+    )
+
+
+def test_manifest_revision_change_invalidates_old_runtime_state() -> None:
+    from nest.public import EnvironmentDesiredState
+
+    runtime = FakeWorldRuntime()
+    runtime.connection = RuntimeConnection("runtime-a", 1)
+    engine = ElfieNestEngine(runtime)
+    engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
+    engine.session.poll_runtime_connection()
+    for event in (
+        _event(WorldEventName.SCENE_MANIFEST, SceneManifest(_catalog())),
+        _event(WorldEventName.WORLD_CONFIGURED, WorldConfigured(True, True)),
+        _event(
+            WorldEventName.WORLD_SNAPSHOT,
+            WorldSnapshot(
+                revision=1,
+                residents=(
+                    ResidentMirror(
+                        elfie_id="fox-1",
+                        current_zone_id="dorm-01",
+                        posture="standing",
+                    ),
+                ),
+            ),
+        ),
+    ):
+        engine.session.consume_runtime_event(event)
+    assert engine.nest.queue_speech(
+        command_id="speech-revision-old",
+        sender_id="fox-1",
+        text="旧 revision 内容",
+    )
+    assert engine.nest.runtime_mirrors
+    engine.nest.set_desired_environment(
+        EnvironmentDesiredState(lights_on=False, quiet_mode=True)
+    )
+
+    engine.session.consume_runtime_event(
+        _event(
+            WorldEventName.SCENE_MANIFEST,
+            SceneManifest(_catalog(revision=2)),
+            revision=2,
+        )
+    )
+
+    assert engine.nest.runtime_mirrors == {}
+    assert engine.nest.actual_environment is None
+    assert (
+        engine.nest.complete_speech_reach(
+            command_id="speech-revision-old",
+            audience_ids=(),
+            event_id="speech-revision-old-event",
+        )
+        is None
+    )
+    engine.session.consume_runtime_event(
+        _event(
+            WorldEventName.WORLD_CONFIGURED,
+            WorldConfigured(True, True),
+            revision=2,
+        )
+    )
+    engine.session.flush_environment_state()
+    assert runtime.environment_requests[-1][4] == 2
+    engine.session.consume_runtime_event(
+        _event(
+            WorldEventName.WORLD_SNAPSHOT,
+            WorldSnapshot(
+                revision=1,
+                residents=(
+                    ResidentMirror(
+                        elfie_id="fox-1",
+                        current_zone_id="stale-zone",
+                        posture="walking",
+                    ),
+                ),
+            ),
+            revision=1,
+        )
+    )
+    assert engine.nest.runtime_mirrors == {}
 
 
 def test_stale_manifest_does_not_downgrade_catalog() -> None:
@@ -374,10 +767,10 @@ def test_stale_manifest_does_not_downgrade_catalog() -> None:
         )
     )
 
-    assert engine.nest.state.world_catalog is not None
-    assert engine.nest.state.world_catalog.revision == 1
+    assert engine.nest.world_catalog is not None
+    assert engine.nest.world_catalog.revision == 1
     assert "stale-zone" not in {
-        zone.zone_id for zone in engine.nest.state.world_catalog.zones
+        zone.zone_id for zone in engine.nest.world_catalog.zones
     }
 
 
@@ -387,10 +780,12 @@ def _event(
     *,
     event_id: str = "event-1",
     revision: int = 1,
+    runtime_id: str = "runtime-a",
+    generation: int = 1,
 ) -> WorldEvent:
     return WorldEvent(
         event_id=event_id,
-        connection=RuntimeConnection("runtime-a", 1),
+        connection=RuntimeConnection(runtime_id, generation),
         world_revision=revision,
         name=name,
         payload=payload,
@@ -426,24 +821,15 @@ def _catalog(
     )
 
 
-class FailingNestRepository:
-    def load_snapshot(self) -> NestPersistenceSnapshot:
-        return NestPersistenceSnapshot(
+class FailingNestStateStore:
+    def load_snapshot(self) -> NestSnapshot:
+        return NestSnapshot(
             desired_bed_count=4,
             elapsed_seconds=0.0,
             catalog=None,
             residents=(),
         )
 
-    def load_home_assignments(self) -> dict[str, PersistentResidentState]:
-        return {}
-
-    def save_catalog(self, catalog: NestWorldCatalog) -> None:
-        _ = catalog
-
-    def save_resident(self, resident: PersistentResidentState) -> None:
-        _ = resident
-        raise NestPersistenceError("injected write failure")
-
-    def remove_resident(self, elfie_id: str) -> None:
-        _ = elfie_id
+    def save_snapshot(self, snapshot: NestSnapshot) -> None:
+        _ = snapshot
+        raise NestStateStoreError("injected write failure")

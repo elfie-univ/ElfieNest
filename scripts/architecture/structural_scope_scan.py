@@ -41,11 +41,6 @@ NEST_ROOT_ENTRIES: Dict[str, ScopeEntry] = {
         disposition="target",
     ),
     "__pycache__": ScopeEntry("directory", "generated"),
-    "engine": ScopeEntry("directory", "temporary", "NGW-R01"),
-    "interaction": ScopeEntry("directory", "temporary", "NGW-R01"),
-    "rules": ScopeEntry("directory", "temporary", "NGW-R01"),
-    "space": ScopeEntry("directory", "temporary", "NGW-R01"),
-    "state": ScopeEntry("directory", "temporary", "NGW-R01"),
     "time_environment": ScopeEntry("directory", "target"),
     "space_facilities": ScopeEntry("directory", "target"),
     "living_rules": ScopeEntry("directory", "target"),
@@ -73,6 +68,7 @@ GODOT_ROOT_ENTRIES: Dict[str, ScopeEntry] = {
 }
 
 GODOT_RUNTIME_ENTRIES: Dict[str, ScopeEntry] = {
+    **_files("species_catalog.gd", disposition="target"),
     "actor": ScopeEntry("directory", "target"),
     "endpoint": ScopeEntry("directory", "target"),
     "lab": ScopeEntry("directory", "presentation"),
@@ -93,15 +89,9 @@ STRUCTURAL_SCOPES: Tuple[DirectoryScope, ...] = (
 )
 
 # These are temporary migration locations, not permanent allowed architecture.
-# The base-aware governance checker prevents them from gaining new files while
-# NGW-R01 is open; the entries are removed when that row is genuinely closed.
-TEMPORARY_CLEANUP_PREFIXES: Tuple[Tuple[str, str], ...] = (
-    ("nest/engine", "NGW-R01"),
-    ("nest/interaction", "NGW-R01"),
-    ("nest/rules", "NGW-R01"),
-    ("nest/space", "NGW-R01"),
-    ("nest/state", "NGW-R01"),
-)
+# The base-aware governance checker prevents them from gaining new files; the
+# entries remain empty after the corresponding structural row is closed.
+TEMPORARY_CLEANUP_PREFIXES: Tuple[Tuple[str, str], ...] = ()
 
 
 def temporary_cleanup_owner(relative_path: str) -> Optional[str]:

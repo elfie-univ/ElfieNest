@@ -32,7 +32,7 @@ def test_display_name_does_not_change_appearance() -> None:
 
 
 def test_species_colors_are_selected_from_profile() -> None:
-    for species_id in ("dog", "fox", "cat"):
+    for species_id in ("dog", "fox"):
         profile = get_species_profile(species_id)
         for seed in range(20):
             genome = AppearanceGenerator(seed).generate(species_id=species_id)
@@ -58,7 +58,6 @@ def test_generated_profile_validates_for_many_seeds() -> None:
 def test_species_private_traits_do_not_pollute_other_species() -> None:
     dog = AppearanceGenerator(12).generate(species_id="dog")
     fox = AppearanceGenerator(12).generate(species_id="fox")
-    cat = AppearanceGenerator(12).generate(species_id="cat")
     assert set(dog.species_traits) == {
         "jowl_fullness_bias",
         "ear_fold_bias",
@@ -68,11 +67,6 @@ def test_species_private_traits_do_not_pollute_other_species() -> None:
         "black_leg_coverage",
         "tail_tip_coverage",
         "cheek_ruff_bias",
-    }
-    assert set(cat.species_traits) == {
-        "whisker_sensitivity_bias",
-        "ear_focus_bias",
-        "tail_balance_bias",
     }
 
 

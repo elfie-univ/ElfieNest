@@ -36,7 +36,9 @@ class GenesisCommitReceipt:
 class GenesisMemoryCommitter:
     """Materialize one validated bundle without creating a second source of truth."""
 
-    def commit(self, bundle: GenesisBundle, storage: MemoryStorePort) -> GenesisCommitReceipt:
+    def commit(
+        self, bundle: GenesisBundle, storage: MemoryStorePort
+    ) -> GenesisCommitReceipt:
         validate_genesis_bundle(bundle)
         elfie_id = bundle.profile_draft.profile.identity.elfie_id
         marker_id = f"{_GENESIS_MARKER_PREFIX}{elfie_id}"
@@ -137,7 +139,9 @@ class GenesisMemoryCommitter:
             storage.add_edge(memory_id, place_ids[-1], "about", weight=0.85)
 
         for relationship in bundle.relationship_seeds:
-            person_id = f"{_PERSON_NODE_PREFIX}{_safe_component(relationship.person_id)}"
+            person_id = (
+                f"{_PERSON_NODE_PREFIX}{_safe_component(relationship.person_id)}"
+            )
             storage.add_node(
                 MemoryNode(
                     id=person_id,
@@ -247,7 +251,10 @@ def _write_place_nodes(
 
 
 def _safe_component(value: str) -> str:
-    return "".join(character if character.isalnum() or character in "-_" else "-" for character in value)
+    return "".join(
+        character if character.isalnum() or character in "-_" else "-"
+        for character in value
+    )
 
 
 __all__ = ("GenesisCommitReceipt", "GenesisMemoryCommitter")

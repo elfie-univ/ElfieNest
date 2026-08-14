@@ -25,10 +25,10 @@ from infrastructure.godot.nest_session.mapper import (
     parse_world_snapshot,
 )
 from nest import Nest, NestConfig
-from nest.state.models import (
+from nest.living_rules.models import RuntimeResidentMirror
+from nest.space_facilities.models import (
     AnchorKind,
     InteractionAnchor,
-    RuntimeResidentMirror,
     WorldCatalog,
     ZoneDescriptor,
 )
@@ -261,6 +261,7 @@ class NestLabWorld:
         self._connection_token = token
         self._manifest_revision = None
         self._configured_revision = None
+        self._nest.invalidate_runtime_state()
         self._actor_catalog_dirty = True
         self._wander_scheduler.clear()
         if token is None:
@@ -288,6 +289,12 @@ class NestLabWorld:
             catalog = _nest_catalog(event.payload)
             if catalog.revision != self._world_revision:
                 return
+            if (
+                self._manifest_revision is not None
+                and catalog.revision != self._manifest_revision
+            ):
+                self._nest.invalidate_runtime_state()
+                self._configured_revision = None
             self._nest.apply_catalog(catalog)
             self._manifest_revision = catalog.revision
             assign_missing_homes(self._nest, self._actors)
@@ -306,7 +313,12 @@ class NestLabWorld:
                         world_revision=event.world_revision,
                     )
         elif event.name is EventName.WORLD_SNAPSHOT:
-            revision, mirrors = _nest_mirrors(event.payload)
+            revision, mirrors = _nest_mirrors(
+                event.payload,
+                runtime_id=event.runtime_id,
+                runtime_generation=event.generation,
+                world_revision=event.world_revision,
+            )
             if revision == self._configured_revision:
                 self._nest.apply_runtime_mirrors(mirrors)
         elif event.name is EventName.INTENT_TERMINAL:
@@ -349,6 +361,10 @@ def _nest_catalog(payload: JsonObject) -> WorldCatalog:
 
 def _nest_mirrors(
     payload: JsonObject,
+    *,
+    runtime_id: str,
+    runtime_generation: int,
+    world_revision: int,
 ) -> tuple[int, tuple[RuntimeResidentMirror, ...]]:
     """Convert the shared strict snapshot into Lab-owned Nest mirrors."""
     revision, mirrors = parse_world_snapshot(payload)
@@ -360,6 +376,9 @@ def _nest_mirrors(
                 current_zone_id=mirror.current_zone_id,
                 posture=mirror.posture,
                 active_command_id=mirror.active_command_id,
+                runtime_id=runtime_id,
+                runtime_generation=runtime_generation,
+                world_revision=world_revision,
             )
             for mirror in mirrors
         ),

@@ -19,14 +19,23 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
         assert first.status == "committed"
         assert second.status == "duplicate"
         assert storage.count_nodes("episodic") == 2
-        assert storage.get_node("genesis:memory:m-0").metadata["emotion_intensity"] == 0.5
-        assert storage.get_node("genesis:self:genesis-check").metadata["is_self"] is True
-        assert storage.get_node("genesis:person:seli").metadata["relationship_label"] == "mother"
+        assert (
+            storage.get_node("genesis:memory:m-0").metadata["emotion_intensity"] == 0.5
+        )
+        assert (
+            storage.get_node("genesis:self:genesis-check").metadata["is_self"] is True
+        )
+        assert (
+            storage.get_node("genesis:person:seli").metadata["relationship_label"]
+            == "mother"
+        )
         assert any(
             edge.rel == "relationship"
             for edge in storage.get_edges("genesis:self:genesis-check")
         )
-        assert storage.conn.execute("SELECT COUNT(*) FROM known_elfies").fetchone()[0] == 1
+        assert (
+            storage.conn.execute("SELECT COUNT(*) FROM known_elfies").fetchone()[0] == 1
+        )
         assert storage.conn.execute("SELECT COUNT(*) FROM people").fetchone()[0] == 1
         assert storage.conn.execute("SELECT COUNT(*) FROM places").fetchone()[0] == 3
 

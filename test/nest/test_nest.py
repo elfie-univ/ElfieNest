@@ -1,16 +1,16 @@
 import pytest
 
 from nest import Nest
-from nest.engine import InvalidTickError
-from nest.state.store import (
+from nest.living_rules.errors import (
     BedConflictError,
     NoHomeAvailableError,
     UnknownResidentError,
 )
+from nest.time_environment.clock import InvalidTickError
 
 
 def _catalog_with_beds(count: int):
-    from nest.state.models import (
+    from nest.space_facilities.models import (
         AnchorKind,
         InteractionAnchor,
         WorldCatalog,
@@ -53,19 +53,22 @@ def test_nest_registers_only_resident_identity_and_state() -> None:
     assert nest.resident_ids == ("elfie-1",)
 
 
-def test_broadcast_reaches_other_active_residents_only() -> None:
+def test_broadcast_emits_one_targeted_typed_event() -> None:
     # Given
     nest = Nest()
     nest.register_resident("elfie-1")
     nest.register_resident("elfie-2")
 
     # When
-    nest.broadcast_speech("elfie-1", "一起去活动区")
+    nest.broadcast_system("一起去活动区", sender_id="elfie-1")
 
     # Then
-    assert nest.consume_sensory_input("elfie-1") == ""
-    assert "一起去活动区" in nest.consume_sensory_input("elfie-2")
-    assert nest.consume_sensory_input("elfie-2") == ""
+    events = nest.drain_event_outbox()
+    assert len(events) == 1
+    assert events[0].target_ids == ("elfie-2",)
+    assert events[0].payload.text == "一起去活动区"
+    assert not hasattr(nest, "broadcast_speech")
+    assert not hasattr(nest, "consume_sensory_input")
 
 
 def test_nest_keeps_semantic_posture_without_copying_godot_furniture() -> None:
@@ -76,7 +79,7 @@ def test_nest_keeps_semantic_posture_without_copying_godot_furniture() -> None:
 
     resident = nest.resident_state("elfie-1")
     assert resident is not None and resident.posture == "sitting"
-    assert not hasattr(nest.state, "furniture")
+    assert not hasattr(nest, "furniture")
 
 
 def test_nest_tick_advances_environment_without_an_elfie_instance() -> None:
@@ -87,7 +90,7 @@ def test_nest_tick_advances_environment_without_an_elfie_instance() -> None:
     nest.tick(1.5)
 
     # Then
-    assert nest.state.elapsed_seconds == 1.5
+    assert nest.elapsed_seconds == 1.5
 
 
 def test_nest_rejects_negative_tick() -> None:
@@ -128,6 +131,21 @@ def test_nest_rejects_home_conflicts_and_full_catalog() -> None:
         nest.assign_home("dog-1", "dorm-01/bed-01")
 
 
+def test_home_assignment_is_the_single_reservation_and_access_rule() -> None:
+    nest = Nest()
+    nest.apply_catalog(_catalog_with_beds(1))
+    nest.admit_resident("fox-1")
+    nest.register_resident("dog-1")
+
+    assert nest.is_home_reserved("dorm-01/bed-01") is True
+    assert nest.home_occupant("dorm-01/bed-01") == "fox-1"
+    assert nest.can_access_home("fox-1", "dorm-01/bed-01") is True
+    assert nest.can_access_home("dog-1", "dorm-01/bed-01") is False
+
+    nest.update_resident_posture("fox-1", "away")
+    assert nest.can_access_home("fox-1", "dorm-01/bed-01") is False
+
+
 def test_nest_catalog_shrink_marks_reconciliation_required() -> None:
     # Given
     nest = Nest()
@@ -138,12 +156,12 @@ def test_nest_catalog_shrink_marks_reconciliation_required() -> None:
     nest.apply_catalog(_catalog_with_beds(0))
 
     # Then
-    assert nest.state.reconciliation_required is True
+    assert nest.reconciliation_required is True
     assert nest.home_anchor_id("fox-1") == "dorm-01/bed-01"
 
 
 def test_nest_exposes_active_facilities_without_geometry() -> None:
-    from nest.state.models import FacilityDescriptor, FacilityKind
+    from nest.space_facilities.models import FacilityDescriptor, FacilityKind
 
     nest = Nest()
     catalog = _catalog_with_beds(1).model_copy(
@@ -169,10 +187,10 @@ def test_nest_exposes_active_facilities_without_geometry() -> None:
 def test_semantic_visual_observation_filters_candidates_and_emits_targeted_event() -> (
     None
 ):
-    from nest.state.models import (
+    from nest.living_rules.models import RuntimeResidentMirror
+    from nest.space_facilities.models import (
         FacilityDescriptor,
         FacilityKind,
-        RuntimeResidentMirror,
     )
 
     nest = Nest()
@@ -192,11 +210,14 @@ def test_semantic_visual_observation_filters_candidates_and_emits_targeted_event
     nest.apply_catalog(catalog)
     nest.register_resident("fox-1")
     nest.register_resident("dog-1")
-    nest.state.apply_runtime_mirrors(
+    nest.apply_runtime_mirrors(
         (
             RuntimeResidentMirror(
                 elfie_id="dog-1",
                 current_zone_id="dorm-01",
+                runtime_id="runtime-a",
+                runtime_generation=1,
+                world_revision=1,
             ),
         )
     )
@@ -223,8 +244,8 @@ def test_semantic_visual_observation_filters_candidates_and_emits_targeted_event
         "actor/dog-1",
         "anchor/dorm-01/bed-01",
     ]
-    assert nest.consume_visual_events("fox-1")[0]["event_id"] == "vision-event-1:fox-1"
     assert nest.drain_event_outbox()[0].target_ids == ("fox-1",)
+    assert not hasattr(nest, "consume_visual_events")
     assert (
         nest.complete_visual_observation(
             observation_id="vision-1",
@@ -272,7 +293,11 @@ def test_semantic_home_action_resolves_once_and_records_physical_terminal() -> N
 
 
 def test_semantic_facility_action_resolves_to_one_zone_anchor() -> None:
-    from nest.state.models import FacilityDescriptor, FacilityKind, InteractionAnchor
+    from nest.space_facilities.models import (
+        FacilityDescriptor,
+        FacilityKind,
+        InteractionAnchor,
+    )
 
     nest = Nest()
     catalog = _catalog_with_beds(1).model_copy(
@@ -323,6 +348,15 @@ def test_semantic_facility_action_resolves_to_one_zone_anchor() -> None:
         is None
     )
 
+    nest.update_resident_posture("fox-1", "away")
+    assert (
+        nest.resolve_semantic_action_target(
+            actor_id="fox-1",
+            target="facility/dorm-01/activity",
+        )
+        is None
+    )
+
 
 def test_nest_rejects_unknown_resident_update() -> None:
     # Given
@@ -346,7 +380,7 @@ def test_nest_clock_pause_and_time_scale() -> None:
     nest.tick(1)
 
     # Then
-    assert nest.state.elapsed_seconds == 5.0
+    assert nest.elapsed_seconds == 5.0
 
 
 def test_nest_exposes_deterministic_life_phase_and_environment_rules() -> None:
@@ -374,3 +408,35 @@ def test_nest_exposes_deterministic_life_phase_and_environment_rules() -> None:
 
     assert nest.life_phase is LifePhase.DAWN
     assert nest.desired_environment.lights_on is False
+
+
+def test_environment_override_wins_until_household_clears_it() -> None:
+    from nest.public import EnvironmentDesiredState, EnvironmentRule, LifePhase
+
+    nest = Nest()
+    nest.set_environment_rules(
+        (
+            EnvironmentRule(
+                rule_id="day-lights-on",
+                phase=LifePhase.DAY,
+                lights_on=True,
+                quiet_mode=False,
+            ),
+        )
+    )
+    nest.set_environment_override(
+        EnvironmentDesiredState(lights_on=False, quiet_mode=True)
+    )
+
+    nest.tick(12 * 3600)
+    assert nest.life_phase is LifePhase.DAY
+    assert nest.desired_environment == EnvironmentDesiredState(
+        lights_on=False,
+        quiet_mode=True,
+    )
+
+    nest.clear_environment_override()
+    assert nest.desired_environment == EnvironmentDesiredState(
+        lights_on=True,
+        quiet_mode=False,
+    )

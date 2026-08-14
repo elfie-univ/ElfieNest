@@ -6,17 +6,12 @@ import json
 import sqlite3
 from typing import Final
 
+from app.orchestration.nest_session.ports import NestStateStoreError
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
-from nest.public import NestConfig
-from nest.state.models import (
-    AnchorKind,
-    EnvironmentDesiredState,
-    EnvironmentRule,
-    PersistentResidentState,
-    ResidentPresence,
-    WorldCatalog,
-)
-from nest.state.repository import NestPersistenceError, NestPersistenceSnapshot
+from nest.living_rules.models import PersistentResidentState, ResidentPresence
+from nest.public import NestConfig, NestSnapshot
+from nest.space_facilities.models import AnchorKind, WorldCatalog
+from nest.time_environment.models import EnvironmentDesiredState, EnvironmentRule
 
 _PRESENCE_TO_STATUS: Final = {
     ResidentPresence.ACTIVE: "online",
@@ -36,7 +31,7 @@ class SQLiteNestStateAdapter:
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
 
-    def load_snapshot(self) -> NestPersistenceSnapshot:
+    def load_snapshot(self) -> NestSnapshot:
         """Restore state without creating or repairing product configuration."""
         defaults = NestConfig()
         try:
@@ -53,8 +48,8 @@ class SQLiteNestStateAdapter:
                     "SELECT elfie_id, status, home_anchor_id FROM elfies ORDER BY elfie_id"
                 ).fetchall()
         except sqlite3.Error as error:
-            raise NestPersistenceError(str(error)) from error
-        return NestPersistenceSnapshot(
+            raise NestStateStoreError(str(error)) from error
+        return NestSnapshot(
             desired_bed_count=(
                 defaults.bed_count if config is None else int(config["bed_count"])
             ),
@@ -85,129 +80,76 @@ class SQLiteNestStateAdapter:
             ),
         )
 
-    def load_home_assignments(self) -> dict[str, PersistentResidentState]:
-        """Read persisted bed choices as semantic Runtime home assignments."""
-        try:
-            with app_sqlite_connection(self._db_path) as connection:
-                rows = connection.execute(
-                    """SELECT elfie_id, status, home_anchor_id FROM elfies
-                       WHERE home_anchor_id IS NOT NULL ORDER BY elfie_id"""
-                ).fetchall()
-                catalog_row = connection.execute(
-                    "SELECT world_catalog_json FROM nest_settings WHERE nest_id=?",
-                    (NestConfig().nest_id,),
-                ).fetchone()
-                catalog = _catalog_from_row(catalog_row)
-        except sqlite3.Error as error:
-            raise NestPersistenceError(str(error)) from error
-        return {
-            str(row["elfie_id"]): _persisted_home_state(
-                elfie_id=str(row["elfie_id"]),
-                status=str(row["status"]),
-                home_anchor_id=str(row["home_anchor_id"]),
-                catalog=catalog,
-            )
-            for row in rows
-        }
-
-    def save_catalog(self, catalog: WorldCatalog) -> None:
-        """Save only the applied revision; Runtime remains catalog authority."""
+    def save_snapshot(self, snapshot: NestSnapshot) -> None:
+        """Persist one complete durable Nest snapshot in one transaction."""
         nest_id = NestConfig().nest_id
-        if catalog.nest_id != nest_id:
-            raise NestPersistenceError(f"unsupported nest_id: {catalog.nest_id}")
+        if snapshot.catalog is not None and snapshot.catalog.nest_id != nest_id:
+            raise NestStateStoreError(
+                f"unsupported nest_id: {snapshot.catalog.nest_id}"
+            )
         try:
             with app_sqlite_connection(self._db_path) as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 cursor = connection.execute(
-                    """UPDATE nest_settings SET applied_world_revision=?,
-                       world_catalog_json=?,
-                       updated_at=CURRENT_TIMESTAMP WHERE nest_id=?""",
-                    (catalog.revision, catalog.model_dump_json(), nest_id),
-                )
-                if cursor.rowcount != 1:
-                    # Setup owns creation of the configuration row. A fresh
-                    # installation still needs to accept the live Runtime
-                    # catalog so the Setup UI can become reachable.
-                    connection.rollback()
-                    return
-                connection.commit()
-        except sqlite3.Error as error:
-            raise NestPersistenceError(str(error)) from error
-
-    def save_resident(self, resident: PersistentResidentState) -> None:
-        """Persist only resident presence; Runtime remains home-anchor authority."""
-        try:
-            with app_sqlite_connection(self._db_path) as connection:
-                connection.execute("BEGIN IMMEDIATE")
-                cursor = connection.execute(
-                    """UPDATE elfies SET status=?, home_anchor_id=?,
-                       updated_at=CURRENT_TIMESTAMP
-                       WHERE elfie_id=?""",
-                    (
-                        _PRESENCE_TO_STATUS[resident.presence],
-                        resident.home_anchor_id,
-                        resident.elfie_id,
-                    ),
-                )
-                if cursor.rowcount != 1:
-                    raise NestPersistenceError(f"elfie not found: {resident.elfie_id}")
-                connection.commit()
-        except sqlite3.Error as error:
-            raise NestPersistenceError(str(error)) from error
-
-    def remove_resident(self, elfie_id: str) -> None:
-        """Make a resident offline and unassigned without deleting its Elfie row."""
-        try:
-            with app_sqlite_connection(self._db_path) as connection:
-                connection.execute("BEGIN IMMEDIATE")
-                cursor = connection.execute(
-                    """UPDATE elfies SET status='offline', home_anchor_id=NULL,
-                       updated_at=CURRENT_TIMESTAMP WHERE elfie_id=?""",
-                    (elfie_id,),
-                )
-                if cursor.rowcount != 1:
-                    raise NestPersistenceError(f"elfie not found: {elfie_id}")
-                connection.commit()
-        except sqlite3.Error as error:
-            raise NestPersistenceError(str(error)) from error
-
-    def save_time_environment(
-        self,
-        *,
-        elapsed_seconds: float,
-        clock_paused: bool,
-        time_scale: float,
-        environment_desired: EnvironmentDesiredState,
-        environment_rules: tuple[EnvironmentRule, ...],
-    ) -> None:
-        try:
-            with app_sqlite_connection(self._db_path) as connection:
-                connection.execute("BEGIN IMMEDIATE")
-                cursor = connection.execute(
-                    """UPDATE nest_settings SET clock_anchor_seconds=?, clock_paused=?,
-                       time_scale=?, environment_desired_json=?, environment_rules_json=?,
+                    """UPDATE nest_settings SET bed_count=?,
+                       applied_world_revision=?, world_catalog_json=?,
+                       clock_anchor_seconds=?, clock_paused=?, time_scale=?,
+                       environment_desired_json=?, environment_rules_json=?,
                        updated_at=CURRENT_TIMESTAMP WHERE nest_id=?""",
                     (
-                        elapsed_seconds,
-                        int(clock_paused),
-                        time_scale,
-                        environment_desired.model_dump_json(),
+                        snapshot.desired_bed_count,
+                        (
+                            None
+                            if snapshot.catalog is None
+                            else snapshot.catalog.revision
+                        ),
+                        (
+                            None
+                            if snapshot.catalog is None
+                            else snapshot.catalog.model_dump_json()
+                        ),
+                        snapshot.elapsed_seconds,
+                        int(snapshot.clock_paused),
+                        snapshot.time_scale,
+                        snapshot.environment_desired.model_dump_json(),
                         json.dumps(
                             [
                                 rule.model_dump(mode="json")
-                                for rule in environment_rules
+                                for rule in snapshot.environment_rules
                             ],
                             separators=(",", ":"),
                         ),
-                        NestConfig().nest_id,
+                        nest_id,
                     ),
                 )
                 if cursor.rowcount != 1:
                     connection.rollback()
                     return
+                residents = {
+                    resident.elfie_id: resident for resident in snapshot.residents
+                }
+                stored_ids = connection.execute(
+                    "SELECT elfie_id FROM elfies"
+                ).fetchall()
+                for row in stored_ids:
+                    elfie_id = str(row["elfie_id"])
+                    resident = residents.get(elfie_id)
+                    connection.execute(
+                        """UPDATE elfies SET status=?, home_anchor_id=?,
+                           updated_at=CURRENT_TIMESTAMP WHERE elfie_id=?""",
+                        (
+                            (
+                                _PRESENCE_TO_STATUS[resident.presence]
+                                if resident is not None
+                                else "offline"
+                            ),
+                            resident.home_anchor_id if resident is not None else None,
+                            elfie_id,
+                        ),
+                    )
                 connection.commit()
         except sqlite3.Error as error:
-            raise NestPersistenceError(str(error)) from error
+            raise NestStateStoreError(str(error)) from error
 
 
 def _catalog_from_row(row: sqlite3.Row | None) -> WorldCatalog | None:
@@ -216,7 +158,7 @@ def _catalog_from_row(row: sqlite3.Row | None) -> WorldCatalog | None:
     try:
         return WorldCatalog.model_validate_json(row["world_catalog_json"])
     except ValueError as error:
-        raise NestPersistenceError("stored Nest world catalog is invalid") from error
+        raise NestStateStoreError("stored Nest world catalog is invalid") from error
 
 
 def _environment_desired_from_row(row: sqlite3.Row | None) -> EnvironmentDesiredState:
@@ -227,9 +169,7 @@ def _environment_desired_from_row(row: sqlite3.Row | None) -> EnvironmentDesired
             row["environment_desired_json"]
         )
     except ValueError as error:
-        raise NestPersistenceError(
-            "stored Nest environment state is invalid"
-        ) from error
+        raise NestStateStoreError("stored Nest environment state is invalid") from error
 
 
 def _environment_rules_from_row(row: sqlite3.Row | None) -> tuple[EnvironmentRule, ...]:
@@ -239,14 +179,14 @@ def _environment_rules_from_row(row: sqlite3.Row | None) -> tuple[EnvironmentRul
         values = json.loads(row["environment_rules_json"])
         return tuple(EnvironmentRule.model_validate(value) for value in values)
     except (TypeError, ValueError) as error:
-        raise NestPersistenceError(
+        raise NestStateStoreError(
             "stored Nest environment rules are invalid"
         ) from error
 
 
 def _zone_for_home_anchor(catalog: WorldCatalog | None, home_anchor_id: str) -> str:
     if catalog is None:
-        raise NestPersistenceError(
+        raise NestStateStoreError(
             f"home anchor has no stored world catalog: {home_anchor_id}"
         )
     for zone in catalog.zones:
@@ -257,22 +197,7 @@ def _zone_for_home_anchor(catalog: WorldCatalog | None, home_anchor_id: str) -> 
                 and anchor.active
             ):
                 return zone.zone_id
-    raise NestPersistenceError(f"unknown persisted home anchor: {home_anchor_id}")
-
-
-def _persisted_home_state(
-    *,
-    elfie_id: str,
-    status: str,
-    home_anchor_id: str,
-    catalog: WorldCatalog | None,
-) -> PersistentResidentState:
-    return PersistentResidentState(
-        elfie_id=elfie_id,
-        presence=_STATUS_TO_PRESENCE[status],
-        home_zone_id=_zone_for_home_anchor(catalog, home_anchor_id),
-        home_anchor_id=home_anchor_id,
-    )
+    raise NestStateStoreError(f"unknown persisted home anchor: {home_anchor_id}")
 
 
 __all__ = ("SQLiteNestStateAdapter",)

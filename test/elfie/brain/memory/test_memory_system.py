@@ -27,10 +27,10 @@ from elfie.brain.memory import (
     SensoryIndexer,
     SpreadingActivation,
 )
-from elfie.profile import load_packaged_profile_defaults
+from elfie.brain.selfhood import load_packaged_selfhood_seed
 from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
-_PERSONALITY_DATA = load_packaged_profile_defaults()["personality"]
+_PERSONALITY_DATA = load_packaged_selfhood_seed()
 
 
 def _new_memory_system() -> MemorySystem:

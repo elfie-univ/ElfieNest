@@ -27,6 +27,10 @@ from elfie.body import HeadlessBody
 from elfie.factory import ElfieAssembly
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
+from infrastructure.persistence.elfie_workspace.brain_state import (
+    YamlEnergyLimitsAdapter,
+    YamlSelfhoodSeedAdapter,
+)
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
@@ -67,6 +71,8 @@ class ElfieLabSession:
         self.elfie = ElfieFactory().restore(
             ElfieAssembly(
                 profile=profile_store.load(),
+                selfhood_seed=YamlSelfhoodSeedAdapter(workspace / "brain").load(),
+                energy_limits=YamlEnergyLimitsAdapter(workspace / "brain").load(),
                 memory_store=SQLiteMemoryStoreAdapter(
                     storage.memory_path(spec.elfie_id)
                 ),
@@ -231,6 +237,8 @@ class ElfieLabSession:
             self.elfie = ElfieFactory().restore(
                 ElfieAssembly(
                     profile=profile_store.load(),
+                    selfhood_seed=YamlSelfhoodSeedAdapter(workspace / "brain").load(),
+                    energy_limits=YamlEnergyLimitsAdapter(workspace / "brain").load(),
                     memory_store=SQLiteMemoryStoreAdapter(
                         self.storage.memory_path(self.spec.elfie_id)
                     ),

@@ -31,4 +31,4 @@ def test_tick_drains_world_events_before_advancing_time() -> None:
 
     engine.tick_once(2.5)
 
-    assert engine.nest.state.elapsed_seconds == 2.5
+    assert engine.nest.elapsed_seconds == 2.5

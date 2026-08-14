@@ -117,7 +117,6 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             persistence=self._journal_store,
         )
         self._nervous_system = NervousSystem(
-            self._profile.capabilities,
             perception_sink=self._workspace,
             elfie_id=elfie_id,
             body_port=self.current_body,

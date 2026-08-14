@@ -6,8 +6,8 @@
 - Profile 回答“客观上是哪一只 Elfie”；可变化的 Self Model、人格、兴趣和规范属于
   Brain Selfhood，记忆和人物关系属于 Brain Memory。
 - 身体能力属于 Body/NervousSystem，认知能力、Tool/模型权限与预算属于 Brain 的能力
-  边界和 Energy。当前 `personality`、`capabilities`、`system_limits` 宽字段及对应默认
-  YAML 属于 `ELF-010` 迁移债务，不得扩展或增加新的调用方。
+  边界和 Energy。`ElfieProfile` 不得重新增加 `personality`、`capabilities`、
+  `system_limits` 宽字段；Brain seed 与能量限制必须由对应 owner 持有。
 
 - 领域模型不得包含文件路径、YAML 文档、账户、领养流程或产品数据根。
 - 随源码发布的只读外貌默认资源可以保留；用户可变 YAML/文件持久化、路径解析和具体

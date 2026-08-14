@@ -102,6 +102,10 @@ class FinalElfieLayout:
         return self.workspace / "skills"
 
     @property
+    def brain(self) -> Path:
+        return self.workspace / "brain"
+
+    @property
     def history_database(self) -> Path:
         return self.workspace / "conversations" / "history.sqlite"
 
@@ -256,6 +260,7 @@ def ensure_final_elfie_layout(data_home: Path, elfie_id: str) -> FinalElfieLayou
         elfie_layout.godot,
         elfie_layout.profile.parent,
         elfie_layout.skills,
+        elfie_layout.brain,
         elfie_layout.history_database.parent,
         elfie_layout.attachments,
         elfie_layout.knowledge_database.parent,

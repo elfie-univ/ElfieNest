@@ -444,7 +444,7 @@ def test_open_conformance_row_cannot_disappear_from_a_live_register(
     assert any("may close but not disappear" in item for item in failures)
 
 
-def test_temporary_cleanup_paths_can_shrink_but_cannot_gain_files(
+def test_closed_cleanup_paths_are_no_longer_registered_as_temporary(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -458,10 +458,7 @@ def test_temporary_cleanup_paths_can_shrink_but_cannot_gain_files(
     )
 
     failures = validate_temporary_cleanup_changes("base", {relative_path})
-    assert failures == [
-        "new file under temporary cleanup path is forbidden: "
-        "nest/state/new_compatibility.py (NGW-R01)"
-    ]
+    assert failures == []
 
     monkeypatch.setattr(
         governance_change, "_base_source", lambda _base_sha, _path: "old\n"

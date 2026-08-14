@@ -5,62 +5,160 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional, Tuple
 
-from nest.engine.engine import InvalidTickError, NestEngine
+from nest.config import NestConfig
+from nest.elfie_interaction.hub import NestEventBus
 from nest.events import NestEventEnvelope, SemanticActionResult, SemanticVisualScene
-from nest.interaction.hub import NestEventBus, SpeechInput, VisualInput
-from nest.state.config import NestConfig
-from nest.state.models import (
-    AnchorKind,
-    EnvironmentActualState,
-    EnvironmentDesiredState,
-    EnvironmentRule,
-    FacilityDescriptor,
+from nest.living_rules.living import LivingRulesState
+from nest.living_rules.models import (
     HomeAssignment,
-    LifePhase,
+    PersistentResidentState,
+    ResidentPresence,
     ResidentState,
     RuntimeResidentMirror,
+)
+from nest.snapshot import NestSnapshot
+from nest.space_facilities.catalog import SpaceFacilitiesState
+from nest.space_facilities.models import (
+    AnchorKind,
+    EnvironmentActualState,
+    FacilityDescriptor,
     WorldCatalog,
 )
-from nest.state.store import NestState
+from nest.time_environment.clock import (
+    InvalidTickError,
+    TimeEnvironmentDriver,
+    TimeEnvironmentState,
+)
+from nest.time_environment.models import (
+    EnvironmentDesiredState,
+    EnvironmentRule,
+    LifePhase,
+)
 
 
 class Nest:
     """组合 Nest 状态、环境时钟和互动传播。"""
 
     def __init__(self, config: Optional[NestConfig] = None) -> None:
-        self.state = NestState(config or NestConfig())
-        self._engine = NestEngine(self.state.time_environment)
-        self._interaction = NestEventBus(self.state)
+        self._config = config or NestConfig()
+        self._space = SpaceFacilitiesState()
+        self._living_rules = LivingRulesState.create(self._space)
+        self._time_environment = TimeEnvironmentState()
+        self._desired_bed_count = self._config.bed_count
+        self._time_driver = TimeEnvironmentDriver(self._time_environment)
+        self._interaction = NestEventBus(self._living_rules, self._space)
+
+    @property
+    def config(self) -> NestConfig:
+        return self._config
+
+    @property
+    def desired_bed_count(self) -> int:
+        return self._desired_bed_count
+
+    @property
+    def reconciliation_required(self) -> bool:
+        return self._living_rules.reconciliation_required
+
+    def set_reconciliation_required(self, value: bool) -> None:
+        self._living_rules.reconciliation_required = value
+
+    def export_snapshot(self) -> NestSnapshot:
+        """Export only durable semantic facts; Runtime projections stay out."""
+        residents = tuple(
+            PersistentResidentState(
+                elfie_id=elfie_id,
+                presence=(
+                    ResidentPresence.ACTIVE
+                    if resident.active and assignment is not None
+                    else (
+                        ResidentPresence.AWAY
+                        if not resident.active
+                        else ResidentPresence.PENDING_RUNTIME
+                    )
+                ),
+                home_zone_id=assignment.home_zone_id
+                if assignment is not None
+                else None,
+                home_anchor_id=(
+                    assignment.home_anchor_id if assignment is not None else None
+                ),
+            )
+            for elfie_id, resident in sorted(self._living_rules.residents.items())
+            for assignment in (self._living_rules.home_assignments.get(elfie_id),)
+        )
+        return NestSnapshot(
+            desired_bed_count=self._desired_bed_count,
+            elapsed_seconds=self._time_environment.elapsed_seconds,
+            catalog=self._space.world_catalog,
+            residents=residents,
+            clock_paused=self._time_environment.clock_paused,
+            time_scale=self._time_environment.time_scale,
+            environment_desired=self._time_environment.environment_desired,
+            environment_rules=self._time_environment.environment_rules,
+        )
+
+    def restore_snapshot(self, snapshot: NestSnapshot) -> None:
+        """Restore a validated snapshot without exposing internal state to App."""
+        self._desired_bed_count = snapshot.desired_bed_count
+        self._time_environment.elapsed_seconds = snapshot.elapsed_seconds
+        self._time_environment.clock_paused = snapshot.clock_paused
+        self._time_environment.time_scale = snapshot.time_scale
+        self._time_environment.set_environment_desired(snapshot.environment_desired)
+        self._time_environment.environment_rules = snapshot.environment_rules
+        if snapshot.catalog is not None:
+            self.apply_catalog(snapshot.catalog)
+        for resident in snapshot.residents:
+            if self.resident_state(resident.elfie_id) is None:
+                self.register_resident(resident.elfie_id)
+            if (
+                snapshot.catalog is not None
+                and resident.home_anchor_id is not None
+                and resident.home_zone_id is not None
+            ):
+                if self.home_anchor_id(resident.elfie_id) is None:
+                    self.assign_home(resident.elfie_id, resident.home_anchor_id)
 
     @property
     def resident_ids(self) -> Tuple[str, ...]:
-        return tuple(self.state.residents)
+        return tuple(self._living_rules.residents)
+
+    @property
+    def elapsed_seconds(self) -> float:
+        return self._time_environment.elapsed_seconds
 
     def resident_state(self, elfie_id: str) -> Optional[ResidentState]:
-        return self.state.residents.get(elfie_id)
+        return self._living_rules.residents.get(elfie_id)
+
+    def runtime_mirror(self, elfie_id: str) -> RuntimeResidentMirror | None:
+        return self._living_rules.runtime_mirrors.get(elfie_id)
+
+    @property
+    def runtime_mirrors(self) -> dict[str, RuntimeResidentMirror]:
+        """Return a read-only-by-convention copy of current Runtime projections."""
+        return dict(self._living_rules.runtime_mirrors)
 
     def register_resident(self, elfie_id: str) -> None:
-        self.state.register_resident(elfie_id)
-        self._interaction.register_resident(elfie_id)
+        self._living_rules.register_resident(elfie_id)
 
     def admit_resident(self, elfie_id: str) -> HomeAssignment:
-        assignment = self.state.admit_resident(elfie_id)
-        self._interaction.register_resident(elfie_id)
+        assignment = self._living_rules.admit_resident(elfie_id)
         return assignment
 
     def remove_resident(self, elfie_id: str) -> None:
-        self.state.remove_resident(elfie_id)
+        self._living_rules.remove_resident(elfie_id)
         self._interaction.remove_resident(elfie_id)
 
     def apply_catalog(self, catalog: WorldCatalog) -> None:
-        self.state.apply_catalog(catalog)
+        self._space.apply_catalog(catalog)
+        self._living_rules.apply_catalog()
 
     @property
     def world_catalog(self) -> WorldCatalog | None:
-        return self.state.world_catalog
+        return self._space.world_catalog
 
     def facility(self, facility_id: str) -> FacilityDescriptor | None:
-        catalog = self.state.world_catalog
+        catalog = self._space.world_catalog
         if catalog is None:
             return None
         return next(
@@ -73,50 +171,44 @@ class Nest:
         )
 
     def facilities(self) -> tuple[FacilityDescriptor, ...]:
-        catalog = self.state.world_catalog
+        catalog = self._space.world_catalog
         if catalog is None:
             return ()
         return tuple(facility for facility in catalog.facilities if facility.active)
 
     def assign_home(self, elfie_id: str, anchor_id: str) -> HomeAssignment:
-        return self.state.assign_home(elfie_id, anchor_id)
+        return self._living_rules.assign_home(elfie_id, anchor_id)
 
     def release_home(self, elfie_id: str) -> None:
-        self.state.release_home(elfie_id)
+        self._living_rules.release_home(elfie_id)
 
     def home_anchor_id(self, elfie_id: str) -> str | None:
-        return self.state.home_anchor_id(elfie_id)
+        return self._living_rules.home_anchor_id(elfie_id)
+
+    def home_occupant(self, anchor_id: str) -> str | None:
+        return self._living_rules.home_occupant(anchor_id)
+
+    def is_home_reserved(self, anchor_id: str) -> bool:
+        return self._living_rules.is_home_reserved(anchor_id)
+
+    def can_access_home(self, elfie_id: str, anchor_id: str) -> bool:
+        return self._living_rules.can_access_home(elfie_id, anchor_id)
 
     def apply_runtime_mirrors(
         self,
         mirrors: tuple[RuntimeResidentMirror, ...],
     ) -> None:
-        self.state.apply_runtime_mirrors(mirrors)
+        self._living_rules.apply_runtime_mirrors(mirrors)
 
     def update_resident_posture(
         self,
         elfie_id: str,
         posture: str,
     ) -> None:
-        self.state.update_resident(elfie_id, posture)
+        self._living_rules.update_resident(elfie_id, posture)
 
-    def broadcast_speech(self, sender_id: str, text: str) -> None:
-        self._interaction.broadcast_speech(sender_id, text)
-
-    def deliver_speech(
-        self,
-        *,
-        sender_id: str,
-        text: str,
-        audience_ids: tuple[str, ...],
-        event_id: str,
-    ) -> None:
-        self._interaction.deliver_speech(
-            sender_id=sender_id,
-            text=text,
-            audience_ids=audience_ids,
-            event_id=event_id,
-        )
+    def broadcast_system(self, text: str, *, sender_id: str = "nest") -> None:
+        self._interaction.broadcast_system(text, sender_id=sender_id)
 
     def queue_speech(
         self,
@@ -181,17 +273,28 @@ class Nest:
         actor_id: str,
         target: str,
     ) -> str | None:
-        if self.state.residents.get(actor_id) is None:
+        if not self._living_rules.is_present(actor_id):
             return None
         if target in {"home", "my_home"}:
-            return self.home_anchor_id(actor_id)
+            resolved_anchor_id = self.home_anchor_id(actor_id)
+            if resolved_anchor_id is None:
+                return None
+            return (
+                resolved_anchor_id
+                if self._living_rules.authorize_semantic_target(
+                    elfie_id=actor_id,
+                    target=target,
+                    resolved_anchor_id=resolved_anchor_id,
+                )
+                else None
+            )
         facility_id = target.removeprefix("facility/")
         facility = self.facility(facility_id)
         if facility is None or not (
             target.startswith("facility/") or target == facility.facility_id
         ):
             return None
-        catalog = self.state.world_catalog
+        catalog = self._space.world_catalog
         if catalog is None:
             return None
         preferred_kinds = {
@@ -209,9 +312,16 @@ class Nest:
                 if anchor.active and anchor.kind is kind
             ]
             if candidates:
-                return min(
+                resolved_anchor_id = min(
                     candidates, key=lambda anchor: (anchor.order, anchor.anchor_id)
                 ).anchor_id
+                if self._living_rules.authorize_semantic_target(
+                    elfie_id=actor_id,
+                    target=target,
+                    resolved_anchor_id=resolved_anchor_id,
+                ):
+                    return resolved_anchor_id
+                return None
         return None
 
     def queue_semantic_action(
@@ -286,46 +396,62 @@ class Nest:
     def drain_event_outbox(self) -> tuple[NestEventEnvelope, ...]:
         return self._interaction.drain_event_outbox()
 
-    def consume_sensory_input(self, elfie_id: str) -> str:
-        return self._interaction.consume_sensory(elfie_id)
+    def requeue_event_outbox(self, events: tuple[NestEventEnvelope, ...]) -> None:
+        self._interaction.requeue_event_outbox(events)
 
-    def consume_speech_events(self, elfie_id: str) -> tuple[SpeechInput, ...]:
-        return self._interaction.consume_speech_events(elfie_id)
-
-    def consume_visual_events(self, elfie_id: str) -> tuple[VisualInput, ...]:
-        return self._interaction.consume_visual_events(elfie_id)
+    def invalidate_runtime_state(self) -> None:
+        """Invalidate Runtime-derived projections and short-lived correlations."""
+        self._living_rules.clear_runtime_mirrors()
+        self._space.clear_runtime_projections()
+        self._interaction.invalidate_runtime_state()
 
     def tick(self, seconds: float) -> None:
-        self._engine.tick(seconds)
+        self._time_driver.tick(
+            seconds,
+            environment_override=self._living_rules.environment_override,
+        )
 
     def pause_clock(self) -> None:
-        self.state.clock_paused = True
+        self._time_environment.clock_paused = True
 
     def resume_clock(self) -> None:
-        self.state.clock_paused = False
+        self._time_environment.clock_paused = False
 
     def set_time_scale(self, scale: float) -> None:
         if scale <= 0:
             raise InvalidTickError(scale)
-        self.state.time_scale = scale
+        self._time_environment.time_scale = scale
 
     @property
     def life_phase(self) -> LifePhase:
-        return self.state.life_phase
+        return self._time_environment.life_phase
 
     @property
     def desired_environment(self) -> EnvironmentDesiredState:
-        return self.state.environment_desired
+        return self._time_environment.environment_desired
 
     @property
     def actual_environment(self) -> EnvironmentActualState | None:
-        return self.state.environment_actual
+        return self._space.environment_actual
 
     def apply_environment_actual(self, actual: EnvironmentActualState) -> None:
-        self.state.environment_actual = actual
+        self._space.apply_environment_actual(actual)
 
     def set_desired_environment(self, desired: EnvironmentDesiredState) -> None:
-        self.state.set_environment_desired(desired)
+        self._time_environment.set_environment_desired(desired)
+
+    def set_environment_override(self, desired: EnvironmentDesiredState) -> None:
+        """Apply a household-wide environment decision over scheduled rules."""
+        self._living_rules.set_environment_override(desired)
+        self._time_environment.set_environment_desired(desired)
+
+    def clear_environment_override(self) -> None:
+        """Return environment control to the current scheduled phase rule."""
+        self._living_rules.clear_environment_override()
+        self._time_environment.apply_environment_rules()
 
     def set_environment_rules(self, rules: tuple[EnvironmentRule, ...]) -> None:
-        self.state.set_environment_rules(rules)
+        self._time_environment.set_environment_rules(
+            rules,
+            environment_override=self._living_rules.environment_override,
+        )

@@ -125,7 +125,11 @@ class AppearanceGenerator:
                 ear_width_bias=local(),
                 ear_tilt_bias=local(0.28),
                 ear_droop=unit(
-                    0.10 if species_id == "cat" else 0.18 if species_id == "fox" else 0.35,
+                    0.10
+                    if species_id == "cat"
+                    else 0.18
+                    if species_id == "fox"
+                    else 0.35,
                     0.17,
                 ),
                 ear_asymmetry=local(0.12),

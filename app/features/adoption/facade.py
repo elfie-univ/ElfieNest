@@ -129,7 +129,9 @@ class AdoptionService:
         try:
             get_species_definition(command.species_id)
         except ValueError as error:
-            raise AdoptionInvalid(f"不支持的 species_id={command.species_id!r}") from error
+            raise AdoptionInvalid(
+                f"不支持的 species_id={command.species_id!r}"
+            ) from error
         return self._candidates.create(
             owner_user_id=principal.user_id,
             species_id=command.species_id,

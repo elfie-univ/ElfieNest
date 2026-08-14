@@ -25,7 +25,7 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
 - [系统架构契约](./contracts/system)：四大目标模块、系统级 Ports/Adapters 和迁移方向。
 - [Elfie 内部架构契约](./contracts/elfie)：一只 Elfie 的聚合、生命系统与 Port 所有权边界。
 - [Elfie Brain 内部架构契约](./contracts/brain)：Turn、思考、心智状态与跨回合活动所有权。
-- [Elfie 一致性](./conformance/elfie)：当前仍开放的临时主体级生命系统实施缺口。
+- [Elfie 一致性](./conformance/elfie)：主体级生命系统迁移的收口证据，等待独立治理删除。
   Brain 已完成一致性收口，其契约由永久架构测试守护。
 - [应用架构契约](./contracts/application)：`app/` 新增和已迁移代码的所有权、
   依赖方向、Port/Adapter 和组合根规范。

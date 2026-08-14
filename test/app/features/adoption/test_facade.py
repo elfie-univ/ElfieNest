@@ -137,7 +137,9 @@ def test_options_prioritize_nest_full_over_member_quota_and_model_state() -> Non
     assert options.availability == "nest_full"
 
 
-def test_candidate_creation_rejects_a_species_without_a_complete_runtime_package() -> None:
+def test_candidate_creation_rejects_a_species_without_a_complete_runtime_package() -> (
+    None
+):
     service = AdoptionService(Policy(), Persistence())
     command = CreateCandidateSetCommand(
         **{**candidate_command().__dict__, "species_id": "cat"}

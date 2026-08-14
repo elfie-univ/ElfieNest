@@ -124,6 +124,7 @@ class _VisualObservation(BaseModel):
 class _EnvironmentState(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    object_id: str
     command_id: str
     lights_on: bool
     quiet_mode: bool
@@ -235,6 +236,7 @@ def map_runtime_event(frame: RuntimeEventFrame) -> WorldEvent:
     elif frame.name is EventName.ENVIRONMENT_STATE:
         parsed_environment = _EnvironmentState.model_validate(frame.payload)
         payload = EnvironmentState(
+            object_id=parsed_environment.object_id,
             command_id=parsed_environment.command_id,
             lights_on=parsed_environment.lights_on,
             quiet_mode=parsed_environment.quiet_mode,

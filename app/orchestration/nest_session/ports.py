@@ -10,6 +10,19 @@ from app.orchestration.nest_session.models import (
     WorldEvent,
 )
 from elfie.public import ModelPort
+from nest.public import NestSnapshot
+
+
+class NestStateStoreError(RuntimeError):
+    """Application-facing failure from the injected Nest state store."""
+
+
+class NestStateStorePort(Protocol):
+    """Durable snapshot store owned by Nest Session orchestration."""
+
+    def load_snapshot(self) -> NestSnapshot: ...
+
+    def save_snapshot(self, snapshot: NestSnapshot) -> None: ...
 
 
 class ModelPortFactory(Protocol):
@@ -89,6 +102,7 @@ class EnvironmentControlPort(Protocol):
     def apply_environment(
         self,
         *,
+        object_id: str,
         command_id: str,
         lights_on: bool,
         quiet_mode: bool,
@@ -126,6 +140,7 @@ class NestSessionRuntimePort(
     def apply_environment(
         self,
         *,
+        object_id: str,
         command_id: str,
         lights_on: bool,
         quiet_mode: bool,
@@ -136,6 +151,8 @@ class NestSessionRuntimePort(
 __all__ = (
     "EnvironmentControlPort",
     "ModelPortFactory",
+    "NestStateStoreError",
+    "NestStateStorePort",
     "NestSessionRuntimePort",
     "RuntimeConnectionPort",
     "RuntimeEventPort",

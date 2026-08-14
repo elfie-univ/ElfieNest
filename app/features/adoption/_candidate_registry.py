@@ -433,7 +433,7 @@ class CandidateRegistry:
         stage = candidate.life_stage
         public = CandidateResult(
             candidate_id=candidate.candidate_id,
-            species_id=candidate.species_id,  # type: ignore[arg-type]
+            species_id=candidate.species_id,
             life_stage=stage,  # type: ignore[arg-type]
             age_months=candidate.age_months,
             gender=candidate.gender,  # type: ignore[arg-type]

@@ -16,6 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 GODOT_PROJECT = PROJECT_ROOT / "godot_project"
 DEFAULT_OUTPUT = PROJECT_ROOT / "build" / "components" / "godot-web"
@@ -209,6 +211,7 @@ def _write_manifest(
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "entry": ENTRY_NAME,
         "source_fingerprint": source_fingerprint,
+        "export_boundary": export_boundary_manifest(),
         "files": files,
     }
     (directory / "build-manifest.json").write_text(
@@ -274,6 +277,8 @@ def runtime_is_current(output: Path) -> bool:
     except (OSError, ValueError):
         return False
     if not isinstance(manifest, dict):
+        return False
+    if manifest.get("export_boundary") != export_boundary_manifest():
         return False
     if manifest.get("source_fingerprint") != current_source_fingerprint():
         return False

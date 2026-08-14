@@ -13,7 +13,8 @@
 负责：
 
 - 居民注册、移除、长期床位分配、姿态和活动状态；
-- 环境时间推进、说话传播、碰撞和触觉等巢内互动；
+- 环境时间推进和期望环境规则；
+- 说话、视觉和语义行动的短期关联，以及一套类型化 Nest 事件 Outbox；
 - 场景语义目录和 Runtime 临时语义镜像；
 - 类型化世界事实进入 NestSession 后的巢内规则处理。
 
@@ -24,37 +25,39 @@
 - 定义房屋几何、世界坐标、碰撞体、导航网格、家具资源和渲染；
 - 编排跨 authority 运行流程或产品账户流程。
 
-`NestState` 只保存精灵 ID、长期住处和巢内语义状态，不保存家具副本、坐标或
-真实精灵对象。房屋、几何、坐标、移动、碰撞判定与渲染的唯一源码来源是独立
-Godot 源工程 `godot_project/`；Python 侧只保存业务所需的语义状态和通信边界。
+`Nest` Facade 组合四个所有者状态，并对外提供类型化用例。它不保存家具副本、坐标或
+真实精灵对象。房屋、几何、坐标、移动、碰撞判定与渲染的唯一源码来源是独立 Godot
+源工程 `godot_project/`；Python 侧只保存业务所需的语义状态和类型化通信边界。
 
 ## 目录地图
 
 ```text
 nest/
-├── nest.py         # Nest 公开门面
-├── state/          # 配置、居民、住处、世界目录与 Runtime 镜像
-├── engine/         # 环境时钟推进
-├── interaction/    # 说话和巢内世界事件传播
-└── events.py       # Nest 领域事件值对象
+├── nest.py             # Nest 稳定 Facade 与聚合装配
+├── config.py           # 聚合配置
+├── snapshot.py         # 技术无关的持久语义快照
+├── space_facilities/   # 无坐标目录和环境事实
+├── living_rules/       # 居民、Home、访问和受众规则
+├── time_environment/   # 时钟、阶段、定时规则和期望状态
+├── elfie_interaction/  # 说话、视觉和语义行动关联
+└── events.py           # 横贯所有者的类型化事件值对象
 ```
 
 ## 公开入口
 
-- `nest.Nest`：组合状态、环境时钟和互动传播；
+- `nest.Nest`：唯一 Nest 聚合 Facade；
 - `nest.NestConfig`：Nest 容量等配置；
-- `nest.NestState`：仅包含巢内状态的运行容器；
+- `nest.NestSnapshot`：App 状态存储接受的持久语义形状；
 - `app.orchestration.nest_session`：组合 Nest、真实精灵与类型化世界通道；
 - `infrastructure.godot.gateway`：拥有具体 WebSocket 协议实现。
 
-真实精灵注册由 `app.orchestration.NestSession` 完成；不要把真实对象塞入
-`NestState`。
+真实精灵注册由 `app.orchestration.NestSession` 完成；不要把真实对象塞入 Nest 聚合。
 
 ## 依赖方向
 
 ```text
 app/orchestration ──> nest
-nest.nest ──> state + engine + interaction
+nest.nest ──> 四个所有者包 + events
 app/orchestration/nest_session ──> 类型化 Nest 世界边界
 infrastructure/godot ──> 协议、宿主与产物适配器
 godot_project/ ──> 场景与几何的唯一事实源

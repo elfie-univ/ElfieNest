@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
+from datetime import datetime, timezone
 from threading import RLock
 from typing import Dict, Literal, cast
 from uuid import uuid4
@@ -21,6 +23,8 @@ from app.orchestration.nest_session.models import (
 from app.orchestration.nest_session.ports import (
     ModelPortFactory,
     NestSessionRuntimePort,
+    NestStateStoreError,
+    NestStateStorePort,
     WorldSynchronizationPort,
 )
 from app.orchestration.nest_session.residents import (
@@ -30,12 +34,14 @@ from app.orchestration.nest_session.residents import (
 )
 from app.orchestration.nest_session.runtime_events import NestRuntimeEventRouter
 from app.orchestration.nest_session.runtime_sync import NestRuntimeSynchronizer
-from elfie.public import Elfie, InboundDisposition, ModelPort
+from app.orchestration.nest_session.world_perception import (
+    nest_event_to_body_sensor_event,
+)
+from elfie.public import BodySensorEvent, Elfie, InboundDisposition, ModelPort
 from nest.public import (
     Nest,
-    NestPersistenceError,
-    NestPersistenceSnapshot,
-    NestRepository,
+    NestEventEnvelope,
+    NestSnapshot,
     NoHomeAvailableError,
     PersistentResidentState,
     ReconciliationRequiredError,
@@ -55,7 +61,7 @@ class NestSession:
         self,
         nest: Nest,
         world_runtime: NestSessionRuntimePort,
-        repository: NestRepository | None = None,
+        state_store: NestStateStorePort | None = None,
     ) -> None:
         self.nest = nest
         self.world_runtime = world_runtime
@@ -66,13 +72,15 @@ class NestSession:
         self._model_port_factory: ModelPortFactory | None = None
         self.owner_broadcaster: OwnerMessageBroadcaster | None = None
         self._runtime_token: tuple[str, int] | None = None
-        self._environment_sync_token: tuple[str, int, bool, bool] | None = None
-        self._repository = repository
+        self._environment_sync_token: tuple[str, int, int, str, bool, bool] | None = (
+            None
+        )
+        self._state_store = state_store
         snapshot = (
-            repository.load_snapshot()
-            if repository is not None
-            else NestPersistenceSnapshot(
-                desired_bed_count=nest.state.config.bed_count,
+            state_store.load_snapshot()
+            if state_store is not None
+            else NestSnapshot(
+                desired_bed_count=nest.config.bed_count,
                 elapsed_seconds=0.0,
                 catalog=None,
                 residents=(),
@@ -85,7 +93,7 @@ class NestSession:
             world_runtime=cast(WorldSynchronizationPort, world_runtime),
             actor_catalog_provider=self._actor_catalog_snapshot,
             desired_bed_count=snapshot.desired_bed_count,
-            repository=repository,
+            state_store=state_store,
         )
         self._runtime_events = NestRuntimeEventRouter(
             nest=nest,
@@ -108,11 +116,11 @@ class NestSession:
             self.nest.register_resident(elfie_id)
             try:
                 if (
-                    self.nest.state.world_catalog is not None
+                    self.nest.world_catalog is not None
                     and self.nest.home_anchor_id(elfie_id) is None
                 ):
                     self.nest.admit_resident(elfie_id)
-                persist_resident(self.nest, self._repository, elfie_id)
+                persist_resident(self.nest, self._state_store, elfie_id)
                 elfie.bind_identity(elfie_id)
                 elfie.register_communication_channel(
                     GodotOwnerChannel(
@@ -140,7 +148,7 @@ class NestSession:
                             f"精灵 {elfie_id} 启动后未进入运行态"
                         )
             except (
-                NestPersistenceError,
+                NestStateStoreError,
                 NoHomeAvailableError,
                 ReconciliationRequiredError,
                 NestSessionLifecycleError,
@@ -187,10 +195,10 @@ class NestSession:
     ) -> None:
         if not was_resident:
             self.nest.remove_resident(elfie_id)
-            if self._repository is not None:
+            if self._state_store is not None:
                 try:
-                    self._repository.remove_resident(elfie_id)
-                except NestPersistenceError as exc:
+                    self._state_store.save_snapshot(self.nest.export_snapshot())
+                except NestStateStoreError as exc:
                     logger.warning(
                         "回滚精灵 %s 的 Nest 持久化状态失败: %s", elfie_id, exc
                     )
@@ -201,8 +209,8 @@ class NestSession:
         ):
             self.nest.release_home(elfie_id)
             try:
-                persist_resident(self.nest, self._repository, elfie_id)
-            except NestPersistenceError as exc:
+                persist_resident(self.nest, self._state_store, elfie_id)
+            except NestStateStoreError as exc:
                 logger.warning("回滚精灵 %s 的 home 状态失败: %s", elfie_id, exc)
 
     @staticmethod
@@ -226,39 +234,37 @@ class NestSession:
                     cancel_all(actor_id=elfie_id)
                 existing.stop()
                 existing.join()
-            if self._repository is not None:
-                self._repository.remove_resident(elfie_id)
             self.elfies.pop(elfie_id, None)
             self.nest.remove_resident(elfie_id)
+            if self._state_store is not None:
+                self._state_store.save_snapshot(self.nest.export_snapshot())
             self._runtime_sync.mark_actor_catalog_dirty()
 
-    def attach_repository(self, repository: NestRepository) -> None:
+    def attach_state_store(self, state_store: NestStateStorePort) -> None:
         """Attach persistence during application bootstrap before residents load."""
         with self._lifecycle_lock:
-            if self._repository is not None:
+            if self._state_store is not None:
                 return
             if self.elfies:
-                msg = (
-                    "cannot attach Nest repository after Elfie instances are registered"
-                )
+                msg = "cannot attach Nest state store after Elfie instances are registered"
                 raise RuntimeError(msg)
-            snapshot = repository.load_snapshot()
-            self._repository = repository
+            snapshot = state_store.load_snapshot()
+            self._state_store = state_store
             restore_snapshot(self.nest, snapshot)
             self._runtime_sync = NestRuntimeSynchronizer(
                 nest=self.nest,
                 world_runtime=cast(WorldSynchronizationPort, self.world_runtime),
                 actor_catalog_provider=self._actor_catalog_snapshot,
                 desired_bed_count=snapshot.desired_bed_count,
-                repository=repository,
+                state_store=state_store,
             )
             self._runtime_events.replace_synchronizer(self._runtime_sync)
             self._persisted_home_assignments = self._read_persisted_home_assignments()
 
     @property
-    def has_repository(self) -> bool:
+    def has_state_store(self) -> bool:
         """Whether persistence was bound before the service starts loading Elfies."""
-        return self._repository is not None
+        return self._state_store is not None
 
     def poll_runtime_connection(self) -> None:
         """Detect a new authoritative Runtime and send desired world config."""
@@ -273,6 +279,7 @@ class NestSession:
                 self._runtime_events.interrupt_native_bodies(
                     "runtime generation changed"
                 )
+                self.nest.invalidate_runtime_state()
                 self._runtime_token = token
                 self._environment_sync_token = None
             self._runtime_sync.poll_connection()
@@ -281,6 +288,63 @@ class NestSession:
         """Apply one drained and generation-validated Runtime event."""
         with self._lifecycle_lock:
             self._runtime_events.consume(event)
+            self._deliver_pending_nest_events()
+
+    def _deliver_pending_nest_events(self) -> None:
+        """Deliver each typed Nest event once to its explicit Elfie targets."""
+        envelopes = self.nest.drain_event_outbox()
+        if not envelopes:
+            return
+        received_at = datetime.now(timezone.utc)
+        deliveries: dict[str, list[tuple[NestEventEnvelope, BodySensorEvent]]] = {}
+        for envelope in envelopes:
+            for target_id in envelope.target_ids:
+                elfie = self.elfies.get(target_id)
+                if elfie is None:
+                    logger.warning(
+                        "Nest event %s targeted unknown Elfie %s",
+                        envelope.event_id,
+                        target_id,
+                    )
+                    continue
+                event = nest_event_to_body_sensor_event(
+                    envelope=envelope,
+                    target_id=target_id,
+                    elfie=elfie,
+                    received_at=received_at,
+                )
+                if event is not None:
+                    deliveries.setdefault(target_id, []).append((envelope, event))
+        failed_targets_by_event: dict[str, set[str]] = {}
+        for target_id, items in deliveries.items():
+            elfie = self.elfies.get(target_id)
+            if elfie is not None:
+                try:
+                    elfie.pump_body_events(tuple(event for _, event in items))
+                except Exception:
+                    logger.exception(
+                        "Failed to deliver Nest events to Elfie %s; requeueing",
+                        target_id,
+                    )
+                    for envelope, _ in items:
+                        failed_targets_by_event.setdefault(
+                            envelope.event_id, set()
+                        ).add(target_id)
+        if failed_targets_by_event:
+            requeued = tuple(
+                replace(
+                    envelope,
+                    target_ids=tuple(
+                        target_id
+                        for target_id in envelope.target_ids
+                        if target_id
+                        in failed_targets_by_event.get(envelope.event_id, set())
+                    ),
+                )
+                for envelope in envelopes
+                if failed_targets_by_event.get(envelope.event_id)
+            )
+            self.nest.requeue_event_outbox(requeued)
 
     def flush_runtime_state(self) -> None:
         """Send one complete actor catalog when the matching world is ready."""
@@ -297,6 +361,8 @@ class NestSession:
         token = (
             connection.runtime_id,
             connection.generation,
+            revision,
+            desired.object_id,
             desired.lights_on,
             desired.quiet_mode,
         )
@@ -307,6 +373,7 @@ class NestSession:
             return
         command_id = f"environment-{uuid4().hex}"
         result = request(
+            object_id=desired.object_id,
             command_id=command_id,
             lights_on=desired.lights_on,
             quiet_mode=desired.quiet_mode,
@@ -319,16 +386,17 @@ class NestSession:
         """Expose only Nest-owned semantic facts for authenticated Observers."""
         with self._lifecycle_lock:
             self._persisted_home_assignments = self._read_persisted_home_assignments()
-        catalog = self.nest.state.world_catalog
-        room_id = (
-            catalog.nest_id if catalog is not None else self.nest.state.config.nest_id
-        )
+        catalog = self.nest.world_catalog
+        room_id = catalog.nest_id if catalog is not None else self.nest.config.nest_id
         descriptors = {
             descriptor.actor_id: descriptor for descriptor in actor_catalog(self.elfies)
         }
         entities: Dict[str, ObserverSemanticEntity] = {}
-        for elfie_id, resident in self.nest.state.residents.items():
-            mirror = self.nest.state.runtime_mirrors.get(elfie_id)
+        for elfie_id in self.nest.resident_ids:
+            resident = self.nest.resident_state(elfie_id)
+            mirror = self.nest.runtime_mirror(elfie_id)
+            if resident is None:
+                continue
             descriptor = descriptors.get(elfie_id)
             entities[elfie_id] = ObserverSemanticEntity(
                 room_id=room_id,
@@ -347,17 +415,17 @@ class NestSession:
         return entities
 
     def _read_persisted_home_assignments(self) -> Dict[str, PersistentResidentState]:
-        if self._repository is None:
+        if self._state_store is None:
             return {}
         try:
-            assignments = self._repository.load_home_assignments()
-        except NestPersistenceError as error:
+            residents = self._state_store.load_snapshot().residents
+        except NestStateStoreError as error:
             logger.warning("读取精灵 home assignment 失败: %s", error)
             return getattr(self, "_persisted_home_assignments", {})
         return {
-            elfie_id: assignment
-            for elfie_id, assignment in assignments.items()
-            if assignment.home_anchor_id is not None
+            resident.elfie_id: resident
+            for resident in residents
+            if resident.home_anchor_id is not None
         }
 
     def _observer_home_anchor_id(self, elfie_id: str) -> str | None:
@@ -374,18 +442,10 @@ class NestSession:
                 elfie.advance_clock(seconds)
 
     def persist_time_environment(self) -> None:
-        """Persist only durable Nest clock/rule facts when the repository supports it."""
-        repository = self._repository
-        save = getattr(repository, "save_time_environment", None)
-        if repository is None or not callable(save):
+        """Persist the current durable Nest snapshot through the App-owned Port."""
+        if self._state_store is None:
             return
-        save(
-            elapsed_seconds=self.nest.state.elapsed_seconds,
-            clock_paused=self.nest.state.clock_paused,
-            time_scale=self.nest.state.time_scale,
-            environment_desired=self.nest.state.environment_desired,
-            environment_rules=self.nest.state.environment_rules,
-        )
+        self._state_store.save_snapshot(self.nest.export_snapshot())
 
     def prepare_speech(self, payload: dict[str, object]) -> bool:
         """Queue content in Nest, then ask Godot only for physical reachability."""
@@ -520,6 +580,7 @@ class NestSession:
                 else None
             ),
         )
+        self._deliver_pending_nest_events()
 
     def _runtime_world_revision(self) -> int:
         return self._runtime_sync.configured_revision or 0
@@ -609,11 +670,10 @@ class NestSession:
             elfie = self.elfies.get(elfie_id)
             if elfie is None or not elfie.is_running:
                 return None
-            # Away/inactive residents do not receive the physical tick, but
-            # owner chat remains a live cognitive input. Keep the Brain clock
-            # aligned before stamping the inbound event so it is never in the
-            # future from the coordinator's point of view.
-            elapsed_seconds = self.nest.state.elapsed_seconds
+            # Away residents do not receive the physical Nest tick. Catch the
+            # Brain clock up before stamping an owner message so the envelope
+            # cannot arrive from the future relative to that Elfie's runtime.
+            elapsed_seconds = self.nest.elapsed_seconds
             cognitive_elapsed = elfie.elapsed_time
             if elapsed_seconds > cognitive_elapsed:
                 elfie.advance_clock(elapsed_seconds - cognitive_elapsed)

@@ -15,7 +15,11 @@ from app.orchestration.nest_session.models import (
     WorldEventName,
     WorldSnapshot,
 )
-from app.orchestration.nest_session.ports import WorldSynchronizationPort
+from app.orchestration.nest_session.ports import (
+    NestStateStoreError,
+    NestStateStorePort,
+    WorldSynchronizationPort,
+)
 from nest.public import (
     AnchorKind,
     BedConflictError,
@@ -23,11 +27,9 @@ from nest.public import (
     FacilityKind,
     InteractionAnchor,
     Nest,
-    NestPersistenceError,
-    NestRepository,
+    NestSnapshot,
     NoHomeAvailableError,
     PersistentResidentState,
-    ResidentPresence,
     RuntimeResidentMirror,
     UnknownAnchorError,
     WorldCatalog,
@@ -47,13 +49,13 @@ class NestRuntimeSynchronizer:
         world_runtime: WorldSynchronizationPort,
         actor_catalog_provider: ActorCatalogProvider,
         desired_bed_count: int = 4,
-        repository: NestRepository | None = None,
+        state_store: NestStateStorePort | None = None,
     ) -> None:
         self._nest = nest
         self._world_runtime = world_runtime
         self._actor_catalog_provider = actor_catalog_provider
         self._desired_bed_count = desired_bed_count
-        self._repository = repository
+        self._state_store = state_store
         self._desired_world_revision = 1
         self._observed_connection: tuple[str, int] | None = None
         self._manifest_revision: int | None = None
@@ -82,7 +84,7 @@ class NestRuntimeSynchronizer:
         self._configured_revision = None
         self._actor_catalog_dirty = True
         self._world_runtime.configure_world(
-            nest_id=self._nest.state.config.nest_id,
+            nest_id=self._nest.config.nest_id,
             bed_count=self._desired_bed_count,
             world_revision=self._desired_world_revision,
         )
@@ -107,17 +109,22 @@ class NestRuntimeSynchronizer:
             catalog = _nest_catalog(event.payload.catalog)
             if catalog.revision != event.world_revision:
                 return
-            if self._repository is not None:
-                try:
-                    self._repository.save_catalog(catalog)
-                except NestPersistenceError:
-                    return
+            revision_changed = (
+                self._manifest_revision is not None
+                and event.world_revision != self._manifest_revision
+            )
+            previous_snapshot = self._nest.export_snapshot()
+            if revision_changed:
+                self._nest.invalidate_runtime_state()
+                self._configured_revision = None
             self._nest.apply_catalog(catalog)
             self._manifest_revision = catalog.revision
             try:
                 self._assign_missing_homes()
             except NoHomeAvailableError:
-                self._nest.state.reconciliation_required = True
+                self._nest.set_reconciliation_required(True)
+                return
+            if not self._save_snapshot(previous_snapshot):
                 return
             self._actor_catalog_dirty = True
         elif event.name is WorldEventName.WORLD_CONFIGURED:
@@ -132,20 +139,26 @@ class NestRuntimeSynchronizer:
             if not isinstance(event.payload, WorldSnapshot):
                 return
             revision = event.payload.revision
-            mirrors = tuple(_nest_mirror(mirror) for mirror in event.payload.residents)
-            if (
+            if not (
                 revision == event.world_revision
                 and revision == self._configured_revision
             ):
-                self._nest.apply_runtime_mirrors(mirrors)
+                return
+            mirrors = tuple(
+                _nest_mirror(
+                    mirror,
+                    runtime_id=event.connection.runtime_id,
+                    runtime_generation=event.connection.generation,
+                    world_revision=event.world_revision,
+                )
+                for mirror in event.payload.residents
+            )
+            self._nest.apply_runtime_mirrors(mirrors)
 
     def flush(self) -> None:
         if not self._actor_catalog_dirty:
             return
-        if (
-            self._configured_revision is None
-            or self._nest.state.reconciliation_required
-        ):
+        if self._configured_revision is None or self._nest.reconciliation_required:
             return
         actors: list[RuntimeActor] = []
         for descriptor in self._actor_catalog_provider():
@@ -174,36 +187,36 @@ class NestRuntimeSynchronizer:
                 saved = persisted.get(descriptor.actor_id)
                 if saved is not None and saved.home_anchor_id is not None:
                     try:
-                        assignment = self._nest.assign_home(
+                        self._nest.assign_home(
                             descriptor.actor_id,
                             saved.home_anchor_id,
                         )
                     except (BedConflictError, UnknownAnchorError):
-                        self._nest.state.reconciliation_required = True
+                        self._nest.set_reconciliation_required(True)
                         return
                 else:
-                    assignment = self._nest.admit_resident(descriptor.actor_id)
-                if self._repository is None:
-                    continue
-                try:
-                    self._repository.save_resident(
-                        PersistentResidentState(
-                            elfie_id=descriptor.actor_id,
-                            presence=ResidentPresence.ACTIVE,
-                            home_zone_id=assignment.home_zone_id,
-                            home_anchor_id=assignment.home_anchor_id,
-                        )
-                    )
-                except NestPersistenceError:
-                    self._nest.release_home(descriptor.actor_id)
-                    return
+                    self._nest.admit_resident(descriptor.actor_id)
+
+    def _save_snapshot(self, previous: NestSnapshot) -> bool:
+        if self._state_store is None:
+            return True
+        try:
+            self._state_store.save_snapshot(self._nest.export_snapshot())
+        except NestStateStoreError:
+            self._nest.restore_snapshot(previous)
+            return False
+        return True
 
     def _persisted_home_assignments(
         self,
     ) -> dict[str, PersistentResidentState]:
-        if self._repository is None:
+        if self._state_store is None:
             return {}
-        return self._repository.load_home_assignments()
+        return {
+            resident.elfie_id: resident
+            for resident in self._state_store.load_snapshot().residents
+            if resident.home_anchor_id is not None
+        }
 
 
 __all__ = ("ActorDescriptor", "NestRuntimeSynchronizer")
@@ -245,10 +258,19 @@ def _nest_catalog(catalog: SemanticWorldCatalog) -> WorldCatalog:
     )
 
 
-def _nest_mirror(mirror: ResidentMirror) -> RuntimeResidentMirror:
+def _nest_mirror(
+    mirror: ResidentMirror,
+    *,
+    runtime_id: str,
+    runtime_generation: int,
+    world_revision: int,
+) -> RuntimeResidentMirror:
     return RuntimeResidentMirror(
         elfie_id=mirror.elfie_id,
         current_zone_id=mirror.current_zone_id,
         posture=mirror.posture,
         active_command_id=mirror.active_command_id,
+        runtime_id=runtime_id,
+        runtime_generation=runtime_generation,
+        world_revision=world_revision,
     )

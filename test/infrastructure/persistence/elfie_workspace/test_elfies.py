@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
 
 from elfie.brain.memory.node_types import MemoryNode
 from elfie.profile import create_visual_profile
+from infrastructure.persistence.elfie_workspace.brain_state import (
+    YamlSelfhoodSeedAdapter,
+)
 from infrastructure.persistence.elfie_workspace.elfies import (
     SQLiteElfiesProjectionAdapter,
 )
@@ -56,9 +58,9 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
         species_id="fox",
         seed=7,
     )
-    profile = replace(
-        profile,
-        personality={
+    YamlProfileStoreAdapter(layout.profile.parent).save(profile)
+    YamlSelfhoodSeedAdapter(layout.brain).save(
+        {
             "big_five": {
                 "openness": 0.9,
                 "conscientiousness": 0.6,
@@ -66,9 +68,8 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
                 "agreeableness": 0.7,
                 "neuroticism": 0.2,
             }
-        },
+        }
     )
-    YamlProfileStoreAdapter(layout.profile.parent).save(profile)
     adapter = SQLiteElfiesProjectionAdapter(db_path)
 
     result = adapter.load_profile("00000001")

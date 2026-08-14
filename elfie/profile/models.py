@@ -172,10 +172,6 @@ class ElfieProfile:
     appearance: AppearanceGenome
     provenance: ProfileProvenance
     embodiment: EmbodimentProfile = field(default_factory=EmbodimentProfile)
-    # 迁移期先完整保存原 YAML 映射，避免类型化过程中丢失现有字段。
-    personality: Dict[str, Any] = field(default_factory=dict)
-    capabilities: Dict[str, Any] = field(default_factory=dict)
-    system_limits: Dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> None:
         if self.schema_version != PROFILE_SCHEMA_VERSION:
@@ -216,9 +212,6 @@ class ElfieProfile:
             not in self.embodiment.supported_morphologies
         ):
             raise ValueError("primary_morphology 必须包含在 supported_morphologies 中")
-        for field_name in ("personality", "capabilities", "system_limits"):
-            if not isinstance(getattr(self, field_name), dict):
-                raise ValueError(f"{field_name} 必须是映射")
         from .species import get_species_profile  # noqa: PLC0415
 
         species = get_species_profile(self.identity.species_id)
@@ -329,9 +322,6 @@ class ElfieProfile:
             ),
             embodiment=_construct(EmbodimentProfile, embodiment_raw),
             provenance=_construct(ProfileProvenance, provenance_raw),
-            personality=_mapping(raw.get("personality")),
-            capabilities=_mapping(raw.get("capabilities")),
-            system_limits=_mapping(raw.get("system_limits")),
         )
         profile.validate()
         return profile

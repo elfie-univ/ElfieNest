@@ -6,12 +6,12 @@ from unittest.mock import MagicMock, patch
 
 from app.orchestration.nest_session import ActorDescriptor, ElfieNestEngine
 from elfie import Elfie
-from nest.state.models import (
+from nest.living_rules.models import (
     PersistentResidentState,
     ResidentPresence,
     RuntimeResidentMirror,
 )
-from nest.state.repository import NestPersistenceSnapshot
+from nest.snapshot import NestSnapshot
 from test.app.orchestration.nest_session.fakes import FakeWorldRuntime
 
 
@@ -26,6 +26,9 @@ def test_observer_projection_contains_nest_semantics_without_geometry() -> None:
                 current_zone_id="dorm",
                 posture="resting",
                 active_command_id="intent-7",
+                runtime_id="runtime-a",
+                runtime_generation=1,
+                world_revision=1,
             ),
         )
     )
@@ -78,24 +81,23 @@ def test_observer_projection_uses_persisted_home_when_runtime_is_not_connected()
     None
 ):
     # Given: management has assigned a bed, but no authoritative Runtime catalog exists yet.
-    repository = MagicMock()
-    repository.load_snapshot.return_value = NestPersistenceSnapshot(
+    state_store = MagicMock()
+    state_store.load_snapshot.return_value = NestSnapshot(
         desired_bed_count=4,
         elapsed_seconds=0.0,
         catalog=None,
-        residents=(),
+        residents=(
+            PersistentResidentState(
+                elfie_id="fox-1",
+                presence=ResidentPresence.PENDING_RUNTIME,
+                home_zone_id="dorm-01",
+                home_anchor_id="dorm-01/bed-01",
+            ),
+        ),
     )
-    repository.load_home_assignments.return_value = {
-        "fox-1": PersistentResidentState(
-            elfie_id="fox-1",
-            presence=ResidentPresence.PENDING_RUNTIME,
-            home_zone_id="dorm-01",
-            home_anchor_id="dorm-01/bed-01",
-        )
-    }
     engine = ElfieNestEngine(
         FakeWorldRuntime(),
-        nest_repository=repository,
+        state_store=state_store,
     )
     engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
 

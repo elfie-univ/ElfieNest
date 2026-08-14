@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
 from infrastructure.godot.artifacts.web_build import (
     current_source_fingerprint,
     patch_web_entry_for_lan_http,
@@ -22,7 +23,13 @@ def _write_runtime(directory: Path, fingerprint: str) -> None:
             "sha256": hashlib.sha256(b"runtime").hexdigest(),
         }
     (directory / "build-manifest.json").write_text(
-        json.dumps({"files": files, "source_fingerprint": fingerprint}),
+        json.dumps(
+            {
+                "files": files,
+                "source_fingerprint": fingerprint,
+                "export_boundary": export_boundary_manifest(),
+            }
+        ),
         encoding="utf-8",
     )
 

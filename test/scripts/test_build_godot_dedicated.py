@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
 from scripts.build_godot_dedicated import runtime_is_current
 
 
@@ -23,7 +24,13 @@ def _write_bundle(directory: Path, fingerprint: str) -> None:
         }
     }
     (directory / "build-manifest.json").write_text(
-        json.dumps({"files": metadata, "source_fingerprint": fingerprint}),
+        json.dumps(
+            {
+                "files": metadata,
+                "source_fingerprint": fingerprint,
+                "export_boundary": export_boundary_manifest(),
+            }
+        ),
         encoding="utf-8",
     )
 

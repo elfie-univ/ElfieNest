@@ -8,7 +8,10 @@ from elfie.body.contracts import (
     BodyId,
     BodySensorEvent,
     EnvironmentSample,
+    HeardUtterancePayload,
     ProprioceptionSample,
+    SemanticActionResultPayload,
+    SemanticVisualScenePayload,
     TactileImpact,
     UtteranceFinal,
     VisionSample,
@@ -33,11 +36,17 @@ def body_event(
         | TactileImpact
         | ProprioceptionSample
         | EnvironmentSample
+        | HeardUtterancePayload
+        | SemanticVisualScenePayload
+        | SemanticActionResultPayload
     ),
+    *,
+    cause_id: str | None = None,
 ) -> BodySensorEvent:
     """Build one typed Body event with stable test identity."""
     return BodySensorEvent(
         event_id=EventId(event_id),
+        cause_id=EventId(cause_id) if cause_id is not None else None,
         body_id=BODY_ID,
         source=source,
         occurred_at=NOW,

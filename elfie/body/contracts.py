@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum, unique
-from typing import Annotated, Literal, NewType, Optional, Union
+from typing import Annotated, Literal, NewType, Optional, Tuple, Union
 from uuid import uuid4
 
 from pydantic import Field, StringConstraints, model_validator
@@ -80,6 +80,48 @@ class EnvironmentSample(FrozenContractModel):
     illuminance_lux: Optional[_NonNegativeFloat] = None
 
 
+class HeardUtterancePayload(FrozenContractModel):
+    """Structured virtual-hearing fact delivered to one Elfie."""
+
+    kind: Literal["heard_utterance"]
+    utterance_id: _NonBlankText
+    sender_id: _NonBlankText
+    text: _NonBlankText
+    emotion: Optional[_NonBlankText] = None
+
+
+class SemanticVisualEntityPayload(FrozenContractModel):
+    """One Nest-resolved semantic referent in a visual scene."""
+
+    semantic_id: _NonBlankText
+    kind: Literal["actor", "anchor", "facility"]
+    zone_id: _NonBlankText
+    label: _NonBlankText
+    capabilities: Tuple[_NonBlankText, ...] = ()
+
+
+class SemanticVisualScenePayload(FrozenContractModel):
+    """Structured, bounded semantic vision delivered to one Elfie."""
+
+    kind: Literal["semantic_visual_scene"]
+    observation_id: _NonBlankText
+    observer_id: _NonBlankText
+    zone_id: _NonBlankText
+    entities: Tuple[SemanticVisualEntityPayload, ...] = ()
+
+
+class SemanticActionResultPayload(FrozenContractModel):
+    """Structured result of one Nest-resolved semantic action."""
+
+    kind: Literal["semantic_action_result"]
+    command_id: _NonBlankText
+    actor_id: _NonBlankText
+    target: _NonBlankText
+    resolved_anchor_id: _NonBlankText
+    status: Literal["completed", "failed", "cancelled", "timed_out"]
+    reason: Optional[_NonBlankText] = None
+
+
 SensorPayload: TypeAlias = Annotated[
     Union[
         UtteranceFinal,
@@ -88,6 +130,9 @@ SensorPayload: TypeAlias = Annotated[
         TactileImpact,
         ProprioceptionSample,
         EnvironmentSample,
+        HeardUtterancePayload,
+        SemanticVisualScenePayload,
+        SemanticActionResultPayload,
     ],
     Field(discriminator="kind"),
 ]
@@ -260,8 +305,12 @@ __all__ = (
     "EmergencyStopCommand",
     "EnvironmentSample",
     "ExpressionCommand",
+    "HeardUtterancePayload",
     "MotionCommand",
     "ProprioceptionSample",
+    "SemanticActionResultPayload",
+    "SemanticVisualEntityPayload",
+    "SemanticVisualScenePayload",
     "SensorPayload",
     "SpeechCommand",
     "TactileImpact",

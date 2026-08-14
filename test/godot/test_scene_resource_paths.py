@@ -154,6 +154,25 @@ def test_actor_movement_matches_the_imported_model_forward_axis() -> None:
     assert "look_at(global_position - direction, Vector3.UP)" in actor_source
 
 
+def test_world_owns_semantic_spatial_queries_not_actor_execution() -> None:
+    actor_source = (GODOT_ROOT / "runtime" / "actor" / "actor_controller.gd").read_text(
+        encoding="utf-8"
+    )
+    world_source = (GODOT_ROOT / "runtime" / "world" / "world_controller.gd").read_text(
+        encoding="utf-8"
+    )
+    spatial_source = (
+        GODOT_ROOT / "runtime" / "world" / "spatial_queries.gd"
+    ).read_text(encoding="utf-8")
+
+    assert "func resolve_speech_reach" not in actor_source
+    assert "func resolve_visual_observation" not in actor_source
+    assert "func resolve_speech_reach" in world_source
+    assert "func resolve_visual_observation" in world_source
+    assert "has_line_of_sight" in spatial_source
+    assert "within_visual_cone" in spatial_source
+
+
 def test_runtime_manifest_is_semantic_and_does_not_export_coordinates() -> None:
     nest_text = (GODOT_ROOT / "rooms" / "nest.gd").read_text(encoding="utf-8")
     manifest_section = nest_text.split("func scene_manifest()", maxsplit=1)[1]

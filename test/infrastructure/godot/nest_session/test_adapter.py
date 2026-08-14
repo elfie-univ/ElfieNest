@@ -191,6 +191,7 @@ def test_adapter_sends_desired_environment_as_nest_command() -> None:
 
     assert (
         adapter.apply_environment(
+            object_id="nest/environment",
             command_id="environment-1",
             lights_on=False,
             quiet_mode=True,
@@ -201,6 +202,7 @@ def test_adapter_sends_desired_environment_as_nest_command() -> None:
     gateway.send_runtime_command.assert_called_once_with(
         CommandName.APPLY_ENVIRONMENT,
         {
+            "object_id": "nest/environment",
             "command_id": "environment-1",
             "lights_on": False,
             "quiet_mode": True,

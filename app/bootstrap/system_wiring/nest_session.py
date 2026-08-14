@@ -30,6 +30,10 @@ from infrastructure.models.model_execution_adapter import (
 )
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
+from infrastructure.persistence.elfie_workspace.brain_state import (
+    YamlEnergyLimitsAdapter,
+    YamlSelfhoodSeedAdapter,
+)
 from infrastructure.persistence.elfie_workspace.elfies import (
     SQLiteElfiesProjectionAdapter,
 )
@@ -101,7 +105,7 @@ def build_nest_session_services(
         engine=ElfieNestEngine(
             world_runtime,
             tick_interval_sec=tick_interval_sec,
-            nest_repository=SQLiteNestStateAdapter(db_path),
+            state_store=SQLiteNestStateAdapter(db_path),
         ),
         world_runtime=world_runtime,
         model_port_factory=model_port_factory,
@@ -127,6 +131,8 @@ def restore_registered_elfies(
             elfie = factory.restore(
                 ElfieAssembly(
                     profile=profile,
+                    selfhood_seed=YamlSelfhoodSeedAdapter(config_dir / "brain").load(),
+                    energy_limits=YamlEnergyLimitsAdapter(config_dir / "brain").load(),
                     memory_store=memory_store,
                     activity_store=SQLiteActivityStoreAdapter(
                         config_dir / "activity" / "activity.sqlite"

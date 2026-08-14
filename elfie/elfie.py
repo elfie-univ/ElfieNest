@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from threading import Lock
+from typing import Mapping
 
 from elfie.body import BodyBinding, BodyRegistry
 from elfie.body.port import BodyPort
 from elfie.brain.activity.system import ActivityStorePort, InMemoryActivityStore
 from elfie.brain.emotion.emotion_system import EmotionSystem
+from elfie.brain.energy.defaults import load_packaged_energy_limits
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.journal import BrainJournalPort, InMemoryBrainJournal
 from elfie.brain.memory.memory_store import MemoryStorePort
@@ -17,6 +19,7 @@ from elfie.brain.reasoning.model_port import ModelPort
 from elfie.brain.reasoning.skills import SkillManager
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.runtime import BrainRuntime
+from elfie.brain.selfhood.defaults import load_selfhood_seed_for_profile
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.communication import CommunicationHub
@@ -24,11 +27,7 @@ from elfie.facade_operations import ElfieFacadeOperations
 from elfie.initialization import assemble_anatomy
 from elfie.message_types import ElfieId
 from elfie.nervous_system import NervousSystem
-from elfie.profile import (
-    ELFARIA_CANON,
-    ElfieProfile,
-    get_species_canon_for_technical_id,
-)
+from elfie.profile import ElfieProfile
 
 
 class Elfie(ElfieFacadeOperations):
@@ -39,6 +38,8 @@ class Elfie(ElfieFacadeOperations):
         *,
         character_profile: ElfieProfile,
         memory_store: MemoryStorePort,
+        selfhood_seed: Mapping[str, object] | None = None,
+        energy_limits: Mapping[str, object] | None = None,
         body: BodyPort | None = None,
         communication: CommunicationHub | None = None,
         skills: SkillManager | None = None,
@@ -52,11 +53,15 @@ class Elfie(ElfieFacadeOperations):
         self._elapsed_time = 0.0
         self._clock_lock = Lock()
         self._energy = EnergySystem(
-            self._profile.system_limits,
+            dict(energy_limits)
+            if energy_limits is not None
+            else load_packaged_energy_limits(),
             clock=lambda: self._elapsed_time,
         )
         self._selfhood = SelfhoodSystem.from_personality_data(
-            _selfhood_seed(self._profile),
+            selfhood_seed
+            if selfhood_seed is not None
+            else load_selfhood_seed_for_profile(self._profile),
             initial_at=self.cognitive_datetime,
             profile_revision=self._profile.schema_version,
         )
@@ -81,7 +86,6 @@ class Elfie(ElfieFacadeOperations):
             persistence=self._journal_store,
         )
         self._nervous_system = NervousSystem(
-            self._profile.capabilities,
             perception_sink=self._workspace,
             elfie_id=workspace_id,
             body_port=body,
@@ -159,41 +163,3 @@ class Elfie(ElfieFacadeOperations):
     @property
     def cognition_configured(self) -> bool:
         return self._brain_runtime is not None
-
-
-def _selfhood_seed(profile: ElfieProfile) -> dict[str, object]:
-    """Merge legacy personality presentation with immutable canon facts.
-
-    The Profile remains the objective authority. These values are copied into
-    Brain Selfhood only as the Elfie's initial self-understanding, so ordinary
-    conversation cannot silently replace its species or origin.
-    """
-    seed = dict(profile.personality)
-    species = get_species_canon_for_technical_id(profile.identity.species_id)
-    origin = profile.identity.origin
-    region_name = (
-        ELFARIA_CANON.known_region_name
-        if origin.home_region_id == ELFARIA_CANON.known_region_id
-        else origin.home_region_id
-    )
-    fixed_description = (
-        f"我叫 {profile.identity.display_name}，是一只 {species.display_name}"
-        f"（{species.earth_shape_label}），来自 {ELFARIA_CANON.display_name} 的 {region_name}。"
-        "我自愿参加赴地计划，来到地球后住进自己的 ElfieNest；对不知道的事情，我会先说明不确定。"
-    )
-    seed["self_description"] = fixed_description
-    seed["species_name"] = species.display_name
-    seed["identity_facts"] = (
-        f"正式物种名是 {species.display_name}，{species.earth_shape_label} 只是地球侧形态说明。",
-        f"来自 {ELFARIA_CANON.display_name} 的 {region_name}。",
-        ELFARIA_CANON.earth_arrival_statement,
-        f"{ELFARIA_CANON.earth_home_name} 是在地球生活的基地和家；我的身份和记忆属于我自己。",
-    )
-    seed["knowledge_boundaries"] = ELFARIA_CANON.knowledge_boundaries
-    seed["behavior_anchors"] = species.earth_first_contact_cues
-    seed["norms"] = (
-        "尊重自愿选择。",
-        "对不确定保持诚实。",
-        "把真实经历和推测分开。",
-    )
-    return seed

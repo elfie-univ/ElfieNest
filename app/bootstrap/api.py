@@ -43,8 +43,8 @@ def create_app(
 ) -> FastAPI:
     selected_db_path = db_path or str(get_db_path())
     ensure_application_storage(selected_db_path)
-    if engine is not None and not engine.session.has_repository:
-        engine.session.attach_repository(SQLiteNestStateAdapter(selected_db_path))
+    if engine is not None and not engine.session.has_state_store:
+        engine.session.attach_state_store(SQLiteNestStateAdapter(selected_db_path))
     container = build_application_container(
         selected_db_path,
         nest_session=None if engine is None else engine.session,

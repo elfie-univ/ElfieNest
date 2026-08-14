@@ -15,7 +15,7 @@ class FakeWorldRuntime:
         self.actor_syncs: list[tuple[tuple[RuntimeActor, ...], int]] = []
         self.speech_reach_requests: list[tuple[str, str, str, int]] = []
         self.visual_observation_requests: list[tuple[str, str, int, int]] = []
-        self.environment_requests: list[tuple[str, bool, bool, int]] = []
+        self.environment_requests: list[tuple[str, str, bool, bool, int]] = []
         self.configured_revisions: list[int] = []
         self.started = False
 
@@ -89,6 +89,7 @@ class FakeWorldRuntime:
     def apply_environment(
         self,
         *,
+        object_id: str,
         command_id: str,
         lights_on: bool,
         quiet_mode: bool,
@@ -97,7 +98,7 @@ class FakeWorldRuntime:
         if self.connection is None:
             return None
         self.environment_requests.append(
-            (command_id, lights_on, quiet_mode, world_revision)
+            (object_id, command_id, lights_on, quiet_mode, world_revision)
         )
         return command_id
 

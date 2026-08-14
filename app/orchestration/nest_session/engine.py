@@ -2,19 +2,15 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
 from typing import Optional
 
 from app.orchestration.nest_session.ports import (
     ModelPortFactory,
     NestSessionRuntimePort,
+    NestStateStorePort,
 )
 from app.orchestration.nest_session.session import NestSession
-from app.orchestration.nest_session.world_perception import (
-    collect_world_sensory_events,
-)
-from elfie.public import BodySensorEvent
-from nest.public import Nest, NestConfig, NestRepository
+from nest.public import Nest, NestConfig
 
 logger = logging.getLogger("app.orchestration.engine")
 
@@ -30,7 +26,7 @@ class ElfieNestEngine:
         world_runtime: NestSessionRuntimePort,
         *,
         tick_interval_sec: float = 1.5,
-        nest_repository: NestRepository | None = None,
+        state_store: NestStateStorePort | None = None,
     ) -> None:
         """初始化引擎。
 
@@ -46,22 +42,10 @@ class ElfieNestEngine:
         self.session = NestSession(
             self.nest,
             self.world_runtime,
-            repository=nest_repository,
+            state_store=state_store,
         )
         self.coordinator = self.session
         self._loop_started = False
-
-    def _collect_world_sensory_events(self, elfie_id: str) -> list[BodySensorEvent]:
-        """Convert only physical room facts into typed Body sensor events."""
-        return collect_world_sensory_events(
-            nest=self.nest,
-            session=self.session,
-            elfie_id=elfie_id,
-            captured_at=self._simulation_datetime(),
-        )
-
-    def _simulation_datetime(self) -> datetime:
-        return datetime.fromtimestamp(self.nest.state.elapsed_seconds, timezone.utc)
 
     def tick_once(self, seconds: float) -> None:
         """Advance physics and publish inputs without awaiting cognition or output."""
@@ -77,7 +61,7 @@ class ElfieNestEngine:
             status = self.nest.resident_state(elfie_id)
             if status is None or not status.active or status.posture == "away":
                 continue
-            elfie.pump_body_events(self._collect_world_sensory_events(elfie_id))
+            elfie.pump_body_events()
 
     def start_loop(
         self,

@@ -5,14 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from app.orchestration.nest_session.models import ActorDescriptor
+from app.orchestration.nest_session.ports import NestStateStorePort
 from elfie.public import AppearanceResolver, Elfie, ElfieProfile
-from nest.public import (
-    Nest,
-    NestPersistenceSnapshot,
-    NestRepository,
-    PersistentResidentState,
-    ResidentPresence,
-)
+from nest.public import Nest, NestSnapshot
 
 
 def actor_catalog(elfies: Mapping[str, Elfie]) -> tuple[ActorDescriptor, ...]:
@@ -35,42 +30,19 @@ def actor_catalog(elfies: Mapping[str, Elfie]) -> tuple[ActorDescriptor, ...]:
     return tuple(descriptors)
 
 
-def restore_snapshot(nest: Nest, snapshot: NestPersistenceSnapshot) -> None:
-    nest.state.elapsed_seconds = snapshot.elapsed_seconds
-    nest.state.clock_paused = snapshot.clock_paused
-    nest.state.time_scale = snapshot.time_scale
-    nest.state.environment_desired = snapshot.environment_desired
-    nest.state.environment_rules = snapshot.environment_rules
-    if snapshot.catalog is not None:
-        nest.apply_catalog(snapshot.catalog)
-    for resident in snapshot.residents:
-        nest.register_resident(resident.elfie_id)
-        if resident.home_anchor_id is not None and resident.home_zone_id is not None:
-            nest.assign_home(resident.elfie_id, resident.home_anchor_id)
+def restore_snapshot(nest: Nest, snapshot: NestSnapshot) -> None:
+    nest.restore_snapshot(snapshot)
 
 
 def persist_resident(
     nest: Nest,
-    repository: NestRepository | None,
+    state_store: NestStateStorePort | None,
     elfie_id: str,
 ) -> None:
-    if repository is None:
+    if state_store is None:
         return
-    assignment = nest.state.home_assignments.get(elfie_id)
-    repository.save_resident(
-        PersistentResidentState(
-            elfie_id=elfie_id,
-            presence=(
-                ResidentPresence.ACTIVE
-                if assignment is not None
-                else ResidentPresence.PENDING_RUNTIME
-            ),
-            home_zone_id=assignment.home_zone_id if assignment is not None else None,
-            home_anchor_id=(
-                assignment.home_anchor_id if assignment is not None else None
-            ),
-        )
-    )
+    _ = elfie_id
+    state_store.save_snapshot(nest.export_snapshot())
 
 
 __all__ = ["actor_catalog", "persist_resident", "restore_snapshot"]

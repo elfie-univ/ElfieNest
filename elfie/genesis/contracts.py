@@ -140,7 +140,10 @@ class GenesisBundle:
             if not 0.0 <= seed.intensity <= 1.0:
                 raise GenesisValidationError("MemorySeed.intensity 必须在 [0, 1] 内")
         for relationship in self.relationship_seeds:
-            if not relationship.person_id.strip() or not relationship.display_name.strip():
+            if (
+                not relationship.person_id.strip()
+                or not relationship.display_name.strip()
+            ):
                 raise GenesisValidationError("RelationshipSeed 的身份不能为空")
             if not 0.0 <= relationship.initial_trust <= 1.0:
                 raise GenesisValidationError(
@@ -164,12 +167,22 @@ class GenesisBundle:
                 "BiographyEnrichmentPlan.expires_after_events 不能为负数"
             )
         if self.manifest.species_version != species.canon_version:
-            raise GenesisValidationError("manifest.species_version 与 Profile 物种版本不一致")
+            raise GenesisValidationError(
+                "manifest.species_version 与 Profile 物种版本不一致"
+            )
         if self.manifest.canon_version != WORLD_CANON_VERSION:
-            raise GenesisValidationError("manifest.canon_version 与世界 Canon 版本不一致")
-        if not self.manifest.manifest_id.strip() or not self.manifest.reference_version.strip():
+            raise GenesisValidationError(
+                "manifest.canon_version 与世界 Canon 版本不一致"
+            )
+        if (
+            not self.manifest.manifest_id.strip()
+            or not self.manifest.reference_version.strip()
+        ):
             raise GenesisValidationError("InitializationManifest 的身份字段不能为空")
-        if self.manifest.status in ("validated", "committed") and self.manifest.validation_errors:
+        if (
+            self.manifest.status in ("validated", "committed")
+            and self.manifest.validation_errors
+        ):
             raise GenesisValidationError(
                 "已校验或已提交的 InitializationManifest 不能保留 validation_errors"
             )

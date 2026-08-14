@@ -82,6 +82,16 @@ def test_restore_registered_elfies_isolates_one_invalid_profile(monkeypatch) -> 
         "SQLiteBrainJournalAdapter",
         lambda _path: object(),
     )
+    monkeypatch.setattr(
+        nest_session_bootstrap,
+        "YamlSelfhoodSeedAdapter",
+        lambda _path: SimpleNamespace(load=lambda: {}),
+    )
+    monkeypatch.setattr(
+        nest_session_bootstrap,
+        "YamlEnergyLimitsAdapter",
+        lambda _path: SimpleNamespace(load=lambda: {}),
+    )
     session = _FakeSession()
 
     result = nest_session_bootstrap.restore_registered_elfies(

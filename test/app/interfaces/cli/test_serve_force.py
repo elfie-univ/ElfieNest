@@ -30,7 +30,7 @@ def test_python_core_does_not_start_godot_processes() -> None:
     assert "Godot Web Runtime is hosted by ElfieNest Desktop" in source
 
 
-def test_serve_main_does_not_rebind_nest_repository_inside_worker() -> None:
+def test_serve_main_does_not_rebind_nest_state_store_inside_worker() -> None:
     # Given
     source = (Path(__file__).resolve().parents[4] / "scripts" / "serve.py").read_text(
         encoding="utf-8"
@@ -40,4 +40,4 @@ def test_serve_main_does_not_rebind_nest_repository_inside_worker() -> None:
     assert "from app.bootstrap.system_wiring.nest_session import (" in source
     assert "build_nest_session_services," in source
     assert "SQLiteNestStateRepository" not in source
-    assert "engine.session.attach_repository" not in source
+    assert "engine.session.attach_state_store" not in source

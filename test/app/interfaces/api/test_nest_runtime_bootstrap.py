@@ -37,7 +37,7 @@ def test_application_lifespan_accepts_engine_with_registered_elfies(tmp_path) ->
         connection.commit()
     engine = ElfieNestEngine(
         FakeWorldRuntime(),
-        nest_repository=SQLiteNestStateAdapter(db_path),
+        state_store=SQLiteNestStateAdapter(db_path),
     )
     engine.session.register_elfie("00000001", MagicMock(spec=Elfie))
     application = create_app(engine=engine, db_path=db_path)

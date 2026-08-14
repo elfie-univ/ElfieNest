@@ -15,8 +15,12 @@ from elfie.body.contracts import (
     CommandStatus,
     EnvironmentSample,
     ExpressionCommand,
+    HeardUtterancePayload,
     MotionCommand,
     ProprioceptionSample,
+    SemanticActionResultPayload,
+    SemanticVisualEntityPayload,
+    SemanticVisualScenePayload,
     SpeechCommand,
     TactileImpact,
     UtteranceFinal,
@@ -51,6 +55,35 @@ def test_body_sensor_event_preserves_identity_for_every_tagged_payload() -> None
         TactileImpact(kind="tactile_impact", location="left-paw", force_newtons=2.5),
         ProprioceptionSample(kind="proprioception_sample", posture="sitting"),
         EnvironmentSample(kind="environment_sample", temperature_celsius=24.0),
+        HeardUtterancePayload(
+            kind="heard_utterance",
+            utterance_id="utterance-1",
+            sender_id="fox-1",
+            text="你好",
+            emotion="happy",
+        ),
+        SemanticVisualScenePayload(
+            kind="semantic_visual_scene",
+            observation_id="observation-1",
+            observer_id="fox-1",
+            zone_id="room-1",
+            entities=(
+                SemanticVisualEntityPayload(
+                    semantic_id="actor/dog-1",
+                    kind="actor",
+                    zone_id="room-1",
+                    label="dog-1",
+                ),
+            ),
+        ),
+        SemanticActionResultPayload(
+            kind="semantic_action_result",
+            command_id="command-1",
+            actor_id="fox-1",
+            target="home",
+            resolved_anchor_id="bed-1",
+            status="completed",
+        ),
     )
 
     events = tuple(
@@ -72,6 +105,9 @@ def test_body_sensor_event_preserves_identity_for_every_tagged_payload() -> None
         "tactile_impact",
         "proprioception_sample",
         "environment_sample",
+        "heard_utterance",
+        "semantic_visual_scene",
+        "semantic_action_result",
     ]
     assert all(event.source.actor_id == ActorId("owner-1") for event in events)
     assert all(event.body_id == BodyId("body-1") for event in events)

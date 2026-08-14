@@ -9,14 +9,14 @@
 """
 
 from elfie.brain.memory.self_narrative import MemorySelfNarrativeProjection
-from elfie.profile import load_packaged_profile_defaults
+from elfie.brain.selfhood import load_packaged_selfhood_seed
 from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
 # ---------------------------------------------------------------------------
 # 测试辅助
 # ---------------------------------------------------------------------------
 
-_PERSONALITY_DATA = load_packaged_profile_defaults()["personality"]
+_PERSONALITY_DATA = load_packaged_selfhood_seed()
 
 
 def _make_cc() -> MemorySelfNarrativeProjection:

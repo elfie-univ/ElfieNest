@@ -34,6 +34,10 @@ from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
 )
+from infrastructure.persistence.elfie_workspace.brain_state import (
+    YamlEnergyLimitsAdapter,
+    YamlSelfhoodSeedAdapter,
+)
 from infrastructure.persistence.elfie_workspace.elfies import (
     SQLiteElfiesProjectionAdapter,
 )
@@ -161,6 +165,12 @@ def build_adoption_services(
                 lambda workspace: SQLiteBrainJournalAdapter(
                     Path(workspace) / "brain" / "journal.sqlite"
                 ),
+                lambda workspace: YamlSelfhoodSeedAdapter(
+                    Path(workspace) / "brain"
+                ).load(),
+                lambda workspace: YamlEnergyLimitsAdapter(
+                    Path(workspace) / "brain"
+                ).load(),
             ),
             nest_session,
         ),

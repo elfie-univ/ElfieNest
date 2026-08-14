@@ -1,7 +1,9 @@
 import stat
 from pathlib import Path
 
-from elfie.profile import create_visual_profile, load_packaged_profile_defaults
+from elfie.brain.energy import load_packaged_energy_limits
+from elfie.brain.selfhood import load_packaged_selfhood_seed
+from elfie.profile import create_visual_profile
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
@@ -43,12 +45,13 @@ def test_profile_save_repairs_owner_only_permissions(tmp_path: Path) -> None:
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
-def test_default_profile_sections_are_loaded_without_a_profile_file(
+def test_default_owner_seeds_are_loaded_without_a_profile_file(
     tmp_path: Path,
 ) -> None:
     # When: the profile domain reads its immutable bundled defaults.
-    sections = load_packaged_profile_defaults()
+    selfhood = load_packaged_selfhood_seed()
+    energy = load_packaged_energy_limits()
 
     # Then: the section is available without requiring a user profile file.
-    assert "big_five" in sections["personality"]
-    assert "actuators" in sections["capabilities"]
+    assert "big_five" in selfhood
+    assert "limits" in energy

@@ -7,7 +7,10 @@ from typing import Dict, Tuple
 from elfie.body.contracts import (
     BodySensorEvent,
     EnvironmentSample,
+    HeardUtterancePayload,
     ProprioceptionSample,
+    SemanticActionResultPayload,
+    SemanticVisualScenePayload,
     TactileImpact,
     UtteranceFinal,
     VisionChange,
@@ -57,6 +60,38 @@ class BodyPerceptionNormalizer:
     def normalize(self, event: BodySensorEvent) -> Tuple[PerceptionWrite, ...]:
         """Route one discriminated Body payload to journal, state, or media."""
         payload = event.payload
+        if isinstance(payload, HeardUtterancePayload):
+            emotion = f" emotion={payload.emotion};" if payload.emotion else ""
+            return self._reliable(
+                event,
+                PhysicalModality.UTTERANCE,
+                f"sender={payload.sender_id};{emotion} text={payload.text}",
+                (),
+                salience=0.8,
+            )
+        if isinstance(payload, SemanticVisualScenePayload):
+            entities = ", ".join(
+                f"{entity.label}<{entity.semantic_id}>" for entity in payload.entities
+            )
+            return self._reliable(
+                event,
+                PhysicalModality.VISION,
+                f"zone={payload.zone_id}; visible={entities or 'none'}",
+                (),
+                salience=0.6,
+            )
+        if isinstance(payload, SemanticActionResultPayload):
+            reason = f"; reason={payload.reason}" if payload.reason else ""
+            return self._reliable(
+                event,
+                PhysicalModality.PROPRIOCEPTION,
+                (
+                    f"action={payload.target}; anchor={payload.resolved_anchor_id}; "
+                    f"status={payload.status}{reason}"
+                ),
+                (),
+                salience=0.7,
+            )
         if isinstance(payload, UtteranceFinal):
             return self._reliable(
                 event,
@@ -211,6 +246,7 @@ class BodyPerceptionNormalizer:
             occurred_at=event.occurred_at,
             received_at=event.received_at,
             trace_id=TraceId(f"body:{event.event_id}"),
+            causation_id=event.cause_id,
             priority=Priority.NORMAL,
         )
 

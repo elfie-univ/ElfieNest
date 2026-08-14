@@ -6,12 +6,12 @@ from collections.abc import Iterable
 
 from devtools.nest_lab.models import NestLabConflictError
 from nest import Nest
-from nest.state.store import NoHomeAvailableError
+from nest.living_rules.errors import NoHomeAvailableError
 
 
 def assign_missing_homes(nest: Nest, actor_ids: Iterable[str]) -> None:
     """Assign available semantic beds after the Runtime publishes a catalog."""
-    if nest.state.world_catalog is None:
+    if nest.world_catalog is None:
         return
     for actor_id in actor_ids:
         if nest.home_anchor_id(actor_id) is None:

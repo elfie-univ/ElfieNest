@@ -1,0 +1,19 @@
+# Brain Energy 的创建期硬阈值；运行中的能量/疲劳由 EnergySystem 持有。
+limits:
+  energy:
+    max_value: 100.0
+    initial_value: 100.0
+    depletion_rate_per_sec: 0.005
+    depletion_per_remote_chat: 2.5
+    depletion_per_local_chat: 0.5
+    recovery_rate_sleep_per_sec: 0.05
+  fatigue:
+    initial_value: 0.0
+    max_value: 100.0
+    accumulation_rate_per_sec: 0.003
+    decay_rate_sleep_per_sec: 0.04
+    hibernation_threshold: 95.0
+    wakeup_threshold: 15.0
+  runtime_usage:
+    daily_token_soft_limit: 10000
+    observe_only: true

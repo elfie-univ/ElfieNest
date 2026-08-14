@@ -71,7 +71,7 @@ class WanderScheduler:
             )
 
     def _available_anchors(self) -> tuple[str, ...]:
-        catalog = self._nest.state.world_catalog
+        catalog = self._nest.world_catalog
         return () if catalog is None else tuple(sorted(catalog.anchor_ids))
 
     def _move(self, actor_id: str, anchor_id: str, ready_revision: int) -> None:

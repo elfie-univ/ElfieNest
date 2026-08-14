@@ -36,9 +36,9 @@ Port 所有权跟随真实能力消费方，语义事实所有权与它相互独
 
 ## 后果
 
-目标架构不存在 `nest/persistence.py` 或从 Nest 导出的 Repository Protocol。当前实现由
-`NGW-R12` 继续跟踪，直到快照、Facade、App Port、Adapter 类型、全部调用方和测试在同一
-切片中迁移完成。不增加兼容 Alias、Fallback Read 或双写。
+目标架构不存在 `nest/persistence.py` 或从 Nest 导出的 Repository Protocol。快照、Facade、
+App Port、Adapter 类型、全部调用方和测试已经在同一切片中迁移完成，`NGW-R12` 现在已准备
+收口。不增加兼容 Alias、Fallback Read 或双写。
 
 本决策改变冻结的系统级 Port 语义，因此必须在产品迁移前更新双语系统契约。整个迁移
 期间，具体持久化始终归 Infrastructure。

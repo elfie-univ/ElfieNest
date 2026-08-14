@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 import pytest
 
 from elfie import ElfieFactory
@@ -122,20 +120,18 @@ def test_non_owner_social_input_is_not_written_as_owner_memory() -> None:
 
 def test_selfhood_and_profile_anchors_are_separate_model_context_sections() -> None:
     # Given: one immutable Profile seed with a deliberately distinctive personality.
-    profile = replace(
-        _profile("selfhood-elfie"),
-        personality={
-            "metadata": {"description": "安静又好奇"},
-            "big_five": {
-                "openness": 0.91,
-                "conscientiousness": 0.62,
-                "extraversion": 0.21,
-                "agreeableness": 0.83,
-                "neuroticism": 0.31,
-            },
-            "speech_style": {"verbal_ticks": "哒"},
+    profile = _profile("selfhood-elfie")
+    selfhood_seed = {
+        "metadata": {"description": "安静又好奇"},
+        "big_five": {
+            "openness": 0.91,
+            "conscientiousness": 0.62,
+            "extraversion": 0.21,
+            "agreeableness": 0.83,
+            "neuroticism": 0.31,
         },
-    )
+        "speech_style": {"verbal_ticks": "哒"},
+    }
     hub = CommunicationHub("selfhood-elfie")
     hub.register_channel(RecordingChannel(), connect=True)
     runtime = TwoTurnRuntime()
@@ -143,6 +139,7 @@ def test_selfhood_and_profile_anchors_are_separate_model_context_sections() -> N
     elfie = ElfieFactory().create(
         ElfieAssembly(
             profile=profile,
+            selfhood_seed=selfhood_seed,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             communication=hub,
             model_port=runtime,
@@ -156,7 +153,7 @@ def test_selfhood_and_profile_anchors_are_separate_model_context_sections() -> N
     elfie.wait_for_outcome_count(1, timeout=1.0)
 
     # When: a source Profile mapping is changed after Brain construction.
-    profile.personality["big_five"]["openness"] = 0.01
+    selfhood_seed["big_five"]["openness"] = 0.01
 
     # Then: the Run still sees Brain Selfhood plus immutable Profile anchors.
     prompt = runtime.requests[0].user_prompt

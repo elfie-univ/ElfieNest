@@ -22,6 +22,9 @@ from app.features.elfies import (
     ElfiesPortError,
 )
 from elfie.profile import AppearanceResolver, ResolvedAppearance
+from infrastructure.persistence.elfie_workspace.brain_state import (
+    YamlSelfhoodSeedAdapter,
+)
 from infrastructure.persistence.layout.data_home import data_home_from_db_path
 from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
@@ -98,7 +101,9 @@ class SQLiteElfiesProjectionAdapter:
         try:
             profile = repository.load()
             resolved = AppearanceResolver().resolve(profile)
-            raw_big_five = profile.personality.get("big_five")
+            raw_big_five = (
+                YamlSelfhoodSeedAdapter(elfie_layout.brain).load().get("big_five")
+            )
             if not isinstance(raw_big_five, dict):
                 return ElfieProfileRecord(
                     status="ready",

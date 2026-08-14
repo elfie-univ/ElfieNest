@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.features.adoption import AdoptionPolicyRecord, AdoptionPortError
 from app.features.configuration.settings import SettingsError, SettingsStorePort
-from elfie.profile import PERSONALITY_PRESETS
+from elfie.brain.selfhood import PERSONALITY_PRESETS
 
 
 class SettingsAdoptionPolicyAdapter:

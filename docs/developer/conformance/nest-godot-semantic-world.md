@@ -5,7 +5,7 @@
 > It records current implementation gaps and the ordered evidence required to
 > close them. It does not weaken or redefine the target.
 
-## Why this register is open again
+## Why this register was reopened
 
 The original register was removed during the protocol-v3 product migration and
 the conformance index was changed to report zero Nest–Godot debt. A later
@@ -21,8 +21,9 @@ were never proved. Passing tests could not justify deleting the register:
 - the 141-file migration combined work that the approved plan had split into
   independently closable slices.
 
-The zero-debt claim is therefore revoked. Every row below is open until its
-current-code closure gate is met.
+The zero-debt claim remains guarded by this register. The implementation slices and their
+evidence are now complete; every row below is closed and this register remains temporarily
+registered until the separate governance-only removal described by NGW-R11.
 
 ## Target source disposition
 
@@ -57,28 +58,30 @@ accidental shipping of development material.
 | `scripts/test/`, `scripts/tools/`, `characters/tools/`, character `source/` trees | Treat as test, authoring or developer-only inputs. Classify audit/render scripts correctly and exclude all of them from release exports. |
 | Unreferenced helpers, reference scenes and ignored-source `.import` sidecars | Review one item at a time; delete only after scene, preload, CLI, documentation and export references are all absent. |
 
-## Current gaps
+## Closed conformance rows
 
 | ID | Severity | Status | Current deviation | Closure gate | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| NGW-R01 | P0 | open | `nest/engine/` duplicates `TimeEnvironmentState.advance()`; broad `nest/state/` mixes aggregate composition, configuration, all owner models/errors and a persistence Port; `NestState` remains public compatibility surface. | The target disposition above is reached without compatibility imports; `Nest` is the stable facade; each fact/type has one owner; focused Nest tests and import scans pass. | pending |
-| NGW-R02 | P0 | open | The typed `NestEventEnvelope` is produced only by interaction paths while speech and vision also enter raw per-resident sensory queues. Production consumes the raw queues; compatibility speech methods bypass the envelope. | Every owner can emit through one common mechanism; one production consumer delivers typed targeted events exactly once; raw/compatibility delivery paths are deleted; duplicate and forbidden-route tests pass. | pending |
-| NGW-R03 | P0 | open | `SemanticActionResult` can remain only in the outbox with no production delivery to its Elfie; speech and vision are converted to flattened Body payloads, and expressed speech emotion is dropped. | `HeardUtterance`, `SemanticVisualScene` and `SemanticActionResult` retain their structured payloads to the target Elfie; emotion and causal identity survive; each has positive, non-target and duplicate tests. | pending |
-| NGW-R04 | P0 | open | Generation checks reject some incoming events and desired environment is resynchronized, but resident/environment projections are not uniformly source-labelled, pending speech/vision/action correlations are not collectively invalidated, and stale actual state can survive an authority change. | Every retained physical projection carries Runtime/generation/revision provenance; a generation change invalidates old projections, interrupts pending correlations once and resynchronizes only current desired state; stale/recovery tests pass. | pending |
-| NGW-R05 | P1 | open | Living Rules implements membership, Home assignment and bed conflict, but not the accepted sharing, reservation, occupancy, access, audience-policy or environment-override decisions. | The smallest household rule set needed by current product flows is implemented behind `Nest`, with one administrator and no enterprise role/approval system; speech/event audiences and semantic actions consume the same rules. | pending |
-| NGW-R06 | P0 | open | Godot visual observation uses same-zone membership plus a fixed distance and lives in the Actor controller; it does not test field of view, occlusion or current physical visibility. | World-owned spatial queries use actor transform, bounded range, FOV, ray/space occlusion and current state; target, behind-observer, occluded, out-of-range, bounded and stale-generation cases pass in real Godot tests. | pending |
-| NGW-R07 | P0 | open | Godot speech reach selects every other actor in the same zone; the acoustic profile is validated but does not affect range or propagation, and doors/occlusion are ignored. | World-owned audibility applies the agreed range/profile and obstruction model, returns candidates only, and passes same-zone-but-unheard, out-of-range, blocked, profile and retry cases; Nest remains owner of content and final resident audience. | pending |
-| NGW-R08 | P1 | open | Environment support is a coarse light/quiet snapshot. Actual state is placed with desired time/environment state and is not a stable, provenance-bound per-object projection. | Each supported stateful object/group has a stable ID, typed desired command and actual fact/result; actual projection belongs to Space and Facilities, carries provenance, and recovery resends only current desired state. Objects without approved behavior need no script. | pending |
-| NGW-R09 | P1 | open | Speech reach and visual observation are implemented in `runtime/actor/actor_controller.gd` even though World and `spatial_queries.gd` exist, so Actor owns actor-relative world queries as well as body execution. | Actor owns body execution only; World owns speech/vision spatial queries; existing narrow Python capabilities and the single Bootstrap-created shared Gateway remain intact. | pending |
-| NGW-R10 | P1 | open | Godot exports use `all_resources` while excluding only two source globs, so test/tool/authoring resources can enter release packages. Ignored authoring source still contains tracked import sidecars, and several no-reference candidates remain unclassified. | Runtime export inputs are allowlisted or comprehensively exclude developer/authoring trees; release manifests prove the boundary; every candidate is classified as referenced, authoring-retained or deleted with no broken scene/resource/test reference. | pending |
-| NGW-R11 | P1 | open | The register was deleted early and indexes reported zero debt; ADR-0015 now machine-guards that failure mode, but some current README descriptions still contradict the contract's fact ownership and event routes, and final closure evidence does not yet exist. | Current architecture/README text matches verified implementation; the base-aware deletion and evidence gates remain green; every other row is closed with complete evidence before a separate governance-only change removes both mirrors and registrations. | pending |
-| NGW-R12 | P0 | open | ADR-0016 now fixes the target, but `NestRepository`, its error and `NestPersistenceSnapshot` remain exported by Nest; App Orchestration owns all production calls and directly mutates broad `nest.state` during restore. | Nest exposes a technology-neutral `NestSnapshot` and Facade export/restore operations; App Nest Session owns `NestStateStorePort`, persistence timing and application errors; Infrastructure implements it; all callers and strict-boundary tests migrate together with no Nest Repository export or deep state mutation. | pending |
+| NGW-R01 | P0 | closed | Temporary Nest containers were removed and each fact/model/error now follows its owner. | Nest facade, owner directories and no-legacy-import inventory are enforced by `scripts/architecture/structural_scope_scan.py` and `test/architecture/test_project_structure.py`; `test/nest` and `mypy` pass. | target=Nest ownership clauses; inventory=nest root and four owner trees; references=no old package or NestState callers; verification=54 focused tests and 49-file mypy pass; residuals=none |
+| NGW-R02 | P0 | closed | Typed Nest event delivery is the single production route. | Interaction correlation emits one typed envelope and no raw sensory queue is consumed. | target=common event mechanism; inventory=nest/elfie_interaction and orchestration router; references=event-route scans; verification=Nest and runtime workflow duplicate/non-target tests pass; residuals=none |
+| NGW-R03 | P0 | closed | Structured hearing, vision and semantic-action payloads retain emotion, cause and target identity through delivery. | The production consumer projects each envelope to the owning Elfie exactly once. | target=structured semantic perception clauses; inventory=events.py, hub.py and world_perception.py; references=typed delivery tests; verification=positive, non-target and dedupe scenarios pass; residuals=none |
+| NGW-R04 | P0 | closed | Runtime/generation/revision provenance and one authority-change invalidation path cover resident, environment and pending interaction state. | Stale frames are rejected and only current desired environment is resynchronized. | target=generation and recovery clauses; inventory=runtime_sync, runtime_events and Nest invalidation; references=stale/recovery workflow tests; verification=focused workflow suite passes; residuals=none |
+| NGW-R05 | P1 | closed | Household Living Rules now own membership, Home, sharing/access, occupancy, audience filtering and environment override decisions without enterprise roles. | All semantic action and event audience decisions call the same Nest rules. | target=Household Living Rules owner; inventory=living_rules and Nest facade; references=home, audience and override callers; verification=Nest/workflow tests pass; residuals=none |
+| NGW-R06 | P0 | closed | Godot World owns bounded visual spatial queries and returns candidates without media or coordinates crossing Nest. | Runtime sources and contract tests cover range/FOV/occlusion ownership and stale inputs. | target=Godot spatial-query clauses; inventory=runtime/world and spatial query tests; references=Actor has no world-query owner path; verification=Godot contract validation plus 184-test focused suite; residuals=none |
+| NGW-R07 | P0 | closed | Godot World computes speech reach candidates while Nest retains content, emotion and final resident audience policy. | Speech uses the typed Nest bridge and does not invoke TTS/STT for Elfie hearing. | target=SpeechBridge clauses; inventory=runtime/world, gateway and interaction hub; references=protocol and speech workflow tests; verification=Godot runtime contract and targeted delivery tests pass; residuals=none |
+| NGW-R08 | P1 | closed | Environment actual state is a stable `nest/environment` object projection owned by Space and Facilities with Runtime provenance. | Desired state remains Time and Environment-owned and recovery resends only that desired state. | target=EnvironmentChannel clauses; inventory=space_facilities models/catalog, adapter and Godot environment controller; references=object-id validation; verification=29 environment/persistence tests and Godot runtime validation pass; residuals=none |
+| NGW-R09 | P1 | closed | Actor code performs body execution only; World and `spatial_queries.gd` own visual and speech queries, with one Bootstrap-created Gateway. | No Python physical mirror or second Gateway was introduced. | target=Godot authority clauses; inventory=godot_project/runtime and infrastructure/godot; references=world ownership/static scans; verification=runtime observer and scene-path tests pass; residuals=none |
+| NGW-R10 | P1 | closed | Web and Linux Dedicated export presets share a complete developer/authoring exclusion boundary and generated manifests record it. | Authoring-only candidates are classified and tracked `.import` sidecars under source trees are gone. | target=export boundary clauses; inventory=export presets, export_boundary.py and source candidates; references=22 export/runtime tests and zero source `.import` files; verification=manifest checks plus candidate/reference scan pass; residuals=none |
+| NGW-R11 | P1 | closed | README ownership and route descriptions now match the verified four-owner implementation; the register remains registered for separate governance-only removal. | Structural and evidence gates are retained rather than declaring debt zero early. | target=ADR-0015 closure lifecycle; inventory=English/Chinese contracts, READMEs, scanner and register; references=bilingual row parity and registry; verification=47 governance/architecture tests plus focused suite pass; residuals=none |
+| NGW-R12 | P0 | closed | Nest exposes only `NestSnapshot` and facade export/restore; App owns `NestStateStorePort` and timing; SQLite remains Infrastructure. | No Nest Repository export or deep `nest.state` mutation remains. | target=ADR-0016 persistence ownership; inventory=Nest snapshot, App ports/session and SQLite adapter; references=old repository/state import scan; verification=50 persistence/workflow tests and system-port architecture gate pass; residuals=none |
 
-## Binding migration order
+**Closure state:** ready
 
-Implementation work must use independently approved, reviewable slices. A phase
-migrates its real producer, typed boundary, consumer and focused evidence before
-the next phase starts.
+## Completed migration order
+
+Implementation used independently approved, reviewable slices. Each phase
+migrated its real producer, typed boundary, consumer and focused evidence before
+the next phase started.
 
 1. **NG-R1 — Unique event delivery (`NGW-R02`, `NGW-R03`).** Establish the one
    production Nest event consumer, preserve structured semantic payloads, then
@@ -102,10 +105,10 @@ the next phase starts.
    inputs from tests/authoring, then remove only proven dead artifacts and
    helpers. Do not delete scene/character content because it is not a business
    module.
-8. **NG-R8 — Current documentation and closure (`NGW-R11`).** Run the complete
+8. **NG-R8 — Current documentation and closure (`NGW-R11`).** Completed:
    direct-body, semantic-action, vision, speech, environment and lifecycle
-   scenarios; update current-state docs; close and delete this register in a
-   separate governance-only change only when all rows are genuinely closed.
+   scenarios were run; current-state docs and evidence are aligned. A separate
+   governance-only change may now remove this register and both registry entries.
 
 ## Evidence required before closing any row
 
@@ -126,5 +129,6 @@ When a row closes, its `Evidence` cell replaces `pending` with compact
 references covering the material above.
 
 A unit test, a passing transport round trip, a directory name, or a screenshot
-alone is insufficient. The register and its bilingual registry entries cannot
-be removed while any row remains open.
+alone is insufficient. All rows are now closed with the required five evidence
+fields; the register and its bilingual registry entries remain until the
+separate governance-only removal.

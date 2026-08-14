@@ -2,6 +2,7 @@ class_name NestAuthorityEndpoint
 extends RefCounted
 
 const PROTOCOL_VERSION := 3
+const ENVIRONMENT_OBJECT_ID := "nest/environment"
 
 ## Validate the typed command envelope before dispatching to a capability owner.
 ## This is the Godot endpoint boundary; it does not execute world or Body work.
@@ -64,8 +65,10 @@ func validate_command(
 			return false
 	elif command_name == "apply_environment":
 		var environment_command_id := String(payload.get("command_id", ""))
+		var environment_object_id := String(payload.get("object_id", ""))
 		if (
-			environment_command_id.is_empty()
+			environment_object_id != ENVIRONMENT_OBJECT_ID
+			or environment_command_id.is_empty()
 			or typeof(payload.get("lights_on")) != TYPE_BOOL
 			or typeof(payload.get("quiet_mode")) != TYPE_BOOL
 			or String(message.get("cause_id", "")) != environment_command_id

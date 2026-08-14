@@ -151,6 +151,7 @@ class VisualObservation:
 
 @dataclass(frozen=True)
 class EnvironmentState:
+    object_id: str
     command_id: str
     lights_on: bool
     quiet_mode: bool

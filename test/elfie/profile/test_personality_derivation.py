@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-import elfie.profile as profile
+import elfie.brain.selfhood as profile
 
 
 def test_description_derives_explainable_personality_deterministically() -> None:

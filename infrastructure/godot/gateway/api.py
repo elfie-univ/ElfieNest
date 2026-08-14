@@ -290,6 +290,7 @@ class GodotAPIServer:
     def apply_environment(
         self,
         *,
+        object_id: str,
         command_id: str,
         lights_on: bool,
         quiet_mode: bool,
@@ -299,6 +300,7 @@ class GodotAPIServer:
             self.send_runtime_command(
                 CommandName.APPLY_ENVIRONMENT,
                 {
+                    "object_id": object_id,
                     "command_id": command_id,
                     "lights_on": lights_on,
                     "quiet_mode": quiet_mode,

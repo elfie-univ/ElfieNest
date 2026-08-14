@@ -16,7 +16,7 @@ STRICT_BOUNDARY_FILES = (
     "infrastructure/godot/nest_session/ports.py",
     "infrastructure/godot/body_transport.py",
     "app/orchestration/message_delivery/owner_channel.py",
-    "nest/state/repository.py",
+    "app/orchestration/nest_session/ports.py",
     "elfie/brain/reasoning/food_port.py",
     "elfie/brain/reasoning/tool_port.py",
     "elfie/body/port.py",

@@ -137,11 +137,15 @@ class NestRuntimeEventRouter:
             return
         self._nest.apply_environment_actual(
             EnvironmentActualState(
+                object_id=payload.object_id,
                 command_id=payload.command_id,
                 lights_on=payload.lights_on,
                 quiet_mode=payload.quiet_mode,
                 applied=payload.applied,
                 reason=payload.reason,
+                runtime_id=event.connection.runtime_id,
+                runtime_generation=event.connection.generation,
+                world_revision=event.world_revision,
             )
         )
 

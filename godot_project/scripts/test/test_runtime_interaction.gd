@@ -32,6 +32,9 @@ func _init() -> void:
 		ACTOR_SCENES,
 		false,
 	)
+	world_controller.set_actor_provider(
+		Callable(controller, "actor_instances")
+	)
 	var synced := controller.sync_actors([
 		{
 			"actor_id": "fox-1",
@@ -49,13 +52,21 @@ func _init() -> void:
 	if not bool(synced.get("accepted", false)):
 		_fail("Interaction actors failed to sync")
 		return
+	# Face the observer toward the second actor so this test exercises the
+	# positive FOV path rather than relying on the scene's default orientation.
+	var fox := controller.actor("fox-1")
+	fox.look_at(fox.global_position + Vector3.RIGHT, Vector3.UP)
 
 	var events: Array[Dictionary] = []
+	world_controller.runtime_event.connect(
+		func(name: String, payload: Dictionary, _cause_id: String) -> void:
+			events.append({"name": name, "payload": payload})
+	)
 	controller.runtime_event.connect(
 		func(name: String, payload: Dictionary, _cause_id: String) -> void:
 			events.append({"name": name, "payload": payload})
 	)
-	controller.resolve_speech_reach({
+	world_controller.resolve_speech_reach({
 		"command_id": "speech-1",
 		"actor_id": "fox-1",
 		"acoustic_profile": "normal",
@@ -70,7 +81,7 @@ func _init() -> void:
 	if audience == null or audience.get("audience_actor_ids", []) != ["dog-1"]:
 		_fail("Speech audience was not limited to the active semantic zone")
 		return
-	controller.resolve_visual_observation({
+	world_controller.resolve_visual_observation({
 		"observation_id": "vision-1",
 		"actor_id": "fox-1",
 		"max_results": 8,
@@ -83,6 +94,67 @@ func _init() -> void:
 	if visual == null or "actor/dog-1" not in visible_ids:
 		_fail("Semantic visual observation did not include the nearby actor")
 		return
+	var dog := controller.actor("dog-1")
+	var observer_position := fox.global_position
+	var target_position := dog.global_position
+	# A target behind the observer must not be returned by the World query.
+	dog.global_position = observer_position + Vector3.RIGHT
+	world_controller.resolve_visual_observation({
+		"observation_id": "vision-behind",
+		"actor_id": "fox-1",
+		"max_results": 8,
+	})
+	var behind: Variant = _event_payload(events, "visual_observation", "vision-behind")
+	if behind != null and "actor/dog-1" in behind.get("visible_semantic_ids", []):
+		_fail("World visual query returned an actor behind the observer")
+		return
+	dog.global_position = target_position
+	var visual_obstacle := _add_query_obstacle(main, observer_position, target_position)
+	world_controller.resolve_visual_observation({
+		"observation_id": "vision-occluded",
+		"actor_id": "fox-1",
+		"max_results": 8,
+	})
+	var occluded: Variant = _event_payload(events, "visual_observation", "vision-occluded")
+	if occluded != null and "actor/dog-1" in occluded.get("visible_semantic_ids", []):
+		_fail("World visual query returned an occluded actor")
+		return
+	visual_obstacle.queue_free()
+	await physics_frame
+	# The bounded result contract is enforced by World, not by Nest.
+	world_controller.resolve_visual_observation({
+		"observation_id": "vision-bounded",
+		"actor_id": "fox-1",
+		"max_results": 1,
+	})
+	var bounded: Variant = _event_payload(events, "visual_observation", "vision-bounded")
+	if bounded == null or (bounded.get("visible_semantic_ids", []) as Array).size() > 1:
+		_fail("World visual query exceeded the requested result bound")
+		return
+	# A quiet voice cannot cross the same physical distance as a normal voice.
+	dog.global_position = observer_position + Vector3(0.0, 0.0, 2.5)
+	world_controller.resolve_speech_reach({
+		"command_id": "speech-quiet-range",
+		"actor_id": "fox-1",
+		"acoustic_profile": "quiet",
+	})
+	var quiet_range: Variant = _event_payload(events, "speech_reach", "speech-quiet-range")
+	if quiet_range == null or "dog-1" in quiet_range.get("audience_actor_ids", []):
+		_fail("Quiet speech ignored its bounded acoustic range")
+		return
+	dog.global_position = target_position
+	var speech_obstacle := _add_query_obstacle(main, observer_position, target_position)
+	world_controller.resolve_speech_reach({
+		"command_id": "speech-occluded",
+		"actor_id": "fox-1",
+		"acoustic_profile": "loud",
+	})
+	var occluded_speech: Variant = _event_payload(events, "speech_reach", "speech-occluded")
+	if occluded_speech == null or "dog-1" in occluded_speech.get("audience_actor_ids", []):
+		_fail("Speech reach ignored physical occlusion")
+		return
+	speech_obstacle.queue_free()
+	await physics_frame
 
 	controller.execute_intent({
 		"command_id": "expression-1",
@@ -227,6 +299,19 @@ func _add_runtime_obstacle(parent: Node) -> StaticBody3D:
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = Vector3(0.35, 1.8, 1.2)
+	collision.shape = shape
+	body.add_child(collision)
+	parent.add_child(body)
+	return body
+
+
+func _add_query_obstacle(parent: Node, first: Vector3, second: Vector3) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.name = "QueryObstacle"
+	body.position = (first + second) / 2.0 + Vector3.UP * 0.9
+	var collision := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(0.28, 1.8, 0.65)
 	collision.shape = shape
 	body.add_child(collision)
 	parent.add_child(body)

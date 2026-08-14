@@ -3,15 +3,19 @@
 import json
 import os
 import tempfile
-from dataclasses import replace
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, Optional
 
 from devtools.elfie_lab.schemas import ElfieSpec, derive_life_stage, new_id
-from elfie.profile import (
-    create_visual_profile,
+from elfie.brain.energy import load_packaged_energy_limits
+from elfie.brain.selfhood import (
     derive_personality,
-    load_packaged_profile_defaults,
+    load_packaged_selfhood_seed,
+)
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.elfie_workspace.brain_state import (
+    YamlEnergyLimitsAdapter,
+    YamlSelfhoodSeedAdapter,
 )
 from infrastructure.persistence.layout.data_home import get_elfie_developer_home
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
@@ -83,15 +87,15 @@ class ElfieLabStorage:
     ) -> Callable[[], None]:
         """持久化人工校准的人格五维，并保留派生来源。"""
         spec = self.get_elfie(elfie_id)
-        repository = YamlProfileStoreAdapter(self.elfie_dir(elfie_id) / "profile")
-        profile = repository.load()
+        repository = YamlSelfhoodSeedAdapter(self.elfie_dir(elfie_id) / "brain")
+        seed = repository.load()
         derivation = derive_personality(
             elfie_id,
             spec.personality_description,
             values,
         )
-        personality = {
-            **profile.personality,
+        selfhood_seed = {
+            **seed,
             "big_five": dict(derivation.big_five),
             "derivation": {
                 "preset": derivation.preset,
@@ -101,10 +105,10 @@ class ElfieLabStorage:
                 "seed": derivation.seed,
             },
         }
-        repository.save(replace(profile, personality=personality))
+        repository.save(selfhood_seed)
 
         def rollback() -> None:
-            repository.save(profile)
+            repository.save(seed)
 
         return rollback
 
@@ -186,15 +190,15 @@ class ElfieLabStorage:
             species_id=spec.species_id,
             seed=seed,
         )
-        defaults = load_packaged_profile_defaults()
-        profile = replace(profile, **cast(Dict[str, Any], defaults))
+        selfhood_seed = load_packaged_selfhood_seed()
+        energy_limits = load_packaged_energy_limits()
         derivation = derive_personality(
             spec.elfie_id,
             spec.personality_description,
             big_five_overrides,
         )
-        personality = {
-            **profile.personality,
+        selfhood_seed = {
+            **selfhood_seed,
             "big_five": dict(derivation.big_five),
             "derivation": {
                 "preset": derivation.preset,
@@ -204,8 +208,13 @@ class ElfieLabStorage:
                 "seed": derivation.seed,
             },
         }
-        profile = replace(profile, personality=personality)
         YamlProfileStoreAdapter(self.elfie_dir(spec.elfie_id) / "profile").save(profile)
+        YamlSelfhoodSeedAdapter(self.elfie_dir(spec.elfie_id) / "brain").save(
+            selfhood_seed
+        )
+        YamlEnergyLimitsAdapter(self.elfie_dir(spec.elfie_id) / "brain").save(
+            energy_limits
+        )
 
     def session_path(self, elfie_id: str, session_id: str) -> Path:
         self._validate_id(elfie_id)

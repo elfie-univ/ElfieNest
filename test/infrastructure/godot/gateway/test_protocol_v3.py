@@ -209,6 +209,7 @@ def test_protocol_v3_validates_environment_command_and_actual_state() -> None:
         world_revision=4,
         issued_at=OCCURRED_AT,
         payload={
+            "object_id": "nest/environment",
             "command_id": "environment-1",
             "lights_on": False,
             "quiet_mode": True,
@@ -227,6 +228,7 @@ def test_protocol_v3_validates_environment_command_and_actual_state() -> None:
             "world_revision": 4,
             "occurred_at": OCCURRED_AT.isoformat(),
             "payload": {
+                "object_id": "nest/environment",
                 "command_id": "environment-1",
                 "lights_on": False,
                 "quiet_mode": True,

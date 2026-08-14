@@ -166,6 +166,7 @@ class SettingsService:
                 "max_elfies_per_user",
                 f"必须在 1 到 {MAX_ELFIES_PER_MACHINE} 之间",
             )
+
     @staticmethod
     def _validate_security_settings(settings: StoredSecuritySettings) -> None:
         if settings.session_ttl_days < 1:

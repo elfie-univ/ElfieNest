@@ -1,6 +1,7 @@
 """Stable typed boundary surface for App orchestration callers."""
 
 from nest import Nest
+from nest.config import NestConfig, NestConfigError
 from nest.events import (
     HeardUtterance,
     NestEventEnvelope,
@@ -8,32 +9,31 @@ from nest.events import (
     SemanticVisualEntity,
     SemanticVisualScene,
 )
-from nest.state.config import NestConfig, NestConfigError
-from nest.state.models import (
-    AnchorKind,
-    EnvironmentActualState,
-    EnvironmentDesiredState,
-    EnvironmentRule,
-    FacilityDescriptor,
-    FacilityKind,
-    InteractionAnchor,
-    LifePhase,
-    PersistentResidentState,
-    ResidentPresence,
-    RuntimeResidentMirror,
-    WorldCatalog,
-    ZoneDescriptor,
-)
-from nest.state.repository import (
-    NestPersistenceError,
-    NestPersistenceSnapshot,
-    NestRepository,
-)
-from nest.state.store import (
+from nest.living_rules.errors import (
     BedConflictError,
     NoHomeAvailableError,
     ReconciliationRequiredError,
-    UnknownAnchorError,
+)
+from nest.living_rules.models import (
+    PersistentResidentState,
+    ResidentPresence,
+    RuntimeResidentMirror,
+)
+from nest.snapshot import NestSnapshot
+from nest.space_facilities.errors import UnknownAnchorError
+from nest.space_facilities.models import (
+    AnchorKind,
+    EnvironmentActualState,
+    FacilityDescriptor,
+    FacilityKind,
+    InteractionAnchor,
+    WorldCatalog,
+    ZoneDescriptor,
+)
+from nest.time_environment.models import (
+    EnvironmentDesiredState,
+    EnvironmentRule,
+    LifePhase,
 )
 
 __all__ = [
@@ -53,9 +53,7 @@ __all__ = [
     "Nest",
     "NestConfig",
     "NestConfigError",
-    "NestPersistenceError",
-    "NestPersistenceSnapshot",
-    "NestRepository",
+    "NestSnapshot",
     "NestEventEnvelope",
     "NoHomeAvailableError",
     "PersistentResidentState",

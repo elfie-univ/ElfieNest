@@ -123,7 +123,7 @@ _TABLE_STATEMENTS: Final = (
         clock_anchor_seconds REAL NOT NULL DEFAULT 0 CHECK(clock_anchor_seconds>=0),
         clock_paused INTEGER NOT NULL DEFAULT 0 CHECK(clock_paused IN (0,1)),
         time_scale REAL NOT NULL DEFAULT 1 CHECK(time_scale>0),
-        environment_desired_json TEXT NOT NULL DEFAULT '{"lights_on":true,"quiet_mode":false}'
+        environment_desired_json TEXT NOT NULL DEFAULT '{"object_id":"nest/environment","lights_on":true,"quiet_mode":false}'
             CHECK(json_valid(environment_desired_json) AND json_type(environment_desired_json)='object'),
         environment_rules_json TEXT NOT NULL DEFAULT '[]'
             CHECK(json_valid(environment_rules_json) AND json_type(environment_rules_json)='array'),

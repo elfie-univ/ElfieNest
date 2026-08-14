@@ -174,12 +174,14 @@ class _RequestVisualObservationPayload(_Payload):
 
 
 class _ApplyEnvironmentPayload(_Payload):
+    object_id: str = Field(min_length=1)
     command_id: str = Field(min_length=1)
     lights_on: bool
     quiet_mode: bool
 
 
 class _EnvironmentStatePayload(_Payload):
+    object_id: str = Field(min_length=1)
     command_id: str = Field(min_length=1)
     lights_on: bool
     quiet_mode: bool
