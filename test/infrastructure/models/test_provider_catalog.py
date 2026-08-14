@@ -93,17 +93,19 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
     assert catalog.products["openai_api"].legacy_provider_id == "openai"
     assert catalog.products["openai_api"].usage_scope == "general"
     assert catalog.brands["openai"].logo_asset == "brands/openai.svg"
-    assert catalog.products["jdcloud_coding_plan"].api_base == (
-        "https://modelservice.jdcloud.com/coding/openai/v1"
+    assert catalog.products["volcengine_coding_plan"].api_base == (
+        "https://ark.cn-beijing.volces.com/api/coding/v3"
     )
-    assert catalog.products["jdcloud_coding_plan"].bundled_models == [
-        "DeepSeek-V3.2",
-        "GLM-5",
-        "GLM-4.7",
-        "MiniMax-M2.5",
-        "Kimi-K2.5",
-        "Kimi-K2-Turbo",
-        "Qwen3-Coder",
+    assert catalog.products["volcengine_coding_plan"].bundled_models == [
+        "ark-code-latest",
+        "doubao-seed-2.0-code",
+        "doubao-seed-2.0-pro",
+        "doubao-seed-2.0-lite",
+        "doubao-seed-code",
+        "minimax-m2.5",
+        "glm-4.7",
+        "deepseek-v3.2",
+        "kimi-k2.5",
     ]
     assert catalog.products["glm_api"].brand_id == "zhipu"
     assert catalog.products["kimi_api"].brand_id == "moonshot"
@@ -123,7 +125,7 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
         "mistral",
         "groq",
         "custom_openai",
-        "jdcloud_coding_plan",
+        "volcengine_coding_plan",
     } == set(catalog.profiles)
 
 
