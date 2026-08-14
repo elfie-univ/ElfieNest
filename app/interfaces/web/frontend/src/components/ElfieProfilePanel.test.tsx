@@ -70,6 +70,22 @@ describe("ElfieProfilePanel", () => {
     expect(screen.getByText(HAPPY_EXPERIENCE.publicProfile.biography)).toBeInTheDocument()
     expect(screen.getByText("晨间巡游")).toBeInTheDocument()
   })
+
+  it("uses the registry species presentation instead of a frontend species map", () => {
+    const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
+
+    renderWithI18n(
+      <ElfieProfilePanel
+        onBack={vi.fn()}
+        onChat={vi.fn()}
+        projection={projection}
+        speciesDefinition={{ display_name: "Vulpine", display_name_zh: "灵狐" }}
+      />,
+    )
+
+    expect(screen.getByLabelText("灵狐")).toHaveClass("profile-dossier__species")
+  })
+
   it("keeps the desktop portrait track bound to the visible portrait width", () => {
     // Given: the responsive profile stylesheet.
     const identityRule = profileStyles.match(/\.profile-dossier__identity\s*\{[^}]+\}/)?.[0] ?? ""
@@ -107,12 +123,12 @@ describe("ElfieProfilePanel", () => {
 
     // Then: the reference-led public hierarchy and adopter relationship are visible.
     expect(screen.getByRole("heading", { level: 1, name: "Happy" })).toBeInTheDocument()
-    expect(screen.getByText("🦊", { selector: ".profile-dossier__species" })).toBeInTheDocument()
+    expect(screen.getByText("✦", { selector: ".profile-dossier__species" })).toBeInTheDocument()
     expect(screen.getByText(HAPPY_EXPERIENCE.publicProfile.biography)).toBeInTheDocument()
     expect(screen.getByText("我")).toBeInTheDocument()
     expect(screen.getByText("1 个月")).toBeInTheDocument()
-    expect(screen.queryByText("2026-06-30")).not.toBeInTheDocument()
-    expect(screen.queryByText("12345678")).not.toBeInTheDocument()
+    expect(screen.getByText("2026-06-30")).toBeInTheDocument()
+    expect(screen.getByText("12345678")).toBeInTheDocument()
   })
 
   it("keeps the approved card order and removes the old eyebrow and biography heading", () => {
@@ -133,12 +149,14 @@ describe("ElfieProfilePanel", () => {
       throw new TypeError("Expected the approved identity card structure")
     }
     expect(nameRow.querySelector("h1")?.textContent).toBe("Happy")
-    expect(nameRow.querySelector(".profile-dossier__species")?.textContent).toBe("🦊")
+    expect(nameRow.querySelector(".profile-dossier__species")?.textContent).toBe("✦")
     expect(identity).not.toHaveTextContent("你的精灵")
     expect(identity).not.toHaveTextContent("关于我")
     expect([...metadata.children].map((item) => item.textContent?.replace(/\s+/g, " ").trim())).toEqual([
       "年龄1 个月",
       "主人我",
+      "领养日期2026-06-30",
+      "ID12345678",
     ])
     expect(biography.querySelector("span")?.textContent).toBe("简介：")
     expect(biography.querySelector("p")?.textContent).toBe(HAPPY_EXPERIENCE.publicProfile.biography)

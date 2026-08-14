@@ -40,7 +40,6 @@ class SpeciesCanon:
     earth_shape_label: str
     technical_species_id: str
     visual_runtime_supported: bool
-    avatar_url: str
     sort_order: int
     candidate_names: tuple[tuple[str, str], ...]
     common_sensory_biases: tuple[str, ...]
@@ -74,7 +73,6 @@ _SPECIES_CANON: dict[str, SpeciesCanon] = {
         earth_shape_label="fox-like",
         technical_species_id="fox",
         visual_runtime_supported=True,
-        avatar_url="/assets/adoption/fox.svg",
         sort_order=0,
         candidate_names=(
             ("阿洛", "洛洛"),
@@ -100,7 +98,6 @@ _SPECIES_CANON: dict[str, SpeciesCanon] = {
         earth_shape_label="dog-like",
         technical_species_id="dog",
         visual_runtime_supported=True,
-        avatar_url="/assets/adoption/dog.svg",
         sort_order=1,
         candidate_names=(
             ("布谷", "布布"),
@@ -125,8 +122,9 @@ _SPECIES_CANON: dict[str, SpeciesCanon] = {
         display_name_zh="灵猫",
         earth_shape_label="cat-like",
         technical_species_id="cat",
-        visual_runtime_supported=True,
-        avatar_url="/assets/adoption/cat.svg",
+        # Myelle remains a narrative design card, but is not product-visible
+        # until a complete Godot species package is supplied and verified.
+        visual_runtime_supported=False,
         sort_order=2,
         candidate_names=(
             ("弥弥", "米米"),

@@ -5,7 +5,7 @@ import { isManageTab, MANAGE_NAV_GROUPS, MANAGE_NAV_ITEMS } from "./manageNaviga
 describe("MANAGE_NAV_ITEMS", () => {
   it("uses the approved Lucide icon key for every management destination", () => {
     expect(MANAGE_NAV_ITEMS.map((item) => item.icon)).toEqual([
-      "activity", "users", "cat", "house", "plug-zap", "utensils", "settings"
+      "activity", "users", "paw-print", "house", "plug-zap", "utensils", "settings"
     ])
   })
 

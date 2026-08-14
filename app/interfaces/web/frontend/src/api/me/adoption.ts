@@ -12,7 +12,6 @@ const AdoptionInfoSchema = z.object({
     display_name: z.string().min(1),
     display_name_zh: z.string().min(1),
     earth_shape_label: z.string().min(1),
-    avatar_url: z.string().min(1),
     scene_id: z.string().min(1),
     sort_order: z.number().int(),
   })),
@@ -85,6 +84,7 @@ const AdoptionResultSchema = z.object({
 })
 
 export type AdoptionInfo = z.infer<typeof AdoptionInfoSchema>
+export type AdoptionSpecies = AdoptionInfo["species"][number]
 export type AdoptionCandidate = z.infer<typeof AdoptionCandidateSchema>
 export type AdoptionCandidateSet = z.infer<typeof AdoptionCandidateSetSchema>
 export type AdoptionReply = z.infer<typeof AdoptionReplySchema>

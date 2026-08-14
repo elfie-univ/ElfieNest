@@ -21,24 +21,26 @@ characters/
 ├── shared/
 │   └── elfie_actor.gd      # movement, animation loading and adaptive main collider
 ├── dog/
-│   ├── dog.glb
-│   └── dog.tscn
+│   ├── dog.glb                  # production model + Skeleton3D
+│   ├── dog.tscn                 # CharacterBody3D runtime wrapper
+│   └── species_manifest.json    # completeness declaration
 ├── fox/
 │   ├── fox.glb
-│   └── fox.tscn
-├── cat/
-│   └── cat.tscn              # Myelle procedural visual v0.1
+│   ├── fox.tscn
+│   └── species_manifest.json
 ├── CHARACTER_CREATION_GUIDE.md
 ├── BLENDER_APPEARANCE_AUTHORING_GUIDE.md
 └── APPEARANCE_SYSTEM_SPEC.md
 ```
 
-Saevi (fox), Tovren (dog), and Myelle (cat) are the current selectable species.
-Myelle's first runtime visual is a code-native, reusable scene while the
-production cat asset is being authored; it still uses the same actor, collision,
-appearance, and animation-name contracts. At runtime the scene is selected by
-`species`; when older data has no `species`, the existing stable fallback is
-preserved.
+Saevi (fox) and Tovren (dog) are the current selectable species. Myelle (cat)
+remains a narrative/profile design entry only: it has no complete production
+asset package and is intentionally unavailable at runtime. A species becomes
+selectable only after its directory contains a complete manifest-validated
+package; the runtime never substitutes a procedural scene, SVG, or other
+placeholder. At runtime the scene is selected by `species`; when older data has
+no `species`, the existing stable fallback is preserved only among accepted
+packages.
 
 ## Runtime collision principles
 
@@ -59,8 +61,9 @@ preserved.
   textures per Elfie;
 - Per-individual differences are described by appearance data keyed on
   `elfie_id` and never written back into shared assets;
-- A new species must provide its own thin-wrapper scene and reuse
-  `shared/elfie_actor.gd`;
+- A new species must provide its own complete package and thin-wrapper scene,
+  including a production model, manifest, real portrait/preview path, and all
+  required shared animations. The package must reuse `shared/elfie_actor.gd`;
 - Public bipedal animations may only be added to `animation/` after passing
   validation against the unified skeleton mapping;
 - Quadruped forms will be added as an independent locomotion asset in the
@@ -68,6 +71,8 @@ preserved.
 
 The full production flow and acceptance checklist live in the
 [Character creation and integration guide](CHARACTER_CREATION_GUIDE.md).
+The normative package requirements and machine validation rules live in the
+[Species asset package contract](../../docs/developer/contracts/species-asset-package.md).
 Appearance parameters, Blender shape keys, species configuration and
 random-generation constraints are in the
 [Appearance parameter and species master spec](APPEARANCE_SYSTEM_SPEC.md). When

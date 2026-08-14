@@ -13,3 +13,4 @@ in `conformance/`; reasons for deliberate contract changes belong in
 - [Elfie Brain internal architecture](./brain)
 - [Application architecture](./application)
 - [Model, Food and tool behavior](./model-food-tool-behavior)
+- [Species asset package](./species-asset-package)

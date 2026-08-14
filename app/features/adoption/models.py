@@ -46,7 +46,6 @@ class AdoptionSpecies:
     display_name: str
     display_name_zh: str
     earth_shape_label: str
-    avatar_url: str
     scene_id: str
     sort_order: int
 

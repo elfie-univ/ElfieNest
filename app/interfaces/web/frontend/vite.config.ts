@@ -21,13 +21,9 @@ function exposeLazyAssetsToWebHost(): Plugin {
         .filter((name) => name.endsWith(".svg"))
         .sort()
         .map((name) => `brands/${name}`)
-      const adoptionAssets = (await readdir(resolve(frontendRoot, "public/assets/adoption")))
-        .filter((name) => name.endsWith(".svg"))
-        .sort()
-        .map((name) => `assets/adoption/${name}`)
       await writeFile(
         manifestPath,
-        `${JSON.stringify(exposePublicAssets(exposeDynamicImportAssets(manifest), [...brandAssets, ...adoptionAssets]), null, 2)}\n`,
+        `${JSON.stringify(exposePublicAssets(exposeDynamicImportAssets(manifest), brandAssets), null, 2)}\n`,
         "utf8",
       )
     },

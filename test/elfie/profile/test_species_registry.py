@@ -1,4 +1,7 @@
+import json
 from pathlib import Path
+
+import pytest
 
 from elfie.profile import (
     SUPPORTED_SPECIES,
@@ -15,29 +18,39 @@ def test_species_registry_is_complete_and_stably_ordered() -> None:
     assert (
         tuple(definition.species_id for definition in definitions) == SUPPORTED_SPECIES
     )
-    assert tuple(definition.sort_order for definition in definitions) == (0, 1, 2)
-    assert all(
-        definition.avatar_url.startswith("/assets/adoption/")
-        for definition in definitions
-    )
+    assert tuple(definition.sort_order for definition in definitions) == (0, 1)
     assert all(definition.scene_id for definition in definitions)
     assert all(len(definition.canon.candidate_names) >= 5 for definition in definitions)
 
     project_root = Path(__file__).resolve().parents[3]
+    package_root = project_root / "godot_project" / "characters"
+    package_ids = {
+        manifest.parent.name
+        for manifest in package_root.glob("*/species_manifest.json")
+    }
+    assert package_ids == set(SUPPORTED_SPECIES)
     for definition in definitions:
-        avatar_path = (
-            project_root
-            / "app/interfaces/web/frontend/public"
-            / definition.avatar_url.lstrip("/")
-        )
+        manifest_path = package_root / definition.scene_id / "species_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         scene_path = (
-            project_root
-            / "godot_project/characters"
+            package_root
             / definition.scene_id
-            / f"{definition.scene_id}.tscn"
+            / manifest["scene_file"]
         )
-        assert avatar_path.is_file()
+        model_path = package_root / definition.scene_id / manifest["model_file"]
+        assert manifest["species_id"] == definition.species_id
         assert scene_path.is_file()
+        assert model_path.is_file()
+        assert manifest["required_nodes"]
+        assert manifest["required_animations"]
+        assert manifest["required_capabilities"] == [
+            "movement",
+            "appearance",
+            "portrait",
+            "preview",
+        ]
+
+    assert not (package_root / "cat").exists()
 
 
 def test_species_lookup_is_data_driven_for_each_registered_id() -> None:
@@ -45,3 +58,6 @@ def test_species_lookup_is_data_driven_for_each_registered_id() -> None:
         resolved = get_species_definition(definition.species_id)
         assert resolved.canon_id == definition.canon_id
         assert resolved.appearance.species_id == definition.species_id
+
+    with pytest.raises(ValueError, match="cat"):
+        get_species_definition("cat")

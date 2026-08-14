@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
+import type { AdoptionSpecies } from "../api/me/adoption"
 import type { AppearanceCaptureAdapter } from "./elfie-profile/appearance-capture"
 import type { ElfieProfileProjection } from "./elfie-profile/projection"
 import { PersonalIdentityFrame } from "./elfie-profile/PersonalIdentityFrame"
@@ -15,6 +16,7 @@ type ElfieProfilePanelProps = {
   readonly onChat: () => void
   readonly onFoodSaved?: (() => Promise<void>) | undefined
   readonly projection: ElfieProfileProjection | null
+  readonly speciesDefinition?: Pick<AdoptionSpecies, "display_name" | "display_name_zh"> | undefined
 }
 
 type LocalAvatar = {
@@ -29,6 +31,7 @@ export function ElfieProfilePanel({
   onChat,
   onFoodSaved,
   projection,
+  speciesDefinition,
 }: ElfieProfilePanelProps) {
   const { t } = useTranslation("chat")
   const [localAvatar, setLocalAvatar] = useState<LocalAvatar | null>(null)
@@ -57,6 +60,7 @@ export function ElfieProfilePanel({
         onChat={onChat}
         portraitOverride={portraitOverride}
         projection={projection}
+        speciesDefinition={speciesDefinition}
       />
       <ProfileAppearanceStage
         canCapture={projection.kind === "adopter"}

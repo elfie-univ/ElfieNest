@@ -115,7 +115,6 @@ class AdoptionSpeciesResponse(BaseModel):
     display_name: str = Field(min_length=1)
     display_name_zh: str = Field(min_length=1)
     earth_shape_label: str = Field(min_length=1)
-    avatar_url: str = Field(min_length=1)
     scene_id: str = Field(min_length=1)
     sort_order: int
 
@@ -145,7 +144,6 @@ class AdoptionOptionsResponse(BaseModel):
                     display_name=species.display_name,
                     display_name_zh=species.display_name_zh,
                     earth_shape_label=species.earth_shape_label,
-                    avatar_url=species.avatar_url,
                     scene_id=species.scene_id,
                     sort_order=species.sort_order,
                 )

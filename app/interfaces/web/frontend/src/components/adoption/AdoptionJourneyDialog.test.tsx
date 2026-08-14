@@ -16,6 +16,28 @@ const api = vi.hoisted(() => ({
 
 vi.mock("../../api/me/adoption", () => api)
 
+vi.mock("../elfie-profile/profile-godot-preview", () => ({
+  ProfileGodotPreviewError: class ProfileGodotPreviewError extends Error {
+    public readonly reason: string
+
+    public constructor(reason: string) {
+      super(reason)
+      this.reason = reason
+    }
+  },
+  createProfileGodotPreview: ({ onEvent }: { readonly onEvent: (event: { readonly kind: "ready" | "completed"; readonly action?: string; readonly requestId?: string }) => void }) => {
+    queueMicrotask(() => onEvent({ kind: "ready" }))
+    return {
+      capture: () => {
+        queueMicrotask(() => onEvent({ kind: "completed", action: "capture", requestId: "test-capture" }))
+        return Promise.resolve({ blob: new Blob(["png"], { type: "image/png" }), previewUrl: "preview://test" })
+      },
+      dispose: vi.fn(),
+      send: (action: string) => queueMicrotask(() => onEvent({ kind: "completed", action, requestId: "test-action" })),
+    }
+  },
+}))
+
 function candidate(index: number) {
   return {
     candidate_id: `candidate-${index}`,
@@ -27,7 +49,7 @@ function candidate(index: number) {
     headshot_image_url: `data:image/png;base64,head-${index}`,
     appearance_tags: ["Balanced", "Soft"],
     personality_tags: ["Curious", "Warm"],
-    runtime_appearance: {},
+    runtime_appearance: { species_id: "fox" },
   }
 }
 
@@ -38,7 +60,6 @@ const species = [
     display_name: "Saevi",
     display_name_zh: "灵狐",
     earth_shape_label: "fox-like",
-    avatar_url: "/assets/adoption/fox.svg",
     scene_id: "fox",
     sort_order: 0,
   },
@@ -48,25 +69,15 @@ const species = [
     display_name: "Tovren",
     display_name_zh: "灵犬",
     earth_shape_label: "dog-like",
-    avatar_url: "/assets/adoption/dog.svg",
     scene_id: "dog",
     sort_order: 1,
-  },
-  {
-    species_id: "cat",
-    canon_id: "myelle",
-    display_name: "Myelle",
-    display_name_zh: "灵猫",
-    earth_shape_label: "cat-like",
-    avatar_url: "/assets/adoption/cat.svg",
-    scene_id: "cat",
-    sort_order: 2,
   },
 ] as const
 
 describe("AdoptionJourneyDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() })
     window.localStorage.clear()
     api.adoptionInfo.mockResolvedValue({
       personality_styles: ["好奇探索"],
@@ -179,15 +190,11 @@ describe("AdoptionJourneyDialog", () => {
     expect(screen.queryByText("第一步 · 基本意向")).not.toBeInTheDocument()
     expect(screen.queryByText("先确定物种、生命阶段和性别倾向。选择的是愿意见见的范围，不是在设置某一位精灵的身份。")).not.toBeInTheDocument()
     expect(screen.queryByText("看看灵狐报名者")).not.toBeInTheDocument()
-    const speciesChoices = screen.getAllByRole("button", { name: /灵狐|灵犬|灵猫/ })
-    expect(speciesChoices).toHaveLength(3)
+    const speciesChoices = screen.getAllByRole("button", { name: /灵狐|灵犬/ })
+    expect(speciesChoices).toHaveLength(2)
     expect(speciesChoices[0]).toHaveTextContent("灵狐")
     expect(speciesChoices[0]).toHaveAttribute("aria-pressed", "false")
-    expect(speciesChoices.map((choice) => choice.querySelector("img")?.getAttribute("src"))).toEqual([
-      "/assets/adoption/fox.svg",
-      "/assets/adoption/dog.svg",
-      "/assets/adoption/cat.svg",
-    ])
+    expect(speciesChoices.every((choice) => choice.querySelector("img") === null)).toBe(true)
     await user.click(screen.getByRole("button", { name: /灵狐/ }))
     await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
     expect(screen.queryByText("第二步 · 外貌倾向")).not.toBeInTheDocument()

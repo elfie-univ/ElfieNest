@@ -23,7 +23,6 @@ class SpeciesDefinition:
     display_name: str
     display_name_zh: str
     earth_shape_label: str
-    avatar_url: str
     scene_id: str
     sort_order: int
     enabled: bool
@@ -48,7 +47,6 @@ def _build_registry() -> tuple[SpeciesDefinition, ...]:
                 display_name=canon.display_name,
                 display_name_zh=canon.display_name_zh,
                 earth_shape_label=canon.earth_shape_label,
-                avatar_url=canon.avatar_url,
                 scene_id=appearance.scene_id,
                 sort_order=canon.sort_order,
                 enabled=canon.visual_runtime_supported,
@@ -103,10 +101,6 @@ def validate_species_registry() -> None:
             or not definition.display_name_zh.strip()
         ):
             raise ValueError(f"物种 {definition.species_id!r} 缺少显示名称")
-        if not definition.avatar_url.startswith("/"):
-            raise ValueError(
-                f"物种 {definition.species_id!r} 的头像 URL 必须是绝对路径"
-            )
         if not definition.scene_id.strip():
             raise ValueError(f"物种 {definition.species_id!r} 缺少 Godot scene_id")
         if len(definition.canon.candidate_names) < 5:

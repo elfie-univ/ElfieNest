@@ -257,7 +257,6 @@ def _species_result(species_id: str) -> AdoptionSpecies:
         display_name=definition.display_name,
         display_name_zh=definition.display_name_zh,
         earth_shape_label=definition.earth_shape_label,
-        avatar_url=definition.avatar_url,
         scene_id=definition.scene_id,
         sort_order=definition.sort_order,
     )

@@ -15,7 +15,7 @@ from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 @pytest.mark.parametrize(
     ("species_id", "species_name"),
-    (("fox", "Saevi"), ("dog", "Tovren"), ("cat", "Myelle")),
+    (("fox", "Saevi"), ("dog", "Tovren")),
 )
 def test_workspace_adapter_materializes_the_final_elfie_profile(
     tmp_path: Path,
@@ -85,15 +85,15 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(
     assert not Path(workspace).exists()
 
 
-def test_workspace_adapter_uses_a_cat_compatible_pattern_for_marked_signature(
+def test_workspace_adapter_uses_a_species_compatible_pattern_for_marked_signature(
     tmp_path: Path,
 ) -> None:
     adapter = FinalElfieWorkspaceAdapter(tmp_path)
     reservation = AcceptedAdoptionReservation(
         elfie_id="00000002",
         owner_user_id=7,
-        name="弥弥",
-        species_id="cat",
+        name="星砂",
+        species_id="dog",
         personality_style="好奇探索",
         height="standard",
         build="standard",
@@ -107,8 +107,8 @@ def test_workspace_adapter_uses_a_cat_compatible_pattern_for_marked_signature(
     workspace = adapter.materialize(reservation)
     profile = YamlProfileStoreAdapter(Path(workspace) / "profile").load()
 
-    assert profile.identity.species_id == "cat"
-    assert profile.appearance.coat.pattern_id == "tabby"
+    assert profile.identity.species_id == "dog"
+    assert profile.appearance.coat.pattern_id == "face_mask"
     profile.validate()
     adapter.release(reservation.elfie_id)
 

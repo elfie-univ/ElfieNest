@@ -3,7 +3,7 @@ import type { IconName } from "../components/Icon"
 export const MANAGE_NAV_ITEMS = [
   { id: "monitor", icon: "activity" },
   { id: "users", icon: "users" },
-  { id: "elfies", icon: "cat" },
+  { id: "elfies", icon: "paw-print" },
   { id: "nest", icon: "house" },
   { id: "providers", icon: "plug-zap" },
   { id: "foods", icon: "utensils" },

@@ -298,8 +298,8 @@ Godot 版本必须与 `godot_project/project.godot` 的 `config/features` 一致
 
 ### 9.3 当前项目实现
 
-`dog.tscn`、`fox.tscn` 和 `cat.tscn` 都提供 `CharacterBody3D + CapsuleShape3D`。
-共享脚本
+`dog.tscn` 和 `fox.tscn` 都提供 `CharacterBody3D + CapsuleShape3D`。
+每个可用物种还必须有同目录的正式 `.glb` 与 `species_manifest.json`；共享脚本
 根据以下数据同步视觉和主胶囊：
 
 ```json
@@ -316,9 +316,9 @@ Godot 版本必须与 `godot_project/project.godot` 的 `config/features` 一致
 
 ## 10. 公共动画与重定向
 
-狗和狐狸的 Mixamo 主骨名称一致，可以共享双足动作，但骨长和参考姿态不同。猫的
-程序化场景复用相同的动画名称契约，正式骨骼资产接入前不伪造 Mixamo 骨骼。
-不能只凭文件能播放就认定验收通过。
+狗和狐狸的 Mixamo 主骨名称一致，可以共享双足动作，但骨长和参考姿态不同。
+灵猫没有正式骨骼资产之前，不得创建或启用一个空场景来伪造动画契约。不能只凭
+文件能播放就认定验收通过。
 
 每个新物种必须检查：
 
