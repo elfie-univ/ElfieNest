@@ -34,12 +34,24 @@ case "$MODE" in
     source_development)
         export ELFIENEST_RUNTIME_MODE="development"
         export ELFIENEST_SOURCE_ROOT="$SCRIPT_DIR"
-        # Development mode: silent dependency check, only show install when missing
-        if ! "$SCRIPT_DIR/scripts/bootstrap.sh" check --tier=dev >/dev/null 2>&1; then
-            echo "  🦊 Detected missing dependencies, installing..." >&2
-            if ! "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=dev; then
-                echo "  ❌ Dependency installation failed, please fix as instructed" >&2
-                exit 1
+        # Development mode: silent dependency check, only show install when missing.
+        # Help is a shell-owned command and piped command streams should not trigger
+        # a dependency installation before they can report their requested output.
+        skip_dependency_repair=false
+        if [[ $# -gt 0 ]]; then
+            case "$1" in
+                help|h|\?|--help|-h) skip_dependency_repair=true ;;
+            esac
+        elif [[ ! -t 0 ]]; then
+            skip_dependency_repair=true
+        fi
+        if [[ "$skip_dependency_repair" != "true" ]]; then
+            if ! "$SCRIPT_DIR/scripts/bootstrap.sh" check --tier=dev >/dev/null 2>&1; then
+                echo "  🦊 Detected missing dependencies, installing..." >&2
+                if ! "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=dev; then
+                    echo "  ❌ Dependency installation failed, please fix as instructed" >&2
+                    exit 1
+                fi
             fi
         fi
         ;;

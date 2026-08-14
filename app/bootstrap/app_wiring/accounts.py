@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
-from app.features.accounts import AccountsService
-from infrastructure.persistence.accounts import SQLiteAccountsAdapter
-from infrastructure.persistence.configuration.settings import RuntimeSettingsAdapter
-from infrastructure.persistence.layout.data_home import (
-    data_home_from_db_path,
-    get_config_path,
-)
-from infrastructure.persistence.layout.data_layout import final_root_layout
-from infrastructure.platform import (
-    RuntimeSecurityPolicyAdapter,
-    SettingsAccountQuotaPolicyAdapter,
-)
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.features.accounts import AccountsService
+    from infrastructure.persistence.configuration.settings import (
+        RuntimeSettingsAdapter,
+    )
 
 
 def build_accounts_service(
@@ -22,6 +17,21 @@ def build_accounts_service(
     settings: RuntimeSettingsAdapter | None = None,
 ) -> AccountsService:
     """Build one Accounts facade without exposing concrete adapters to callers."""
+    from app.features.accounts import AccountsService
+    from infrastructure.persistence.accounts import SQLiteAccountsAdapter
+    from infrastructure.persistence.configuration.settings import (
+        RuntimeSettingsAdapter,
+    )
+    from infrastructure.persistence.layout.data_home import (
+        data_home_from_db_path,
+        get_config_path,
+    )
+    from infrastructure.persistence.layout.data_layout import final_root_layout
+    from infrastructure.platform import (
+        RuntimeSecurityPolicyAdapter,
+        SettingsAccountQuotaPolicyAdapter,
+    )
+
     config_path = get_config_path()
     if db_path != ":memory:":
         config_path = final_root_layout(data_home_from_db_path(db_path)).runtime_config
