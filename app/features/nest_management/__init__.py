@@ -10,7 +10,7 @@ from .errors import (
     NestResidentNotFound,
 )
 from .models import (
-    AssignNestBedCommand,
+    AssignNestHomeCommand,
     NestBed,
     NestBedAssignment,
     NestConfiguration,
@@ -29,7 +29,7 @@ from .ports import (
 from .service import NestManagementService
 
 __all__ = (
-    "AssignNestBedCommand",
+    "AssignNestHomeCommand",
     "NestBed",
     "NestBedAssignment",
     "NestBedConflict",

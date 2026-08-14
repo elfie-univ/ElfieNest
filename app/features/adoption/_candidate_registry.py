@@ -224,7 +224,10 @@ class CandidateRegistry:
             raise AdoptionInvalid("candidate_ids 必须选择 1-3 位候选")
         invitation_message = _validate_invitation_message(invitation_message)
         snapshot = self._get(candidate_set_id, owner_user_id=owner_user_id)
-        lookup = {candidate.public.candidate_id: candidate for candidate in snapshot.candidates}
+        lookup = {
+            candidate.public.candidate_id: candidate
+            for candidate in snapshot.candidates
+        }
         if any(candidate_id not in lookup for candidate_id in candidate_ids):
             raise AdoptionCandidateSetExpired("候选名单已变化，请重新发送意向")
         if snapshot.invited_candidate_ids:
@@ -392,7 +395,9 @@ class CandidateRegistry:
                 last_error = error
         raise AdoptionInvalid(str(last_error or "候选生成失败")) from last_error
 
-    def _get(self, candidate_set_id: str, *, owner_user_id: int) -> CandidateSetSnapshot:
+    def _get(
+        self, candidate_set_id: str, *, owner_user_id: int
+    ) -> CandidateSetSnapshot:
         self._purge_expired()
         snapshot = self._candidate_sets.get(candidate_set_id)
         if snapshot is None or snapshot.owner_user_id != owner_user_id:
@@ -454,11 +459,15 @@ class CandidateRegistry:
 def _appearance_tags(
     candidate: GenesisCandidate, intent: CandidateAppearance
 ) -> tuple[str, ...]:
-    stature = "小巧" if candidate.appearance.macro.stature_z <= -0.45 else (
-        "高挑" if candidate.appearance.macro.stature_z >= 0.45 else "适中"
+    stature = (
+        "小巧"
+        if candidate.appearance.macro.stature_z <= -0.45
+        else ("高挑" if candidate.appearance.macro.stature_z >= 0.45 else "适中")
     )
-    build = "轻盈" if candidate.appearance.macro.body_fat_z <= -0.45 else (
-        "圆润" if candidate.appearance.macro.body_fat_z >= 0.45 else "匀称"
+    build = (
+        "轻盈"
+        if candidate.appearance.macro.body_fat_z <= -0.45
+        else ("圆润" if candidate.appearance.macro.body_fat_z >= 0.45 else "匀称")
     )
     face = {"soft": "柔和", "defined": "鲜明"}.get(intent.face, "均衡")
     signature = {"warm": "暖色", "marked": "花纹", "ears": "耳尾"}.get(
@@ -488,14 +497,18 @@ def _runtime_appearance(candidate: GenesisCandidate) -> dict[str, object]:
 
 
 def _height_label(candidate: GenesisCandidate) -> str:
-    return "short" if candidate.appearance.macro.stature_z < -0.35 else (
-        "tall" if candidate.appearance.macro.stature_z > 0.35 else "standard"
+    return (
+        "short"
+        if candidate.appearance.macro.stature_z < -0.35
+        else ("tall" if candidate.appearance.macro.stature_z > 0.35 else "standard")
     )
 
 
 def _build_label(candidate: GenesisCandidate) -> str:
-    return "slim" if candidate.appearance.macro.body_fat_z < -0.35 else (
-        "plump" if candidate.appearance.macro.body_fat_z > 0.35 else "standard"
+    return (
+        "slim"
+        if candidate.appearance.macro.body_fat_z < -0.35
+        else ("plump" if candidate.appearance.macro.body_fat_z > 0.35 else "standard")
     )
 
 
@@ -568,4 +581,9 @@ def _validate_invitation_message(value: str) -> str:
     return value
 
 
-__all__ = ("CandidateRegistry", "CandidateSessionSnapshot", "CandidateSnapshot", "CandidateSetSnapshot")
+__all__ = (
+    "CandidateRegistry",
+    "CandidateSessionSnapshot",
+    "CandidateSnapshot",
+    "CandidateSetSnapshot",
+)

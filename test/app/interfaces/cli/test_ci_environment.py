@@ -41,9 +41,9 @@ def test_ci_uses_read_only_repository_permissions() -> None:
 
 def test_documentation_does_not_recommend_privileged_installation() -> None:
     # Given
-    tooling_guide = (PROJECT_ROOT / "docs" / "developer" / "tooling.md").read_text(
-        encoding="utf-8"
-    )
+    tooling_guide = (
+        PROJECT_ROOT / "docs" / "developer" / "engineering" / "tooling.md"
+    ).read_text(encoding="utf-8")
 
     # When
     recommends_sudo_install = bool(re.search(r"sudo\s+\./install\.sh", tooling_guide))
@@ -57,9 +57,9 @@ def test_engineering_guides_use_the_locked_environment_contract() -> None:
     project_config = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     contributing_guide = (PROJECT_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
     agents_guide = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    tooling_guide = (PROJECT_ROOT / "docs" / "developer" / "tooling.md").read_text(
-        encoding="utf-8"
-    )
+    tooling_guide = (
+        PROJECT_ROOT / "docs" / "developer" / "engineering" / "tooling.md"
+    ).read_text(encoding="utf-8")
 
     # When
     stale_contracts = (

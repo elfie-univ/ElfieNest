@@ -9,6 +9,7 @@ from elfie.body import (
     CommandReceipt,
     TactileImpact,
     UtteranceFinal,
+    VisionChange,
 )
 from elfie.brain.reasoning.food_port import MainFoodSelection
 from elfie.brain.reasoning.model_port import ModelPort
@@ -61,5 +62,6 @@ __all__ = [
     "TextPart",
     "TraceId",
     "UtteranceFinal",
+    "VisionChange",
     "assemble_profile",
 ]

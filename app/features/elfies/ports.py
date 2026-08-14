@@ -121,7 +121,9 @@ class ElfiesQueryPort(Protocol):
 
     def load_cognition(self, elfie_id: str) -> CognitionSnapshotRecord: ...
 
-    def load_portrait(self, elfie_id: str, *, kind: str = "headshot") -> bytes | None: ...
+    def load_portrait(
+        self, elfie_id: str, *, kind: str = "headshot"
+    ) -> bytes | None: ...
 
 
 __all__ = (

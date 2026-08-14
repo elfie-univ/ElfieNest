@@ -5,9 +5,7 @@
 **适用范围：** `nest/`、Godot 语义边界及受影响的 App 编排
 
 > **规范性目标。** 本契约定义 Nest 内部事实所有权、与权威 Godot 世界的语义交互，
-> 以及面向 Elfie 的唯一事件路由。当前差距记录在
-> [Nest–Godot 一致性台账](../conformance/nest-godot-semantic-world)，批准后的迁移卡顺序由
-> 临时[迁移规约](../conformance/nest-godot-semantic-world-migration)固定。
+> 以及面向 Elfie 的唯一事件路由。边界由永久架构测试和聚焦运行时测试直接执行。
 
 全仓所有者和依赖方向仍由[系统架构契约](./system)治理。本契约只细化该边界，不创建
 新的根模块、物理 authority、组合根或生命周期所有者。
@@ -150,12 +148,9 @@ Lifecycle 可以启动、停止和恢复 Godot authority。
 ## 验证与迁移纪律
 
 每次迁移只完成一个可独立审查的纵向切片：冻结类型化边界，迁移完整生产者到消费者
-调用链，证明定向路由和因果身份，删除被替代路径，并只关闭对应一致性条目。不得建立
-兼容 Alias、双写、第二世界投影或空架构包。
+调用链，证明定向路由和因果身份，并删除被替代路径。不得建立兼容 Alias、双写、第二世界
+投影或空架构包。
 
 聚焦证据必须区分直接身体回执、身体感知、语义物理结果、VisibleSet、环境事实、声音
 可达、Nest 事件和 Runtime 生命周期事件。仅有传输测试通过，不能证明语义路由或
 authority 所有权正确。
-
-临时[Nest–Godot 迁移规约](../conformance/nest-godot-semantic-world-migration)定义强制迁移
-卡顺序、数据决策门、每卡范围和退出证据；它可以细化执行过程，但不能重新定义本目标。

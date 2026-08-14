@@ -154,9 +154,7 @@ def stop_service(
                 mismatch = ProcessIdentityMismatchError(
                     pid, expected_cwd, force_cwd, expected_script, force_command
                 )
-                return ServiceLifecycleResult(
-                    status="failed", pid=pid, error=mismatch
-                )
+                return ServiceLifecycleResult(status="failed", pid=pid, error=mismatch)
             try:
                 process_port.terminate(pid, force=True)
             except OSError as error:

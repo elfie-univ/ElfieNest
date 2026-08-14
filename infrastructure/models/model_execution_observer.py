@@ -67,7 +67,9 @@ class ModelExecutionObserverProjectionAdapter:
         raise OperationsPortError("unsupported model execution event type")
 
     @staticmethod
-    def _event_status(value: TechnicalModelExecutionEventStatus) -> ModelExecutionEventStatus:
+    def _event_status(
+        value: TechnicalModelExecutionEventStatus,
+    ) -> ModelExecutionEventStatus:
         if value is TechnicalModelExecutionEventStatus.OK:
             return "ok"
         if value is TechnicalModelExecutionEventStatus.ERROR:

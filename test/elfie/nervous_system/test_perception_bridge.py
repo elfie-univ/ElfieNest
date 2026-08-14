@@ -19,8 +19,8 @@ from elfie.brain.workspace.contracts import (
     PerceptionEvent,
     PhysicalPayload,
 )
-from elfie.brain.workspace.system import EventWorkspace
 from elfie.brain.workspace.ports import PerceptionSink
+from elfie.brain.workspace.system import EventWorkspace
 from elfie.message_types import (
     ActorId,
     EventId,

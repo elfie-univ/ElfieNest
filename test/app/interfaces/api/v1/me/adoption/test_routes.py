@@ -178,7 +178,9 @@ def test_options_report_global_nest_full_before_member_quota(tmp_path: Path) -> 
     client, db_path = _client(tmp_path)
     with get_db(db_path) as connection:
         owner_id = int(
-            connection.execute("SELECT id FROM users WHERE account_id='alice'").fetchone()[0]
+            connection.execute(
+                "SELECT id FROM users WHERE account_id='alice'"
+            ).fetchone()[0]
         )
         for index in range(4):
             connection.execute(

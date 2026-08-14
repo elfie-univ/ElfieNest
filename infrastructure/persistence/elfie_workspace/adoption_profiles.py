@@ -178,7 +178,9 @@ def _personality(
         candidate = reservation.genesis_candidate
         big_five = {
             trait: round((value + 2.0) / 4.0, 4)
-            for trait, value in zip(BIG_FIVE_TRAITS, candidate.personality.candidate.latent)
+            for trait, value in zip(
+                BIG_FIVE_TRAITS, candidate.personality.candidate.latent
+            )
         }
         labels = candidate.personality.candidate.labels or ("独一无二",)
         return {

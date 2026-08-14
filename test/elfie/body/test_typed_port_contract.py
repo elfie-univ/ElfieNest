@@ -24,6 +24,11 @@ from elfie.body.contracts import (
 from elfie.message_types import ActorId, ActorRef, CommandId, EventId, IntentId, TurnId
 from infrastructure.devices import ExternalBody
 from infrastructure.godot import GodotTransport, NativeBody
+from infrastructure.godot.gateway.messages import (
+    EventName,
+    RuntimeEventFrame,
+    SemanticLane,
+)
 
 NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
 
@@ -33,19 +38,49 @@ class RecordingGodotGateway:
         self.sent = []
         self.transport = None
 
-    def send_body_command(self, payload, *, correlation_id) -> bool:
+    def send_body_command(self, payload, *, cause_id) -> bool:
         self.sent.append(payload)
-        lifecycle = {"command_id": correlation_id, "actor_id": payload["actor_id"]}
-        self.transport.receive_runtime_event("intent_accepted", lifecycle)
-        self.transport.receive_runtime_event("intent_started", lifecycle)
+        lifecycle = {"command_id": cause_id, "actor_id": payload["actor_id"]}
         self.transport.receive_runtime_event(
-            "intent_terminal",
-            {**lifecycle, "status": "completed"},
+            self._event(EventName.INTENT_ACCEPTED, lifecycle, 1)
+        )
+        self.transport.receive_runtime_event(
+            self._event(EventName.INTENT_STARTED, lifecycle, 2)
+        )
+        self.transport.receive_runtime_event(
+            self._event(
+                EventName.INTENT_TERMINAL,
+                {**lifecycle, "status": "completed"},
+                3,
+            )
         )
         return True
 
     def cancel_body_command(self, *, command_id, actor_id) -> bool:
         return True
+
+    def register_body_sink(self, actor_id, sink) -> None:
+        _ = actor_id, sink
+
+    def unregister_body_sink(self, actor_id, sink) -> None:
+        _ = actor_id, sink
+
+    @staticmethod
+    def _event(name, payload, sequence) -> RuntimeEventFrame:
+        return RuntimeEventFrame(
+            protocol=3,
+            kind="event",
+            lane=SemanticLane.BODY,
+            name=name,
+            message_id=f"event-{sequence}",
+            cause_id=payload["command_id"],
+            target_actor_id=payload["actor_id"],
+            runtime_id="runtime-main",
+            generation=1,
+            world_revision=1,
+            occurred_at=NOW,
+            payload=payload,
+        )
 
 
 class RecordingExternalTransport:
@@ -77,7 +112,7 @@ def make_headless() -> HeadlessBody:
 
 def make_native() -> NativeBody:
     gateway = RecordingGodotGateway()
-    transport = GodotTransport(gateway)
+    transport = GodotTransport(gateway, actor_id="body-1")
     gateway.transport = transport
     return NativeBody(body_id="body-1", transport=transport)
 

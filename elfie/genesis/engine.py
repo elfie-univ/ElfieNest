@@ -42,6 +42,8 @@ _STAGE_RANGES: Mapping[str, Mapping[str, tuple[int, int]]] = {
         "elder": (168, 240),
     },
 }
+
+
 class GenesisEngine:
     """Build five intentionally different, deterministic candidate cores."""
 
@@ -61,16 +63,24 @@ class GenesisEngine:
         answers: Sequence[str],
         previous_signatures: Sequence[CandidateSignature] = (),
     ) -> GenesisBatch:
-        self._validate_request(batch_number, species_id, life_stage, gender, appearance, answers)
+        self._validate_request(
+            batch_number, species_id, life_stage, gender, appearance, answers
+        )
         stages = _STAGES if life_stage == "any" else (life_stage,)
         core_by_stage = {
-            stage: core_profile(species_id=species_id, life_stage=stage, answers=answers)
+            stage: core_profile(
+                species_id=species_id, life_stage=stage, answers=answers
+            )
             for stage in stages
         }
-        proposals = {role: [] for role in CANDIDATE_ROLES}
+        proposals: dict[str, list[GenesisCandidate]] = {
+            role: [] for role in CANDIDATE_ROLES
+        }
         for role_index, role in enumerate(CANDIDATE_ROLES):
             for proposal_index in range(self.proposal_count):
-                seed = derive_seed(master_seed, batch_number, role_index, proposal_index)
+                seed = derive_seed(
+                    master_seed, batch_number, role_index, proposal_index
+                )
                 stage = self._choose_stage(seed, batch_number, role_index, life_stage)
                 candidate = self._build_candidate(
                     seed=seed,
@@ -103,9 +113,7 @@ class GenesisEngine:
                 (
                     item
                     for item in ranked
-                    if role_fit(
-                        item, role, appearance, core_by_stage[item.life_stage]
-                    )
+                    if role_fit(item, role, appearance, core_by_stage[item.life_stage])
                     >= ROLE_FIT_FLOORS[role]
                     and self._is_far_enough(item, selected, history)
                 ),
@@ -178,13 +186,19 @@ class GenesisEngine:
         history: tuple[CandidateSignature, ...],
         batch_number: int,
     ) -> float:
-        personality = personality_fit(candidate.personality.candidate.latent, core.latent)
+        personality = personality_fit(
+            candidate.personality.candidate.latent, core.latent
+        )
         visual = appearance_fit(candidate.appearance, appearance)
         weight_p, weight_a = ROLE_FIT_WEIGHTS[role]
         existing = tuple(item.signature for item in selected) + history
-        novelty = min((distance(candidate.signature, item) for item in existing), default=0.5)
+        novelty = min(
+            (distance(candidate.signature, item) for item in existing), default=0.5
+        )
         phase_bonus = min(0.20, max(0, batch_number - 1) * 0.08)
-        return weight_p * personality + weight_a * visual + (0.45 + phase_bonus) * novelty
+        return (
+            weight_p * personality + weight_a * visual + (0.45 + phase_bonus) * novelty
+        )
 
     def _is_far_enough(
         self,
@@ -192,9 +206,15 @@ class GenesisEngine:
         selected: Sequence[GenesisCandidate],
         history: Sequence[CandidateSignature],
     ) -> bool:
-        if any(distance(candidate.signature, item.signature) < self.target_distance for item in selected):
+        if any(
+            distance(candidate.signature, item.signature) < self.target_distance
+            for item in selected
+        ):
             return False
-        return all(distance(candidate.signature, item) >= self.history_distance for item in history)
+        return all(
+            distance(candidate.signature, item) >= self.history_distance
+            for item in history
+        )
 
     @staticmethod
     def _choose_stage(seed: int, batch: int, role: int, requested: str) -> str:

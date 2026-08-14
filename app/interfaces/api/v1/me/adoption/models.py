@@ -214,6 +214,7 @@ class CandidateReplyResponse(AdoptionCandidateResponse):
             ),
         )
 
+
 class CandidateRepliesResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -93,7 +93,9 @@ class ModelExecutionToolLoopPort(Protocol):
 
 
 ModelExecutionPolicy = Mapping[str, JsonValue]
-ToolConfigLoader = Callable[[Optional[ModelExecutionPolicy]], dict[str, dict[str, JsonValue]]]
+ToolConfigLoader = Callable[
+    [Optional[ModelExecutionPolicy]], dict[str, dict[str, JsonValue]]
+]
 EffectiveToolKeys = Callable[
     [Optional[ModelExecutionPolicy], tuple[str, ...]], tuple[str, ...]
 ]

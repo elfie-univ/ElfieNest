@@ -1,6 +1,6 @@
 extends SceneTree
 
-const RUNTIME_MODE := preload("res://runtime/runtime_mode.gd")
+const RUNTIME_MODE := preload("res://runtime/endpoint/runtime_mode.gd")
 
 
 func _init() -> void:

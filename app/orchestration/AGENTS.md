@@ -1,9 +1,8 @@
 # Orchestration 层执行规则
 
 本目录遵守 `app/AGENTS.md`，只负责跨 authority 或非原子外部副作用的产品流程。
-Nest–Godot 迁移期间还必须按临时
-[`Nest–Godot migration specification`](../../docs/developer/conformance/nest-godot-semantic-world-migration.md)
-逐卡迁移完整调用链，禁止保留旧编排路径或全 Elfie 事件 fan-out。
+Nest–Godot 语义线路和事件路由必须遵守永久语义世界契约，禁止保留旧编排路径或全
+Elfie 事件 fan-out。
 
 - 可组合 Feature 公开契约和 `elfie`、`nest` 的公开 API；不得导入
   Interface、Bootstrap 或具体 Infrastructure。

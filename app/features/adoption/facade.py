@@ -16,6 +16,7 @@ from .errors import (
 )
 from .models import (
     AcceptedAdoptionReservation,
+    AdoptionAvailability,
     AdoptionNestCapacity,
     AdoptionOptionsResult,
     AdoptionQuota,
@@ -85,7 +86,7 @@ class AdoptionService:
             raise AdoptionOwnerNotFound("用户不存在")
         remaining = max(0, quota.effective_limit - quota.used)
         nest_remaining = max(0, nest_capacity.maximum - nest_capacity.used)
-        availability = (
+        availability: AdoptionAvailability = (
             "nest_full"
             if nest_remaining == 0
             else "member_quota_full"

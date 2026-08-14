@@ -18,14 +18,28 @@ class ModelPortFactory(Protocol):
     def __call__(self, elfie_id: str) -> ModelPort: ...
 
 
-class WorldRuntimePort(Protocol):
-    """Semantic world channel required by the Nest tick workflow."""
+class RuntimeConnectionPort(Protocol):
+    """Read-only identity of the current authoritative Runtime."""
 
     @property
     def runtime_connection(self) -> RuntimeConnection | None: ...
 
-    @property
-    def runtime_ready(self) -> bool: ...
+
+class RuntimeEventPort(RuntimeConnectionPort, Protocol):
+    """Lifecycle/event capability consumed by the tick and event router."""
+
+    def drain_events(self) -> tuple[WorldEvent, ...]: ...
+
+    def mark_world_configured(
+        self,
+        connection: RuntimeConnection,
+        *,
+        world_revision: int,
+    ) -> None: ...
+
+
+class WorldSynchronizationPort(RuntimeConnectionPort, Protocol):
+    """World manifest and Actor catalog synchronization capability."""
 
     def configure_world(
         self,
@@ -42,14 +56,90 @@ class WorldRuntimePort(Protocol):
         world_revision: int,
     ) -> str | None: ...
 
-    def drain_events(self) -> tuple[WorldEvent, ...]: ...
 
-    def mark_ready(
+class SpeechReachPort(Protocol):
+    """Semantic speech reachability request capability."""
+
+    def request_speech_reach(
         self,
-        connection: RuntimeConnection,
         *,
+        command_id: str,
+        actor_id: str,
+        acoustic_profile: str = "normal",
         world_revision: int,
-    ) -> None: ...
+    ) -> str | None: ...
 
 
-__all__ = ("ModelPortFactory", "WorldRuntimePort")
+class VisualObservationPort(Protocol):
+    """Bounded semantic observation request capability."""
+
+    def request_visual_observation(
+        self,
+        *,
+        observation_id: str,
+        actor_id: str,
+        max_results: int = 32,
+        world_revision: int,
+    ) -> str | None: ...
+
+
+class EnvironmentControlPort(Protocol):
+    """Desired-to-actual environment synchronization capability."""
+
+    def apply_environment(
+        self,
+        *,
+        command_id: str,
+        lights_on: bool,
+        quiet_mode: bool,
+        world_revision: int,
+    ) -> str | None: ...
+
+
+class NestSessionRuntimePort(
+    RuntimeEventPort,
+    Protocol,
+):
+    """Capabilities needed by the live Nest Session composition."""
+
+    @property
+    def runtime_ready(self) -> bool: ...
+
+    def request_speech_reach(
+        self,
+        *,
+        command_id: str,
+        actor_id: str,
+        acoustic_profile: str = "normal",
+        world_revision: int,
+    ) -> str | None: ...
+
+    def request_visual_observation(
+        self,
+        *,
+        observation_id: str,
+        actor_id: str,
+        max_results: int = 32,
+        world_revision: int,
+    ) -> str | None: ...
+
+    def apply_environment(
+        self,
+        *,
+        command_id: str,
+        lights_on: bool,
+        quiet_mode: bool,
+        world_revision: int,
+    ) -> str | None: ...
+
+
+__all__ = (
+    "EnvironmentControlPort",
+    "ModelPortFactory",
+    "NestSessionRuntimePort",
+    "RuntimeConnectionPort",
+    "RuntimeEventPort",
+    "SpeechReachPort",
+    "VisualObservationPort",
+    "WorldSynchronizationPort",
+)

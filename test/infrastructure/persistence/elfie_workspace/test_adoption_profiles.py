@@ -48,7 +48,9 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(tmp_path: Path) 
     assert not Path(workspace).exists()
 
 
-def test_workspace_adapter_persists_both_accepted_portrait_views(tmp_path: Path) -> None:
+def test_workspace_adapter_persists_both_accepted_portrait_views(
+    tmp_path: Path,
+) -> None:
     png = b"\x89PNG\r\n\x1a\nportrait"
     data_url = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
     adapter = FinalElfieWorkspaceAdapter(tmp_path)

@@ -142,7 +142,9 @@ def test_start_emits_progress_and_promotes_the_startup_claim() -> None:
     assert phases[0] is RuntimeProgressPhase.STARTING
     assert RuntimeProgressPhase.CORE_READY in phases
     assert RuntimeProgressPhase.READY in phases
-    assert phases.index(RuntimeProgressPhase.CORE_READY) < phases.index(RuntimeProgressPhase.READY)
+    assert phases.index(RuntimeProgressPhase.CORE_READY) < phases.index(
+        RuntimeProgressPhase.READY
+    )
     assert record.read().startup_owner_id is None
     assert record.read().owner_lease is not None
     assert record.read().owner_lease.owner_id == "desktop-progress"
@@ -222,7 +224,9 @@ def test_start_recovers_stale_owner_lease_without_a_live_core_receipt() -> None:
 def test_start_cancellation_does_not_promote_a_stopping_claim() -> None:
     record = MemoryRecord()
 
-    def cancel_before_core_finishes(healthy: Callable[[], bool]) -> ServiceLifecycleResult:
+    def cancel_before_core_finishes(
+        healthy: Callable[[], bool],
+    ) -> ServiceLifecycleResult:
         current = record.read()
         record.write(replace(current, state=RuntimeHealthState.STOPPING))
         return ServiceLifecycleResult(status="started", pid=7110)
@@ -247,9 +251,7 @@ def test_authority_launch_race_reaps_process_after_start_claim_is_cancelled() ->
     class CancellingAuthorityHost(AuthorityHost):
         def start(self) -> Optional[AuthorityProcess]:
             calls.append("authority")
-            record.write(
-                replace(record.read(), state=RuntimeHealthState.STOPPING)
-            )
+            record.write(replace(record.read(), state=RuntimeHealthState.STOPPING))
             return Process(7112)
 
     supervisor = _supervisor(

@@ -35,7 +35,7 @@ nest/
 ├── nest.py         # Nest 公开门面
 ├── state/          # 配置、居民、住处、世界目录与 Runtime 镜像
 ├── engine/         # 环境时钟推进
-├── interaction/    # 说话、用户消息、碰撞与触觉传播
+├── interaction/    # 说话和巢内世界事件传播
 └── events.py       # Nest 领域事件值对象
 ```
 
@@ -73,7 +73,7 @@ Runtime 生命周期选择已导出的宿主；`nest/` 从不启动 Godot，也�
 
 1. 编排层发送 `configure_world`，包含 `nest_id`、床位数和世界 revision；
 2. Runtime 构建房间与导航，回传不含坐标的 `scene_manifest`；
-3. Runtime 回传 `world_ready`，Python 才发送完整 `sync_actors`；
+3. Runtime 回传 `world_configured`，且明确房间配置与导航均已就绪后，Python 才发送完整 `sync_actors`；
 4. Runtime 回传 `world_snapshot`，Nest 只保存临时语义镜像。
 
 身体动作使用有生命周期的语义命令，而不是由大脑逐帧发“走一步”。例如
@@ -111,6 +111,6 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 - `test/app/orchestration/observer/`：具备能力范围的 Observer 投影及
   generation/sequence 行为；
 - `test/infrastructure/godot/`：宿主选择、启动、产物元数据与协议传输；
-- `test/e2e/test_nest_runtime_v2.py`：重连后的世界与完整角色目录收敛；
+- `test/e2e/test_nest_runtime_v3.py`：重连后的世界与完整角色目录收敛；
 - `test/architecture/test_project_structure.py`：Nest 目录结构与旧包禁令；
 - `test/app/orchestration/`：真实精灵和 Nest 的组合行为。

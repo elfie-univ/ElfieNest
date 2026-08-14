@@ -67,11 +67,11 @@ def test_patch_web_entry_for_lan_http_adds_scoped_godot_compatibility(
     entry = tmp_path / "elfienest.html"
     entry.write_text(
         '<script src="elfienest.js"></script>\n'
-        'const GODOT_CONFIG = {};\n'
-        'const GODOT_THREADS_ENABLED = false;\n'
-        '\tconst missing = Engine.getMissingFeatures({\n'
-        '\t\tthreads: GODOT_THREADS_ENABLED,\n'
-        '\t});\n',
+        "const GODOT_CONFIG = {};\n"
+        "const GODOT_THREADS_ENABLED = false;\n"
+        "\tconst missing = Engine.getMissingFeatures({\n"
+        "\t\tthreads: GODOT_THREADS_ENABLED,\n"
+        "\t});\n",
         encoding="utf-8",
     )
 
@@ -84,7 +84,10 @@ def test_patch_web_entry_for_lan_http_adds_scoped_godot_compatibility(
     assert "!window.AudioContext.prototype.audioWorklet" not in patched
     assert "addModule" in patched
     assert "window.location.protocol !== 'http:'" in patched
-    assert "feature === 'Secure Context - Check web server configuration (use HTTPS)'" in patched
+    assert (
+        "feature === 'Secure Context - Check web server configuration (use HTTPS)'"
+        in patched
+    )
     assert ".filter((feature) =>" in patched
 
     patch_web_entry_for_lan_http(entry)

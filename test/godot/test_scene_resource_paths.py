@@ -74,16 +74,19 @@ def test_project_uses_main_scene() -> None:
     assert 'run/main_scene="res://main.tscn"' in project_text
 
 
-def test_runtime_source_declares_protocol_v2_manifest_contract() -> None:
+def test_runtime_source_declares_protocol_v3_manifest_contract() -> None:
     main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
+    websocket_client_text = (
+        GODOT_ROOT / "runtime" / "endpoint" / "websocket_client.gd"
+    ).read_text(encoding="utf-8")
     nest_text = (GODOT_ROOT / "rooms" / "nest.gd").read_text(encoding="utf-8")
-    world_controller_text = (GODOT_ROOT / "runtime" / "world_controller.gd").read_text(
-        encoding="utf-8"
-    )
+    world_controller_text = (
+        GODOT_ROOT / "runtime" / "world" / "world_controller.gd"
+    ).read_text(encoding="utf-8")
 
-    assert "const GODOT_PROTOCOL_VERSION := 2" in main_text
+    assert "const GODOT_PROTOCOL_VERSION := 3" in websocket_client_text
     assert '"scene_manifest"' in world_controller_text
-    assert '"world_ready"' in world_controller_text
+    assert '"world_configured"' in world_controller_text
     assert "match command_name:" in main_text
     assert '"configure_world"' in main_text
     assert "func scene_manifest() -> Dictionary:" in nest_text
@@ -102,7 +105,7 @@ def test_web_runtime_accepts_a_loopback_websocket_url_from_its_query() -> None:
 
 def test_nest_lab_web_mode_disables_production_camera_streaming() -> None:
     main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
-    lab_runtime_text = (GODOT_ROOT / "runtime" / "lab_runtime.gd").read_text(
+    lab_runtime_text = (GODOT_ROOT / "runtime" / "lab" / "lab_runtime.gd").read_text(
         encoding="utf-8"
     )
 
@@ -114,7 +117,7 @@ def test_nest_lab_web_mode_disables_production_camera_streaming() -> None:
 
 def test_elfie_lab_retries_its_web_bridge_until_the_browser_is_ready() -> None:
     main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
-    lab_runtime_text = (GODOT_ROOT / "runtime" / "lab_runtime.gd").read_text(
+    lab_runtime_text = (GODOT_ROOT / "runtime" / "lab" / "lab_runtime.gd").read_text(
         encoding="utf-8"
     )
 
@@ -127,7 +130,7 @@ def test_elfie_lab_retries_its_web_bridge_until_the_browser_is_ready() -> None:
 def test_nest_lab_web_mode_accepts_only_named_camera_presets_and_restore() -> None:
     # Given
     main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
-    lab_runtime_text = (GODOT_ROOT / "runtime" / "lab_runtime.gd").read_text(
+    lab_runtime_text = (GODOT_ROOT / "runtime" / "lab" / "lab_runtime.gd").read_text(
         encoding="utf-8"
     )
 

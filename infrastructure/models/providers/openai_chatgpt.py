@@ -105,9 +105,7 @@ class OpenAIChatGptOAuthAdapter:
             },
         )
         try:
-            authorization = await asyncio.to_thread(
-                self._request_json, request, 15.0
-            )
+            authorization = await asyncio.to_thread(self._request_json, request, 15.0)
         except urllib.error.HTTPError as error:
             if error.code in {403, 404}:
                 return StoredProviderOAuthLoginStatus(
@@ -160,9 +158,7 @@ class OpenAIChatGptOAuthAdapter:
 
     def _prune(self, now: datetime) -> None:
         self._pending = {
-            key: value
-            for key, value in self._pending.items()
-            if value.expires_at > now
+            key: value for key, value in self._pending.items() if value.expires_at > now
         }
 
 
@@ -191,9 +187,7 @@ def refresh_openai_chatgpt_token(
             refresh_token=str(payload.get("refresh_token") or token.refresh_token),
             expires_at=_token_expiry(payload),
             scopes=token.scopes,
-            account_id=_chatgpt_account_id(
-                str(payload.get("id_token") or access_token)
-            )
+            account_id=_chatgpt_account_id(str(payload.get("id_token") or access_token))
             or token.account_id,
             token_type=str(payload.get("token_type") or token.token_type),
         )
@@ -252,7 +246,9 @@ def _token_expiry(payload: Mapping[str, Any]) -> str | None:
     expires_in = payload.get("expires_in")
     if not isinstance(expires_in, (int, float)):
         return None
-    return (datetime.now(timezone.utc) + timedelta(seconds=float(expires_in))).isoformat()
+    return (
+        datetime.now(timezone.utc) + timedelta(seconds=float(expires_in))
+    ).isoformat()
 
 
 def _chatgpt_account_id(token: str) -> str | None:

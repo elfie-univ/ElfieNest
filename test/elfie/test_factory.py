@@ -50,14 +50,20 @@ class FakeGodotGateway:
         self,
         payload: dict[str, object],
         *,
-        correlation_id: str,
+        cause_id: str,
     ) -> bool:
-        self.sent.append({"payload": payload, "correlation_id": correlation_id})
+        self.sent.append({"payload": payload, "cause_id": cause_id})
         return True
 
     def cancel_body_command(self, *, command_id: str, actor_id: str) -> bool:
         self.sent.append({"command_id": command_id, "actor_id": actor_id})
         return True
+
+    def register_body_sink(self, actor_id: str, sink: object) -> None:
+        _ = actor_id, sink
+
+    def unregister_body_sink(self, actor_id: str, sink: object) -> None:
+        _ = actor_id, sink
 
 
 def test_factory_consumes_typed_profile_and_memory_ports() -> None:
@@ -158,7 +164,7 @@ def test_factory_accepts_an_already_assembled_native_body() -> None:
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=NativeBody(
                 body_id="elfie-native",
-                transport=GodotTransport(gateway),
+                transport=GodotTransport(gateway, actor_id="elfie-native"),
             ),
         ),
     )

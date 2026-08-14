@@ -3,9 +3,7 @@
 本目录实现 Python 侧 Godot 技术 Adapter，受根目录 `AGENTS.md`、
 [`System architecture contract`](../../docs/developer/contracts/system.md)、
 [`Nest–Godot semantic-world contract`](../../docs/developer/contracts/nest-godot-semantic-world.md)
-、临时
-[`Nest–Godot migration specification`](../../docs/developer/conformance/nest-godot-semantic-world-migration.md)
-与 Runtime authority 规则约束。迁移必须按卡完成协议两端和全部生产调用方，不保留双路径。
+与 Runtime authority 规则约束。协议两端和全部生产调用方必须保持单一路径，不保留双路径。
 
 - `lifecycle/` 只负责选择、启动、承载、观察和收束 Godot authority；不持有 Nest
   业务状态，不实现世界规则，也不成为产品协议路由层。

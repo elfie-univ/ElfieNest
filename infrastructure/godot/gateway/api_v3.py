@@ -1,16 +1,19 @@
-"""Protocol v2 WebSocket handling for the Godot runtime gateway."""
+"""Protocol v3 WebSocket handling for the Godot runtime gateway."""
 
 from __future__ import annotations
 
 import json
 import logging
-from collections.abc import MutableSet
+from collections.abc import Callable, MutableSet
 from typing import Any
 
 import websockets
 from pydantic import ValidationError
 
-from infrastructure.godot.gateway.messages import parse_runtime_event_frame
+from infrastructure.godot.gateway.messages import (
+    RuntimeEventFrame,
+    parse_runtime_event_frame,
+)
 from infrastructure.godot.gateway.protocol import MessageRateLimiter
 from infrastructure.godot.gateway.session import (
     RuntimeAuthorityError,
@@ -21,19 +24,22 @@ from infrastructure.godot.gateway.session import (
 )
 
 logger = logging.getLogger("infrastructure.godot.gateway.api")
+RuntimeEventReceiver = Callable[[RuntimeEventFrame], None]
 
 
-class GodotProtocolV2Handler:
-    """Handle an already-authenticated protocol v2 Godot connection."""
+class GodotProtocolV3Handler:
+    """Handle an already-authenticated protocol v3 Godot connection."""
 
     def __init__(
         self,
         *,
         session: RuntimeSession,
         clients: MutableSet[Any],
+        event_receiver: RuntimeEventReceiver,
     ) -> None:
         self._session = session
         self._clients = clients
+        self._event_receiver = event_receiver
 
     async def handle(self, websocket: Any, hello_payload: dict[str, Any]) -> None:
         runtime_id = hello_payload.get("runtime_id")
@@ -70,7 +76,7 @@ class GodotProtocolV2Handler:
                     return
         except websockets.exceptions.ConnectionClosed as exc:
             logger.info(
-                "👋 [通信网关] Godot v2 连接断开: %s (code=%s)",
+                "Godot v3 connection closed: %s (code=%s)",
                 getattr(websocket, "remote_address", None),
                 exc.code,
             )
@@ -97,7 +103,7 @@ class GodotProtocolV2Handler:
             return False
 
         try:
-            self._session.enqueue_event(event)
+            self._event_receiver(event)
         except StaleRuntimeEventError:
             await websocket.close(4007, "Stale runtime event")
             return False
@@ -106,15 +112,19 @@ class GodotProtocolV2Handler:
             return False
         return True
 
-    def _hello_ok(self, connection: RuntimeConnection) -> str:
+    @staticmethod
+    def _hello_ok(connection: RuntimeConnection) -> str:
         return json.dumps(
             {
                 "event": "hello_ok",
                 "payload": {
-                    "protocol": 2,
+                    "protocol": 3,
                     "runtime_id": connection.runtime_id,
                     "generation": connection.generation,
                 },
             },
             ensure_ascii=False,
         )
+
+
+__all__ = ("GodotProtocolV3Handler",)

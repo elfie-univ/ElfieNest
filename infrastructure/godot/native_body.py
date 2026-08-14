@@ -29,7 +29,7 @@ from elfie.body.types import (
     BodyDescriptor,
     BodyMode,
 )
-from elfie.message_types import ErrorInfo
+from elfie.message_types import ErrorInfo, EventId
 from infrastructure.godot.body_sensors import NativeSensors
 from infrastructure.godot.body_transport import GodotTransport, RuntimeIntentPayload
 
@@ -184,23 +184,29 @@ class NativeBody:
             timeout_seconds=timeout_seconds,
         )
         receipts_list: list[CommandReceipt] = []
-        for status in result.statuses:
-            if status == "accepted":
-                receipts_list.append(
-                    CommandReceipt.for_status(
-                        command,
-                        CommandStatus.ACCEPTED,
-                        occurred_at=utc_now(),
-                    )
+        for event in result.events:
+            status_value = {
+                "intent_accepted": CommandStatus.ACCEPTED,
+                "intent_started": CommandStatus.STARTED,
+            }.get(event.name.value)
+            if status_value is None:
+                continue
+            receipts_list.append(
+                CommandReceipt(
+                    receipt_id=EventId(event.message_id),
+                    cause_id=(
+                        EventId(event.cause_id) if event.cause_id is not None else None
+                    ),
+                    command_id=command.command_id,
+                    turn_id=command.turn_id,
+                    intent_id=command.intent_id,
+                    body_id=command.body_id,
+                    status=status_value,
+                    occurred_at=event.occurred_at,
+                    capability_revision=command.capability_revision,
+                    body_generation=command.body_generation,
                 )
-            elif status == "started":
-                receipts_list.append(
-                    CommandReceipt.for_status(
-                        command,
-                        CommandStatus.STARTED,
-                        occurred_at=utc_now(),
-                    )
-                )
+            )
         terminal_status = {
             "completed": CommandStatus.COMPLETED,
             "cancelled": CommandStatus.INTERRUPTED,
@@ -213,14 +219,43 @@ class NativeBody:
                 code=result.terminal_status,
                 message=result.reason or result.terminal_status,
             )
-        receipts_list.append(
-            CommandReceipt.for_status(
-                command,
-                terminal_status,
-                occurred_at=utc_now(),
-                error=terminal_error,
-            )
+        terminal_event = next(
+            (
+                event
+                for event in reversed(result.events)
+                if event.name.value == "intent_terminal"
+            ),
+            None,
         )
+        if terminal_event is None:
+            receipts_list.append(
+                CommandReceipt.for_status(
+                    command,
+                    terminal_status,
+                    occurred_at=utc_now(),
+                    error=terminal_error,
+                )
+            )
+        else:
+            receipts_list.append(
+                CommandReceipt(
+                    receipt_id=EventId(terminal_event.message_id),
+                    cause_id=(
+                        EventId(terminal_event.cause_id)
+                        if terminal_event.cause_id is not None
+                        else None
+                    ),
+                    command_id=command.command_id,
+                    turn_id=command.turn_id,
+                    intent_id=command.intent_id,
+                    body_id=command.body_id,
+                    status=terminal_status,
+                    occurred_at=terminal_event.occurred_at,
+                    capability_revision=command.capability_revision,
+                    body_generation=command.body_generation,
+                    error=terminal_error,
+                )
+            )
         final_receipts: tuple[CommandReceipt, ...] = tuple(receipts_list)
         self._last_receipt = final_receipts[-1]
         return final_receipts

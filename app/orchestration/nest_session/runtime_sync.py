@@ -10,14 +10,17 @@ from app.orchestration.nest_session.models import (
     RuntimeActor,
     SceneManifest,
     SemanticWorldCatalog,
+    WorldConfigured,
     WorldEvent,
     WorldEventName,
     WorldSnapshot,
 )
-from app.orchestration.nest_session.ports import WorldRuntimePort
+from app.orchestration.nest_session.ports import WorldSynchronizationPort
 from nest.public import (
     AnchorKind,
     BedConflictError,
+    FacilityDescriptor,
+    FacilityKind,
     InteractionAnchor,
     Nest,
     NestPersistenceError,
@@ -41,7 +44,7 @@ class NestRuntimeSynchronizer:
         self,
         *,
         nest: Nest,
-        world_runtime: WorldRuntimePort,
+        world_runtime: WorldSynchronizationPort,
         actor_catalog_provider: ActorCatalogProvider,
         desired_bed_count: int = 4,
         repository: NestRepository | None = None,
@@ -54,29 +57,29 @@ class NestRuntimeSynchronizer:
         self._desired_world_revision = 1
         self._observed_connection: tuple[str, int] | None = None
         self._manifest_revision: int | None = None
-        self._ready_revision: int | None = None
+        self._configured_revision: int | None = None
         self._actor_catalog_dirty = True
 
     def mark_actor_catalog_dirty(self) -> None:
         self._actor_catalog_dirty = True
 
     @property
-    def ready_revision(self) -> int | None:
-        return self._ready_revision
+    def configured_revision(self) -> int | None:
+        return self._configured_revision
 
     def poll_connection(self) -> None:
         connection = self._world_runtime.runtime_connection
         if connection is None:
             self._observed_connection = None
             self._manifest_revision = None
-            self._ready_revision = None
+            self._configured_revision = None
             return
         token = (connection.runtime_id, connection.generation)
         if token == self._observed_connection:
             return
         self._observed_connection = token
         self._manifest_revision = None
-        self._ready_revision = None
+        self._configured_revision = None
         self._actor_catalog_dirty = True
         self._world_runtime.configure_world(
             nest_id=self._nest.state.config.nest_id,
@@ -117,38 +120,49 @@ class NestRuntimeSynchronizer:
                 self._nest.state.reconciliation_required = True
                 return
             self._actor_catalog_dirty = True
-        elif event.name is WorldEventName.WORLD_READY:
-            if self._manifest_revision == event.world_revision:
-                self._ready_revision = event.world_revision
+        elif event.name is WorldEventName.WORLD_CONFIGURED:
+            if (
+                isinstance(event.payload, WorldConfigured)
+                and event.payload.configured
+                and event.payload.navigation_ready
+                and self._manifest_revision == event.world_revision
+            ):
+                self._configured_revision = event.world_revision
         elif event.name is WorldEventName.WORLD_SNAPSHOT:
             if not isinstance(event.payload, WorldSnapshot):
                 return
             revision = event.payload.revision
             mirrors = tuple(_nest_mirror(mirror) for mirror in event.payload.residents)
-            if revision == event.world_revision and revision == self._ready_revision:
+            if (
+                revision == event.world_revision
+                and revision == self._configured_revision
+            ):
                 self._nest.apply_runtime_mirrors(mirrors)
 
     def flush(self) -> None:
         if not self._actor_catalog_dirty:
             return
-        if self._ready_revision is None or self._nest.state.reconciliation_required:
+        if (
+            self._configured_revision is None
+            or self._nest.state.reconciliation_required
+        ):
             return
         actors: list[RuntimeActor] = []
         for descriptor in self._actor_catalog_provider():
-            home_anchor_id = self._nest.home_anchor_id(descriptor.actor_id)
-            if home_anchor_id is None:
+            spawn_anchor_id = self._nest.home_anchor_id(descriptor.actor_id)
+            if spawn_anchor_id is None:
                 return
             actors.append(
                 RuntimeActor(
                     actor_id=descriptor.actor_id,
                     species=descriptor.species,
                     appearance=descriptor.appearance,
-                    home_anchor_id=home_anchor_id,
+                    spawn_anchor_id=spawn_anchor_id,
                 )
             )
         command_id = self._world_runtime.synchronize_actors(
             tuple(actors),
-            world_revision=self._ready_revision,
+            world_revision=self._configured_revision,
         )
         if command_id is not None:
             self._actor_catalog_dirty = False
@@ -216,6 +230,17 @@ def _nest_catalog(catalog: SemanticWorldCatalog) -> WorldCatalog:
                 ),
             )
             for zone in catalog.zones
+        ),
+        facilities=tuple(
+            FacilityDescriptor(
+                facility_id=facility.facility_id,
+                zone_id=facility.zone_id,
+                kind=FacilityKind(facility.kind),
+                label=facility.label,
+                capabilities=facility.capabilities,
+                active=facility.active,
+            )
+            for facility in catalog.facilities
         ),
     )
 

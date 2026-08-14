@@ -1,4 +1,4 @@
-"""Deterministic in-process protocol v2 Runtime used by contract tests."""
+"""Deterministic in-process protocol v3 Runtime used by contract tests."""
 
 from __future__ import annotations
 
@@ -10,12 +10,13 @@ from infrastructure.godot.gateway.messages import (
     EventName,
     JsonObject,
     RuntimeEventFrame,
+    SemanticLane,
 )
 from infrastructure.godot.gateway.session import RuntimeConnection
 
 
 class FakeRuntime:
-    """Execute the v2 ordering contract without pretending to model geometry."""
+    """Execute the v3 ordering contract without pretending to model geometry."""
 
     def __init__(self) -> None:
         self.runtime_connection: Optional[RuntimeConnection] = None
@@ -25,6 +26,7 @@ class FakeRuntime:
         self._generation = 0
         self._revision = 0
         self._sequence = 0
+        self._body_sinks: Dict[str, object] = {}
 
     def connect(self, runtime_id: str = "fake-runtime") -> RuntimeConnection:
         self._generation += 1
@@ -34,7 +36,11 @@ class FakeRuntime:
     def disconnect(self) -> None:
         self.runtime_connection = None
 
-    def mark_runtime_ready(
+    @property
+    def runtime_ready(self) -> bool:
+        return self.runtime_connection is not None
+
+    def mark_world_configured(
         self,
         connection: RuntimeConnection,
         *,
@@ -49,17 +55,21 @@ class FakeRuntime:
         payload: JsonObject,
         *,
         world_revision: int,
-        correlation_id: Optional[str] = None,
+        cause_id: Optional[str] = None,
     ) -> Optional[str]:
         connection = self.runtime_connection
         if connection is None:
             return None
         self.commands.append((name, payload, world_revision))
-        command_id = correlation_id or f"fake-command-{len(self.commands)}"
+        command_id = cause_id or f"fake-command-{len(self.commands)}"
         if name is CommandName.CONFIGURE_WORLD:
             self._revision = world_revision
             self._emit(EventName.SCENE_MANIFEST, self._manifest(payload), command_id)
-            self._emit(EventName.WORLD_READY, {"ready": True}, command_id)
+            self._emit(
+                EventName.WORLD_CONFIGURED,
+                {"configured": True, "navigation_ready": True},
+                command_id,
+            )
         elif name is CommandName.SYNC_ACTORS:
             raw_actors = payload.get("actors", [])
             actors = raw_actors if isinstance(raw_actors, list) else []
@@ -90,14 +100,14 @@ class FakeRuntime:
         self,
         payload: Dict[str, object],
         *,
-        correlation_id: str,
+        cause_id: str,
     ) -> bool:
         return (
             self.send_runtime_command(
                 CommandName.EXECUTE_INTENT,
                 payload,
                 world_revision=self._revision,
-                correlation_id=correlation_id,
+                cause_id=cause_id,
             )
             is not None
         )
@@ -108,7 +118,7 @@ class FakeRuntime:
                 CommandName.CANCEL_INTENT,
                 {"command_id": command_id, "actor_id": actor_id},
                 world_revision=self._revision,
-                correlation_id=command_id,
+                cause_id=command_id,
             )
             is not None
         )
@@ -118,30 +128,52 @@ class FakeRuntime:
         self._events.clear()
         return events
 
+    def register_body_sink(self, actor_id: str, sink: object) -> None:
+        self._body_sinks[actor_id] = sink
+
+    def unregister_body_sink(self, actor_id: str, sink: object) -> None:
+        if self._body_sinks.get(actor_id) is sink:
+            self._body_sinks.pop(actor_id, None)
+
     def _emit(
         self,
         name: EventName,
         payload: JsonObject,
-        correlation_id: str,
+        cause_id: str,
     ) -> None:
         connection = self.runtime_connection
         if connection is None:
             return
         self._sequence += 1
-        self._events.append(
-            RuntimeEventFrame(
-                protocol=2,
-                kind="event",
-                name=name,
-                message_id=f"fake-event-{self._sequence}",
-                runtime_id=connection.runtime_id,
-                generation=connection.generation,
-                world_revision=self._revision,
-                occurred_at=datetime.now(timezone.utc),
-                correlation_id=correlation_id,
-                payload=payload,
-            )
+        body_event = name in {
+            EventName.INTENT_ACCEPTED,
+            EventName.INTENT_STARTED,
+            EventName.INTENT_TERMINAL,
+            EventName.MOVEMENT_BLOCKED,
+            EventName.TACTILE_CONTACT,
+        }
+        target_actor_id = str(payload.get("actor_id", "")) if body_event else None
+        event = RuntimeEventFrame(
+            protocol=3,
+            kind="event",
+            lane=SemanticLane.BODY if body_event else SemanticLane.NEST,
+            name=name,
+            message_id=f"fake-event-{self._sequence}",
+            cause_id=cause_id,
+            target_actor_id=target_actor_id,
+            runtime_id=connection.runtime_id,
+            generation=connection.generation,
+            world_revision=self._revision,
+            occurred_at=datetime.now(timezone.utc),
+            payload=payload,
         )
+        if body_event:
+            sink = self._body_sinks.get(target_actor_id or "")
+            receiver = getattr(sink, "receive_runtime_event", None)
+            if callable(receiver):
+                receiver(event)
+        else:
+            self._events.append(event)
 
     def _manifest(self, config: JsonObject) -> JsonObject:
         raw_bed_count = config.get("bed_count", 4)

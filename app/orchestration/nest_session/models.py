@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum, unique
 from typing import Literal, Optional, Union
 
@@ -46,32 +47,29 @@ class ActorDescriptor:
 
 @dataclass(frozen=True)
 class RuntimeActor:
-    """One resident in a complete desired actor synchronization."""
+    """One resident plus a resolved physical spawn target for Godot."""
 
     actor_id: str
     species: str
     appearance: Appearance
-    home_anchor_id: str
+    spawn_anchor_id: str
 
 
 @unique
 class WorldEventName(str, Enum):
-    WORLD_READY = "world_ready"
+    WORLD_CONFIGURED = "world_configured"
     SCENE_MANIFEST = "scene_manifest"
     WORLD_SNAPSHOT = "world_snapshot"
     CONFIG_REJECTED = "config_rejected"
     STARTUP_ERROR = "startup_error"
-    INTENT_ACCEPTED = "intent_accepted"
-    INTENT_STARTED = "intent_started"
-    INTENT_TERMINAL = "intent_terminal"
-    MOVEMENT_BLOCKED = "movement_blocked"
-    TACTILE_CONTACT = "tactile_contact"
-    SPEECH_AUDIENCE = "speech_audience"
+    SPEECH_REACH = "speech_reach"
+    VISUAL_OBSERVATION = "visual_observation"
+    ENVIRONMENT_STATE = "environment_state"
 
 
 @dataclass(frozen=True)
-class WorldReady:
-    ready: bool
+class WorldConfigured:
+    configured: bool
     navigation_ready: bool
 
 
@@ -81,6 +79,16 @@ class WorldAnchor:
     kind: Literal["bed", "chair", "door", "activity"]
     label: str
     order: int
+    active: bool
+
+
+@dataclass(frozen=True)
+class WorldFacility:
+    facility_id: str
+    zone_id: str
+    kind: Literal["rest", "activity", "transit", "social"]
+    label: str
+    capabilities: tuple[str, ...]
     active: bool
 
 
@@ -97,6 +105,7 @@ class SemanticWorldCatalog:
     nest_id: str
     revision: int
     zones: tuple[WorldZone, ...]
+    facilities: tuple[WorldFacility, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -125,47 +134,38 @@ class RuntimeFailure:
 
 
 @dataclass(frozen=True)
-class IntentProgress:
+class SpeechReach:
     command_id: str
     actor_id: str
-
-
-@dataclass(frozen=True)
-class IntentTerminal:
-    command_id: str
-    actor_id: str
-    status: Literal["completed", "failed", "cancelled"]
-    reason: str | None = None
-    detail: str | None = None
-
-
-@dataclass(frozen=True)
-class TactileContact:
-    actor_id: str
-    intensity: float
-    direction: str
-    contact_kind: Literal["actor", "world"]
-    source_semantic_id: str
-
-
-@dataclass(frozen=True)
-class SpeechAudience:
-    command_id: str
-    actor_id: str
-    text: str
     zone_id: str
     audience_actor_ids: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class VisualObservation:
+    observation_id: str
+    actor_id: str
+    zone_id: str
+    visible_semantic_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class EnvironmentState:
+    command_id: str
+    lights_on: bool
+    quiet_mode: bool
+    applied: bool
+    reason: str | None = None
+
+
 WorldEventPayload = Union[
-    WorldReady,
+    WorldConfigured,
     SceneManifest,
     WorldSnapshot,
     RuntimeFailure,
-    IntentProgress,
-    IntentTerminal,
-    TactileContact,
-    SpeechAudience,
+    SpeechReach,
+    VisualObservation,
+    EnvironmentState,
 ]
 
 
@@ -178,14 +178,13 @@ class WorldEvent:
     world_revision: int
     name: WorldEventName
     payload: WorldEventPayload
-    correlation_id: str | None = None
+    cause_id: str | None = None
+    occurred_at: datetime | None = None
 
 
 __all__ = (
     "ActorDescriptor",
     "Appearance",
-    "IntentProgress",
-    "IntentTerminal",
     "ObserverSemanticEntity",
     "RuntimeActor",
     "RuntimeConnection",
@@ -193,13 +192,15 @@ __all__ = (
     "ResidentMirror",
     "SceneManifest",
     "SemanticWorldCatalog",
-    "SpeechAudience",
-    "TactileContact",
+    "SpeechReach",
+    "VisualObservation",
+    "EnvironmentState",
     "WorldEvent",
     "WorldEventName",
     "WorldEventPayload",
     "WorldAnchor",
-    "WorldReady",
+    "WorldFacility",
+    "WorldConfigured",
     "WorldSnapshot",
     "WorldZone",
 )

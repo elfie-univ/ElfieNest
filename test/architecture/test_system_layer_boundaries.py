@@ -70,14 +70,6 @@ def test_system_contract_decision_and_agents_exist_in_both_languages() -> None:
     chinese_nest_contract = (
         PROJECT_ROOT / "docs/zh/developer/contracts/nest-godot-semantic-world.md"
     ).read_text(encoding="utf-8")
-    english_nest_migration = (
-        PROJECT_ROOT
-        / "docs/developer/conformance/nest-godot-semantic-world-migration.md"
-    ).read_text(encoding="utf-8")
-    chinese_nest_migration = (
-        PROJECT_ROOT
-        / "docs/zh/developer/conformance/nest-godot-semantic-world-migration.md"
-    ).read_text(encoding="utf-8")
     required_docs = {
         "docs/developer/decisions/0002-system-ports-adapters.md",
         "docs/zh/developer/decisions/0002-system-ports-adapters.md",
@@ -121,21 +113,6 @@ def test_system_contract_decision_and_agents_exist_in_both_languages() -> None:
     assert "不是第五个业务模块" in chinese_nest_contract
     assert "Broadcast is an audience shape" in english_nest_contract
     assert "广播只是" in chinese_nest_contract
-    migration_cards = [f"NG-M{index:02d}" for index in range(1, 16)]
-    assert all(card in english_nest_migration for card in migration_cards)
-    assert all(card in chinese_nest_migration for card in migration_cards)
-    assert "DATA-01" in english_nest_migration
-    assert "DATA-01" in chinese_nest_migration
-    assert "One active migration card" in english_nest_migration
-    assert "同一时间只做一张迁移卡" in chinese_nest_migration
-    assert "Replace protocol v2 with one clean protocol v3 cutover" in (
-        english_nest_migration
-    )
-    assert "协议 v2 干净切换到 v3" in chinese_nest_migration
-    assert "`InteractionHub` only now" in english_nest_migration
-    assert "才在本卡删除 `InteractionHub`" in chinese_nest_migration
-    assert "No compatibility architecture" in english_nest_migration
-    assert "禁止兼容架构" in chinese_nest_migration
     assert all((PROJECT_ROOT / path).is_file() for path in required_docs)
     assert all((PROJECT_ROOT / path).is_file() for path in required_agents)
     assert not (PROJECT_ROOT / "app/infrastructure").exists()

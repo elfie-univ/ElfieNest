@@ -80,6 +80,6 @@ def find_food_item(
     food_store: FoodPort,
 ) -> FoodStatusItem | None:
     """Resolve one normalized Food key from the Lab projection."""
-    return {item["key"]: item for item in build_food_items(model_environment, food_store)}.get(
-        food_key
-    )
+    return {
+        item["key"]: item for item in build_food_items(model_environment, food_store)
+    }.get(food_key)

@@ -56,21 +56,25 @@ def _capabilities(model_key: str) -> StructuredModelExecutionCapabilities:
 
 
 def _candidate():
-    return GenesisEngine().generate_batch(
-        master_seed=7,
-        batch_number=1,
-        species_id="fox",
-        life_stage="young_adult",
-        gender="female",
-        appearance=GenesisAppearanceIntent(
-            stature="any",
-            build="any",
-            face="balanced",
-            signature="any",
-            priority="face",
-        ),
-        answers=("quiet", "research", "plan", "discuss", "steady"),
-    ).candidates[0]
+    return (
+        GenesisEngine()
+        .generate_batch(
+            master_seed=7,
+            batch_number=1,
+            species_id="fox",
+            life_stage="young_adult",
+            gender="female",
+            appearance=GenesisAppearanceIntent(
+                stature="any",
+                build="any",
+                face="balanced",
+                signature="any",
+                priority="face",
+            ),
+            answers=("quiet", "research", "plan", "discuss", "steady"),
+        )
+        .candidates[0]
+    )
 
 
 def test_small_local_model_is_not_qualified_for_identity_reveal() -> None:

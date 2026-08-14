@@ -37,6 +37,10 @@ def actor_catalog(elfies: Mapping[str, Elfie]) -> tuple[ActorDescriptor, ...]:
 
 def restore_snapshot(nest: Nest, snapshot: NestPersistenceSnapshot) -> None:
     nest.state.elapsed_seconds = snapshot.elapsed_seconds
+    nest.state.clock_paused = snapshot.clock_paused
+    nest.state.time_scale = snapshot.time_scale
+    nest.state.environment_desired = snapshot.environment_desired
+    nest.state.environment_rules = snapshot.environment_rules
     if snapshot.catalog is not None:
         nest.apply_catalog(snapshot.catalog)
     for resident in snapshot.residents:

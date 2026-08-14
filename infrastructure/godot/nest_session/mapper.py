@@ -7,20 +7,20 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.orchestration.nest_session import (
-    IntentProgress,
-    IntentTerminal,
+    EnvironmentState,
     ResidentMirror,
     RuntimeConnection,
     RuntimeFailure,
     SceneManifest,
     SemanticWorldCatalog,
-    SpeechAudience,
-    TactileContact,
+    SpeechReach,
+    VisualObservation,
     WorldAnchor,
+    WorldConfigured,
     WorldEvent,
     WorldEventName,
     WorldEventPayload,
-    WorldReady,
+    WorldFacility,
     WorldSnapshot,
     WorldZone,
 )
@@ -51,6 +51,17 @@ class _ManifestAnchor(BaseModel):
     active: bool
 
 
+class _ManifestFacility(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    facility_id: str
+    zone_id: str
+    kind: Literal["rest", "activity", "transit", "social"]
+    label: str
+    capabilities: tuple[str, ...] = ()
+    active: bool
+
+
 class _SceneManifest(BaseModel):
     model_config = ConfigDict(frozen=True, extra="ignore")
 
@@ -58,6 +69,7 @@ class _SceneManifest(BaseModel):
     world_revision: int = Field(ge=0)
     zones: tuple[_ManifestZone, ...]
     anchors: tuple[_ManifestAnchor, ...]
+    facilities: tuple[_ManifestFacility, ...] = ()
 
 
 class _SnapshotActor(BaseModel):
@@ -76,10 +88,10 @@ class _WorldSnapshot(BaseModel):
     actors: tuple[_SnapshotActor, ...]
 
 
-class _WorldReady(BaseModel):
+class _WorldConfigured(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    ready: bool
+    configured: bool
     navigation_ready: bool = False
 
 
@@ -91,33 +103,32 @@ class _RuntimeFailure(BaseModel):
     world_revision: Optional[int] = Field(default=None, ge=0)
 
 
-class _IntentProgress(BaseModel):
+class _SpeechReach(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     command_id: str
     actor_id: str
-
-
-class _IntentTerminal(_IntentProgress):
-    status: Literal["completed", "failed", "cancelled"]
-    reason: Optional[str] = None
-    detail: Optional[str] = None
-
-
-class _TactileContact(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    actor_id: str
-    intensity: float = Field(ge=0.0, le=1.0)
-    direction: str
-    contact_kind: Literal["actor", "world"]
-    source_semantic_id: str
-
-
-class _SpeechAudience(_IntentProgress):
-    text: str
     zone_id: str
     audience_actor_ids: tuple[str, ...]
+
+
+class _VisualObservation(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    observation_id: str
+    actor_id: str
+    zone_id: str
+    visible_semantic_ids: tuple[str, ...]
+
+
+class _EnvironmentState(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    command_id: str
+    lights_on: bool
+    quiet_mode: bool
+    applied: bool
+    reason: Optional[str] = None
 
 
 def parse_scene_manifest(payload: JsonObject) -> SemanticWorldCatalog:
@@ -151,6 +162,18 @@ def parse_scene_manifest(payload: JsonObject) -> SemanticWorldCatalog:
             for zone in manifest.zones
             if zone.active
         ),
+        facilities=tuple(
+            WorldFacility(
+                facility_id=facility.facility_id,
+                zone_id=facility.zone_id,
+                kind=facility.kind,
+                label=facility.label,
+                capabilities=facility.capabilities,
+                active=facility.active,
+            )
+            for facility in manifest.facilities
+            if facility.active and facility.zone_id in anchors_by_zone
+        ),
     )
 
 
@@ -181,10 +204,10 @@ def map_runtime_event(frame: RuntimeEventFrame) -> WorldEvent:
     elif frame.name is EventName.WORLD_SNAPSHOT:
         revision, residents = parse_world_snapshot(frame.payload)
         payload = WorldSnapshot(revision=revision, residents=residents)
-    elif frame.name is EventName.WORLD_READY:
-        parsed = _WorldReady.model_validate(frame.payload)
-        payload = WorldReady(
-            ready=parsed.ready,
+    elif frame.name is EventName.WORLD_CONFIGURED:
+        parsed = _WorldConfigured.model_validate(frame.payload)
+        payload = WorldConfigured(
+            configured=parsed.configured,
             navigation_ready=parsed.navigation_ready,
         )
     elif frame.name in {EventName.CONFIG_REJECTED, EventName.STARTUP_ERROR}:
@@ -193,42 +216,30 @@ def map_runtime_event(frame: RuntimeEventFrame) -> WorldEvent:
             code=parsed_failure.code,
             accepted=parsed_failure.accepted,
         )
-    elif frame.name is EventName.INTENT_TERMINAL:
-        parsed_terminal = _IntentTerminal.model_validate(frame.payload)
-        payload = IntentTerminal(
-            command_id=parsed_terminal.command_id,
-            actor_id=parsed_terminal.actor_id,
-            status=parsed_terminal.status,
-            reason=parsed_terminal.reason,
-            detail=parsed_terminal.detail,
-        )
-    elif frame.name in {
-        EventName.INTENT_ACCEPTED,
-        EventName.INTENT_STARTED,
-        EventName.MOVEMENT_BLOCKED,
-    }:
-        parsed_progress = _IntentProgress.model_validate(frame.payload)
-        payload = IntentProgress(
-            command_id=parsed_progress.command_id,
-            actor_id=parsed_progress.actor_id,
-        )
-    elif frame.name is EventName.TACTILE_CONTACT:
-        parsed_tactile = _TactileContact.model_validate(frame.payload)
-        payload = TactileContact(
-            actor_id=parsed_tactile.actor_id,
-            intensity=parsed_tactile.intensity,
-            direction=parsed_tactile.direction,
-            contact_kind=parsed_tactile.contact_kind,
-            source_semantic_id=parsed_tactile.source_semantic_id,
-        )
-    elif frame.name is EventName.SPEECH_AUDIENCE:
-        parsed_speech = _SpeechAudience.model_validate(frame.payload)
-        payload = SpeechAudience(
+    elif frame.name is EventName.SPEECH_REACH:
+        parsed_speech = _SpeechReach.model_validate(frame.payload)
+        payload = SpeechReach(
             command_id=parsed_speech.command_id,
             actor_id=parsed_speech.actor_id,
-            text=parsed_speech.text,
             zone_id=parsed_speech.zone_id,
             audience_actor_ids=parsed_speech.audience_actor_ids,
+        )
+    elif frame.name is EventName.VISUAL_OBSERVATION:
+        parsed_visual = _VisualObservation.model_validate(frame.payload)
+        payload = VisualObservation(
+            observation_id=parsed_visual.observation_id,
+            actor_id=parsed_visual.actor_id,
+            zone_id=parsed_visual.zone_id,
+            visible_semantic_ids=parsed_visual.visible_semantic_ids,
+        )
+    elif frame.name is EventName.ENVIRONMENT_STATE:
+        parsed_environment = _EnvironmentState.model_validate(frame.payload)
+        payload = EnvironmentState(
+            command_id=parsed_environment.command_id,
+            lights_on=parsed_environment.lights_on,
+            quiet_mode=parsed_environment.quiet_mode,
+            applied=parsed_environment.applied,
+            reason=parsed_environment.reason,
         )
     else:  # pragma: no cover - EventName is closed and every member is mapped above.
         raise ValueError(f"unsupported Runtime event: {frame.name.value}")
@@ -240,7 +251,8 @@ def map_runtime_event(frame: RuntimeEventFrame) -> WorldEvent:
         ),
         world_revision=frame.world_revision,
         name=WorldEventName(frame.name.value),
-        correlation_id=frame.correlation_id,
+        cause_id=frame.cause_id,
+        occurred_at=frame.occurred_at,
         payload=payload,
     )
 

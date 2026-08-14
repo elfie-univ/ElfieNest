@@ -16,7 +16,9 @@ def test_target_runtime_imports_are_available():
 
     assert ModelExecutionAgent is not None
     assert ModelCatalog is not None
-    assert not hasattr(ModelExecutionAgent(ports=model_execution_agent_ports()), "router")
+    assert not hasattr(
+        ModelExecutionAgent(ports=model_execution_agent_ports()), "router"
+    )
     assert OllamaManager is not None
     assert get_profile("ollama") is not None
     assert PermissionManager is not None

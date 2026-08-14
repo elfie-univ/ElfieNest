@@ -15,6 +15,7 @@ from app.features.adoption import (
     AdoptionReservationRecord,
 )
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
+from nest.public import NestConfig
 
 
 class SQLiteAdoptionAdapter:
@@ -53,14 +54,15 @@ class SQLiteAdoptionAdapter:
                 row = connection.execute(
                     "SELECT bed_count FROM nest_settings WHERE nest_id='local-nest'"
                 ).fetchone()
-                if row is None:
-                    raise AdoptionPortError("Nest capacity is not configured")
-                used = int(connection.execute("SELECT COUNT(*) FROM elfies").fetchone()[0])
+                used = int(
+                    connection.execute("SELECT COUNT(*) FROM elfies").fetchone()[0]
+                )
         except AdoptionPortError:
             raise
         except sqlite3.Error as error:
             raise AdoptionPortError("unable to read Nest capacity") from error
-        return AdoptionNestCapacityRecord(used=used, maximum=int(row[0]))
+        maximum = NestConfig().bed_count if row is None else int(row[0])
+        return AdoptionNestCapacityRecord(used=used, maximum=maximum)
 
     def reserve(
         self,
@@ -79,9 +81,7 @@ class SQLiteAdoptionAdapter:
                 nest = connection.execute(
                     "SELECT bed_count FROM nest_settings WHERE nest_id='local-nest'"
                 ).fetchone()
-                if nest is None:
-                    raise AdoptionPortError("Nest capacity is not configured")
-                nest_limit = int(nest[0])
+                nest_limit = NestConfig().bed_count if nest is None else int(nest[0])
                 nest_used = int(
                     connection.execute("SELECT COUNT(*) FROM elfies").fetchone()[0]
                 )
@@ -99,7 +99,7 @@ class SQLiteAdoptionAdapter:
                 connection.execute(
                     """INSERT INTO elfies(
                            elfie_id, name, original_name, owner_user_id, species, gender,
-                           birth_date, adopted_at, bed_number, status, summary
+                           birth_date, adopted_at, home_anchor_id, status, summary
                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'offline', ?)""",
                     (
                         reservation.elfie_id,

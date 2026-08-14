@@ -1,1 +1,1 @@
-"""Godot protocol-v2 Gateway Adapter tests."""
+"""Godot protocol-v3 Gateway Adapter tests."""

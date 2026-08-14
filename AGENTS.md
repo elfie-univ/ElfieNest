@@ -121,9 +121,7 @@ ElfieNest 当前目标是完成一套可安装、可运行、可观察、可继�
 中英文 [`System architecture contract`](docs/developer/contracts/system.md) 是跨根模块
 所有权和依赖方向的长期权威；Nest 内部所有权、Godot 语义线路和事件路由由中英文
 [`Nest–Godot semantic-world contract`](docs/developer/contracts/nest-godot-semantic-world.md)
-细化；契约未完全落地期间，迁移必须按临时
-[`Nest–Godot migration specification`](docs/developer/conformance/nest-godot-semantic-world-migration.md)
-逐卡执行。系统形态为：
+细化。系统形态为：
 
 ```text
 app/              产品入口、用例、编排与装配

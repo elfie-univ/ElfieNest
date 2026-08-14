@@ -31,6 +31,7 @@ from infrastructure.persistence.elfie_workspace.embodiment import (
 from infrastructure.persistence.layout.data_home import get_config_path
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.memory.schema import KNOWLEDGE_TABLES
+from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.nest_db.store import get_db, init_db
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from test.app.interfaces.api._helpers import (
@@ -96,9 +97,7 @@ def test_fresh_root_survives_adoption_chat_memory_and_restart(tmp_path: Path) ->
     reopened = _restore(workspace)
     assert "今天看到了金色的花" in ElfieDiagnostics(
         reopened
-    ).memory.retrieve_relevant_memories(
-        "金色的花"
-    )
+    ).memory.retrieve_relevant_memories("金色的花")
     ElfieDiagnostics(reopened).memory.storage.close()
     assert [
         message.text
@@ -141,9 +140,10 @@ def test_full_product_chain_uses_one_explicit_final_root(
         csrf_token = login.headers["X-CSRF-Token"]
         complete_test_setup(str(db_path))
         elfie_id = adopt_test_elfie(str(db_path), owner_id, name="小白")
+        SQLiteNestStateAdapter(str(db_path)).save_catalog(_test_world_catalog())
         bed = client.put(
             f"/api/v1/admin/nest/elfies/{elfie_id}/bed",
-            json={"home_anchor_id": "bed-01"},
+            json={"home_anchor_id": "dorm-01/bed-01"},
             headers={"X-CSRF-Token": csrf_token},
         )
         body = SQLiteBodiesAdapter(str(db_path)).enroll(
@@ -215,6 +215,30 @@ def _tables(db_path: Path) -> set[str]:
             )
             if not str(row[0]).startswith("sqlite_")
         }
+
+
+def _test_world_catalog():
+    from nest.public import AnchorKind, InteractionAnchor, WorldCatalog, ZoneDescriptor
+
+    return WorldCatalog(
+        nest_id="local-nest",
+        revision=1,
+        zones=(
+            ZoneDescriptor(
+                zone_id="dorm-01",
+                label="Dorm 01",
+                order=0,
+                anchors=(
+                    InteractionAnchor(
+                        anchor_id="dorm-01/bed-01",
+                        kind=AnchorKind.BED,
+                        label="Bed 01",
+                        order=0,
+                    ),
+                ),
+            ),
+        ),
+    )
 
 
 def _restore(workspace: Path):

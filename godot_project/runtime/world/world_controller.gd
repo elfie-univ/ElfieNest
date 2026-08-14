@@ -1,10 +1,12 @@
 class_name NestWorldRuntimeController
 extends Node
 
+const SEMANTIC_SCENE_INDEX := preload("res://runtime/world/semantic_scene_index.gd")
+
 signal runtime_event(
 	event_name: String,
 	payload: Dictionary,
-	correlation_id: String,
+	cause_id: String,
 )
 
 var navigation_ready := false
@@ -17,12 +19,12 @@ func setup(nest: ModularNest) -> void:
 
 func configure_world(
 	config: Dictionary,
-	correlation_id: String,
+	cause_id: String,
 ) -> Dictionary:
 	navigation_ready = false
 	var result := _nest.apply_world_config(config)
 	if not bool(result.get("accepted", false)):
-		runtime_event.emit("config_rejected", result, correlation_id)
+		runtime_event.emit("config_rejected", result, cause_id)
 		return result
 
 	await get_tree().process_frame
@@ -33,7 +35,7 @@ func configure_world(
 			"code": "navigation_not_ready",
 			"world_revision": _nest.world_revision,
 		}
-		runtime_event.emit("startup_error", failure, correlation_id)
+		runtime_event.emit("startup_error", failure, cause_id)
 		return failure
 	if not await _wait_for_navigation_sync():
 		var sync_failure := {
@@ -41,18 +43,18 @@ func configure_world(
 			"code": "navigation_sync_timeout",
 			"world_revision": _nest.world_revision,
 		}
-		runtime_event.emit("startup_error", sync_failure, correlation_id)
+		runtime_event.emit("startup_error", sync_failure, cause_id)
 		return sync_failure
 
 	navigation_ready = true
-	runtime_event.emit("scene_manifest", manifest, correlation_id)
+	runtime_event.emit("scene_manifest", manifest, cause_id)
 	runtime_event.emit(
-		"world_ready",
+		"world_configured",
 		{
-			"ready": true,
+			"configured": true,
 			"navigation_ready": true,
 		},
-		correlation_id,
+		cause_id,
 	)
 	return result
 
@@ -78,9 +80,7 @@ func _prepare_semantic_anchors(manifest: Dictionary) -> bool:
 	for raw_anchor: Variant in raw_anchors as Array:
 		if not raw_anchor is Dictionary:
 			return false
-		var anchor := raw_anchor as Dictionary
-		if bool(anchor.get("active", false)):
-			var anchor_id := String(anchor.get("anchor_id", ""))
-			if anchor_id.is_empty() or _nest.resolve_anchor(anchor_id) == null:
-				return false
+	for anchor_id in SEMANTIC_SCENE_INDEX.active_anchor_ids(manifest):
+		if _nest.resolve_anchor(anchor_id) == null:
+			return false
 	return true

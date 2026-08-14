@@ -5,7 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from nest.state.models import PersistentResidentState, WorldCatalog
+from nest.state.models import (
+    EnvironmentDesiredState,
+    EnvironmentRule,
+    PersistentResidentState,
+    WorldCatalog,
+)
 
 
 @dataclass(frozen=True)
@@ -16,6 +21,10 @@ class NestPersistenceSnapshot:
     elapsed_seconds: float
     catalog: WorldCatalog | None
     residents: tuple[PersistentResidentState, ...]
+    clock_paused: bool = False
+    time_scale: float = 1.0
+    environment_desired: EnvironmentDesiredState = EnvironmentDesiredState()
+    environment_rules: tuple[EnvironmentRule, ...] = ()
 
 
 class NestPersistenceError(RuntimeError):
@@ -34,6 +43,16 @@ class NestRepository(Protocol):
     def save_resident(self, resident: PersistentResidentState) -> None: ...
 
     def remove_resident(self, elfie_id: str) -> None: ...
+
+    def save_time_environment(
+        self,
+        *,
+        elapsed_seconds: float,
+        clock_paused: bool,
+        time_scale: float,
+        environment_desired: EnvironmentDesiredState,
+        environment_rules: tuple[EnvironmentRule, ...],
+    ) -> None: ...
 
 
 __all__ = (

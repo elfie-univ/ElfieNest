@@ -85,12 +85,14 @@ def test_previous_batch_signatures_are_respected() -> None:
         gender="female",
         appearance=intent(),
         answers=("approach", "explore", "adapt", "discuss", "lively"),
-        previous_signatures=tuple(candidate.signature for candidate in first.candidates),
+        previous_signatures=tuple(
+            candidate.signature for candidate in first.candidates
+        ),
     )
 
-    assert not {
-        candidate.candidate_id for candidate in first.candidates
-    } & {candidate.candidate_id for candidate in second.candidates}
+    assert not {candidate.candidate_id for candidate in first.candidates} & {
+        candidate.candidate_id for candidate in second.candidates
+    }
 
 
 def test_species_stage_ranges_can_differ() -> None:

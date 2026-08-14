@@ -127,9 +127,7 @@ def test_options_prioritize_nest_full_over_member_quota_and_model_state() -> Non
     persistence = Persistence()
     persistence.used = persistence.limit
     persistence.nest_used = persistence.nest_limit
-    service = AdoptionService(
-        Policy(), persistence, narrative=Narrative(ready=False)
-    )
+    service = AdoptionService(Policy(), persistence, narrative=Narrative(ready=False))
 
     options = service.get_options(principal(), GetAdoptionOptionsQuery())
 
@@ -320,9 +318,7 @@ def test_reply_guarantees_at_least_one_acceptance(
 
 def test_successful_reply_retry_is_idempotent_and_does_not_call_model_twice() -> None:
     narrative = Narrative()
-    service = AdoptionService(
-        Policy(), Persistence(), narrative=narrative
-    )
+    service = AdoptionService(Policy(), Persistence(), narrative=narrative)
     candidate_set = service.create_candidate_set(principal(), candidate_command())
     command = ReplyToCandidatesCommand(
         candidate_set_id=candidate_set.candidate_set_id,

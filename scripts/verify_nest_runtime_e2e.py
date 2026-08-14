@@ -1,4 +1,4 @@
-"""Run a real Python WebSocket to Godot protocol-v2 acceptance scenario."""
+"""Run a real Python WebSocket to Godot protocol-v3 acceptance scenario."""
 
 from __future__ import annotations
 
@@ -6,15 +6,16 @@ import argparse
 import json
 import time
 from collections.abc import Callable
-from typing import List
+from threading import Thread
+from typing import List, cast
 from unittest.mock import MagicMock
 
 from app.orchestration.nest_session import ElfieNestEngine
 from elfie import Elfie
 from elfie.profile import ElfieProfile, create_visual_profile
+from infrastructure.godot.body_transport import GodotTransport, RuntimeIntentPayload
 from infrastructure.godot.gateway.api import GodotAPIServer
 from infrastructure.godot.gateway.messages import (
-    CommandName,
     EventName,
     RuntimeEventFrame,
 )
@@ -75,14 +76,6 @@ def _wait_for(
     raise RuntimeError(f"timed out waiting for runtime events; observed={names}")
 
 
-def _terminal(command_id: str) -> Callable[[List[RuntimeEventFrame]], bool]:
-    return lambda events: any(
-        event.name is EventName.INTENT_TERMINAL
-        and event.payload.get("command_id") == command_id
-        for event in events
-    )
-
-
 def _has_two_actor_snapshot(events: List[RuntimeEventFrame]) -> bool:
     for event in events:
         actors = event.payload.get("actors")
@@ -122,99 +115,189 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
         if revision is None:
             raise RuntimeError("runtime never became ready")
         speech_id = "real-speech-1"
-        server.send_runtime_command(
-            CommandName.EXECUTE_INTENT,
-            {
-                "command_id": speech_id,
-                "actor_id": "fox-1",
-                "intent": "speak",
-                "text": "Hello from the real runtime path",
-                "deadline_seconds": 5.0,
-            },
+        server.request_speech_reach(
+            command_id=speech_id,
+            actor_id="fox-1",
+            acoustic_profile="normal",
             world_revision=revision,
-            correlation_id=speech_id,
         )
-        speech = _wait_for(engine, server, _terminal(speech_id), timeout=10.0)
+        speech = _wait_for(
+            engine,
+            server,
+            lambda events: any(
+                event.name is EventName.SPEECH_REACH
+                and event.payload.get("command_id") == speech_id
+                for event in events
+            ),
+            timeout=10.0,
+        )
         audience = next(
-            event for event in speech if event.name is EventName.SPEECH_AUDIENCE
+            event for event in speech if event.name is EventName.SPEECH_REACH
         )
         if audience.payload.get("audience_actor_ids") != ["dog-1"]:
             raise RuntimeError("speech audience mismatch")
 
-        move_id = "real-move-1"
-        server.send_runtime_command(
-            CommandName.EXECUTE_INTENT,
-            {
-                "command_id": move_id,
-                "actor_id": "fox-1",
-                "intent": "move_to_anchor",
-                "anchor_id": "activity-01/activity",
-                "deadline_seconds": 20.0,
-            },
-            world_revision=revision,
-            correlation_id=move_id,
+        # The real Body path first lets Nest persist the utterance and ask
+        # Godot for reachability, then sends a content-free direct Body
+        # animation command.  This proves the full SpeechBridge without
+        # leaking speech content into Godot.
+        speech_body_events: list[RuntimeEventFrame] = []
+        speech_transport = GodotTransport(
+            server,
+            actor_id="fox-1",
+            speech_intent=cast(
+                Callable[[RuntimeIntentPayload], bool], engine.session.prepare_speech
+            ),
         )
-        movement = _wait_for(engine, server, _terminal(move_id), timeout=25.0)
-        move_terminal = next(
-            event
-            for event in movement
-            if event.name is EventName.INTENT_TERMINAL
-            and event.payload.get("command_id") == move_id
+        speech_transport.connect(speech_body_events.append)
+        speak_id = "real-speak-body-1"
+        speak_result = speech_transport.execute_intent(
+            RuntimeIntentPayload(
+                command_id=speak_id,
+                actor_id="fox-1",
+                intent="speak",
+                text="hello from Nest",
+                deadline_seconds=10.0,
+            ),
+            timeout_seconds=15.0,
         )
-        if move_terminal.payload.get("status") != "completed":
-            physical_events = [
-                {
-                    "name": event.name.value,
-                    "payload": event.payload,
-                }
-                for event in movement
-                if event.name
-                in {
-                    EventName.MOVEMENT_BLOCKED,
-                    EventName.TACTILE_CONTACT,
-                    EventName.INTENT_TERMINAL,
-                }
-            ]
-            raise RuntimeError(f"movement failed: {physical_events}")
-
-        cancel_id = "real-cancel-1"
-        server.send_runtime_command(
-            CommandName.EXECUTE_INTENT,
-            {
-                "command_id": cancel_id,
-                "actor_id": "dog-1",
-                "intent": "move_to_anchor",
-                "anchor_id": "activity-01/activity",
-                "deadline_seconds": 20.0,
-            },
-            world_revision=revision,
-            correlation_id=cancel_id,
-        )
-        _wait_for(
+        speech_transport.disconnect(speech_body_events.append)
+        if speak_result.terminal_status != "completed":
+            raise RuntimeError(f"speech body action failed: {speak_result}")
+        speech_body_reach = _wait_for(
             engine,
             server,
             lambda events: any(
-                event.name is EventName.INTENT_STARTED
-                and event.payload.get("command_id") == cancel_id
+                event.name is EventName.SPEECH_REACH
+                and event.payload.get("command_id") == speak_id
                 for event in events
             ),
-            timeout=5.0,
+            timeout=10.0,
         )
-        server.send_runtime_command(
-            CommandName.CANCEL_INTENT,
-            {"command_id": cancel_id, "actor_id": "dog-1"},
-            world_revision=revision,
-            correlation_id=cancel_id,
-        )
-        cancelled = _wait_for(engine, server, _terminal(cancel_id), timeout=5.0)
-        cancel_terminal = next(
+        speech_body_reach_event = next(
             event
-            for event in cancelled
-            if event.name is EventName.INTENT_TERMINAL
-            and event.payload.get("command_id") == cancel_id
+            for event in speech_body_reach
+            if event.name is EventName.SPEECH_REACH
+            and event.payload.get("command_id") == speak_id
         )
-        if cancel_terminal.payload.get("status") != "cancelled":
-            raise RuntimeError(f"cancel failed: {cancel_terminal.payload}")
+        if speech_body_reach_event.payload.get("audience_actor_ids") != ["dog-1"]:
+            raise RuntimeError("speech body audience mismatch")
+
+        observation_id = "real-visual-1"
+        server.request_visual_observation(
+            observation_id=observation_id,
+            actor_id="fox-1",
+            max_results=32,
+            world_revision=revision,
+        )
+        visual = _wait_for(
+            engine,
+            server,
+            lambda events: any(
+                event.name is EventName.VISUAL_OBSERVATION
+                and event.payload.get("observation_id") == observation_id
+                for event in events
+            ),
+            timeout=10.0,
+        )
+        visual_event = next(
+            event
+            for event in visual
+            if event.name is EventName.VISUAL_OBSERVATION
+            and event.payload.get("observation_id") == observation_id
+        )
+        visible_ids_value = visual_event.payload.get("visible_semantic_ids", [])
+        if not isinstance(visible_ids_value, list):
+            raise RuntimeError("visual observation returned invalid semantic IDs")
+        visible_ids = tuple(str(value) for value in visible_ids_value)
+        if not any(str(value).startswith("actor/") for value in visible_ids):
+            raise RuntimeError(
+                f"visual observation did not include an actor: {visible_ids}"
+            )
+
+        environment_id = "real-environment-1"
+        server.apply_environment(
+            command_id=environment_id,
+            lights_on=False,
+            quiet_mode=True,
+            world_revision=revision,
+        )
+        environment = _wait_for(
+            engine,
+            server,
+            lambda events: any(
+                event.name is EventName.ENVIRONMENT_STATE
+                and event.payload.get("command_id") == environment_id
+                for event in events
+            ),
+            timeout=10.0,
+        )
+        environment_event = next(
+            event
+            for event in environment
+            if event.name is EventName.ENVIRONMENT_STATE
+            and event.payload.get("command_id") == environment_id
+        )
+        if environment_event.payload.get("applied") is not True:
+            raise RuntimeError(
+                f"environment command was not applied: {environment_event.payload}"
+            )
+
+        body_events: list[RuntimeEventFrame] = []
+        fox_transport = GodotTransport(server, actor_id="fox-1")
+        fox_transport.connect(body_events.append)
+        move_id = "real-move-1"
+        move_result = fox_transport.execute_intent(
+            RuntimeIntentPayload(
+                command_id=move_id,
+                actor_id="fox-1",
+                intent="move_to_anchor",
+                anchor_id="activity-01/activity",
+                deadline_seconds=20.0,
+            ),
+            timeout_seconds=25.0,
+        )
+        fox_transport.disconnect(body_events.append)
+        if move_result.terminal_status != "completed":
+            raise RuntimeError(f"movement failed: {move_result}")
+
+        cancel_id = "real-cancel-1"
+        dog_events: list[RuntimeEventFrame] = []
+        dog_transport = GodotTransport(server, actor_id="dog-1")
+        dog_transport.connect(dog_events.append)
+        cancel_result: dict[str, object] = {}
+
+        def run_cancelled_move() -> None:
+            cancel_result["result"] = dog_transport.execute_intent(
+                RuntimeIntentPayload(
+                    command_id=cancel_id,
+                    actor_id="dog-1",
+                    intent="move_to_anchor",
+                    anchor_id="activity-01/activity",
+                    deadline_seconds=20.0,
+                ),
+                timeout_seconds=10.0,
+            )
+
+        worker = Thread(target=run_cancelled_move, daemon=True)
+        worker.start()
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline and not any(
+            event.name is EventName.INTENT_STARTED
+            and event.payload.get("command_id") == cancel_id
+            for event in dog_events
+        ):
+            time.sleep(0.02)
+        if not server.cancel_body_command(command_id=cancel_id, actor_id="dog-1"):
+            raise RuntimeError("cancel command was not accepted by the Gateway")
+        worker.join(timeout=10.0)
+        dog_transport.disconnect(dog_events.append)
+        cancel_runtime_result = cancel_result.get("result")
+        if (
+            cancel_runtime_result is None
+            or getattr(cancel_runtime_result, "terminal_status", None) != "cancelled"
+        ):
+            raise RuntimeError(f"cancel failed: {cancel_runtime_result}")
         result: dict[str, object] = {
             "runtime_id": server.runtime_connection.runtime_id
             if server.runtime_connection is not None
@@ -222,8 +305,11 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
             "world_revision": revision,
             "startup_events": [event.name.value for event in startup],
             "speech_audience": audience.payload["audience_actor_ids"],
-            "move_terminal": move_terminal.payload["status"],
-            "cancel_terminal": cancel_terminal.payload["status"],
+            "speak_terminal": speak_result.terminal_status,
+            "visual_count": len(visible_ids),
+            "environment_applied": environment_event.payload["applied"],
+            "move_terminal": move_result.terminal_status,
+            "cancel_terminal": getattr(cancel_runtime_result, "terminal_status", None),
         }
         if verify_reconnect:
             connection = server.runtime_connection

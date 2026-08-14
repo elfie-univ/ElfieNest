@@ -63,7 +63,7 @@ def test_nest_lab_exposes_an_isolated_runtime_control_surface(tmp_path) -> None:
     # Then
     assert response.status_code == 200
     assert response.json()["scope"] == "developer"
-    assert response.json()["protocol"] == 2
+    assert response.json()["protocol"] == 3
     assert response.json()["websocket_url"].startswith("ws://127.0.0.1:")
     assert response.json()["nonce"]
 

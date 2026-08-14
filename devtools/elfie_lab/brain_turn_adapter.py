@@ -83,7 +83,9 @@ class SelectedLabModelExecution:
         with self._lock:
             selected = self._selected
         if selected is None:
-            raise ModelExecutionSelectionMissingError("Lab model_execution is not selected")
+            raise ModelExecutionSelectionMissingError(
+                "Lab model_execution is not selected"
+            )
         return selected
 
 
@@ -164,7 +166,7 @@ class BrainTurnAdapter:
         previous_count = len(self._elfie.turn_outcomes())
         if stimulus.source_domain == "communication":
             envelope = self._communication_envelope(stimulus, event_id)
-            submitted_event_ids = (envelope.meta.event_id,)
+            submitted_event_ids: tuple[EventId, ...] = (envelope.meta.event_id,)
             self._elfie.receive_communication_envelope(envelope)
         else:
             events = self._events(stimulus, event_id)

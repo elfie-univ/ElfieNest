@@ -77,7 +77,11 @@ class FoodExecutor:
         candidates: list[tuple[str, FoodAssignment]] = []
         if selected is not None:
             candidates.append((stage, selected))
-        if allow_fallback and package.fallback is not None and package.fallback != selected:
+        if (
+            allow_fallback
+            and package.fallback is not None
+            and package.fallback != selected
+        ):
             candidates.append(("fallback", package.fallback))
         attempts: list[dict[str, str]] = []
         for candidate_stage, assignment in candidates:

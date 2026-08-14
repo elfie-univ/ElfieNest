@@ -24,7 +24,6 @@ from elfie.brain.journal import BrainJournalEntry, BrainJournalPort
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.orientation.contracts import OrientationSnapshot
-from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
 from elfie.brain.reasoning.decision_types import TurnDecision
 from elfie.brain.reasoning.execution_types import ExecutionReceipt
 from elfie.brain.reasoning.model_port import ModelPort
@@ -33,6 +32,7 @@ from elfie.brain.reasoning.skills import SkillManager
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.brain.runtime import BrainRuntime
+from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.workspace.contracts import IngestReceipt
 from elfie.brain.workspace.system import EventWorkspace

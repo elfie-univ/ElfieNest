@@ -1,7 +1,7 @@
 extends SceneTree
 
-const ACTOR_CONTROLLER_SCRIPT := preload("res://runtime/actor_controller.gd")
-const WORLD_CONTROLLER_SCRIPT := preload("res://runtime/world_controller.gd")
+const ACTOR_CONTROLLER_SCRIPT := preload("res://runtime/actor/actor_controller.gd")
+const WORLD_CONTROLLER_SCRIPT := preload("res://runtime/world/world_controller.gd")
 const ACTOR_SCENES := {
 	"dog": preload("res://characters/dog/dog.tscn"),
 	"fox": preload("res://characters/fox/fox.tscn"),
@@ -38,7 +38,7 @@ func _init() -> void:
 		{
 			"actor_id": "fox-1",
 			"species": "fox",
-			"home_anchor_id": "dorm-01/bed-01",
+			"spawn_anchor_id": "dorm-01/bed-01",
 			"appearance": {},
 		},
 	]) as Dictionary
@@ -48,7 +48,7 @@ func _init() -> void:
 		return
 	var events: Array[Dictionary] = []
 	actor_controller.runtime_event.connect(
-		func(event_name: String, payload: Dictionary, _correlation_id: String) -> void:
+		func(event_name: String, payload: Dictionary, _cause_id: String) -> void:
 			events.append({"name": event_name, "payload": payload})
 	)
 	actor_controller.execute_intent({
@@ -159,13 +159,13 @@ func _init() -> void:
 		{
 			"actor_id": "fox-1",
 			"species": "fox",
-			"home_anchor_id": "dorm-01/bed-01",
+			"spawn_anchor_id": "dorm-01/bed-01",
 			"appearance": {},
 		},
 		{
 			"actor_id": "dog-1",
 			"species": "dog",
-			"home_anchor_id": "dorm-01/bed-02",
+			"spawn_anchor_id": "dorm-01/bed-02",
 			"appearance": {},
 		},
 	]) as Dictionary
@@ -218,7 +218,7 @@ func _init() -> void:
 		{
 			"actor_id": "dog-1",
 			"species": "dog",
-			"home_anchor_id": "dorm-01/bed-02",
+			"spawn_anchor_id": "dorm-01/bed-02",
 			"appearance": {},
 		},
 	])

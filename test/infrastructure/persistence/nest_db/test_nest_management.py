@@ -8,6 +8,7 @@ from infrastructure.persistence.nest_db.nest_management import (
 )
 from infrastructure.persistence.nest_db.store import get_db, init_db
 from nest import NestConfig
+from nest.public import AnchorKind, InteractionAnchor, WorldCatalog, ZoneDescriptor
 
 
 def _database(tmp_path) -> str:
@@ -37,6 +38,30 @@ def _seed_nest(db_path: str) -> None:
                VALUES (?, ?, 1.0)""",
             (config.nest_id, config.bed_count),
         )
+        catalog = WorldCatalog(
+            nest_id=config.nest_id,
+            revision=1,
+            zones=(
+                ZoneDescriptor(
+                    zone_id="dorm-01",
+                    label="Dorm 01",
+                    order=0,
+                    anchors=tuple(
+                        InteractionAnchor(
+                            anchor_id=f"dorm-01/bed-{index:02d}",
+                            kind=AnchorKind.BED,
+                            label=f"Bed {index:02d}",
+                            order=index - 1,
+                        )
+                        for index in range(1, config.bed_count + 1)
+                    ),
+                ),
+            ),
+        )
+        connection.execute(
+            "UPDATE nest_settings SET world_catalog_json=? WHERE nest_id=?",
+            (catalog.model_dump_json(), config.nest_id),
+        )
         connection.commit()
 
 
@@ -47,7 +72,7 @@ def test_query_returns_default_projection_without_writing(tmp_path) -> None:
     snapshot = adapter.load_snapshot()
 
     assert snapshot.desired_bed_count == NestConfig().bed_count
-    assert len(snapshot.beds) == NestConfig().bed_count
+    assert snapshot.beds == ()
     with get_db(db_path) as connection:
         count = connection.execute("SELECT COUNT(*) FROM nest_settings").fetchone()[0]
     assert count == 0
@@ -89,15 +114,15 @@ def test_bed_assignment_is_atomic_and_rejects_occupied_bed(tmp_path) -> None:
     _seed_elfie(db_path, "00000002")
     adapter = SQLiteNestManagementAdapter(db_path)
 
-    adapter.assign_bed("00000001", 1)
+    adapter.assign_home("00000001", "dorm-01/bed-01")
     with pytest.raises(NestPortConflict):
-        adapter.assign_bed("00000002", 1)
+        adapter.assign_home("00000002", "dorm-01/bed-01")
 
     with get_db(db_path) as connection:
         assignments = connection.execute(
-            "SELECT elfie_id, bed_number FROM elfies ORDER BY elfie_id"
+            "SELECT elfie_id, home_anchor_id FROM elfies ORDER BY elfie_id"
         ).fetchall()
     assert [tuple(row) for row in assignments] == [
-        ("00000001", 1),
+        ("00000001", "dorm-01/bed-01"),
         ("00000002", None),
     ]

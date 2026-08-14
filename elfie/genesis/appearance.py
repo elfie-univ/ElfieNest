@@ -44,9 +44,15 @@ def generate_appearance(
 
 
 def signature(genome: AppearanceGenome) -> tuple[float, ...]:
-    categories = (genome.coat.palette_id, genome.coat.pattern_id, genome.coat.eye_color_id)
+    categories = (
+        genome.coat.palette_id,
+        genome.coat.pattern_id,
+        genome.coat.eye_color_id,
+    )
     category_values = tuple(
-        int.from_bytes(hashlib.blake2b(value.encode("utf-8"), digest_size=2).digest(), "big")
+        int.from_bytes(
+            hashlib.blake2b(value.encode("utf-8"), digest_size=2).digest(), "big"
+        )
         / 65535.0
         for value in categories
     )
@@ -65,9 +71,7 @@ def signature(genome: AppearanceGenome) -> tuple[float, ...]:
     )
 
 
-def appearance_fit(
-    genome: AppearanceGenome, intent: GenesisAppearanceIntent
-) -> float:
+def appearance_fit(genome: AppearanceGenome, intent: GenesisAppearanceIntent) -> float:
     values = {
         "stature": genome.macro.stature_z / 2.0,
         "build": genome.macro.body_fat_z / 2.0,
@@ -93,9 +97,9 @@ def distance(left: CandidateSignature, right: CandidateSignature) -> float:
     personality = sum(
         abs(a - b) for a, b in zip(left.personality, right.personality)
     ) / len(left.personality)
-    appearance = sum(abs(a - b) for a, b in zip(left.appearance, right.appearance)) / len(
-        left.appearance
-    )
+    appearance = sum(
+        abs(a - b) for a, b in zip(left.appearance, right.appearance)
+    ) / len(left.appearance)
     return 0.55 * personality + 0.45 * appearance
 
 

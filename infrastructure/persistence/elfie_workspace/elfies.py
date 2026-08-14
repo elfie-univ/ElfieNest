@@ -128,7 +128,11 @@ class SQLiteElfiesProjectionAdapter:
             )
         except ValueError as error:
             raise ElfiesPortError("invalid Elfie identity") from error
-        path = layout.portrait_full_body if kind == "full_body" else layout.portrait_headshot
+        path = (
+            layout.portrait_full_body
+            if kind == "full_body"
+            else layout.portrait_headshot
+        )
         try:
             return path.read_bytes() if path.is_file() else None
         except OSError as error:

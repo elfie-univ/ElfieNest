@@ -1,4 +1,4 @@
-"""Connection-level rate limiting for Godot protocol v2."""
+"""Connection-level rate limiting for Godot protocol v3."""
 
 from __future__ import annotations
 

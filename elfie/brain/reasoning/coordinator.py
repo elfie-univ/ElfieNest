@@ -240,9 +240,7 @@ class BrainCoordinator:
                     candidate, elfie_id=self._elfie_id
                 )
             )
-            self._consolidation_due = (
-                ingest.disposition is IngestDisposition.ACCEPTED
-            )
+            self._consolidation_due = ingest.disposition is IngestDisposition.ACCEPTED
 
     def _maybe_start_turn(self) -> None:
         if self._inflight is not None:

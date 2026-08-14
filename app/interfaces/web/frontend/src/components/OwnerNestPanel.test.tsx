@@ -46,8 +46,8 @@ describe("OwnerNestPanel", () => {
       name: "Local Nest",
       desired_bed_count: 4,
       beds: [{
-        anchor_id: "bed-01",
-        id: "1",
+        anchor_id: "dorm-01/bed-01",
+        id: "dorm-01/bed-01",
         name: "Bed 01",
         occupant_id: "00000001",
         occupant_name: "Happy",

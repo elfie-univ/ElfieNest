@@ -1,7 +1,7 @@
 extends SceneTree
 
 const BED_COUNTS := [4, 5, 16, 32]
-const WORLD_RUNTIME_CONTROLLER := preload("res://runtime/world_controller.gd")
+const WORLD_RUNTIME_CONTROLLER := preload("res://runtime/world/world_controller.gd")
 
 func _init() -> void:
 	var nest_scene := load("res://rooms/nest.tscn") as PackedScene
@@ -66,7 +66,7 @@ func _init() -> void:
 	controller.setup(nest)
 	var emitted_events: Array[String] = []
 	controller.runtime_event.connect(
-		func(event_name: String, _payload: Dictionary, _correlation_id: String) -> void:
+		func(event_name: String, _payload: Dictionary, _cause_id: String) -> void:
 			emitted_events.append(event_name)
 	)
 	var ready_result: Dictionary = await controller.configure_world(
@@ -81,12 +81,12 @@ func _init() -> void:
 		push_error("World controller rejected a valid final config")
 		quit(1)
 		return
-	if emitted_events != ["scene_manifest", "world_ready"]:
-		push_error("world_ready must follow scene_manifest exactly once")
+	if emitted_events != ["scene_manifest", "world_configured"]:
+		push_error("world_configured must follow scene_manifest exactly once")
 		quit(1)
 		return
 	if not controller.navigation_ready:
-		push_error("world_ready emitted before navigation preparation")
+		push_error("world_configured emitted before navigation preparation")
 		quit(1)
 		return
 

@@ -69,7 +69,9 @@ def role_delta(
     role: str, core: tuple[float, ...], rng: random.Random
 ) -> tuple[float, ...]:
     if role == "inner_anchor":
-        ranked = sorted(range(len(core)), key=lambda index: abs(core[index]), reverse=True)
+        ranked = sorted(
+            range(len(core)), key=lambda index: abs(core[index]), reverse=True
+        )
         top = set(ranked[:2])
         return tuple(
             (0.32 if value >= 0.0 else -0.32) if index in top else 0.0
@@ -80,12 +82,12 @@ def role_delta(
         base = [-0.08, 0.06, -0.12, 0.10, 0.12]
         base[least] = 0.34 if rng.random() >= 0.5 else -0.34
         return tuple(base)
-    base = {
+    role_base: tuple[float, ...] = {
         "primary_match": (0.00, 0.00, 0.00, 0.00, 0.00),
         "appearance_anchor": (0.06, -0.04, 0.05, 0.00, 0.00),
         "balanced_variant": (0.12, -0.10, 0.08, 0.06, -0.06),
     }.get(role, (0.0,) * len(BIG_FIVE_TRAITS))
-    return tuple(value + rng.uniform(-0.035, 0.035) for value in base)
+    return tuple(value + rng.uniform(-0.035, 0.035) for value in role_base)
 
 
 def profile(latent: Iterable[float]) -> BigFiveProfile:

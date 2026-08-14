@@ -99,9 +99,7 @@ class StructuredAdoptionNarrativeAdapter:
             except (OSError, RuntimeError):
                 raise
             try:
-                return _validated_reveal(
-                    _parse_json(result.text), candidate.species_id
-                )
+                return _validated_reveal(_parse_json(result.text), candidate.species_id)
             except ValueError as error:
                 if attempt == 1:
                     raise
@@ -133,7 +131,9 @@ def _is_qualified(capabilities: object) -> bool:
 
 
 def _is_obviously_too_small(model_key: str) -> bool:
-    for match in re.finditer(r"(?<![\w.])(\d+(?:\.\d+)?)([bm])\b", model_key, re.IGNORECASE):
+    for match in re.finditer(
+        r"(?<![\w.])(\d+(?:\.\d+)?)([bm])\b", model_key, re.IGNORECASE
+    ):
         size = float(match.group(1))
         billions = size if match.group(2).lower() == "b" else size / 1000.0
         if billions < 7.0:
@@ -232,9 +232,13 @@ def _validate_name(value: str, species_id: str) -> None:
         "anonymous",
         "匿名候选",
     }
-    species_tokens = {"fox", "狐", "狐狸"} if species_id == "fox" else {"dog", "狗", "小狗"}
+    species_tokens = (
+        {"fox", "狐", "狐狸"} if species_id == "fox" else {"dog", "狗", "小狗"}
+    )
     if normalized in forbidden or any(token in normalized for token in species_tokens):
-        raise ValueError("Adoption reveal name must be a proper name, not a species label")
+        raise ValueError(
+            "Adoption reveal name must be a proper name, not a species label"
+        )
     if normalized.startswith(("候选", "candidate")):
         raise ValueError("Adoption reveal name must not be a candidate number")
 
@@ -242,10 +246,20 @@ def _validate_name(value: str, species_id: str) -> None:
 def _validate_story(value: str) -> None:
     cjk_count = len(re.findall(r"[\u3400-\u9fff]", value))
     if "我" not in value or cjk_count < 20:
-        raise ValueError("Adoption personal_story must be a natural first-person Chinese introduction")
-    forbidden_fragments = ("personality label", "months old", "《", "物种的代表", "通常被称为")
+        raise ValueError(
+            "Adoption personal_story must be a natural first-person Chinese introduction"
+        )
+    forbidden_fragments = (
+        "personality label",
+        "months old",
+        "《",
+        "物种的代表",
+        "通常被称为",
+    )
     if any(fragment.casefold() in value.casefold() for fragment in forbidden_fragments):
-        raise ValueError("Adoption personal_story must not be encyclopedic or model-generated metadata")
+        raise ValueError(
+            "Adoption personal_story must not be encyclopedic or model-generated metadata"
+        )
     if re.search(r"\b\d+\s*(?:个?月|months?)\b", value, re.IGNORECASE):
         raise ValueError("Adoption personal_story must not expose age-month metadata")
 

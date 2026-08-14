@@ -132,7 +132,9 @@ class ElfieLabModelEnvironment:
     def local_models(self) -> tuple[str, ...]:
         try:
             return tuple(
-                OllamaManager(self.load_model_execution_config()).list_installed_models()
+                OllamaManager(
+                    self.load_model_execution_config()
+                ).list_installed_models()
             )
         except Exception:
             return ()
@@ -282,7 +284,9 @@ class ElfieLabModelEnvironment:
         return saved.connection_id
 
 
-def model_execution_food_catalog_store(model_environment: ElfieLabModelEnvironment) -> FoodPort:
+def model_execution_food_catalog_store(
+    model_environment: ElfieLabModelEnvironment,
+) -> FoodPort:
     """Return the Food Port for the Lab-isolated database."""
     model_environment.ensure()
     return model_environment.food_store()

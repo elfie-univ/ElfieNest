@@ -54,7 +54,14 @@ def test_stop_verified_process_and_remove_receipt(tmp_path: Path) -> None:
 
 def test_stop_accepts_the_injected_frozen_core_command(tmp_path: Path) -> None:
     home = tmp_path / "home"
-    core = tmp_path / "ElfieNest.app" / "Contents" / "Resources" / "python-core" / "ElfieNestCore"
+    core = (
+        tmp_path
+        / "ElfieNest.app"
+        / "Contents"
+        / "Resources"
+        / "python-core"
+        / "ElfieNestCore"
+    )
     command = (str(core), "--port", "8002")
     write_pid(home, 4105)
     port = FakeProcessPort(
@@ -74,7 +81,9 @@ def test_stop_accepts_the_injected_frozen_core_command(tmp_path: Path) -> None:
     assert port.terminations == [(4105, False)]
 
 
-def test_stop_accepts_frozen_core_path_with_spaces_from_macos_ps(tmp_path: Path) -> None:
+def test_stop_accepts_frozen_core_path_with_spaces_from_macos_ps(
+    tmp_path: Path,
+) -> None:
     home = tmp_path / "home"
     core = tmp_path / "ElfieNest app" / "Contents" / "Resources" / "ElfieNestCore"
     write_pid(home, 4106)

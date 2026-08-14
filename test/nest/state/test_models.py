@@ -3,6 +3,8 @@ from pydantic import ValidationError
 
 from nest.state.models import (
     AnchorKind,
+    FacilityDescriptor,
+    FacilityKind,
     HomeAssignment,
     InteractionAnchor,
     PersistentResidentState,
@@ -33,6 +35,15 @@ def test_world_catalog_round_trips_when_semantic_ids_are_valid() -> None:
                 ),
             ),
         ),
+        facilities=(
+            FacilityDescriptor(
+                facility_id="dorm-01/rest",
+                zone_id="dorm-01",
+                kind=FacilityKind.REST,
+                label="Rest area",
+                capabilities=("sleep", "rest"),
+            ),
+        ),
     )
 
     # When
@@ -41,6 +52,24 @@ def test_world_catalog_round_trips_when_semantic_ids_are_valid() -> None:
     # Then
     assert restored == catalog
     assert "dorm-01/bed-01" in restored.anchor_ids
+    assert restored.facility_ids == frozenset({"dorm-01/rest"})
+
+
+def test_world_catalog_rejects_facility_outside_the_published_zones() -> None:
+    with pytest.raises(ValidationError, match="unknown zone"):
+        WorldCatalog(
+            nest_id="local-nest",
+            revision=1,
+            zones=(),
+            facilities=(
+                FacilityDescriptor(
+                    facility_id="missing/rest",
+                    zone_id="missing",
+                    kind=FacilityKind.REST,
+                    label="Missing",
+                ),
+            ),
+        )
 
 
 def test_world_catalog_rejects_duplicate_anchors_and_extra_fields() -> None:
