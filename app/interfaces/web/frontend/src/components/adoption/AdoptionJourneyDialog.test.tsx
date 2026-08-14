@@ -359,7 +359,7 @@ describe("AdoptionJourneyDialog", () => {
 
     const failureDialog = await screen.findByRole("alertdialog")
     expect(failureDialog).toHaveTextContent("邀请暂未送达")
-    expect(failureDialog).toHaveTextContent("刚才的连接中断了，邀请还没有发出。你的选择已经保留。")
+    expect(failureDialog).toHaveTextContent("虫洞信号暂时不稳，这份邀请还没有抵达。你的选择已经保留。")
     const sendingTitle = screen.getByRole("heading", { name: "正在发送你的邀请" })
     const sendingSection = sendingTitle.closest("section")
     const inviteGrid = sendingSection?.querySelector(".adoption-invite-grid")

@@ -37,12 +37,6 @@ def get_product(catalog_id: str) -> ProviderProfile | None:
     return BUILTIN_PRODUCTS.get(catalog_id)
 
 
-def get_catalog_id(provider_name: str) -> str | None:
-    """Resolve one legacy Provider ID to its stable product catalog ID."""
-    profile = get_profile(provider_name)
-    return profile.catalog_id if profile else None
-
-
 def get_default_api_mode(provider_name: str) -> str:
     """Return the Provider API mode with OpenAI compatibility as fallback."""
     profile = get_profile(provider_name)
