@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, FrozenSet, Iterator, List, Mapping
 
 from scripts.architecture.effective_dependency_targets import (
+    REPOSITORY_ROOTS,
     normalize_module_target,
     targets_from_tokens,
 )
@@ -69,15 +70,39 @@ def _import_aliases(tree: ast.AST) -> Dict[str, str]:
 
 def _assignments(tree: ast.AST) -> Dict[str, ast.AST]:
     values: Dict[str, ast.AST] = {}
+
+    def bound_names(target: ast.AST) -> Iterator[str]:
+        if isinstance(target, ast.Name):
+            yield target.id
+        elif isinstance(target, (ast.List, ast.Tuple)):
+            for element in target.elts:
+                yield from bound_names(element)
+
     for node in ast.walk(tree):
         if not isinstance(node, (ast.Assign, ast.AnnAssign)):
             continue
         value = node.value
         targets = node.targets if isinstance(node, ast.Assign) else [node.target]
         for target in targets:
-            if isinstance(target, ast.Name) and value is not None:
-                values[target.id] = value
+            if value is None:
+                continue
+            for name in bound_names(target):
+                values[name] = value
     return values
+
+
+def _module_package(path: Path) -> str:
+    """Return the Python package containing one repository source file."""
+    parts = list(path.with_suffix("").parts)
+    root_index = next(
+        (index for index, part in enumerate(parts) if part in REPOSITORY_ROOTS),
+        None,
+    )
+    if root_index is None:
+        return ""
+    relative_parts = parts[root_index:]
+    relative_parts.pop()
+    return ".".join(relative_parts)
 
 
 def _literal_tokens(
@@ -96,6 +121,19 @@ def _literal_tokens(
         for element in node.elts:
             tokens.extend(_literal_tokens(element, assignments, resolving=resolving))
         return tokens
+    if isinstance(node, ast.Dict):
+        dict_tokens: List[str] = []
+        for value in node.values:
+            if value is not None:
+                dict_tokens.extend(
+                    _literal_tokens(value, assignments, resolving=resolving)
+                )
+        return dict_tokens
+    if isinstance(node, ast.Subscript):
+        # A statically bounded registry lookup may be keyed by a runtime name.
+        # Resolve all literal registry values conservatively rather than
+        # treating the indirection as an approved dependency.
+        return _literal_tokens(node.value, assignments, resolving=resolving)
     if (
         isinstance(node, ast.Name)
         and node.id in assignments
@@ -126,13 +164,14 @@ def python_dependencies(path: Path) -> Iterator[tuple[int, str, str]]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     aliases = _import_aliases(tree)
     assignments = _assignments(tree)
+    package = _module_package(path)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         call_name = _resolved_call_name(node, aliases)
         if call_name in DYNAMIC_MODULE_CALLS and node.args:
             for token in _literal_tokens(node.args[0], assignments):
-                target = normalize_module_target(token)
+                target = normalize_module_target(token, package=package)
                 if target:
                     yield node.lineno, call_name, target
         if call_name not in PROCESS_CALLS:
@@ -151,3 +190,18 @@ def python_dependencies(path: Path) -> Iterator[tuple[int, str, str]]:
             tokens.extend(_literal_tokens(expression, assignments))
         for target in sorted(targets_from_tokens(tokens)):
             yield node.lineno, call_name, target
+
+
+def unresolved_python_dependencies(path: Path) -> Iterator[tuple[int, str]]:
+    """Yield dynamic Python loaders whose module argument is not resolvable."""
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    aliases = _import_aliases(tree)
+    assignments = _assignments(tree)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        call_name = _resolved_call_name(node, aliases)
+        if call_name not in DYNAMIC_MODULE_CALLS:
+            continue
+        if not node.args or not _literal_tokens(node.args[0], assignments):
+            yield node.lineno, call_name

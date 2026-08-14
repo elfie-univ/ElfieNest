@@ -25,6 +25,11 @@ target ownership matrix as static imports.
 - detects literal Python module commands, repository script paths,
   `importlib`/`runpy`, Node dynamic loads and child-process calls, Godot process
   calls, and shell module/script commands; unknown source roots fail closed;
+- resolves statically bounded Python loader indirection, including dictionary
+  export registries, tuple/list destructuring, indexed lookups and package-
+  relative module names, so lazy exports cannot hide a repository edge;
+- reports unresolved Python dynamic module-loader arguments as explicit
+  quality-gate failures instead of treating missing evidence as an approval;
 - ignores external executable names because they are technical dependencies,
   not repository-module edges;
 - runs without a legacy baseline and rejects every forbidden effective edge;
@@ -35,6 +40,18 @@ Indirect launch plans that cannot be resolved statically are not automatically
 approved. Product layers receive them through a narrow Port, while Bootstrap or
 the owning Infrastructure Adapter constructs the concrete plan; semantic review
 remains required.
+
+The Python resolver is intentionally conservative for statically bounded
+registries: when a runtime key cannot be selected, it checks every literal
+registry value rather than silently treating the lookup as external. Dynamic
+expressions outside this bounded form fail the effective-dependency gate and
+must be converted to a typed-Port or Bootstrap-owned plan, or covered by a
+separately reviewed governance rule.
+
+Node URL-based artifact loading and TypeScript type-only `import()` expressions
+remain outside this unresolved-argument failure until their parser can
+distinguish those non-repository cases from runtime repository-module loads;
+literal repository targets continue to use the existing Node checks.
 
 ## Consequences
 

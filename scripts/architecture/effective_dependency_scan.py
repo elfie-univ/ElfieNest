@@ -15,6 +15,7 @@ if project_root_text not in sys.path:
 
 from scripts.architecture.effective_dependency_python import (  # noqa: E402
     python_dependencies,
+    unresolved_python_dependencies,
 )
 from scripts.architecture.effective_dependency_targets import (
     REPOSITORY_ROOTS,
@@ -57,6 +58,7 @@ RULE_LEDGER_IDS: Mapping[str, str] = {
     "elfie_effective_dependencies": "SYS-002",
     "nest_effective_dependencies": "SYS-003",
     "production_tooling_effective_dependencies": "SYS-001",
+    "unresolved_dynamic_dependencies": "GOV-001",
 }
 
 
@@ -160,7 +162,19 @@ def collect_effective_dependency_violations(
     for path in _source_files(project_root):
         relative = path.relative_to(project_root).as_posix()
         boundary = _source_boundary(relative)
-        dependencies = parsers.get(path.suffix, node_dependencies)(path)
+        if path.suffix == ".py":
+            dependencies = python_dependencies(path)
+            unresolved = unresolved_python_dependencies(path)
+        elif path.suffix in {".js", ".mjs", ".cjs", ".ts", ".tsx"}:
+            dependencies = node_dependencies(path)
+            unresolved = iter(())
+        else:
+            dependencies = parsers.get(path.suffix, node_dependencies)(path)
+            unresolved = iter(())
+        for line, mechanism in unresolved:
+            mutable["unresolved_dynamic_dependencies"].add(
+                f"{relative}:{line} [{mechanism}] unresolved dynamic target"
+            )
         for line, mechanism, target in dependencies:
             if _is_allowed(relative, boundary, target):
                 continue
@@ -171,11 +185,19 @@ def collect_effective_dependency_violations(
 
 def deny_all_failures(current: Mapping[str, FrozenSet[str]]) -> List[str]:
     """Return stable failures for every forbidden effective dependency."""
-    return [
-        f"{rule}: effective dependencies are forbidden: {sorted(entries)}"
-        for rule, entries in sorted(current.items())
-        if entries
-    ]
+    failures: List[str] = []
+    for rule, entries in sorted(current.items()):
+        if not entries:
+            continue
+        if rule == "unresolved_dynamic_dependencies":
+            failures.append(
+                f"{rule}: dynamic loader targets are unresolved: {sorted(entries)}"
+            )
+        else:
+            failures.append(
+                f"{rule}: effective dependencies are forbidden: {sorted(entries)}"
+            )
+    return failures
 
 
 def main(argv: List[str] | None = None) -> int:
