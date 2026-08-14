@@ -150,6 +150,8 @@ HTTP 状态。
 - Setup 使用受限、可过期的 Setup 会话，只访问明确允许的安装资源；
 - `/elfies` 的字段和动作由服务端关系与权限投影决定，不能仅靠前端隐藏按钮；
 - 每个 `/admin` Route 显式执行管理员认证；路径名称本身不是权限控制；
+- `/admin/settings` 不提供物种启用或审批字段；`/me/adoption` 的物种选项必须来自
+  `elfie/profile` 注册表，新增已验证物种无需管理员写入设置即可对已有安装可用；
 - 外部身体使用独立最小权限凭据，不复用管理员或 Runtime authority 凭据；
 - Observer 和 Runtime 继续遵守根目录的 authority 边界。
 

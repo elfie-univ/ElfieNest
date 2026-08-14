@@ -1,7 +1,7 @@
 # Application architecture contract
 
-**Contract version:** 1.7
-**Adopted:** 2026-08-12
+**Contract version:** 1.8
+**Adopted:** 2026-08-14
 **Scope:** `app/` and App-owned adapters in root `infrastructure/`
 
 > **Normative target.** This document is the long-term architecture authority
@@ -101,6 +101,26 @@ The Feature owners are:
 | `setup` | first-install draft, choices, validation, status and restricted projections | account, Provider, Food or Nest facts and installation task ownership |
 | `bodies` | external-body enrollment, pairing, revoke, grants and Elfie/body association | credential material, device transport sessions, body semantics or hosting/homing workflows |
 | `operations` | existing authorized system statistics, maintenance, backup/reset use-cases and stable Runtime management projections | Runtime lifecycle decisions, Observer sessions, raw technical objects or duplicate business facts |
+
+### Species availability and adoption
+
+The immutable species registry in `elfie/profile` is the only authority for
+which species the product supports. A species is available to Adoption when its
+registry definition is enabled and its joined canon, appearance profile and
+runtime resources pass registry validation. Adoption reads that registry
+directly for options and eligibility, so adding a complete registry entry makes
+the species available to existing installations without an administrator write
+or a per-Nest approval.
+
+`configuration/settings` owns mutable global rules such as quotas and
+personality preset switches. It must not expose, persist or enforce a species
+allowlist such as `allowed_species_ids`; settings changes cannot remove or add
+species. A staged rollout, if ever required, must be designed as a separate
+explicit release contract rather than reusing an administrator settings field.
+
+The acceptance invariant is: with an unchanged existing settings document,
+adding a valid enabled species to the registry causes `GET /api/v1/me/adoption`
+to list it and candidate creation for it to succeed.
 
 The Orchestration workflows are:
 
