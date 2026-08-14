@@ -94,7 +94,7 @@ Dedicated 预设强制启用 Godot 的 `dedicated_server` feature 与 headless �
 
 - 根据床位数重建固定房间，并发布稳定的 zone/anchor 语义目录；
 - 生成导航网格、逐物理帧寻路、碰撞与避障；
-- 加载狐狸/狗角色模型，播放移动、姿态和表情；
+- 加载狐狸/狗/猫角色场景，播放移动、姿态和表情；
 - 计算触觉接触和说话听众，并回传带 revision/generation 的类型化事件。
 
 Python 不发送逐帧坐标，也不在 `nest/` 复制家具占用或碰撞几何。一个

@@ -109,6 +109,7 @@ function speciesLabel(speciesId: string, t: TFunction<"chat">): string {
   switch (speciesId) {
     case "dog": return t("profile.identity.species.dog")
     case "fox": return t("profile.identity.species.fox")
+    case "cat": return t("profile.identity.species.cat")
     default: return speciesId
   }
 }
@@ -117,6 +118,7 @@ function speciesIcon(speciesId: string): string {
   switch (speciesId) {
     case "dog": return "🐶"
     case "fox": return "🦊"
+    case "cat": return "🐱"
     default: return "🐾"
   }
 }

@@ -4,6 +4,7 @@ const ACTOR_CONTROLLER_SCRIPT := preload("res://runtime/actor_controller.gd")
 const ACTOR_SCENES := {
 	"dog": preload("res://characters/dog/dog.tscn"),
 	"fox": preload("res://characters/fox/fox.tscn"),
+	"cat": preload("res://characters/cat/cat.tscn"),
 }
 
 
@@ -40,6 +41,12 @@ func _init() -> void:
 			"home_anchor_id": "dorm-01/bed-01",
 			"appearance": {},
 		},
+		{
+			"actor_id": "cat-1",
+			"species": "cat",
+			"home_anchor_id": "dorm-01/bed-03",
+			"appearance": {},
+		},
 	]
 	var first := controller.sync_actors(actors) as Dictionary
 	var second := controller.sync_actors(actors) as Dictionary
@@ -47,27 +54,31 @@ func _init() -> void:
 		push_error("Repeated complete actor sync was not idempotent")
 		quit(1)
 		return
-	if characters.get_child_count() != 2:
-		push_error("Complete actor sync did not create exactly two actors")
+	if characters.get_child_count() != 3:
+		push_error("Complete actor sync did not create exactly three actors")
 		quit(1)
 		return
 	if not _animation_tracks_resolve(controller.actor("fox-1")):
 		push_error("Runtime animation tracks do not resolve to the actor skeleton")
 		quit(1)
 		return
-	var reduced := controller.sync_actors([actors[1]]) as Dictionary
+	if not _animation_tracks_resolve(controller.actor("cat-1")):
+		push_error("Procedural cat animation library could not be inspected")
+		quit(1)
+		return
+	var reduced := controller.sync_actors([actors[1], actors[2]]) as Dictionary
 	if not bool(reduced.get("accepted", false)):
 		push_error("Actor catalog reduction was rejected")
 		quit(1)
 		return
-	if characters.get_child_count() != 1 or controller.actor("dog-1") != null:
+	if characters.get_child_count() != 2 or controller.actor("dog-1") != null:
 		push_error("Complete actor sync did not remove stale actor")
 		quit(1)
 		return
 	var invalid := controller.sync_actors([
 		{
-			"actor_id": "cat-1",
-			"species": "cat",
+			"actor_id": "bird-1",
+			"species": "bird",
 			"home_anchor_id": "dorm-01/bed-03",
 			"appearance": {},
 		},
@@ -76,7 +87,7 @@ func _init() -> void:
 		push_error("Unsupported species was accepted")
 		quit(1)
 		return
-	if characters.get_child_count() != 1:
+	if characters.get_child_count() != 2:
 		push_error("Rejected actor catalog partially changed the world")
 		quit(1)
 		return
@@ -92,7 +103,7 @@ func _init() -> void:
 		push_error("Non-bed actor home anchor was accepted")
 		quit(1)
 		return
-	if characters.get_child_count() != 1 or controller.actor("dog-2") != null:
+	if characters.get_child_count() != 2 or controller.actor("dog-2") != null:
 		push_error("Rejected non-bed home anchor partially changed the world")
 		quit(1)
 		return

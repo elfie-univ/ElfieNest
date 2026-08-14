@@ -1,0 +1,273 @@
+[gd_scene load_steps=28 format=3]
+
+[ext_resource type="Script" path="res://characters/shared/elfie_actor.gd" id="1_actor"]
+
+[sub_resource type="StandardMaterial3D" id="Material_fur"]
+albedo_color = Color(0.47, 0.4, 0.56, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Material_fur_light"]
+albedo_color = Color(0.72, 0.65, 0.79, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Material_inner_ear"]
+albedo_color = Color(0.87, 0.62, 0.72, 1)
+roughness = 0.88
+
+[sub_resource type="StandardMaterial3D" id="Material_eye"]
+albedo_color = Color(0.08, 0.07, 0.1, 1)
+roughness = 0.5
+
+[sub_resource type="StandardMaterial3D" id="Material_eye_glint"]
+albedo_color = Color(0.76, 0.95, 0.82, 1)
+roughness = 0.25
+
+[sub_resource type="StandardMaterial3D" id="Material_nose"]
+albedo_color = Color(0.18, 0.1, 0.16, 1)
+roughness = 0.55
+
+[sub_resource type="SphereMesh" id="SphereMesh_body"]
+material = SubResource("Material_fur")
+radius = 0.42
+height = 0.84
+radial_segments = 24
+rings = 12
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+material = SubResource("Material_fur")
+radius = 0.38
+height = 0.76
+radial_segments = 24
+rings = 12
+
+[sub_resource type="SphereMesh" id="SphereMesh_muzzle"]
+material = SubResource("Material_fur_light")
+radius = 0.18
+height = 0.22
+radial_segments = 20
+rings = 10
+
+[sub_resource type="SphereMesh" id="SphereMesh_eye"]
+material = SubResource("Material_eye")
+radius = 0.055
+height = 0.11
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_glint"]
+material = SubResource("Material_eye_glint")
+radius = 0.014
+height = 0.028
+radial_segments = 12
+rings = 6
+
+[sub_resource type="SphereMesh" id="SphereMesh_nose"]
+material = SubResource("Material_nose")
+radius = 0.07
+height = 0.10
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_paw"]
+material = SubResource("Material_fur_light")
+radius = 0.14
+height = 0.24
+radial_segments = 18
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_tail"]
+material = SubResource("Material_fur")
+radius = 0.17
+height = 0.48
+radial_segments = 18
+rings = 8
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ear"]
+material = SubResource("Material_fur")
+top_radius = 0.015
+bottom_radius = 0.18
+height = 0.42
+radial_segments = 16
+rings = 2
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_inner_ear"]
+material = SubResource("Material_inner_ear")
+top_radius = 0.008
+bottom_radius = 0.105
+height = 0.28
+radial_segments = 16
+rings = 2
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_cat"]
+radius = 0.31
+height = 1.66
+
+[sub_resource type="Animation" id="Animation_idle"]
+resource_name = "idle"
+length = 1.0
+loop_mode = 1
+
+[sub_resource type="Animation" id="Animation_walking"]
+resource_name = "walking"
+length = 1.0
+loop_mode = 1
+
+[sub_resource type="Animation" id="Animation_running"]
+resource_name = "running"
+length = 1.0
+loop_mode = 1
+
+[sub_resource type="Animation" id="Animation_jump"]
+resource_name = "jump"
+length = 0.6
+
+[sub_resource type="Animation" id="Animation_twist_dance"]
+resource_name = "twist_dance"
+length = 1.0
+
+[sub_resource type="Animation" id="Animation_left_strafe"]
+resource_name = "left_strafe"
+length = 1.0
+
+[sub_resource type="Animation" id="Animation_left_strafe_walking"]
+resource_name = "left_strafe_walking"
+length = 1.0
+
+[sub_resource type="Animation" id="Animation_left_turn"]
+resource_name = "left_turn"
+length = 1.0
+
+[sub_resource type="Animation" id="Animation_left_turn_90"]
+resource_name = "left_turn_90"
+length = 1.0
+
+[sub_resource type="Animation" id="Animation_right_strafe"]
+resource_name = "right_strafe"
+length = 1.0
+
+[sub_resource type="Animation" id="Animation_right_strafe_walking"]
+resource_name = "right_strafe_walking"
+length = 1.0
+
+[sub_resource type="Animation" id="Animation_right_turn"]
+resource_name = "right_turn"
+length = 1.0
+
+[sub_resource type="Animation" id="Animation_right_turn_90"]
+resource_name = "right_turn_90"
+length = 1.0
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_cat"]
+_data = {
+&"idle": SubResource("Animation_idle"),
+&"jump": SubResource("Animation_jump"),
+&"left_strafe": SubResource("Animation_left_strafe"),
+&"left_strafe_walking": SubResource("Animation_left_strafe_walking"),
+&"left_turn": SubResource("Animation_left_turn"),
+&"left_turn_90": SubResource("Animation_left_turn_90"),
+&"right_strafe": SubResource("Animation_right_strafe"),
+&"right_strafe_walking": SubResource("Animation_right_strafe_walking"),
+&"right_turn": SubResource("Animation_right_turn"),
+&"right_turn_90": SubResource("Animation_right_turn_90"),
+&"running": SubResource("Animation_running"),
+&"twist_dance": SubResource("Animation_twist_dance"),
+&"walking": SubResource("Animation_walking")
+}
+
+[node name="Myelle" type="CharacterBody3D"]
+floor_snap_length = 0.15
+safe_margin = 0.02
+script = ExtResource("1_actor")
+species_id = "cat"
+install_shared_animations = false
+
+[node name="VisualRoot" type="Node3D" parent="."]
+
+[node name="Body" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0, 0.92, 0)
+scale = Vector3(0.78, 1.12, 0.7)
+mesh = SubResource("SphereMesh_body")
+
+[node name="Chest" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0, 1.12, 0.26)
+scale = Vector3(0.72, 0.76, 0.34)
+mesh = SubResource("SphereMesh_muzzle")
+
+[node name="Head" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0, 1.62, 0.02)
+scale = Vector3(1.02, 0.98, 0.94)
+mesh = SubResource("SphereMesh_head")
+
+[node name="EarLeft" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(-0.22, 1.98, 0.02)
+rotation = Vector3(0, 0, -0.12)
+mesh = SubResource("CylinderMesh_ear")
+
+[node name="EarRight" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0.22, 1.98, 0.02)
+rotation = Vector3(0, 0, 0.12)
+mesh = SubResource("CylinderMesh_ear")
+
+[node name="InnerEarLeft" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(-0.22, 2.02, 0.095)
+rotation = Vector3(0, 0, -0.12)
+mesh = SubResource("CylinderMesh_inner_ear")
+
+[node name="InnerEarRight" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0.22, 2.02, 0.095)
+rotation = Vector3(0, 0, 0.12)
+mesh = SubResource("CylinderMesh_inner_ear")
+
+[node name="EyeLeft" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(-0.145, 1.68, 0.345)
+mesh = SubResource("SphereMesh_eye")
+
+[node name="EyeRight" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0.145, 1.68, 0.345)
+mesh = SubResource("SphereMesh_eye")
+
+[node name="EyeGlintLeft" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(-0.16, 1.704, 0.394)
+mesh = SubResource("SphereMesh_glint")
+
+[node name="EyeGlintRight" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0.13, 1.704, 0.394)
+mesh = SubResource("SphereMesh_glint")
+
+[node name="Muzzle" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0, 1.48, 0.35)
+scale = Vector3(1.16, 0.76, 0.86)
+mesh = SubResource("SphereMesh_muzzle")
+
+[node name="Nose" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0, 1.5, 0.52)
+mesh = SubResource("SphereMesh_nose")
+
+[node name="PawLeft" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(-0.24, 0.46, 0.16)
+scale = Vector3(1.0, 0.86, 1.28)
+mesh = SubResource("SphereMesh_paw")
+
+[node name="PawRight" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0.24, 0.46, 0.16)
+scale = Vector3(1.0, 0.86, 1.28)
+mesh = SubResource("SphereMesh_paw")
+
+[node name="TailBase" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0, 0.96, -0.38)
+rotation = Vector3(-0.58, 0, 0)
+scale = Vector3(1.0, 1.55, 1.0)
+mesh = SubResource("SphereMesh_tail")
+
+[node name="TailTip" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0, 1.32, -0.57)
+rotation = Vector3(-0.86, 0, 0)
+scale = Vector3(0.82, 1.28, 0.82)
+mesh = SubResource("SphereMesh_tail")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries/ = SubResource("AnimationLibrary_cat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.83, 0)
+shape = SubResource("CapsuleShape3D_cat")

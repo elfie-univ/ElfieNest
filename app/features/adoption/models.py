@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-SpeciesId = Literal["dog", "fox"]
+SpeciesId = Literal["dog", "fox", "cat"]
 LifeStage = Literal["youth", "young_adult", "mature", "elder", "any"]
 CandidateGender = Literal["male", "female", "any"]
 ElfieGender = Literal["male", "female"]

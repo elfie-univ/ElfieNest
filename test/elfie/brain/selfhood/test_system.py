@@ -157,6 +157,41 @@ def test_single_turn_cannot_rewrite_personality_or_norms() -> None:
     assert system.snapshot().norms == ()
 
 
+def test_selfhood_identity_anchors_cannot_be_rewritten_by_a_candidate() -> None:
+    system = SelfhoodSystem.from_personality_data(
+        {
+            "big_five": {"openness": 0.8},
+            "species_name": "Saevi",
+            "identity_facts": ("来自 Elfaria。",),
+            "behavior_anchors": ("先观察再接近。",),
+            "knowledge_boundaries": ("未知区域不能补齐。",),
+        },
+        initial_at=NOW,
+    )
+    candidate = system.propose_update(
+        candidate_id=EventId("identity-injection"),
+        created_at=NOW,
+        big_five=BigFiveTraits(openness=0.82),
+        source_event_ids=(
+            EventId("source-1"),
+            EventId("source-2"),
+            EventId("source-3"),
+        ),
+    )
+    tampered = candidate.__class__(
+        candidate_id=candidate.candidate_id,
+        owner=candidate.owner,
+        base_revision=candidate.base_revision,
+        source_event_ids=candidate.source_event_ids,
+        causation_id=candidate.causation_id,
+        created_at=candidate.created_at,
+        value=candidate.value.model_copy(update={"species_name": "Tovren"}),
+    )
+
+    assert system.commit(tampered).reason == "selfhood_identity_anchors_immutable"
+    assert system.snapshot().species_name == "Saevi"
+
+
 def test_profile_anchor_is_stable_and_cannot_be_partial() -> None:
     anchor = ProfileAnchorSnapshot(
         revision=1,

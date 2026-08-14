@@ -31,7 +31,7 @@ from .port_models import (
 from .ports import SecuritySettingsChangedPort, SettingsStorePort
 
 MAX_ELFIES_PER_MACHINE: Final = 32
-ALLOWED_SPECIES_IDS: Final[frozenset[SpeciesId]] = frozenset({"dog", "fox"})
+ALLOWED_SPECIES_IDS: Final[frozenset[SpeciesId]] = frozenset({"dog", "fox", "cat"})
 
 
 class SettingsService:

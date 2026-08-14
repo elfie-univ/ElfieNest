@@ -38,7 +38,7 @@ class ElfieSettingsPatch(_PatchModel):
         ge=1,
         le=32,
     )
-    allowed_species_ids: Optional[list[Literal["dog", "fox"]]] = Field(
+    allowed_species_ids: Optional[list[Literal["dog", "fox", "cat"]]] = Field(
         default=None,
         min_length=1,
     )
@@ -64,7 +64,7 @@ class SecuritySettingsPatch(_PatchModel):
 
 class ElfieSettingsResponse(_StrictModel):
     max_elfies_per_user: int
-    allowed_species_ids: list[Literal["dog", "fox"]]
+    allowed_species_ids: list[Literal["dog", "fox", "cat"]]
     personality_presets_enabled: dict[str, bool]
 
 

@@ -12,6 +12,7 @@ from app.features.adoption import (
     GetAdoptionOptionsQuery,
     ReplyToCandidatesCommand,
     ReserveAcceptedAdoptionCommand,
+    SpeciesId,
 )
 
 
@@ -19,7 +20,7 @@ class Policy:
     def load_policy(self) -> AdoptionPolicyRecord:
         return AdoptionPolicyRecord(
             default_elfie_limit=3,
-            allowed_species_ids=("dog", "fox"),
+            allowed_species_ids=("dog", "fox", "cat"),
             enabled_personality_styles=("好奇探索",),
         )
 
@@ -58,9 +59,9 @@ def principal() -> AccountPrincipal:
     )
 
 
-def candidate_command() -> CreateCandidateSetCommand:
+def candidate_command(species_id: SpeciesId = "fox") -> CreateCandidateSetCommand:
     return CreateCandidateSetCommand(
-        species_id="fox",
+        species_id=species_id,
         life_stage="young_adult",
         gender="any",
         appearance=CandidateAppearance(
@@ -89,6 +90,8 @@ def test_candidate_reply_and_reservation_preserve_accepted_snapshot() -> None:
     persistence = Persistence()
     service = AdoptionService(Policy(), persistence)
     candidate_set = service.create_candidate_set(principal(), candidate_command())
+    assert "Saevi" in candidate_set.candidates[0].introduction
+    assert "fox-like" in candidate_set.candidates[0].introduction
     selected = candidate_set.candidates[:2]
     replies = service.reply_to_candidates(
         principal(),
@@ -135,3 +138,14 @@ def test_candidate_sets_remain_isolated_by_authenticated_member() -> None:
                 candidate_ids=(candidate_set.candidates[0].candidate_id,),
             ),
         )
+
+
+def test_cat_candidate_uses_myelle_canon_and_stable_species_id() -> None:
+    persistence = Persistence()
+    service = AdoptionService(Policy(), persistence)
+
+    candidate_set = service.create_candidate_set(principal(), candidate_command("cat"))
+
+    assert candidate_set.candidates[0].species_id == "cat"
+    assert "Myelle" in candidate_set.candidates[0].introduction
+    assert "cat-like" in candidate_set.candidates[0].introduction

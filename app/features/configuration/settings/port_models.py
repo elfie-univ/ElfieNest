@@ -7,7 +7,7 @@ from typing import Literal, Tuple
 
 from typing_extensions import TypeAlias
 
-SpeciesId: TypeAlias = Literal["dog", "fox"]
+SpeciesId: TypeAlias = Literal["dog", "fox", "cat"]
 
 
 @dataclass(frozen=True)

@@ -24,7 +24,11 @@ from elfie.facade_operations import ElfieFacadeOperations
 from elfie.initialization import assemble_anatomy
 from elfie.message_types import ElfieId
 from elfie.nervous_system import NervousSystem
-from elfie.profile import ElfieProfile
+from elfie.profile import (
+    ELFARIA_CANON,
+    ElfieProfile,
+    get_species_canon_for_technical_id,
+)
 
 
 class Elfie(ElfieFacadeOperations):
@@ -52,7 +56,7 @@ class Elfie(ElfieFacadeOperations):
             clock=lambda: self._elapsed_time,
         )
         self._selfhood = SelfhoodSystem.from_personality_data(
-            self._profile.personality,
+            _selfhood_seed(self._profile),
             initial_at=self.cognitive_datetime,
             profile_revision=self._profile.schema_version,
         )
@@ -155,3 +159,41 @@ class Elfie(ElfieFacadeOperations):
     @property
     def cognition_configured(self) -> bool:
         return self._brain_runtime is not None
+
+
+def _selfhood_seed(profile: ElfieProfile) -> dict[str, object]:
+    """Merge legacy personality presentation with immutable canon facts.
+
+    The Profile remains the objective authority. These values are copied into
+    Brain Selfhood only as the Elfie's initial self-understanding, so ordinary
+    conversation cannot silently replace its species or origin.
+    """
+    seed = dict(profile.personality)
+    species = get_species_canon_for_technical_id(profile.identity.species_id)
+    origin = profile.identity.origin
+    region_name = (
+        ELFARIA_CANON.known_region_name
+        if origin.home_region_id == ELFARIA_CANON.known_region_id
+        else origin.home_region_id
+    )
+    fixed_description = (
+        f"我叫 {profile.identity.display_name}，是一只 {species.display_name}"
+        f"（{species.earth_shape_label}），来自 {ELFARIA_CANON.display_name} 的 {region_name}。"
+        "我自愿参加赴地计划，来到地球后住进自己的 ElfieNest；对不知道的事情，我会先说明不确定。"
+    )
+    seed["self_description"] = fixed_description
+    seed["species_name"] = species.display_name
+    seed["identity_facts"] = (
+        f"正式物种名是 {species.display_name}，{species.earth_shape_label} 只是地球侧形态说明。",
+        f"来自 {ELFARIA_CANON.display_name} 的 {region_name}。",
+        ELFARIA_CANON.earth_arrival_statement,
+        f"{ELFARIA_CANON.earth_home_name} 是在地球生活的基地和家；我的身份和记忆属于我自己。",
+    )
+    seed["knowledge_boundaries"] = ELFARIA_CANON.knowledge_boundaries
+    seed["behavior_anchors"] = species.earth_first_contact_cues
+    seed["norms"] = (
+        "尊重自愿选择。",
+        "对不确定保持诚实。",
+        "把真实经历和推测分开。",
+    )
+    return seed

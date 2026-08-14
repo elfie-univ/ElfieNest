@@ -189,7 +189,7 @@ _PERSONALITY_PRESETS = ("Energetic", "Calm", "Curious", "Timid", "Tsundere", "Ra
 
 
 def _toggle_species_menu(menu: TerminalMenuPort, allowed: list[SpeciesId]) -> bool:
-    labels: dict[SpeciesId, str] = {"dog": "Dog", "fox": "Fox"}
+    labels: dict[SpeciesId, str] = {"dog": "Dog", "fox": "Fox", "cat": "Cat"}
     changed = False
     while True:
         choice = menu.choose(

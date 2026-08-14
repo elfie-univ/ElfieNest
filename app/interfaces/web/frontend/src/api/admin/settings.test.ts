@@ -55,7 +55,7 @@ describe("administrator Settings API boundary", () => {
   it("rejects values outside the backend Settings contract", async () => {
     vi.mocked(ownerRead).mockResolvedValue({
       max_elfies_per_user: 33,
-      allowed_species_ids: ["cat"],
+        allowed_species_ids: ["dragon"],
       personality_presets_enabled: {},
     })
 

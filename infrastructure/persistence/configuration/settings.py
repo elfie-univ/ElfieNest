@@ -236,8 +236,10 @@ class RuntimeSettingsAdapter:
                 result.append("dog")
             elif item == "fox":
                 result.append("fox")
+            elif item == "cat":
+                result.append("cat")
             else:
-                cls._invalid(field, "只支持 dog 或 fox")
+                cls._invalid(field, "只支持 dog、fox 或 cat")
         return tuple(result)
 
     @classmethod

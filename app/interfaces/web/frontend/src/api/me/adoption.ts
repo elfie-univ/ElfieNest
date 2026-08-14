@@ -6,7 +6,7 @@ import { csrfHeaders, requestJson } from "../http"
 
 const AdoptionInfoSchema = z.object({
   personality_styles: z.array(z.string()),
-  species_ids: z.array(z.union([z.literal("dog"), z.literal("fox")])),
+  species_ids: z.array(z.union([z.literal("dog"), z.literal("fox"), z.literal("cat")])),
   heights: z.array(z.string()),
   builds: z.array(z.string()),
   life_stages: z.array(z.string()),
@@ -22,7 +22,7 @@ const AdoptionCandidateSchema = z.object({
   candidate_id: z.string(),
   original_name: z.string(),
   suggested_name: z.string(),
-  species_id: z.union([z.literal("dog"), z.literal("fox")]),
+  species_id: z.union([z.literal("dog"), z.literal("fox"), z.literal("cat")]),
   life_stage: z.union([
     z.literal("youth"),
     z.literal("young_adult"),
@@ -55,7 +55,7 @@ const AdoptionRepliesSchema = z.object({
 const AdoptionResultSchema = z.object({
   elfie_id: ElfieIdValueSchema,
   name: z.string(),
-  species_id: z.union([z.literal("dog"), z.literal("fox")]),
+  species_id: z.union([z.literal("dog"), z.literal("fox"), z.literal("cat")]),
 })
 
 export type AdoptionInfo = z.infer<typeof AdoptionInfoSchema>
@@ -65,7 +65,7 @@ export type AdoptionReply = z.infer<typeof AdoptionReplySchema>
 export type AdoptionReplies = z.infer<typeof AdoptionRepliesSchema>
 
 export type AdoptionCandidateSetInput = {
-  readonly species_id: "dog" | "fox"
+  readonly species_id: "dog" | "fox" | "cat"
   readonly life_stage: "youth" | "young_adult" | "mature" | "elder" | "any"
   readonly gender: "male" | "female" | "any"
   readonly appearance: {

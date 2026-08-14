@@ -1,7 +1,8 @@
 # ElfieNest 3D 动物角色创建与集成手册
 
 本文描述从二维设定图到 Godot 可运行角色的完整生产流程。当前标准面向
-拟人化双足动物，狗和狐狸是基准角色。四足形态只预留资源契约，暂不实现
+拟人化双足动物，狗和狐狸是骨骼基准角色，猫（Myelle）首版使用程序化视觉场景。
+四足形态只预留资源契约，暂不实现
 运行时切换。
 
 高矮胖瘦、脸型、五官、毛发、毛色、Shape Key 命名、随机生成范围和物种
@@ -47,7 +48,7 @@ godot_project/characters/
 扫描和自动导入这些文件。提交给 Godot 场景的稳定资产必须导出到物种目录的
 `<species>.glb`，场景只引用该 GLB，不得直接引用 `.blend`。
 
-物种标识使用小写 ASCII，例如 `dog`、`fox`。所有物种的运行时节点名称
+物种标识使用小写 ASCII，例如 `dog`、`fox`、`cat`。所有物种的运行时节点名称
 保持一致：
 
 ```text
@@ -297,7 +298,8 @@ Godot 版本必须与 `godot_project/project.godot` 的 `config/features` 一致
 
 ### 9.3 当前项目实现
 
-`dog.tscn` 和 `fox.tscn` 都提供 `CharacterBody3D + CapsuleShape3D`。共享脚本
+`dog.tscn`、`fox.tscn` 和 `cat.tscn` 都提供 `CharacterBody3D + CapsuleShape3D`。
+共享脚本
 根据以下数据同步视觉和主胶囊：
 
 ```json
@@ -314,7 +316,8 @@ Godot 版本必须与 `godot_project/project.godot` 的 `config/features` 一致
 
 ## 10. 公共动画与重定向
 
-狗和狐狸的 Mixamo 主骨名称一致，可以共享双足动作，但骨长和参考姿态不同，
+狗和狐狸的 Mixamo 主骨名称一致，可以共享双足动作，但骨长和参考姿态不同。猫的
+程序化场景复用相同的动画名称契约，正式骨骼资产接入前不伪造 Mixamo 骨骼。
 不能只凭文件能播放就认定验收通过。
 
 每个新物种必须检查：
@@ -370,7 +373,7 @@ mood_influence：情绪摆幅影响
 - 上衣和裤子是绑定同一 Skeleton 的独立蒙皮网格。
 - 衣服需要体型 morph target，或提供 slim/standard/plump 版本。
 - 被衣服完全覆盖的身体区域应隐藏或使用裁剪网格，降低穿模风险。
-- 装备资源需要 `humanoid_common`、`dog_only`、`fox_only` 等兼容标签。
+- 装备资源需要 `humanoid_common`、`dog_only`、`fox_only`、`cat_only` 等兼容标签。
 
 建议的个体外观数据：
 

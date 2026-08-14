@@ -30,7 +30,7 @@ def assemble_profile(
     if not isinstance(appearance, dict):
         appearance = {}
     species_id = str(appearance.get("species", "fox"))
-    if species_id not in ("dog", "fox"):
+    if species_id not in ("dog", "fox", "cat"):
         species_id = "fox"
     stable_id = elfie_id or "elfie_default"
     seed = int.from_bytes(
@@ -60,7 +60,10 @@ def assemble_anatomy(
     morphology = profile.embodiment.primary_morphology
     if morphology == "quadruped":
         return morphology, QuadrupedAnatomy()
-    return morphology, BipedAnatomy()
+    species_id = profile.identity.species_id
+    return morphology, BipedAnatomy(
+        gltf_path=f"res://characters/{species_id}/{species_id}.tscn"
+    )
 
 
 __all__ = ("assemble_anatomy", "assemble_profile")

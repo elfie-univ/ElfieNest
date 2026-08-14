@@ -7,6 +7,8 @@ import time
 from dataclasses import dataclass, replace
 from datetime import date
 
+from elfie.profile import get_species_canon_for_technical_id
+
 from .errors import AdoptionCandidateSetExpired, AdoptionInvalid
 from .models import (
     CandidateAppearance,
@@ -44,6 +46,13 @@ _CANDIDATE_NAMES: dict[SpeciesId, tuple[tuple[str, str], ...]] = {
         ("山雀", "小山"),
         ("米栗", "栗栗"),
         ("奥丘", "丘丘"),
+    ),
+    "cat": (
+        ("弥弥", "米米"),
+        ("阿澜", "澜澜"),
+        ("星栖", "栖栖"),
+        ("绒昼", "昼昼"),
+        ("奈可", "可可"),
     ),
 }
 _PERSONALITY_TAGS: dict[str, tuple[str, str]] = {
@@ -237,6 +246,7 @@ class CandidateRegistry:
             personality_style,
             _PERSONALITY_TAGS["完全随机"],
         )
+        species = get_species_canon_for_technical_id(species_id)
         question_hint = answers[index % len(answers)]
         public = CandidateResult(
             candidate_id=f"{seed:016x}-{index + 1}",
@@ -249,6 +259,7 @@ class CandidateRegistry:
             appearance_tags=appearance_tags,
             personality_tags=personality_tags,
             introduction=(
+                f"我的正式物种名是 {species.display_name}，外形接近 {species.earth_shape_label}；"
                 f"我在报名表里写下了：{personality_tags[0]}，也愿意慢慢了解你的生活。"
             ),
             compatibility=f"你们都提到了“{question_hint}”，这可能是一个不错的开始。",

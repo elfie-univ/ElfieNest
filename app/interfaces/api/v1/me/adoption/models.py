@@ -29,7 +29,7 @@ class CandidateAppearanceRequest(BaseModel):
 class CandidateSetRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    species_id: Literal["dog", "fox"]
+    species_id: Literal["dog", "fox", "cat"]
     life_stage: Literal["youth", "young_adult", "mature", "elder", "any"]
     gender: Literal["male", "female", "any"]
     appearance: CandidateAppearanceRequest
@@ -80,7 +80,7 @@ class AdoptionOptionsResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     personality_styles: tuple[str, ...]
-    species_ids: tuple[Literal["dog", "fox"], ...]
+    species_ids: tuple[Literal["dog", "fox", "cat"], ...]
     heights: tuple[str, ...]
     builds: tuple[str, ...]
     life_stages: tuple[str, ...]
@@ -109,7 +109,7 @@ class AdoptionCandidateResponse(BaseModel):
     candidate_id: str
     original_name: str
     suggested_name: str
-    species_id: Literal["dog", "fox"]
+    species_id: Literal["dog", "fox", "cat"]
     life_stage: Literal["youth", "young_adult", "mature", "elder"]
     gender: Literal["male", "female"]
     image_url: str
@@ -174,7 +174,7 @@ class AdoptionResultResponse(BaseModel):
 
     elfie_id: str = Field(pattern=r"^[0-9]{8}$")
     name: str
-    species_id: Literal["dog", "fox"]
+    species_id: Literal["dog", "fox", "cat"]
 
     @classmethod
     def from_result(cls, result: ResidentAdmissionResult) -> AdoptionResultResponse:

@@ -24,7 +24,6 @@ from elfie.brain.journal import BrainJournalEntry, BrainJournalPort
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.orientation.contracts import OrientationSnapshot
-from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
 from elfie.brain.reasoning.decision_types import TurnDecision
 from elfie.brain.reasoning.execution_types import ExecutionReceipt
 from elfie.brain.reasoning.model_port import ModelPort
@@ -33,6 +32,7 @@ from elfie.brain.reasoning.skills import SkillManager
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.brain.runtime import BrainRuntime
+from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.workspace.contracts import IngestReceipt
 from elfie.brain.workspace.system import EventWorkspace
@@ -44,7 +44,11 @@ from elfie.communication.router import RegisteredChannel
 from elfie.lifecycle_errors import ElfieLifecycleError, InvalidClockDeltaError
 from elfie.message_types import ElfieId, TurnId
 from elfie.nervous_system import NervousSystem
-from elfie.profile import ElfieProfile
+from elfie.profile import (
+    ELFARIA_CANON,
+    ElfieProfile,
+    get_species_canon_for_technical_id,
+)
 
 
 class _ElfieFacadeState:
@@ -349,6 +353,8 @@ class ElfieFacadeOperations(_ElfieFacadeState):
 
     def _profile_anchor_snapshot(self, captured_at: datetime) -> ProfileAnchorSnapshot:
         profile = self._profile
+        species = get_species_canon_for_technical_id(profile.identity.species_id)
+        origin = profile.identity.origin
         return ProfileAnchorSnapshot(
             revision=profile.schema_version,
             captured_at=captured_at,
@@ -358,6 +364,23 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             appearance_seed=profile.appearance.seed,
             appearance_genome_version=profile.appearance.genome_version,
             primary_morphology=profile.embodiment.primary_morphology,
+            species_canon_id=species.canon_id,
+            species_name=species.display_name,
+            species_shape=species.earth_shape_label,
+            home_world_id=origin.home_world_id,
+            home_world_name=ELFARIA_CANON.display_name,
+            home_region_id=origin.home_region_id,
+            home_region_name=(
+                ELFARIA_CANON.known_region_name
+                if origin.home_region_id == ELFARIA_CANON.known_region_id
+                else origin.home_region_id
+            ),
+            civilization_relation_to_earth=ELFARIA_CANON.civilization_relation_to_earth,
+            earth_arrival_statement=ELFARIA_CANON.earth_arrival_statement,
+            earth_home_name=ELFARIA_CANON.earth_home_name,
+            earth_home_role=ELFARIA_CANON.earth_home_role,
+            knowledge_boundaries=ELFARIA_CANON.knowledge_boundaries,
+            canon_version=ELFARIA_CANON.canon_version,
         )
 
     def _require_brain_runtime(self) -> BrainRuntime:

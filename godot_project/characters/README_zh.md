@@ -23,13 +23,17 @@ characters/
 ├── fox/
 │   ├── fox.glb
 │   └── fox.tscn
+├── cat/
+│   └── cat.tscn              # Myelle 程序化视觉资源 v0.1
 ├── CHARACTER_CREATION_GUIDE.md
 ├── BLENDER_APPEARANCE_AUTHORING_GUIDE.md
 └── APPEARANCE_SYSTEM_SPEC.md
 ```
 
-狗和狐狸是当前默认角色。运行时按照 `species` 选择场景；旧数据没有
-`species` 时，根据 `elfie_id` 稳定地分配狗或狐狸。
+当前可选择物种是 Saevi（灵狐）、Tovren（灵犬）和 Myelle（灵猫）。Myelle
+首版运行时视觉使用可复用的代码原生场景，后续可以替换为正式猫模型；它仍然
+遵守相同的角色、碰撞、外观和动画名称契约。运行时按照 `species` 选择场景；
+旧数据没有 `species` 时，保留现有的稳定回退规则。
 
 ## 运行时碰撞原则
 

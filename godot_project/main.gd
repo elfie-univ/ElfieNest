@@ -3,6 +3,7 @@ extends Node3D
 const ACTOR_SCENES := {
 	"dog": preload("res://characters/dog/dog.tscn"),
 	"fox": preload("res://characters/fox/fox.tscn"),
+	"cat": preload("res://characters/cat/cat.tscn"),
 }
 const GODOT_WS_URL := "ws://127.0.0.1:8765"
 const GODOT_PROTOCOL_VERSION := 2

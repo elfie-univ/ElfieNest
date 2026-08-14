@@ -86,7 +86,7 @@ def test_partial_elfie_update_preserves_other_settings() -> None:
         UpdateElfieSettingsCommand(max_elfies_per_user=0),
         UpdateElfieSettingsCommand(max_elfies_per_user=33),
         UpdateElfieSettingsCommand(allowed_species_ids=()),
-        UpdateElfieSettingsCommand(allowed_species_ids=("cat",)),
+        UpdateElfieSettingsCommand(allowed_species_ids=("dragon",)),
     ],
 )
 def test_invalid_elfie_settings_are_rejected(

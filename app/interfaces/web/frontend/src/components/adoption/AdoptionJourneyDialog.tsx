@@ -24,6 +24,7 @@ import {
 } from "../ui/dialog"
 import { Icon } from "../Icon"
 import dogAvatar from "../../assets/adoption/dog.svg"
+import catAvatar from "../../assets/adoption/cat.svg"
 import elfariaArrivalImage from "../../assets/adoption/elfaria-arrival-square.png"
 import foxAvatar from "../../assets/adoption/fox.svg"
 import {
@@ -56,8 +57,8 @@ type AdoptionJourneyDialogProps = {
 type JourneyT = (key: string, options?: Record<string, unknown>) => string
 
 const LIFE_STAGES: readonly LifeStage[] = ["youth", "young_adult", "mature", "elder", "any"]
-const SPECIES: readonly SpeciesId[] = ["fox", "dog"]
-const SPECIES_IMAGES: Readonly<Record<SpeciesId, string>> = { fox: foxAvatar, dog: dogAvatar }
+const SPECIES: readonly SpeciesId[] = ["fox", "dog", "cat"]
+const SPECIES_IMAGES: Readonly<Record<SpeciesId, string>> = { fox: foxAvatar, dog: dogAvatar, cat: catAvatar }
 const GENDERS: readonly GenderPreference[] = ["male", "female", "any"]
 const APPEARANCE_GROUPS = ["stature", "build", "face", "signature"] as const
 const COMPANIONSHIP_OPTIONS: readonly (readonly CompanionAnswer[])[] = [
@@ -260,8 +261,8 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   }, [accountId, open, state])
 
   const allowedSpecies = useMemo(() => {
-    const configured = info?.species_ids.filter((value): value is SpeciesId => value === "dog" || value === "fox")
-    return [...(configured?.length ? configured : SPECIES)].sort((left, right) => Number(left !== "fox") - Number(right !== "fox"))
+    const configured = info?.species_ids.filter((value): value is SpeciesId => value === "dog" || value === "fox" || value === "cat")
+    return [...(configured?.length ? configured : SPECIES)].sort((left, right) => SPECIES.indexOf(left) - SPECIES.indexOf(right))
   }, [info])
 
   const requestClose = (): void => {

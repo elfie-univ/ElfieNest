@@ -32,10 +32,13 @@ def _trait_level(value: float) -> str:
 
 
 def _generate_identity(
-    big_five: Dict[str, float], name: str, verbal_tick: str = ""
+    big_five: Dict[str, float],
+    name: str,
+    verbal_tick: str = "",
+    species_name: str = "小狐狸",
 ) -> str:
     """生成身份认知：基于开放性、外向性、宜人性、尽责性、神经质"""
-    parts = [f"我是{name}，一只小狐狸。"]
+    parts = [f"我是{name}，一只{species_name}。"]
     descs = []
 
     e = big_five.get("extraversion", 0.5)
@@ -219,13 +222,18 @@ class MemorySelfNarrativeProjection:
         name = metadata.get("name", "Elfie")
         speech_style = data.get("speech_style", {})
         verbal_tick = speech_style.get("verbal_ticks", "哒")
+        species_name = data.get("species_name", "小狐狸")
 
         self._current_personality = dict(big_five)
         now = datetime.now(timezone.utc).isoformat()
 
         for core_key in self.CORE_KEYS:
             generator = _CORE_GENERATORS[core_key]
-            text = generator(big_five, name, verbal_tick)
+            text = (
+                generator(big_five, name, verbal_tick, species_name)
+                if core_key == "identity"
+                else generator(big_five, name, verbal_tick)
+            )
 
             node_id = f"core_{core_key}"
             meta = {
@@ -336,13 +344,18 @@ class MemorySelfNarrativeProjection:
         name = metadata.get("name", "Elfie")
         speech_style = data.get("speech_style", {})
         verbal_tick = speech_style.get("verbal_ticks", "哒")
+        species_name = data.get("species_name", "小狐狸")
 
         self._current_personality = dict(big_five)
         now = datetime.now(timezone.utc).isoformat()
 
         for core_key in self.CORE_KEYS:
             generator = _CORE_GENERATORS[core_key]
-            text = generator(big_five, name, verbal_tick)
+            text = (
+                generator(big_five, name, verbal_tick, species_name)
+                if core_key == "identity"
+                else generator(big_five, name, verbal_tick)
+            )
 
             node_id = f"core_{core_key}"
             meta = {

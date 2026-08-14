@@ -26,14 +26,19 @@ characters/
 ├── fox/
 │   ├── fox.glb
 │   └── fox.tscn
+├── cat/
+│   └── cat.tscn              # Myelle procedural visual v0.1
 ├── CHARACTER_CREATION_GUIDE.md
 ├── BLENDER_APPEARANCE_AUTHORING_GUIDE.md
 └── APPEARANCE_SYSTEM_SPEC.md
 ```
 
-Dog and fox are the current default characters. At runtime the scene is
-selected by `species`; when older data has no `species`, dog or fox is assigned
-stably based on `elfie_id`.
+Saevi (fox), Tovren (dog), and Myelle (cat) are the current selectable species.
+Myelle's first runtime visual is a code-native, reusable scene while the
+production cat asset is being authored; it still uses the same actor, collision,
+appearance, and animation-name contracts. At runtime the scene is selected by
+`species`; when older data has no `species`, the existing stable fallback is
+preserved.
 
 ## Runtime collision principles
 
