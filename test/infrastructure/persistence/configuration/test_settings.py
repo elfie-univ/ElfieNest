@@ -25,9 +25,44 @@ def test_defaults_are_returned_without_creating_a_document(
     adapter = RuntimeSettingsAdapter()
 
     assert adapter.load_elfie_settings().max_elfies_per_user == 3
+    assert not hasattr(adapter.load_elfie_settings(), "allowed_species_ids")
     assert adapter.load_runtime_settings().tick_interval_sec == 1.5
     assert adapter.load_security_settings().session_ttl_days == 7
     assert not _runtime_path(tmp_path).exists()
+
+
+def test_retired_species_allowlist_is_ignored_and_removed_on_settings_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    path = _runtime_path(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "system": {
+                    "adoption": {
+                        "max_elfies_per_user": 3,
+                        "allowed_species_ids": ["dog"],
+                        "personality_presets_enabled": {"好奇探索": True},
+                    }
+                },
+            },
+            allow_unicode=True,
+        ),
+        encoding="utf-8",
+    )
+
+    adapter = RuntimeSettingsAdapter()
+    settings = adapter.load_elfie_settings()
+    assert settings.max_elfies_per_user == 3
+    assert not hasattr(settings, "allowed_species_ids")
+
+    adapter.save_elfie_settings(settings)
+
+    saved = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert "allowed_species_ids" not in saved["system"]["adoption"]
 
 
 def test_section_update_preserves_unowned_runtime_fields(

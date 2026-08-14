@@ -10,6 +10,7 @@ import {
   type AdoptionCandidateSetInput,
   type AdoptionInfo,
   type AdoptionReply,
+  type AdoptionSpecies,
 } from "../../api/me/adoption"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../../i18n/errors"
 import { currentLocale } from "../../i18n/format"
@@ -23,10 +24,7 @@ import {
   DialogTitle,
 } from "../ui/dialog"
 import { Icon } from "../Icon"
-import dogAvatar from "../../assets/adoption/dog.svg"
-import catAvatar from "../../assets/adoption/cat.svg"
 import elfariaArrivalImage from "../../assets/adoption/elfaria-arrival-square.png"
-import foxAvatar from "../../assets/adoption/fox.svg"
 import {
   DEFAULT_DRAFT,
   INITIAL_ADOPTION_STATE,
@@ -57,8 +55,6 @@ type AdoptionJourneyDialogProps = {
 type JourneyT = (key: string, options?: Record<string, unknown>) => string
 
 const LIFE_STAGES: readonly LifeStage[] = ["youth", "young_adult", "mature", "elder", "any"]
-const SPECIES: readonly SpeciesId[] = ["fox", "dog", "cat"]
-const SPECIES_IMAGES: Readonly<Record<SpeciesId, string>> = { fox: foxAvatar, dog: dogAvatar, cat: catAvatar }
 const GENDERS: readonly GenderPreference[] = ["male", "female", "any"]
 const APPEARANCE_GROUPS = ["stature", "build", "face", "signature"] as const
 const COMPANIONSHIP_OPTIONS: readonly (readonly CompanionAnswer[])[] = [
@@ -157,16 +153,15 @@ function asReply(reply: AdoptionReply): CandidateReply {
   return { ...asCandidate(reply), status: reply.status, message: reply.message }
 }
 
-function speciesImageUrl(speciesId: SpeciesId): string {
-  return SPECIES_IMAGES[speciesId]
+function candidateImageUrl(candidate: Pick<Candidate, "imageUrl">): string {
+  return candidate.imageUrl
 }
 
-function candidateImageUrl(candidate: Pick<Candidate, "imageUrl" | "speciesId">): string {
-  return candidate.imageUrl.startsWith("/adoption/") ? speciesImageUrl(candidate.speciesId) : candidate.imageUrl
-}
-
-function speciesName(t: (key: string) => string, speciesId: SpeciesId): string {
-  return t(`adoption.journey.species.${speciesId}`)
+function speciesName(species: AdoptionSpecies | undefined, locale: string): string {
+  if (species === undefined) return ""
+  return locale === "zh-CN"
+    ? `${species.display_name}（${species.display_name_zh}）`
+    : `${species.display_name} (${species.earth_shape_label})`
 }
 
 function stageName(t: (key: string) => string, stage: LifeStage): string {
@@ -260,10 +255,14 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     if (open) saveDraft(accountId, state)
   }, [accountId, open, state])
 
-  const allowedSpecies = useMemo(() => {
-    const configured = info?.species_ids.filter((value): value is SpeciesId => value === "dog" || value === "fox" || value === "cat")
-    return [...(configured?.length ? configured : SPECIES)].sort((left, right) => SPECIES.indexOf(left) - SPECIES.indexOf(right))
-  }, [info])
+  const allowedSpecies = useMemo(
+    () => [...(info?.species ?? [])].sort((left, right) => left.sort_order - right.sort_order),
+    [info],
+  )
+  const speciesNameForId = (speciesId: SpeciesId): string => speciesName(
+    info?.species.find((species) => species.species_id === speciesId),
+    locale,
+  )
 
   const requestClose = (): void => {
     if (isBusy) return
@@ -488,10 +487,10 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
         <div aria-live="polite" className="adoption-dialog__body">
           {loadingInfo && state.screen === "basic" ? <div className="adoption-loading"><span className="adoption-spinner" aria-hidden="true" />{t("adoption.journey.loading")}</div> : null}
           {!loadingInfo && state.screen === "welcome" ? <WelcomeScreen t={t} onStart={goToBasic} /> : null}
-          {!loadingInfo && state.screen === "basic" ? <BasicScreen allowedSpecies={allowedSpecies} canAdopt={info?.quota.can_adopt ?? true} draft={state.draft} dispatch={dispatch} speciesName={(id) => speciesName(t, id)} stageName={(value) => stageName(t, value)} t={t} /> : null}
+          {!loadingInfo && state.screen === "basic" ? <BasicScreen allowedSpecies={allowedSpecies} canAdopt={info?.quota.can_adopt ?? true} draft={state.draft} dispatch={dispatch} speciesName={(id) => speciesNameForId(id)} stageName={(value) => stageName(t, value)} t={t} /> : null}
           {state.screen === "appearance" ? <AppearanceScreen draft={state.draft} dispatch={dispatch} t={t} /> : null}
           {state.screen === "companionship" ? <CompanionshipScreen draft={state.draft} dispatch={dispatch} onAnswer={answerCompanionship} questionIndex={state.questionIndex} t={t} /> : null}
-          {state.screen === "review" ? <ReviewScreen draft={state.draft} dispatch={dispatch} stageName={(value) => stageName(t, value)} speciesName={(id) => speciesName(t, id)} t={t} /> : null}
+          {state.screen === "review" ? <ReviewScreen draft={state.draft} dispatch={dispatch} stageName={(value) => stageName(t, value)} speciesName={(id) => speciesNameForId(id)} t={t} /> : null}
           {state.screen === "generating" ? <ProgressScreen icon="sparkles" title={t("adoption.journey.generating.title")} /> : null}
           {state.screen === "shortlist" ? <ShortlistScreen candidates={state.candidates} candidateBatch={state.candidateBatch} dispatch={dispatch} onRegenerate={() => { void generateCandidates() }} selectedIds={state.selectedCandidateIds} stageName={(value) => stageName(t, value)} t={t} /> : null}
           {state.screen === "inviting" ? <InvitingScreen candidates={state.candidates.filter((candidate) => state.selectedCandidateIds.includes(candidate.candidateId))} t={t} /> : null}
@@ -558,7 +557,7 @@ function WelcomeScreen({ t, onStart }: { readonly t: JourneyT; readonly onStart:
 function BasicScreen({
   allowedSpecies, canAdopt, dispatch, draft, speciesName, stageName, t,
 }: {
-  readonly allowedSpecies: readonly SpeciesId[]
+  readonly allowedSpecies: readonly AdoptionSpecies[]
   readonly canAdopt: boolean
   readonly dispatch: React.Dispatch<AdoptionAction>
   readonly draft: AdoptionDraftState["draft"]
@@ -569,7 +568,7 @@ function BasicScreen({
   return <section>
     <ScreenIntro badge={t("adoption.journey.badges.oneMinute")} title={t("adoption.journey.basic.title")} />
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.speciesLabel")}</legend><div className="adoption-species-grid">
-      {allowedSpecies.map((speciesId) => <ChoiceButton className="adoption-species-choice" key={speciesId} onClick={() => dispatch({ type: "set-basic", field: "speciesId", value: speciesId })} selected={draft.speciesId === speciesId}><img alt="" src={speciesImageUrl(speciesId)} /><span><strong>{speciesName(speciesId)}</strong></span></ChoiceButton>)}
+      {allowedSpecies.map((species) => <ChoiceButton className="adoption-species-choice" key={species.species_id} onClick={() => dispatch({ type: "set-basic", field: "speciesId", value: species.species_id })} selected={draft.speciesId === species.species_id}><img alt="" src={species.avatar_url} /><span><strong>{speciesName(species.species_id)}</strong></span></ChoiceButton>)}
     </div></fieldset>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.lifeStageLabel")}</legend><div className="adoption-option-row">{LIFE_STAGES.map((stage) => <ChoiceButton key={stage} onClick={() => dispatch({ type: "set-basic", field: "lifeStage", value: stage })} selected={draft.lifeStage === stage}>{stageName(stage)}</ChoiceButton>)}</div></fieldset>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.genderLabel")}</legend><div className="adoption-option-row">{GENDERS.map((gender) => <ChoiceButton key={gender} onClick={() => dispatch({ type: "set-basic", field: "gender", value: gender })} selected={draft.gender === gender}>{t(`adoption.journey.genders.${gender}`)}</ChoiceButton>)}</div></fieldset>

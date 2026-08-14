@@ -25,7 +25,7 @@ from elfie import Elfie
 
 class Policy:
     def load_policy(self) -> AdoptionPolicyRecord:
-        return AdoptionPolicyRecord(3, ("fox",), ("好奇探索",))
+        return AdoptionPolicyRecord(3, ("好奇探索",))
 
 
 class Persistence:

@@ -36,9 +36,13 @@ class SpeciesCanon:
 
     canon_id: str
     display_name: str
+    display_name_zh: str
     earth_shape_label: str
     technical_species_id: str
     visual_runtime_supported: bool
+    avatar_url: str
+    sort_order: int
+    candidate_names: tuple[tuple[str, str], ...]
     common_sensory_biases: tuple[str, ...]
     common_knowledge: tuple[str, ...]
     earth_first_contact_cues: tuple[str, ...]
@@ -66,38 +70,93 @@ _SPECIES_CANON: dict[str, SpeciesCanon] = {
     "saevi": SpeciesCanon(
         canon_id="saevi",
         display_name="Saevi",
+        display_name_zh="灵狐",
         earth_shape_label="fox-like",
         technical_species_id="fox",
         visual_runtime_supported=True,
+        avatar_url="/assets/adoption/fox.svg",
+        sort_order=0,
+        candidate_names=(
+            ("阿洛", "洛洛"),
+            ("洛弥", "米娅"),
+            ("柚子", "小柚"),
+            ("星遥", "遥遥"),
+            ("赤砂", "砂砂"),
+        ),
         common_sensory_biases=("环境变化", "路径与空间边界", "气味和方向"),
-        common_knowledge=("自然环境、道路、藏身处和小规模聚落生活", "家、路径、边界和返回"),
-        earth_first_contact_cues=("先观察边缘、声音和可离开的路径", "再询问陌生设备的具体用途"),
+        common_knowledge=(
+            "自然环境、道路、藏身处和小规模聚落生活",
+            "家、路径、边界和返回",
+        ),
+        earth_first_contact_cues=(
+            "先观察边缘、声音和可离开的路径",
+            "再询问陌生设备的具体用途",
+        ),
     ),
     "tovren": SpeciesCanon(
         canon_id="tovren",
         display_name="Tovren",
+        display_name_zh="灵犬",
         earth_shape_label="dog-like",
         technical_species_id="dog",
         visual_runtime_supported=True,
+        avatar_url="/assets/adoption/dog.svg",
+        sort_order=1,
+        candidate_names=(
+            ("布谷", "布布"),
+            ("诺拉", "诺诺"),
+            ("山雀", "小山"),
+            ("米栗", "栗栗"),
+            ("奥丘", "丘丘"),
+        ),
         common_sensory_biases=("声音方向", "脚步与呼唤", "群体节奏和协作信号"),
-        common_knowledge=("公共活动、共同劳动、巡路和互相照应", "队伍行动和熟悉的声音线索"),
-        earth_first_contact_cues=("先判断声音来源、距离和是否有同伴回应", "再理解通信设备的用途"),
+        common_knowledge=(
+            "公共活动、共同劳动、巡路和互相照应",
+            "队伍行动和熟悉的声音线索",
+        ),
+        earth_first_contact_cues=(
+            "先判断声音来源、距离和是否有同伴回应",
+            "再理解通信设备的用途",
+        ),
     ),
     "myelle": SpeciesCanon(
         canon_id="myelle",
         display_name="Myelle",
+        display_name_zh="灵猫",
         earth_shape_label="cat-like",
         technical_species_id="cat",
         visual_runtime_supported=True,
+        avatar_url="/assets/adoption/cat.svg",
+        sort_order=2,
+        candidate_names=(
+            ("弥弥", "米米"),
+            ("阿澜", "澜澜"),
+            ("星栖", "栖栖"),
+            ("绒昼", "昼昼"),
+            ("奈可", "可可"),
+        ),
         common_sensory_biases=("细微声音", "距离和高低差", "平衡与安静移动"),
-        common_knowledge=("安静角落、垂直空间、观察位置和低干扰生活", "距离和允许靠近的空间信号"),
-        earth_first_contact_cues=("先观察边缘、反光、声音和运动轨迹", "接触并记忆后再把设备当作熟悉事物"),
+        common_knowledge=(
+            "安静角落、垂直空间、观察位置和低干扰生活",
+            "距离和允许靠近的空间信号",
+        ),
+        earth_first_contact_cues=(
+            "先观察边缘、反光、声音和运动轨迹",
+            "接触并记忆后再把设备当作熟悉事物",
+        ),
     ),
 }
 
 _SPECIES_BY_TECHNICAL_ID = {
     profile.technical_species_id: profile for profile in _SPECIES_CANON.values()
 }
+
+
+def list_species_canons() -> tuple[SpeciesCanon, ...]:
+    """Return all narrative species cards in their stable product order."""
+    return tuple(
+        sorted(_SPECIES_CANON.values(), key=lambda profile: profile.sort_order)
+    )
 
 
 def get_species_canon(canon_id: str) -> SpeciesCanon:
@@ -129,4 +188,5 @@ __all__ = (
     "WorldCanon",
     "get_species_canon",
     "get_species_canon_for_technical_id",
+    "list_species_canons",
 )

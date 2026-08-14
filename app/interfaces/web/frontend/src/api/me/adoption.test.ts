@@ -15,11 +15,22 @@ const candidate = {
   species_id: "fox" as const,
   life_stage: "young_adult" as const,
   gender: "male" as const,
-  image_url: "/adoption/fox.svg",
+  image_url: "/assets/adoption/fox.svg",
   appearance_tags: ["高挑"],
   personality_tags: ["好奇探索"],
   introduction: "hello",
   compatibility: "steady",
+}
+
+const species = {
+  species_id: "fox",
+  canon_id: "saevi",
+  display_name: "Saevi",
+  display_name_zh: "灵狐",
+  earth_shape_label: "fox-like",
+  avatar_url: "/assets/adoption/fox.svg",
+  scene_id: "fox",
+  sort_order: 0,
 }
 
 describe("versioned current-member Adoption client", () => {
@@ -29,7 +40,7 @@ describe("versioned current-member Adoption client", () => {
     vi.mocked(requestJson)
       .mockResolvedValueOnce({
         personality_styles: ["好奇探索"],
-        species_ids: ["fox"],
+        species: [species],
         heights: ["standard"],
         builds: ["standard"],
         life_stages: ["any"],

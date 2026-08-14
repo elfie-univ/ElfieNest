@@ -226,7 +226,6 @@ class MemorySettingsStore:
     def reset_settings(self) -> None:
         self.elfies = StoredElfieSettings(
             3,
-            ("dog", "fox"),
             (("Energetic", True), ("Calm", True)),
         )
         self.runtime = StoredRuntimeSettings(1.5)

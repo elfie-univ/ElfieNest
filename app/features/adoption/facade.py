@@ -5,6 +5,7 @@ from __future__ import annotations
 import secrets
 
 from app.features.accounts import AccountPrincipal
+from elfie.profile import get_species_definition, list_species_definitions
 
 from ._candidate_registry import CandidateRegistry
 from .errors import (
@@ -17,6 +18,7 @@ from .models import (
     AcceptedAdoptionReservation,
     AdoptionOptionsResult,
     AdoptionQuota,
+    AdoptionSpecies,
     CandidateRepliesResult,
     CandidateSetResult,
     CreateCandidateSetCommand,
@@ -73,9 +75,21 @@ class AdoptionService:
         if quota is None:
             raise AdoptionOwnerNotFound("用户不存在")
         remaining = max(0, quota.effective_limit - quota.used)
+        try:
+            species = tuple(
+                sorted(
+                    (
+                        _species_result(definition.species_id)
+                        for definition in list_species_definitions()
+                    ),
+                    key=lambda item: item.sort_order,
+                )
+            )
+        except ValueError as error:
+            raise AdoptionUnavailable("领养物种配置暂不可用") from error
         return AdoptionOptionsResult(
             personality_styles=policy.enabled_personality_styles,
-            species_ids=policy.allowed_species_ids,
+            species=species,
             heights=_HEIGHTS,
             builds=_BUILDS,
             life_stages=_LIFE_STAGES,
@@ -93,8 +107,10 @@ class AdoptionService:
         command: CreateCandidateSetCommand,
     ) -> CandidateSetResult:
         policy = self._load_policy()
-        if command.species_id not in policy.allowed_species_ids:
-            raise AdoptionInvalid(f"species_id 必须是 {policy.allowed_species_ids}")
+        try:
+            get_species_definition(command.species_id)
+        except ValueError as error:
+            raise AdoptionInvalid(f"不支持的 species_id={command.species_id!r}") from error
         return self._candidates.create(
             owner_user_id=principal.user_id,
             species_id=command.species_id,
@@ -130,8 +146,12 @@ class AdoptionService:
             candidate_id=command.candidate_id,
         )
         policy = self._load_policy()
-        if candidate.public.species_id not in policy.allowed_species_ids:
-            raise AdoptionInvalid(f"species_id 必须是 {policy.allowed_species_ids}")
+        try:
+            get_species_definition(candidate.public.species_id)
+        except ValueError as error:
+            raise AdoptionInvalid(
+                f"不支持的 species_id={candidate.public.species_id!r}"
+            ) from error
         if candidate.personality_style not in policy.enabled_personality_styles:
             raise AdoptionInvalid("当前候选的性格风格已停用，请重新生成候选名单")
         elfie_id = f"{secrets.randbelow(100_000_000):08d}"
@@ -184,3 +204,17 @@ class AdoptionService:
 
 
 __all__ = ("AdoptionService",)
+
+
+def _species_result(species_id: str) -> AdoptionSpecies:
+    definition = get_species_definition(species_id)
+    return AdoptionSpecies(
+        species_id=definition.species_id,
+        canon_id=definition.canon_id,
+        display_name=definition.display_name,
+        display_name_zh=definition.display_name_zh,
+        earth_shape_label=definition.earth_shape_label,
+        avatar_url=definition.avatar_url,
+        scene_id=definition.scene_id,
+        sort_order=definition.sort_order,
+    )

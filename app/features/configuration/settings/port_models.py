@@ -3,17 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Tuple
-
-from typing_extensions import TypeAlias
-
-SpeciesId: TypeAlias = Literal["dog", "fox", "cat"]
+from typing import Tuple
 
 
 @dataclass(frozen=True)
 class StoredElfieSettings:
     max_elfies_per_user: int
-    allowed_species_ids: Tuple[SpeciesId, ...]
     personality_presets_enabled: Tuple[Tuple[str, bool], ...]
 
 
@@ -39,5 +34,4 @@ __all__ = (
     "StoredLoginRateLimit",
     "StoredRuntimeSettings",
     "StoredSecuritySettings",
-    "SpeciesId",
 )

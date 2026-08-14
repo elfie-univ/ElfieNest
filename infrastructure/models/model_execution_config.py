@@ -126,7 +126,6 @@ def deep_update(
 DEFAULT_SYSTEM_SETTINGS: Dict[str, JsonValue] = {
     "adoption": {
         "max_elfies_per_user": 3,
-        "allowed_species_ids": ["dog", "fox", "cat"],
         "personality_presets_enabled": {
             "活泼好动": True,
             "安静温顺": True,

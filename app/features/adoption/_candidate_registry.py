@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass, replace
 from datetime import date
 
-from elfie.profile import get_species_canon_for_technical_id
+from elfie.profile import get_species_definition
 
 from .errors import AdoptionCandidateSetExpired, AdoptionInvalid
 from .models import (
@@ -32,29 +32,6 @@ _LIFE_STAGES: tuple[ExposedLifeStage, ...] = (
     "elder",
 )
 _GENDERS: tuple[ElfieGender, ...] = ("male", "female")
-_CANDIDATE_NAMES: dict[SpeciesId, tuple[tuple[str, str], ...]] = {
-    "fox": (
-        ("阿洛", "洛洛"),
-        ("洛弥", "米娅"),
-        ("柚子", "小柚"),
-        ("星遥", "遥遥"),
-        ("赤砂", "砂砂"),
-    ),
-    "dog": (
-        ("布谷", "布布"),
-        ("诺拉", "诺诺"),
-        ("山雀", "小山"),
-        ("米栗", "栗栗"),
-        ("奥丘", "丘丘"),
-    ),
-    "cat": (
-        ("弥弥", "米米"),
-        ("阿澜", "澜澜"),
-        ("星栖", "栖栖"),
-        ("绒昼", "昼昼"),
-        ("奈可", "可可"),
-    ),
-}
 _PERSONALITY_TAGS: dict[str, tuple[str, str]] = {
     "活泼好动": ("主动回应", "喜欢热闹"),
     "安静温顺": ("温和陪伴", "慢慢熟悉"),
@@ -234,7 +211,8 @@ class CandidateRegistry:
         seed: int,
         personality_style: str,
     ) -> CandidateSnapshot:
-        names = _CANDIDATE_NAMES[species_id][index]
+        species = get_species_definition(species_id)
+        names = species.canon.candidate_names[index]
         chosen_stage = (
             _LIFE_STAGES[index % len(_LIFE_STAGES)]
             if life_stage == "any"
@@ -246,7 +224,6 @@ class CandidateRegistry:
             personality_style,
             _PERSONALITY_TAGS["完全随机"],
         )
-        species = get_species_canon_for_technical_id(species_id)
         question_hint = answers[index % len(answers)]
         public = CandidateResult(
             candidate_id=f"{seed:016x}-{index + 1}",
@@ -255,7 +232,7 @@ class CandidateRegistry:
             species_id=species_id,
             life_stage=chosen_stage,
             gender=chosen_gender,
-            image_url=f"/adoption/{species_id}.svg",
+            image_url=species.avatar_url,
             appearance_tags=appearance_tags,
             personality_tags=personality_tags,
             introduction=(

@@ -51,9 +51,6 @@ from .settings import (
     SettingsValidationError as SettingsValidationError,
 )
 from .settings import (
-    SpeciesId as SpeciesId,
-)
-from .settings import (
     StoredElfieSettings as StoredElfieSettings,
 )
 from .settings import (
@@ -95,7 +92,6 @@ __all__ = (
         "SettingsStorageError",
         "SettingsStorePort",
         "SettingsValidationError",
-        "SpeciesId",
         "StoredElfieSettings",
         "StoredLoginRateLimit",
         "StoredRuntimeSettings",

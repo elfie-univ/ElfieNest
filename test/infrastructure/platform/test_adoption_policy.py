@@ -11,7 +11,6 @@ class Settings:
     def load_elfie_settings(self) -> StoredElfieSettings:
         return StoredElfieSettings(
             max_elfies_per_user=4,
-            allowed_species_ids=("fox",),
             personality_presets_enabled=(("好奇探索", True), ("活泼好动", False)),
         )
 
@@ -37,6 +36,5 @@ def test_policy_adapter_reads_the_settings_authority_without_writing() -> None:
     ).load_policy()
 
     assert policy.default_elfie_limit == 4
-    assert policy.allowed_species_ids == ("fox",)
     assert "好奇探索" in policy.enabled_personality_styles
     assert "活泼好动" not in policy.enabled_personality_styles

@@ -99,7 +99,13 @@ class TestAdoptionInfo:
         # 6 种性格
         assert len(data["personality_styles"]) == 6
         # 3 个当前可领养物种
-        assert sorted(data["species_ids"]) == ["cat", "dog", "fox"]
+        assert sorted(item["species_id"] for item in data["species"]) == [
+            "cat",
+            "dog",
+            "fox",
+        ]
+        assert data["species"][0]["avatar_url"] == "/assets/adoption/fox.svg"
+        assert data["species"][0]["scene_id"] == "fox"
         # 3 身高
         assert sorted(data["heights"]) == sorted(["short", "standard", "tall"])
         # 3 胖瘦

@@ -69,7 +69,7 @@ describe("adoption journey model", () => {
         speciesId: "fox",
         lifeStage: "young_adult",
         gender: "male",
-        imageUrl: "/adoption/fox.svg",
+        imageUrl: "/assets/adoption/fox.svg",
         appearanceTags: [],
         personalityTags: [],
         introduction: "",

@@ -35,7 +35,7 @@ vi.mock("../api/owner-nest", () => ({ ownerRooms: vi.fn() }))
 vi.mock("./tools/useToolsPermissions", () => ({ useToolsPermissions: vi.fn() }))
 
 const engine = { tick_interval_sec: 1.5 }
-const adoption: ElfieSettings = { max_elfies_per_user: 3, allowed_species_ids: ["dog", "fox"], personality_presets_enabled: {} }
+const adoption: ElfieSettings = { max_elfies_per_user: 3, personality_presets_enabled: {} }
 const security = { session_ttl_days: 7, rate_limit: { max_attempts: 5, window_seconds: 60 } }
 const tools = {
   web_search: {

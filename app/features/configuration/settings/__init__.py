@@ -21,7 +21,6 @@ from .models import (
     UpdateSecuritySettingsCommand,
 )
 from .port_models import (
-    SpeciesId,
     StoredElfieSettings,
     StoredLoginRateLimit,
     StoredRuntimeSettings,
@@ -47,7 +46,6 @@ __all__ = (
     "SettingsStorePort",
     "SecuritySettingsChangedPort",
     "SettingsValidationError",
-    "SpeciesId",
     "StoredElfieSettings",
     "StoredLoginRateLimit",
     "StoredRuntimeSettings",

@@ -5,8 +5,9 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, fields, replace
 from typing import Any, Dict, Type, TypeVar, cast
 
+from .species_registry import SUPPORTED_SPECIES
+
 PROFILE_SCHEMA_VERSION = 1
-SUPPORTED_SPECIES = ("dog", "fox", "cat")
 SUPPORTED_MORPHOLOGIES = ("biped", "quadruped")
 
 

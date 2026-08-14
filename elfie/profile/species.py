@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict
 
-from .models import SUPPORTED_SPECIES
-
 
 @dataclass(frozen=True)
 class ScaleRange:
@@ -170,5 +168,5 @@ def get_species_profile(species_id: str) -> SpeciesAppearanceProfile:
         return _SPECIES_PROFILES[species_id]
     except KeyError as exc:
         raise ValueError(
-            f"不支持的 species_id={species_id!r}，可选: {', '.join(SUPPORTED_SPECIES)}"
+            f"不支持的 species_id={species_id!r}，可选: {', '.join(_SPECIES_PROFILES)}"
         ) from exc

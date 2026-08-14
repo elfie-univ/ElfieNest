@@ -1,10 +1,6 @@
 extends Node3D
 
-const ACTOR_SCENES := {
-	"dog": preload("res://characters/dog/dog.tscn"),
-	"fox": preload("res://characters/fox/fox.tscn"),
-	"cat": preload("res://characters/cat/cat.tscn"),
-}
+const SPECIES_CATALOG := preload("res://runtime/species_catalog.gd")
 const GODOT_WS_URL := "ws://127.0.0.1:8765"
 const GODOT_PROTOCOL_VERSION := 2
 const WORLD_RUNTIME_CONTROLLER := preload("res://runtime/world_controller.gd")
@@ -37,6 +33,7 @@ var _runtime_mode
 var _semantic_events
 var _observer_window: JavaScriptObject
 var _observer_origin := ""
+var _actor_scenes: Dictionary = {}
 
 
 func add_character(
@@ -58,6 +55,7 @@ func add_character(
 
 
 func _ready() -> void:
+	_actor_scenes = SPECIES_CATALOG.discover_actor_scenes()
 	_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "elfie_lab"
 	_nest_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "nest_lab"
 	_product_observer_mode = (
@@ -108,7 +106,7 @@ func _process(_delta: float) -> void:
 func _setup_lab_runtime() -> void:
 	_lab_runtime = LAB_RUNTIME.new()
 	add_child(_lab_runtime)
-	_lab_runtime.setup(nest, characters, lab_preview, lab_camera, ACTOR_SCENES)
+	_lab_runtime.setup(nest, characters, lab_preview, lab_camera, _actor_scenes)
 
 
 func _start_authority_runtime() -> void:
@@ -119,7 +117,7 @@ func _start_authority_runtime() -> void:
 	_world_controller.runtime_event.connect(_on_runtime_event)
 	_actor_controller = ACTOR_RUNTIME_CONTROLLER.new()
 	add_child(_actor_controller)
-	_actor_controller.setup(nest, characters, ACTOR_SCENES)
+	_actor_controller.setup(nest, characters, _actor_scenes)
 	_actor_controller.runtime_event.connect(_on_runtime_event)
 	_ws_url = _resolve_runtime_ws_url()
 	_runtime_client = RUNTIME_WEBSOCKET_CLIENT.new()
@@ -131,7 +129,7 @@ func _start_authority_runtime() -> void:
 func _setup_observer_presentation() -> void:
 	_observer_presentation = OBSERVER_PRESENTATION_CONTROLLER.new()
 	add_child(_observer_presentation)
-	_observer_presentation.setup(nest, characters, ACTOR_SCENES)
+	_observer_presentation.setup(nest, characters, _actor_scenes)
 
 
 func _handle_runtime_command(message: Dictionary) -> void:

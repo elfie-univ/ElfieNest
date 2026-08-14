@@ -30,6 +30,7 @@ from elfie.profile import (
     ElfieOrigin,
     create_visual_profile,
     get_species_canon_for_technical_id,
+    get_species_definition,
 )
 from infrastructure.persistence.layout.data_home import data_home_from_db_path
 from infrastructure.persistence.layout.data_layout import (
@@ -169,6 +170,7 @@ def _appearance_overrides(
     reservation: AcceptedAdoptionReservation,
 ) -> dict[str, object]:
     overrides: dict[str, object] = {}
+    species = get_species_definition(reservation.species_id)
     if reservation.face == "soft":
         overrides["face"] = {
             "cheek_fullness_bias": 0.42,
@@ -181,21 +183,25 @@ def _appearance_overrides(
         }
     if reservation.signature == "warm":
         overrides["coat"] = {
-            "palette_id": (
-                "golden"
-                if reservation.species_id == "fox"
-                else "cream"
+            "palette_id": _preferred_species_option(
+                species.appearance.palettes, ("golden", "cream")
             )
         }
     elif reservation.signature == "marked":
         overrides["coat"] = {
-            "pattern_id": (
-                "face_mask"
-                if reservation.species_id in {"fox", "dog"}
-                else "tabby"
+            "pattern_id": _preferred_species_option(
+                species.appearance.patterns, ("face_mask", "tabby")
             )
         }
     return overrides
+
+
+def _preferred_species_option(
+    options: tuple[str, ...], preferred: tuple[str, ...]
+) -> str:
+    if not options:
+        raise ValueError("物种外观 profile 至少需要一个可选项")
+    return next((item for item in preferred if item in options), options[0])
 
 
 def _personality(

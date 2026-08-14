@@ -19,7 +19,6 @@ class MemorySettingsStore:
     def __init__(self) -> None:
         self.elfies = StoredElfieSettings(
             max_elfies_per_user=3,
-            allowed_species_ids=("dog", "fox"),
             personality_presets_enabled=(
                 ("活泼好动", True),
                 ("安静温顺", True),
@@ -74,7 +73,13 @@ def test_resources_are_explicit_and_return_strict_shapes() -> None:
         security = client.get("/api/v1/admin/settings/security")
 
     assert elfies.status_code == 200
-    assert elfies.json()["allowed_species_ids"] == ["dog", "fox"]
+    assert elfies.json() == {
+        "max_elfies_per_user": 3,
+        "personality_presets_enabled": {
+            "活泼好动": True,
+            "安静温顺": True,
+        },
+    }
     assert runtime.json() == {"tick_interval_sec": 1.5}
     assert security.json()["rate_limit"] == {
         "max_attempts": 5,
@@ -91,7 +96,7 @@ def test_patch_updates_only_supplied_fields() -> None:
 
     assert response.status_code == 200
     assert response.json()["max_elfies_per_user"] == 4
-    assert response.json()["allowed_species_ids"] == ["dog", "fox"]
+    assert "allowed_species_ids" not in response.json()
 
 
 def test_unknown_and_null_fields_are_rejected() -> None:
@@ -100,12 +105,17 @@ def test_unknown_and_null_fields_are_rejected() -> None:
             "/api/v1/admin/settings/runtime",
             json={"unknown": 1},
         )
+        retired_species_field = client.patch(
+            "/api/v1/admin/settings/elfies",
+            json={"allowed_species_ids": ["fox"]},
+        )
         null_value = client.patch(
             "/api/v1/admin/settings/security",
             json={"session_ttl_days": None},
         )
 
     assert unknown.status_code == 422
+    assert retired_species_field.status_code == 422
     assert null_value.status_code == 422
 
 

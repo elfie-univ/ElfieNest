@@ -26,7 +26,6 @@ class MemorySettingsStore:
     def __init__(self) -> None:
         self.elfies = StoredElfieSettings(
             max_elfies_per_user=3,
-            allowed_species_ids=("dog", "fox"),
             personality_presets_enabled=(("安静温顺", True),),
         )
         self.runtime = StoredRuntimeSettings(tick_interval_sec=1.5)
@@ -76,7 +75,6 @@ def test_partial_elfie_update_preserves_other_settings() -> None:
     )
 
     assert result.max_elfies_per_user == 4
-    assert result.allowed_species_ids == ("dog", "fox")
     assert dict(result.personality_presets_enabled)["安静温顺"] is True
 
 
@@ -85,8 +83,6 @@ def test_partial_elfie_update_preserves_other_settings() -> None:
     [
         UpdateElfieSettingsCommand(max_elfies_per_user=0),
         UpdateElfieSettingsCommand(max_elfies_per_user=33),
-        UpdateElfieSettingsCommand(allowed_species_ids=()),
-        UpdateElfieSettingsCommand(allowed_species_ids=("dragon",)),
     ],
 )
 def test_invalid_elfie_settings_are_rejected(

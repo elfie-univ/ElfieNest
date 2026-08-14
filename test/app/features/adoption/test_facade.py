@@ -14,13 +14,13 @@ from app.features.adoption import (
     ReserveAcceptedAdoptionCommand,
     SpeciesId,
 )
+from elfie.profile import SUPPORTED_SPECIES
 
 
 class Policy:
     def load_policy(self) -> AdoptionPolicyRecord:
         return AdoptionPolicyRecord(
             default_elfie_limit=3,
-            allowed_species_ids=("dog", "fox", "cat"),
             enabled_personality_styles=("好奇探索",),
         )
 
@@ -84,6 +84,7 @@ def test_options_use_one_effective_quota_read() -> None:
     assert options.quota.maximum == 2
     assert options.quota.remaining == 1
     assert options.quota.can_adopt is True
+    assert tuple(item.species_id for item in options.species) == SUPPORTED_SPECIES
 
 
 def test_candidate_reply_and_reservation_preserve_accepted_snapshot() -> None:

@@ -23,12 +23,18 @@ function candidate(index: number) {
     species_id: "fox" as const,
     life_stage: "young_adult",
     gender: index % 2 === 0 ? "male" as const : "female" as const,
-    image_url: "/adoption/fox.svg",
+    image_url: "/assets/adoption/fox.svg",
     appearance_tags: ["Balanced", "Soft"],
     personality_tags: ["Curious", "Warm"],
     introduction: "I would like to get to know your Nest.",
     compatibility: "Your answers sounded familiar.",
   }
+}
+
+const species = {
+  fox: { species_id: "fox", canon_id: "saevi", display_name: "Saevi", display_name_zh: "灵狐", earth_shape_label: "fox-like", avatar_url: "/assets/adoption/fox.svg", scene_id: "fox", sort_order: 0 },
+  dog: { species_id: "dog", canon_id: "tovren", display_name: "Tovren", display_name_zh: "灵犬", earth_shape_label: "dog-like", avatar_url: "/assets/adoption/dog.svg", scene_id: "dog", sort_order: 1 },
+  cat: { species_id: "cat", canon_id: "myelle", display_name: "Myelle", display_name_zh: "灵猫", earth_shape_label: "cat-like", avatar_url: "/assets/adoption/cat.svg", scene_id: "cat", sort_order: 2 },
 }
 
 describe("AdoptionJourneyDialog", () => {
@@ -37,7 +43,7 @@ describe("AdoptionJourneyDialog", () => {
     window.localStorage.clear()
     api.adoptionInfo.mockResolvedValue({
       personality_styles: ["好奇探索"],
-      species_ids: ["fox", "dog"],
+      species: [species.fox, species.dog],
       heights: ["short", "standard", "tall"],
       builds: ["slim", "standard", "plump"],
       quota: { used: 0, max: 3, remaining: 3, can_adopt: true },
@@ -68,7 +74,10 @@ describe("AdoptionJourneyDialog", () => {
     expect(speciesChoices).toHaveLength(2)
     expect(speciesChoices[0]).toHaveTextContent("灵狐")
     expect(speciesChoices[0]).toHaveAttribute("aria-pressed", "false")
-    expect(speciesChoices.every((choice) => choice.querySelector("img")?.getAttribute("src")?.includes("/adoption/") === false)).toBe(true)
+    expect(speciesChoices.map((choice) => choice.querySelector("img")?.getAttribute("src"))).toEqual([
+      "/assets/adoption/fox.svg",
+      "/assets/adoption/dog.svg",
+    ])
     await user.click(screen.getByRole("button", { name: /灵狐/ }))
     await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
     expect(screen.queryByText("第二步 · 外貌倾向")).not.toBeInTheDocument()
@@ -102,7 +111,7 @@ describe("AdoptionJourneyDialog", () => {
     const user = userEvent.setup()
     api.adoptionInfo.mockResolvedValueOnce({
       personality_styles: ["好奇探索"],
-      species_ids: ["cat"],
+      species: [species.cat],
       heights: ["short", "standard", "tall"],
       builds: ["slim", "standard", "plump"],
       life_stages: ["any"],
@@ -115,11 +124,37 @@ describe("AdoptionJourneyDialog", () => {
     expect(screen.getByRole("button", { name: /Myelle.*灵猫/ }).querySelector("img")).toHaveAttribute("src", expect.stringMatching(/cat\.svg|Myelle/))
   })
 
+  it("renders a registry species without a species-specific frontend branch", async () => {
+    const user = userEvent.setup()
+    api.adoptionInfo.mockResolvedValueOnce({
+      personality_styles: ["好奇探索"],
+      species: [{
+        species_id: "owl",
+        canon_id: "oriel",
+        display_name: "Oriel",
+        display_name_zh: "灵鸮",
+        earth_shape_label: "owl-like",
+        avatar_url: "/assets/adoption/owl.svg",
+        scene_id: "owl",
+        sort_order: 3,
+      }],
+      heights: ["short", "standard", "tall"],
+      builds: ["slim", "standard", "plump"],
+      life_stages: ["any"],
+      quota: { used: 0, max: 3, remaining: 3, can_adopt: true },
+    })
+    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
+
+    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
+    const choice = screen.getByRole("button", { name: /Oriel.*灵鸮/ })
+    expect(choice.querySelector("img")).toHaveAttribute("src", "/assets/adoption/owl.svg")
+  })
+
   it("keeps all three canon species visible in the stable fox-dog-cat order", async () => {
     const user = userEvent.setup()
     api.adoptionInfo.mockResolvedValueOnce({
       personality_styles: ["好奇探索"],
-      species_ids: ["cat", "fox", "dog"],
+      species: [species.cat, species.fox, species.dog],
       heights: ["short", "standard", "tall"],
       builds: ["slim", "standard", "plump"],
       life_stages: ["any"],

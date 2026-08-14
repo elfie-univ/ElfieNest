@@ -10,7 +10,6 @@ from .models import ElfieGender, SpeciesId
 @dataclass(frozen=True)
 class AdoptionPolicyRecord:
     default_elfie_limit: int
-    allowed_species_ids: tuple[SpeciesId, ...]
     enabled_personality_styles: tuple[str, ...]
 
 

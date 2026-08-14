@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Mapping, Optional, Union
+from typing import Mapping, Optional, Union
 
 from pydantic import (
     BaseModel,
@@ -38,10 +38,6 @@ class ElfieSettingsPatch(_PatchModel):
         ge=1,
         le=32,
     )
-    allowed_species_ids: Optional[list[Literal["dog", "fox", "cat"]]] = Field(
-        default=None,
-        min_length=1,
-    )
     personality_presets_enabled: Optional[dict[str, StrictBool]] = None
 
 
@@ -64,7 +60,6 @@ class SecuritySettingsPatch(_PatchModel):
 
 class ElfieSettingsResponse(_StrictModel):
     max_elfies_per_user: int
-    allowed_species_ids: list[Literal["dog", "fox", "cat"]]
     personality_presets_enabled: dict[str, bool]
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-SpeciesId = Literal["dog", "fox", "cat"]
+SpeciesId = str
 LifeStage = Literal["youth", "young_adult", "mature", "elder", "any"]
 CandidateGender = Literal["male", "female", "any"]
 ElfieGender = Literal["male", "female"]
@@ -26,9 +26,23 @@ class AdoptionQuota:
 
 
 @dataclass(frozen=True)
+class AdoptionSpecies:
+    """Stable species metadata consumed by the Adoption client."""
+
+    species_id: SpeciesId
+    canon_id: str
+    display_name: str
+    display_name_zh: str
+    earth_shape_label: str
+    avatar_url: str
+    scene_id: str
+    sort_order: int
+
+
+@dataclass(frozen=True)
 class AdoptionOptionsResult:
     personality_styles: tuple[str, ...]
-    species_ids: tuple[SpeciesId, ...]
+    species: tuple[AdoptionSpecies, ...]
     heights: tuple[str, ...]
     builds: tuple[str, ...]
     life_stages: tuple[LifeStage, ...]
@@ -121,6 +135,7 @@ class AcceptedAdoptionReservation:
 
 __all__ = (
     "AcceptedAdoptionReservation",
+    "AdoptionSpecies",
     "AdoptionOptionsResult",
     "AdoptionQuota",
     "CandidateAppearance",
