@@ -20,6 +20,7 @@ describe("adoption journey model", () => {
     const withCandidates = adoptionReducer(INITIAL_ADOPTION_STATE, {
       type: "candidates-ready",
       setId: "set-1",
+      sessionId: "session-1",
       batch: 1,
       candidates: [],
     })
@@ -34,6 +35,7 @@ describe("adoption journey model", () => {
     const first = adoptionReducer(INITIAL_ADOPTION_STATE, {
       type: "candidates-ready",
       setId: "set-1",
+      sessionId: "session-1",
       batch: 1,
       candidates: [],
     })
@@ -41,6 +43,7 @@ describe("adoption journey model", () => {
     const second = adoptionReducer(selected, {
       type: "candidates-ready",
       setId: "set-2",
+      sessionId: "session-1",
       batch: 2,
       candidates: [],
     })
@@ -64,18 +67,18 @@ describe("adoption journey model", () => {
       ...INITIAL_ADOPTION_STATE,
       replies: [{
         candidateId: "candidate-1",
-        originalName: "Aro",
-        suggestedName: "Roro",
         speciesId: "fox",
         lifeStage: "young_adult",
+        ageMonths: 36,
         gender: "male",
-        imageUrl: "/adoption/fox.svg",
+        fullBodyImageUrl: "",
+        headshotImageUrl: "",
+        runtimeAppearance: {},
         appearanceTags: [],
         personalityTags: [],
-        introduction: "",
-        compatibility: "",
         status: "accepted",
         message: "",
+        reveal: { originalName: "Aro", suggestedName: "Roro", personalStory: "" },
       }],
       finalCandidateId: "candidate-1",
     }, { type: "name-mode", mode: "suggested" })

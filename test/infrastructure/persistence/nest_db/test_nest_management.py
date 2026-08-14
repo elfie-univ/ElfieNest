@@ -68,6 +68,20 @@ def test_command_updates_single_nest_configuration(tmp_path) -> None:
     assert [tuple(row) for row in rows] == [("local-nest", 6)]
 
 
+def test_command_cannot_reduce_beds_below_total_resident_count(tmp_path) -> None:
+    db_path = _database(tmp_path)
+    _seed_nest(db_path)
+    adapter = SQLiteNestManagementAdapter(db_path)
+    adapter.update_bed_count(6)
+    for index in range(5):
+        _seed_elfie(db_path, f"{index + 1:08d}")
+
+    with pytest.raises(NestPortConflict):
+        adapter.update_bed_count(4)
+
+    assert adapter.load_snapshot().desired_bed_count == 6
+
+
 def test_bed_assignment_is_atomic_and_rejects_occupied_bed(tmp_path) -> None:
     db_path = _database(tmp_path)
     _seed_nest(db_path)

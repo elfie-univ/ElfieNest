@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from typing import Literal, Optional, Union
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse, Response
 
 from app.features.accounts import AccountPrincipal
 from app.features.elfies import (
     ElfieNotFound,
     ElfiesService,
     ElfiesUnavailable,
+    GetElfiePortraitQuery,
     GetElfieProfileQuery,
     ListVisibleElfiesQuery,
 )
@@ -64,6 +65,27 @@ def get_elfie_profile(
     except (ElfieNotFound, ElfiesUnavailable) as error:
         return elfies_error_response(error)
     return ElfieProfileDetailResponse.model_validate(result)
+
+
+@router.get("/{elfie_id}/portrait", response_class=Response)
+def get_elfie_portrait(
+    elfie_id: str,
+    kind: Literal["headshot", "full_body"] = Query(default="headshot"),
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: ElfiesService = ElfiesDependency,
+) -> Response:
+    try:
+        result = service.get_portrait(
+            principal,
+            GetElfiePortraitQuery(elfie_id=elfie_id, kind=kind),
+        )
+    except (ElfieNotFound, ElfiesUnavailable) as error:
+        return elfies_error_response(error)
+    return Response(
+        content=result.content,
+        media_type=result.media_type,
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
 
 
 def elfies_error_response(error: Exception) -> JSONResponse:

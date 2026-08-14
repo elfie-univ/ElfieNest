@@ -420,6 +420,7 @@ def main():
         db_path=db_path,
         http_port=args.port,
         service_mode=ServiceMode.LAN.value if args.lan else ServiceMode.LOOPBACK.value,
+        model_execution=model_execution_services.execution,
     )
 
     import uvicorn  # noqa: PLC0415

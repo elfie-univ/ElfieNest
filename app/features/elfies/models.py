@@ -21,6 +21,12 @@ class GetElfieProfileQuery:
 
 
 @dataclass(frozen=True)
+class GetElfiePortraitQuery:
+    elfie_id: str
+    kind: Literal["headshot", "full_body"] = "headshot"
+
+
+@dataclass(frozen=True)
 class ListAdminElfiesQuery:
     owner_user_id: int | None = None
     species_id: str | None = None
@@ -63,6 +69,12 @@ class ElfieProfileResult:
     personality_tags: tuple[str, ...]
     portrait_url: str
     appearance: ElfieAppearanceResult | None
+
+
+@dataclass(frozen=True)
+class ElfiePortraitResult:
+    content: bytes
+    media_type: str = "image/png"
 
 
 @dataclass(frozen=True)
@@ -189,9 +201,11 @@ __all__ = (
     "ElfiePermissionsResult",
     "ElfieProfileDetailResult",
     "ElfieProfileResult",
+    "ElfiePortraitResult",
     "ElfieRelationship",
     "ExperienceResult",
     "GetElfieProfileQuery",
+    "GetElfiePortraitQuery",
     "GraphEdgeResult",
     "GraphNodeResult",
     "ImportantExperiencesResult",

@@ -122,7 +122,9 @@ _TABLE_STATEMENTS: Final = (
     )""",
     """CREATE TABLE IF NOT EXISTS elfies (
         elfie_id TEXT PRIMARY KEY CHECK(elfie_id GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'),
-        name TEXT NOT NULL CHECK(length(trim(name))>0), owner_user_id INTEGER NOT NULL REFERENCES users(id),
+        name TEXT NOT NULL CHECK(length(trim(name))>0),
+        original_name TEXT NOT NULL DEFAULT '' CHECK(length(trim(original_name))>=0),
+        owner_user_id INTEGER NOT NULL REFERENCES users(id),
         species TEXT NOT NULL CHECK(length(trim(species))>0), gender TEXT, birth_date TEXT,
         adopted_at TEXT NOT NULL, bed_number INTEGER CHECK(bed_number IS NULL OR bed_number BETWEEN 1 AND 32),
         status TEXT NOT NULL CHECK(status IN ('online','away','offline')), summary TEXT,
@@ -237,7 +239,8 @@ _TRIGGER_STATEMENTS: Final = (
         BEGIN SELECT RAISE(ABORT,'bed_number exceeds local Nest bed_count'); END""",
     """CREATE TRIGGER IF NOT EXISTS trg_nest_bed_count BEFORE UPDATE OF bed_count ON nest_settings
         WHEN EXISTS(SELECT 1 FROM elfies WHERE bed_number>NEW.bed_count)
-        BEGIN SELECT RAISE(ABORT,'bed_count is below occupied bed_number'); END""",
+            OR (SELECT COUNT(*) FROM elfies)>NEW.bed_count
+        BEGIN SELECT RAISE(ABORT,'bed_count is below current resident capacity'); END""",
     """CREATE TRIGGER IF NOT EXISTS trg_lease_body_insert BEFORE INSERT ON embodiment_sessions
         WHEN NEW.body_id IS NOT NULL AND EXISTS(SELECT 1 FROM external_bodies
             WHERE body_id=NEW.body_id AND (status='revoked' OR owner_elfie_id<>NEW.elfie_id))

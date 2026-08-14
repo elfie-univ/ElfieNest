@@ -6,18 +6,21 @@ from .errors import (
     AdoptionCapacityReached,
     AdoptionError,
     AdoptionInvalid,
+    AdoptionNestCapacityReached,
     AdoptionOwnerNotFound,
     AdoptionUnavailable,
 )
 from .facade import AdoptionService
 from .models import (
     AcceptedAdoptionReservation,
+    AdoptionNestCapacity,
     AdoptionOptionsResult,
     AdoptionQuota,
     CandidateAppearance,
     CandidateRepliesResult,
     CandidateReplyResult,
     CandidateResult,
+    CandidateReveal,
     CandidateSetResult,
     CreateCandidateSetCommand,
     GetAdoptionOptionsQuery,
@@ -26,16 +29,20 @@ from .models import (
     SpeciesId,
 )
 from .port_models import (
+    AdoptionNestCapacityRecord,
     AdoptionPolicyRecord,
     AdoptionQuotaRecord,
     AdoptionReservationRecord,
 )
 from .ports import (
+    AdoptionNarrativePort,
     AdoptionPersistencePort,
     AdoptionPolicyPort,
     AdoptionPortCapacityReached,
     AdoptionPortError,
+    AdoptionPortNestCapacityReached,
     AdoptionPortOwnerNotFound,
+    CandidatePortraitPort,
 )
 
 __all__ = (
@@ -45,13 +52,18 @@ __all__ = (
     "AdoptionCapacityReached",
     "AdoptionError",
     "AdoptionInvalid",
+    "AdoptionNestCapacity",
+    "AdoptionNestCapacityReached",
+    "AdoptionNestCapacityRecord",
     "AdoptionOptionsResult",
     "AdoptionOwnerNotFound",
     "AdoptionPersistencePort",
+    "AdoptionNarrativePort",
     "AdoptionPolicyPort",
     "AdoptionPolicyRecord",
     "AdoptionPortCapacityReached",
     "AdoptionPortError",
+    "AdoptionPortNestCapacityReached",
     "AdoptionPortOwnerNotFound",
     "AdoptionQuota",
     "AdoptionQuotaRecord",
@@ -61,8 +73,10 @@ __all__ = (
     "CandidateAppearance",
     "CandidateRepliesResult",
     "CandidateReplyResult",
+    "CandidateReveal",
     "CandidateResult",
     "CandidateSetResult",
+    "CandidatePortraitPort",
     "CreateCandidateSetCommand",
     "GetAdoptionOptionsQuery",
     "ReplyToCandidatesCommand",

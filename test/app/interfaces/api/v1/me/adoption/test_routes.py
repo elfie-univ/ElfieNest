@@ -34,6 +34,10 @@ def _client(tmp_path: Path) -> tuple[TestClient, str]:
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
     with get_db(db_path) as connection:
+        connection.execute(
+            """INSERT INTO nest_settings(nest_id,bed_count,tick_interval_sec)
+               VALUES ('local-nest',4,0.5)"""
+        )
         user_id = int(
             connection.execute(
                 """INSERT INTO users(account_id,password_hash,role)
@@ -80,6 +84,12 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
         "remaining": 3,
         "can_adopt": True,
     }
+    assert options.json()["nest_capacity"] == {
+        "used": 0,
+        "max": 4,
+        "remaining": 4,
+    }
+    assert options.json()["availability"] == "model_unavailable"
     candidates = client.post(
         "/api/v1/me/adoption/candidate-sets",
         json={
@@ -94,11 +104,15 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
                 "priority": "face",
             },
             "answers": ["quiet", "research", "plan", "discuss", "steady"],
+            "batch_number": 1,
         },
     )
     assert candidates.status_code == 200
     candidate_set = candidates.json()
     selected = candidate_set["candidates"][0]
+    assert selected["runtime_appearance"]["species_id"] == "fox"
+    assert selected["full_body_image_url"] == ""
+    assert selected["headshot_image_url"] == ""
 
     before_reply = client.post(
         "/api/v1/me/adoption",
@@ -152,8 +166,33 @@ def test_adoption_dtos_reject_extra_fields(tmp_path: Path) -> None:
                 "priority": "face",
             },
             "answers": ["any", "any", "any", "any", "any"],
+            "batch_number": 1,
             "user_id": 999,
         },
     )
 
     assert response.status_code == 422
+
+
+def test_options_report_global_nest_full_before_member_quota(tmp_path: Path) -> None:
+    client, db_path = _client(tmp_path)
+    with get_db(db_path) as connection:
+        owner_id = int(
+            connection.execute("SELECT id FROM users WHERE account_id='alice'").fetchone()[0]
+        )
+        for index in range(4):
+            connection.execute(
+                """INSERT INTO elfies(
+                       elfie_id,name,owner_user_id,species,gender,birth_date,
+                       adopted_at,status,summary
+                   ) VALUES (?,?,?,'fox','female','2000-01-01',
+                             CURRENT_TIMESTAMP,'offline','steady')""",
+                (f"{index + 1:08d}", f"Elfie {index + 1}", owner_id),
+            )
+        connection.commit()
+
+    options = client.get("/api/v1/me/adoption")
+
+    assert options.status_code == 200
+    assert options.json()["availability"] == "nest_full"
+    assert options.json()["nest_capacity"]["remaining"] == 0

@@ -60,21 +60,25 @@ export type AdoptionDraft = {
 
 export type Candidate = {
   readonly candidateId: string
-  readonly originalName: string
-  readonly suggestedName: string
   readonly speciesId: SpeciesId
   readonly lifeStage: LifeStage
+  readonly ageMonths: number
   readonly gender: "male" | "female"
-  readonly imageUrl: string
+  readonly fullBodyImageUrl: string
+  readonly headshotImageUrl: string
   readonly appearanceTags: readonly string[]
   readonly personalityTags: readonly string[]
-  readonly introduction: string
-  readonly compatibility: string
+  readonly runtimeAppearance: Readonly<Record<string, unknown>>
 }
 
 export type CandidateReply = Candidate & {
   readonly status: "accepted" | "unsure"
   readonly message: string
+  readonly reveal: {
+    readonly originalName: string
+    readonly suggestedName: string
+    readonly personalStory: string
+  } | null
 }
 
 export type AdoptionDraftState = {
@@ -89,6 +93,9 @@ export type AdoptionDraftState = {
   readonly nameMode: NameMode
   readonly customName: string
   readonly candidateSetId: string | null
+  readonly adoptionSessionId: string | null
+  readonly invitationMessageEnabled: boolean
+  readonly invitationMessage: string
   readonly error: string | null
   readonly dirty: boolean
 }
@@ -119,19 +126,26 @@ export const INITIAL_ADOPTION_STATE: AdoptionDraftState = {
   nameMode: "original",
   customName: "",
   candidateSetId: null,
+  adoptionSessionId: null,
+  invitationMessageEnabled: false,
+  invitationMessage: "",
   error: null,
   dirty: false,
 }
 
 export type AdoptionAction =
+  | { readonly type: "restore"; readonly state: AdoptionDraftState }
   | { readonly type: "screen"; readonly screen: AdoptionScreen }
   | { readonly type: "set-basic"; readonly field: "speciesId" | "lifeStage" | "gender"; readonly value: SpeciesId | LifeStage | GenderPreference }
   | { readonly type: "set-appearance"; readonly field: "stature" | "build" | "face" | "signature" | "priority"; readonly value: AppearanceChoice | BuildChoice | FaceChoice | SignatureChoice | AppearancePriority }
   | { readonly type: "set-answer"; readonly index: number; readonly value: CompanionAnswer }
   | { readonly type: "question"; readonly index: number }
-  | { readonly type: "candidates-ready"; readonly setId: string; readonly batch: number; readonly candidates: readonly Candidate[] }
+  | { readonly type: "candidates-ready"; readonly setId: string; readonly sessionId: string; readonly batch: number; readonly candidates: readonly Candidate[]; readonly selectedIds?: readonly string[] }
+  | { readonly type: "candidate-set-recovered"; readonly setId: string }
   | { readonly type: "toggle-candidate"; readonly candidateId: string }
   | { readonly type: "replies-ready"; readonly replies: readonly CandidateReply[] }
+  | { readonly type: "invitation-message-enabled"; readonly value: boolean }
+  | { readonly type: "invitation-message"; readonly value: string }
   | { readonly type: "select-final"; readonly candidateId: string }
   | { readonly type: "name-mode"; readonly mode: NameMode }
   | { readonly type: "custom-name"; readonly value: string }
@@ -145,6 +159,8 @@ function isAppearanceField(field: AdoptionAction & { type: "set-appearance" }): 
 
 export function adoptionReducer(state: AdoptionDraftState, action: AdoptionAction): AdoptionDraftState {
   switch (action.type) {
+    case "restore":
+      return { ...action.state, error: null }
     case "screen":
       return { ...state, screen: action.screen, error: null }
     case "set-basic": {
@@ -155,24 +171,26 @@ export function adoptionReducer(state: AdoptionDraftState, action: AdoptionActio
         draft,
         dirty: true,
         error: null,
-        ...(intentChanged ? { candidates: [], candidateBatch: 0, selectedCandidateIds: [], replies: [], finalCandidateId: null, candidateSetId: null } : {}),
+        ...(intentChanged ? { candidates: [], candidateBatch: 0, selectedCandidateIds: [], replies: [], finalCandidateId: null, candidateSetId: null, adoptionSessionId: null } : {}),
       }
     }
     case "set-appearance": {
       const field = action.field
       if (!isAppearanceField(action)) return state
       const draft = { ...state.draft, [field]: action.value } as AdoptionDraft
-      return { ...state, draft, dirty: true, candidates: [], candidateBatch: 0, selectedCandidateIds: [], replies: [], finalCandidateId: null, candidateSetId: null, error: null }
+      return { ...state, draft, dirty: true, candidates: [], candidateBatch: 0, selectedCandidateIds: [], replies: [], finalCandidateId: null, candidateSetId: null, adoptionSessionId: null, error: null }
     }
     case "set-answer": {
       const answers = [...state.draft.answers]
       answers[action.index] = action.value
-      return { ...state, draft: { ...state.draft, answers }, dirty: true, candidates: [], candidateBatch: 0, selectedCandidateIds: [], replies: [], finalCandidateId: null, candidateSetId: null, error: null }
+      return { ...state, draft: { ...state.draft, answers }, dirty: true, candidates: [], candidateBatch: 0, selectedCandidateIds: [], replies: [], finalCandidateId: null, candidateSetId: null, adoptionSessionId: null, error: null }
     }
     case "question":
       return { ...state, questionIndex: Math.max(0, Math.min(4, action.index)), error: null }
     case "candidates-ready":
-      return { ...state, screen: "shortlist", candidateSetId: action.setId, candidates: action.candidates, candidateBatch: action.batch, selectedCandidateIds: [], replies: [], finalCandidateId: null, error: null, dirty: true }
+      return { ...state, screen: "shortlist", candidateSetId: action.setId, adoptionSessionId: action.sessionId, candidates: action.candidates, candidateBatch: action.batch, selectedCandidateIds: (action.selectedIds ?? []).filter((candidateId) => action.candidates.some((candidate) => candidate.candidateId === candidateId)), replies: [], finalCandidateId: null, error: null, dirty: true }
+    case "candidate-set-recovered":
+      return { ...state, candidateSetId: action.setId, error: null }
     case "toggle-candidate": {
       const selected = state.selectedCandidateIds.includes(action.candidateId)
         ? state.selectedCandidateIds.filter((id) => id !== action.candidateId)
@@ -181,6 +199,10 @@ export function adoptionReducer(state: AdoptionDraftState, action: AdoptionActio
     }
     case "replies-ready":
       return { ...state, screen: "replies", replies: action.replies, finalCandidateId: null, error: null }
+    case "invitation-message-enabled":
+      return { ...state, invitationMessageEnabled: action.value, invitationMessage: action.value ? state.invitationMessage : "", error: null }
+    case "invitation-message":
+      return { ...state, invitationMessage: action.value, invitationMessageEnabled: true, error: null }
     case "select-final":
       return { ...state, finalCandidateId: action.candidateId, error: null }
     case "name-mode":
@@ -188,7 +210,7 @@ export function adoptionReducer(state: AdoptionDraftState, action: AdoptionActio
     case "custom-name":
       return { ...state, customName: action.value, nameMode: "custom", error: null }
     case "error":
-      return { ...state, screen: state.screen === "generating" || state.screen === "inviting" || state.screen === "committing" ? "review" : state.screen, error: action.message }
+      return { ...state, screen: state.screen === "generating" || state.screen === "committing" ? "review" : state.screen, error: action.message }
     case "clear-error":
       return { ...state, error: null }
     case "reset":
@@ -205,7 +227,8 @@ export function intentComplete(draft: AdoptionDraft): boolean {
 export function selectedName(state: AdoptionDraftState): string {
   const candidate = state.replies.find((item) => item.candidateId === state.finalCandidateId)
   if (candidate === undefined) return ""
-  if (state.nameMode === "suggested") return candidate.suggestedName
+  if (candidate.reveal === null) return state.customName.trim()
+  if (state.nameMode === "suggested") return candidate.reveal.suggestedName
   if (state.nameMode === "custom") return state.customName.trim()
-  return candidate.originalName
+  return candidate.reveal.originalName
 }

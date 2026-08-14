@@ -14,6 +14,7 @@ import type { PublicProfile } from "./model"
 type ProfileAppearanceStageProps = {
   readonly canCapture: boolean
   readonly capture?: AppearanceCaptureAdapter | undefined
+  readonly interactive?: boolean
   readonly onAvatarPreview?: (previewUrl: string) => void
   readonly profile: PublicProfile
 }
@@ -23,6 +24,7 @@ type CaptureRequestKind = "initial" | "recapture"
 export function ProfileAppearanceStage({
   canCapture,
   capture,
+  interactive = true,
   onAvatarPreview,
   profile,
 }: ProfileAppearanceStageProps) {
@@ -131,6 +133,7 @@ export function ProfileAppearanceStage({
 
   const fallback = profile.name.slice(0, 1).toUpperCase()
   const visiblePortrait = localAvatar || profile.portraitUrl
+  const showControls = interactive
 
   return (
     <section aria-labelledby={`appearance-${profile.elfieId}`} className="profile-appearance profile-dossier__section">
@@ -138,10 +141,10 @@ export function ProfileAppearanceStage({
         <div>
           <span>{t("profile.appearance.eyebrow")}</span>
           <p className="profile-appearance__title" id={`appearance-${profile.elfieId}`}>
-            {t("profile.appearance.title")}
+            {t(showControls ? "profile.appearance.title" : "profile.appearance.photoTitle")}
           </p>
         </div>
-        <div className="profile-appearance__actions">
+        {showControls ? <div className="profile-appearance__actions">
           <Button onClick={() => changePreviewOpen(!previewOpen)} size="sm" type="button" variant="outline">
             <Scan aria-hidden="true" />{previewOpen ? t("profile.appearance.close") : t("profile.appearance.open")}
           </Button>
@@ -170,9 +173,9 @@ export function ProfileAppearanceStage({
               )}
             />
           )}
-        </div>
+        </div> : null}
       </header>
-      {previewOpen ? (
+      {showControls && previewOpen ? (
         <ProfileGodotViewport
           onPreviewChange={onPreviewChange}
           onStageChange={onStageChange}
@@ -181,7 +184,7 @@ export function ProfileAppearanceStage({
         />
       ) : (
         <div
-          aria-label={t("profile.appearance.stage", { name: profile.name })}
+          aria-label={t(showControls ? "profile.appearance.stage" : "profile.appearance.photoStage", { name: profile.name })}
           className="profile-appearance__stage profile-appearance__stage--idle"
           data-testid="appearance-idle-placeholder"
           ref={onStageChange}
@@ -199,11 +202,11 @@ export function ProfileAppearanceStage({
               <span className="profile-appearance__idle-fallback">{fallback}</span>
             )}
           </div>
-          <p className="profile-appearance__hint">{t("profile.appearance.inactiveHint")}</p>
+          {showControls ? <p className="profile-appearance__hint">{t("profile.appearance.inactiveHint")}</p> : null}
         </div>
       )}
-      {!captureOpen && captureError.length > 0 && <p className="profile-appearance__error" role="alert">{captureError}</p>}
-      {notice.length > 0 && <p className="profile-appearance__notice" role="status">{notice}</p>}
+      {showControls && !captureOpen && captureError.length > 0 && <p className="profile-appearance__error" role="alert">{captureError}</p>}
+      {showControls && notice.length > 0 && <p className="profile-appearance__notice" role="status">{notice}</p>}
     </section>
   )
 }

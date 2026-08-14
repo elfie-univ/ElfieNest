@@ -81,6 +81,19 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
     assert result.appearance.profile_version == 1
 
 
+def test_portrait_reader_returns_only_the_saved_png_view(tmp_path: Path) -> None:
+    db_path = _database(tmp_path)
+    layout = final_root_layout(tmp_path).elfie("00000001")
+    layout.portrait_headshot.parent.mkdir(parents=True, exist_ok=True)
+    content = b"\x89PNG\r\n\x1a\nportrait"
+    layout.portrait_headshot.write_bytes(content)
+
+    adapter = SQLiteElfiesProjectionAdapter(db_path)
+
+    assert adapter.load_portrait("00000001") == content
+    assert adapter.load_portrait("00000001", kind="full_body") is None
+
+
 def test_cognition_reader_is_read_only_and_returns_typed_records(
     tmp_path: Path,
 ) -> None:

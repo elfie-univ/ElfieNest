@@ -65,7 +65,7 @@ class CommunicationFacade:
                     ConversationResult(
                         elfie_id=elfie_id,
                         name=item.profile.name,
-                        portrait_url="",
+                        portrait_url=item.profile.portrait_url,
                         last_message_preview="" if latest is None else latest.text,
                         last_message_at=None if latest is None else latest.created_at,
                     )

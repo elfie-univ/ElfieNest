@@ -10,16 +10,15 @@ vi.mock("../http", async (loadOriginal) => {
 
 const candidate = {
   candidate_id: "candidate-1",
-  original_name: "阿洛",
-  suggested_name: "洛洛",
   species_id: "fox" as const,
   life_stage: "young_adult" as const,
+  age_months: 36,
   gender: "male" as const,
-  image_url: "/adoption/fox.svg",
+  full_body_image_url: "",
+  headshot_image_url: "",
   appearance_tags: ["高挑"],
   personality_tags: ["好奇探索"],
-  introduction: "hello",
-  compatibility: "steady",
+  runtime_appearance: { species_id: "fox" },
 }
 
 describe("versioned current-member Adoption client", () => {
@@ -34,11 +33,13 @@ describe("versioned current-member Adoption client", () => {
         builds: ["standard"],
         life_stages: ["any"],
         quota: { used: 0, max: 3, remaining: 3, can_adopt: true },
+        nest_capacity: { used: 0, max: 4, remaining: 4 },
+        availability: "available",
       })
-      .mockResolvedValueOnce({ candidate_set_id: "set-1", candidates: Array(5).fill(candidate) })
+      .mockResolvedValueOnce({ candidate_set_id: "set-1", adoption_session_id: "session-1", batch_number: 1, candidates: Array(5).fill(candidate) })
       .mockResolvedValueOnce({
         candidate_set_id: "set-1",
-        replies: [{ ...candidate, status: "accepted", message: "yes" }],
+        replies: [{ ...candidate, status: "accepted", message: "yes", reveal: null }],
       })
       .mockResolvedValueOnce({ elfie_id: "00000001", name: "阿洛", species_id: "fox" })
 
@@ -55,8 +56,9 @@ describe("versioned current-member Adoption client", () => {
         priority: "face",
       },
       answers: ["any", "any", "any", "any", "any"],
+      batch_number: 1,
     }, "csrf")
-    await adoptionReplies("set-1", ["candidate-1"], "csrf")
+    await adoptionReplies("set-1", ["candidate-1"], "", "csrf")
     await commitAdoption("set-1", "candidate-1", "阿洛", "csrf")
 
     expect(vi.mocked(requestJson).mock.calls.map(([path]) => path)).toEqual([

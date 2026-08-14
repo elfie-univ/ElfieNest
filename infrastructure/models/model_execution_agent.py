@@ -20,6 +20,7 @@ from elfie.brain.reasoning.food_port import (
 )
 from elfie.brain.reasoning.tool_port import ToolKey, ToolPort, ToolRequest, ToolResult
 from elfie.message_types import ErrorInfo
+from infrastructure.models.capabilities import resolve_model_capability_profile
 from infrastructure.models.food_execution import (
     FoodExecutionError,
     FoodExecutionResult,
@@ -243,6 +244,75 @@ class ModelExecutionAgent:
             max_output_tokens=4096,
         )
 
+    def adoption_capabilities(self) -> StructuredModelExecutionCapabilities:
+        """Read the persisted readiness of the remote common Food only."""
+        self._reload_config_if_changed()
+        package = self._adoption_package()
+        assert package.primary is not None
+        provider = self._provider_for_model(package.primary.model)
+        provider_config = self.config.providers.get(provider, {})
+        native = (
+            provider == "openai"
+            or provider_config.get("catalog_id")
+            in {"openai_api", "openai_chatgpt"}
+        )
+        api_mode = str(provider_config.get("api_mode") or "")
+        return StructuredModelExecutionCapabilities(
+            provider=provider,
+            model_key=package.primary.model,
+            supports_json_schema=native,
+            supports_tool_calling=native,
+            supports_json_mode=native or api_mode == "chat_completions",
+            supports_plain_text=True,
+            max_output_tokens=4096,
+        )
+
+    def generate_adoption_structured(
+        self,
+        request: StructuredModelExecutionRequest,
+    ) -> StructuredModelExecutionResult:
+        """Execute Adoption identity prose on the qualified remote common Food."""
+        self._reload_config_if_changed()
+        package = self._adoption_package()
+        assert package.primary is not None
+        if request.model_key and request.model_key != package.primary.model:
+            raise NoAvailableFoodError("adoption_model_changed")
+        messages = (
+            [message.model_dump(mode="python") for message in request.messages]
+            if request.messages
+            else [{"role": "user", "content": request.prompt}]
+        )
+        provider = self._provider_for_model(package.primary.model)
+        started = perf_counter()
+        executor = self._food_executor(
+            provider_options=self._structured_request_options(
+                request, request.selected_mode
+            ),
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
+            thinking=request.reasoning_mode == "long",
+        )
+        try:
+            execution = executor.execute(
+                package,
+                self._structured_messages(request, request.selected_mode, messages),
+                semantic_role="primary",
+                allowed_tools=(),
+                allow_fallback=False,
+                scope_id=request.scope_id,
+            )
+        except Exception as error:
+            raise NoAvailableFoodError(
+                f"no_available_adoption_model: {error}"
+            ) from error
+        return StructuredModelExecutionResult(
+            text=execution.text,
+            selected_mode=request.selected_mode,
+            provider=provider,
+            model_key=execution.model,
+            latency_ms=(perf_counter() - started) * 1000.0,
+        )
+
     def generate_structured(
         self,
         request: StructuredModelExecutionRequest,
@@ -257,7 +327,7 @@ class ModelExecutionAgent:
             is_usable=self._package_usable,
         )
         attempts = [(selected_food, request.selected_mode)]
-        if selected_food != FOOD_EMERGENCY_ID:
+        if request.allow_fallback and selected_food != FOOD_EMERGENCY_ID:
             emergency = catalog.packages.get(FOOD_EMERGENCY_ID)
             if emergency and self._package_usable(emergency):
                 fallback_mode = (
@@ -293,6 +363,7 @@ class ModelExecutionAgent:
                     self._structured_messages(request, selected_mode, messages),
                     semantic_role="primary",
                     allowed_tools=tuple(request.allowed_tools),
+                    allow_fallback=request.allow_fallback,
                     scope_id=request.scope_id,
                 )
             except Exception as exc:
@@ -346,39 +417,48 @@ class ModelExecutionAgent:
     ) -> Dict[str, Any]:
         if selected_mode is StructuredGenerationMode.PLAIN_TEXT:
             return {}
+        options: Dict[str, Any] = {}
+        if request.reasoning_mode == "fast" and request.model_key:
+            profile = resolve_model_capability_profile(request.model_key)
+            if profile and profile.canonical_name.startswith("GLM-"):
+                # GLM-5 enables thinking by default. Structured fast paths need
+                # the final JSON payload rather than its visible reasoning trace.
+                options["thinking"] = {"type": "disabled"}
         if selected_mode is StructuredGenerationMode.JSON_SCHEMA:
-            return {
-                "response_format": {
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": request.response_schema_name,
-                        "schema": dict(request.response_schema),
-                        "strict": True,
-                    },
-                }
-            }
-        if selected_mode is StructuredGenerationMode.TOOL_CALL:
-            return {
-                "tools": [
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": request.response_schema_name,
-                            "parameters": dict(request.response_schema),
-                        },
-                    }
-                ],
-                "tool_choice": {
-                    "type": "function",
-                    "function": {"name": request.response_schema_name},
+            options["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": request.response_schema_name,
+                    "schema": dict(request.response_schema),
+                    "strict": True,
                 },
             }
+            return options
+        if selected_mode is StructuredGenerationMode.TOOL_CALL:
+            options.update(
+                {
+                    "tools": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": request.response_schema_name,
+                                "parameters": dict(request.response_schema),
+                            },
+                        }
+                    ],
+                    "tool_choice": {
+                        "type": "function",
+                        "function": {"name": request.response_schema_name},
+                    },
+                },
+            )
+            return options
         # Ollama's JSON_TEXT mode still needs an explicit JSON constraint;
         # without it small local models commonly echo the prompt or markdown.
         provider = request.provider or ""
         if provider == "ollama" or provider.startswith("ollama_"):
-            return {"format": "json"}
-        return {}
+            options["format"] = "json"
+        return options
 
     def _think_with_food(self, request: ModelExecutionRequest) -> ModelExecutionResult:
         catalog = self._load_food_catalog()
@@ -571,6 +651,33 @@ class ModelExecutionAgent:
             assert package.primary is not None
             provider = ModelExecutionAgent._provider_for_model(package.primary.model)
             return provider in self.config.providers
+        except Exception:
+            return False
+
+    def _adoption_package(self) -> FoodPackage:
+        catalog = self._load_food_catalog()
+        package = catalog.packages.get(catalog.global_default_food_id)
+        if package is None or not self._adoption_package_usable(package):
+            raise NoAvailableFoodError("no_available_adoption_model")
+        return package
+
+    def _adoption_package_usable(self, package: FoodPackage) -> bool:
+        if not package.enabled or package.archived or package.primary is None:
+            return False
+        evidence = self._ports.model_evidence_source().get(package.primary.model)
+        if (
+            evidence is None
+            or evidence.local
+            or evidence.status not in {"verified", "stale"}
+        ):
+            return False
+        try:
+            provider = self._provider_for_model(package.primary.model)
+            provider_config = self.config.providers.get(provider)
+            return bool(
+                provider_config is not None
+                and provider_config.get("status", "active") != "inactive"
+            )
         except Exception:
             return False
 

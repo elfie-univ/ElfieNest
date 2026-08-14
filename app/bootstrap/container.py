@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.features.accounts import AccountsService
-from app.features.adoption import AdoptionService
+from app.features.adoption import AdoptionService, CandidatePortraitPort
 from app.features.bodies import BodiesService
 from app.features.communication import CommunicationFacade
 from app.features.configuration import (
@@ -30,6 +30,7 @@ from app.orchestration.resident_admission import ResidentAdmissionService
 from app.orchestration.setup_installation import SetupInstallationService
 from infrastructure.communication import OwnerMessageSession, SameOriginMessagePublisher
 from infrastructure.devices import DeviceGateway
+from infrastructure.models.model_execution_adapter import StructuredModelExecution
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.providers.openai_chatgpt import OpenAIChatGptOAuthAdapter
@@ -100,6 +101,8 @@ def build_application_container(
     *,
     message_session: OwnerMessageSession | None = None,
     nest_session: NestSession | None = None,
+    model_execution: StructuredModelExecution | None = None,
+    portraits: CandidatePortraitPort | None = None,
 ) -> ApplicationContainer:
     config_path = get_config_path()
     provider_store = ProviderConnectionStore()
@@ -150,6 +153,8 @@ def build_application_container(
         db_path,
         settings=settings_adapter,
         nest_session=nest_session,
+        model_execution=model_execution,
+        portraits=portraits,
     )
     nest_adapter = SQLiteNestManagementAdapter(db_path)
     setup = build_setup_services(

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
+import os
 import random
 import shutil
 from dataclasses import replace
@@ -9,6 +12,7 @@ from pathlib import Path
 
 from app.features.adoption import AcceptedAdoptionReservation
 from app.orchestration.resident_admission import ResidentAdmissionPortError
+from elfie.genesis import BIG_FIVE_TRAITS
 from elfie.profile import (
     PERSONALITY_PRESETS,
     AppearanceResolver,
@@ -57,6 +61,9 @@ _GREETINGS: dict[str, tuple[str, ...]] = {
     "傲娇独立": ("哼，我才不是想你呢！", "干嘛呀，人家正忙着呢", "哟，你来了啊"),
     "完全随机": ("你好呀！", "咦，是你啊", "嘿嘿，今天天气真不错"),
 }
+_PNG_DATA_URL_PREFIX = "data:image/png;base64,"
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+_MAX_PORTRAIT_BYTES = 8 * 1024 * 1024
 
 
 class FinalElfieWorkspaceAdapter:
@@ -109,6 +116,7 @@ class FinalElfieWorkspaceAdapter:
                 system_limits=_system_limits(reservation.height, reservation.build),
             )
             YamlProfileStoreAdapter(layout.profile.parent).save(profile)
+            _persist_portraits(layout.assets, reservation)
             return str(layout.workspace)
         except (OSError, TypeError, ValueError) as error:
             self._release_quietly(reservation.elfie_id)
@@ -166,6 +174,44 @@ def _personality(
     height_scale: float,
     build_scale: float,
 ) -> dict[str, object]:
+    if reservation.genesis_candidate is not None:
+        candidate = reservation.genesis_candidate
+        big_five = {
+            trait: round((value + 2.0) / 4.0, 4)
+            for trait, value in zip(BIG_FIVE_TRAITS, candidate.personality.candidate.latent)
+        }
+        labels = candidate.personality.candidate.labels or ("独一无二",)
+        return {
+            "metadata": {
+                "name": reservation.name,
+                "original_name": reservation.original_name,
+                "personal_story": reservation.personal_story,
+                "age_months": reservation.age_months,
+                "life_stage": reservation.life_stage,
+                "gender": reservation.gender,
+                "version": "genesis-v1",
+                "description": "、".join(labels),
+                "appearance": {
+                    "height": reservation.height,
+                    "build": reservation.build,
+                    "species": reservation.species_id,
+                    "height_scale": height_scale,
+                    "build_scale": build_scale,
+                },
+                **_portrait_metadata(reservation),
+            },
+            "big_five": big_five,
+            "self_description": reservation.personal_story or "、".join(labels),
+            "speech_style": {
+                "greetings": ("你好，我来啦。", "很高兴见到你。"),
+                "verbal_ticks": "呢",
+            },
+            "derivation": {
+                "preset": "genesis-v1",
+                "provenance": "questionnaire",
+                "seed": candidate.seed,
+            },
+        }
     ranges = PERSONALITY_PRESETS.get(reservation.personality_style)
     if ranges is None:
         raise ValueError(f"unknown personality style: {reservation.personality_style}")
@@ -201,6 +247,7 @@ def _personality(
                 "height_scale": height_scale,
                 "build_scale": build_scale,
             },
+            **_portrait_metadata(reservation),
         },
         "big_five": big_five,
         "speech_style": {
@@ -209,6 +256,59 @@ def _personality(
             "verbal_ticks": random.choice(_VERBAL_TICKS),
         },
     }
+
+
+def _portrait_metadata(reservation: AcceptedAdoptionReservation) -> dict[str, object]:
+    if not reservation.full_body_image_url and not reservation.headshot_image_url:
+        return {}
+    return {
+        "portraits": {
+            "full_body": "assets/portrait-full.png",
+            "headshot": "assets/portrait-head.png",
+        }
+    }
+
+
+def _persist_portraits(
+    assets: Path,
+    reservation: AcceptedAdoptionReservation,
+) -> None:
+    if not reservation.full_body_image_url and not reservation.headshot_image_url:
+        return
+    if not reservation.full_body_image_url or not reservation.headshot_image_url:
+        raise ValueError("accepted Adoption portraits must contain both views")
+    full_body = _decode_png_data_url(reservation.full_body_image_url)
+    headshot = _decode_png_data_url(reservation.headshot_image_url)
+    _write_private_asset(assets / "portrait-full.png", full_body)
+    _write_private_asset(assets / "portrait-head.png", headshot)
+
+
+def _decode_png_data_url(value: str) -> bytes:
+    if not value.startswith(_PNG_DATA_URL_PREFIX):
+        raise ValueError("accepted Adoption portrait must be a PNG data URL")
+    encoded = value[len(_PNG_DATA_URL_PREFIX) :]
+    try:
+        content = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ValueError("accepted Adoption portrait is not valid base64") from error
+    if not content.startswith(_PNG_SIGNATURE) or len(content) > _MAX_PORTRAIT_BYTES:
+        raise ValueError("accepted Adoption portrait is not a valid PNG")
+    return content
+
+
+def _write_private_asset(path: Path, content: bytes) -> None:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    try:
+        with temporary.open("wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        if os.name != "nt":
+            os.chmod(path, 0o600)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def _capabilities() -> dict[str, object]:
