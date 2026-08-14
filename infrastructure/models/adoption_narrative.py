@@ -48,7 +48,7 @@ class StructuredAdoptionNarrativeAdapter:
     def _qualified_capabilities(self) -> StructuredCapabilityView | None:
         try:
             capabilities = self._execution.adoption_capabilities()
-        except (OSError, RuntimeError, ValueError):
+        except (AttributeError, OSError, RuntimeError, ValueError):
             return None
         return capabilities if _is_qualified(capabilities) else None
 

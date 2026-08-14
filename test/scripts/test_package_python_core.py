@@ -50,6 +50,8 @@ def test_freeze_core_builds_only_on_its_native_target(tmp_path: Path) -> None:
             "--onefile",
             "--collect-data",
             "infrastructure.models.providers",
+            "--hidden-import",
+            "app.bootstrap.api",
             "--name",
             "ElfieNestCore",
             "--distpath",

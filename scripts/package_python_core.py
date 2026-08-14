@@ -81,6 +81,7 @@ def freeze_core(
         executable=executable_name(target),
         entrypoint=PROJECT_ROOT / "scripts" / "serve.py",
         command_runner=command_runner,
+        hidden_imports=("app.bootstrap.api",),
     )
 
 
@@ -108,6 +109,7 @@ def _freeze_entrypoint(
     executable: str,
     entrypoint: Path,
     command_runner: Callable[[Sequence[str]], None],
+    hidden_imports: Sequence[str] = (),
 ) -> Path:
     """Freeze one native executable with the common PyInstaller contract."""
     if target != host_target:
@@ -115,6 +117,11 @@ def _freeze_entrypoint(
             f"native-target-required target={target} host_target={host_target}"
         )
     output_dir.mkdir(parents=True, exist_ok=True)
+    hidden_import_arguments = tuple(
+        item
+        for module in hidden_imports
+        for item in ("--hidden-import", module)
+    )
     command = (
         sys.executable,
         "-m",
@@ -124,6 +131,7 @@ def _freeze_entrypoint(
         "--onefile",
         "--collect-data",
         "infrastructure.models.providers",
+        *hidden_import_arguments,
         "--name",
         executable.rsplit(".", 1)[0],
         "--distpath",

@@ -89,6 +89,19 @@
   background: color-mix(in srgb, var(--border-strong) 72%, transparent);
 }
 .observation-monitor__toolbar [data-slot="button"] { flex: 0 0 auto; }
+.observation-monitor__entity-count {
+  position: absolute;
+  z-index: 4;
+  top: 70px;
+  right: 12px;
+  margin: 0;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 78%, transparent);
+  border-radius: 6px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--shadow-color) 16%, transparent);
+}
 .observation-monitor__camera[aria-pressed="true"] {
   border-color: var(--accent);
   color: var(--active-ink);

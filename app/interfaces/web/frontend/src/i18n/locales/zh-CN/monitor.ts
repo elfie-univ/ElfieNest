@@ -10,6 +10,7 @@ export const monitor = {
     end: "结束观察",
     idle: "3D 将在首次打开时加载；聊天与管理不会因此等待。",
     loading: "正在建立本地观察视角…",
+    entityCount: "当前可见 {{count}} 位精灵。",
     retry: "重试 3D",
     fallback: {
       insecureTitle: "手机浏览器需要安全连接才能打开 3D 房间观察。",

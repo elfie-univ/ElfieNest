@@ -10,6 +10,7 @@ export const monitor = {
     end: "End monitoring",
     idle: "3D loads the first time it opens without blocking chat or management.",
     loading: "Opening the local monitoring view…",
+    entityCount: "{{count}} Elfies are currently visible.",
     retry: "Retry 3D",
     fallback: {
       insecureTitle: "Mobile browsers need a secure connection for 3D room monitoring.",

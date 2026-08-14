@@ -70,6 +70,7 @@ export function ObservationMonitor({ bedCount, immersive = false, mode = "embedd
   const pauseLabel = presentationPaused ? t("controls.resume") : t("controls.pause")
   const cameraCommandDisabled = observer === null || observer.status !== "ready" || presentationPaused
   const pauseCommandDisabled = observer === null || observer.status !== "ready"
+  const visibleElfieCount = Object.keys(observer?.entities ?? {}).length
   const statusKey = monitorStatusKey(observer?.status ?? null)
   const statusCopy = statusKey === "connection.connectedTo" || statusKey === "status.loading"
     ? t(statusKey, { endpoint: roomId })
@@ -93,6 +94,7 @@ export function ObservationMonitor({ bedCount, immersive = false, mode = "embedd
         <p>{t(monitorHelpKey(statusKey, observer?.fallbackReason))}</p>
         {retryAvailable ? <Button aria-label={t("controls.retry")} onClick={() => { void observer.openRoom(roomId, createObserverWorldConfig(roomId, bedCount)) }} type="button">{t("controls.retry")}</Button> : null}
       </div> : <p aria-live="polite" className="sr-only" role="status">{statusCopy}</p>}
+      {statusKey === "connection.connectedTo" ? <p aria-live="polite" className="observation-monitor__entity-count">{t("surface.entityCount", { count: visibleElfieCount })}</p> : null}
       <p className="sr-only">{t("help.controls")}</p>
       {cameraViews.length === 0 ? <p className="sr-only">{t("empty.cameras")}</p> : null}
       {showToolbar ? <div aria-label={t("toolbar.label")} className="observation-monitor__toolbar" role="toolbar">

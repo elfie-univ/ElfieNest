@@ -60,6 +60,7 @@ const catalog = {
 function createObserver(
   cameraCatalog: ObserverCameraCatalog | null,
   status: ObserverState["status"] = "ready",
+  entityCount = 0,
 ): ObserverFixture {
   const calls = {
     configureRoom: vi.fn(),
@@ -77,7 +78,9 @@ function createObserver(
     cameraCatalog,
     configureRoom: calls.configureRoom,
       detach: calls.detach,
-      entities: {},
+      entities: Object.fromEntries(
+        Array.from({ length: entityCount }, (_, index) => [`elfie-${index + 1}`, {}]),
+      ) as ObserverState["entities"],
       fallbackReason: null,
       openElfie: vi.fn(async () => undefined),
       openRoom: calls.openRoom,
@@ -132,6 +135,15 @@ describe("ObservationMonitor", () => {
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-auto-start", "true")
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-bed-count", "4")
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-show-header", "false")
+  })
+
+  it("shows the current visible Elfie count in the ready 3D surface", () => {
+    fixture = createObserver(catalog, "ready", 2)
+    vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
+
+    renderMonitor()
+
+    expect(screen.getByText("当前可见 2 位精灵。")).toBeInTheDocument()
   })
 
   it("keeps the embedded preview free of standalone navigation controls", () => {

@@ -6,6 +6,7 @@ import pytest
 
 from elfie.genesis import GenesisAppearanceIntent, GenesisEngine
 from infrastructure.models.adoption_narrative import StructuredAdoptionNarrativeAdapter
+from infrastructure.models.fallback_model_execution import FallbackModelExecutionAdapter
 from infrastructure.models.model_execution_contracts import (
     StructuredModelExecutionCapabilities,
     StructuredModelExecutionRequest,
@@ -81,6 +82,12 @@ def test_small_local_model_is_not_qualified_for_identity_reveal() -> None:
     adapter = StructuredAdoptionNarrativeAdapter(
         FakeExecution(_capabilities("ollama/qwen2.5:0.5b"))
     )
+
+    assert adapter.is_ready() is False
+
+
+def test_execution_without_adoption_capabilities_is_not_ready() -> None:
+    adapter = StructuredAdoptionNarrativeAdapter(FallbackModelExecutionAdapter())
 
     assert adapter.is_ready() is False
 
