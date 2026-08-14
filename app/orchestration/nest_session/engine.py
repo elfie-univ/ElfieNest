@@ -5,7 +5,10 @@ import time
 from datetime import datetime, timezone
 from typing import Optional
 
-from app.orchestration.nest_session.ports import ModelPortFactory, WorldRuntimePort
+from app.orchestration.nest_session.ports import (
+    ModelPortFactory,
+    NestSessionRuntimePort,
+)
 from app.orchestration.nest_session.session import NestSession
 from app.orchestration.nest_session.world_perception import (
     collect_world_sensory_events,
@@ -24,7 +27,7 @@ class ElfieNestEngine:
 
     def __init__(
         self,
-        world_runtime: WorldRuntimePort,
+        world_runtime: NestSessionRuntimePort,
         *,
         tick_interval_sec: float = 1.5,
         nest_repository: NestRepository | None = None,
@@ -67,6 +70,8 @@ class ElfieNestEngine:
             self.session.consume_runtime_event(event)
         self.session.flush_runtime_state()
         self.nest.tick(seconds)
+        self.session.persist_time_environment()
+        self.session.flush_environment_state()
         self.session.tick_elfies(seconds)
         for elfie_id, elfie in self.session.elfie_items_snapshot():
             status = self.nest.resident_state(elfie_id)

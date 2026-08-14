@@ -4,7 +4,7 @@ import pytest
 
 from app.features.accounts import AccountPrincipal, AccountRole
 from app.features.nest_management import (
-    AssignNestBedCommand,
+    AssignNestHomeCommand,
     NestBedRecord,
     NestConfigurationInvalid,
     NestManagementForbidden,
@@ -21,7 +21,9 @@ class FakeNestManagementPort:
             applied_world_revision=3,
             beds=(
                 NestBedRecord(
-                    bed_number=1,
+                    anchor_id="dorm-01/bed-01",
+                    label="Bed 01",
+                    order=0,
                     occupant_id="00000001",
                     occupant_name="小狐",
                     occupant_owner_user_id=1,
@@ -31,7 +33,7 @@ class FakeNestManagementPort:
                 ),
             ),
         )
-        self.assigned: tuple[str, int | None] | None = None
+        self.assigned: tuple[str, str | None] | None = None
 
     def load_snapshot(self) -> NestSnapshotRecord:
         return self.snapshot
@@ -44,8 +46,8 @@ class FakeNestManagementPort:
         )
         return self.snapshot
 
-    def assign_bed(self, elfie_id: str, bed_number: int | None) -> None:
-        self.assigned = (elfie_id, bed_number)
+    def assign_home(self, elfie_id: str, home_anchor_id: str | None) -> None:
+        self.assigned = (elfie_id, home_anchor_id)
 
 
 def _principal(role: AccountRole = "owner") -> AccountPrincipal:
@@ -64,7 +66,7 @@ def test_manager_reads_strict_semantic_nest_projection() -> None:
 
     assert len(rooms) == 1
     assert rooms[0].nest_id == "local-nest"
-    assert rooms[0].beds[0].anchor_id == "bed-01"
+    assert rooms[0].beds[0].anchor_id == "dorm-01/bed-01"
     assert rooms[0].beds[0].occupant_id == "00000001"
 
 
@@ -85,14 +87,17 @@ def test_bed_count_uses_public_nest_range() -> None:
         )
 
 
-def test_assign_bed_returns_semantic_anchor() -> None:
+def test_assign_home_returns_semantic_anchor() -> None:
     persistence = FakeNestManagementPort()
     service = NestManagementService(persistence)
 
-    result = service.assign_bed(
+    result = service.assign_home(
         _principal(),
-        AssignNestBedCommand(elfie_id="00000001", bed_number=2),
+        AssignNestHomeCommand(
+            elfie_id="00000001",
+            home_anchor_id="dorm-01/bed-02",
+        ),
     )
 
-    assert persistence.assigned == ("00000001", 2)
-    assert result.home_anchor_id == "bed-02"
+    assert persistence.assigned == ("00000001", "dorm-01/bed-02")
+    assert result.home_anchor_id == "dorm-01/bed-02"

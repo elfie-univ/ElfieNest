@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 from threading import RLock
-from typing import Dict, Literal
+from typing import Dict, Literal, cast
+from uuid import uuid4
 
 from app.orchestration.message_delivery import (
     GodotOwnerChannel,
@@ -17,7 +18,11 @@ from app.orchestration.nest_session.models import (
     ObserverSemanticEntity,
     WorldEvent,
 )
-from app.orchestration.nest_session.ports import ModelPortFactory, WorldRuntimePort
+from app.orchestration.nest_session.ports import (
+    ModelPortFactory,
+    NestSessionRuntimePort,
+    WorldSynchronizationPort,
+)
 from app.orchestration.nest_session.residents import (
     actor_catalog,
     persist_resident,
@@ -34,7 +39,6 @@ from nest.public import (
     NoHomeAvailableError,
     PersistentResidentState,
     ReconciliationRequiredError,
-    TactileInput,
 )
 
 logger = logging.getLogger("app.orchestration.nest_session")
@@ -50,7 +54,7 @@ class NestSession:
     def __init__(
         self,
         nest: Nest,
-        world_runtime: WorldRuntimePort,
+        world_runtime: NestSessionRuntimePort,
         repository: NestRepository | None = None,
     ) -> None:
         self.nest = nest
@@ -62,6 +66,7 @@ class NestSession:
         self._model_port_factory: ModelPortFactory | None = None
         self.owner_broadcaster: OwnerMessageBroadcaster | None = None
         self._runtime_token: tuple[str, int] | None = None
+        self._environment_sync_token: tuple[str, int, bool, bool] | None = None
         self._repository = repository
         snapshot = (
             repository.load_snapshot()
@@ -77,7 +82,7 @@ class NestSession:
         self._persisted_home_assignments = self._read_persisted_home_assignments()
         self._runtime_sync = NestRuntimeSynchronizer(
             nest=nest,
-            world_runtime=world_runtime,
+            world_runtime=cast(WorldSynchronizationPort, world_runtime),
             actor_catalog_provider=self._actor_catalog_snapshot,
             desired_bed_count=snapshot.desired_bed_count,
             repository=repository,
@@ -242,7 +247,7 @@ class NestSession:
             restore_snapshot(self.nest, snapshot)
             self._runtime_sync = NestRuntimeSynchronizer(
                 nest=self.nest,
-                world_runtime=self.world_runtime,
+                world_runtime=cast(WorldSynchronizationPort, self.world_runtime),
                 actor_catalog_provider=self._actor_catalog_snapshot,
                 desired_bed_count=snapshot.desired_bed_count,
                 repository=repository,
@@ -269,6 +274,7 @@ class NestSession:
                     "runtime generation changed"
                 )
                 self._runtime_token = token
+                self._environment_sync_token = None
             self._runtime_sync.poll_connection()
 
     def consume_runtime_event(self, event: WorldEvent) -> None:
@@ -280,6 +286,34 @@ class NestSession:
         """Send one complete actor catalog when the matching world is ready."""
         with self._lifecycle_lock:
             self._runtime_sync.flush()
+
+    def flush_environment_state(self) -> None:
+        """Synchronize Nest desired environment once per Runtime generation/state."""
+        connection = self.world_runtime.runtime_connection
+        revision = self._runtime_sync.configured_revision
+        if connection is None or revision is None:
+            return
+        desired = self.nest.desired_environment
+        token = (
+            connection.runtime_id,
+            connection.generation,
+            desired.lights_on,
+            desired.quiet_mode,
+        )
+        if token == self._environment_sync_token:
+            return
+        request = getattr(self.world_runtime, "apply_environment", None)
+        if not callable(request):
+            return
+        command_id = f"environment-{uuid4().hex}"
+        result = request(
+            command_id=command_id,
+            lights_on=desired.lights_on,
+            quiet_mode=desired.quiet_mode,
+            world_revision=revision,
+        )
+        if result is not None:
+            self._environment_sync_token = token
 
     def observer_semantic_entities(self) -> Dict[str, ObserverSemanticEntity]:
         """Expose only Nest-owned semantic facts for authenticated Observers."""
@@ -338,6 +372,152 @@ class NestSession:
             state = self.nest.resident_state(elfie_id)
             if state is not None and state.active and state.posture != "away":
                 elfie.advance_clock(seconds)
+
+    def persist_time_environment(self) -> None:
+        """Persist only durable Nest clock/rule facts when the repository supports it."""
+        repository = self._repository
+        save = getattr(repository, "save_time_environment", None)
+        if repository is None or not callable(save):
+            return
+        save(
+            elapsed_seconds=self.nest.state.elapsed_seconds,
+            clock_paused=self.nest.state.clock_paused,
+            time_scale=self.nest.state.time_scale,
+            environment_desired=self.nest.state.environment_desired,
+            environment_rules=self.nest.state.environment_rules,
+        )
+
+    def prepare_speech(self, payload: dict[str, object]) -> bool:
+        """Queue content in Nest, then ask Godot only for physical reachability."""
+        command_id = payload.get("command_id")
+        actor_id = payload.get("actor_id")
+        text = payload.get("text")
+        if not all(isinstance(value, str) for value in (command_id, actor_id, text)):
+            return False
+        if not self.nest.queue_speech(
+            command_id=command_id,
+            sender_id=actor_id,
+            text=text,
+            emotion=(
+                payload.get("emotion")
+                if isinstance(payload.get("emotion"), str)
+                else None
+            ),
+        ):
+            return False
+        request = getattr(self.world_runtime, "request_speech_reach", None)
+        if not callable(request):
+            return True
+        result = request(
+            command_id=command_id,
+            actor_id=actor_id,
+            acoustic_profile=str(payload.get("speech_profile", "normal")),
+            world_revision=self._runtime_world_revision(),
+        )
+        if result is None:
+            self.nest.cancel_speech(command_id)
+            return False
+        return True
+
+    def prepare_visual_observation(self, payload: dict[str, object]) -> bool:
+        """Queue a short semantic observation before asking Godot for IDs."""
+        observation_id = payload.get("observation_id")
+        actor_id = payload.get("actor_id")
+        max_results = payload.get("max_results", 32)
+        if not all(isinstance(value, str) for value in (observation_id, actor_id)):
+            return False
+        if not isinstance(max_results, int) or isinstance(max_results, bool):
+            return False
+        if not self.nest.queue_visual_observation(
+            observation_id=observation_id,
+            observer_id=actor_id,
+            max_results=max_results,
+        ):
+            return False
+        request = getattr(self.world_runtime, "request_visual_observation", None)
+        if not callable(request):
+            return True
+        result = request(
+            observation_id=observation_id,
+            actor_id=actor_id,
+            max_results=max_results,
+            world_revision=self._runtime_world_revision(),
+        )
+        if result is None:
+            self.nest.cancel_visual_observation(observation_id)
+            return False
+        return True
+
+    def prepare_semantic_action(self, payload: dict[str, object]) -> str | None:
+        """Resolve a bounded household target before one direct Body command."""
+        command_id = payload.get("command_id")
+        actor_id = payload.get("actor_id")
+        target = payload.get("anchor_id")
+        if not all(isinstance(value, str) for value in (command_id, actor_id, target)):
+            return None
+        return self.nest.queue_semantic_action(
+            command_id=command_id,
+            actor_id=actor_id,
+            target=target,
+        )
+
+    def complete_semantic_action(
+        self,
+        payload: dict[str, object],
+        result: object,
+    ) -> None:
+        """Record the Nest semantic outcome without duplicating Body feedback."""
+        command_id = payload.get("command_id")
+        actor_id = payload.get("actor_id")
+        target = payload.get("anchor_id")
+        if not all(isinstance(value, str) for value in (command_id, actor_id, target)):
+            return
+        terminal_status = getattr(result, "terminal_status", "failed")
+        reason = getattr(result, "reason", "")
+        events = getattr(result, "events", ())
+        terminal_event = next(
+            (
+                event
+                for event in reversed(tuple(events))
+                if getattr(getattr(event, "name", None), "value", "")
+                == "intent_terminal"
+            ),
+            None,
+        )
+        event_id = (
+            str(getattr(terminal_event, "message_id", ""))
+            if terminal_event is not None
+            else f"semantic-action:{command_id}"
+        )
+        self.nest.complete_semantic_action(
+            command_id=command_id,
+            status=str(terminal_status),
+            reason=str(reason) if reason else None,
+            event_id=event_id,
+            runtime_id=(
+                str(terminal_event.runtime_id)
+                if terminal_event is not None
+                else None
+            ),
+            runtime_generation=(
+                int(terminal_event.generation)
+                if terminal_event is not None
+                else None
+            ),
+            world_revision=(
+                int(terminal_event.world_revision)
+                if terminal_event is not None
+                else None
+            ),
+            occurred_at=(
+                getattr(terminal_event, "occurred_at", None)
+                if terminal_event is not None
+                else None
+            ),
+        )
+
+    def _runtime_world_revision(self) -> int:
+        return self._runtime_sync.configured_revision or 0
 
     def configure_cognition(self, model_port: ModelPort) -> None:
         """Inject the configured model boundary into every registered Elfie."""
@@ -408,17 +588,6 @@ class NestSession:
                 elfie.join()
             self._lifecycle_state = "stopped"
 
-    def trigger_elfie_interaction(
-        self,
-        sender_id: str,
-        receiver_id: str,
-        event_type: str,
-    ) -> None:
-        if event_type != "collision":
-            return
-        self.nest.submit_collision(receiver_id)
-        logger.info("已将 %s 的碰撞刺激投递给 %s", sender_id, receiver_id)
-
     def send_user_message(
         self,
         elfie_id: str,
@@ -446,13 +615,6 @@ class NestSession:
                 account_id=account_id,
                 channel_id=channel_id,
             )
-
-    def consume_user_message(self, elfie_id: str) -> str:
-        return self.nest.consume_user_message(elfie_id)
-
-    def consume_tactile(self, elfie_id: str) -> TactileInput:
-        return self.nest.consume_tactile(elfie_id)
-
 
 ElfieNestCoordinator = NestSession
 

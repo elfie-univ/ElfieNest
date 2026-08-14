@@ -3,7 +3,7 @@ import { z } from "zod"
 import { ownerWrite, requestJson } from "./http"
 
 const BackendNestBedSchema = z.object({
-  id: z.number().int(),
+  id: z.string(),
   anchor_id: z.string(),
   kind: z.literal("bed"),
   label: z.string(),
@@ -18,7 +18,7 @@ const BackendNestBedSchema = z.object({
 }).strict()
 
 export const NestBedSchema = BackendNestBedSchema.transform((bed) => ({
-  id: String(bed.id),
+  id: bed.id,
   anchor_id: bed.anchor_id,
   name: bed.label,
   occupant_id: bed.occupant_id,

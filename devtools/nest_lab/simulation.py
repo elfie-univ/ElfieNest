@@ -67,7 +67,7 @@ class WanderScheduler:
                 CommandName.CANCEL_INTENT,
                 {"command_id": command_id, "actor_id": actor_id},
                 world_revision=ready_revision,
-                correlation_id=command_id,
+                cause_id=command_id,
             )
 
     def _available_anchors(self) -> tuple[str, ...]:
@@ -87,7 +87,7 @@ class WanderScheduler:
                 "deadline_seconds": 10.0,
             },
             world_revision=ready_revision,
-            correlation_id=command_id,
+            cause_id=command_id,
         )
         if message_id is not None:
             self._active_commands[command_id] = actor_id

@@ -95,6 +95,7 @@ SensorPayload: TypeAlias = Annotated[
 
 class BodySensorEvent(FrozenContractModel):
     event_id: EventId
+    cause_id: Optional[EventId] = None
     body_id: BodyId
     body_generation: _Generation = 1
     source: ActorRef
@@ -172,6 +173,7 @@ class CommandStatus(str, Enum):
 
 class CommandReceipt(FrozenContractModel):
     receipt_id: EventId
+    cause_id: Optional[EventId] = None
     command_id: CommandId
     turn_id: TurnId
     intent_id: IntentId

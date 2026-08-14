@@ -142,6 +142,169 @@ def test_nest_catalog_shrink_marks_reconciliation_required() -> None:
     assert nest.home_anchor_id("fox-1") == "dorm-01/bed-01"
 
 
+def test_nest_exposes_active_facilities_without_geometry() -> None:
+    from nest.state.models import FacilityDescriptor, FacilityKind
+
+    nest = Nest()
+    catalog = _catalog_with_beds(1).model_copy(
+        update={
+            "facilities": (
+                FacilityDescriptor(
+                    facility_id="dorm-01/rest",
+                    zone_id="dorm-01",
+                    kind=FacilityKind.REST,
+                    label="Rest area",
+                    capabilities=("sleep",),
+                ),
+            )
+        }
+    )
+    nest.apply_catalog(catalog)
+
+    assert nest.facility("dorm-01/rest") is not None
+    assert nest.facilities()[0].capabilities == ("sleep",)
+    assert not hasattr(nest.facility("dorm-01/rest"), "position")
+
+
+def test_semantic_visual_observation_filters_candidates_and_emits_targeted_event() -> None:
+    from nest.state.models import (
+        FacilityDescriptor,
+        FacilityKind,
+        RuntimeResidentMirror,
+    )
+
+    nest = Nest()
+    catalog = _catalog_with_beds(2).model_copy(
+        update={
+            "facilities": (
+                FacilityDescriptor(
+                    facility_id="dorm-01/rest",
+                    zone_id="dorm-01",
+                    kind=FacilityKind.REST,
+                    label="Rest area",
+                    capabilities=("sleep",),
+                ),
+            )
+        }
+    )
+    nest.apply_catalog(catalog)
+    nest.register_resident("fox-1")
+    nest.register_resident("dog-1")
+    nest.state.apply_runtime_mirrors(
+        (
+            RuntimeResidentMirror(
+                elfie_id="dog-1",
+                current_zone_id="dorm-01",
+            ),
+        )
+    )
+
+    assert nest.queue_visual_observation(
+        observation_id="vision-1",
+        observer_id="fox-1",
+        max_results=2,
+    )
+    scene = nest.complete_visual_observation(
+        observation_id="vision-1",
+        zone_id="dorm-01",
+        visible_semantic_ids=(
+            "actor/dog-1",
+            "actor/unknown",
+            "anchor/dorm-01/bed-01",
+            "facility/dorm-01/rest",
+        ),
+        event_id="vision-event-1",
+    )
+
+    assert scene is not None
+    assert [entity.semantic_id for entity in scene.entities] == [
+        "actor/dog-1",
+        "anchor/dorm-01/bed-01",
+    ]
+    assert nest.consume_visual_events("fox-1")[0]["event_id"] == "vision-event-1:fox-1"
+    assert nest.drain_event_outbox()[0].target_ids == ("fox-1",)
+    assert nest.complete_visual_observation(
+        observation_id="vision-1",
+        zone_id="dorm-01",
+        visible_semantic_ids=(),
+        event_id="vision-event-1",
+    ) is None
+
+
+def test_semantic_home_action_resolves_once_and_records_physical_terminal() -> None:
+    nest = Nest()
+    nest.apply_catalog(_catalog_with_beds(2))
+    nest.admit_resident("fox-1")
+
+    assert nest.queue_semantic_action(
+        command_id="home-1",
+        actor_id="fox-1",
+        target="home",
+    ) == "dorm-01/bed-01"
+    assert nest.resolve_semantic_action_target(
+        actor_id="fox-1",
+        target="home",
+    ) == "dorm-01/bed-01"
+    result = nest.complete_semantic_action(
+        command_id="home-1",
+        status="completed",
+        reason=None,
+        event_id="terminal-home-1",
+    )
+
+    assert result is not None
+    assert result.resolved_anchor_id == "dorm-01/bed-01"
+    assert result.status == "completed"
+    envelope = nest.drain_event_outbox()
+    assert envelope[0].owner == "nest.action"
+    assert envelope[0].target_ids == ("fox-1",)
+
+
+def test_semantic_facility_action_resolves_to_one_zone_anchor() -> None:
+    from nest.state.models import FacilityDescriptor, FacilityKind, InteractionAnchor
+
+    nest = Nest()
+    catalog = _catalog_with_beds(1).model_copy(
+        update={
+            "zones": (
+                _catalog_with_beds(1).zones[0].model_copy(
+                    update={
+                        "anchors": (
+                            *_catalog_with_beds(1).zones[0].anchors,
+                            InteractionAnchor(
+                                anchor_id="dorm-01/activity",
+                                kind="activity",
+                                label="Activity",
+                                order=99,
+                            ),
+                        )
+                    }
+                ),
+            ),
+            "facilities": (
+                FacilityDescriptor(
+                    facility_id="dorm-01/activity",
+                    zone_id="dorm-01",
+                    kind=FacilityKind.ACTIVITY,
+                    label="Activity",
+                    capabilities=("social",),
+                ),
+            ),
+        }
+    )
+    nest.apply_catalog(catalog)
+    nest.register_resident("fox-1")
+
+    assert nest.resolve_semantic_action_target(
+        actor_id="fox-1",
+        target="facility/dorm-01/activity",
+    ) == "dorm-01/activity"
+    assert nest.resolve_semantic_action_target(
+        actor_id="fox-1",
+        target="unapproved/dorm-01/activity",
+    ) is None
+
+
 def test_nest_rejects_unknown_resident_update() -> None:
     # Given
     nest = Nest()
@@ -165,3 +328,30 @@ def test_nest_clock_pause_and_time_scale() -> None:
 
     # Then
     assert nest.state.elapsed_seconds == 5.0
+
+
+def test_nest_exposes_deterministic_life_phase_and_environment_rules() -> None:
+    from nest.public import EnvironmentDesiredState, EnvironmentRule, LifePhase
+
+    nest = Nest()
+    nest.set_environment_rules(
+        (
+            EnvironmentRule(
+                rule_id="night-lights-off",
+                phase=LifePhase.NIGHT,
+                lights_on=False,
+                quiet_mode=True,
+            ),
+        )
+    )
+
+    assert nest.life_phase is LifePhase.NIGHT
+    assert nest.desired_environment == EnvironmentDesiredState(
+        lights_on=False,
+        quiet_mode=True,
+    )
+
+    nest.tick(7 * 3600)
+
+    assert nest.life_phase is LifePhase.DAWN
+    assert nest.desired_environment.lights_on is False

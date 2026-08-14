@@ -101,7 +101,13 @@ def build_adoption_services(
             return None
         return NativeBody(
             body_id=elfie_id,
-            transport=GodotTransport(cast(GodotGateway, nest_session.world_runtime)),
+            transport=GodotTransport(
+                cast(GodotGateway, nest_session.world_runtime),
+                actor_id=elfie_id,
+                speech_intent=nest_session.prepare_speech,
+                semantic_action=nest_session.prepare_semantic_action,
+                semantic_action_result=nest_session.complete_semantic_action,
+            ),
         )
 
     adoption = AdoptionService(

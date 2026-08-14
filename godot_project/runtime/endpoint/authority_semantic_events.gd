@@ -8,19 +8,19 @@ var _events: Array[Dictionary] = []
 func project(
 	event_name: String,
 	payload: Dictionary,
-	correlation_id: String,
+	cause_id: String,
 ) -> Dictionary:
 	"""Project a runtime signal into host-independent semantic facts."""
-	return _append(event_name, payload, correlation_id)
+	return _append(event_name, payload, cause_id)
 
 
 func record(
 	event_name: String,
 	payload: Dictionary,
-	correlation_id: String,
+	cause_id: String,
 ) -> Dictionary:
 	"""Record the same projection used by the authority transport boundary."""
-	return _append(event_name, payload, correlation_id)
+	return _append(event_name, payload, cause_id)
 
 
 func events() -> Array[Dictionary]:
@@ -31,15 +31,15 @@ func events() -> Array[Dictionary]:
 func _append(
 	event_name: String,
 	payload: Dictionary,
-	correlation_id: String,
+	cause_id: String,
 ) -> Dictionary:
 	var event := {
 		"sequence": _events.size() + 1,
 		"name": event_name,
 		"payload": _semantic_payload(payload),
 	}
-	if not correlation_id.is_empty():
-		event["correlation_id"] = correlation_id
+	if not cause_id.is_empty():
+		event["cause_id"] = cause_id
 	_events.append(event)
 	return event
 

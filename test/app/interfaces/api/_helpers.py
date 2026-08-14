@@ -123,7 +123,10 @@ def adopt_test_elfie(
                 if getattr(engine, "world_runtime", None) is None
                 else NativeBody(
                     body_id=elfie_id,
-                    transport=GodotTransport(engine.world_runtime),
+                    transport=GodotTransport(
+                        engine.world_runtime,
+                        actor_id=elfie_id,
+                    ),
                 )
             ),
             lambda path: YamlProfileStoreAdapter(Path(path) / "profile"),

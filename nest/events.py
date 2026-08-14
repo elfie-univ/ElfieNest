@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Union
+from datetime import datetime
+from typing import Literal, Union
 
 from typing_extensions import TypeAlias
 
@@ -34,8 +35,69 @@ class RuntimeMirrorUpdatedEvent:
     active_command_id: str | None = None
 
 
+@dataclass(frozen=True)
+class HeardUtterance:
+    """One targeted virtual-hearing fact emitted by Nest."""
+
+    utterance_id: str
+    sender_id: str
+    text: str
+    emotion: str | None = None
+
+
+@dataclass(frozen=True)
+class SemanticVisualEntity:
+    """One stable semantic referent resolved by Nest for an Elfie."""
+
+    semantic_id: str
+    kind: Literal["actor", "anchor", "facility"]
+    zone_id: str
+    label: str
+    capabilities: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class SemanticVisualScene:
+    """A bounded, actor-targeted semantic scene with no geometry or media."""
+
+    observation_id: str
+    observer_id: str
+    zone_id: str
+    entities: tuple[SemanticVisualEntity, ...]
+
+
+@dataclass(frozen=True)
+class SemanticActionResult:
+    """Nest correlation for one semantic target resolved into a Body action."""
+
+    command_id: str
+    actor_id: str
+    target: str
+    resolved_anchor_id: str
+    status: Literal["completed", "failed", "cancelled", "timed_out"]
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class NestEventEnvelope:
+    """Common event metadata for facts crossing Nest-owned boundaries."""
+
+    event_id: str
+    owner: str
+    cause_id: str
+    target_ids: tuple[str, ...]
+    occurred_at: datetime
+    payload: NestDomainEvent
+    runtime_id: str | None = None
+    runtime_generation: int | None = None
+    world_revision: int | None = None
+
+
 NestDomainEvent: TypeAlias = Union[
     ResidentAdmittedEvent,
     HomeAssignedEvent,
     RuntimeMirrorUpdatedEvent,
+    HeardUtterance,
+    SemanticVisualScene,
+    SemanticActionResult,
 ]

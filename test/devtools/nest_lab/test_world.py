@@ -13,7 +13,7 @@ class _LabGateway(FakeRuntime):
 
     def __init__(self) -> None:
         super().__init__()
-        self.ready_revision: int | None = None
+        self.configured_revision: int | None = None
 
     def start(self) -> None:
         pass
@@ -21,9 +21,9 @@ class _LabGateway(FakeRuntime):
     def stop(self) -> None:
         pass
 
-    def mark_runtime_ready(self, connection, *, world_revision: int) -> None:
+    def mark_world_configured(self, connection, *, world_revision: int) -> None:
         assert connection == self.runtime_connection
-        self.ready_revision = world_revision
+        self.configured_revision = world_revision
 
 
 class _PendingLabGateway(_LabGateway):
@@ -33,20 +33,20 @@ class _PendingLabGateway(_LabGateway):
         payload,
         *,
         world_revision: int,
-        correlation_id: str | None = None,
+        cause_id: str | None = None,
     ) -> str | None:
         if name is CommandName.EXECUTE_INTENT:
             self.commands.append((name, payload, world_revision))
-            return correlation_id
+            return cause_id
         return super().send_runtime_command(
             name,
             payload,
             world_revision=world_revision,
-            correlation_id=correlation_id,
+            cause_id=cause_id,
         )
 
 
-def test_lab_translates_actor_and_wander_controls_to_v2_commands(tmp_path) -> None:
+def test_lab_translates_actor_and_wander_controls_to_v3_commands(tmp_path) -> None:
     # Given: a disposable Lab and a protocol-compatible Runtime, not the product engine.
     gateway = _LabGateway()
     gateway.connect()
@@ -62,9 +62,9 @@ def test_lab_translates_actor_and_wander_controls_to_v2_commands(tmp_path) -> No
     actor = world.add_actor("fox")
     world.set_wandering()
 
-    # Then: only established protocol-v2 commands are emitted with semantic anchors.
+    # Then: only established protocol-v3 commands are emitted with semantic anchors.
     command_names = [command[0] for command in gateway.commands]
-    assert gateway.ready_revision == 1
+    assert gateway.configured_revision == 1
     assert command_names[0] is CommandName.CONFIGURE_WORLD
     assert CommandName.SYNC_ACTORS in command_names
     assert CommandName.EXECUTE_INTENT in command_names

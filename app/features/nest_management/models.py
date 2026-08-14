@@ -11,16 +11,16 @@ class UpdateNestBedCountCommand:
 
 
 @dataclass(frozen=True)
-class AssignNestBedCommand:
+class AssignNestHomeCommand:
     elfie_id: str
-    bed_number: int | None
+    home_anchor_id: str | None
 
 
 @dataclass(frozen=True)
 class NestBed:
-    bed_number: int
     anchor_id: str
     label: str
+    order: int
     occupant_id: str | None
     occupant_name: str | None
     occupant_owner_user_id: int | None
@@ -51,7 +51,7 @@ class NestBedAssignment:
 
 
 __all__ = (
-    "AssignNestBedCommand",
+    "AssignNestHomeCommand",
     "NestBed",
     "NestBedAssignment",
     "NestConfiguration",

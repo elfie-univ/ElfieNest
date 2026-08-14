@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
 from elfie.public import (
     ActorId,
@@ -12,8 +11,8 @@ from elfie.public import (
     BodyId,
     BodySensorEvent,
     EventId,
-    TactileImpact,
     UtteranceFinal,
+    VisionChange,
 )
 from nest.public import Nest
 
@@ -55,30 +54,26 @@ def collect_world_sensory_events(
             )
         )
 
-    tactile = session.consume_tactile(elfie_id)
-    if tactile["intensity"] > 0.0:
+    for visual in nest.consume_visual_events(elfie_id):
+        occurred_at = visual["occurred_at"]
         events.append(
             BodySensorEvent(
-                event_id=EventId(f"nest-touch:{uuid4().hex}"),
+                event_id=EventId(visual["event_id"]),
                 body_id=body_id,
                 body_generation=body_generation,
                 source=ActorRef(
-                    actor_id=ActorId("nest-room"),
-                    source_kind="room",
+                    actor_id=ActorId("nest"),
+                    source_kind="nest",
                 ),
-                occurred_at=captured_at,
+                occurred_at=occurred_at,
                 received_at=captured_at,
-                payload=TactileImpact(
-                    kind="tactile_impact",
-                    location="body",
-                    intensity=tactile["intensity"],
-                    direction=tactile["direction"],
-                    contact_kind=tactile["contact_kind"],
-                    source_semantic_id=tactile["source_semantic_id"],
-                    force_newtons=tactile["force_newtons_estimate"],
+                payload=VisionChange(
+                    kind="vision_change",
+                    description=visual["description"],
                 ),
             )
         )
+
     return events
 
 

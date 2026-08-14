@@ -116,7 +116,17 @@ _TABLE_STATEMENTS: Final = (
         tick_interval_sec REAL NOT NULL CHECK(tick_interval_sec>0),
         max_elfies INTEGER CHECK(max_elfies IS NULL OR max_elfies>=0),
         applied_world_revision INTEGER CHECK(applied_world_revision IS NULL OR applied_world_revision>=0),
+        world_catalog_json TEXT CHECK(
+            world_catalog_json IS NULL OR
+            (json_valid(world_catalog_json) AND json_type(world_catalog_json)='object')
+        ),
         clock_anchor_seconds REAL NOT NULL DEFAULT 0 CHECK(clock_anchor_seconds>=0),
+        clock_paused INTEGER NOT NULL DEFAULT 0 CHECK(clock_paused IN (0,1)),
+        time_scale REAL NOT NULL DEFAULT 1 CHECK(time_scale>0),
+        environment_desired_json TEXT NOT NULL DEFAULT '{"lights_on":true,"quiet_mode":false}'
+            CHECK(json_valid(environment_desired_json) AND json_type(environment_desired_json)='object'),
+        environment_rules_json TEXT NOT NULL DEFAULT '[]'
+            CHECK(json_valid(environment_rules_json) AND json_type(environment_rules_json)='array'),
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )""",
@@ -124,7 +134,11 @@ _TABLE_STATEMENTS: Final = (
         elfie_id TEXT PRIMARY KEY CHECK(elfie_id GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'),
         name TEXT NOT NULL CHECK(length(trim(name))>0), owner_user_id INTEGER NOT NULL REFERENCES users(id),
         species TEXT NOT NULL CHECK(length(trim(species))>0), gender TEXT, birth_date TEXT,
-        adopted_at TEXT NOT NULL, bed_number INTEGER CHECK(bed_number IS NULL OR bed_number BETWEEN 1 AND 32),
+        adopted_at TEXT NOT NULL,
+        home_anchor_id TEXT CHECK(
+            home_anchor_id IS NULL OR
+            (home_anchor_id=trim(home_anchor_id) AND length(home_anchor_id)>0)
+        ),
         status TEXT NOT NULL CHECK(status IN ('online','away','offline')), summary TEXT,
         main_food_id TEXT CHECK(main_food_id IS NULL OR length(trim(main_food_id)) > 0),
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -199,7 +213,7 @@ _INDEX_STATEMENTS: Final = (
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_single_owner ON users(role) WHERE role='owner'",
     "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_local_installations_owner ON local_installations(owner_user_id)",
-    "CREATE UNIQUE INDEX IF NOT EXISTS idx_elfies_bed_number ON elfies(bed_number) WHERE bed_number IS NOT NULL",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_elfies_home_anchor_id ON elfies(home_anchor_id) WHERE home_anchor_id IS NOT NULL",
     """CREATE UNIQUE INDEX IF NOT EXISTS idx_food_packages_common_role
         ON food_packages(system_role) WHERE system_role='common'""",
     """CREATE UNIQUE INDEX IF NOT EXISTS idx_food_packages_emergency_role
@@ -227,17 +241,6 @@ _TRIGGER_STATEMENTS: Final = (
     """CREATE TRIGGER IF NOT EXISTS trg_users_owner_grant BEFORE UPDATE OF role ON users
         WHEN OLD.role<>'owner' AND NEW.role='owner'
         BEGIN SELECT RAISE(ABORT,'Owner role cannot be granted by update'); END""",
-    """CREATE TRIGGER IF NOT EXISTS trg_elfies_bed_insert BEFORE INSERT ON elfies
-        WHEN NEW.bed_number IS NOT NULL AND ((SELECT bed_count FROM nest_settings WHERE nest_id='local-nest') IS NULL
-        OR NEW.bed_number>(SELECT bed_count FROM nest_settings WHERE nest_id='local-nest'))
-        BEGIN SELECT RAISE(ABORT,'bed_number exceeds local Nest bed_count'); END""",
-    """CREATE TRIGGER IF NOT EXISTS trg_elfies_bed_update BEFORE UPDATE OF bed_number ON elfies
-        WHEN NEW.bed_number IS NOT NULL AND ((SELECT bed_count FROM nest_settings WHERE nest_id='local-nest') IS NULL
-        OR NEW.bed_number>(SELECT bed_count FROM nest_settings WHERE nest_id='local-nest'))
-        BEGIN SELECT RAISE(ABORT,'bed_number exceeds local Nest bed_count'); END""",
-    """CREATE TRIGGER IF NOT EXISTS trg_nest_bed_count BEFORE UPDATE OF bed_count ON nest_settings
-        WHEN EXISTS(SELECT 1 FROM elfies WHERE bed_number>NEW.bed_count)
-        BEGIN SELECT RAISE(ABORT,'bed_count is below occupied bed_number'); END""",
     """CREATE TRIGGER IF NOT EXISTS trg_lease_body_insert BEFORE INSERT ON embodiment_sessions
         WHEN NEW.body_id IS NOT NULL AND EXISTS(SELECT 1 FROM external_bodies
             WHERE body_id=NEW.body_id AND (status='revoked' OR owner_elfie_id<>NEW.elfie_id))

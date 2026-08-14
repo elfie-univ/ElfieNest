@@ -71,7 +71,7 @@ class SQLiteAdoptionAdapter:
                 connection.execute(
                     """INSERT INTO elfies(
                            elfie_id, name, owner_user_id, species, gender,
-                           birth_date, adopted_at, bed_number, status, summary
+                           birth_date, adopted_at, home_anchor_id, status, summary
                        ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'offline', ?)""",
                     (
                         reservation.elfie_id,

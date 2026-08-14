@@ -6,6 +6,7 @@ from infrastructure.godot.gateway.messages import (
     CommandName,
     EventName,
     RuntimeEventFrame,
+    SemanticLane,
 )
 from infrastructure.godot.gateway.session import (
     RuntimeAuthorityError,
@@ -24,15 +25,16 @@ def _event(
     revision: int = 1,
 ) -> RuntimeEventFrame:
     return RuntimeEventFrame(
-        protocol=2,
+        protocol=3,
         kind="event",
-        name=EventName.WORLD_READY,
+        lane=SemanticLane.NEST,
+        name=EventName.WORLD_CONFIGURED,
         message_id=message_id,
         runtime_id=runtime_id,
         generation=generation,
         world_revision=revision,
         occurred_at=datetime(2026, 7, 24, 12, 0, tzinfo=timezone.utc),
-        payload={"ready": True},
+        payload={"configured": True, "navigation_ready": True},
     )
 
 
@@ -111,6 +113,22 @@ def test_runtime_session_rejects_stale_events_and_queue_overflow() -> None:
         session.enqueue_event(_event("event-old", generation=connection.generation - 1))
 
 
+def test_runtime_session_allows_retry_after_queue_overflow() -> None:
+    session = RuntimeSession(max_queue_size=1)
+    connection = session.acquire_authority("runtime-main")
+    first = _event("event-1", generation=connection.generation)
+    retry = _event("event-2", generation=connection.generation)
+    session.enqueue_event(first)
+
+    with pytest.raises(RuntimeQueueFullError):
+        session.enqueue_event(retry)
+
+    assert session.drain_events() == (first,)
+    session.enqueue_event(retry)
+    assert session.drain_events() == (retry,)
+    assert session.duplicate_event_count == 0
+
+
 def test_runtime_session_requires_ready_matching_revision_for_commands() -> None:
     # Given
     session = RuntimeSession()
@@ -119,7 +137,7 @@ def test_runtime_session_requires_ready_matching_revision_for_commands() -> None
     # When / Then
     with pytest.raises(RuntimeSessionNotReadyError):
         session.ensure_ready_for_command(world_revision=1)
-    session.mark_ready(connection, world_revision=1)
+    session.mark_world_configured(connection, world_revision=1)
     assert session.ensure_ready_for_command(world_revision=1) is None
     with pytest.raises(RuntimeSessionNotReadyError, match="world revision"):
         session.ensure_ready_for_command(world_revision=2)
@@ -143,11 +161,12 @@ def test_runtime_session_builds_config_before_ready_and_gates_actor_sync() -> No
             {"actors": []},
             world_revision=1,
         )
-    session.mark_ready(connection, world_revision=1)
+    session.mark_world_configured(connection, world_revision=1)
     sync = session.create_command(
         CommandName.SYNC_ACTORS,
         {"actors": []},
         world_revision=1,
     )
-    assert sync.correlation_id is None
+    assert sync.cause_id is None
+    assert sync.lane is SemanticLane.NEST
     assert sync.message_id != configure.message_id

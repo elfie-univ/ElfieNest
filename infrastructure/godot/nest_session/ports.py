@@ -20,8 +20,14 @@ from infrastructure.godot.gateway.session import (
 )
 
 
+class BodyEventSink(Protocol):
+    """Actor-scoped receiver for validated direct Body events."""
+
+    def receive_runtime_event(self, event: RuntimeEventFrame) -> None: ...
+
+
 class GatewayRuntimePort(Protocol):
-    """Minimal protocol-v2 transport surface needed by Nest Session."""
+    """Minimal protocol-v3 transport surface needed by Nest Session."""
 
     @property
     def runtime_connection(self) -> GatewayRuntimeConnection | None: ...
@@ -39,26 +45,30 @@ class GatewayRuntimePort(Protocol):
         payload: JsonObject,
         *,
         world_revision: int,
-        correlation_id: str | None = None,
+        cause_id: str | None = None,
     ) -> str | None: ...
 
     def drain_runtime_events(self) -> tuple[RuntimeEventFrame, ...]: ...
 
-    def mark_runtime_ready(
+    def mark_world_configured(
         self,
         connection: GatewayRuntimeConnection,
         *,
         world_revision: int,
     ) -> None: ...
 
+    def register_body_sink(self, actor_id: str, sink: BodyEventSink) -> None: ...
+
+    def unregister_body_sink(self, actor_id: str, sink: BodyEventSink) -> None: ...
+
     def send_body_command(
         self,
         payload: RuntimeIntentPayload,
         *,
-        correlation_id: str,
+        cause_id: str,
     ) -> bool: ...
 
     def cancel_body_command(self, *, command_id: str, actor_id: str) -> bool: ...
 
 
-__all__ = ("GatewayRuntimePort",)
+__all__ = ("BodyEventSink", "GatewayRuntimePort")

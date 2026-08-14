@@ -130,11 +130,15 @@ def restore_registered_elfies(
                     journal_store=SQLiteBrainJournalAdapter(
                         config_dir / "brain" / "journal.sqlite"
                     ),
-                    body=NativeBody(
-                        body_id=row.elfie_id,
-                        transport=GodotTransport(
-                            cast(GodotGateway, session.world_runtime)
-                        ),
+                body=NativeBody(
+                    body_id=row.elfie_id,
+                    transport=GodotTransport(
+                        cast(GodotGateway, session.world_runtime),
+                        actor_id=row.elfie_id,
+                        speech_intent=session.prepare_speech,
+                        semantic_action=session.prepare_semantic_action,
+                        semantic_action_result=session.complete_semantic_action,
+                    ),
                     ),
                 ),
             )
@@ -160,7 +164,13 @@ def register_transient_elfie(session: NestSession, elfie_id: str) -> None:
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=NativeBody(
                 body_id=elfie_id,
-                transport=GodotTransport(cast(GodotGateway, session.world_runtime)),
+                transport=GodotTransport(
+                    cast(GodotGateway, session.world_runtime),
+                    actor_id=elfie_id,
+                    speech_intent=session.prepare_speech,
+                    semantic_action=session.prepare_semantic_action,
+                    semantic_action_result=session.complete_semantic_action,
+                ),
             ),
         ),
     )

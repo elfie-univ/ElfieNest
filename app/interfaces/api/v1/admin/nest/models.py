@@ -23,13 +23,17 @@ class NestBedCountRequest(BaseModel):
 class NestBedAssignmentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    home_anchor_id: Optional[str] = Field(default=None, pattern=r"^bed-[0-9]{2}$")
+    home_anchor_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._/-]*$",
+    )
 
 
 class NestBedResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: int
+    id: str
     anchor_id: str
     kind: str
     label: str
@@ -45,11 +49,11 @@ class NestBedResponse(BaseModel):
     @classmethod
     def from_result(cls, bed: NestBed) -> NestBedResponse:
         return cls(
-            id=bed.bed_number,
+            id=bed.anchor_id,
             anchor_id=bed.anchor_id,
             kind="bed",
             label=bed.label,
-            order=bed.bed_number - 1,
+            order=bed.order,
             active=True,
             occupant_id=bed.occupant_id,
             occupant_name=bed.occupant_name,

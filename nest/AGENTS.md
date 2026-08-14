@@ -3,9 +3,7 @@
 本目录实现唯一精灵巢的世界语义，并受根目录 `AGENTS.md` 与
 [`System architecture contract`](../docs/developer/contracts/system.md)、
 [`Nest–Godot semantic-world contract`](../docs/developer/contracts/nest-godot-semantic-world.md)
-约束；迁移期间同时执行临时
-[`Nest–Godot migration specification`](../docs/developer/conformance/nest-godot-semantic-world-migration.md)，
-每次只完成一张有真实行为和退出证据的迁移卡。
+约束。
 
 - 稳定、强类型的 `Nest` Facade 可以直接承担入站 Port；不得为形式统一重复定义接口。
 - Nest 有空间与设施、巢内生活规则、时间与环境、精灵与巢交互四个功能所有者；这些

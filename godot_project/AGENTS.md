@@ -3,9 +3,7 @@
 本目录是 Godot authority 的源工程，也是房屋、几何、坐标、移动、导航、碰撞和渲染
 事实的唯一源码来源；与 Nest 的语义分工同时受
 [`Nest–Godot semantic-world contract`](../docs/developer/contracts/nest-godot-semantic-world.md)
-和临时
-[`Nest–Godot migration specification`](../docs/developer/conformance/nest-godot-semantic-world-migration.md)
-约束。目录只随对应行为迁移，不得预建空结构或一次性搬迁后夹带行为改动。
+约束。目录按能力组织，不得预建空结构或在结构调整中夹带未验证的行为改动。
 
 - Python 只能发送高层语义命令并接收已发生的物理事实，不得复制 Godot 的空间或
   物理权威。

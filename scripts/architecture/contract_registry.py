@@ -139,12 +139,6 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "test/architecture/test_gateway_runtime_boundaries.py",
             "test/architecture/test_runtime_observer_contracts.py",
         ),
-        conformance_paths=(
-            "docs/developer/conformance/nest-godot-semantic-world.md",
-            "docs/developer/conformance/nest-godot-semantic-world-migration.md",
-            "docs/zh/developer/conformance/nest-godot-semantic-world.md",
-            "docs/zh/developer/conformance/nest-godot-semantic-world-migration.md",
-        ),
     ),
     ContractRegistration(
         contract_id="elfie-internal-architecture",

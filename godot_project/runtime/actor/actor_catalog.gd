@@ -17,14 +17,14 @@ static func normalize(
 		var actor_data := raw_actor as Dictionary
 		var actor_id := String(actor_data.get("actor_id", ""))
 		var species := String(actor_data.get("species", ""))
-		var home_anchor_id := String(actor_data.get("home_anchor_id", ""))
-		var home_anchor := nest.resolve_anchor(home_anchor_id)
+		var spawn_anchor_id := String(actor_data.get("spawn_anchor_id", ""))
+		var spawn_anchor := nest.resolve_anchor(spawn_anchor_id)
 		if (
 			actor_id.is_empty()
 			or seen_ids.has(actor_id)
 			or not actor_scenes.has(species)
-			or home_anchor == null
-			or String(home_anchor.get_meta("kind", "")) != "bed"
+			or spawn_anchor == null
+			or String(spawn_anchor.get_meta("kind", "")) != "bed"
 		):
 			return {"accepted": false, "code": "invalid_actor"}
 		var raw_appearance: Variant = actor_data.get("appearance", {})
@@ -34,7 +34,7 @@ static func normalize(
 		normalized.append({
 			"actor_id": actor_id,
 			"species": species,
-			"home_anchor_id": home_anchor_id,
+			"spawn_anchor_id": spawn_anchor_id,
 			"appearance": raw_appearance,
 		})
 	normalized.sort_custom(

@@ -17,14 +17,24 @@ from nest.state.repository import (
     NestPersistenceSnapshot,
     NestRepository,
 )
-from nest.state.store import (
-    BedConflictError,
-    NestState,
-    NoHomeAvailableError,
-    ReconciliationRequiredError,
-    UnknownAnchorError,
-    UnknownResidentError,
-)
+
+_STORE_EXPORTS = {
+    "BedConflictError",
+    "NestState",
+    "NoHomeAvailableError",
+    "ReconciliationRequiredError",
+    "UnknownAnchorError",
+    "UnknownResidentError",
+}
+
+
+def __getattr__(name: str):
+    """Load the state shell lazily so owner modules remain acyclic."""
+    if name in _STORE_EXPORTS:
+        from nest.state import store
+
+        return getattr(store, name)
+    raise AttributeError(name)
 
 __all__ = [
     "AnchorKind",

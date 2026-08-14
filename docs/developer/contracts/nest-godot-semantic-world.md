@@ -6,10 +6,8 @@
 
 > **Normative target.** This contract defines Nest internal fact ownership,
 > semantic interaction with the authoritative Godot world, and unique event
-> routing to Elfies. Current gaps are recorded in the
-> [Nest–Godot conformance register](../conformance/nest-godot-semantic-world),
-> and the approved card order is fixed by the temporary
-> [migration specification](../conformance/nest-godot-semantic-world-migration).
+> routing to Elfies. Its boundaries are enforced by the permanent architecture
+> and focused runtime tests.
 
 The repository-wide owner and dependency direction remain governed by the
 [System architecture contract](./system). This contract refines that boundary;
@@ -183,16 +181,11 @@ animations, utterances and physical side effects are not replayed.
 
 Every migration is one independently reviewable vertical slice. It freezes the
 typed boundary, migrates the complete producer-to-consumer call chain, proves
-targeted routing and causal identity, deletes the replaced path and closes only
-the matching conformance row. No compatibility alias, dual write, second world
+targeted routing and causal identity, and deletes the replaced path. No
+compatibility alias, dual write, second world
 projection or empty architecture package is introduced.
 
 Focused evidence must distinguish direct body receipts, body perception,
 semantic physical results, visible sets, environment facts, speech reachability,
 Nest events and Runtime lifecycle events. A passing transport test alone cannot
 prove semantic routing or authority ownership.
-
-The temporary
-[Nest–Godot migration specification](../conformance/nest-godot-semantic-world-migration)
-defines the mandatory card order, data decision gate, per-card scope and exit
-evidence. It may refine execution detail but cannot redefine this target.

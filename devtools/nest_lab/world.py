@@ -1,4 +1,4 @@
-"""Developer-only controller that maps Lab controls to Godot protocol v2."""
+"""Developer-only controller that maps Lab controls to Godot protocol v3."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def _synchronized(method: Callable[..., Any]) -> Callable[..., Any]:
 
 
 class NestLabWorld:
-    """Own a disposable Nest model and translate Lab actions into v2 commands."""
+    """Own a disposable Nest model and translate Lab actions into v3 commands."""
 
     def __init__(
         self,
@@ -74,7 +74,7 @@ class NestLabWorld:
         self._next_actor_sequence = 0
         self._connection_token: tuple[str, int] | None = None
         self._manifest_revision: int | None = None
-        self._ready_revision: int | None = None
+        self._configured_revision: int | None = None
         self._actor_catalog_dirty = True
         self._wandering = False
         self._paused = False
@@ -106,11 +106,12 @@ class NestLabWorld:
         self.poll()
         return {
             "scope": "developer",
-            "protocol": 2,
+            "protocol": 3,
             "websocket_url": self.websocket_url,
             "nonce": self.nonce,
             "runtime_connected": self._gateway.runtime_connection is not None,
-            "runtime_ready": self._ready_revision is not None,
+            "runtime_ready": self._gateway.runtime_ready,
+            "world_configured": self._configured_revision is not None,
             "paused": self._paused,
             "wandering": self._wandering,
         }
@@ -155,7 +156,7 @@ class NestLabWorld:
             self._world_revision += 1
             clear_home_assignments(self._nest, self._actors)
             self._manifest_revision = None
-            self._ready_revision = None
+            self._configured_revision = None
             self._actor_catalog_dirty = True
             self._connection_token = None
             self._events.append("world_reconfigured", f"bed_count={bed_count}")
@@ -171,6 +172,7 @@ class NestLabWorld:
         self._next_actor_sequence += 1
         actor = LabActor(f"lab-{species}-{self._next_actor_sequence:03d}", species)
         self._actors[actor.actor_id] = actor
+        self._gateway.register_body_sink(actor.actor_id, self)
         self._nest.register_resident(actor.actor_id)
         assign_missing_homes(self._nest, self._actors)
         self._actor_catalog_dirty = True
@@ -193,7 +195,7 @@ class NestLabWorld:
         """Stop scheduling and cancel active Godot movement commands."""
         self.poll()
         self._paused = True
-        self._wander_scheduler.cancel_active(self._ready_revision)
+        self._wander_scheduler.cancel_active(self._configured_revision)
         self._events.append("simulation_paused", "active moves cancelled")
         return {"paused": True}
 
@@ -211,6 +213,7 @@ class NestLabWorld:
         """Clear the disposable actor set and request a new world revision."""
         self.pause()
         for actor_id in tuple(self._actors):
+            self._gateway.unregister_body_sink(actor_id, self)
             self._nest.remove_resident(actor_id)
         self._actors.clear()
         self._wander_scheduler.clear()
@@ -218,7 +221,7 @@ class NestLabWorld:
         self._paused = False
         self._world_revision += 1
         self._manifest_revision = None
-        self._ready_revision = None
+        self._configured_revision = None
         self._actor_catalog_dirty = True
         self._connection_token = None
         self._events.append("simulation_reset", f"revision={self._world_revision}")
@@ -231,17 +234,17 @@ class NestLabWorld:
         self._observe_connection()
         for event in self._gateway.drain_runtime_events():
             self._consume_runtime_event(event)
-        if self._actor_catalog_dirty and self._ready_revision is not None:
+        if self._actor_catalog_dirty and self._configured_revision is not None:
             self._actor_catalog_dirty = not sync_actors(
                 self._gateway,
                 self._nest,
                 self._events,
                 self._actors.values(),
-                world_revision=self._ready_revision,
+                world_revision=self._configured_revision,
             )
         self._wander_scheduler.schedule(
             self._actors.values(),
-            ready_revision=self._ready_revision,
+            ready_revision=self._configured_revision,
             enabled=self._wandering,
             paused=self._paused,
         )
@@ -257,7 +260,7 @@ class NestLabWorld:
             return
         self._connection_token = token
         self._manifest_revision = None
-        self._ready_revision = None
+        self._configured_revision = None
         self._actor_catalog_dirty = True
         self._wander_scheduler.clear()
         if token is None:
@@ -289,23 +292,32 @@ class NestLabWorld:
             self._manifest_revision = catalog.revision
             assign_missing_homes(self._nest, self._actors)
             self._actor_catalog_dirty = True
-        elif event.name is EventName.WORLD_READY:
-            if event.world_revision == self._manifest_revision:
-                self._ready_revision = event.world_revision
+        elif event.name is EventName.WORLD_CONFIGURED:
+            if (
+                event.payload.get("configured") is True
+                and event.payload.get("navigation_ready") is True
+                and event.world_revision == self._manifest_revision
+            ):
+                self._configured_revision = event.world_revision
                 connection = self._gateway.runtime_connection
                 if connection is not None:
-                    self._gateway.mark_runtime_ready(
+                    self._gateway.mark_world_configured(
                         connection,
                         world_revision=event.world_revision,
                     )
         elif event.name is EventName.WORLD_SNAPSHOT:
             revision, mirrors = _nest_mirrors(event.payload)
-            if revision == self._ready_revision:
+            if revision == self._configured_revision:
                 self._nest.apply_runtime_mirrors(mirrors)
         elif event.name is EventName.INTENT_TERMINAL:
             command_id = event.payload.get("command_id")
             if isinstance(command_id, str):
                 self._wander_scheduler.complete(command_id)
+
+    @_synchronized
+    def receive_runtime_event(self, event: RuntimeEventFrame) -> None:
+        """Consume one actor-targeted Body event from the shared Gateway."""
+        self._consume_runtime_event(event)
 
 
 def _nest_catalog(payload: JsonObject) -> WorldCatalog:

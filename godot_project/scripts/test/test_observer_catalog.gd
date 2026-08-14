@@ -2,7 +2,8 @@ extends SceneTree
 
 const MAIN_SCRIPT := preload("res://main.gd")
 const NEST_SCENE := preload("res://rooms/nest.tscn")
-const OBSERVER_PRESENTATION := preload("res://runtime/observer_presentation.gd")
+const OBSERVER_PRESENTATION := preload("res://runtime/observer/observer_presentation.gd")
+const OBSERVER_BRIDGE := preload("res://runtime/observer/observer_bridge.gd")
 const FOX_SCENE := preload("res://characters/fox/fox.tscn")
 const EXPECTED_INITIAL_VIEW_COUNT: int = 20
 
@@ -171,8 +172,10 @@ func run() -> void:
 	if not _require(
 		main.process_mode == Node.PROCESS_MODE_ALWAYS,
 		"Product observer main does not keep polling while SceneTree is paused"
-	):
+		):
 		return
+	var observer_bridge := OBSERVER_BRIDGE.new()
+	observer_bridge.setup(nest, null, true)
 	var valid_semantic_snapshot := {
 		"channel": "elfienest.observer",
 		"version": 1,
@@ -196,14 +199,14 @@ func run() -> void:
 		"entity_revisions": {"fox-1": 1},
 	}
 	if not _require(
-		not (main._parse_observer_semantic_snapshot(valid_semantic_snapshot) as Dictionary).is_empty(),
+		not (observer_bridge.call("_parse_semantic_snapshot", valid_semantic_snapshot) as Dictionary).is_empty(),
 		"Semantic observer snapshot was not accepted"
 	):
 		return
 	var coordinate_snapshot := valid_semantic_snapshot.duplicate(true)
 	coordinate_snapshot["position"] = {"x": 1, "y": 2, "z": 3}
 	if not _require(
-		(main._parse_observer_semantic_snapshot(coordinate_snapshot) as Dictionary).is_empty(),
+		(observer_bridge.call("_parse_semantic_snapshot", coordinate_snapshot) as Dictionary).is_empty(),
 		"Coordinate-bearing observer snapshot crossed the presentation boundary"
 	):
 		return
@@ -254,7 +257,7 @@ func run() -> void:
 		"bed_count": 4,
 	}
 	if not _require(
-		not (main._parse_observer_world_config(world_config) as Dictionary).is_empty(),
+		not (observer_bridge.call("_parse_world_config", world_config) as Dictionary).is_empty(),
 		"Strict observer world configuration was not accepted"
 	):
 		return
@@ -278,7 +281,7 @@ func run() -> void:
 	var invalid_world_config := world_config.duplicate(true)
 	invalid_world_config["bed_count"] = 33
 	if not _require(
-		(main._parse_observer_world_config(invalid_world_config) as Dictionary).is_empty(),
+		(observer_bridge.call("_parse_world_config", invalid_world_config) as Dictionary).is_empty(),
 		"Observer world configuration accepted an out-of-range bed count"
 	):
 		return
@@ -287,7 +290,7 @@ func run() -> void:
 	selected_camera = root.get_camera_3d()
 	size_before_pause = selected_camera.size
 	if not _require(
-		(main._parse_observer_command(
+		(observer_bridge.call("_parse_camera_command",
 			_observer_command("select", {"view_id": "overview"})
 		) as Dictionary).get("view_id") == "overview",
 		"Typed observer select command was rejected"
@@ -298,7 +301,7 @@ func run() -> void:
 	))
 	if not _require(
 		browser_json_command is Dictionary
-			and (main._parse_observer_command(browser_json_command as Dictionary) as Dictionary)
+			and (observer_bridge.call("_parse_camera_command", browser_json_command as Dictionary) as Dictionary)
 				.get("view_id") == "overview",
 		"Browser JSON select command was rejected after JSON.parse_string"
 	):
@@ -320,7 +323,7 @@ func run() -> void:
 		_observer_command(&"overview"),
 	]:
 		if not _require(
-			(main._parse_observer_command(rejected_envelope) as Dictionary).is_empty(),
+			(observer_bridge.call("_parse_camera_command", rejected_envelope) as Dictionary).is_empty(),
 			"Strict observer command envelope accepted a non-exact field type"
 		):
 			return
@@ -342,12 +345,12 @@ func run() -> void:
 		_observer_command("set_local_presentation_paused", {"paused": true, "view_id": "overview"}),
 	]:
 		if not _require(
-			(main._parse_observer_command(rejected) as Dictionary).is_empty(),
+			(observer_bridge.call("_parse_camera_command", rejected) as Dictionary).is_empty(),
 			"Malformed, open-shaped, nested, or coordinate-bearing command was accepted"
 		):
 			return
 
-	main._handle_observer_command({"action": "set_local_presentation_paused", "paused": true})
+	observer_bridge.call("_handle_camera_command", {"action": "set_local_presentation_paused", "paused": true})
 	var paused_bridge_active_id := String(nest.observer_camera_catalog()["active_id"])
 	if not _require(
 		nest.observer_presentation_paused()
@@ -358,19 +361,19 @@ func run() -> void:
 		"Local presentation pause invoked authority transport state"
 	):
 		return
-	main._handle_observer_command({"action": "select", "view_id": "dorm-01"})
+	observer_bridge.call("_handle_camera_command", {"action": "select", "view_id": "dorm-01"})
 	if not _require(
 		String(nest.observer_camera_catalog()["active_id"]) == paused_bridge_active_id,
 		"Paused bridge command changed active view"
 	):
 		return
-	main._handle_observer_command({"action": "reset"})
+	observer_bridge.call("_handle_camera_command", {"action": "reset"})
 	if not _require(
 		String(nest.observer_camera_catalog()["active_id"]) == paused_bridge_active_id,
 		"Paused bridge command reset changed active view"
 	):
 		return
-	main._handle_observer_command({"action": "set_local_presentation_paused", "paused": false})
+	observer_bridge.call("_handle_camera_command", {"action": "set_local_presentation_paused", "paused": false})
 	_send_wheel_up()
 	await process_frame
 	if not _require(

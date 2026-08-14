@@ -6,9 +6,9 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from threading import Condition
-from typing import Mapping, Protocol, TypedDict
+from typing import Optional, Protocol, TypedDict
 
-from pydantic import JsonValue
+from infrastructure.godot.gateway.messages import RuntimeEventFrame
 
 
 class RuntimeIntentPayload(TypedDict, total=False):
@@ -19,6 +19,8 @@ class RuntimeIntentPayload(TypedDict, total=False):
     text: str
     expression: str
     deadline_seconds: float
+    speech_profile: str
+    emotion: str
 
 
 class GodotGateway(Protocol):
@@ -28,7 +30,7 @@ class GodotGateway(Protocol):
         self,
         payload: RuntimeIntentPayload,
         *,
-        correlation_id: str,
+        cause_id: str,
     ) -> bool: ...
 
     def cancel_body_command(
@@ -38,8 +40,13 @@ class GodotGateway(Protocol):
         actor_id: str,
     ) -> bool: ...
 
+    def register_body_sink(self, actor_id: str, sink: GodotTransport) -> None: ...
 
-NativeEventHandler = Callable[[str, Mapping[str, JsonValue]], None]
+    def unregister_body_sink(self, actor_id: str, sink: GodotTransport) -> None: ...
+
+
+NativeEventHandler = Callable[[RuntimeEventFrame], None]
+SemanticActionResolver = Callable[[RuntimeIntentPayload], Optional[str]]
 
 
 @dataclass(frozen=True)
@@ -47,6 +54,7 @@ class RuntimeIntentResult:
     statuses: tuple[str, ...]
     terminal_status: str
     reason: str = ""
+    events: tuple[RuntimeEventFrame, ...] = ()
 
 
 @dataclass
@@ -55,24 +63,46 @@ class _PendingIntent:
     statuses: list[str] = field(default_factory=list)
     terminal_status: str | None = None
     reason: str = ""
+    events: list[RuntimeEventFrame] = field(default_factory=list)
 
 
 class GodotTransport:
     """Wait for actual Runtime terminal events without blocking the Nest tick."""
 
-    def __init__(self, gateway: GodotGateway):
+    def __init__(
+        self,
+        gateway: GodotGateway,
+        *,
+        actor_id: str,
+        speech_intent: Callable[[RuntimeIntentPayload], bool] | None = None,
+        semantic_action: SemanticActionResolver | None = None,
+        semantic_action_result: Callable[[RuntimeIntentPayload, RuntimeIntentResult], None]
+        | None = None,
+    ):
         self.gateway = gateway
+        self.actor_id = actor_id
         self._handlers: list[NativeEventHandler] = []
         self._pending: dict[str, _PendingIntent] = {}
         self._condition = Condition()
+        self._speech_intent = speech_intent
+        self._semantic_action = semantic_action
+        self._semantic_action_result = semantic_action_result
 
     def connect(self, handler: NativeEventHandler) -> None:
-        if handler not in self._handlers:
+        with self._condition:
+            if handler in self._handlers:
+                return
+            if not self._handlers:
+                self.gateway.register_body_sink(self.actor_id, self)
             self._handlers.append(handler)
 
     def disconnect(self, handler: NativeEventHandler) -> None:
-        if handler in self._handlers:
+        with self._condition:
+            if handler not in self._handlers:
+                return
             self._handlers.remove(handler)
+            if not self._handlers:
+                self.gateway.unregister_body_sink(self.actor_id, self)
 
     def execute_intent(
         self,
@@ -86,13 +116,44 @@ class GodotTransport:
             if command_id in self._pending:
                 return RuntimeIntentResult((), "failed", "duplicate_command_id")
             self._pending[command_id] = _PendingIntent(actor_id=actor_id)
+        wire_payload = dict(payload)
+        semantic_target = payload.get("anchor_id")
+        semantic_action_requested = (
+            payload.get("intent") == "move_to_anchor"
+            and isinstance(semantic_target, str)
+            and (
+                semantic_target in {"home", "my_home"}
+                or semantic_target.startswith("facility/")
+            )
+        )
+        if semantic_action_requested:
+            if self._semantic_action is None:
+                with self._condition:
+                    self._pending.pop(command_id, None)
+                return RuntimeIntentResult((), "failed", "semantic_action_unavailable")
+            resolved_anchor_id = self._semantic_action(payload)
+            if resolved_anchor_id is None:
+                with self._condition:
+                    self._pending.pop(command_id, None)
+                return RuntimeIntentResult((), "failed", "semantic_target_unavailable")
+            wire_payload["anchor_id"] = resolved_anchor_id
+        if payload.get("intent") == "speak":
+            if self._speech_intent is not None and not self._speech_intent(payload):
+                with self._condition:
+                    self._pending.pop(command_id, None)
+                return RuntimeIntentResult((), "failed", "speech_reach_unavailable")
+            wire_payload.pop("text", None)
+            wire_payload.pop("emotion", None)
         if not self.gateway.send_body_command(
-            payload,
-            correlation_id=command_id,
+            wire_payload,
+            cause_id=command_id,
         ):
             with self._condition:
                 self._pending.pop(command_id, None)
-            return RuntimeIntentResult((), "failed", "runtime_not_ready")
+            result = RuntimeIntentResult((), "failed", "runtime_not_ready")
+            if semantic_action_requested and self._semantic_action_result is not None:
+                self._semantic_action_result(payload, result)
+            return result
 
         deadline = time.monotonic() + max(timeout_seconds, 0.0)
         with self._condition:
@@ -112,34 +173,41 @@ class GodotTransport:
                 statuses=tuple(pending.statuses),
                 terminal_status=pending.terminal_status,
                 reason=pending.reason,
+                events=tuple(pending.events),
             )
             self._pending.pop(command_id, None)
+            if semantic_action_requested and self._semantic_action_result is not None:
+                self._semantic_action_result(payload, result)
             return result
 
     def receive_runtime_event(
         self,
-        event_name: str,
-        payload: Mapping[str, JsonValue],
+        event: RuntimeEventFrame,
     ) -> None:
-        command_id_value = payload.get("command_id")
-        if not isinstance(command_id_value, str):
+        if event.target_actor_id != self.actor_id:
             return
+        event_name = event.name.value
+        payload = event.payload
+        command_id_value = payload.get("command_id")
         with self._condition:
-            pending = self._pending.get(command_id_value)
-            if pending is None or pending.terminal_status is not None:
-                return
-            if event_name == "intent_accepted":
-                self._append_status(pending, "accepted")
-            elif event_name == "intent_started":
-                self._append_status(pending, "started")
-            elif event_name == "intent_terminal":
-                status = payload.get("status")
-                if not isinstance(status, str):
-                    return
-                pending.terminal_status = status
-                reason = payload.get("reason")
-                pending.reason = reason if isinstance(reason, str) else ""
-                self._condition.notify_all()
+            if isinstance(command_id_value, str):
+                pending = self._pending.get(command_id_value)
+                if pending is not None and pending.terminal_status is None:
+                    pending.events.append(event)
+                    if event_name == "intent_accepted":
+                        self._append_status(pending, "accepted")
+                    elif event_name == "intent_started":
+                        self._append_status(pending, "started")
+                    elif event_name == "intent_terminal":
+                        status = payload.get("status")
+                        if isinstance(status, str):
+                            pending.terminal_status = status
+                            reason = payload.get("reason")
+                            pending.reason = reason if isinstance(reason, str) else ""
+                            self._condition.notify_all()
+            handlers = tuple(self._handlers)
+        for handler in handlers:
+            handler(event)
 
     def interrupt_pending(self, reason: str = "runtime disconnected") -> None:
         with self._condition:

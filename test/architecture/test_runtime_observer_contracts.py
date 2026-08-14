@@ -14,6 +14,9 @@ FORBIDDEN_RUNTIME_DIRECTORIES = frozenset({"desktop", "nest/godot", "nest/runtim
 RUNTIME_HEALTH_PATH = PROJECT_ROOT / "app/orchestration/lifecycle/runtime_health.py"
 GODOT_MAIN_PATH = PROJECT_ROOT / "godot_project/main.gd"
 GODOT_NEST_PATH = PROJECT_ROOT / "godot_project/rooms/nest.gd"
+GODOT_OBSERVER_BRIDGE_PATH = (
+    PROJECT_ROOT / "godot_project/runtime/observer/observer_bridge.gd"
+)
 LIFECYCLE_CLIENT_PATH = PROJECT_ROOT / "app/interfaces/desktop/src/lifecycle_client.ts"
 REQUIRED_RUNTIME_HEALTH_TYPES = frozenset(
     {"RuntimeComponent", "RuntimeHealthState", "RuntimeHealth", "OwnerLease"}
@@ -235,12 +238,13 @@ def _assert_tokens_in_order(source: str, tokens: tuple[str, ...]) -> None:
 
 def _gdscript_observer_action_key_rules(source: str) -> dict[str, frozenset[str]]:
     matches = re.findall(
-        r'"([^"]+)":\s*\n\s*return _observer_message_has_exact_keys\('
+        r'"([^"]+)":\s*\n\s*return _has_exact_keys\('
         r"message,\s*\[([^\]]*)\]\s*\)",
         source,
     )
+    base_keys = {"channel", "version", "kind", "action"}
     return {
-        action: frozenset(re.findall(r'"([^"]+)"', allowed_keys))
+        action: frozenset(re.findall(r'"([^"]+)"', allowed_keys)) - base_keys
         for action, allowed_keys in matches
     }
 
@@ -416,7 +420,10 @@ def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> Non
             "set_observer_presentation_paused",
         )
     )
-    publish_body = _gdscript_function_body(GODOT_MAIN_PATH, "_publish_observer_catalog")
+    publish_body = _gdscript_function_body(
+        GODOT_OBSERVER_BRIDGE_PATH, "publish_catalog"
+    )
+    bridge_source = GODOT_OBSERVER_BRIDGE_PATH.read_text(encoding="utf-8")
 
     # When / Then: the internal catalog is exactly semantic id/label metadata.
     assert (
@@ -469,12 +476,8 @@ def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> Non
     assert "_observer_presentation_paused" in reset_observer_body
 
     # And: the Web transport adds only channel/version/kind around the catalog.
-    assert 'OBSERVER_CHANNEL := "elfienest.observer"' in GODOT_MAIN_PATH.read_text(
-        encoding="utf-8"
-    )
-    assert "OBSERVER_PROTOCOL_VERSION := 1" in GODOT_MAIN_PATH.read_text(
-        encoding="utf-8"
-    )
+    assert 'OBSERVER_CHANNEL := "elfienest.observer"' in bridge_source
+    assert "OBSERVER_PROTOCOL_VERSION := 1" in bridge_source
     assert "nest.observer_camera_catalog()" in publish_body
     assert (
         _gdscript_literal_keys(_gdscript_braced_block(publish_body, ".merged"))
@@ -487,33 +490,38 @@ def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> Non
 def test_product_observer_accepts_only_semantic_actor_snapshots() -> None:
     # Given: the product Observer needs render inputs but not authority frames.
     source = GODOT_MAIN_PATH.read_text(encoding="utf-8")
+    bridge_source = GODOT_OBSERVER_BRIDGE_PATH.read_text(encoding="utf-8")
     ready_body = _gdscript_function_body(GODOT_MAIN_PATH, "_ready")
     setup_body = _gdscript_function_body(
-        GODOT_MAIN_PATH, "_setup_product_observer_bridge"
+        GODOT_OBSERVER_BRIDGE_PATH, "setup_web_bridge"
     )
-    poll_body = _gdscript_function_body(GODOT_MAIN_PATH, "_poll_observer_commands")
-    accepts_body = _gdscript_function_body(GODOT_MAIN_PATH, "_accepts_observer_message")
+    poll_body = _gdscript_function_body(GODOT_OBSERVER_BRIDGE_PATH, "process_frame")
+    accepts_body = _gdscript_function_body(
+        GODOT_OBSERVER_BRIDGE_PATH, "_accepts_camera_command"
+    )
     exact_keys_body = _gdscript_function_body(
-        GODOT_MAIN_PATH, "_observer_message_has_exact_keys"
+        GODOT_OBSERVER_BRIDGE_PATH, "_has_exact_keys"
     )
-    parser_body = _gdscript_function_body(GODOT_MAIN_PATH, "_parse_observer_command")
+    parser_body = _gdscript_function_body(
+        GODOT_OBSERVER_BRIDGE_PATH, "_parse_camera_command"
+    )
     presentation_mode_body = _gdscript_function_body(
         GODOT_MAIN_PATH, "_enter_product_observer_presentation_mode"
     )
     local_pause_body = _gdscript_function_body(
-        GODOT_MAIN_PATH, "_set_local_observer_presentation_paused"
+        GODOT_OBSERVER_BRIDGE_PATH, "_set_local_presentation_paused"
     )
     observer_fields = _class_field_annotations(
         NEST_SEMANTIC_MODEL_PATH, "ObserverSemanticEntity"
     )
     semantic_parser_body = _gdscript_function_body(
-        GODOT_MAIN_PATH, "_parse_observer_semantic_snapshot"
+        GODOT_OBSERVER_BRIDGE_PATH, "_parse_semantic_snapshot"
     )
 
     # Then: semantic actor inputs are explicit and the bridge remains view-only.
     assert EXPECTED_OBSERVER_PRESENTATION_FIELDS <= set(observer_fields)
-    assert "data.kind === 'semantic_snapshot'" in source
-    assert "_parse_observer_semantic_snapshot" in source
+    assert "data.kind === 'semantic_snapshot'" in bridge_source
+    assert "_parse_semantic_snapshot" in bridge_source
     assert "_runtime_client = null" not in source
     assert "position" not in semantic_parser_body
 
@@ -533,7 +541,7 @@ def test_product_observer_accepts_only_semantic_actor_snapshots() -> None:
     _assert_tokens_in_order(
         setup_body,
         (
-            'if not OS.has_feature("web"):',
+            'not OS.has_feature("web")',
             "JavaScriptBridge.get_interface",
             "event.origin !== window.location.origin",
             "event.source !== window.parent",
@@ -547,8 +555,8 @@ def test_product_observer_accepts_only_semantic_actor_snapshots() -> None:
         poll_body,
         (
             "JSON.parse_string(String(raw_message))",
-            "_parse_observer_command",
-            "_handle_observer_command",
+            "_parse_camera_command",
+            "_handle_camera_command",
         ),
     )
 
@@ -563,11 +571,11 @@ def test_product_observer_accepts_only_semantic_actor_snapshots() -> None:
         _gdscript_observer_action_key_rules(accepts_body)
         == EXPECTED_GODOT_OBSERVER_ACTION_KEY_RULES
     )
-    assert '["channel", "version", "kind", "action"]' in exact_keys_body
-    assert "message.keys().size() != allowed_keys.size()" in exact_keys_body
-    assert "for key: Variant in message.keys():" in exact_keys_body
+    assert "expected_keys" in exact_keys_body
+    assert "value.keys().size() != expected_keys.size()" in exact_keys_body
+    assert "for key: Variant in value.keys():" in exact_keys_body
     assert "if typeof(key) != TYPE_STRING:" in exact_keys_body
-    assert "if key not in allowed_keys:" in exact_keys_body
+    assert "if key not in expected_keys:" in exact_keys_body
     assert 'typeof(message.get("channel")) != TYPE_STRING' in accepts_body
     assert 'var version: Variant = message.get("version")' in accepts_body
     assert "if typeof(version) == TYPE_INT:" in accepts_body
@@ -578,7 +586,7 @@ def test_product_observer_accepts_only_semantic_actor_snapshots() -> None:
     assert "String(message.get" not in accepts_body
     assert "int(message.get" not in accepts_body
     assert "return false" in accepts_body
-    assert "not _product_observer_mode or not _accepts_observer_message(message)" in (
+    assert "not _enabled or not _accepts_camera_command(message)" in (
         parser_body
     )
     _assert_tokens_in_order(parser_body, ("_:", "return {}"))

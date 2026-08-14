@@ -1,5 +1,5 @@
-"""Nest 内互动传播。"""
+"""Nest-owned event propagation."""
 
-from nest.interaction.hub import InteractionHub, TactileInput
+from nest.interaction.hub import NestEventBus
 
-__all__ = ["InteractionHub", "TactileInput"]
+__all__ = ["NestEventBus"]

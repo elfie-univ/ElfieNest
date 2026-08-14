@@ -16,6 +16,11 @@ from elfie.body import (
 )
 from elfie.message_types import CommandId, IntentId, TurnId
 from infrastructure.godot import GodotTransport, NativeBody
+from infrastructure.godot.gateway.messages import (
+    EventName,
+    RuntimeEventFrame,
+    SemanticLane,
+)
 
 NOW = datetime(2026, 7, 22, 8, 0, tzinfo=timezone.utc)
 
@@ -27,31 +32,33 @@ class FakeGodotGateway:
         self.transport: GodotTransport | None = None
         self.auto_complete = True
         self.command_sent = Event()
+        self.sinks: Dict[str, GodotTransport] = {}
+        self.event_sequence = 0
 
     def send_body_command(
         self,
         payload: Dict[str, Any],
         *,
-        correlation_id: str,
+        cause_id: str,
     ) -> bool:
         self.sent.append({"action": "execute_intent", "payload": payload})
         self.command_sent.set()
         if self.auto_complete and self.transport is not None:
             lifecycle_payload = {
-                "command_id": correlation_id,
+                "command_id": cause_id,
                 "actor_id": payload["actor_id"],
             }
             self.transport.receive_runtime_event(
-                "intent_accepted",
-                lifecycle_payload,
+                self.runtime_event(EventName.INTENT_ACCEPTED, lifecycle_payload)
             )
             self.transport.receive_runtime_event(
-                "intent_started",
-                lifecycle_payload,
+                self.runtime_event(EventName.INTENT_STARTED, lifecycle_payload)
             )
             self.transport.receive_runtime_event(
-                "intent_terminal",
-                {**lifecycle_payload, "status": "completed"},
+                self.runtime_event(
+                    EventName.INTENT_TERMINAL,
+                    {**lifecycle_payload, "status": "completed"},
+                )
             )
         return True
 
@@ -59,10 +66,39 @@ class FakeGodotGateway:
         self.cancelled.append({"command_id": command_id, "actor_id": actor_id})
         return True
 
+    def register_body_sink(self, actor_id: str, sink: GodotTransport) -> None:
+        self.sinks[actor_id] = sink
+
+    def unregister_body_sink(self, actor_id: str, sink: GodotTransport) -> None:
+        if self.sinks.get(actor_id) is sink:
+            self.sinks.pop(actor_id, None)
+
+    def runtime_event(
+        self,
+        name: EventName,
+        payload: Dict[str, Any],
+    ) -> RuntimeEventFrame:
+        self.event_sequence += 1
+        command_id = payload.get("command_id")
+        return RuntimeEventFrame(
+            protocol=3,
+            kind="event",
+            lane=SemanticLane.BODY,
+            name=name,
+            message_id=f"runtime-event-{self.event_sequence}",
+            cause_id=command_id if isinstance(command_id, str) else None,
+            target_actor_id=str(payload["actor_id"]),
+            runtime_id="runtime-main",
+            generation=1,
+            world_revision=1,
+            occurred_at=NOW,
+            payload=payload,
+        )
+
 
 def make_body(body_id: str = "elfie-1") -> tuple[NativeBody, FakeGodotGateway]:
     gateway = FakeGodotGateway()
-    transport = GodotTransport(gateway)
+    transport = GodotTransport(gateway, actor_id=body_id)
     gateway.transport = transport
     body = NativeBody(body_id=body_id, transport=transport)
     return body, gateway
@@ -129,9 +165,41 @@ def test_native_body_reuses_existing_speech_expression_and_movement_events() -> 
         "execute_intent",
     ]
     assert gateway.sent[0]["payload"]["actor_id"] == "elfie-1"
-    assert gateway.sent[0]["payload"]["text"] == "你好"
+    assert "text" not in gateway.sent[0]["payload"]
     assert gateway.sent[1]["payload"]["anchor_id"] == "chair_1"
     assert gateway.sent[2]["payload"]["expression"] == "happy"
+
+
+def test_native_body_resolves_semantic_home_once_before_direct_motion() -> None:
+    gateway = FakeGodotGateway()
+    completed: list[str] = []
+    transport = GodotTransport(
+        gateway,
+        actor_id="elfie-1",
+        semantic_action=lambda payload: (
+            "dorm-01/bed-01" if payload.get("anchor_id") == "home" else None
+        ),
+        semantic_action_result=lambda _payload, result: completed.append(
+            result.terminal_status
+        ),
+    )
+    gateway.transport = transport
+    body = NativeBody(body_id="elfie-1", transport=transport)
+    body.connect()
+
+    result = body.execute(
+        MotionCommand(
+            command_type="motion",
+            kind="go_home",
+            target="home",
+            **_command_fields("home-1"),
+        ),
+        now=NOW,
+    )
+
+    assert result[-1].status is CommandStatus.COMPLETED
+    assert gateway.sent[0]["payload"]["anchor_id"] == "dorm-01/bed-01"
+    assert completed == ["completed"]
 
 
 def test_native_body_disconnects_without_changing_the_shared_gateway() -> None:
@@ -192,11 +260,16 @@ def test_native_body_rejects_malformed_wire_command() -> None:
     assert gateway.sent == []
 
 
-def test_shared_transport_keeps_body_handlers_without_gateway_callbacks() -> None:
+def test_shared_gateway_keeps_actor_scoped_body_transports() -> None:
     gateway = FakeGodotGateway()
-    transport = GodotTransport(gateway)
-    first = NativeBody(body_id="elfie-1", transport=transport)
-    second = NativeBody(body_id="elfie-2", transport=transport)
+    first = NativeBody(
+        body_id="elfie-1",
+        transport=GodotTransport(gateway, actor_id="elfie-1"),
+    )
+    second = NativeBody(
+        body_id="elfie-2",
+        transport=GodotTransport(gateway, actor_id="elfie-2"),
+    )
     first.connect()
     second.connect()
 
@@ -235,6 +308,29 @@ def test_runtime_terminal_preserves_command_identity() -> None:
     assert all(receipt.command_id == command.command_id for receipt in receipts)
 
 
+def test_runtime_receipts_preserve_source_event_cause_and_time() -> None:
+    body, _gateway = make_body()
+    body.connect()
+    command = MotionCommand(
+        command_type="motion",
+        kind="walking",
+        target="activity-01/activity",
+        **_command_fields("motion-source-identity"),
+    )
+
+    receipts = body.execute(command, now=NOW)
+
+    assert [str(receipt.receipt_id) for receipt in receipts] == [
+        "runtime-event-1",
+        "runtime-event-2",
+        "runtime-event-3",
+    ]
+    assert {str(receipt.cause_id) for receipt in receipts} == {
+        "motion-source-identity"
+    }
+    assert {receipt.occurred_at for receipt in receipts} == {NOW}
+
+
 def test_native_body_waits_for_actual_runtime_terminal() -> None:
     body, gateway = make_body()
     body.connect()
@@ -251,12 +347,18 @@ def test_native_body_waits_for_actual_runtime_terminal() -> None:
     worker.start()
     assert gateway.command_sent.wait(timeout=0.5)
     lifecycle = {"command_id": "wait-for-runtime", "actor_id": "elfie-1"}
-    body.transport.receive_runtime_event("intent_accepted", lifecycle)
-    body.transport.receive_runtime_event("intent_started", lifecycle)
+    body.transport.receive_runtime_event(
+        gateway.runtime_event(EventName.INTENT_ACCEPTED, lifecycle)
+    )
+    body.transport.receive_runtime_event(
+        gateway.runtime_event(EventName.INTENT_STARTED, lifecycle)
+    )
     assert worker.is_alive()
     body.transport.receive_runtime_event(
-        "intent_terminal",
-        {**lifecycle, "status": "completed"},
+        gateway.runtime_event(
+            EventName.INTENT_TERMINAL,
+            {**lifecycle, "status": "completed"},
+        )
     )
     worker.join(timeout=0.5)
 
@@ -283,12 +385,14 @@ def test_native_body_timeout_sends_cancel_and_late_terminal_is_ignored() -> None
 
     receipts = body.execute(command, now=NOW)
     body.transport.receive_runtime_event(
-        "intent_terminal",
-        {
+        gateway.runtime_event(
+            EventName.INTENT_TERMINAL,
+            {
             "command_id": "runtime-timeout",
             "actor_id": "elfie-1",
             "status": "completed",
-        },
+            },
+        )
     )
 
     assert receipts[-1].status is CommandStatus.TIMED_OUT

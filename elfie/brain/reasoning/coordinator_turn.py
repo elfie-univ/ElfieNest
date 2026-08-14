@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Tuple
 from uuid import uuid4
@@ -370,8 +371,17 @@ class CoordinatorTurnFactory:
         history = "\n".join(
             f"{item.actor.source_kind}: {item.content}" for item in recent
         )
+        identity_anchors = json.dumps(
+            {
+                "selfhood": compiled.selfhood.model_dump(mode="json"),
+                "profile_anchors": compiled.profile_anchors.model_dump(mode="json"),
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
         user_prompt = (
-            (f"CONTEXT_ONLY:\n{history}\n\n" if history else "")
+            f"IDENTITY_ANCHORS:\n{identity_anchors}\n\n"
+            + (f"CONTEXT_ONLY:\n{history}\n\n" if history else "")
             + f"CURRENT_MESSAGE:\n{latest}"
         )
         return system_prompt, user_prompt

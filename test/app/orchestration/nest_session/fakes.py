@@ -13,7 +13,10 @@ class FakeWorldRuntime:
         self.events: list[WorldEvent] = []
         self.configurations: list[tuple[str, int, int]] = []
         self.actor_syncs: list[tuple[tuple[RuntimeActor, ...], int]] = []
-        self.ready_revisions: list[int] = []
+        self.speech_reach_requests: list[tuple[str, str, str, int]] = []
+        self.visual_observation_requests: list[tuple[str, str, int, int]] = []
+        self.environment_requests: list[tuple[str, bool, bool, int]] = []
+        self.configured_revisions: list[int] = []
         self.started = False
 
     @property
@@ -22,7 +25,7 @@ class FakeWorldRuntime:
 
     @property
     def runtime_ready(self) -> bool:
-        return bool(self.ready_revisions)
+        return self.connection is not None
 
     def start(self) -> None:
         self.started = True
@@ -53,19 +56,64 @@ class FakeWorldRuntime:
         self.actor_syncs.append((actors, world_revision))
         return f"sync-{len(self.actor_syncs)}"
 
+    def request_speech_reach(
+        self,
+        *,
+        command_id: str,
+        actor_id: str,
+        acoustic_profile: str = "normal",
+        world_revision: int,
+    ) -> str | None:
+        if self.connection is None:
+            return None
+        self.speech_reach_requests.append(
+            (command_id, actor_id, acoustic_profile, world_revision)
+        )
+        return f"speech-reach-{len(self.speech_reach_requests)}"
+
+    def request_visual_observation(
+        self,
+        *,
+        observation_id: str,
+        actor_id: str,
+        max_results: int = 32,
+        world_revision: int,
+    ) -> str | None:
+        if self.connection is None:
+            return None
+        self.visual_observation_requests.append(
+            (observation_id, actor_id, max_results, world_revision)
+        )
+        return f"visual-observation-{len(self.visual_observation_requests)}"
+
+    def apply_environment(
+        self,
+        *,
+        command_id: str,
+        lights_on: bool,
+        quiet_mode: bool,
+        world_revision: int,
+    ) -> str | None:
+        if self.connection is None:
+            return None
+        self.environment_requests.append(
+            (command_id, lights_on, quiet_mode, world_revision)
+        )
+        return command_id
+
     def drain_events(self) -> tuple[WorldEvent, ...]:
         drained = tuple(self.events)
         self.events.clear()
         return drained
 
-    def mark_ready(
+    def mark_world_configured(
         self,
         connection: RuntimeConnection,
         *,
         world_revision: int,
     ) -> None:
         if connection == self.connection:
-            self.ready_revisions.append(world_revision)
+            self.configured_revisions.append(world_revision)
 
 
 __all__ = ("FakeWorldRuntime",)

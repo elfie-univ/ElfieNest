@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from typing_extensions import TypeAlias
 
 AnchorId: TypeAlias = str
+FacilityId: TypeAlias = str
 NestId: TypeAlias = str
 WorldRevision: TypeAlias = int
 ZoneId: TypeAlias = str
@@ -26,12 +27,32 @@ class AnchorKind(str, Enum):
 
 
 @unique
+class FacilityKind(str, Enum):
+    """Household-facing purpose of a stable physical facility."""
+
+    REST = "rest"
+    ACTIVITY = "activity"
+    TRANSIT = "transit"
+    SOCIAL = "social"
+
+
+@unique
 class ResidentPresence(str, Enum):
     """居民在 Nest 语义状态中的长期 presence。"""
 
     ACTIVE = "active"
     AWAY = "away"
     PENDING_RUNTIME = "pending_runtime"
+
+
+@unique
+class LifePhase(str, Enum):
+    """Stable household phase derived from the Nest clock."""
+
+    NIGHT = "night"
+    DAWN = "dawn"
+    DAY = "day"
+    DUSK = "dusk"
 
 
 class _StrictSemanticModel(BaseModel):
@@ -75,12 +96,37 @@ class ZoneDescriptor(_StrictSemanticModel):
         return _require_semantic_id(value)
 
 
+class FacilityDescriptor(_StrictSemanticModel):
+    """Coordinate-free facility meaning published by the Runtime."""
+
+    facility_id: FacilityId
+    zone_id: ZoneId
+    kind: FacilityKind
+    label: str
+    capabilities: tuple[str, ...] = ()
+    active: bool = True
+
+    @field_validator("facility_id", "zone_id", "label")
+    @classmethod
+    def _non_empty_text(cls, value: str) -> str:
+        return _require_semantic_id(value)
+
+    @field_validator("capabilities")
+    @classmethod
+    def _capabilities_are_unique(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        normalized = tuple(_require_semantic_id(item) for item in value)
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("facility capabilities must be unique")
+        return normalized
+
+
 class WorldCatalog(_StrictSemanticModel):
     """Godot Runtime 发布给 Nest 的无坐标世界目录。"""
 
     nest_id: NestId
     revision: WorldRevision = Field(ge=0)
     zones: tuple[ZoneDescriptor, ...]
+    facilities: tuple[FacilityDescriptor, ...] = ()
 
     @field_validator("nest_id")
     @classmethod
@@ -98,11 +144,27 @@ class WorldCatalog(_StrictSemanticModel):
                 seen.add(anchor.anchor_id)
         return self
 
+    @model_validator(mode="after")
+    def _facility_ids_and_zones_are_valid(self) -> WorldCatalog:
+        zone_ids = {zone.zone_id for zone in self.zones}
+        seen: set[FacilityId] = set()
+        for facility in self.facilities:
+            if facility.facility_id in seen:
+                raise ValueError(f"duplicate facility_id: {facility.facility_id}")
+            if facility.zone_id not in zone_ids:
+                raise ValueError(f"facility references unknown zone: {facility.zone_id}")
+            seen.add(facility.facility_id)
+        return self
+
     @property
     def anchor_ids(self) -> frozenset[AnchorId]:
         return frozenset(
             anchor.anchor_id for zone in self.zones for anchor in zone.anchors
         )
+
+    @property
+    def facility_ids(self) -> frozenset[FacilityId]:
+        return frozenset(facility.facility_id for facility in self.facilities)
 
 
 class PersistentResidentState(_StrictSemanticModel):
@@ -151,6 +213,42 @@ class RuntimeResidentMirror(_StrictSemanticModel):
     @field_validator("elfie_id", "posture")
     @classmethod
     def _non_empty_text(cls, value: str) -> str:
+        return _require_semantic_id(value)
+
+
+class EnvironmentDesiredState(_StrictSemanticModel):
+    """Discrete environment intent owned by Nest rules."""
+
+    lights_on: bool = True
+    quiet_mode: bool = False
+
+
+class EnvironmentActualState(_StrictSemanticModel):
+    """Last discrete environment fact acknowledged by the Runtime."""
+
+    command_id: str
+    lights_on: bool
+    quiet_mode: bool
+    applied: bool
+    reason: Optional[str] = None
+
+    @field_validator("command_id")
+    @classmethod
+    def _non_empty_command_id(cls, value: str) -> str:
+        return _require_semantic_id(value)
+
+
+class EnvironmentRule(_StrictSemanticModel):
+    """One deterministic phase rule for the desired environment."""
+
+    rule_id: str
+    phase: LifePhase
+    lights_on: bool
+    quiet_mode: bool = False
+
+    @field_validator("rule_id")
+    @classmethod
+    def _non_empty_rule_id(cls, value: str) -> str:
         return _require_semantic_id(value)
 
 
