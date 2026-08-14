@@ -424,6 +424,24 @@ def restart_background_service(lifecycle: LifecycleFacade) -> ServiceLifecycleRe
     launch_command = tuple(argument for argument in command if argument != "--force")
     result = _supervisor_for(lifecycle, launch_command, http_port).start(owner_id="cli")
     succeeded = result.status in {"started", "already_running"}
+    if succeeded:
+        try:
+            _remember_lifecycle_data_home(
+                lifecycle,
+                _data_home_for_command(
+                    lifecycle,
+                    launch_command,
+                    use_remembered_home=True,
+                ),
+            )
+        except OSError as error:
+            result = ServiceLifecycleResult(
+                status="failed",
+                pid=result.pid,
+                command=result.command,
+                error=LaunchFailedError(f"Cannot record selected data home: {error}"),
+            )
+            succeeded = False
     progress.stop(
         success=succeeded,
         message="Service restarted" if succeeded else "Service restart failed",
@@ -536,10 +554,10 @@ def show_service_status(
 
 def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
     """Ensure a healthy service and open the Web management console."""
-    default_home = lifecycle.select_data_home(
-        None,
-        project_root=_runtime_project_root(),
-        runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+    default_home = _data_home_for_command(
+        lifecycle,
+        lifecycle.default_service_command(),
+        use_remembered_home=True,
     )
     running = lifecycle.existing_service_command(default_home, _runtime_project_root())
     if running is not None:

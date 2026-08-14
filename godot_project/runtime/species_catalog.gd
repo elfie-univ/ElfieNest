@@ -74,9 +74,8 @@ static func validate_species_package(species_id: String) -> Dictionary:
 	var model_path := "%s/%s" % [package_root, model_file]
 	if not ResourceLoader.exists(scene_path) or not ResourceLoader.exists(model_path):
 		return _invalid("missing_runtime_asset")
-	var scene_source := FileAccess.get_file_as_string(scene_path)
-	if scene_source.find(model_path) < 0:
-		return _invalid("scene_model_reference_mismatch")
+	# Exported PCKs rewrite imported scene dependencies to generated resource paths;
+	# validate the loaded scene and its runtime nodes below instead of source text.
 	var scene := load(scene_path) as PackedScene
 	if scene == null:
 		return _invalid("scene_load_failed")

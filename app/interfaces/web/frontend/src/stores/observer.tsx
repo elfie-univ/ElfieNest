@@ -199,8 +199,11 @@ export function ObserverProvider({
     engineReadyRef.current = true
     setFallbackReason(null)
     publishWorldConfig(worldConfigRef.current)
+    if (semanticSnapshotRef.current !== null) {
+      publishSemanticSnapshot(semanticSnapshotRef.current)
+    }
     if (!detachedRef.current) setStatus("ready")
-  }, [publishWorldConfig])
+  }, [publishSemanticSnapshot, publishWorldConfig])
 
   const configureRoom = useCallback((worldConfig: ObserverWorldConfig): void => {
     worldConfigRef.current = worldConfig

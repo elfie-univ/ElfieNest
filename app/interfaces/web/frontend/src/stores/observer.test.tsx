@@ -67,6 +67,62 @@ describe("ObserverProvider", () => {
     }, window.location.origin)
   })
 
+  it("replays the latest semantic snapshot when the engine becomes ready", async () => {
+    const snapshot = {
+      protocol: 3,
+      kind: "snapshot",
+      generation: 1,
+      sequence: 1,
+      scope: { kind: "room", room_id: "local-nest" },
+      entities: {
+        "fox-1": {
+          room_id: "local-nest",
+          zone_id: "dorm",
+          posture: "resting",
+          active: true,
+          active_command_id: null,
+          species_id: "fox",
+          appearance: {},
+          home_anchor_id: "dorm-01/bed-01",
+        },
+      },
+      entity_revisions: { "fox-1": 1 },
+    } satisfies ObserverFrame
+    let resolveFrame: ((frame: ObserverFrame) => void) | undefined
+    vi.mocked(nextObserverFrame).mockImplementationOnce(() => new Promise((resolve) => {
+      resolveFrame = resolve
+    }))
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
+    const { container } = render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+
+    fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+    await act(async () => {})
+    const engine = container.querySelector<HTMLIFrameElement>("iframe[title='ElfieNest 3D Observer']")
+    if (engine?.contentWindow === null || engine === null || resolveFrame === undefined) throw new Error("observer iframe missing")
+    const postMessage = vi.spyOn(engine.contentWindow, "postMessage")
+
+    resolveFrame(snapshot)
+    await act(async () => {})
+    expect(postMessage.mock.calls.filter(([value]) => (
+      typeof value === "object" && value !== null && Reflect.get(value, "kind") === "semantic_snapshot"
+    ))).toHaveLength(1)
+
+    window.dispatchEvent(new MessageEvent("message", {
+      data: "elfienest:godot-web-ready",
+      origin: window.location.origin,
+      source: engine.contentWindow,
+    }))
+    await act(async () => {})
+
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "semantic_snapshot",
+      entities: expect.objectContaining({ "fox-1": expect.any(Object) }),
+    }), window.location.origin)
+    expect(postMessage.mock.calls.filter(([value]) => (
+      typeof value === "object" && value !== null && Reflect.get(value, "kind") === "semantic_snapshot"
+    ))).toHaveLength(2)
+  })
+
   it("marks the observer ready when the same-origin Godot export reaches canvas without a ready message", async () => {
     vi.useFakeTimers()
     Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
