@@ -455,7 +455,10 @@ class ProviderModelsAdapter:
             return StoredModelRefresh(
                 status="bundled_catalog",
                 checked_at=checked_at,
-                message=None,
+                message=(
+                    "火山引擎 Coding Plan 使用配置文件中的官方 Model Name 清单，"
+                    "未使用 /models（通用模型列表与套餐不匹配）"
+                ),
                 models=tuple(self._model(item) for item in merged),
             )
         try:

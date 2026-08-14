@@ -47,6 +47,36 @@ def test_authority_adapter_translates_launch_error(monkeypatch, tmp_path: Path) 
         adapter.start()
 
 
+def test_authority_adapter_reads_current_core_pid_before_launch(
+    monkeypatch, tmp_path: Path
+) -> None:
+    core_pid_file = tmp_path / "elfienest.pid"
+    core_pid_file.write_text("7315", encoding="utf-8")
+    adapter = authority.GodotAuthorityHostAdapter(
+        AuthorityHostConfig(
+            project_root=tmp_path,
+            http_port=8000,
+            ws_port=8765,
+            nonce="generation",
+            core_pid_file=core_pid_file,
+        ),
+        inspector=_UnusedInspector(),
+    )
+    captured = []
+
+    class Process:
+        pid = 7316
+
+    def start(request):
+        captured.append(request)
+        return Process()
+
+    monkeypatch.setattr(authority, "start_godot_runtime", start)
+
+    assert adapter.start().pid == 7316
+    assert captured[0].core_pid == 7315
+
+
 def test_authority_adapter_does_not_signal_unmatched_receipt(
     monkeypatch, tmp_path: Path
 ) -> None:

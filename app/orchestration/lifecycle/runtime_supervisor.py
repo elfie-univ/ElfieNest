@@ -174,7 +174,7 @@ class RuntimeSupervisor:
             if not self._wait_for_full_health(owner_id):
                 return self._cleanup_after_authority_failure(
                     result,
-                    "Godot authority Runtime did not satisfy the readiness contract before timeout",
+                    self._authority_readiness_failure_detail(),
                     owner_id=owner_id,
                 )
         if not authority_already_owned and not self._startup_claim_matches(owner_id):
@@ -270,6 +270,9 @@ class RuntimeSupervisor:
         while True:
             if not self._startup_claim_matches(owner_id):
                 return False
+            authority_poll = getattr(self._authority_process, "poll", None)
+            if callable(authority_poll) and authority_poll() is not None:
+                return False
             if self._runtime_state(self._health_probe()) in {
                 RuntimeHealthState.READY,
                 RuntimeHealthState.DEGRADED,
@@ -278,6 +281,17 @@ class RuntimeSupervisor:
             if self._monotonic() >= deadline:
                 return False
             self._sleeper(0.1)
+
+    def _authority_readiness_failure_detail(self) -> str:
+        authority_poll = getattr(self._authority_process, "poll", None)
+        if callable(authority_poll):
+            exit_code = authority_poll()
+            if exit_code is not None:
+                return (
+                    "Godot authority Runtime exited before readiness "
+                    f"(exit code {exit_code})"
+                )
+        return "Godot authority Runtime did not satisfy the readiness contract before timeout"
 
     def _cleanup_after_authority_failure(
         self,

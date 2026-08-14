@@ -54,6 +54,7 @@ class AuthorityLaunchRequest:
     http_port: int
     ws_port: int
     nonce: str
+    core_pid: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -222,6 +223,8 @@ def plan_godot_runtime_launch(
             AuthorityLaunchFailureKind.INVALID_OVERRIDE,
             "Web authority requires the managed Electron host",
         )
+    if request.core_pid is not None:
+        additions = (*additions, ("ELFIENEST_CORE_PID", str(request.core_pid)))
     return AuthorityLaunchPlan(host.kind, command, root, additions)
 
 

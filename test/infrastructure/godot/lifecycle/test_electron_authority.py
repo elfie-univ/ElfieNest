@@ -38,6 +38,23 @@ def test_hidden_authority_retries_core_load_and_handles_owned_shutdown() -> None
     assert "process.exit(0)" in source
 
 
+def test_hidden_authority_exits_when_its_core_process_dies() -> None:
+    source = AUTHORITY_MAIN.read_text(encoding="utf-8")
+
+    assert "ELFIENEST_CORE_PID" in source
+    assert "process.kill(corePid, 0)" in source
+    assert "CORE_LIVENESS_CHECK_INTERVAL_MS" in source
+    assert "requestShutdown()" in source
+
+
+def test_hidden_authority_retries_a_short_single_instance_lock_race() -> None:
+    source = AUTHORITY_MAIN.read_text(encoding="utf-8")
+
+    assert "acquireAuthorityLock" in source
+    assert "AUTHORITY_LOCK_RETRY" in source
+    assert "await acquireAuthorityLock()" in source
+
+
 def test_bootstrap_host_loads_and_packages_the_authority_entrypoint() -> None:
     package_source = (PROJECT_ROOT / "app/interfaces/desktop/package.json").read_text(
         encoding="utf-8"

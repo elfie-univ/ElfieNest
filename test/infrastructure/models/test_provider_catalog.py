@@ -100,15 +100,14 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
         "catalog_only"
     )
     assert catalog.products["volcengine_coding_plan"].bundled_models == [
-        "deepseek-v4-flash-260425",
-        "deepseek-v4-flash-ga-260731",
-        "deepseek-v4-pro-260425",
-        "doubao-seed-2-0-code-preview-260215",
-        "doubao-seed-2-0-pro-260215",
-        "doubao-seed-2-0-lite-260215",
-        "glm-4-7-251222",
-        "glm-5-2-260617",
-        "kimi-k2-250905",
+        "doubao-seed-2.0-lite",
+        "glm-5.2",
+        "kimi-k2.7-code",
+        "deepseek-v4-pro",
+        "minimax-m3",
+        "doubao-seed-2.1-turbo",
+        "deepseek-v4-flash",
+        "glm-5.3",
     ]
     assert catalog.products["glm_api"].brand_id == "zhipu"
     assert catalog.products["kimi_api"].brand_id == "moonshot"

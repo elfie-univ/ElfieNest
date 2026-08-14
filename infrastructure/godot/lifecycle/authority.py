@@ -36,6 +36,7 @@ class GodotAuthorityHostAdapter:
         inspector: ProcessInspectorPort,
         stop_timeout_seconds: float = 1.0,
     ) -> None:
+        self._config = config
         self._request = AuthorityLaunchRequest(
             project_root=config.project_root,
             http_port=config.http_port,
@@ -47,9 +48,30 @@ class GodotAuthorityHostAdapter:
 
     def start(self) -> Popen[bytes] | None:
         try:
-            return start_godot_runtime(self._request)
-        except AuthorityLaunchError as error:
+            return start_godot_runtime(self._launch_request())
+        except (AuthorityLaunchError, AuthorityHostError) as error:
             raise AuthorityHostError(str(error)) from error
+
+    def _launch_request(self) -> AuthorityLaunchRequest:
+        core_pid_file = self._config.core_pid_file
+        if core_pid_file is None:
+            return self._request
+        try:
+            raw_pid = core_pid_file.read_text(encoding="utf-8").strip()
+            core_pid = int(raw_pid)
+        except FileNotFoundError as error:
+            raise AuthorityHostError("Core PID receipt is missing") from error
+        except (OSError, ValueError) as error:
+            raise AuthorityHostError("Core PID receipt is invalid") from error
+        if core_pid <= 0:
+            raise AuthorityHostError("Core PID receipt is invalid")
+        return AuthorityLaunchRequest(
+            project_root=self._request.project_root,
+            http_port=self._request.http_port,
+            ws_port=self._request.ws_port,
+            nonce=self._request.nonce,
+            core_pid=core_pid,
+        )
 
     def stop(self, process: AuthorityProcess) -> None:
         if isinstance(process, Popen):
