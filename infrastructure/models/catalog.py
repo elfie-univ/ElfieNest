@@ -549,62 +549,89 @@ def _verify_openai_compatible_provider(
     api_base: str,
     api_key: str,
     test_model: str,
+    *,
+    probe_models: bool = True,
 ) -> Dict[str, Any]:
-    """Check a named OpenAI-compatible endpoint with a safe chat fallback."""
+    """Check an OpenAI-compatible endpoint with an optional model-list probe."""
     import time
 
     headers: Dict[str, str] = {"Accept": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     started = time.time()
-    models_url = f"{api_base.rstrip('/')}/models"
-    try:
-        request = urllib.request.Request(models_url, headers=headers, method="GET")
-        with open_provider_request(request, timeout=5) as response:
-            if response.status == 200:
-                return {
-                    "status": "active",
-                    "latency_ms": round((time.time() - started) * 1000, 2),
-                    "error": None,
-                }
-            if response.status not in {404, 405, 501}:
+    if probe_models:
+        models_url = f"{api_base.rstrip('/')}/models"
+        try:
+            request = urllib.request.Request(models_url, headers=headers, method="GET")
+            with open_provider_request(request, timeout=5) as response:
+                if response.status == 200:
+                    return {
+                        "status": "active",
+                        "latency_ms": round((time.time() - started) * 1000, 2),
+                        "error": None,
+                    }
+                if response.status not in {404, 405, 501}:
+                    return {
+                        "status": "inactive",
+                        "latency_ms": None,
+                        "error": f"HTTP {response.status}",
+                    }
+        except urllib.error.HTTPError as exc:
+            if exc.code not in {404, 405, 501}:
                 return {
                     "status": "inactive",
                     "latency_ms": None,
-                    "error": f"HTTP {response.status}",
+                    "error": f"HTTP {exc.code}: {exc.reason}",
                 }
-    except urllib.error.HTTPError as exc:
-        if exc.code not in {404, 405, 501}:
+        except urllib.error.URLError as exc:
             return {
                 "status": "inactive",
                 "latency_ms": None,
-                "error": f"HTTP {exc.code}: {exc.reason}",
+                "error": f"连接失败: {exc.reason}",
             }
-    except urllib.error.URLError as exc:
-        return {
-            "status": "inactive",
-            "latency_ms": None,
-            "error": f"连接失败: {exc.reason}",
-        }
-    except TimeoutError:
-        return {
-            "status": "inactive",
-            "latency_ms": None,
-            "error": "连接超时（5秒）",
-        }
-    except Exception as exc:
-        return {
-            "status": "inactive",
-            "latency_ms": None,
-            "error": str(exc),
-        }
+        except TimeoutError:
+            return {
+                "status": "inactive",
+                "latency_ms": None,
+                "error": "连接超时（5秒）",
+            }
+        except Exception as exc:
+            return {
+                "status": "inactive",
+                "latency_ms": None,
+                "error": str(exc),
+            }
+
+    return _verify_openai_chat_endpoint(
+        api_base,
+        test_model,
+        headers=headers,
+        started=started,
+        empty_model_error=(
+            "模型列表不可用且未配置安全测试模型"
+            if probe_models
+            else "未配置安全测试模型"
+        ),
+    )
+
+
+def _verify_openai_chat_endpoint(
+    api_base: str,
+    test_model: str,
+    *,
+    headers: Dict[str, str],
+    started: float,
+    empty_model_error: str,
+) -> Dict[str, Any]:
+    """Verify one named model without discovering a provider-wide model list."""
+    import time
 
     normalized_test_model = test_model.strip()
     if not normalized_test_model:
         return {
             "status": "inactive",
             "latency_ms": None,
-            "error": "模型列表不可用且未配置安全测试模型",
+            "error": empty_model_error,
         }
     chat_url = f"{api_base.rstrip('/')}/chat/completions"
     payload = json.dumps(
@@ -714,6 +741,7 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
                 api_base,
                 api_key,
                 str(provider_info.get("test_model") or profile.test_model),
+                probe_models=profile.discovery_strategy != "catalog_only",
             )
         elif api_mode == "anthropic_messages":
             # Anthropic: GET {api_base}/models with x-api-key header

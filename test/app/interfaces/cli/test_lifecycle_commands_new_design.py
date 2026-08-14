@@ -7,7 +7,11 @@ import pytest
 
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import lifecycle_commands
-from app.orchestration.lifecycle import ServicePortStatus
+from app.orchestration.lifecycle import (
+    DataHomeInspection,
+    DataHomeState,
+    ServicePortStatus,
+)
 from app.orchestration.lifecycle.runtime_health import (
     OwnerLease,
     RuntimeHealth,
@@ -129,6 +133,64 @@ def test_start_when_stopped_prepares_frontend_before_launch(monkeypatch) -> None
 
     assert result.status == "started"
     assert events == ["status", "build", "start"]
+
+
+def test_start_reports_incompatible_database_before_launch(monkeypatch, capsys) -> None:
+    # Given: the selected root has a schema that belongs to an older ElfieNest version.
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "inspect_data_home",
+        lambda *_args, **_kwargs: DataHomeInspection(
+            state=DataHomeState.LEGACY,
+            home=Path("/tmp/incompatible-elfienest"),
+            detail="数据库结构与当前版本不兼容：缺少字段 elfies.home_anchor_id",
+            recoverable=True,
+        ),
+    )
+    supervisor = _LaunchSupervisor(_stopped_health(), [])
+    monkeypatch.setattr(
+        lifecycle_commands, "_supervisor_for", lambda *_args, **_kwargs: supervisor
+    )
+
+    # When: the managed start command runs.
+    result = lifecycle_commands.start_background_service(LIFECYCLE)
+
+    # Then: the user receives the reason instead of a generic health-check failure.
+    assert result.status == "failed"
+    assert result.error is not None
+    assert "数据库结构与当前版本不兼容" in str(result.error)
+    assert "elfies.home_anchor_id" in capsys.readouterr().out
+
+
+def test_restart_reports_incompatible_database_before_stopping_service(
+    monkeypatch, capsys
+) -> None:
+    # Given: restart would otherwise stop a service before discovering its old schema.
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "inspect_data_home",
+        lambda *_args, **_kwargs: DataHomeInspection(
+            state=DataHomeState.LEGACY,
+            home=Path("/tmp/incompatible-elfienest"),
+            detail="数据库结构与当前版本不兼容：缺少字段 elfies.home_anchor_id",
+            recoverable=True,
+        ),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_supervisor_for",
+        lambda *_args, **_kwargs: pytest.fail(
+            "incompatible database must be reported before stopping"
+        ),
+    )
+
+    # When: the managed restart command runs.
+    result = lifecycle_commands.restart_background_service(LIFECYCLE)
+
+    # Then: the old service is left alone and the exact diagnosis is visible.
+    assert result.status == "failed"
+    assert result.error is not None
+    assert "数据库结构与当前版本不兼容" in capsys.readouterr().out
 
 
 def test_start_does_not_launch_when_frontend_preflight_fails(monkeypatch) -> None:

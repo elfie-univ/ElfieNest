@@ -15,6 +15,7 @@ from app.orchestration.lifecycle import (
     DEFAULT_HTTP_PORT,
     AuthorityHostConfig,
     ComponentHealth,
+    DataHomeState,
     FrontendPreparationError,
     LaunchFailedError,
     LifecycleFacade,
@@ -70,6 +71,7 @@ def _supervisor_for(
             http_port=http_port,
             ws_port=godot_ws_port,
             nonce=generation_nonce,
+            core_pid_file=selected_home / "elfienest.pid",
         ),
         health_probe=lambda: _full_runtime_health(lifecycle, http_port),
         prepare_optional_component=lifecycle.prepare_optional_component,
@@ -237,6 +239,27 @@ def _runtime_is_stably_running(supervisor: RuntimeLifecycle) -> bool:
     }
 
 
+def _data_home_launch_error(
+    lifecycle: LifecycleFacade,
+    command: Sequence[str],
+    *,
+    use_remembered_home: bool,
+) -> Optional[LaunchFailedError]:
+    """Explain an unusable data root before the child process is spawned."""
+    inspection = lifecycle.inspect_data_home(
+        _option_value(command, "--data-home"),
+        project_root=_runtime_project_root(),
+        runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+        use_remembered=use_remembered_home,
+    )
+    if inspection.state in {DataHomeState.FRESH, DataHomeState.READY}:
+        return None
+    guidance = (
+        "；请先备份后重建。不会自动迁移或删除。" if inspection.recoverable else ""
+    )
+    return LaunchFailedError(f"Service startup blocked: {inspection.detail}{guidance}")
+
+
 def start_background_service(
     lifecycle: LifecycleFacade,
     command: Optional[Sequence[str]] = None,
@@ -279,6 +302,19 @@ def start_background_service(
     )
     try:
         if not _runtime_is_stably_running(supervisor):
+            data_home_error = _data_home_launch_error(
+                lifecycle,
+                launch_command,
+                use_remembered_home=True,
+            )
+            if data_home_error is not None:
+                if progress is not None:
+                    progress.stop(success=False)
+                result = ServiceLifecycleResult(
+                    status="failed", command=launch_command, error=data_home_error
+                )
+                _print_start_result_or_json(lifecycle, result, json_output=json_output)
+                return result
             _prepare_frontend_for_launch(lifecycle)
     except FrontendPreparationError as error:
         if progress is not None:
@@ -360,6 +396,18 @@ def restart_background_service(lifecycle: LifecycleFacade) -> ServiceLifecycleRe
     """Stop the current process and start it again with its existing arguments."""
     progress = ProgressIndicator("Restarting service")
     progress.start()
+
+    default_command = lifecycle.default_service_command()
+    data_home_error = _data_home_launch_error(
+        lifecycle,
+        default_command,
+        use_remembered_home=True,
+    )
+    if data_home_error is not None:
+        progress.stop(success=False, message="Service restart failed")
+        result = ServiceLifecycleResult(status="failed", error=data_home_error)
+        print(f"  ❌ Service restart failed: {result.error}")
+        return result
 
     stop_supervisor = _supervisor_for(
         lifecycle,

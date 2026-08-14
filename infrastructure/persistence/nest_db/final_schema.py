@@ -13,6 +13,135 @@ from infrastructure.persistence.nest_db.sqlite_connection import (
 
 FINAL_NEST_DATABASE_NAME: Final = "nest.db"
 
+# Keep the inspection contract next to the schema builder so a database with
+# the current table names but an older column set cannot be mistaken for READY.
+FINAL_TABLE_COLUMNS: Final[dict[str, frozenset[str]]] = {
+    "users": frozenset(
+        {
+            "id",
+            "account_id",
+            "display_name",
+            "avatar_color",
+            "avatar_kind",
+            "avatar_path",
+            "gender",
+            "birth_date",
+            "role",
+            "password_hash",
+            "presence",
+            "last_seen_at",
+            "elfie_limit",
+            "default_landing_page",
+            "theme_key",
+            "language",
+            "created_at",
+            "updated_at",
+        }
+    ),
+    "sessions": frozenset(
+        {"token_hash", "user_id", "expires_at", "created_at", "revoked_at"}
+    ),
+    "local_installations": frozenset(
+        {
+            "installation_id",
+            "owner_user_id",
+            "device_name",
+            "platform",
+            "machine_id_hash",
+            "status",
+            "install_step",
+            "install_action",
+            "task_status",
+            "task_progress",
+            "last_error",
+            "setup_draft_json",
+            "setup_completed_at",
+            "created_at",
+            "updated_at",
+        }
+    ),
+    "nest_settings": frozenset(
+        {
+            "nest_id",
+            "bed_count",
+            "tick_interval_sec",
+            "max_elfies",
+            "applied_world_revision",
+            "world_catalog_json",
+            "clock_anchor_seconds",
+            "clock_paused",
+            "time_scale",
+            "environment_desired_json",
+            "environment_rules_json",
+            "created_at",
+            "updated_at",
+        }
+    ),
+    "elfies": frozenset(
+        {
+            "elfie_id",
+            "name",
+            "original_name",
+            "owner_user_id",
+            "species",
+            "gender",
+            "birth_date",
+            "adopted_at",
+            "home_anchor_id",
+            "status",
+            "summary",
+            "main_food_id",
+            "created_at",
+            "updated_at",
+        }
+    ),
+    "food_packages": frozenset(
+        {
+            "food_key",
+            "display_name",
+            "system_role",
+            "primary_model_ref",
+            "reasoning_model_ref",
+            "vision_model_ref",
+            "tool_model_ref",
+            "fallback_model_ref",
+            "visibility_mode",
+            "visible_user_ids_json",
+            "enabled",
+            "archived",
+            "created_at",
+            "updated_at",
+        }
+    ),
+    "external_bodies": frozenset(
+        {
+            "body_id",
+            "owner_elfie_id",
+            "display_name",
+            "body_type",
+            "secret_hash",
+            "status",
+            "last_heartbeat_at",
+            "created_at",
+            "updated_at",
+            "revoked_at",
+        }
+    ),
+    "device_audit_events": frozenset(
+        {"id", "body_id", "event_type", "detail_json", "created_at"}
+    ),
+    "embodiment_sessions": frozenset(
+        {
+            "elfie_id",
+            "body_id",
+            "state",
+            "lease_expires_at",
+            "lease_version",
+            "updated_at",
+        }
+    ),
+}
+
 
 class FinalNestDatabasePathError(RuntimeError):
     """Raised when the final builder receives a non-final or unsafe path."""
@@ -52,6 +181,21 @@ def initialize_final_schema(connection: sqlite3.Connection) -> None:
         connection.execute(statement)
     for statement in _SEED_STATEMENTS:
         connection.execute(statement)
+
+
+def missing_final_schema_columns(connection: sqlite3.Connection) -> tuple[str, ...]:
+    """Return final-contract columns absent from an existing SQLite database."""
+    missing: list[str] = []
+    for table_name, expected_columns in FINAL_TABLE_COLUMNS.items():
+        actual_columns = {
+            str(row[1])
+            for row in connection.execute(f"PRAGMA table_info({table_name})")
+        }
+        missing.extend(
+            f"{table_name}.{column_name}"
+            for column_name in sorted(expected_columns - actual_columns)
+        )
+    return tuple(missing)
 
 
 _TABLE_STATEMENTS: Final = (

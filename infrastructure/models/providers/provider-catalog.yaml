@@ -318,19 +318,20 @@ products:
     api_key_env_var: ARK_API_KEY
     connection_method: api_key
     usage_scope: coding_only
+    # Coding Plan uses the documented Model Name allowlist. Its generic
+    # /models inventory is not the subscription model list and is ignored.
     discovery_strategy: catalog_only
     oauth_available: false
-    test_model: deepseek-v4-flash-260425
+    test_model: deepseek-v4-pro
     bundled_models:
-      - deepseek-v4-flash-260425
-      - deepseek-v4-flash-ga-260731
-      - deepseek-v4-pro-260425
-      - doubao-seed-2-0-code-preview-260215
-      - doubao-seed-2-0-pro-260215
-      - doubao-seed-2-0-lite-260215
-      - glm-4-7-251222
-      - glm-5-2-260617
-      - kimi-k2-250905
+      - doubao-seed-2.0-lite
+      - glm-5.2
+      - kimi-k2.7-code
+      - deepseek-v4-pro
+      - minimax-m3
+      - doubao-seed-2.1-turbo
+      - deepseek-v4-flash
+      - glm-5.3
 endpoint_model_hints:
   - api_base_contains: maas-coding-api.cn-huabei-1.xf-yun.com
     models:

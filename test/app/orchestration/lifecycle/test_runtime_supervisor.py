@@ -63,6 +63,15 @@ class Process:
     pid: int
 
 
+@dataclass
+class ExitedProcess:
+    pid: int
+    exit_code: int = 1
+
+    def poll(self) -> int:
+        return self.exit_code
+
+
 class AuthorityHost:
     def __init__(
         self,
@@ -407,6 +416,21 @@ def test_authority_timeout_stops_authority_before_core() -> None:
 
     assert result.status == "failed"
     assert calls == ["core", "authority", "stop-authority:7107", "stop-core"]
+
+
+def test_authority_exit_before_readiness_has_a_specific_error() -> None:
+    supervisor = _supervisor(
+        health_probe=lambda: _health(authority=RuntimeHealthState.FAILED),
+        start_core=lambda healthy: ServiceLifecycleResult(status="started", pid=7118),
+        authority_host=AuthorityHost(process=ExitedProcess(pid=7117)),
+    )
+
+    result = supervisor.start(owner_id="cli")
+
+    assert result.status == "failed"
+    assert isinstance(result.error, LaunchFailedError)
+    assert "Godot authority Runtime exited before readiness" in str(result.error)
+    assert "exit code 1" in str(result.error)
 
 
 def test_new_invocation_stops_recorded_authority_pid() -> None:

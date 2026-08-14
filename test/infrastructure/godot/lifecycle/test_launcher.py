@@ -66,6 +66,28 @@ def test_graphical_source_platform_routes_to_hidden_electron_authority(
     )
 
 
+def test_authority_launch_plan_passes_core_pid_to_electron(
+    tmp_path: Path,
+) -> None:
+    electron, _host_main = _source_electron(tmp_path)
+    request = launcher.AuthorityLaunchRequest(
+        project_root=tmp_path,
+        http_port=18101,
+        ws_port=18102,
+        nonce="generation-nonce",
+        core_pid=12345,
+    )
+
+    plan = launcher.plan_godot_runtime_launch(
+        request,
+        platform_name="darwin",
+        environment={},
+    )
+
+    assert plan.command[0] == str(electron.resolve())
+    assert dict(plan.environment)["ELFIENEST_CORE_PID"] == "12345"
+
+
 def test_electron_authority_namespace_is_scoped_to_the_checkout(
     tmp_path: Path,
 ) -> None:

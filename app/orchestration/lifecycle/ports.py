@@ -80,6 +80,7 @@ class AuthorityHostConfig:
     http_port: int
     ws_port: int
     nonce: str
+    core_pid_file: Optional[Path] = None
 
 
 class DataHomeState(str, Enum):

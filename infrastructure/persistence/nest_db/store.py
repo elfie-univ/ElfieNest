@@ -15,7 +15,10 @@ from app.orchestration.lifecycle.ports import DataHomeInspection, DataHomeState
 from infrastructure.persistence.layout.data_home import data_home_from_db_path
 from infrastructure.persistence.layout.data_home import get_db_path as _get_db_path
 from infrastructure.persistence.layout.data_layout import ensure_final_root_layout
-from infrastructure.persistence.nest_db.final_schema import create_final_nest_database
+from infrastructure.persistence.nest_db.final_schema import (
+    create_final_nest_database,
+    missing_final_schema_columns,
+)
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
 
 logger = logging.getLogger("infrastructure.persistence.nest_db.store")
@@ -54,6 +57,19 @@ class LegacyDataRootError(RuntimeError):
         return "检测到旧 ElfieNest 数据根；请先备份后重建。不会自动迁移或删除。"
 
 
+class IncompatibleDatabaseError(LegacyDataRootError):
+    """The database is readable but does not satisfy the current schema contract."""
+
+    __slots__ = ("detail",)
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(detail)
+
+    def __str__(self) -> str:
+        return f"{self.detail}；请先备份后重建。不会自动迁移或删除。"
+
+
 # ---------------------------------------------------------------------------
 # Database Initialization & Seeding
 # ---------------------------------------------------------------------------
@@ -75,6 +91,8 @@ def init_db(db_path: Optional[str] = None) -> str:
 def _reject_legacy_root(database_path: Path) -> None:
     inspection = inspect_data_home(database_path.parent)
     if inspection.state not in {DataHomeState.FRESH, DataHomeState.READY}:
+        if inspection.detail.startswith("数据库结构与当前版本不兼容"):
+            raise IncompatibleDatabaseError(inspection.detail)
         raise LegacyDataRootError
 
 
@@ -136,14 +154,24 @@ def inspect_data_home(data_home: Path) -> DataHomeInspection:
         return DataHomeInspection(
             state=DataHomeState.CORRUPT,
             home=home,
-            detail="nest.db 无法安全读取，建议先备份后创建新环境",
+            detail="数据库无法安全读取，无法确认是否兼容；建议先备份后创建新环境",
             recoverable=True,
         )
     if tables != _FINAL_TABLES:
         return DataHomeInspection(
             state=DataHomeState.LEGACY,
             home=home,
-            detail="nest.db 使用旧版数据表结构",
+            detail="数据库结构与当前版本不兼容：数据表集合不是当前版本契约",
+            recoverable=True,
+        )
+    missing_columns = missing_final_schema_columns(connection)
+    if missing_columns:
+        return DataHomeInspection(
+            state=DataHomeState.LEGACY,
+            home=home,
+            detail=(
+                "数据库结构与当前版本不兼容：缺少字段 " + ", ".join(missing_columns)
+            ),
             recoverable=True,
         )
     users_sql = "" if users_sql_row is None else str(users_sql_row[0] or "")
@@ -151,7 +179,7 @@ def inspect_data_home(data_home: Path) -> DataHomeInspection:
         return DataHomeInspection(
             state=DataHomeState.LEGACY,
             home=home,
-            detail="nest.db 使用旧版账号结构",
+            detail="数据库结构与当前版本不兼容：users.role 仍是旧版账号约束",
             recoverable=True,
         )
     return DataHomeInspection(

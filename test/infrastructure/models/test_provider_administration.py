@@ -70,19 +70,27 @@ def test_volcengine_refresh_uses_coding_plan_catalog_and_drops_discovered_models
         None,
     )
 
-    refreshed = asyncio.run(adapter.refresh_models(connection))
+    with patch.object(
+        type(adapter),
+        "_discover_with_slot",
+        side_effect=AssertionError("Coding Plan must not call /models"),
+    ):
+        refreshed = asyncio.run(adapter.refresh_models(connection))
 
     assert refreshed.status == "bundled_catalog"
+    assert refreshed.message == (
+        "火山引擎 Coding Plan 使用配置文件中的官方 Model Name 清单，"
+        "未使用 /models（通用模型列表与套餐不匹配）"
+    )
     assert [model.model_id for model in refreshed.models] == [
-        "deepseek-v4-flash-260425",
-        "deepseek-v4-flash-ga-260731",
-        "deepseek-v4-pro-260425",
-        "doubao-seed-2-0-code-preview-260215",
-        "doubao-seed-2-0-pro-260215",
-        "doubao-seed-2-0-lite-260215",
-        "glm-4-7-251222",
-        "glm-5-2-260617",
-        "kimi-k2-250905",
+        "doubao-seed-2.0-lite",
+        "glm-5.2",
+        "kimi-k2.7-code",
+        "deepseek-v4-pro",
+        "minimax-m3",
+        "doubao-seed-2.1-turbo",
+        "deepseek-v4-flash",
+        "glm-5.3",
     ]
 
 

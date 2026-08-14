@@ -118,9 +118,7 @@ def _freeze_entrypoint(
         )
     output_dir.mkdir(parents=True, exist_ok=True)
     hidden_import_arguments = tuple(
-        item
-        for module in hidden_imports
-        for item in ("--hidden-import", module)
+        item for module in hidden_imports for item in ("--hidden-import", module)
     )
     command = (
         sys.executable,

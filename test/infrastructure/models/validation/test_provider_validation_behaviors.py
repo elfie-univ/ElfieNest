@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import urllib.error
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -163,7 +162,7 @@ def test_connection_fingerprint_ignores_another_connection_secret_change(
         connection_id="volcengine_coding_plan_0001",
         catalog_id="volcengine_coding_plan",
         alias="Volcengine",
-        models=(ProviderModelRecord(endpoint_model_id="deepseek-v4-flash-260425"),),
+        models=(ProviderModelRecord(endpoint_model_id="deepseek-v4-pro"),),
     )
     deepseek = ProviderConnection(
         connection_id="deepseek_0001",
@@ -196,7 +195,7 @@ def test_model_execution_projection_uses_connection_id_for_builtin_connection() 
         connection_id="volcengine_coding_plan_0001",
         catalog_id="volcengine_coding_plan",
         alias="Volcengine",
-        models=(ProviderModelRecord(endpoint_model_id="deepseek-v4-flash-260425"),),
+        models=(ProviderModelRecord(endpoint_model_id="deepseek-v4-pro"),),
     )
 
     execution_id, _config = model_execution_projection(connection)
@@ -310,7 +309,7 @@ def test_model_execution_projection_keeps_volcengine_profile_test_model() -> Non
         catalog_id="volcengine_coding_plan",
         alias="Volcengine",
         models=(
-            ProviderModelRecord(endpoint_model_id="deepseek-v4-flash-260425"),
+            ProviderModelRecord(endpoint_model_id="deepseek-v4-pro"),
             ProviderModelRecord(endpoint_model_id="deepseek-v3.2"),
         ),
     )
@@ -318,21 +317,14 @@ def test_model_execution_projection_keeps_volcengine_profile_test_model() -> Non
     execution_id, config = model_execution_projection(connection)
 
     assert execution_id == connection.connection_id
-    assert config.providers[execution_id]["test_model"] == "deepseek-v4-flash-260425"
+    assert config.providers[execution_id]["test_model"] == "deepseek-v4-pro"
 
 
-def test_volcengine_health_check_falls_back_to_configured_model(
+def test_volcengine_health_check_uses_configured_model_without_models_probe(
     monkeypatch,
 ) -> None:
     from infrastructure.models.catalog import verify_provider
 
-    first_error = urllib.error.HTTPError(
-        "https://volc.example/api/coding/v3/models",
-        404,
-        "Not Found",
-        {},
-        None,
-    )
     chat_response = MagicMock()
     chat_response.status = 200
     chat_response.__enter__ = MagicMock(return_value=chat_response)
@@ -341,8 +333,6 @@ def test_volcengine_health_check_falls_back_to_configured_model(
 
     def open_request(request, *, timeout):
         requests.append(request)
-        if len(requests) == 1:
-            raise first_error
         return chat_response
 
     monkeypatch.setattr(
@@ -356,7 +346,7 @@ def test_volcengine_health_check_falls_back_to_configured_model(
                 "api_base": "https://volc.example/api/coding/v3",
                 "api_key": "test-key",
                 "api_mode": "chat_completions",
-                "test_model": "deepseek-v4-flash-260425",
+                "test_model": "deepseek-v4-pro",
             }
         }
 
@@ -364,10 +354,9 @@ def test_volcengine_health_check_falls_back_to_configured_model(
 
     assert result["status"] == "active"
     assert [request.full_url for request in requests] == [
-        "https://volc.example/api/coding/v3/models",
         "https://volc.example/api/coding/v3/chat/completions",
     ]
-    assert b'"model": "deepseek-v4-flash-260425"' in requests[1].data
+    assert b'"model": "deepseek-v4-pro"' in requests[0].data
 
 
 def test_volcengine_health_check_reports_unsupported_model(
@@ -375,13 +364,6 @@ def test_volcengine_health_check_reports_unsupported_model(
 ) -> None:
     from infrastructure.models.catalog import verify_provider
 
-    list_error = urllib.error.HTTPError(
-        "https://volc.example/api/coding/v3/models",
-        404,
-        "Not Found",
-        {},
-        None,
-    )
     chat_response = MagicMock()
     chat_response.status = 400
     chat_response.__enter__ = MagicMock(return_value=chat_response)
@@ -390,8 +372,6 @@ def test_volcengine_health_check_reports_unsupported_model(
 
     def open_request(request, *, timeout):
         requests.append(request)
-        if len(requests) == 1:
-            raise list_error
         return chat_response
 
     monkeypatch.setattr(
