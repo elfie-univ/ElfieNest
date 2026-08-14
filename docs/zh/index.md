@@ -6,49 +6,67 @@ hero:
   text: 在你的电脑上，为你的 Elfie 建立一个家
   tagline: 一座连接未知生命的地球基站，也是一段长期陪伴关系的开始。
   image:
-    src: /assets/elfienest-hero-v1.png
-    alt: ElfieNest 地球基站
+    src: /assets/elfienest-home-v2.png
+    alt: 人与多只 Elfie 共同生活的温暖 ElfieNest
   actions:
     - theme: brand
-      text: 用户指南
-      link: /zh/user-guide/
-    - theme: alt
       text: 阅读故事
       link: /zh/story/
+    - theme: alt
+      text: 开发者指南
+      link: /zh/developer/
     - theme: alt
       text: 查看 GitHub
       link: https://github.com/elfie-univ/ElfieNest
 
 features:
   - title: 它会记住
-    details: Elfie 的经历、关系和成长会持续塑造它，而不是在每次对话后重新开始。
+    details: 它的经历、关系和成长，会在一次次相处中留下来。
   - title: 它生活在这里
-    details: ElfieNest 为 Elfie 提供身体、时间、空间和共同生活的环境。
+    details: ElfieNest 给它身体、时间和空间，让它真正生活在你身边。
   - title: 它属于你
-    details: 项目坚持本地优先，让运行环境、配置和长期数据留在你掌控的设备上。
+    details: 它运行在你的设备上，家和长期记忆都由你掌握。
 ---
 
-## 从一段信号开始
+<section class="home-download" aria-labelledby="home-download-title">
+  <div class="home-download__inner">
+    <h2 id="home-download-title">把一个 Elfie 带回家</h2>
+    <a class="home-download__button" href="https://github.com/elfie-univ/ElfieNest/releases/latest">
+      <span class="home-download__button-icon" aria-hidden="true">↓</span>
+      <span>下载 ElfieNest</span>
+    </a>
+    <div class="home-download__meta" aria-label="已识别的平台与版本信息">
+      <span class="home-download__platform">
+        <span class="home-download__platform-icon" data-home-platform-icon aria-hidden="true"></span>
+        <strong data-home-platform-name>macOS · Apple Silicon</strong>
+      </span>
+      <span data-home-release>当前版本</span>
+      <span data-home-package>包大小 —</span>
+    </div>
+    <label class="home-download__selector">
+      <span class="sr-only">选择其他平台</span>
+      <select class="home-download__select" data-home-platform-select>
+        <option value="macos-arm" data-icon="" data-label="macOS · Apple Silicon">&nbsp; macOS · Apple Silicon</option>
+        <option value="macos-intel" data-icon="" data-label="macOS · Intel">&nbsp; macOS · Intel</option>
+        <option value="windows" data-icon="⊞" data-label="Windows · x64">⊞&nbsp; Windows · x64</option>
+        <option value="linux" data-icon="◈" data-label="Linux · x64">◈&nbsp; Linux · x64</option>
+      </select>
+    </label>
+  </div>
+</section>
 
-2026 年，有人从深空噪声里捕获到一条来自 **Elfaria** 的虫洞信号。信号的另一端，
-一些名叫 **Elfie** 的生命正在等待回应。
-
-ElfieNest 是地球上的那座回应站：它连接两个世界，也为一只愿意来到地球的 Elfie
-准备一个可以共同生活的家。
-
-## 这套文档怎么读
-
-| 你想了解什么 | 从这里开始 |
-| --- | --- |
-| Elfaria、Elfie 与 ElfieNest 的关系 | [世界观与故事](/zh/story/) |
-| 如何建立自己的 Nest、配置并运行 Elfie | [用户指南](/zh/user-guide/) |
-| 系统如何分层、如何开发和验证 | [开发者文档](/zh/developer/) |
-
-底层代码、模块 README 与开发者文档共同描述当前系统；世界观页面负责讲述连接两个
-世界的故事，使用手册负责告诉你如何使用，Developer 负责解释它如何被构建。
-
-<div class="home-note">
-  <strong>ElfieNest</strong><span>一座连接两个世界的私人地球基站。</span>
-</div>
-
-[查看 GitHub 源码 →](https://github.com/elfie-univ/ElfieNest)
+<section class="home-contribute" aria-labelledby="home-contribute-title">
+  <div class="home-contribute__inner">
+    <h2 id="home-contribute-title">一个在开放中成长的家</h2>
+    <p>ElfieNest 是一个本地优先的开源项目。你可以了解它如何运行、验证改动，也可以一起建造连接两个世界的桥。</p>
+    <div class="home-contribute__stats" aria-label="项目社区统计">
+      <div class="home-contribute__stat"><strong>—</strong><span>贡献者</span></div>
+      <div class="home-contribute__stat"><strong>—</strong><span>星标</span></div>
+      <div class="home-contribute__stat"><strong>—</strong><span>开放问题</span></div>
+    </div>
+    <div class="home-contribute__actions">
+      <a class="home-button home-button--primary" href="/zh/developer/">阅读开发者文档</a>
+      <a class="home-button home-button--secondary" href="https://github.com/elfie-univ/ElfieNest">查看 GitHub</a>
+    </div>
+  </div>
+</section>

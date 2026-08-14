@@ -25,14 +25,14 @@ export default defineConfig({
         siteTitle: false,
         nav: [
           { text: "Home", link: "/" },
-          { text: "World & Story", link: "/story/" },
+          { text: "Story", link: "/story/" },
           { text: "User Guide", link: "/user-guide/" },
           { text: "Developer Docs", link: "/developer/" }
         ],
         sidebar: {
           "/story/": [
             {
-              text: "World & Story",
+              text: "Story",
               items: [{ text: "Story prologue", link: "/story/" }]
             }
           ],
@@ -162,14 +162,14 @@ export default defineConfig({
         siteTitle: false,
         nav: [
           { text: "首页", link: "/zh/" },
-          { text: "世界观与故事", link: "/zh/story/" },
+          { text: "故事", link: "/zh/story/" },
           { text: "用户指南", link: "/zh/user-guide/" },
           { text: "开发者文档", link: "/zh/developer/" }
         ],
         sidebar: {
           "/zh/story/": [
             {
-              text: "世界观与故事",
+              text: "故事",
               items: [{ text: "故事序章", link: "/zh/story/" }]
             }
           ],
