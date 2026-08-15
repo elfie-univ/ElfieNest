@@ -14,17 +14,6 @@ function setupHomeExperience() {
     return;
   }
 
-  if (
-    homeExperiencePath === window.location.pathname &&
-    home.classList.contains("home-scroll") &&
-    document.body.classList.contains("home-mode")
-  ) {
-    return;
-  }
-
-  cleanupHomeExperience?.();
-  cleanupHomeExperience = undefined;
-
   const hero = home?.querySelector<HTMLElement>(".VPHero");
   const features = home?.querySelector<HTMLElement>(".VPHomeFeatures");
   const download = home?.querySelector<HTMLElement>(".home-download");
@@ -35,19 +24,34 @@ function setupHomeExperience() {
     return;
   }
 
-  const heroPage = document.createElement("section");
-  heroPage.className = "home-scroll__page home-scroll__page--hero";
-  heroPage.id = "home";
-  heroPage.setAttribute("aria-label", "Home");
-  home.insertBefore(heroPage, hero);
-  heroPage.append(hero, features);
+  const heroPage = home.querySelector<HTMLElement>(".home-scroll__page--hero");
+  const isReady =
+    homeExperiencePath === window.location.pathname &&
+    home.classList.contains("home-scroll") &&
+    document.body.classList.contains("home-mode") &&
+    heroPage?.contains(hero) &&
+    heroPage.contains(features) &&
+    download.classList.contains("home-scroll__page--download") &&
+    contribute.classList.contains("home-scroll__page--community") &&
+    Boolean(document.querySelector(".home-timeline"));
+  if (isReady) return;
+
+  cleanupHomeExperience?.();
+  cleanupHomeExperience = undefined;
+
+  const page = document.createElement("section");
+  page.className = "home-scroll__page home-scroll__page--hero";
+  page.id = "home";
+  page.setAttribute("aria-label", "Home");
+  home.insertBefore(page, hero);
+  page.append(hero, features);
 
   download.classList.add("home-scroll__page", "home-scroll__page--download");
   download.id = "download";
   contribute.classList.add("home-scroll__page", "home-scroll__page--community");
   contribute.id = "community";
 
-  const pages = [heroPage, download, contribute];
+  const pages = [page, download, contribute];
   let activeIndex = 0;
   let wheelLocked = false;
   let wheelUnlockTimer: number | undefined;
@@ -173,9 +177,11 @@ function setupHomeExperience() {
       wheelLocked = false;
       select.removeEventListener("change", updatePlatform);
       timeline.remove();
-      home.insertBefore(hero, heroPage);
-      home.insertBefore(features, heroPage);
-      heroPage.remove();
+      if (page.parentElement === home) {
+        home.insertBefore(hero, page);
+        home.insertBefore(features, page);
+      }
+      page.remove();
       download.classList.remove("home-scroll__page", "home-scroll__page--download");
       contribute.classList.remove("home-scroll__page", "home-scroll__page--community");
       home.classList.remove("home-scroll");
@@ -192,9 +198,11 @@ function setupHomeExperience() {
       wheelUnlockTimer = undefined;
       wheelLocked = false;
       timeline.remove();
-      home.insertBefore(hero, heroPage);
-      home.insertBefore(features, heroPage);
-      heroPage.remove();
+      if (page.parentElement === home) {
+        home.insertBefore(hero, page);
+        home.insertBefore(features, page);
+      }
+      page.remove();
       download.classList.remove("home-scroll__page", "home-scroll__page--download");
       contribute.classList.remove("home-scroll__page", "home-scroll__page--community");
       home.classList.remove("home-scroll");

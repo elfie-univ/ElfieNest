@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vitepress dev .",
-    "build": "vitepress build .",
+    "build": "vitepress build . && node scripts/restore-client-page-modules.mjs",
     "preview": "vitepress preview ."
   },
   "devDependencies": {
