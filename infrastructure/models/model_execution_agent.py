@@ -49,6 +49,7 @@ from infrastructure.models.model_reference import parse_model_reference
 
 logger = logging.getLogger("infrastructure.models.model_execution_agent")
 MainFoodLoader = Callable[[str], MainFoodSelection]
+_ADOPTION_MODEL_TIMEOUT_SECONDS = 20.0
 
 
 class _UnavailableToolPort:
@@ -289,6 +290,7 @@ class ModelExecutionAgent:
             temperature=request.temperature,
             max_tokens=request.max_tokens,
             thinking=request.reasoning_mode == "long",
+            timeout_seconds=_ADOPTION_MODEL_TIMEOUT_SECONDS,
         )
         try:
             execution = executor.execute(
@@ -666,7 +668,7 @@ class ModelExecutionAgent:
         if (
             evidence is None
             or evidence.local
-            or evidence.status not in {"verified", "stale"}
+            or not evidence.fresh
         ):
             return False
         try:
@@ -686,6 +688,7 @@ class ModelExecutionAgent:
         temperature: float = 0.7,
         max_tokens: int = 1500,
         thinking: bool = False,
+        timeout_seconds: float | None = None,
     ) -> FoodExecutor:
         def caller(
             provider: str,
@@ -695,7 +698,7 @@ class ModelExecutionAgent:
             _max_tokens: int,
             options: dict[str, Any],
         ) -> str:
-            return self._call_food_llm_api(
+            call_args = (
                 provider,
                 model,
                 messages,
@@ -704,6 +707,9 @@ class ModelExecutionAgent:
                 {**options, **(provider_options or {})},
                 thinking,
             )
+            if timeout_seconds is None:
+                return self._call_food_llm_api(*call_args)
+            return self._call_food_llm_api(*call_args, timeout_seconds)
 
         return FoodExecutor(
             config=self.config,
@@ -755,6 +761,7 @@ class ModelExecutionAgent:
         max_tokens: int,
         request_options: Dict[str, Any],
         thinking: bool = False,
+        timeout_seconds: float | None = None,
     ) -> str:
         return call_llm_api(
             self.config,
@@ -765,4 +772,5 @@ class ModelExecutionAgent:
             max_tokens,
             thinking=thinking,
             request_options=request_options,
+            timeout_seconds=timeout_seconds,
         )

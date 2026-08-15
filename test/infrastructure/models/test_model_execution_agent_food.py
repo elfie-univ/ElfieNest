@@ -295,7 +295,7 @@ def _adoption_agent(evidence: StoredModelEvidence) -> ModelExecutionAgent:
     return agent
 
 
-def test_adoption_accepts_latest_passed_remote_evidence_even_when_stale() -> None:
+def test_adoption_rejects_remote_evidence_that_is_no_longer_fresh() -> None:
     agent = _adoption_agent(
         StoredModelEvidence(
             reference="openai/gpt-5.2",
@@ -308,10 +308,45 @@ def test_adoption_accepts_latest_passed_remote_evidence_even_when_stale() -> Non
         )
     )
 
-    capabilities = agent.adoption_capabilities()
+    with pytest.raises(NoAvailableFoodError):
+        agent.adoption_capabilities()
 
-    assert capabilities.provider == "openai"
-    assert capabilities.model_key == "openai/gpt-5.2"
+
+def test_adoption_structured_generation_uses_a_bounded_provider_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = _adoption_agent(
+        StoredModelEvidence(
+            reference="openai/gpt-5.2",
+            display_name="GPT-5.2",
+            capabilities=frozenset({"text"}),
+            verified=True,
+            local=False,
+            status="verified",
+            fresh=True,
+        )
+    )
+    calls: list[tuple[object, ...]] = []
+
+    def caller(*args):
+        calls.append(args)
+        return "{}"
+
+    monkeypatch.setattr(agent, "_call_food_llm_api", caller)
+
+    agent.generate_adoption_structured(
+        StructuredModelExecutionRequest(
+            prompt="structured",
+            messages=(),
+            response_schema_name="answer",
+            response_schema={"type": "object"},
+            selected_mode=StructuredGenerationMode.JSON_TEXT,
+            allowed_tools=(),
+        )
+    )
+
+    assert calls
+    assert calls[0][-1] == 20.0
 
 
 @pytest.mark.parametrize(
