@@ -23,6 +23,7 @@ from .models import (
     ProfileProvenance,
 )
 from .species import get_species_profile
+from .species_registry import SpeciesCatalog, current_species_catalog
 
 GENERATOR_VERSION = "appearance-v1"
 VALID_HEIGHT_DIRECTIONS = ("short", "standard", "tall")
@@ -34,6 +35,7 @@ class AppearanceGenerator:
     """只依赖显式种子的可重复外貌生成器。"""
 
     seed: int
+    catalog: SpeciesCatalog | None = None
 
     def generate(
         self,
@@ -43,7 +45,11 @@ class AppearanceGenerator:
         build_direction: str = "standard",
         overrides: Mapping[str, Any] | None = None,
     ) -> AppearanceGenome:
-        species = get_species_profile(species_id)
+        species = (
+            self.catalog.definition(species_id, adoptable_only=True).appearance
+            if self.catalog is not None
+            else get_species_profile(species_id)
+        )
         _validate_direction(
             "height_direction", height_direction, VALID_HEIGHT_DIRECTIONS
         )
@@ -62,6 +68,7 @@ class AppearanceGenerator:
         def unit(mean: float = 0.5, sigma: float = 0.20) -> float:
             return _truncated_normal(rng, mean, sigma, 0.0, 1.0)
 
+        ear_distribution = species.distributions["ear_droop"]
         genome = AppearanceGenome(
             genome_version=1,
             species_profile_version=species.profile_version,
@@ -124,13 +131,12 @@ class AppearanceGenerator:
                 ear_size_bias=local(),
                 ear_width_bias=local(),
                 ear_tilt_bias=local(0.28),
-                ear_droop=unit(
-                    0.10
-                    if species_id == "cat"
-                    else 0.18
-                    if species_id == "fox"
-                    else 0.35,
-                    0.17,
+                ear_droop=_truncated_normal(
+                    rng,
+                    ear_distribution.mean,
+                    ear_distribution.standard_deviation,
+                    ear_distribution.minimum,
+                    ear_distribution.maximum,
                 ),
                 ear_asymmetry=local(0.12),
                 tail_length_bias=local(),
@@ -163,25 +169,7 @@ class AppearanceGenerator:
                 paw_patch_coverage_bias=local(),
                 tail_tip_coverage_bias=local(),
             ),
-            species_traits=(
-                {
-                    "black_leg_coverage": local(),
-                    "tail_tip_coverage": local(),
-                    "cheek_ruff_bias": local(),
-                }
-                if species_id == "fox"
-                else {
-                    "whisker_sensitivity_bias": local(),
-                    "ear_focus_bias": local(),
-                    "tail_balance_bias": local(),
-                }
-                if species_id == "cat"
-                else {
-                    "jowl_fullness_bias": local(),
-                    "ear_fold_bias": local(),
-                    "tail_curl_bias": local(),
-                }
-            ),
+            species_traits={name: local() for name in species.species_traits},
         )
         genome = _apply_appearance_overrides(genome, overrides)
         _validate_generated_appearance(genome, species_id)
@@ -198,9 +186,12 @@ def create_visual_profile(
     build_direction: str = "standard",
     appearance_overrides: Mapping[str, Any] | None = None,
     origin: ElfieOrigin | None = None,
+    catalog: SpeciesCatalog | None = None,
 ) -> ElfieProfile:
     """创建当前阶段可直接持久化的视觉个体档案。"""
-    appearance = AppearanceGenerator(seed).generate(
+    catalog = catalog or current_species_catalog()
+    species_definition = catalog.definition(species_id, adoptable_only=True)
+    appearance = AppearanceGenerator(seed, catalog=catalog).generate(
         species_id=species_id,
         height_direction=height_direction,
         build_direction=build_direction,
@@ -219,7 +210,7 @@ def create_visual_profile(
             primary_morphology="biped",
             supported_morphologies=("biped",),
             skeleton_profile_id="humanoid_mixamo_v1",
-            capability_profile_id=f"{species_id}_biped_v1",
+            capability_profile_id=species_definition.godot_package_id,
         ),
         provenance=ProfileProvenance(
             generator_version=GENERATOR_VERSION,
@@ -232,7 +223,7 @@ def create_visual_profile(
             },
         ),
     )
-    profile.validate()
+    profile.validate(catalog=catalog)
     return profile
 
 

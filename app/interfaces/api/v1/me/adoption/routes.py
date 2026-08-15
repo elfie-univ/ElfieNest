@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Union
+from typing import Literal, Union, cast
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from app.features.accounts import AccountPrincipal
 from app.features.adoption import (
@@ -23,6 +23,7 @@ from app.features.adoption import (
     CreateCandidateSetCommand,
     GetAdoptionOptionsQuery,
     ReplyToCandidatesCommand,
+    SpeciesImageKind,
 )
 from app.interfaces.api.v1.auth import require_user
 from app.orchestration.resident_admission import (
@@ -91,6 +92,31 @@ def create_candidate_set(
     except AdoptionError as error:
         return _error_response(error)
     return CandidateSetResponse.from_result(result)
+
+
+@router.get("/species/{species_id}/images/{image_kind}", response_model=None)
+def get_species_image(
+    species_id: str,
+    image_kind: Literal["headshot", "full-body"],
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: AdoptionService = AdoptionDependency,
+) -> Union[Response, JSONResponse]:
+    try:
+        image = service.get_species_image(
+            principal,
+            species_id,
+            cast(SpeciesImageKind, image_kind),
+        )
+    except AdoptionError as error:
+        return _error_response(error)
+    return Response(
+        content=image.content,
+        media_type=image.media_type,
+        headers={
+            "ETag": f'"{image.etag}"',
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
 
 
 @router.post(

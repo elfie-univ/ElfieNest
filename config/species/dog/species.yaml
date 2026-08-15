@@ -1,0 +1,21 @@
+schema_version: 1
+definition_version: tovren.v1
+canon_id: tovren
+display_name: Tovren
+display_name_zh: 灵犬
+earth_shape_label: dog-like
+technical_species_id: dog
+godot_package_id: dog
+common_sensory_biases:
+  - 声音方向
+  - 脚步与呼唤
+  - 群体节奏和协作信号
+common_knowledge:
+  - 公共活动、共同劳动、巡路和互相照应
+  - 队伍行动和熟悉的声音线索
+earth_first_contact_cues:
+  - 先判断声音来源、距离和是否有同伴回应
+  - 再理解通信设备的用途
+presentation_images:
+  headshot: assets/headshot.png
+  full_body: assets/full-body.png

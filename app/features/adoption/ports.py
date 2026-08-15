@@ -6,6 +6,7 @@ from typing import Mapping, Protocol
 
 from elfie.genesis import CandidateReveal, GenesisCandidate
 
+from .models import AdoptionSpeciesImage, AdoptionSpeciesImages, SpeciesImageKind
 from .port_models import (
     AdoptionNestCapacityRecord,
     AdoptionPolicyRecord,
@@ -62,6 +63,14 @@ class CandidatePortraitPort(Protocol):
     def render(self, candidate: GenesisCandidate) -> tuple[str, str]: ...
 
 
+class SpeciesPresentationPort(Protocol):
+    """Read presentation assets from the bundled species packages."""
+
+    def urls(self, species_id: str) -> AdoptionSpeciesImages: ...
+
+    def read(self, species_id: str, image_kind: SpeciesImageKind) -> AdoptionSpeciesImage: ...
+
+
 class AdoptionNarrativePort(Protocol):
     """Strong-model boundary for post-acceptance names and personal stories."""
 
@@ -89,4 +98,5 @@ __all__ = (
     "AdoptionPortNestCapacityReached",
     "AdoptionPortError",
     "AdoptionPortOwnerNotFound",
+    "SpeciesPresentationPort",
 )

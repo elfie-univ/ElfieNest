@@ -14,6 +14,7 @@ from infrastructure.persistence.configuration.documents import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BUNDLED_ROOT = PROJECT_ROOT / "config"
+DYNAMIC_PACKAGE_ROOT = BUNDLED_ROOT / "species"
 
 
 def _python_imports(path: Path) -> set[str]:
@@ -37,10 +38,18 @@ def test_bundled_root_is_exactly_the_registered_document_inventory() -> None:
         path.relative_to(BUNDLED_ROOT).as_posix()
         for path in BUNDLED_ROOT.rglob("*")
         if path.is_file()
+        and (
+            path.relative_to(BUNDLED_ROOT).as_posix() == "species/catalog.yaml"
+            or DYNAMIC_PACKAGE_ROOT not in path.parents
+        )
     }
 
     assert None not in registered
     assert actual == registered
+    # Species package members are intentionally discovered from the registered
+    # catalog. Requiring each future species file to become a closed document
+    # ID would defeat configuration-only species onboarding.
+    assert (DYNAMIC_PACKAGE_ROOT / "catalog.yaml").is_file()
 
 
 def test_every_required_bundled_document_loads_through_the_closed_registry() -> None:

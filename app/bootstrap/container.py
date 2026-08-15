@@ -29,6 +29,7 @@ from app.orchestration.nest_session import NestSession
 from app.orchestration.observer import ObserverFacade, SessionLogoutWorkflow
 from app.orchestration.resident_admission import ResidentAdmissionService
 from app.orchestration.setup_installation import SetupInstallationService
+from elfie.profile import SpeciesCatalog, configure_species_catalog
 from infrastructure.communication import OwnerMessageSession, SameOriginMessagePublisher
 from infrastructure.devices import DeviceGateway
 from infrastructure.models.adoption_narrative import AdoptionStructuredModelExecution
@@ -42,6 +43,7 @@ from infrastructure.persistence.configuration.oauth_credentials import (
     OAuthCredentialStore,
 )
 from infrastructure.persistence.configuration.settings import RuntimeSettingsAdapter
+from infrastructure.persistence.configuration.species import load_species_catalog
 from infrastructure.persistence.elfie_workspace.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.elfie_workspace.elfies import (
     SQLiteElfiesProjectionAdapter,
@@ -117,6 +119,8 @@ def build_application_container(
         data_home = data_home_from_db_path(db_path)
         provider_catalog_path = final_root_layout(data_home).provider_catalog_config
     provider_catalog = load_provider_catalog(provider_catalog_path)
+    species_catalog: SpeciesCatalog = load_species_catalog()
+    configure_species_catalog(species_catalog)
     nest_config = load_nest_config()
     report_repository = build_report_repository(db_path)
     provider_storage = ProviderStorageAdapter(provider_store)
@@ -151,7 +155,10 @@ def build_application_container(
             catalog=provider_catalog,
         )
     settings_adapter = RuntimeSettingsAdapter(config_path)
-    elfies = ElfiesService(SQLiteElfiesProjectionAdapter(db_path))
+    elfies = ElfiesService(
+        SQLiteElfiesProjectionAdapter(db_path),
+        catalog=species_catalog,
+    )
     accounts = build_accounts_service(db_path, settings=settings_adapter)
     communication = build_communication_services(
         db_path,
@@ -174,6 +181,7 @@ def build_application_container(
         ),
         portraits=portraits,
         nest_config=nest_config,
+        catalog=species_catalog,
     )
     nest_adapter = SQLiteNestManagementAdapter(db_path, nest_config=nest_config)
     setup = build_setup_services(

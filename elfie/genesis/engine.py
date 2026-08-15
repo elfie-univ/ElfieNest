@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import random
-from typing import Mapping, Sequence
+from typing import Sequence
 
-from elfie.profile import get_species_definition
+from elfie.profile import SpeciesCatalog, get_species_definition
 
 from .appearance import appearance_fit, distance, generate_appearance, signature
 from .contracts import (
@@ -30,40 +30,15 @@ from .selection import (
 
 _STAGES = ("youth", "young_adult", "mature", "elder")
 _GENDERS = ("male", "female")
-_STAGE_RANGES: Mapping[str, Mapping[str, tuple[int, int]]] = {
-    "fox": {
-        "youth": (6, 23),
-        "young_adult": (24, 59),
-        "mature": (60, 119),
-        "elder": (120, 180),
-    },
-    "dog": {
-        "youth": (6, 23),
-        "young_adult": (24, 71),
-        "mature": (72, 167),
-        "elder": (168, 240),
-    },
-    "cat": {
-        "youth": (6, 23),
-        "young_adult": (24, 71),
-        "mature": (72, 167),
-        "elder": (168, 240),
-    },
-}
-_DEFAULT_STAGE_RANGES: Mapping[str, tuple[int, int]] = {
-    "youth": (6, 23),
-    "young_adult": (24, 71),
-    "mature": (72, 167),
-    "elder": (168, 240),
-}
-
-
 class GenesisEngine:
     """Build five intentionally different, deterministic candidate cores."""
 
     proposal_count = 64
     target_distance = 0.16
     history_distance = 0.14
+
+    def __init__(self, catalog: SpeciesCatalog | None = None) -> None:
+        self._catalog = catalog
 
     def generate_batch(
         self,
@@ -83,7 +58,10 @@ class GenesisEngine:
         stages = _STAGES if life_stage == "any" else (life_stage,)
         core_by_stage = {
             stage: core_profile(
-                species_id=species_id, life_stage=stage, answers=answers
+                species_id=species_id,
+                life_stage=stage,
+                answers=answers,
+                catalog=self._catalog,
             )
             for stage in stages
         }
@@ -144,7 +122,12 @@ class GenesisEngine:
         self, *, species_id: str, life_stage: str, answers: Sequence[str]
     ) -> BigFiveProfile:
         stage = "young_adult" if life_stage == "any" else life_stage
-        return core_profile(species_id=species_id, life_stage=stage, answers=answers)
+        return core_profile(
+            species_id=species_id,
+            life_stage=stage,
+            answers=answers,
+            catalog=self._catalog,
+        )
 
     def _build_candidate(
         self,
@@ -172,6 +155,7 @@ class GenesisEngine:
             intent=appearance,
             role=role,
             rng=rng,
+            catalog=self._catalog,
         )
         return GenesisCandidate(
             candidate_id=f"{derive_seed(seed, 7, 0, 0):016x}",
@@ -244,14 +228,20 @@ class GenesisEngine:
             return requested
         return _GENDERS[(role + seed) % len(_GENDERS)]
 
-    @staticmethod
-    def _age_months(species_id: str, stage: str, rng: random.Random) -> int:
-        ranges = _STAGE_RANGES.get(species_id, _DEFAULT_STAGE_RANGES)
+    def _age_months(self, species_id: str, stage: str, rng: random.Random) -> int:
+        definition = (
+            self._catalog.definition(species_id, adoptable_only=True)
+            if self._catalog is not None
+            else get_species_definition(species_id, adoptable_only=True)
+        )
+        if definition.genesis is None:
+            raise GenesisError(f"物种 {species_id!r} 缺少 Genesis 配置")
+        ranges = definition.genesis.stage_ranges
         minimum, maximum = ranges[stage]
         return rng.randint(minimum, maximum)
 
-    @staticmethod
     def _validate_request(
+        self,
         batch: int,
         species: str,
         stage: str,
@@ -262,7 +252,10 @@ class GenesisEngine:
         if batch not in (1, 2, 3):
             raise GenesisError("Genesis候选批次必须是1、2或3")
         try:
-            get_species_definition(species)
+            if self._catalog is not None:
+                self._catalog.definition(species, adoptable_only=True)
+            else:
+                get_species_definition(species, adoptable_only=True)
         except ValueError as error:
             raise GenesisError(f"不支持的物种: {species}") from error
         if stage not in _STAGES + ("any",):

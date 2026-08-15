@@ -1,0 +1,24 @@
+version: 1
+schema_version: 1
+catalog_version: species-catalog.v1
+appearance_protocol_version: appearance.v2
+world_canon_version: elfaria-world.v0.1
+species:
+  - species_id: fox
+    package: fox
+    canon_id: saevi
+    status: published
+    sort_order: 0
+    definition_version: saevi.v1
+  - species_id: dog
+    package: dog
+    canon_id: tovren
+    status: published
+    sort_order: 1
+    definition_version: tovren.v1
+  - species_id: cat
+    package: myelle
+    canon_id: myelle
+    status: draft
+    sort_order: 2
+    definition_version: myelle.v1

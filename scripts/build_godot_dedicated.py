@@ -27,6 +27,7 @@ from infrastructure.godot.artifacts.web_build import (
 from infrastructure.godot.artifacts.web_build import (
     _project_version as project_version_helper,
 )
+from infrastructure.persistence.configuration.species import load_species_catalog
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 GODOT_PROJECT = PROJECT_ROOT / "godot_project"
@@ -118,7 +119,12 @@ def _export_runtime(output: Path, binary: Path, godot_version: str) -> int:
             + ", ".join(missing)
         )
         return 1
-    _write_manifest(staging, godot_version, current_source_fingerprint())
+    _write_manifest(
+        staging,
+        godot_version,
+        current_source_fingerprint(),
+        current_species_catalog_digest(),
+    )
     shutil.rmtree(previous, ignore_errors=True)
     if output.exists():
         output.replace(previous)
@@ -168,6 +174,11 @@ def current_source_fingerprint() -> str:
     return digest.hexdigest()
 
 
+def current_species_catalog_digest() -> str:
+    """Return the bundled species catalog digest paired with this export."""
+    return load_species_catalog(root=PROJECT_ROOT / "config").digest
+
+
 def runtime_is_current(output: Path) -> bool:
     """Check the Dedicated manifest, executable and source fingerprint."""
     if _missing_artifacts(output):
@@ -183,6 +194,8 @@ def runtime_is_current(output: Path) -> bool:
         return False
     if manifest.get("source_fingerprint") != current_source_fingerprint():
         return False
+    if manifest.get("species_catalog_digest") != current_species_catalog_digest():
+        return False
     files = manifest.get("files")
     if not isinstance(files, dict) or set(files) != {ENTRY_NAME}:
         return False
@@ -196,7 +209,12 @@ def runtime_is_current(output: Path) -> bool:
     )
 
 
-def _write_manifest(directory: Path, godot_version: str, fingerprint: str) -> None:
+def _write_manifest(
+    directory: Path,
+    godot_version: str,
+    fingerprint: str,
+    species_catalog_digest: str,
+) -> None:
     """Write a typed-by-shape artifact digest for the single executable."""
     entry = directory / ENTRY_NAME
     manifest: Dict[str, object] = {
@@ -206,6 +224,7 @@ def _write_manifest(directory: Path, godot_version: str, fingerprint: str) -> No
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "entry": ENTRY_NAME,
         "source_fingerprint": fingerprint,
+        "species_catalog_digest": species_catalog_digest,
         "export_boundary": export_boundary_manifest(),
         "files": {
             ENTRY_NAME: {

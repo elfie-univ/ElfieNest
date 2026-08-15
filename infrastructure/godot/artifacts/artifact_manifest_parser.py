@@ -59,6 +59,11 @@ def _parse_component(
         raw.get("applicable_targets"), "applicable_targets"
     )
     files = _parse_files(raw.get("files"))
+    species_catalog_digest = raw.get("species_catalog_digest")
+    if not isinstance(species_catalog_digest, str):
+        raise RuntimeArtifactContractError(
+            "species_catalog_digest must be a string"
+        )
     return RuntimeArtifactComponent(
         kind=kind,
         version=_required_string(raw, "version"),
@@ -66,6 +71,7 @@ def _parse_component(
         entrypoint=_required_relative_path(raw, "entrypoint"),
         applicable_targets=frozenset(applicability),
         files=files,
+        species_catalog_digest=species_catalog_digest,
     )
 
 

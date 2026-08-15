@@ -1,0 +1,46 @@
+schema_version: 1
+profile_version: 1
+supported_controls:
+  - stature
+  - build
+  - face
+  - signature
+control_ranges:
+  stature: {minimum: 0.90, base: 1.00, maximum: 1.10}
+  build: {minimum: 0.90, base: 1.00, maximum: 1.10}
+  face: {minimum: -1.00, base: 0.00, maximum: 1.00}
+  signature: {minimum: -1.00, base: 0.00, maximum: 1.00}
+stature_scale: {minimum: 0.90, base: 1.00, maximum: 1.10}
+build_scale: {minimum: 0.90, base: 1.00, maximum: 1.10}
+build_weights: {body_fat: 0.55, frame_size: 0.30, muscularity: 0.15, local_bias: 0.00}
+proportion_scales:
+  HeadScale: {minimum: 0.91, base: 1.00, maximum: 1.09}
+  NeckLength: {minimum: 0.86, base: 1.00, maximum: 1.14}
+  ArmLength: {minimum: 0.91, base: 1.00, maximum: 1.09}
+  LegLength: {minimum: 0.90, base: 1.00, maximum: 1.10}
+  ShoulderWidth: {minimum: 0.91, base: 1.00, maximum: 1.09}
+  HandScale: {minimum: 0.91, base: 1.00, maximum: 1.09}
+  PawScale: {minimum: 0.90, base: 1.00, maximum: 1.10}
+  TailLength: {minimum: 0.86, base: 1.00, maximum: 1.14}
+  EyeScale: {minimum: 0.91, base: 1.00, maximum: 1.09}
+  EyeSpacing: {minimum: 0.95, base: 1.00, maximum: 1.05}
+  EyeHeight: {minimum: 0.96, base: 1.00, maximum: 1.04}
+shape_correlations:
+  Body_ChestFullness: {body_fat: 0.48, frame_size: 0.22, muscularity: 0.18, local_bias: 0.30}
+  Body_WaistWidth: {body_fat: 0.68, frame_size: 0.16, muscularity: 0.00, local_bias: 0.25}
+  Body_BellyDepth: {body_fat: 0.88, frame_size: 0.00, muscularity: 0.00, local_bias: 0.25}
+  Body_HipWidth: {body_fat: 0.62, frame_size: 0.24, muscularity: 0.00, local_bias: 0.25}
+  Body_HipDepth: {body_fat: 0.70, frame_size: 0.00, muscularity: 0.00, local_bias: 0.25}
+  Body_ArmThickness: {body_fat: 0.72, frame_size: 0.18, muscularity: 0.16, local_bias: 0.25}
+  Body_LegThickness: {body_fat: 0.76, frame_size: 0.18, muscularity: 0.16, local_bias: 0.20}
+  Body_NeckThickness: {body_fat: 0.66, frame_size: 0.18, muscularity: 0.00, local_bias: 0.20}
+  Body_PawFullness: {body_fat: 0.44, frame_size: 0.20, muscularity: 0.00, local_bias: 0.30}
+  Face_CheekFullness: {body_fat: 0.62, frame_size: 0.14, muscularity: 0.00, local_bias: 0.30}
+  Face_LowerFullness: {body_fat: 0.60, frame_size: 0.00, muscularity: 0.00, local_bias: 0.28}
+palettes: [red, golden, cross, silver, melanistic, pale]
+patterns: [classic, bicolor, cross, face_mask]
+eye_colors: [amber, brown, green, blue_gray]
+nose_colors: [black, dark_brown, charcoal]
+distributions:
+  ear_droop: {mean: 0.18, standard_deviation: 0.17, minimum: 0.00, maximum: 1.00}
+species_traits: [black_leg_coverage, tail_tip_coverage, cheek_ruff_bias]

@@ -28,6 +28,7 @@ const PACKAGED_RESOURCE_DIRECTORIES = [
   "godot-web",
   "python-core",
   "management-cli",
+  "config",
 ] as const;
 
 export type ResourcePath = string;

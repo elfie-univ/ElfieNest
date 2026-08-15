@@ -81,6 +81,13 @@ def _component_contract_errors(component: RuntimeArtifactComponent) -> List[str]
             errors.append(f"desktop-observer: {file.path} must not be packaged")
         if not _is_sha256(file.sha256):
             errors.append(f"{component.kind.value}: {file.path} has invalid sha256")
+    if component.kind is RuntimeComponentKind.DESKTOP_OBSERVER:
+        if component.species_catalog_digest:
+            errors.append("desktop-observer: species_catalog_digest must be empty")
+    elif not _is_sha256(component.species_catalog_digest):
+        errors.append(
+            f"{component.kind.value}: species_catalog_digest has invalid sha256"
+        )
     return errors
 
 

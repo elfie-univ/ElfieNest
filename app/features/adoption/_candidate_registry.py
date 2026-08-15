@@ -25,6 +25,7 @@ from elfie.profile import (
     ElfieProfile,
     EmbodimentProfile,
     ProfileProvenance,
+    SpeciesCatalog,
 )
 
 from .errors import (
@@ -124,8 +125,10 @@ class CandidateRegistry:
         genesis: GenesisEngine | None = None,
         portraits: CandidatePortraitPort | None = None,
         narrative: AdoptionNarrativePort | None = None,
+        catalog: SpeciesCatalog | None = None,
     ) -> None:
-        self._genesis = genesis or GenesisEngine()
+        self._catalog = catalog
+        self._genesis = genesis or GenesisEngine(catalog=catalog)
         self._portraits = portraits
         self._narrative = narrative
         self._candidate_sets: dict[str, CandidateSetSnapshot] = {}
@@ -591,7 +594,7 @@ class CandidateRegistry:
             headshot_image_url=headshot_url,
             appearance_tags=_appearance_tags(candidate, appearance),
             personality_tags=candidate.personality.candidate.labels,
-            runtime_appearance=_runtime_appearance(candidate),
+            runtime_appearance=_runtime_appearance(candidate, catalog=self._catalog),
         )
         return CandidateSnapshot(
             public=public,
@@ -626,7 +629,11 @@ def _appearance_tags(
     return (stature, build, face, signature)
 
 
-def _runtime_appearance(candidate: GenesisCandidate) -> dict[str, object]:
+def _runtime_appearance(
+    candidate: GenesisCandidate,
+    *,
+    catalog: SpeciesCatalog | None = None,
+) -> dict[str, object]:
     """Resolve the candidate genome into the payload owned by the Godot Web runtime."""
     profile = ElfieProfile(
         schema_version=1,
@@ -643,7 +650,7 @@ def _runtime_appearance(candidate: GenesisCandidate) -> dict[str, object]:
         ),
         embodiment=EmbodimentProfile(),
     )
-    return AppearanceResolver().resolve(profile).to_payload()
+    return AppearanceResolver(catalog=catalog).resolve(profile).to_payload()
 
 
 def _height_label(candidate: GenesisCandidate) -> str:

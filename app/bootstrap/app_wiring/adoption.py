@@ -13,6 +13,7 @@ from app.features.adoption import (
 from app.features.configuration.settings import SettingsStorePort
 from app.orchestration.nest_session import NestSession
 from app.orchestration.resident_admission import ResidentAdmissionService
+from elfie.profile import SpeciesCatalog, configure_species_catalog
 from elfie.public import BodyPort, ElfieFactory
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.godot.body_transport import (
@@ -29,6 +30,10 @@ from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
 from infrastructure.persistence.configuration.bundled_defaults import (
     load_emotion_expression_defaults,
     load_nest_config,
+)
+from infrastructure.persistence.configuration.species import load_species_catalog
+from infrastructure.persistence.configuration.species_assets import (
+    BundledSpeciesPresentationAdapter,
 )
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
@@ -60,7 +65,11 @@ def build_adoption_services(
     model_execution: AdoptionStructuredModelExecution | None = None,
     portraits: CandidatePortraitPort | None = None,
     nest_config: NestConfig | None = None,
+    catalog: SpeciesCatalog | None = None,
 ) -> AdoptionServices:
+    catalog = catalog or load_species_catalog()
+    configure_species_catalog(catalog)
+
     def body_factory(elfie_id: str, _workspace: str) -> BodyPort | None:
         if nest_session is None:
             return None
@@ -97,12 +106,14 @@ def build_adoption_services(
         ),
         portraits=portraits,
         narrative=narrative,
+        catalog=catalog,
+        species_presentation=BundledSpeciesPresentationAdapter(catalog=catalog),
     )
     return AdoptionServices(
         adoption=adoption,
         resident_admission=ResidentAdmissionService(
             adoption,
-            FinalElfieWorkspaceAdapter.from_database_path(db_path),
+            FinalElfieWorkspaceAdapter.from_database_path(db_path, catalog=catalog),
             ElfieFactoryAdapter(
                 ElfieFactory(),
                 body_factory,

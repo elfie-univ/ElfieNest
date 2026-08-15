@@ -29,6 +29,9 @@ test("resource manifest records and validates every packaged component for one s
     writeFileSync(join(root, "godot-web/elfienest.audio.worklet.js"), "worklet");
     mkdirSync(join(root, "web/assets"), { recursive: true });
     writeFileSync(join(root, "web/assets/app.js"), "web-asset");
+    mkdirSync(join(root, "config/species/fox/assets"), { recursive: true });
+    writeFileSync(join(root, "config/species/catalog.yaml"), "version: 1\n");
+    writeFileSync(join(root, "config/species/fox/assets/headshot.png"), "png");
     writeFileSync(join(root, "app.asar"), "electron-shell");
     writeFileSync(join(root, "icon.icns"), "application-icon");
 
@@ -43,6 +46,8 @@ test("resource manifest records and validates every packaged component for one s
     assert.ok(manifest.files["management-cli/ElfieNestCli"]);
     assert.ok(manifest.files["godot-web/elfienest.audio.worklet.js"]);
     assert.ok(manifest.files["web/assets/app.js"]);
+    assert.ok(manifest.files["config/species/catalog.yaml"]);
+    assert.ok(manifest.files["config/species/fox/assets/headshot.png"]);
     assert.equal(manifest.files["app.asar"], undefined);
     assert.equal(manifest.files["icon.icns"], undefined);
     assert.equal(manifest.files["ollama/ollama"], undefined);

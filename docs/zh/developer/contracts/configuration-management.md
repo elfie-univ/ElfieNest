@@ -1,6 +1,6 @@
 # 配置管理契约
 
-**契约版本：** 1.1
+**契约版本：** 1.2
 **采用日期：** 2026-08-15
 **适用范围：** 应用默认配置、用户配置、读取与发行打包
 
@@ -51,13 +51,21 @@ config/
 │   ├── energy.yaml
 │   ├── selfhood.yaml
 │   └── emotion-expressions.yaml
-└── nest/
+├── nest/
     └── defaults.yaml
+└── species/
+    ├── catalog.yaml
+    └── <package>/
+        ├── species.yaml
+        ├── appearance.yaml
+        ├── genesis.yaml
+        └── assets/*.png
 ```
 
-这棵目录只是现有全局配置文档的迁移清单。现有物种声明、canon、外观 Profile 与
-Genesis 行为明确不在本次迁移范围内，继续保留在当前 Profile 所有的源码中。本次不加
-物种字段、不做物种规范化、不做自动发现或注册行为。
+这棵目录是内置默认值和物种配置包的来源。`species/catalog.yaml` 是已注册文档；
+其余包成员由 Infrastructure Adapter 作为一个不可变物种包统一校验。Profile 和
+Genesis 只接收类型化值，不读取 YAML。Godot 的 3D 资源包仍位于
+`godot_project/characters/`；物种配置只保存它的语义链接和外观绑定。
 
 用户目录保持为：
 
@@ -106,6 +114,7 @@ Nest、模型或工具语义转交给 Infrastructure。
 | Selfhood 创建期默认值 | `brain/selfhood.yaml` | 无 | Elfie Brain Selfhood | 仅内置 |
 | 情绪表达映射 | `brain/emotion-expressions.yaml` | 无 | Elfie Brain Emotion | 仅内置 |
 | Nest 初始化默认值 | `nest/defaults.yaml` | 无 | Nest | 仅内置 |
+| 物种目录和物种包 | `species/catalog.yaml`、`species/<package>/` | 无 | Infrastructure 加载器，类型化值注入 Profile/Genesis/Adoption | 仅内置 |
 | Provider 连接与 endpoint 模型 | 无 | `providers.yaml` | App 配置 Provider | 仅用户 |
 | API 与 OAuth 凭据 | 无 | `auth.env`、`credentials/oauth/` 或进程环境 | Secret 能力 | 仅用户，绝不合并 |
 
@@ -221,7 +230,7 @@ resources/
 实现开始前，治理层已经生效：
 
 - 本双语契约固定目标；
-- ADR-0017 记录决策；
+- ADR-0017 和 ADR-0019 记录决策；
 - Contract Registry 绑定契约、ADR、Agent 规则、机器治理测试与临时一致性台账；
 - 一致性台账列出全部当前实现差距，但不削弱目标。
 
@@ -245,6 +254,7 @@ resources/
 
 ## 明确不做的事
 
-本次整理不新增物种、Provider、模型、工具、Brain 或 Nest 能力；不新增物种自动发现、
+本次整理不新增 Provider、模型、工具、Brain 或 Nest 能力；不新增文件系统自动发现、
 配置驱动协议实现、公开任意配置 API、UI 字段、数据迁移、双读、双写、兼容别名、远程
-配置或全局热加载。新协议或鉴权行为仍然必须在其所属 Infrastructure Adapter 中实现。
+配置或全局热加载。物种包注册固定由目录文件控制，并且仍必须配套完整 Godot 资源包
+和代码拥有的运行时协议支持。

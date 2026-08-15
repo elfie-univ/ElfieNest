@@ -63,7 +63,7 @@ func configure(
 ) -> void:
 	elfie_id = identity
 	global_position = spawn_position
-	ACTOR_APPEARANCE.apply(_visual_root, _collision_shape, appearance)
+	ACTOR_APPEARANCE.apply(_visual_root, _collision_shape, appearance, species_id)
 	_play_animation("idle")
 
 

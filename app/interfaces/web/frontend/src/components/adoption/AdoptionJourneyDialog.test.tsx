@@ -75,6 +75,10 @@ const species = [
     earth_shape_label: "fox-like",
     scene_id: "fox",
     sort_order: 0,
+    presentation_images: {
+      headshot_url: "/api/v1/me/adoption/species/fox/images/headshot",
+      full_body_url: "/api/v1/me/adoption/species/fox/images/full-body",
+    },
   },
   {
     species_id: "dog",
@@ -84,6 +88,10 @@ const species = [
     earth_shape_label: "dog-like",
     scene_id: "dog",
     sort_order: 1,
+    presentation_images: {
+      headshot_url: "/api/v1/me/adoption/species/dog/images/headshot",
+      full_body_url: "/api/v1/me/adoption/species/dog/images/full-body",
+    },
   },
 ] as const
 

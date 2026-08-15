@@ -43,6 +43,8 @@ def validate_registered_document(
         _validate_emotion_defaults(document, label)
     elif document_id is ConfigDocumentId.NEST_DEFAULTS:
         _validate_nest_defaults(document, label)
+    elif document_id is ConfigDocumentId.SPECIES_CATALOG:
+        _validate_species_catalog_shape(document, label)
     elif document_id is ConfigDocumentId.MODEL_CATALOG:
         _validate_model_catalog_shape(document, label)
     elif document_id in (
@@ -479,6 +481,55 @@ def _validate_nest_defaults(document: Mapping[str, Any], label: str) -> None:
     nest = _object(document.get("nest"), f"{label}.nest")
     _keys(nest, {"bed_count"}, f"{label}.nest")
     _positive_int(nest.get("bed_count"), f"{label}.nest.bed_count")
+
+
+def _validate_species_catalog_shape(
+    document: Mapping[str, Any], label: str
+) -> None:
+    _keys(
+        document,
+        {
+            "version",
+            "schema_version",
+            "catalog_version",
+            "appearance_protocol_version",
+            "world_canon_version",
+            "species",
+        },
+        label,
+    )
+    _positive_int(document.get("schema_version"), f"{label}.schema_version")
+    for field in (
+        "catalog_version",
+        "appearance_protocol_version",
+        "world_canon_version",
+    ):
+        _string(document.get(field), f"{label}.{field}")
+    species = document.get("species")
+    if not isinstance(species, list) or not species:
+        raise ConfigSchemaError(f"{label}.species 必须是非空数组")
+    allowed = {
+        "species_id",
+        "package",
+        "canon_id",
+        "status",
+        "sort_order",
+        "definition_version",
+    }
+    for index, raw in enumerate(species):
+        item = _object(raw, f"{label}.species[{index}]")
+        _keys(item, allowed, f"{label}.species[{index}]")
+        for field in ("species_id", "package", "canon_id", "definition_version"):
+            _string(item.get(field), f"{label}.species[{index}].{field}")
+        if item.get("status") not in ("draft", "published", "retired"):
+            raise ConfigSchemaError(
+                f"{label}.species[{index}].status 必须是 draft/published/retired"
+            )
+        sort_order = item.get("sort_order")
+        if isinstance(sort_order, bool) or not isinstance(sort_order, int) or sort_order < 0:
+            raise ConfigSchemaError(
+                f"{label}.species[{index}].sort_order 必须是非负整数"
+            )
 
 
 def _validate_emotion_actions(value: Any, label: str) -> None:
