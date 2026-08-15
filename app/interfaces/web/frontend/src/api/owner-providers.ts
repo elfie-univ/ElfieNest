@@ -275,6 +275,8 @@ export async function verifyProviderConnection(
     `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}/verify${query}`,
     "POST",
     csrfToken,
+    undefined,
+    { timeout: false },
   ))
 }
 
@@ -297,6 +299,8 @@ export async function validateAllProviderModels(
     "/api/v1/admin/model-providers/model-validations",
     "POST",
     csrfToken,
+    undefined,
+    { timeout: false },
   ))
 }
 

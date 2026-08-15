@@ -499,11 +499,23 @@ describe("OwnerProviderPanel v2 behavior", () => {
 
   it("keeps the batch validation report inline instead of converting it to a toast", async () => {
     const user = userEvent.setup()
+    const staleConnection = {
+      ...connection,
+      verification: { ...connection.verification, status: "never" as const, checked_at: null, latency_ms: null },
+      models: [{ ...model, verification: { ...model.verification, status: "never" as const, checked_at: null, latency_ms: null } }],
+    }
+    vi.mocked(ownerProviderConnections)
+      .mockResolvedValueOnce([staleConnection])
+      .mockResolvedValue([connection])
     renderPanel()
 
+    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    expect(within(card).getByText("未验证")).toBeInTheDocument()
     await user.click(await screen.findByRole("button", { name: "批量验证" }))
 
     expect(await screen.findByRole("status")).toHaveTextContent("批量验证完成：1 项通过，报告 validation-run。")
+    expect(within(card).getByText("验证通过")).toBeInTheDocument()
+    expect(within(card).getByText("共 1 个模型（已启用 1 个 · 验证通过 1 个）")).toBeInTheDocument()
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 

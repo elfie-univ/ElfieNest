@@ -14,6 +14,10 @@ export class ApiError extends Error {
   }
 }
 
+type RequestJsonOptions = {
+  readonly timeout?: number | false
+}
+
 const ValidationDetailSchema = z.object({
   loc: z.array(z.union([z.string(), z.number()])).optional(),
   msg: z.string(),
@@ -54,11 +58,16 @@ function parseApiError(payload: unknown): {
   return { message: "", validationDetails: parsed.data.detail }
 }
 
-export async function requestJson(path: string, init?: RequestInit): Promise<unknown> {
+export async function requestJson(
+  path: string,
+  init?: RequestInit,
+  options?: RequestJsonOptions,
+): Promise<unknown> {
   const response = await ky(path, {
     credentials: "same-origin",
     throwHttpErrors: false,
     ...init,
+    ...options,
   })
   const payload: unknown = await response.json().catch(() => ({}))
   if (!response.ok) {
@@ -83,11 +92,12 @@ export async function ownerWrite(
   method: "POST" | "PUT" | "PATCH" | "DELETE",
   csrfToken: string,
   body?: unknown,
+  options?: RequestJsonOptions,
 ): Promise<unknown> {
   const init: RequestInit = {
     method,
     headers: csrfHeaders(csrfToken, body !== undefined),
   }
   if (body !== undefined) init.body = JSON.stringify(body)
-  return requestJson(path, init)
+  return requestJson(path, init, options)
 }

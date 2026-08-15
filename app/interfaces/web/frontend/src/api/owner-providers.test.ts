@@ -6,6 +6,8 @@ import {
   ownerModelMatrix,
   ownerProviderCatalog,
   startProviderOAuthLogin,
+  validateAllProviderModels,
+  verifyProviderConnection,
 } from "./owner-providers"
 import { ownerRead, ownerWrite } from "./http"
 
@@ -138,6 +140,39 @@ describe("versioned model Provider client", () => {
       "POST",
       "csrf",
       { catalog_id: "openai_chatgpt", alias: "My ChatGPT" },
+    )
+  })
+
+  it("does not apply the short browser timeout to model validation", async () => {
+    vi.mocked(ownerWrite)
+      .mockResolvedValueOnce({
+        connection_id: "openai_api_0001",
+        verification,
+      })
+      .mockResolvedValueOnce({
+        run_id: "validation-run",
+        status: "passed",
+        results: [],
+      })
+
+    await verifyProviderConnection("openai_api_0001", "csrf", true)
+    await validateAllProviderModels("csrf")
+
+    expect(ownerWrite).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/admin/model-providers/connections/openai_api_0001/verify?force_full=true",
+      "POST",
+      "csrf",
+      undefined,
+      { timeout: false },
+    )
+    expect(ownerWrite).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/admin/model-providers/model-validations",
+      "POST",
+      "csrf",
+      undefined,
+      { timeout: false },
     )
   })
 })
