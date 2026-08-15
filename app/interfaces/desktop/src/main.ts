@@ -48,6 +48,8 @@ let runtimeUiAvailable = false;
 let managementUiLoaded = false;
 let recoveryActionHandler: ((action: RecoveryAction) => void) | undefined;
 let recoveryActionRunning = false;
+const controllerOnly = process.argv.includes("--background");
+let controllerEnsurePending = false;
 
 type RecoveryAction =
   | "recover-data-home"
@@ -57,6 +59,7 @@ type RecoveryAction =
   | "quit";
 
 const uiUrl = process.env["ELFIENEST_UI_URL"] ?? DEFAULT_MANAGEMENT_UI_URL;
+let runtimeUiUrl = uiUrl;
 
 function trayIconPath(): string {
   const projectRoot = process.env["ELFIENEST_PROJECT_ROOT"];
@@ -88,7 +91,7 @@ async function loadManagementUi(window: BrowserWindow): Promise<void> {
   if (managementUiLoaded || !runtimeUiAvailable || window.isDestroyed()) return;
   managementUiLoaded = true;
   try {
-    await window.loadURL(uiUrl);
+    await window.loadURL(runtimeUiUrl);
   } catch (error: unknown) {
     managementUiLoaded = false;
     throw error;
@@ -212,6 +215,9 @@ async function continueAfterDataHomeRecovery(): Promise<void> {
     return;
   }
   runtimeUiAvailable = true;
+  if (state.kind === "attached" || state.kind === "owned") {
+    runtimeUiUrl = state.httpUrl ?? uiUrl;
+  }
   await loadManagementUi(window);
   startOwnedRuntimeMaintenance();
 }
@@ -290,6 +296,10 @@ async function handleDataHomeRecoveryAction(action: RecoveryAction): Promise<voi
 }
 
 async function startDesktop(): Promise<void> {
+  // Controller calls the installed CLI for lifecycle commands. Mark that
+  // child path so the CLI delegates to Core instead of starting another
+  // Controller recursively.
+  process.env["ELFIENEST_CONTROLLER_CLIENT"] = "1";
   if (app.isPackaged) {
     loadAndValidateResourceManifest(process.resourcesPath, app.getVersion());
   }
@@ -309,9 +319,6 @@ async function startDesktop(): Promise<void> {
     if (window === undefined) return;
     if (phase === "core_ready") {
       runtimeUiAvailable = true;
-      void loadManagementUi(window).catch((error: unknown) => {
-        console.error("ElfieNest management UI failed to load", error);
-      });
       return;
     }
     if (!runtimeUiAvailable) {
@@ -332,6 +339,9 @@ async function startDesktop(): Promise<void> {
   const window = managementWindow.current();
   if (window !== undefined) {
     runtimeUiAvailable = true;
+    if (state.kind === "attached" || state.kind === "owned") {
+      runtimeUiUrl = state.httpUrl ?? uiUrl;
+    }
     await loadManagementUi(window);
   }
 }
@@ -346,7 +356,11 @@ function startDesktopUiRole(): void {
     app.quit();
     return;
   }
-  app.on("second-instance", () => {
+  app.on("second-instance", (_event, commandLine) => {
+    if (commandLine.includes("--background")) {
+      void ensureControllerRuntime();
+      return;
+    }
     showManagementWindow();
   });
 
@@ -366,20 +380,46 @@ function startDesktopUiRole(): void {
         ),
       );
       createBackgroundTray(locale);
-      showManagementWindow();
+      if (!controllerOnly) {
+        showManagementWindow();
+      }
       return startDesktop().then(() => {
         if (roleController?.state.kind !== "failed") {
           startOwnedRuntimeMaintenance();
+        }
+        if (controllerEnsurePending) {
+          controllerEnsurePending = false;
+          void ensureControllerRuntime();
         }
       });
     })
     .catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "未知错误";
       console.error("ElfieNest Desktop 启动失败", message);
+      if (controllerOnly) {
+        app.quit();
+        return;
+      }
       const { window } = ensureManagementWindow();
       showStartupFailure(window, error);
       showManagementWindow();
     });
+}
+
+async function ensureControllerRuntime(): Promise<void> {
+  if (roleController === undefined) {
+    controllerEnsurePending = true;
+    return;
+  }
+  try {
+    const state = await roleController.ensureRuntime();
+    if (state.kind === "failed") {
+      console.error("ElfieNest Controller could not restore the Server", state.reason);
+    }
+  } catch (error: unknown) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error("ElfieNest Controller restore failed", detail);
+  }
 }
 
 startDesktopUiRole();

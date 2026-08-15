@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app.features.accounts import AccountPrincipal
 from app.features.adoption import AdoptionPolicyRecord, AdoptionService, CandidateReveal
 from app.interfaces.api.v1.auth import require_user
+from app.interfaces.api.runtime_capability import RuntimeCapabilityDenied
 from app.interfaces.api.v1.me.adoption.dependencies import (
     adoption_service,
     resident_admission_service,
@@ -163,6 +164,23 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
             (committed.json()["elfie_id"],),
         ).fetchone()
     assert tuple(stored) == ("星砂", selected["gender"], stored["birth_date"])
+
+
+def test_adoption_is_rejected_until_world_and_models_are_ready(tmp_path: Path) -> None:
+    client, _db_path = _client(tmp_path)
+
+    class DenyAdoption:
+        def require(self, operation: str) -> None:
+            assert operation == "adoption"
+            raise RuntimeCapabilityDenied(
+                "MODEL_SERVICE_NOT_READY", "领养所需的强模型服务尚未就绪"
+            )
+
+    client.app.state.runtime_capability_gate = DenyAdoption()
+    response = client.get("/api/v1/me/adoption")
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "MODEL_SERVICE_NOT_READY"
 
 
 def test_adoption_dtos_reject_extra_fields(tmp_path: Path) -> None:

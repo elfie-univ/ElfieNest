@@ -3,7 +3,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts import serve
 from scripts.serve import (
+    _delegate_direct_source_invocation,
     prepare_frontend_web_runtime,
     prepare_godot_web_runtime,
     service_host,
@@ -97,3 +99,42 @@ def test_serve_parser_rejects_file_data_home_target(tmp_path: Path) -> None:
 
     assert result.returncode == 2
     assert "不是目录" in result.stderr
+
+
+def test_direct_source_core_delegates_to_the_public_foreground_lifecycle(
+    monkeypatch,
+) -> None:
+    # Given: a developer invokes the Core entrypoint directly.
+    calls: list[tuple[str, list[str]]] = []
+    monkeypatch.delenv("ELFIENEST_MANAGED_START", raising=False)
+    monkeypatch.setattr(
+        serve.sys,
+        "argv",
+        ["scripts/serve.py", "--port", "8123", "--runtime-mode", "release"],
+    )
+    monkeypatch.setattr(
+        serve.os,
+        "execv",
+        lambda executable, arguments: calls.append((executable, arguments)),
+    )
+
+    # When
+    _delegate_direct_source_invocation()
+
+    # Then: the same Supervisor entrypoint owns the generation, and the
+    # runtime-mode choice is preserved for preflight.
+    assert calls == [
+        (
+            serve.sys.executable,
+            [
+                serve.sys.executable,
+                str(PROJECT_ROOT / "scripts" / "elfienest.py"),
+                "serve",
+                "--port",
+                "8123",
+                "--runtime-mode",
+                "release",
+            ],
+        )
+    ]
+    assert os.environ["ELFIENEST_RUNTIME_MODE"] == "release"

@@ -120,6 +120,12 @@ def main() -> None:
     serve_parser.add_argument("--port", type=int, default=None)
     serve_parser.add_argument("--godot-ws-port", type=int, default=None)
     serve_parser.add_argument("--data-home", default=None)
+    serve_parser.add_argument("--lan", action="store_true")
+    serve_parser.add_argument(
+        "--runtime-mode",
+        choices=("development", "release"),
+        default=None,
+    )
 
     start_parser = subparsers.add_parser("start", help="Start background service")
     start_parser.add_argument("--port", type=int, default=None)
@@ -362,6 +368,8 @@ def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
         options.extend(("--data-home", str(selected_home)))
     if getattr(args, "lan", False):
         options.append("--lan")
+    if getattr(args, "runtime_mode", None) is not None:
+        options.extend(("--runtime-mode", args.runtime_mode))
     return tuple(options)
 
 

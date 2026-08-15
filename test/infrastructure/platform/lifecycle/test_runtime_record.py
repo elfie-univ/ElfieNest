@@ -1,67 +1,112 @@
-"""Focused tests for the durable Runtime generation record."""
-
+from dataclasses import replace
 from pathlib import Path
 
-from app.orchestration.lifecycle.runtime_health import (
-    ComponentHealth,
+import pytest
+
+from app.orchestration.lifecycle.runtime_snapshot import (
+    BackendTier,
+    ComponentSnapshot,
+    ComponentState,
     OwnerLease,
     RuntimeComponent,
-    RuntimeHealth,
-    RuntimeHealthState,
+    RuntimePhase,
+    RuntimeSnapshotV1,
+    RuntimeTarget,
 )
+from app.orchestration.lifecycle.types import SnapshotRecoveryRequiredError
 from infrastructure.platform.lifecycle.runtime_record import FileRuntimeRecordAdapter
 
 
-def test_runtime_record_round_trip_and_remove(tmp_path: Path) -> None:
-    adapter = FileRuntimeRecordAdapter(tmp_path)
-    health = RuntimeHealth(
-        state=RuntimeHealthState.DEGRADED,
+def _snapshot() -> RuntimeSnapshotV1:
+    return RuntimeSnapshotV1(
+        instance_id="instance-1",
         generation=3,
-        owner_lease=OwnerLease(owner_id="cli", generation=3),
+        revision=1,
+        tier=BackendTier.WORLD_READY,
+        phase=RuntimePhase.WORLD_READY,
+        desired_target=RuntimeTarget.NORMAL,
+        reached_target=RuntimeTarget.WORLD,
+        owner_lease=OwnerLease("cli", 3),
         components=(
-            ComponentHealth(
+            ComponentSnapshot(
                 component=RuntimeComponent.GODOT_AUTHORITY,
-                state=RuntimeHealthState.READY,
+                state=ComponentState.READY,
                 detail="ready",
                 pid=23,
+                executable="/bin/godot",
+                birth_identity="birth-23",
             ),
         ),
     )
 
-    adapter.write(health)
 
-    assert adapter.read() == health
-    assert (tmp_path / "runtime" / "runtime.json").stat().st_mode & 0o777 == 0o600
-    adapter.remove()
-    assert adapter.read().state is RuntimeHealthState.STOPPED
-
-
-def test_runtime_record_round_trips_a_transient_startup_owner(tmp_path: Path) -> None:
+def test_runtime_record_round_trip_and_retain_offline_snapshot(tmp_path: Path) -> None:
     adapter = FileRuntimeRecordAdapter(tmp_path)
-    health = RuntimeHealth(
-        state=RuntimeHealthState.STARTING,
-        generation=4,
+    snapshot = _snapshot()
+
+    adapter.write(snapshot)
+
+    assert adapter.read() == snapshot
+    assert (tmp_path / "runtime" / "runtime.json").stat().st_mode & 0o777 == 0o600
+    offline = replace(
+        snapshot,
+        revision=2,
+        generation=3,
+        tier=BackendTier.OFFLINE,
+        phase=RuntimePhase.OFFLINE,
         owner_lease=None,
+        reached_target=None,
         components=(),
-        startup_owner_id="desktop-starting",
     )
+    adapter.write(offline)
+    assert adapter.read() == offline
 
-    adapter.write(health)
 
-    assert adapter.read() == health
+def test_runtime_record_initializes_only_an_empty_root(tmp_path: Path) -> None:
+    adapter = FileRuntimeRecordAdapter(tmp_path)
+
+    snapshot = adapter.initialize_if_fresh()
+
+    assert snapshot.instance_id != "uninitialized"
+    assert snapshot.tier is BackendTier.OFFLINE
+    assert snapshot.phase is RuntimePhase.OFFLINE
+
+
+def test_existing_root_without_snapshot_requires_explicit_recovery(tmp_path: Path) -> None:
+    (tmp_path / "database.sqlite").write_text("existing", encoding="utf-8")
+    adapter = FileRuntimeRecordAdapter(tmp_path)
+
+    with pytest.raises(SnapshotRecoveryRequiredError):
+        adapter.initialize_if_fresh()
+
+    assert adapter.read().phase is RuntimePhase.RECOVERY_REQUIRED
+
+
+def test_runtime_record_does_not_treat_stale_runtime_artifacts_as_fresh(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    (runtime_dir / "stale.log").write_text("leftover", encoding="utf-8")
+    adapter = FileRuntimeRecordAdapter(tmp_path)
+
+    with pytest.raises(SnapshotRecoveryRequiredError):
+        adapter.initialize_if_fresh()
 
 
 def test_runtime_record_rejects_invalid_shape(tmp_path: Path) -> None:
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()
     (runtime_dir / "runtime.json").write_text(
-        '{"generation": -1, "state": "ready", "components": []}',
+        '{"schema_version": 1, "instance_id": "x", "generation": -1, '
+        '"revision": 0, "tier": "offline", "phase": "offline", '
+        '"desired_target": "core", "components": []}',
         encoding="utf-8",
     )
 
     record = FileRuntimeRecordAdapter(tmp_path).read()
 
-    assert record.state is RuntimeHealthState.FAILED
+    assert record.phase is RuntimePhase.RECOVERY_REQUIRED
     assert record.owner_lease is None
 
 
@@ -69,13 +114,14 @@ def test_runtime_record_rejects_untyped_component_fields(tmp_path: Path) -> None
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()
     (runtime_dir / "runtime.json").write_text(
-        '{"generation": 1, "owner_id": "cli", "state": "ready", '
-        '"components": [{"component": "core", "state": "ready", '
-        '"detail": [], "pid": "23"}]}',
+        '{"schema_version": 1, "instance_id": "x", "generation": 1, '
+        '"revision": 0, "tier": "world_ready", "phase": "world_ready", '
+        '"desired_target": "normal", "components": [{"component": "core", '
+        '"state": "ready", "detail": [], "pid": "23"}]}',
         encoding="utf-8",
     )
 
     record = FileRuntimeRecordAdapter(tmp_path).read()
 
-    assert record.state is RuntimeHealthState.FAILED
+    assert record.phase is RuntimePhase.RECOVERY_REQUIRED
     assert record.components == ()

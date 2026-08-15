@@ -9,10 +9,18 @@ import type {
 } from "./desktop_role_lifecycle.js";
 
 type RuntimeStatus = Readonly<{
-  readonly state: "ready" | "degraded" | "starting" | "stopping" | "stopped" | "failed";
+  readonly state: "offline" | "core_ready" | "world_ready";
+  readonly phase: string;
   readonly generation: number;
   readonly ownerLease: string | null;
   readonly startupOwnerId: string | null;
+  readonly httpUrl: string | null;
+  readonly failures: readonly RuntimeFailure[];
+}>;
+
+type RuntimeFailure = Readonly<{
+  readonly code: string;
+  readonly detail: string;
 }>;
 
 export type DataHomeState = "fresh" | "ready" | "legacy" | "corrupt" | "permission";
@@ -33,7 +41,7 @@ export type RuntimeStartupPhase =
   | "starting"
   | "core_ready"
   | "authority_starting"
-  | "ready"
+  | "world_ready"
   | "stopping"
   | "failed";
 
@@ -90,6 +98,8 @@ export class LifecycleClientError extends Error {
 }
 
 const runFile = promisify(execFile);
+const STARTUP_ATTACH_TIMEOUT_MS = 30_000;
+const STARTUP_ATTACH_POLL_MS = 250;
 
 export function lifecycleCommandExecutable(
   isPackaged: boolean,
@@ -197,14 +207,14 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
             "Another ElfieNest checkout is using the service ports; Desktop refused to attach to its data",
           );
         }
-        return { kind: "attached", generation: initial.generation };
+        return {
+          kind: "attached",
+          generation: initial.generation,
+          ...(initial.httpUrl === null ? {} : { httpUrl: initial.httpUrl }),
+        };
       }
-      if (initial.state === "starting") {
-        return this.failure(
-          initial.startupOwnerId === null
-            ? "Runtime is already starting"
-            : "Runtime is already starting under another owner",
-        );
+      if (initial.phase === "core_starting") {
+        return this.waitForStartup(initial);
       }
       const startArguments = [
         "start",
@@ -227,9 +237,12 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
           kind: "owned",
           generation: started.generation,
           ownerLease: this.ownerLease,
+          ...(started.httpUrl === null ? {} : { httpUrl: started.httpUrl }),
         };
       }
-      return this.failure("Runtime did not grant the desktop owner lease");
+      return this.failure(
+        this.firstFailureDetail(started) ?? "Runtime did not grant the desktop owner lease",
+      );
     } catch (error: unknown) {
       return this.failure(this.errorMessage(error));
     }
@@ -255,7 +268,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       if (this.isReady(current) && current.ownerLease === ownerLease) {
         return this.ownedAttachment(current);
       }
-      if (current.state === "starting" && current.ownerLease === ownerLease) {
+      if (current.phase === "core_starting" && current.ownerLease === ownerLease) {
         return this.ownedAttachment(current);
       }
       if (current.ownerLease !== null && current.ownerLease !== ownerLease) {
@@ -277,6 +290,32 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
   private async status(): Promise<RuntimeStatus> {
     const output = await this.commandRunner.run(["status", "--json"]);
     return this.parseStatus(output);
+  }
+
+  private async waitForStartup(initial: RuntimeStatus): Promise<RuntimeAttachment> {
+    const deadline = Date.now() + STARTUP_ATTACH_TIMEOUT_MS;
+    let current = initial;
+    while (current.phase === "core_starting" && Date.now() < deadline) {
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, STARTUP_ATTACH_POLL_MS);
+      });
+      current = await this.status();
+    }
+    if (this.isReady(current) && current.ownerLease !== null) {
+      return {
+        kind: "attached",
+        generation: current.generation,
+        ...(current.httpUrl === null ? {} : { httpUrl: current.httpUrl }),
+      };
+    }
+    if (current.phase === "core_starting") {
+      return this.failure("Runtime startup did not become ready before timeout");
+    }
+    return this.failure(
+      current.phase === "failed"
+        ? this.firstFailureDetail(current) ?? "Runtime startup failed while Desktop was waiting"
+        : "Runtime did not become ready while Desktop was waiting",
+    );
   }
 
   private parseStatus(output: string): RuntimeStatus {
@@ -314,11 +353,15 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       throw new LifecycleClientError("Lifecycle status payload must be an object");
     }
     const state = Reflect.get(payload, "state");
+    const tier = Reflect.get(payload, "tier");
+    const phase = Reflect.get(payload, "phase");
     const generation = Reflect.get(payload, "generation");
     const ownerLease = Reflect.get(payload, "owner_lease");
     const startupOwnerId = Reflect.get(payload, "startup_owner_id");
+    const failures = this.parseFailures(payload);
     if (
-      !this.isLifecycleState(state) ||
+      !this.isLifecycleState(tier ?? state) ||
+      typeof phase !== "string" ||
       typeof generation !== "number" ||
       !Number.isInteger(generation) ||
       generation < 0
@@ -334,10 +377,13 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     }
     if (ownerLease === null) {
       return {
-        state,
+        state: (tier ?? state) as RuntimeStatus["state"],
+        phase,
         generation,
         ownerLease: null,
         startupOwnerId: typeof startupOwnerId === "string" ? startupOwnerId : null,
+        httpUrl: this.parseHttpUrl(payload),
+        failures,
       };
     }
     if (
@@ -350,11 +396,39 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       throw new LifecycleClientError("Lifecycle status owner lease is invalid");
     }
     return {
-      state,
+      state: (tier ?? state) as RuntimeStatus["state"],
+      phase,
       generation,
       ownerLease: ownerLease.owner_id,
       startupOwnerId: typeof startupOwnerId === "string" ? startupOwnerId : null,
+      httpUrl: this.parseHttpUrl(payload),
+      failures,
     };
+  }
+
+  private parseFailures(payload: object): readonly RuntimeFailure[] {
+    const rawFailures = Reflect.get(payload, "failures");
+    if (rawFailures === undefined) return [];
+    if (!Array.isArray(rawFailures)) {
+      throw new LifecycleClientError("Lifecycle failure list is invalid");
+    }
+    const failures: RuntimeFailure[] = [];
+    for (const rawFailure of rawFailures) {
+      if (
+        typeof rawFailure !== "object"
+        || rawFailure === null
+        || Array.isArray(rawFailure)
+        || typeof Reflect.get(rawFailure, "code") !== "string"
+        || typeof Reflect.get(rawFailure, "detail") !== "string"
+      ) {
+        throw new LifecycleClientError("Lifecycle failure item is invalid");
+      }
+      failures.push({
+        code: Reflect.get(rawFailure, "code") as string,
+        detail: Reflect.get(rawFailure, "detail") as string,
+      });
+    }
+    return failures;
   }
 
   private handleProgressLine(
@@ -446,7 +520,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     return value === "starting"
       || value === "core_ready"
       || value === "authority_starting"
-      || value === "ready"
+      || value === "world_ready"
       || value === "stopping"
       || value === "failed";
   }
@@ -461,17 +535,14 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
 
   private isLifecycleState(value: unknown): value is RuntimeStatus["state"] {
     return (
-      value === "ready" ||
-      value === "degraded" ||
-      value === "starting" ||
-      value === "stopping" ||
-      value === "stopped" ||
-      value === "failed"
+      value === "offline" ||
+      value === "core_ready" ||
+      value === "world_ready"
     );
   }
 
   private isReady(status: RuntimeStatus): boolean {
-    return status.state === "ready" || status.state === "degraded";
+    return status.state === "core_ready" || status.state === "world_ready";
   }
 
   private ownedAttachment(status: RuntimeStatus): RuntimeAttachment {
@@ -479,11 +550,48 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       kind: "owned",
       generation: status.generation,
       ownerLease: this.ownerLease,
+      ...(status.httpUrl === null ? {} : { httpUrl: status.httpUrl }),
     };
+  }
+
+  private parseHttpUrl(payload: object): string | null {
+    const endpoints = Reflect.get(payload, "endpoints");
+    if (!Array.isArray(endpoints)) return null;
+    for (const endpoint of endpoints) {
+      if (typeof endpoint !== "object" || endpoint === null || Array.isArray(endpoint)) {
+        continue;
+      }
+      const name = Reflect.get(endpoint, "name");
+      const scheme = Reflect.get(endpoint, "scheme");
+      const host = Reflect.get(endpoint, "host");
+      const port = Reflect.get(endpoint, "port");
+      if (
+        name !== "http"
+        || scheme !== "http"
+        || typeof host !== "string"
+        || !this.isLoopbackHost(host)
+        || typeof port !== "number"
+        || !Number.isInteger(port)
+        || port < 1
+        || port > 65535
+      ) {
+        continue;
+      }
+      return `http://${host}:${port}/`;
+    }
+    return null;
+  }
+
+  private isLoopbackHost(host: string): boolean {
+    return host === "127.0.0.1" || host === "localhost" || host === "::1";
   }
 
   private failure(reason: string): RuntimeAttachment {
     return { kind: "failed", reason, recoverable: true };
+  }
+
+  private firstFailureDetail(status: RuntimeStatus): string | undefined {
+    return status.failures.find((failure) => failure.detail.trim() !== "")?.detail;
   }
 
   private errorMessage(error: unknown): string {

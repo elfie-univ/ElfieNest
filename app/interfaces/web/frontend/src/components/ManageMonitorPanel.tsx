@@ -69,9 +69,9 @@ export function ManageMonitorPanel() {
     {issueAttention && <PersistentStatus kind="warning" message={t("runtimeMonitor.health.pending")} />}
     <div className="monitor-metrics">
       <Metric label={t("runtimeMonitor.cards.health")} value={t(`runtimeMonitor.health.${health}`)} detail={healthDetail(health, operationalIssues, snapshot, t)} state={healthMetricState(health)} />
+      <Metric label={t("runtimeMonitor.cards.services")} value={modelSummary === null ? "—" : `${modelSummary.healthy}/${modelSummary.configured}`} detail={modelSummary === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.servicesDetail", { count: modelSummary.availableModels, local: localServiceText(snapshot?.ollama ?? null, t) })} state={modelSummary === null ? "neutral" : modelSummary.healthy === modelSummary.configured ? "good" : "warning"} />
       <Metric label={t("runtimeMonitor.cards.users")} value={snapshot?.users === null || snapshot === null ? "—" : String(snapshot.users.length)} detail={snapshot?.users === null || snapshot === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.usersDetail", { count: onlineUsers(snapshot.users) })} state="neutral" />
       <Metric label={t("runtimeMonitor.cards.elfies")} value={snapshot?.elfies === null || snapshot === null ? "—" : String(snapshot.elfies.length)} detail={snapshot?.elfies === null || snapshot === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.elfiesDetail", { online: onlineElfies(snapshot.elfies), unassigned: unassignedCount ?? "—" })} state="neutral" />
-      <Metric label={t("runtimeMonitor.cards.services")} value={modelSummary === null ? "—" : `${modelSummary.healthy}/${modelSummary.configured}`} detail={modelSummary === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.servicesDetail", { count: modelSummary.availableModels, local: localServiceText(snapshot?.ollama ?? null, t) })} state={modelSummary === null ? "neutral" : modelSummary.healthy === modelSummary.configured ? "good" : "warning"} />
     </div>
     <div className="monitor-layout">
       <section className="monitor-module">

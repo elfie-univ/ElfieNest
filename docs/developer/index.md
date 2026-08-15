@@ -23,6 +23,8 @@ source of truth.
   target first-class ownership of one complete Elfie.
 - [Elfie Brain ten-system architecture](./designs/elfie-brain-ten-system-architecture):
   Brain's conceptual systems, runtime relationships and incremental implementation order.
+- [Service lifecycle state-machine design](./designs/service-lifecycle-state-machine):
+  stable service tiers, entrypoints, process ownership and convergence.
 - [Architecture contracts](./contracts/): the long-lived normative rules.
 - [Repository architecture governance](./contracts/repository-governance): how
   contracts, ADRs, local Agent rules, scanners, baselines and CI form one
@@ -31,6 +33,8 @@ source of truth.
   public sections, Developer document classes and bilingual structure rules.
 - [System architecture contract](./contracts/system): the target four-module
   structure, system Ports/Adapters and migration direction.
+- [Service lifecycle contract](./contracts/service-lifecycle): the normative
+  Runtime states, entrypoint semantics and managed-process invariants.
 - [Elfie internal architecture contract](./contracts/elfie): one Elfie's
   aggregate, life-system and Port ownership boundaries.
 - [Elfie Brain internal architecture contract](./contracts/brain): Turn,
@@ -42,6 +46,8 @@ source of truth.
 - [Application architecture contract](./contracts/application): the
   normative ownership, dependency, Port/Adapter and composition rules for new
   and migrated `app/` code.
+- [Service lifecycle conformance](./conformance/service-lifecycle): open gaps
+  between the accepted lifecycle contract and the current implementation.
 - [Architecture decisions (ADRs)](./decisions/): accepted reasoning for durable changes.
 
 ## Engineering

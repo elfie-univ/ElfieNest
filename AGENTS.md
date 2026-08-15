@@ -134,7 +134,8 @@ ElfieNest 当前目标是完成一套可安装、可运行、可观察、可继�
 中英文 [`System architecture contract`](docs/developer/contracts/system.md) 是跨根模块
 所有权和依赖方向的长期权威；Nest 内部所有权、Godot 语义线路和事件路由由中英文
 [`Nest–Godot semantic-world contract`](docs/developer/contracts/nest-godot-semantic-world.md)
-细化。系统形态为：
+细化；服务稳定态、入口与受管进程所有权由中英文
+[`Service lifecycle contract`](docs/developer/contracts/service-lifecycle.md)细化。系统形态为：
 
 ```text
 app/              产品入口、用例、编排与装配
@@ -164,7 +165,11 @@ godot_project/    独立 Godot 源工程与物理 authority
 - `app/orchestration/lifecycle` 是 Core、Gateway 与 Godot authority 启停、重启和收束的
   唯一编排者。Desktop/Observer 只是受限 lifecycle client 和只读观察面，不持有
   authority 凭据、不启动 Runtime、不发送原始协议帧。Interface 与 Feature 也不得构造
-  或接管 Engine、Gateway、Godot authority。
+  或接管 Engine、Gateway、Godot authority。Backend 稳定层级只有 `OFFLINE`、
+  `CORE_READY`、`WORLD_READY`；模型健康由模型能力服务从持久证据投影，Lifecycle 只消费。
+- 已打包 Desktop Controller 对每个 OS 用户全局唯一，Viewer 关闭不停止 Server；安装版
+  `elfienest start` 激活同一 Controller 而不打开 Viewer。源码 `./elfienest.sh` 只用于
+  隔离开发数据根，不能成为第二套生产入口。
 - Nest 拥有持久语义事实和技术无关的聚合快照；当前加载、保存、回滚与恢复时机及
   `NestStateStorePort` 归 `app/orchestration/nest_session`，具体 SQL/SQLite Adapter 归
   `infrastructure/persistence/`，由 Bootstrap 注入。App 不得因此直接修改 Nest 内部状态

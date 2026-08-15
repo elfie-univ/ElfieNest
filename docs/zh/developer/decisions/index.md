@@ -22,3 +22,4 @@
 - [ADR-0017：主人聊天采用完整回复投递](./0017-owner-chat-complete-response-delivery)
 - [ADR-0018：数据库变更必须经过影响盘点与最终状态门禁](./0018-database-change-impact-gates)
 - [ADR-0017：分离内置默认配置与用户配置](./0017-bundled-defaults-and-user-configuration)
+- [ADR-0019：权威服务生命周期与独立能力健康](./0019-authoritative-service-lifecycle)

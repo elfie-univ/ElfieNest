@@ -16,6 +16,7 @@ from app.features.communication import (
 )
 from app.features.elfies import ElfiesService
 from app.interfaces.api.v1.auth import require_user
+from app.interfaces.api.runtime_capability import RuntimeCapabilityDenied
 from app.interfaces.api.v1.me.conversations import router as conversations_router
 from app.interfaces.api.v1.realtime.chat import router as realtime_router
 from app.orchestration.message_delivery import (
@@ -112,6 +113,28 @@ def test_http_resources_use_strict_me_conversation_envelopes() -> None:
     assert sent.status_code == 201
     assert sent.json()["text"] == "你好"
     assert messages.json()["items"] == [sent.json()]
+
+
+def test_http_chat_is_rejected_by_the_server_capability_gate() -> None:
+    application, history = _application()
+
+    class DenyChat:
+        def require(self, operation: str) -> None:
+            assert operation == "chat"
+            raise RuntimeCapabilityDenied(
+                "MODEL_ROUTE_UNAVAILABLE", "没有可执行的聊天模型路线"
+            )
+
+    application.state.runtime_capability_gate = DenyChat()
+    with TestClient(application) as client:
+        response = client.post(
+            "/api/v1/me/conversations/00000001/messages",
+            json={"text": "你好"},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "MODEL_ROUTE_UNAVAILABLE"
+    assert history.messages == []
 
 
 def test_websocket_ack_and_persisted_reply_keep_the_existing_event_shapes() -> None:

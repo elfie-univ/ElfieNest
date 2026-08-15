@@ -71,6 +71,7 @@ class GodotAPIServer:
         self._running = False
         self._ready = threading.Event()
         self._startup_error: BaseException | None = None
+        self._startup_cancelled = threading.Event()
         self._body_sinks: dict[str, BodyEventSink] = {}
         self._body_sinks_lock = RLock()
 
@@ -80,6 +81,7 @@ class GodotAPIServer:
         self._running = True
         self._ready.clear()
         self._startup_error = None
+        self._startup_cancelled.clear()
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(
             target=self._run_event_loop,
@@ -88,12 +90,19 @@ class GodotAPIServer:
         )
         self._thread.start()
         if not self._ready.wait(timeout=3.0):
+            self._startup_cancelled.set()
+            self._running = False
+            timeout_error = TimeoutError(
+                "Godot Runtime gateway did not become ready within 3 seconds"
+            )
+            self._startup_error = timeout_error
             logger.error("Godot Runtime gateway did not become ready within 3 seconds")
-            return
+            self._thread.join(timeout=0.5)
+            raise RuntimeError(str(timeout_error)) from timeout_error
         if self._startup_error is not None:
             self._running = False
             raise RuntimeError(
-                "Godot Runtime gateway failed to start"
+                f"Godot Runtime gateway failed to start: {self._startup_error}"
             ) from self._startup_error
 
     def stop(self) -> None:
@@ -128,6 +137,11 @@ class GodotAPIServer:
         except BaseException as exc:
             self._startup_error = exc
             self._ready.set()
+            self._loop.close()
+            return
+        if self._startup_cancelled.is_set():
+            self._server.close()
+            self._loop.run_until_complete(self._server.wait_closed())
             self._loop.close()
             return
         self._ready.set()

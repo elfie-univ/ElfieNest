@@ -14,6 +14,8 @@ Elfie 事件 fan-out。
   Godot、模型、网络或设备。
 - `lifecycle/` 是 Runtime 生命周期唯一所有者；`embodiment/` 只协调真实精灵、Nest
   与外部身体，不拥有设备传输实现。
+- `lifecycle/` 必须遵守服务生命周期契约的三层稳定态、独立模型轴、命令串行化和
+  generation 级收束；状态读取不得触发启动或修复。
 
 最终工作流目录固定为 `lifecycle`、`nest_session`、`resident_admission`、
 `setup_installation`、`message_delivery`、`embodiment`、`observer`：

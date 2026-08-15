@@ -11,11 +11,13 @@ from app.orchestration.setup_installation import (
     SetupInstallationPortError,
     SetupOllamaBinding,
     SetupOllamaProbe,
+    SetupOllamaTaskLease,
 )
 
 LoadBinding = Callable[[], Optional[SetupOllamaBinding]]
 SaveBinding = Callable[[SetupOllamaBinding], None]
 SaveModel = Callable[[str], str]
+AcquireTaskLease = Callable[[SetupOllamaBinding], Optional[SetupOllamaTaskLease]]
 
 
 class SetupOllamaTechnologyPort(Protocol):
@@ -47,11 +49,13 @@ class SetupOllamaAdapter:
         load_binding: LoadBinding,
         save_binding: SaveBinding,
         save_model: SaveModel,
+        acquire_task_lease: AcquireTaskLease | None = None,
     ) -> None:
         self._technology = technology
         self._load_binding = load_binding
         self._save_binding = save_binding
         self._save_model = save_model
+        self._acquire_task_lease = acquire_task_lease
 
     def inspect(self) -> StoredOllamaObservation:
         try:
@@ -75,7 +79,9 @@ class SetupOllamaAdapter:
         except (OSError, RuntimeError, ValueError) as error:
             raise SetupPortError("unable to inspect Ollama") from error
 
-    def ensure_installation(self, report: Callable[[str], None]) -> None:
+    def ensure_installation(
+        self, report: Callable[[str], None]
+    ) -> Optional[SetupOllamaTaskLease]:
         try:
             saved = self._load_binding()
             binding = saved or self._default_binding()
@@ -85,16 +91,18 @@ class SetupOllamaAdapter:
                 self._save_binding(
                     replace(binding, version=probe.version or binding.version)
                 )
-                return
+                return self._acquire_task_lease_for(binding)
             if probe.state == "stopped":
                 report("ollama.start")
-                self._technology.start_bound_installation(binding)
+                lease = self._acquire_task_lease_for(binding)
+                if lease is None:
+                    self._technology.start_bound_installation(binding)
                 started = self._technology.wait_for_healthy(binding)
                 if started.state == "healthy":
                     self._save_binding(
                         replace(binding, version=started.version or binding.version)
                     )
-                    return
+                    return lease
             report("ollama.repair" if saved is not None else "ollama.install")
             installer = self._technology.download_official_installer()
             self._technology.run_confirmed_installer(installer, user_confirmed=True)
@@ -102,15 +110,26 @@ class SetupOllamaAdapter:
                 endpoint=binding.api_base,
                 installer=installer,
             )
-            self._technology.start_bound_installation(installed)
+            self._save_binding(installed)
+            lease = self._acquire_task_lease_for(installed)
+            if lease is None:
+                self._technology.start_bound_installation(installed)
             healthy = self._technology.wait_for_healthy(installed)
             if healthy.state != "healthy":
                 raise RuntimeError("官方 Ollama 安装后未通过健康检查")
             self._save_binding(
                 replace(installed, version=healthy.version or installed.version)
             )
+            return lease
         except (OSError, RuntimeError, ValueError) as error:
             raise SetupInstallationPortError("unable to prepare Ollama") from error
+
+    def _acquire_task_lease_for(
+        self, binding: SetupOllamaBinding
+    ) -> Optional[SetupOllamaTaskLease]:
+        if self._acquire_task_lease is None:
+            return None
+        return self._acquire_task_lease(binding)
 
     def ensure_model(self, model_id: str, report: Callable[[str], None]) -> str:
         try:

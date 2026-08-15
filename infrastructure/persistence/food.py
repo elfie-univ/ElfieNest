@@ -171,6 +171,26 @@ class SQLiteFoodAdapter:
         except (OSError, sqlite3.Error, TypeError, ValueError) as error:
             raise FoodPortError("Unable to read Elfie Food assignment") from error
 
+    def list_assignments(self) -> tuple[StoredElfieFoodAssignment, ...]:
+        """Return active Elfie Food assignments for the lifecycle projection."""
+        try:
+            with app_sqlite_connection(self._db_path) as connection:
+                rows = connection.execute(
+                    """SELECT elfie_id,owner_user_id,main_food_id
+                       FROM elfies WHERE main_food_id IS NOT NULL
+                       ORDER BY elfie_id"""
+                ).fetchall()
+            return tuple(
+                StoredElfieFoodAssignment(
+                    elfie_id=str(row["elfie_id"]),
+                    owner_user_id=int(row["owner_user_id"]),
+                    main_food_id=str(row["main_food_id"]),
+                )
+                for row in rows
+            )
+        except (OSError, sqlite3.Error, TypeError, ValueError) as error:
+            raise FoodPortError("Unable to list Elfie Food assignments") from error
+
     def set_main_food(self, elfie_id: str, food_id: str) -> None:
         try:
             with app_sqlite_connection(self._db_path) as connection:

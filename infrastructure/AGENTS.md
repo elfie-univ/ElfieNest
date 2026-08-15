@@ -18,3 +18,6 @@
 - Infrastructure 异常在边界翻译为稳定技术失败，不把供应商、数据库或文件异常原样
   泄漏给 Interface。
 - 持久化、设备、Godot 等子目录的 `AGENTS.md` 可继续细化，但不能改变上述依赖方向。
+- `infrastructure/models/` 只拥有模型技术观测、验证、调用和证据 Adapter；App Food
+  拥有模型健康总览策略，Lifecycle 只能通过窄 Port 读取结果。Ollama 进程机制实现
+  Lifecycle 所需 Port，但不能自行决定跨实例所有权。

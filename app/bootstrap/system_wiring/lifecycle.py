@@ -5,12 +5,69 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from app.interfaces.api.runtime_capability import RuntimeCapabilityDenied
+from app.orchestration.lifecycle.capability_gate import CapabilityDeniedError
+
 if TYPE_CHECKING:
     from app.orchestration.lifecycle import LifecycleFacade
+
+
+@dataclass(frozen=True)
+class LifecycleRuntimeCapabilityGate:
+    """Adapt the authoritative lifecycle permit issuer to the API Port."""
+
+    lifecycle: LifecycleFacade
+    elfie_home: Path
+
+    def require(self, operation: str) -> None:
+        try:
+            self.lifecycle.issue_capability_permit(self.elfie_home, operation)
+        except CapabilityDeniedError as error:
+            raise RuntimeCapabilityDenied(error.code, error.detail) from error
+
+
+def create_runtime_capability_gate(
+    lifecycle: LifecycleFacade, elfie_home: Path
+) -> LifecycleRuntimeCapabilityGate:
+    return LifecycleRuntimeCapabilityGate(lifecycle, elfie_home)
+
+
+def _load_configured_ollama_binding(elfie_home: Path):
+    """Read the current data root's persisted local Ollama binding only."""
+    from app.features.configuration.providers import StoredLocalProviderBinding
+    from infrastructure.persistence.layout.data_layout import final_root_layout
+    from infrastructure.persistence.provider_connections import ProviderConnectionStore
+
+    document = ProviderConnectionStore(
+        final_root_layout(elfie_home).providers_config
+    ).load()
+    for connection in document.connections.values():
+        if (
+            connection.catalog_id != "ollama"
+            or not connection.enabled
+            or connection.archived
+            or not connection.api_base
+        ):
+            continue
+        installation = connection.installation
+        platform = installation.get("platform", "")
+        if platform not in {"darwin", "linux", "win32"}:
+            return None
+        return StoredLocalProviderBinding(
+            api_base=connection.api_base,
+            platform=platform,
+            install_kind=installation.get("install_kind", "existing-public"),
+            launch_target=installation.get("launch_target", ""),
+            version=installation.get("version", ""),
+            installer_source_url=installation.get("installer_source_url", ""),
+            installer_sha256=installation.get("installer_sha256", ""),
+        )
+    return None
 
 
 def _build_offline_validator(db_path: str) -> Callable[[], bool]:
@@ -60,6 +117,9 @@ def create_lifecycle_facade() -> LifecycleFacade:
     from app.orchestration.lifecycle import LifecycleFacade
     from infrastructure.godot.artifacts.web_build import GodotWebBuildAdapter
     from infrastructure.godot.lifecycle.authority import GodotAuthorityHostAdapter
+    from infrastructure.models.model_health_projection import (
+        FoodModelHealthProjectionAdapter,
+    )
     from infrastructure.models.ollama.lifecycle_ollama import OllamaLifecycleAdapter
     from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
     from infrastructure.persistence.layout.data_home import get_db_path
@@ -106,8 +166,10 @@ def create_lifecycle_facade() -> LifecycleFacade:
             inspector=inspector,
         ),
         optional_component=OllamaLifecycleAdapter(
-            PublicOllamaProviderAdapter(catalog=provider_catalog)
+            PublicOllamaProviderAdapter(catalog=provider_catalog),
+            binding_loader=_load_configured_ollama_binding,
         ),
+        model_projection_factory=FoodModelHealthProjectionAdapter,
         frontend_preparation=FrontendBuildAdapter(discover_web_build),
         godot_web_preparation=GodotWebBuildAdapter(),
         data_home=local_data,

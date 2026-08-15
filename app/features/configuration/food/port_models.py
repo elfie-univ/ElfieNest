@@ -7,6 +7,9 @@ from typing import Literal
 
 FoodSystemRole = Literal["emergency", "common"]
 FoodVisibilityMode = Literal["global", "users"]
+ModelHealthStatus = Literal[
+    "unconfigured", "healthy", "degraded", "unavailable"
+]
 
 FOOD_ROLES = ("primary", "reasoning", "vision", "tool", "fallback")
 
@@ -84,6 +87,17 @@ class StoredFoodHealth:
 
 
 @dataclass(frozen=True)
+class StoredModelServiceHealth:
+    """Aggregate model capability health projected from Food evidence."""
+
+    status: ModelHealthStatus
+    common_status: ModelHealthStatus
+    emergency_status: ModelHealthStatus
+    required_food_ids: tuple[str, ...] = ()
+    latest_evidence_at: str | None = None
+
+
+@dataclass(frozen=True)
 class StoredFoodChange:
     role: str
     old_model: str | None
@@ -108,11 +122,13 @@ __all__ = (
     "FOOD_ROLES",
     "FoodSystemRole",
     "FoodVisibilityMode",
+    "ModelHealthStatus",
     "StoredElfieFoodAssignment",
     "StoredFoodChange",
     "StoredFoodDefaults",
     "StoredFoodHealth",
     "StoredFoodPackage",
+    "StoredModelServiceHealth",
     "StoredFoodProposal",
     "StoredModelEvidence",
 )

@@ -183,6 +183,7 @@ def build_application_container(
         provider_state=provider_models,
         food_evidence=provider_evidence,
         catalog=provider_catalog,
+        data_home=data_home,
     )
     bodies = BodiesService(SQLiteBodiesAdapter(db_path))
     embodiment = EmbodimentSessionService(SQLiteEmbodimentLeaseAdapter(db_path))

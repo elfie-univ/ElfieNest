@@ -10,9 +10,11 @@ import pytest
 
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import foreground_runtime, lifecycle_commands
-from app.orchestration.lifecycle.runtime_health import (
-    RuntimeHealth,
-    RuntimeHealthState,
+from app.orchestration.lifecycle.runtime_snapshot import (
+    BackendTier,
+    RuntimePhase,
+    RuntimeProjectionV1,
+    RuntimeTarget,
 )
 from app.orchestration.lifecycle.types import (
     LaunchFailedError,
@@ -29,7 +31,7 @@ class FakeSupervisor:
         self,
         start_result: ServiceLifecycleResult,
         *,
-        health_states: tuple[RuntimeHealthState, ...] = (),
+        health_states: tuple[BackendTier, ...] = (),
         stop_result: Optional[ServiceLifecycleResult] = None,
     ) -> None:
         self.start_result = start_result
@@ -43,14 +45,23 @@ class FakeSupervisor:
         self.owner_ids.append(owner_id)
         return self.start_result
 
-    def status(self) -> RuntimeHealth:
+    def status(self) -> RuntimeProjectionV1:
         self.calls.append("status")
-        state = self.health_states.pop(0)
-        return RuntimeHealth(
-            state=state,
+        tier = self.health_states.pop(0)
+        return RuntimeProjectionV1(
+            schema_version=1,
+            instance_id="test",
             generation=1,
-            owner_lease=None,
-            components=(),
+            revision=1,
+            tier=tier,
+            phase=(
+                RuntimePhase.OFFLINE
+                if tier is BackendTier.OFFLINE
+                else RuntimePhase.CORE_READY
+            ),
+            subphase="",
+            desired_target=RuntimeTarget.NORMAL,
+            reached_target=None,
         )
 
     def stop(self) -> ServiceLifecycleResult:
@@ -160,7 +171,7 @@ def test_keyboard_interrupt_stops_owned_generation_once_then_propagates(
     # Given
     supervisor = FakeSupervisor(
         ServiceLifecycleResult(status="started"),
-        health_states=(RuntimeHealthState.READY,),
+        health_states=(BackendTier.WORLD_READY,),
     )
     _wire_supervisor(monkeypatch, supervisor, ("/tmp/core",))
 
@@ -180,7 +191,7 @@ def test_shutdown_request_stops_once_and_returns_stop_result(
     stop_result = ServiceLifecycleResult(status="stopped", pid=321)
     supervisor = FakeSupervisor(
         ServiceLifecycleResult(status="started"),
-        health_states=(RuntimeHealthState.READY,),
+        health_states=(BackendTier.WORLD_READY,),
         stop_result=stop_result,
     )
     _wire_supervisor(monkeypatch, supervisor, ("/tmp/core",))
@@ -212,11 +223,11 @@ def test_shutdown_request_stops_once_and_returns_stop_result(
 
 
 @pytest.mark.parametrize(
-    "failed_state", (RuntimeHealthState.FAILED, RuntimeHealthState.STOPPED)
+    "failed_state", (BackendTier.OFFLINE,)
 )
 def test_terminal_health_stops_once_then_returns_typed_failure(
     monkeypatch: pytest.MonkeyPatch,
-    failed_state: RuntimeHealthState,
+    failed_state: BackendTier,
 ) -> None:
     # Given
     supervisor = FakeSupervisor(
@@ -243,7 +254,7 @@ def test_ready_and_degraded_health_keep_waiting_until_shutdown(
     # Given
     supervisor = FakeSupervisor(
         ServiceLifecycleResult(status="started"),
-        health_states=(RuntimeHealthState.READY, RuntimeHealthState.DEGRADED),
+        health_states=(BackendTier.CORE_READY, BackendTier.WORLD_READY),
     )
     _wire_supervisor(monkeypatch, supervisor, ("/tmp/core",))
     wait_results = iter((False, True))

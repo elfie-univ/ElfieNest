@@ -16,7 +16,11 @@ from app.orchestration.lifecycle.helpers import (
     existing_service_command,
     recorded_pid,
 )
-from app.orchestration.lifecycle.ports import RecoveryLockPort, ServiceProcessPort
+from app.orchestration.lifecycle.ports import (
+    RecoveryLockPort,
+    RuntimeRecordPort,
+    ServiceProcessPort,
+)
 from app.orchestration.lifecycle.start_cleanup import cleanup_failed_start
 from app.orchestration.lifecycle.types import (
     HealthCheckFailedError,
@@ -45,11 +49,14 @@ def stop_service(
     monotonic: Callable[[], float] = time.monotonic,
     sleeper: Callable[[float], None] = time.sleep,
     expected_command: Sequence[str] = (),
+    runtime_record: Optional[RuntimeRecordPort] = None,
 ) -> ServiceLifecycleResult:
     """Stop the service only when the PID identity exactly matches this project."""
     pid_path = elfie_home / "elfienest.pid"
+    observed_ports = _runtime_ports(runtime_record)
+    ports_to_check = observed_ports or DEFAULT_SERVICE_PORTS
     if not process_port.receipt_exists(elfie_home):
-        if process_port.ports_in_use(DEFAULT_SERVICE_PORTS):
+        if process_port.ports_in_use(ports_to_check):
             return ServiceLifecycleResult(
                 status="failed",
                 error=ServicePortsActiveError("Missing verifiable PID receipt"),
@@ -65,7 +72,7 @@ def stop_service(
     if isinstance(pid_result, InvalidPidFileError):
         return ServiceLifecycleResult(status="failed", error=pid_result)
     if pid_result is None:
-        if process_port.ports_in_use(DEFAULT_SERVICE_PORTS):
+        if process_port.ports_in_use(ports_to_check):
             return ServiceLifecycleResult(
                 status="failed",
                 error=ServicePortsActiveError("Missing verifiable PID receipt"),
@@ -74,7 +81,7 @@ def stop_service(
     pid = pid_result
     try:
         if not process_port.exists(pid):
-            if process_port.ports_in_use(DEFAULT_SERVICE_PORTS):
+            if process_port.ports_in_use(ports_to_check):
                 return ServiceLifecycleResult(
                     status="failed",
                     pid=pid,
@@ -201,6 +208,22 @@ def stop_service(
     )
 
 
+def _runtime_ports(runtime_record: Optional[RuntimeRecordPort]) -> tuple[int, ...]:
+    """Use published endpoints when a dynamic service has no PID receipt."""
+    if runtime_record is None:
+        return ()
+    try:
+        snapshot = runtime_record.read()
+    except (OSError, RuntimeError, ValueError):
+        return ()
+    ports = tuple(
+        endpoint.port
+        for endpoint in snapshot.endpoints
+        if endpoint.name in {"http", "godot_ws"} and endpoint.port > 0
+    )
+    return tuple(dict.fromkeys(ports))
+
+
 def start_service(
     elfie_home: Path,
     project_root: Path,
@@ -252,6 +275,10 @@ def start_service(
                         "An existing service is using different ports; run restart or stop before changing ports"
                     ),
                 )
+            # The command reservation only protects the short read/decision
+            # window.  Never hold it while waiting on an HTTP health probe.
+            startup_lease.release()
+            lease_released = True
             try:
                 existing_healthy = health_checker()
             except (OSError, RuntimeError, ValueError):

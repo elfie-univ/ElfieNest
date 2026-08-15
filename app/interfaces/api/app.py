@@ -46,6 +46,7 @@ from .errors import (
 from .health_models import HealthResponse
 from .page_routes import router as page_router
 from .request_limits import AvatarUploadBodyLimitMiddleware
+from .runtime_capability import RuntimeCapabilityGate
 from .service_access import ServiceAccessPolicy, configure_service_access
 from .v1.auth import verify_csrf_token
 
@@ -127,6 +128,7 @@ def create_http_application(
     service_access: ServiceAccessPolicy,
     web_build: WebBuild | None,
     web_build_error: str | None,
+    runtime_capability_gate: RuntimeCapabilityGate | None = None,
 ) -> FastAPI:
     """Create and configure the FastAPI application.
 
@@ -160,6 +162,7 @@ def create_http_application(
     app.state.body_device_channel = body_device_channel
     app.state.web_build = web_build
     app.state.web_build_error = web_build_error
+    app.state.runtime_capability_gate = runtime_capability_gate
     app.add_middleware(AvatarUploadBodyLimitMiddleware)
 
     configure_service_access(app, service_access)

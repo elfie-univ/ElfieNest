@@ -1,5 +1,12 @@
 """Stable public facade and models for Runtime lifecycle orchestration."""
 
+from app.orchestration.lifecycle.capability_gate import (
+    DEFAULT_CAPABILITY_REQUIREMENTS,
+    CapabilityDeniedError,
+    CapabilityPermit,
+    CapabilityRequirement,
+    CapabilityRequirementRegistry,
+)
 from app.orchestration.lifecycle.commands import (
     DEFAULT_GODOT_WS_PORT,
     DEFAULT_HTTP_PORT,
@@ -21,12 +28,22 @@ from app.orchestration.lifecycle.ports import (
     ServicePortStatus,
     UninstallState,
 )
-from app.orchestration.lifecycle.runtime_health import (
-    ComponentHealth,
+from app.orchestration.lifecycle.runtime_snapshot import (
+    BackendTier,
+    ComponentSnapshot,
+    ComponentState,
+    EndpointSnapshot,
+    FailureSnapshot,
+    ModelHealthProjection,
+    ModelOverallState,
+    OwnerLease,
     RuntimeComponent,
-    RuntimeHealth,
-    RuntimeHealthState,
+    RuntimeObservation,
+    RuntimePhase,
     RuntimeProgressPhase,
+    RuntimeProjectionV1,
+    RuntimeSnapshotV1,
+    RuntimeTarget,
 )
 from app.orchestration.lifecycle.types import (
     DataHomeRecoveryError,
@@ -36,14 +53,22 @@ from app.orchestration.lifecycle.types import (
     ServiceLifecycleResult,
     ServicePortsActiveError,
 )
+from app.orchestration.lifecycle.world_worker import RuntimeWorldWorker
 
 __all__ = [
     "AuthorityHostConfig",
+    "CapabilityDeniedError",
+    "CapabilityPermit",
+    "CapabilityRequirement",
+    "CapabilityRequirementRegistry",
+    "DEFAULT_CAPABILITY_REQUIREMENTS",
     "DataHomeInspection",
     "DataHomeRecoveryError",
     "DataHomeRecoveryResult",
     "DataHomeState",
-    "ComponentHealth",
+    "BackendTier",
+    "ComponentSnapshot",
+    "ComponentState",
     "DEFAULT_GODOT_WS_PORT",
     "DEFAULT_HTTP_PORT",
     "DEFAULT_SERVICE_PORTS",
@@ -53,11 +78,20 @@ __all__ = [
     "LaunchFailedError",
     "LifecycleFacade",
     "MANAGED_START_ENV",
+    "EndpointSnapshot",
+    "FailureSnapshot",
+    "ModelHealthProjection",
+    "ModelOverallState",
+    "OwnerLease",
     "RecoveryInProgressError",
     "RuntimeComponent",
-    "RuntimeHealth",
+    "RuntimeObservation",
+    "RuntimePhase",
     "RuntimeProgressPhase",
-    "RuntimeHealthState",
+    "RuntimeProjectionV1",
+    "RuntimeSnapshotV1",
+    "RuntimeTarget",
+    "RuntimeWorldWorker",
     "RuntimeLifecycle",
     "ServiceLifecycleResult",
     "ServicePortStatus",

@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
+from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Protocol, Sequence
 
 from app.orchestration.lifecycle import desktop
+from app.orchestration.lifecycle.capability_gate import (
+    DEFAULT_CAPABILITY_REQUIREMENTS,
+    CapabilityPermit,
+    CapabilityRequirementRegistry,
+)
 from app.orchestration.lifecycle.helpers import existing_service_command, recorded_pid
 from app.orchestration.lifecycle.ports import (
     AuthorityHostConfig,
@@ -24,6 +30,7 @@ from app.orchestration.lifecycle.ports import (
     LifecycleDataHomePort,
     LifecycleLease,
     LocalProcessEntry,
+    ModelHealthProjectionFactory,
     OptionalRuntimeComponentPort,
     ProcessSnapshot,
     RecoveryLockPort,
@@ -34,30 +41,40 @@ from app.orchestration.lifecycle.ports import (
     UninstallPort,
     UninstallState,
 )
-from app.orchestration.lifecycle.runtime_health import (
-    RuntimeHealth,
+from app.orchestration.lifecycle.runtime_snapshot import (
+    ModelHealthProjection,
+    ModelOverallState,
+    RuntimeObservation,
     RuntimeProgressPhase,
+    RuntimeProjectionV1,
+    RuntimeSnapshotV1,
+    RuntimeTarget,
 )
-from app.orchestration.lifecycle.runtime_supervisor import (
-    PrepareOptionalComponent,
-    RuntimeSupervisor,
-)
+from app.orchestration.lifecycle.runtime_supervisor import RuntimeSupervisor
 from app.orchestration.lifecycle.service import start_service, stop_service
 from app.orchestration.lifecycle.types import (
     DataHomeRecoveryError,
     InvalidPidFileError,
     ServiceLifecycleResult,
 )
+from app.orchestration.lifecycle.world_worker import RuntimeWorldWorker
 
 
 class RuntimeLifecycle(Protocol):
     """Public lifecycle controller returned to inbound clients."""
 
-    def start(self, *, owner_id: str) -> ServiceLifecycleResult:
+    def start(
+        self,
+        *,
+        owner_id: str,
+        desired_target: RuntimeTarget = RuntimeTarget.NORMAL,
+        wait_target: RuntimeTarget = RuntimeTarget.CORE,
+        correlation_id: Optional[str] = None,
+    ) -> ServiceLifecycleResult:
         """Start one owned Runtime generation."""
 
-    def status(self) -> RuntimeHealth:
-        """Return the latest strict Runtime health snapshot."""
+    def status(self) -> RuntimeProjectionV1:
+        """Return the latest read-only Runtime projection."""
 
     def stop(self) -> ServiceLifecycleResult:
         """Stop the currently owned Runtime generation."""
@@ -77,6 +94,7 @@ class LifecycleFacade:
         runtime_record_factory: RuntimeRecordFactory,
         authority_host_factory: AuthorityHostFactory,
         optional_component: Optional[OptionalRuntimeComponentPort] = None,
+        model_projection_factory: Optional[ModelHealthProjectionFactory] = None,
         frontend_preparation: Optional[FrontendPreparationPort] = None,
         godot_web_preparation: Optional[GodotWebPreparationPort] = None,
         data_home: Optional[LifecycleDataHomePort] = None,
@@ -93,6 +111,7 @@ class LifecycleFacade:
         self._runtime_record_factory = runtime_record_factory
         self._authority_host_factory = authority_host_factory
         self._optional_component = optional_component
+        self._model_projection_factory = model_projection_factory
         self._frontend_preparation = frontend_preparation
         self._godot_web_preparation = godot_web_preparation
         self._data_home = data_home
@@ -268,6 +287,73 @@ class LifecycleFacade:
         if self._optional_component is not None:
             self._optional_component.prepare()
 
+    def acquire_optional_component_lease(
+        self,
+        *,
+        owner_id: str,
+        instance_id: str,
+        generation: int,
+        elfie_home: Optional[Path] = None,
+    ) -> Optional[LifecycleLease]:
+        """Acquire the optional component lease without exposing its technology."""
+        if self._optional_component is None:
+            return None
+        acquire = getattr(self._optional_component, "acquire", None)
+        if not callable(acquire):
+            return None
+        return acquire(
+            owner_id=owner_id,
+            instance_id=instance_id,
+            generation=generation,
+            elfie_home=elfie_home,
+        )
+
+    def runtime_snapshot(self, elfie_home: Path) -> RuntimeSnapshotV1:
+        """Read the authoritative snapshot for a Core-resident handoff."""
+        return self._runtime_record_factory(elfie_home).read()
+
+    def issue_capability_permit(
+        self,
+        elfie_home: Path,
+        operation: str,
+        *,
+        registry: CapabilityRequirementRegistry = DEFAULT_CAPABILITY_REQUIREMENTS,
+    ) -> CapabilityPermit:
+        """Issue a revision-bound permit without starting or probing anything."""
+        snapshot = self.runtime_snapshot(elfie_home)
+        model = self.model_health_projection(elfie_home)
+        projection = replace(
+            snapshot.projection(),
+            model_state=model.state,
+            model_common_state=model.common_state,
+            model_emergency_state=model.emergency_state,
+            model_revision=model.revision,
+        )
+        return registry.issue(operation, projection)
+
+    def model_health_projection(self, elfie_home: Path) -> ModelHealthProjection:
+        """Read the Food-owned model projection without performing validation."""
+        if self._model_projection_factory is None:
+            optional_ready = self.optional_component_ready()
+            return ModelHealthProjection(
+                state=(
+                    ModelOverallState.READY
+                    if optional_ready
+                    else ModelOverallState.DEGRADED
+                ),
+                common_state=(
+                    ModelOverallState.READY
+                    if optional_ready
+                    else ModelOverallState.DEGRADED
+                ),
+                emergency_state=(
+                    ModelOverallState.READY
+                    if optional_ready
+                    else ModelOverallState.UNAVAILABLE
+                ),
+            )
+        return self._model_projection_factory(elfie_home).read()
+
     def runtime_supervisor(
         self,
         *,
@@ -275,8 +361,7 @@ class LifecycleFacade:
         project_root: Path,
         launch_command: Sequence[str],
         authority_config: AuthorityHostConfig,
-        health_probe: Callable[[], RuntimeHealth],
-        prepare_optional_component: PrepareOptionalComponent = lambda: None,
+        health_probe: Callable[[], RuntimeObservation],
         authority_timeout_seconds: float = 10.0,
         core_timeout_seconds: float = 10.0,
         child_environment: Optional[Mapping[str, str]] = None,
@@ -296,19 +381,46 @@ class LifecycleFacade:
                 child_environment=child_environment,
             ),
             stop_core=lambda: self.stop_service(elfie_home, project_root),
-            prepare_optional_component=prepare_optional_component,
             owns_pid_record=lambda: (
                 existing_service_command(
                     elfie_home,
                     project_root,
                     self._process_port,
-                    command,
+                    self._service_launch_command,
                 )
                 is not None
             ),
-            authority_host=self._authority_host_factory(authority_config),
+            # Godot is owned by the Core-resident World worker. The launcher
+            # may wait for its published WORLD_READY snapshot but must not
+            # start a second authority process itself.
+            authority_host=None,
             authority_timeout_seconds=authority_timeout_seconds,
             progress_callback=progress_callback,
+            command_lease_factory=lambda: self._recovery_lock.acquire_start_lease(
+                elfie_home
+            ),
+            model_projection_probe=lambda: self.model_health_projection(elfie_home),
+        )
+
+    def runtime_world_worker(
+        self,
+        *,
+        elfie_home: Path,
+        authority_config: AuthorityHostConfig,
+        world_ready_probe: Callable[[], bool],
+        authority_timeout_seconds: float = 120.0,
+        max_attempts: int = 120,
+    ) -> RuntimeWorldWorker:
+        """Build the Core-resident World convergence worker."""
+        return RuntimeWorldWorker(
+            runtime_record=self._runtime_record_factory(elfie_home),
+            authority_host=self._authority_host_factory(authority_config),
+            world_ready_probe=world_ready_probe,
+            authority_timeout_seconds=authority_timeout_seconds,
+            max_attempts=max_attempts,
+            command_lease_factory=lambda: self._recovery_lock.acquire_start_lease(
+                elfie_home
+            ),
         )
 
     def start_service(
@@ -340,6 +452,7 @@ class LifecycleFacade:
             project_root,
             process_port=self._process_port,
             expected_command=self._service_launch_command,
+            runtime_record=self._runtime_record_factory(elfie_home),
         )
 
     def start_desktop(
@@ -349,6 +462,7 @@ class LifecycleFacade:
         *,
         health_checker: Callable[[], bool],
         command: Optional[Sequence[str]] = None,
+        background: bool = False,
     ) -> ServiceLifecycleResult:
         return desktop.start_desktop_application(
             elfie_home,
@@ -356,6 +470,7 @@ class LifecycleFacade:
             host=self._desktop_host,
             health_checker=health_checker,
             command=command,
+            background=background,
         )
 
     def stop_desktop(self, elfie_home: Path) -> ServiceLifecycleResult:
