@@ -1,0 +1,18 @@
+{
+  "name": "ElfieNest",
+  "short_name": "ElfieNest",
+  "description": "An Earth station that connects unknown life — and a home for your Elfie.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#050a1d",
+  "theme_color": "#050a1d",
+  "icons": [
+    {
+      "src": "assets/elfienest-app-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

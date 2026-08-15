@@ -76,11 +76,12 @@ ExecutionReceipt 回到感知工作区
 
 ```bash
 ./elfienest.sh version
-.venv/bin/python main.py
+./elfienest.sh
 ```
 
-`main.py` 会运行三次 tick 的本地演示。Ollama 是可选的公共本地模型能力：没有它时，
-应用仍可完成 Setup 并使用其他已配置 Provider；不会静默下载私有 Ollama 或模型权重。
+不带参数的启动器会进入交互菜单；如需在前台运行服务，请使用
+`./elfienest.sh serve`。Ollama 是可选的公共本地模型能力：没有它时，应用仍可完成
+Setup 并使用其他已配置 Provider；不会静默下载私有 Ollama 或模型权重。
 
 如需安装当前用户可直接调用的 `elfienest` 命令：
 

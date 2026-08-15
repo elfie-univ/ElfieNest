@@ -1,5 +1,9 @@
 # 管理台：用户、粮食和 Nest
 
+<script setup>
+import { withBase } from "vitepress";
+</script>
+
 管理台面向 Nest 所有者和管理员。普通成员不会看到这些入口，可以直接使用聊天和精灵页面，不需要理解管理功能。
 
 ## 管理员先做什么
@@ -7,7 +11,7 @@
 完成[首次配置](./configuration)后，按[核心配置](./ready)操作：选择本地或远程模型来源，验证至少一个模型，准备好粮食，
 再检查“**状态监控**”。以后聊天没有回复，也应先从这个页面开始查。
 
-![ElfieNest 的状态监控示例](/assets/user-guide/manage.png)
+<img :src="withBase('/assets/user-guide/manage.png')" alt="ElfieNest 的状态监控示例" />
 
 > 这张图是状态监控示例，不代表已经配置完成。如果“**模型服务**”显示“0 个可用模型”，说明 Nest 还没有准备好模型连接和粮食，
 > 请按[核心配置](./ready)继续操作。

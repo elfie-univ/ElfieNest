@@ -65,7 +65,7 @@ features:
       <div class="home-contribute__stat"><strong>—</strong><span>Open issues</span></div>
     </div>
     <div class="home-contribute__actions">
-      <a class="home-button home-button--primary" href="/developer/">Read developer docs</a>
+      <a class="home-button home-button--primary" href="./developer/">Read developer docs</a>
       <a class="home-button home-button--secondary" href="https://github.com/elfie-univ/ElfieNest">View GitHub</a>
     </div>
   </div>

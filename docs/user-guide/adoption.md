@@ -1,11 +1,15 @@
 # Adopt your first Elfie
 
+<script setup>
+import { withBase } from "vitepress";
+</script>
+
 Adoption is the main first experience in ElfieNest. You are not filling in a
 blank character sheet: you describe the kind of companionship you hope for,
 and Elfaria sends back candidates who may fit. You can edit your choices until
 you confirm the invitation.
 
-![The adoption entry screen in ElfieNest](/assets/user-guide/adoption.png)
+<img :src="withBase('/assets/user-guide/adoption.png')" alt="The adoption entry screen in ElfieNest" />
 
 ## The adoption journey
 

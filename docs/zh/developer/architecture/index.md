@@ -1,5 +1,9 @@
 # 当前架构
 
+<script setup>
+import { withBase } from "vitepress";
+</script>
+
 这份文档描述 ElfieNest 当前代码中的模块边界与运行链路。它不是历史路线图，也
 不会把尚未实现的设计写进当前架构。
 
@@ -9,7 +13,7 @@
 
 ## 系统地图
 
-<img src="/assets/elfienest-system-architecture.svg" alt="ElfieNest 的大框嵌套系统架构图：黑色箭头表示跨模块数据或协议流；红色箭头表示具体入口与内部控制流。" />
+<img :src="withBase('/assets/elfienest-system-architecture.svg')" alt="ElfieNest 的大框嵌套系统架构图：黑色箭头表示跨模块数据或协议流；红色箭头表示具体入口与内部控制流。" />
 
 黑色箭头在两端都画出箭头头部时，表示真实的双向数据或协议关系；红色箭头标出
 具体的内部入口与控制路径。特别是，`ElfieFactory` 负责创建或恢复 `Elfie` 实例；

@@ -65,7 +65,7 @@ features:
       <div class="home-contribute__stat"><strong>—</strong><span>开放问题</span></div>
     </div>
     <div class="home-contribute__actions">
-      <a class="home-button home-button--primary" href="/zh/developer/">阅读开发者文档</a>
+      <a class="home-button home-button--primary" href="./developer/">阅读开发者文档</a>
       <a class="home-button home-button--secondary" href="https://github.com/elfie-univ/ElfieNest">查看 GitHub</a>
     </div>
   </div>

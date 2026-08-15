@@ -55,5 +55,5 @@ available, are listed on the [official Releases page](https://github.com/elfie-u
 If the page has no package yet, do not install the source tree just to use the
 app; wait for an official package or ask the person who gave you access.
 
-The [Developer docs](/developer/) are for people who build, test or diagnose
+The [Developer docs](../developer/) are for people who build, test or diagnose
 the project itself. They are intentionally separate from this guide.
