@@ -4,6 +4,7 @@ import { requestJson } from "../http"
 
 export const MobileAccessSchema = z.object({
   available: z.boolean(),
+  network_name: z.string().nullable(),
   urls: z.array(z.string().url()),
 }).strict()
 

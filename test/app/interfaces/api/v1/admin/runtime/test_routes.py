@@ -53,6 +53,14 @@ class UnusedNetworkAccessProjection:
         raise AssertionError("runtime status must not query WiFi")
 
 
+class NamedNetworkAccessProjection:
+    def preferred_lan_address(self) -> str | None:
+        return "192.168.1.8"
+
+    def current_wifi_name(self) -> str | None:
+        return "Elfie Home"
+
+
 def _principal(role: str) -> AccountPrincipal:
     assert role in {"owner", "admin", "user"}
     return AccountPrincipal(
@@ -173,6 +181,35 @@ def test_mobile_access_projects_the_existing_lan_bind_policy() -> None:
     assert response.status_code == 200
     assert response.json() == {
         "available": True,
+        "network_name": None,
+        "urls": ["http://192.168.1.8:8000/"],
+    }
+
+
+def test_mobile_access_projects_the_current_wifi_name() -> None:
+    app = FastAPI()
+    database = UnusedDatabaseAdapter()
+    app.state.operations = OperationsFacade(
+        database,
+        database,
+        ModelExecutionObserverProjectionAdapter(ModelExecutionObserver()),
+        NamedNetworkAccessProjection(),
+    )
+    app.state.mobile_access = ServiceAccessPolicy.create(
+        "lan",
+        8000,
+        lan_addresses=("192.168.1.8",),
+    )
+    app.dependency_overrides[require_manager] = lambda: _principal("owner")
+    app.include_router(router)
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/admin/runtime/mobile-access")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "available": True,
+        "network_name": "Elfie Home",
         "urls": ["http://192.168.1.8:8000/"],
     }
 

@@ -51,6 +51,7 @@ class MobileAccessResponse(BaseModel):
     model_config = _STRICT
 
     available: StrictBool
+    network_name: Optional[StrictStr]
     urls: Tuple[StrictStr, ...]
 
 

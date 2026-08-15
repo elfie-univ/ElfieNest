@@ -311,9 +311,19 @@ def test_lan_rejects_unrecognized_host_and_origin(tmp_path: Path) -> None:
 def test_owner_mobile_access_exposes_only_active_lan_addresses(tmp_path: Path) -> None:
     # Given: an Owner session on a LAN-facing Core with one allowed address.
     db_path = str(tmp_path / "nest.db")
-    with patch(
-        "app.interfaces.api.service_access.private_ipv4_addresses",
-        return_value=("192.168.1.8",),
+    with (
+        patch(
+            "app.interfaces.api.service_access.private_ipv4_addresses",
+            return_value=("192.168.1.8",),
+        ),
+        patch(
+            "infrastructure.platform.mobile_network.PlatformMobileNetworkAdapter.preferred_lan_address",
+            return_value="192.168.1.8",
+        ),
+        patch(
+            "infrastructure.platform.mobile_network.PlatformMobileNetworkAdapter.current_wifi_name",
+            return_value=None,
+        ),
     ):
         application = create_app(engine=None, db_path=db_path, service_mode="lan")
         with TestClient(application) as client:
@@ -336,6 +346,7 @@ def test_owner_mobile_access_exposes_only_active_lan_addresses(tmp_path: Path) -
     assert response.status_code == 200
     assert response.json() == {
         "available": True,
+        "network_name": None,
         "urls": ["http://192.168.1.8:8000/"],
     }
     assert legacy.status_code == 404

@@ -129,9 +129,11 @@
 .manage-console-head h1 { margin: 0; color: var(--text); font-size: clamp(31px, 4vw, 45px); line-height: 1.08; }
 .manage-console-head p:last-child { max-width: 640px; margin: 12px 0 0; color: var(--text-muted); line-height: 1.6; }
 
-.mobile-access-dialog { position: relative; width: min(390px, 100%); padding: 30px; border: 1px solid var(--line); border-radius: 22px; color: var(--ink); background: var(--surface); box-shadow: 0 24px 60px color-mix(in srgb, var(--ink) 24%, transparent); }
-.mobile-access-dialog h2 { margin: 5px 0 13px; font-size: 26px; }
-.mobile-access-dialog__qr { display: block; width: min(280px, 100%); margin: 20px auto 16px; padding: 9px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.mobile-access-dialog { position: relative; width: min(430px, 100%); padding: 30px; border: 1px solid var(--line); border-radius: 22px; color: var(--ink); background: var(--surface); box-shadow: 0 24px 60px color-mix(in srgb, var(--ink) 24%, transparent); }
+.mobile-access-dialog__step { margin: 12px 0 0; color: var(--ink); font-size: 26px; font-weight: 700; line-height: 1.3; }
+.mobile-access-dialog__step--scan { margin-top: 24px; }
+.mobile-access-dialog__network { margin: 8px 0 0; overflow-wrap: anywhere; color: #183d2d; font-size: 28px; font-weight: 800; line-height: 1.2; text-align: center; }
+.mobile-access-dialog__qr { display: block; width: min(280px, 100%); margin: 14px auto 16px; padding: 9px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
 .mobile-access-dialog__select { display: grid; gap: 6px; color: var(--ink-soft); font-size: 14px; }
 .mobile-access-dialog__select select { min-width: 0; padding: 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--surface-muted); }
 .mobile-access-dialog__url { margin: 12px 0 0; overflow-wrap: anywhere; color: var(--accent-hover); font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center; }
