@@ -13,6 +13,10 @@ from elfie.brain.reasoning.tool_port import ToolPort
 from infrastructure.models.inference.multimodal import assemble_multimodal_payload
 from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.model_execution_ports import ModelExecutionToolLoopPort
+from infrastructure.models.model_execution_observations import (
+    ModelCallContext,
+    scoped_model_call_context,
+)
 from infrastructure.models.model_reference import (
     ModelReferenceError,
     parse_model_reference,
@@ -89,6 +93,9 @@ class FoodExecutor:
                 text = self._execute_assignment(
                     assignment,
                     [dict(message) for message in messages],
+                    food_id=package.key,
+                    semantic_role=semantic_role,
+                    route_stage=candidate_stage,
                     allowed_tools=allowed_tools,
                     max_loops=max_loops,
                     images=images,
@@ -129,6 +136,9 @@ class FoodExecutor:
         assignment: FoodAssignment,
         messages: list[dict[str, Any]],
         *,
+        food_id: str,
+        semantic_role: str,
+        route_stage: str,
         allowed_tools: tuple[str, ...],
         max_loops: int,
         images: tuple[str, ...],
@@ -168,13 +178,24 @@ class FoodExecutor:
         loop = self.tool_loop_factory(self.tool_port, effective_tools, scope_id)
 
         def invoke(loop_messages: list[dict[str, Any]]) -> str:
-            return self.model_caller(
-                connection_id,
-                reference.model_id,
-                loop_messages,
-                0.7,
-                1500,
-                {},
-            )
+            with scoped_model_call_context(
+                ModelCallContext(
+                    connection_id=connection_id,
+                    endpoint_model_id=reference.model_id,
+                    food_id=food_id,
+                    semantic_role=semantic_role,
+                    route_stage=route_stage,
+                    workload_kind="production",
+                    scope_id=scope_id,
+                )
+            ):
+                return self.model_caller(
+                    connection_id,
+                    reference.model_id,
+                    loop_messages,
+                    0.7,
+                    1500,
+                    {},
+                )
 
         return loop.run(messages, max_loops, invoke)

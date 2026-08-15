@@ -22,7 +22,7 @@ def _configure_inventory(store: ProviderConnectionStore) -> None:
             models=(
                 ProviderModelRecord("local", supports_tools=True),
                 ProviderModelRecord("hidden", hidden=True),
-                ProviderModelRecord("unavailable", available=False),
+                ProviderModelRecord("unavailable", discovery_state="source_missing"),
                 ProviderModelRecord("odd-id", display_name="GLM-5"),
             ),
         )

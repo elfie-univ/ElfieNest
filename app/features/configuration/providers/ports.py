@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Awaitable, Callable, Protocol
 
 from .models import ProviderModelInput
@@ -11,6 +12,7 @@ from .port_models import (
     StoredLocalProviderBinding,
     StoredLocalProviderCandidate,
     StoredLocalProviderProbe,
+    StoredModelAvailability,
     StoredModelMatrix,
     StoredModelRefresh,
     StoredModelVerification,
@@ -155,6 +157,8 @@ class ProviderTechnologyPort(Protocol):
         connection: StoredProviderConnection,
     ) -> StoredModelRefresh: ...
 
+    async def probe_model(self, reference: str) -> None: ...
+
     def model_matrix(
         self,
         connections: tuple[StoredProviderConnection, ...],
@@ -176,6 +180,24 @@ class ProviderTechnologyPort(Protocol):
     ) -> StoredValidationRun: ...
 
 
+class ProviderAvailabilityPort(Protocol):
+    """Passive exact Endpoint availability projection for App consumers."""
+
+    def get(self, reference: str) -> StoredModelAvailability: ...
+
+    def get_many(
+        self, references: tuple[str, ...]
+    ) -> tuple[StoredModelAvailability, ...]: ...
+
+    def ensure(
+        self,
+        reference: str,
+        *,
+        max_age: timedelta = timedelta(hours=24),
+        allow_probe: bool = False,
+    ) -> StoredModelAvailability: ...
+
+
 __all__ = (
     "CancellationCheck",
     "ProviderCatalogPort",
@@ -188,4 +210,5 @@ __all__ = (
     "ProviderPortNotFound",
     "ProviderReferencePort",
     "ProviderTechnologyPort",
+    "ProviderAvailabilityPort",
 )

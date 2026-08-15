@@ -2,7 +2,7 @@
 
 from fastapi import HTTPException, Request
 
-from app.features.configuration import ProvidersService
+from app.features.configuration import ProviderAvailabilityPort, ProvidersService
 
 
 def providers_service(request: Request) -> ProvidersService:
@@ -12,4 +12,11 @@ def providers_service(request: Request) -> ProvidersService:
     return service
 
 
-__all__ = ("providers_service",)
+def provider_availability(request: Request) -> ProviderAvailabilityPort:
+    service = getattr(request.app.state, "provider_availability", None)
+    if service is None:
+        raise HTTPException(status_code=500, detail="应用未装配 Provider 可用性查询")
+    return service
+
+
+__all__ = ("provider_availability", "providers_service")

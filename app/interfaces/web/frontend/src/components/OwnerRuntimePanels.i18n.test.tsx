@@ -138,7 +138,7 @@ function monitorPayload(path: string, lastEvent: ModelExecutionEventFixture | nu
         enabled: true,
         archived: false,
         verification: { status: "passed" },
-        models: [{ available: true, hidden: false, retired: false }],
+        models: [{ available: true, hidden: false, retired: false, verification: { is_core: true } }],
       }] }
     case "/api/v1/admin/model-providers/ollama":
       return { state: "healthy", recommended_model: "qwen2.5:0.5b", installed_model_count: 1 }

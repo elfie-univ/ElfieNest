@@ -72,6 +72,7 @@ def create_app(
         nest_management=container.nest_management,
         elfies=container.elfies,
         providers=container.providers,
+        availability=container.availability,
         food=container.food,
         capabilities=container.capabilities,
         operations=container.operations,

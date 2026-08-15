@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional, cast
+from typing import Any, Callable, Optional, cast
 
 from app.features.adoption import (
     AdoptionService,
@@ -13,7 +13,6 @@ from app.features.adoption import (
 from app.features.configuration.settings import SettingsStorePort
 from app.orchestration.nest_session import NestSession
 from app.orchestration.resident_admission import ResidentAdmissionService
-from elfie.profile import SpeciesCatalog, configure_species_catalog
 from elfie.public import BodyPort, ElfieFactory
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.godot.body_transport import (
@@ -31,7 +30,9 @@ from infrastructure.persistence.configuration.bundled_defaults import (
     load_emotion_expression_defaults,
     load_nest_config,
 )
-from infrastructure.persistence.configuration.species import load_species_catalog
+from infrastructure.persistence.configuration.species import (
+    load_and_configure_species_catalog,
+)
 from infrastructure.persistence.configuration.species_assets import (
     BundledSpeciesPresentationAdapter,
 )
@@ -65,10 +66,9 @@ def build_adoption_services(
     model_execution: AdoptionStructuredModelExecution | None = None,
     portraits: CandidatePortraitPort | None = None,
     nest_config: NestConfig | None = None,
-    catalog: SpeciesCatalog | None = None,
+    catalog: Any | None = None,
 ) -> AdoptionServices:
-    catalog = catalog or load_species_catalog()
-    configure_species_catalog(catalog)
+    catalog = catalog or load_and_configure_species_catalog()
 
     def body_factory(elfie_id: str, _workspace: str) -> BodyPort | None:
         if nest_session is None:

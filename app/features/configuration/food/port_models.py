@@ -33,6 +33,10 @@ class StoredFoodPackage:
     fallback_model: str | None = None
     visibility_mode: FoodVisibilityMode = "global"
     visible_user_ids: tuple[int, ...] = ()
+    # Product policy can require an optional role without making it a
+    # permanently scheduled probe for every Food.  Persistence may omit this
+    # empty default until the policy is explicitly exposed.
+    required_roles: frozenset[str] = frozenset()
 
     @property
     def model_references(self) -> tuple[str, ...]:

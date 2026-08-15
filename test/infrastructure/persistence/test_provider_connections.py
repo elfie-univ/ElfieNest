@@ -45,6 +45,9 @@ def test_connection_models_keep_endpoint_identity_and_optional_internal_match(tm
                 max_output_tokens=131072,
                 supports_tools=True,
                 supports_reasoning=True,
+                discovery_state="source_missing",
+                consecutive_missing=2,
+                last_seen_at="2026-08-14T00:00:00+00:00",
             ),
         ),
     )
@@ -54,6 +57,8 @@ def test_connection_models_keep_endpoint_identity_and_optional_internal_match(tm
     assert restored.models[0].canonical_model_id is None
     assert restored.models[1].canonical_model_id == "zhipu/glm-5"
     assert restored.models[1].context_window_tokens == 204800
+    assert restored.models[1].discovery_state == "source_missing"
+    assert restored.models[1].consecutive_missing == 2
 
 
 def test_connection_store_rejects_legacy_provider_document_without_rewriting(tmp_path):
@@ -161,7 +166,9 @@ def test_connection_and_model_lifecycle_round_trip(tmp_path):
     assert restored.archived is True
     assert restored.enabled is False
     assert restored.models[0].source == "official"
-    assert restored.models[0].available is False
+    assert "available" not in yaml.safe_load(
+        (tmp_path / "providers.yaml").read_text(encoding="utf-8")
+    )["connections"][connection.connection_id]["models"][0]
     assert restored.models[0].retired is True
 
 

@@ -49,6 +49,11 @@ const ProviderSummarySchema = z.object({
     available: z.boolean(),
     hidden: z.boolean(),
     retired: z.boolean(),
+    discovery_state: z.enum(["present", "source_missing"]).optional(),
+    verification: z.object({
+      availability_status: z.enum(["available", "degraded", "unavailable", "unknown"]).optional(),
+      is_core: z.boolean().optional(),
+    }).passthrough().optional(),
   }).passthrough()),
 }).passthrough()
 const ProviderListSchema = z.object({ items: z.array(ProviderSummarySchema) }).transform(({ items }) => items)
@@ -57,6 +62,11 @@ const OllamaStatusSchema = z.object({
   state: z.enum(["absent", "healthy", "stopped", "deleted", "installing", "failed", "cancelled", "repair_required"]),
   recommended_model: z.string().nullable(),
   installed_model_count: z.number().int().min(0),
+  models: z.array(z.object({
+    installed: z.boolean(),
+    available: z.boolean().optional(),
+    availability_status: z.enum(["available", "degraded", "unavailable", "unknown"]).optional(),
+  }).passthrough()).optional(),
 }).passthrough()
 
 export type MonitorHealth = z.infer<typeof HealthSchema>

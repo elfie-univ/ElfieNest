@@ -15,12 +15,14 @@ from app.features.configuration import (
     EnsureDefaultLocalProviderConnectionCommand,
     ListProviderConnectionsQuery,
     ProviderModelInput,
+    ProviderModelReplacement,
     ProviderPortError,
     ProvidersConflict,
     ProvidersForbidden,
     ProvidersService,
     ProvidersValidationError,
     RemoveLocalProviderConnectionCommand,
+    ReplaceProviderModelsCommand,
     StartProviderOAuthLoginCommand,
     StoredBenchmarkRun,
     StoredLocalProviderBinding,
@@ -436,6 +438,50 @@ def test_manual_model_management_reuses_connection_fact() -> None:
 
     assert model.model_id == "gpt-test"
     assert listed[0].models[0].display_name == "Test"
+
+
+def test_model_replacement_preserves_omitted_endpoint_profile_and_capability() -> None:
+    service, port, _ = _service()
+    created = asyncio.run(
+        service.create_connection(
+            _principal(),
+            CreateProviderConnectionCommand(catalog_id="openai_api"),
+        )
+    )
+    current = port.items[created.connection_id]
+    configured = replace(
+        current.models[0] if current.models else StoredProviderModel("gpt-test", "GPT Test"),
+        model_id="gpt-test",
+        display_name="GPT Test",
+        supports_structured_output=True,
+        request_profile_id="openai.chat_completions",
+        request_profile_version=1,
+        capability_evidence={"structured_output": "verified"},
+    )
+    port.items[created.connection_id] = replace(current, models=(configured,))
+
+    service.replace_models(
+        _principal(),
+        ReplaceProviderModelsCommand(
+            created.connection_id,
+            (
+                ProviderModelReplacement(
+                    model_id="gpt-test",
+                    display_name="GPT Test Updated",
+                    original_model_id="gpt-test",
+                    hidden=False,
+                    fields=frozenset({"id", "original_id", "display_name", "hidden"}),
+                ),
+            ),
+        ),
+    )
+
+    restored = port.items[created.connection_id].models[0]
+    assert restored.display_name == "GPT Test Updated"
+    assert restored.supports_structured_output is True
+    assert restored.request_profile_id == "openai.chat_completions"
+    assert restored.request_profile_version == 1
+    assert restored.capability_evidence["structured_output"] == "verified"
 
 
 def test_local_cli_removal_deletes_default_ollama_connection() -> None:

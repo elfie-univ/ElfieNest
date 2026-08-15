@@ -17,6 +17,8 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
   一级所有权。
 - [Elfie 大脑十系统架构](./designs/elfie-brain-ten-system-architecture)：Brain 的概念系统、
   运行关系和渐进实现顺序。
+- [Provider 与 Endpoint 模型可用性](./designs/provider-model-availability)：精选模型加载、
+  在用核心范围和节省资源的健康证据。
 - [架构契约](./contracts/)：长期保留的规范性规则。
 - [仓库架构治理](./contracts/repository-governance)：契约、ADR、本地 Agent 规约、
   Scanner、基线和 CI 如何组成一套可执行的质量闭环。

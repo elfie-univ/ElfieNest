@@ -79,6 +79,19 @@ def test_registry_policy_keeps_user_only_and_bundled_only_documents_separate() -
     )
 
 
+def test_provider_and_model_catalogs_keep_the_registered_config_root() -> None:
+    assert (
+        CONFIG_DOCUMENTS[ConfigDocumentId.PROVIDER_CATALOG].bundled_relative_path
+        == "models/provider-catalog.yaml"
+    )
+    assert (
+        CONFIG_DOCUMENTS[ConfigDocumentId.MODEL_CATALOG].bundled_relative_path
+        == "models/model-catalog.yaml"
+    )
+    assert (BUNDLED_ROOT / "models/provider-catalog.yaml").is_file()
+    assert (BUNDLED_ROOT / "models/model-catalog.yaml").is_file()
+
+
 def test_old_package_local_bundled_configuration_locations_are_gone() -> None:
     old_paths = (
         "elfie/brain/emotion/emotion_expressions.yaml",

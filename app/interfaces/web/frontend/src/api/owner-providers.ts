@@ -19,6 +19,11 @@ const VerificationSchema = z.object({
   heartbeat_status: z.enum(["passed", "failed"]).nullable().optional(),
   representative_model_id: z.string().nullable().optional(),
   reason: z.string().nullable().optional(),
+  availability_status: z.enum(["available", "degraded", "unavailable", "unknown"]).optional(),
+  reason_code: z.string().nullable().optional(),
+  evidence_source: z.string().nullable().optional(),
+  expires_at: z.string().nullable().optional(),
+  is_core: z.boolean().optional(),
 })
 
 const ProviderModelSchema = z.object({
@@ -31,9 +36,19 @@ const ProviderModelSchema = z.object({
   supports_tools: z.boolean().nullable(),
   supports_vision: z.boolean().nullable(),
   supports_reasoning: z.boolean().nullable(),
+  supports_structured_output: z.boolean().nullable().optional(),
   hidden: z.boolean(),
   retired: z.boolean(),
   available: z.boolean(),
+  discovery_state: z.enum(["present", "source_missing"]).optional(),
+  consecutive_missing: z.number().int().min(0).optional(),
+  last_seen_at: z.string().nullable().optional(),
+  request_profile_id: z.string().optional(),
+  request_profile_version: z.number().int().positive().optional(),
+  capability_evidence: z.record(
+    z.enum(["tools", "vision", "reasoning", "structured_output"]),
+    z.enum(["declared", "declared_by_user", "accepted", "verified", "unknown"]),
+  ).optional(),
   verification: VerificationSchema,
 })
 
@@ -172,6 +187,9 @@ export type ProviderModelDraft = {
   readonly supports_tools?: boolean | null
   readonly supports_vision?: boolean | null
   readonly supports_reasoning?: boolean | null
+  readonly supports_structured_output?: boolean | null
+  readonly request_profile_id?: string
+  readonly request_profile_version?: number
   readonly hidden?: boolean
 }
 export type ProviderConnectionDraft = {

@@ -4,6 +4,7 @@ from elfie.profile import (
     create_visual_profile,
     get_species_canon,
     get_species_canon_for_technical_id,
+    list_species_definitions,
 )
 
 
@@ -15,9 +16,13 @@ def test_formal_species_names_are_distinct_from_earth_shape_labels() -> None:
     assert (saevi.display_name, saevi.earth_shape_label) == ("Saevi", "fox-like")
     assert (tovren.display_name, tovren.earth_shape_label) == ("Tovren", "dog-like")
     assert (myelle.display_name, myelle.earth_shape_label) == ("Myelle", "cat-like")
-    assert saevi.visual_runtime_supported is True
-    assert tovren.visual_runtime_supported is True
-    assert myelle.visual_runtime_supported is False
+    definitions = {
+        definition.canon_id: definition
+        for definition in list_species_definitions(include_disabled=True)
+    }
+    assert definitions["saevi"].adoptable is True
+    assert definitions["tovren"].adoptable is True
+    assert definitions["myelle"].adoptable is False
     assert get_species_canon_for_technical_id("fox").canon_id == "saevi"
     assert get_species_canon_for_technical_id("dog").canon_id == "tovren"
     assert get_species_canon_for_technical_id("cat").canon_id == "myelle"

@@ -603,15 +603,22 @@ def _validate_provider_connections_shape(
         "id",
         "display_name",
         "source",
+        "request_profile_id",
+        "request_profile_version",
         "canonical_model_id",
         "context_window_tokens",
         "max_output_tokens",
         "supports_tools",
         "supports_vision",
         "supports_reasoning",
+        "supports_structured_output",
+        "capability_evidence",
         "hidden",
         "retired",
         "available",
+        "discovery_state",
+        "consecutive_missing",
+        "last_seen_at",
     }
     for connection_id, raw_connection in connections.items():
         connection = _object(raw_connection, f"{label}.connections.{connection_id}")

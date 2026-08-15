@@ -65,6 +65,7 @@ export function OwnerOllamaPanel({ csrfToken }: Props) {
   const needsRepair = state === "repair_required"
   const action = "start"
   const canUseModels = status !== null && !["absent", "deleted", "failed", "cancelled", "repair_required"].includes(state) && !installing
+  const localDisplayState = state === "healthy" && status !== null && status.installed_model_count === 0 ? "no_models" : state
   const buttonLabel = state === "stopped"
     ? t("providerConnections.ollama.actions.start")
     : t("providerConnections.ollama.actions.restart")
@@ -73,8 +74,8 @@ export function OwnerOllamaPanel({ csrfToken }: Props) {
     <div className="provider-section__heading"><div><h3 id="ollama-provider-title">{t("providerConnections.ollama.title")}</h3></div></div>
     {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.load")} /> : null}
     <div className="provider-grid provider-grid--local">
-      <article className={`provider-card provider-card--ollama provider-card--ollama-${state}`}>
-        <div className="provider-card__title"><h4>{t("providerConnections.ollama.name")}</h4><span className={`status-badge status-badge--${state}`}>{ollamaStatusLabel(state, t)}</span></div>
+      <article className={`provider-card provider-card--ollama provider-card--ollama-${localDisplayState}`}>
+        <div className="provider-card__title"><h4>{t("providerConnections.ollama.name")}</h4><span className={`status-badge status-badge--${localDisplayState}`}>{ollamaStatusLabel(state, t, localDisplayState)}</span></div>
         <p>{status ? t("providerConnections.ollama.card.availableModels", { count: status.installed_model_count }) : t("providerConnections.ollama.card.loading")}</p>
         <div className="manage-actions">
           {installing ? <Button disabled type="button" variant="outline">{t("providerConnections.ollama.actions.installing", { progress: task.progress })}</Button> : null}
@@ -89,7 +90,8 @@ export function OwnerOllamaPanel({ csrfToken }: Props) {
   </section>
 }
 
-function ollamaStatusLabel(state: OllamaState, t: (key: string) => string): string {
+function ollamaStatusLabel(state: OllamaState, t: (key: string) => string, displayState: OllamaState | "no_models" = state): string {
+  if (displayState === "no_models") return t("providerConnections.ollama.status.noModels")
   switch (state) {
     case "absent": return t("providerConnections.ollama.status.absent")
     case "healthy": return t("providerConnections.ollama.status.healthy")

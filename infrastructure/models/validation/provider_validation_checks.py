@@ -47,6 +47,11 @@ def run_connection_model_check(
         "latency_ms": latency_ms,
         "latency_class": classify_latency(float(latency_ms or 0.0)),
         "error": None if result.status is CheckStatus.PASSED else result.message,
+        **{
+            key: value
+            for key, value in result.details.items()
+            if key in {"error_code", "error_scope", "error_category"}
+        },
     }
 
 
@@ -74,11 +79,20 @@ async def bounded_connection_model_check(
                 "latency_ms": None,
                 "latency_class": None,
                 "error": "模型验证超时（20 秒）",
+                "error_code": "timeout",
+                "error_scope": "transport",
+                "error_category": "timeout",
             }
         except Exception as exc:  # Model boundary normalizes provider failures.
+            from infrastructure.models.provider_errors import classify_provider_error
+
+            classification = classify_provider_error(exc)
             return {
                 "status": "failed",
                 "latency_ms": None,
                 "latency_class": None,
                 "error": f"模型验证失败: {type(exc).__name__}",
+                "error_code": classification.code,
+                "error_scope": classification.scope,
+                "error_category": classification.category,
             }

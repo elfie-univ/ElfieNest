@@ -1,4 +1,4 @@
-# ADR-0019: Configuration-driven species packages
+# ADR-0020: Configuration-driven species packages
 
 - **Status:** Accepted
 - **Date:** 2026-08-15
@@ -34,7 +34,7 @@ rendering authority; its schema-v2 manifest owns semantic-to-bone bindings.
   package, not editing Profile or frontend allowlists.
 - Missing fields, missing/invalid PNGs, duplicate presentation images and
   incomplete Genesis data fail closed before release.
-- Existing profiles can still resolve a retired species without reopening it for
-  Adoption.
+- Existing profiles can still resolve a retired species without reopening it
+  for Adoption.
 - A future appearance protocol change requires a manifest/config protocol
   version update and focused Godot/Python validation.

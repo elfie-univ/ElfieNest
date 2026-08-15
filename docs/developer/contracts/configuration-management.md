@@ -262,7 +262,7 @@ recomputed on the next declared load boundary.
 The governance layer is active before implementation:
 
 - this bilingual contract fixes the target;
-- ADR-0017 and ADR-0019 record the decisions;
+- ADR-0017 and ADR-0020 record the species-configuration decision;
 - the Contract Registry binds the contract, ADR, Agent rules, machine-governance
   test and temporary conformance register; and
 - the conformance register names every current implementation gap without

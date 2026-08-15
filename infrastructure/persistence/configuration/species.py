@@ -208,6 +208,16 @@ def load_species_catalog(*, root: Path | None = None) -> SpeciesCatalog:
     return BundledSpeciesCatalogSource(root).load()
 
 
+def load_and_configure_species_catalog(*, root: Path | None = None) -> SpeciesCatalog:
+    """Load the bundled catalog and inject it at the domain composition boundary."""
+
+    catalog = load_species_catalog(root=root)
+    from elfie.profile import configure_species_catalog  # noqa: PLC0415
+
+    configure_species_catalog(catalog)
+    return catalog
+
+
 def species_asset_path(
     root: Path,
     definition: SpeciesDefinition,
@@ -479,6 +489,7 @@ def _validate_catalog(catalog: SpeciesCatalog) -> None:
 __all__ = (
     "BundledSpeciesCatalogSource",
     "SpeciesCatalogError",
+    "load_and_configure_species_catalog",
     "load_species_catalog",
     "species_asset_path",
 )
