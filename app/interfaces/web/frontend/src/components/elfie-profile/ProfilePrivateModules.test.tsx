@@ -104,4 +104,17 @@ describe("ProfilePrivateModules", () => {
     expect(container).toBeEmptyDOMElement()
     expect(container).not.toHaveTextContent(PRIVATE_MODULE_TITLES.join("|"))
   })
+
+  it("keeps archive and management sections as two views over the existing modules", () => {
+    const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
+    const { container, unmount } = render(<ProfilePrivateModules projection={projection} section="archive" />)
+
+    expect(container).toHaveTextContent("近期关注")
+    expect(container).not.toHaveTextContent("粮食策略")
+    unmount()
+
+    render(<ProfilePrivateModules projection={projection} section="manage" />)
+    expect(screen.getByRole("button", { name: "粮食策略" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "近期关注" })).not.toBeInTheDocument()
+  })
 })

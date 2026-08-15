@@ -356,7 +356,7 @@ export function ChatPage() {
             />
           </section>
         )}
-        <nav className="mobile-tabbar" aria-label={t("navigation.mobileLabel")}>
+        <nav className={mobileDetail ? "mobile-tabbar mobile-tabbar--hidden" : "mobile-tabbar"} aria-label={t("navigation.mobileLabel")}>
           <Button aria-label={t("navigation.chats")} className={mobileSection === "chats" ? "mobile-tabbar__item mobile-tabbar__item--active" : "mobile-tabbar__item"} onClick={() => openMobileSection("chats")} type="button" variant="ghost"><Icon name="messages-square" size={20} /><span>{t("navigation.chatsShort")}</span></Button>
           <Button aria-label={t("navigation.elfies")} className={mobileSection === "elfies" ? "mobile-tabbar__item mobile-tabbar__item--active" : "mobile-tabbar__item"} onClick={() => openMobileSection("elfies")} type="button" variant="ghost"><Icon name="users" size={20} /><span>{t("navigation.elfiesShort")}</span></Button>
           <Button aria-label={t("navigation.me")} className={mobileSection === "me" ? "mobile-tabbar__item mobile-tabbar__item--active" : "mobile-tabbar__item"} onClick={() => openMobileSection("me")} type="button" variant="ghost"><AccountIdentityAvatar user={user} /><span>{t("navigation.me")}</span></Button>

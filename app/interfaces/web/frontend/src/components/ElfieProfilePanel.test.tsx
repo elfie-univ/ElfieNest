@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { act, render, screen } from "@testing-library/react"
+import { act, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { ReactElement, ReactNode } from "react"
 import { I18nextProvider } from "react-i18next"
@@ -176,6 +176,8 @@ describe("ElfieProfilePanel", () => {
     ])
     expect(biography.querySelector("span")?.textContent).toBe("简介：")
     expect(biography.querySelector("p")?.textContent).toBe(HAPPY_EXPERIENCE.publicProfile.biography)
+    const personality = container.querySelector(".profile-dossier__personality")
+    expect(personality?.querySelector("span")?.textContent).toBe("性格：")
     expect(screen.getByRole("button", { name: "进入聊天" })).toBeInTheDocument()
   })
 
@@ -216,6 +218,20 @@ describe("ElfieProfilePanel", () => {
     expect(screen.getByRole("button", { name: "返回我的精灵" })).toHaveClass("profile-dossier__back")
   })
 
+  it("uses the mobile card as the parent of the archive and management pages", async () => {
+    const user = userEvent.setup()
+    const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
+    const { container } = renderWithI18n(<ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />)
+    const actions = screen.getByLabelText("精灵操作")
+
+    await user.click(within(actions).getByRole("button", { name: "详细档案" }))
+    expect(container.querySelector(".profile-dossier--mobile-subpage")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "返回精灵资料卡" })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "返回精灵资料卡" }))
+    expect(container.querySelector(".profile-dossier--mobile-card")).toBeInTheDocument()
+  })
+
   it("omits adopter-only metadata and all old admin passport surfaces for visitors", () => {
     // Given: Kettle projected for an unrelated account.
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, LONG_BIOGRAPHY_EXPERIENCE)
@@ -250,7 +266,7 @@ describe("ElfieProfilePanel", () => {
     expect(screen.queryByText(/性别/)).not.toBeInTheDocument()
   })
 
-  it("composes the complete owner profile in the approved section order", () => {
+  it("composes the owner profile in archive and management tabs without changing module content", async () => {
     // Given: Happy projected for the account that adopted Happy.
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
 
@@ -259,13 +275,14 @@ describe("ElfieProfilePanel", () => {
       <ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />,
     )
 
-    // Then: identity, appearance, public personality, and private modules appear in order.
+    // Then: the detailed archive keeps appearance, Big Five, and cognition modules together.
     expect(screen.getByText("外观照片", { selector: ".profile-appearance__title" })).toBeInTheDocument()
     expect(screen.getByText("大五人格", { selector: ".profile-dossier__section-name" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "拍照" })).not.toBeInTheDocument()
-    for (const title of PRIVATE_MODULE_TITLES) {
+    for (const title of PRIVATE_MODULE_TITLES.slice(0, -1)) {
       expect(screen.getByRole("button", { name: title })).toBeInTheDocument()
     }
+    expect(screen.queryByRole("button", { name: "粮食策略" })).not.toBeInTheDocument()
     const identity = container.querySelector(".profile-dossier__identity")
     const appearance = container.querySelector(".profile-appearance")
     const radar = container.querySelector(".profile-radar")
@@ -277,9 +294,14 @@ describe("ElfieProfilePanel", () => {
     expect(appearance.compareDocumentPosition(radar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(radar.compareDocumentPosition(privateModules) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(container).not.toHaveTextContent(/精灵身份证|Observer|本地 3D 观察|修改|3D 个体视图/)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("tab", { name: "管理精灵" }))
+    expect(screen.getByRole("button", { name: "粮食策略" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "近期关注" })).not.toBeInTheDocument()
   })
 
-  it("keeps capture and all six private payloads out of the visitor DOM", () => {
+  it("keeps the two owner tabs, 3D appearance, Big Five, and private payloads out of the visitor DOM", () => {
     // Given: Kettle projected for a platform owner who did not adopt Kettle.
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, KETTLE_EXPERIENCE)
 
@@ -288,9 +310,12 @@ describe("ElfieProfilePanel", () => {
       <ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />,
     )
 
-    // Then: public identity and Big Five remain, while capture and private data are omitted.
+    // Then: public identity and chat remain, while owner-only profile surfaces are omitted.
     expect(screen.getByRole("heading", { level: 1, name: "Kettle" })).toBeInTheDocument()
-    expect(screen.getByText("大五人格", { selector: ".profile-dossier__section-name" })).toBeInTheDocument()
+    expect(screen.queryByRole("tablist", { name: "精灵管理页面" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "详细档案" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "管理精灵" })).not.toBeInTheDocument()
+    expect(screen.queryByText("大五人格", { selector: ".profile-dossier__section-name" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "拍照" })).not.toBeInTheDocument()
     for (const title of PRIVATE_MODULE_TITLES) {
       expect(screen.queryByRole("button", { name: title })).not.toBeInTheDocument()

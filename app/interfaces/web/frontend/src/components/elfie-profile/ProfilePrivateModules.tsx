@@ -17,9 +17,11 @@ type ProfilePrivateModulesProps = {
   readonly csrfToken?: string | undefined
   readonly onFoodSaved?: (() => Promise<void>) | undefined
   readonly projection: ElfieProfileProjection
+  readonly section?: ProfilePrivateModuleSection
 }
 
 type ModuleKey = "focus" | "timeline" | "relationships" | "world" | "knowledge" | "food"
+export type ProfilePrivateModuleSection = "all" | "archive" | "manage"
 
 type ModuleItem = {
   readonly displayTitle: string
@@ -34,7 +36,7 @@ type AccordionState = {
 
 const NO_OPEN_KEYS: readonly ModuleKey[] = []
 
-export function ProfilePrivateModules({ csrfToken, onFoodSaved, projection }: ProfilePrivateModulesProps) {
+export function ProfilePrivateModules({ csrfToken, onFoodSaved, projection, section = "all" }: ProfilePrivateModulesProps) {
   const { t } = useTranslation("chat")
   const elfieId = projection.publicProfile.elfieId
   const resetKey = `${elfieId}:${projection.kind}`
@@ -54,6 +56,7 @@ export function ProfilePrivateModules({ csrfToken, onFoodSaved, projection }: Pr
 
   const openKeys = accordion.resetKey === resetKey ? accordion.openKeys : NO_OPEN_KEYS
   const items = moduleItems(projection.privateCognition, projection.careSettings, elfieId, csrfToken, onFoodSaved, t)
+    .filter((item) => section === "all" || (section === "manage" ? item.key === "food" : item.key !== "food"))
   const toggle = (key: ModuleKey): void => {
     setAccordion((current) => {
       const currentKeys = current.resetKey === resetKey ? current.openKeys : NO_OPEN_KEYS

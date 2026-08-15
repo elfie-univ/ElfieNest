@@ -84,6 +84,7 @@ export const chat = {
       back: "Back to My Elfies",
       publicAttributes: "Species and gender",
       enterChat: "Open chat",
+      personality: "Personality: ",
       biographyLabel: "Introduction: ",
       owner: "Owner",
       me: "Me",
@@ -98,6 +99,15 @@ export const chat = {
       years: "{{count}} year",
       years_other: "{{count}} years",
       notRegistered: "Not registered",
+    },
+    tabs: {
+      label: "Elfie profile management",
+      archive: "Detailed profile",
+      manage: "Manage Elfie",
+    },
+    mobile: {
+      actionsLabel: "Elfie actions",
+      backToCard: "Back to Elfie profile card",
     },
     appearance: {
       eyebrow: "Appearance",

@@ -84,6 +84,7 @@ export const chat = {
       back: "返回我的精灵",
       publicAttributes: "物种和性别",
       enterChat: "进入聊天",
+      personality: "性格：",
       biographyLabel: "简介：",
       owner: "主人",
       me: "我",
@@ -98,6 +99,15 @@ export const chat = {
       years: "{{count}} 岁",
       years_other: "{{count}} 岁",
       notRegistered: "未登记",
+    },
+    tabs: {
+      label: "精灵管理页面",
+      archive: "详细档案",
+      manage: "管理精灵",
+    },
+    mobile: {
+      actionsLabel: "精灵操作",
+      backToCard: "返回精灵资料卡",
     },
     appearance: {
       eyebrow: "外观",
