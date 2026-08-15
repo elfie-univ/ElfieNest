@@ -1,9 +1,13 @@
 # 领养第一只 Elfie
 
+<script setup>
+import { withBase } from "vitepress";
+</script>
+
 领养是 ElfieNest 的第一段核心体验。你不是在填写一张空白角色表，而是在说出自己期待的
 相处方式；Elfaria 会回传可能合拍的候选者。确认邀请前，你都可以修改自己的选择。
 
-![ElfieNest 的领养入口](/assets/user-guide/adoption.png)
+<img :src="withBase('/assets/user-guide/adoption.png')" alt="ElfieNest 的领养入口" />
 
 ## 领养流程
 

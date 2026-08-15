@@ -8,9 +8,21 @@ let homeExperiencePath: string | undefined;
 
 function setupHomeExperience() {
   const home = document.querySelector<HTMLElement>(".VPHome");
-  if (!home || !document.body) {
+  if (!document.body) {
+    window.setTimeout(setupHomeExperience, 80);
+    return;
+  }
+
+  if (!home) {
     cleanupHomeExperience?.();
     cleanupHomeExperience = undefined;
+    // The home layout is rendered asynchronously on a fresh page load. Keep
+    // polling only while the route is still waiting for its home layout; a
+    // normal documentation page already has VPDoc, and the story page has its
+    // own marker, so neither route can leave a timer behind.
+    if (!document.querySelector(".VPDoc") && !document.querySelector("[data-story-scroll]")) {
+      window.setTimeout(setupHomeExperience, 80);
+    }
     return;
   }
 
@@ -397,18 +409,19 @@ export default {
     const { router } = ctx;
     if (typeof window === "undefined") return;
 
-    router.onAfterRouteChange = async () => {
-      await nextTick();
-      setupHomeExperience();
-      setupStoryExperience();
-    };
-    nextTick(() => {
-      setupHomeExperience();
-      setupStoryExperience();
+    const scheduleExperiences = () => {
+      // Wait for VitePress/Vue hydration to finish before moving any
+      // Vue-managed nodes into the immersive page shells.
       window.setTimeout(() => {
         setupHomeExperience();
         setupStoryExperience();
       }, 120);
-    });
+    };
+
+    router.onAfterRouteChange = async () => {
+      await nextTick();
+      scheduleExperiences();
+    };
+    scheduleExperiences();
   },
 };

@@ -2,26 +2,78 @@ import { defineConfig } from "vitepress";
 
 const configuredBase = process.env.DOCS_BASE ?? "/";
 const base = configuredBase.endsWith("/") ? configuredBase : `${configuredBase}/`;
+const configuredSiteUrl = process.env.DOCS_SITE_URL ?? "https://elfie-univ.github.io/ElfieNest/";
+const siteUrl = configuredSiteUrl.endsWith("/") ? configuredSiteUrl : `${configuredSiteUrl}/`;
+const siteOrigin = new URL(siteUrl).origin;
+
+function routePath(relativePath: string) {
+  const route = relativePath
+    .replaceAll("\\", "/")
+    .replace(/\.md$/, "")
+    .replace(/(^|\/)index$/, "")
+    .replace(/^\/+|\/+$/g, "");
+
+  return route ? `/${route}/` : "/";
+}
+
+function withBasePath(path: string) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (base === "/") return normalizedPath;
+  const basePath = base.replace(/\/+$/, "");
+  return normalizedPath === "/" ? `${basePath}/` : `${basePath}${normalizedPath}`;
+}
 
 export default defineConfig({
   title: "ElfieNest",
   description: "An Earth station that connects unknown life — and a home for your Elfie.",
-  srcExclude: [".internal/**"],
+  srcExclude: [".internal/**", "**/AGENTS.md"],
   base,
   cleanUrls: true,
   lastUpdated: true,
   head: [
-    ["link", { rel: "icon", type: "image/x-icon", href: "/assets/favicon.ico" }]
+    ["link", { rel: "icon", type: "image/x-icon", href: `${base}assets/favicon.ico` }],
+    ["link", { rel: "manifest", href: `${base}manifest.webmanifest` }],
+    ["link", { rel: "apple-touch-icon", href: `${base}assets/elfienest-app-icon.png` }],
+    ["meta", { name: "theme-color", content: "#050a1d" }]
   ],
-  transformHtml: (html) =>
-    html.replaceAll('rel="preload stylesheet"', 'rel="stylesheet"'),
+  transformHead: ({ pageData, title, description }) => {
+    const canonical = new URL(routePath(pageData.relativePath).replace(/^\/+/, ""), siteUrl).toString();
+    const isChinese = pageData.relativePath.replaceAll("\\", "/").startsWith("zh/");
+    const image = new URL("assets/elfienest-home-v2.png", siteUrl).toString();
+
+    return [
+      ["link", { rel: "canonical", href: canonical }],
+      ["meta", { property: "og:type", content: "website" }],
+      ["meta", { property: "og:site_name", content: "ElfieNest" }],
+      ["meta", { property: "og:title", content: title }],
+      ["meta", { property: "og:description", content: description }],
+      ["meta", { property: "og:url", content: canonical }],
+      ["meta", { property: "og:image", content: image }],
+      ["meta", { property: "og:locale", content: isChinese ? "zh_CN" : "en_US" }],
+      ["meta", { name: "twitter:card", content: "summary_large_image" }],
+      ["meta", { name: "twitter:title", content: title }],
+      ["meta", { name: "twitter:description", content: description }],
+      ["meta", { name: "twitter:image", content: image }]
+    ];
+  },
+  transformHtml: (html) => html.replaceAll('rel="preload stylesheet"', 'rel="stylesheet"'),
+  sitemap: {
+    hostname: siteOrigin,
+    transformItems: (items) =>
+      items.map((item) => ({
+        ...item,
+        url: withBasePath(item.url),
+        links: item.links?.map((link) => ({ ...link, url: withBasePath(link.url) }))
+      }))
+  },
   locales: {
     // English is the site root (default).
     root: {
       label: "English",
       lang: "en",
+      description: "An Earth station that connects unknown life — and a home for your Elfie.",
       themeConfig: {
-        logo: "/assets/elfienest-full-logo-transparent.png",
+        logo: { src: "/assets/elfienest-full-logo-transparent.png", alt: "ElfieNest" },
         siteTitle: false,
         nav: [
           { text: "Home", link: "/" },
@@ -157,8 +209,9 @@ export default defineConfig({
       label: "简体中文",
       lang: "zh-CN",
       link: "/zh/",
+      description: "一座连接未知生命的地球基站，也是与你的 Elfie 长期陪伴的开始。",
       themeConfig: {
-        logo: "/assets/elfienest-full-logo-transparent.png",
+        logo: { src: "/assets/elfienest-full-logo-transparent.png", alt: "ElfieNest" },
         siteTitle: false,
         nav: [
           { text: "首页", link: "/zh/" },

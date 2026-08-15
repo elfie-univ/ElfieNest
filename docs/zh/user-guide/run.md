@@ -1,5 +1,9 @@
 # 日常使用：聊天、档案与手机访问
 
+<script setup>
+import { withBase } from "vitepress";
+</script>
+
 完成首次配置并由管理员完成[核心配置](./ready)后，大多数时间都会在“聊天”和“精灵”里度过。
 每次登录桌面应用时，打开的都是同一座本地 Nest。如果 Nest 由别人管理，你不需要自己配置模型或粮食。
 
@@ -10,7 +14,7 @@
 3. 写下消息，点击“发送”。
 4. 之后回来，可以继续查看这段聊天记录。
 
-![ElfieNest 桌面聊天消息示例](/assets/user-guide/chat.png)
+<img :src="withBase('/assets/user-guide/chat.png')" alt="ElfieNest 桌面聊天消息示例" />
 
 如果等待一段时间仍没有回复，请按[故障排查](./troubleshooting)检查。服务恢复期间，已经发出的
 消息仍可能保留在聊天里。
@@ -24,7 +28,7 @@
 - 人格分数和突出的性格特征；
 - 随着生活记录积累，逐渐出现的经历、关系、世界认知、知识和粮食策略。
 
-![包含 3D 外观区域的 Elfie 档案](/assets/user-guide/profile.png)
+<img :src="withBase('/assets/user-guide/profile.png')" alt="包含 3D 外观区域的 Elfie 档案" />
 
 在档案里点击“进入聊天”就能开始对话。“粮食策略”区域用于让所有者选择当前可用的“**主粮**”。
 普通成员不需要管理背后的模型组合。如果档案提示“当前没有可用主粮”，请让 Nest 管理员按[核心配置](./ready)检查。
@@ -38,7 +42,7 @@ ElfieNest 没有单独的手机 App。桌面应用可以为当前页面显示二
 3. 用手机相机扫描二维码，打开显示的页面。
 4. 手机上可以通过底部导航切换“消息”“精灵”和“我的”。
 
-![ElfieNest 手机上的聊天页面](/assets/user-guide/mobile-chat.png)
+<img :src="withBase('/assets/user-guide/mobile-chat.png')" alt="ElfieNest 手机上的聊天页面" />
 
 手机访问沿用桌面端的账号权限。普通成员可以使用聊天和档案；只有管理员能打开管理台或
 监控。如果二维码对话框提示“当前服务只允许本机访问”，请让 Nest 管理员开启局域网访问。

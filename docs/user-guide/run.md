@@ -1,5 +1,9 @@
 # Daily use: chat, profiles and phone access
 
+<script setup>
+import { withBase } from "vitepress";
+</script>
+
 After setup and the administrator's [core configuration](./ready), most people
 spend their time in **Chat** and **Elfies**. The desktop app opens the same
 local Nest each time you sign in. If someone else manages the Nest, you do not
@@ -13,7 +17,7 @@ need to configure models or Food yourself.
 3. Write a message and choose **Send**.
 4. Return later to see the conversation history.
 
-![A desktop chat message in ElfieNest](/assets/user-guide/chat.png)
+<img :src="withBase('/assets/user-guide/chat.png')" alt="A desktop chat message in ElfieNest" />
 
 If the Elfie does not reply after waiting a little while, check
 [Troubleshooting](./troubleshooting). A sent message can still be kept in the
@@ -29,7 +33,7 @@ In **Elfies**, select an Elfie to see:
 - experiences, relationships, world understanding, knowledge and Food strategy
   sections as they become available.
 
-![An Elfie profile with the 3D appearance area](/assets/user-guide/profile.png)
+<img :src="withBase('/assets/user-guide/profile.png')" alt="An Elfie profile with the 3D appearance area" />
 
 Choose **Enter chat** from the profile whenever you want to talk. The **Food
 strategy** section is where the owner can choose a currently available
@@ -50,7 +54,7 @@ current view:
 4. On a phone, the bottom navigation switches between **Messages**, **Elfies**
    and **Me**.
 
-![The ElfieNest chat view on a phone](/assets/user-guide/mobile-chat.png)
+<img :src="withBase('/assets/user-guide/mobile-chat.png')" alt="The ElfieNest chat view on a phone" />
 
 Phone access follows the same account permissions as the desktop app. A normal
 member can use chat and profiles; only an administrator can open Management or

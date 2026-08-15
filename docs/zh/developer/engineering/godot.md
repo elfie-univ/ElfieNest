@@ -16,5 +16,5 @@ Godot 是房屋、几何、世界坐标、移动、碰撞、角色和渲染的�
 - Python 侧复制的房屋蓝图或坐标事实。
 
 打开、运行或截图前，先核对 `project.godot` 的 Godot 版本和已有进程，再按
-[Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot/README.md)
-与 `godot/WEB_EXPORT.md` 的流程操作。
+[Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot_project/README.md)
+与 `godot_project/WEB_EXPORT.md` 的流程操作。
