@@ -35,6 +35,36 @@ _USAGE_SCOPES = frozenset({"coding_only", "general", "local"})
 _DISCOVERY_STRATEGIES = frozenset(
     {"catalog_only", "ollama", "provider_adapter", "standard_models"}
 )
+_CATALOG_FIELDS = frozenset(
+    {
+        "version",
+        "ollama_recommended_models",
+        "brands",
+        "products",
+        "endpoint_model_hints",
+    }
+)
+_BRAND_FIELDS = frozenset({"name", "logo_asset"})
+_PRODUCT_FIELDS = frozenset(
+    {
+        "brand_id",
+        "legacy_provider_id",
+        "name",
+        "api_base",
+        "auth_type",
+        "api_mode",
+        "base_url_env_var",
+        "api_key_env_var",
+        "connection_method",
+        "oauth_available",
+        "test_model",
+        "usage_scope",
+        "discovery_strategy",
+        "bundled_models",
+    }
+)
+_RECOMMENDATION_FIELDS = frozenset({"id", "recommended"})
+_HINT_FIELDS = frozenset({"api_base_contains", "models"})
 
 
 class ProviderCatalogError(RuntimeError):
@@ -128,6 +158,7 @@ def parse_provider_catalog(
         raise ProviderCatalogError(
             f"Unsupported Provider catalog version {version!r}: {source}"
         )
+    _reject_unknown(document, _CATALOG_FIELDS, "Provider catalog", source)
     raw_brands = document.get("brands")
     if not isinstance(raw_brands, Mapping) or not raw_brands:
         raise ProviderCatalogError(f"Provider catalog has no brands: {source}")
@@ -141,9 +172,12 @@ def parse_provider_catalog(
             raise ProviderCatalogError(
                 f"Brand {brand_id!r} must be an object: {source}"
             )
+        _reject_unknown(raw_brand, _BRAND_FIELDS, f"Brand {brand_id!r}", source)
         brands[brand_id] = ProviderBrand(
             name=_required_string(raw_brand, "name", brand_id, source),
-            logo_asset=str(raw_brand.get("logo_asset") or "").strip(),
+            logo_asset=_optional_string(
+                raw_brand.get("logo_asset"), "logo_asset", brand_id, source
+            ),
         )
 
     raw_products = document.get("products")
@@ -166,6 +200,12 @@ def parse_provider_catalog(
             raise ProviderCatalogError(
                 f"Provider product {catalog_id!r} must be an object: {source}"
             )
+        _reject_unknown(
+            raw_profile,
+            _PRODUCT_FIELDS,
+            f"Provider product {catalog_id!r}",
+            source,
+        )
         profile = _parse_profile(
             catalog_id,
             raw_profile,
@@ -294,12 +334,23 @@ def _parse_profile(
         raise ProviderCatalogError(
             f"Provider {catalog_id!r} bundled_models must be a list: {source}"
         )
-    bundled_models = list(dict.fromkeys(str(item).strip() for item in raw_models))
+    if any(not isinstance(item, str) or not item.strip() for item in raw_models):
+        raise ProviderCatalogError(
+            f"Provider {catalog_id!r} bundled_models contains an invalid model: {source}"
+        )
+    bundled_models = list(dict.fromkeys(item.strip() for item in raw_models))
     if not bundled_models or any(not item for item in bundled_models):
         raise ProviderCatalogError(
             f"Provider {catalog_id!r} has no usable bundled models: {source}"
         )
-    test_model = str(raw.get("test_model") or bundled_models[0]).strip()
+    raw_test_model = raw.get("test_model")
+    if raw_test_model is not None and (
+        not isinstance(raw_test_model, str) or not raw_test_model.strip()
+    ):
+        raise ProviderCatalogError(
+            f"Provider {catalog_id!r} has invalid test_model: {source}"
+        )
+    test_model = (raw_test_model or bundled_models[0]).strip()
     return ProviderProfile(
         catalog_id=catalog_id,
         brand_id=brand_id,
@@ -336,7 +387,8 @@ def _parse_ollama_recommendations(
             raise ProviderCatalogError(
                 f"Ollama recommendation must be an object: {source}"
             )
-        model_id = str(item.get("id") or "").strip()
+        _reject_unknown(item, _RECOMMENDATION_FIELDS, "Ollama recommendation", source)
+        model_id = _required_text(item.get("id"), "id", "ollama", source)
         recommended = item.get("recommended")
         if not model_id or model_id in seen or not isinstance(recommended, bool):
             raise ProviderCatalogError(f"Invalid Ollama recommendation: {source}")
@@ -354,13 +406,18 @@ def _parse_ollama_recommendations(
 def _parse_hint(raw: Any, source: Path) -> EndpointModelHint:
     if not isinstance(raw, Mapping):
         raise ProviderCatalogError(f"Endpoint model hint must be an object: {source}")
-    contains = str(raw.get("api_base_contains") or "").strip().lower()
+    _reject_unknown(raw, _HINT_FIELDS, "Endpoint model hint", source)
+    contains = _required_text(
+        raw.get("api_base_contains"), "api_base_contains", "hint", source
+    ).lower()
     models = raw.get("models")
     if not contains or not isinstance(models, list):
         raise ProviderCatalogError(f"Invalid endpoint model hint: {source}")
-    normalized_models = tuple(
-        dict.fromkeys(str(model).strip() for model in models if str(model).strip())
-    )
+    if any(not isinstance(model, str) or not model.strip() for model in models):
+        raise ProviderCatalogError(
+            f"Endpoint model hint contains invalid model: {source}"
+        )
+    normalized_models = tuple(dict.fromkeys(model.strip() for model in models))
     if not normalized_models:
         raise ProviderCatalogError(f"Endpoint model hint has no models: {source}")
     return EndpointModelHint(contains, normalized_models)
@@ -372,12 +429,43 @@ def _required_string(
     provider_id: str,
     source: Path,
 ) -> str:
-    value = str(raw.get(field_name) or "").strip()
-    if not value:
+    return _required_text(raw.get(field_name), field_name, provider_id, source)
+
+
+def _required_text(value: Any, field_name: str, provider_id: str, source: Path) -> str:
+    if not isinstance(value, str) or not value.strip():
         raise ProviderCatalogError(
             f"Provider {provider_id!r} requires {field_name}: {source}"
         )
-    return value
+    return value.strip()
+
+
+def _optional_string(
+    value: Any,
+    field_name: str,
+    provider_id: str,
+    source: Path,
+) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ProviderCatalogError(
+            f"Provider {provider_id!r} has invalid {field_name}: {source}"
+        )
+    return value.strip()
+
+
+def _reject_unknown(
+    raw: Mapping[str, Any],
+    allowed: frozenset[str],
+    label: str,
+    source: Path,
+) -> None:
+    unknown = sorted(str(key) for key in set(raw) - allowed)
+    if unknown:
+        raise ProviderCatalogError(
+            f"{label} contains unknown fields {unknown}: {source}"
+        )
 
 
 def _choice(
@@ -401,7 +489,13 @@ def _env_name(
     provider_id: str,
     source: Path,
 ) -> str:
-    normalized = str(value or "").strip()
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ProviderCatalogError(
+            f"Provider {provider_id!r} has invalid {field_name}: {source}"
+        )
+    normalized = value.strip()
     if normalized and not _ENV_NAME_PATTERN.fullmatch(normalized):
         raise ProviderCatalogError(
             f"Provider {provider_id!r} has invalid {field_name}: {source}"

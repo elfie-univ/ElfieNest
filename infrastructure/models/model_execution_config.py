@@ -18,35 +18,46 @@ from infrastructure.persistence.configuration.bundled_defaults import (
 from infrastructure.persistence.provider_catalog import load_provider_catalog
 
 
-def _model_execution_default(name: str, fallback):
-    values = load_system_defaults().get("model_execution", {})
-    if not isinstance(values, Mapping):
-        return fallback
-    value = values.get(name, fallback)
-    return value
+def _model_execution_default(name: str) -> object:
+    values = load_system_defaults().get("model_execution")
+    if not isinstance(values, Mapping) or name not in values:
+        raise ValueError(f"system-defaults.yaml 缺少 system.model_execution.{name}")
+    return values[name]
 
 
 def _default_ollama_host() -> str:
-    return os.getenv(
-        "OLLAMA_HOST",
-        str(_model_execution_default("ollama_host", "http://localhost:11434")),
-    )
+    value = _model_execution_default("ollama_host")
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("system.model_execution.ollama_host 必须是非空字符串")
+    return os.getenv("OLLAMA_HOST", value)
 
 
 def _default_energy_threshold() -> float:
-    return float(_model_execution_default("energy_threshold_fast", 30.0))
+    value = _model_execution_default("energy_threshold_fast")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("system.model_execution.energy_threshold_fast 必须是数字")
+    return float(value)
 
 
 def _default_complexity_threshold() -> int:
-    return int(_model_execution_default("complexity_threshold_deep", 3))
+    value = _model_execution_default("complexity_threshold_deep")
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("system.model_execution.complexity_threshold_deep 必须是整数")
+    return value
 
 
 def _default_temperature() -> float:
-    return float(_model_execution_default("temperature", 0.7))
+    value = _model_execution_default("temperature")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("system.model_execution.temperature 必须是数字")
+    return float(value)
 
 
 def _default_max_tokens() -> int:
-    return int(_model_execution_default("max_tokens", 1500))
+    value = _model_execution_default("max_tokens")
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("system.model_execution.max_tokens 必须是整数")
+    return value
 
 
 class ModelExecutionConfigSource(Protocol):
@@ -129,7 +140,9 @@ def _default_providers(
             "api_mode": profile.api_mode,
             "auth_type": profile.auth_type,
         }
-    providers["custom_openai"]["test_model"] = "custom-model"
+    providers["custom_openai"]["test_model"] = catalog.profiles[
+        "custom_openai"
+    ].test_model
     return providers
 
 

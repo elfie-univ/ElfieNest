@@ -5,7 +5,8 @@
 > It records current implementation facts and deletion gates; it does not
 > authorize new scattered configuration or product behavior.
 
-**State:** open
+**State:** closed
+**Closure state:** ready
 
 ## Current inventory
 
@@ -24,14 +25,14 @@ The user path resolver and atomic YAML writer already target
 `${ELFIE_HOME}/configs/`, and first-run layout creation does not copy defaults.
 Those conforming behaviors must be preserved during migration.
 
-## Open gaps
+## Closed migration register
 
 | ID | Severity | Status | Current deviation | Closure gate | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| CFG-001 | P0 | open | The in-scope defaults have been relocated to the root `config/`; old Provider/model/Brain package-local YAML files and the Python-literal model catalog were removed, and production consumers now use registered loaders or injected typed values. | Record the complete inventory and verify no unclassified in-scope residual remains, without touching Profile species declarations or adding capabilities. | code: `config/`, deleted legacy YAML, `infrastructure/persistence/configuration/bundled_defaults.py`, `infrastructure/models/catalog.py`; final inventory evidence pending |
-| CFG-002 | P0 | open | The closed registry, bundled/runtime sources, document-specific policies and permanent negative architecture checks exist. The complete policy acceptance matrix and closure evidence are still pending. | Prove field overlays, complete replacement, bundled-only, user-only, failure and secret rules, and leave no business/domain YAML or arbitrary-path access. | `infrastructure/persistence/configuration/documents.py`, `test/architecture/test_configuration_management.py`; focused tests pass, final matrix pending |
-| CFG-003 | P0 | open | Desktop staging copies repository `config/` once to `resources/config/`; package-data collection and legacy catalog copies were removed; the release manifest requires all eight documents. | Prove complete manifest hashes and installed-mode startup without a source checkout while preserving user configuration. | `scripts/assemble_desktop_resources.py`, `scripts/release_manifest.py`, packaged-runtime tests; final matrix pending |
-| CFG-004 | P1 | open | Configuration-specific permanent structure and boundary checks are registered in the Contract Registry and run in deny-all form; the required five-part closure evidence has not yet been recorded. | Complete the required five-part closure evidence and leave permanent target checks in deny-all mode. | `scripts/architecture/contract_registry.py`, `test/architecture/test_configuration_management.py`; final audit pending |
+| CFG-001 | P0 | closed | The in-scope defaults have one root `config/`; legacy package-local YAML, duplicate model catalog data and scattered runtime readers are removed or classified. Profile species declarations remain outside this migration. | Keep the two-root inventory exact and reject unclassified bundled files. | target=two-root-source-inventory; inventory=`config/` eight bundled documents, user `configs/` documents, legacy paths, loaders, package data and release consumers; references=`infrastructure/persistence/configuration/documents.py`, `bundled_defaults.py`, `test/architecture/test_configuration_management.py`; verification=registry inventory test plus repository/package audit; residuals=zero |
+| CFG-002 | P0 | closed | The registry now carries schema, writer, reload and failure metadata; bundled and user sources validate before exposure, semantic owners reject unknown owned fields, and production/user roots are resolver-owned. Test and developer tools explicitly retain injected sandbox roots. | Keep field overlay, complete replacement, bundled-only, user-only, failure, secret and production-path rules under permanent tests. | target=registered-document-boundary; inventory=all thirteen document IDs, strict schemas, semantic catalog/connection validators, secret boundary and test/dev sandbox seam; references=`infrastructure/persistence/configuration/documents.py`, `schemas.py`, model/provider parsers, `test/infrastructure/persistence/configuration/test_documents.py`; verification=focused configuration and architecture tests; residuals=zero |
+| CFG-003 | P0 | closed | Desktop staging copies repository `config/` once to `resources/config/`; the release manifest covers every staged file and user configuration is not copied or overwritten. Release-mode resolution requires a launcher-provided resource root. | Keep one staged copy, complete hashes, source-checkout independence and user-file preservation. | target=single-staged-bundled-root; inventory=resource assembly, manifest required paths/hashes, release resolver and first-run/user-write behavior; references=`scripts/assemble_desktop_resources.py`, `scripts/release_manifest.py`, `test/scripts/test_assemble_desktop_resources.py`, `test/scripts/test_release_manifest.py`; verification=assembly, manifest, installed-root and user-preservation tests; residuals=zero |
+| CFG-004 | P1 | closed | The bilingual contract, ADR, Contract Registry, Agent rules and permanent deny-all checks now agree on the two-root configuration contract and its explicit sandbox exception. | Keep the five-part evidence shape and leave permanent target checks in deny-all mode until a later governance-only removal. | target=configuration-contract-closure; inventory=contract, ADR, registry, Agent rules, architecture gates and bilingual conformance rows; references=`docs/developer/contracts/configuration-management.md`, `docs/developer/decisions/0017-bundled-defaults-and-user-configuration.md`, `scripts/architecture/contract_registry.py`; verification=governance architecture tests and mirrored-document checks; residuals=zero |
 
 ## Closure order
 

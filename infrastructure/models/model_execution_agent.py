@@ -665,11 +665,7 @@ class ModelExecutionAgent:
         if not package.enabled or package.archived or package.primary is None:
             return False
         evidence = self._ports.model_evidence_source().get(package.primary.model)
-        if (
-            evidence is None
-            or evidence.local
-            or not evidence.fresh
-        ):
+        if evidence is None or evidence.local or not evidence.fresh:
             return False
         try:
             provider = self._provider_for_model(package.primary.model)
@@ -685,8 +681,8 @@ class ModelExecutionAgent:
         self,
         *,
         provider_options: Dict[str, Any] | None = None,
-        temperature: float = 0.7,
-        max_tokens: int = 1500,
+        temperature: float,
+        max_tokens: int,
         thinking: bool = False,
         timeout_seconds: float | None = None,
     ) -> FoodExecutor:

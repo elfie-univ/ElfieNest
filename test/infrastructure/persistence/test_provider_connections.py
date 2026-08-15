@@ -91,6 +91,30 @@ def test_connection_store_rejects_legacy_provider_document_without_rewriting(tmp
     assert not path.with_suffix(".yaml.v1.bak").exists()
 
 
+def test_connection_store_rejects_unknown_connection_fields(tmp_path):
+    path = tmp_path / "providers.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 2,
+                "connection_counters": {},
+                "connections": {
+                    "openai_api_0001": {
+                        "catalog_id": "openai_api",
+                        "alias": "OpenAI",
+                        "unowned": True,
+                    }
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProviderConnectionStoreError, match="未知字段"):
+        ProviderConnectionStore(path).load()
+
+
 def test_connection_store_never_persists_plaintext_credentials(tmp_path):
     path = tmp_path / "providers.yaml"
     store = ProviderConnectionStore(path)

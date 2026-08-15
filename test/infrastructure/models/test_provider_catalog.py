@@ -2,8 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
+from infrastructure.models.providers.catalog import (
+    ProviderCatalogError,
+    parse_provider_catalog,
+)
 from infrastructure.persistence.configuration.documents import (
     resolve_bundled_config_root,
 )
@@ -194,3 +199,11 @@ def test_provider_catalog_rejects_grouped_bundled_models(tmp_path) -> None:
 
     assert catalog.source == _bundled_provider_catalog_path()
     assert "new_gateway" not in catalog.profiles
+
+
+def test_provider_catalog_rejects_unknown_nested_fields() -> None:
+    document = _override_document()
+    document["products"]["example_api"]["unowned"] = True
+
+    with pytest.raises(ProviderCatalogError, match="unknown fields"):
+        parse_provider_catalog(document, Path("provider-catalog.yaml"))

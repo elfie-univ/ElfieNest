@@ -16,6 +16,37 @@ ModelSource = Literal[
     "manual",
 ]
 _MODEL_SOURCES = frozenset({"official", "remote_catalog", "bundled_catalog", "manual"})
+_DOCUMENT_FIELDS = frozenset({"version", "connection_counters", "connections"})
+_CONNECTION_FIELDS = frozenset(
+    {
+        "catalog_id",
+        "alias",
+        "api_base",
+        "api_mode",
+        "auth_type",
+        "credential_ref",
+        "installation",
+        "models",
+        "enabled",
+        "archived",
+    }
+)
+_MODEL_FIELDS = frozenset(
+    {
+        "id",
+        "display_name",
+        "source",
+        "canonical_model_id",
+        "context_window_tokens",
+        "max_output_tokens",
+        "supports_tools",
+        "supports_vision",
+        "supports_reasoning",
+        "hidden",
+        "retired",
+        "available",
+    }
+)
 
 
 class InvalidProviderConnectionDocument(ValueError):
@@ -90,6 +121,7 @@ class ProviderModelRecord:
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> ProviderModelRecord:
+        _reject_unknown(raw, _MODEL_FIELDS, "模型配置")
         raw_source = str(raw.get("source") or "manual")
         if raw_source not in _MODEL_SOURCES:
             raise ValueError(f"未知模型来源: {raw_source}")
@@ -171,6 +203,7 @@ class ProviderConnection:
     def from_dict(
         cls, connection_id: str, raw: Mapping[str, Any]
     ) -> ProviderConnection:
+        _reject_unknown(raw, _CONNECTION_FIELDS, "连接配置")
         raw_models = raw.get("models", [])
         raw_installation = raw.get("installation", {})
         if not isinstance(raw_models, list):
@@ -220,6 +253,7 @@ def parse_provider_document(raw: Mapping[str, Any]) -> ProviderConnectionDocumen
         raise InvalidProviderConnectionDocument(
             f"只支持 Provider 连接配置 v2，收到版本: {version!r}"
         )
+    _reject_unknown(raw, _DOCUMENT_FIELDS, "Provider 连接文档")
     raw_counters = raw.get("connection_counters", {})
     raw_connections = raw.get("connections", {})
     if not isinstance(raw_counters, Mapping) or not isinstance(
@@ -271,3 +305,13 @@ def _required_bool(value: Any, field_name: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{field_name} 必须为布尔值")
     return value
+
+
+def _reject_unknown(
+    raw: Mapping[str, Any],
+    allowed: frozenset[str],
+    label: str,
+) -> None:
+    unknown = sorted(str(key) for key in set(raw) - allowed)
+    if unknown:
+        raise ValueError(f"{label}包含未知字段: {unknown}")

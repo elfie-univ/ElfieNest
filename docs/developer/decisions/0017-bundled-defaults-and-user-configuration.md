@@ -44,6 +44,21 @@ appearance profiles and Genesis behavior are outside this migration and remain
 in their current Profile-owned source. This decision adds no species fields,
 normalization, discovery, registration, assets or behavior.
 
+## Decision update: registered schemas and execution boundaries
+
+The registered document metadata is the single authority for document IDs,
+fixed relative paths, versions, schemas, writer policy, reload boundary and
+failure policy. Bundled and user sources validate a document before returning
+it, and semantic owners reject unknown fields in their owned records. A small
+set of explicitly declared opaque extension buckets may preserve data owned by
+another existing consumer; they are not permission to add arbitrary fields to
+owned sections.
+
+Production callers use registered document IDs and resolver-owned roots only.
+Test and developer tooling may inject an isolated root for sandboxing, but it
+must reuse the registered filenames and validators and must never default to a
+production `ELFIE_HOME`.
+
 ## Consequences
 
 - Source defaults have one visible location and installed applications have one
@@ -54,9 +69,9 @@ normalization, discovery, registration, assets or behavior.
   hidden by a duplicate hard-coded default.
 - User configuration survives application upgrades and is never overwritten by
   bundled defaults.
-- The existing scattered implementation requires a separate migration. Its
-  gaps remain open in the configuration-management conformance register until
-  source inventory, loaders, packaging and permanent tests close together.
+- The conformance register remains as a closure-ready record until a later
+  governance-only change removes it; it cannot be used to authorize new
+  scattered configuration.
 
 This ADR changes the frozen system root structure and therefore revises the
 bilingual System contract before product migration. It also registers the new

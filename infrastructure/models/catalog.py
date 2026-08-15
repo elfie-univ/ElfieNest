@@ -25,6 +25,7 @@ from infrastructure.persistence.configuration.documents import (
 )
 
 MODEL_CATALOG_VERSION = 1
+_MODEL_CATALOG_FIELDS = frozenset({"version", "models", "entries"})
 _MODEL_ENTRY_FIELDS = frozenset(
     {
         "provider",
@@ -72,6 +73,11 @@ def load_model_catalog(root: Optional[Path] = None) -> Dict[str, ModelEntry]:
     loaded = BundledConfigSource(root).load(ConfigDocumentId.MODEL_CATALOG)
     if loaded.document.get("version") != MODEL_CATALOG_VERSION:
         raise ModelCatalogError(f"不支持的模型目录版本: {loaded.path}")
+    unknown_top_level = set(loaded.document) - _MODEL_CATALOG_FIELDS
+    if unknown_top_level:
+        raise ModelCatalogError(
+            f"模型目录顶层包含未知字段: {sorted(unknown_top_level)}"
+        )
     raw_entries = loaded.document.get("entries")
     if not isinstance(raw_entries, Mapping) or not raw_entries:
         raise ModelCatalogError(f"模型目录缺少 entries: {loaded.path}")
@@ -269,6 +275,8 @@ def _verify_custom_openai_provider(
     provider_info: Dict[str, str],
     api_base: str,
     api_key: str,
+    *,
+    fallback_model: str = "",
 ) -> Dict[str, Any]:
     import time
 
@@ -296,11 +304,17 @@ def _verify_custom_openai_provider(
     configured_test_model = str(provider_info.get("test_model") or "").strip()
     test_model = (
         configured_test_model
-        if configured_test_model and configured_test_model != "custom-model"
+        if configured_test_model
         else configured_models[0]
         if configured_models
-        else configured_test_model or "custom-model"
+        else fallback_model.strip()
     )
+    if not test_model:
+        return {
+            "status": "unverified",
+            "latency_ms": None,
+            "error": "未配置可用于验证的测试模型",
+        }
     chat_url = f"{api_base.rstrip('/')}/chat/completions"
     payload = json.dumps(
         {
@@ -553,7 +567,12 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
             url = f"{api_base.rstrip('/')}/api/tags"
         elif api_mode == "chat_completions":
             if provider_id == "custom_openai" or profile is None:
-                return _verify_custom_openai_provider(provider_info, api_base, api_key)
+                return _verify_custom_openai_provider(
+                    provider_info,
+                    api_base,
+                    api_key,
+                    fallback_model=profile.test_model if profile else "",
+                )
             return _verify_openai_compatible_provider(
                 api_base,
                 api_key,
