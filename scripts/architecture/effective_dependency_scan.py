@@ -33,7 +33,6 @@ IGNORED_DIRECTORIES = frozenset(
 ROOT_SCRIPT_OWNERS: Mapping[str, str] = {
     "developer.sh": "devtools",
     "elfienest.sh": "scripts",
-    "install.sh": "scripts",
 }
 ALLOWED_TARGET_ROOTS: Mapping[str, FrozenSet[str]] = {
     "interface": frozenset({"app"}),

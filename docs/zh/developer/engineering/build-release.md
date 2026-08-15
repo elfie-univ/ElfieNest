@@ -71,8 +71,7 @@ Workflow 会在各平台校验安装后的资源布局，但当前内测包仍�
 之前，仍必须按上面的发布门记录完整的安装、启动、`/api/health` 和干净退出证据。
 
 每个安装包包含 Electron、前端、Godot Web、目标原生 Python Core 和管理 CLI。
-`./install.sh` 只构建当前机器 target，并安装到与手动原生安装包相同的 canonical
-layout。第三种安装方式“远程校验 bootstrap”已经做本地契约验证，但正式 URL 尚未上线。
+最终用户只安装这些平台原生产物；源码 checkout 仍然只是开发环境。
 
 首次内测的 macOS、Windows 安装包没有签名或公证，系统会显示来源警告；这是当前
 内测约束，不应通过关闭安全机制来绕过。安装测试必须记录“安装、启动、`/api/health`

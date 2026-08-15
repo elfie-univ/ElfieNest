@@ -240,7 +240,6 @@ def test_interactive_shell_forwards_owner_command(tmp_path: Path) -> None:
     (project_root / "pyproject.toml").write_text(
         "# marker for runtime mode detection\n"
     )
-    write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
     (project_root / "scripts").mkdir(parents=True, exist_ok=True)
     write_executable(project_root / "scripts" / "bootstrap.sh", "#!/bin/bash\nexit 0\n")
     invocation_log = tmp_path / "owner-invocation.log"

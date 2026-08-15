@@ -83,24 +83,14 @@ ExecutionReceipt 回到感知工作区
 `./elfienest.sh serve`。Ollama 是可选的公共本地模型能力：没有它时，应用仍可完成
 Setup 并使用其他已配置 Provider；不会静默下载私有 Ollama 或模型权重。
 
-如需安装当前用户可直接调用的 `elfienest` 命令：
-
-```bash
-./install.sh
-elfienest version
-```
-
-安装脚本只支持用户级安装，请不要使用 `root` 或 `sudo`。更完整的前提、错误处理
-和平台说明见[用户指南](docs/zh/user-guide/index.md)。
-
-手动原生安装包与未来的校验远程 bootstrap 会进入同一个安装后运行态。bootstrap
-契约已在本地验证，但正式 URL 尚未上线。
+普通用户只从官方 Releases 页面下载与平台匹配的原生安装包，再正常启动应用。源码
+checkout 只用于开发，不是安装方式。详见[用户指南](docs/zh/user-guide/index.md)。
 
 ## 文档入口
 
 - [文档首页](docs/zh/index.md)：项目简介与阅读入口；
 - [世界观与故事](docs/zh/story/index.md)：写给第一次认识 ElfieNest 的读者；
-- [用户指南](docs/zh/user-guide/index.md)：从源码建立并运行一座 Nest；
+- [用户指南](docs/zh/user-guide/index.md)：安装并使用桌面应用；
 - [开发者文档](docs/zh/developer/index.md)：架构、开发流程与工具；
 - [当前架构](docs/zh/developer/architecture/index.md)：模块边界和信息流；
 - [命令与开发工具](docs/zh/developer/engineering/tooling.md)：CLI、实验台、Godot 与构建入口。

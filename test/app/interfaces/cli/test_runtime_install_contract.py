@@ -92,7 +92,7 @@ def test_runtime_state_contract_allows_only_source_and_installed_runtime() -> No
 
 @pytest.mark.parametrize(
     "invalid_runtime_state",
-    ("source_install", "manual_native_package", "remote_release_bootstrap"),
+    ("manual_native_package",),
 )
 def test_runtime_state_contract_rejects_install_methods(
     invalid_runtime_state: str,
@@ -106,13 +106,9 @@ def test_runtime_state_contract_rejects_install_methods(
     # Then: no installation provenance can become a runtime mode.
 
 
-def test_install_method_contract_allows_exactly_three_app_installation_paths() -> None:
+def test_install_method_contract_allows_only_native_app_packages() -> None:
     # Given: the public application-installation provenance contract.
-    expected_methods = (
-        "source_install",
-        "manual_native_package",
-        "remote_release_bootstrap",
-    )
+    expected_methods = ("manual_native_package",)
 
     # When: its allowed values are enumerated and parsed.
     observed_methods = tuple(method.value for method in packaged_runtime.InstallMethod)
@@ -120,16 +116,8 @@ def test_install_method_contract_allows_exactly_three_app_installation_paths() -
     # Then: development is not counted as an installation method.
     assert observed_methods == expected_methods
     assert (
-        packaged_runtime.parse_install_method("source_install")
-        is packaged_runtime.InstallMethod.SOURCE_INSTALL
-    )
-    assert (
         packaged_runtime.parse_install_method("manual_native_package")
         is packaged_runtime.InstallMethod.MANUAL_NATIVE_PACKAGE
-    )
-    assert (
-        packaged_runtime.parse_install_method("remote_release_bootstrap")
-        is packaged_runtime.InstallMethod.REMOTE_RELEASE_BOOTSTRAP
     )
 
 
@@ -251,51 +239,31 @@ def test_canonical_installed_layout_has_one_root_and_app_internal_cli(
     assert layout.management_cli == expected_root / expected_cli_relative_path
 
 
-@pytest.mark.parametrize(
-    "method",
-    (
-        "source_install",
-        "manual_native_package",
-        "remote_release_bootstrap",
-    ),
-)
-def test_every_install_method_records_the_same_installed_runtime(
-    method: str,
-) -> None:
-    # Given: one of the three application-installation provenances.
+def test_native_package_records_the_installed_runtime() -> None:
+    # Given: the supported native application installation provenance.
 
     # When: its completed runtime record is formed.
     record = packaged_runtime.installed_runtime_record(
-        packaged_runtime.InstallMethod(method)
+        packaged_runtime.InstallMethod.MANUAL_NATIVE_PACKAGE
     )
 
-    # Then: provenance varies, while the installed runtime remains the same.
+    # Then: the native package enters installed runtime.
     assert record.runtime_state is packaged_runtime.RuntimeState.INSTALLED_RUNTIME
-    assert record.install_method.value == method
+    assert record.install_method is packaged_runtime.InstallMethod.MANUAL_NATIVE_PACKAGE
 
 
-@pytest.mark.parametrize(
-    "method",
-    (
-        "source_install",
-        "manual_native_package",
-        "remote_release_bootstrap",
-    ),
-)
-def test_every_install_method_exposes_the_same_manifest_and_setup_surface(
-    method: str,
-) -> None:
-    # Given: each distinct installation provenance for the same macOS target.
+def test_native_package_exposes_the_installed_manifest_and_setup_surface() -> None:
+    # Given: the supported native package for a macOS target.
 
     # When: its installed runtime surface is formed.
     surface = packaged_runtime.installed_runtime_surface(
-        install_method=packaged_runtime.InstallMethod(method),
+        install_method=packaged_runtime.InstallMethod.MANUAL_NATIVE_PACKAGE,
         target=packaged_runtime.NativeTarget.DARWIN_X64,
         home_directory=Path("/home/elfie"),
         local_app_data=Path("C:/Users/Elfie/AppData/Local"),
     )
 
-    # Then: all methods enter the same app manifest and first-run Setup surface.
+    # Then: the package enters the app manifest and first-run Setup surface.
     assert surface.manifest_path == Path(
         "/Applications/ElfieNest.app/Contents/Resources/manifest.json"
     )
@@ -303,4 +271,7 @@ def test_every_install_method_exposes_the_same_manifest_and_setup_surface(
     assert (
         surface.record.runtime_state is packaged_runtime.RuntimeState.INSTALLED_RUNTIME
     )
-    assert surface.record.install_method.value == method
+    assert (
+        surface.record.install_method
+        is packaged_runtime.InstallMethod.MANUAL_NATIVE_PACKAGE
+    )

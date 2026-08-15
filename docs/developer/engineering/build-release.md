@@ -79,10 +79,8 @@ tester, still record the full install, launch, `/api/health`, and clean-exit
 evidence described by the release gate above.
 
 Each installer contains Electron, the frontend, Godot Web, the target-native
-Python Core and the management CLI. Source installation with `./install.sh`
-builds only the current machine target, then installs the same canonical layout
-as a manual native package. The third installation method, remote verified
-bootstrap, is locally contract-tested but its public URL is not live yet.
+Python Core and the management CLI. End users install only these platform-native
+artifacts; a source checkout remains a development environment.
 
 The first internal-test macOS and Windows installers are neither signed nor
 notarized, so the system shows an origin warning. This current constraint must

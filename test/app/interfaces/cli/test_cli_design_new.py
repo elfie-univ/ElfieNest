@@ -70,7 +70,6 @@ def test_shell_routes_command_arguments_to_the_matching_entrypoint(
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
     (project_root / "pyproject.toml").write_text("", encoding="utf-8")
     write_executable(project_root / "scripts" / "bootstrap.sh", "#!/bin/bash\nexit 0\n")
-    write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
     (project_root / "pyproject.toml").write_text("# marker\n")
     (project_root / "scripts").mkdir(parents=True, exist_ok=True)
     write_executable(project_root / "scripts" / "bootstrap.sh", "#!/bin/bash\nexit 0\n")
@@ -341,7 +340,6 @@ def test_shell_routes_direct_start_to_cli_entrypoint(tmp_path: Path) -> None:
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
     (project_root / "pyproject.toml").write_text("", encoding="utf-8")
     write_executable(project_root / "scripts" / "bootstrap.sh", "#!/bin/bash\nexit 0\n")
-    write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
     (project_root / "pyproject.toml").write_text("# marker\n")
     (project_root / "scripts").mkdir(parents=True, exist_ok=True)
     write_executable(project_root / "scripts" / "bootstrap.sh", "#!/bin/bash\nexit 0\n")
@@ -396,7 +394,6 @@ def test_shell_routes_direct_serve_to_supervised_cli_entrypoint(tmp_path: Path) 
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
     (project_root / "pyproject.toml").write_text("", encoding="utf-8")
     write_executable(project_root / "scripts" / "bootstrap.sh", "#!/bin/bash\nexit 0\n")
-    write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
     log_path = tmp_path / "invocations.log"
     write_executable(
         project_root / ".venv" / "bin" / "python3",
@@ -441,7 +438,6 @@ def test_shell_routes_direct_port_flags_to_cli_parser(tmp_path: Path) -> None:
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
     (project_root / "pyproject.toml").write_text("", encoding="utf-8")
     write_executable(project_root / "scripts" / "bootstrap.sh", "#!/bin/bash\nexit 0\n")
-    write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
     (project_root / "pyproject.toml").write_text("# marker\n")
     (project_root / "scripts").mkdir(parents=True, exist_ok=True)
     write_executable(project_root / "scripts" / "bootstrap.sh", "#!/bin/bash\nexit 0\n")

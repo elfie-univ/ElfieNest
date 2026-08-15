@@ -167,12 +167,9 @@ There is one source-development path: work in a checkout and run
 `./elfienest.sh`; it checks the locked development environment before entering
 the product menu. It is not an installation method.
 
-There are exactly three recognized installation methods: source installation
-with `./install.sh` for the current native target; a manually obtained native
-installer for the matching platform; and a verified remote bootstrap when its
-public endpoint is published. The third method has no public download command
-yet. These methods converge on the same artifact contract; this page makes no
-claim that an artifact is currently available.
+There is one end-user installation path: obtain the matching platform-native
+package and install it through the operating system. A release download is a
+delivery channel for that package, not a separate installation method.
 
 ## Development boundary
 

@@ -24,11 +24,9 @@ class RuntimeState(str, Enum):
 
 
 class InstallMethod(str, Enum):
-    """The only three ways an application installation may be obtained."""
+    """The supported application installation provenance."""
 
-    SOURCE_INSTALL = "source_install"
     MANUAL_NATIVE_PACKAGE = "manual_native_package"
-    REMOTE_RELEASE_BOOTSTRAP = "remote_release_bootstrap"
 
 
 class NativeTarget(str, Enum):
@@ -55,7 +53,7 @@ class InstalledRuntimeRecord(NamedTuple):
 
 
 class InstalledRuntimeSurface(NamedTuple):
-    """The shared installed manifest and Setup entry for any installation method."""
+    """The installed manifest and Setup entry for a native app package."""
 
     record: InstalledRuntimeRecord
     manifest_path: Path

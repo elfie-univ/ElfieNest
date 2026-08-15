@@ -39,12 +39,12 @@ def parse_args(arguments: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--artifact-output",
         type=Path,
-        help="write the one locally built artifact path for an installer caller",
+        help="write the one complete locally built artifact path",
     )
     parser.add_argument(
-        "--source-install-artifact-output",
+        "--native-package-output",
         type=Path,
-        help="write one current-host artifact for source installation before post-install smoke",
+        help="write one current-host native package path before post-install smoke",
     )
     return parser.parse_args(arguments)
 
@@ -52,10 +52,7 @@ def parse_args(arguments: Optional[Sequence[str]] = None) -> argparse.Namespace:
 def main(arguments: Optional[Sequence[str]] = None) -> int:
     """Coordinate one complete release matrix without uploading any artifacts."""
     args = parse_args(arguments)
-    if (
-        args.artifact_output is not None
-        and args.source_install_artifact_output is not None
-    ):
+    if args.artifact_output is not None and args.native_package_output is not None:
         print("release-artifact-output-options-conflict")
         return 2
     targets = tuple(args.target) if args.target else SUPPORTED_TARGETS
@@ -118,15 +115,15 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
             print("release-artifact-output-requires-one-complete-native-target")
             return 2
         args.artifact_output.write_text(f"{artifacts[0].resolve()}\n", encoding="utf-8")
-    if args.source_install_artifact_output is not None:
+    if args.native_package_output is not None:
         if (
             len(artifacts) != 1
             or len(targets) != 1
             or targets[0] != package_python_core.host_target()
         ):
-            print("release-source-install-artifact-requires-one-current-native-target")
+            print("release-native-package-output-requires-one-current-native-target")
             return 2
-        args.source_install_artifact_output.write_text(
+        args.native_package_output.write_text(
             f"{artifacts[0].resolve()}\n", encoding="utf-8"
         )
     return 0 if session.status == "complete" else 3
