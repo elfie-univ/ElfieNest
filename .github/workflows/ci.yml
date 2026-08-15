@@ -70,6 +70,13 @@ jobs:
           uv run --no-sync python scripts/architecture/structural_scope_scan.py \
             --project-root .
 
+      - name: Check database boundaries and print consumer inventory
+        run: |
+          uv run --no-sync python scripts/architecture/database_change_scan.py \
+            --project-root . \
+            --base-sha "$BASE_SHA" \
+            --check
+
       - name: Reject governance and implementation files in one change
         run: |
           if git cat-file -e "$BASE_SHA:scripts/architecture/check_governance_change.py"; then

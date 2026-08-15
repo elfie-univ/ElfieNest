@@ -104,6 +104,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "godot_project/AGENTS.md",
         ),
         scanner_paths=(
+            "scripts/architecture/database_change_inventory.py",
+            "scripts/architecture/database_change_scan.py",
             "scripts/architecture/effective_dependency_python.py",
             "scripts/architecture/effective_dependency_scan.py",
             "scripts/architecture/effective_dependency_targets.py",
@@ -119,6 +121,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "test/architecture/test_runtime_import_boundaries.py",
             "test/architecture/test_system_ports_contract.py",
             "test/architecture/test_runtime_observer_contracts.py",
+            "test/architecture/test_database_change_boundaries.py",
             "test/architecture/test_storage_boundaries.py",
         ),
     ),
