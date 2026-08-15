@@ -1,5 +1,9 @@
 # Management: users, Food and the Nest
 
+<script setup>
+import { withBase } from "vitepress";
+</script>
+
 Management is for the Nest owner and administrators. A normal member will not
 see these entries and can continue using Chat and Elfies without them.
 
@@ -10,7 +14,7 @@ choose a local or remote model source, validate at least one model, configure
 Food for Elfies, and check **Status monitor**. That is the page to use when Chat
 stops receiving replies.
 
-![Status monitor example in ElfieNest](/assets/user-guide/manage.png)
+<img :src="withBase('/assets/user-guide/manage.png')" alt="Status monitor example in ElfieNest" />
 
 > This screenshot is a status-monitor example, not a success certificate. If
 > **Model services** says `0 available models`, the Nest still needs a model

@@ -164,8 +164,11 @@ describe("ChatPage list pane headings", () => {
     renderChatPage("zh-CN")
 
     expect(await screen.findByRole("heading", { level: 1, name: "消息" })).toBeInTheDocument()
-    expect(await screen.findByText("还没有聊天记录。")).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { level: 2, name: "还没有聊天记录" })).toBeInTheDocument()
+    expect(screen.getByText("点击右上角的“＋领养”，开始你的第一次相遇。TA会在这里和你聊天。")).toBeInTheDocument()
     expect(screen.getByText("请选择一个精灵跟它聊天")).toBeInTheDocument()
+    expect(document.querySelector(".conversation .topline")).not.toBeInTheDocument()
+    expect(document.querySelector(".conversation .composer")).not.toBeInTheDocument()
     await waitFor(() => expect(window.location.search).toBe("?view=chats"))
   })
 
@@ -436,13 +439,13 @@ describe("ChatPage list pane headings", () => {
     expect(screen.getByRole("button", { name: "我的 1" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "其他 0" })).toBeInTheDocument()
     expect(allFilter).toHaveAttribute("aria-pressed", "true")
-    const groupHeadings = screen.getAllByRole("heading", { level: 2 })
+    const groupHeadings = Array.from(document.querySelectorAll(".elfie-list__group h2"))
     expect(groupHeadings.map((heading) => heading.textContent)).toEqual(["我的精灵"])
 
     await user.click(screen.getByRole("button", { name: "我的 1" }))
     expect(screen.getByText("小羽")).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "其他 0" }))
-    expect(screen.getByRole("status")).toHaveTextContent("没有符合条件的精灵")
+    expect(document.querySelector(".elfie-list__empty")).toHaveTextContent("没有符合条件的精灵")
     await user.click(screen.getByRole("button", { name: "全部 1" }))
 
     const search = screen.getByPlaceholderText("搜索精灵")
@@ -466,11 +469,11 @@ describe("ChatPage list pane headings", () => {
 
     const search = await screen.findByPlaceholderText("搜索精灵")
     await user.type(search, "999999999999999999")
-    expect(screen.getByRole("status")).toHaveTextContent("没有符合条件的精灵")
+    expect(document.querySelector(".elfie-list__empty")).toHaveTextContent("没有符合条件的精灵")
     expect(window.location.search).toBe("?view=elfies")
 
     await user.clear(search)
-    expect(screen.queryByRole("status")).not.toBeInTheDocument()
+    expect(document.querySelector(".elfie-list__empty")).not.toBeInTheDocument()
     expect(screen.getByText("小羽")).toBeInTheDocument()
   })
 
@@ -807,32 +810,6 @@ describe("ChatConversationPane history layout", () => {
     )
     await act(async () => {})
     expect(list.scrollTop).toBe(120)
-  })
-
-  it("renders only the selection prompt when no Elfie is selected", () => {
-    render(
-      <I18nextProvider i18n={createI18n()}>
-        <ChatConversationPane
-          draft=""
-          error={null}
-          history={[]}
-          mobileDetail={false}
-          onBack={() => undefined}
-          onDraftChange={() => undefined}
-          onOpenDetail={() => undefined}
-          onSubmit={async () => undefined}
-          selected={undefined}
-          selectedId={null}
-          userAvatarUrl={null}
-          userDisplayName="Owner"
-        />
-      </I18nextProvider>,
-    )
-
-    expect(screen.getByText("请选择一个精灵跟它聊天")).toBeInTheDocument()
-    expect(screen.queryByRole("heading")).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "详情" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
   })
 })
 

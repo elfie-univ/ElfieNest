@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /ElfieNest/
+
+Sitemap: https://elfie-univ.github.io/ElfieNest/sitemap.xml

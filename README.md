@@ -37,7 +37,7 @@ They want to understand Earth, meet humans, and find a home they can share.
 Now you can host your own ElfieNest on your own computer and adopt the first
 Elfie willing to come to you.
 
-Start at the [documentation home](https://elfienest.dev/), then move through
+Start at the [documentation home](https://elfie-univ.github.io/ElfieNest/), then move through
 [World & Story](docs/story/index.md), [User Guide](docs/user-guide/index.md),
 and the [Developer Docs](docs/developer/index.md) layer by layer.
 
@@ -83,12 +83,13 @@ pinned CPython `3.9.25` and `uv.lock` through this entry point:
 
 ```bash
 ./elfienest.sh version
-.venv/bin/python main.py
+./elfienest.sh
 ```
 
-`main.py` runs a three-tick local demo. Public Ollama is optional: Setup can
-skip it or bind one chosen endpoint, but the application never silently bundles
-or installs a private engine or model weights.
+The no-argument launcher opens the interactive menu; use `./elfienest.sh serve`
+to run the service in the foreground. Public Ollama is optional: Setup can skip
+it or bind one chosen endpoint, but the application never silently bundles or
+installs a private engine or model weights.
 
 To build the current source as a native application for this machine and install
 the user-level `elfienest` command, run:

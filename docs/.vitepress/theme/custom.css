@@ -1150,13 +1150,23 @@ body.story-mode .story-scroll + p {
 .story-timeline__dot {
   position: relative;
   display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+}
+
+.story-timeline__dot::before {
   width: 15px;
   height: 15px;
-  place-items: center;
   border: 1px solid rgba(171, 194, 255, 0.68);
   border-radius: 50%;
   background: #0b1534;
   box-shadow: 0 0 0 5px rgba(8, 17, 42, 0.75);
+  content: "";
   transition: width 220ms ease, height 220ms ease, border-color 220ms ease, box-shadow 220ms ease, background 220ms ease;
 }
 
@@ -1178,11 +1188,26 @@ body.story-mode .story-scroll + p {
 }
 
 .story-timeline__dot.is-active {
-  width: 23px;
-  height: 23px;
+  z-index: 1;
+}
+
+.story-timeline__dot:hover,
+.story-timeline__dot:focus-visible {
+  outline: 2px solid rgba(196, 220, 255, 0.9);
+  outline-offset: 2px;
+}
+
+.story-timeline__dot:hover::before,
+.story-timeline__dot:focus-visible::before,
+.story-timeline__dot.is-active::before {
   border-color: #b8d2ff;
   background: #73a7ff;
   box-shadow: 0 0 0 6px rgba(92, 141, 255, 0.18), 0 0 22px rgba(91, 156, 255, 0.82);
+}
+
+.story-timeline__dot.is-active::before {
+  width: 23px;
+  height: 23px;
 }
 
 .story-chapter {
@@ -1881,27 +1906,47 @@ body.home-mode .home-contribute__inner h2 {
 
 .home-timeline__dot {
   position: relative;
-  display: block;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+}
+
+.home-timeline__dot::before {
   width: 14px;
   height: 14px;
   border: 1px solid rgba(203, 224, 255, 0.76);
   border-radius: 50%;
   background: #0b1534;
   box-shadow: 0 0 0 4px rgba(6, 15, 36, 0.66);
+  content: "";
   transition: width 220ms ease, height 220ms ease, background 220ms ease, box-shadow 220ms ease;
 }
 
 .home-timeline__dot:hover,
-.home-timeline__dot:focus-visible,
-.home-timeline__dot.is-active {
+.home-timeline__dot:focus-visible {
+  outline: 2px solid rgba(196, 220, 255, 0.9);
+  outline-offset: 2px;
+}
+
+.home-timeline__dot:hover::before,
+.home-timeline__dot:focus-visible::before,
+.home-timeline__dot.is-active::before {
   background: #74a8ff;
   box-shadow: 0 0 0 5px rgba(92, 141, 255, 0.18), 0 0 20px rgba(91, 156, 255, 0.78);
 }
 
 .home-timeline__dot.is-active {
+  z-index: 1;
+}
+
+.home-timeline__dot.is-active::before {
   width: 22px;
   height: 22px;
-  margin: -4px;
 }
 
 @media (max-width: 768px) {
@@ -1999,7 +2044,9 @@ body.home-mode .home-contribute__inner h2 {
   }
 
   .story-chapter__image,
-  .story-timeline__dot {
+  .story-timeline__dot,
+  .story-timeline__dot::before,
+  .home-timeline__dot::before {
     transition: none;
   }
 }

@@ -25,9 +25,10 @@ export function ElfieList({
 }: ElfieListProps) {
   const { t } = useTranslation("chat")
   const result = filterElfieList(items, viewerAccountId, query, filter)
+  const hasAnyElfies = items.length > 0
   return (
-    <div className="elfie-list">
-      <div aria-label={t("profile.list.scope")} className="elfie-list__filters" role="group">
+    <div className={hasAnyElfies ? "elfie-list" : "elfie-list elfie-list--empty"}>
+      {hasAnyElfies ? <div aria-label={t("profile.list.scope")} className="elfie-list__filters" role="group">
         {FILTERS.map((option) => {
           const label = t(`profile.list.${option}`)
           return (
@@ -45,8 +46,8 @@ export function ElfieList({
           </Button>
           )
         })}
-      </div>
-      <div className="elfie-list__scroll">
+      </div> : null}
+      <div className={hasAnyElfies ? "elfie-list__scroll" : "elfie-list__scroll elfie-list__scroll--empty"}>
         {result.groups.map((group) => (
           <section className="elfie-list__group" key={group.kind}>
             <h2>{group.kind === "mine" ? t("profile.list.mineGroup") : t("profile.list.otherGroup")}</h2>
@@ -70,8 +71,13 @@ export function ElfieList({
             ))}
           </section>
         ))}
-        {result.visibleCount === 0 ? (
+        {result.visibleCount === 0 ? hasAnyElfies ? (
           <p className="elfie-list__empty" role="status">{t("profile.list.empty")}</p>
+        ) : (
+          <div className="empty-state empty-state--list" role="status">
+            <h2>{t("profile.list.emptyFirstTitle")}</h2>
+            <p>{t("profile.list.emptyFirstDescription")}</p>
+          </div>
         ) : null}
       </div>
     </div>

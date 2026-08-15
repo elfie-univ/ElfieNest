@@ -23,7 +23,7 @@ healthy visible current food when the profile offers more than one.
 
 No. Install the desktop app, finish setup, and use the visible pages. Model
 connections and Food are an administrator task; developers can read the
-separate [Developer docs](/developer/).
+separate [Developer docs](../developer/).
 
 ## Is a local model required?
 

@@ -19,6 +19,30 @@ const ITEMS = [
 ] as const satisfies readonly ElfieListItem[]
 
 describe("ElfieList i18n", () => {
+  it("guides a first-time visitor from the empty Elfie list", () => {
+    const instance = createI18n()
+    void instance.changeLanguage("zh-CN")
+
+    render(
+      <I18nextProvider i18n={instance}>
+        <ElfieList
+          filter="all"
+          items={[]}
+          onFilterChange={vi.fn()}
+          onProfile={vi.fn()}
+          query=""
+          selectedId={null}
+          viewerAccountId="owner-1"
+        />
+      </I18nextProvider>,
+    )
+
+    expect(screen.getByRole("heading", { name: "你的巢还在等第一位住客" })).toBeInTheDocument()
+    expect(screen.getByText("点击右上角的“＋领养”，开始第一段相遇。")).toBeInTheDocument()
+    expect(document.querySelector(".elfie-list")).toHaveClass("elfie-list--empty")
+    expect(screen.queryByRole("group", { name: "精灵范围" })).not.toBeInTheDocument()
+  })
+
   it("renders English list chrome with only Elfie names visible", () => {
     // Given: a mixed ownership list under the English locale.
     const instance = createI18n()
