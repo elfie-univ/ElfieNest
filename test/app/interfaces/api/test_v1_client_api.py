@@ -88,7 +88,7 @@ def test_v1_routes_require_a_session(client: TestClient) -> None:
     assert client.get("/api/v1/elfies").status_code == 401
 
 
-def test_v1_profile_and_messages_hide_another_users_elfie(
+def test_v1_profile_is_public_but_messages_hide_another_users_elfie(
     client: TestClient, db_path: str
 ) -> None:
     owner_csrf = _login_owner(client)
@@ -108,7 +108,9 @@ def test_v1_profile_and_messages_hide_another_users_elfie(
     profile = client.get(f"/api/v1/elfies/{elfie_id}/profile")
     messages = client.get(f"/api/v1/me/conversations/{elfie_id}/messages")
 
-    assert profile.status_code == 404
+    assert profile.status_code == 200
+    assert profile.json()["relationship"] == "other"
+    assert profile.json()["private_cognition"] is None
     assert messages.status_code == 404
 
 

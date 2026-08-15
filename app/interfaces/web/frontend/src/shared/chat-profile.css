@@ -57,6 +57,7 @@
 .elfie-list__profile .avatar { width: 52px; height: 52px; border-radius: 14px; }
 .elfie-list__empty { margin: 28px 18px; color: var(--ink-soft); line-height: 1.55; text-align: center; overflow-wrap: anywhere; }
 .conversation { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; background: var(--surface); }
+.conversation--empty { display: grid; place-items: center; }
 .elfie-detail-pane, .mobile-me-pane { min-width: 0; }
 .topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 17px 26px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .topline h1 { margin: 0; font-size: 22px; }

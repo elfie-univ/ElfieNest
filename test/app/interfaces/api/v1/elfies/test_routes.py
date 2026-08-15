@@ -56,19 +56,21 @@ def _client(
     return TestClient(application)
 
 
-def test_member_resources_return_owned_envelope_and_profile(
+def test_member_resources_return_visible_envelopes_and_owned_profile(
     tmp_path: Path,
 ) -> None:
     client = _client(tmp_path, principal=_principal())
 
     listing = client.get("/api/v1/elfies")
     detail = client.get("/api/v1/elfies/00000001/profile")
+    owned_listing = client.get("/api/v1/elfies?relationship=owned")
 
     assert listing.status_code == 200
-    assert [item["profile"]["elfie_id"] for item in listing.json()["items"]] == [
-        "00000001"
-    ]
+    assert [item["profile"]["elfie_id"] for item in listing.json()["items"]] == ["00000001", "00000002"]
+    assert [item["relationship"] for item in listing.json()["items"]] == ["owned", "other"]
     assert listing.json()["items"][0]["relationship"] == "owned"
+    assert owned_listing.status_code == 200
+    assert [item["profile"]["elfie_id"] for item in owned_listing.json()["items"]] == ["00000001"]
     assert not {
         "food_policy",
         "nest",
@@ -85,13 +87,18 @@ def test_member_resources_return_owned_envelope_and_profile(
     }
 
 
-def test_member_profile_hides_another_members_elfie(tmp_path: Path) -> None:
+def test_member_profile_of_another_member_exposes_public_projection(tmp_path: Path) -> None:
     client = _client(tmp_path, principal=_principal())
 
     response = client.get("/api/v1/elfies/00000002/profile")
 
-    assert response.status_code == 404
-    assert response.json()["error"]["code"] == "elfie_not_found"
+    assert response.status_code == 200
+    assert response.json()["relationship"] == "other"
+    assert response.json()["permissions"] == {
+        "can_view_profile": True,
+        "can_view_cognition": False,
+    }
+    assert response.json()["private_cognition"] is None
 
 
 def test_member_profile_exposes_a_private_persisted_headshot(tmp_path: Path) -> None:

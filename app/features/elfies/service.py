@@ -36,6 +36,10 @@ _ADMIN_PERMISSIONS = ElfiePermissionsResult(
     can_view_profile=True,
     can_view_cognition=False,
 )
+_VISITOR_PERMISSIONS = ElfiePermissionsResult(
+    can_view_profile=True,
+    can_view_cognition=False,
+)
 
 
 class ElfiesService:
@@ -47,13 +51,20 @@ class ElfiesService:
         principal: AccountPrincipal,
         query: ListVisibleElfiesQuery,
     ) -> tuple[VisibleElfieResult, ...]:
-        del query
         try:
-            records = self._queries.list_directory(owner_user_id=principal.user_id)
+            records = self._queries.list_directory(
+                owner_user_id=(principal.user_id if query.relationship == "owned" else None),
+            )
             return tuple(
                 VisibleElfieResult(
-                    relationship="owned",
-                    permissions=_OWNED_PERMISSIONS,
+                    relationship=(
+                        "owned" if record.owner_user_id == principal.user_id else "other"
+                    ),
+                    permissions=(
+                        _OWNED_PERMISSIONS
+                        if record.owner_user_id == principal.user_id
+                        else _VISITOR_PERMISSIONS
+                    ),
                     profile=self._profile(record),
                 )
                 for record in records
@@ -70,18 +81,23 @@ class ElfiesService:
             raise ElfieNotFound("Elfie not found")
         try:
             record = self._queries.get_directory(query.elfie_id)
-            if record is None or record.owner_user_id != principal.user_id:
+            if record is None:
                 raise ElfieNotFound("Elfie not found")
             profile = self._profile(record)
-            cognition = project_cognition(
-                self._queries.load_cognition(record.elfie_id),
-                elfie_name=record.name,
+            owned = record.owner_user_id == principal.user_id
+            cognition = (
+                project_cognition(
+                    self._queries.load_cognition(record.elfie_id),
+                    elfie_name=record.name,
+                )
+                if owned
+                else None
             )
         except ElfiesPortError as error:
             raise ElfiesUnavailable("Elfie profile unavailable") from error
         return ElfieProfileDetailResult(
-            relationship="owned",
-            permissions=_OWNED_PERMISSIONS,
+            relationship="owned" if owned else "other",
+            permissions=_OWNED_PERMISSIONS if owned else _VISITOR_PERMISSIONS,
             profile=profile,
             private_cognition=cognition,
         )
@@ -95,7 +111,7 @@ class ElfiesService:
             raise ElfieNotFound("Elfie not found")
         try:
             record = self._queries.get_directory(query.elfie_id)
-            if record is None or record.owner_user_id != principal.user_id:
+            if record is None:
                 raise ElfieNotFound("Elfie not found")
             content = self._queries.load_portrait(query.elfie_id, kind=query.kind)
         except ElfiesPortError as error:

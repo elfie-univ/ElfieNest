@@ -26,7 +26,7 @@ export const chat = {
     back: "Back to chat history",
     select: "Choose an Elfie",
     details: "Details",
-    empty: "Adopt or choose an Elfie from My Elfies first.",
+    empty: "Choose an Elfie to chat with.",
     senderElfie: "Elfie",
   },
   composer: {

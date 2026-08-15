@@ -26,7 +26,7 @@ export const chat = {
     back: "返回聊天记录",
     select: "选择一只精灵",
     details: "详情",
-    empty: "先在“我的精灵”中领养或选择一只精灵。",
+    empty: "请选择一个精灵跟它聊天",
     senderElfie: "精",
   },
   composer: {
