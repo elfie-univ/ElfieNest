@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any, Dict, Literal, Mapping
 
 PROVIDER_CATALOG_VERSION = 2
-BUNDLED_PROVIDER_CATALOG_PATH = Path(__file__).with_name("provider-catalog.yaml")
 _PROVIDER_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 _ENV_NAME_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
 _SECRET_FIELDS = frozenset(

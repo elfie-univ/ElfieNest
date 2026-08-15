@@ -11,10 +11,42 @@ from typing import Callable, Dict, Mapping, Optional, Protocol, cast
 from pydantic import JsonValue
 
 from infrastructure.models.oauth_credentials import OAuthCredentialPort
-from infrastructure.models.providers.profiles import (
-    BUILTIN_PROFILES,
-    get_default_api_mode,
+from infrastructure.models.providers.catalog import ProviderCatalog
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_system_defaults,
 )
+from infrastructure.persistence.provider_catalog import load_provider_catalog
+
+
+def _model_execution_default(name: str, fallback):
+    values = load_system_defaults().get("model_execution", {})
+    if not isinstance(values, Mapping):
+        return fallback
+    value = values.get(name, fallback)
+    return value
+
+
+def _default_ollama_host() -> str:
+    return os.getenv(
+        "OLLAMA_HOST",
+        str(_model_execution_default("ollama_host", "http://localhost:11434")),
+    )
+
+
+def _default_energy_threshold() -> float:
+    return float(_model_execution_default("energy_threshold_fast", 30.0))
+
+
+def _default_complexity_threshold() -> int:
+    return int(_model_execution_default("complexity_threshold_deep", 3))
+
+
+def _default_temperature() -> float:
+    return float(_model_execution_default("temperature", 0.7))
+
+
+def _default_max_tokens() -> int:
+    return int(_model_execution_default("max_tokens", 1500))
 
 
 class ModelExecutionConfigSource(Protocol):
@@ -72,13 +104,14 @@ def _env_value(
 
 
 def _default_providers(
+    catalog: ProviderCatalog,
     env_values: Mapping[str, str],
     provider_secret_name: Callable[[str], str],
     *,
     include_process_env: bool = True,
 ) -> Dict[str, Dict[str, JsonValue]]:
     providers: Dict[str, Dict[str, JsonValue]] = {}
-    for provider_id, profile in BUILTIN_PROFILES.items():
+    for provider_id, profile in catalog.profiles.items():
         api_key_env = profile.api_key_env_var or provider_secret_name(provider_id)
         providers[provider_id] = {
             "api_key": _env_value(
@@ -101,7 +134,7 @@ def _default_providers(
 
 
 # ---------------------------------------------------------------------------
-# 系统设置默认值 & 深层合并工具
+# 有限的 Provider 配置投影合并工具
 # ---------------------------------------------------------------------------
 
 
@@ -123,45 +156,28 @@ def deep_update(
     return base
 
 
-DEFAULT_SYSTEM_SETTINGS: Dict[str, JsonValue] = {
-    "adoption": {
-        "max_elfies_per_user": 3,
-        "personality_presets_enabled": {
-            "活泼好动": True,
-            "安静温顺": True,
-            "好奇探索": True,
-            "胆小害羞": True,
-            "傲娇独立": True,
-            "完全随机": True,
-        },
-    },
-    "engine": {
-        "tick_interval_sec": 1.5,
-    },
-    "security": {
-        "session_ttl_days": 7,
-        "rate_limit": {"max_attempts": 5, "window_seconds": 300},
-    },
-}
-
-
 @dataclass
 class ModelExecutionConfig:
     """Provider adapters and model-execution settings."""
 
     providers: Dict[str, Dict[str, JsonValue]] = field(default_factory=dict)
-
-    ollama_host: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-
-    energy_threshold_fast: float = 30.0
-    complexity_threshold_deep: int = 3
-
-    temperature: float = 0.7
-    max_tokens: int = 1500
-
-    system: Dict[str, JsonValue] = field(
-        default_factory=lambda: copy.deepcopy(DEFAULT_SYSTEM_SETTINGS)
+    provider_catalog: ProviderCatalog | None = field(
+        default=None,
+        repr=False,
+        compare=False,
     )
+
+    ollama_host: str = field(default_factory=_default_ollama_host)
+
+    energy_threshold_fast: float = field(default_factory=_default_energy_threshold)
+    complexity_threshold_deep: int = field(
+        default_factory=_default_complexity_threshold
+    )
+
+    temperature: float = field(default_factory=_default_temperature)
+    max_tokens: int = field(default_factory=_default_max_tokens)
+
+    system: Dict[str, JsonValue] = field(default_factory=load_system_defaults)
     runtime_policy: Mapping[str, JsonValue] = field(default_factory=dict)
 
     # 开发工具使用独立配置目录，避免误读正式环境的密钥和策略。
@@ -178,11 +194,14 @@ class ModelExecutionConfig:
     )
 
     def __post_init__(self) -> None:
+        provider_catalog = self.provider_catalog or load_provider_catalog()
+        self.provider_catalog = provider_catalog
         config_home = Path(self.config_home).expanduser() if self.config_home else None
         source: ModelExecutionConfigSource = (
             self.source or DefaultModelExecutionConfigSource()
         )
         defaults = _default_providers(
+            provider_catalog,
             source.load_env(config_home),
             source.provider_secret_name,
             include_process_env=config_home is None,
@@ -249,11 +268,11 @@ class ModelExecutionConfig:
 
                 # 更新其他字段属性（system 键深层合并，其余直接覆盖）
                 explicit_defaults = {
-                    "ollama_host": os.getenv("OLLAMA_HOST", "http://localhost:11434"),
-                    "energy_threshold_fast": 30.0,
-                    "complexity_threshold_deep": 3,
-                    "temperature": 0.7,
-                    "max_tokens": 1500,
+                    "ollama_host": _default_ollama_host(),
+                    "energy_threshold_fast": _default_energy_threshold(),
+                    "complexity_threshold_deep": _default_complexity_threshold(),
+                    "temperature": _default_temperature(),
+                    "max_tokens": _default_max_tokens(),
                 }
                 for k, v in saved_cfg.items():
                     if k != "providers" and hasattr(self, k) and v is not None:
@@ -287,9 +306,12 @@ class ModelExecutionConfig:
             local_secret = source.resolve_secret(secret_name, config_home)
             if local_secret:
                 self.providers[provider]["api_key"] = local_secret
-            # api_mode: 从 BUILTIN_PROFILES 获取，未知服务商默认 chat_completions
+            # api_mode: 从已校验的 Provider catalog 获取，未知服务商使用协议安全默认值。
             if "api_mode" not in self.providers[provider]:
-                self.providers[provider]["api_mode"] = get_default_api_mode(provider)
+                profile = provider_catalog.profiles.get(provider)
+                self.providers[provider]["api_mode"] = (
+                    profile.api_mode if profile is not None else "chat_completions"
+                )
             # status: 如果 saved_cfg 中显式设置了 status，则使用它；否则根据 api_key 计算
             saved_status = None
             if saved_cfg and "providers" in saved_cfg:

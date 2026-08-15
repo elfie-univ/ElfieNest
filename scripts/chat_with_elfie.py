@@ -27,6 +27,9 @@ from app.bootstrap.system_wiring.nest_session import (
     build_nest_session_services,
     restore_registered_elfies,
 )
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_emotion_expression_defaults,
+)
 
 
 def main():
@@ -54,7 +57,11 @@ def main():
         )
         lifecycle.start_runtime_channel(nest_session.world_runtime)
         engine = nest_session.engine
-        restore_result = restore_registered_elfies(db_path, engine.session)
+        restore_result = restore_registered_elfies(
+            db_path,
+            engine.session,
+            emotion_expression_config=load_emotion_expression_defaults(),
+        )
         if not restore_result.restored:
             lifecycle.stop_runtime_channel(nest_session.world_runtime)
             raise RuntimeError(

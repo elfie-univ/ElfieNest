@@ -121,6 +121,11 @@ ElfieNest 当前目标是完成一套可安装、可运行、可观察、可继�
   `docs/developer/tooling.md` 为准，不在本文件复制另一套教程。
 - 中间构建产物只写根 `build/`，最终发行物只写根 `dist/`，生产数据只写统一 resolver
   定位的 `ELFIE_HOME`；生成物不得写回源码目录。
+- 应用内置默认配置的目标唯一源码根是小写 `config/`，发行时唯一副本是
+  `resources/config/`；用户配置唯一写入根是 `${ELFIE_HOME}/configs/`。首次运行不得
+  复制默认值，业务/领域代码不得自行解析路径或 YAML，现存迁移缺口只按双语
+  [`Configuration management contract`](docs/developer/contracts/configuration-management.md)
+  与对应 Conformance 收敛，禁止新增散落配置、重复默认值或通用深合并入口。
 - SQL 只能存在于持久化层。数据根、数据库职责和 Developer Tools 隔离规则见
   `infrastructure/persistence/AGENTS.md`；Developer Tools 不得读写生产 `ELFIE_HOME`。
 

@@ -20,8 +20,10 @@ from infrastructure.persistence.food_evidence import SQLiteFoodEvidenceAdapter
 from infrastructure.persistence.layout.data_home import (
     data_home_from_db_path,
     get_config_path,
+    get_provider_catalog_path,
 )
 from infrastructure.persistence.layout.data_layout import final_root_layout
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
 from infrastructure.persistence.provider_references import (
     SQLiteProviderReferenceAdapter,
@@ -47,6 +49,12 @@ class CliConfigurationContainer:
 def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
     config_path = get_config_path()
     secret_path = None
+    provider_catalog_path = get_provider_catalog_path()
+    if db_path != ":memory:":
+        provider_catalog_path = final_root_layout(
+            data_home_from_db_path(db_path)
+        ).provider_catalog_config
+    provider_catalog = load_provider_catalog(provider_catalog_path)
     provider_reports = ReportStorageAdapter(ReportRepository())
     provider_store = ProviderConnectionStore()
     provider_evidence = SQLiteFoodEvidenceAdapter(provider_store, ReportRepository())
@@ -54,6 +62,7 @@ def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
         ProviderStorageAdapter(provider_store),
         provider_reports,
         provider_evidence,
+        catalog=provider_catalog,
     )
     if db_path != ":memory:":
         layout = final_root_layout(data_home_from_db_path(db_path))
@@ -71,6 +80,7 @@ def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
             ),
             provider_reports,
             provider_evidence,
+            catalog=provider_catalog,
         )
     providers = ProvidersService(
         catalog=provider_models,
@@ -78,7 +88,7 @@ def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
         references=SQLiteProviderReferenceAdapter(db_path),
         technology=provider_models,
         local_state=provider_models,
-        local_technology=PublicOllamaProviderAdapter(),
+        local_technology=PublicOllamaProviderAdapter(catalog=provider_catalog),
     )
     if db_path != ":memory:":
         providers.ensure_default_local_connection(

@@ -110,6 +110,9 @@ from app.orchestration.lifecycle import (
     command_runs_service,
     validate_service_ports,
 )
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_emotion_expression_defaults,
+)
 
 
 def remaining_occupied_ports(
@@ -374,7 +377,11 @@ def main():
     # 4. Dynamically load all Elfies from the database.
     loaded_elfies: list[dict] = []
     try:
-        restore_result = restore_registered_elfies(db_path, engine.session)
+        restore_result = restore_registered_elfies(
+            db_path,
+            engine.session,
+            emotion_expression_config=load_emotion_expression_defaults(),
+        )
         loaded_elfies = [
             {"id": item.elfie_id, "name": item.name} for item in restore_result.restored
         ]

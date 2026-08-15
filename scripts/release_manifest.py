@@ -19,6 +19,16 @@ REQUIRED_GODOT_FILES: Final[Tuple[str, ...]] = (
     "godot-web/elfienest.wasm",
     "godot-web/elfienest.pck",
 )
+REQUIRED_CONFIG_FILES: Final[Tuple[str, ...]] = (
+    "config/app/system-defaults.yaml",
+    "config/models/provider-catalog.yaml",
+    "config/models/model-catalog.yaml",
+    "config/tools/defaults.yaml",
+    "config/brain/energy.yaml",
+    "config/brain/selfhood.yaml",
+    "config/brain/emotion-expressions.yaml",
+    "config/nest/defaults.yaml",
+)
 
 
 class ReleaseResourceManifestError(RuntimeError):
@@ -98,6 +108,7 @@ def _required_paths(target: str) -> set[str]:
     return {
         *REQUIRED_WEB_FILES,
         *REQUIRED_GODOT_FILES,
+        *REQUIRED_CONFIG_FILES,
         f"python-core/ElfieNestCore{executable_suffix}",
         f"management-cli/ElfieNestCli{executable_suffix}",
     }

@@ -198,6 +198,7 @@ def configure_frozen_cli_runtime(
             "ELFIENEST_CORE_BIN": str(core),
             "ELFIENEST_WEB_BUILD_DIR": str(resources / "web"),
             "ELFIENEST_GODOT_WEB_DIR": str(resources / "godot-web"),
+            "ELFIENEST_BUNDLED_CONFIG_DIR": str(resources / "config"),
             "ELFIENEST_RUNTIME_MODE": "release",
             "ELFIENEST_PROJECT_ROOT": str(application_root),
             "ELFIENEST_DESKTOP_BIN": str(desktop),

@@ -12,6 +12,7 @@ from infrastructure.models.food_technology import (
     FoodEvidencePort,
     ModelFoodTechnologyAdapter,
 )
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.setup_catalog import ProviderSetupCatalogAdapter
 from infrastructure.models.setup_food import SetupFoodAdapter
 from infrastructure.models.setup_ollama import SetupOllamaAdapter
@@ -43,6 +44,7 @@ def build_setup_services(
     nest: SQLiteNestManagementAdapter,
     provider_state: ProviderLocalStatePort,
     food_evidence: FoodEvidencePort | None = None,
+    catalog: ProviderCatalog | None = None,
 ) -> SetupServices:
     state = SQLiteSetupAdapter(db_path)
     setup_accounts = SetupAccountsAdapter(accounts)
@@ -65,7 +67,7 @@ def build_setup_services(
             owners=setup_accounts,
             ollama=ollama,
             nest_choices=NestConfigSetupChoiceAdapter(),
-            models=ProviderSetupCatalogAdapter(),
+            models=ProviderSetupCatalogAdapter(catalog),
         ),
         installation=SetupInstallationService(
             key=db_path,

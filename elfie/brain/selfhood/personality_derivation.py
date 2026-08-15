@@ -7,8 +7,6 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Dict, Final, Literal, Mapping, Union
 
-from elfie.brain.selfhood.defaults import load_packaged_selfhood_seed
-
 BigFiveRanges = Dict[str, tuple[float, float]]
 OverrideValue = Union[float, int, str, None]
 PersonalitySource = Literal[
@@ -107,6 +105,8 @@ def derive_personality(
     elfie_id: str,
     personality_description: str,
     overrides: Mapping[str, OverrideValue] | None = None,
+    *,
+    default_big_five: Mapping[str, object] | None = None,
 ) -> PersonalityDerivation:
     """按固定中文词表和 ``elfie_id`` 派生稳定 Selfhood。"""
     winner, matched_keywords = _select_preset(personality_description)
@@ -114,7 +114,7 @@ def derive_personality(
     if winner is None:
         preset = "默认基线"
         source: PersonalitySource = "fallback"
-        generated = _load_default_big_five()
+        generated = _load_default_big_five(default_big_five)
     else:
         preset = winner
         source = "description"
@@ -163,13 +163,26 @@ def _derive_preset_scores(seed: int, preset: str) -> Mapping[str, float]:
     return scores
 
 
-def _load_default_big_five() -> Mapping[str, float]:
-    defaults = load_packaged_selfhood_seed()
+def _load_default_big_five(
+    default_big_five: Mapping[str, object] | None,
+) -> Mapping[str, float]:
+    # Direct domain construction has only a neutral safety baseline.  The
+    # product baseline is supplied by the bundled configuration Adapter.
+    defaults = (
+        dict.fromkeys(BIG_FIVE_TRAITS, 0.5)
+        if default_big_five is None
+        else default_big_five
+    )
+    result: dict[str, float] = {}
     try:
-        big_five = defaults["big_five"]
-        return {trait: float(big_five[trait]) for trait in BIG_FIVE_TRAITS}
+        for trait in BIG_FIVE_TRAITS:
+            value = defaults[trait]
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise TypeError(trait)
+            result[trait] = float(value)
     except (KeyError, TypeError, ValueError) as error:
         raise PersonalityDerivationError("默认人格配置无效") from error
+    return result
 
 
 def _apply_overrides(

@@ -36,6 +36,7 @@ from infrastructure.models.model_execution_adapter import StructuredModelExecuti
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.providers.openai_chatgpt import OpenAIChatGptOAuthAdapter
+from infrastructure.persistence.configuration.bundled_defaults import load_nest_config
 from infrastructure.persistence.configuration.oauth_credentials import (
     OAuthCredentialAdapter,
     OAuthCredentialStore,
@@ -52,11 +53,13 @@ from infrastructure.persistence.food_evidence import SQLiteFoodEvidenceAdapter
 from infrastructure.persistence.layout.data_home import (
     data_home_from_db_path,
     get_config_path,
+    get_provider_catalog_path,
 )
 from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.nest_db.nest_management import (
     SQLiteNestManagementAdapter,
 )
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
 from infrastructure.persistence.provider_references import (
     SQLiteProviderReferenceAdapter,
@@ -107,17 +110,25 @@ def build_application_container(
     portraits: CandidatePortraitPort | None = None,
 ) -> ApplicationContainer:
     config_path = get_config_path()
+    provider_catalog_path = get_provider_catalog_path()
     provider_store = ProviderConnectionStore()
     data_home = None
     if db_path != ":memory:":
         data_home = data_home_from_db_path(db_path)
+        provider_catalog_path = final_root_layout(data_home).provider_catalog_config
+    provider_catalog = load_provider_catalog(provider_catalog_path)
+    nest_config = load_nest_config()
     report_repository = build_report_repository(db_path)
     provider_storage = ProviderStorageAdapter(provider_store)
     provider_reports = ReportStorageAdapter(report_repository)
     provider_evidence = SQLiteFoodEvidenceAdapter(provider_store, report_repository)
     oauth_credentials = OAuthCredentialAdapter()
     provider_models = ProviderModelsAdapter(
-        provider_storage, provider_reports, provider_evidence, oauth_credentials
+        provider_storage,
+        provider_reports,
+        provider_evidence,
+        oauth_credentials,
+        catalog=provider_catalog,
     )
     if db_path != ":memory:":
         assert data_home is not None
@@ -137,6 +148,7 @@ def build_application_container(
             provider_reports,
             provider_evidence,
             oauth_credentials,
+            catalog=provider_catalog,
         )
     settings_adapter = RuntimeSettingsAdapter(config_path)
     elfies = ElfiesService(SQLiteElfiesProjectionAdapter(db_path))
@@ -161,14 +173,16 @@ def build_application_container(
             else cast(AdoptionStructuredModelExecution, model_execution)
         ),
         portraits=portraits,
+        nest_config=nest_config,
     )
-    nest_adapter = SQLiteNestManagementAdapter(db_path)
+    nest_adapter = SQLiteNestManagementAdapter(db_path, nest_config=nest_config)
     setup = build_setup_services(
         db_path,
         accounts=accounts,
         nest=nest_adapter,
         provider_state=provider_models,
         food_evidence=provider_evidence,
+        catalog=provider_catalog,
     )
     bodies = BodiesService(SQLiteBodiesAdapter(db_path))
     embodiment = EmbodimentSessionService(SQLiteEmbodimentLeaseAdapter(db_path))
@@ -184,7 +198,7 @@ def build_application_container(
         references=SQLiteProviderReferenceAdapter(db_path),
         technology=provider_models,
         local_state=provider_models,
-        local_technology=PublicOllamaProviderAdapter(),
+        local_technology=PublicOllamaProviderAdapter(catalog=provider_catalog),
         oauth=OpenAIChatGptOAuthAdapter(oauth_credentials),
     )
     if db_path != ":memory:":

@@ -6,7 +6,6 @@ import logging
 from pathlib import Path
 
 from infrastructure.models.providers.catalog import (
-    BUNDLED_PROVIDER_CATALOG_PATH,
     ProviderCatalog,
     ProviderCatalogError,
     parse_provider_catalog,
@@ -14,6 +13,10 @@ from infrastructure.models.providers.catalog import (
 from infrastructure.persistence.configuration.config_store import (
     ConfigStoreError,
     read_yaml_mapping,
+)
+from infrastructure.persistence.configuration.documents import (
+    BundledConfigSource,
+    ConfigDocumentId,
 )
 from infrastructure.persistence.layout.data_home import get_provider_catalog_path
 
@@ -32,7 +35,8 @@ def load_provider_catalog(override_path: Path | None = None) -> ProviderCatalog:
                 candidate,
                 exc,
             )
-    return _load_catalog_file(BUNDLED_PROVIDER_CATALOG_PATH)
+    loaded = BundledConfigSource().load(ConfigDocumentId.PROVIDER_CATALOG)
+    return parse_provider_catalog(loaded.document, loaded.path)
 
 
 def _load_catalog_file(path: Path) -> ProviderCatalog:

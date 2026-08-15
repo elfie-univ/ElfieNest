@@ -8,18 +8,12 @@ from app.features.configuration.capabilities import (
     StoredLocalFileCapability,
     StoredWebSearchCapability,
 )
-from infrastructure.persistence.configuration.config_store import (
-    read_yaml_mapping,
-    write_yaml_mapping,
-)
 from infrastructure.tools import RuntimeCapabilitiesAdapter
 
 
 def _adapter(path: Path) -> RuntimeCapabilitiesAdapter:
     return RuntimeCapabilitiesAdapter(
         path,
-        read_document=read_yaml_mapping,
-        write_document=write_yaml_mapping,
     )
 
 
@@ -37,7 +31,7 @@ def test_adapter_reads_defaults_without_writing(tmp_path: Path):
 def test_adapter_updates_only_explicit_web_search_fields(tmp_path: Path):
     path = tmp_path / "runtime.yaml"
     path.write_text(
-        "system:\n  marker: keep\nruntime_policy:\n  other: keep\n",
+        "version: 1\ntools:\n  other: keep\n",
         encoding="utf-8",
     )
     adapter = _adapter(path)
@@ -60,15 +54,14 @@ def test_adapter_updates_only_explicit_web_search_fields(tmp_path: Path):
     )
 
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    saved = raw["runtime_policy"]["tools"]["web_search"]
+    saved = raw["tools"]["web_search"]
     assert saved == {
         "api_key_env": "ELFIE_WEB_SEARCH_API_KEY",
         "provider": "tavily",
         "api_base": "https://search.example.test",
         "max_results": 5,
     }
-    assert raw["runtime_policy"]["other"] == "keep"
-    assert raw["system"]["marker"] == "keep"
+    assert raw["tools"]["other"] == "keep"
 
 
 def test_adapter_updates_only_editable_local_file_fields(tmp_path: Path):
@@ -92,7 +85,7 @@ def test_adapter_updates_only_editable_local_file_fields(tmp_path: Path):
     )
 
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    assert raw["runtime_policy"]["tools"]["local_file"] == {
+    assert raw["tools"]["local_file"] == {
         "enabled": True,
         "max_read_bytes": 4096,
     }

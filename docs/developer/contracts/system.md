@@ -1,17 +1,17 @@
 # System architecture contract
 
-**Contract version:** 1.7
+**Contract version:** 1.8
 **Adopted:** 2026-08-12
-**Revised:** 2026-08-14
+**Revised:** 2026-08-15
 **Scope:** repository-wide target architecture
 **Macro architecture baseline:** v1 (frozen)
 
 > **Normative target.** This contract defines the final module ownership,
 > dependency direction and system-level Ports/Adapters for ElfieNest. It is the
 > authority for root modules. The retired general system baseline remains at
-> zero; active Nest–Godot implementation gaps are named in its child conformance
-> register. Permanent scanners and architecture tests enforce all currently
-> machine-checkable parts of this target.
+> zero; active child-contract implementation gaps are named in their registered
+> conformance files. Permanent scanners and architecture tests enforce all
+> currently machine-checkable parts of this target.
 
 The system contract governs root placement and cross-module boundaries. The
 Application contract governs behavior inside `app/`. The Model, Food and tool
@@ -25,6 +25,11 @@ Nest internal ownership, Godot semantic lanes and embodied-world event routing.
 It cannot reverse the root dependency direction or physical authority fixed
 here.
 
+The [Configuration management contract](./configuration-management) refines
+the non-Python bundled-default root, user configuration root, typed loading
+boundary and release packaging. It cannot transfer semantic ownership from App,
+Elfie, Nest or an Infrastructure capability to the filesystem.
+
 ## Target system shape
 
 ElfieNest converges on four top-level Python production ownership modules:
@@ -37,6 +42,10 @@ infrastructure/      external-system, persistence and platform adapters
 ```
 
 One running ElfieNest system always has exactly one Nest.
+
+`config/` is a top-level non-Python source-resource root for the bundled
+declarative defaults registered by the Configuration Management contract. It is
+not a fifth production ownership module or a writable runtime directory.
 
 `elfie/` and `nest/` are the central domain layer. `app/` is above them and
 turns user or operator intent into product use-cases. `infrastructure/` is below
@@ -323,9 +332,14 @@ Search, file, code or device execution implementations belong to
 `infrastructure/tools/` and remain subject to tool safety and bounded-result
 contracts.
 
-Immutable resources shipped as part of a domain, such as default personality,
-species or emotion mappings, may remain with that domain. User data, mutable
-configuration, Runtime state and generated files use Infrastructure adapters.
+Registered application-level declarative defaults, including the current Brain,
+species and Nest documents, live under root `config/` and are staged once as
+`resources/config/`. Their semantic models remain with their App, Elfie, Nest,
+Models or Tools owner. Product and domain code receive typed values and do not
+resolve paths or parse those files directly. Algorithm invariants and narrow
+startup-safety constants may remain in code but cannot duplicate registered
+product defaults. User data, mutable configuration, Runtime state and generated
+files use Infrastructure Adapters.
 
 ## Boundary models and errors
 

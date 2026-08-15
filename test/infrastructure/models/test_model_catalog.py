@@ -4,11 +4,13 @@ import urllib.error
 from unittest.mock import MagicMock, patch
 
 from infrastructure.models.catalog import (
-    BUILTIN_MODEL_CATALOG,
     ModelCatalog,
+    load_model_catalog,
     verify_provider,
 )
 from infrastructure.models.model_execution_config import ModelExecutionConfig
+
+BUILTIN_MODEL_CATALOG = load_model_catalog()
 
 
 class TestBuiltinModelCatalog:

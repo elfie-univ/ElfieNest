@@ -23,6 +23,7 @@ from infrastructure.godot.gateway.bundle import (
     godot_web_bundle_present,
 )
 from infrastructure.models.model_execution_adapter import StructuredModelExecution
+from infrastructure.persistence.configuration.bundled_defaults import load_nest_config
 from infrastructure.persistence.layout.data_home import get_db_path
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 
@@ -44,7 +45,12 @@ def create_app(
     selected_db_path = db_path or str(get_db_path())
     ensure_application_storage(selected_db_path)
     if engine is not None and not engine.session.has_state_store:
-        engine.session.attach_state_store(SQLiteNestStateAdapter(selected_db_path))
+        engine.session.attach_state_store(
+            SQLiteNestStateAdapter(
+                selected_db_path,
+                nest_config=load_nest_config(),
+            )
+        )
     container = build_application_container(
         selected_db_path,
         nest_session=None if engine is None else engine.session,

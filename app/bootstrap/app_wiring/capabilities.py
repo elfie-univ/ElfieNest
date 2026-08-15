@@ -9,17 +9,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from infrastructure.persistence.configuration.config_store import (
-    read_yaml_mapping,
-    write_yaml_mapping,
-)
-from infrastructure.persistence.configuration.runtime_settings import (
-    read_runtime_settings,
-    write_runtime_settings,
-)
 from infrastructure.persistence.configuration.secrets import (
     resolve_secret,
     set_tool_secret,
+)
+from infrastructure.persistence.layout.data_home import (
+    get_config_path,
+    get_tool_config_path,
 )
 from infrastructure.persistence.model_execution_config import (
     load_model_execution_config,
@@ -41,22 +37,15 @@ def build_capability_adapters(
     ToolCapabilitySecretAdapter,
     DirectCapabilityValidationAdapter,
 ]:
-    def read_document(path: Path):
-        if path == config_path:
-            return read_runtime_settings()
-        return read_yaml_mapping(path)
-
-    def write_document(path: Path, document):
-        if path == config_path:
-            write_runtime_settings(document)
-        else:
-            write_yaml_mapping(path, document)
+    tool_path = (
+        get_tool_config_path()
+        if config_path == get_config_path()
+        else config_path.with_name("tools.yaml")
+    )
 
     return (
         RuntimeCapabilitiesAdapter(
-            config_path,
-            read_document=read_document,
-            write_document=write_document,
+            tool_path,
         ),
         ToolCapabilitySecretAdapter(
             secret_path,

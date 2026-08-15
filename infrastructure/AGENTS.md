@@ -11,6 +11,8 @@
   共享技术模型，由 Bootstrap 注入具体实现。
 - 技术 Record、SDK 对象、SQLite Row 和设备帧只留在 Adapter 内，进入 Port 前映射为
   由消费方拥有的严格模型。
+- 全局配置的路径解析、文档解码与已声明合并策略只在 Infrastructure 配置 Adapter 中
+  实现；消费方拥有强类型模型，Adapter 不暴露任意路径、点分键或通用嵌套字典 API。
 - Infrastructure 异常在边界翻译为稳定技术失败，不把供应商、数据库或文件异常原样
   泄漏给 Interface。
 - 持久化、设备、Godot 等子目录的 `AGENTS.md` 可继续细化，但不能改变上述依赖方向。

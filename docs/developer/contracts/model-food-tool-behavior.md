@@ -503,6 +503,11 @@ sanitized form.
 
 ## Persistent data contract
 
+The target physical bundled-default and user-configuration layers are governed
+by the [Configuration management contract](./configuration-management); its
+current placement and packaging gaps remain in the registered conformance file.
+This section defines the behavior-specific user facts.
+
 ```text
 ${ELFIE_HOME:-~/.elfienest}/
 ├── nest.db
@@ -511,8 +516,8 @@ ${ELFIE_HOME:-~/.elfienest}/
 │   ├── providers.yaml
 │   ├── runtime.yaml
 │   ├── tools.yaml
+│   ├── auth.env
 │   └── credentials/
-│       ├── api-keys.env
 │       └── oauth/
 │           └── <connection_id>.json
 ├── reports/
@@ -547,7 +552,8 @@ Each file has exactly one typed owner:
 | --- | --- |
 | Supported Provider products | built-in or validated override `provider-catalog.yaml` |
 | Configured connections and endpoint models | `configs/providers.yaml` |
-| Provider and tool secrets | `configs/credentials/` |
+| Provider and tool API secrets | process environment or `configs/auth.env` |
+| OAuth token documents | `configs/credentials/oauth/` |
 | Runtime settings | `configs/runtime.yaml` |
 | Tool settings | `configs/tools.yaml` |
 | Food strategy rows, roles and visibility | `nest.db.food_packages` (single table) |

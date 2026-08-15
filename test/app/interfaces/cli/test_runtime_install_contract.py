@@ -39,6 +39,7 @@ def test_packaged_runtime_baseline_uses_only_the_app_resource_sibling(
         "ELFIENEST_CORE_BIN": str(core),
         "ELFIENEST_WEB_BUILD_DIR": str(resources / "web"),
         "ELFIENEST_GODOT_WEB_DIR": str(resources / "godot-web"),
+        "ELFIENEST_BUNDLED_CONFIG_DIR": str(resources / "config"),
         "ELFIENEST_RUNTIME_MODE": "release",
         "ELFIENEST_PROJECT_ROOT": str(resources.parent.parent),
         "ELFIENEST_DESKTOP_BIN": str(resources.parent / "MacOS" / "ElfieNest"),

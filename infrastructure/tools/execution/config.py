@@ -11,6 +11,8 @@ from typing import Callable, Mapping, Optional
 
 from pydantic import JsonValue
 
+from infrastructure.persistence.configuration.bundled_defaults import load_tool_defaults
+
 SAFE_TOOL_KEYS: tuple[str, ...] = (
     "web_search",
     "local_file",
@@ -26,29 +28,7 @@ def _environment_secret(name: str) -> str:
 
 
 def default_tool_configs() -> dict[str, dict[str, JsonValue]]:
-    return {
-        "web_search": {
-            "enabled": True,
-            "provider": "duckduckgo",
-            "api_base": "",
-            "api_key_env": "ELFIE_WEB_SEARCH_API_KEY",
-            "max_results": 3,
-            "max_result_bytes": 16000,
-            "timeout_seconds": 5.0,
-            "max_tool_calls": 3,
-            "max_total_result_bytes": 48000,
-        },
-        "local_file": {
-            "enabled": False,
-            "root": "",
-            "root_policy": "elfie_workspace",
-            "max_read_bytes": 65536,
-            "max_items": 200,
-            "max_result_bytes": 16000,
-            "max_tool_calls": 3,
-            "max_total_result_bytes": 48000,
-        },
-    }
+    return load_tool_defaults()
 
 
 def load_tool_configs(

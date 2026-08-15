@@ -27,6 +27,14 @@ from elfie.brain.emotion.interactions import (
     get_inhibition_modifier,
 )
 from elfie.brain.emotion.personality import PersonalityModifier
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_emotion_expression_defaults,
+)
+
+
+def _expression_mapper() -> ExpressionMapper:
+    return ExpressionMapper(load_emotion_expression_defaults())
+
 
 # =============================================================================
 # 1. 饱和增长（Saturation）- 3 tests
@@ -567,7 +575,7 @@ class TestExpressionMapping:
 
     def test_expression_happiness(self):
         """快乐(happiness)映射到happy_face表情和cheerful语音"""
-        mapper = ExpressionMapper()
+        mapper = _expression_mapper()
         result = mapper.get_expression_for_emotions({"happiness": 50})
         assert result["expression"] == "happy_face"
         assert result["voice_modifier"] == "cheerful"
@@ -575,7 +583,7 @@ class TestExpressionMapping:
 
     def test_expression_fear(self):
         """恐惧(fear)映射到fearful_face表情和nervous语音"""
-        mapper = ExpressionMapper()
+        mapper = _expression_mapper()
         result = mapper.get_expression_for_emotions({"fear": 50})
         assert result["expression"] == "fearful_face"
         assert result["voice_modifier"] == "nervous"
@@ -583,7 +591,7 @@ class TestExpressionMapping:
 
     def test_expression_sadness(self):
         """悲伤(sadness)映射到sad_face表情和sorrowful语音"""
-        mapper = ExpressionMapper()
+        mapper = _expression_mapper()
         result = mapper.get_expression_for_emotions({"sadness": 50})
         assert result["expression"] == "sad_face"
         assert result["voice_modifier"] == "sorrowful"
@@ -591,7 +599,7 @@ class TestExpressionMapping:
 
     def test_expression_anger(self):
         """愤怒(anger)映射到angry_face表情和firm语音"""
-        mapper = ExpressionMapper()
+        mapper = _expression_mapper()
         result = mapper.get_expression_for_emotions({"anger": 50})
         assert result["expression"] == "angry_face"
         assert result["voice_modifier"] == "firm"
@@ -599,7 +607,7 @@ class TestExpressionMapping:
 
     def test_expression_surprise(self):
         """惊讶(surprise)映射到surprised_face表情和excited语音"""
-        mapper = ExpressionMapper()
+        mapper = _expression_mapper()
         result = mapper.get_expression_for_emotions({"surprise": 40})
         assert result["expression"] == "surprised_face"
         assert result["voice_modifier"] == "excited"
@@ -607,7 +615,7 @@ class TestExpressionMapping:
 
     def test_expression_disgust(self):
         """厌恶(disgust)映射到disgusted_face表情和disgusted语音"""
-        mapper = ExpressionMapper()
+        mapper = _expression_mapper()
         result = mapper.get_expression_for_emotions({"disgust": 50})
         assert result["expression"] == "disgusted_face"
         assert result["voice_modifier"] == "disgusted"
@@ -618,7 +626,7 @@ class TestExpressionMapping:
 
         低(<40): 基础动作；中(40-69): 进阶动作；高(>=70): 复合动作。
         """
-        mapper = ExpressionMapper()
+        mapper = _expression_mapper()
 
         # 低强度 (value=30, threshold=30, 刚好触发)
         low = mapper.get_expression_for_emotions({"happiness": 30})
@@ -660,7 +668,7 @@ class TestDesignGoalIntegration:
         端到端验证：设置情绪→触发process_input→调用get_expression→
         返回正确的expression/voice_modifier/actions。
         """
-        es = EmotionSystem()
+        es = EmotionSystem(expression_config=load_emotion_expression_defaults())
         es.emotions["happiness"] = 60
         es.emotions["fear"] = 10
 

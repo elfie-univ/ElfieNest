@@ -54,6 +54,14 @@ def test_manifest_validation_accepts_runtime_without_a_bundled_ollama_binary(
         "godot-web/elfienest.pck": b"pck",
         "python-core/ElfieNestCore": b"core",
         "management-cli/ElfieNestCli": b"cli",
+        "config/app/system-defaults.yaml": b"version: 1\nsystem: {}\n",
+        "config/models/provider-catalog.yaml": b"version: 2\n",
+        "config/models/model-catalog.yaml": b"version: 1\n",
+        "config/tools/defaults.yaml": b"version: 1\ntools: {}\n",
+        "config/brain/energy.yaml": b"version: 1\nlimits: {}\n",
+        "config/brain/selfhood.yaml": b"version: 1\nbig_five: {}\n",
+        "config/brain/emotion-expressions.yaml": b"version: 1\nemotions: {}\n",
+        "config/nest/defaults.yaml": b"version: 1\nnest: {}\n",
     }
     files = {}
     for relative, data in contents.items():

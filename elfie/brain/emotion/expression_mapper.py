@@ -1,12 +1,10 @@
 """情绪表达映射引擎 - Expression Mapper"""
 
-import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional, TypedDict
+from __future__ import annotations
 
-import yaml
+from collections.abc import Mapping
+from typing import Any, Dict, List, TypedDict
 
-logger = logging.getLogger("elfie.brain.emotion.expression_mapper")
 ExpressionConfig = Dict[str, Any]
 
 
@@ -21,100 +19,22 @@ class EmotionExpression(TypedDict):
 
 
 class ExpressionMapper:
-    """情绪表达映射器 - 单例模式缓存配置"""
+    """情绪表达映射器。
 
-    _instance: Optional["ExpressionMapper"] = None
-    _config: Optional[Dict] = None
+    Production Bootstrap passes the validated bundled document.  The small
+    in-code mapping is retained only for direct domain/unit construction where
+    no composition root is present; it is not a second packaged resource.
+    """
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._load_config()
-        return cls._instance
-
-    def _load_config(self):
-        """加载YAML配置文件"""
-        if self._config is not None:
-            return
-
-        config_path = Path(__file__).with_name("emotion_expressions.yaml")
-
-        try:
-            with open(config_path, encoding="utf-8") as f:
-                self._config = yaml.safe_load(f)
-            logger.info(f"情绪表达映射配置已加载: {config_path}")
-        except FileNotFoundError:
-            logger.warning(f"配置文件未找到: {config_path}，使用默认配置")
-            self._config = self._get_default_config()
-        except yaml.YAMLError as e:
-            logger.error(f"YAML解析错误: {e}，使用默认配置")
-            self._config = self._get_default_config()
+    def __init__(self, config: Mapping[str, Any] | None = None) -> None:
+        self._config: Dict[str, Any] = (
+            dict(config) if config is not None else self._get_default_config()
+        )
 
     def _get_default_config(self) -> ExpressionConfig:
-        """获取默认配置"""
+        """Return the neutral safety fallback for direct domain construction."""
         return {
-            "emotions": {
-                "happiness": {
-                    "expression": "happy_face",
-                    "actions": {
-                        "low": ["wag_tail"],
-                        "medium": ["wiggle_ears"],
-                        "high": ["jump", "wag_tail"],
-                    },
-                    "voice_modifier": "cheerful",
-                    "threshold": 30,
-                },
-                "sadness": {
-                    "expression": "sad_face",
-                    "actions": {
-                        "low": ["droop_head"],
-                        "medium": ["slow_movement"],
-                        "high": ["droop_head", "slow_movement"],
-                    },
-                    "voice_modifier": "sorrowful",
-                    "threshold": 40,
-                },
-                "anger": {
-                    "expression": "angry_face",
-                    "actions": {
-                        "low": ["shake_head"],
-                        "medium": ["stomp"],
-                        "high": ["shake_head", "stomp"],
-                    },
-                    "voice_modifier": "firm",
-                    "threshold": 40,
-                },
-                "fear": {
-                    "expression": "fearful_face",
-                    "actions": {
-                        "low": ["tremble"],
-                        "medium": ["hide"],
-                        "high": ["tremble", "hide"],
-                    },
-                    "voice_modifier": "nervous",
-                    "threshold": 35,
-                },
-                "surprise": {
-                    "expression": "surprised_face",
-                    "actions": {
-                        "low": ["blink_eyes"],
-                        "medium": ["jump"],
-                        "high": ["jump", "blink_eyes"],
-                    },
-                    "voice_modifier": "excited",
-                    "threshold": 30,
-                },
-                "disgust": {
-                    "expression": "disgusted_face",
-                    "actions": {
-                        "low": ["shake_head"],
-                        "medium": ["step_back"],
-                        "high": ["shake_head", "step_back"],
-                    },
-                    "voice_modifier": "disgusted",
-                    "threshold": 45,
-                },
-            },
+            "emotions": {},
             "default_expression": {
                 "expression": "neutral_face",
                 "actions": [],
@@ -152,7 +72,6 @@ class ExpressionMapper:
         if not emotions:
             return self._get_default_expression()
 
-        assert self._config is not None, "Config should be loaded in __new__"
         config: Dict[str, Any] = self._config
         emotion_configs: Dict[str, Any] = config.get("emotions", {})
 
@@ -189,7 +108,6 @@ class ExpressionMapper:
 
     def _get_default_expression(self) -> EmotionExpression:
         """获取默认表达"""
-        assert self._config is not None, "Config should be loaded in __new__"
         default = self._config.get("default_expression", {})
         return {
             "expression": default.get("expression", "neutral_face"),

@@ -14,7 +14,9 @@ from app.features.configuration import (
     StoredRuntimeSettings,
     StoredSecuritySettings,
 )
-from infrastructure.models.model_execution_config import DEFAULT_SYSTEM_SETTINGS
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_system_defaults,
+)
 from infrastructure.persistence.configuration.config_store import (
     ConfigStoreError,
     read_yaml_mapping,
@@ -31,8 +33,14 @@ from infrastructure.persistence.layout.data_home import get_config_path
 class RuntimeSettingsAdapter:
     """Preserve unrelated Runtime fields while owning typed ``system`` sections."""
 
-    def __init__(self, config_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        config_path: Path | None = None,
+        *,
+        bundled_root: Path | None = None,
+    ) -> None:
         self._config_path = config_path or get_config_path()
+        self._bundled_root = bundled_root
 
     def load_elfie_settings(self) -> StoredElfieSettings:
         section = self._section("adoption")
@@ -128,7 +136,7 @@ class RuntimeSettingsAdapter:
 
     def reset_settings(self) -> None:
         document = self._read_document()
-        document["system"] = copy.deepcopy(DEFAULT_SYSTEM_SETTINGS)
+        document.pop("system", None)
         self._write_document(document)
 
     def _section(self, name: str) -> dict[str, object]:
@@ -142,12 +150,11 @@ class RuntimeSettingsAdapter:
             self._invalid(f"system.{name}", "必须是对象")
         return self._typed_mapping(raw_section)
 
-    @staticmethod
-    def _default_section(name: str) -> dict[str, object]:
-        raw_section = DEFAULT_SYSTEM_SETTINGS.get(name)
+    def _default_section(self, name: str) -> dict[str, object]:
+        raw_section = load_system_defaults(root=self._bundled_root).get(name)
         if not isinstance(raw_section, Mapping):
-            RuntimeSettingsAdapter._invalid(f"default system.{name}", "必须是对象")
-        return RuntimeSettingsAdapter._typed_mapping(raw_section)
+            self._invalid(f"default system.{name}", "必须是对象")
+        return self._typed_mapping(raw_section)
 
     def _save_section(self, name: str, section: Mapping[str, object]) -> None:
         document = self._read_document()
