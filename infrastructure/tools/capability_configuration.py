@@ -29,7 +29,6 @@ from infrastructure.persistence.configuration.documents import (
     RuntimeConfigSource,
 )
 from infrastructure.persistence.layout.data_home import (
-    get_configs_dir,
     get_tool_config_path,
 )
 from infrastructure.tools.execution.config import default_tool_configs
@@ -150,9 +149,7 @@ class RuntimeCapabilitiesAdapter:
     def _read_document(self) -> dict[str, JsonValue]:
         try:
             if self._config_path == get_tool_config_path():
-                registered = RuntimeConfigSource(get_configs_dir()).load(
-                    ConfigDocumentId.TOOL_SETTINGS
-                )
+                registered = RuntimeConfigSource().load(ConfigDocumentId.TOOL_SETTINGS)
                 document = {} if registered is None else registered.document
             else:
                 document = read_yaml_mapping(self._config_path)
@@ -163,7 +160,7 @@ class RuntimeCapabilitiesAdapter:
     def _write_document(self, document: Mapping[str, JsonValue]) -> None:
         payload = {"version": 1, **copy.deepcopy(dict(document))}
         if self._config_path == get_tool_config_path():
-            RuntimeConfigSource(get_configs_dir()).write(
+            RuntimeConfigSource().write(
                 ConfigDocumentId.TOOL_SETTINGS,
                 payload,
             )

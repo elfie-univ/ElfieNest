@@ -61,7 +61,11 @@ class ConfigDocumentSpec:
     version: int
     policy: ConfigPolicy
     owner: str
-    required_bundled: bool = False
+    required_bundled: bool
+    schema_id: str
+    writer_policy: str
+    reload_policy: str
+    failure_policy: str
 
 
 @dataclass(frozen=True)
@@ -82,6 +86,10 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         ConfigPolicy.FIELD_OVERLAY,
         "app.configuration.settings",
         True,
+        "system-defaults-v1",
+        "immutable-bundled",
+        "bootstrap",
+        "fail-closed",
     ),
     ConfigDocumentId.PROVIDER_CATALOG: ConfigDocumentSpec(
         ConfigDocumentId.PROVIDER_CATALOG,
@@ -91,6 +99,10 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         ConfigPolicy.BUNDLED_ONLY,
         "infrastructure.models",
         True,
+        "provider-catalog-v2",
+        "immutable-bundled",
+        "bootstrap",
+        "fail-closed",
     ),
     ConfigDocumentId.MODEL_CATALOG: ConfigDocumentSpec(
         ConfigDocumentId.MODEL_CATALOG,
@@ -100,6 +112,10 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         ConfigPolicy.BUNDLED_ONLY,
         "infrastructure.models",
         True,
+        "model-catalog-v1",
+        "immutable-bundled",
+        "bootstrap",
+        "fail-closed",
     ),
     ConfigDocumentId.TOOL_DEFAULTS: ConfigDocumentSpec(
         ConfigDocumentId.TOOL_DEFAULTS,
@@ -109,6 +125,10 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         ConfigPolicy.BUNDLED_ONLY,
         "app.configuration.capabilities",
         True,
+        "tool-defaults-v1",
+        "immutable-bundled",
+        "bootstrap",
+        "fail-closed",
     ),
     ConfigDocumentId.ENERGY_DEFAULTS: ConfigDocumentSpec(
         ConfigDocumentId.ENERGY_DEFAULTS,
@@ -118,6 +138,10 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         ConfigPolicy.BUNDLED_ONLY,
         "elfie.brain.energy",
         True,
+        "energy-defaults-v1",
+        "immutable-bundled",
+        "bootstrap",
+        "fail-closed",
     ),
     ConfigDocumentId.SELFHOOD_DEFAULTS: ConfigDocumentSpec(
         ConfigDocumentId.SELFHOOD_DEFAULTS,
@@ -127,6 +151,10 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         ConfigPolicy.BUNDLED_ONLY,
         "elfie.brain.selfhood",
         True,
+        "selfhood-defaults-v1",
+        "immutable-bundled",
+        "bootstrap",
+        "fail-closed",
     ),
     ConfigDocumentId.EMOTION_EXPRESSIONS: ConfigDocumentSpec(
         ConfigDocumentId.EMOTION_EXPRESSIONS,
@@ -136,6 +164,10 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         ConfigPolicy.BUNDLED_ONLY,
         "elfie.brain.emotion",
         True,
+        "emotion-expressions-v1",
+        "immutable-bundled",
+        "bootstrap",
+        "fail-closed",
     ),
     ConfigDocumentId.NEST_DEFAULTS: ConfigDocumentSpec(
         ConfigDocumentId.NEST_DEFAULTS,
@@ -145,6 +177,10 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         ConfigPolicy.BUNDLED_ONLY,
         "nest",
         True,
+        "nest-defaults-v1",
+        "immutable-bundled",
+        "bootstrap",
+        "fail-closed",
     ),
     ConfigDocumentId.RUNTIME_SETTINGS: ConfigDocumentSpec(
         ConfigDocumentId.RUNTIME_SETTINGS,
@@ -153,6 +189,11 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         1,
         ConfigPolicy.FIELD_OVERLAY,
         "app.configuration.settings",
+        False,
+        "runtime-settings-v1",
+        "runtime-settings-adapter",
+        "declared-load-boundary",
+        "reject-document",
     ),
     ConfigDocumentId.PROVIDER_CONNECTIONS: ConfigDocumentSpec(
         ConfigDocumentId.PROVIDER_CONNECTIONS,
@@ -161,6 +202,11 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         2,
         ConfigPolicy.USER_ONLY,
         "app.configuration.providers",
+        False,
+        "provider-connections-v2",
+        "provider-connection-store",
+        "declared-load-boundary",
+        "reject-document",
     ),
     ConfigDocumentId.TOOL_SETTINGS: ConfigDocumentSpec(
         ConfigDocumentId.TOOL_SETTINGS,
@@ -169,6 +215,11 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         1,
         ConfigPolicy.FIELD_OVERLAY,
         "app.configuration.capabilities",
+        False,
+        "tool-settings-v1",
+        "runtime-capabilities-adapter",
+        "declared-load-boundary",
+        "reject-document",
     ),
     ConfigDocumentId.PROVIDER_CATALOG_OVERRIDE: ConfigDocumentSpec(
         ConfigDocumentId.PROVIDER_CATALOG_OVERRIDE,
@@ -177,6 +228,11 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         2,
         ConfigPolicy.COMPLETE_REPLACEMENT,
         "infrastructure.models",
+        False,
+        "provider-catalog-v2",
+        "external-user-catalog",
+        "process-startup",
+        "fallback-to-bundled",
     ),
     ConfigDocumentId.AUTH_ENV: ConfigDocumentSpec(
         ConfigDocumentId.AUTH_ENV,
@@ -185,6 +241,11 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         1,
         ConfigPolicy.USER_ONLY,
         "secret-capability",
+        False,
+        "auth-env-v1",
+        "secret-store",
+        "explicit-secret-resolution",
+        "unavailable",
     ),
 }
 
@@ -229,6 +290,14 @@ def resolve_bundled_config_root(
     return Path(__file__).resolve().parents[3] / "config"
 
 
+def resolve_runtime_config_root() -> Path:
+    """Resolve the production user-config root through the data-home resolver."""
+
+    from infrastructure.persistence.layout.data_home import get_configs_dir
+
+    return get_configs_dir().expanduser().resolve()
+
+
 class BundledConfigSource:
     """Read only registered bundled documents from one explicit root."""
 
@@ -253,17 +322,26 @@ class BundledConfigSource:
                 f"bundled 配置不可读 document={document_id.value} path={path}"
             ) from exc
         _validate_version(spec, document, path)
+        _validate_schema(document_id, document, path)
         return LoadedConfigDocument(spec, path, document)
 
 
 class RuntimeConfigSource:
     """Read/write only registered user configuration documents."""
 
-    def __init__(self, root: Path) -> None:
-        self.root = root.expanduser().resolve()
+    def __init__(self, root: Path | None = None) -> None:
+        # A supplied root is the explicit test/developer sandbox seam. Normal
+        # production callers use the resolver-owned user root by omitting it.
+        self.root = (
+            resolve_runtime_config_root()
+            if root is None
+            else root.expanduser().resolve()
+        )
 
     def load(self, document_id: ConfigDocumentId) -> LoadedConfigDocument | None:
         spec = document_spec(document_id)
+        if document_id is ConfigDocumentId.AUTH_ENV:
+            raise ConfigDocumentError("auth.env 必须通过 secret Adapter 读取")
         if spec.user_relative_path is None:
             raise ConfigDocumentError(f"文档没有 user 来源: {document_id.value}")
         path = _safe_join(self.root, spec.user_relative_path)
@@ -276,6 +354,7 @@ class RuntimeConfigSource:
                 f"用户配置不可读 document={document_id.value} path={path}"
             ) from exc
         _validate_version(spec, document, path)
+        _validate_schema(document_id, document, path)
         return LoadedConfigDocument(spec, path, document)
 
     def write(
@@ -284,6 +363,8 @@ class RuntimeConfigSource:
         document: Mapping[str, Any],
     ) -> Path:
         spec = document_spec(document_id)
+        if document_id is ConfigDocumentId.AUTH_ENV:
+            raise ConfigDocumentError("auth.env 必须通过 secret Adapter 写入")
         if spec.user_relative_path is None:
             raise ConfigDocumentError(f"文档没有 user 来源: {document_id.value}")
         path = _safe_join(self.root, spec.user_relative_path)
@@ -294,6 +375,7 @@ class RuntimeConfigSource:
                 f"用户配置版本不匹配 document={document_id.value} version={existing_version!r}"
             )
         payload["version"] = spec.version
+        _validate_schema(document_id, payload, path)
         try:
             write_yaml_mapping(path, payload)
         except ConfigStoreError as exc:
@@ -324,6 +406,24 @@ def _validate_version(
         )
 
 
+def _validate_schema(
+    document_id: ConfigDocumentId,
+    document: Mapping[str, Any],
+    path: Path,
+) -> None:
+    # Lazy import avoids a module cycle: schemas refer to the closed document
+    # IDs, while this source is the boundary that invokes validation.
+    from infrastructure.persistence.configuration.schemas import (
+        ConfigSchemaError,
+        validate_registered_document,
+    )
+
+    try:
+        validate_registered_document(document_id, document, path)
+    except ConfigSchemaError as exc:
+        raise ConfigDocumentError(str(exc)) from exc
+
+
 __all__ = (
     "CONFIG_DOCUMENTS",
     "BundledConfigSource",
@@ -335,4 +435,5 @@ __all__ = (
     "RuntimeConfigSource",
     "document_spec",
     "resolve_bundled_config_root",
+    "resolve_runtime_config_root",
 )

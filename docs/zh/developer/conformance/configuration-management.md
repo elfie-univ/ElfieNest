@@ -3,7 +3,8 @@
 > 本文是规范性[配置管理契约](../contracts/configuration-management)的开放迁移台账，
 > 只记录当前实现事实和删除门，不授权新增散落配置或产品行为。
 
-**状态：** open
+**状态：** closed
+**收口状态：** ready
 
 ## 当前清单
 
@@ -18,14 +19,14 @@
 现有用户路径 resolver 和原子 YAML 写入器已经指向 `${ELFIE_HOME}/configs/`，首次运行
 目录创建也不会复制默认值；迁移必须保留这些已经符合目标的行为。
 
-## 开放缺口
+## 已收口迁移台账
 
 | ID | 严重度 | 状态 | 当前偏差 | 收口门 | 证据 |
 | --- | --- | --- | --- | --- | --- |
-| CFG-001 | P0 | open | 本次范围内默认值已迁移到根 `config/`；旧 Provider/模型/Brain 包内 YAML 与 Python 字面量模型目录已删除，生产消费方改用登记加载器或注入的强类型值。 | 完成完整清单并证明没有未分类的范围内残留；不得触碰 Profile 物种声明或新增能力。 | 代码：`config/`、已删除旧 YAML、`infrastructure/persistence/configuration/bundled_defaults.py`、`infrastructure/models/catalog.py`；完整清单证据待记录 |
-| CFG-002 | P0 | open | 封闭注册表、内置/用户配置源、文档策略和永久负向架构检查均已存在；完整策略验收矩阵与收口证据仍待记录。 | 证明字段覆盖、整文档替换、仅内置、仅用户、失败与 Secret 规则，并清除业务/领域 YAML 和任意路径访问。 | `infrastructure/persistence/configuration/documents.py`、`test/architecture/test_configuration_management.py`；聚焦测试已通过，完整矩阵待完成 |
-| CFG-003 | P0 | open | Desktop staging 只复制一次根 `config/` 到 `resources/config/`；已删除 package-data 和旧目录副本；发行 manifest 要求八份文档。 | 证明 manifest 哈希完整、无源码 checkout 的安装态启动，以及用户配置保留。 | `scripts/assemble_desktop_resources.py`、`scripts/release_manifest.py`、安装态测试；完整矩阵待完成 |
-| CFG-004 | P1 | open | 配置专用永久结构和边界检查已经登记到 Contract Registry，并以 deny-all 形式运行；五类收口证据尚未记录。 | 完成五类收口证据，并保留永久目标检查的 deny-all 模式。 | `scripts/architecture/contract_registry.py`、`test/architecture/test_configuration_management.py`；最终审计待完成 |
+| CFG-001 | P0 | closed | 本次范围内默认值只有一个根 `config/`；旧包内 YAML、重复模型目录数据与散落运行时读取已删除或完成归类。Profile 物种声明仍在本次迁移范围外。 | 保持双根清单精确，并拒绝未归类的内置文件。 | target=two-root-source-inventory; inventory=`config/` 八份内置文档、用户 `configs/` 文档、旧路径、加载器、package data 与发行消费方；references=`infrastructure/persistence/configuration/documents.py`、`bundled_defaults.py`、`test/architecture/test_configuration_management.py`; verification=注册表清单测试与仓库/package 审计；residuals=zero |
+| CFG-002 | P0 | closed | 注册表现在记录 Schema、写入、重载和失败元数据；内置源与用户源在暴露前校验，语义所有者拒绝自有字段中的未知字段，生产根由 resolver 所有。测试和开发工具明确保留注入沙箱根。 | 保持字段覆盖、整文档替换、仅内置、仅用户、失败、Secret 与生产路径规则由永久测试保护。 | target=registered-document-boundary; inventory=十三个文档 ID、严格 Schema、目录/连接语义校验器、Secret 边界与测试/开发沙箱入口；references=`infrastructure/persistence/configuration/documents.py`、`schemas.py`、模型/Provider 解析器、`test/infrastructure/persistence/configuration/test_documents.py`; verification=配置聚焦测试与架构测试；residuals=zero |
+| CFG-003 | P0 | closed | Desktop staging 只把仓库 `config/` 复制一次到 `resources/config/`；发行 manifest 覆盖每个 staging 文件，用户配置不会被复制或覆盖；发行态解析必须由 launcher 提供资源根。 | 保持单份 staging、完整哈希、脱离源码 checkout 启动和用户文件保留。 | target=single-staged-bundled-root; inventory=资源组装、manifest 必需路径/哈希、发行态 resolver 与首次运行/用户写入行为；references=`scripts/assemble_desktop_resources.py`、`scripts/release_manifest.py`、`test/scripts/test_assemble_desktop_resources.py`、`test/scripts/test_release_manifest.py`; verification=组装、manifest、安装根与用户保留测试；residuals=zero |
+| CFG-004 | P1 | closed | 双语契约、ADR、Contract Registry、Agent 规则和永久 deny-all 检查现在都与双根配置契约及明确的沙箱例外一致。 | 保持五类证据结构，并在后续治理专用删除前保留永久目标检查的 deny-all 模式。 | target=configuration-contract-closure; inventory=契约、ADR、Registry、Agent 规则、架构门禁与双语台账行；references=`docs/developer/contracts/configuration-management.md`、`docs/developer/decisions/0017-bundled-defaults-and-user-configuration.md`、`scripts/architecture/contract_registry.py`; verification=治理架构测试与双语镜像检查；residuals=zero |
 
 ## 收口顺序
 

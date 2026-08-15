@@ -1,6 +1,6 @@
 # Configuration management contract
 
-**Contract version:** 1.0
+**Contract version:** 1.1
 **Adopted:** 2026-08-15
 **Scope:** application defaults, user configuration, loading and release packaging
 
@@ -95,9 +95,13 @@ declares:
 - its effective-value policy; and
 - its writer, reload and failure policies.
 
-Callers select a known document ID; they do not supply arbitrary filesystem
-paths or dotted keys. Adding a document requires an owner, schema, policy,
-tests and release coverage. The document registry is not a plug-in registry.
+Production callers select a known document ID; they do not supply arbitrary
+filesystem paths or dotted keys. Test and developer tooling may inject an
+isolated sandbox root for deterministic tests, but the adapter still selects
+the same registered document and fixed relative path, and it must never
+default to the production `${ELFIE_HOME}`. Adding a document requires an
+owner, schema, policy, tests and release coverage. The document registry is
+not a plug-in registry.
 
 The semantic owner defines the strict model and validation rules. The
 Infrastructure configuration Adapter owns path resolution, decoding, merge
@@ -121,6 +125,11 @@ Infrastructure.
 Each YAML document has an explicit top-level document version. Code types are
 the machine-readable schema authority; this contract does not create a second
 JSON Schema. Version checks happen before values are exposed to consumers.
+
+The existing `runtime.yaml` also contains explicitly opaque compatibility
+buckets for other current consumers: `runtime_policy`, `models`, and
+unowned `system` sections. The Settings Adapter preserves those buckets but
+does not interpret or extend them; owned settings sections remain strict.
 
 ## Loading boundary
 
@@ -170,6 +179,8 @@ For schema-aware field overlays:
 - an absent user document or absent field uses the bundled value;
 - a present, valid user scalar replaces the bundled scalar;
 - mappings merge only along fields declared by that document's schema;
+- explicitly declared opaque extension buckets may preserve data owned by
+  another registered consumer, but an owned section remains strict;
 - a user list replaces the bundled list as one value unless that document
   explicitly defines a keyed-list policy;
 - `null` is a value only for fields whose schema is nullable; it is not a
@@ -254,8 +265,9 @@ the following:
 1. an inventory classifies every relocated default, old loader, direct path,
    package-data entry and release consumer, with no unclassified residual;
 2. architecture checks reject package-local bundled configuration, direct
-   business/domain YAML reads, arbitrary-path configuration access and duplicate
-   hard-coded product defaults covered by this contract;
+   business/domain YAML reads, production arbitrary-path configuration access
+   and duplicate hard-coded product defaults covered by this contract; tests
+   and developer tools may use injected sandbox roots;
 3. document tests cover schemas, versions, every policy in the table, missing
    fields, lists, nullable values, unknown fields and corrupt documents;
 4. persistence tests cover atomic writes, unrelated-field preservation, secret

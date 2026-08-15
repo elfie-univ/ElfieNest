@@ -22,10 +22,15 @@ from infrastructure.persistence.configuration.config_store import (
     read_yaml_mapping,
     write_yaml_mapping,
 )
+from infrastructure.persistence.configuration.documents import ConfigDocumentId
 from infrastructure.persistence.configuration.runtime_settings import (
     CONFIG_DOCUMENT_VERSION,
     read_runtime_settings,
     write_runtime_settings,
+)
+from infrastructure.persistence.configuration.schemas import (
+    ConfigSchemaError,
+    validate_registered_document,
 )
 from infrastructure.persistence.layout.data_home import get_config_path
 
@@ -171,6 +176,7 @@ class RuntimeSettingsAdapter:
             if self._config_path == get_config_path():
                 return read_runtime_settings()
             document = copy.deepcopy(read_yaml_mapping(self._config_path))
+            self._validate_document(document)
             document.pop("version", None)
             return document
         except ConfigStoreError as error:
@@ -181,6 +187,11 @@ class RuntimeSettingsAdapter:
             if self._config_path == get_config_path():
                 write_runtime_settings(document)
                 return
+            payload = {
+                "version": CONFIG_DOCUMENT_VERSION,
+                **copy.deepcopy(dict(document)),
+            }
+            self._validate_document(payload)
             if self._config_path.exists():
                 shutil.copy2(
                     str(self._config_path),
@@ -190,7 +201,7 @@ class RuntimeSettingsAdapter:
                 )
             write_yaml_mapping(
                 self._config_path,
-                {"version": CONFIG_DOCUMENT_VERSION, **copy.deepcopy(dict(document))},
+                payload,
             )
         except (ConfigStoreError, OSError) as error:
             raise SettingsStorageError(str(error)) from error
@@ -248,6 +259,22 @@ class RuntimeSettingsAdapter:
     @staticmethod
     def _invalid(field: str, detail: str) -> NoReturn:
         raise SettingsStorageError(f"无效 Runtime 设置 {field}: {detail}")
+
+    def _validate_document(self, document: Mapping[str, Any]) -> None:
+        if not document:
+            return
+        if document.get("version") != CONFIG_DOCUMENT_VERSION:
+            raise SettingsStorageError(
+                f"Runtime 设置版本不支持: {document.get('version')!r}"
+            )
+        try:
+            validate_registered_document(
+                ConfigDocumentId.RUNTIME_SETTINGS,
+                document,
+                self._config_path,
+            )
+        except ConfigSchemaError as error:
+            raise SettingsStorageError(str(error)) from error
 
 
 __all__ = ("RuntimeSettingsAdapter",)

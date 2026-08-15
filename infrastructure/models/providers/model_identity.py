@@ -14,6 +14,18 @@ from infrastructure.persistence.configuration.documents import (
 
 MODEL_CATALOG_VERSION = 1
 _SEPARATORS = re.compile(r"[\s_]+")
+_CATALOG_FIELDS = frozenset({"version", "models", "entries"})
+_IDENTITY_FIELDS = frozenset(
+    {
+        "display_name",
+        "aliases",
+        "context_window_tokens",
+        "max_output_tokens",
+        "supports_tools",
+        "supports_vision",
+        "supports_reasoning",
+    }
+)
 
 
 class ModelIdentityCatalogError(RuntimeError):
@@ -66,6 +78,7 @@ def parse_model_identities(
         raise ModelIdentityCatalogError(f"标准模型目录顶层必须是对象: {source}")
     if document.get("version") != MODEL_CATALOG_VERSION:
         raise ModelIdentityCatalogError(f"不支持的标准模型目录版本: {source}")
+    _reject_unknown(document, _CATALOG_FIELDS, "标准模型目录", source)
     raw_models = document.get("models")
     if not isinstance(raw_models, Mapping):
         raise ModelIdentityCatalogError(f"标准模型目录缺少 models: {source}")
@@ -73,22 +86,31 @@ def parse_model_identities(
     for canonical_id, raw in raw_models.items():
         if not isinstance(canonical_id, str) or not isinstance(raw, Mapping):
             raise ModelIdentityCatalogError(f"标准模型记录不合法: {source}")
-        display_name = str(raw.get("display_name") or "").strip()
+        _reject_unknown(raw, _IDENTITY_FIELDS, f"标准模型 {canonical_id!r}", source)
+        display_name = raw.get("display_name")
         raw_aliases = raw.get("aliases", [])
-        if not display_name or not isinstance(raw_aliases, list):
+        if (
+            not isinstance(display_name, str)
+            or not display_name.strip()
+            or not isinstance(raw_aliases, list)
+        ):
             raise ModelIdentityCatalogError(
                 f"标准模型 {canonical_id!r} 缺少名称或别名: {source}"
             )
+        if any(
+            not isinstance(alias, str) or not alias.strip() for alias in raw_aliases
+        ):
+            raise ModelIdentityCatalogError(
+                f"标准模型 {canonical_id!r} 的别名必须是字符串: {source}"
+            )
         aliases = tuple(
             dict.fromkeys(
-                str(alias).strip()
-                for alias in [display_name, *raw_aliases]
-                if str(alias).strip()
+                alias.strip() for alias in [display_name, *raw_aliases] if alias.strip()
             )
         )
         identities[canonical_id] = CanonicalModelIdentity(
             canonical_model_id=canonical_id,
-            display_name=display_name,
+            display_name=display_name.strip(),
             aliases=aliases,
             context_window_tokens=_optional_positive_int(
                 raw.get("context_window_tokens")
@@ -134,6 +156,17 @@ def _optional_bool(value: Any) -> Optional[bool]:
     if not isinstance(value, bool):
         raise ModelIdentityCatalogError("模型能力字段必须为布尔值")
     return value
+
+
+def _reject_unknown(
+    raw: Mapping[str, Any],
+    allowed: frozenset[str],
+    label: str,
+    source: Path,
+) -> None:
+    unknown = sorted(str(key) for key in set(raw) - allowed)
+    if unknown:
+        raise ModelIdentityCatalogError(f"{label} 包含未知字段 {unknown}: {source}")
 
 
 __all__ = (
