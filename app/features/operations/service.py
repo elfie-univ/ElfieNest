@@ -57,11 +57,7 @@ class OperationsFacade:
     def get_mobile_access(self, query: GetMobileAccessQuery) -> MobileAccessResult:
         try:
             address = self._network_access.preferred_lan_address()
-            network_name = (
-                self._network_access.current_wifi_name()
-                if address is not None
-                else None
-            )
+            network_name = self._network_access.current_wifi_name()
         except OperationsPortError as error:
             raise OperationsUnavailable(str(error)) from error
         return MobileAccessResult(

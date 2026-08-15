@@ -63,15 +63,19 @@ export function MobileAccessDialog({ onClose, targetPath = "/chat" }: MobileAcce
   }, [selectedUrl])
 
   const unavailable = access !== null && !access.available
-  return <section aria-labelledby="mobile-access-title" aria-modal="true" className="modal-backdrop" role="dialog">
+  return <section aria-label={t("mobileAccess.title")} aria-modal="true" className="modal-backdrop" role="dialog">
     <article className="mobile-access-dialog">
       <Button aria-label={t("mobileAccess.close")} className="modal-close" onClick={onClose} size="icon" type="button" variant="ghost"><Icon name="x" /></Button>
       <p className="brand">{t("mobileAccess.brand")}</p>
-      <h2 id="mobile-access-title">{t("mobileAccess.title")}</h2>
+      {access !== null ? <>
+        <h2 className="mobile-access-dialog__step">{t(access.network_name ? "mobileAccess.connectWifi" : "mobileAccess.connectSameWifi")}</h2>
+        {access.network_name ? <p className="mobile-access-dialog__network">{access.network_name}</p> : null}
+      </> : null}
       {error ? <Notice kind="error" message={error.kind === "qr" ? t("mobileAccess.qrError") : localizeApiError(error.reason, "manage.load", currentLocale(i18n))} /> : null}
       {access === null && error === null ? <p>{t("mobileAccess.loading")}</p> : null}
       {unavailable ? <p className="mobile-access-dialog__hint">{t("mobileAccess.unavailable")} <code>elfienest start --lan</code></p> : null}
       {access?.available && selectedUrl ? <>
+        <h2 className="mobile-access-dialog__step mobile-access-dialog__step--scan">{t("mobileAccess.scanQr")}</h2>
         <img alt={t("mobileAccess.qrAlt", { url: selectedUrl })} className="mobile-access-dialog__qr" src={imageUrl} />
         {access.urls.length > 1 ? <div className="mobile-access-dialog__select"><SelectField label={t("mobileAccess.localAddress")} onValueChange={setSelectedUrl} options={access.urls.map((url) => ({ label: url, value: url }))} value={selectedUrl} /></div> : null}
         <p className="mobile-access-dialog__url">{selectedUrl}</p>

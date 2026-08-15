@@ -101,6 +101,14 @@ class MemoryNetworkAccessProjection:
         return "Elfie Home"
 
 
+class WifiOnlyNetworkAccessProjection:
+    def preferred_lan_address(self) -> str | None:
+        return None
+
+    def current_wifi_name(self) -> str | None:
+        return "Elfie Home"
+
+
 def _principal(role: str) -> AccountPrincipal:
     assert role in {"owner", "admin", "user"}
     return AccountPrincipal(
@@ -129,6 +137,21 @@ def test_mobile_access_is_projected_through_the_operations_boundary() -> None:
     result = facade.get_mobile_access(GetMobileAccessQuery(http_port=8000))
 
     assert result.urls == ("http://192.168.1.8:8000",)
+    assert result.network_name == "Elfie Home"
+
+
+def test_mobile_access_keeps_wifi_name_when_lan_address_probe_is_unavailable() -> None:
+    adapter = MemoryOperationsAdapter()
+    facade = OperationsFacade(
+        adapter,
+        adapter,
+        MemoryModelExecutionObserver(),
+        WifiOnlyNetworkAccessProjection(),
+    )
+
+    result = facade.get_mobile_access(GetMobileAccessQuery(http_port=8000))
+
+    assert result.urls == ()
     assert result.network_name == "Elfie Home"
 
 
