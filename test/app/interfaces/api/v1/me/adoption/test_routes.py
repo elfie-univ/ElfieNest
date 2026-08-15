@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.features.accounts import AccountPrincipal
-from app.features.adoption import AdoptionPolicyRecord, AdoptionService
+from app.features.adoption import AdoptionPolicyRecord, AdoptionService, CandidateReveal
 from app.interfaces.api.v1.auth import require_user
 from app.interfaces.api.v1.me.adoption.dependencies import (
     adoption_service,
@@ -30,6 +30,20 @@ class Policy:
         return AdoptionPolicyRecord(3, ("好奇探索",))
 
 
+class Narrative:
+    def is_ready(self) -> bool:
+        return True
+
+    def reveal(self, candidate, invitation_message: str) -> CandidateReveal:
+        return CandidateReveal("Vulpes", "小狐", "我喜欢在安静的地方慢慢观察世界。")
+
+    def reveal_many(self, candidates, invitation_message: str):
+        return {
+            candidate.candidate_id: self.reveal(candidate, invitation_message)
+            for candidate in candidates
+        }
+
+
 def _client(tmp_path: Path) -> tuple[TestClient, str]:
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
@@ -45,7 +59,9 @@ def _client(tmp_path: Path) -> tuple[TestClient, str]:
             ).lastrowid
         )
         connection.commit()
-    adoption = AdoptionService(Policy(), SQLiteAdoptionAdapter(db_path))
+    adoption = AdoptionService(
+        Policy(), SQLiteAdoptionAdapter(db_path), narrative=Narrative()
+    )
     admission = ResidentAdmissionService(
         adoption,
         FinalElfieWorkspaceAdapter(tmp_path),
@@ -89,7 +105,7 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
         "max": 4,
         "remaining": 4,
     }
-    assert options.json()["availability"] == "model_unavailable"
+    assert options.json()["availability"] == "available"
     candidates = client.post(
         "/api/v1/me/adoption/candidate-sets",
         json={

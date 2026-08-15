@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Mapping, Protocol
 
 from elfie.genesis import CandidateReveal, GenesisCandidate
 
@@ -72,6 +72,12 @@ class AdoptionNarrativePort(Protocol):
         candidate: GenesisCandidate,
         invitation_message: str,
     ) -> CandidateReveal: ...
+
+    def reveal_many(
+        self,
+        candidates: tuple[GenesisCandidate, ...],
+        invitation_message: str,
+    ) -> Mapping[str, CandidateReveal]: ...
 
 
 __all__ = (

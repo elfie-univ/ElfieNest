@@ -25,6 +25,8 @@ class ElfieConstructionPort(Protocol):
 class ResidentSessionPort(Protocol):
     def register_elfie(self, elfie_id: str, elfie: Elfie) -> None: ...
 
+    def remove_elfie(self, elfie_id: str) -> None: ...
+
 
 __all__ = (
     "ElfieConstructionPort",

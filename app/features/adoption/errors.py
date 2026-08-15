@@ -9,6 +9,10 @@ class AdoptionCandidateSetExpired(AdoptionError):
     """The short-lived candidate set is absent, expired, or belongs to another user."""
 
 
+class AdoptionSessionBusy(AdoptionError):
+    """The short-lived adoption session is already processing another action."""
+
+
 class AdoptionCandidateNotAccepted(AdoptionError):
     """The selected candidate has not accepted the invitation."""
 
@@ -44,6 +48,7 @@ class AdoptionUnavailable(AdoptionError):
 __all__ = (
     "AdoptionCandidateNotAccepted",
     "AdoptionCandidateSetExpired",
+    "AdoptionSessionBusy",
     "AdoptionCapacityReached",
     "AdoptionError",
     "AdoptionInvalid",

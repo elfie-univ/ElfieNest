@@ -68,39 +68,39 @@ def seed_single_elfie(db_path: str) -> bool:
     persistence = SQLiteAdoptionAdapter(db_path)
     elfie_id = "00000001"
     birth_date = datetime.now(timezone.utc).date().isoformat()
-    persistence.reserve(
-        AdoptionReservationRecord(
-            elfie_id=elfie_id,
-            owner_user_id=owner.user_id,
-            name="Aifei",
-            original_name="Aifei",
-            species_id="fox",
-            gender="female",
-            birth_date=birth_date,
-            summary="好奇探索",
-        ),
-        default_limit=1,
+    reservation = AcceptedAdoptionReservation(
+        elfie_id=elfie_id,
+        owner_user_id=owner.user_id,
+        name="Aifei",
+        original_name="Aifei",
+        species_id="fox",
+        personality_style="好奇探索",
+        height="tall",
+        build="plump",
+        appearance_seed=uuid4().int & ((1 << 63) - 1),
+        face="any",
+        signature="any",
+        gender="female",
+        birth_date=birth_date,
     )
+    workspace = FinalElfieWorkspaceAdapter.from_database_path(db_path)
     try:
-        FinalElfieWorkspaceAdapter.from_database_path(db_path).materialize(
-            AcceptedAdoptionReservation(
+        workspace.materialize(reservation)
+        persistence.reserve(
+            AdoptionReservationRecord(
                 elfie_id=elfie_id,
                 owner_user_id=owner.user_id,
                 name="Aifei",
                 original_name="Aifei",
                 species_id="fox",
-                personality_style="好奇探索",
-                height="tall",
-                build="plump",
-                appearance_seed=uuid4().int & ((1 << 63) - 1),
-                face="any",
-                signature="any",
                 gender="female",
                 birth_date=birth_date,
-            )
+                summary="好奇探索",
+            ),
+            default_limit=1,
         )
     except Exception:
-        persistence.release(elfie_id)
+        workspace.release(elfie_id)
         raise
     return True
 

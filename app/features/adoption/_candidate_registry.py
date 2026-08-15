@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import re
 import secrets
+import threading
 import time
 from dataclasses import dataclass, replace
 from datetime import date
 from hashlib import blake2b
+from typing import Literal
 
 from elfie.genesis import (
+    CandidateReveal,
     CandidateSignature,
     GenesisAppearanceIntent,
     GenesisCandidate,
@@ -24,7 +27,12 @@ from elfie.profile import (
     ProfileProvenance,
 )
 
-from .errors import AdoptionCandidateSetExpired, AdoptionInvalid, AdoptionUnavailable
+from .errors import (
+    AdoptionCandidateSetExpired,
+    AdoptionInvalid,
+    AdoptionSessionBusy,
+    AdoptionUnavailable,
+)
 from .models import (
     CandidateAppearance,
     CandidateGender,
@@ -39,8 +47,16 @@ from .models import (
 )
 from .ports import AdoptionNarrativePort, CandidatePortraitPort
 
-_CANDIDATE_TTL_SECONDS = 30 * 60
+_CANDIDATE_TTL_SECONDS = 5 * 60 * 60
 _MAX_CANDIDATE_BATCHES = 3
+_MAX_ACTIVE_SESSIONS = 64
+_MAX_ANSWER_LENGTH = 500
+_MAX_TOTAL_ANSWER_LENGTH = 2_500
+_SessionPhase = Literal[
+    "candidates_ready",
+    "inviting",
+    "replies_ready",
+]
 _LIFE_STAGES: tuple[ExposedLifeStage, ...] = (
     "youth",
     "young_adult",
@@ -86,9 +102,12 @@ class CandidateSessionSnapshot:
     adoption_session_id: str
     owner_user_id: int
     created_at: float
+    expires_at: float
     batch_count: int
     signatures: tuple[CandidateSignature, ...] = ()
     intent_fingerprint: str = ""
+    phase: _SessionPhase = "candidates_ready"
+    version: int = 0
 
 
 class CandidateRegistry:
@@ -111,6 +130,9 @@ class CandidateRegistry:
         self._narrative = narrative
         self._candidate_sets: dict[str, CandidateSetSnapshot] = {}
         self._sessions: dict[str, CandidateSessionSnapshot] = {}
+        self._active_sessions_by_owner: dict[int, str] = {}
+        self._session_locks: dict[str, threading.RLock] = {}
+        self._registry_lock = threading.RLock()
 
     def create(
         self,
@@ -125,13 +147,16 @@ class CandidateRegistry:
         adoption_session_id: str | None = None,
         batch_number: int = 1,
     ) -> CandidateSetResult:
-        if len(answers) != 5 or any(not answer for answer in answers):
+        if (
+            len(answers) != 5
+            or any(not answer or len(answer) > _MAX_ANSWER_LENGTH for answer in answers)
+            or sum(len(answer) for answer in answers) > _MAX_TOTAL_ANSWER_LENGTH
+        ):
             raise AdoptionInvalid("answers 必须包含 5 个相处问题答案")
         if not personality_styles:
             raise AdoptionInvalid("当前没有可用的性格风格")
         if not 1 <= batch_number <= _MAX_CANDIDATE_BATCHES:
             raise AdoptionInvalid("最多只能生成 3 批匿名候选")
-        self._purge_expired()
         intent = GenesisAppearanceIntent(
             stature=appearance.stature,
             build=appearance.build,
@@ -142,73 +167,84 @@ class CandidateRegistry:
         fingerprint = _intent_fingerprint(
             species_id, life_stage, gender, appearance, answers
         )
-        session = self._get_or_create_session(
-            adoption_session_id, owner_user_id, fingerprint
-        )
-        existing = next(
-            (
-                item
-                for item in self._candidate_sets.values()
-                if item.owner_user_id == owner_user_id
-                and item.adoption_session_id == session.adoption_session_id
-                and item.batch_number == batch_number
-            ),
-            None,
-        )
-        if existing is not None:
-            return CandidateSetResult(
-                candidate_set_id=existing.candidate_set_id,
-                adoption_session_id=existing.adoption_session_id,
-                batch_number=existing.batch_number,
-                candidates=tuple(item.public for item in existing.candidates),
+        with self._registry_lock:
+            self._purge_expired_locked()
+            session = self._get_or_create_session(
+                adoption_session_id, owner_user_id, fingerprint
+            )
+            session_lock = self._session_locks.setdefault(
+                session.adoption_session_id, threading.RLock()
             )
 
-        previous_signatures: tuple[CandidateSignature, ...] = ()
-        batch = None
-        for current_batch in range(1, batch_number + 1):
-            batch = self._generate_batch(
-                owner_user_id=owner_user_id,
-                adoption_session_id=session.adoption_session_id,
-                batch_number=current_batch,
-                species_id=species_id,
-                life_stage=life_stage,
-                gender=gender,
-                intent=intent,
-                answers=answers,
-                previous_signatures=previous_signatures,
+        with session_lock:
+            with self._registry_lock:
+                session = self._require_session(
+                    session.adoption_session_id, owner_user_id
+                )
+                existing = next(
+                    (
+                        item
+                        for item in self._candidate_sets.values()
+                        if item.owner_user_id == owner_user_id
+                        and item.adoption_session_id == session.adoption_session_id
+                        and item.batch_number == batch_number
+                    ),
+                    None,
+                )
+                if existing is not None:
+                    return _candidate_set_result(existing)
+                if session.phase != "candidates_ready":
+                    raise AdoptionSessionBusy("领养会话正在处理，请稍候")
+
+            previous_signatures: tuple[CandidateSignature, ...] = ()
+            batch = None
+            for current_batch in range(1, batch_number + 1):
+                batch = self._generate_batch(
+                    owner_user_id=owner_user_id,
+                    adoption_session_id=session.adoption_session_id,
+                    batch_number=current_batch,
+                    species_id=species_id,
+                    life_stage=life_stage,
+                    gender=gender,
+                    appearance=intent,
+                    answers=answers,
+                    previous_signatures=previous_signatures,
+                )
+                previous_signatures += tuple(
+                    candidate.signature for candidate in batch.candidates
+                )
+            assert batch is not None
+            candidate_set_id = secrets.token_urlsafe(18)
+            candidates = tuple(
+                self._snapshot(candidate, appearance) for candidate in batch.candidates
             )
-            previous_signatures += tuple(
-                candidate.signature for candidate in batch.candidates
-            )
-        assert batch is not None
-        candidate_set_id = secrets.token_urlsafe(18)
-        candidates = tuple(
-            self._snapshot(candidate, appearance) for candidate in batch.candidates
-        )
-        snapshot = CandidateSetSnapshot(
-            candidate_set_id=candidate_set_id,
-            adoption_session_id=session.adoption_session_id,
-            owner_user_id=owner_user_id,
-            created_at=time.monotonic(),
-            batch_number=batch.batch_number,
-            candidates=candidates,
-        )
-        self._candidate_sets[candidate_set_id] = snapshot
-        self._sessions[session.adoption_session_id] = replace(
-            session,
-            batch_count=max(session.batch_count, batch.batch_number),
-            signatures=(
-                previous_signatures
-                if batch.batch_number >= session.batch_count
-                else session.signatures
-            ),
-        )
-        return CandidateSetResult(
-            candidate_set_id=candidate_set_id,
-            adoption_session_id=session.adoption_session_id,
-            batch_number=batch.batch_number,
-            candidates=tuple(candidate.public for candidate in candidates),
-        )
+            with self._registry_lock:
+                current = self._require_session(
+                    session.adoption_session_id, owner_user_id
+                )
+                if current.version != session.version:
+                    raise AdoptionSessionBusy("领养会话状态已经变化，请重新查看")
+                snapshot = CandidateSetSnapshot(
+                    candidate_set_id=candidate_set_id,
+                    adoption_session_id=session.adoption_session_id,
+                    owner_user_id=owner_user_id,
+                    created_at=time.monotonic(),
+                    batch_number=batch.batch_number,
+                    candidates=candidates,
+                )
+                self._candidate_sets[candidate_set_id] = snapshot
+                self._sessions[session.adoption_session_id] = replace(
+                    current,
+                    batch_count=max(current.batch_count, batch.batch_number),
+                    signatures=(
+                        previous_signatures
+                        if batch.batch_number >= current.batch_count
+                        else current.signatures
+                    ),
+                    phase="candidates_ready",
+                    version=current.version + 1,
+                )
+            return _candidate_set_result(snapshot)
 
     def reply(
         self,
@@ -224,25 +260,50 @@ class CandidateRegistry:
             raise AdoptionInvalid("candidate_ids 必须选择 1-3 位候选")
         invitation_message = _validate_invitation_message(invitation_message)
         snapshot = self._get(candidate_set_id, owner_user_id=owner_user_id)
-        lookup = {
-            candidate.public.candidate_id: candidate
-            for candidate in snapshot.candidates
-        }
-        if any(candidate_id not in lookup for candidate_id in candidate_ids):
-            raise AdoptionCandidateSetExpired("候选名单已变化，请重新发送意向")
-        if snapshot.invited_candidate_ids:
-            if (
-                snapshot.invited_candidate_ids == candidate_ids
-                and snapshot.invitation_message == invitation_message
-                and snapshot.reply_results
-            ):
-                return CandidateRepliesResult(
-                    candidate_set_id=candidate_set_id,
-                    replies=snapshot.reply_results,
+        with self._registry_lock:
+            session_lock = self._session_locks.setdefault(
+                snapshot.adoption_session_id, threading.RLock()
+            )
+        with session_lock:
+            with self._registry_lock:
+                snapshot = self._get_locked(
+                    candidate_set_id, owner_user_id=owner_user_id
                 )
-            raise AdoptionInvalid("这组邀请已经发送")
+                session = self._require_session(
+                    snapshot.adoption_session_id, owner_user_id
+                )
+                if snapshot.invited_candidate_ids:
+                    if (
+                        snapshot.invited_candidate_ids == candidate_ids
+                        and snapshot.invitation_message == invitation_message
+                        and snapshot.reply_results
+                    ):
+                        return CandidateRepliesResult(
+                            candidate_set_id=candidate_set_id,
+                            replies=snapshot.reply_results,
+                        )
+                    raise AdoptionInvalid("这组邀请已经发送")
+                if session.phase == "inviting":
+                    raise AdoptionSessionBusy("邀请正在处理中，请稍候")
+                if session.phase != "candidates_ready":
+                    raise AdoptionInvalid("当前阶段不能发送邀请")
+                lookup = {
+                    candidate.public.candidate_id: candidate
+                    for candidate in snapshot.candidates
+                }
+                if any(candidate_id not in lookup for candidate_id in candidate_ids):
+                    raise AdoptionCandidateSetExpired("候选名单已变化，请重新发送意向")
+                if self._narrative is None or not self._narrative.is_ready():
+                    raise AdoptionUnavailable("强模型不可用，暂时不能生成候选身份")
+                self._sessions[snapshot.adoption_session_id] = replace(
+                    session,
+                    phase="inviting",
+                    version=session.version + 1,
+                )
+                in_flight_version = session.version + 1
+
         narrative = self._narrative
-        if narrative is not None and not narrative.is_ready():
+        if narrative is None:
             raise AdoptionUnavailable("强模型不可用，暂时不能生成候选身份")
         replies: list[CandidateReplyResult] = []
         accepted_ids = [
@@ -262,6 +323,28 @@ class CandidateRegistry:
                     ),
                 )
             ]
+        reveals: dict[str, CandidateReveal] = {}
+        if accepted_ids:
+            try:
+                reveals = dict(
+                    narrative.reveal_many(
+                        tuple(
+                            lookup[candidate_id].genesis
+                            for candidate_id in accepted_ids
+                        ),
+                        invitation_message,
+                    )
+                )
+            except Exception as error:
+                with self._registry_lock:
+                    current = self._sessions.get(snapshot.adoption_session_id)
+                    if current is not None and current.version == in_flight_version:
+                        self._sessions[snapshot.adoption_session_id] = replace(
+                            current,
+                            phase="candidates_ready",
+                            version=current.version + 1,
+                        )
+                raise AdoptionUnavailable("候选身份生成失败") from error
         updated_candidates = list(snapshot.candidates)
         for candidate_id in candidate_ids:
             candidate = lookup[candidate_id]
@@ -269,24 +352,18 @@ class CandidateRegistry:
                 "accepted" if candidate_id in accepted_ids else "unsure"
             )
             if status == "accepted":
-                if narrative is None:
-                    reveal = None
-                else:
-                    try:
-                        reveal = narrative.reveal(candidate.genesis, invitation_message)
-                    except (OSError, RuntimeError, ValueError) as error:
-                        raise AdoptionUnavailable("候选身份生成失败") from error
-                    candidate = replace(
-                        candidate,
-                        original_name=reveal.original_name,
-                        suggested_name=reveal.suggested_name,
-                        personal_story=reveal.personal_story,
-                    )
-                    lookup[candidate_id] = candidate
-                    updated_candidates = [
-                        candidate if item.public.candidate_id == candidate_id else item
-                        for item in updated_candidates
-                    ]
+                reveal = reveals[candidate_id]
+                candidate = replace(
+                    candidate,
+                    original_name=reveal.original_name,
+                    suggested_name=reveal.suggested_name,
+                    personal_story=reveal.personal_story,
+                )
+                lookup[candidate_id] = candidate
+                updated_candidates = [
+                    candidate if item.public.candidate_id == candidate_id else item
+                    for item in updated_candidates
+                ]
             else:
                 reveal = None
             replies.append(
@@ -301,18 +378,32 @@ class CandidateRegistry:
                     reveal=reveal,
                 )
             )
-        self._candidate_sets[candidate_set_id] = replace(
-            snapshot,
-            candidates=tuple(updated_candidates),
-            invited_candidate_ids=candidate_ids,
-            accepted_candidate_ids=tuple(accepted_ids),
-            invitation_message=invitation_message,
-            reply_results=tuple(replies),
-        )
-        return CandidateRepliesResult(
-            candidate_set_id=candidate_set_id,
-            replies=tuple(replies),
-        )
+        with self._registry_lock:
+            # The strong-model call may outlive the remaining TTL. Re-check the
+            # absolute deadline before publishing replies; otherwise a slow
+            # provider could revive an expired session.
+            current_session = self._require_session(
+                snapshot.adoption_session_id, owner_user_id
+            )
+            if current_session.version != in_flight_version:
+                raise AdoptionSessionBusy("领养会话状态已经变化，请重新查看")
+            self._candidate_sets[candidate_set_id] = replace(
+                snapshot,
+                candidates=tuple(updated_candidates),
+                invited_candidate_ids=candidate_ids,
+                accepted_candidate_ids=tuple(accepted_ids),
+                invitation_message=invitation_message,
+                reply_results=tuple(replies),
+            )
+            self._sessions[snapshot.adoption_session_id] = replace(
+                current_session,
+                phase="replies_ready",
+                version=current_session.version + 1,
+            )
+            return CandidateRepliesResult(
+                candidate_set_id=candidate_set_id,
+                replies=tuple(replies),
+            )
 
     def accepted(
         self,
@@ -322,6 +413,22 @@ class CandidateRegistry:
         candidate_id: str,
     ) -> CandidateSnapshot:
         snapshot = self._get(candidate_set_id, owner_user_id=owner_user_id)
+        with self._registry_lock:
+            session_lock = self._session_locks.setdefault(
+                snapshot.adoption_session_id, threading.RLock()
+            )
+        with session_lock:
+            with self._registry_lock:
+                snapshot = self._get_locked(
+                    candidate_set_id, owner_user_id=owner_user_id
+                )
+                session = self._require_session(
+                    snapshot.adoption_session_id, owner_user_id
+                )
+                if session.phase != "replies_ready":
+                    from .errors import AdoptionCandidateNotAccepted
+
+                    raise AdoptionCandidateNotAccepted("这位候选还没有回应")
         if candidate_id not in snapshot.accepted_candidate_ids:
             from .errors import AdoptionCandidateNotAccepted
 
@@ -338,27 +445,66 @@ class CandidateRegistry:
         intent_fingerprint: str,
     ) -> CandidateSessionSnapshot:
         if adoption_session_id is None:
-            return CandidateSessionSnapshot(
+            active_id = self._active_sessions_by_owner.get(owner_user_id)
+            active = None if active_id is None else self._sessions.get(active_id)
+            if active is not None and active.intent_fingerprint == intent_fingerprint:
+                return active
+            if active is not None:
+                self._invalidate_session_locked(active.adoption_session_id)
+            if len(self._sessions) >= _MAX_ACTIVE_SESSIONS:
+                raise AdoptionUnavailable("当前领养人数较多，请稍后重试")
+            now = time.monotonic()
+            session = CandidateSessionSnapshot(
                 adoption_session_id=secrets.token_urlsafe(18),
                 owner_user_id=owner_user_id,
-                created_at=time.monotonic(),
+                created_at=now,
+                expires_at=now + _CANDIDATE_TTL_SECONDS,
                 batch_count=0,
                 intent_fingerprint=intent_fingerprint,
             )
-        session = self._sessions.get(adoption_session_id)
-        if session is None:
-            return CandidateSessionSnapshot(
-                adoption_session_id=adoption_session_id,
-                owner_user_id=owner_user_id,
-                created_at=time.monotonic(),
-                batch_count=0,
-                intent_fingerprint=intent_fingerprint,
+            self._sessions[session.adoption_session_id] = session
+            self._active_sessions_by_owner[owner_user_id] = session.adoption_session_id
+            self._session_locks.setdefault(
+                session.adoption_session_id, threading.RLock()
             )
-        if session.owner_user_id != owner_user_id:
+            return session
+        existing_session = self._sessions.get(adoption_session_id)
+        if existing_session is None:
             raise AdoptionCandidateSetExpired("领养会话已失效，请重新开始")
-        if session.intent_fingerprint != intent_fingerprint:
+        if existing_session.owner_user_id != owner_user_id:
+            raise AdoptionCandidateSetExpired("领养会话已失效，请重新开始")
+        if time.monotonic() >= existing_session.expires_at:
+            self._invalidate_session_locked(existing_session.adoption_session_id)
+            raise AdoptionCandidateSetExpired("领养会话已过期，请重新开始")
+        if existing_session.intent_fingerprint != intent_fingerprint:
             raise AdoptionInvalid("领养意向已经变化，请重新开始")
+        return existing_session
+
+    def _require_session(
+        self, adoption_session_id: str, owner_user_id: int
+    ) -> CandidateSessionSnapshot:
+        session = self._sessions.get(adoption_session_id)
+        if session is None or session.owner_user_id != owner_user_id:
+            raise AdoptionCandidateSetExpired("领养会话已失效，请重新开始")
+        if time.monotonic() >= session.expires_at:
+            self._invalidate_session_locked(adoption_session_id)
+            raise AdoptionCandidateSetExpired("领养会话已过期，请重新开始")
         return session
+
+    def _invalidate_session_locked(self, adoption_session_id: str) -> None:
+        session = self._sessions.pop(adoption_session_id, None)
+        if session is None:
+            return
+        if self._active_sessions_by_owner.get(session.owner_user_id) == adoption_session_id:
+            self._active_sessions_by_owner.pop(session.owner_user_id, None)
+        self._session_locks.pop(adoption_session_id, None)
+        expired_sets = tuple(
+            candidate_set_id
+            for candidate_set_id, snapshot in self._candidate_sets.items()
+            if snapshot.adoption_session_id == adoption_session_id
+        )
+        for candidate_set_id in expired_sets:
+            self._candidate_sets.pop(candidate_set_id, None)
 
     def _generate_batch(
         self,
@@ -369,7 +515,7 @@ class CandidateRegistry:
         species_id: SpeciesId,
         life_stage: LifeStage,
         gender: CandidateGender,
-        intent: GenesisAppearanceIntent,
+        appearance: GenesisAppearanceIntent,
         answers: tuple[str, ...],
         previous_signatures: tuple[CandidateSignature, ...],
     ):
@@ -387,7 +533,7 @@ class CandidateRegistry:
                     species_id=species_id,
                     life_stage=life_stage,
                     gender=gender,
-                    appearance=intent,
+                    appearance=appearance,
                     answers=answers,
                     previous_signatures=previous_signatures,
                 )
@@ -398,28 +544,32 @@ class CandidateRegistry:
     def _get(
         self, candidate_set_id: str, *, owner_user_id: int
     ) -> CandidateSetSnapshot:
-        self._purge_expired()
+        with self._registry_lock:
+            return self._get_locked(candidate_set_id, owner_user_id=owner_user_id)
+
+    def _get_locked(
+        self, candidate_set_id: str, *, owner_user_id: int
+    ) -> CandidateSetSnapshot:
+        self._purge_expired_locked()
         snapshot = self._candidate_sets.get(candidate_set_id)
         if snapshot is None or snapshot.owner_user_id != owner_user_id:
             raise AdoptionCandidateSetExpired("这份候选名单已失效，请重新发送意向")
+        self._require_session(snapshot.adoption_session_id, owner_user_id)
         return snapshot
 
     def _purge_expired(self) -> None:
+        with self._registry_lock:
+            self._purge_expired_locked()
+
+    def _purge_expired_locked(self) -> None:
         now = time.monotonic()
-        expired_sets = tuple(
-            key
-            for key, snapshot in self._candidate_sets.items()
-            if now - snapshot.created_at > _CANDIDATE_TTL_SECONDS
-        )
-        for key in expired_sets:
-            self._candidate_sets.pop(key, None)
         expired_sessions = tuple(
             key
             for key, session in self._sessions.items()
-            if now - session.created_at > _CANDIDATE_TTL_SECONDS
+            if now >= session.expires_at
         )
         for key in expired_sessions:
-            self._sessions.pop(key, None)
+            self._invalidate_session_locked(key)
 
     def _snapshot(
         self, candidate: GenesisCandidate, appearance: CandidateAppearance
@@ -579,6 +729,15 @@ def _validate_invitation_message(value: str) -> str:
     if cjk_count and word_count > 50:
         raise AdoptionInvalid("邀请附言不能超过 50 个字/单词")
     return value
+
+
+def _candidate_set_result(snapshot: CandidateSetSnapshot) -> CandidateSetResult:
+    return CandidateSetResult(
+        candidate_set_id=snapshot.candidate_set_id,
+        adoption_session_id=snapshot.adoption_session_id,
+        batch_number=snapshot.batch_number,
+        candidates=tuple(item.public for item in snapshot.candidates),
+    )
 
 
 __all__ = (

@@ -56,7 +56,7 @@ export function ChatListPane(props: ChatListPaneProps) {
         <div className="chat-list">
           {conversations.map((row) => (
             <Button className={row.elfie_id === selectedId ? "wechat-row wechat-row--active" : "wechat-row"} key={row.elfie_id} onClick={() => onChat(row.elfie_id)} type="button" variant="ghost">
-              <Avatar name={row.name} />
+              <Avatar imageUrl={row.portrait_url} name={row.name} />
               <span className="list-copy"><strong>{row.name}</strong><small>{row.last_message_preview || t("list.noPreview")}</small></span>
             </Button>
           ))}

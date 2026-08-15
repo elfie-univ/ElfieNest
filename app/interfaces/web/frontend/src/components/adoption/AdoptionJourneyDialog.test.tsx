@@ -1,10 +1,11 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { createI18n } from "../../i18n/config"
 import { ApiError } from "../../api/http"
+import type { AdoptionCandidateSet } from "../../api/me/adoption"
 import { AdoptionJourneyDialog } from "./AdoptionJourneyDialog"
 
 const api = vi.hoisted(() => ({
@@ -42,7 +43,7 @@ function candidate(index: number) {
   return {
     candidate_id: `candidate-${index}`,
     species_id: "fox" as const,
-    life_stage: "young_adult",
+    life_stage: "young_adult" as const,
     age_months: 36,
     gender: index % 2 === 0 ? "male" as const : "female" as const,
     full_body_image_url: `data:image/png;base64,full-${index}`,
@@ -144,14 +145,11 @@ describe("AdoptionJourneyDialog", () => {
     expect(api.adoptionInfo).toHaveBeenCalledTimes(2)
   })
 
-  it("silently rebuilds the same candidates when the server candidate set is gone", async () => {
+  it("shows a clear restart message when the server candidate session is gone", async () => {
     const user = userEvent.setup()
     api.adoptionCandidates
       .mockResolvedValueOnce({ candidate_set_id: "set-1", adoption_session_id: "session-1", batch_number: 1, candidates: [0, 1, 2, 3, 4].map(candidate) })
-      .mockResolvedValueOnce({ candidate_set_id: "set-2", adoption_session_id: "session-1", batch_number: 1, candidates: [0, 1, 2, 3, 4].map(candidate) })
-    api.adoptionReplies
-      .mockRejectedValueOnce(new ApiError(410, "gone", [], "adoption_candidate_set_expired"))
-      .mockResolvedValueOnce({ candidate_set_id: "set-2", replies: [{ ...candidate(0), status: "accepted", message: "Reply", reveal: null }] })
+    api.adoptionReplies.mockRejectedValueOnce(new ApiError(410, "gone", [], "adoption_candidate_set_expired"))
     render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
 
     await user.click(await screen.findByRole("button", { name: "写下邀请" }))
@@ -166,11 +164,63 @@ describe("AdoptionJourneyDialog", () => {
     await user.click(screen.getByRole("button", { name: /候选者 1/ }))
     await user.click(screen.getByRole("button", { name: /发送意向/ }))
 
-    expect(await screen.findByRole("heading", { name: "你收到了 1 封愿意继续认识的回信" })).toBeInTheDocument()
-    expect(api.adoptionCandidates).toHaveBeenLastCalledWith(expect.objectContaining({ adoption_session_id: "session-1", batch_number: 1 }), "csrf")
-    expect(api.adoptionReplies).toHaveBeenNthCalledWith(2, "set-2", ["candidate-0"], "", "csrf")
-    expect(screen.queryByText(/候选名单|服务不可用|模型未就绪/)).not.toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).toBeInTheDocument()
+    expect(screen.getByText("本次领养已失效，请重新开始。")).toBeInTheDocument()
+    expect(api.adoptionCandidates).toHaveBeenCalledTimes(1)
+    expect(api.adoptionReplies).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+  }, 15000)
+
+  it("clears an expired device draft before the user resumes", async () => {
+    window.localStorage.setItem("elfienest.adoption-draft.owner.v2", JSON.stringify({
+      accountId: "owner",
+      savedAt: Date.now() - 1_000,
+      sessionExpiresAt: Date.now() - 1,
+      state: {
+        dirty: true,
+        screen: "shortlist",
+        adoptionSessionId: "expired-session",
+        candidateBatch: 1,
+        draft: { speciesId: "fox", answers: ["any", "any", "any", "any", "any"] },
+      },
+    }))
+
+    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
+
+    expect(await screen.findByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).toBeInTheDocument()
+    expect(screen.getByText("本次领养已失效，请重新开始。")).toBeInTheDocument()
+    expect(window.localStorage.getItem("elfienest.adoption-draft.owner.v2")).toBeNull()
+    expect(api.adoptionCandidates).not.toHaveBeenCalled()
+  })
+
+  it("shows the restart message when an open adoption session reaches its fixed deadline", async () => {
+    const user = userEvent.setup()
+    const setTimeoutSpy = vi.spyOn(window, "setTimeout")
+    try {
+      render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
+
+      await user.click(await screen.findByRole("button", { name: "写下邀请" }))
+      await user.click(screen.getByRole("button", { name: /灵狐/ }))
+      await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
+      await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
+      for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
+      await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
+      await user.click(screen.getByRole("button", { name: "确认意向" }))
+      await user.click(screen.getByRole("button", { name: "开始匹配" }))
+      await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })
+
+      const expirationCallback = setTimeoutSpy.mock.calls.find((call) => {
+        const delay = call[1]
+        return typeof delay === "number" && delay > 4 * 60 * 60 * 1000
+      })?.[0]
+      if (typeof expirationCallback !== "function") throw new Error("adoption expiry timer was not scheduled")
+      await act(async () => { expirationCallback() })
+
+      expect(await screen.findByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).toBeInTheDocument()
+      expect(screen.getByText("本次领养已失效，请重新开始。")).toBeInTheDocument()
+    } finally {
+      setTimeoutSpy.mockRestore()
+    }
   }, 15000)
 
   it("keeps the approved story flow from welcome through candidate generation", async () => {
@@ -184,9 +234,11 @@ describe("AdoptionJourneyDialog", () => {
     expect(screen.getByRole("img", { name: "来自 Elfaria、正在前往地球的 Elfie" })).not.toHaveAttribute("src", "/adoption/elfaria-arrival-square.png")
     expect(screen.getByRole("checkbox", { name: "以后不再显示" })).not.toBeChecked()
     expect(screen.getByRole("checkbox", { name: "以后不再显示" })).toHaveClass("adoption-welcome__checkbox")
+    expect(document.querySelector(".adoption-portrait-renderer")).not.toBeInTheDocument()
     expect(screen.queryByText("你提交的是愿意认识怎样的朋友；候选精灵也会阅读这份意向。")).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "写下邀请" }))
     expect(await screen.findByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).toBeInTheDocument()
+    await waitFor(() => expect(document.querySelector(".adoption-portrait-renderer")).toBeInTheDocument())
     expect(screen.queryByText("第一步 · 基本意向")).not.toBeInTheDocument()
     expect(screen.queryByText("先确定物种、生命阶段和性别倾向。选择的是愿意见见的范围，不是在设置某一位精灵的身份。")).not.toBeInTheDocument()
     expect(screen.queryByText("看看灵狐报名者")).not.toBeInTheDocument()
@@ -220,8 +272,72 @@ describe("AdoptionJourneyDialog", () => {
     expect(screen.getByRole("button", { name: "开始匹配" })).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "开始匹配" }))
     expect(await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })).toBeInTheDocument()
+    await waitFor(() => expect(document.querySelector(".adoption-portrait-renderer")).not.toBeInTheDocument())
     expect(screen.queryByText("选择 1–3 位发送认识邀请。这里使用静态报名照，不同时加载多个 3D 形象。")).not.toBeInTheDocument()
     expect(api.adoptionCandidates).toHaveBeenCalledWith(expect.objectContaining({ species_id: "fox" }), "csrf")
+  }, 15000)
+
+  it("recreates the browser-side portrait runtime when the user returns after five idle minutes", async () => {
+    const user = userEvent.setup()
+    const setTimeoutSpy = vi.spyOn(window, "setTimeout")
+    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
+
+    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
+    await waitFor(() => expect(document.querySelector(".adoption-portrait-renderer")).toBeInTheDocument())
+    const firstFrame = document.querySelector(".adoption-portrait-renderer")
+    const now = Date.now()
+    const dateNow = vi.spyOn(Date, "now").mockReturnValue(now + 5 * 60 * 1000 + 1)
+    try {
+      const idleCallback = setTimeoutSpy.mock.calls.find((call) => call[1] === 5 * 60 * 1000)?.[0]
+      if (typeof idleCallback !== "function") throw new Error("portrait runtime idle timer was not scheduled")
+      await act(async () => { idleCallback() })
+      await waitFor(() => expect(document.querySelector(".adoption-portrait-renderer")).not.toBeInTheDocument())
+      await act(async () => { window.dispatchEvent(new Event("focus")) })
+      await waitFor(() => {
+        const resumedFrame = document.querySelector(".adoption-portrait-renderer")
+        expect(resumedFrame).toBeInTheDocument()
+        expect(resumedFrame).not.toBe(firstFrame)
+      })
+    } finally {
+      dateNow.mockRestore()
+      setTimeoutSpy.mockRestore()
+    }
+  })
+
+  it("reuses the candidate response when an idle portrait runtime is rebuilt during generation", async () => {
+    const user = userEvent.setup()
+    const candidateRequest: { resolve?: (value: AdoptionCandidateSet) => void } = {}
+    api.adoptionCandidates.mockImplementationOnce(() => new Promise<AdoptionCandidateSet>((resolve) => { candidateRequest.resolve = resolve }))
+    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
+
+    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
+    await user.click(screen.getByRole("button", { name: /灵狐/ }))
+    await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
+    await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
+    for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
+    await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
+    await user.click(screen.getByRole("button", { name: "确认意向" }))
+    await user.click(screen.getByRole("button", { name: "开始匹配" }))
+    await waitFor(() => expect(api.adoptionCandidates).toHaveBeenCalledTimes(1))
+    const firstFrame = document.querySelector(".adoption-portrait-renderer")
+    expect(firstFrame).toBeInTheDocument()
+
+    const now = Date.now()
+    const dateNow = vi.spyOn(Date, "now").mockReturnValue(now + 5 * 60 * 1000 + 1)
+    try {
+      await act(async () => { window.dispatchEvent(new Event("focus")) })
+      await waitFor(() => expect(document.querySelector(".adoption-portrait-renderer")).not.toBe(firstFrame))
+      expect(api.adoptionCandidates).toHaveBeenCalledTimes(1)
+      const completeCandidates = candidateRequest.resolve
+      if (completeCandidates === undefined) throw new Error("candidate request was not started")
+      await act(async () => {
+        completeCandidates({ candidate_set_id: "set-1", adoption_session_id: "session-1", batch_number: 1, candidates: [0, 1, 2, 3, 4].map(candidate) })
+      })
+      expect(await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })).toBeInTheDocument()
+      expect(api.adoptionCandidates).toHaveBeenCalledTimes(1)
+    } finally {
+      dateNow.mockRestore()
+    }
   }, 15000)
 
   it("requires every companionship answer before opening the review", async () => {
@@ -376,6 +492,31 @@ describe("AdoptionJourneyDialog", () => {
     expect(await screen.findByRole("alertdialog")).toHaveTextContent("邀请暂未送达")
     await user.click(screen.getByRole("button", { name: "稍后再说" }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  }, 15000)
+
+  it("silently retries transient invitation failures before showing the failure dialog", async () => {
+    const user = userEvent.setup()
+    api.adoptionReplies
+      .mockRejectedValueOnce(new ApiError(503, "temporary", [], "adoption_unavailable"))
+      .mockRejectedValueOnce(new ApiError(503, "temporary", [], "adoption_unavailable"))
+      .mockResolvedValueOnce({ candidate_set_id: "set-1", replies: [candidate(0), candidate(1)].map((item, index) => ({ ...item, status: "accepted", message: `Reply ${index}`, reveal: null })) })
+    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
+
+    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
+    await user.click(screen.getByRole("button", { name: /灵狐/ }))
+    await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
+    await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
+    for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
+    await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
+    await user.click(screen.getByRole("button", { name: "确认意向" }))
+    await user.click(screen.getByRole("button", { name: "开始匹配" }))
+    await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })
+    for (const index of [1, 2]) await user.click(screen.getByRole("button", { name: new RegExp(`候选者 ${index}`) }))
+    await user.click(screen.getByRole("button", { name: /发送意向/ }))
+
+    expect(await screen.findByRole("heading", { name: "你收到了 2 封愿意继续认识的回信" }, { timeout: 5000 })).toBeInTheDocument()
+    expect(api.adoptionReplies).toHaveBeenCalledTimes(3)
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
   }, 15000)
 
   it("lets the welcome checkbox label toggle the library checkbox", async () => {

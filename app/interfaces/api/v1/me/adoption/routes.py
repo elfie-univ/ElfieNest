@@ -17,6 +17,7 @@ from app.features.adoption import (
     AdoptionNestCapacityReached,
     AdoptionOwnerNotFound,
     AdoptionService,
+    AdoptionSessionBusy,
     AdoptionUnavailable,
     CandidateAppearance,
     CreateCandidateSetCommand,
@@ -151,6 +152,9 @@ def _error_response(error: Exception) -> JSONResponse:
     elif isinstance(error, AdoptionCandidateNotAccepted):
         status_code = 409
         code = "adoption_candidate_not_accepted"
+    elif isinstance(error, AdoptionSessionBusy):
+        status_code = 409
+        code = "adoption_session_busy"
     elif isinstance(error, AdoptionCapacityReached):
         status_code = 409
         code = "elfie_capacity_reached"

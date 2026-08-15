@@ -63,7 +63,7 @@ export const chat = {
       intentConfirm: { title: "Start matching now?", description: "Once confirmed, you will not be able to edit this intent, and we will start finding suitable arrival applicants for you.", cancel: "Back to edit", confirm: "Start matching" },
       finalConfirm: { title: "Welcome this Elfie?", description: "Once confirmed, they will leave Elfaria for Earth, and neither the candidate nor their Earth name can be changed.", cancel: "Back to edit", confirm: "Welcome them" },
       validation: { species: "Choose a species first.", completeIntent: "Complete the basic intent and all five companionship questions first.", chooseCandidate: "Choose between 1 and 3 applicants.", chooseReply: "Choose one reply to continue.", name: "Enter a name between 1 and 20 characters." },
-      errors: { generate: "Candidates are not ready yet. Please try again later.", replies: "Your invitations were not sent. Please try again later.", commit: "The welcome could not be completed. Try again." },
+      errors: { generate: "Candidates are not ready yet. Please try again later.", replies: "Your invitations were not sent. Please try again later.", commit: "The welcome could not be completed. Try again.", expired: "This adoption session has ended. Please start again." },
       closePrompt: { title: "Leave this intent for now?", description: "Your answers will stay on this device so you can continue next time.", continue: "Keep filling it in", discard: "Discard this intent" },
     },
   },

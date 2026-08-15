@@ -8,6 +8,7 @@ from .errors import (
     AdoptionInvalid,
     AdoptionNestCapacityReached,
     AdoptionOwnerNotFound,
+    AdoptionSessionBusy,
     AdoptionUnavailable,
 )
 from .facade import AdoptionService
@@ -59,6 +60,7 @@ __all__ = (
     "AdoptionNestCapacityRecord",
     "AdoptionOptionsResult",
     "AdoptionOwnerNotFound",
+    "AdoptionSessionBusy",
     "AdoptionPersistencePort",
     "AdoptionNarrativePort",
     "AdoptionPolicyPort",

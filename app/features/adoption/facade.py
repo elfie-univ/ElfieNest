@@ -156,7 +156,7 @@ class AdoptionService:
             invitation_message=command.invitation_message,
         )
 
-    def reserve_accepted(
+    def prepare_accepted(
         self,
         principal: AccountPrincipal,
         command: ReserveAcceptedAdoptionCommand,
@@ -169,7 +169,6 @@ class AdoptionService:
             candidate_set_id=command.candidate_set_id,
             candidate_id=command.candidate_id,
         )
-        policy = self._load_policy()
         try:
             get_species_definition(candidate.public.species_id)
         except ValueError as error:
@@ -202,6 +201,12 @@ class AdoptionService:
                 command.headshot_image_url or candidate.public.headshot_image_url
             ),
         )
+
+        return reservation
+
+    def publish_accepted(self, reservation: AcceptedAdoptionReservation) -> None:
+        """Atomically publish one fully constructed Elfie as a final resident."""
+        policy = self._load_policy()
         try:
             self._persistence.reserve(
                 AdoptionReservationRecord(
@@ -223,14 +228,7 @@ class AdoptionService:
         except AdoptionPortOwnerNotFound as error:
             raise AdoptionOwnerNotFound("用户不存在") from error
         except AdoptionPortError as error:
-            raise AdoptionUnavailable("无法预留领养关系") from error
-        return reservation
-
-    def release_reservation(self, reservation: AcceptedAdoptionReservation) -> None:
-        try:
-            self._persistence.release(reservation.elfie_id)
-        except AdoptionPortError as error:
-            raise AdoptionUnavailable("无法回滚领养关系") from error
+            raise AdoptionUnavailable("无法保存领养关系") from error
 
     def _load_policy(self) -> AdoptionPolicyRecord:
         try:

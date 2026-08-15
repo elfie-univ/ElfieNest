@@ -11,6 +11,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
+from infrastructure.models.model_execution_contracts import (
+    StructuredModelExecutionCapabilities,
+)
 from infrastructure.persistence.nest_db.store import get_db, init_db
 
 from ._helpers import adopt_test_elfie, create_test_owner
@@ -18,6 +21,30 @@ from ._helpers import adopt_test_elfie, create_test_owner
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+class _ConfiguredAdoptionExecution:
+    """Deterministic qualified model used by the end-to-end adoption fixture."""
+
+    def adoption_capabilities(self) -> StructuredModelExecutionCapabilities:
+        return StructuredModelExecutionCapabilities(
+            provider="openai",
+            model_key="openai/gpt-5.2",
+            supports_json_schema=True,
+            supports_tool_calling=False,
+            supports_json_mode=True,
+            supports_plain_text=True,
+            max_output_tokens=1024,
+        )
+
+    def generate_adoption_structured(self, request):
+        return request.to_result(
+            text=(
+                '{"original_name":"洛弥","suggested_name":"小洛",'
+                '"personal_story":"我喜欢先安静地观察周围，再邀请你一起探索新鲜事。'
+                '遇到变化时，我会认真听你的想法，也愿意慢慢说出自己的感受。"}'
+            )
+        )
 
 
 @pytest.fixture
@@ -32,7 +59,11 @@ def app(db_path: str, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ELFIE_HOME", str(Path(db_path).parent))
     create_test_owner(db_path)
 
-    yield create_app(engine=None, db_path=db_path)
+    yield create_app(
+        engine=None,
+        db_path=db_path,
+        model_execution=_ConfiguredAdoptionExecution(),
+    )
 
 
 @pytest.fixture

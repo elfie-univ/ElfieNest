@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from "react"
 import { useTranslation } from "react-i18next"
 
 import {
@@ -38,7 +38,6 @@ import {
 import { Icon } from "../Icon"
 import elfariaArrivalImage from "../../assets/adoption/elfaria-arrival-square.png"
 import {
-  DEFAULT_DRAFT,
   INITIAL_ADOPTION_STATE,
   MAX_CANDIDATE_BATCHES,
   adoptionReducer,
@@ -54,6 +53,12 @@ import {
   type LifeStage,
   type SpeciesId,
 } from "./adoption-model"
+import {
+  adoptionSessionExpiryFromNow,
+  clearAdoptionDraft,
+  loadAdoptionDraft,
+  saveAdoptionDraft,
+} from "./adoption-storage"
 import { NamingScreen, RepliesScreen } from "./AdoptionReplyScreens"
 import {
   createProfileGodotPreview,
@@ -81,6 +86,13 @@ const COMPANIONSHIP_OPTIONS: readonly (readonly CompanionAnswer[])[] = [
   ["direct", "discuss", "pause", "any"],
   ["lively", "steady", "space", "any"],
 ]
+const PORTRAIT_RUNTIME_IDLE_MILLISECONDS = 5 * 60 * 1000
+const PORTRAIT_RUNTIME_SCREENS: readonly AdoptionScreen[] = ["basic", "appearance", "companionship", "review", "generating"]
+const INVITATION_RETRY_DELAYS_MILLISECONDS = [400, 1000] as const
+
+function isExpiredSessionError(reason: unknown): boolean {
+  return reason instanceof ApiError && reason.code === "adoption_candidate_set_expired"
+}
 
 const STAGE_FOR_SCREEN: Partial<Record<AdoptionScreen, number>> = {
   basic: 0,
@@ -100,10 +112,6 @@ function welcomeStorageKey(accountId: string): string {
   return `elfienest.adoption-welcome.${accountId}.v1`
 }
 
-function draftStorageKey(accountId: string): string {
-  return `elfienest.adoption-draft.${accountId}.v1`
-}
-
 function hasSkippedWelcome(accountId: string): boolean {
   try {
     return window.localStorage.getItem(welcomeStorageKey(accountId)) === "skipped"
@@ -117,58 +125,6 @@ function markWelcomeSkipped(accountId: string): void {
     window.localStorage.setItem(welcomeStorageKey(accountId), "skipped")
   } catch {
     // Storage can be disabled; the flow remains usable and will show the welcome again.
-  }
-}
-
-function readDraft(accountId: string): AdoptionDraftState | null {
-  try {
-    const raw = window.localStorage.getItem(draftStorageKey(accountId))
-    if (!raw) return null
-    const parsed: unknown = JSON.parse(raw)
-    if (!parsed || typeof parsed !== "object" || !("draft" in parsed)) return null
-    const saved = parsed as Partial<AdoptionDraftState> & { readonly draft: Partial<AdoptionDraftState["draft"]> }
-    return {
-      ...INITIAL_ADOPTION_STATE,
-      ...saved,
-      draft: { ...DEFAULT_DRAFT, ...saved.draft },
-      candidates: [],
-      replies: [],
-      finalCandidateId: null,
-      candidateSetId: null,
-      error: null,
-    }
-  } catch {
-    return null
-  }
-}
-
-function saveDraft(accountId: string, state: AdoptionDraftState): void {
-  if (!state.dirty || state.screen === "arrival") return
-  try {
-    const hasRecoverableCandidates = state.candidateBatch > 0 && state.adoptionSessionId !== null
-    const resumableScreen = hasRecoverableCandidates
-      ? "shortlist"
-      : ["basic", "appearance", "companionship", "review"].includes(state.screen)
-        ? state.screen
-        : "review"
-    window.localStorage.setItem(draftStorageKey(accountId), JSON.stringify({
-      ...state,
-      screen: resumableScreen,
-      candidates: [],
-      replies: [],
-      finalCandidateId: null,
-      candidateSetId: null,
-    }))
-  } catch {
-    // A failed draft write must not block adoption.
-  }
-}
-
-function clearDraft(accountId: string): void {
-  try {
-    window.localStorage.removeItem(draftStorageKey(accountId))
-  } catch {
-    // Best effort only.
   }
 }
 
@@ -207,8 +163,17 @@ function asReply(reply: AdoptionReply, previous?: Candidate): CandidateReply {
 }
 
 function candidateImageUrl(candidate: Pick<Candidate, "headshotImageUrl" | "fullBodyImageUrl">, kind: "headshot" | "fullBody" = "headshot"): string {
-  const imageUrl = kind === "fullBody" ? candidate.fullBodyImageUrl : candidate.headshotImageUrl
-  return imageUrl
+  if (kind === "fullBody") return candidate.fullBodyImageUrl
+  return candidate.headshotImageUrl || candidate.fullBodyImageUrl
+}
+
+function isRetryableInvitationFailure(reason: unknown): boolean {
+  return reason instanceof ApiError
+    && (reason.code === "adoption_unavailable" || reason.status >= 500)
+}
+
+function waitMilliseconds(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
 }
 
 function invitationMessageWithinLimit(value: string): boolean {
@@ -381,63 +346,142 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   const [sendingInvitations, setSendingInvitations] = useState(false)
   const [apiError, setApiError] = useState<LocalizedErrorState>(null)
   const retryingInvitationRef = useRef(false)
+  const portraitFrameRef = useRef<HTMLIFrameElement>(null)
+  const portraitRuntimeTimerRef = useRef<number | null>(null)
+  const portraitLastActivityAtRef = useRef(0)
+  const [portraitRuntimeEnabled, setPortraitRuntimeEnabled] = useState(false)
+  const [portraitRuntimeBlocked, setPortraitRuntimeBlocked] = useState(false)
+  const [portraitRuntimeGeneration, setPortraitRuntimeGeneration] = useState(0)
+  const sessionExpiresAtRef = useRef<number | null>(null)
   const isBusy = state.screen === "generating" || state.screen === "committing" || sendingInvitations
   const isIntentLocked = !["welcome", "basic", "appearance", "companionship", "review"].includes(state.screen)
+
+  const handleExpiredSession = useCallback((): void => {
+    sessionExpiresAtRef.current = null
+    void clearAdoptionDraft(accountId)
+    setGenerationRequest(null)
+    setSendingInvitations(false)
+    setInvitationFailureOpen(false)
+    setMessageDialogOpen(false)
+    setApiError(null)
+    setPortraitRuntimeEnabled(false)
+    setPortraitRuntimeBlocked(true)
+    setPortraitRuntimeGeneration((generation) => generation + 1)
+    dispatch({ type: "reset", screen: "basic" })
+    dispatch({ type: "error", message: t("adoption.journey.errors.expired") })
+  }, [accountId, t])
 
   useEffect(() => {
     if (!open) {
       setInfo(null)
       setEntryBlock(null)
       setLoadingInfo(false)
+      setPortraitRuntimeBlocked(false)
+      portraitLastActivityAtRef.current = Date.now()
+      sessionExpiresAtRef.current = null
       return
     }
     let active = true
-    const saved = readDraft(accountId)
-    if (saved?.dirty && saved.screen !== "arrival") {
-      dispatch({ type: "restore", state: saved })
-    } else {
-      dispatch({ type: "reset", screen: hasSkippedWelcome(accountId) ? "basic" : "welcome" })
-    }
     setInfo(null)
     setLoadingInfo(true)
     setApiError(null)
     setEntryBlock(null)
+    setPortraitRuntimeBlocked(false)
+    portraitLastActivityAtRef.current = Date.now()
     setInvitationFailureOpen(false)
     retryingInvitationRef.current = false
-    void adoptionInfo()
-      .then((nextInfo) => {
+    void (async () => {
+      try {
+        const loaded = await loadAdoptionDraft(accountId)
+        if (!active) return
+        sessionExpiresAtRef.current = loaded.sessionExpiresAt
+        if (loaded.expired) {
+          handleExpiredSession()
+        } else if (loaded.state?.dirty && loaded.state.screen !== "arrival") {
+          dispatch({ type: "restore", state: loaded.state })
+        } else {
+          dispatch({ type: "reset", screen: hasSkippedWelcome(accountId) ? "basic" : "welcome" })
+        }
+
+        const nextInfo = await adoptionInfo()
         if (!active) return
         setInfo(nextInfo)
         if (nextInfo.availability === "nest_full") setEntryBlock("nest-full")
         else if (nextInfo.availability === "member_quota_full") setEntryBlock("member-full")
         else if (nextInfo.availability === "model_unavailable") setEntryBlock("unavailable")
-        else if (
-          saved?.dirty
-          && saved.screen === "shortlist"
+
+        const saved = loaded.state
+        if (
+          !loaded.expired
+          && saved?.dirty
           && saved.adoptionSessionId !== null
           && saved.candidateBatch > 0
           && intentComplete(saved.draft)
         ) {
-          setGenerationRequest(candidateSetInput(
-            saved.draft,
-            saved.candidateBatch,
-            saved.adoptionSessionId,
-          ))
-          dispatch({ type: "screen", screen: "generating" })
+          try {
+            const recovered = await adoptionCandidates(
+              candidateSetInput(saved.draft, saved.candidateBatch, saved.adoptionSessionId),
+              csrfToken,
+            )
+            if (!active) return
+            const recoveredCandidates = recovered.candidates.map(asCandidate)
+            const savedIds = saved.candidates.map((candidate) => candidate.candidateId)
+            const recoveredIds = recoveredCandidates.map((candidate) => candidate.candidateId)
+            const sameCandidates = savedIds.length === 0
+              || (savedIds.length === recoveredIds.length && savedIds.every((candidateId, index) => candidateId === recoveredIds[index]))
+            if (!sameCandidates) {
+              handleExpiredSession()
+              return
+            }
+            dispatch({ type: "candidate-set-recovered", setId: recovered.candidate_set_id })
+            if (saved.candidates.length === 0) {
+              dispatch({
+                type: "candidates-ready",
+                batch: recovered.batch_number,
+                setId: recovered.candidate_set_id,
+                sessionId: recovered.adoption_session_id,
+                candidates: recoveredCandidates,
+              })
+            }
+          } catch (reason: unknown) {
+            if (!active) return
+            if (isExpiredSessionError(reason)) {
+              handleExpiredSession()
+              return
+            }
+            setApiError(describeApiError(reason, "manage.load"))
+          }
         }
-      })
-      .catch((reason: unknown) => {
+      } catch (reason: unknown) {
         if (!active) return
         setApiError(describeApiError(reason, "manage.load"))
         setEntryBlock("unavailable")
-      })
-      .finally(() => { if (active) setLoadingInfo(false) })
+      } finally {
+        if (active) setLoadingInfo(false)
+      }
+    })()
     return () => { active = false }
-  }, [accountId, entryRequest, open])
+  }, [accountId, csrfToken, entryRequest, handleExpiredSession, open])
 
   useEffect(() => {
-    if (open) saveDraft(accountId, state)
-  }, [accountId, open, state])
+    if (!open) return
+    if (state.adoptionSessionId === null) sessionExpiresAtRef.current = null
+    if (state.adoptionSessionId !== null && sessionExpiresAtRef.current === null) {
+      handleExpiredSession()
+      return
+    }
+    void saveAdoptionDraft(accountId, state, sessionExpiresAtRef.current)
+  }, [accountId, handleExpiredSession, open, state])
+
+  useEffect(() => {
+    if (!open) return undefined
+    const expiresAt = sessionExpiresAtRef.current
+    if (expiresAt === null) return undefined
+    const timer = window.setTimeout(() => {
+      if (sessionExpiresAtRef.current === expiresAt) handleExpiredSession()
+    }, Math.max(0, expiresAt - Date.now()))
+    return () => window.clearTimeout(timer)
+  }, [handleExpiredSession, open, state.adoptionSessionId, state.screen])
 
   const allowedSpecies = useMemo(() => {
     return [...(info?.species ?? [])].sort((left, right) => left.sort_order - right.sort_order)
@@ -453,7 +497,8 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   }
 
   const confirmDiscard = (): void => {
-    clearDraft(accountId)
+    void clearAdoptionDraft(accountId)
+    sessionExpiresAtRef.current = null
     dispatch({ type: "reset", screen: "basic" })
     setClosePrompt(false)
     onOpenChange(false)
@@ -502,7 +547,9 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     const batch = state.candidateBatch + 1
     if (batch > MAX_CANDIDATE_BATCHES) return
     const request = candidateSetInput(state.draft, batch, state.adoptionSessionId)
+    if (state.adoptionSessionId === null) sessionExpiresAtRef.current = adoptionSessionExpiryFromNow()
     setApiError(null)
+    setPortraitRuntimeBlocked(false)
     setGenerationRequest(request)
     dispatch({ type: "screen", screen: "generating" })
   }
@@ -521,40 +568,30 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     try {
       let candidateSetId = state.candidateSetId
       let result: Awaited<ReturnType<typeof adoptionReplies>> | null = null
-      for (let attempt = 0; attempt < 2; attempt += 1) {
+      let transientFailureCount = 0
+      while (result === null) {
         try {
           result = await adoptionReplies(candidateSetId, state.selectedCandidateIds, state.invitationMessageEnabled ? state.invitationMessage : "", csrfToken)
-          break
         } catch (reason: unknown) {
-          const canRecover = attempt === 0
-            && reason instanceof ApiError
-            && reason.code === "adoption_candidate_set_expired"
-            && state.adoptionSessionId !== null
-            && state.candidateBatch > 0
-          if (!canRecover) throw reason
-          const recovered = await adoptionCandidates(
-            candidateSetInput(state.draft, state.candidateBatch, state.adoptionSessionId),
-            csrfToken,
-          )
-          const currentIds = state.candidates.map((candidate) => candidate.candidateId)
-          const recoveredIds = recovered.candidates.map((candidate) => candidate.candidate_id)
-          const sameCandidates = currentIds.length === recoveredIds.length
-            && currentIds.every((candidateId, index) => candidateId === recoveredIds[index])
-          if (
-            recovered.adoption_session_id !== state.adoptionSessionId
-            || recovered.batch_number !== state.candidateBatch
-            || !sameCandidates
-          ) {
-            throw reason
+          if (isExpiredSessionError(reason)) {
+            handleExpiredSession()
+            return
           }
-          candidateSetId = recovered.candidate_set_id
-          dispatch({ type: "candidate-set-recovered", setId: candidateSetId })
+          if (!isRetryableInvitationFailure(reason) || transientFailureCount >= INVITATION_RETRY_DELAYS_MILLISECONDS.length) throw reason
+          const retryDelay = INVITATION_RETRY_DELAYS_MILLISECONDS[transientFailureCount]
+          if (retryDelay === undefined) throw reason
+          await waitMilliseconds(retryDelay)
+          transientFailureCount += 1
         }
       }
       if (result === null) throw new Error("Invitation reply result is missing")
       const previous = new Map(state.candidates.map((candidate) => [candidate.candidateId, candidate]))
       dispatch({ type: "replies-ready", replies: result.replies.map((reply) => asReply(reply, previous.get(reply.candidate_id))) })
-    } catch {
+    } catch (reason: unknown) {
+      if (isExpiredSessionError(reason)) {
+        handleExpiredSession()
+        return
+      }
       setInvitationFailureOpen(true)
     } finally {
       setSendingInvitations(false)
@@ -593,14 +630,21 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     dispatch({ type: "screen", screen: "committing" })
     try {
       const finalCandidate = state.replies.find((candidate) => candidate.candidateId === state.finalCandidateId)
+      const headshotImageUrl = finalCandidate?.fullBodyImageUrl
+        ? await createFinalHeadshotDataUrl(finalCandidate.fullBodyImageUrl)
+        : finalCandidate?.headshotImageUrl ?? ""
       const result = await commitAdoption(state.candidateSetId, state.finalCandidateId, name, csrfToken, {
         ...(finalCandidate?.fullBodyImageUrl ? { fullBodyImageUrl: finalCandidate.fullBodyImageUrl } : {}),
-        ...(finalCandidate?.headshotImageUrl ? { headshotImageUrl: finalCandidate.headshotImageUrl } : {}),
+        ...(headshotImageUrl ? { headshotImageUrl } : {}),
       })
-      clearDraft(accountId)
+      await clearAdoptionDraft(accountId)
       await onAdopted(result.elfie_id)
       dispatch({ type: "screen", screen: "arrival" })
     } catch (reason: unknown) {
+      if (isExpiredSessionError(reason)) {
+        handleExpiredSession()
+        return
+      }
       if (reason instanceof ApiError && reason.code === "nest_capacity_reached") {
         dispatch({ type: "screen", screen: "shortlist" })
         setEntryBlock("nest-full")
@@ -673,6 +717,56 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   const errorMessage = resolveLocalizedError(apiError, locale)
   const selectedCandidate = state.replies.find((candidate) => candidate.candidateId === state.finalCandidateId)
   const journeyReady = info !== null && !loadingInfo && entryBlock === null
+  const portraitRuntimeEligible = open && journeyReady && PORTRAIT_RUNTIME_SCREENS.includes(state.screen)
+  const portraitRuntimeRequested = portraitRuntimeEligible && !portraitRuntimeBlocked
+  const markPortraitRuntimeActivity = useCallback((): void => {
+    if (!portraitRuntimeEligible) return
+    const now = Date.now()
+    const expired = now - portraitLastActivityAtRef.current >= PORTRAIT_RUNTIME_IDLE_MILLISECONDS
+    portraitLastActivityAtRef.current = now
+    if (expired) setPortraitRuntimeGeneration((generation) => generation + 1)
+    setPortraitRuntimeBlocked(false)
+    setPortraitRuntimeEnabled(true)
+    if (portraitRuntimeTimerRef.current !== null) window.clearTimeout(portraitRuntimeTimerRef.current)
+    portraitRuntimeTimerRef.current = window.setTimeout(() => {
+      portraitRuntimeTimerRef.current = null
+      setPortraitRuntimeEnabled(false)
+    }, PORTRAIT_RUNTIME_IDLE_MILLISECONDS)
+  }, [portraitRuntimeEligible])
+
+  useEffect(() => {
+    if (!portraitRuntimeRequested) {
+      setPortraitRuntimeEnabled(false)
+      if (portraitRuntimeTimerRef.current !== null) {
+        window.clearTimeout(portraitRuntimeTimerRef.current)
+        portraitRuntimeTimerRef.current = null
+      }
+      return undefined
+    }
+    markPortraitRuntimeActivity()
+    return () => {
+      if (portraitRuntimeTimerRef.current !== null) {
+        window.clearTimeout(portraitRuntimeTimerRef.current)
+        portraitRuntimeTimerRef.current = null
+      }
+    }
+  }, [markPortraitRuntimeActivity, portraitRuntimeRequested, state.screen])
+
+  useEffect(() => {
+    if (!portraitRuntimeEligible) return undefined
+    const resume = (): void => {
+      if (document.visibilityState === "visible") markPortraitRuntimeActivity()
+    }
+    document.addEventListener("visibilitychange", resume)
+    window.addEventListener("focus", resume)
+    window.addEventListener("pageshow", resume)
+    return () => {
+      document.removeEventListener("visibilitychange", resume)
+      window.removeEventListener("focus", resume)
+      window.removeEventListener("pageshow", resume)
+    }
+  }, [markPortraitRuntimeActivity, portraitRuntimeEligible])
+
   const entryChecking = open && (loadingInfo || (info === null && entryBlock === null))
   const title = !journeyReady
     ? t("adoption.journey.entryCheck.title")
@@ -682,7 +776,8 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   const stage = STAGE_FOR_SCREEN[state.screen]
   const showFooter = journeyReady && !["welcome", "generating", "inviting", "committing", "arrival"].includes(state.screen)
   const showBack = state.screen === "naming" || (!isIntentLocked && state.screen !== "basic")
-  const onGenerationReady = (result: AdoptionCandidateSet, candidates: readonly Candidate[]): void => {
+  const onGenerationReady = useCallback((result: AdoptionCandidateSet, candidates: readonly Candidate[]): void => {
+    if (sessionExpiresAtRef.current === null) sessionExpiresAtRef.current = adoptionSessionExpiryFromNow()
     setGenerationRequest(null)
     dispatch({
       type: "candidates-ready",
@@ -692,12 +787,17 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       candidates,
       selectedIds: state.selectedCandidateIds,
     })
-  }
-  const onGenerationError = (reason: unknown): void => {
+  }, [state.selectedCandidateIds])
+  const onGenerationError = useCallback((reason: unknown): void => {
     setGenerationRequest(null)
-    void reason
+    setPortraitRuntimeBlocked(true)
+    setPortraitRuntimeEnabled(false)
+    if (isExpiredSessionError(reason)) {
+      handleExpiredSession()
+      return
+    }
     dispatch({ type: "error", message: t("adoption.journey.errors.generate") })
-  }
+  }, [handleExpiredSession, t])
 
   const candidateLabel = (candidateId: string): string => {
     const index = state.candidates.findIndex((candidate) => candidate.candidateId === candidateId)
@@ -730,6 +830,8 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       <DialogContent
         className="adoption-dialog"
         onEscapeKeyDown={(event) => { event.preventDefault(); requestClose() }}
+        onKeyDown={markPortraitRuntimeActivity}
+        onPointerDown={markPortraitRuntimeActivity}
         onPointerDownOutside={(event) => { event.preventDefault(); requestClose() }}
         showCloseButton={false}
       >
@@ -762,7 +864,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           {journeyReady && state.screen === "appearance" ? <AppearanceScreen draft={state.draft} dispatch={dispatch} t={t} /> : null}
           {journeyReady && state.screen === "companionship" ? <CompanionshipScreen draft={state.draft} dispatch={dispatch} onAnswer={answerCompanionship} questionIndex={state.questionIndex} t={t} /> : null}
           {journeyReady && state.screen === "review" ? <ReviewScreen draft={state.draft} dispatch={dispatch} stageName={(value) => stageName(t, value)} speciesName={(id) => speciesName(id, info?.species.find((species) => species.species_id === id), locale)} t={t} /> : null}
-          {journeyReady && state.screen === "generating" && generationRequest !== null ? <GeneratingScreen csrfToken={csrfToken} onError={onGenerationError} onReady={onGenerationReady} request={generationRequest} title={t("adoption.journey.generating.title")} /> : null}
+          {journeyReady && state.screen === "generating" && generationRequest !== null ? <GeneratingScreen csrfToken={csrfToken} frameRef={portraitFrameRef} onError={onGenerationError} onReady={onGenerationReady} request={generationRequest} runtimeActive={portraitRuntimeEnabled && portraitRuntimeRequested} runtimeGeneration={portraitRuntimeGeneration} title={t("adoption.journey.generating.title")} /> : null}
           {journeyReady && state.screen === "shortlist" ? <ShortlistScreen candidates={state.candidates} candidateBatch={state.candidateBatch} dispatch={dispatch} onRegenerate={() => { void generateCandidates() }} selectedIds={state.selectedCandidateIds} t={t} /> : null}
           {journeyReady && state.screen === "inviting" ? <SendingScreen candidates={state.candidates.filter((candidate) => state.selectedCandidateIds.includes(candidate.candidateId))} candidateLabel={candidateLabel} t={t} /> : null}
           {journeyReady && state.screen === "replies" ? <RepliesScreen candidateImageUrl={candidateImageUrl} candidateLabel={candidateLabel} dispatch={dispatch} finalCandidateId={state.finalCandidateId} intro={<ScreenIntro title={t("adoption.journey.replies.title", { count: state.replies.filter((reply) => reply.status === "accepted").length })} />} replies={state.replies} t={t} /> : null}
@@ -770,6 +872,16 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           {journeyReady && state.screen === "committing" ? <ProgressScreen title={t("adoption.journey.committing.title", { name: selectedName(state) })} /> : null}
           {journeyReady && state.screen === "arrival" && selectedCandidate ? <ArrivalScreen candidate={selectedCandidate} name={selectedName(state)} onFinish={() => { onOpenChange(false) }} t={t} /> : null}
         </div>
+
+        {portraitRuntimeEnabled && portraitRuntimeRequested ? <iframe
+          aria-hidden="true"
+          className="adoption-portrait-renderer"
+          key={portraitRuntimeGeneration}
+          onError={() => { if (state.screen === "generating") onGenerationError(new ProfileGodotPreviewError("preview_load_failed")) }}
+          ref={portraitFrameRef}
+          src="/runtime/godot/elfienest.html?mode=elfie_lab"
+          title=""
+        /> : null}
 
         {showFooter ? (
           <footer className="adoption-dialog__footer">
@@ -920,16 +1032,62 @@ function ProgressScreen({ title }: { readonly title: string }) {
 
 type GeneratingScreenProps = {
   readonly csrfToken: string
+  readonly frameRef: RefObject<HTMLIFrameElement | null>
   readonly onError: (reason: unknown) => void
   readonly onReady: (result: AdoptionCandidateSet, candidates: readonly Candidate[]) => void
   readonly request: AdoptionCandidateSetInput
+  readonly runtimeActive: boolean
+  readonly runtimeGeneration: number
   readonly title: string
 }
 
-function GeneratingScreen({ csrfToken, onError, onReady, request, title }: GeneratingScreenProps) {
-  const frameRef = useRef<HTMLIFrameElement>(null)
+type CandidateRequestLease = {
+  readonly csrfToken: string
+  readonly promise: Promise<AdoptionCandidateSet>
+  readonly request: AdoptionCandidateSetInput
+}
+
+type CandidateLoad = {
+  readonly candidates: readonly Candidate[]
+  readonly request: AdoptionCandidateSetInput
+  readonly result: AdoptionCandidateSet
+}
+
+function GeneratingScreen({ csrfToken, frameRef, onError, onReady, request, runtimeActive, runtimeGeneration, title }: GeneratingScreenProps) {
+  const candidateRequestRef = useRef<CandidateRequestLease | null>(null)
+  const renderedCandidatesRef = useRef(new Map<string, Candidate>())
+  const [candidateLoad, setCandidateLoad] = useState<CandidateLoad | null>(null)
 
   useEffect(() => {
+    let active = true
+    let lease = candidateRequestRef.current
+    if (lease === null || lease.request !== request || lease.csrfToken !== csrfToken) {
+      lease = { csrfToken, promise: adoptionCandidates(request, csrfToken), request }
+      candidateRequestRef.current = lease
+      renderedCandidatesRef.current.clear()
+      setCandidateLoad(null)
+    }
+    const currentLease = lease
+    void currentLease.promise
+      .then((result) => {
+        if (!active) return
+        const candidates = result.candidates.map(asCandidate)
+        if (candidates.some((candidate) => Object.keys(candidate.runtimeAppearance).length === 0)) {
+          onError(new ProfileGodotPreviewError("candidate_portrait_unavailable"))
+          return
+        }
+        setCandidateLoad({ candidates, request: currentLease.request, result })
+      })
+      .catch((reason: unknown) => {
+        if (active) onError(reason)
+      })
+    return () => { active = false }
+  }, [csrfToken, onError, request])
+
+  const activeLoad = candidateLoad?.request === request ? candidateLoad : null
+
+  useEffect(() => {
+    if (!runtimeActive || activeLoad === null) return undefined
     let active = true
     let readyResolve: (() => void) | null = null
     const ready = new Promise<void>((resolve) => {
@@ -960,17 +1118,11 @@ function GeneratingScreen({ csrfToken, onError, onReady, request, title }: Gener
 
     const run = async (): Promise<void> => {
       try {
-        const result = await adoptionCandidates(request, csrfToken)
-        if (!active) return
-        const candidates = result.candidates.map(asCandidate)
-        if (candidates.some((candidate) => Object.keys(candidate.runtimeAppearance).length === 0)) {
-          onError(new ProfileGodotPreviewError("candidate_portrait_unavailable"))
-          return
-        }
         await waitWithTimeout(ready, 20_000, "preview_timeout")
-        const rendered: Candidate[] = []
-        for (const candidate of candidates) {
+        if (!active) return
+        for (const candidate of activeLoad.candidates) {
           if (!active || bridge === null) return
+          if (renderedCandidatesRef.current.has(candidate.candidateId)) continue
           await sendAndWait(bridge, waitForAction, "configure", {
             appearance: candidate.runtimeAppearance,
             elfie_id: `candidate-${candidate.candidateId}`,
@@ -978,15 +1130,20 @@ function GeneratingScreen({ csrfToken, onError, onReady, request, title }: Gener
             species_id: candidate.speciesId,
           })
           const fullBody = await captureAndWait(bridge, waitForAction)
-          await sendAndWait(bridge, waitForAction, "focus", { target: "head" })
-          const headshot = await captureAndWait(bridge, waitForAction)
-          const fullBodyImageUrl = await captureDataUrl(fullBody)
-          const headshotImageUrl = await captureDataUrl(headshot)
-          URL.revokeObjectURL(fullBody.previewUrl)
-          URL.revokeObjectURL(headshot.previewUrl)
-          rendered.push({ ...candidate, fullBodyImageUrl, headshotImageUrl })
+          let fullBodyImageUrl = ""
+          try {
+            fullBodyImageUrl = await captureDataUrl(fullBody)
+          } finally {
+            URL.revokeObjectURL(fullBody.previewUrl)
+          }
+          if (!active) return
+          renderedCandidatesRef.current.set(candidate.candidateId, { ...candidate, fullBodyImageUrl, headshotImageUrl: "" })
         }
-        if (active) onReady(result, rendered)
+        const rendered = activeLoad.candidates.map((candidate) => renderedCandidatesRef.current.get(candidate.candidateId))
+        if (rendered.some((candidate) => candidate === undefined)) {
+          throw new ProfileGodotPreviewError("candidate_portrait_unavailable")
+        }
+        if (active) onReady(activeLoad.result, rendered as readonly Candidate[])
       } catch (reason: unknown) {
         if (active) onError(reason)
       }
@@ -998,19 +1155,11 @@ function GeneratingScreen({ csrfToken, onError, onReady, request, title }: Gener
       pendingActions.clear()
       bridge?.dispose()
     }
-  }, [csrfToken, onError, onReady, request])
+  }, [activeLoad, frameRef, onError, onReady, runtimeActive, runtimeGeneration])
 
   return <section className="adoption-progress-screen">
     <h2>{title}</h2>
     <div aria-label={title} className="adoption-signal adoption-progress-signal" role="progressbar"><span /></div>
-    <iframe
-      aria-hidden="true"
-      className="adoption-portrait-renderer"
-      onError={() => onError(new ProfileGodotPreviewError("preview_load_failed"))}
-      ref={frameRef}
-      src="/runtime/godot/elfienest.html?mode=elfie_lab"
-      title=""
-    />
   </section>
 }
 
@@ -1045,6 +1194,60 @@ async function captureDataUrl(capture: { readonly blob: Blob }): Promise<string>
     reader.onerror = () => reject(new ProfileGodotPreviewError("invalid_portrait"))
     reader.readAsDataURL(capture.blob)
   })
+}
+
+async function createHeadshotDataUrl(capture: { readonly blob: Blob }): Promise<string> {
+  let sourceUrl: string | undefined
+  try {
+    sourceUrl = URL.createObjectURL(capture.blob)
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image()
+      element.onload = () => resolve(element)
+      element.onerror = () => reject(new ProfileGodotPreviewError("invalid_portrait"))
+      element.src = sourceUrl as string
+    })
+    const cropSize = Math.max(1, Math.min(image.naturalWidth, Math.round(image.naturalHeight * 0.58)))
+    const cropX = Math.max(0, Math.round((image.naturalWidth - cropSize) / 2))
+    const cropY = Math.max(0, Math.round(image.naturalHeight * 0.02))
+    const canvas = document.createElement("canvas")
+    canvas.width = cropSize
+    canvas.height = cropSize
+    const context = canvas.getContext("2d")
+    if (context === null) throw new ProfileGodotPreviewError("invalid_portrait")
+    context.drawImage(image, cropX, cropY, cropSize, cropSize, 0, 0, cropSize, cropSize)
+    return canvas.toDataURL("image/png")
+  } catch {
+    return captureDataUrl(capture)
+  } finally {
+    if (sourceUrl !== undefined) URL.revokeObjectURL(sourceUrl)
+  }
+}
+
+function captureFromDataUrl(dataUrl: string): { readonly blob: Blob; readonly previewUrl: string } | null {
+  const match = /^data:([^;,]+);base64,(.+)$/.exec(dataUrl)
+  if (match === null) return null
+  const mediaType = match[1]
+  const encoded = match[2]
+  if (mediaType === undefined || encoded === undefined) return null
+  try {
+    const binary = atob(encoded)
+    const bytes = new Uint8Array(binary.length)
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+    const blob = new Blob([bytes], { type: mediaType })
+    return { blob, previewUrl: URL.createObjectURL(blob) }
+  } catch {
+    return null
+  }
+}
+
+async function createFinalHeadshotDataUrl(fullBodyImageUrl: string): Promise<string> {
+  const capture = captureFromDataUrl(fullBodyImageUrl)
+  if (capture === null) return fullBodyImageUrl
+  try {
+    return await createHeadshotDataUrl(capture)
+  } finally {
+    URL.revokeObjectURL(capture.previewUrl)
+  }
 }
 
 function portraitRevision(candidateId: string): number {

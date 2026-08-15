@@ -339,6 +339,32 @@ describe("ChatPage list pane headings", () => {
     expect(article?.querySelector("img")).toHaveAttribute("src", "/api/v1/me/avatar")
   })
 
+  it("uses the adopted Elfie portrait in the conversation list and Elfie messages", async () => {
+    const portraitUrl = "/api/v1/elfies/00000001/portrait"
+    chatApi.conversations.mockResolvedValue([{
+      elfie_id: "00000001",
+      name: "小羽",
+      portrait_url: portraitUrl,
+      last_message_preview: "早上好",
+      last_message_at: "2026-08-04T23:00:00Z",
+    }])
+    chatApi.elfies.mockResolvedValue([{ ...elfie, portrait_url: portraitUrl }])
+    chatApi.messages.mockResolvedValue([{
+      id: 10,
+      elfie_id: "00000001",
+      sender: "elfie",
+      text: "我在这里",
+      created_at: "2026-07-29T00:00:00Z",
+    }])
+
+    renderChatPage("zh-CN")
+
+    const conversationRow = await screen.findByRole("button", { name: /小羽早上好/ })
+    expect(conversationRow.querySelector("img")).toHaveAttribute("src", portraitUrl)
+    const message = await screen.findByText("我在这里")
+    expect(message.closest("article")?.querySelector("img")).toHaveAttribute("src", portraitUrl)
+  })
+
   it("sends a message with plain Enter while keeping Shift+Enter available for new lines", async () => {
     const user = userEvent.setup()
     renderChatPage("zh-CN")

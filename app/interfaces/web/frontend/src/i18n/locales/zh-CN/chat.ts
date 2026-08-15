@@ -63,7 +63,7 @@ export const chat = {
       intentConfirm: { title: "确认开始匹配？", description: "确认后，这份意向将不能再修改，系统会开始为你寻找合适的赴地报名者。", cancel: "返回修改", confirm: "开始匹配" },
       finalConfirm: { title: "确认迎接 TA？", description: "确认后，TA 会从 Elfaria 奔向地球，对象和地球称呼都不能再修改。", cancel: "返回修改", confirm: "确认迎接" },
       validation: { species: "请先选择一个物种。", completeIntent: "请先完成基本意向和 5 个相处问题。", chooseCandidate: "请选择 1–3 位候选。", chooseReply: "请选择一封愿意继续认识的回信。", name: "请输入 1–20 个字符的称呼。" },
-      errors: { generate: "候选暂未生成，请稍后重试。", replies: "邀请暂未发送，请稍后重试。", commit: "迎接确认没有完成，请重试。" },
+      errors: { generate: "候选暂未生成，请稍后重试。", replies: "邀请暂未发送，请稍后重试。", commit: "迎接确认没有完成，请重试。", expired: "本次领养已失效，请重新开始。" },
       closePrompt: { title: "要先离开这份意向吗？", description: "当前填写的内容会保留在这台设备上，下次可以继续。", continue: "继续填写", discard: "放弃这份意向" },
     },
   },

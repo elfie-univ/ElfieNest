@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 
 from app.features.accounts import AccountPrincipal
 from app.features.adoption import (
+    AdoptionCandidateSetExpired,
     AdoptionInvalid,
     AdoptionNestCapacityRecord,
     AdoptionPolicyRecord,
@@ -69,8 +73,37 @@ class Narrative:
     def reveal(self, candidate, invitation_message: str) -> CandidateReveal:
         self.reveal_calls += 1
         assert candidate.species_id == "fox"
-        assert invitation_message == "你好，想认识你。"
+        assert invitation_message in ("", "你好，想认识你。")
         return CandidateReveal("Vulpes", "小狐", "我喜欢在安静的地方慢慢观察世界。")
+
+    def reveal_many(self, candidates, invitation_message: str):
+        return {
+            candidate.candidate_id: self.reveal(candidate, invitation_message)
+            for candidate in candidates
+        }
+
+
+class ConcurrentNarrative(Narrative):
+    def __init__(self) -> None:
+        super().__init__()
+        self.barrier = threading.Barrier(3)
+
+    def reveal(self, candidate, invitation_message: str) -> CandidateReveal:
+        self.barrier.wait(timeout=2)
+        return super().reveal(candidate, invitation_message)
+
+    def reveal_many(self, candidates, invitation_message: str):
+        with ThreadPoolExecutor(max_workers=len(candidates)) as executor:
+            futures = {
+                candidate.candidate_id: executor.submit(
+                    self.reveal, candidate, invitation_message
+                )
+                for candidate in candidates
+            }
+            return {
+                candidate_id: future.result()
+                for candidate_id, future in futures.items()
+            }
 
 
 def principal() -> AccountPrincipal:
@@ -151,7 +184,7 @@ def test_candidate_creation_rejects_a_species_without_a_complete_runtime_package
 
 def test_candidate_reply_and_reservation_preserve_accepted_snapshot() -> None:
     persistence = Persistence()
-    service = AdoptionService(Policy(), persistence)
+    service = AdoptionService(Policy(), persistence, narrative=Narrative())
     candidate_set = service.create_candidate_set(principal(), candidate_command())
     selected = candidate_set.candidates[:2]
     replies = service.reply_to_candidates(
@@ -165,7 +198,7 @@ def test_candidate_reply_and_reservation_preserve_accepted_snapshot() -> None:
         reply for reply in replies.replies if reply.status == "accepted"
     )
 
-    reservation = service.reserve_accepted(
+    reservation = service.prepare_accepted(
         principal(),
         ReserveAcceptedAdoptionCommand(
             candidate_set_id=candidate_set.candidate_set_id,
@@ -177,6 +210,10 @@ def test_candidate_reply_and_reservation_preserve_accepted_snapshot() -> None:
     assert reservation.name == "星砂"
     assert reservation.species_id == accepted_reply.candidate.species_id
     assert reservation.gender == accepted_reply.candidate.gender
+    assert persistence.reservations == []
+
+    service.publish_accepted(reservation)
+
     assert persistence.reservations[0].owner_user_id == 7
 
 
@@ -231,7 +268,7 @@ def test_candidate_session_allows_three_batches_and_rejects_the_fourth() -> None
         )
 
 
-def test_candidate_batch_can_be_reconstructed_after_registry_restart() -> None:
+def test_candidate_batch_expires_after_registry_restart() -> None:
     first_service = AdoptionService(Policy(), Persistence())
     first = first_service.create_candidate_set(principal(), candidate_command())
     second_command = CreateCandidateSetCommand(
@@ -244,13 +281,65 @@ def test_candidate_batch_can_be_reconstructed_after_registry_restart() -> None:
     original_second = first_service.create_candidate_set(principal(), second_command)
 
     restarted_service = AdoptionService(Policy(), Persistence())
-    rebuilt_second = restarted_service.create_candidate_set(principal(), second_command)
+    with pytest.raises(AdoptionCandidateSetExpired):
+        restarted_service.create_candidate_set(principal(), second_command)
 
-    assert rebuilt_second.adoption_session_id == first.adoption_session_id
-    assert tuple(item.candidate_id for item in rebuilt_second.candidates) == tuple(
-        item.candidate_id for item in original_second.candidates
-    )
-    assert rebuilt_second.candidates == original_second.candidates
+    assert original_second.adoption_session_id == first.adoption_session_id
+
+
+def test_candidate_session_uses_an_absolute_five_hour_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.features.adoption import _candidate_registry
+
+    clock = [100.0]
+    monkeypatch.setattr(_candidate_registry.time, "monotonic", lambda: clock[0])
+    service = AdoptionService(Policy(), Persistence(), narrative=Narrative())
+    first = service.create_candidate_set(principal(), candidate_command())
+
+    clock[0] = 100.0 + (5 * 60 * 60) - 1
+    repeated = service.create_candidate_set(principal(), candidate_command())
+    assert repeated == first
+
+    clock[0] += 2
+    with pytest.raises(AdoptionCandidateSetExpired):
+        service.reply_to_candidates(
+            principal(),
+            ReplyToCandidatesCommand(
+                candidate_set_id=first.candidate_set_id,
+                candidate_ids=(first.candidates[0].candidate_id,),
+            ),
+        )
+
+
+def test_slow_reveal_cannot_publish_after_the_absolute_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.features.adoption import _candidate_registry
+
+    clock = [100.0]
+    monkeypatch.setattr(_candidate_registry.time, "monotonic", lambda: clock[0])
+    narrative = Narrative()
+
+    def reveal_many(candidates, invitation_message: str):
+        clock[0] = 100.0 + (5 * 60 * 60) + 1
+        return {
+            candidate.candidate_id: narrative.reveal(candidate, invitation_message)
+            for candidate in candidates
+        }
+
+    monkeypatch.setattr(narrative, "reveal_many", reveal_many)
+    service = AdoptionService(Policy(), Persistence(), narrative=narrative)
+    candidate_set = service.create_candidate_set(principal(), candidate_command())
+
+    with pytest.raises(AdoptionCandidateSetExpired):
+        service.reply_to_candidates(
+            principal(),
+            ReplyToCandidatesCommand(
+                candidate_set_id=candidate_set.candidate_set_id,
+                candidate_ids=(candidate_set.candidates[0].candidate_id,),
+            ),
+        )
 
 
 def test_reply_uses_strong_model_reveal_before_reservation() -> None:
@@ -269,7 +358,7 @@ def test_reply_uses_strong_model_reveal_before_reservation() -> None:
     )
 
     assert replies.replies[0].reveal is not None
-    reservation = service.reserve_accepted(
+    reservation = service.prepare_accepted(
         principal(),
         ReserveAcceptedAdoptionCommand(
             candidate_set_id=candidate_set.candidate_set_id,
@@ -289,7 +378,7 @@ def test_each_selected_candidate_has_an_independent_acceptance_draw(
     from app.features.adoption import _candidate_registry
 
     monkeypatch.setattr(_candidate_registry, "_acceptance_score", lambda *_: 0.1)
-    service = AdoptionService(Policy(), Persistence())
+    service = AdoptionService(Policy(), Persistence(), narrative=Narrative())
     candidate_set = service.create_candidate_set(principal(), candidate_command())
 
     replies = service.reply_to_candidates(
@@ -309,13 +398,42 @@ def test_each_selected_candidate_has_an_independent_acceptance_draw(
     ]
 
 
+def test_selected_candidate_reveals_run_concurrently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.features.adoption import _candidate_registry
+
+    monkeypatch.setattr(_candidate_registry, "_acceptance_score", lambda *_: 0.1)
+    narrative = ConcurrentNarrative()
+    service = AdoptionService(Policy(), Persistence(), narrative=narrative)
+    candidate_set = service.create_candidate_set(principal(), candidate_command())
+
+    replies = service.reply_to_candidates(
+        principal(),
+        ReplyToCandidatesCommand(
+            candidate_set_id=candidate_set.candidate_set_id,
+            candidate_ids=tuple(
+                candidate.candidate_id for candidate in candidate_set.candidates[:3]
+            ),
+            invitation_message="你好，想认识你。",
+        ),
+    )
+
+    assert [reply.status for reply in replies.replies] == [
+        "accepted",
+        "accepted",
+        "accepted",
+    ]
+    assert narrative.reveal_calls == 3
+
+
 def test_reply_guarantees_at_least_one_acceptance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.features.adoption import _candidate_registry
 
     monkeypatch.setattr(_candidate_registry, "_acceptance_score", lambda *_: 0.99)
-    service = AdoptionService(Policy(), Persistence())
+    service = AdoptionService(Policy(), Persistence(), narrative=Narrative())
     candidate_set = service.create_candidate_set(principal(), candidate_command())
 
     replies = service.reply_to_candidates(

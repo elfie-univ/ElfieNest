@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
+from time import sleep
 from typing import Any, Mapping, Protocol
 
 from elfie.genesis import BIG_FIVE_TRAITS, CandidateReveal, GenesisCandidate
@@ -26,6 +28,7 @@ _REVEAL_SCHEMA: Mapping[str, Any] = {
         "personal_story": {"type": "string", "minLength": 24, "maxLength": 220},
     },
 }
+_REVEAL_RETRY_DELAYS_SECONDS = (0.35, 0.8)
 
 
 class AdoptionStructuredModelExecution(Protocol):
@@ -66,7 +69,7 @@ class StructuredAdoptionNarrativeAdapter:
             else StructuredGenerationMode.JSON_TEXT
         )
         feedback = ""
-        for attempt in range(2):
+        for attempt in range(len(_REVEAL_RETRY_DELAYS_SECONDS) + 1):
             prompt = _prompt(candidate, invitation_message, feedback)
             request = StructuredModelExecutionRequest(
                 prompt=prompt,
@@ -92,20 +95,46 @@ class StructuredAdoptionNarrativeAdapter:
                 allow_fallback=False,
                 provider=capabilities.provider,
                 model_key=capabilities.model_key,
-                temperature=0.72,
+                temperature=0.62,
                 max_tokens=min(384, capabilities.max_output_tokens),
             )
             try:
                 result = self._execution.generate_adoption_structured(request)
             except (OSError, RuntimeError):
-                raise
+                if attempt >= len(_REVEAL_RETRY_DELAYS_SECONDS):
+                    raise
+                sleep(_REVEAL_RETRY_DELAYS_SECONDS[attempt])
+                continue
             try:
                 return _validated_reveal(_parse_json(result.text), candidate.species_id)
             except ValueError as error:
-                if attempt == 1:
+                if attempt >= len(_REVEAL_RETRY_DELAYS_SECONDS):
                     raise
                 feedback = str(error)
         raise RuntimeError("Adoption reveal validation did not complete")
+
+    def reveal_many(
+        self,
+        candidates: tuple[GenesisCandidate, ...],
+        invitation_message: str,
+    ) -> Mapping[str, CandidateReveal]:
+        """Run the independent invitation reveals concurrently at the Adapter boundary."""
+        with ThreadPoolExecutor(
+            max_workers=len(candidates),
+            thread_name_prefix="adoption-reveal",
+        ) as executor:
+            futures = {
+                candidate.candidate_id: executor.submit(
+                    self.reveal,
+                    candidate,
+                    invitation_message,
+                )
+                for candidate in candidates
+            }
+            return {
+                candidate_id: future.result()
+                for candidate_id, future in futures.items()
+            }
 
 
 def _is_qualified(capabilities: object) -> bool:
@@ -181,7 +210,17 @@ def _parse_json(text: str) -> Mapping[str, Any]:
         if len(lines) < 3:
             raise ValueError("Adoption reveal code fence is incomplete")
         raw = "\n".join(lines[1:]).rsplit("```", 1)[0].strip()
-    payload = json.loads(raw)
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as error:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start < 0 or end <= start:
+            raise ValueError("Adoption reveal must contain a JSON object") from error
+        try:
+            payload = json.loads(raw[start : end + 1])
+        except json.JSONDecodeError as nested_error:
+            raise ValueError("Adoption reveal JSON is invalid") from nested_error
     if not isinstance(payload, dict):
         raise ValueError("Adoption reveal must be a JSON object")
     return payload
@@ -297,6 +336,14 @@ class UnavailableAdoptionNarrativeAdapter:
         invitation_message: str,
     ) -> CandidateReveal:
         del candidate, invitation_message
+        raise RuntimeError("Adoption narrative model is unavailable")
+
+    def reveal_many(
+        self,
+        candidates: tuple[GenesisCandidate, ...],
+        invitation_message: str,
+    ) -> Mapping[str, CandidateReveal]:
+        del candidates, invitation_message
         raise RuntimeError("Adoption narrative model is unavailable")
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -31,13 +31,15 @@ class CandidateAppearanceRequest(BaseModel):
 class CandidateSetRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    species_id: str = Field(min_length=1)
+    species_id: str = Field(min_length=1, max_length=64)
     life_stage: Literal["youth", "young_adult", "mature", "elder", "any"]
     gender: Literal["male", "female", "any"]
     appearance: CandidateAppearanceRequest
-    answers: tuple[str, ...] = Field(min_length=5, max_length=5)
+    answers: tuple[Annotated[str, Field(min_length=1, max_length=500)], ...] = Field(
+        min_length=5, max_length=5
+    )
     batch_number: int = Field(default=1, ge=1, le=3)
-    adoption_session_id: Optional[str] = Field(default=None, min_length=1)
+    adoption_session_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
 
     @field_validator("answers")
     @classmethod
@@ -51,7 +53,7 @@ class CandidateRepliesRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     candidate_ids: tuple[str, ...] = Field(min_length=1, max_length=3)
-    invitation_message: str = Field(default="")
+    invitation_message: str = Field(default="", max_length=400)
 
     @field_validator("candidate_ids")
     @classmethod
@@ -83,8 +85,8 @@ class CandidateRepliesRequest(BaseModel):
 class AdoptionCommitRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    candidate_set_id: str = Field(min_length=1)
-    candidate_id: str = Field(min_length=1)
+    candidate_set_id: str = Field(min_length=1, max_length=128)
+    candidate_id: str = Field(min_length=1, max_length=128)
     name: str = Field(min_length=1, max_length=20)
     full_body_image_url: str = Field(default="", max_length=11_200_000)
     headshot_image_url: str = Field(default="", max_length=11_200_000)
