@@ -34,7 +34,7 @@
 
 .adoption-progress {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: 0;
   padding: 0 26px;
   list-style: none;
@@ -133,13 +133,15 @@
 .adoption-signal { position: relative; height: 2px; margin: 52px 12% 40px; overflow: hidden; background: var(--border); }
 .adoption-signal span { position: absolute; top: 50%; left: 0; width: 32%; height: 6px; transform: translate3d(0, -50%, 0); border-radius: 999px; background: var(--accent); will-change: transform; animation: adoption-signal 1.9s cubic-bezier(.45, 0, .55, 1) infinite alternate; }
 .adoption-progress-signal { width: min(720px, 100%); margin: 16px 0 0; }
-.adoption-sending-screen { display: grid; }
+.adoption-sending-screen { display: grid; min-height: 360px; place-items: center; align-content: center; gap: 12px; text-align: center; }
 .adoption-invite-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
 .adoption-invite-card { display: grid; align-content: start; justify-items: stretch; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-field); text-align: left; }
 .adoption-invite-card img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; object-position: 50% 8%; border-radius: 10px; }
 .adoption-invite-card strong { font-size: 17px; }
 .adoption-invite-card .adoption-tag-list { align-self: end; }
 .adoption-sending-screen > .adoption-progress-signal { justify-self: center; margin-top: 30px; }
+.adoption-sending-screen > .adoption-screen-intro { justify-self: center; margin-bottom: 0; }
+.adoption-sending-screen > .adoption-screen-intro > div { text-align: center; }
 .adoption-invite-form { display: grid; gap: 12px; margin-top: 20px; }
 .adoption-invite-form__toggle { display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
 .adoption-invite-form__send { justify-self: start; }
@@ -201,10 +203,32 @@
 .adoption-welcome__copy h2 { width: 100%; font-size: clamp(28px, 3.1vw, 42px); line-height: 1.15; text-wrap: wrap; }
 .adoption-welcome__copy > p:not(.adoption-eyebrow) { color: var(--text-muted); line-height: 1.75; }
 .adoption-welcome__note { display: flex; align-items: start; gap: 9px; padding: 12px 14px; border-left: 3px solid var(--accent); color: var(--text-muted); background: var(--accent-soft); line-height: 1.55; }
+.adoption-auxiliary { color: var(--text-muted); font-size: 13px; line-height: 1.55; }
+.adoption-auxiliary summary { width: fit-content; color: var(--text); cursor: pointer; }
+.adoption-auxiliary summary::marker { color: var(--accent); }
+.adoption-auxiliary p { margin: 8px 0 0; }
 .adoption-welcome__skip { display: inline-flex; align-items: center; gap: 9px; width: fit-content; color: var(--text-muted); font-size: 13px; cursor: pointer; }
 .adoption-welcome__skip:hover { color: var(--text); }
 .adoption-welcome__checkbox { width: 18px; height: 18px; border: 2px solid var(--border-strong); border-radius: 5px; background: var(--surface-raised); }
 .adoption-welcome__checkbox[data-state="checked"] { border-color: var(--accent); color: var(--surface); background: var(--accent); }
+
+.adoption-arrival--welcome { grid-template-columns: minmax(180px, .72fr) minmax(0, 1.28fr); min-height: 420px; gap: 30px; align-items: center; text-align: left; }
+.adoption-arrival__person { display: grid; align-content: center; justify-items: center; gap: 12px; padding-top: 28px; color: var(--text-muted); text-align: center; }
+.adoption-arrival__person-info { display: grid; width: 100%; justify-items: center; gap: 6px; }
+.adoption-arrival__person-info strong { color: var(--text); font-size: 22px; }
+.adoption-arrival__person-info > span { line-height: 1.5; }
+.adoption-arrival__tags { justify-content: center; }
+.adoption-arrival__person-info .adoption-arrival__introduction { width: min(100%, 310px); box-sizing: border-box; text-align: left; }
+.adoption-arrival__copy { display: grid; width: min(100%, 520px); align-content: center; gap: 14px; }
+.adoption-arrival__copy h2 { margin: 0; }
+.adoption-arrival__introduction { margin: 10px 0 0; padding: 4px 0 4px 14px; border-left: 2px solid var(--accent); color: var(--text-muted); background: transparent; }
+.adoption-arrival__introduction p { margin: 0; color: var(--text-muted); line-height: 1.6; }
+.adoption-arrival__name { display: grid; gap: 7px; color: var(--text); font-size: 14px; font-weight: 700; }
+.adoption-arrival__name input { min-width: 0; padding: 11px 12px; border: 1px solid var(--border); border-radius: 9px; color: var(--text); background: var(--surface); font: inherit; font-weight: 400; }
+.adoption-arrival__name input:focus { border-color: var(--accent); outline: 2px solid color-mix(in srgb, var(--accent) 20%, transparent); outline-offset: 1px; }
+.adoption-arrival__actions { display: flex; justify-content: center; margin-top: 4px; }
+.adoption-arrival__actions button { width: min(280px, 100%); min-height: 48px; }
+.adoption-sending-screen__candidate { margin: 0; color: var(--text-muted); text-align: center; }
 
 @keyframes adoption-spin { to { transform: rotate(360deg); } }
 @keyframes adoption-signal { from { transform: translate3d(0, -50%, 0); } to { transform: translate3d(212.5%, -50%, 0); } }
@@ -235,9 +259,13 @@
   .adoption-welcome { grid-template-columns: 1fr; min-height: 0; gap: 22px; }
   .adoption-welcome__art { width: min(100%, 330px); aspect-ratio: 4 / 5; }
   .adoption-welcome__copy h2 { font-size: clamp(26px, 7.4vw, 34px); }
+  .adoption-arrival--welcome { grid-template-columns: 1fr; min-height: 0; gap: 22px; text-align: left; }
+  .adoption-arrival--welcome .adoption-arrival__person { padding-top: 16px; }
+  .adoption-arrival--welcome .adoption-arrival__portal { width: 150px; height: 150px; justify-self: center; }
+  .adoption-arrival--welcome .adoption-arrival__portal img { width: 112px; height: 112px; }
   .adoption-dialog__footer { padding: 12px 16px 16px; }
   .adoption-message-prompt { padding: 16px; }
-  .adoption-dialog__footer > div { flex-wrap: wrap; }
+  .adoption-dialog__footer > div { flex-wrap: nowrap; }
 }
 
 @media (max-width: 420px) {
@@ -245,10 +273,11 @@
   .adoption-progress li > button span { font-size: 12px; }
   .adoption-answer-grid, .adoption-candidate-grid, .adoption-reply-grid { grid-template-columns: 1fr; }
   .adoption-candidate-card:last-child { grid-column: auto; }
-  .adoption-shortlist-toolbar, .adoption-dialog__footer { align-items: stretch; flex-direction: column; }
+  .adoption-shortlist-toolbar { align-items: stretch; flex-direction: column; }
+  .adoption-dialog__footer { align-items: center; flex-direction: row; }
   .adoption-shortlist-toolbar__actions { justify-content: space-between; }
   .adoption-name-option-row { align-items: stretch; flex-wrap: wrap; }
   .adoption-name-option-row input { width: 100%; flex-basis: 100%; }
-  .adoption-dialog__footer > div { width: 100%; justify-content: space-between; margin-inline-start: 0; }
-  .adoption-footer-hint { text-align: left; }
+  .adoption-dialog__footer > div { width: auto; flex: 1 1 auto; justify-content: flex-end; flex-wrap: nowrap; margin-inline-start: auto; }
+  .adoption-footer-hint { text-align: right; }
 }
