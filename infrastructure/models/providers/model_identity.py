@@ -7,10 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple
 
-import yaml
+from infrastructure.persistence.configuration.documents import (
+    BundledConfigSource,
+    ConfigDocumentId,
+)
 
 MODEL_CATALOG_VERSION = 1
-BUNDLED_MODEL_CATALOG_PATH = Path(__file__).with_name("model-catalog.yaml")
 _SEPARATORS = re.compile(r"[\s_]+")
 
 
@@ -30,29 +32,53 @@ class CanonicalModelIdentity:
     supports_reasoning: Optional[bool] = None
 
 
+@dataclass(frozen=True)
+class ModelIdentityCatalog:
+    """Validated model identities and their normalized alias index."""
+
+    identities: Mapping[str, CanonicalModelIdentity]
+    aliases: Mapping[str, CanonicalModelIdentity]
+
+    def match(
+        self,
+        endpoint_model_id: str,
+        display_name: str = "",
+    ) -> Optional[CanonicalModelIdentity]:
+        for candidate in (endpoint_model_id, display_name):
+            normalized = _normalize(candidate)
+            if normalized and normalized in self.aliases:
+                return self.aliases[normalized]
+        return None
+
+
 def load_model_identities(
-    path: Path = BUNDLED_MODEL_CATALOG_PATH,
-) -> Dict[str, CanonicalModelIdentity]:
-    try:
-        with path.open(encoding="utf-8") as file:
-            document: Any = yaml.safe_load(file) or {}
-    except (OSError, yaml.YAMLError) as exc:
-        raise ModelIdentityCatalogError(f"无法读取标准模型目录: {path}") from exc
+    root: Path | None = None,
+) -> ModelIdentityCatalog:
+    loaded = BundledConfigSource(root).load(ConfigDocumentId.MODEL_CATALOG)
+    return parse_model_identities(loaded.document, loaded.path)
+
+
+def parse_model_identities(
+    document: Mapping[str, Any],
+    source: Path,
+) -> ModelIdentityCatalog:
     if not isinstance(document, Mapping):
-        raise ModelIdentityCatalogError("标准模型目录顶层必须是对象")
+        raise ModelIdentityCatalogError(f"标准模型目录顶层必须是对象: {source}")
     if document.get("version") != MODEL_CATALOG_VERSION:
-        raise ModelIdentityCatalogError("不支持的标准模型目录版本")
+        raise ModelIdentityCatalogError(f"不支持的标准模型目录版本: {source}")
     raw_models = document.get("models")
     if not isinstance(raw_models, Mapping):
-        raise ModelIdentityCatalogError("标准模型目录缺少 models")
+        raise ModelIdentityCatalogError(f"标准模型目录缺少 models: {source}")
     identities: Dict[str, CanonicalModelIdentity] = {}
     for canonical_id, raw in raw_models.items():
         if not isinstance(canonical_id, str) or not isinstance(raw, Mapping):
-            raise ModelIdentityCatalogError("标准模型记录不合法")
+            raise ModelIdentityCatalogError(f"标准模型记录不合法: {source}")
         display_name = str(raw.get("display_name") or "").strip()
         raw_aliases = raw.get("aliases", [])
         if not display_name or not isinstance(raw_aliases, list):
-            raise ModelIdentityCatalogError(f"标准模型 {canonical_id!r} 缺少名称或别名")
+            raise ModelIdentityCatalogError(
+                f"标准模型 {canonical_id!r} 缺少名称或别名: {source}"
+            )
         aliases = tuple(
             dict.fromkeys(
                 str(alias).strip()
@@ -72,19 +98,22 @@ def load_model_identities(
             supports_vision=_optional_bool(raw.get("supports_vision")),
             supports_reasoning=_optional_bool(raw.get("supports_reasoning")),
         )
-    return identities
+    alias_index = {
+        _normalize(alias): identity
+        for identity in identities.values()
+        for alias in identity.aliases
+    }
+    return ModelIdentityCatalog(identities=identities, aliases=alias_index)
 
 
 def match_model_identity(
     endpoint_model_id: str,
     display_name: str = "",
+    *,
+    catalog: ModelIdentityCatalog | None = None,
 ) -> Optional[CanonicalModelIdentity]:
     """Match only exact curated aliases after harmless separator normalization."""
-    for candidate in (endpoint_model_id, display_name):
-        normalized = _normalize(candidate)
-        if normalized and normalized in _ALIAS_INDEX:
-            return _ALIAS_INDEX[normalized]
-    return None
+    return (catalog or load_model_identities()).match(endpoint_model_id, display_name)
 
 
 def _normalize(value: str) -> str:
@@ -107,9 +136,11 @@ def _optional_bool(value: Any) -> Optional[bool]:
     return value
 
 
-MODEL_IDENTITIES = load_model_identities()
-_ALIAS_INDEX = {
-    _normalize(alias): identity
-    for identity in MODEL_IDENTITIES.values()
-    for alias in identity.aliases
-}
+__all__ = (
+    "CanonicalModelIdentity",
+    "ModelIdentityCatalog",
+    "ModelIdentityCatalogError",
+    "load_model_identities",
+    "match_model_identity",
+    "parse_model_identities",
+)

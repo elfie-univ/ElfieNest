@@ -44,13 +44,13 @@ from infrastructure.models.provider_records import (
     ProviderConnection,
     ProviderModelRecord,
 )
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.discovery import (
     bundled_catalog_models,
     merge_refreshed_models,
     remote_catalog_models,
 )
 from infrastructure.models.providers.model_identity import match_model_identity
-from infrastructure.models.providers.profiles import PROVIDER_CATALOG, get_product
 from infrastructure.models.providers.remote_catalog import (
     RemoteCatalogUnavailable,
     fetch_remote_models,
@@ -77,6 +77,7 @@ from infrastructure.models.validation.provider_validation_service import (
     summarize_connection_validation,
     validate_connection,
 )
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 
 from .provider_errors import sanitize_error
 
@@ -94,22 +95,24 @@ class ProviderModelsAdapter:
         reports: ReportStoragePort,
         evidence: ModelEvidencePort,
         oauth_credentials: OAuthCredentialPort | None = None,
+        catalog: ProviderCatalog | None = None,
     ) -> None:
         self._store = storage
         self._reports = reports
         self._evidence = evidence
         self._oauth_credentials = oauth_credentials
+        self._catalog = catalog or load_provider_catalog()
 
     def list_products(self) -> tuple[StoredProviderProduct, ...]:
         try:
             return tuple(
-                self._product(catalog_id) for catalog_id in PROVIDER_CATALOG.products
+                self._product(catalog_id) for catalog_id in self._catalog.products
             )
         except (KeyError, ValueError) as error:
             raise ProviderPortError("Provider catalog is invalid") from error
 
     def get_product(self, catalog_id: str) -> StoredProviderProduct | None:
-        if get_product(catalog_id) is None:
+        if catalog_id not in self._catalog.products:
             return None
         try:
             return self._product(catalog_id)
@@ -445,7 +448,7 @@ class ProviderModelsAdapter:
         connection: StoredProviderConnection,
     ) -> StoredModelRefresh:
         provider_connection = self._provider_connection(connection)
-        profile = get_product(connection.catalog_id)
+        profile = self._catalog.products.get(connection.catalog_id)
         if profile is None:
             raise ProviderPortError("Provider product catalog entry is missing")
         checked_at = datetime.now(timezone.utc).isoformat()
@@ -719,6 +722,7 @@ class ProviderModelsAdapter:
     ) -> tuple[str, Any]:
         execution_id, config = model_execution_projection(
             connection,
+            catalog=self._catalog,
             secret_resolver=self._resolve_credential,
         )
         if connection.credential_ref.startswith("oauth."):
@@ -740,10 +744,9 @@ class ProviderModelsAdapter:
             return "" if token is None else token.access_token
         return self._store.resolve_secret(credential_ref)
 
-    @staticmethod
-    def _product(catalog_id: str) -> StoredProviderProduct:
-        profile = PROVIDER_CATALOG.products[catalog_id]
-        brand = PROVIDER_CATALOG.brands[profile.brand_id]
+    def _product(self, catalog_id: str) -> StoredProviderProduct:
+        profile = self._catalog.products[catalog_id]
+        brand = self._catalog.brands[profile.brand_id]
         return StoredProviderProduct(
             catalog_id=catalog_id,
             name=profile.name,

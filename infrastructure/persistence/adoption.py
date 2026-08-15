@@ -21,8 +21,9 @@ from nest.public import NestConfig
 class SQLiteAdoptionAdapter:
     """Own the one atomic quota check and ownership write path."""
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, *, nest_config: NestConfig | None = None) -> None:
         self._db_path = db_path
+        self._nest_config = nest_config or NestConfig()
 
     def get_quota(
         self,
@@ -61,7 +62,7 @@ class SQLiteAdoptionAdapter:
             raise
         except sqlite3.Error as error:
             raise AdoptionPortError("unable to read Nest capacity") from error
-        maximum = NestConfig().bed_count if row is None else int(row[0])
+        maximum = self._nest_config.bed_count if row is None else int(row[0])
         return AdoptionNestCapacityRecord(used=used, maximum=maximum)
 
     def reserve(
@@ -81,7 +82,9 @@ class SQLiteAdoptionAdapter:
                 nest = connection.execute(
                     "SELECT bed_count FROM nest_settings WHERE nest_id='local-nest'"
                 ).fetchone()
-                nest_limit = NestConfig().bed_count if nest is None else int(nest[0])
+                nest_limit = (
+                    self._nest_config.bed_count if nest is None else int(nest[0])
+                )
                 nest_used = int(
                     connection.execute("SELECT COUNT(*) FROM elfies").fetchone()[0]
                 )

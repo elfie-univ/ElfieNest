@@ -127,8 +127,6 @@ def _freeze_entrypoint(
         "--noconfirm",
         "--clean",
         "--onefile",
-        "--collect-data",
-        "infrastructure.models.providers",
         *hidden_import_arguments,
         "--name",
         executable.rsplit(".", 1)[0],

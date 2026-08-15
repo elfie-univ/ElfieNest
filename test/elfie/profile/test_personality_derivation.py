@@ -3,6 +3,9 @@ from __future__ import annotations
 import pytest
 
 import elfie.brain.selfhood as profile
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_selfhood_defaults,
+)
 
 
 def test_description_derives_explainable_personality_deterministically() -> None:
@@ -52,7 +55,11 @@ def test_no_keyword_uses_default_yaml_baseline() -> None:
     description = "用于周末测试"
 
     # When: personality is derived.
-    result = profile.derive_personality("elfie_fallback_001", description)
+    result = profile.derive_personality(
+        "elfie_fallback_001",
+        description,
+        default_big_five=load_selfhood_defaults()["big_five"],
+    )
 
     # Then: the checked-in default Big Five baseline is used and marked fallback.
     assert result.preset == "默认基线"

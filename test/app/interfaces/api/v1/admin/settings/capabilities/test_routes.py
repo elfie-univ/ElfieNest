@@ -13,10 +13,6 @@ from app.features.configuration import (
 )
 from app.interfaces.api.v1.admin.settings.capabilities import router
 from app.interfaces.api.v1.auth import require_user
-from infrastructure.persistence.configuration.config_store import (
-    read_yaml_mapping,
-    write_yaml_mapping,
-)
 from infrastructure.persistence.configuration.secrets import (
     resolve_secret,
     set_tool_secret,
@@ -41,14 +37,12 @@ class PassingValidator:
 
 
 def _client(tmp_path: Path, role="owner") -> tuple[TestClient, Path, Path]:
-    config_path = tmp_path / "runtime.yaml"
+    config_path = tmp_path / "tools.yaml"
     secret_path = tmp_path / "auth.env"
     app = FastAPI()
     app.state.capabilities = CapabilitiesService(
         RuntimeCapabilitiesAdapter(
             config_path,
-            read_document=read_yaml_mapping,
-            write_document=write_yaml_mapping,
         ),
         ToolCapabilitySecretAdapter(
             secret_path,
@@ -75,7 +69,7 @@ def test_list_is_a_strict_read_only_collection(tmp_path: Path):
     assert not secret_path.exists()
 
 
-def test_update_web_search_preserves_secret_boundary_and_runtime_policy(tmp_path: Path):
+def test_update_web_search_preserves_secret_boundary_and_tool_document(tmp_path: Path):
     client, config_path, secret_path = _client(tmp_path)
 
     response = client.patch(
@@ -95,7 +89,7 @@ def test_update_web_search_preserves_secret_boundary_and_runtime_policy(tmp_path
     assert "local-only-key" not in config_path.read_text(encoding="utf-8")
     assert "local-only-key" in secret_path.read_text(encoding="utf-8")
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    assert raw["runtime_policy"]["tools"]["web_search"]["provider"] == "brave"
+    assert raw["tools"]["web_search"]["provider"] == "brave"
 
 
 def test_update_local_file_accepts_only_existing_editable_fields(tmp_path: Path):

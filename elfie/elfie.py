@@ -10,7 +10,6 @@ from elfie.body import BodyBinding, BodyRegistry
 from elfie.body.port import BodyPort
 from elfie.brain.activity.system import ActivityStorePort, InMemoryActivityStore
 from elfie.brain.emotion.emotion_system import EmotionSystem
-from elfie.brain.energy.defaults import load_packaged_energy_limits
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.journal import BrainJournalPort, InMemoryBrainJournal
 from elfie.brain.memory.memory_store import MemoryStorePort
@@ -40,6 +39,7 @@ class Elfie(ElfieFacadeOperations):
         memory_store: MemoryStorePort,
         selfhood_seed: Mapping[str, object] | None = None,
         energy_limits: Mapping[str, object] | None = None,
+        emotion_expression_config: Mapping[str, object] | None = None,
         body: BodyPort | None = None,
         communication: CommunicationHub | None = None,
         skills: SkillManager | None = None,
@@ -53,9 +53,7 @@ class Elfie(ElfieFacadeOperations):
         self._elapsed_time = 0.0
         self._clock_lock = Lock()
         self._energy = EnergySystem(
-            dict(energy_limits)
-            if energy_limits is not None
-            else load_packaged_energy_limits(),
+            dict(energy_limits) if energy_limits is not None else {},
             clock=lambda: self._elapsed_time,
         )
         self._selfhood = SelfhoodSystem.from_personality_data(
@@ -68,6 +66,7 @@ class Elfie(ElfieFacadeOperations):
         self._emotion = EmotionSystem(
             personality=self._selfhood.big_five_dict(),
             clock=lambda: self._elapsed_time,
+            expression_config=emotion_expression_config,
         )
         self._memory = MemorySystem(
             elfie_id=self._profile.identity.elfie_id,

@@ -1,3 +1,4 @@
+version: 1
 # Brain Energy 的创建期硬阈值；运行中的能量/疲劳由 EnergySystem 持有。
 limits:
   energy:

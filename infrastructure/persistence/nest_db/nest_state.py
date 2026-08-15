@@ -28,12 +28,13 @@ _STATUS_TO_PRESENCE: Final = {
 class SQLiteNestStateAdapter:
     """Persist Nest runtime revision and resident semantics in the final database."""
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, *, nest_config: NestConfig | None = None) -> None:
         self._db_path = db_path
+        self._nest_config = nest_config or NestConfig()
 
     def load_snapshot(self) -> NestSnapshot:
         """Restore state without creating or repairing product configuration."""
-        defaults = NestConfig()
+        defaults = self._nest_config
         try:
             with app_sqlite_connection(self._db_path) as connection:
                 config = connection.execute(
@@ -82,7 +83,7 @@ class SQLiteNestStateAdapter:
 
     def save_snapshot(self, snapshot: NestSnapshot) -> None:
         """Persist one complete durable Nest snapshot in one transaction."""
-        nest_id = NestConfig().nest_id
+        nest_id = self._nest_config.nest_id
         if snapshot.catalog is not None and snapshot.catalog.nest_id != nest_id:
             raise NestStateStoreError(
                 f"unsupported nest_id: {snapshot.catalog.nest_id}"

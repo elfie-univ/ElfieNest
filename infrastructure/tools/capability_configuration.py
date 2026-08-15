@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 from typing import FrozenSet, cast
 
@@ -18,45 +18,47 @@ from app.features.configuration.capabilities import (
     StoredWebSearchCapability,
     WebSearchUpdateField,
 )
+from infrastructure.persistence.configuration.config_store import (
+    ConfigStoreError,
+    read_yaml_mapping,
+    write_yaml_mapping,
+)
+from infrastructure.persistence.configuration.documents import (
+    ConfigDocumentError,
+    ConfigDocumentId,
+    RuntimeConfigSource,
+)
+from infrastructure.persistence.layout.data_home import (
+    get_configs_dir,
+    get_tool_config_path,
+)
 from infrastructure.tools.execution.config import default_tool_configs
-
-DocumentReader = Callable[[Path], Mapping[str, JsonValue]]
-DocumentWriter = Callable[[Path, Mapping[str, JsonValue]], None]
-ToolDefaults = Callable[[], Mapping[str, Mapping[str, JsonValue]]]
 
 _SEARCH_PROVIDERS = frozenset({"duckduckgo", "brave", "tavily"})
 
 
 class RuntimeCapabilitiesAdapter:
-    """Read and atomically update the sole logical ``runtime_policy.tools`` fact."""
+    """Read and atomically update the dedicated user ``tools.yaml`` document."""
 
     def __init__(
         self,
         config_path: Path,
         *,
-        read_document: DocumentReader,
-        write_document: DocumentWriter,
-        defaults: ToolDefaults = default_tool_configs,
+        defaults: Mapping[str, Mapping[str, JsonValue]] | None = None,
     ) -> None:
         self._config_path = config_path
-        self._read_document_impl = read_document
-        self._write_document_impl = write_document
-        self._defaults = defaults
+        self._defaults = defaults or default_tool_configs()
 
     def load_capabilities(self) -> StoredCapabilities:
         try:
             document = self._read_document()
-            runtime_policy = self._mapping_value(
-                document.get("runtime_policy", {}), "runtime_policy"
-            )
-            effective = self._effective_configs(runtime_policy)
+            raw_tools = self._mapping_value(document.get("tools", {}), "tools")
+            effective = self._effective_configs(raw_tools)
             web = self._mapping_value(effective.get("web_search"), "web_search")
             local = self._mapping_value(effective.get("local_file"), "local_file")
             provider = self._string(web, "provider")
             if provider not in _SEARCH_PROVIDERS:
-                raise CapabilitiesPortError(
-                    "runtime_policy.tools.web_search.provider 无效"
-                )
+                raise CapabilitiesPortError("tools.web_search.provider 无效")
             return StoredCapabilities(
                 web_search=StoredWebSearchCapability(
                     enabled=self._boolean(web, "enabled"),
@@ -126,31 +128,47 @@ class RuntimeCapabilitiesAdapter:
     ) -> None:
         try:
             document = self._read_document()
-            runtime_policy = self._mutable_mapping(
-                document.get("runtime_policy", {}), "runtime_policy"
-            )
-            tools = self._mutable_mapping(runtime_policy.get("tools", {}), "tools")
+            tools = self._mutable_mapping(document.get("tools", {}), "tools")
             current = self._mutable_mapping(
                 tools.get(capability_key, {}), capability_key
             )
             current.update(values)
             tools[capability_key] = current
-            runtime_policy["tools"] = tools
-            document["runtime_policy"] = runtime_policy
+            document["tools"] = tools
             self._write_document(document)
         except CapabilitiesPortError:
             raise
-        except (OSError, TypeError, ValueError) as error:
+        except (
+            ConfigDocumentError,
+            ConfigStoreError,
+            OSError,
+            TypeError,
+            ValueError,
+        ) as error:
             raise CapabilitiesPortError("无法保存系统能力配置") from error
 
     def _read_document(self) -> dict[str, JsonValue]:
-        return self._mutable_mapping(
-            cast(JsonValue, self._read_document_impl(self._config_path)),
-            "configuration",
-        )
+        try:
+            if self._config_path == get_tool_config_path():
+                registered = RuntimeConfigSource(get_configs_dir()).load(
+                    ConfigDocumentId.TOOL_SETTINGS
+                )
+                document = {} if registered is None else registered.document
+            else:
+                document = read_yaml_mapping(self._config_path)
+            return self._mutable_mapping(cast(JsonValue, document), "configuration")
+        except (ConfigDocumentError, ConfigStoreError) as error:
+            raise CapabilitiesPortError("系统能力配置不可用") from error
 
     def _write_document(self, document: Mapping[str, JsonValue]) -> None:
-        self._write_document_impl(self._config_path, copy.deepcopy(dict(document)))
+        payload = {"version": 1, **copy.deepcopy(dict(document))}
+        if self._config_path == get_tool_config_path():
+            RuntimeConfigSource(get_configs_dir()).write(
+                ConfigDocumentId.TOOL_SETTINGS,
+                payload,
+            )
+            return
+        write_yaml_mapping(self._config_path, payload)
 
     @staticmethod
     def _mapping_value(value: JsonValue, field: str) -> Mapping[str, JsonValue]:
@@ -161,15 +179,16 @@ class RuntimeCapabilitiesAdapter:
         return cast(Mapping[str, JsonValue], value)
 
     def _effective_configs(
-        self, runtime_policy: Mapping[str, JsonValue]
+        self, raw_tools: Mapping[str, JsonValue]
     ) -> dict[str, dict[str, JsonValue]]:
-        raw_defaults = cast(JsonValue, self._defaults())
-        defaults = self._mapping_value(raw_defaults, "capability defaults")
-        raw_tools = self._mapping_value(runtime_policy.get("tools", {}), "tools")
+        defaults = self._defaults
         effective: dict[str, dict[str, JsonValue]] = {}
         for capability_key in ("web_search", "local_file"):
+            default = defaults.get(capability_key)
+            if default is None:
+                raise CapabilitiesPortError(f"default {capability_key} 必须是对象")
             current = self._mutable_mapping(
-                defaults.get(capability_key), f"default {capability_key}"
+                cast(JsonValue, default), f"default {capability_key}"
             )
             raw_capability = raw_tools.get(capability_key)
             if raw_capability is not None:

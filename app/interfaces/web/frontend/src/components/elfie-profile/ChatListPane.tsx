@@ -38,7 +38,11 @@ export function ChatListPane(props: ChatListPaneProps) {
     <aside className={hiddenOnMobile ? "chat-list-pane chat-list-pane--mobile-hidden" : "chat-list-pane"}>
       <header className="list-pane-head">
         <h1>{activePane === "chats" ? t("list.messagesTitle") : t("list.elfiesTitle")}</h1>
-        <Button className="add-button" onClick={onAdopt} size="icon-sm" type="button" variant="outline" aria-label={t("list.adopt")}><Icon name="plus" /></Button>
+        <Button aria-label={t("list.adopt")} className="add-button" onClick={onAdopt} size="sm" type="button" variant="outline">
+          <Icon name="plus" />
+          <span className="add-button__label add-button__label--desktop">{t("list.adopt")}</span>
+          <span className="add-button__label add-button__label--mobile">{t("list.adoptShort")}</span>
+        </Button>
       </header>
       <label className="search-box" aria-label={t("list.searchLabel")}>
         <Icon name="search" size={16} />
@@ -53,14 +57,19 @@ export function ChatListPane(props: ChatListPaneProps) {
       </label>
       {error ? <Notice kind="error" message={error} /> : null}
       {activePane === "chats" ? (
-        <div className="chat-list">
+        <div className={conversations.length === 0 ? "chat-list chat-list--empty" : "chat-list"}>
           {conversations.map((row) => (
             <Button className={row.elfie_id === selectedId ? "wechat-row wechat-row--active" : "wechat-row"} key={row.elfie_id} onClick={() => onChat(row.elfie_id)} type="button" variant="ghost">
               <Avatar imageUrl={row.portrait_url} name={row.name} />
               <span className="list-copy"><strong>{row.name}</strong><small>{row.last_message_preview || t("list.noPreview")}</small></span>
             </Button>
           ))}
-          {conversations.length === 0 ? <p className="empty">{t("list.empty")}</p> : null}
+          {conversations.length === 0 ? (
+            <div className="empty-state empty-state--list" role="status">
+              <h2>{t("list.emptyTitle")}</h2>
+              <p>{t(elfieItems.length === 0 ? "list.emptyFirstDescription" : "list.emptyExistingDescription")}</p>
+            </div>
+          ) : null}
         </div>
       ) : (
         <ElfieList

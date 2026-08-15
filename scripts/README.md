@@ -23,7 +23,6 @@ environment.
 | `architecture/system_layer_scan.py` | Architecture gate | Ratchets exact Elfie/Nest system-boundary violations and switches to deny-all after baseline removal |
 | `architecture/check_governance_change.py` | Architecture gate | Separates governance from production changes and requires mirrored, versioned contract changes with an ADR |
 | `architecture/contract_registry.py` | Architecture registry | Links each contract to its mirrors, ADRs, Agent rules, scanners, tests, conformance register and baseline |
-| `elfienest_install_helpers.sh` | Shell library | Used by `install.sh` to validate the user-level install directory and PATH; not standalone-executable |
 | `__init__.py` | Package marker | Lets architecture tests import testable functions from scripts; not a command entry point |
 
 ### bootstrap.sh usage

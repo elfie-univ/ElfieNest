@@ -24,11 +24,9 @@ class RuntimeState(str, Enum):
 
 
 class InstallMethod(str, Enum):
-    """The only three ways an application installation may be obtained."""
+    """The supported application installation provenance."""
 
-    SOURCE_INSTALL = "source_install"
     MANUAL_NATIVE_PACKAGE = "manual_native_package"
-    REMOTE_RELEASE_BOOTSTRAP = "remote_release_bootstrap"
 
 
 class NativeTarget(str, Enum):
@@ -55,7 +53,7 @@ class InstalledRuntimeRecord(NamedTuple):
 
 
 class InstalledRuntimeSurface(NamedTuple):
-    """The shared installed manifest and Setup entry for any installation method."""
+    """The installed manifest and Setup entry for a native app package."""
 
     record: InstalledRuntimeRecord
     manifest_path: Path
@@ -200,6 +198,7 @@ def configure_frozen_cli_runtime(
             "ELFIENEST_CORE_BIN": str(core),
             "ELFIENEST_WEB_BUILD_DIR": str(resources / "web"),
             "ELFIENEST_GODOT_WEB_DIR": str(resources / "godot-web"),
+            "ELFIENEST_BUNDLED_CONFIG_DIR": str(resources / "config"),
             "ELFIENEST_RUNTIME_MODE": "release",
             "ELFIENEST_PROJECT_ROOT": str(application_root),
             "ELFIENEST_DESKTOP_BIN": str(desktop),

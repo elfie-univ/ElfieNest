@@ -11,6 +11,7 @@ def test_target_runtime_imports_are_available():
     from infrastructure.models.providers.ollama import OllamaManager
     from infrastructure.models.providers.profiles import get_profile
     from infrastructure.persistence.layout.data_home import get_elfie_home
+    from infrastructure.persistence.provider_catalog import load_provider_catalog
     from infrastructure.tools.execution.executor import ToolExecutor
     from infrastructure.tools.execution.permissions import PermissionManager
 
@@ -20,7 +21,7 @@ def test_target_runtime_imports_are_available():
         ModelExecutionAgent(ports=model_execution_agent_ports()), "router"
     )
     assert OllamaManager is not None
-    assert get_profile("ollama") is not None
+    assert get_profile("ollama", catalog=load_provider_catalog()) is not None
     assert PermissionManager is not None
     assert get_elfie_home() is not None
     assert ToolExecutor is not None

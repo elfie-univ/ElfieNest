@@ -26,6 +26,7 @@ def call_llm_api(
     *,
     thinking: bool = False,
     request_options: dict[str, Any] | None = None,
+    timeout_seconds: float | None = None,
 ) -> str:
     provider_cfg: dict[str, Any] = config.providers.get(provider, {})
     api_key = provider_cfg.get("api_key", "")
@@ -87,10 +88,15 @@ def call_llm_api(
                 thinking=thinking,
                 request_options=dict(request_options) if request_options else None,
             )
-        elif request_options:
-            response_text, usage = dispatch_fn(
-                *args, request_options=dict(request_options)
-            )
+        elif request_options or (
+            timeout_seconds is not None and api_mode == "chat_completions"
+        ):
+            dispatch_options: dict[str, Any] = {}
+            if request_options:
+                dispatch_options["request_options"] = dict(request_options)
+            if timeout_seconds is not None and api_mode == "chat_completions":
+                dispatch_options["timeout_seconds"] = timeout_seconds
+            response_text, usage = dispatch_fn(*args, **dispatch_options)
         else:
             response_text, usage = dispatch_fn(*args)
     except (RuntimeError, ValueError) as failure:

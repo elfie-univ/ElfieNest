@@ -1,43 +1,56 @@
-"""Compatibility accessors for the versioned Provider metadata catalog."""
+"""Semantic accessors for the versioned Provider metadata catalog."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, Mapping
-
-import yaml
+from pathlib import Path
 
 from infrastructure.models.providers.catalog import (
-    BUNDLED_PROVIDER_CATALOG_PATH,
     ProviderCatalog,
-    ProviderProfile,
     parse_provider_catalog,
+)
+from infrastructure.persistence.configuration.documents import (
+    BundledConfigSource,
+    ConfigDocumentId,
 )
 
 
-def _bundled_provider_catalog() -> ProviderCatalog:
-    with BUNDLED_PROVIDER_CATALOG_PATH.open(encoding="utf-8") as file:
-        document: Any = yaml.safe_load(file) or {}
-    if not isinstance(document, Mapping):
-        raise RuntimeError("bundled Provider catalog must be an object")
-    return parse_provider_catalog(document, BUNDLED_PROVIDER_CATALOG_PATH)
+def load_bundled_provider_catalog(root: Path | None = None) -> ProviderCatalog:
+    """Load the validated bundled catalog from the registered config root."""
+    loaded = BundledConfigSource(root).load(ConfigDocumentId.PROVIDER_CATALOG)
+    return parse_provider_catalog(loaded.document, loaded.path)
 
 
-PROVIDER_CATALOG = _bundled_provider_catalog()
-BUILTIN_PROFILES: Dict[str, ProviderProfile] = PROVIDER_CATALOG.profiles
-BUILTIN_PRODUCTS: Dict[str, ProviderProfile] = PROVIDER_CATALOG.products
-
-
-def get_profile(provider_name: str) -> ProviderProfile | None:
+def get_profile(
+    provider_name: str,
+    *,
+    catalog: ProviderCatalog | None = None,
+):
     """Return one supported Provider profile, or ``None`` when unknown."""
-    return BUILTIN_PROFILES.get(provider_name)
+    return (catalog or load_bundled_provider_catalog()).profiles.get(provider_name)
 
 
-def get_product(catalog_id: str) -> ProviderProfile | None:
+def get_product(
+    catalog_id: str,
+    *,
+    catalog: ProviderCatalog | None = None,
+):
     """Return one connection product by its stable catalog ID."""
-    return BUILTIN_PRODUCTS.get(catalog_id)
+    return (catalog or load_bundled_provider_catalog()).products.get(catalog_id)
 
 
-def get_default_api_mode(provider_name: str) -> str:
+def get_default_api_mode(
+    provider_name: str,
+    *,
+    catalog: ProviderCatalog | None = None,
+) -> str:
     """Return the Provider API mode with OpenAI compatibility as fallback."""
-    profile = get_profile(provider_name)
+    profile = get_profile(provider_name, catalog=catalog)
     return profile.api_mode if profile else "chat_completions"
+
+
+__all__ = (
+    "get_default_api_mode",
+    "get_product",
+    "get_profile",
+    "load_bundled_provider_catalog",
+)

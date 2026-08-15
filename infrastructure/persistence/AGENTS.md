@@ -13,6 +13,9 @@
   数据。新建索引、缓存表或投影时必须声明权威源与重建方式。
 - 生产数据唯一根为 `${ELFIE_HOME:-~/.elfienest}`。根级 `nest.db` 只保存 Nest 身份、
   账号/归属、运行与房间状态。
+- `${ELFIE_HOME}/configs/` 是唯一可写全局配置根；仓库 `config/` 和安装态
+  `resources/config/` 只读。首次运行只创建目录，不复制默认文档；用户写入使用同目录
+  原子替换，读取不得顺手修复、迁移或覆盖用户文件。
 - 每只精灵使用稳定 `elfie_id` 的 `elfies/<elfie_id>/` 工作区；聊天唯一事实源为
   `conversations/history.sqlite`。名称不能参与目录寻址。
 - 不创建 `users/` 聊天目录，不在 Nest 根保留新的聊天副本；禁止创建、读取、写入或

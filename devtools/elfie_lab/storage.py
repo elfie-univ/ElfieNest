@@ -7,12 +7,14 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from devtools.elfie_lab.schemas import ElfieSpec, derive_life_stage, new_id
-from elfie.brain.energy import load_packaged_energy_limits
 from elfie.brain.selfhood import (
     derive_personality,
-    load_packaged_selfhood_seed,
 )
 from elfie.profile import create_visual_profile
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_energy_defaults,
+    load_selfhood_defaults,
+)
 from infrastructure.persistence.elfie_workspace.brain_state import (
     YamlEnergyLimitsAdapter,
     YamlSelfhoodSeedAdapter,
@@ -93,6 +95,7 @@ class ElfieLabStorage:
             elfie_id,
             spec.personality_description,
             values,
+            default_big_five=self._default_big_five(),
         )
         selfhood_seed = {
             **seed,
@@ -190,12 +193,13 @@ class ElfieLabStorage:
             species_id=spec.species_id,
             seed=seed,
         )
-        selfhood_seed = load_packaged_selfhood_seed()
-        energy_limits = load_packaged_energy_limits()
+        selfhood_seed = load_selfhood_defaults()
+        energy_limits = load_energy_defaults()
         derivation = derive_personality(
             spec.elfie_id,
             spec.personality_description,
             big_five_overrides,
+            default_big_five=self._default_big_five(),
         )
         selfhood_seed = {
             **selfhood_seed,
@@ -215,6 +219,13 @@ class ElfieLabStorage:
         YamlEnergyLimitsAdapter(self.elfie_dir(spec.elfie_id) / "brain").save(
             energy_limits
         )
+
+    @staticmethod
+    def _default_big_five() -> Dict[str, object]:
+        values = load_selfhood_defaults().get("big_five")
+        if not isinstance(values, dict):
+            raise ValueError("bundled Selfhood defaults must contain big_five")
+        return dict(values)
 
     def session_path(self, elfie_id: str, session_id: str) -> Path:
         self._validate_id(elfie_id)

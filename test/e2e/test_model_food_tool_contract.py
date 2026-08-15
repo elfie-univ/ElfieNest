@@ -23,6 +23,7 @@ from infrastructure.models.model_execution_observations import (
 )
 from infrastructure.persistence.configuration.runtime_settings import (
     write_runtime_settings,
+    write_tool_settings,
 )
 from infrastructure.persistence.configuration.secrets import set_connection_secret
 from infrastructure.persistence.food import SQLiteFoodAdapter
@@ -187,14 +188,11 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
     workspace = tmp_path / "elfies" / "00000001"
     workspace.mkdir(parents=True)
     (workspace / "note.txt").write_text("knowledge " * 3000, encoding="utf-8")
-    write_runtime_settings(
+    write_runtime_settings({})
+    write_tool_settings(
         {
-            "runtime_policy": {
-                "tools": {
-                    "web_search": {"enabled": False},
-                    "local_file": {"enabled": True},
-                }
-            }
+            "web_search": {"enabled": False},
+            "local_file": {"enabled": True},
         }
     )
     runtime_config = load_model_execution_config()
@@ -271,14 +269,11 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
 
     provider_bytes = get_provider_config_path().read_bytes()
     food_snapshot = food_repository.list_packages()
-    write_runtime_settings(
+    write_runtime_settings({})
+    write_tool_settings(
         {
-            "runtime_policy": {
-                "tools": {
-                    "web_search": {"enabled": False},
-                    "local_file": {"enabled": True},
-                }
-            }
+            "web_search": {"enabled": False},
+            "local_file": {"enabled": True},
         }
     )
     assert get_provider_config_path().read_bytes() == provider_bytes

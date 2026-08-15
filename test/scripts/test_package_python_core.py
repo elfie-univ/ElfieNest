@@ -48,8 +48,6 @@ def test_freeze_core_builds_only_on_its_native_target(tmp_path: Path) -> None:
             "--noconfirm",
             "--clean",
             "--onefile",
-            "--collect-data",
-            "infrastructure.models.providers",
             "--hidden-import",
             "app.bootstrap.api",
             "--name",
@@ -99,6 +97,4 @@ def test_freeze_cli_builds_a_checkout_independent_management_executable(
     # Then: the native executable is built from the CLI entrypoint, not a checkout wrapper.
     assert artifact == tmp_path / "ElfieNestCli"
     assert commands[0][-1] == str(PROJECT_ROOT / "scripts" / "elfienest.py")
-    assert "--collect-data" in commands[0]
-    assert "infrastructure.models.providers" in commands[0]
     assert "ElfieNestCli" in commands[0]

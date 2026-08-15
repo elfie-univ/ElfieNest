@@ -66,6 +66,7 @@ def create_lifecycle_facade() -> LifecycleFacade:
     from infrastructure.persistence.layout.lifecycle_data_home import (
         LifecycleDataHomeAdapter,
     )
+    from infrastructure.persistence.provider_catalog import load_provider_catalog
     from infrastructure.platform.doctor import LocalDoctorAdapter
     from infrastructure.platform.frontend_build import FrontendBuildAdapter
     from infrastructure.platform.lifecycle.desktop import LocalDesktopHostAdapter
@@ -82,6 +83,7 @@ def create_lifecycle_facade() -> LifecycleFacade:
 
     inspector = DefaultProcessInspector()
     db_path = str(get_db_path())
+    provider_catalog = load_provider_catalog()
     local_data = LifecycleDataHomeAdapter()
     project_root = Path(
         os.environ.get("ELFIENEST_PROJECT_ROOT", Path(__file__).resolve().parents[3])
@@ -103,7 +105,9 @@ def create_lifecycle_facade() -> LifecycleFacade:
             GodotAuthorityHostAdapter,
             inspector=inspector,
         ),
-        optional_component=OllamaLifecycleAdapter(PublicOllamaProviderAdapter()),
+        optional_component=OllamaLifecycleAdapter(
+            PublicOllamaProviderAdapter(catalog=provider_catalog)
+        ),
         frontend_preparation=FrontendBuildAdapter(discover_web_build),
         godot_web_preparation=GodotWebBuildAdapter(),
         data_home=local_data,

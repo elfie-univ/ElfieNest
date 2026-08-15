@@ -1,5 +1,9 @@
 # Current architecture
 
+<script setup>
+import { withBase } from "vitepress";
+</script>
+
 This document describes the module boundaries and runtime pipeline in the
 current ElfieNest code. It is not a historical roadmap, and it does not write
 unimplemented designs into the current architecture.
@@ -11,7 +15,7 @@ unimplemented designs into the current architecture.
 
 ## System map
 
-<img src="/assets/elfienest-system-architecture.svg" alt="Nested ElfieNest system architecture. Black arrows show cross-module data and protocol flow; red arrows show concrete entrypoint and internal control flow." />
+<img :src="withBase('/assets/elfienest-system-architecture.svg')" alt="Nested ElfieNest system architecture. Black arrows show cross-module data and protocol flow; red arrows show concrete entrypoint and internal control flow." />
 
 Black arrows are true two-way data or protocol relationships where both arrow
 heads are shown. Red arrows identify the concrete internal entrypoints and

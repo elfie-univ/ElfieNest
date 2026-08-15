@@ -73,7 +73,7 @@ export function MobileAccessDialog({ onClose, targetPath = "/chat" }: MobileAcce
       </> : null}
       {error ? <Notice kind="error" message={error.kind === "qr" ? t("mobileAccess.qrError") : localizeApiError(error.reason, "manage.load", currentLocale(i18n))} /> : null}
       {access === null && error === null ? <p>{t("mobileAccess.loading")}</p> : null}
-      {unavailable ? <p className="mobile-access-dialog__hint">{t("mobileAccess.unavailable")} <code>elfienest start --lan</code></p> : null}
+      {unavailable ? <p className="mobile-access-dialog__hint">{t("mobileAccess.unavailable")}</p> : null}
       {access?.available && selectedUrl ? <>
         <h2 className="mobile-access-dialog__step mobile-access-dialog__step--scan">{t("mobileAccess.scanQr")}</h2>
         <img alt={t("mobileAccess.qrAlt", { url: selectedUrl })} className="mobile-access-dialog__qr" src={imageUrl} />

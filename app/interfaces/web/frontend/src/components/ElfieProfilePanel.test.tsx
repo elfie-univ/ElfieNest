@@ -48,6 +48,14 @@ function renderWithI18n(ui: ReactElement, locale: SupportedLocale = "zh-CN") {
 }
 
 describe("ElfieProfilePanel", () => {
+  it("uses selection copy in the empty detail pane", () => {
+    renderWithI18n(<ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={null} />)
+
+    expect(screen.getByRole("status")).toHaveTextContent("请选择一个精灵查看详情")
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument()
+    expect(screen.queryByText(/点击右上角/)).not.toBeInTheDocument()
+  })
+
   it("renders English chrome while preserving profile content and open state across a locale switch", async () => {
     // Given: an adopter profile with one private panel open in Chinese.
     const user = userEvent.setup()

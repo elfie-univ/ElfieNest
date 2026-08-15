@@ -22,3 +22,4 @@ The current contract always states the enforceable rule.
 - [ADR-0016: App Orchestration owns the Nest state-store Port](./0016-nest-persistence-port-ownership)
 - [ADR-0017: Owner chat uses complete-response delivery](./0017-owner-chat-complete-response-delivery)
 - [ADR-0018: Database changes require impact inventory and final-state gates](./0018-database-change-impact-gates)
+- [ADR-0017: Separate bundled defaults from user configuration](./0017-bundled-defaults-and-user-configuration)

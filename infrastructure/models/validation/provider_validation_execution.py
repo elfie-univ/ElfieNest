@@ -6,6 +6,7 @@ from typing import Callable
 
 from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.provider_records import ProviderConnection
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.profiles import get_product
 
 from .provider_validation_policy import (
@@ -20,14 +21,15 @@ SecretResolver = Callable[[str], str]
 def model_execution_projection(
     connection: ProviderConnection,
     *,
+    catalog: ProviderCatalog | None = None,
     secret_resolver: SecretResolver = lambda _name: "",
 ) -> tuple[str, ModelExecutionConfig]:
     """Project one stable connection into the regular model adapter config."""
-    profile = get_product(connection.catalog_id)
+    profile = get_product(connection.catalog_id, catalog=catalog)
     if profile is None:
         raise ValueError("连接产品目录已经缺失")
     execution_id = connection.connection_id
-    config = ModelExecutionConfig()
+    config = ModelExecutionConfig(provider_catalog=catalog)
     active_models = active_validation_models(connection)
     config.providers[execution_id] = {
         "api_base": connection.api_base or profile.api_base,

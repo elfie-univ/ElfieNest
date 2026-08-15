@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional, Union, cast
+from typing import Callable, Mapping, Optional, Union, cast
 
 from app.orchestration.nest_session import (
     ElfieNestEngine,
@@ -29,6 +29,7 @@ from infrastructure.models.model_execution_adapter import (
 )
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
+from infrastructure.persistence.configuration.bundled_defaults import load_nest_config
 from infrastructure.persistence.elfie_workspace.brain_state import (
     YamlEnergyLimitsAdapter,
     YamlSelfhoodSeedAdapter,
@@ -40,6 +41,7 @@ from infrastructure.persistence.layout.data_home import get_elfie_config_dir
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
+from nest.public import NestConfig
 
 MainFoodLoader = Callable[[str], Optional[Union[str, MainFoodSelection]]]
 
@@ -80,8 +82,10 @@ def build_nest_session_services(
     http_port: int,
     tick_interval_sec: float,
     main_food_loader: MainFoodLoader | None = None,
+    nest_config: NestConfig | None = None,
 ) -> NestSessionServices:
     """Construct the existing Engine without starting any lifecycle-owned channel."""
+    selected_nest_config = nest_config or load_nest_config()
     gateway = GodotAPIServer(
         host="127.0.0.1",
         port=godot_ws_port,
@@ -104,7 +108,11 @@ def build_nest_session_services(
         engine=ElfieNestEngine(
             world_runtime,
             tick_interval_sec=tick_interval_sec,
-            state_store=SQLiteNestStateAdapter(db_path),
+            state_store=SQLiteNestStateAdapter(
+                db_path,
+                nest_config=selected_nest_config,
+            ),
+            nest_config=selected_nest_config,
         ),
         world_runtime=world_runtime,
         model_port_factory=model_port_factory,
@@ -114,6 +122,8 @@ def build_nest_session_services(
 def restore_registered_elfies(
     db_path: str,
     session: NestSession,
+    *,
+    emotion_expression_config: Mapping[str, object] | None = None,
 ) -> ElfieRestoreResult:
     """Restore the existing persisted Elfies and register them in one Nest Session."""
     factory = ElfieFactory()
@@ -132,6 +142,7 @@ def restore_registered_elfies(
                     profile=profile,
                     selfhood_seed=YamlSelfhoodSeedAdapter(config_dir / "brain").load(),
                     energy_limits=YamlEnergyLimitsAdapter(config_dir / "brain").load(),
+                    emotion_expression_config=emotion_expression_config,
                     memory_store=memory_store,
                     activity_store=SQLiteActivityStoreAdapter(
                         config_dir / "activity" / "activity.sqlite"

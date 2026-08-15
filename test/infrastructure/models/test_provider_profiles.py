@@ -1,5 +1,4 @@
 from infrastructure.models.providers.profiles import (
-    BUILTIN_PROFILES,
     get_default_api_mode,
     get_profile,
 )
@@ -11,10 +10,13 @@ from infrastructure.persistence.configuration.secrets import (
 from infrastructure.persistence.model_execution_config import (
     load_model_execution_config,
 )
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
+
+BUILTIN_PROFILES = load_provider_catalog().profiles
 
 
 class TestBuiltinProfiles:
@@ -59,24 +61,30 @@ class TestProviderProfileHelpers:
 
     def test_get_profile_returns_profile_for_known_provider(self):
         """get_profile 返回已知服务商的 profile"""
-        profile = get_profile("openai")
+        profile = get_profile("openai", catalog=load_provider_catalog())
         assert profile is not None
         assert profile.name == "OpenAI"
 
     def test_get_profile_returns_none_for_unknown_provider(self):
         """get_profile 对未知服务商返回 None"""
-        profile = get_profile("unknown_provider")
+        profile = get_profile("unknown_provider", catalog=load_provider_catalog())
         assert profile is None
 
     def test_get_default_api_mode_for_known_provider(self):
         """get_default_api_mode 返回已知服务商的 API 模式"""
-        assert get_default_api_mode("ollama") == "ollama"
-        assert get_default_api_mode("anthropic") == "anthropic_messages"
-        assert get_default_api_mode("openai") == "chat_completions"
+        catalog = load_provider_catalog()
+        assert get_default_api_mode("ollama", catalog=catalog) == "ollama"
+        assert (
+            get_default_api_mode("anthropic", catalog=catalog) == "anthropic_messages"
+        )
+        assert get_default_api_mode("openai", catalog=catalog) == "chat_completions"
 
     def test_get_default_api_mode_defaults_to_chat_completions(self):
         """get_default_api_mode 对未知服务商默认返回 chat_completions"""
-        assert get_default_api_mode("unknown_provider") == "chat_completions"
+        assert (
+            get_default_api_mode("unknown_provider", catalog=load_provider_catalog())
+            == "chat_completions"
+        )
 
 
 class TestModelExecutionConfigProviderProfiles:

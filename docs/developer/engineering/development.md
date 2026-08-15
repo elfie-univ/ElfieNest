@@ -17,8 +17,7 @@ uv lock --check
 ```
 
 Do not write your own `pip install` flow, and do not edit the lockfile to work
-around a local environment issue. The installer supports user-level
-installation only — never use `root` or `sudo`.
+around a local environment issue.
 
 Unless the maintainer explicitly approves a full-repo upgrade, CPython `3.9.25`
 is an immutable contract: do not modify version files, lockfiles, CI or launch

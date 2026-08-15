@@ -147,5 +147,6 @@ def test_reset_settings_preserves_unowned_fields(
     RuntimeSettingsAdapter().reset_settings()
 
     saved = yaml.safe_load(path.read_text(encoding="utf-8"))
-    assert saved["system"]["engine"]["tick_interval_sec"] == 1.5
+    assert "system" not in saved
     assert saved["runtime_policy"]["unowned"]["enabled"] is True
+    assert RuntimeSettingsAdapter().load_runtime_settings().tick_interval_sec == 1.5

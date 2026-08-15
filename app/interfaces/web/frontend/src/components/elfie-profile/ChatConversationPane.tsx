@@ -70,7 +70,11 @@ export function ChatConversationPane(props: ChatConversationPaneProps) {
   }, [selectedId])
 
   if (selectedId === null) {
-    return <section className="conversation conversation--empty"><p className="empty">{t("conversation.empty")}</p></section>
+    return (
+      <section className="conversation conversation--empty">
+        <p className="empty" role="status">{t("conversation.empty")}</p>
+      </section>
+    )
   }
 
   return (

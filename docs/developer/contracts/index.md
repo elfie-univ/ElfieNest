@@ -8,6 +8,7 @@ in `conformance/`; reasons for deliberate contract changes belong in
 - [Repository architecture governance](./repository-governance)
 - [Documentation structure](./documentation-structure)
 - [System architecture](./system)
+- [Configuration management](./configuration-management)
 - [Nest–Godot semantic world](./nest-godot-semantic-world)
 - [Elfie internal architecture](./elfie)
 - [Elfie Brain internal architecture](./brain)

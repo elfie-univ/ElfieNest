@@ -1,5 +1,9 @@
 # Story
 
+<script setup>
+import { withBase } from "vitepress";
+</script>
+
 <div class="story-scroll" data-story-scroll>
   <aside class="story-timeline" aria-label="Story progress">
     <span class="story-timeline__line" aria-hidden="true"></span>
@@ -13,7 +17,7 @@
   </aside>
 
   <section class="story-chapter story-chapter--opening" id="story-signal" data-story-chapter>
-    <img class="story-chapter__image" src="/assets/story/story-01-signal.png" alt="A signal travels through deep space toward Earth." />
+    <img class="story-chapter__image" :src="withBase('/assets/story/story-01-signal.png')" alt="A signal travels through deep space toward Earth." />
     <div class="story-chapter__veil" aria-hidden="true"></div>
     <div class="story-chapter__copy">
       <h2>We heard a signal from deep space</h2>
@@ -21,7 +25,7 @@
   </section>
 
   <section class="story-chapter" id="story-confirmation" data-story-chapter>
-    <img class="story-chapter__image" src="/assets/story/story-02-confirmation.png" alt="Earth and Elfaria answer one another across the stars." />
+    <img class="story-chapter__image" :src="withBase('/assets/story/story-02-confirmation.png')" alt="Earth and Elfaria answer one another across the stars." />
     <div class="story-chapter__veil" aria-hidden="true"></div>
     <div class="story-chapter__copy">
       <h2>After first contact, we confirmed that we were not alone</h2>
@@ -29,7 +33,7 @@
   </section>
 
   <section class="story-chapter" id="story-preparation" data-story-chapter>
-    <img class="story-chapter__image" src="/assets/story/story-03-preparation.png" alt="Earth builds a station while Elfie gather on Elfaria to sign up." />
+    <img class="story-chapter__image" :src="withBase('/assets/story/story-03-preparation.png')" alt="Earth builds a station while Elfie gather on Elfaria to sign up." />
     <div class="story-chapter__veil" aria-hidden="true"></div>
     <div class="story-chapter__copy">
       <h2>We built a station on Earth<br />and they opened the Earthbound Program</h2>
@@ -37,7 +41,7 @@
   </section>
 
   <section class="story-chapter" id="story-arrival" data-story-chapter>
-    <img class="story-chapter__image" src="/assets/story/story-04-arrival.png" alt="A small Elfie appears inside a warm glass Nest in a human home." />
+    <img class="story-chapter__image" :src="withBase('/assets/story/story-04-arrival.png')" alt="A small Elfie appears inside a warm glass Nest in a human home." />
     <div class="story-chapter__veil" aria-hidden="true"></div>
     <div class="story-chapter__copy">
       <h2>Prepare an ElfieNest at home<br />and an Elfie may arrive by your side</h2>
@@ -45,7 +49,7 @@
   </section>
 
   <section class="story-chapter" id="story-life" data-story-chapter>
-    <img class="story-chapter__image" src="/assets/story/story-05-life.png" alt="An Elfie plays inside its Nest while a human offers a toy." />
+    <img class="story-chapter__image" :src="withBase('/assets/story/story-05-life.png')" alt="An Elfie plays inside its Nest while a human offers a toy." />
     <div class="story-chapter__veil" aria-hidden="true"></div>
     <div class="story-chapter__copy">
       <h2>You will live and play together<br />A distant life becomes part of yours</h2>
@@ -53,7 +57,7 @@
   </section>
 
   <section class="story-chapter" id="story-world" data-story-chapter>
-    <img class="story-chapter__image" src="/assets/story/story-06-world.png" alt="Many Nest connections grow between Earth and Elfaria." />
+    <img class="story-chapter__image" :src="withBase('/assets/story/story-06-world.png')" alt="Many Nest connections grow between Earth and Elfaria." />
     <div class="story-chapter__veil" aria-hidden="true"></div>
     <div class="story-chapter__copy">
       <h2>As more Elfie arrive on Earth<br />we will explore a larger world together</h2>
@@ -61,7 +65,7 @@
   </section>
 
   <section class="story-chapter story-chapter--closing" id="story-invitation" data-story-chapter>
-    <img class="story-chapter__image" src="/assets/story/story-07-invitation.png" alt="An Elfie stands at the entrance of a warm home, inviting us to begin." />
+    <img class="story-chapter__image" :src="withBase('/assets/story/story-07-invitation.png')" alt="An Elfie stands at the entrance of a warm home, inviting us to begin." />
     <div class="story-chapter__veil" aria-hidden="true"></div>
     <div class="story-chapter__copy">
       <h2>Will you make room for an Elfie?</h2>
@@ -69,4 +73,4 @@
   </section>
 </div>
 
-If you want to understand how the station is built, continue to the [Developer docs](/developer/).
+If you want to understand how the station is built, continue to the [Developer docs](../developer/).

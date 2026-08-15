@@ -39,13 +39,13 @@ fi
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
   echo "❌ Developer Tool requires repo-pinned environment: $SCRIPT_DIR/.venv/bin/python3" >&2
-  echo "💡 Please run ./install.sh first" >&2
+  echo "💡 Run ./elfienest.sh version to set up the development environment." >&2
   exit 1
 fi
 
 if ! "$PYTHON_BIN" -c 'import platform, sys; ok = sys.implementation.name == "cpython" and platform.python_version() == sys.argv[1]; raise SystemExit(0 if ok else 1)' "$PINNED_PYTHON_VERSION" >/dev/null 2>&1; then
   echo "❌ Developer Tool must use the repo-pinned CPython $PINNED_PYTHON_VERSION environment." >&2
-  echo "💡 Run ./elfienest.sh version to set up dev environment, or ./install.sh to install native app." >&2
+  echo "💡 Run ./elfienest.sh version to repair the development environment." >&2
   exit 1
 fi
 

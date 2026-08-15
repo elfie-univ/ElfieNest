@@ -402,6 +402,10 @@ Bootstrap 构造或派生一个已经限定到当前 Elfie 获授权工作区能
 
 ## 持久化数据契约
 
+内置默认配置与用户配置的目标物理分层由
+[配置管理契约](./configuration-management)统一管理；当前位置与打包缺口继续记录在
+已注册一致性台账中。本节只定义模型、Food 与工具相关的用户事实。
+
 ```text
 ${ELFIE_HOME:-~/.elfienest}/
 ├── nest.db
@@ -410,8 +414,8 @@ ${ELFIE_HOME:-~/.elfienest}/
 │   ├── providers.yaml
 │   ├── runtime.yaml
 │   ├── tools.yaml
+│   ├── auth.env
 │   └── credentials/
-│       ├── api-keys.env
 │       └── oauth/
 │           └── <connection_id>.json
 ├── reports/
@@ -429,7 +433,8 @@ ${ELFIE_HOME:-~/.elfienest}/
 | --- | --- |
 | 系统支持的 Provider 产品 | 内置目录或通过校验的 `provider-catalog.yaml` 覆盖 |
 | 已配置连接和 endpoint 模型 | `configs/providers.yaml` |
-| Provider 与工具密钥 | `configs/credentials/` |
+| Provider 与工具 API 密钥 | 进程环境或 `configs/auth.env` |
+| OAuth Token 文档 | `configs/credentials/oauth/` |
 | Runtime 设置 | `configs/runtime.yaml` |
 | 工具设置 | `configs/tools.yaml` |
 | 粮食策略、角色和可见性 | `nest.db.food_packages`（单表） |

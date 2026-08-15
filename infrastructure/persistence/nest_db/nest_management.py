@@ -22,8 +22,9 @@ DEFAULT_TICK_INTERVAL_SECONDS: Final = 1.0
 class SQLiteNestManagementAdapter:
     """Persist Nest settings and stable Home anchor assignments."""
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, *, nest_config: NestConfig | None = None) -> None:
         self._db_path = db_path
+        self._nest_config = nest_config or NestConfig()
 
     def load_snapshot(self) -> NestSnapshotRecord:
         """Read the current projection without creating or repairing product state."""
@@ -41,7 +42,7 @@ class SQLiteNestManagementAdapter:
                     """UPDATE nest_settings
                        SET bed_count=?, updated_at=CURRENT_TIMESTAMP
                        WHERE nest_id=?""",
-                    (bed_count, NestConfig().nest_id),
+                    (bed_count, self._nest_config.nest_id),
                 )
                 if cursor.rowcount != 1:
                     raise NestPortError("Nest configuration not found")
@@ -63,7 +64,7 @@ class SQLiteNestManagementAdapter:
                     """INSERT OR IGNORE INTO nest_settings
                        (nest_id,bed_count,tick_interval_sec) VALUES (?,?,?)""",
                     (
-                        configured.nest_id,
+                        self._nest_config.nest_id,
                         configured.bed_count,
                         DEFAULT_TICK_INTERVAL_SECONDS,
                     ),
@@ -71,7 +72,7 @@ class SQLiteNestManagementAdapter:
                 connection.execute(
                     """UPDATE nest_settings SET bed_count=?,updated_at=CURRENT_TIMESTAMP
                        WHERE nest_id=?""",
-                    (configured.bed_count, configured.nest_id),
+                    (configured.bed_count, self._nest_config.nest_id),
                 )
                 snapshot = self._load_snapshot(connection)
                 connection.commit()
@@ -105,9 +106,8 @@ class SQLiteNestManagementAdapter:
         except sqlite3.Error as error:
             raise NestPortError("unable to assign Nest home") from error
 
-    @staticmethod
-    def _load_snapshot(connection: sqlite3.Connection) -> NestSnapshotRecord:
-        defaults = NestConfig()
+    def _load_snapshot(self, connection: sqlite3.Connection) -> NestSnapshotRecord:
+        defaults = self._nest_config
         configuration = connection.execute(
             """SELECT bed_count, applied_world_revision, world_catalog_json
                FROM nest_settings WHERE nest_id=?""",
@@ -123,7 +123,7 @@ class SQLiteNestManagementAdapter:
             if configuration is None or configuration["applied_world_revision"] is None
             else int(configuration["applied_world_revision"])
         )
-        catalog = SQLiteNestManagementAdapter._load_catalog(connection)
+        catalog = self._load_catalog(connection)
         occupants = {
             str(row["home_anchor_id"]): row
             for row in connection.execute(
@@ -182,11 +182,10 @@ class SQLiteNestManagementAdapter:
             ),
         )
 
-    @staticmethod
-    def _load_catalog(connection: sqlite3.Connection) -> WorldCatalog | None:
+    def _load_catalog(self, connection: sqlite3.Connection) -> WorldCatalog | None:
         row = connection.execute(
             "SELECT world_catalog_json FROM nest_settings WHERE nest_id=?",
-            (NestConfig().nest_id,),
+            (self._nest_config.nest_id,),
         ).fetchone()
         if row is None or row["world_catalog_json"] is None:
             return None

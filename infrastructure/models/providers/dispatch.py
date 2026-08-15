@@ -96,6 +96,7 @@ def call_openai_compatible_api(
     provider: str = "unknown",
     *,
     request_options: dict[str, Any] | None = None,
+    timeout_seconds: float | None = None,
 ) -> tuple[str, dict[str, Any]]:
     if not api_base:
         raise ValueError(f"❌ 未找到大模型服务商 '{provider}' 的有效 API Base 配置！")
@@ -116,12 +117,13 @@ def call_openai_compatible_api(
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
     try:
-        with open_provider_request(req, timeout=60) as response:
+        request_timeout = timeout_seconds if timeout_seconds is not None else 60.0
+        with open_provider_request(req, timeout=request_timeout) as response:
             res_data = json.loads(
                 read_provider_response(
                     response,
                     max_bytes=8 * 1024 * 1024,
-                    deadline_seconds=60,
+                    deadline_seconds=request_timeout,
                 ).decode("utf-8")
             )
             usage = res_data.get("usage", {})

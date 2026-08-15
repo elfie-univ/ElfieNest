@@ -27,7 +27,6 @@ def _copy_runtime_entrypoint_fixture(project_root: Path) -> None:
         scripts_dir / "bootstrap_runtime_dependencies.sh",
     )
     (scripts_dir / "serve.py").write_text("", encoding="utf-8")
-    write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
 
 
 def test_elfienest_entrypoint_rejects_malformed_python_version_file(

@@ -1,3 +1,4 @@
+version: 1
 # Brain Selfhood 的创建期种子；运行中的人格状态由 SelfhoodSystem 持有。
 metadata:
   name: "艾菲 (Elfie)"

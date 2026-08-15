@@ -37,7 +37,7 @@ They want to understand Earth, meet humans, and find a home they can share.
 Now you can host your own ElfieNest on your own computer and adopt the first
 Elfie willing to come to you.
 
-Start at the [documentation home](https://elfienest.dev/), then move through
+Start at the [documentation home](https://elfie-univ.github.io/ElfieNest/), then move through
 [World & Story](docs/story/index.md), [User Guide](docs/user-guide/index.md),
 and the [Developer Docs](docs/developer/index.md) layer by layer.
 
@@ -83,37 +83,23 @@ pinned CPython `3.9.25` and `uv.lock` through this entry point:
 
 ```bash
 ./elfienest.sh version
-.venv/bin/python main.py
+./elfienest.sh
 ```
 
-`main.py` runs a three-tick local demo. Public Ollama is optional: Setup can
-skip it or bind one chosen endpoint, but the application never silently bundles
-or installs a private engine or model weights.
+The no-argument launcher opens the interactive menu; use `./elfienest.sh serve`
+to run the service in the foreground. Public Ollama is optional: Setup can skip
+it or bind one chosen endpoint, but the application never silently bundles or
+installs a private engine or model weights.
 
-To build the current source as a native application for this machine and install
-the user-level `elfienest` command, run:
-
-如需把当前源码构建为本机原生应用，并安装当前用户可直接调用的 `elfienest` 命令：
-
-```bash
-./install.sh
-elfienest version
-```
-
-The installer supports user-level installation only — do not run it as `root`
-or with `sudo`. For the full set of prerequisites, error handling and platform
-notes, see the [User Guide](docs/user-guide/index.md).
-
-Manual native packages and a future verified remote bootstrap enter the same
-installed runtime. The bootstrap contract is locally tested, but its public URL
-is not live yet.
+End users install the matching platform-native package from the official
+Releases page and launch the app normally. A source checkout is for development,
+not installation. See the [User Guide](docs/user-guide/index.md).
 
 ## Documentation entry points
 
 - [Documentation home](docs/index.md): project intro and reading entry;
 - [World & Story](docs/story/index.md): for first-time readers of ElfieNest;
-- [User Guide](docs/user-guide/index.md): build and run a Nest from
-  source;
+- [User Guide](docs/user-guide/index.md): install and use the desktop app;
 - [Developer Docs](docs/developer/index.md): architecture, workflow and tooling;
 - [Current architecture](docs/developer/architecture/index.md): module boundaries and
   information flow;

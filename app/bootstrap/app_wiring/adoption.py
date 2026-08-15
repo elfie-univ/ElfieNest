@@ -26,6 +26,10 @@ from infrastructure.models.adoption_narrative import (
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_emotion_expression_defaults,
+    load_nest_config,
+)
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
 )
@@ -39,6 +43,7 @@ from infrastructure.platform import (
     ElfieFactoryAdapter,
     SettingsAdoptionPolicyAdapter,
 )
+from nest.public import NestConfig
 
 
 @dataclass(frozen=True)
@@ -54,6 +59,7 @@ def build_adoption_services(
     nest_session: NestSession | None,
     model_execution: AdoptionStructuredModelExecution | None = None,
     portraits: CandidatePortraitPort | None = None,
+    nest_config: NestConfig | None = None,
 ) -> AdoptionServices:
     def body_factory(elfie_id: str, _workspace: str) -> BodyPort | None:
         if nest_session is None:
@@ -85,7 +91,10 @@ def build_adoption_services(
     )
     adoption = AdoptionService(
         SettingsAdoptionPolicyAdapter(settings),
-        SQLiteAdoptionAdapter(db_path),
+        SQLiteAdoptionAdapter(
+            db_path,
+            nest_config=nest_config or load_nest_config(),
+        ),
         portraits=portraits,
         narrative=narrative,
     )
@@ -113,6 +122,7 @@ def build_adoption_services(
                 lambda workspace: YamlEnergyLimitsAdapter(
                     Path(workspace) / "brain"
                 ).load(),
+                emotion_expression_config=load_emotion_expression_defaults(),
             ),
             nest_session,
         ),

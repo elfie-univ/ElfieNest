@@ -19,18 +19,16 @@ Contributors also need the dev dependencies:
 uv sync --locked --extra dev
 ```
 
-`./install.sh` does not use `sudo`; a full install creates the user-level
-`elfienest` and `uninstall-elfienest` commands. Source development can also
-always use the in-repo `./elfienest.sh`.
+Source development uses the in-repo `./elfienest.sh`. End users install a
+platform-native application package instead of running commands from a checkout.
 
 Python `3.9.25` is the common pinned runtime for both the product and the
 development tools. Unless the maintainer explicitly approves a full-repo
 upgrade, you must not switch to system `python` / `python3`, another virtual
-environment, or an `ELFIENEST_PYTHON` override entry; install, CLI, Developer
+environment, or an `ELFIENEST_PYTHON` override entry; source CLI, Developer
 Tools, tests and code review all go through `uv` and the repo's `.venv`. When
 the environment is unhealthy, run `./elfienest.sh version` to repair the dev
-dependencies; use `./install.sh` to install the native application, then
-confirm it with `elfienest version`.
+dependencies.
 
 ### Node.js and pnpm toolchain
 
@@ -54,12 +52,6 @@ Run the VitePress development server and open the local site in the browser:
 The server watches `docs/` and reloads the page as Markdown or site configuration
 changes. Stop it with `Ctrl-C`. Pass VitePress options after the command when
 needed, for example `./developer.sh docs --port 4317`.
-
-Python `3.9.25` 是产品和开发工具的共同固定运行时。除非负责人明确批准全仓升级，
-不得改用系统 `python`/`python3`、其他虚拟环境或 `ELFIENEST_PYTHON` 覆盖入口；
-安装、CLI、Developer Tools、测试和 CR 一律经 `uv` 与仓库 `.venv`。环境失效时只需
-运行 `./elfienest.sh version` 让开发入口补齐依赖；需要安装本机原生应用时运行
-`./install.sh`，随后使用 `elfienest version` 确认版本。
 
 ## CLI entry points
 

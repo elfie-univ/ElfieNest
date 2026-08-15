@@ -211,14 +211,14 @@ def test_release_cli_without_target_requests_the_complete_matrix_once(
     assert captured["adapters"] == ("darwin-arm64",)
 
 
-def test_source_install_artifact_output_allows_only_the_current_native_artifact(
+def test_native_package_output_writes_the_current_native_package(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     # Given: a native build whose installer has not yet received post-install smoke evidence.
     artifact = tmp_path / "ElfieNest.dmg"
     artifact.write_bytes(b"installer")
-    output = tmp_path / "source-install-artifact"
+    output = tmp_path / "artifact-path"
     monkeypatch.setattr(
         release.package_python_core, "host_target", lambda: "darwin-arm64"
     )
@@ -234,12 +234,12 @@ def test_source_install_artifact_output_allows_only_the_current_native_artifact(
         lambda **_kwargs: artifact,
     )
 
-    # When: source installation requests the current host artifact for its own install/smoke phase.
+    # When: the native workflow requests the current host artifact path.
     result = release.main(
-        ["--target", "darwin-arm64", "--source-install-artifact-output", str(output)]
+        ["--target", "darwin-arm64", "--native-package-output", str(output)]
     )
 
-    # Then: it may receive one local installer, while release status itself remains incomplete.
+    # Then: it receives the package while release status remains incomplete.
     assert result == 3
     assert output.read_text(encoding="utf-8") == f"{artifact.resolve()}\n"
 
@@ -410,7 +410,7 @@ def test_release_artifact_output_is_available_only_for_one_complete_native_targe
         lambda *args, **kwargs: artifact,
     )
 
-    # When: an installer caller requests the artifact through its dedicated file.
+    # When: a caller requests a completed release artifact through its dedicated file.
     result = release.main(
         ["--target", "darwin-arm64", "--artifact-output", str(output)]
     )

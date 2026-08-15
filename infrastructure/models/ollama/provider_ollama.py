@@ -11,7 +11,8 @@ from app.features.configuration import (
     StoredLocalProviderCandidate,
     StoredLocalProviderProbe,
 )
-from infrastructure.models.providers.profiles import PROVIDER_CATALOG
+from infrastructure.models.providers.catalog import ProviderCatalog
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 
 from .ollama_platform import (
     DEFAULT_OLLAMA_ENDPOINT,
@@ -23,8 +24,14 @@ from .ollama_platform_commands import official_launch_target
 
 
 class PublicOllamaProviderAdapter:
-    def __init__(self, platform: OllamaPlatformAdapter | None = None) -> None:
+    def __init__(
+        self,
+        platform: OllamaPlatformAdapter | None = None,
+        *,
+        catalog: ProviderCatalog | None = None,
+    ) -> None:
         self._platform = platform or OllamaPlatformAdapter()
+        self._catalog = catalog or load_provider_catalog()
 
     def default_binding(self) -> StoredLocalProviderBinding:
         try:
@@ -76,7 +83,7 @@ class PublicOllamaProviderAdapter:
                 display_name=item.model_id,
                 recommended=item.recommended,
             )
-            for item in PROVIDER_CATALOG.ollama_recommended_models
+            for item in self._catalog.ollama_recommended_models
         )
 
     def list_models(self, binding: StoredLocalProviderBinding) -> tuple[str, ...]:

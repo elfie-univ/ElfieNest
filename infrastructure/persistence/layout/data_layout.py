@@ -166,6 +166,14 @@ class FinalRootLayout:
         return self.data_home / "configs" / "runtime.yaml"
 
     @property
+    def tools_config(self) -> Path:
+        return self.data_home / "configs" / "tools.yaml"
+
+    @property
+    def provider_catalog_config(self) -> Path:
+        return self.data_home / "configs" / "provider-catalog.yaml"
+
+    @property
     def model_validations(self) -> Path:
         return self.data_home / "reports" / "model-validations"
 

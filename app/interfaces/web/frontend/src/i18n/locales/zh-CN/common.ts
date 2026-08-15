@@ -25,7 +25,7 @@ export const common = {
     qrError: "二维码生成失败",
     scanQr: "第二步　用手机扫描二维码",
     title: "用手机打开 ElfieNest",
-    unavailable: "当前服务只允许本机访问。请以局域网模式启动后再扫码：",
+    unavailable: "手机访问暂不可用，当前只能在这台电脑上使用。请确认电脑和手机连接在同一局域网后重试。",
   },
   status: {
     unknown: "状态未知",

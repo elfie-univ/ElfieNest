@@ -8,10 +8,12 @@ from typing import Mapping, Optional, cast
 from pydantic import JsonValue
 
 from infrastructure.models.model_execution_config import ModelExecutionConfig
-from infrastructure.models.providers.profiles import get_product
-from infrastructure.persistence.configuration.config_store import (
-    ConfigStoreError,
-    read_yaml_mapping,
+from infrastructure.models.providers.catalog import ProviderCatalog
+from infrastructure.persistence.configuration.config_store import ConfigStoreError
+from infrastructure.persistence.configuration.documents import (
+    ConfigDocumentError,
+    ConfigDocumentId,
+    RuntimeConfigSource,
 )
 from infrastructure.persistence.configuration.oauth_credentials import (
     OAuthCredentialAdapter,
@@ -19,6 +21,7 @@ from infrastructure.persistence.configuration.oauth_credentials import (
 )
 from infrastructure.persistence.configuration.runtime_settings import (
     read_runtime_settings,
+    read_tool_settings,
 )
 from infrastructure.persistence.configuration.secrets import (
     connection_secret_name,
@@ -30,28 +33,62 @@ from infrastructure.persistence.layout.data_home import (
     get_env_path,
     get_provider_config_path,
 )
+from infrastructure.persistence.layout.data_layout import final_root_layout
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
 
 
 class LocalModelExecutionConfigSource:
     """Bind model execution to the current local data-root facts."""
 
-    def __init__(self, oauth_credentials: OAuthCredentialAdapter | None = None) -> None:
+    def __init__(
+        self,
+        oauth_credentials: OAuthCredentialAdapter | None = None,
+        *,
+        provider_catalog: ProviderCatalog | None = None,
+    ) -> None:
         self.oauth_credentials = oauth_credentials or OAuthCredentialAdapter()
+        self.provider_catalog = provider_catalog or load_provider_catalog()
 
     def load_env(self, config_home: Optional[Path]) -> Mapping[str, str]:
+        path = (
+            final_root_layout(config_home).auth_env
+            if config_home is not None
+            else get_env_path()
+        )
         return cast(
             Mapping[str, str],
-            read_secrets(config_home / ".env" if config_home else get_env_path()),
+            read_secrets(path),
         )
 
     def load_settings(self, config_home: Optional[Path]) -> Mapping[str, JsonValue]:
         try:
             if config_home is None:
-                return cast(Mapping[str, JsonValue], read_runtime_settings())
-            path = config_home / "config.yaml"
-            return read_yaml_mapping(path) if path.exists() else {}
-        except ConfigStoreError:
+                runtime = read_runtime_settings()
+                tools = read_tool_settings().get("tools", {})
+            else:
+                source = RuntimeConfigSource(
+                    final_root_layout(config_home).data_home / "configs"
+                )
+                runtime_document = source.load(ConfigDocumentId.RUNTIME_SETTINGS)
+                runtime = (
+                    {} if runtime_document is None else dict(runtime_document.document)
+                )
+                runtime.pop("version", None)
+                tool_document = source.load(ConfigDocumentId.TOOL_SETTINGS)
+                tools = (
+                    {}
+                    if tool_document is None
+                    else dict(tool_document.document).get("tools", {})
+                )
+            if tools:
+                runtime_policy = runtime.get("runtime_policy")
+                if not isinstance(runtime_policy, dict):
+                    runtime_policy = {}
+                    runtime["runtime_policy"] = runtime_policy
+                runtime_policy["tools"] = tools
+            return runtime
+        except (ConfigDocumentError, ConfigStoreError):
             return {}
 
     def load_connections(self) -> Mapping[str, Mapping[str, JsonValue]]:
@@ -63,7 +100,7 @@ class LocalModelExecutionConfigSource:
         for connection_id, connection in document.connections.items():
             if not connection.enabled or connection.archived:
                 continue
-            profile = get_product(connection.catalog_id)
+            profile = self.provider_catalog.products.get(connection.catalog_id)
             if profile is None:
                 continue
             secret_name = connection.credential_ref or connection_secret_name(
@@ -99,7 +136,10 @@ class LocalModelExecutionConfigSource:
 
     def resolve_secret(self, name: str, config_home: Optional[Path]) -> str:
         if config_home is not None:
-            secrets = cast(Mapping[str, str], read_secrets(config_home / ".env"))
+            secrets = cast(
+                Mapping[str, str],
+                read_secrets(final_root_layout(config_home).auth_env),
+            )
             return secrets.get(name, "")
         return resolve_secret(name)
 
@@ -108,14 +148,21 @@ class LocalModelExecutionConfigSource:
 
 
 def load_model_execution_config(config_home: str | None = None) -> ModelExecutionConfig:
+    provider_catalog = load_provider_catalog()
     oauth_credentials = OAuthCredentialAdapter(
         None
         if config_home is None
-        else OAuthCredentialStore(Path(config_home) / "credentials" / "oauth")
+        else OAuthCredentialStore(
+            final_root_layout(Path(config_home)).oauth_credentials
+        )
     )
     return ModelExecutionConfig(
         config_home=config_home,
-        source=LocalModelExecutionConfigSource(oauth_credentials),
+        provider_catalog=provider_catalog,
+        source=LocalModelExecutionConfigSource(
+            oauth_credentials,
+            provider_catalog=provider_catalog,
+        ),
         oauth_credentials=oauth_credentials,
     )
 
