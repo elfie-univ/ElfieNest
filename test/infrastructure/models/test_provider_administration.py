@@ -6,16 +6,20 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.features.configuration import (
+    ProviderModelInput,
     ProviderPortError,
     StoredProviderConnection,
     StoredProviderModel,
 )
 from infrastructure.models.provider_records import ProviderModelRecord
-from infrastructure.models.providers.discovery import merge_refreshed_models
+from infrastructure.models.providers.discovery import (
+    bundled_catalog_models,
+    merge_refreshed_models,
+)
 from test.support.provider import provider_models_adapter
 
 
-def test_refresh_replaces_stale_discovered_models_but_keeps_manual_entries() -> None:
+def test_refresh_keeps_missing_discovered_models_until_two_complete_omissions() -> None:
     existing = (
         ProviderModelRecord(
             "current",
@@ -35,10 +39,51 @@ def test_refresh_replaces_stale_discovered_models_but_keeps_manual_entries() -> 
 
     assert [model.endpoint_model_id for model in merged] == [
         "current",
+        "expired",
         "manual-only",
     ]
     assert merged[0].available is True
-    assert merged[1].source == "manual"
+    manual = next(item for item in merged if item.endpoint_model_id == "manual-only")
+    missing = next(item for item in merged if item.endpoint_model_id == "expired")
+    assert manual.source == "manual"
+    assert missing.consecutive_missing == 1
+    assert missing.discovery_state == "present"
+
+    second = merge_refreshed_models(
+        merged,
+        refreshed,
+        complete=True,
+        observed_at="2026-08-15T00:00:00+00:00",
+    )
+    missing = next(item for item in second if item.endpoint_model_id == "expired")
+    assert missing.consecutive_missing == 2
+    assert missing.discovery_state == "source_missing"
+    assert missing.available is False
+
+
+def test_manual_model_does_not_inherit_capabilities_from_canonical_identity(
+    tmp_path,
+) -> None:
+    adapter = provider_models_adapter(tmp_path / "providers.yaml", tmp_path / "auth.env")
+
+    prepared = adapter.prepare_manual_model(
+        ProviderModelInput(model_id="xopglm5", display_name="GLM-5")
+    )
+
+    assert prepared.canonical_model_id == "zhipu/glm-5"
+    assert prepared.supports_tools is None
+    assert prepared.supports_vision is None
+    assert prepared.supports_reasoning is None
+
+
+def test_bundled_endpoint_metadata_is_not_shared_across_providers() -> None:
+    openai = bundled_catalog_models(("gpt-4o",), provider_id="openai")[0]
+    custom = bundled_catalog_models(("gpt-4o",), provider_id="custom_openai")[0]
+
+    assert openai.context_window_tokens == 128000
+    assert openai.supports_vision is True
+    assert custom.context_window_tokens is None
+    assert custom.supports_vision is None
 
 
 def test_volcengine_refresh_uses_coding_plan_catalog_and_drops_discovered_models(
@@ -92,6 +137,13 @@ def test_volcengine_refresh_uses_coding_plan_catalog_and_drops_discovered_models
         "deepseek-v4-flash",
         "glm-5.3",
     ]
+    assert refreshed.persisted_models is not None
+    stale = next(
+        item
+        for item in refreshed.persisted_models
+        if item.model_id == "wrong-model-from-generic-models-endpoint"
+    )
+    assert stale.discovery_state == "source_missing"
 
 
 def test_provider_adapter_keeps_secret_out_of_connection_fact(tmp_path) -> None:

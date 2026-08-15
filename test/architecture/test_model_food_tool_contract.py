@@ -32,12 +32,56 @@ def test_model_food_tool_contract_defers_target_ownership_to_system() -> None:
         not path.exists()
         for path in (*LEGACY_CONTRACT_PATHS, *RETIRED_CONFORMANCE_PATHS)
     )
-    assert "**Contract version:** 1.7" in english
-    assert "**契约版本：** 1.7" in chinese
+    assert "**Contract version:** 1.8" in english
+    assert "**契约版本：** 1.8" in chinese
     assert "does not define a target Runtime module" in english
     assert "不定义目标 Runtime 模块" in chinese
     assert "infrastructure/ai_runtime" not in english
     assert "infrastructure/ai_runtime" not in chinese
+
+
+def test_provider_model_availability_rules_are_ratchet_protected() -> None:
+    english = _source("docs/developer/contracts/model-food-tool-behavior.md")
+    chinese = _source("docs/zh/developer/contracts/model-food-tool-behavior.md")
+    english_gap = _source(
+        "docs/developer/conformance/provider-model-availability.md"
+    )
+    chinese_gap = _source(
+        "docs/zh/developer/conformance/provider-model-availability.md"
+    )
+
+    for required in (
+        "config/models/provider-catalog.yaml",
+        "config/models/model-catalog.yaml",
+        "A generic `/models` response is authoritative only",
+        "The final capability and availability subject is the exact",
+        "`(connection_id, endpoint_model_id)`",
+        "all-reference guard",
+        "`ServingFoodIndex`",
+        "Real model generations are themselves evidence",
+        "`get(reference)` and `get_many(references)` read without network access",
+        "never lists every model or draws per-model dots",
+    ):
+        assert required in english
+    for required in (
+        "通用 `/models` 只有在 Provider 产品配置明确声明",
+        "精确 `(connection_id, endpoint_model_id)`",
+        "全引用保护索引",
+        "`ServingFoodIndex`",
+        "真实模型生成本身就是证据",
+        "模型行不显示“安装”",
+    ):
+        assert required in chinese
+    for row_id in (
+        "PMA-001",
+        "PMA-002",
+        "PMA-003",
+        "PMA-004",
+        "PMA-005",
+        "PMA-006",
+    ):
+        assert row_id in english_gap
+        assert row_id in chinese_gap
 
 
 def test_food_model_contract_keeps_independent_ports_and_semantic_authority() -> None:

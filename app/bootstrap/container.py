@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import cast
 
@@ -36,6 +37,7 @@ from infrastructure.models.model_execution_adapter import StructuredModelExecuti
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.providers.openai_chatgpt import OpenAIChatGptOAuthAdapter
+from infrastructure.models.validation.serving_food import build_serving_food_index
 from infrastructure.persistence.configuration.bundled_defaults import load_nest_config
 from infrastructure.persistence.configuration.oauth_credentials import (
     OAuthCredentialAdapter,
@@ -49,6 +51,7 @@ from infrastructure.persistence.elfie_workspace.elfies import (
 from infrastructure.persistence.elfie_workspace.embodiment import (
     SQLiteEmbodimentLeaseAdapter,
 )
+from infrastructure.persistence.food import SQLiteFoodAdapter
 from infrastructure.persistence.food_evidence import SQLiteFoodEvidenceAdapter
 from infrastructure.persistence.layout.data_home import (
     data_home_from_db_path,
@@ -59,6 +62,7 @@ from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.nest_db.nest_management import (
     SQLiteNestManagementAdapter,
 )
+from infrastructure.persistence.provider_availability import ProviderAvailabilityQuery
 from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
 from infrastructure.persistence.provider_references import (
@@ -84,6 +88,7 @@ class ApplicationContainer:
     nest_management: NestManagementService
     elfies: ElfiesService
     providers: ProvidersService
+    availability: ProviderAvailabilityQuery
     food: FoodService
     capabilities: CapabilitiesService
     operations: OperationsFacade
@@ -151,6 +156,53 @@ def build_application_container(
             catalog=provider_catalog,
         )
     settings_adapter = RuntimeSettingsAdapter(config_path)
+    food_persistence = SQLiteFoodAdapter(db_path)
+
+    def serving_index():
+        connections = provider_storage.load_connections()
+        resolvable = tuple(
+            f"{connection.connection_id}/{model.endpoint_model_id}"
+            for connection in connections.values()
+            if connection.enabled and not connection.archived
+            for model in connection.models
+            if not model.hidden
+            and not model.retired
+            and model.discovery_state == "present"
+        )
+        food_packages = food_persistence.list_packages()
+        default_food_id = next(
+            (package.food_id for package in food_packages if package.system_role == "common"),
+            "",
+        )
+        emergency_food_id = next(
+            (
+                package.food_id
+                for package in food_packages
+                if package.system_role == "emergency"
+            ),
+            "",
+        )
+        return build_serving_food_index(
+            food_packages,
+            food_persistence.list_assignments(),
+            default_food_id=default_food_id,
+            emergency_food_id=emergency_food_id,
+            observations=report_repository.current(subject_kind="model"),
+            resolvable_references=resolvable,
+        )
+
+    provider_models.set_serving_index(serving_index)
+    availability = ProviderAvailabilityQuery(
+        provider_storage,
+        provider_reports,
+        serving_index=serving_index,
+        active_probe=lambda reference: asyncio.run(
+            provider_models.probe_model(reference)
+        ),
+        config_fingerprint=lambda connection: provider_models.validation_fingerprint(
+            connection.connection_id
+        ),
+    )
     elfies = ElfiesService(SQLiteElfiesProjectionAdapter(db_path))
     accounts = build_accounts_service(db_path, settings=settings_adapter)
     communication = build_communication_services(
@@ -220,6 +272,7 @@ def build_application_container(
         nest_management=NestManagementService(nest_adapter),
         elfies=elfies,
         providers=providers,
+        availability=availability,
         food=build_food_service(db_path, evidence=provider_evidence),
         capabilities=CapabilitiesService(
             capability_config,

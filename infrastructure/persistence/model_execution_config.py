@@ -9,6 +9,10 @@ from pydantic import JsonValue
 
 from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.providers.catalog import ProviderCatalog
+from infrastructure.models.providers.request_profiles import default_request_profile_id
+from infrastructure.models.validation.provider_validation_policy import (
+    connection_validation_fingerprint,
+)
 from infrastructure.persistence.configuration.config_store import ConfigStoreError
 from infrastructure.persistence.configuration.documents import (
     ConfigDocumentError,
@@ -122,15 +126,50 @@ class LocalModelExecutionConfigSource:
                 if oauth is not None
                 else resolve_secret(secret_name),
                 "credential_ref": secret_name,
+                "request_profile_id": default_request_profile_id(
+                    connection.api_mode or profile.api_mode
+                ),
+                "request_profile_version": 1,
                 "account_id": oauth.account_id if oauth is not None else None,
+                "config_fingerprint": connection_validation_fingerprint(
+                    connection,
+                    secret_resolver=(
+                        (
+                            lambda _name, token=oauth: ""
+                            if token is None
+                            else token.access_token
+                        )
+                        if secret_name.startswith("oauth.")
+                        else resolve_secret
+                    ),
+                ),
                 "models": [
                     {
                         "id": model.endpoint_model_id,
                         "display_name": model.display_name,
                     }
                     for model in connection.models
-                    if not model.hidden and not model.retired and model.available
+                    if (
+                        not model.hidden
+                        and not model.retired
+                        and model.discovery_state == "present"
+                    )
                 ],
+                "model_profiles": {
+                    model.endpoint_model_id: {
+                        "request_profile_id": model.request_profile_id
+                        or default_request_profile_id(
+                            connection.api_mode or profile.api_mode
+                        ),
+                        "request_profile_version": model.request_profile_version or 1,
+                    }
+                    for model in connection.models
+                    if (
+                        not model.hidden
+                        and not model.retired
+                        and model.discovery_state == "present"
+                    )
+                },
             }
         return providers
 

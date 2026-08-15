@@ -13,6 +13,9 @@ export type EditableModel = {
   supports_tools: boolean | null
   supports_vision: boolean | null
   supports_reasoning: boolean | null
+  supports_structured_output: boolean | null | undefined
+  request_profile_id: string | undefined
+  request_profile_version: number | undefined
   hidden: boolean
 }
 
@@ -31,11 +34,28 @@ export function toEditableModel(model: ProviderModel): EditableModel {
     supports_tools: model.supports_tools,
     supports_vision: model.supports_vision,
     supports_reasoning: model.supports_reasoning,
+    supports_structured_output: model.supports_structured_output,
+    request_profile_id: model.request_profile_id,
+    request_profile_version: model.request_profile_version,
     hidden: model.hidden,
   }
 }
 
 export function toModelDraft(model: EditableModel): ProviderModelDraft {
+  const optionalFields: {
+    supports_structured_output?: boolean | null
+    request_profile_id?: string
+    request_profile_version?: number
+  } = {}
+  if (model.supports_structured_output !== undefined) {
+    optionalFields.supports_structured_output = model.supports_structured_output
+  }
+  if (model.request_profile_id !== undefined) {
+    optionalFields.request_profile_id = model.request_profile_id
+  }
+  if (model.request_profile_version !== undefined) {
+    optionalFields.request_profile_version = model.request_profile_version
+  }
   return {
     original_id: model.original_id,
     id: model.id.trim(),
@@ -47,6 +67,7 @@ export function toModelDraft(model: EditableModel): ProviderModelDraft {
     supports_vision: model.supports_vision,
     supports_reasoning: model.supports_reasoning,
     hidden: model.hidden,
+    ...optionalFields,
   }
 }
 
@@ -110,15 +131,18 @@ function parseCapabilitySelection(value: string): boolean | null {
 
 export function ModelVerification({ model }: { readonly model: ProviderModel }) {
   const { t } = useTranslation("manage")
-  const status = model.verification.status === "passed"
-    ? "available"
-    : model.verification.status === "failed"
-      ? "failed"
-      : !model.available
-        ? "unavailable"
-        : "never"
+  const status = model.verification.availability_status
+    ?? (model.verification.status === "passed"
+      ? "available"
+      : model.verification.status === "failed"
+        ? "failed"
+        : !model.available
+          ? "unavailable"
+          : "never")
   const label = status === "available"
     ? t("providerModels.labels.available")
+    : status === "degraded"
+      ? t("providerModels.labels.degraded")
     : status === "failed" || status === "unavailable"
       ? t("providerModels.labels.unavailable")
       : t("providerModels.labels.neverVerified")

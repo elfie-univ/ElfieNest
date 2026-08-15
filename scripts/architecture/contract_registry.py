@@ -282,7 +282,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="model-food-tool-behavior",
-        version="1.7",
+        version="1.8",
         english_path="docs/developer/contracts/model-food-tool-behavior.md",
         chinese_path="docs/zh/developer/contracts/model-food-tool-behavior.md",
         decision_paths=(
@@ -294,6 +294,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
             "docs/developer/decisions/0017-bundled-defaults-and-user-configuration.md",
             "docs/zh/developer/decisions/0017-bundled-defaults-and-user-configuration.md",
+            "docs/developer/decisions/0019-provider-endpoint-availability.md",
+            "docs/zh/developer/decisions/0019-provider-endpoint-availability.md",
         ),
         agent_paths=(
             "app/features/configuration/AGENTS.md",
@@ -302,6 +304,10 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
         ),
         scanner_paths=(),
         test_paths=("test/architecture/test_model_food_tool_contract.py",),
+        conformance_paths=(
+            "docs/developer/conformance/provider-model-availability.md",
+            "docs/zh/developer/conformance/provider-model-availability.md",
+        ),
     ),
 )
 

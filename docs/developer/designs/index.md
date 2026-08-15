@@ -10,3 +10,5 @@ in [Conformance](../conformance/).
   top-level ownership for one complete Elfie.
 - [Elfie Brain ten-system architecture](./elfie-brain-ten-system-architecture):
   the conceptual systems, boundaries, runtime loops and implementation order of Brain.
+- [Provider and endpoint-model availability](./provider-model-availability):
+  curated model loading, serving-core scope, low-cost evidence and shared health projections.

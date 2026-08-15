@@ -94,7 +94,11 @@ def build_model_matrix(
                 {
                     "connection_id": connection.connection_id,
                     "model_id": entry_model.endpoint_model_id,
-                    "available": entry_model.available,
+                    "available": (
+                        not entry_model.hidden
+                        and not entry_model.retired
+                        and entry_model.discovery_state == "present"
+                    ),
                     "verification_status": _provider_verification(
                         connection.connection_id,
                         evidence.get(("provider", connection.connection_id)),

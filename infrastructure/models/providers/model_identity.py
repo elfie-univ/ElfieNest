@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple
 
@@ -24,6 +24,7 @@ _IDENTITY_FIELDS = frozenset(
         "supports_tools",
         "supports_vision",
         "supports_reasoning",
+        "supports_structured_output",
     }
 )
 
@@ -42,6 +43,22 @@ class CanonicalModelIdentity:
     supports_tools: Optional[bool] = None
     supports_vision: Optional[bool] = None
     supports_reasoning: Optional[bool] = None
+    supports_structured_output: Optional[bool] = None
+
+
+@dataclass(frozen=True)
+class EndpointModelDeclaration:
+    """Static metadata declared for one exact Provider/model endpoint."""
+
+    provider_id: str
+    endpoint_model_id: str
+    display_name: str
+    context_window_tokens: Optional[int] = None
+    max_output_tokens: Optional[int] = None
+    supports_tools: Optional[bool] = None
+    supports_vision: Optional[bool] = None
+    supports_reasoning: Optional[bool] = None
+    supports_structured_output: Optional[bool] = None
 
 
 @dataclass(frozen=True)
@@ -50,6 +67,9 @@ class ModelIdentityCatalog:
 
     identities: Mapping[str, CanonicalModelIdentity]
     aliases: Mapping[str, CanonicalModelIdentity]
+    endpoint_declarations: Mapping[str, EndpointModelDeclaration] = field(
+        default_factory=dict
+    )
 
     def match(
         self,
@@ -61,6 +81,13 @@ class ModelIdentityCatalog:
             if normalized and normalized in self.aliases:
                 return self.aliases[normalized]
         return None
+
+    def endpoint_declaration(
+        self, provider_id: str, endpoint_model_id: str
+    ) -> Optional[EndpointModelDeclaration]:
+        return self.endpoint_declarations.get(
+            f"{provider_id.strip()}/{endpoint_model_id.strip()}"
+        )
 
 
 def load_model_identities(
@@ -119,13 +146,66 @@ def parse_model_identities(
             supports_tools=_optional_bool(raw.get("supports_tools")),
             supports_vision=_optional_bool(raw.get("supports_vision")),
             supports_reasoning=_optional_bool(raw.get("supports_reasoning")),
+            supports_structured_output=_optional_bool(
+                raw.get("supports_structured_output")
+            ),
         )
     alias_index = {
         _normalize(alias): identity
         for identity in identities.values()
         for alias in identity.aliases
     }
-    return ModelIdentityCatalog(identities=identities, aliases=alias_index)
+    endpoint_declarations: Dict[str, EndpointModelDeclaration] = {}
+    raw_entries = document.get("entries", {})
+    if not isinstance(raw_entries, Mapping):
+        raise ModelIdentityCatalogError(f"标准模型目录 entries 必须是对象: {source}")
+    for entry_id, raw in raw_entries.items():
+        if not isinstance(entry_id, str) or not isinstance(raw, Mapping):
+            raise ModelIdentityCatalogError(f"标准模型 Endpoint 记录不合法: {source}")
+        provider_id = raw.get("provider")
+        display_name = raw.get("display_name")
+        capabilities = raw.get("capabilities", [])
+        if (
+            not isinstance(provider_id, str)
+            or not provider_id.strip()
+            or not isinstance(display_name, str)
+            or not display_name.strip()
+            or not isinstance(capabilities, list)
+            or any(not isinstance(item, str) for item in capabilities)
+        ):
+            raise ModelIdentityCatalogError(
+                f"标准模型 Endpoint {entry_id!r} 缺少合法 provider/display_name/capabilities: {source}"
+            )
+        if "/" not in entry_id:
+            raise ModelIdentityCatalogError(
+                f"标准模型 Endpoint 标识必须为 provider/model: {source}"
+            )
+        declared_provider, endpoint_model_id = entry_id.split("/", 1)
+        if declared_provider != provider_id.strip() or not endpoint_model_id.strip():
+            raise ModelIdentityCatalogError(
+                f"标准模型 Endpoint provider 与标识不一致: {source}"
+            )
+        capability_set = {item.strip().lower() for item in capabilities}
+        endpoint_declarations[entry_id] = EndpointModelDeclaration(
+            provider_id=provider_id.strip(),
+            endpoint_model_id=endpoint_model_id.strip(),
+            display_name=display_name.strip(),
+            context_window_tokens=_optional_positive_int(raw.get("context_window")),
+            max_output_tokens=_optional_positive_int(
+                raw.get("max_output_tokens", raw.get("max_output"))
+            ),
+            supports_tools=(True if "tools" in capability_set else None),
+            supports_vision=(True if "vision" in capability_set else None),
+            supports_reasoning=(True if "reasoning" in capability_set else None),
+            supports_structured_output=(
+                True if "structured_output" in capability_set else None
+            ),
+        )
+    return ModelIdentityCatalog(
+        identities=identities,
+        aliases=alias_index,
+        endpoint_declarations=endpoint_declarations,
+    )
 
 
 def match_model_identity(
@@ -171,6 +251,7 @@ def _reject_unknown(
 
 __all__ = (
     "CanonicalModelIdentity",
+    "EndpointModelDeclaration",
     "ModelIdentityCatalog",
     "ModelIdentityCatalogError",
     "load_model_identities",

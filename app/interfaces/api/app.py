@@ -23,6 +23,7 @@ from app.features.communication import CommunicationFacade
 from app.features.configuration import (
     CapabilitiesService,
     FoodService,
+    ProviderAvailabilityPort,
     ProvidersService,
     SettingsService,
 )
@@ -104,6 +105,7 @@ def create_http_application(
     nest_management: NestManagementService,
     elfies: ElfiesService,
     providers: ProvidersService,
+    availability: ProviderAvailabilityPort,
     food: FoodService,
     capabilities: CapabilitiesService,
     operations: OperationsFacade,
@@ -143,6 +145,7 @@ def create_http_application(
     app.state.nest_management = nest_management
     app.state.elfies = elfies
     app.state.providers = providers
+    app.state.provider_availability = availability
     app.state.food = food
     app.state.capabilities = capabilities
     app.state.operations = operations

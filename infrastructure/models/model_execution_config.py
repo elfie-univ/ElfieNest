@@ -12,6 +12,7 @@ from pydantic import JsonValue
 
 from infrastructure.models.oauth_credentials import OAuthCredentialPort
 from infrastructure.models.providers.catalog import ProviderCatalog
+from infrastructure.models.providers.request_profiles import default_request_profile_id
 from infrastructure.persistence.configuration.bundled_defaults import (
     load_system_defaults,
 )
@@ -125,6 +126,11 @@ def _default_providers(
     for provider_id, profile in catalog.profiles.items():
         api_key_env = profile.api_key_env_var or provider_secret_name(provider_id)
         providers[provider_id] = {
+            "catalog_id": profile.catalog_id,
+            "discovery_strategy": profile.discovery_strategy,
+            "bundled_models": list(profile.bundled_models),
+            "request_profile_id": default_request_profile_id(profile.api_mode),
+            "request_profile_version": 1,
             "api_key": _env_value(
                 env_values,
                 api_key_env,
