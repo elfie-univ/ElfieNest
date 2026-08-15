@@ -6,9 +6,11 @@ describe("client schemas", () => {
   it("accepts only a typed LAN mobile-access response", () => {
     expect(MobileAccessSchema.parse({
       available: true,
+      network_name: "Elfie Home",
       urls: ["http://192.168.1.8:8000/"]
     })).toEqual({
       available: true,
+      network_name: "Elfie Home",
       urls: ["http://192.168.1.8:8000/"]
     })
   })

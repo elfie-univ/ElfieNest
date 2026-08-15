@@ -88,7 +88,7 @@ function IdentityMetadata({ projection, t }: {
       <div><dt>{t("profile.identity.age")}</dt><dd>{localizedAge(ageLabel, t)}</dd></div>
       <div><dt>{t("profile.identity.owner")}</dt><dd>{projection.kind === "adopter" ? <strong>{t("profile.identity.me")}</strong> : projection.ownerDisplayName}</dd></div>
       {projection.kind === "adopter" ? <>
-        <div><dt>{t("profile.identity.adoptedAt")}</dt><dd>{displayFallback(projection.adoption.adoptedAt, t)}</dd></div>
+        <div><dt>{t("profile.identity.adoptedAt")}</dt><dd>{displayFallback(formatDateOnly(projection.adoption.adoptedAt), t)}</dd></div>
         <div><dt>{t("profile.identity.id")}</dt><dd>{projection.publicProfile.elfieId}</dd></div>
       </> : null}
     </dl>
@@ -123,6 +123,10 @@ function speciesLabel(
 
 function speciesIcon(): string {
   return "✦"
+}
+
+function formatDateOnly(value: string | undefined): string {
+  return value === undefined ? "未登记" : value.split(/[ T]/)[0] ?? value
 }
 
 function displayFallback(value: string, t: TFunction<"chat">): string {

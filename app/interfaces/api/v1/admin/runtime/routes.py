@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 from app.features.accounts import AccountPrincipal
 from app.features.operations import (
+    GetMobileAccessQuery,
     GetRuntimeStatusQuery,
     ModelExecutionEventResult,
     OperationsError,
@@ -94,7 +95,20 @@ def get_mobile_access(
         )
         return JSONResponse(status_code=503, content=body.model_dump(mode="json"))
     urls = projection.mobile_access_urls
-    return MobileAccessResponse(available=bool(urls), urls=urls)
+    network_name = None
+    operations = getattr(request.app.state, "operations", None)
+    if isinstance(operations, OperationsFacade):
+        try:
+            network_name = operations.get_mobile_access(
+                GetMobileAccessQuery(http_port=projection.http_port)
+            ).network_name
+        except OperationsError:
+            pass
+    return MobileAccessResponse(
+        available=bool(urls),
+        network_name=network_name,
+        urls=urls,
+    )
 
 
 def runtime_error_response(error: OperationsError) -> JSONResponse:

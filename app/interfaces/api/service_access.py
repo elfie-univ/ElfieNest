@@ -30,6 +30,9 @@ class MobileAccessProjection(Protocol):
     """Read-only LAN URL projection consumed by the Runtime HTTP resource."""
 
     @property
+    def http_port(self) -> int: ...
+
+    @property
     def mobile_access_urls(self) -> Tuple[str, ...]: ...
 
 

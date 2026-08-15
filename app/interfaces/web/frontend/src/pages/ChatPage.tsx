@@ -139,8 +139,8 @@ export function ChatPage() {
   useEffect(() => {
     if (user === null) return
     void Promise.all([elfies(), conversations()])
-      .then(([ownedElfies, rows]) => {
-        setData(createOwnedChatData(ownedElfies, rows, user.account_id))
+      .then(([visibleElfies, rows]) => {
+        setData(createOwnedChatData(visibleElfies, rows, user.account_id))
         setFailure(null)
       })
       .catch((reason: unknown) => {
@@ -246,16 +246,16 @@ export function ChatPage() {
     go({ view: "conversation", elfie: selectedId })
   }
   const adoptionCompleted = async (elfieId: string): Promise<void> => {
-    const [ownedElfies, rows, loadedProfile, foodPolicy] = await Promise.all([
+    const [visibleElfies, rows] = await Promise.all([
       elfies(),
       conversations(),
-      profile(elfieId),
-      elfieFoodPolicy(elfieId),
     ])
-    setData(createOwnedChatData(ownedElfies, rows, user.account_id))
-    setSelectedProfile(loadedProfile)
-    setSelectedFoodPolicy(foodPolicy)
-    go({ view: "profile", elfie: elfieId })
+    const orderedElfies = [
+      ...visibleElfies.filter((entry) => entry.elfie_id === elfieId),
+      ...visibleElfies.filter((entry) => entry.elfie_id !== elfieId),
+    ]
+    setData(createOwnedChatData(orderedElfies, rows, user.account_id))
+    go({ view: "conversation", elfie: elfieId })
   }
   const saveSelectedFood = async (): Promise<void> => {
     if (selectedId === null) return
@@ -349,7 +349,7 @@ export function ChatPage() {
               projection={presentElfieProfile(
                 selectedProfile ?? selected ?? null,
                 user.account_id,
-                selectedId === null ? null : data?.adopterAccountIds[selectedId] ?? null,
+                selectedId === null ? null : data?.adopterAccountIds[selectedId] || null,
                 selectedFoodPolicy,
               )}
               speciesDefinition={speciesCatalog.get(selectedProfile?.species_id ?? selected?.species_id ?? "")}

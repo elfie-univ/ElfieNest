@@ -10,7 +10,6 @@ from app.features.elfies import (
     CognitionSnapshotRecord,
     CognitionTopicRecord,
     ElfieDirectoryRecord,
-    ElfieNotFound,
     ElfieProfileRecord,
     ElfiesForbidden,
     ElfiesService,
@@ -178,13 +177,13 @@ def _principal(
     )
 
 
-def test_member_directory_is_owned_and_exposes_bounded_permissions() -> None:
+def test_member_directory_exposes_visible_elfies_with_bounded_permissions() -> None:
     service = ElfiesService(FakeElfiesPort())
 
     results = service.list_visible(_principal(), ListVisibleElfiesQuery())
 
-    assert [item.profile.elfie_id for item in results] == ["00000001"]
-    assert results[0].relationship == "owned"
+    assert [item.profile.elfie_id for item in results] == ["00000001", "00000002"]
+    assert [item.relationship for item in results] == ["owned", "other"]
     assert results[0].permissions.can_view_profile is True
     assert results[0].permissions.can_view_cognition is True
     assert results[0].profile.personality_tags == (
@@ -192,16 +191,23 @@ def test_member_directory_is_owned_and_exposes_bounded_permissions() -> None:
         "openness",
         "extraversion",
     )
+    assert results[1].permissions.can_view_profile is True
+    assert results[1].permissions.can_view_cognition is False
+
+    owned = service.list_visible(_principal(), ListVisibleElfiesQuery(relationship="owned"))
+    assert [item.profile.elfie_id for item in owned] == ["00000001"]
 
 
-def test_member_cannot_probe_another_members_profile() -> None:
+def test_member_profile_of_another_member_is_public_without_cognition() -> None:
     service = ElfiesService(FakeElfiesPort())
 
-    with pytest.raises(ElfieNotFound):
-        service.get_profile(
-            _principal(),
-            GetElfieProfileQuery(elfie_id="00000002"),
-        )
+    result = service.get_profile(
+        _principal(),
+        GetElfieProfileQuery(elfie_id="00000002"),
+    )
+
+    assert result.relationship == "other"
+    assert result.private_cognition is None
 
 
 def test_profile_preserves_the_five_existing_cognition_modules() -> None:
@@ -213,6 +219,7 @@ def test_profile_preserves_the_five_existing_cognition_modules() -> None:
     )
 
     cognition = result.private_cognition
+    assert cognition is not None
     assert cognition.recent_focus.topics[0].label == "Alice"
     assert cognition.important_experiences.entries[0].id == "event-adoption"
     assert cognition.relationship_world.nodes[1].kind == "human"

@@ -79,6 +79,12 @@ vi.mock("../api/chat-socket", () => ({
   },
 }))
 
+vi.mock("../components/adoption/AdoptionJourneyDialog", () => ({
+  AdoptionJourneyDialog: ({ open, onAdopted }: { open: boolean; onAdopted: (elfieId: string) => void }) => (
+    open ? <button type="button" onClick={() => onAdopted("00000002")}>完成领养</button> : null
+  ),
+}))
+
 vi.mock("../components/elfie-profile/ProfileChart", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../components/elfie-profile/ProfileChart")>()
   return {
@@ -179,7 +185,26 @@ describe("ChatPage list pane headings", () => {
     expect(screen.getByRole("heading", { level: 1, name: "消息" })).toBeInTheDocument()
   })
 
-  it("adds a history row only after a successful first message", async () => {
+  it("opens the newly adopted Elfie in chat and puts it first in history", async () => {
+    const user = userEvent.setup()
+    const newlyAdopted = { ...elfie, elfie_id: "00000002", name: "新芽" }
+    window.history.replaceState({}, "", "/chat")
+    chatApi.conversations.mockResolvedValue([])
+    chatApi.elfies.mockResolvedValue([elfie, newlyAdopted])
+    chatApi.messages.mockResolvedValue([])
+
+    renderChatPage("zh-CN")
+    await user.click(await screen.findByRole("button", { name: "领养精灵" }))
+    await user.click(screen.getByRole("button", { name: "完成领养" }))
+
+    expect(await screen.findByRole("heading", { level: 1, name: "新芽" })).toBeInTheDocument()
+    await waitFor(() => expect(window.location.search).toBe("?view=conversation&elfie=00000002"))
+    const list = document.querySelector(".chat-list")
+    if (!(list instanceof HTMLElement)) throw new TypeError("Expected chat list")
+    expect(within(list).getAllByRole("button")[0]).toHaveTextContent("新芽还没有消息")
+  })
+
+  it("shows an owned Elfie in history before the first message and updates its preview after sending", async () => {
     const user = userEvent.setup()
     window.history.replaceState({}, "", "/chat?view=conversation&elfie=00000001")
     chatApi.conversations.mockResolvedValue([])
@@ -193,18 +218,38 @@ describe("ChatPage list pane headings", () => {
     })
 
     renderChatPage("zh-CN")
+    const list = document.querySelector(".chat-list")
+    if (!(list instanceof HTMLElement)) throw new TypeError("Expected chat list")
+    expect(await within(list).findByRole("button")).toHaveTextContent("小羽还没有消息")
     const composer = await screen.findByPlaceholderText("对 小羽 说点什么…")
     await user.type(composer, "第一次聊天")
     await user.click(screen.getByRole("button", { name: "发送" }))
 
     await waitFor(() => {
-      const list = document.querySelector(".chat-list")
-      if (!(list instanceof HTMLElement)) throw new TypeError("Expected chat list")
-      expect(within(list).getByRole("button")).toHaveTextContent("小羽")
+      expect(within(list).getByRole("button")).toHaveTextContent("小羽第一次聊天")
     })
   })
 
-  it("does not create a history row for a failed first message and de-duplicates live events", async () => {
+  it("keeps an unchatted other Elfie in the Elfie list but out of chat history", async () => {
+    const user = userEvent.setup()
+    const otherElfie = { ...elfie, elfie_id: "00000002", name: "阿栗", relationship: "other" as const }
+    window.history.replaceState({}, "", "/chat?view=elfies")
+    chatApi.conversations.mockResolvedValue([])
+    chatApi.elfies.mockResolvedValue([{ ...elfie, relationship: "owned" as const }, otherElfie])
+
+    renderChatPage("zh-CN")
+    expect(await screen.findByText("阿栗")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { level: 2, name: "其他精灵" })).toBeInTheDocument()
+
+    const rail = screen.getByLabelText("ElfieNest 导航")
+    await user.click(within(rail).getByRole("button", { name: "聊天记录" }))
+    const list = document.querySelector(".chat-list")
+    if (!(list instanceof HTMLElement)) throw new TypeError("Expected chat list")
+    expect(within(list).getByRole("button", { name: /小羽/ })).toBeInTheDocument()
+    expect(within(list).queryByRole("button", { name: /阿栗/ })).not.toBeInTheDocument()
+  })
+
+  it("keeps the owned Elfie history row after a failed first message and de-duplicates live events", async () => {
     const user = userEvent.setup()
     window.history.replaceState({}, "", "/chat?view=conversation&elfie=00000001")
     chatApi.conversations.mockResolvedValue([])
@@ -219,7 +264,7 @@ describe("ChatPage list pane headings", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("send failed"))
     const list = document.querySelector(".chat-list")
     if (!(list instanceof HTMLElement)) throw new TypeError("Expected chat list")
-    expect(within(list).queryByRole("button")).not.toBeInTheDocument()
+    expect(within(list).getByRole("button")).toHaveTextContent("小羽还没有消息")
 
     const callbacks = socketState.callbacks
     if (callbacks === null) throw new TypeError("Expected socket callbacks")
@@ -261,7 +306,7 @@ describe("ChatPage list pane headings", () => {
     await waitFor(() => {
       const list = document.querySelector(".chat-list")
       if (!(list instanceof HTMLElement)) throw new TypeError("Expected chat list")
-      expect(within(list).getByRole("button")).toHaveTextContent("阿栗")
+      expect(within(list).getByRole("button", { name: /阿栗/ })).toHaveTextContent("阿栗")
     })
     expect(window.location.search).toBe("?view=conversation&elfie=00000001")
   })

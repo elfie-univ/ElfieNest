@@ -139,6 +139,22 @@ describe("ElfieProfilePanel", () => {
     expect(screen.getByText("12345678")).toBeInTheDocument()
   })
 
+  it("shows only the adoption date when the API provides an ISO timestamp", () => {
+    const experience = defineElfieExperience({
+      ...HAPPY_EXPERIENCE,
+      adoption: {
+        ...HAPPY_EXPERIENCE.adoption,
+        adoptedAt: "2026-08-15T06:28:50.381397+00:00",
+      },
+    })
+    const projection = projectElfieProfile(SIGNED_IN_ADMIN, experience)
+
+    renderWithI18n(<ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />)
+
+    expect(screen.getByText("2026-08-15")).toBeInTheDocument()
+    expect(screen.queryByText("2026-08-15T06:28:50.381397+00:00")).not.toBeInTheDocument()
+  })
+
   it("keeps the approved card order and removes the old eyebrow and biography heading", () => {
     // Given: an adopter profile with the final top-card design.
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)

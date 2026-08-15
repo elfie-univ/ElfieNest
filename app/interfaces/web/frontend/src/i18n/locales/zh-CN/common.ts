@@ -17,10 +17,13 @@ export const common = {
   mobileAccess: {
     brand: "手机访问",
     close: "关闭手机访问二维码",
+    connectSameWifi: "第一步　手机连接同一无线网",
+    connectWifi: "第一步　手机连接无线网",
     loading: "正在查找本机局域网地址…",
     localAddress: "本机地址",
     qrAlt: "访问 {{url}} 的二维码",
     qrError: "二维码生成失败",
+    scanQr: "第二步　用手机扫描二维码",
     title: "用手机打开 ElfieNest",
     unavailable: "手机访问暂不可用，当前只能在这台电脑上使用。请确认电脑和手机连接在同一局域网后重试。",
   },

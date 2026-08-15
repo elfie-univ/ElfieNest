@@ -59,20 +59,40 @@ export function createOwnedChatData(
   conversations: readonly Conversation[],
   adopterAccountId: string,
 ): ChatData {
+  const ownedElfies = elfies.filter((entry) => entry.relationship !== "other")
+  const knownElfieIds = new Set(ownedElfies.map((entry) => entry.elfie_id))
+  const conversationByElfieId = new Map<string, Conversation>()
+  for (const entry of ownedElfies) {
+    conversationByElfieId.set(entry.elfie_id, {
+      elfie_id: entry.elfie_id,
+      name: entry.name,
+      portrait_url: entry.portrait_url,
+      last_message_preview: "",
+      last_message_at: null,
+    })
+  }
+  for (const row of conversations) {
+    if (!knownElfieIds.has(row.elfie_id)) continue
+    conversationByElfieId.set(row.elfie_id, {
+      ...row,
+      last_message_preview: presentConversationPreview(row.last_message_preview),
+    })
+  }
   return {
     adopterAccountIds: Object.fromEntries(
-      elfies.map((entry) => [entry.elfie_id, adopterAccountId]),
+      elfies.map((entry) => [
+        entry.elfie_id,
+        entry.relationship === "other" ? "" : adopterAccountId,
+      ]),
     ),
-    conversations: conversations
-      .filter((row) => row.last_message_at !== null)
-      .map((row) => ({ ...row, last_message_preview: presentConversationPreview(row.last_message_preview) })),
+    conversations: [...conversationByElfieId.values()],
     elfies,
   }
 }
 
 export function recordChatMessage(data: ChatData, message: ChatMessage): ChatData {
   const elfie = data.elfies.find((entry) => entry.elfie_id === message.elfie_id)
-  if (elfie === undefined) return data
+  if (elfie === undefined || elfie.relationship === "other") return data
   const conversation: Conversation = {
     elfie_id: elfie.elfie_id,
     name: elfie.name,
