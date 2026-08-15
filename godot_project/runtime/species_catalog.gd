@@ -4,6 +4,8 @@ extends RefCounted
 
 const MANIFEST_FILENAME := "species_manifest.json"
 const SHARED_ACTOR_SCRIPT_PATH := "res://characters/shared/elfie_actor.gd"
+const MANIFEST_SCHEMA_VERSION := 2
+const APPEARANCE_PROTOCOL_VERSION := "appearance.v2"
 const REQUIRED_NODE_PATHS := [
 	"VisualRoot",
 	"VisualRoot/character",
@@ -62,10 +64,14 @@ static func validate_species_package(species_id: String) -> Dictionary:
 	if not manifest_value is Dictionary:
 		return _invalid("invalid_manifest")
 	var manifest := manifest_value as Dictionary
-	if int(manifest.get("schema_version", 0)) != 1:
+	if int(manifest.get("schema_version", 0)) != MANIFEST_SCHEMA_VERSION:
 		return _invalid("unsupported_manifest_schema")
 	if String(manifest.get("species_id", "")) != species_id:
 		return _invalid("manifest_species_mismatch")
+	if String(manifest.get("package_version", "")).is_empty():
+		return _invalid("missing_package_version")
+	if String(manifest.get("appearance_protocol_version", "")) != APPEARANCE_PROTOCOL_VERSION:
+		return _invalid("unsupported_appearance_protocol")
 	var scene_file := String(manifest.get("scene_file", ""))
 	var model_file := String(manifest.get("model_file", ""))
 	if scene_file != "%s.tscn" % species_id or model_file != "%s.glb" % species_id:
@@ -111,6 +117,26 @@ static func validate_species_package(species_id: String) -> Dictionary:
 		if not capabilities.has(capability):
 			instance.free()
 			return _invalid("missing_capability")
+	var appearance_bindings: Variant = manifest.get("appearance_bindings", {})
+	if not appearance_bindings is Dictionary:
+		instance.free()
+		return _invalid("invalid_appearance_bindings")
+	var bone_bindings: Variant = (appearance_bindings as Dictionary).get("bone_scales", {})
+	var blend_bindings: Variant = (appearance_bindings as Dictionary).get("blend_shapes", {})
+	var material_bindings: Variant = (appearance_bindings as Dictionary).get("material_parameters", {})
+	if not bone_bindings is Dictionary or not blend_bindings is Dictionary or not material_bindings is Dictionary:
+		instance.free()
+		return _invalid("invalid_appearance_binding_groups")
+	for control_name: String in ["HeadScale", "NeckLength", "ArmLength", "LegLength", "HandScale", "PawScale", "TailLength"]:
+		var binding: Variant = (bone_bindings as Dictionary).get(control_name, {})
+		if not binding is Dictionary:
+			instance.free()
+			return _invalid("missing_appearance_bone_binding")
+		var mode := String((binding as Dictionary).get("mode", ""))
+		var bones := _string_array((binding as Dictionary).get("bones", []))
+		if mode not in ["uniform", "length"] or bones.is_empty():
+			instance.free()
+			return _invalid("invalid_appearance_bone_binding")
 	var animations := _string_array(manifest.get("required_animations", []))
 	var animation_files: Variant = manifest.get("shared_animation_files", {})
 	if not animation_files is Dictionary:
@@ -130,6 +156,14 @@ static func validate_species_package(species_id: String) -> Dictionary:
 			return _invalid("missing_animation_source")
 	instance.free()
 	return {"accepted": true, "scene": scene, "manifest": manifest}
+
+
+static func appearance_bindings(species_id: String) -> Dictionary:
+	var validation := validate_species_package(species_id)
+	if not bool(validation.get("accepted", false)):
+		return {}
+	var manifest := validation.get("manifest", {}) as Dictionary
+	return manifest.get("appearance_bindings", {}) as Dictionary
 
 
 static func _string_array(value: Variant) -> Array[String]:

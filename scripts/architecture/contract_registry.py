@@ -65,7 +65,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="documentation-structure",
-        version="1.0",
+        version="1.1",
         english_path="docs/developer/contracts/documentation-structure.md",
         chinese_path="docs/zh/developer/contracts/documentation-structure.md",
         decision_paths=(
@@ -129,12 +129,14 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="configuration-management",
-        version="1.1",
+        version="1.2",
         english_path="docs/developer/contracts/configuration-management.md",
         chinese_path="docs/zh/developer/contracts/configuration-management.md",
         decision_paths=(
             "docs/developer/decisions/0017-bundled-defaults-and-user-configuration.md",
             "docs/zh/developer/decisions/0017-bundled-defaults-and-user-configuration.md",
+            "docs/developer/decisions/0020-configuration-driven-species-packages.md",
+            "docs/zh/developer/decisions/0020-configuration-driven-species-packages.md",
         ),
         agent_paths=(
             "AGENTS.md",
@@ -282,7 +284,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="model-food-tool-behavior",
-        version="1.7",
+        version="1.8",
         english_path="docs/developer/contracts/model-food-tool-behavior.md",
         chinese_path="docs/zh/developer/contracts/model-food-tool-behavior.md",
         decision_paths=(
@@ -294,6 +296,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
             "docs/developer/decisions/0017-bundled-defaults-and-user-configuration.md",
             "docs/zh/developer/decisions/0017-bundled-defaults-and-user-configuration.md",
+            "docs/developer/decisions/0019-provider-endpoint-availability.md",
+            "docs/zh/developer/decisions/0019-provider-endpoint-availability.md",
         ),
         agent_paths=(
             "app/features/configuration/AGENTS.md",
@@ -302,6 +306,10 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
         ),
         scanner_paths=(),
         test_paths=("test/architecture/test_model_food_tool_contract.py",),
+        conformance_paths=(
+            "docs/developer/conformance/provider-model-availability.md",
+            "docs/zh/developer/conformance/provider-model-availability.md",
+        ),
     ),
 )
 

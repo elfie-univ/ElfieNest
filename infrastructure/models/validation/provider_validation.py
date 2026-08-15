@@ -8,11 +8,12 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal, Mapping
 
 from infrastructure.models.catalog import verify_provider
 from infrastructure.models.inference.llm_api import call_llm_api
 from infrastructure.models.model_execution_config import ModelExecutionConfig
+from infrastructure.models.provider_errors import classify_provider_error
 from infrastructure.models.providers.dispatch import detect_api_mode_for_url
 from infrastructure.models.providers.http import (
     open_provider_request,
@@ -38,6 +39,26 @@ class DiscoveredModel:
         return f"{self.provider}/{self.name}"
 
 
+DiscoverySource = Literal[
+    "bundled_catalog",
+    "ollama",
+    "provider_models",
+    "configured",
+]
+
+
+@dataclass(frozen=True)
+class ModelDiscoveryResult:
+    """One bounded discovery attempt and its authority/completeness facts."""
+
+    provider: str
+    models: tuple[DiscoveredModel, ...]
+    source: DiscoverySource
+    complete: bool
+    authoritative: bool
+    error: str | None = None
+
+
 ModelCaller = Callable[
     [ModelExecutionConfig, str, str, list[dict[str, Any]], float, int],
     str,
@@ -51,12 +72,97 @@ def discover_provider_models(
     timeout: float = 10.0,
     allow_configured_fallback: bool = True,
 ) -> list[DiscoveredModel]:
+    result = discover_provider_models_result(
+        provider_id,
+        config,
+        timeout=timeout,
+        allow_configured_fallback=allow_configured_fallback,
+    )
+    if result.models:
+        return list(result.models)
+    if result.error:
+        raise RuntimeError(result.error)
+    return []
+
+
+def discover_provider_models_result(
+    provider_id: str,
+    config: ModelExecutionConfig,
+    *,
+    timeout: float = 10.0,
+    allow_configured_fallback: bool = True,
+    max_models: int = 256,
+) -> ModelDiscoveryResult:
+    """Discover models using the product-declared strategy.
+
+    ``catalog_only`` never makes a generic ``/models`` call.  The result
+    carries completeness so callers can avoid treating partial data as an
+    authoritative empty entitlement.
+    """
     provider = config.providers.get(provider_id, {})
+    profile = _provider_profile(config, provider_id, provider)
+    strategy = str(provider.get("discovery_strategy") or "")
+    if not strategy and profile is not None:
+        strategy = profile.discovery_strategy
+
+    if strategy == "catalog_only":
+        bundled = _bundled_model_names(provider, profile)
+        if len(bundled) > max_models:
+            return ModelDiscoveryResult(
+                provider_id,
+                (),
+                "bundled_catalog",
+                complete=False,
+                authoritative=False,
+                error=f"内置模型清单超过上限 {max_models}",
+            )
+        return ModelDiscoveryResult(
+            provider_id,
+            tuple(
+                DiscoveredModel(
+                    provider_id,
+                    model_id,
+                    source="bundled_catalog",
+                    display_name=model_id,
+                )
+                for model_id in bundled
+            ),
+            "bundled_catalog",
+            complete=True,
+            authoritative=True,
+        )
+
+    if strategy == "provider_adapter":
+        configured = _configured_models(provider)
+        return ModelDiscoveryResult(
+            provider_id,
+            tuple(
+                DiscoveredModel(
+                    provider_id,
+                    model_id,
+                    source="configured",
+                    display_name=display_name,
+                )
+                for model_id, display_name in configured
+            ),
+            "configured",
+            complete=False,
+            authoritative=False,
+            error="Provider 专属发现 Adapter 尚未提供模型清单",
+        )
+
     api_base = str(provider.get("api_base", "")).rstrip("/")
     api_key = str(provider.get("api_key", ""))
     api_mode = str(provider.get("api_mode", "")) or detect_api_mode_for_url(api_base)
     if not api_base:
-        raise ValueError(f"Provider '{provider_id}' is missing api_base")
+        return ModelDiscoveryResult(
+            provider_id,
+            (),
+            "configured",
+            complete=False,
+            authoritative=False,
+            error=f"Provider '{provider_id}' is missing api_base",
+        )
 
     if api_mode == "ollama":
         url = f"{api_base}/api/tags"
@@ -94,27 +200,92 @@ def discover_provider_models(
     except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TimeoutError):
         discovery_error = RuntimeError("Model discovery endpoint returned invalid JSON")
 
+    if discovery_error is None and not _has_model_list(api_mode, payload):
+        discovery_error = RuntimeError("模型清单响应结构无效")
     names = _extract_model_names(api_mode, payload) if discovery_error is None else []
-    if not names and allow_configured_fallback:
-        specs = configured_model_specs(provider)
-        if specs:
-            return [
-                DiscoveredModel(
-                    provider_id,
-                    item.model_id,
-                    source="configured",
-                    display_name=item.display_name,
-                )
-                for item in specs
-            ]
+    if discovery_error is None and len(names) > max_models:
+        discovery_error = RuntimeError(f"模型清单超过上限 {max_models}")
+        names = []
+    if discovery_error is None and isinstance(payload, dict):
+        if payload.get("has_more") is True or payload.get("next_cursor"):
+            discovery_error = RuntimeError("模型清单分页未完整读取")
+            names = []
+    # An authenticated, complete empty response is an authoritative empty
+    # entitlement.  Falling back to configured IDs here would falsely turn a
+    # recommendation into an account-owned model.
+    if discovery_error is not None and allow_configured_fallback:
+        configured = _configured_models(provider)
+        if configured:
+            return ModelDiscoveryResult(
+                provider_id,
+                tuple(
+                    DiscoveredModel(
+                        provider_id,
+                        model_id,
+                        source="configured",
+                        display_name=display_name,
+                    )
+                    for model_id, display_name in configured
+                ),
+                "configured",
+                complete=False,
+                authoritative=False,
+                error=str(discovery_error) if discovery_error else None,
+            )
     if discovery_error is not None:
-        raise RuntimeError(
-            f"{discovery_error}。该 Provider 可能不支持 /models，"
-            "Please manually enter model ID in Provider configuration"
-        ) from discovery_error
+        return ModelDiscoveryResult(
+            provider_id,
+            (),
+            "ollama" if api_mode == "ollama" else "provider_models",
+            complete=False,
+            authoritative=False,
+            error=(
+                f"{discovery_error}。该 Provider 可能不支持 /models，"
+                "Please manually enter model ID in Provider configuration"
+            ),
+        )
+    return ModelDiscoveryResult(
+        provider_id,
+        tuple(
+            DiscoveredModel(
+                provider_id,
+                name,
+                source="ollama" if api_mode == "ollama" else "provider_models",
+                display_name=name,
+            )
+            for name in sorted(set(names))
+        ),
+        "ollama" if api_mode == "ollama" else "provider_models",
+        complete=True,
+        authoritative=True,
+    )
+
+
+def _provider_profile(
+    config: ModelExecutionConfig,
+    provider_id: str,
+    provider: Mapping[str, Any],
+) -> Any:
+    catalog = config.provider_catalog
+    if catalog is None:
+        return None
+    catalog_id = str(provider.get("catalog_id") or provider_id)
+    return catalog.products.get(catalog_id) or catalog.profiles.get(provider_id)
+
+
+def _bundled_model_names(provider: Mapping[str, Any], profile: Any) -> list[str]:
+    raw = provider.get("bundled_models")
+    if not isinstance(raw, (list, tuple)) and profile is not None:
+        raw = profile.bundled_models
+    if not isinstance(raw, (list, tuple)):
+        return []
+    return list(dict.fromkeys(str(item).strip() for item in raw if str(item).strip()))
+
+
+def _configured_models(provider: Mapping[str, Any]) -> list[tuple[str, str]]:
     return [
-        DiscoveredModel(provider_id, name, display_name=name)
-        for name in sorted(set(names))
+        (item.model_id, item.display_name)
+        for item in configured_model_specs(provider)
     ]
 
 
@@ -138,6 +309,13 @@ def _extract_model_names(api_mode: str, payload: Any) -> list[str]:
         if isinstance(raw_name, str) and raw_name.strip():
             names.append(raw_name.strip())
     return names
+
+
+def _has_model_list(api_mode: str, payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    key = "models" if api_mode == "ollama" else "data"
+    return isinstance(payload.get(key), list)
 
 
 class ProviderValidationRunner:
@@ -208,6 +386,7 @@ class ProviderValidationRunner:
             )
         except Exception as exc:
             duration_ms = (time.perf_counter() - started) * 1000
+            classification = classify_provider_error(exc)
             return CheckResult(
                 check_id=f"provider.{provider_id}.model.{model_name}",
                 status=CheckStatus.FAILED,
@@ -217,6 +396,9 @@ class ProviderValidationRunner:
                 model=model_name,
                 details={
                     "error_type": type(exc).__name__,
+                    "error_code": classification.code,
+                    "error_scope": classification.scope,
+                    "error_category": classification.category,
                     "latency_class": classify_latency(duration_ms),
                 },
             )

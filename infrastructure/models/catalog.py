@@ -549,6 +549,17 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
     profile = (
         None if provider_catalog is None else provider_catalog.profiles.get(provider_id)
     )
+    if profile is None:
+        # Small legacy callers sometimes pass a duck-typed config instead of
+        # ModelExecutionConfig.  Still use the product catalog here; treating
+        # every unknown profile as a generic OpenAI endpoint would probe
+        # /models first and break catalog-only subscriptions such as
+        # Volcengine Coding Plan.
+        from infrastructure.models.providers.profiles import (
+            load_bundled_provider_catalog,
+        )
+
+        profile = load_bundled_provider_catalog().profiles.get(provider_id)
     if profile is None and (provider_id not in config.providers or not api_base):
         result["error"] = f"未知 provider: {provider_id}"
         return result

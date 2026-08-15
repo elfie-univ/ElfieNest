@@ -8,10 +8,12 @@ from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.provider_records import ProviderConnection
 from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.profiles import get_product
+from infrastructure.models.providers.request_profiles import default_request_profile_id
 
 from .provider_validation_policy import (
     _credential_name,
     active_validation_models,
+    connection_validation_fingerprint,
     representative_model_id,
 )
 
@@ -32,14 +34,33 @@ def model_execution_projection(
     config = ModelExecutionConfig(provider_catalog=catalog)
     active_models = active_validation_models(connection)
     config.providers[execution_id] = {
+        "catalog_id": connection.catalog_id,
+        "discovery_strategy": profile.discovery_strategy,
+        "bundled_models": list(profile.bundled_models),
         "api_base": connection.api_base or profile.api_base,
         "api_mode": connection.api_mode or profile.api_mode,
+        "request_profile_id": default_request_profile_id(
+            connection.api_mode or profile.api_mode
+        ),
+        "request_profile_version": 1,
         "auth_type": connection.auth_type or profile.auth_type,
         "api_key": connection_api_key(connection, secret_resolver=secret_resolver),
+        "config_fingerprint": connection_validation_fingerprint(
+            connection,
+            secret_resolver=secret_resolver,
+        ),
         "models": [
             {"id": model.endpoint_model_id, "display_name": model.display_name}
             for model in active_models
         ],
+        "model_profiles": {
+            model.endpoint_model_id: {
+                "request_profile_id": model.request_profile_id
+                or default_request_profile_id(connection.api_mode or profile.api_mode),
+                "request_profile_version": model.request_profile_version or 1,
+            }
+            for model in active_models
+        },
         "test_model": representative_model_id(connection) or profile.test_model,
     }
     return execution_id, config

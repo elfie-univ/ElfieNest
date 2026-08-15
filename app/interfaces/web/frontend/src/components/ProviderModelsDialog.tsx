@@ -66,9 +66,10 @@ export function ProviderModelsDialog({
 
   useEffect(() => {
     if (!open || !connection) return
+    const visibleModels = connection.models.filter((model) => model.discovery_state !== "source_missing")
     setEditing(false)
     setAddingManual(false)
-    setDrafts(toEditableModels(connection.models))
+    setDrafts(toEditableModels(visibleModels))
     setManualId("")
     setManualName("")
     setManualContext("")
@@ -96,14 +97,14 @@ export function ProviderModelsDialog({
   }
 
   const beginEditing = (): void => {
-    setDrafts(toEditableModels(connection.models))
+    setDrafts(toEditableModels(connection.models.filter((model) => model.discovery_state !== "source_missing")))
     setEditing(true)
     setAddingManual(false)
     setError(null)
   }
 
   const cancelEditing = (): void => {
-    setDrafts(toEditableModels(connection.models))
+    setDrafts(toEditableModels(connection.models.filter((model) => model.discovery_state !== "source_missing")))
     setEditing(false)
     setError(null)
   }
@@ -197,7 +198,7 @@ export function ProviderModelsDialog({
       <Input aria-label={t("providerModels.fields.maxOutput")} min={1} onChange={(event) => setManualOutput(event.target.value)} placeholder={t("providerModels.fields.maxOutput")} type="number" value={manualOutput} />
       <Button disabled={pending} type="submit">{t("providerModels.actions.add")}</Button>
     </form> : null}
-    {connection.models.length === 0 ? <p className="empty-state">{t("providerModels.empty")}</p> : <div className="provider-model-table-wrap">
+    {connection.models.filter((model) => model.discovery_state !== "source_missing").length === 0 ? <p className="empty-state">{t("providerModels.empty")}</p> : <div className="provider-model-table-wrap">
       <Table aria-label={t("providerModels.labels.list", { name: connection.alias })} className="provider-model-table">
         <TableHeader><TableRow>
           <TableHead>{t("providerModels.columns.displayName")}</TableHead>
@@ -208,7 +209,7 @@ export function ProviderModelsDialog({
           <TableHead>{t("providerModels.columns.status")}</TableHead>
           <TableHead>{t("providerModels.columns.actions")}</TableHead>
         </TableRow></TableHeader>
-        <TableBody>{connection.models.map((model, index) => {
+        <TableBody>{connection.models.filter((model) => model.discovery_state !== "source_missing").map((model, index) => {
           const draft = drafts[index] ?? toEditableModel(model)
           const row = editing ? draft : toEditableModel(model)
           return <TableRow key={model.id}>

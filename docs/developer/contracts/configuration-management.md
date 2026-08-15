@@ -1,6 +1,6 @@
 # Configuration management contract
 
-**Contract version:** 1.1
+**Contract version:** 1.2
 **Adopted:** 2026-08-15
 **Scope:** application defaults, user configuration, loading and release packaging
 
@@ -55,15 +55,23 @@ config/
 │   ├── energy.yaml
 │   ├── selfhood.yaml
 │   └── emotion-expressions.yaml
-└── nest/
+├── nest/
     └── defaults.yaml
+└── species/
+    ├── catalog.yaml
+    └── <package>/
+        ├── species.yaml
+        ├── appearance.yaml
+        ├── genesis.yaml
+        └── assets/*.png
 ```
 
-This tree is the relocation inventory for the existing global configuration
-documents. Existing species declarations, canon, appearance profiles and
-Genesis behavior are explicitly outside this migration and remain in their
-current Profile-owned source. This task adds no species fields, species
-normalization, discovery or registration behavior.
+This tree is the source of bundled defaults and the registered species
+configuration packages. `species/catalog.yaml` is the registered document;
+the package members are validated as one immutable package by its Infrastructure
+Adapter. Profile and Genesis receive typed values and do not read YAML. The
+Godot 3D package remains under `godot_project/characters/`; only its semantic
+package link and appearance bindings are represented in species configuration.
 
 The user-owned layout remains:
 
@@ -119,6 +127,7 @@ Infrastructure.
 | Selfhood creation defaults | `brain/selfhood.yaml` | none | Elfie Brain Selfhood | bundled only |
 | Emotion-expression mapping | `brain/emotion-expressions.yaml` | none | Elfie Brain Emotion | bundled only |
 | Nest initialization defaults | `nest/defaults.yaml` | none | Nest | bundled only |
+| Species catalog and packages | `species/catalog.yaml` and `species/<package>/` | none | Infrastructure loader, typed values injected into Profile/Genesis/Adoption | bundled only |
 | Provider connections and endpoint models | none | `providers.yaml` | App configuration providers | user only |
 | API and OAuth credentials | none | `auth.env`, `credentials/oauth/` or process environment | secret capability | user only; never merged |
 
@@ -253,7 +262,7 @@ recomputed on the next declared load boundary.
 The governance layer is active before implementation:
 
 - this bilingual contract fixes the target;
-- ADR-0017 records the decision;
+- ADR-0017 and ADR-0020 record the species-configuration decision;
 - the Contract Registry binds the contract, ADR, Agent rules, machine-governance
   test and temporary conformance register; and
 - the conformance register names every current implementation gap without
@@ -285,9 +294,10 @@ schema and focused tests together.
 
 ## Explicit non-goals
 
-This reorganization does not add a species, Provider, model, tool, Brain or
-Nest capability. It does not add species auto-discovery, configuration-driven
+This reorganization does not add a Provider, model, tool, Brain or Nest
+capability. It does not add filesystem auto-discovery, configuration-driven
 protocol implementations, a public arbitrary-config API, UI fields, data
-migration, dual reads, dual writes, compatibility aliases, remote configuration
-or global hot reload. New protocol or authentication behavior still requires
-code in its owning Infrastructure Adapter.
+migration, dual reads, dual writes, compatibility aliases, remote
+configuration or global hot reload. Species package registration is fixed by
+the catalog and still requires a matching Godot package and code-owned runtime
+protocol support.

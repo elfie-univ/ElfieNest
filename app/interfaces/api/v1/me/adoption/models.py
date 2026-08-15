@@ -109,6 +109,13 @@ class AdoptionNestCapacityResponse(BaseModel):
     remaining: int
 
 
+class AdoptionSpeciesImagesResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    headshot_url: str = Field(min_length=1)
+    full_body_url: str = Field(min_length=1)
+
+
 class AdoptionSpeciesResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -119,6 +126,7 @@ class AdoptionSpeciesResponse(BaseModel):
     earth_shape_label: str = Field(min_length=1)
     scene_id: str = Field(min_length=1)
     sort_order: int
+    presentation_images: AdoptionSpeciesImagesResponse
 
 
 class AdoptionOptionsResponse(BaseModel):
@@ -148,6 +156,10 @@ class AdoptionOptionsResponse(BaseModel):
                     earth_shape_label=species.earth_shape_label,
                     scene_id=species.scene_id,
                     sort_order=species.sort_order,
+                    presentation_images=AdoptionSpeciesImagesResponse(
+                        headshot_url=species.presentation_images.headshot_url,
+                        full_body_url=species.presentation_images.full_body_url,
+                    ),
                 )
                 for species in result.species
             ),
@@ -301,6 +313,7 @@ __all__ = (
     "AdoptionOptionsResponse",
     "AdoptionNestCapacityResponse",
     "AdoptionResultResponse",
+    "AdoptionSpeciesImagesResponse",
     "AdoptionSpeciesResponse",
     "CandidateAppearanceRequest",
     "CandidateRepliesRequest",

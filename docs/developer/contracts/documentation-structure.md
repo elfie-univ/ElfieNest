@@ -1,6 +1,6 @@
 # Documentation structure contract
 
-**Contract version:** 1.0<br>
+**Contract version:** 1.1<br>
 **Adopted:** 2026-08-12<br>
 **Enforced scope:** Public documentation information architecture
 
@@ -41,11 +41,11 @@ docs/
         └── engineering/
 ```
 
-`docs/.vitepress/` and `docs/public/` are site implementation directories, not
-reader-facing content sections. `docs/.internal/` is private, excluded from the
-site and must not be linked from public pages. An optional section directory is
-created only when it contains an approved page; empty placeholder directories
-are not retained.
+`docs/.vitepress/`, `docs/public/` and `docs/scripts/` are site/repository
+implementation directories, not reader-facing content sections.
+`docs/.internal/` is private, excluded from the site and must not be linked from
+public pages. An optional section directory is created only when it contains an
+approved page; empty placeholder directories are not retained.
 
 The former `getting-started/` section is forbidden. End-user installation,
 configuration, operation and troubleshooting belong to `user-guide/`.

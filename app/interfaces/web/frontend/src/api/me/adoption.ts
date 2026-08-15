@@ -14,6 +14,10 @@ const AdoptionInfoSchema = z.object({
     earth_shape_label: z.string().min(1),
     scene_id: z.string().min(1),
     sort_order: z.number().int(),
+    presentation_images: z.object({
+      headshot_url: z.string().min(1),
+      full_body_url: z.string().min(1),
+    }).strict(),
   })),
   heights: z.array(z.string()),
   builds: z.array(z.string()),

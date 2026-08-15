@@ -21,6 +21,7 @@ ROOT_TECHNICAL_DIRECTORIES = {
     ".vitepress",
     "node_modules",
     "public",
+    "scripts",
     "zh",
 }
 

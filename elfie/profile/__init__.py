@@ -22,11 +22,23 @@ from .models import (
 )
 from .port import ProfileStorePort
 from .resolver import AppearanceResolver, ResolvedAppearance
-from .species import SpeciesAppearanceProfile, get_species_profile
+from .species import (
+    CorrelationWeights,
+    Distribution,
+    ScaleRange,
+    SpeciesAppearanceProfile,
+    get_species_profile,
+)
 from .species_registry import (
     SPECIES_REGISTRY,
     SUPPORTED_SPECIES,
+    SpeciesCatalog,
     SpeciesDefinition,
+    SpeciesGenesisProfile,
+    SpeciesPresentationImages,
+    SpeciesStatus,
+    configure_species_catalog,
+    current_species_catalog,
     get_species_definition,
     list_species_definitions,
     validate_species_registry,
@@ -46,13 +58,22 @@ __all__ = [
     "ResolvedAppearance",
     "SUPPORTED_MORPHOLOGIES",
     "SUPPORTED_SPECIES",
+    "CorrelationWeights",
+    "Distribution",
+    "ScaleRange",
     "SPECIES_CANON_VERSION",
     "WORLD_CANON_VERSION",
     "SpeciesCanon",
     "SpeciesAppearanceProfile",
+    "SpeciesCatalog",
     "SpeciesDefinition",
+    "SpeciesGenesisProfile",
+    "SpeciesPresentationImages",
+    "SpeciesStatus",
     "SPECIES_REGISTRY",
     "WorldCanon",
+    "configure_species_catalog",
+    "current_species_catalog",
     "create_visual_profile",
     "get_species_profile",
     "get_species_canon",

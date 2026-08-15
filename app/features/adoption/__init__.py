@@ -18,6 +18,8 @@ from .models import (
     AdoptionOptionsResult,
     AdoptionQuota,
     AdoptionSpecies,
+    AdoptionSpeciesImage,
+    AdoptionSpeciesImages,
     CandidateAppearance,
     CandidateRepliesResult,
     CandidateReplyResult,
@@ -29,6 +31,7 @@ from .models import (
     ReplyToCandidatesCommand,
     ReserveAcceptedAdoptionCommand,
     SpeciesId,
+    SpeciesImageKind,
 )
 from .port_models import (
     AdoptionNestCapacityRecord,
@@ -45,6 +48,7 @@ from .ports import (
     AdoptionPortNestCapacityReached,
     AdoptionPortOwnerNotFound,
     CandidatePortraitPort,
+    SpeciesPresentationPort,
 )
 
 __all__ = (
@@ -56,6 +60,8 @@ __all__ = (
     "AdoptionError",
     "AdoptionInvalid",
     "AdoptionNestCapacity",
+    "AdoptionSpeciesImage",
+    "AdoptionSpeciesImages",
     "AdoptionNestCapacityReached",
     "AdoptionNestCapacityRecord",
     "AdoptionOptionsResult",
@@ -81,6 +87,8 @@ __all__ = (
     "CandidateResult",
     "CandidateSetResult",
     "CandidatePortraitPort",
+    "SpeciesPresentationPort",
+    "SpeciesImageKind",
     "CreateCandidateSetCommand",
     "GetAdoptionOptionsQuery",
     "ReplyToCandidatesCommand",

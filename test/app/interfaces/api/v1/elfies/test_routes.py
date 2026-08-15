@@ -69,6 +69,7 @@ def test_member_resources_return_visible_envelopes_and_owned_profile(
     assert [item["profile"]["elfie_id"] for item in listing.json()["items"]] == ["00000001", "00000002"]
     assert [item["relationship"] for item in listing.json()["items"]] == ["owned", "other"]
     assert listing.json()["items"][0]["relationship"] == "owned"
+    assert listing.json()["items"][0]["profile"]["species"]["display_name_zh"] == "灵狐"
     assert owned_listing.status_code == 200
     assert [item["profile"]["elfie_id"] for item in owned_listing.json()["items"]] == ["00000001"]
     assert not {

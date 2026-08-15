@@ -9,6 +9,11 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, cast
 
 from infrastructure.models.oauth_credentials import OAuthCredentialPort, OAuthToken
+from infrastructure.models.provider_errors import (
+    ProviderCallError,
+    provider_error_from_http,
+    provider_network_error,
+)
 from infrastructure.models.providers.http import (
     ProviderHttpResponse,
     open_provider_request,
@@ -99,7 +104,12 @@ def call_openai_compatible_api(
     timeout_seconds: float | None = None,
 ) -> tuple[str, dict[str, Any]]:
     if not api_base:
-        raise ValueError(f"❌ 未找到大模型服务商 '{provider}' 的有效 API Base 配置！")
+        raise ProviderCallError(
+            f"❌ 未找到大模型服务商 '{provider}' 的有效 API Base 配置！",
+            code="provider_base_missing",
+            scope="connection",
+            category="configuration",
+        )
 
     headers: dict[str, str] = {"Content-Type": "application/json"}
     url = f"{api_base}/chat/completions"
@@ -139,10 +149,11 @@ def call_openai_compatible_api(
         logger.error("Cloud LLM API call exception: %s", e)
         if isinstance(e, urllib.error.HTTPError):
             err_msg = _http_error_summary(e)
-            raise RuntimeError(
-                f"❌ 云端大模型接口 ({provider}) 返回 HTTP {e.code} 错误。响应详情: {err_msg}"
+            raise provider_error_from_http(
+                e,
+                f"❌ 云端大模型接口 ({provider}) 返回 HTTP {e.code} 错误。响应详情: {err_msg}",
             ) from e
-        raise RuntimeError(
+        raise provider_network_error(
             f"❌ 物理层无法连通云端大模型服务接口 ({provider}): {e}"
         ) from e
 
@@ -197,11 +208,12 @@ def call_anthropic_api(
             return res_data["content"][0]["text"], usage
     except urllib.error.HTTPError as e:
         err_msg = _http_error_summary(e)
-        raise RuntimeError(
-            f"❌ Anthropic API 返回 HTTP {e.code} 错误。响应详情: {err_msg}"
+        raise provider_error_from_http(
+            e,
+            f"❌ Anthropic API 返回 HTTP {e.code} 错误。响应详情: {err_msg}",
         ) from e
     except Exception as e:
-        raise RuntimeError(f"❌ 物理层无法连通 Anthropic 服务: {e}") from e
+        raise provider_network_error(f"❌ 物理层无法连通 Anthropic 服务: {e}") from e
 
 
 def call_codex_responses_api(
@@ -228,7 +240,12 @@ def call_codex_responses_api(
     access_token = token.access_token if token is not None else api_key
     account_id = token.account_id if token is not None else account_id
     if not access_token:
-        raise ValueError("ChatGPT 授权已失效，请重新登录")
+        raise ProviderCallError(
+            "ChatGPT 授权已失效，请重新登录",
+            code="invalid_credential",
+            scope="connection",
+            category="authentication",
+        )
     instructions = "\n\n".join(
         str(item.get("content") or "")
         for item in messages
@@ -268,13 +285,14 @@ def call_codex_responses_api(
         return _parse_codex_response(raw)
     except urllib.error.HTTPError as error:
         summary = _http_error_summary(error)
-        raise RuntimeError(
-            f"❌ ChatGPT Codex 接口返回 HTTP {error.code} 错误。响应详情: {summary}"
+        raise provider_error_from_http(
+            error,
+            f"❌ ChatGPT Codex 接口返回 HTTP {error.code} 错误。响应详情: {summary}",
         ) from error
     except Exception as error:
-        if isinstance(error, (RuntimeError, ValueError)):
+        if isinstance(error, (ProviderCallError, ValueError)):
             raise
-        raise RuntimeError(
+        raise provider_network_error(
             f"❌ 物理层无法连通 ChatGPT Codex 服务 ({provider}): {error}"
         ) from error
 

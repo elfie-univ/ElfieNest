@@ -47,6 +47,7 @@ from .models import (
     ProviderModelInput,
     ProviderModelMatrixResult,
     ProviderModelRefreshResult,
+    ProviderModelReplacement,
     ProviderModelResult,
     ProviderOAuthLoginStartResult,
     ProviderOAuthLoginStatusResult,
@@ -231,11 +232,12 @@ class ProvidersService:
             elif task.state == "failed":
                 state = "failed"
         models = tuple(
-            LocalProviderModelResult(
-                model_id=item.model_id,
-                display_name=item.display_name,
-                installed=item.model_id in installed,
-                recommended=item.recommended,
+            self._local_model_result(
+                item.model_id,
+                item.display_name,
+                item.model_id in installed,
+                item.recommended,
+                state=state,
             )
             for item in candidates
         )
@@ -251,6 +253,49 @@ class ProvidersService:
             installed_model_count=sum(item.installed for item in models),
             models=models,
             task=task,
+        )
+
+    def _local_model_result(
+        self,
+        model_id: str,
+        display_name: str,
+        installed: bool,
+        recommended: bool,
+        *,
+        state: str,
+    ) -> LocalProviderModelResult:
+        if not installed:
+            return LocalProviderModelResult(
+                model_id=model_id,
+                display_name=display_name,
+                installed=False,
+                recommended=recommended,
+            )
+        try:
+            reference = self._local_state.local_model_reference(model_id)
+            verification = (
+                None
+                if reference is None
+                else self._technology.summarize_model(
+                    reference.split("/", 1)[0],
+                    model_id,
+                )
+            )
+        except (AttributeError, ProviderPortError, ValueError):
+            verification = None
+        availability_status = (
+            "unknown" if verification is None else verification.availability_status
+        )
+        return LocalProviderModelResult(
+            model_id=model_id,
+            display_name=display_name,
+            installed=True,
+            recommended=recommended,
+            availability_status=(
+                "unavailable" if state != "healthy" else availability_status
+            ),
+            available=state == "healthy"
+            and availability_status in {"available", "degraded"},
         )
 
     def install_local_provider(
@@ -477,6 +522,8 @@ class ProvidersService:
                 if command.verify
                 else None
             )
+            if not command.verify:
+                await self._probe_representative(connection)
             return self._connection_result(
                 connection,
                 verification=verification,
@@ -536,6 +583,11 @@ class ProvidersService:
                 if command.verify
                 else None
             )
+            if not command.verify and bool(
+                set(command.fields)
+                & {"api_base", "api_mode", "auth_type", "api_key", "models"}
+            ):
+                await self._probe_representative(updated)
             return self._connection_result(
                 updated,
                 verification=verification,
@@ -666,8 +718,11 @@ class ProvidersService:
         if any(item.model_id == command.model.model_id for item in connection.models):
             raise ProvidersConflict("The connection already contains this model ID")
         model = self._prepare_model(command.model)
-        self._replace_models(connection, (*connection.models, model))
-        return self._model_result(connection.connection_id, model)
+        updated_connection = self._replace_models(connection, (*connection.models, model))
+        persisted_model = next(
+            item for item in updated_connection.models if item.model_id == model.model_id
+        )
+        return self._model_result(updated_connection.connection_id, persisted_model)
 
     def replace_models(
         self,
@@ -698,13 +753,90 @@ class ProvidersService:
                 replace(
                     current,
                     model_id=item.model_id,
-                    display_name=item.display_name,
-                    canonical_model_id=item.canonical_model_id,
-                    context_window_tokens=item.context_window_tokens,
-                    max_output_tokens=item.max_output_tokens,
-                    supports_tools=item.supports_tools,
-                    supports_vision=item.supports_vision,
-                    supports_reasoning=item.supports_reasoning,
+                    display_name=_replacement_value(
+                        item, "display_name", item.display_name, current.display_name
+                    ),
+                    canonical_model_id=_replacement_value(
+                        item,
+                        "canonical_model_id",
+                        item.canonical_model_id,
+                        current.canonical_model_id,
+                    ),
+                    context_window_tokens=_replacement_value(
+                        item,
+                        "context_window_tokens",
+                        item.context_window_tokens,
+                        current.context_window_tokens,
+                    ),
+                    max_output_tokens=_replacement_value(
+                        item,
+                        "max_output_tokens",
+                        item.max_output_tokens,
+                        current.max_output_tokens,
+                    ),
+                    supports_tools=_replacement_value(
+                        item, "supports_tools", item.supports_tools, current.supports_tools
+                    ),
+                    supports_vision=_replacement_value(
+                        item,
+                        "supports_vision",
+                        item.supports_vision,
+                        current.supports_vision,
+                    ),
+                    supports_reasoning=_replacement_value(
+                        item,
+                        "supports_reasoning",
+                        item.supports_reasoning,
+                        current.supports_reasoning,
+                    ),
+                    supports_structured_output=_replacement_value(
+                        item,
+                        "supports_structured_output",
+                        item.supports_structured_output,
+                        current.supports_structured_output,
+                    ),
+                    request_profile_id=_replacement_value(
+                        item,
+                        "request_profile_id",
+                        item.request_profile_id,
+                        current.request_profile_id,
+                    ),
+                    request_profile_version=_replacement_value(
+                        item,
+                        "request_profile_version",
+                        item.request_profile_version,
+                        current.request_profile_version,
+                    ),
+                    capability_evidence=_user_capability_evidence(
+                        current=current,
+                        values={
+                            "tools": _replacement_value(
+                                item,
+                                "supports_tools",
+                                item.supports_tools,
+                                current.supports_tools,
+                            ),
+                            "vision": _replacement_value(
+                                item,
+                                "supports_vision",
+                                item.supports_vision,
+                                current.supports_vision,
+                            ),
+                            "reasoning": _replacement_value(
+                                item,
+                                "supports_reasoning",
+                                item.supports_reasoning,
+                                current.supports_reasoning,
+                            ),
+                            "structured_output": _replacement_value(
+                                item,
+                                "supports_structured_output",
+                                item.supports_structured_output,
+                                current.supports_structured_output,
+                            ),
+                        },
+                        fields=item.fields,
+                    ),
                     hidden=item.hidden,
                 )
             )
@@ -760,6 +892,31 @@ class ProvidersService:
                 if "supports_reasoning" in command.fields
                 else current.supports_reasoning
             ),
+            supports_structured_output=(
+                command.supports_structured_output
+                if "supports_structured_output" in command.fields
+                else current.supports_structured_output
+            ),
+            request_profile_id=(
+                command.request_profile_id
+                if "request_profile_id" in command.fields
+                else current.request_profile_id
+            ),
+            request_profile_version=(
+                command.request_profile_version
+                if "request_profile_version" in command.fields
+                else current.request_profile_version
+            ),
+            capability_evidence=_updated_capability_evidence(
+                current,
+                command.fields,
+                values={
+                    "tools": command.supports_tools,
+                    "vision": command.supports_vision,
+                    "reasoning": command.supports_reasoning,
+                    "structured_output": command.supports_structured_output,
+                },
+            ),
             hidden=(
                 command.hidden
                 if "hidden" in command.fields and command.hidden is not None
@@ -771,14 +928,19 @@ class ProvidersService:
                 else current.retired
             ),
         )
-        self._replace_models(
+        persisted_connection = self._replace_models(
             connection,
             tuple(
                 updated if item.model_id == command.model_id else item
                 for item in connection.models
             ),
         )
-        return self._model_result(connection.connection_id, updated)
+        persisted_model = next(
+            item
+            for item in persisted_connection.models
+            if item.model_id == command.model_id
+        )
+        return self._model_result(persisted_connection.connection_id, persisted_model)
 
     def delete_model(
         self,
@@ -963,10 +1125,41 @@ class ProvidersService:
     ) -> StoredModelRefresh:
         try:
             refresh = await self._technology.refresh_models(connection)
-            self._replace_models(connection, refresh.models)
+            self._replace_models(
+                connection,
+                refresh.persisted_models or refresh.models,
+            )
             return refresh
         except ProviderPortError as error:
             raise ProvidersUnavailable("Provider model refresh unavailable") from error
+
+    async def _probe_representative(
+        self,
+        connection: StoredProviderConnection,
+    ) -> None:
+        """Spend at most one tiny request after a new/changed connection save."""
+        candidate = next(
+            (
+                item
+                for item in connection.models
+                if not item.hidden
+                and not item.retired
+                and item.discovery_state == "present"
+            ),
+            None,
+        )
+        if candidate is None:
+            return
+        probe = getattr(self._technology, "probe_model", None)
+        if not callable(probe):
+            return
+        try:
+            await probe(f"{connection.connection_id}/{candidate.model_id}")
+        except (ProviderPortError, ValueError, OSError):
+            # The connection and inventory are already durable.  The probe
+            # boundary records the failure; a failed check must not roll back
+            # the user's configuration or hide the inventory.
+            return
 
     def _connection_result(
         self,
@@ -1030,15 +1223,26 @@ class ProvidersService:
             display_name=model.display_name,
             canonical_model_id=model.canonical_model_id,
             source=model.source,
+            request_profile_id=model.request_profile_id,
+            request_profile_version=model.request_profile_version,
             context_window_tokens=model.context_window_tokens,
             max_output_tokens=model.max_output_tokens,
             supports_tools=model.supports_tools,
             supports_vision=model.supports_vision,
             supports_reasoning=model.supports_reasoning,
+            supports_structured_output=model.supports_structured_output,
+            capability_evidence=model.capability_evidence,
             hidden=model.hidden,
             retired=model.retired,
-            available=model.available,
+            available=(
+                not model.hidden
+                and not model.retired
+                and model.discovery_state == "present"
+            ),
             verification=self._model_verification_result(verification),
+            discovery_state=model.discovery_state,
+            consecutive_missing=model.consecutive_missing,
+            last_seen_at=model.last_seen_at,
         )
 
     def _refresh_result(
@@ -1057,20 +1261,31 @@ class ProvidersService:
                         display_name=item.display_name,
                         canonical_model_id=item.canonical_model_id,
                         source=item.source,
+                        request_profile_id=item.request_profile_id,
+                        request_profile_version=item.request_profile_version,
                         context_window_tokens=item.context_window_tokens,
                         max_output_tokens=item.max_output_tokens,
                         supports_tools=item.supports_tools,
                         supports_vision=item.supports_vision,
                         supports_reasoning=item.supports_reasoning,
+                        supports_structured_output=item.supports_structured_output,
+                        capability_evidence=item.capability_evidence,
                         hidden=item.hidden,
                         retired=item.retired,
-                        available=item.available,
+                        available=(
+                            not item.hidden
+                            and not item.retired
+                            and item.discovery_state == "present"
+                        ),
                         verification=self._model_verification_result(
                             self._technology.summarize_model(
                                 connection_id,
                                 item.model_id,
                             )
                         ),
+                        discovery_state=item.discovery_state,
+                        consecutive_missing=item.consecutive_missing,
+                        last_seen_at=item.last_seen_at,
                     )
                     for item in refresh.models
                 ),
@@ -1118,12 +1333,70 @@ class ProvidersService:
             heartbeat_status=None,
             representative_model_id=None,
             reason=None,
+            availability_status=item.availability_status,
+            reason_code=item.reason_code,
+            evidence_source=item.evidence_source,
+            expires_at=item.expires_at,
+            is_core=item.is_core,
         )
 
     @staticmethod
     def _require_manager(principal: AccountPrincipal) -> None:
         if not is_manager(principal.role):
             raise ProvidersForbidden("Provider administration requires a manager")
+
+
+def _updated_capability_evidence(
+    model: StoredProviderModel,
+    fields: frozenset[str],
+    *,
+    values: dict[str, bool | None],
+) -> dict[str, str]:
+    evidence = dict(model.capability_evidence)
+    for capability, field_name in {
+        "tools": "supports_tools",
+        "vision": "supports_vision",
+        "reasoning": "supports_reasoning",
+        "structured_output": "supports_structured_output",
+    }.items():
+        if field_name in fields:
+            evidence[capability] = (
+                "declared_by_user" if values.get(capability) is not None else "unknown"
+            )
+    return evidence
+
+
+def _user_capability_evidence(
+    *,
+    current: StoredProviderModel,
+    values: dict[str, bool | None],
+    fields: frozenset[str] | None,
+) -> dict[str, str]:
+    evidence = dict(current.capability_evidence)
+    field_names = {
+        "tools": "supports_tools",
+        "vision": "supports_vision",
+        "reasoning": "supports_reasoning",
+        "structured_output": "supports_structured_output",
+    }
+    for capability, value in values.items():
+        if fields is not None and field_names[capability] not in fields:
+            continue
+        evidence[capability] = (
+            "declared_by_user" if value is not None else "unknown"
+        )
+    return evidence
+
+
+def _replacement_value(
+    item: ProviderModelReplacement,
+    field_name: str,
+    value: object,
+    current: object,
+) -> object:
+    if item.fields is not None and field_name not in item.fields:
+        return current
+    return value
 
 
 __all__ = ("ProvidersService",)

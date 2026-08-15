@@ -27,10 +27,20 @@ const AppearanceSchema = z.object({
   species_traits: z.record(z.string(), z.number().finite()),
 }).strict()
 
+const SpeciesPresentationSchema = z.object({
+  species_id: z.string().min(1),
+  canon_id: z.string().min(1),
+  display_name: z.string().min(1),
+  display_name_zh: z.string().min(1),
+  earth_shape_label: z.string().min(1),
+  status: z.enum(["published", "retired"]),
+}).strict()
+
 export const ElfieProfileSchema = z.object({
   elfie_id: ElfieIdValueSchema,
   name: z.string(),
   species_id: z.string(),
+  species: SpeciesPresentationSchema.nullable().optional(),
   gender: z.string().nullable(),
   birth_date: z.string().nullable(),
   summary: z.string().nullable(),

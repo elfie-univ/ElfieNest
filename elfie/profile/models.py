@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, fields, replace
-from typing import Any, Dict, Type, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Dict, Type, TypeVar, cast
 
 from .species_registry import SUPPORTED_SPECIES
+
+if TYPE_CHECKING:
+    from .species_registry import SpeciesCatalog
 
 PROFILE_SCHEMA_VERSION = 1
 SUPPORTED_MORPHOLOGIES = ("biped", "quadruped")
@@ -173,18 +176,25 @@ class ElfieProfile:
     provenance: ProfileProvenance
     embodiment: EmbodimentProfile = field(default_factory=EmbodimentProfile)
 
-    def validate(self) -> None:
+    def validate(self, *, catalog: SpeciesCatalog | None = None) -> None:
         if self.schema_version != PROFILE_SCHEMA_VERSION:
             raise ValueError(f"不支持 profile schema_version={self.schema_version}")
         if not self.identity.elfie_id.strip():
             raise ValueError("elfie_id 不能为空")
         if not self.identity.display_name.strip():
             raise ValueError("display_name 不能为空")
-        if self.identity.species_id not in SUPPORTED_SPECIES:
+        try:
+            if catalog is None:
+                if self.identity.species_id not in SUPPORTED_SPECIES:
+                    raise ValueError
+            else:
+                catalog.definition(self.identity.species_id)
+        except ValueError as error:
+            available = SUPPORTED_SPECIES if catalog is None else catalog.supported_species
             raise ValueError(
                 f"不支持的 species_id={self.identity.species_id!r}，"
-                f"可选: {', '.join(SUPPORTED_SPECIES)}"
-            )
+                f"可选: {', '.join(available)}"
+            ) from error
         origin = self.identity.origin
         for field_name in (
             "home_world_id",
@@ -212,9 +222,12 @@ class ElfieProfile:
             not in self.embodiment.supported_morphologies
         ):
             raise ValueError("primary_morphology 必须包含在 supported_morphologies 中")
-        from .species import get_species_profile  # noqa: PLC0415
+        if catalog is None:
+            from .species import get_species_profile  # noqa: PLC0415
 
-        species = get_species_profile(self.identity.species_id)
+            species = get_species_profile(self.identity.species_id)
+        else:
+            species = catalog.definition(self.identity.species_id).appearance
         if self.appearance.species_profile_version != species.profile_version:
             raise ValueError("appearance 使用了不兼容的物种配置版本")
         coat = self.appearance.coat

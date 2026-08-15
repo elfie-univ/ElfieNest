@@ -1,5 +1,7 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "package_version": "dog.v1",
+  "appearance_protocol_version": "appearance.v2",
   "species_id": "dog",
   "scene_file": "dog.tscn",
   "model_file": "dog.glb",
@@ -15,6 +17,19 @@
     "portrait",
     "preview"
   ],
+  "appearance_bindings": {
+    "bone_scales": {
+      "HeadScale": {"mode": "uniform", "bones": ["mixamorig_Head"]},
+      "NeckLength": {"mode": "length", "bones": ["mixamorig_Neck"]},
+      "ArmLength": {"mode": "length", "bones": ["mixamorig_LeftArm", "mixamorig_LeftForeArm", "mixamorig_RightArm", "mixamorig_RightForeArm"]},
+      "LegLength": {"mode": "length", "bones": ["mixamorig_LeftUpLeg", "mixamorig_LeftLeg", "mixamorig_RightUpLeg", "mixamorig_RightLeg"]},
+      "HandScale": {"mode": "uniform", "bones": ["mixamorig_LeftHand", "mixamorig_RightHand"]},
+      "PawScale": {"mode": "uniform", "bones": ["mixamorig_LeftFoot", "mixamorig_RightFoot"]},
+      "TailLength": {"mode": "length", "bones": ["mixamorig_Tail_Bone"]}
+    },
+    "blend_shapes": {},
+    "material_parameters": {}
+  },
   "required_animations": [
     "idle",
     "walking",

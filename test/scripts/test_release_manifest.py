@@ -4,11 +4,20 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
 import pytest
 
 from scripts import release_manifest
+
+
+def _copy_species_config(resources: Path) -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    shutil.copytree(
+        project_root / "config" / "species",
+        resources / "config" / "species",
+    )
 
 
 def test_manifest_validation_rejects_a_manifest_that_omits_required_godot_files(
@@ -72,6 +81,15 @@ def test_manifest_validation_accepts_runtime_without_a_bundled_ollama_binary(
             "size": len(data),
             "sha256": hashlib.sha256(data).hexdigest(),
         }
+    _copy_species_config(resources)
+    for path in sorted((resources / "config" / "species").rglob("*")):
+        if path.is_file():
+            relative = path.relative_to(resources).as_posix()
+            data = path.read_bytes()
+            files[relative] = {
+                "size": len(data),
+                "sha256": hashlib.sha256(data).hexdigest(),
+            }
     (resources / "manifest.json").write_text(
         json.dumps(
             {

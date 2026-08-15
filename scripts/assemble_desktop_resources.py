@@ -10,6 +10,7 @@ import shutil
 from pathlib import Path
 from typing import Final, Iterable, Mapping
 
+from infrastructure.persistence.configuration.species import load_species_catalog
 from scripts import check_release_version, package_python_core
 
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[1]
@@ -106,6 +107,12 @@ def assemble_resources(
         raise ResourceAssemblyError(
             f"resource-component-missing component=config path={selected_config_source}"
         )
+    try:
+        load_species_catalog(root=selected_config_source)
+    except (OSError, ValueError, RuntimeError) as error:
+        raise ResourceAssemblyError(
+            f"resource-component-incomplete component=species-config path={selected_config_source}"
+        ) from error
     target_root = output_root / target
     resources = target_root / "resources"
     staging = output_root / f".{target}.staging"

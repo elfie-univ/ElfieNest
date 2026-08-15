@@ -1,0 +1,18 @@
+schema_version: 1
+definition_version: myelle.v1
+canon_id: myelle
+display_name: Myelle
+display_name_zh: 灵猫
+earth_shape_label: cat-like
+technical_species_id: cat
+godot_package_id: cat
+common_sensory_biases:
+  - 细微声音
+  - 距离和高低差
+  - 平衡与安静移动
+common_knowledge:
+  - 安静角落、垂直空间、观察位置和低干扰生活
+  - 距离和允许靠近的空间信号
+earth_first_contact_cues:
+  - 先观察边缘、反光、声音和运动轨迹
+  - 接触并记忆后再把设备当作熟悉事物

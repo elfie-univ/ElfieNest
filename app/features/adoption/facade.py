@@ -5,7 +5,7 @@ from __future__ import annotations
 import secrets
 
 from app.features.accounts import AccountPrincipal
-from elfie.profile import get_species_definition, list_species_definitions
+from elfie.profile import SpeciesCatalog, SpeciesDefinition, current_species_catalog
 
 from ._candidate_registry import CandidateRegistry
 from .errors import (
@@ -22,6 +22,8 @@ from .models import (
     AdoptionOptionsResult,
     AdoptionQuota,
     AdoptionSpecies,
+    AdoptionSpeciesImage,
+    AdoptionSpeciesImages,
     CandidateRepliesResult,
     CandidateSetResult,
     CreateCandidateSetCommand,
@@ -29,6 +31,7 @@ from .models import (
     LifeStage,
     ReplyToCandidatesCommand,
     ReserveAcceptedAdoptionCommand,
+    SpeciesImageKind,
 )
 from .port_models import AdoptionPolicyRecord, AdoptionReservationRecord
 from .ports import (
@@ -40,6 +43,7 @@ from .ports import (
     AdoptionPortNestCapacityReached,
     AdoptionPortOwnerNotFound,
     CandidatePortraitPort,
+    SpeciesPresentationPort,
 )
 
 _HEIGHTS = ("short", "standard", "tall")
@@ -61,12 +65,18 @@ class AdoptionService:
         candidates: CandidateRegistry | None = None,
         portraits: CandidatePortraitPort | None = None,
         narrative: AdoptionNarrativePort | None = None,
+        catalog: SpeciesCatalog | None = None,
+        species_presentation: SpeciesPresentationPort | None = None,
     ) -> None:
         self._policy = policy
         self._persistence = persistence
         self._narrative = narrative
+        self._catalog = catalog or current_species_catalog()
+        self._species_presentation = species_presentation
         self._candidates = candidates or CandidateRegistry(
-            portraits=portraits, narrative=narrative
+            portraits=portraits,
+            narrative=narrative,
+            catalog=self._catalog,
         )
 
     def get_options(
@@ -100,8 +110,8 @@ class AdoptionService:
         return AdoptionOptionsResult(
             personality_styles=policy.enabled_personality_styles,
             species=tuple(
-                _species_result(definition.species_id)
-                for definition in list_species_definitions()
+                _species_result(definition, self._species_presentation)
+                for definition in self._catalog.list_definitions()
             ),
             heights=_HEIGHTS,
             builds=_BUILDS,
@@ -127,7 +137,7 @@ class AdoptionService:
     ) -> CandidateSetResult:
         policy = self._load_policy()
         try:
-            get_species_definition(command.species_id)
+            self._catalog.definition(command.species_id, adoptable_only=True)
         except ValueError as error:
             raise AdoptionInvalid(
                 f"不支持的 species_id={command.species_id!r}"
@@ -170,7 +180,7 @@ class AdoptionService:
             candidate_id=command.candidate_id,
         )
         try:
-            get_species_definition(candidate.public.species_id)
+            self._catalog.definition(candidate.public.species_id, adoptable_only=True)
         except ValueError as error:
             raise AdoptionInvalid(
                 f"不支持的 species_id={candidate.public.species_id!r}"
@@ -203,6 +213,27 @@ class AdoptionService:
         )
 
         return reservation
+
+    def get_species_image(
+        self,
+        principal: AccountPrincipal,
+        species_id: str,
+        image_kind: SpeciesImageKind,
+    ) -> AdoptionSpeciesImage:
+        """Return one catalog-owned PNG after the normal member check."""
+
+        _ = principal
+        try:
+            self._catalog.definition(species_id, adoptable_only=True)
+            if self._species_presentation is None:
+                raise AdoptionUnavailable("物种图片服务未装配")
+            return self._species_presentation.read(species_id, image_kind)
+        except ValueError as error:
+            raise AdoptionInvalid(f"不支持的 species_id={species_id!r}") from error
+        except AdoptionUnavailable:
+            raise
+        except (OSError, RuntimeError) as error:
+            raise AdoptionUnavailable("物种图片暂不可用") from error
 
     def publish_accepted(self, reservation: AcceptedAdoptionReservation) -> None:
         """Atomically publish one fully constructed Elfie as a final resident."""
@@ -249,8 +280,17 @@ class AdoptionService:
 __all__ = ("AdoptionService",)
 
 
-def _species_result(species_id: str) -> AdoptionSpecies:
-    definition = get_species_definition(species_id)
+def _species_result(
+    definition: SpeciesDefinition,
+    presentation: SpeciesPresentationPort | None,
+) -> AdoptionSpecies:
+    if presentation is None:
+        images = _default_species_images(definition.species_id)
+    else:
+        try:
+            images = presentation.urls(definition.species_id)
+        except (OSError, RuntimeError, ValueError) as error:
+            raise AdoptionUnavailable("物种图片暂不可用") from error
     return AdoptionSpecies(
         species_id=definition.species_id,
         canon_id=definition.canon_id,
@@ -259,4 +299,13 @@ def _species_result(species_id: str) -> AdoptionSpecies:
         earth_shape_label=definition.earth_shape_label,
         scene_id=definition.scene_id,
         sort_order=definition.sort_order,
+        presentation_images=images,
+    )
+
+
+def _default_species_images(species_id: str) -> AdoptionSpeciesImages:
+    prefix = f"/api/v1/me/adoption/species/{species_id}/images"
+    return AdoptionSpeciesImages(
+        headshot_url=f"{prefix}/headshot",
+        full_body_url=f"{prefix}/full-body",
     )
