@@ -3,14 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional, cast
-from uuid import uuid4
 
 from app.features.adoption import (
-    AcceptedAdoptionReservation,
-    AdoptionReservationRecord,
     AdoptionService,
     CandidatePortraitPort,
 )
@@ -27,7 +23,6 @@ from infrastructure.models.adoption_narrative import (
     AdoptionStructuredModelExecution,
     StructuredAdoptionNarrativeAdapter,
 )
-from infrastructure.persistence.account_repository import AccountRepository
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
@@ -38,11 +33,7 @@ from infrastructure.persistence.elfie_workspace.brain_state import (
     YamlEnergyLimitsAdapter,
     YamlSelfhoodSeedAdapter,
 )
-from infrastructure.persistence.elfie_workspace.elfies import (
-    SQLiteElfiesProjectionAdapter,
-)
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
-from infrastructure.persistence.nest_db.store import get_db
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from infrastructure.platform import (
     ElfieFactoryAdapter,
@@ -54,55 +45,6 @@ from infrastructure.platform import (
 class AdoptionServices:
     adoption: AdoptionService
     resident_admission: ResidentAdmissionService
-
-
-def seed_single_elfie(db_path: str) -> bool:
-    """Create the existing development seed through Bootstrap-owned Adapters."""
-    if SQLiteElfiesProjectionAdapter(db_path).list_directory():
-        return False
-    with get_db(db_path) as connection:
-        owner = AccountRepository(connection).find_owner()
-    if owner is None:
-        return False
-
-    persistence = SQLiteAdoptionAdapter(db_path)
-    elfie_id = "00000001"
-    birth_date = datetime.now(timezone.utc).date().isoformat()
-    reservation = AcceptedAdoptionReservation(
-        elfie_id=elfie_id,
-        owner_user_id=owner.user_id,
-        name="Aifei",
-        original_name="Aifei",
-        species_id="fox",
-        personality_style="好奇探索",
-        height="tall",
-        build="plump",
-        appearance_seed=uuid4().int & ((1 << 63) - 1),
-        face="any",
-        signature="any",
-        gender="female",
-        birth_date=birth_date,
-    )
-    workspace = FinalElfieWorkspaceAdapter.from_database_path(db_path)
-    try:
-        workspace.materialize(reservation)
-        persistence.reserve(
-            AdoptionReservationRecord(
-                elfie_id=elfie_id,
-                owner_user_id=owner.user_id,
-                name="Aifei",
-                original_name="Aifei",
-                species_id="fox",
-                gender="female",
-                birth_date=birth_date,
-                summary="好奇探索",
-            ),
-            default_limit=1,
-        )
-    except Exception:
-        workspace.release(elfie_id)
-        raise
-    return True
 
 
 def build_adoption_services(
@@ -177,4 +119,4 @@ def build_adoption_services(
     )
 
 
-__all__ = ("AdoptionServices", "build_adoption_services", "seed_single_elfie")
+__all__ = ("AdoptionServices", "build_adoption_services")

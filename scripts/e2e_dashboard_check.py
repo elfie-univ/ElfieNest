@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """ElfieNest management dashboard end-to-end verification script.
 
-Starts serve.py in fallback mode on random ports, then runs five checks:
+Starts serve.py with the configured model service on random ports, then runs five checks.
+The selected model provider must be configured before running this script.
 
   Step 1: Owner login -> create user alice
   Step 2: Alice login -> complete the adoption journey -> verify Elfie appears
@@ -173,12 +174,11 @@ def main() -> None:
     print(f"  Godot WS port: {godot_ws_port}")
     print()
 
-    print("  🚀 Starting serve.py --fallback ...")
+    print("  🚀 Starting serve.py with the configured model ...")
     process = subprocess.Popen(
         [
             sys.executable,
             "scripts/serve.py",
-            "--fallback",
             "--port",
             str(port),
             "--godot-ws-port",

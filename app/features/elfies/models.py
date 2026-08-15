@@ -5,14 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Mapping
 
-ElfieRelationship = Literal["owned"]
+ElfieRelationship = Literal["owned", "other"]
 CognitionStatus = Literal["ready", "empty", "unavailable"]
 WorldRingKey = Literal["self", "family", "nest", "society", "outside"]
 
 
 @dataclass(frozen=True)
 class ListVisibleElfiesQuery:
-    relationship: ElfieRelationship | None = None
+    relationship: Literal["owned"] | None = None
 
 
 @dataclass(frozen=True)
@@ -188,7 +188,7 @@ class ElfieProfileDetailResult:
     relationship: ElfieRelationship
     permissions: ElfiePermissionsResult
     profile: ElfieProfileResult
-    private_cognition: ElfieCognitionResult
+    private_cognition: ElfieCognitionResult | None
 
 
 __all__ = (

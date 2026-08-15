@@ -75,7 +75,7 @@ def test_fresh_root_survives_adoption_chat_memory_and_restart(tmp_path: Path) ->
         )
         connection.commit()
 
-    elfie_id = adopt_test_elfie(str(db_path), owner_id, name="Aifei")
+    elfie_id = adopt_test_elfie(str(db_path), owner_id, name="Test Resident")
     workspace = data_home / "elfies" / elfie_id
     record_elfie_chat_message(
         elfie_id,

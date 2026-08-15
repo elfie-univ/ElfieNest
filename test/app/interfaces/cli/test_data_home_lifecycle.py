@@ -56,8 +56,6 @@ def test_start_options_forward_resolved_data_home(monkeypatch, tmp_path: Path) -
     arguments = Namespace(
         port=None,
         godot_ws_port=None,
-        fallback=False,
-        no_seed_elfie=False,
         data_home="selected",
         lan=True,
     )

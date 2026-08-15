@@ -53,7 +53,7 @@ class ElfiePermissionsResponse(_StrictModel):
 
 
 class VisibleElfieResponse(_StrictModel):
-    relationship: Literal["owned"]
+    relationship: Literal["owned", "other"]
     permissions: ElfiePermissionsResponse
     profile: ElfieProfileResponse
 
@@ -131,10 +131,10 @@ class PrivateCognitionResponse(_StrictModel):
 
 
 class ElfieProfileDetailResponse(_StrictModel):
-    relationship: Literal["owned"]
+    relationship: Literal["owned", "other"]
     permissions: ElfiePermissionsResponse
     profile: ElfieProfileResponse
-    private_cognition: PrivateCognitionResponse
+    private_cognition: Optional[PrivateCognitionResponse]
 
 
 class ElfiesErrorDetails(_StrictModel):

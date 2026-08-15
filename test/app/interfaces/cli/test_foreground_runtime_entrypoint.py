@@ -84,8 +84,6 @@ def test_serve_start_failure_maps_to_exit_one(
         force=False,
         port=None,
         godot_ws_port=None,
-        fallback=False,
-        no_seed_elfie=False,
     )
 
     # When / Then

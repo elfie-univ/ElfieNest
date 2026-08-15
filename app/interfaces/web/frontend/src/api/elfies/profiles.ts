@@ -47,8 +47,10 @@ const PermissionsSchema = z.object({
   can_view_cognition: z.boolean(),
 }).strict()
 
+const ElfieRelationshipSchema = z.enum(["owned", "other"])
+
 const VisibleElfieSchema = z.object({
-  relationship: z.literal("owned"),
+  relationship: ElfieRelationshipSchema,
   permissions: PermissionsSchema,
   profile: ElfieProfileSchema,
 }).strict()
@@ -122,21 +124,24 @@ const PrivateCognitionSchema = z.object({
 }).strict()
 
 const ProfileDetailResponseSchema = z.object({
-  relationship: z.literal("owned"),
+  relationship: ElfieRelationshipSchema,
   permissions: PermissionsSchema,
   profile: ElfieProfileSchema,
-  private_cognition: PrivateCognitionSchema,
+  private_cognition: PrivateCognitionSchema.nullable(),
 }).strict().transform(({ profile: value, private_cognition }) => ({
   ...value,
   private_cognition,
 }))
 
-export type ElfieProfile = z.infer<typeof ElfieProfileSchema>
+export type ElfieRelationship = z.infer<typeof ElfieRelationshipSchema>
+export type ElfieProfile = z.infer<typeof ElfieProfileSchema> & {
+  readonly relationship?: ElfieRelationship
+}
 export type ElfieProfileDetail = z.infer<typeof ProfileDetailResponseSchema>
 
 export async function elfies(): Promise<readonly ElfieProfile[]> {
   return VisibleElfiesResponseSchema.parse(await requestJson("/api/v1/elfies"))
-    .items.map((item) => item.profile)
+    .items.map((item) => ({ ...item.profile, relationship: item.relationship }))
 }
 
 export async function profile(elfieId: string): Promise<ElfieProfileDetail> {

@@ -55,7 +55,7 @@ function presentApiProfile(
   }
 
   if (adopterAccountId !== null && viewerAccountId === adopterAccountId) {
-    if (!isProfileDetail(profile) || foodPolicy === null) return null
+    if (!isProfileDetail(profile) || profile.private_cognition === null || foodPolicy === null) return null
     return {
       adoption: {
         adoptedAt: profile.adopted_at,
@@ -77,10 +77,10 @@ function presentApiProfile(
 }
 
 function isProfileDetail(profile: ElfieProfile | ElfieProfileDetail): profile is ElfieProfileDetail {
-  return "private_cognition" in profile
+  return "private_cognition" in profile && profile.private_cognition !== null
 }
 
-function mapPrivateCognition(source: ElfieProfileDetail["private_cognition"]): PrivateCognition {
+function mapPrivateCognition(source: NonNullable<ElfieProfileDetail["private_cognition"]>): PrivateCognition {
   return {
     status: source.status,
     recentFocus: {

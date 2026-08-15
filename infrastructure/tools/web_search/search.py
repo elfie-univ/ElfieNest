@@ -30,13 +30,6 @@ class WebSearchPlugin:
         self.api_key = api_key
         self.max_results = max(1, min(int(max_results), 10))
         self.timeout_seconds = max(0.1, min(float(timeout_seconds), 30.0))
-        # 默认的 Mock 检索库，以备网络不可用或无 API Key 时使用
-        self._mock_database = {
-            "elfie": "Elfie 仿生生命体是新一代智能宠物系统，采用三层大脑架构（顶层认知、中层生理情绪记忆、底层感知驱动）结合算力底座，具有生命涌现感。",
-            "elfienest": "ElfieNest（精灵盒子）是 Elfie 仿生生命体的虚拟生态环境容器。它负责管理时间、重力、环境温度，并协调多个 Elfie 之间的物理相撞与社交。",
-            "天气": "今日天气晴朗，气温 22°C - 26°C，微风，非常适宜 Elfie 小精灵去室外活动和补充能量。",
-            "token": "ElfieNest 第一阶段只记录模型调用与工具调用观测事件，不做计费扣减或额度阻断。",
-        }
 
     @classmethod
     def from_model_execution_policy(

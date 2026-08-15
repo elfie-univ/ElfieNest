@@ -1,5 +1,7 @@
 """Product chat acceptance through the real NestSession and Elfie Brain."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -9,13 +11,35 @@ from app.bootstrap.system_wiring.nest_session import (
     build_nest_session_services,
     restore_registered_elfies,
 )
-from infrastructure.models.fallback_model_execution import FallbackModelExecutionAdapter
+from infrastructure.models.model_execution_contracts import (
+    StructuredModelExecutionCapabilities,
+)
 from infrastructure.persistence.nest_db.store import init_db
 from test.app.interfaces.api._helpers import (
     adopt_test_elfie,
     complete_test_setup,
     create_test_owner,
 )
+
+
+class _TestModelExecution:
+    def structured_capabilities(
+        self,
+        food_key: str | None = None,
+        food_unavailable: bool = False,
+    ) -> StructuredModelExecutionCapabilities:
+        return StructuredModelExecutionCapabilities(
+            provider="test",
+            model_key="test/chat",
+            supports_json_schema=False,
+            supports_tool_calling=False,
+            supports_json_mode=False,
+            supports_plain_text=True,
+            max_output_tokens=512,
+        )
+
+    def generate_structured(self, request):
+        return request.to_result(text="你好，我是小白，很高兴认识你。")
 
 
 def test_web_chat_reaches_real_brain_and_persists_its_reply(
@@ -32,7 +56,7 @@ def test_web_chat_reaches_real_brain_and_persists_its_reply(
 
     services = build_nest_session_services(
         str(db_path),
-        model_execution=FallbackModelExecutionAdapter(),
+        model_execution=_TestModelExecution(),
         godot_ws_port=19003,
         http_port=19002,
         tick_interval_sec=0.01,

@@ -16,7 +16,6 @@ from app.bootstrap.system_wiring.model_execution import (
     build_model_execution_agent_ports,
 )
 from elfie.public import MainFoodSelection
-from infrastructure.models.fallback_model_execution import FallbackModelExecutionAdapter
 from infrastructure.models.inference.token_usage import get_token_tracker
 from infrastructure.models.model_execution_adapter import StructuredModelExecution
 from infrastructure.models.model_execution_agent import ModelExecutionAgent
@@ -52,7 +51,6 @@ class ModelExecutionServices:
 def build_model_execution_services(
     db_path: str,
     *,
-    use_fallback: bool,
     live_reload: bool,
     resolve_main_food: bool,
 ) -> ModelExecutionServices:
@@ -73,12 +71,6 @@ def build_model_execution_services(
         and not isinstance(raw_tick_interval, bool)
         else 1.5
     )
-    if use_fallback:
-        return ModelExecutionServices(
-            execution=FallbackModelExecutionAdapter(),
-            tick_interval_sec=tick_interval_sec,
-        )
-
     main_food_loader: Callable[[str], MainFoodSelection] | None = None
     if resolve_main_food:
         main_food_loader = final_main_food_loader(build_food_service(db_path))

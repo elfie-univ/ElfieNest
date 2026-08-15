@@ -90,13 +90,14 @@ should pass an explicit subcommand:
 Foreground and background services support code-validated parameters:
 
 ```bash
-./elfienest.sh serve --fallback
+./elfienest.sh serve
 ./elfienest.sh serve --port 8001 --godot-ws-port 8768
-./elfienest.sh start --fallback --no-seed-elfie
+./elfienest.sh start
 ```
 
-`--fallback` is a development-only simulation mode; it is not a packaged model
-provider. Setup keeps public Ollama optional and binds exactly one chosen endpoint.
+The service uses the configured model food and provider. Setup keeps public Ollama
+optional and binds exactly one chosen endpoint; a model provider must be configured
+before chat or adoption can be verified.
 `serve --force` only tries to stop conflict processes registered by the current
 project and confirmed to belong to that service; it is not a generic port
 cleanup tool.
