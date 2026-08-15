@@ -88,6 +88,9 @@ const COMPANIONSHIP_OPTIONS: readonly (readonly CompanionAnswer[])[] = [
 const PORTRAIT_RUNTIME_IDLE_MILLISECONDS = 5 * 60 * 1000
 const PORTRAIT_RUNTIME_SCREENS: readonly AdoptionScreen[] = ["basic", "appearance", "companionship", "generating"]
 const INVITATION_RETRY_DELAYS_MILLISECONDS = [400, 1000] as const
+const WAIT_STATUS_SECOND_PHASE_MILLISECONDS = 4_000
+const WAIT_STATUS_FINAL_PHASE_MILLISECONDS = 10_000
+const WAIT_STATUS_KEYS = ["initial", "continuing", "delayed"] as const
 
 function isExpiredSessionError(reason: unknown): boolean {
   return reason instanceof ApiError && reason.code === "adoption_candidate_set_expired"
@@ -814,9 +817,9 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           {journeyReady && state.screen === "basic" ? <BasicScreen allowedSpecies={allowedSpecies} canAdopt={info?.quota.can_adopt ?? true} draft={state.draft} dispatch={dispatch} locale={locale} speciesName={(id) => speciesName(id, info?.species.find((species) => species.species_id === id), locale)} stageName={(value) => stageName(t, value)} t={t} /> : null}
           {journeyReady && state.screen === "appearance" ? <AppearanceScreen draft={state.draft} dispatch={dispatch} t={t} /> : null}
           {journeyReady && state.screen === "companionship" ? <CompanionshipScreen draft={state.draft} dispatch={dispatch} onAnswer={answerCompanionship} questionIndex={state.questionIndex} t={t} /> : null}
-          {journeyReady && state.screen === "generating" && generationRequest !== null ? <GeneratingScreen csrfToken={csrfToken} frameRef={portraitFrameRef} onError={onGenerationError} onReady={onGenerationReady} request={generationRequest} runtimeActive={portraitRuntimeEnabled && portraitRuntimeRequested} runtimeGeneration={portraitRuntimeGeneration} title={t("adoption.journey.generating.title")} /> : null}
+          {journeyReady && state.screen === "generating" && generationRequest !== null ? <GeneratingScreen csrfToken={csrfToken} frameRef={portraitFrameRef} onError={onGenerationError} onReady={onGenerationReady} request={generationRequest} runtimeActive={portraitRuntimeEnabled && portraitRuntimeRequested} runtimeGeneration={portraitRuntimeGeneration} t={t} /> : null}
           {journeyReady && state.screen === "shortlist" ? <ShortlistScreen candidates={state.candidates} candidateBatch={state.candidateBatch} dispatch={dispatch} onRegenerate={() => { void generateCandidates() }} selectedIds={state.selectedCandidateIds} t={t} /> : null}
-          {journeyReady && state.screen === "inviting" ? <SendingScreen candidates={state.candidates.filter((candidate) => state.selectedCandidateIds.includes(candidate.candidateId))} candidateLabel={candidateLabel} t={t} /> : null}
+          {journeyReady && state.screen === "inviting" ? <SendingScreen candidates={state.candidates.filter((candidate) => state.selectedCandidateIds.includes(candidate.candidateId))} t={t} /> : null}
           {journeyReady && state.screen === "naming" && selectedCandidate ? <ArrivalWelcomeScreen candidate={selectedCandidate} candidateImageUrl={candidateImageUrl} candidateLabel={candidateLabel(selectedCandidate.candidateId)} customName={state.customName} nameMode={state.nameMode} onFinish={() => { void finishAdoption() }} pending={committing} dispatch={dispatch} t={t} /> : null}
           {journeyReady && state.screen === "committing" ? <ProgressScreen title={t("adoption.journey.committing.title", { name: selectedName(state) })} /> : null}
         </div>
@@ -942,6 +945,22 @@ function ProgressScreen({ title }: { readonly title: string }) {
   return <section className="adoption-progress-screen"><h2>{title}</h2><div aria-label={title} className="adoption-signal adoption-progress-signal" role="progressbar"><span /></div></section>
 }
 
+function TimedWaitStatus({ translationPrefix, t }: { readonly translationPrefix: string; readonly t: JourneyT }) {
+  const [phase, setPhase] = useState<0 | 1 | 2>(0)
+
+  useEffect(() => {
+    setPhase(0)
+    const secondPhaseTimer = window.setTimeout(() => setPhase(1), WAIT_STATUS_SECOND_PHASE_MILLISECONDS)
+    const finalPhaseTimer = window.setTimeout(() => setPhase(2), WAIT_STATUS_FINAL_PHASE_MILLISECONDS)
+    return () => {
+      window.clearTimeout(secondPhaseTimer)
+      window.clearTimeout(finalPhaseTimer)
+    }
+  }, [translationPrefix])
+
+  return <p className="adoption-sending-screen__candidate">{t(`${translationPrefix}.status.${WAIT_STATUS_KEYS[phase]}`)}</p>
+}
+
 type GeneratingScreenProps = {
   readonly csrfToken: string
   readonly frameRef: RefObject<HTMLIFrameElement | null>
@@ -950,7 +969,7 @@ type GeneratingScreenProps = {
   readonly request: AdoptionCandidateSetInput
   readonly runtimeActive: boolean
   readonly runtimeGeneration: number
-  readonly title: string
+  readonly t: JourneyT
 }
 
 type CandidateRequestLease = {
@@ -965,7 +984,7 @@ type CandidateLoad = {
   readonly result: AdoptionCandidateSet
 }
 
-function GeneratingScreen({ csrfToken, frameRef, onError, onReady, request, runtimeActive, runtimeGeneration, title }: GeneratingScreenProps) {
+function GeneratingScreen({ csrfToken, frameRef, onError, onReady, request, runtimeActive, runtimeGeneration, t }: GeneratingScreenProps) {
   const candidateRequestRef = useRef<CandidateRequestLease | null>(null)
   const renderedCandidatesRef = useRef(new Map<string, Candidate>())
   const [candidateLoad, setCandidateLoad] = useState<CandidateLoad | null>(null)
@@ -1069,9 +1088,11 @@ function GeneratingScreen({ csrfToken, frameRef, onError, onReady, request, runt
     }
   }, [activeLoad, frameRef, onError, onReady, runtimeActive, runtimeGeneration])
 
+  const title = t("adoption.journey.generating.title")
   return <section className="adoption-progress-screen">
     <h2>{title}</h2>
     <div aria-label={title} className="adoption-signal adoption-progress-signal" role="progressbar"><span /></div>
+    <TimedWaitStatus t={t} translationPrefix="adoption.journey.generating" />
   </section>
 }
 
@@ -1205,9 +1226,10 @@ function ShortlistScreen({ candidates, candidateBatch, dispatch, onRegenerate, s
   </section>
 }
 
-function SendingScreen({ candidates, candidateLabel, t }: { readonly candidates: readonly Candidate[]; readonly candidateLabel: (candidateId: string) => string; readonly t: JourneyT }) {
+function SendingScreen({ candidates, t }: { readonly candidates: readonly Candidate[]; readonly t: JourneyT }) {
   const candidate = candidates[0]
-  return <section className="adoption-sending-screen"><div className="adoption-arrival__portal"><img alt="" src={candidate ? candidateImageUrl(candidate, "headshot") : ""} /></div><ScreenIntro title={t("adoption.journey.inviting.title")} /><p className="adoption-sending-screen__candidate">{candidate ? candidateLabel(candidate.candidateId) : null}</p><div aria-label={t("adoption.journey.inviting.title")} className="adoption-signal adoption-progress-signal" role="progressbar"><span /></div></section>
+  const title = t("adoption.journey.inviting.title")
+  return <section className="adoption-sending-screen"><div className="adoption-arrival__portal"><img alt="" src={candidate ? candidateImageUrl(candidate, "headshot") : ""} /></div><ScreenIntro title={title} /><div aria-label={title} className="adoption-signal adoption-progress-signal" role="progressbar"><span /></div><TimedWaitStatus t={t} translationPrefix="adoption.journey.inviting" /></section>
 }
 
 function isNextDisabled(state: AdoptionDraftState, info: AdoptionInfo | null): boolean {

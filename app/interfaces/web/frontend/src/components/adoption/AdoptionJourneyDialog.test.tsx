@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ApiError } from "../../api/http"
 import { createI18n } from "../../i18n/config"
@@ -118,6 +118,10 @@ async function reachShortlist(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("AdoptionJourneyDialog", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() })
@@ -169,11 +173,51 @@ describe("AdoptionJourneyDialog", () => {
   it("keeps the welcome copy compact and hides the explanation by default", async () => {
     renderJourney()
 
-    expect(await screen.findByRole("heading", { name: "一位来自 Elfaria 的朋友，正在等你相遇" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "一位来自遥远星球 Elfaria 的朋友，正在等你相遇" })).toBeInTheDocument()
     expect(screen.getByRole("checkbox", { name: "以后跳过这段介绍" })).toBeChecked()
     expect(screen.queryByText("先选一个方向，马上看看适合你的 Elfie。")).not.toBeInTheDocument()
     expect(screen.getByText("不确定的地方会交给缘分；想让匹配更贴合，也可以展开详细匹配")).not.toBeVisible()
     expect(screen.getByRole("button", { name: "开始寻找" })).toBeInTheDocument()
+  })
+
+  it("advances the candidate-search story while candidate profiles are in transit", async () => {
+    api.adoptionCandidates.mockImplementationOnce(() => new Promise<never>(() => undefined))
+    renderJourney()
+    expect(await screen.findByRole("heading", { name: "一位来自遥远星球 Elfaria 的朋友，正在等你相遇" })).toBeInTheDocument()
+
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole("button", { name: "开始寻找" }))
+    fireEvent.click(screen.getByRole("button", { name: "灵狐" }))
+    fireEvent.click(screen.getByRole("button", { name: "开始寻找候选" }))
+
+    expect(screen.getByRole("heading", { name: "正在穿过星海，为你寻找合拍的 Elfie" })).toBeInTheDocument()
+    expect(screen.getByText("正在将你的期待传往 Elfaria")).toBeInTheDocument()
+
+    act(() => { vi.advanceTimersByTime(4_000) })
+    expect(screen.getByText("来自 Elfaria 的候选资料正在传回地球")).toBeInTheDocument()
+
+    act(() => { vi.advanceTimersByTime(6_000) })
+    expect(screen.getByText("Elfaria 离地球很远，候选资料仍在传回途中")).toBeInTheDocument()
+  })
+
+  it("advances the selected Elfie's departure story while waiting", async () => {
+    const user = userEvent.setup()
+    renderJourney()
+    await reachShortlist(user)
+    await user.click(screen.getByRole("button", { name: "候选者 1" }))
+    api.adoptionReplies.mockImplementationOnce(() => new Promise<never>(() => undefined))
+
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole("button", { name: "迎接 TA" }))
+
+    expect(screen.getByRole("heading", { name: "TA 正在从遥远的 Elfaria 赶往地球" })).toBeInTheDocument()
+    expect(screen.getByText("TA 正在收拾行李，准备出发")).toBeInTheDocument()
+
+    act(() => { vi.advanceTimersByTime(4_000) })
+    expect(screen.getByText("TA 已经离开 Elfaria，正在穿越星海")).toBeInTheDocument()
+
+    act(() => { vi.advanceTimersByTime(6_000) })
+    expect(screen.getByText("Elfaria 离地球很远，TA 还在路上")).toBeInTheDocument()
   })
 
   it("runs the quick three-step flow and welcomes one selected Elfie", async () => {
@@ -227,7 +271,7 @@ describe("AdoptionJourneyDialog", () => {
     expect(api.commitAdoption).toHaveBeenCalledWith("set-1", "candidate-1", "洛洛", "csrf", expect.any(Object))
     expect(onAdopted).toHaveBeenCalledWith("00000001")
     expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(screen.queryByRole("heading", { name: "TA 正在来到 Nest" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "TA 正在从遥远的 Elfaria 赶往地球" })).not.toBeInTheDocument()
   }, 15000)
 
   it("keeps detailed matching optional while reusing the same candidate page", async () => {
@@ -263,7 +307,7 @@ describe("AdoptionJourneyDialog", () => {
 
     const failureDialog = await screen.findByRole("alertdialog")
     expect(failureDialog).toHaveTextContent("TA 暂时还没到达")
-    expect(screen.getByRole("heading", { name: "TA 正在来到 Nest" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "TA 正在从遥远的 Elfaria 赶往地球" })).toBeInTheDocument()
     expect(api.adoptionReplies).toHaveBeenCalledWith("set-1", ["candidate-2"], "", "csrf")
     await user.click(screen.getByRole("button", { name: "稍后再说" }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
