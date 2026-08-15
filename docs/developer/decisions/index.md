@@ -20,3 +20,4 @@ The current contract always states the enforceable rule.
 - [ADR-0014: Desktop startup progress and bounded shutdown](./0014-desktop-startup-progress-and-bounded-shutdown)
 - [ADR-0015: Cleanup closure requires inventory and residual evidence](./0015-evidence-backed-cleanup-closure)
 - [ADR-0016: App Orchestration owns the Nest state-store Port](./0016-nest-persistence-port-ownership)
+- [ADR-0017: Owner chat uses complete-response delivery](./0017-owner-chat-complete-response-delivery)

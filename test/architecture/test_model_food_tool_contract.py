@@ -32,8 +32,8 @@ def test_model_food_tool_contract_defers_target_ownership_to_system() -> None:
         not path.exists()
         for path in (*LEGACY_CONTRACT_PATHS, *RETIRED_CONFORMANCE_PATHS)
     )
-    assert "**Contract version:** 1.6" in english
-    assert "**契约版本：** 1.6" in chinese
+    assert "**Contract version:** 1.7" in english
+    assert "**契约版本：** 1.7" in chinese
     assert "does not define a target Runtime module" in english
     assert "不定义目标 Runtime 模块" in chinese
     assert "infrastructure/ai_runtime" not in english

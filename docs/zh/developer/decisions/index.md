@@ -19,3 +19,4 @@
 - [ADR-0014：Desktop 启动进度与有界退出](./0014-desktop-startup-progress-and-bounded-shutdown)
 - [ADR-0015：清理收口必须具备目录盘点与残留证据](./0015-evidence-backed-cleanup-closure)
 - [ADR-0016：Nest 状态存储 Port 归 App Orchestration](./0016-nest-persistence-port-ownership)
+- [ADR-0017：主人聊天采用完整回复投递](./0017-owner-chat-complete-response-delivery)

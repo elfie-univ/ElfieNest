@@ -1,7 +1,7 @@
 # Model, Food and tool behavior contract
 
-**Contract version:** 1.6
-**Revised:** 2026-08-12
+**Contract version:** 1.7
+**Revised:** 2026-08-15
 
 > **Behavior authority.** This document defines the accepted Provider, model,
 > Food and tool behavior after the retired `ai_runtime/` root was decomposed.
@@ -373,6 +373,23 @@ The Brain requests semantic roles only. It never imports food, Provider,
 credential or Nest DB models. Structured generation uses the same role and
 fallback resolver as ordinary generation. A weaker emergency model may use
 plain JSON text instead of native schema mode.
+
+### Owner chat response delivery
+
+Owner chat uses complete-response delivery. The communication path makes one
+ordinary model request, waits for the complete model result, persists one Elfie
+reply and publishes one normal `message` event to the authorized Web client.
+Partial provider output, transient `message_delta` events and stream-specific
+identifiers are not part of the product chat contract.
+
+Provider streaming must not be introduced as a presumed performance
+optimization. Controlled checks of the configured remote model showed no
+material improvement to first-visible or complete-response latency, while a
+streaming transport can add connection and chunk-parsing overhead. Latency
+observations remain model evidence, but they do not change the complete-response
+delivery contract. Any future streaming proposal requires a new contract
+revision and a controlled benchmark demonstrating a meaningful user-visible
+benefit without changing structured-output, persistence or UI privacy rules.
 
 ## Validation and evidence
 

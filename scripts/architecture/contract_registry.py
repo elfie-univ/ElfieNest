@@ -251,7 +251,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="model-food-tool-behavior",
-        version="1.6",
+        version="1.7",
         english_path="docs/developer/contracts/model-food-tool-behavior.md",
         chinese_path="docs/zh/developer/contracts/model-food-tool-behavior.md",
         decision_paths=(
