@@ -120,14 +120,12 @@ def main() -> None:
     serve_parser.add_argument("--force", action="store_true")
     serve_parser.add_argument("--port", type=int, default=None)
     serve_parser.add_argument("--godot-ws-port", type=int, default=None)
-    serve_parser.add_argument("--no-seed-elfie", action="store_true")
     serve_parser.add_argument("--data-home", default=None)
 
     start_parser = subparsers.add_parser("start", help="Start background service")
     start_parser.add_argument("--port", type=int, default=None)
     start_parser.add_argument("--godot-ws-port", type=int, default=None)
     start_parser.add_argument("--fallback", action="store_true")
-    start_parser.add_argument("--no-seed-elfie", action="store_true")
     start_parser.add_argument("--data-home", default=None)
     start_parser.add_argument("--owner-id", default="cli", help=argparse.SUPPRESS)
     start_parser.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
@@ -358,8 +356,6 @@ def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
         options.extend(("--godot-ws-port", str(args.godot_ws_port)))
     if args.fallback:
         options.append("--fallback")
-    if args.no_seed_elfie:
-        options.append("--no-seed-elfie")
     if getattr(args, "data_home", None) is not None:
         selected_home = resolve_elfie_home(
             args.data_home,

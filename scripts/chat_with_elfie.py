@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ElfieNest interactive chat client.
 
-Starts the full service stack so the user can chat with Elfie "Aifei" in the terminal.
+Starts the full service stack so the user can chat with a persisted Elfie in the terminal.
 """
 
 import os
@@ -25,7 +25,7 @@ from app.bootstrap.system_wiring.entrypoints import get_db_path
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.bootstrap.system_wiring.nest_session import (
     build_nest_session_services,
-    register_transient_elfie,
+    restore_registered_elfies,
 )
 
 
@@ -55,7 +55,13 @@ def main():
         )
         lifecycle.start_runtime_channel(nest_session.world_runtime)
         engine = nest_session.engine
-        register_transient_elfie(engine.session, "Aifei")
+        restore_result = restore_registered_elfies(db_path, engine.session)
+        if not restore_result.restored:
+            lifecycle.stop_runtime_channel(nest_session.world_runtime)
+            raise RuntimeError(
+                "No persisted Elfie found; adopt an Elfie before using this script"
+            )
+        engine_holder["target"] = restore_result.restored[0]
         engine_holder["engine"] = engine
         engine_holder["world_runtime"] = nest_session.world_runtime
         engine_ready.set()
@@ -75,12 +81,13 @@ def main():
         print("❌ Engine did not become ready within 5 seconds")
         sys.exit(1)
     engine = engine_holder["engine"]
+    target = engine_holder["target"]
     time.sleep(2.0)  # Wait for service readiness.
 
     # 3. Interactive loop.
     print("=" * 60)
     print("🦊 ElfieNest interactive chat")
-    print("Type a message to chat with Aifei; type quit/exit/q to exit")
+    print(f"Type a message to chat with {target.name}; type quit/exit/q to exit")
     print("=" * 60)
 
     while True:
@@ -97,8 +104,8 @@ def main():
             break
 
         # Send the message to the Elfie.
-        engine.session.send_user_message("Aifei", user_input)
-        print("⏳ Aifei is thinking...")
+        engine.session.send_user_message(target.elfie_id, user_input)
+        print(f"⏳ {target.name} is thinking...")
 
     # 4. Cleanup.
     lifecycle.stop_runtime_channel(engine_holder["world_runtime"])

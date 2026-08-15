@@ -15,7 +15,6 @@ from elfie.public import (
     ElfieAssembly,
     ElfieFactory,
     MainFoodSelection,
-    assemble_profile,
 )
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.godot.body_transport import (
@@ -176,36 +175,6 @@ def restore_registered_elfies(
     return ElfieRestoreResult(tuple(restored), tuple(failures))
 
 
-def register_transient_elfie(session: NestSession, elfie_id: str) -> None:
-    """Create and register the existing interactive-script Elfie."""
-    profile = assemble_profile(elfie_id=elfie_id, supplied=None)
-    elfie = ElfieFactory().create(
-        ElfieAssembly(
-            profile=profile,
-            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
-            body=NativeBody(
-                body_id=elfie_id,
-                transport=GodotTransport(
-                    cast(GodotGateway, session.world_runtime),
-                    actor_id=elfie_id,
-                    speech_intent=cast(
-                        Callable[[RuntimeIntentPayload], bool], session.prepare_speech
-                    ),
-                    semantic_action=cast(
-                        Callable[[RuntimeIntentPayload], Optional[str]],
-                        session.prepare_semantic_action,
-                    ),
-                    semantic_action_result=cast(
-                        Callable[[RuntimeIntentPayload, RuntimeIntentResult], None],
-                        session.complete_semantic_action,
-                    ),
-                ),
-            ),
-        ),
-    )
-    session.register_elfie(elfie_id, elfie)
-
-
 __all__ = (
     "ElfieRestoreFailure",
     "ElfieRestoreResult",
@@ -213,6 +182,5 @@ __all__ = (
     "NestSessionServices",
     "RestoredElfie",
     "build_nest_session_services",
-    "register_transient_elfie",
     "restore_registered_elfies",
 )

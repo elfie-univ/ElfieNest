@@ -27,7 +27,7 @@ from infrastructure.models.model_execution_contracts import (
 class FallbackModelExecutionAdapter:
     """Provide the existing local response behavior without a model Provider."""
 
-    class MockConfig:
+    class FallbackConfig:
         remote_api_key = ""
         providers = {
             "deepseek": {"api_key": "", "api_base": ""},
@@ -37,7 +37,7 @@ class FallbackModelExecutionAdapter:
             "ollama": {"api_key": "", "api_base": "http://localhost:11434"},
         }
 
-    config = MockConfig()
+    config = FallbackConfig()
 
     def ask(
         self,
@@ -50,12 +50,12 @@ class FallbackModelExecutionAdapter:
         prompt_lower = prompt.lower()
         if any(kw in prompt_lower for kw in ["hello", "hi", "hey"]):
             return (
-                "Hello! I am Aifei, a cheerful little Elfie. "
+                "Hello! I am a cheerful little Elfie. "
                 "What would you like to talk about today? [ACTION]nod_head[/ACTION]"
             )
         if any(kw in prompt_lower for kw in ["name", "who are you"]):
             return (
-                "My name is Aifei! I am an Elfie living inside ElfieNest. "
+                "I am an Elfie living inside ElfieNest. "
                 "I am still small, curious, and learning how to be helpful."
                 " [ACTION]nod_head[/ACTION]"
             )

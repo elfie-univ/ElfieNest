@@ -79,7 +79,7 @@ bash scripts/check_node_toolchain.sh
 ```bash
 ./elfienest.sh serve --fallback
 ./elfienest.sh serve --port 8001 --godot-ws-port 8768
-./elfienest.sh start --fallback --no-seed-elfie
+./elfienest.sh start --fallback
 ```
 
 `--fallback` 仅用于开发模拟，不是安装包内置模型 Provider。Setup 中的公共 Ollama

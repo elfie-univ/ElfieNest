@@ -89,7 +89,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 | 文件 | 用途与注意事项 |
 | --- | --- |
-| `chat_with_elfie.py` | 启动长时间引擎循环并在终端对话；需要模型运行时，手工退出后清理服务 |
+| `chat_with_elfie.py` | 启动长时间引擎循环，与第一个已持久化的精灵在终端对话；需要先完成领养和模型运行时，手工退出后清理服务 |
 | `e2e_dashboard_check.py` | 用临时目录和随机端口启动 fallback 服务，检查登录、领养与管理面板链路 |
 | `verify_nest_runtime_e2e.py` | 等待一个 Godot Runtime，验证双精灵同步、广播、语义移动和取消终态 |
 

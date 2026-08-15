@@ -116,6 +116,24 @@ def test_engine_worker_uses_module_repository_without_uninitialized_closure() ->
     assert "SQLiteNestStateRepository" not in cell_variables
 
 
+def test_service_does_not_create_a_default_elfie() -> None:
+    # Given: the production service entrypoint is inspected before startup.
+    source = inspect.getsource(serve)
+
+    # Then: an empty Nest stays empty until the Owner completes adoption.
+    assert "seed_single_elfie" not in source
+    assert "Aifei" not in source
+
+
+def test_fallback_does_not_invent_a_fixed_elfie_name() -> None:
+    # Given: the provider-independent fallback handles ordinary chat prompts.
+    fallback = FallbackModelExecutionAdapter()
+
+    # Then: fallback text cannot assign every Elfie the old development name.
+    assert "Aifei" not in fallback.ask("hello")
+    assert "Aifei" not in fallback.ask("who are you")
+
+
 def test_fallback_agent_satisfies_the_structured_runtime_contract() -> None:
     # Given: the service must remain able to run cognition without a model provider.
     fallback = FallbackModelExecutionAdapter()

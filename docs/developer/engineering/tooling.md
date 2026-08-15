@@ -92,7 +92,7 @@ Foreground and background services support code-validated parameters:
 ```bash
 ./elfienest.sh serve --fallback
 ./elfienest.sh serve --port 8001 --godot-ws-port 8768
-./elfienest.sh start --fallback --no-seed-elfie
+./elfienest.sh start --fallback
 ```
 
 `--fallback` is a development-only simulation mode; it is not a packaged model

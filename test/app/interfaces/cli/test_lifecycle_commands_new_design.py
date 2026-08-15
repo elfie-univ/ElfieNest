@@ -650,14 +650,12 @@ def test_product_start_options_enable_lan_by_default_and_allow_loopback() -> Non
         port=None,
         godot_ws_port=None,
         fallback=False,
-        no_seed_elfie=False,
         lan=True,
     )
     loopback_start = Namespace(
         port=None,
         godot_ws_port=None,
         fallback=False,
-        no_seed_elfie=False,
         lan=False,
     )
 
