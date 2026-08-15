@@ -58,8 +58,13 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
+  uv run --no-sync python scripts/check_quality_environment.py
+UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest test/
 ```
+
+先运行预检。退出码 `2` 表示当前沙箱无法绑定网关测试使用的回环端口；应在允许绑定的
+环境中把全量命令只运行一次，不要把整套测试重复运行两遍。
 
 Pytest 当前声明的 markers：
 

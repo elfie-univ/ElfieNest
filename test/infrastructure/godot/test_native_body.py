@@ -47,6 +47,8 @@ class FakeGodotGateway:
             lifecycle_payload = {
                 "command_id": cause_id,
                 "actor_id": payload["actor_id"],
+                "intent_id": payload["intent_id"],
+                "body_generation": payload["body_generation"],
             }
             self.transport.receive_runtime_event(
                 self.runtime_event(EventName.INTENT_ACCEPTED, lifecycle_payload)
@@ -165,6 +167,9 @@ def test_native_body_reuses_existing_speech_expression_and_movement_events() -> 
         "execute_intent",
     ]
     assert gateway.sent[0]["payload"]["actor_id"] == "elfie-1"
+    assert gateway.sent[0]["payload"]["intent_id"] == "intent-speech-1"
+    assert gateway.sent[0]["payload"]["body_generation"] == 1
+    assert gateway.sent[0]["payload"]["initiator"] == "elfie"
     assert "text" not in gateway.sent[0]["payload"]
     assert gateway.sent[1]["payload"]["anchor_id"] == "chair_1"
     assert gateway.sent[2]["payload"]["expression"] == "happy"
@@ -173,11 +178,13 @@ def test_native_body_reuses_existing_speech_expression_and_movement_events() -> 
 def test_native_body_resolves_semantic_home_once_before_direct_motion() -> None:
     gateway = FakeGodotGateway()
     completed: list[str] = []
+    resolved_payloads: list[dict[str, object]] = []
     transport = GodotTransport(
         gateway,
         actor_id="elfie-1",
         semantic_action=lambda payload: (
-            "dorm-01/bed-01" if payload.get("anchor_id") == "home" else None
+            resolved_payloads.append(dict(payload))
+            or ("dorm-01/bed-01" if payload.get("anchor_id") == "home" else None)
         ),
         semantic_action_result=lambda _payload, result: completed.append(
             result.terminal_status
@@ -199,6 +206,9 @@ def test_native_body_resolves_semantic_home_once_before_direct_motion() -> None:
 
     assert result[-1].status is CommandStatus.COMPLETED
     assert gateway.sent[0]["payload"]["anchor_id"] == "dorm-01/bed-01"
+    assert resolved_payloads[0]["intent_id"] == "intent-home-1"
+    assert resolved_payloads[0]["body_generation"] == 1
+    assert resolved_payloads[0]["initiator"] == "elfie"
     assert completed == ["completed"]
 
 
@@ -344,7 +354,12 @@ def test_native_body_waits_for_actual_runtime_terminal() -> None:
 
     worker.start()
     assert gateway.command_sent.wait(timeout=0.5)
-    lifecycle = {"command_id": "wait-for-runtime", "actor_id": "elfie-1"}
+    lifecycle = {
+        "command_id": "wait-for-runtime",
+        "actor_id": "elfie-1",
+        "intent_id": "intent-wait-for-runtime",
+        "body_generation": 1,
+    }
     body.transport.receive_runtime_event(
         gateway.runtime_event(EventName.INTENT_ACCEPTED, lifecycle)
     )
@@ -388,6 +403,8 @@ def test_native_body_timeout_sends_cancel_and_late_terminal_is_ignored() -> None
             {
                 "command_id": "runtime-timeout",
                 "actor_id": "elfie-1",
+                "intent_id": "intent-runtime-timeout",
+                "body_generation": 1,
                 "status": "completed",
             },
         )

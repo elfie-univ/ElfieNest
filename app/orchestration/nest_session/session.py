@@ -512,17 +512,27 @@ class NestSession:
     def prepare_semantic_action(self, payload: dict[str, object]) -> str | None:
         """Resolve a bounded household target before one direct Body command."""
         command_id = payload.get("command_id")
+        intent_id = payload.get("intent_id")
         actor_id = payload.get("actor_id")
+        body_generation = payload.get("body_generation")
+        initiator = payload.get("initiator")
         target = payload.get("anchor_id")
         if (
             not isinstance(command_id, str)
+            or not isinstance(intent_id, str)
             or not isinstance(actor_id, str)
+            or not isinstance(body_generation, int)
+            or isinstance(body_generation, bool)
+            or body_generation < 1
+            or initiator != "elfie"
             or not isinstance(target, str)
         ):
             return None
         return self.nest.queue_semantic_action(
             command_id=command_id,
+            intent_id=intent_id,
             actor_id=actor_id,
+            body_generation=body_generation,
             target=target,
         )
 

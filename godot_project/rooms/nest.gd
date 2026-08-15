@@ -71,6 +71,7 @@ var world_revision: int = 0
 var _nest_id := "local-nest"
 var _suppress_deferred_rebuild := false
 var _anchor_markers: Dictionary = {}
+var _facility_markers: Dictionary = {}
 var _navigation_region: NavigationRegion3D
 
 @onready var _observation_hud: CanvasLayer = $ObservationHUD
@@ -249,6 +250,10 @@ func _parse_protocol_integer(value: Variant) -> int:
 
 func resolve_anchor(anchor_id: String) -> Marker3D:
 	return _anchor_markers.get(anchor_id) as Marker3D
+
+
+func resolve_facility(facility_id: String) -> Marker3D:
+	return _facility_markers.get(facility_id) as Marker3D
 
 
 func semantic_anchor_ids() -> Array[String]:
@@ -488,6 +493,7 @@ func _build_semantic_anchor_markers(
 	room_count: int,
 ) -> void:
 	_anchor_markers.clear()
+	_facility_markers.clear()
 	var anchor_root := Node3D.new()
 	anchor_root.name = "SemanticAnchors"
 	generated.add_child(anchor_root)
@@ -539,6 +545,18 @@ func _build_semantic_anchor_markers(
 			"chair",
 			activity_position + Vector3(-0.45, 0.0, 0.0),
 		)
+		_add_facility_marker(
+			anchor_root,
+			"%s/rest" % dorm_zone_id,
+			dorm_zone_id,
+			Vector3(D.DORM_CENTER_X, 0.0, D.cell_center_z(room_index)),
+		)
+		_add_facility_marker(
+			anchor_root,
+			"%s/activity" % activity_zone_id,
+			activity_zone_id,
+			activity_position,
+		)
 	_add_semantic_marker(
 		anchor_root,
 		"portal/door",
@@ -551,6 +569,12 @@ func _build_semantic_anchor_markers(
 		"portal/main",
 		"portal",
 		"activity",
+		Vector3(0.0, 0.0, 1.5),
+	)
+	_add_facility_marker(
+		anchor_root,
+		"portal/transit",
+		"portal",
 		Vector3(0.0, 0.0, 1.5),
 	)
 
@@ -570,6 +594,21 @@ func _add_semantic_marker(
 	marker.set_meta("kind", kind)
 	parent.add_child(marker)
 	_anchor_markers[anchor_id] = marker
+
+
+func _add_facility_marker(
+	parent: Node3D,
+	facility_id: String,
+	zone_id: String,
+	marker_position: Vector3,
+) -> void:
+	var marker := Marker3D.new()
+	marker.name = "Facility_%s" % facility_id.replace("/", "__")
+	marker.position = marker_position
+	marker.set_meta("facility_id", facility_id)
+	marker.set_meta("zone_id", zone_id)
+	parent.add_child(marker)
+	_facility_markers[facility_id] = marker
 
 
 func _build_floors(parent: Node3D, room_count: int) -> void:

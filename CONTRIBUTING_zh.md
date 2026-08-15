@@ -124,6 +124,17 @@ pnpm build
 
 ## 测试与质量门
 
+运行全仓 pytest 命令前，先执行一次回环端口能力预检：
+
+```bash
+UV_CACHE_DIR=/tmp/elfienest-uv-cache \
+  uv run --no-sync python scripts/check_quality_environment.py
+```
+
+如果返回 `2`，表示当前沙箱无法绑定 `127.0.0.1:0`。不要先在当前环境运行全量套件再
+重复一遍；应在宿主或提升权限的环境中把同一条全量命令只运行一次。返回 `1` 表示预检
+本身出现未预期错误，必须先诊断。
+
 提交前至少运行：
 
 ```bash

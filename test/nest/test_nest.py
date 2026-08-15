@@ -6,6 +6,12 @@ from nest.living_rules.errors import (
     NoHomeAvailableError,
     UnknownResidentError,
 )
+from nest.living_rules.models import (
+    PersistentResidentState,
+    ResidentPresence,
+    ResidentState,
+)
+from nest.snapshot import NestSnapshot
 from nest.time_environment.clock import InvalidTickError
 
 
@@ -53,6 +59,92 @@ def test_nest_registers_only_resident_identity_and_state() -> None:
     assert nest.resident_ids == ("elfie-1",)
 
 
+def test_restore_snapshot_replaces_residents_and_restores_presence() -> None:
+    nest = Nest()
+    catalog = _catalog_with_beds(2)
+    nest.apply_catalog(catalog)
+    nest.register_resident("stale")
+
+    nest.restore_snapshot(
+        NestSnapshot(
+            desired_bed_count=4,
+            elapsed_seconds=0.0,
+            catalog=catalog,
+            residents=(
+                PersistentResidentState(
+                    elfie_id="away-1",
+                    presence=ResidentPresence.AWAY,
+                    home_zone_id="dorm-01",
+                    home_anchor_id="dorm-01/bed-01",
+                ),
+                PersistentResidentState(
+                    elfie_id="pending-1",
+                    presence=ResidentPresence.PENDING_RUNTIME,
+                    home_zone_id="dorm-01",
+                    home_anchor_id="dorm-01/bed-02",
+                ),
+            ),
+        )
+    )
+
+    assert nest.resident_ids == ("away-1", "pending-1")
+    assert nest.resident_state("away-1") == ResidentState(
+        elfie_id="away-1", posture="away", active=False
+    )
+    assert nest.resident_state("pending-1") is not None
+    assert nest.resident_state("pending-1").active is True
+    assert nest.resident_state("pending-1").posture == "standing"
+    assert nest.home_anchor_id("away-1") == "dorm-01/bed-01"
+    assert nest.home_anchor_id("pending-1") == "dorm-01/bed-02"
+    assert nest.resident_state("stale") is None
+
+
+def test_restore_snapshot_clears_previous_catalog_runtime_projection_and_override() -> (
+    None
+):
+    from nest.space_facilities.models import EnvironmentActualState
+    from nest.time_environment.models import EnvironmentDesiredState
+
+    nest = Nest()
+    nest.apply_catalog(_catalog_with_beds(1))
+    nest.apply_environment_actual(
+        EnvironmentActualState(
+            object_id="nest/environment",
+            command_id="old-environment",
+            lights_on=False,
+            quiet_mode=True,
+            applied=True,
+            runtime_id="runtime-old",
+            runtime_generation=1,
+            world_revision=1,
+        )
+    )
+    nest.set_environment_override(
+        EnvironmentDesiredState(lights_on=False, quiet_mode=True)
+    )
+
+    nest.restore_snapshot(
+        NestSnapshot(
+            desired_bed_count=4,
+            elapsed_seconds=0.0,
+            catalog=None,
+            residents=(),
+            environment_desired=EnvironmentDesiredState(
+                lights_on=True,
+                quiet_mode=False,
+            ),
+        )
+    )
+
+    assert nest.world_catalog is None
+    assert nest.actual_environment is None
+    nest.tick(1.0)
+    assert nest.desired_environment == EnvironmentDesiredState(
+        lights_on=True,
+        quiet_mode=False,
+    )
+
+
 def test_broadcast_emits_one_targeted_typed_event() -> None:
     # Given
     nest = Nest()
@@ -69,6 +161,61 @@ def test_broadcast_emits_one_targeted_typed_event() -> None:
     assert events[0].payload.text == "一起去活动区"
     assert not hasattr(nest, "broadcast_speech")
     assert not hasattr(nest, "consume_sensory_input")
+
+
+def test_non_interaction_owners_emit_through_the_common_typed_outbox() -> None:
+    from nest.events import NestFactNotice
+    from nest.space_facilities.models import FacilityDescriptor, FacilityKind
+    from nest.time_environment.models import EnvironmentRule, LifePhase
+
+    nest = Nest()
+    nest.register_resident("elfie-1")
+    nest.apply_catalog(_catalog_with_beds(1))
+    assert nest.drain_event_outbox() == ()
+    catalog = _catalog_with_beds(1).model_copy(
+        update={
+            "facilities": (
+                FacilityDescriptor(
+                    facility_id="dorm-01/rest",
+                    zone_id="dorm-01",
+                    kind=FacilityKind.REST,
+                    label="Rest",
+                    capabilities=("sleep",),
+                ),
+            )
+        }
+    )
+
+    nest.apply_catalog(catalog)
+    facility_event = nest.drain_event_outbox()[0]
+    assert facility_event.owner == "nest.space_facilities"
+    assert isinstance(facility_event.payload, NestFactNotice)
+    assert facility_event.payload.fact_id == "dorm-01/rest"
+    assert facility_event.target_ids == ("elfie-1",)
+
+    nest.set_environment_rules(
+        (
+            EnvironmentRule(
+                rule_id="quiet-night",
+                phase=LifePhase.NIGHT,
+                lights_on=False,
+                quiet_mode=True,
+            ),
+        )
+    )
+    rule_events = nest.drain_event_outbox()
+    assert {event.payload.fact_type for event in rule_events} == {
+        "environment_rule_changed",
+        "environment_desired_changed",
+    }
+
+    nest.tick(8 * 60 * 60)
+    phase_events = nest.drain_event_outbox()
+    assert any(
+        isinstance(event.payload, NestFactNotice)
+        and event.payload.fact_type == "environment_phase_changed"
+        for event in phase_events
+    )
 
 
 def test_nest_keeps_semantic_posture_without_copying_godot_furniture() -> None:
@@ -151,6 +298,7 @@ def test_nest_catalog_shrink_marks_reconciliation_required() -> None:
     nest = Nest()
     nest.apply_catalog(_catalog_with_beds(2))
     nest.admit_resident("fox-1")
+    nest.drain_event_outbox()
 
     # When
     nest.apply_catalog(_catalog_with_beds(0))
@@ -261,11 +409,14 @@ def test_semantic_home_action_resolves_once_and_records_physical_terminal() -> N
     nest = Nest()
     nest.apply_catalog(_catalog_with_beds(2))
     nest.admit_resident("fox-1")
+    nest.drain_event_outbox()
 
     assert (
         nest.queue_semantic_action(
             command_id="home-1",
+            intent_id="intent-home-1",
             actor_id="fox-1",
+            body_generation=1,
             target="home",
         )
         == "dorm-01/bed-01"

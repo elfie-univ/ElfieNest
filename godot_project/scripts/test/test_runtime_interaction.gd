@@ -94,6 +94,33 @@ func _init() -> void:
 	if visual == null or "actor/dog-1" not in visible_ids:
 		_fail("Semantic visual observation did not include the nearby actor")
 		return
+	var rest_marker := nest.resolve_facility("dorm-01/rest")
+	if rest_marker == null:
+		_fail("Semantic facility marker was not built")
+		return
+	fox.look_at(fox.global_position - (rest_marker.global_position - fox.global_position), Vector3.UP)
+	world_controller.resolve_visual_observation({
+		"observation_id": "facility-visible",
+		"actor_id": "fox-1",
+		"max_results": 64,
+	})
+	var visible_facilities: Variant = _event_payload(events, "visual_observation", "facility-visible")
+	if visible_facilities == null or "facility/dorm-01/rest" not in visible_facilities.get("visible_semantic_ids", []):
+		_fail("Semantic visual observation did not apply physical filtering to a facility")
+		return
+	var rest_position := rest_marker.global_position
+	rest_marker.global_position = fox.global_position + Vector3.RIGHT
+	world_controller.resolve_visual_observation({
+		"observation_id": "facility-behind",
+		"actor_id": "fox-1",
+		"max_results": 64,
+	})
+	var hidden_facilities: Variant = _event_payload(events, "visual_observation", "facility-behind")
+	if hidden_facilities != null and "facility/dorm-01/rest" in hidden_facilities.get("visible_semantic_ids", []):
+		_fail("Semantic visual observation returned a facility outside the visual cone")
+		return
+	rest_marker.global_position = rest_position
+	fox.look_at(fox.global_position + Vector3.RIGHT, Vector3.UP)
 	var dog := controller.actor("dog-1")
 	var observer_position := fox.global_position
 	var target_position := dog.global_position

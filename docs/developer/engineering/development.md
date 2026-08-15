@@ -51,8 +51,15 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 # When you need full regression
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
+  uv run --no-sync python scripts/check_quality_environment.py
+UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest test/
 ```
+
+If the preflight returns `2`, do not run `pytest test/` in the blocked
+environment and repeat it later. Run the same full command once on a host that
+permits loopback binding; see [Testing & quality](./testing) for the exit-code
+meaning.
 
 `test/architecture/` guards against legacy top-level packages, illegal reverse
 dependencies, root-level test files and engineering-config regressions. For the

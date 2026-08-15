@@ -140,7 +140,12 @@ def test_gateway_routes_receipt_once_to_target_and_rejects_stale_generation() ->
         cause_id="command-1",
         target_actor_id="elfie-1",
         generation=connection.generation,
-        payload={"command_id": "command-1", "actor_id": "elfie-1"},
+        payload={
+            "command_id": "command-1",
+            "intent_id": "intent-1",
+            "actor_id": "elfie-1",
+            "body_generation": 1,
+        },
     )
 
     gateway.route_runtime_event(receipt)

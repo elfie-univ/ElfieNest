@@ -38,8 +38,13 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 # 需要完整回归时
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
+  uv run --no-sync python scripts/check_quality_environment.py
+UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest test/
 ```
+
+如果预检返回 `2`，不要在受阻环境中先运行 `pytest test/` 再重复一遍；应在允许回环端口
+绑定的宿主中把同一条全量命令只运行一次。退出码含义见[测试与质量](./testing.md)。
 
 `test/architecture/` 防止旧顶层包、非法反向依赖、根级测试文件和工程配置回退。
 更完整的目录与 marker 说明见

@@ -15,6 +15,7 @@ var _actor_scenes: Dictionary
 var _actors: Dictionary = {}
 var _actor_catalog: Dictionary = {}
 var _command_actor_ids: Dictionary = {}
+var _command_metadata: Dictionary = {}
 var _terminal_commands: Dictionary = {}
 var _install_actor_animations := true
 
@@ -93,6 +94,10 @@ func execute_intent(command: Dictionary) -> void:
 	if command_id.is_empty() or _command_actor_ids.has(command_id):
 		return
 	_command_actor_ids[command_id] = actor_id
+	_command_metadata[command_id] = {
+		"intent_id": String(command.get("intent_id", command_id)),
+		"body_generation": maxi(int(command.get("body_generation", 1)), 1),
+	}
 	_emit_command_event("intent_accepted", command_id, actor_id)
 	var actor_instance := actor(actor_id)
 	if actor_instance == null:
@@ -193,9 +198,11 @@ func _on_actor_navigation_terminal(
 
 
 func _on_actor_movement_blocked(command_id: String, actor_id: String) -> void:
+	var payload := {"command_id": command_id, "actor_id": actor_id}
+	payload.merge(_command_metadata.get(command_id, {}))
 	runtime_event.emit(
 		"movement_blocked",
-		{"command_id": command_id, "actor_id": actor_id},
+		payload,
 		command_id,
 	)
 
@@ -243,9 +250,11 @@ func _emit_command_event(
 	command_id: String,
 	actor_id: String,
 ) -> void:
+	var payload := {"command_id": command_id, "actor_id": actor_id}
+	payload.merge(_command_metadata.get(command_id, {}))
 	runtime_event.emit(
 		event_name,
-		{"command_id": command_id, "actor_id": actor_id},
+		payload,
 		command_id,
 	)
 
@@ -264,6 +273,7 @@ func _emit_terminal(
 		"actor_id": actor_id,
 		"status": status,
 	}
+	payload.merge(_command_metadata.get(command_id, {}))
 	if not reason.is_empty():
 		payload["reason"] = reason
 	runtime_event.emit("intent_terminal", payload, command_id)

@@ -13,6 +13,7 @@ from elfie.public import (
     Elfie,
     EventId,
     HeardUtterancePayload,
+    NestFactNoticePayload,
     SemanticActionResultPayload,
     SemanticVisualEntityPayload,
     SemanticVisualScenePayload,
@@ -20,6 +21,7 @@ from elfie.public import (
 from nest.public import (
     HeardUtterance,
     NestEventEnvelope,
+    NestFactNotice,
     SemanticActionResult,
     SemanticVisualScene,
 )
@@ -28,6 +30,7 @@ _NestBodyPayload = Union[
     HeardUtterancePayload,
     SemanticVisualScenePayload,
     SemanticActionResultPayload,
+    NestFactNoticePayload,
 ]
 
 
@@ -93,11 +96,25 @@ def nest_event_to_body_sensor_event(
         sensor_payload = SemanticActionResultPayload(
             kind="semantic_action_result",
             command_id=payload.command_id,
+            intent_id=payload.intent_id,
             actor_id=payload.actor_id,
+            body_generation=payload.body_generation,
             target=payload.target,
             resolved_anchor_id=payload.resolved_anchor_id,
             status=payload.status,
             reason=payload.reason,
+        )
+    elif isinstance(payload, NestFactNotice):
+        sensor_payload = NestFactNoticePayload(
+            kind="nest_fact_notice",
+            fact_type=payload.fact_type,
+            fact_id=payload.fact_id,
+            summary=payload.summary,
+            zone_id=payload.zone_id,
+            active=payload.active,
+            lights_on=payload.lights_on,
+            quiet_mode=payload.quiet_mode,
+            phase=payload.phase,
         )
     else:
         return None

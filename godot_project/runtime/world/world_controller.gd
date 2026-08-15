@@ -108,9 +108,20 @@ func resolve_visual_observation(command: Dictionary) -> void:
 		if _is_visible(observer, marker.global_position + Vector3.UP * 0.6):
 			candidates.append("anchor/%s" % anchor_id)
 	var manifest := _nest.scene_manifest()
-	candidates.append_array(
-		SEMANTIC_SCENE_INDEX.active_facility_ids(manifest, observer_zone)
-	)
+	for semantic_facility_id in SEMANTIC_SCENE_INDEX.active_facility_ids(
+		manifest,
+		observer_zone,
+	):
+		var facility_id := semantic_facility_id.trim_prefix("facility/")
+		var facility_marker := _nest.resolve_facility(facility_id)
+		if facility_marker == null:
+			continue
+		if _is_visible(
+			observer,
+			facility_marker.global_position + Vector3.UP * 0.6,
+			facility_marker,
+		):
+			candidates.append(semantic_facility_id)
 	candidates.sort()
 	if candidates.size() > max_results:
 		candidates.resize(max_results)

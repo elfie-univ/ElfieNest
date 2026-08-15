@@ -6,14 +6,17 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from threading import Condition
-from typing import Optional, Protocol, TypedDict, cast
+from typing import Literal, Optional, Protocol, TypedDict, cast
 
 from infrastructure.godot.gateway.messages import RuntimeEventFrame
 
 
 class RuntimeIntentPayload(TypedDict, total=False):
     command_id: str
+    intent_id: str
     actor_id: str
+    body_generation: int
+    initiator: Literal["elfie"]
     intent: str
     anchor_id: str
     text: str

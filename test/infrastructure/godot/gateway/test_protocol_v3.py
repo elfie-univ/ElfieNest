@@ -58,7 +58,12 @@ def test_protocol_v3_requires_exact_lane_and_target_pairing() -> None:
         "generation": 1,
         "world_revision": 4,
         "occurred_at": OCCURRED_AT.isoformat(),
-        "payload": {"command_id": "command-1", "actor_id": "elfie-1"},
+        "payload": {
+            "command_id": "command-1",
+            "intent_id": "intent-1",
+            "actor_id": "elfie-1",
+            "body_generation": 1,
+        },
     }
     with pytest.raises(ValidationError, match="target_actor_id"):
         parse_runtime_event_frame(body_event)
@@ -113,7 +118,10 @@ def test_protocol_v3_builds_targeted_body_command() -> None:
         issued_at=OCCURRED_AT,
         payload={
             "command_id": "command-1",
+            "intent_id": "intent-1",
             "actor_id": "elfie-1",
+            "body_generation": 1,
+            "initiator": "elfie",
             "intent": "move_to_anchor",
             "anchor_id": "activity-01/activity",
             "deadline_seconds": 10.0,
@@ -140,7 +148,10 @@ def test_protocol_v3_accepts_body_speech_after_nest_preflight_without_text() -> 
         issued_at=OCCURRED_AT,
         payload={
             "command_id": "speech-1",
+            "intent_id": "intent-speech-1",
             "actor_id": "elfie-1",
+            "body_generation": 1,
+            "initiator": "elfie",
             "intent": "speak",
             "deadline_seconds": 10.0,
         },

@@ -125,9 +125,14 @@ class _StartupFailurePayload(_Payload):
     world_revision: Optional[int] = Field(default=None, ge=0)
 
 
-class _IntentProgressPayload(_Payload):
+class _CommandProgressPayload(_Payload):
     command_id: str
     actor_id: str
+
+
+class _IntentProgressPayload(_CommandProgressPayload):
+    intent_id: str
+    body_generation: int = Field(ge=1)
 
 
 class _IntentTerminalPayload(_IntentProgressPayload):
@@ -142,6 +147,7 @@ class _MovementBlockedPayload(_IntentProgressPayload):
 
 class _TactileContactPayload(_Payload):
     actor_id: str
+    body_generation: int = Field(default=1, ge=1)
     intensity: float = Field(ge=0.0, le=1.0)
     direction: str
     contact_kind: Literal["actor", "world"]
@@ -149,7 +155,7 @@ class _TactileContactPayload(_Payload):
     force_newtons: Optional[float] = Field(default=None, ge=0.0)
 
 
-class _SpeechReachPayload(_IntentProgressPayload):
+class _SpeechReachPayload(_CommandProgressPayload):
     zone_id: str
     audience_actor_ids: List[str]
 
@@ -208,7 +214,10 @@ class _SyncActorsPayload(_Payload):
 
 class _ExecuteIntentPayload(_Payload):
     command_id: str = Field(min_length=1)
+    intent_id: str = Field(min_length=1)
     actor_id: str = Field(min_length=1)
+    body_generation: int = Field(ge=1)
+    initiator: Literal["elfie"]
     intent: Literal["move_to_anchor", "speak", "emotion_expression"]
     deadline_seconds: float = Field(gt=0.0)
     anchor_id: Optional[str] = None

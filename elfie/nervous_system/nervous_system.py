@@ -23,7 +23,6 @@ from elfie.nervous_system.perception_bridge import BodyPerceptionBridge
 from elfie.nervous_system.perception_normalizer import BodyPerceptionNormalizer
 from elfie.nervous_system.physical_limits import PhysicalLimitsReflex
 from elfie.nervous_system.reflex import SomaticReflexArc
-from elfie.nervous_system.sensors import AudioSensor, EnvironmentSensor, VisionSensor
 from elfie.nervous_system.signal_filter import SensoryDamSignalFilter
 
 
@@ -43,10 +42,6 @@ class NervousSystem:
         body_port: Optional[BodyPort] = None,
         body_generation: int | None = None,
     ) -> None:
-        self.vision_sensor = VisionSensor()
-        self.audio_sensor = AudioSensor()
-        self.environment_sensor = EnvironmentSensor()
-
         self.speech_actuator = SpeechActuator()
         self.motion_actuator = MotionActuator()
         self.mutter_actuator = MutterActuator()

@@ -71,11 +71,33 @@ class SemanticActionResult:
     """Nest correlation for one semantic target resolved into a Body action."""
 
     command_id: str
+    intent_id: str
     actor_id: str
+    body_generation: int
     target: str
     resolved_anchor_id: str
     status: Literal["completed", "failed", "cancelled", "timed_out"]
     reason: str | None = None
+
+
+@dataclass(frozen=True)
+class NestFactNotice:
+    """Typed semantic notice produced by a non-interaction Nest owner."""
+
+    fact_type: Literal[
+        "facility_state_changed",
+        "home_assignment_changed",
+        "environment_phase_changed",
+        "environment_desired_changed",
+        "environment_rule_changed",
+    ]
+    fact_id: str
+    summary: str
+    zone_id: str | None = None
+    active: bool | None = None
+    lights_on: bool | None = None
+    quiet_mode: bool | None = None
+    phase: str | None = None
 
 
 @dataclass(frozen=True)
@@ -100,4 +122,5 @@ NestDomainEvent: TypeAlias = Union[
     HeardUtterance,
     SemanticVisualScene,
     SemanticActionResult,
+    NestFactNotice,
 ]

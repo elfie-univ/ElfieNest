@@ -130,7 +130,10 @@ class NativeBody:
         if isinstance(command, SpeechCommand):
             payload = {
                 "command_id": str(command.command_id),
+                "intent_id": str(command.intent_id),
                 "actor_id": self.body_id,
+                "body_generation": command.body_generation,
+                "initiator": "elfie",
                 "intent": "speak",
                 "text": command.text,
             }
@@ -138,21 +141,30 @@ class NativeBody:
             if command.target:
                 payload = {
                     "command_id": str(command.command_id),
+                    "intent_id": str(command.intent_id),
                     "actor_id": self.body_id,
+                    "body_generation": command.body_generation,
+                    "initiator": "elfie",
                     "intent": "move_to_anchor",
                     "anchor_id": command.target,
                 }
             else:
                 payload = {
                     "command_id": str(command.command_id),
+                    "intent_id": str(command.intent_id),
                     "actor_id": self.body_id,
+                    "body_generation": command.body_generation,
+                    "initiator": "elfie",
                     "intent": "emotion_expression",
                     "expression": command.kind,
                 }
         elif isinstance(command, ExpressionCommand):
             payload = {
                 "command_id": str(command.command_id),
+                "intent_id": str(command.intent_id),
                 "actor_id": self.body_id,
+                "body_generation": command.body_generation,
+                "initiator": "elfie",
                 "intent": "emotion_expression",
                 "expression": command.kind,
             }
