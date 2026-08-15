@@ -3,16 +3,13 @@
 
 Startup flow:
     1. Initialize DB + seed Owner account
-    2. Optional: seed initial Elfie "Aifei" for Owner (--seed-elfie, default on)
-    3. Engine background thread: cognition Runtime → ElfieNestEngine
-    4. Load final Elfie records → instantiate Elfie → register to engine
-    5. Create FastAPI app → uvicorn blocks main thread
+    2. Engine background thread: cognition Runtime → ElfieNestEngine
+    3. Load final Elfie records → instantiate Elfie → register to engine
+    4. Create FastAPI app → uvicorn blocks main thread
 
 Command-line arguments:
-    --fallback      Use built-in dialogue engine (no Ollama connection)
     --port          HTTP port (default 8000)
     --godot-ws-port Godot WebSocket port (default 8765)
-    --no-seed-elfie Do not auto-seed initial Elfie
     --force         Force restart (kill processes occupying ports)
 
 CLI tools:
@@ -40,11 +37,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="ElfieNest backend service")
     parser.add_argument(
-        "--fallback",
-        action="store_true",
-        help="Use built-in dialogue engine (no Ollama connection)",
-    )
-    parser.add_argument(
         "--port",
         type=int,
         default=8000,
@@ -55,11 +47,6 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Godot WebSocket port (default 8765)",
-    )
-    parser.add_argument(
-        "--no-seed-elfie",
-        action="store_true",
-        help="Do not auto-seed initial Elfie",
     )
     parser.add_argument(
         "--force",
@@ -95,7 +82,6 @@ logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
 from app.bootstrap import create_app
 from app.bootstrap.app_wiring.accounts import build_accounts_service
-from app.bootstrap.app_wiring.adoption import seed_single_elfie
 from app.bootstrap.app_wiring.storage import ensure_application_storage
 from app.bootstrap.model_execution import (
     ModelExecutionServices,
@@ -165,23 +151,10 @@ def register_service_process_for_start(
         lifecycle.register_current_service(elfie_home)
 
 
-def build_server_model_execution_services(
-    db_path: str, *, use_fallback: bool
-) -> ModelExecutionServices:
+def build_server_model_execution_services(db_path: str) -> ModelExecutionServices:
     """Build the configured live-reloading model service for product chat."""
-    if use_fallback:
-        services = build_model_execution_services(
-            db_path,
-            use_fallback=True,
-            live_reload=True,
-            resolve_main_food=False,
-        )
-        print("  ⚡ Using built-in dialogue engine (--fallback mode)")
-        return services
-
     services = build_model_execution_services(
         db_path,
-        use_fallback=False,
         live_reload=True,
         resolve_main_food=True,
     )
@@ -362,18 +335,10 @@ def main():
     ensure_application_storage(db_path)
     build_accounts_service(db_path).seed_initial_owner(SeedInitialOwnerCommand())
 
-    # 2. Optionally seed the initial Owner Elfie (enabled by default).
-    if not args.no_seed_elfie:
-        if seed_single_elfie(db_path):
-            print('  🌱 Auto-seeded Elfie "Aifei" for Owner (--seed-elfie)')
+    # 2. Verify model execution before accepting chat messages.
+    model_execution_services = build_server_model_execution_services(db_path)
 
-    # 3. Verify model execution before accepting chat messages.
-    model_execution_services = build_server_model_execution_services(
-        db_path,
-        use_fallback=args.fallback,
-    )
-
-    # 4. Start the engine worker thread.
+    # 3. Start the engine worker thread.
     engine_holder: dict = {}
     engine_ready = threading.Event()
 
@@ -406,7 +371,7 @@ def main():
     engine = engine_holder["engine"]
     print("  ℹ️ Godot Web Runtime is hosted by ElfieNest Desktop hidden window")
 
-    # 5. Dynamically load all Elfies from the database.
+    # 4. Dynamically load all Elfies from the database.
     loaded_elfies: list[dict] = []
     try:
         restore_result = restore_registered_elfies(db_path, engine.session)
@@ -421,7 +386,7 @@ def main():
     except Exception as e:
         print(f"  ⚠️  Failed to query Elfie list: {e}")
 
-    # 6. Print startup information.
+    # 5. Print startup information.
     print()
     print("=" * 56)
     print("  🦊 ElfieNest Embodied AI Creature Service")
@@ -439,7 +404,7 @@ def main():
     print("=" * 56)
     print()
 
-    # 7. Create the FastAPI app and start uvicorn on the main thread.
+    # 6. Create the FastAPI app and start uvicorn on the main thread.
     app = create_app(
         engine=engine,
         db_path=db_path,

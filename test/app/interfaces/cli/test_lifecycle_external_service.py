@@ -52,7 +52,7 @@ def test_status_marks_default_ports_as_external_when_pid_belongs_elsewhere(
         lambda pid: ProcessSnapshot(
             pid=pid,
             cwd=external_root,
-            command=("python", "scripts/serve.py", "--fallback"),
+            command=("python", "scripts/serve.py"),
         ),
     )
     monkeypatch.setattr(

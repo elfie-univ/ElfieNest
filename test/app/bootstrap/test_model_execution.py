@@ -3,7 +3,6 @@
 from types import SimpleNamespace
 
 from app.bootstrap import model_execution as model_execution_bootstrap
-from infrastructure.models.fallback_model_execution import FallbackModelExecutionAdapter
 
 
 class _FakeModelExecution:
@@ -23,32 +22,10 @@ class _FakeModelExecution:
         self.warmup_calls.append((prompt, energy, task_complexity, allowed_skills))
 
 
-def test_fallback_execution_preserves_configured_tick_interval(monkeypatch) -> None:
-    monkeypatch.setattr(
-        model_execution_bootstrap,
-        "load_model_execution_config",
-        lambda **_kwargs: SimpleNamespace(
-            system={"engine": {"tick_interval_sec": 2.25}}
-        ),
-    )
-
-    services = model_execution_bootstrap.build_model_execution_services(
-        ":memory:",
-        use_fallback=True,
-        live_reload=True,
-        resolve_main_food=False,
-    )
-
-    assert isinstance(services.execution, FallbackModelExecutionAdapter)
-    assert services.tick_interval_sec == 2.25
-    assert services.main_food_loader is None
-    assert services.warmup is None
-
-
 def test_model_execution_receives_existing_food_and_warmup_dependencies(
     monkeypatch,
 ) -> None:
-    config = SimpleNamespace(system={"engine": {}})
+    config = SimpleNamespace(system={"engine": {"tick_interval_sec": 2.25}})
     repository = object()
     loader = object()
     monkeypatch.setattr(
@@ -77,7 +54,6 @@ def test_model_execution_receives_existing_food_and_warmup_dependencies(
 
     services = model_execution_bootstrap.build_model_execution_services(
         "/tmp/nest.db",
-        use_fallback=False,
         live_reload=True,
         resolve_main_food=True,
     )
@@ -93,7 +69,7 @@ def test_model_execution_receives_existing_food_and_warmup_dependencies(
         repository,
         "/tmp/nest.db",
     )
-    assert services.tick_interval_sec == 1.5
+    assert services.tick_interval_sec == 2.25
     assert services.warmup is not None
     services.warmup()
     assert services.execution.warmup_calls == [("hello", 100, 1, [])]

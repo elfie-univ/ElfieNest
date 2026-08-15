@@ -89,12 +89,12 @@ def test_config(
     try:
         local = providers.inspect_local_provider(principal, InspectLocalProviderQuery())
     except ProvidersError:
-        print("  ⚠️  Ollama not running (will use fallback mode)")
+        print("  ⚠️  Ollama is unavailable; configure a model provider before chatting")
     else:
         if local.state == "healthy":
             print("  ✅ Ollama connection successful")
         else:
-            print("  ⚠️  Ollama not running (will use fallback mode)")
+            print("  ⚠️  Ollama is unavailable; configure a model provider before chatting")
 
     print("\n  [2/3] Testing database...")
     try:

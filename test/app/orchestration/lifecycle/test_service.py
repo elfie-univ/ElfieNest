@@ -89,7 +89,7 @@ def test_stop_accepts_frozen_core_path_with_spaces_from_macos_ps(
     write_pid(home, 4106)
     port = FakeProcessPort(
         cwd=tmp_path.resolve(),
-        command=tuple(str(core).split(" ")) + ("--no-seed-elfie",),
+        command=tuple(str(core).split(" ")) + ("--force",),
         existence=(True, True, False),
     )
 

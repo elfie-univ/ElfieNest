@@ -223,7 +223,6 @@ def start_service(
         else (
             sys.executable,
             str((resolved_root / "scripts" / "serve.py").resolve()),
-            "--fallback",
         )
     )
     try:
