@@ -69,6 +69,14 @@ export function ChatConversationPane(props: ChatConversationPaneProps) {
     if (list !== null) list.scrollTop = list.scrollHeight - list.clientHeight
   }, [selectedId])
 
+  if (selectedId === null) {
+    return (
+      <section className="conversation conversation--empty">
+        <p className="empty" role="status">{t("conversation.empty")}</p>
+      </section>
+    )
+  }
+
   return (
     <section className={mobileDetail ? "conversation conversation--mobile-active" : "conversation"}>
       <div className="topline">
@@ -77,7 +85,7 @@ export function ChatConversationPane(props: ChatConversationPaneProps) {
         <Button variant="outline" disabled={selected === undefined} onClick={onOpenDetail} type="button">{t("conversation.details")}</Button>
       </div>
       <section className="message-list" onScroll={handleMessageListScroll} ref={messageListRef}>
-        {selectedId === null ? <p className="empty">{t("conversation.empty")}</p> : history.map((message) => <MessageBubble
+        {history.map((message) => <MessageBubble
           elfieAvatarUrl={selected?.portrait_url}
           key={message.id}
           message={message}

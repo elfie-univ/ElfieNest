@@ -70,7 +70,7 @@ export function MobileAccessDialog({ onClose, targetPath = "/chat" }: MobileAcce
       <h2 id="mobile-access-title">{t("mobileAccess.title")}</h2>
       {error ? <Notice kind="error" message={error.kind === "qr" ? t("mobileAccess.qrError") : localizeApiError(error.reason, "manage.load", currentLocale(i18n))} /> : null}
       {access === null && error === null ? <p>{t("mobileAccess.loading")}</p> : null}
-      {unavailable ? <p className="mobile-access-dialog__hint">{t("mobileAccess.unavailable")} <code>elfienest start --lan</code></p> : null}
+      {unavailable ? <p className="mobile-access-dialog__hint">{t("mobileAccess.unavailable")}</p> : null}
       {access?.available && selectedUrl ? <>
         <img alt={t("mobileAccess.qrAlt", { url: selectedUrl })} className="mobile-access-dialog__qr" src={imageUrl} />
         {access.urls.length > 1 ? <div className="mobile-access-dialog__select"><SelectField label={t("mobileAccess.localAddress")} onValueChange={setSelectedUrl} options={access.urls.map((url) => ({ label: url, value: url }))} value={selectedUrl} /></div> : null}

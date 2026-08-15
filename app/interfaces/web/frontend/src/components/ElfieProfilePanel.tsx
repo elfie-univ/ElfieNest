@@ -43,7 +43,7 @@ export function ElfieProfilePanel({
   if (projection === null) {
     return (
       <section className="profile-dossier profile-dossier--empty">
-        <p className="empty">{t("profile.empty")}</p>
+        <p className="empty" role="status">{t("profile.empty")}</p>
       </section>
     )
   }

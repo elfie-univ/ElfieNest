@@ -16,17 +16,21 @@ export const chat = {
     messagesTitle: "消息",
     elfiesTitle: "精灵",
     adopt: "领养精灵",
+    adoptShort: "领养",
     searchLabel: "搜索",
     searchElfies: "搜索精灵",
     searchChats: "搜索聊天",
     noPreview: "还没有消息",
     empty: "还没有聊天记录。",
+    emptyTitle: "还没有聊天记录",
+    emptyFirstDescription: "点击右上角的“＋领养”，开始你的第一次相遇。TA会在这里和你聊天。",
+    emptyExistingDescription: "先在精灵列表中选择一只精灵，开始和 TA 聊天。",
   },
   conversation: {
     back: "返回聊天记录",
     select: "选择一只精灵",
     details: "详情",
-    empty: "先在“我的精灵”中领养或选择一只精灵。",
+    empty: "请选择一个精灵跟它聊天",
     senderElfie: "精",
   },
   composer: {
@@ -68,7 +72,8 @@ export const chat = {
     },
   },
   profile: {
-    empty: "选择一只精灵，查看它的个人资料。",
+    empty: "请选择一个精灵查看详情",
+    emptyTitle: "选择一只精灵",
     list: {
       scope: "精灵范围",
       all: "全部",
@@ -79,6 +84,8 @@ export const chat = {
       filterLabel: "{{label}} {{count}}",
       openProfile: "查看 {{name}} 的个人档案",
       empty: "没有符合条件的精灵。请清除搜索或切换筛选。",
+      emptyFirstTitle: "你的巢还在等第一位住客",
+      emptyFirstDescription: "点击右上角的“＋领养”，开始第一段相遇。",
     },
     identity: {
       back: "返回我的精灵",

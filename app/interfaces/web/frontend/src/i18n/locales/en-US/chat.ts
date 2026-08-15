@@ -16,17 +16,21 @@ export const chat = {
     messagesTitle: "Messages",
     elfiesTitle: "Elfies",
     adopt: "Adopt an Elfie",
+    adoptShort: "Adopt",
     searchLabel: "Search",
     searchElfies: "Search Elfies",
     searchChats: "Search chats",
     noPreview: "No messages yet",
     empty: "No chat history yet.",
+    emptyTitle: "No chat history yet",
+    emptyFirstDescription: "Click “+ Adopt” in the upper-right corner to meet your first Elfie. They will appear here when you start chatting.",
+    emptyExistingDescription: "Choose an Elfie from the list to start chatting.",
   },
   conversation: {
     back: "Back to chat history",
     select: "Choose an Elfie",
     details: "Details",
-    empty: "Adopt or choose an Elfie from My Elfies first.",
+    empty: "Choose an Elfie to chat with.",
     senderElfie: "Elfie",
   },
   composer: {
@@ -68,7 +72,8 @@ export const chat = {
     },
   },
   profile: {
-    empty: "Choose an Elfie to view their profile.",
+    empty: "Choose an Elfie to view details.",
+    emptyTitle: "Choose an Elfie",
     list: {
       scope: "Elfie scope",
       all: "All",
@@ -79,6 +84,8 @@ export const chat = {
       filterLabel: "{{label}} {{count}}",
       openProfile: "View {{name}}'s profile",
       empty: "No Elfies match. Clear the search or change the filter.",
+      emptyFirstTitle: "Your Nest is waiting for its first resident",
+      emptyFirstDescription: "Click “+ Adopt” in the upper-right corner to begin your first meeting.",
     },
     identity: {
       back: "Back to My Elfies",

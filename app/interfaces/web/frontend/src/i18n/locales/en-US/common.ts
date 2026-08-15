@@ -22,7 +22,7 @@ export const common = {
     qrAlt: "QR code for {{url}}",
     qrError: "Unable to generate the QR code.",
     title: "Open ElfieNest on your phone",
-    unavailable: "This service currently accepts local connections only. Restart it in LAN mode, then scan:",
+    unavailable: "Phone access is not available right now, so please continue on this computer. Make sure your computer and phone are on the same local network, then try again.",
   },
   status: {
     unknown: "Unknown status",
