@@ -98,7 +98,7 @@ printf '%s\n' "$*" >> "$ENTRYPOINT_LOG"
         [str(project_root / "elfienest.sh")],
         cwd=project_root,
         env=environment,
-        input="start --port 8100\nserve --fallback\nv\nexit\n",
+        input="start --port 8100\nserve\nv\nexit\n",
         capture_output=True,
         text=True,
         check=False,
@@ -109,7 +109,7 @@ printf '%s\n' "$*" >> "$ENTRYPOINT_LOG"
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "scripts/elfienest.py start --port 8100",
-        "scripts/elfienest.py serve --fallback",
+        "scripts/elfienest.py serve",
         "scripts/elfienest.py version",
     ]
 
@@ -417,7 +417,7 @@ printf '%s\\n' "$*" >> "$ENTRYPOINT_LOG"
 
     # When
     result = subprocess.run(
-        [str(project_root / "elfienest.sh"), "serve", "--fallback"],
+        [str(project_root / "elfienest.sh"), "serve"],
         cwd=project_root,
         env=environment,
         capture_output=True,
@@ -429,7 +429,7 @@ printf '%s\\n' "$*" >> "$ENTRYPOINT_LOG"
     # Then
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
-        "scripts/elfienest.py serve --fallback",
+        "scripts/elfienest.py serve",
     ]
 
 

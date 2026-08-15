@@ -77,13 +77,13 @@ bash scripts/check_node_toolchain.sh
 前台与后台服务支持经代码确认的参数：
 
 ```bash
-./elfienest.sh serve --fallback
+./elfienest.sh serve
 ./elfienest.sh serve --port 8001 --godot-ws-port 8768
-./elfienest.sh start --fallback
+./elfienest.sh start
 ```
 
-`--fallback` 仅用于开发模拟，不是安装包内置模型 Provider。Setup 中的公共 Ollama
-是可选项，选择后固定为唯一 endpoint。`serve --force` 只尝试终止由
+服务使用已配置的粮食与模型 Provider。Setup 中的公共 Ollama 是可选项，选择后固定为
+唯一 endpoint；在聊天或领养验收前必须先配置可用的模型 Provider。`serve --force` 只尝试终止由
 当前项目登记、且确认属于该服务的冲突进程；它不是任意端口清理工具。
 
 在源码开发模式下，`serve`、发现服务已停止时执行的 `start`，以及明确执行的

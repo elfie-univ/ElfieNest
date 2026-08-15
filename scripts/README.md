@@ -68,7 +68,7 @@ Typical usage:
 
 ```bash
 ./elfienest.sh --help
-./elfienest.sh serve --fallback
+./elfienest.sh serve
 ./elfienest.sh build-godot-web --check
 ./developer.sh build-godot-dedicated --check
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
@@ -95,7 +95,7 @@ loops; they are not stable user commands available after install:
 | File | Purpose & caveats |
 | --- | --- |
 | `chat_with_elfie.py` | Runs a long-lived engine loop and chats with the first persisted Elfie in the terminal; requires an adopted Elfie and a model runtime; cleans up services on manual exit |
-| `e2e_dashboard_check.py` | Starts a fallback service with a temp directory and random ports to check the login, adoption and management dashboard flow |
+| `e2e_dashboard_check.py` | Starts the configured model service with a temp directory and random ports to check the login, adoption and management dashboard flow; requires a configured model |
 | `verify_nest_runtime_e2e.py` | Waits for a Godot Runtime and verifies two-Elfie sync, broadcast, semantic motion and cancel terminal states |
 
 These scripts may take time, occupy ports or produce local data; they should

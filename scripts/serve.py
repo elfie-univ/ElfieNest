@@ -8,7 +8,6 @@ Startup flow:
     4. Create FastAPI app → uvicorn blocks main thread
 
 Command-line arguments:
-    --fallback      Use built-in dialogue engine (no Ollama connection)
     --port          HTTP port (default 8000)
     --godot-ws-port Godot WebSocket port (default 8765)
     --force         Force restart (kill processes occupying ports)
@@ -37,11 +36,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="ElfieNest backend service")
-    parser.add_argument(
-        "--fallback",
-        action="store_true",
-        help="Use built-in dialogue engine (no Ollama connection)",
-    )
     parser.add_argument(
         "--port",
         type=int,
@@ -157,23 +151,10 @@ def register_service_process_for_start(
         lifecycle.register_current_service(elfie_home)
 
 
-def build_server_model_execution_services(
-    db_path: str, *, use_fallback: bool
-) -> ModelExecutionServices:
+def build_server_model_execution_services(db_path: str) -> ModelExecutionServices:
     """Build the configured live-reloading model service for product chat."""
-    if use_fallback:
-        services = build_model_execution_services(
-            db_path,
-            use_fallback=True,
-            live_reload=True,
-            resolve_main_food=False,
-        )
-        print("  ⚡ Using built-in dialogue engine (--fallback mode)")
-        return services
-
     services = build_model_execution_services(
         db_path,
-        use_fallback=False,
         live_reload=True,
         resolve_main_food=True,
     )
@@ -355,10 +336,7 @@ def main():
     build_accounts_service(db_path).seed_initial_owner(SeedInitialOwnerCommand())
 
     # 2. Verify model execution before accepting chat messages.
-    model_execution_services = build_server_model_execution_services(
-        db_path,
-        use_fallback=args.fallback,
-    )
+    model_execution_services = build_server_model_execution_services(db_path)
 
     # 3. Start the engine worker thread.
     engine_holder: dict = {}

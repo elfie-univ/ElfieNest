@@ -66,7 +66,7 @@ def test_packaged_runtime_reports_a_damaged_install_without_bootstrapping(
     with pytest.raises(packaged_runtime.PackagedCliRuntimeError) as error:
         packaged_runtime.configure_frozen_cli_runtime(cli, "darwin", environment)
 
-    # Then: it reports a damaged installation and does not configure a fallback.
+    # Then: it reports a damaged installation without changing the environment.
     assert "packaged-cli-core-missing" in str(error.value)
     assert environment == {}
 

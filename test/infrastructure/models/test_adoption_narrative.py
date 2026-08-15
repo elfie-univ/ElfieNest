@@ -7,7 +7,6 @@ import pytest
 import infrastructure.models.adoption_narrative as adoption_narrative
 from elfie.genesis import GenesisAppearanceIntent, GenesisEngine
 from infrastructure.models.adoption_narrative import StructuredAdoptionNarrativeAdapter
-from infrastructure.models.fallback_model_execution import FallbackModelExecutionAdapter
 from infrastructure.models.model_execution_contracts import (
     StructuredModelExecutionCapabilities,
     StructuredModelExecutionRequest,
@@ -61,6 +60,11 @@ class FlakyExecution(FakeExecution):
         return request.to_result(text=next(self.outputs))
 
 
+class UnavailableExecution:
+    def adoption_capabilities(self):
+        raise RuntimeError("model provider unavailable")
+
+
 def _capabilities(model_key: str) -> StructuredModelExecutionCapabilities:
     return StructuredModelExecutionCapabilities(
         provider="ollama" if model_key.startswith("ollama/") else "openai",
@@ -104,7 +108,7 @@ def test_small_local_model_is_not_qualified_for_identity_reveal() -> None:
 
 
 def test_execution_without_adoption_capabilities_is_not_ready() -> None:
-    adapter = StructuredAdoptionNarrativeAdapter(FallbackModelExecutionAdapter())
+    adapter = StructuredAdoptionNarrativeAdapter(UnavailableExecution())
 
     assert adapter.is_ready() is False
 

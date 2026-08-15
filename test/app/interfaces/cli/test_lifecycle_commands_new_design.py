@@ -420,7 +420,7 @@ def test_restart_does_not_pass_force_flag(monkeypatch, capsys) -> None:
         _stable_health(),
         [],
         stop_result=ServiceLifecycleResult(
-            status="stopped", command=("python", "scripts/serve.py", "--fallback")
+            status="stopped", command=("python", "scripts/serve.py")
         ),
     )
     started = _LaunchSupervisor(_stopped_health(), [])
@@ -440,7 +440,7 @@ def test_restart_does_not_pass_force_flag(monkeypatch, capsys) -> None:
     lifecycle_commands.restart_background_service(LIFECYCLE)
 
     # Then
-    assert commands == [("python", "scripts/serve.py", "--fallback")]
+    assert commands == [("python", "scripts/serve.py")]
     assert "--force" not in commands[0]
     assert "restarted" in capsys.readouterr().out
 
@@ -485,7 +485,7 @@ def test_restart_uses_core_when_desktop_executable_is_present(monkeypatch) -> No
         _stable_health(),
         [],
         stop_result=ServiceLifecycleResult(
-            status="stopped", command=("python", "scripts/serve.py", "--fallback")
+            status="stopped", command=("python", "scripts/serve.py")
         ),
     )
     started = _LaunchSupervisor(_stopped_health(), [])
@@ -506,7 +506,7 @@ def test_restart_uses_core_when_desktop_executable_is_present(monkeypatch) -> No
 
     # Then
     assert result.status == "started"
-    assert commands == [("python", "scripts/serve.py", "--fallback")]
+    assert commands == [("python", "scripts/serve.py")]
 
 
 def test_dispatch_propagates_lifecycle_failure(monkeypatch) -> None:
@@ -649,13 +649,11 @@ def test_product_start_options_enable_lan_by_default_and_allow_loopback() -> Non
     default_start = Namespace(
         port=None,
         godot_ws_port=None,
-        fallback=False,
         lan=True,
     )
     loopback_start = Namespace(
         port=None,
         godot_ws_port=None,
-        fallback=False,
         lan=False,
     )
 

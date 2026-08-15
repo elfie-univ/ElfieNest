@@ -42,7 +42,6 @@ def main():
         ensure_application_storage(db_path)
         model_execution_services = build_model_execution_services(
             db_path,
-            use_fallback=False,
             live_reload=False,
             resolve_main_food=False,
         )
