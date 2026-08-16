@@ -32,6 +32,7 @@ from infrastructure.godot.artifacts.web_build import (
     _project_version as project_version_helper,
 )
 from infrastructure.persistence.configuration.species import load_species_catalog
+from scripts.godot_species_validation import run_godot_species_validation
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 GODOT_PROJECT = PROJECT_ROOT / "godot_project"
@@ -97,6 +98,7 @@ def _export_runtime(output: Path, binary: Path, godot_version: str) -> int:
         species_package_ids = validate_source_species_packages(
             config_root=PROJECT_ROOT / "config",
             godot_project=GODOT_PROJECT,
+            godot_runner=run_godot_species_validation,
             godot_binary=binary,
         )
     except SpeciesPackageValidationError as error:

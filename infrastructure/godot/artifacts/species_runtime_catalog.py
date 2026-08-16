@@ -13,6 +13,7 @@ from typing import Any
 from elfie.profile import SpeciesCatalog
 
 from .species_package_validation import (
+    GodotSpeciesValidationRunner,
     SpeciesPackageValidationError,
     validate_source_species_packages,
 )
@@ -46,6 +47,7 @@ def build_species_runtime_catalog(
     godot_project: Path = DEFAULT_GODOT_PROJECT,
     runtime_manifest: Path | None = None,
     godot_binary: Path | None = None,
+    godot_runner: GodotSpeciesValidationRunner | None = None,
 ) -> ValidatedSpeciesRuntimeCatalog:
     """Use a matching export manifest, or validate the source package once.
 
@@ -68,10 +70,15 @@ def build_species_runtime_catalog(
     binary = godot_binary or _find_godot_binary()
     if binary is None:
         return ValidatedSpeciesRuntimeCatalog((), "godot-binary-missing")
+    if godot_runner is None:
+        raise RuntimeError(
+            "build_species_runtime_catalog requires an injected Godot validation runner"
+        )
     try:
         ids = validate_source_species_packages(
             config_root=config_root,
             godot_project=godot_project,
+            godot_runner=godot_runner,
             godot_binary=binary,
         )
     except SpeciesPackageValidationError:

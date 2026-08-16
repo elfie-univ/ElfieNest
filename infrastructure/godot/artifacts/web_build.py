@@ -18,6 +18,7 @@ from typing import Dict, List, Optional
 
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
 from infrastructure.godot.artifacts.species_package_validation import (
+    GodotSpeciesValidationRunner,
     SpeciesPackageValidationError,
     validate_source_species_packages,
 )
@@ -81,7 +82,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> int:
+def main(*, godot_runner: GodotSpeciesValidationRunner | None = None) -> int:
     args = parse_args()
     output = args.output.expanduser().resolve()
     if args.check:
@@ -90,13 +91,20 @@ def main() -> int:
         print(f"✅ Godot Web Runtime is up-to-date: {output / ENTRY_NAME}")
         return 0
 
-    return _export_runtime(output, args.godot, args.allow_version_mismatch)
+    return _export_runtime(
+        output,
+        args.godot,
+        args.allow_version_mismatch,
+        godot_runner=godot_runner,
+    )
 
 
 def _export_runtime(
     output: Path,
     explicit_binary: Optional[Path],
     allow_version_mismatch: bool,
+    *,
+    godot_runner: GodotSpeciesValidationRunner | None,
 ) -> int:
     """Export the Godot Runtime and atomically replace the current bundle after validation."""
     binary = _find_godot(explicit_binary)
@@ -121,10 +129,14 @@ def _export_runtime(
         )
         return 2
 
+    if godot_runner is None:
+        print("❌ Godot Web build requires an injected species validation runner.")
+        return 1
     try:
         species_package_ids = validate_source_species_packages(
             config_root=PROJECT_ROOT / "config",
             godot_project=GODOT_PROJECT,
+            godot_runner=godot_runner,
             godot_binary=binary,
         )
     except SpeciesPackageValidationError as error:
@@ -442,13 +454,24 @@ def _print_template_hint(version: str) -> None:
 class GodotWebBuildAdapter:
     """Infrastructure implementation of lifecycle-owned Godot Web preparation."""
 
+    def __init__(self, *, godot_runner: GodotSpeciesValidationRunner) -> None:
+        self._godot_runner = godot_runner
+
     def prepare(self, runtime_mode: str, *, is_frozen: bool) -> bool:
         if runtime_mode == "release" and is_frozen:
             return True
         if runtime_mode == "development":
             if runtime_is_current(DEFAULT_OUTPUT):
                 return True
-            return _export_runtime(DEFAULT_OUTPUT, None, False) == 0
+            return (
+                _export_runtime(
+                    DEFAULT_OUTPUT,
+                    None,
+                    False,
+                    godot_runner=self._godot_runner,
+                )
+                == 0
+            )
         return _print_bundle_check(DEFAULT_OUTPUT) == 0
 
 

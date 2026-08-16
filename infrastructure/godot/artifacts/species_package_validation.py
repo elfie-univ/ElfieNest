@@ -5,14 +5,36 @@ from __future__ import annotations
 import json
 import re
 import shutil
-import subprocess
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 from infrastructure.persistence.configuration.species import load_species_catalog
 
 
 class SpeciesPackageValidationError(RuntimeError):
     """The configuration and Godot species packages cannot be shipped together."""
+
+
+@dataclass(frozen=True)
+class GodotSpeciesValidationResult:
+    """Result returned by the Bootstrap-owned Godot validation runner."""
+
+    returncode: int
+    stdout: str
+    stderr: str
+
+
+class GodotSpeciesValidationRunner(Protocol):
+    """Narrow process boundary for the Godot-owned package validation script."""
+
+    def __call__(
+        self,
+        *,
+        godot_binary: Path,
+        godot_project: Path,
+        timeout_seconds: float,
+    ) -> GodotSpeciesValidationResult: ...
 
 
 _CATALOG_MARKER = re.compile(r"^SPECIES_CATALOG_IDS:(.+)$", re.MULTILINE)
@@ -23,10 +45,11 @@ def validate_source_species_packages(
     *,
     config_root: Path,
     godot_project: Path,
+    godot_runner: GodotSpeciesValidationRunner,
     godot_binary: Path | None = None,
     timeout_seconds: float = 120.0,
 ) -> tuple[str, ...]:
-    """Validate package links, then let Godot validate loaded scene capability."""
+    """Validate package links through an injected Godot process boundary."""
 
     config_root = config_root.resolve()
     godot_project = godot_project.resolve()
@@ -100,27 +123,11 @@ def validate_source_species_packages(
     binary = godot_binary or _find_godot_binary()
     if binary is None:
         raise SpeciesPackageValidationError("godot-binary-missing")
-    command = (
-        str(binary),
-        "--headless",
-        "--path",
-        str(godot_project),
-        "--script",
-        "scripts/test/test_species_catalog.gd",
+    result = godot_runner(
+        godot_binary=binary,
+        godot_project=godot_project,
+        timeout_seconds=timeout_seconds,
     )
-    try:
-        result = subprocess.run(
-            command,
-            cwd=godot_project,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout_seconds,
-        )
-    except (OSError, subprocess.TimeoutExpired) as error:
-        raise SpeciesPackageValidationError(
-            "godot-species-validation-failed"
-        ) from error
     output = f"{result.stdout}\n{result.stderr}"
     if result.returncode != 0:
         raise SpeciesPackageValidationError(
@@ -153,6 +160,8 @@ def _find_godot_binary() -> Path | None:
 
 
 __all__ = (
+    "GodotSpeciesValidationResult",
+    "GodotSpeciesValidationRunner",
     "SpeciesPackageValidationError",
     "validate_source_species_packages",
 )

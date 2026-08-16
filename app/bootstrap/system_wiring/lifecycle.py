@@ -87,6 +87,7 @@ def create_lifecycle_facade() -> LifecycleFacade:
         FileRuntimeRecordAdapter,
     )
     from infrastructure.platform.uninstall import LocalUninstallAdapter
+    from scripts.godot_species_validation import run_godot_species_validation
 
     inspector = DefaultProcessInspector()
     db_path = str(get_db_path())
@@ -116,7 +117,9 @@ def create_lifecycle_facade() -> LifecycleFacade:
             PublicOllamaProviderAdapter(catalog=provider_catalog)
         ),
         frontend_preparation=FrontendBuildAdapter(discover_web_build),
-        godot_web_preparation=GodotWebBuildAdapter(),
+        godot_web_preparation=GodotWebBuildAdapter(
+            godot_runner=run_godot_species_validation,
+        ),
         data_home=local_data,
         doctor=LocalDoctorAdapter(
             local_data=local_data,
