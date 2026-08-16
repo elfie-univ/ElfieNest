@@ -223,9 +223,10 @@ def test_reveal_many_returns_at_the_absolute_deadline_even_if_a_worker_hangs(
     adapter = StructuredAdoptionNarrativeAdapter(
         SlowExecution(_capabilities("openai/gpt-5.2"))
     )
+    candidate = _candidate()
 
     started = monotonic()
     with pytest.raises(TimeoutError, match="total time budget"):
-        adapter.reveal_many((_candidate(),), "很高兴认识你")
+        adapter.reveal_many((candidate,), "很高兴认识你")
 
     assert monotonic() - started < 0.08
