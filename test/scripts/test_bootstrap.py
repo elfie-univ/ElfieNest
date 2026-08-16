@@ -165,7 +165,6 @@ def test_bootstrap_ensure_dev_builds_electron_authority_host(tmp_path: Path) -> 
 
 def test_bootstrap_report_requires_the_godot_editor_even_when_web_output_exists(
     tmp_path: Path,
-    monkeypatch,
 ) -> None:
     # Given: stale pre-exported Web files without the required source toolchain.
     project_root = tmp_path / "project"
@@ -173,14 +172,13 @@ def test_bootstrap_report_requires_the_godot_editor_even_when_web_output_exists(
     prepare_build_runtime(project_root)
     elfie_home = tmp_path / "elfie-home"
     elfie_home.mkdir()
-    monkeypatch.setenv("GODOT_BIN", str(tmp_path / "missing-godot"))
-
     # When: source development checks dependencies from a PATH without Godot.
     result = run_bootstrap(
         scripts_dir,
         project_root,
         elfie_home,
         path="/usr/bin:/bin:/usr/sbin:/sbin",
+        godot_bin=str(tmp_path / "missing-godot"),
     )
 
     # Then: it refuses to enter the source workflow as though the build tool existed.

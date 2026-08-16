@@ -9,6 +9,7 @@ from typing import Any, Callable, Optional, cast
 from app.features.adoption import (
     AdoptionService,
     CandidatePortraitPort,
+    SpeciesRuntimeReadinessPort,
 )
 from app.features.configuration.settings import SettingsStorePort
 from app.orchestration.nest_session import NestSession
@@ -71,13 +72,14 @@ def build_adoption_services(
     portraits: CandidatePortraitPort | None = None,
     nest_config: NestConfig | None = None,
     catalog: Any | None = None,
-    species_runtime: Any | None = None,
+    species_runtime: SpeciesRuntimeReadinessPort | None = None,
 ) -> AdoptionServices:
     catalog = catalog or load_and_configure_species_catalog()
-    species_runtime = species_runtime or build_species_runtime_catalog(
-        catalog,
-        godot_runner=run_godot_species_validation,
-    )
+    if species_runtime is None:
+        species_runtime = build_species_runtime_catalog(
+            catalog,
+            godot_runner=run_godot_species_validation,
+        )
 
     def body_factory(elfie_id: str, _workspace: str) -> BodyPort | None:
         if nest_session is None:

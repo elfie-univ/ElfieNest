@@ -135,7 +135,19 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 重复一遍；应在宿主或提升权限的环境中把同一条全量命令只运行一次。返回 `1` 表示预检
 本身出现未预期错误，必须先诊断。
 
-提交前至少运行：
+提交前先同步远程基础提交，再运行仓库硬门禁：
+
+```bash
+git fetch --prune origin main
+bash scripts/pre_submit_gate.sh \
+  --base-sha "$(git rev-parse origin/main^{commit})"
+```
+
+这个门禁包含不可变基础提交架构 ratchet、依赖和工具链检查、质量基线、
+pre-commit/Gitleaks、完整测试套件、CLI smoke 和文档构建。如果环境能力预检阻断或任一
+检查失败，不得提交、推送或合并。
+
+门禁包含的单项检查如下：
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/

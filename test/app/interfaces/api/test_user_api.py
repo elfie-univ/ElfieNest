@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
+from app.features.adoption import StaticSpeciesRuntimeReadiness
 from infrastructure.models.model_execution_contracts import (
     StructuredModelExecutionCapabilities,
 )
@@ -63,6 +64,7 @@ def app(db_path: str, monkeypatch: pytest.MonkeyPatch):
         engine=None,
         db_path=db_path,
         model_execution=_ConfiguredAdoptionExecution(),
+        species_runtime=StaticSpeciesRuntimeReadiness(("fox", "dog")),
     )
 
 

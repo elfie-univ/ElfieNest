@@ -9,7 +9,10 @@ from typing import Any, AsyncIterator, Optional
 
 from fastapi import FastAPI
 
-from app.features.adoption import CandidatePortraitPort
+from app.features.adoption import (
+    CandidatePortraitPort,
+    SpeciesRuntimeReadinessPort,
+)
 from app.interfaces.api.app import create_http_application
 from app.interfaces.api.service_access import ServiceAccessPolicy
 from app.interfaces.web.build_discovery import (
@@ -41,6 +44,7 @@ def create_app(
     web_build_dir: Optional[Path] = None,
     model_execution: StructuredModelExecution | None = None,
     portraits: CandidatePortraitPort | None = None,
+    species_runtime: SpeciesRuntimeReadinessPort | None = None,
 ) -> FastAPI:
     selected_db_path = db_path or str(get_db_path())
     ensure_application_storage(selected_db_path)
@@ -56,6 +60,7 @@ def create_app(
         nest_session=None if engine is None else engine.session,
         model_execution=model_execution,
         portraits=portraits,
+        species_runtime=species_runtime,
     )
     build_dir = _web_build_directory(web_build_dir)
     web_build, web_build_error = _discover_web_build(build_dir)

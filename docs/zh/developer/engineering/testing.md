@@ -88,6 +88,21 @@ PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-f
 质量基线只容纳已经存在的诊断；新增 Ruff、格式或 MyPy 诊断必须修复，不通过扩大
 忽略项或改写基线隐藏。
 
+## 提交前硬门禁
+
+提交或推送前必须先同步远程 `main`，再运行与 CI 对齐的完整门禁：
+
+```bash
+git fetch --prune origin main
+bash scripts/pre_submit_gate.sh \
+  --base-sha "$(git rev-parse origin/main^{commit})"
+```
+
+门禁会在临时候选树中纳入当前未暂存改动，并使用基础提交中的不可变架构检查器审查它；
+随后运行锁文件、Node/pnpm、质量基线、pre-commit/Gitleaks、完整 pytest、CLI smoke 和
+文档构建。任何步骤失败，或回环端口环境预检被阻断，都不得提交、推送或合并。不能用
+聚焦测试、删除测试、宽泛 skip/xfail 或质量基线更新替代门禁。
+
 ## 文档验证
 
 ```bash

@@ -555,6 +555,9 @@ def test_web_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
         lambda *_args, **_kwargs: pytest.fail("web must not launch Desktop"),
     )
     monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
+    # The behavior under test is the Core launch path, not the host's real
+    # loopback occupants; keep this fixture independent of another checkout.
+    monkeypatch.setattr(LIFECYCLE, "default_port_statuses", lambda: ())
     monkeypatch.setattr(
         lifecycle_commands,
         "start_background_service",

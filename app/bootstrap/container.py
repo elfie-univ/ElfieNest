@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from typing import cast
 
 from app.features.accounts import AccountsService
-from app.features.adoption import AdoptionService, CandidatePortraitPort
+from app.features.adoption import (
+    AdoptionService,
+    CandidatePortraitPort,
+    SpeciesRuntimeReadinessPort,
+)
 from app.features.bodies import BodiesService
 from app.features.communication import CommunicationFacade
 from app.features.configuration import (
@@ -120,6 +124,7 @@ def build_application_container(
     nest_session: NestSession | None = None,
     model_execution: StructuredModelExecution | None = None,
     portraits: CandidatePortraitPort | None = None,
+    species_runtime: SpeciesRuntimeReadinessPort | None = None,
 ) -> ApplicationContainer:
     config_path = get_config_path()
     provider_catalog_path = get_provider_catalog_path()
@@ -256,6 +261,7 @@ def build_application_container(
         portraits=portraits,
         nest_config=nest_config,
         catalog=species_catalog,
+        species_runtime=species_runtime,
     )
     nest_adapter = SQLiteNestManagementAdapter(db_path, nest_config=nest_config)
     setup = build_setup_services(

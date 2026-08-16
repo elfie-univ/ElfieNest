@@ -171,7 +171,20 @@ the full suite there and then repeat it; run the same full command once in a
 host or elevated environment. A return code of `1` is an unexpected probe
 failure and must be diagnosed first.
 
-Run at least the following before submitting:
+Before submitting, run the repository hard gate after fetching the remote base:
+
+```bash
+git fetch --prune origin main
+bash scripts/pre_submit_gate.sh \
+  --base-sha "$(git rev-parse origin/main^{commit})"
+```
+
+This gate includes the immutable-base architecture ratchets, dependency and
+toolchain checks, the quality baseline, pre-commit/Gitleaks, the complete test
+suite, CLI smoke and the documentation build. If the gate is blocked by the
+host capability preflight or any check fails, do not commit, push or merge.
+
+The individual checks performed by the gate are:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/
