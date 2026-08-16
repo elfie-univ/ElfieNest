@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from infrastructure.models.report_records import ValidationObservation
 from infrastructure.models.validation.provider_availability import (
     REACHABILITY_FRESHNESS,
+    project_capability_availability,
     project_endpoint_availability,
     project_provider_status,
     project_reachability,
@@ -97,6 +98,7 @@ def test_one_transient_failure_degrades_but_three_failures_unavailable() -> None
     assert one.status == "degraded"
     assert three.status == "unavailable"
     assert three.reason_code == "transient_failure_threshold"
+    assert three.expires_at == "2026-08-15T12:09:00+00:00"
 
 
 def test_account_block_and_request_error_have_different_scopes() -> None:
@@ -184,6 +186,27 @@ def test_reachability_is_separate_and_expires_after_five_minutes() -> None:
     assert stale.reason_code == "reachability_expired"
 
 
+def test_reachability_requires_three_recent_transient_failures_before_unavailable() -> (
+    None
+):
+    observations = tuple(
+        _observation(
+            observation_id,
+            f"2026-08-15T11:{59 - index:02d}:00+00:00",
+            "failed",
+            error_category="network",
+            details={"evidence_kind": "reachability"},
+        )
+        for index, observation_id in enumerate((3, 2, 1))
+    )
+
+    projection = project_reachability("connection", observations, now=NOW)
+
+    assert projection.status == "unavailable"
+    assert projection.reason_code == "transient_failure_threshold"
+    assert projection.expires_at == "2026-08-15T12:09:00+00:00"
+
+
 def test_untagged_provider_validation_is_not_reachability() -> None:
     projection = project_reachability(
         "connection",
@@ -200,7 +223,10 @@ def test_capability_observation_does_not_change_text_health() -> None:
         1,
         "2026-08-15T11:59:00+00:00",
         "passed",
-        details={"validation_mode": "capability", "evidence_source": "capability_probe"},
+        details={
+            "validation_mode": "capability",
+            "evidence_source": "capability_probe",
+        },
     )
 
     snapshot = project_endpoint_availability(
@@ -210,3 +236,28 @@ def test_capability_observation_does_not_change_text_health() -> None:
     )
 
     assert snapshot.status == "unknown"
+
+
+def test_capability_account_block_is_connection_scoped_and_non_retryable() -> None:
+    observation = _observation(
+        1,
+        "2026-08-15T11:59:00+00:00",
+        "failed",
+        error_category="billing",
+        details={
+            "evidence_kind": "capability",
+            "capability": "vision",
+            "error_code": "billing_blocked",
+        },
+    )
+
+    snapshot = project_capability_availability(
+        "connection/model",
+        "vision",
+        (observation,),
+        now=NOW,
+    )
+
+    assert snapshot.status == "unavailable"
+    assert snapshot.reason_code == "billing_blocked"
+    assert snapshot.error_scope == "connection"

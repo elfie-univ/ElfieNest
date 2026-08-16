@@ -123,6 +123,33 @@ def test_codex_responses_transport_uses_account_header_and_parses_sse() -> None:
     assert usage == {"prompt_tokens": 4, "completion_tokens": 2}
 
 
+def test_codex_responses_transport_reports_first_delta_latency() -> None:
+    response = Mock()
+    response.read.return_value = (
+        b'data: {"type":"response.output_text.delta","delta":"OK"}\n\n'
+        b'data: {"type":"response.completed","response":{}}\n\n'
+    )
+    response.__enter__ = Mock(return_value=response)
+    response.__exit__ = Mock(return_value=False)
+
+    with patch(
+        "infrastructure.models.providers.dispatch.open_provider_request",
+        return_value=response,
+    ):
+        _text, _usage, metadata = call_codex_responses_api(
+            "https://chatgpt.com/backend-api/codex",
+            "access-secret",
+            "gpt-5.4-mini",
+            [{"role": "user", "content": "Hi"}],
+            0.0,
+            16,
+            return_metadata=True,
+        )
+
+    assert isinstance(metadata["time_to_first_token_ms"], float)
+    assert metadata["time_to_first_token_ms"] >= 0.0
+
+
 def test_codex_responses_transport_translates_and_returns_tool_arguments() -> None:
     response = Mock()
     response.read.return_value = (

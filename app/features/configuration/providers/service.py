@@ -77,6 +77,7 @@ from .port_models import (
     CapabilityEvidence,
     StoredBenchmarkCombination,
     StoredLocalProviderBinding,
+    StoredLocalProviderCandidate,
     StoredModelRefresh,
     StoredModelVerification,
     StoredProviderConnection,
@@ -229,8 +230,42 @@ class ProvidersService:
             probe = self._local_technology.probe(binding)
             if recorded is None and probe.state == "deleted":
                 probe = replace(probe, state="absent")
+            if recorded is None and probe.state == "healthy":
+                # A healthy Ollama discovered before the startup bootstrap
+                # has created its connection still needs a durable Provider
+                # endpoint before installed models can be registered.
+                binding = self._local_state.save_local_binding(
+                    replace(binding, version=probe.version or binding.version)
+                )
             installed = self._installed_local_models(probe.state, binding)
-            candidates = self._local_technology.candidate_models()
+            configured_candidates = self._local_technology.candidate_models()
+            # The recommendation catalog is not the local Provider's model
+            # inventory.  Keep its bounded recommended order, then append
+            # models actually installed or already referenced by the local
+            # connection so an Ollama upgrade/custom pull is never invisible.
+            candidate_by_id = {item.model_id: item for item in configured_candidates}
+            referenced = self._local_state.list_local_model_ids()
+            if probe.state == "healthy":
+                # The Ollama inventory is authoritative for local endpoints.
+                # Persist newly observed installed models so a custom pull is
+                # not merely displayed: it becomes a resolvable endpoint for
+                # Food and validation as well. This is additive and never
+                # removes an existing Food reference.
+                for model_id in installed:
+                    if model_id not in referenced:
+                        self._local_state.save_local_model(model_id)
+                referenced = self._local_state.list_local_model_ids()
+            extra_ids = sorted(
+                (set(installed) | set(referenced)) - set(candidate_by_id)
+            )
+            candidates = configured_candidates + tuple(
+                StoredLocalProviderCandidate(
+                    model_id=model_id,
+                    display_name=model_id,
+                    recommended=False,
+                )
+                for model_id in extra_ids
+            )
             memory_gb = self._local_technology.available_memory_gb()
         except ProviderPortError as error:
             raise ProvidersUnavailable("Local Provider status unavailable") from error
@@ -523,6 +558,7 @@ class ProvidersService:
                 ),
                 command.api_key,
             )
+            await self._probe_reachability(connection)
             refresh = None
             if command.refresh_models:
                 refresh = await self._refresh(connection)
@@ -584,6 +620,11 @@ class ProvidersService:
                 command.api_key,
                 update_credential="api_key" in command.fields,
             )
+            if command.verify or bool(
+                set(command.fields)
+                & {"api_base", "api_mode", "auth_type", "api_key", "models"}
+            ):
+                await self._probe_reachability(updated)
             refresh = None
             if command.refresh_models:
                 refresh = await self._refresh(updated)
@@ -696,6 +737,7 @@ class ProvidersService:
         self._require_manager(principal)
         connection = self._require_connection(command.connection_id)
         try:
+            await self._probe_reachability(connection)
             verification = await self._technology.verify_connection(
                 connection,
                 force_full=command.force_full,
@@ -732,7 +774,9 @@ class ProvidersService:
                 command.capabilities,
             )
         except ProviderPortError as error:
-            raise ProvidersUnavailable("Provider capability probe unavailable") from error
+            raise ProvidersUnavailable(
+                "Provider capability probe unavailable"
+            ) from error
         return ProviderCapabilityProbeResult(
             reference=reference,
             results=tuple(results),
@@ -746,9 +790,7 @@ class ProvidersService:
         self._require_manager(principal)
         connection = self._require_connection(query.connection_id)
         try:
-            candidates = self._technology.list_obsolete_models(
-                connection.connection_id
-            )
+            candidates = self._technology.list_obsolete_models(connection.connection_id)
             projected: list[ProviderObsoleteModelResult] = []
             for candidate in candidates:
                 references = self._references.models_referenced_by_food(
@@ -761,7 +803,9 @@ class ProvidersService:
                     reason = "仍被 Food 使用：" + ", ".join(references)
                 projected.append(
                     ProviderObsoleteModelResult(
-                        model=self._model_result(connection.connection_id, candidate.model),
+                        model=self._model_result(
+                            connection.connection_id, candidate.model
+                        ),
                         eligible=eligible,
                         reason=reason,
                         last_production_at=candidate.last_production_at,
@@ -769,27 +813,73 @@ class ProvidersService:
                 )
             return tuple(projected)
         except ProviderPortError as error:
-            raise ProvidersUnavailable("Obsolete Provider models unavailable") from error
+            raise ProvidersUnavailable(
+                "Obsolete Provider models unavailable"
+            ) from error
 
     def cleanup_obsolete_models(
         self,
         principal: AccountPrincipal,
         command: CleanupObsoleteProviderModelsCommand,
-    ) -> ProviderConnectionResult:
+    ) -> ProviderConnectionResult | ProviderModelsCleanupResult:
         self._require_manager(principal)
         connection = self._require_connection(command.connection_id)
-        model_ids = tuple(dict.fromkeys(model_id.strip() for model_id in command.model_ids))
+        if not command.model_ids:
+            # Keep the original explicit Owner action for callers that ask to
+            # clean all currently eligible source-managed models.  The newer
+            # model-management route below requires an explicit selection.
+            referenced: set[str] = set()
+            try:
+                for model in connection.models:
+                    if self._references.models_referenced_by_food(
+                        connection.connection_id,
+                        model.model_id,
+                    ):
+                        referenced.add(model.model_id)
+                candidates = self._technology.obsolete_model_ids(
+                    connection,
+                    referenced_model_ids=tuple(sorted(referenced)),
+                )
+            except ProviderPortError as error:
+                raise ProvidersUnavailable(
+                    "Provider cleanup eligibility unavailable"
+                ) from error
+            if not candidates:
+                return ProviderModelsCleanupResult(connection.connection_id, ())
+            current = self._require_connection(connection.connection_id)
+            safe: list[str] = []
+            for model_id in candidates:
+                try:
+                    still_referenced = self._references.models_referenced_by_food(
+                        current.connection_id,
+                        model_id,
+                    )
+                except ProviderPortError as error:
+                    raise ProvidersUnavailable(
+                        "Provider references unavailable"
+                    ) from error
+                if not still_referenced:
+                    safe.append(model_id)
+            if safe:
+                self._replace_models(
+                    current,
+                    tuple(item for item in current.models if item.model_id not in safe),
+                )
+            return ProviderModelsCleanupResult(current.connection_id, tuple(safe))
+        model_ids = tuple(
+            dict.fromkeys(model_id.strip() for model_id in command.model_ids)
+        )
         if not model_ids or any(not model_id for model_id in model_ids):
             raise ProvidersValidationError("待清理模型不能为空")
         try:
-            candidates = {
+            obsolete_by_id = {
                 item.model.model_id: item
                 for item in self._technology.list_obsolete_models(
                     connection.connection_id
                 )
             }
             for model_id in model_ids:
-                candidate = candidates.get(model_id)
+                candidate = obsolete_by_id.get(model_id)
                 if candidate is None:
                     raise ProviderModelNotFound(model_id)
                 references = self._references.models_referenced_by_food(
@@ -811,7 +901,9 @@ class ProvidersService:
         except (ProviderModelNotFound, ProvidersConflict):
             raise
         except ProviderPortError as error:
-            raise ProvidersUnavailable("Obsolete Provider model cleanup unavailable") from error
+            raise ProvidersUnavailable(
+                "Obsolete Provider model cleanup unavailable"
+            ) from error
         return self._connection_result(
             self._require_connection(connection.connection_id)
         )
@@ -1094,56 +1186,6 @@ class ProvidersService:
             model_id=current.model_id,
         )
 
-    def cleanup_obsolete_models(
-        self,
-        principal: AccountPrincipal,
-        command: CleanupObsoleteProviderModelsCommand,
-    ) -> ProviderModelsCleanupResult:
-        """Run the explicit, reference-checked source-managed cleanup action."""
-
-        self._require_manager(principal)
-        connection = self._require_connection(command.connection_id)
-        referenced: set[str] = set()
-        try:
-            for model in connection.models:
-                if self._references.models_referenced_by_food(
-                    connection.connection_id,
-                    model.model_id,
-                ):
-                    referenced.add(model.model_id)
-            candidates = self._technology.obsolete_model_ids(
-                connection,
-                referenced_model_ids=tuple(sorted(referenced)),
-            )
-        except ProviderPortError as error:
-            raise ProvidersUnavailable(
-                "Provider cleanup eligibility unavailable"
-            ) from error
-
-        if not candidates:
-            return ProviderModelsCleanupResult(connection.connection_id, ())
-
-        # Repeat the reference check immediately before the single replacement;
-        # a model that became referenced is retained instead of being deleted.
-        current = self._require_connection(connection.connection_id)
-        safe: list[str] = []
-        for model_id in candidates:
-            try:
-                still_referenced = self._references.models_referenced_by_food(
-                    current.connection_id,
-                    model_id,
-                )
-            except ProviderPortError as error:
-                raise ProvidersUnavailable("Provider references unavailable") from error
-            if not still_referenced:
-                safe.append(model_id)
-        if safe:
-            self._replace_models(
-                current,
-                tuple(item for item in current.models if item.model_id not in safe),
-            )
-        return ProviderModelsCleanupResult(current.connection_id, tuple(safe))
-
     def get_model_matrix(
         self,
         principal: AccountPrincipal,
@@ -1324,6 +1366,22 @@ class ProvidersService:
             # The connection and inventory are already durable.  The probe
             # boundary records the failure; a failed check must not roll back
             # the user's configuration or hide the inventory.
+            return
+
+    async def _probe_reachability(
+        self,
+        connection: StoredProviderConnection,
+    ) -> None:
+        """Record zero-generation transport/auth evidence after saving config."""
+        probe = getattr(self._technology, "probe_reachability", None)
+        if not callable(probe):
+            return
+        try:
+            await probe(connection.connection_id)
+        except (ProviderPortError, ValueError, OSError):
+            # Reachability is evidence, not a save gate. The connection and
+            # inventory remain durable so the Owner can repair credentials or
+            # the endpoint and retry explicitly.
             return
 
     def _connection_result(

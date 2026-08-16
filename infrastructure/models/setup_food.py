@@ -11,10 +11,7 @@ from app.features.configuration.food import (
     StoredModelEvidence,
 )
 from app.orchestration.setup_installation import SetupInstallationPortError
-from infrastructure.models.capabilities import (
-    canonical_display_name,
-    known_capabilities,
-)
+from infrastructure.models.capabilities import canonical_display_name
 
 from .food_technology import FoodEvidencePort, ModelFoodTechnologyAdapter
 
@@ -36,8 +33,9 @@ class SetupFoodAdapter:
             evidence = StoredModelEvidence(
                 reference=model_reference,
                 display_name=canonical_display_name(model_reference, model_reference),
-                capabilities=frozenset({"text"})
-                | known_capabilities(model_reference, model_reference),
+                # Setup has only proved the tiny text path.  It must not seed
+                # endpoint capabilities from a canonical model-family map.
+                capabilities=frozenset({"text"}),
                 verified=True,
                 cost_grade=0,
                 local=True,

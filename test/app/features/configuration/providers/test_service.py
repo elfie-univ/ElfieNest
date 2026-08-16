@@ -14,6 +14,7 @@ from app.features.configuration import (
     CreateProviderConnectionCommand,
     DeleteProviderConnectionCommand,
     EnsureDefaultLocalProviderConnectionCommand,
+    InspectLocalProviderQuery,
     ListProviderConnectionsQuery,
     ProviderModelInput,
     ProviderModelReplacement,
@@ -40,6 +41,7 @@ from app.features.configuration import (
     StoredProviderProduct,
     StoredValidationRun,
     StoredVerification,
+    VerifyProviderConnectionCommand,
 )
 
 
@@ -63,6 +65,7 @@ class FakeProviderPort:
         )
         self.items: dict[str, StoredProviderConnection] = {}
         self.ensure_local_calls = 0
+        self.local_model_ids: list[str] = []
 
     def list_products(self) -> tuple[StoredProviderProduct, ...]:
         return (self.product,)
@@ -123,17 +126,18 @@ class FakeProviderPort:
         return binding
 
     def list_local_model_ids(self) -> tuple[str, ...]:
-        return ()
+        return tuple(self.local_model_ids)
 
     def save_local_model(self, model_id: str) -> str:
+        if model_id not in self.local_model_ids:
+            self.local_model_ids.append(model_id)
         return f"ollama_0001/{model_id}"
 
     def local_model_reference(self, model_id: str) -> str | None:
-        _ = model_id
-        return None
+        return f"ollama_0001/{model_id}" if model_id in self.local_model_ids else None
 
     def replace_local_models(self, model_ids: tuple[str, ...]) -> None:
-        _ = model_ids
+        self.local_model_ids = list(model_ids)
 
 
 class FakeReferences:
@@ -155,6 +159,9 @@ class FakeReferences:
 
 class FakeTechnology:
     obsolete_ids: tuple[str, ...] = ()
+
+    def __init__(self) -> None:
+        self.reachability_calls: list[str] = []
 
     def prepare_manual_model(self, model: ProviderModelInput) -> StoredProviderModel:
         return StoredProviderModel(model.model_id, model.display_name or model.model_id)
@@ -182,6 +189,9 @@ class FakeTechnology:
     ) -> StoredVerification:
         _ = connection, force_full
         return StoredVerification(status="passed", validation_mode="full")
+
+    async def probe_reachability(self, connection_id: str) -> None:
+        self.reachability_calls.append(connection_id)
 
     async def refresh_models(
         self,
@@ -241,6 +251,18 @@ class FakeLocalTechnology:
 
     def pull_model(self, binding: StoredLocalProviderBinding, model_id: str) -> None:
         _ = binding, model_id
+
+
+class FakeInstalledLocalTechnology(FakeLocalTechnology):
+    def probe(self, binding: StoredLocalProviderBinding) -> StoredLocalProviderProbe:
+        return StoredLocalProviderProbe("healthy", binding.api_base, "0.1")
+
+    def candidate_models(self) -> tuple[StoredLocalProviderCandidate, ...]:
+        return (StoredLocalProviderCandidate("recommended", "Recommended", True),)
+
+    def list_models(self, binding: StoredLocalProviderBinding) -> tuple[str, ...]:
+        _ = binding
+        return ("custom-installed",)
 
 
 class FakeOAuth:
@@ -382,6 +404,34 @@ def test_create_uses_catalog_defaults_and_exposes_only_credential_presence() -> 
     assert result.has_api_key is True
     assert "test-secret" not in repr(result)
     assert port.items[result.connection_id].credential_ref.startswith("ELFIE_PROVIDER_")
+    technology = service._technology
+    assert isinstance(technology, FakeTechnology)
+    assert technology.reachability_calls == [result.connection_id]
+
+
+def test_manual_verification_records_zero_generation_reachability() -> None:
+    service, port, _ = _service()
+    port.items["openai_api_0001"] = StoredProviderConnection(
+        connection_id="openai_api_0001",
+        catalog_id="openai_api",
+        alias="OpenAI",
+        api_base="https://api.openai.com/v1",
+        api_mode="chat_completions",
+        auth_type="bearer",
+        credential_ref="OPENAI_KEY",
+        models=(StoredProviderModel("gpt-test", "gpt-test"),),
+    )
+
+    asyncio.run(
+        service.verify_connection(
+            _principal(),
+            VerifyProviderConnectionCommand("openai_api_0001", force_full=True),
+        )
+    )
+
+    technology = service._technology
+    assert isinstance(technology, FakeTechnology)
+    assert technology.reachability_calls == ["openai_api_0001"]
 
 
 def test_default_local_connection_is_an_explicit_provider_use_case() -> None:
@@ -395,6 +445,23 @@ def test_default_local_connection_is_an_explicit_provider_use_case() -> None:
     assert result.catalog_id == "ollama"
     assert result.ensured is True
     assert port.ensure_local_calls == 1
+
+
+def test_local_inspection_keeps_installed_models_outside_recommendation_catalog() -> (
+    None
+):
+    service, port, _ = _service()
+    service._local_technology = FakeInstalledLocalTechnology()
+
+    result = service.inspect_local_provider(_principal(), InspectLocalProviderQuery())
+
+    assert [item.model_id for item in result.models] == [
+        "recommended",
+        "custom-installed",
+    ]
+    assert result.models[1].installed is True
+    assert result.installed_model_count == 1
+    assert port.local_model_ids == ["custom-installed"]
 
 
 def test_member_cannot_read_provider_administration() -> None:

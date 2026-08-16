@@ -21,6 +21,7 @@ from infrastructure.persistence.layout.data_home import get_report_database_path
 from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
+from infrastructure.persistence.provider_storage import ProviderStorageAdapter
 from infrastructure.persistence.reports.report_repository import ReportRepository
 
 
@@ -39,18 +40,24 @@ class FoodModelHealthProjectionAdapter:
             return _unconfigured_projection()
         try:
             connection_store = ProviderConnectionStore(self._layout.providers_config)
+            provider_storage = ProviderStorageAdapter(
+                connection_store,
+                secret_path=self._layout.auth_env,
+            )
             report_database = get_report_database_path(self._layout.data_home)
             if report_database.is_file():
                 evidence = query_model_evidence(
                     provider_catalog=self._provider_catalog,
                     repository=ReportRepository(report_database),
                     connection_store=connection_store,
+                    secret_resolver=provider_storage.resolve_secret,
                 )
             else:
                 evidence = query_model_evidence(
                     provider_catalog=self._provider_catalog,
                     observations=(),
                     connection_store=connection_store,
+                    secret_resolver=provider_storage.resolve_secret,
                 )
             food = SQLiteFoodAdapter(database)
             packages = food.list_packages()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -16,7 +17,6 @@ from infrastructure.models.providers.discovery import (
     bundled_catalog_models,
     merge_refreshed_models,
 )
-from infrastructure.persistence.model_catalog import load_model_identities
 from infrastructure.models.validation.provider_capability_probes import (
     CapabilityProbeResult,
 )
@@ -24,6 +24,7 @@ from infrastructure.models.validation.provider_validation import (
     DiscoveredModel,
     ModelDiscoveryResult,
 )
+from infrastructure.persistence.model_catalog import load_model_identities
 from infrastructure.persistence.provider_catalog import load_provider_catalog
 from test.support.provider import provider_models_adapter
 
@@ -85,7 +86,9 @@ def test_authority_change_hides_old_inventory_but_preserves_serving_endpoint() -
         preserve_model_ids=("serving-model",),
     )
 
-    old = next(item for item in merged if item.endpoint_model_id == "old-platform-model")
+    old = next(
+        item for item in merged if item.endpoint_model_id == "old-platform-model"
+    )
     serving = next(item for item in merged if item.endpoint_model_id == "serving-model")
     manual = next(item for item in merged if item.endpoint_model_id == "manual-model")
     assert old.discovery_state == "source_missing"
@@ -100,7 +103,9 @@ def test_live_refresh_retains_broad_inventory_as_hidden_other_models(tmp_path) -
     )
     product = adapter.get_product("openai_api")
     assert product is not None
-    curated_model = load_provider_catalog().products[product.catalog_id].bundled_models[0]
+    curated_model = (
+        load_provider_catalog().products[product.catalog_id].bundled_models[0]
+    )
     connection = adapter.create_connection(
         StoredProviderConnection(
             connection_id="",
@@ -144,11 +149,11 @@ def test_live_refresh_retains_broad_inventory_as_hidden_other_models(tmp_path) -
     with patch.object(type(adapter), "_discover_with_slot", return_value=discovery):
         refreshed = asyncio.run(adapter.refresh_models(connection))
 
-    assert [item.model_id for item in refreshed.models if not item.hidden] == [curated_model]
+    assert [item.model_id for item in refreshed.models if not item.hidden] == [
+        curated_model
+    ]
     other = next(
-        item
-        for item in refreshed.models
-        if item.model_id == "other-platform-model"
+        item for item in refreshed.models if item.model_id == "other-platform-model"
     )
     assert other.hidden is True
     assert other.discovery_state == "present"
@@ -226,12 +231,67 @@ def test_capability_probe_persists_endpoint_specific_evidence(tmp_path) -> None:
         "infrastructure.models.provider_administration.run_capability_probes",
         side_effect=AssertionError("verified capability must not be re-probed"),
     ):
-        assert asyncio.run(
+        assert (
+            asyncio.run(
+                adapter.probe_capabilities(
+                    f"{connection.connection_id}/model-a",
+                    ("tools",),
+                )
+            )
+            == ()
+        )
+
+
+def test_accepted_capability_evidence_can_be_reprobed_by_explicit_action(
+    tmp_path,
+) -> None:
+    adapter = provider_models_adapter(
+        tmp_path / "providers.yaml",
+        tmp_path / "auth.env",
+    )
+    connection = adapter.create_connection(
+        StoredProviderConnection(
+            connection_id="",
+            catalog_id="custom_openai",
+            alias="Gateway",
+            api_base="https://gateway.example/v1",
+            api_mode="chat_completions",
+            auth_type="bearer",
+            credential_ref="",
+            models=(StoredProviderModel("model-a", "Model A"),),
+        ),
+        None,
+    )
+    with patch(
+        "infrastructure.models.provider_administration.run_capability_probes",
+        return_value=(
+            CapabilityProbeResult(
+                "vision",
+                "supported",
+                "accepted",
+                "passed",
+                12.0,
+            ),
+        ),
+    ):
+        asyncio.run(
             adapter.probe_capabilities(
                 f"{connection.connection_id}/model-a",
-                ("tools",),
+                ("vision",),
             )
-        ) == ()
+        )
+
+    with patch(
+        "infrastructure.models.provider_administration.run_capability_probes",
+        return_value=(),
+    ) as probe:
+        asyncio.run(
+            adapter.probe_capabilities(
+                f"{connection.connection_id}/model-a",
+                ("vision",),
+            )
+        )
+    probe.assert_called_once()
 
 
 def test_source_missing_model_is_listed_as_cleanup_candidate_after_retention(
@@ -290,7 +350,7 @@ def test_bundled_endpoint_metadata_is_not_shared_across_providers() -> None:
     assert custom.supports_vision is None
 
 
-def test_volcengine_refresh_uses_coding_plan_catalog_and_drops_discovered_models(
+def test_volcengine_refresh_uses_restricted_models_and_keeps_other_ids_hidden(
     tmp_path,
 ) -> None:
     adapter = provider_models_adapter(
@@ -319,28 +379,46 @@ def test_volcengine_refresh_uses_coding_plan_catalog_and_drops_discovered_models
         None,
     )
 
-    with patch.object(
-        type(adapter),
-        "_discover_with_slot",
-        side_effect=AssertionError("Coding Plan must not call /models"),
-    ):
-        refreshed = asyncio.run(adapter.refresh_models(connection))
-
-    assert refreshed.status == "bundled_catalog"
-    assert refreshed.message == (
-        "火山引擎 Coding Plan 使用配置文件中的官方 Model Name 清单，"
-        "未使用 /models（通用模型列表与套餐不匹配）"
+    discovery = ModelDiscoveryResult(
+        provider=connection.connection_id,
+        models=(
+            DiscoveredModel(
+                connection.connection_id,
+                "deepseek-v4-pro",
+                source="provider_models",
+                curated=True,
+            ),
+            DiscoveredModel(
+                connection.connection_id,
+                "live-extra-model",
+                source="provider_models",
+            ),
+        ),
+        source="provider_models",
+        complete=True,
+        authoritative=True,
     )
-    assert [model.model_id for model in refreshed.models] == [
-        "doubao-seed-2.0-lite",
-        "glm-5.2",
-        "kimi-k2.7-code",
-        "deepseek-v4-pro",
-        "minimax-m3",
-        "doubao-seed-2.1-turbo",
-        "deepseek-v4-flash",
-        "glm-5.3",
+    with patch.object(type(adapter), "_discover_with_slot", return_value=discovery):
+        first = asyncio.run(adapter.refresh_models(connection))
+        assert first.persisted_models is not None
+        stale_after_authority_change = next(
+            item
+            for item in first.persisted_models
+            if item.model_id == "wrong-model-from-generic-models-endpoint"
+        )
+        assert stale_after_authority_change.discovery_state == "source_missing"
+        refreshed = asyncio.run(
+            adapter.refresh_models(replace(connection, models=first.persisted_models))
+        )
+
+    assert refreshed.status == "updated"
+    assert [model.model_id for model in refreshed.models if not model.hidden] == [
+        "deepseek-v4-pro"
     ]
+    extra = next(
+        model for model in refreshed.models if model.model_id == "live-extra-model"
+    )
+    assert extra.hidden is True
     assert refreshed.persisted_models is not None
     stale = next(
         item

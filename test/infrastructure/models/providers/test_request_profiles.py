@@ -103,3 +103,11 @@ def test_semantic_tool_and_image_options_use_the_anthropic_wire_shape() -> None:
             "data": "AAAA",
         },
     }
+
+
+def test_semantic_reasoning_mode_uses_the_selected_ollama_parameter() -> None:
+    profile = get_request_profile("ollama_chat_v1", 1)
+
+    options = _adapt_request_options({"reasoning_mode": "medium"}, profile)
+
+    assert options == {"think": "medium"}

@@ -6,6 +6,7 @@ import urllib.error
 import urllib.request
 import uuid
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import Any, Mapping, cast
 
 from infrastructure.models.oauth_credentials import OAuthCredentialPort, OAuthToken
@@ -64,7 +65,12 @@ def call_ollama_api(
         },
     }
     _merge_request_options(payload, request_options)
-    payload["think"] = thinking
+    # ``thinking`` is the legacy boolean fallback. A typed request profile
+    # may already have translated the semantic reasoning mode to Ollama's
+    # top-level ``think`` value (for example ``low``/``medium``). Preserve
+    # that endpoint-specific value instead of silently reducing it to bool.
+    if "think" not in payload:
+        payload["think"] = thinking
     options = payload.get("options")
     if isinstance(options, dict):
         options.pop("think", None)
@@ -95,11 +101,7 @@ def call_ollama_api(
             }
             if response_capture is not None:
                 _capture_message(response_capture, message)
-            return (
-                (content, usage, metadata)
-                if return_metadata
-                else (content, usage)
-            )
+            return (content, usage, metadata) if return_metadata else (content, usage)
     except Exception as e:
         logger.error("本地 Ollama 调用异常: %s", e)
         raise OllamaNotReadyError(
@@ -168,11 +170,7 @@ def call_openai_compatible_api(
                 content = (
                     reasoning_content if isinstance(reasoning_content, str) else ""
                 )
-            return (
-                (content, usage, metadata)
-                if return_metadata
-                else (content, usage)
-            )
+            return (content, usage, metadata) if return_metadata else (content, usage)
     except Exception as e:
         logger.error("Cloud LLM API call exception: %s", e)
         if isinstance(e, urllib.error.HTTPError):
@@ -263,11 +261,7 @@ def call_anthropic_api(
                         "reasoning_present": reasoning_present,
                     }
                 )
-            return (
-                (text, usage, metadata)
-                if return_metadata
-                else (text, usage)
-            )
+            return (text, usage, metadata) if return_metadata else (text, usage)
     except urllib.error.HTTPError as e:
         err_msg = _http_error_summary(e)
         raise provider_error_from_http(
@@ -344,18 +338,50 @@ def call_codex_responses_api(
     )
     try:
         request_timeout = timeout_seconds if timeout_seconds is not None else 300.0
+        stream_started = perf_counter()
+        sse_buffer = bytearray()
+        capture = response_capture if response_capture is not None else {}
+
+        def observe_sse_chunk(chunk: bytes) -> None:
+            """Capture TTFT from the first actual response delta, not headers."""
+            sse_buffer.extend(chunk)
+            while b"\n" in sse_buffer:
+                line, _, remainder = sse_buffer.partition(b"\n")
+                sse_buffer[:] = remainder
+                if not line.startswith(b"data:"):
+                    continue
+                try:
+                    event = json.loads(line[5:].strip().decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    continue
+                event_type = event.get("type")
+                if event_type in {
+                    "response.output_text.delta",
+                    "response.function_call_arguments.delta",
+                    "response.reasoning_summary_text.delta",
+                    "response.reasoning_text.delta",
+                } and event.get("delta"):
+                    capture.setdefault(
+                        "time_to_first_token_ms",
+                        (perf_counter() - stream_started) * 1000.0,
+                    )
+
         with open_provider_request(request, timeout=request_timeout) as response:
             raw = read_provider_response(
                 response,
                 max_bytes=32 * 1024 * 1024,
                 deadline_seconds=request_timeout,
+                on_chunk=observe_sse_chunk,
             ).decode("utf-8")
-        text, usage = _parse_codex_response(raw, response_capture=response_capture)
+        text, usage = _parse_codex_response(raw, response_capture=capture)
         if return_metadata:
-            return text, usage, {
-                "tool_called": bool(response_capture and response_capture.get("tool_call_count")),
-                "reasoning_observed": bool(response_capture and response_capture.get("reasoning_present")),
+            metadata = {
+                "tool_called": bool(capture.get("tool_call_count")),
+                "reasoning_observed": bool(capture.get("reasoning_present")),
             }
+            if "time_to_first_token_ms" in capture:
+                metadata["time_to_first_token_ms"] = capture["time_to_first_token_ms"]
+            return text, usage, metadata
         return text, usage
     except urllib.error.HTTPError as error:
         summary = _http_error_summary(error)

@@ -49,6 +49,29 @@ def test_planner_uses_only_fresh_scoped_models_and_local_first() -> None:
     assert "stale" not in proposal.package.model_references
 
 
+def test_planner_does_not_use_manual_capability_hint_as_serving_role() -> None:
+    proposal = FoodPlanner().propose_package(
+        StoredFoodPackage(
+            food_id="food_common",
+            display_name="Common",
+            system_role="common",
+        ),
+        (
+            StoredModelEvidence(
+                reference="cloud/vision-hint",
+                display_name="Vision hint",
+                capabilities=frozenset({"text", "vision"}),
+                verified=True,
+                observed_at=datetime.now(timezone.utc).isoformat(),
+            ),
+        ),
+        connection_ids=("cloud",),
+    )
+
+    assert proposal.package.primary_model == "cloud/vision-hint"
+    assert proposal.package.vision_model is None
+
+
 def test_health_uses_primary_and_same_food_fallback_evidence() -> None:
     package = StoredFoodPackage(
         food_id="food_custom",

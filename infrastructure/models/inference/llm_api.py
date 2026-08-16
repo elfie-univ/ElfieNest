@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -98,29 +99,34 @@ def call_llm_api_result(
                 max_tokens,
             )
         elif request_profile.api_mode == "codex_responses":
-            dispatch_result = dispatch_fn(
-                api_base,
-                api_key,
-                model_name,
-                effective_messages,
-                temperature,
-                max_tokens,
-                provider,
-                request_options=(
-                    dict(effective_request_options)
-                    if effective_request_options
-                    else None
+            dispatch_result = _invoke_dispatch(
+                dispatch_fn,
+                (
+                    api_base,
+                    api_key,
+                    model_name,
+                    effective_messages,
+                    temperature,
+                    max_tokens,
+                    provider,
                 ),
-                credential_ref=str(provider_cfg.get("credential_ref") or ""),
-                account_id=(
-                    str(provider_cfg["account_id"])
-                    if provider_cfg.get("account_id")
-                    else None
-                ),
-                oauth_credentials=config.oauth_credentials,
-                timeout_seconds=timeout_seconds,
-                response_capture=response_capture,
-                **({"return_metadata": True} if capture_metadata else {}),
+                {
+                    "request_options": (
+                        dict(effective_request_options)
+                        if effective_request_options
+                        else None
+                    ),
+                    "credential_ref": str(provider_cfg.get("credential_ref") or ""),
+                    "account_id": (
+                        str(provider_cfg["account_id"])
+                        if provider_cfg.get("account_id")
+                        else None
+                    ),
+                    "oauth_credentials": config.oauth_credentials,
+                    "timeout_seconds": timeout_seconds,
+                    "response_capture": response_capture,
+                    "return_metadata": capture_metadata,
+                },
             )
             response_text, usage, metadata = _unpack_dispatch_result(dispatch_result)
             args = ()
@@ -137,17 +143,20 @@ def call_llm_api_result(
         if request_profile.api_mode == "codex_responses":
             pass
         elif request_profile.api_mode == "ollama":
-            dispatch_result = dispatch_fn(
-                *args,
-                thinking=thinking,
-                request_options=(
-                    dict(effective_request_options)
-                    if effective_request_options
-                    else None
-                ),
-                timeout_seconds=timeout_seconds,
-                response_capture=response_capture,
-                **({"return_metadata": True} if capture_metadata else {}),
+            dispatch_result = _invoke_dispatch(
+                dispatch_fn,
+                args,
+                {
+                    "thinking": thinking,
+                    "request_options": (
+                        dict(effective_request_options)
+                        if effective_request_options
+                        else None
+                    ),
+                    "timeout_seconds": timeout_seconds,
+                    "response_capture": response_capture,
+                    "return_metadata": capture_metadata,
+                },
             )
             response_text, usage, metadata = _unpack_dispatch_result(dispatch_result)
         elif (
@@ -165,18 +174,17 @@ def call_llm_api_result(
             if response_capture is not None:
                 dispatch_options["response_capture"] = response_capture
             response_text, usage, metadata = _unpack_dispatch_result(
-                dispatch_fn(*args, **dispatch_options)
+                _invoke_dispatch(dispatch_fn, args, dispatch_options)
             )
         else:
             response_text, usage, metadata = _unpack_dispatch_result(
-                dispatch_fn(
-                    *args,
-                    **(
-                        {"response_capture": response_capture}
-                        if response_capture is not None
-                        else {}
-                    ),
-                    **({"return_metadata": True} if capture_metadata else {}),
+                _invoke_dispatch(
+                    dispatch_fn,
+                    args,
+                    {
+                        "response_capture": response_capture,
+                        "return_metadata": capture_metadata,
+                    },
                 )
             )
     except Exception as failure:
@@ -225,6 +233,12 @@ def call_llm_api_result(
             started_at=started_at,
             finished_at=finished_at,
             duration_ms=(perf_counter() - started) * 1000.0,
+            time_to_first_token_ms=(
+                float(metadata["time_to_first_token_ms"])
+                if isinstance(metadata.get("time_to_first_token_ms"), (int, float))
+                and not isinstance(metadata.get("time_to_first_token_ms"), bool)
+                else None
+            ),
             config_fingerprint=config_fingerprint,
             prompt_tokens=_usage_count(
                 usage, "prompt_tokens", "input_tokens", "prompt_eval_count"
@@ -232,6 +246,8 @@ def call_llm_api_result(
             completion_tokens=_usage_count(
                 usage, "completion_tokens", "output_tokens", "eval_count"
             ),
+            tool_called=metadata.get("tool_called") is True,
+            reasoning_observed=metadata.get("reasoning_observed") is True,
         )
     )
     get_token_tracker().record(provider, usage)
@@ -304,6 +320,28 @@ def _unpack_dispatch_result(
     usage = result[1] if isinstance(result[1], dict) else {}
     metadata = result[2] if len(result) == 3 and isinstance(result[2], Mapping) else {}
     return text, usage, metadata
+
+
+def _invoke_dispatch(
+    dispatch_fn: Callable[..., Any],
+    args: tuple[Any, ...],
+    options: Mapping[str, Any],
+) -> Any:
+    """Invoke an adapter using only keywords in its declared call surface."""
+    parameters: Mapping[str, inspect.Parameter]
+    try:
+        parameters = inspect.signature(dispatch_fn).parameters
+    except (TypeError, ValueError):
+        parameters = {}
+    accepts_var_keywords = any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    )
+    if accepts_var_keywords or not parameters:
+        filtered = dict(options)
+    else:
+        filtered = {key: value for key, value in options.items() if key in parameters}
+    return dispatch_fn(*args, **filtered)
 
 
 def _usage_count(usage: Mapping[str, Any], *keys: str) -> int | None:
@@ -456,7 +494,9 @@ def _adapt_messages(
                     text_parts.append(part["text"])
                 elif part.get("type") == "image_url":
                     image_url = part.get("image_url")
-                    url = image_url.get("url") if isinstance(image_url, Mapping) else None
+                    url = (
+                        image_url.get("url") if isinstance(image_url, Mapping) else None
+                    )
                     encoded = _data_url_payload(url)
                     if encoded is not None:
                         images.append(encoded)

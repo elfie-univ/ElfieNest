@@ -457,9 +457,7 @@ class FoodService:
         required_roles: tuple[str, ...] | frozenset[str],
     ) -> frozenset[str]:
         allowed = {"reasoning", "vision", "tool"}
-        normalized = frozenset(
-            role.strip() for role in required_roles if role.strip()
-        )
+        normalized = frozenset(role.strip() for role in required_roles if role.strip())
         if normalized - allowed:
             raise FoodValidationError("Required Food roles are invalid")
         return normalized

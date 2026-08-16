@@ -318,9 +318,10 @@ products:
     api_key_env_var: ARK_API_KEY
     connection_method: api_key
     usage_scope: coding_only
-    # Coding Plan uses the documented Model Name allowlist. Its generic
-    # /models inventory is not the subscription model list and is ignored.
-    discovery_strategy: catalog_only
+    # Coding Plan exposes a subscription-scoped /models inventory below the
+    # coding gateway. bundled_models is only the product-maintained core list
+    # and fallback recommendation set, never the account entitlement source.
+    discovery_strategy: provider_adapter
     oauth_available: false
     test_model: deepseek-v4-pro
     bundled_models:

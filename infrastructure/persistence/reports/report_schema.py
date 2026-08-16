@@ -31,9 +31,7 @@ def initialize_report_database(path: Path) -> None:
             _migrate_subject_kinds(connection)
         # Reinstall this trigger so databases created before the retention
         # policy get the same guarded maintenance path as fresh databases.
-        connection.execute(
-            "DROP TRIGGER IF EXISTS validation_observations_no_delete"
-        )
+        connection.execute("DROP TRIGGER IF EXISTS validation_observations_no_delete")
         connection.executescript(_IMMUTABILITY_TRIGGERS)
         connection.execute(
             """

@@ -7,10 +7,7 @@ from typing import Any, Mapping, Sequence
 
 from app.features.configuration.food import StoredModelEvidence, project_food_health
 from elfie.brain.reasoning.food_port import FoodCatalog, FoodPort
-from infrastructure.models.capabilities import (
-    canonical_display_name,
-    known_capabilities,
-)
+from infrastructure.models.capabilities import canonical_display_name
 from infrastructure.models.catalog import ModelEntry
 from infrastructure.models.food_technology import stored_food_package
 from infrastructure.models.model_execution_config import ModelExecutionConfig
@@ -130,7 +127,6 @@ class ModelExecutionOverviewGenerator:
                             if previous
                             else result.model
                         )
-                        known = known_capabilities(result.model, discovered_name)
                         current_evidence.append(
                             StoredModelEvidence(
                                 reference=model_id,
@@ -140,8 +136,6 @@ class ModelExecutionOverviewGenerator:
                                 capabilities=frozenset(
                                     catalog_entry.capabilities
                                     if catalog_entry
-                                    else known
-                                    if known
                                     else previous.capabilities
                                     if previous
                                     else ("text",)

@@ -105,7 +105,7 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
         "https://ark.cn-beijing.volces.com/api/coding/v3"
     )
     assert catalog.products["volcengine_coding_plan"].discovery_strategy == (
-        "catalog_only"
+        "provider_adapter"
     )
     assert catalog.products["volcengine_coding_plan"].bundled_models == [
         "doubao-seed-2.0-lite",

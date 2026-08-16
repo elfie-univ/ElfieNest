@@ -166,7 +166,12 @@ def _probe_request(
             },
         }
         return (
-            [{"role": "user", "content": "Call probe_local_noop once; do not explain."}],
+            [
+                {
+                    "role": "user",
+                    "content": "Call probe_local_noop once; do not explain.",
+                }
+            ],
             {"tool_definitions": [definition]},
             False,
         )
@@ -176,7 +181,10 @@ def _probe_request(
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Describe the image in one word: RED."},
+                        {
+                            "type": "text",
+                            "text": "Describe the image in one word: RED.",
+                        },
                         {
                             "type": "image_url",
                             "image_url": {
@@ -191,7 +199,12 @@ def _probe_request(
         )
     if capability == "reasoning":
         return (
-            [{"role": "user", "content": "Use the configured reasoning mode, then reply OK."}],
+            [
+                {
+                    "role": "user",
+                    "content": "Use the configured reasoning mode, then reply OK.",
+                }
+            ],
             {"reasoning_mode": "medium"},
             True,
         )

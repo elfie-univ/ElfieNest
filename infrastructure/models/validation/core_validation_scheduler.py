@@ -16,6 +16,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping, cast
 
+from infrastructure.models.validation.provider_availability import (
+    NON_RETRYABLE_REASONS,
+)
 from infrastructure.models.validation.serving_food import ServingFoodIndex
 
 if os.name == "nt":
@@ -166,6 +169,13 @@ def _core_channels(index: ServingFoodIndex) -> dict[str, tuple[str, ...]]:
 
 
 def _is_due(state: object, now: datetime, max_age: timedelta) -> bool:
+    if getattr(state, "reason_code", None) in NON_RETRYABLE_REASONS:
+        return False
+    if getattr(state, "reason_code", None) in {
+        "declared_capability",
+        "declared_capability_unsupported",
+    }:
+        return False
     expires_at = getattr(state, "expires_at", None)
     if isinstance(expires_at, str):
         try:

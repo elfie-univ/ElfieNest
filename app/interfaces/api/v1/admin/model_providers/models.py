@@ -119,8 +119,11 @@ class ProviderConnectionCreateRequest(BaseModel):
         default_factory=list,
         max_length=200,
     )
+    # A new connection must load its endpoint inventory by default.  Full
+    # model verification remains an explicit/cost-bearing action; save still
+    # performs the one tiny representative probe in the service layer.
     verify: bool = False
-    refresh_models: bool = False
+    refresh_models: bool = True
 
     @field_validator("catalog_id", "alias", "api_base")
     @classmethod
@@ -358,9 +361,9 @@ class ProviderModelResponse(BaseModel):
 class ProviderCapabilityProbeRequest(BaseModel):
     model_config = StrictModel
 
-    capabilities: List[
-        Literal["tools", "vision", "reasoning", "structured_output"]
-    ] = Field(default_factory=list, max_length=4)
+    capabilities: List[Literal["tools", "vision", "reasoning", "structured_output"]] = (
+        Field(default_factory=list, max_length=4)
+    )
 
     @field_validator("capabilities")
     @classmethod
@@ -394,9 +397,7 @@ class ProviderCapabilityProbeItemResponse(BaseModel):
 
     capability: Literal["tools", "vision", "reasoning", "structured_output"]
     state: Literal["supported", "unsupported", "unknown"]
-    evidence: Literal[
-        "declared", "declared_by_user", "accepted", "verified", "unknown"
-    ]
+    evidence: Literal["declared", "declared_by_user", "accepted", "verified", "unknown"]
     status: Literal["passed", "failed"]
     latency_ms: float
     error: Optional[str]
@@ -453,9 +454,9 @@ class ProviderModelAvailabilityResponse(BaseModel):
     serving_food_ids: tuple[str, ...]
     serving_roles: tuple[str, ...]
     capabilities: tuple[ProviderModelCapabilityResponse, ...]
-    reachability_status: Literal[
-        "available", "degraded", "unavailable", "unknown"
-    ] = "unknown"
+    reachability_status: Literal["available", "degraded", "unavailable", "unknown"] = (
+        "unknown"
+    )
     reachability_observed_at: Optional[str] = None
     reachability_expires_at: Optional[str] = None
 
@@ -705,6 +706,13 @@ class MatrixSnapshotResponse(BaseModel):
     finished_at: Optional[str]
 
 
+class MatrixCapabilityFactResponse(BaseModel):
+    model_config = StrictModel
+    name: Literal["tools", "vision", "reasoning", "structured_output"]
+    state: Literal["supported", "unsupported", "unknown"]
+    evidence: Literal["declared", "declared_by_user", "accepted", "verified", "unknown"]
+
+
 class MatrixCellResponse(BaseModel):
     model_config = StrictModel
     connection_id: str
@@ -715,6 +723,14 @@ class MatrixCellResponse(BaseModel):
     latency_ms: Optional[float]
     latency_class: Optional[Literal["fast", "normal", "slow"]]
     price_estimate: Optional[float]
+    locality: Literal["local", "remote"] = "remote"
+    validated_at: Optional[str] = None
+    time_to_first_token_ms: Optional[float] = None
+    total_latency_ms: Optional[float] = None
+    context_window_tokens: Optional[int] = None
+    max_output_tokens: Optional[int] = None
+    validation_source: Optional[str] = None
+    capability_facts: tuple[MatrixCapabilityFactResponse, ...] = ()
 
 
 class MatrixConnectionResponse(BaseModel):
@@ -758,7 +774,16 @@ class ModelMatrixResponse(BaseModel):
                     display_name=value.display_name,
                     capabilities=value.capabilities,
                     connections=tuple(
-                        MatrixCellResponse(**vars(cell)) for cell in value.connections
+                        MatrixCellResponse(
+                            **{
+                                **vars(cell),
+                                "capability_facts": tuple(
+                                    MatrixCapabilityFactResponse(**vars(fact))
+                                    for fact in cell.capability_facts
+                                ),
+                            }
+                        )
+                        for cell in value.connections
                     ),
                 )
                 for value in item.models

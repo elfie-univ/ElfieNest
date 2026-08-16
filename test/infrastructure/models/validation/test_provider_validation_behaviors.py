@@ -17,6 +17,7 @@ from infrastructure.models.validation.provider_validation_execution import (
 )
 from infrastructure.models.validation.provider_validation_policy import (
     choose_validation_mode,
+    connection_reachability_fingerprint,
     connection_validation_fingerprint,
 )
 from infrastructure.models.validation.provider_validation_service import (
@@ -204,6 +205,27 @@ def test_connection_fingerprint_ignores_another_connection_secret_change(
     )
 
 
+def test_reachability_fingerprint_ignores_model_inventory_changes() -> None:
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Transport fingerprint",
+        api_base="https://gateway.example/v1",
+        models=(ProviderModelRecord(endpoint_model_id="model-a"),),
+    )
+    changed_models = replace(
+        connection,
+        models=(ProviderModelRecord(endpoint_model_id="model-b"),),
+    )
+
+    assert connection_reachability_fingerprint(connection) == (
+        connection_reachability_fingerprint(changed_models)
+    )
+    assert connection_validation_fingerprint(connection) != (
+        connection_validation_fingerprint(changed_models)
+    )
+
+
 def test_model_execution_projection_uses_connection_id_for_builtin_connection() -> None:
     connection = ProviderConnection(
         connection_id="volcengine_coding_plan_0001",
@@ -312,6 +334,155 @@ def test_connection_block_stops_the_remaining_model_checks(
                 model_execution_projection=model_execution_projection,
                 reports=reports,
                 secret_resolver=resolve_secret,
+            )
+        )
+
+    assert calls == ["model-a"]
+    assert payload["status"] == "failed"
+    assert payload["model_count"] == 1
+
+
+def test_recent_failed_reachability_stops_model_requests_for_account_block(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Blocked before model request",
+        api_base="https://gateway.example/v1",
+        models=(
+            ProviderModelRecord(endpoint_model_id="model-a"),
+            ProviderModelRecord(endpoint_model_id="model-b"),
+        ),
+    )
+    reports = ReportStorageAdapter(ReportRepository())
+    checked_at = datetime.now().astimezone().isoformat()
+    reachability_run = reports.start_run(
+        scope="provider:custom_openai_0001:reachability",
+        trigger="single",
+        started_at=checked_at,
+    )
+    reports.append_observation(
+        run_id=reachability_run,
+        subject_kind="provider",
+        subject_id=connection.connection_id,
+        observed_at=checked_at,
+        status="failed",
+        error_category="billing",
+        error_message="account blocked",
+        details={
+            "evidence_kind": "reachability",
+            "validation_mode": "reachability",
+            "config_fingerprint": connection_reachability_fingerprint(
+                connection,
+                secret_resolver=resolve_secret,
+            ),
+            "error_code": "billing_blocked",
+            "error_scope": "connection",
+        },
+    )
+    reports.finish_run(reachability_run, status="failed", finished_at=checked_at)
+    calls: list[str] = []
+
+    def model_check(connection, model_id, model_execution_projection):
+        _ = connection, model_execution_projection
+        calls.append(model_id)
+        return {"status": "passed", "latency_ms": 10.0, "error": None}
+
+    with patch(
+        "infrastructure.models.validation.provider_validation_checks.run_connection_model_check",
+        side_effect=model_check,
+    ):
+        payload = asyncio.run(
+            validate_connection(
+                connection,
+                catalog=PROVIDER_CATALOG,
+                model_execution_projection=model_execution_projection,
+                reports=reports,
+                secret_resolver=resolve_secret,
+                force_full=True,
+            )
+        )
+
+    assert calls == []
+    assert payload["status"] == "failed"
+    assert payload["model_count"] == 0
+    latest = reports.observations_for_subject("provider", connection.connection_id)[0]
+    assert latest.details["error_code"] == "billing_blocked"
+    assert latest.details["hard_blocker"] is True
+
+
+def test_recent_failed_reachability_and_first_transient_model_stop_remaining_checks(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Transient transport",
+        api_base="https://gateway.example/v1",
+        models=(
+            ProviderModelRecord(endpoint_model_id="model-a"),
+            ProviderModelRecord(endpoint_model_id="model-b"),
+            ProviderModelRecord(endpoint_model_id="model-c"),
+        ),
+    )
+    reports = ReportStorageAdapter(ReportRepository())
+    checked_at = datetime.now().astimezone().isoformat()
+    reachability_run = reports.start_run(
+        scope="provider:custom_openai_0001:reachability",
+        trigger="single",
+        started_at=checked_at,
+    )
+    reports.append_observation(
+        run_id=reachability_run,
+        subject_kind="provider",
+        subject_id=connection.connection_id,
+        observed_at=checked_at,
+        status="failed",
+        error_category="network",
+        error_message="network down",
+        details={
+            "evidence_kind": "reachability",
+            "validation_mode": "reachability",
+            "config_fingerprint": connection_reachability_fingerprint(
+                connection,
+                secret_resolver=resolve_secret,
+            ),
+            "error_code": "network_error",
+            "error_scope": "transport",
+        },
+    )
+    reports.finish_run(reachability_run, status="failed", finished_at=checked_at)
+    calls: list[str] = []
+
+    def model_check(connection, model_id, model_execution_projection):
+        _ = connection, model_execution_projection
+        calls.append(model_id)
+        return {
+            "status": "failed",
+            "latency_ms": None,
+            "error": "network down",
+            "error_code": "network_error",
+            "error_scope": "transport",
+            "error_category": "network",
+        }
+
+    with patch(
+        "infrastructure.models.validation.provider_validation_checks.run_connection_model_check",
+        side_effect=model_check,
+    ):
+        payload = asyncio.run(
+            validate_connection(
+                connection,
+                catalog=PROVIDER_CATALOG,
+                model_execution_projection=model_execution_projection,
+                reports=reports,
+                secret_resolver=resolve_secret,
+                force_full=True,
             )
         )
 

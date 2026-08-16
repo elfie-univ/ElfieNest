@@ -45,6 +45,8 @@ def _observation(
     code: str | None = None,
     category: str | None = None,
     fingerprint: str | None = None,
+    subject_kind: str = "model",
+    evidence_kind: str | None = None,
 ):
     details = {
         "reason_code": code,
@@ -53,12 +55,14 @@ def _observation(
     }
     if fingerprint is not None:
         details["config_fingerprint"] = fingerprint
+    if evidence_kind is not None:
+        details["evidence_kind"] = evidence_kind
     return type(
         "Observation",
         (),
         {
             "observation_id": 1,
-            "subject_kind": "model",
+            "subject_kind": subject_kind,
             "subject_id": subject_id,
             "observed_at": datetime.now(timezone.utc).isoformat(),
             "status": "passed" if code is None else "failed",
@@ -137,6 +141,137 @@ def test_query_returns_unknown_without_evidence_and_does_not_call_network() -> N
     assert result.reason_code == "no_health_evidence"
 
 
+def test_hidden_and_source_missing_models_do_not_poison_provider_status() -> None:
+    connection = ProviderConnection(
+        connection_id="cloud_0001",
+        catalog_id="custom_openai",
+        alias="Cloud",
+        api_base="https://example.test",
+        api_mode="chat_completions",
+        auth_type="bearer",
+        credential_ref="CLOUD_KEY",
+        models=(
+            ProviderModelRecord("main", source="manual"),
+            ProviderModelRecord("hidden", source="manual", hidden=True),
+            ProviderModelRecord(
+                "gone", source="official", discovery_state="source_missing"
+            ),
+        ),
+    )
+    observations = (
+        _observation("cloud_0001/main"),
+        _observation("cloud_0001/hidden", code="model_not_found"),
+        _observation("cloud_0001/gone", code="model_not_found"),
+    )
+
+    query = ProviderAvailabilityQuery(_Storage(connection), _Reports(observations))
+
+    assert query.get("cloud_0001/main").provider_status == "healthy"
+
+
+def test_hidden_model_referenced_by_serving_food_stays_in_core_health_scope() -> None:
+    connection = ProviderConnection(
+        connection_id="cloud_0001",
+        catalog_id="custom_openai",
+        alias="Cloud",
+        api_base="https://example.test",
+        api_mode="chat_completions",
+        auth_type="bearer",
+        credential_ref="CLOUD_KEY",
+        models=(ProviderModelRecord("hidden", source="manual", hidden=True),),
+    )
+    reference = "cloud_0001/hidden"
+    query = ProviderAvailabilityQuery(
+        _Storage(connection),
+        _Reports((_observation(reference),)),
+        serving_index=lambda: ServingFoodIndex(
+            generation="g1",
+            foods=(),
+            core_endpoints=(
+                CoreEndpointRoute(reference, ("food_common",), ("primary",)),
+            ),
+        ),
+    )
+
+    result = query.get(reference)
+
+    assert result.is_core is True
+    assert result.status == "available"
+    assert result.provider_status == "healthy"
+
+
+def test_source_missing_model_referenced_by_serving_food_is_explicitly_unavailable() -> (
+    None
+):
+    connection = ProviderConnection(
+        connection_id="cloud_0001",
+        catalog_id="custom_openai",
+        alias="Cloud",
+        api_base="https://example.test",
+        api_mode="chat_completions",
+        auth_type="bearer",
+        credential_ref="CLOUD_KEY",
+        models=(
+            ProviderModelRecord(
+                "gone", source="official", discovery_state="source_missing"
+            ),
+        ),
+    )
+    reference = "cloud_0001/gone"
+    query = ProviderAvailabilityQuery(
+        _Storage(connection),
+        _Reports((_observation(reference),)),
+        serving_index=lambda: ServingFoodIndex(
+            generation="g1",
+            foods=(),
+            core_endpoints=(
+                CoreEndpointRoute(reference, ("food_common",), ("primary",)),
+            ),
+        ),
+    )
+
+    result = query.get(reference)
+
+    assert result.is_core is True
+    assert result.status == "unavailable"
+    assert result.reason_code == "source_missing"
+    assert result.provider_status == "unavailable"
+
+
+def test_provider_reachability_alone_does_not_make_empty_scope_healthy() -> None:
+    connection = ProviderConnection(
+        connection_id="cloud_0001",
+        catalog_id="custom_openai",
+        alias="Cloud",
+        api_base="https://example.test",
+        api_mode="chat_completions",
+        auth_type="bearer",
+        credential_ref="CLOUD_KEY",
+        models=(ProviderModelRecord("hidden", source="manual", hidden=True),),
+    )
+    query = ProviderAvailabilityQuery(
+        _Storage(connection),
+        _Reports(
+            (
+                _observation(
+                    "cloud_0001",
+                    subject_kind="provider",
+                    evidence_kind="reachability",
+                ),
+            )
+        ),
+        serving_index=lambda: ServingFoodIndex(
+            generation="g1",
+            foods=(),
+            core_endpoints=(),
+        ),
+    )
+
+    result = query.get("cloud_0001/hidden")
+
+    assert result.provider_status == "unknown"
+
+
 def test_query_rejects_observations_from_an_old_configuration_fingerprint() -> None:
     connection = ProviderConnection(
         connection_id="cloud_0001",
@@ -196,6 +331,77 @@ def test_active_probe_is_single_flight_and_cooldown_limited() -> None:
 
     assert len(results) == 2
     assert calls == 1
+
+
+def test_reachability_does_not_retry_a_deterministic_connection_block() -> None:
+    connection = ProviderConnection(
+        connection_id="cloud_0001",
+        catalog_id="custom_openai",
+        alias="Cloud",
+        api_base="https://example.test",
+        api_mode="chat_completions",
+        auth_type="bearer",
+        credential_ref="CLOUD_KEY",
+        models=(ProviderModelRecord("main", source="manual"),),
+    )
+    calls = 0
+
+    def probe(_connection_id: str) -> None:
+        nonlocal calls
+        calls += 1
+
+    query = ProviderAvailabilityQuery(
+        _Storage(connection),
+        _Reports(
+            (
+                _observation(
+                    "cloud_0001",
+                    code="billing_blocked",
+                    category="billing",
+                    subject_kind="provider",
+                    evidence_kind="reachability",
+                ),
+            )
+        ),
+        active_reachability_probe=probe,
+    )
+
+    state = query.ensure_reachability("cloud_0001", allow_probe=True)
+
+    assert state.status == "unavailable"
+    assert state.reason_code == "billing_blocked"
+    assert calls == 0
+
+
+def test_active_capability_probe_uses_a_separate_single_flight_key() -> None:
+    connection = ProviderConnection(
+        connection_id="cloud_0001",
+        catalog_id="custom_openai",
+        alias="Cloud",
+        api_base="https://example.test",
+        api_mode="chat_completions",
+        auth_type="bearer",
+        credential_ref="CLOUD_KEY",
+        models=(ProviderModelRecord("main", source="manual"),),
+    )
+    calls: list[tuple[str, str]] = []
+
+    def probe(reference: str, capability: str) -> None:
+        calls.append((reference, capability))
+
+    query = ProviderAvailabilityQuery(
+        _Storage(connection),
+        _Reports(()),
+        active_capability_probe=probe,
+    )
+
+    query.ensure(
+        "cloud_0001/main",
+        allow_probe=True,
+        capability="vision",
+    )
+
+    assert calls == [("cloud_0001/main", "vision")]
 
 
 def test_core_validation_entry_point_uses_current_serving_index(tmp_path) -> None:
@@ -269,3 +475,83 @@ def test_core_validation_uses_role_evidence_not_text_health(tmp_path) -> None:
 
     assert result.acquired is True
     assert calls == [(model_ref, "vision")]
+
+
+def test_declared_capability_is_stable_and_does_not_trigger_paid_probe(
+    tmp_path,
+) -> None:
+    connection = ProviderConnection(
+        connection_id="cloud_0001",
+        catalog_id="openai_api",
+        alias="Cloud",
+        api_base="https://example.test/v1",
+        api_mode="chat_completions",
+        auth_type="bearer",
+        credential_ref="CLOUD_KEY",
+        models=(
+            ProviderModelRecord(
+                "main",
+                source="official",
+                supports_vision=True,
+                capability_evidence={"vision": "declared"},
+            ),
+        ),
+    )
+    model_ref = "cloud_0001/main"
+    query = ProviderAvailabilityQuery(
+        _Storage(connection),
+        _Reports((_observation(model_ref),)),
+        serving_index=lambda: ServingFoodIndex(
+            generation="g1",
+            foods=(),
+            core_endpoints=(
+                CoreEndpointRoute(model_ref, ("food_common",), ("vision",)),
+            ),
+        ),
+    )
+    calls: list[tuple[str, str]] = []
+    scheduler = CoreValidationScheduler(
+        tmp_path / "lease.lock",
+        lambda reference, channel: calls.append((reference, channel)),
+    )
+
+    result = query.run_core_validation(scheduler)
+
+    assert result.acquired is True
+    assert calls == []
+
+
+def test_accepted_capability_is_unknown_until_verified(tmp_path) -> None:
+    connection = ProviderConnection(
+        connection_id="cloud_0001",
+        catalog_id="openai_api",
+        alias="Cloud",
+        api_base="https://example.test/v1",
+        api_mode="chat_completions",
+        auth_type="bearer",
+        credential_ref="CLOUD_KEY",
+        models=(
+            ProviderModelRecord(
+                "main",
+                source="official",
+                supports_vision=True,
+                capability_evidence={"vision": "accepted"},
+            ),
+        ),
+    )
+    model_ref = "cloud_0001/main"
+    query = ProviderAvailabilityQuery(
+        _Storage(connection),
+        _Reports(()),
+        serving_index=lambda: ServingFoodIndex(
+            generation="g1",
+            foods=(),
+            core_endpoints=(
+                CoreEndpointRoute(model_ref, ("food_common",), ("vision",)),
+            ),
+        ),
+    )
+    state = query._availability_for_channel(model_ref, "vision")
+
+    assert state.status == "unknown"
+    assert state.reason_code == "no_capability_evidence"

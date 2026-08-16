@@ -43,14 +43,14 @@ from infrastructure.models.model_execution_adapter import StructuredModelExecuti
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.providers.openai_chatgpt import OpenAIChatGptOAuthAdapter
-from infrastructure.models.validation.provider_scheduler import (
-    ProviderValidationScheduler,
-)
 from infrastructure.models.validation.core_validation_scheduler import (
     CoreValidationScheduler,
 )
 from infrastructure.models.validation.core_validation_worker import (
     CoreValidationWorker,
+)
+from infrastructure.models.validation.provider_scheduler import (
+    ProviderValidationScheduler,
 )
 from infrastructure.models.validation.serving_food import build_serving_food_index
 from infrastructure.persistence.configuration.bundled_defaults import (
@@ -160,6 +160,7 @@ def build_application_container(
         provider_store,
         report_repository,
         provider_catalog,
+        secret_resolver=provider_storage.resolve_secret,
     )
     oauth_credentials = OAuthCredentialAdapter()
     provider_models = ProviderModelsAdapter(
@@ -184,6 +185,7 @@ def build_application_container(
             provider_store,
             report_repository,
             provider_catalog,
+            secret_resolver=provider_storage.resolve_secret,
         )
         oauth_credentials = OAuthCredentialAdapter(
             OAuthCredentialStore(layout.oauth_credentials)
@@ -207,9 +209,6 @@ def build_application_container(
             for connection in connections.values()
             if connection.enabled and not connection.archived
             for model in connection.models
-            if not model.hidden
-            and not model.retired
-            and model.discovery_state == "present"
         )
         food_packages = food_persistence.list_packages()
         default_food_id = next(
@@ -260,11 +259,17 @@ def build_application_container(
         active_probe=lambda reference: asyncio.run(
             provider_models.probe_model(reference)
         ),
+        active_capability_probe=lambda reference, capability: asyncio.run(
+            provider_models.probe_model_capability(reference, capability)
+        ),
         active_reachability_probe=lambda connection_id: asyncio.run(
             provider_models.probe_reachability(connection_id)
         ),
         config_fingerprint=lambda connection: provider_models.validation_fingerprint(
             connection.connection_id
+        ),
+        reachability_fingerprint=lambda connection: (
+            provider_models.reachability_fingerprint(connection.connection_id)
         ),
     )
     core_validation_worker: CoreValidationWorker | None = None
@@ -290,6 +295,11 @@ def build_application_container(
             for connection in provider_storage.load_connections().values()
             if connection.enabled and not connection.archived
         ),
+        # With a live Nest session the CoreValidationWorker is started by the
+        # application lifecycle and owns model/channel probes.  The in-memory
+        # and headless composition paths have no worker, so keep the legacy
+        # scheduler's core checks there.
+        check_core_models=nest_session is None,
         maintenance=lambda cutoff: report_repository.compact_observations(
             cutoff.isoformat()
         ),

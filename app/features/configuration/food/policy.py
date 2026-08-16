@@ -284,6 +284,11 @@ def _choose(
         capabilities = item.capabilities or frozenset({"text"})
         if capability not in capabilities:
             continue
+        if (
+            capability != "text"
+            and item.capability_states.get(capability) != "supported"
+        ):
+            continue
         if require_tool_test and not item.tool_test_passed:
             continue
         return item.reference

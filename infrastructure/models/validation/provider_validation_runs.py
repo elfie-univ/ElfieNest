@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from typing import Any, Callable, Literal, Mapping, cast
 
 from pydantic import JsonValue
 
 from infrastructure.models.provider_errors import sanitize_error
 from infrastructure.models.provider_records import ProviderConnection
+from infrastructure.models.report_records import ValidationObservation
 from infrastructure.models.storage_ports import ReportStoragePort
+from infrastructure.models.validation.provider_availability import TRANSIENT_WINDOW
+from infrastructure.models.validation.provider_validation_policy import (
+    connection_reachability_fingerprint,
+)
 
 from .provider_validation_checks import (
     ModelExecutionProjection,
@@ -48,6 +54,24 @@ async def run_full(
     model_ids = tuple(model.endpoint_model_id for model in models)
     model_results: list[dict[str, Any]] = []
     promoted_transport_outage = False
+    recent_reachability_failure = _recent_reachability_failure(
+        reports,
+        connection,
+        connection_reachability_fingerprint(
+            connection,
+            secret_resolver=secret_resolver,
+        ),
+    )
+    preflight_connection_block = (
+        recent_reachability_failure
+        if recent_reachability_failure is not None
+        and _reachability_failure_scope(recent_reachability_failure) == "connection"
+        else None
+    )
+    preflight_transport_failure = (
+        recent_reachability_failure is not None
+        and _reachability_failure_scope(recent_reachability_failure) == "transport"
+    )
     try:
 
         def record_batch(
@@ -127,8 +151,11 @@ async def run_full(
         # stop guarantee: a billing/credential block must not start sibling
         # requests.  Once the connection is known to be reachable, the
         # remaining model checks use bounded parallelism.
-        blocked = False
-        if models:
+        # A just-recorded zero-generation reachability check can prove an
+        # account-wide blocker before any model request is sent.  Preserve the
+        # validation report, but do not spend a model request to rediscover it.
+        blocked = preflight_connection_block is not None
+        if models and not blocked:
             first_batch = (models[0],)
             first_raw = await asyncio.gather(
                 bounded_connection_model_check(
@@ -139,6 +166,14 @@ async def run_full(
                 )
             )
             blocked = record_batch(first_batch, tuple(first_raw))
+            if preflight_transport_failure and any(
+                item.get("error_scope") == "transport"
+                or item.get("error_category")
+                in {"network", "timeout", "server", "transport"}
+                for item in first_raw
+            ):
+                promoted_transport_outage = True
+                blocked = True
         for offset in range(1, len(models), _MODEL_CONCURRENCY):
             if blocked:
                 break
@@ -165,7 +200,21 @@ async def run_full(
         )
         error = next(
             (item["error"] for item in model_results if item["error"]),
-            "没有可验证模型" if not model_results else None,
+            (
+                sanitize_error(
+                    preflight_connection_block.error_message,
+                    secrets=(
+                        connection_api_key(
+                            connection,
+                            secret_resolver=secret_resolver,
+                        ),
+                    ),
+                )
+                if preflight_connection_block is not None
+                else "没有可验证模型"
+                if not model_results
+                else None
+            ),
         )
         metadata = {
             "validation_mode": "full",
@@ -189,6 +238,18 @@ async def run_full(
                     "error_code": first_error.get("error_code"),
                     "error_scope": first_error.get("error_scope"),
                     "error_category": first_error.get("error_category"),
+                }
+            )
+        if preflight_connection_block is not None:
+            metadata.update(
+                {
+                    "error_code": _observation_detail(
+                        preflight_connection_block, "error_code"
+                    )
+                    or "connection_blocked",
+                    "error_scope": "connection",
+                    "error_category": preflight_connection_block.error_category,
+                    "hard_blocker": True,
                 }
             )
         if promoted_transport_outage:
@@ -315,3 +376,86 @@ def _optional_float(value: JsonValue) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     return float(value)
+
+
+def _recent_reachability_failure(
+    reports: ReportStoragePort,
+    connection: ProviderConnection,
+    fingerprint: str,
+) -> ValidationObservation | None:
+    observations = tuple(
+        item
+        for item in reports.observations_for_subject(
+            "provider", connection.connection_id
+        )
+        if item.details.get("evidence_kind") == "reachability"
+        and item.details.get("config_fingerprint") in {None, fingerprint}
+    )
+    if not observations:
+        return None
+    latest = max(
+        observations,
+        key=lambda item: (
+            _parse_timestamp(item.observed_at)
+            or datetime.min.replace(tzinfo=timezone.utc),
+            item.observation_id,
+        ),
+    )
+    observed_at = _parse_timestamp(latest.observed_at)
+    if latest.status != "failed" or observed_at is None:
+        return None
+    if datetime.now(timezone.utc) - observed_at > TRANSIENT_WINDOW:
+        return None
+    if _reachability_failure_scope(latest) is None:
+        return None
+    return latest
+
+
+def _reachability_failure_scope(
+    observation: ValidationObservation,
+) -> Literal["connection", "transport"] | None:
+    details = observation.details
+    scope = details.get("error_scope")
+    category = observation.error_category or details.get("error_category")
+    code = details.get("error_code") or details.get("reason_code")
+    if (
+        scope == "connection"
+        or category in {"authentication", "billing", "quota"}
+        or code
+        in {
+            "invalid_credential",
+            "credential_revoked",
+            "subscription_expired",
+            "billing_blocked",
+            "account_disabled",
+            "quota_exhausted",
+        }
+    ):
+        return "connection"
+    if (
+        scope == "transport"
+        or category in {"network", "timeout", "server", "transport"}
+        or code in {"network_error", "timeout", "server_error"}
+    ):
+        return "transport"
+    return None
+
+
+def _observation_detail(
+    observation: ValidationObservation,
+    key: str,
+) -> str | None:
+    value = observation.details.get(key)
+    return value if isinstance(value, str) else None
+
+
+def _parse_timestamp(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)

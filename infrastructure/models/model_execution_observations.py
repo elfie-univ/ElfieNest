@@ -115,6 +115,8 @@ class ModelCallObservation:
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     config_fingerprint: str | None = None
+    tool_called: bool = False
+    reasoning_observed: bool = False
 
     def to_event(self) -> ModelExecutionEvent:
         metadata: dict[str, ModelExecutionMetadataValue] = {
@@ -151,6 +153,10 @@ class ModelCallObservation:
         for key, numeric_value in optional_numbers.items():
             if numeric_value is not None:
                 metadata[key] = numeric_value
+        if self.tool_called:
+            metadata["tool_called"] = True
+        if self.reasoning_observed:
+            metadata["reasoning_observed"] = True
         return ModelExecutionEvent(
             event_type=ModelExecutionEventType.MODEL_CALL,
             status=self.status,

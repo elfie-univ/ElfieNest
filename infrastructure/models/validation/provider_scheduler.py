@@ -8,7 +8,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Protocol
 
-from app.features.configuration.providers import StoredModelAvailability
+from app.features.configuration.providers import CapabilityName, StoredModelAvailability
+from infrastructure.models.validation.provider_availability import (
+    NON_RETRYABLE_REASONS,
+    ReachabilityAvailability,
+)
 from infrastructure.models.validation.serving_food import ServingFoodIndex
 
 CORE_MODEL_FRESHNESS = timedelta(hours=24)
@@ -27,6 +31,7 @@ class ProviderHealthQuery(Protocol):
         *,
         max_age: timedelta,
         allow_probe: bool,
+        capability: CapabilityName | None = None,
     ) -> StoredModelAvailability: ...
 
     def ensure_reachability(
@@ -35,7 +40,7 @@ class ProviderHealthQuery(Protocol):
         *,
         max_age: timedelta,
         allow_probe: bool,
-    ) -> object: ...
+    ) -> ReachabilityAvailability: ...
 
 
 class ValidationLeaseStore(Protocol):
@@ -72,6 +77,7 @@ class ProviderValidationScheduler:
         maintenance: Callable[[datetime], object] | None = None,
         retention_interval: timedelta = RETENTION_INTERVAL,
         raw_retention: timedelta = RAW_RETENTION,
+        check_core_models: bool = True,
     ) -> None:
         self._availability = availability
         self._serving_index = serving_index
@@ -83,6 +89,11 @@ class ProviderValidationScheduler:
         self._maintenance = maintenance
         self._retention_interval = retention_interval
         self._raw_retention = raw_retention
+        # The legacy scheduler owns Provider-wide reachability.  When the
+        # process also runs CoreValidationWorker, that worker owns all
+        # model/channel probes so the two loops cannot spend tokens on the
+        # same serving endpoint.
+        self._check_core_models = check_core_models
         self._last_maintenance_at: datetime | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -111,32 +122,34 @@ class ProviderValidationScheduler:
                 self._release(lease_key)
 
         checked_models: list[str] = []
-        scheduled_index = self._serving_index()
-        for reference in scheduled_index.core_references:
-            # The index is derived from Food assignments and enabled endpoint
-            # records.  If it changes while this run is in flight, discard the
-            # remaining snapshot rather than probing a route that is no longer
-            # core.  The next tick will schedule the new generation.
-            if self._serving_index().generation != scheduled_index.generation:
-                break
-            try:
-                current_availability = self._availability.get(reference)
-                if not _needs_core_probe(current_availability, current):
-                    continue
-                lease_key = f"model:{reference}:validation"
-                if not self._try_acquire(lease_key):
-                    continue
+        if self._check_core_models:
+            scheduled_index = self._serving_index()
+            for reference in scheduled_index.core_references:
+                # The index is derived from Food assignments and enabled
+                # endpoint records.  If it changes while this run is in
+                # flight, discard the remaining snapshot rather than probing
+                # a route that is no longer core.  The next tick will schedule
+                # the new generation.
+                if self._serving_index().generation != scheduled_index.generation:
+                    break
                 try:
-                    self._availability.ensure(
-                        reference,
-                        max_age=CORE_MODEL_FRESHNESS,
-                        allow_probe=True,
-                    )
-                    checked_models.append(reference)
-                finally:
-                    self._release(lease_key)
-            except Exception:
-                pass
+                    current_availability = self._availability.get(reference)
+                    if not _needs_core_probe(current_availability, current):
+                        continue
+                    lease_key = f"model:{reference}:validation"
+                    if not self._try_acquire(lease_key):
+                        continue
+                    try:
+                        self._availability.ensure(
+                            reference,
+                            max_age=CORE_MODEL_FRESHNESS,
+                            allow_probe=True,
+                        )
+                        checked_models.append(reference)
+                    finally:
+                        self._release(lease_key)
+                except Exception:
+                    pass
         self._run_maintenance(current)
         return SchedulerRunResult(
             reachability_checked=tuple(checked_reachability),
@@ -226,6 +239,17 @@ def _needs_core_probe(
     now: datetime,
 ) -> bool:
     observed = _parse_timestamp(availability.observed_at)
+    expires_at = _parse_timestamp(availability.expires_at)
+    if expires_at is not None and now < expires_at:
+        return False
+    # Account and lifecycle blockers are not healed by spending another model
+    # token with the same configuration.  A credential/configuration change
+    # removes the old fingerprinted evidence; an explicit Owner validation can
+    # still bypass this passive scheduler.
+    if availability.reason_code in NON_RETRYABLE_REASONS:
+        return False
+    if expires_at is not None:
+        return True
     return (
         observed is None
         or now - observed > CORE_MODEL_FRESHNESS

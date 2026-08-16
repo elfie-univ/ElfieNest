@@ -9,6 +9,7 @@ import urllib.request
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping
+from urllib.parse import urlparse
 
 from infrastructure.models.catalog import verify_provider
 from infrastructure.models.inference.llm_api import call_llm_api
@@ -139,6 +140,16 @@ def discover_provider_models_result(
         )
 
     if strategy == "provider_adapter":
+        catalog_id = str(provider.get("catalog_id") or provider_id)
+        if catalog_id == "volcengine_coding_plan":
+            return _discover_volcengine_coding_plan_models(
+                provider_id,
+                provider,
+                profile,
+                timeout=timeout,
+                allow_configured_fallback=allow_configured_fallback,
+                max_models=max_models,
+            )
         configured = _configured_models(provider, config.provider_catalog)
         return ModelDiscoveryResult(
             provider_id,
@@ -273,6 +284,177 @@ def discover_provider_models_result(
         "ollama" if api_mode == "ollama" else "provider_models",
         complete=True,
         authoritative=True,
+    )
+
+
+def _discover_volcengine_coding_plan_models(
+    provider_id: str,
+    provider: Mapping[str, Any],
+    profile: Any,
+    *,
+    timeout: float,
+    allow_configured_fallback: bool,
+    max_models: int,
+) -> ModelDiscoveryResult:
+    """Read the account-scoped Coding Plan inventory, not the platform catalog.
+
+    The Coding Plan gateway has a distinct ``/api/coding`` path.  Refuse to
+    reinterpret a caller-provided general Ark endpoint as a subscription
+    inventory; a failed product-specific discovery may use labelled curated
+    fallback data, but it must not claim account entitlement.
+    """
+    api_base = str(provider.get("api_base", "")).rstrip("/")
+    api_key = str(provider.get("api_key", ""))
+    parsed_path = urlparse(api_base).path.rstrip("/")
+    if "/api/coding/" not in f"{parsed_path}/":
+        return _configured_discovery_fallback(
+            provider_id,
+            provider,
+            None,
+            error="火山引擎 Coding Plan 的 API Base 必须位于 /api/coding 网关",
+            allow_configured_fallback=allow_configured_fallback,
+        )
+    return _discover_models_endpoint(
+        provider_id,
+        provider,
+        profile,
+        api_base=api_base,
+        api_key=api_key,
+        api_mode=str(provider.get("api_mode", "")) or detect_api_mode_for_url(api_base),
+        timeout=timeout,
+        allow_configured_fallback=allow_configured_fallback,
+        max_models=max_models,
+        source_error_prefix="火山引擎 Coding Plan 模型清单",
+    )
+
+
+def _discover_models_endpoint(
+    provider_id: str,
+    provider: Mapping[str, Any],
+    profile: Any,
+    *,
+    api_base: str,
+    api_key: str,
+    api_mode: str,
+    timeout: float,
+    allow_configured_fallback: bool,
+    max_models: int,
+    source_error_prefix: str = "Model discovery",
+) -> ModelDiscoveryResult:
+    """Read one bounded, complete OpenAI-compatible model inventory."""
+    if not api_base:
+        return _configured_discovery_fallback(
+            provider_id,
+            provider,
+            profile,
+            error=f"{source_error_prefix} 缺少 api_base",
+            allow_configured_fallback=allow_configured_fallback,
+        )
+    url = f"{api_base}/models"
+    headers: dict[str, str] = {"Accept": "application/json"}
+    if api_mode == "anthropic_messages":
+        if api_key:
+            headers["x-api-key"] = api_key
+        headers["anthropic-version"] = "2023-06-01"
+    elif api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    request = urllib.request.Request(url, headers=headers, method="GET")
+    discovery_error: RuntimeError | None = None
+    payload: Any = {}
+    try:
+        with open_provider_request(request, timeout=timeout) as response:
+            payload = json.loads(
+                read_provider_response(
+                    response,
+                    max_bytes=4 * 1024 * 1024,
+                    deadline_seconds=timeout,
+                ).decode("utf-8")
+            )
+    except urllib.error.HTTPError as exc:
+        discovery_error = RuntimeError(
+            f"{source_error_prefix}失败: HTTP {exc.code} {exc.reason}"
+        )
+    except urllib.error.URLError as exc:
+        discovery_error = RuntimeError(f"{source_error_prefix}连接失败: {exc.reason}")
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TimeoutError):
+        discovery_error = RuntimeError(f"{source_error_prefix}返回无效 JSON")
+
+    if discovery_error is None and not _has_model_list(api_mode, payload):
+        discovery_error = RuntimeError(f"{source_error_prefix}响应结构无效")
+    names = _extract_model_names(api_mode, payload) if discovery_error is None else []
+    if discovery_error is None and len(names) > max_models:
+        discovery_error = RuntimeError(f"{source_error_prefix}超过上限 {max_models}")
+        names = []
+    if discovery_error is None and isinstance(payload, dict):
+        if payload.get("has_more") is True or payload.get("next_cursor"):
+            discovery_error = RuntimeError(f"{source_error_prefix}分页未完整读取")
+            names = []
+
+    if discovery_error is not None:
+        return _configured_discovery_fallback(
+            provider_id,
+            provider,
+            profile,
+            error=str(discovery_error),
+            allow_configured_fallback=allow_configured_fallback,
+        )
+    curated_ids = set(_bundled_model_names(provider, profile))
+    return ModelDiscoveryResult(
+        provider_id,
+        tuple(
+            DiscoveredModel(
+                provider_id,
+                name,
+                source="provider_models",
+                display_name=name,
+                curated=name in curated_ids,
+            )
+            for name in sorted(set(names))
+        ),
+        "provider_models",
+        complete=True,
+        authoritative=True,
+    )
+
+
+def _configured_discovery_fallback(
+    provider_id: str,
+    provider: Mapping[str, Any],
+    profile: Any,
+    *,
+    error: str,
+    allow_configured_fallback: bool,
+) -> ModelDiscoveryResult:
+    if allow_configured_fallback:
+        try:
+            configured = _configured_models(provider)
+        except ValueError:
+            configured = []
+        if configured:
+            return ModelDiscoveryResult(
+                provider_id,
+                tuple(
+                    DiscoveredModel(
+                        provider_id,
+                        model_id,
+                        source="configured",
+                        display_name=display_name,
+                    )
+                    for model_id, display_name in configured
+                ),
+                "configured",
+                complete=False,
+                authoritative=False,
+                error=error,
+            )
+    return ModelDiscoveryResult(
+        provider_id,
+        (),
+        "provider_models",
+        complete=False,
+        authoritative=False,
+        error=f"{error}。该 Provider 可能不支持受限 /models，请手工添加模型",
     )
 
 

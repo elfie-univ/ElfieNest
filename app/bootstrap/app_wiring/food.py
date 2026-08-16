@@ -19,6 +19,7 @@ from infrastructure.persistence.layout.data_home import (
 )
 from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
+from infrastructure.persistence.provider_storage import ProviderStorageAdapter
 from infrastructure.persistence.reports.report_repository import ReportRepository
 
 
@@ -58,14 +59,18 @@ def build_food_evidence(
     report_repository: ReportRepository | None = None,
 ) -> SQLiteFoodEvidenceAdapter:
     provider_path = None
+    secret_path = None
     if db_path != ":memory:":
-        provider_path = final_root_layout(
-            data_home_from_db_path(db_path)
-        ).providers_config
+        layout = final_root_layout(data_home_from_db_path(db_path))
+        provider_path = layout.providers_config
+        secret_path = layout.auth_env
+    provider_store = ProviderConnectionStore(provider_path)
+    provider_storage = ProviderStorageAdapter(provider_store, secret_path=secret_path)
     return SQLiteFoodEvidenceAdapter(
-        ProviderConnectionStore(provider_path),
+        provider_store,
         report_repository or build_report_repository(db_path),
         provider_catalog,
+        secret_resolver=provider_storage.resolve_secret,
     )
 
 

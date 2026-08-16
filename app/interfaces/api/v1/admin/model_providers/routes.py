@@ -13,6 +13,7 @@ from app.features.configuration import (
     AddProviderModelCommand,
     BenchmarkCombination,
     BenchmarkProviderModelsCommand,
+    CapabilityName,
     ChangeProviderConnectionLifecycleCommand,
     CleanupObsoleteProviderModelsCommand,
     CompleteProviderOAuthLoginCommand,
@@ -32,6 +33,7 @@ from app.features.configuration import (
     ProbeProviderModelCapabilitiesCommand,
     ProviderAvailabilityPort,
     ProviderConnectionNotFound,
+    ProviderConnectionResult,
     ProviderModelInput,
     ProviderModelNotFound,
     ProviderModelReplacement,
@@ -563,8 +565,7 @@ async def probe_model_capabilities(
     return ProviderCapabilityProbeResponse(
         reference=result.reference,
         results=tuple(
-            ProviderCapabilityProbeItemResponse(**vars(item))
-            for item in result.results
+            ProviderCapabilityProbeItemResponse(**vars(item)) for item in result.results
         ),
     )
 
@@ -599,6 +600,35 @@ def list_obsolete_models(
 
 
 @router.post(
+    "/connections/{connection_id}/models/cleanup-obsolete",
+    response_model=DetailResponse,
+)
+def cleanup_all_obsolete_models(
+    connection_id: str,
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: ProvidersService = ProvidersDependency,
+) -> RouteResult:
+    """Compatibility entry point for the original Owner cleanup action.
+
+    The model-management route below supports explicit selections.  This
+    route intentionally keeps the original no-body action for callers that
+    want the service to remove every currently eligible source-managed model.
+    """
+    try:
+        result = service.cleanup_obsolete_models(
+            principal,
+            CleanupObsoleteProviderModelsCommand(connection_id),
+        )
+    except _PROVIDER_ERRORS as error:
+        return _error_response(error)
+    model_ids = tuple(getattr(result, "model_ids", ()))
+    cleaned = ", ".join(model_ids) if model_ids else "none"
+    return DetailResponse(
+        detail=f"Obsolete Provider models cleaned for '{connection_id}': {cleaned}"
+    )
+
+
+@router.post(
     "/connections/{connection_id}/models/obsolete/cleanup",
     response_model=ProviderConnectionResponse,
 )
@@ -618,6 +648,7 @@ def cleanup_obsolete_models(
         )
     except _PROVIDER_ERRORS as error:
         return _error_response(error)
+    assert isinstance(result, ProviderConnectionResult)
     return ProviderConnectionResponse.from_result(result)
 
 
@@ -663,6 +694,7 @@ def model_availability(
 def ensure_model_availability(
     reference: str = Query(..., min_length=3),
     max_age_seconds: int = Query(default=86400, ge=0, le=604800),
+    capability: Optional[CapabilityName] = Query(default=None),  # noqa: B008
     principal: AccountPrincipal = CurrentPrincipal,
     availability: ProviderAvailabilityPort = ProviderAvailabilityDependency,
 ) -> ProviderModelAvailabilityResponse:
@@ -671,6 +703,7 @@ def ensure_model_availability(
         reference,
         max_age=timedelta(seconds=max_age_seconds),
         allow_probe=True,
+        capability=capability,
     )
     return ProviderModelAvailabilityResponse.from_result(item)
 

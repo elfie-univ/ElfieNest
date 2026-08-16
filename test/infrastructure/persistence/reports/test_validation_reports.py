@@ -336,6 +336,8 @@ def test_validation_lease_is_exclusive_and_expires(tmp_path: Path) -> None:
         lease_seconds=60,
         now="2026-08-16T00:02:00+00:00",
     )
+
+
 def test_exports_and_legacy_reports_never_affect_queries(tmp_path: Path) -> None:
     database = tmp_path / "reports" / "ai-runtime.sqlite"
     repository = ReportRepository(database)

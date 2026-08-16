@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal, Optional, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -106,7 +106,7 @@ class FoodPackageResponse(BaseModel):
             health=result.health,
             locality=result.locality,
             latest_evidence_at=result.latest_evidence_at,
-            required_roles=tuple(result.required_roles),
+            required_roles=cast(tuple[RequiredFoodRole, ...], result.required_roles),
         )
 
 

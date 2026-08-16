@@ -15,6 +15,7 @@ from .port_models import (
     LocalProviderState,
     ModelSource,
     StoredCapabilityProbeResult,
+    StoredEndpointCapability,
     ValidationMode,
     ValidationStatus,
 )
@@ -118,7 +119,7 @@ class CreateProviderConnectionCommand:
     auth_type: AuthType | None = None
     models: tuple[ProviderModelInput, ...] = ()
     verify: bool = False
-    refresh_models: bool = False
+    refresh_models: bool = True
 
 
 @dataclass(frozen=True)
@@ -226,7 +227,10 @@ class ListObsoleteProviderModelsQuery:
 @dataclass(frozen=True)
 class CleanupObsoleteProviderModelsCommand:
     connection_id: str
-    model_ids: tuple[str, ...]
+    # Empty means the legacy explicit Owner action: clean every currently
+    # eligible source-managed model.  The model-management endpoint always
+    # supplies a non-empty selection so the normal UI remains intentional.
+    model_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -444,6 +448,14 @@ class ProviderMatrixCellResult:
     latency_ms: float | None
     latency_class: LatencyClass | None
     price_estimate: float | None
+    locality: Literal["local", "remote"] = "remote"
+    validated_at: str | None = None
+    time_to_first_token_ms: float | None = None
+    total_latency_ms: float | None = None
+    context_window_tokens: int | None = None
+    max_output_tokens: int | None = None
+    validation_source: str | None = None
+    capability_facts: tuple[StoredEndpointCapability, ...] = ()
 
 
 @dataclass(frozen=True)

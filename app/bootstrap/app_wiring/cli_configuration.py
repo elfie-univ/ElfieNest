@@ -67,13 +67,15 @@ def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
     system_defaults = load_system_defaults()
     provider_reports = ReportStorageAdapter(ReportRepository())
     provider_store = ProviderConnectionStore()
+    provider_storage = ProviderStorageAdapter(provider_store)
     provider_evidence = SQLiteFoodEvidenceAdapter(
         provider_store,
         ReportRepository(),
         provider_catalog,
+        secret_resolver=provider_storage.resolve_secret,
     )
     provider_models = ProviderModelsAdapter(
-        ProviderStorageAdapter(provider_store),
+        provider_storage,
         provider_reports,
         provider_evidence,
         catalog=provider_catalog,
@@ -85,16 +87,18 @@ def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
         config_path = layout.runtime_config
         secret_path = layout.auth_env
         provider_store = ProviderConnectionStore(layout.providers_config)
+        provider_storage = ProviderStorageAdapter(
+            provider_store,
+            secret_path=layout.auth_env,
+        )
         provider_evidence = SQLiteFoodEvidenceAdapter(
             provider_store,
             ReportRepository(),
             provider_catalog,
+            secret_resolver=provider_storage.resolve_secret,
         )
         provider_models = ProviderModelsAdapter(
-            ProviderStorageAdapter(
-                provider_store,
-                secret_path=layout.auth_env,
-            ),
+            provider_storage,
             provider_reports,
             provider_evidence,
             catalog=provider_catalog,

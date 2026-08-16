@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Optional, cast
 
@@ -16,6 +17,15 @@ from infrastructure.models.food_technology import (
 from infrastructure.models.provider_records import ProviderConnection
 from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.report_records import ValidationObservation
+from infrastructure.models.validation.provider_availability import (
+    EndpointAvailability,
+    project_endpoint_availability,
+    project_reachability,
+)
+from infrastructure.models.validation.provider_validation_policy import (
+    connection_reachability_fingerprint,
+    connection_validation_fingerprint,
+)
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
 from infrastructure.persistence.reports.report_repository import ReportRepository
 
@@ -27,11 +37,15 @@ def query_model_evidence(
     connection_store: Optional[ProviderConnectionStore] = None,
     connections: Optional[Mapping[str, ProviderConnection]] = None,
     observations: Optional[Sequence[ValidationObservation]] = None,
+    provider_observations: Optional[Sequence[ValidationObservation]] = None,
+    secret_resolver: Callable[[str], str] | None = None,
     now: Optional[datetime] = None,
 ) -> dict[str, StoredModelEvidence]:
     """Project endpoint models and immutable observations into Food evidence."""
-    report_repository = repository or ReportRepository()
     explicit_observations = observations
+    report_repository = repository
+    if report_repository is None and explicit_observations is None:
+        report_repository = ReportRepository()
     current = now or datetime.now(timezone.utc)
     inventory = (
         connections
@@ -41,22 +55,59 @@ def query_model_evidence(
     result: dict[str, StoredModelEvidence] = {}
     from infrastructure.models.providers.profiles import get_product
 
+    provider_events = provider_observations
+    if provider_events is None and report_repository is not None:
+        provider_events = tuple(
+            event
+            for connection in inventory.values()
+            for event in report_repository.observations_for_subject(
+                "provider", connection.connection_id
+            )
+        )
+    provider_events = tuple(provider_events or ())
+
     for connection in inventory.values():
         if not connection.enabled or connection.archived:
             continue
         profile = get_product(connection.catalog_id, catalog=provider_catalog)
         is_local = bool(profile and profile.connection_method == "local")
+        fingerprint: str | None = None
+        if secret_resolver is not None:
+            try:
+                fingerprint = connection_validation_fingerprint(
+                    connection,
+                    secret_resolver=secret_resolver,
+                )
+            except Exception:
+                # A malformed current configuration must not make an older
+                # fingerprinted observation authoritative. Unscoped legacy
+                # evidence remains readable for migration only.
+                fingerprint = ""
+        provider_block = _provider_block(
+            connection,
+            provider_events,
+            now=current,
+            secret_resolver=secret_resolver,
+        )
         for model in connection.models:
             subject_id = f"{connection.connection_id}/{model.endpoint_model_id}"
-            subject_observations = (
-                tuple(
+            if explicit_observations is not None:
+                subject_observations = tuple(
                     item
                     for item in explicit_observations
                     if item.subject_kind == "model" and item.subject_id == subject_id
                 )
-                if explicit_observations is not None
-                else report_repository.observations_for_subject("model", subject_id)
-            )
+            else:
+                assert report_repository is not None
+                subject_observations = report_repository.observations_for_subject(
+                    "model", subject_id
+                )
+            if fingerprint is not None:
+                subject_observations = tuple(
+                    item
+                    for item in subject_observations
+                    if item.details.get("config_fingerprint") in {None, fingerprint}
+                )
             subject_observations = tuple(
                 sorted(
                     subject_observations,
@@ -64,6 +115,11 @@ def query_model_evidence(
                     reverse=True,
                 )
             )
+            capability_observations = tuple(
+                item
+                for item in subject_observations
+                if item.details.get("evidence_kind") == "capability"
+            ) + _production_capability_observations(subject_observations)
             base_observation = next(
                 (
                     item
@@ -72,11 +128,6 @@ def query_model_evidence(
                 ),
                 None,
             )
-            capability_observations = tuple(
-                item
-                for item in subject_observations
-                if item.details.get("evidence_kind") == "capability"
-            )
             result[subject_id] = _project_model(
                 subject_id,
                 model,
@@ -84,8 +135,134 @@ def query_model_evidence(
                 is_local=is_local,
                 now=current,
                 capability_observations=capability_observations,
+                provider_block=provider_block,
             )
     return result
+
+
+def _production_capability_observations(
+    observations: Sequence[ValidationObservation],
+) -> tuple[ValidationObservation, ...]:
+    """Promote only feature use actually observed in production calls.
+
+    A successful text call, an image-shaped request, or a Provider accepting
+    options is deliberately not enough.  Dispatch metadata has a positive
+    signal only for a tool call or an observed reasoning trace, so those are
+    the only zero-cost production capability facts emitted here.
+    """
+    promoted: list[ValidationObservation] = []
+    signals = (
+        ("tools", "tool_called", "production_tool_call_observed"),
+        ("reasoning", "reasoning_observed", "production_reasoning_observed"),
+    )
+    for observation in observations:
+        if (
+            observation.subject_kind != "model"
+            or observation.status != "passed"
+            or observation.details.get("event_type") != "model_call"
+            or observation.details.get("workload_kind") != "production"
+        ):
+            continue
+        for capability, signal, reason_code in signals:
+            if observation.details.get(signal) is not True:
+                continue
+            promoted.append(
+                replace(
+                    observation,
+                    details={
+                        "evidence_kind": "capability",
+                        "capability": capability,
+                        "capability_state": "supported",
+                        "capability_evidence": "verified",
+                        "reason_code": reason_code,
+                        "evidence_source": "production",
+                        "validation_mode": "production",
+                        **(
+                            {
+                                "config_fingerprint": observation.details[
+                                    "config_fingerprint"
+                                ]
+                            }
+                            if observation.details.get("config_fingerprint")
+                            else {}
+                        ),
+                    },
+                )
+            )
+    return tuple(promoted)
+
+
+def _provider_block(
+    connection: ProviderConnection,
+    observations: Sequence[ValidationObservation],
+    *,
+    now: datetime,
+    secret_resolver: Callable[[str], str] | None,
+) -> EndpointAvailability | None:
+    """Return only connection-wide blockers for one Provider connection."""
+    scoped = tuple(
+        item
+        for item in observations
+        if item.subject_kind == "provider"
+        and item.subject_id == connection.connection_id
+    )
+    fingerprint: str | None = None
+    if not connection.credential_ref.startswith("oauth.") and secret_resolver:
+        try:
+            fingerprint = connection_validation_fingerprint(
+                connection,
+                secret_resolver=secret_resolver,
+            )
+        except Exception:
+            # Invalid credentials/configuration must not make old evidence
+            # authoritative; the next active validation will publish a new
+            # fingerprinted observation.
+            fingerprint = ""
+    state = project_endpoint_availability(
+        connection.connection_id,
+        scoped,
+        now=now,
+        config_fingerprint=fingerprint,
+    )
+    reachability = project_reachability(
+        connection.connection_id,
+        scoped,
+        now=now,
+        config_fingerprint=_reachability_fingerprint(
+            connection,
+            secret_resolver=secret_resolver,
+        ),
+    )
+    if state.status == "unavailable" and state.error_scope == "connection":
+        return state
+    if reachability.status == "unavailable":
+        return EndpointAvailability(
+            subject_id=connection.connection_id,
+            status="unavailable",
+            reason_code=reachability.reason_code or "provider_unreachable",
+            error_scope="connection",
+            observed_at=reachability.observed_at,
+            expires_at=reachability.expires_at,
+            evidence_source=reachability.evidence_source,
+            consecutive_transient_failures=reachability.consecutive_transient_failures,
+        )
+    return None
+
+
+def _reachability_fingerprint(
+    connection: ProviderConnection,
+    *,
+    secret_resolver: Callable[[str], str] | None,
+) -> str | None:
+    if secret_resolver is None:
+        return None
+    try:
+        return connection_reachability_fingerprint(
+            connection,
+            secret_resolver=secret_resolver,
+        )
+    except Exception:
+        return ""
 
 
 def record_model_evidence(
@@ -129,10 +306,12 @@ class SQLiteFoodEvidenceAdapter:
         connection_store: ProviderConnectionStore,
         report_repository: ReportRepository,
         provider_catalog: ProviderCatalog,
+        secret_resolver: Callable[[str], str] | None = None,
     ) -> None:
         self._connection_store = connection_store
         self._report_repository = report_repository
         self._provider_catalog = provider_catalog
+        self._secret_resolver = secret_resolver
 
     def list_model_evidence(self) -> tuple[StoredModelEvidence, ...]:
         return tuple(
@@ -140,6 +319,7 @@ class SQLiteFoodEvidenceAdapter:
                 provider_catalog=self._provider_catalog,
                 connection_store=self._connection_store,
                 repository=self._report_repository,
+                secret_resolver=self._secret_resolver,
             ).values()
         )
 

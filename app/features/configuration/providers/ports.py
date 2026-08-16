@@ -220,6 +220,7 @@ class ProviderAvailabilityPort(Protocol):
         *,
         max_age: timedelta = timedelta(hours=24),
         allow_probe: bool = False,
+        capability: CapabilityName | None = None,
     ) -> StoredModelAvailability: ...
 
 

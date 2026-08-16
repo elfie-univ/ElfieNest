@@ -595,7 +595,12 @@ def verify_provider(
                 api_base,
                 api_key,
                 str(provider_info.get("test_model") or profile.test_model),
-                probe_models=profile.discovery_strategy != "catalog_only",
+                # Product-specific adapters own their entitlement inventory.
+                # Health probes the configured representative model; the
+                # adapter separately discovers the restricted subscription
+                # inventory. A generic /models probe would conflate platform
+                # inventory with the subscription.
+                probe_models=profile.discovery_strategy == "standard_models",
             )
         elif api_mode == "anthropic_messages":
             # Anthropic: GET {api_base}/models with x-api-key header

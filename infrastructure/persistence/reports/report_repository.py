@@ -100,8 +100,10 @@ class ReportRepository:
         acquired_at = _timestamp(now)
         acquired_datetime = datetime.fromisoformat(acquired_at)
         expires_at = (
-            acquired_datetime + timedelta(seconds=lease_seconds)
-        ).astimezone(timezone.utc).isoformat()
+            (acquired_datetime + timedelta(seconds=lease_seconds))
+            .astimezone(timezone.utc)
+            .isoformat()
+        )
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             current = connection.execute(

@@ -92,9 +92,42 @@ def connection_validation_fingerprint(
     secret_resolver: SecretResolver = _empty_secret,
 ) -> str:
     """Build a non-secret fingerprint for the effective validation inputs."""
+    payload = _connection_fingerprint_payload(
+        connection,
+        secret_resolver=secret_resolver,
+    )
+    payload["models"] = [
+        _model_fingerprint(model)
+        for model in sorted(
+            active_validation_models(connection),
+            key=lambda item: item.endpoint_model_id,
+        )
+    ]
+    return _hash_fingerprint(payload)
+
+
+def connection_reachability_fingerprint(
+    connection: ProviderConnection,
+    *,
+    secret_resolver: SecretResolver = _empty_secret,
+) -> str:
+    """Build a transport/auth fingerprint independent of model inventory."""
+    return _hash_fingerprint(
+        _connection_fingerprint_payload(
+            connection,
+            secret_resolver=secret_resolver,
+        )
+    )
+
+
+def _connection_fingerprint_payload(
+    connection: ProviderConnection,
+    *,
+    secret_resolver: SecretResolver,
+) -> dict[str, Any]:
     secret_name = _credential_name(connection)
     secret_revision, cacheable = _credential_revision(secret_name, secret_resolver)
-    payload = {
+    return {
         "catalog_id": connection.catalog_id,
         "api_base": connection.api_base,
         "api_mode": connection.api_mode,
@@ -102,14 +135,10 @@ def connection_validation_fingerprint(
         "credential_ref": secret_name,
         "credential_revision": secret_revision,
         "credential_cacheable": cacheable,
-        "models": [
-            _model_fingerprint(model)
-            for model in sorted(
-                active_validation_models(connection),
-                key=lambda item: item.endpoint_model_id,
-            )
-        ],
     }
+
+
+def _hash_fingerprint(payload: Mapping[str, Any]) -> str:
     encoded = json.dumps(
         payload,
         ensure_ascii=False,

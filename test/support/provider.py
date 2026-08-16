@@ -34,13 +34,15 @@ def provider_models_adapter(
     report_port = reports or ReportStorageAdapter(report_repository)
     store = ProviderConnectionStore(provider_path)
     provider_catalog = load_provider_catalog()
+    provider_storage = ProviderStorageAdapter(store, secret_path=secret_path)
     evidence = SQLiteFoodEvidenceAdapter(
         store,
         report_repository,
         provider_catalog,
+        secret_resolver=provider_storage.resolve_secret,
     )
     return ProviderModelsAdapter(
-        ProviderStorageAdapter(store, secret_path=secret_path),
+        provider_storage,
         report_port,
         evidence,
         catalog=provider_catalog,

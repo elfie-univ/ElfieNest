@@ -23,10 +23,7 @@ from app.features.configuration.food import (
 )
 from app.features.configuration.food.port_models import CapabilityState
 from elfie.brain.reasoning.food_port import FoodPackage as ModelExecutionFoodPackage
-from infrastructure.models.capabilities import (
-    canonical_display_name,
-    known_capabilities,
-)
+from infrastructure.models.capabilities import canonical_display_name
 from infrastructure.models.model_reference import (
     ModelReferenceError,
     parse_model_reference,
@@ -34,6 +31,9 @@ from infrastructure.models.model_reference import (
 from infrastructure.models.provider_records import (
     ProviderConnection,
     ProviderModelRecord,
+)
+from infrastructure.models.providers.endpoint_capabilities import (
+    endpoint_capabilities,
 )
 from infrastructure.models.report_records import ValidationObservation
 
@@ -179,38 +179,48 @@ def _project_model(
     is_local: bool,
     now: datetime,
     capability_observations: Sequence[ValidationObservation] = (),
+    provider_block: object | None = None,
 ) -> StoredModelEvidence:
     state = _validation_state(model, observation, now)
+    if getattr(provider_block, "status", None) == "unavailable":
+        state = "unavailable"
     details: Mapping[str, JsonValue] = observation.details if observation else {}
     raw_capabilities = details.get("capabilities", ())
     observed_capabilities = (
-        frozenset(str(item) for item in raw_capabilities)
+        frozenset(str(item) for item in raw_capabilities if str(item) == "text")
         if isinstance(raw_capabilities, (list, tuple, set))
         else frozenset()
     )
-    capabilities = set(
-        observed_capabilities
-        | known_capabilities(
-            model.endpoint_model_id,
-            model.display_name,
-        )
-    )
-    if model.supports_tools:
-        capabilities |= {"tools"}
-    if model.supports_vision:
-        capabilities |= {"vision"}
-    if model.supports_reasoning:
-        capabilities |= {"reasoning"}
+    # Canonical model knowledge is display/grouping metadata only.  A model
+    # family may support vision or reasoning elsewhere while this exact
+    # Provider endpoint does not expose it.  Only a product declaration or a
+    # controlled capability observation may make a non-text channel eligible
+    # for Food; a manual hint remains visible as metadata but is not silently
+    # promoted to a serving capability.
     capability_states: dict[str, CapabilityState] = {}
+    capabilities = set(observed_capabilities | frozenset({"text"}))
+    for declared_capability in endpoint_capabilities(model):
+        # ``accepted`` only says that the wire payload was accepted.  It is
+        # intentionally visible as endpoint metadata, but it is not enough to
+        # route a serving Food through a tool/vision/reasoning channel.
+        if declared_capability.evidence not in {"declared", "verified"}:
+            continue
+        capability_states[declared_capability.name] = declared_capability.state
+        if declared_capability.state == "supported":
+            capabilities.add(declared_capability.name)
+        elif declared_capability.state == "unsupported":
+            capabilities.discard(declared_capability.name)
     seen_capabilities: set[str] = set()
     for capability_observation in capability_observations:
         capability = capability_observation.details.get("capability")
         capability_state = capability_observation.details.get("capability_state")
+        capability_evidence = capability_observation.details.get("capability_evidence")
         if (
             isinstance(capability, str)
             and capability in {"tools", "vision", "reasoning", "structured_output"}
             and isinstance(capability_state, str)
             and capability_state in {"supported", "unsupported", "unknown"}
+            and capability_evidence in {"declared", "verified"}
         ):
             # ``query_model_evidence`` supplies capability observations newest
             # first.  Keep the first valid observation for each channel so an
@@ -233,7 +243,13 @@ def _project_model(
         tool_test_passed=bool(details.get("tool_test_passed", False))
         or capability_states.get("tools") == "supported",
         local=is_local,
-        observed_at=observation.observed_at if observation else "",
+        observed_at=(
+            str(getattr(provider_block, "observed_at", "") or "")
+            if getattr(provider_block, "status", None) == "unavailable"
+            else observation.observed_at
+            if observation
+            else ""
+        ),
         status=state,
         capability_states=capability_states,
     )

@@ -172,9 +172,14 @@ def test_custom_openai_discovery_uses_gateway_models_without_requiring_manual_id
 
     monkeypatch.setattr(
         "infrastructure.models.validation.provider_validation.open_provider_request",
-        lambda request, timeout: (captured.append(request), FakeResponse({
-            "data": [{"id": "gateway-model"}, {"id": "another-gateway-model"}],
-        }))[1],
+        lambda request, timeout: (
+            captured.append(request),
+            FakeResponse(
+                {
+                    "data": [{"id": "gateway-model"}, {"id": "another-gateway-model"}],
+                }
+            ),
+        )[1],
     )
 
     result = discover_provider_models_result(
@@ -220,6 +225,78 @@ def test_catalog_only_discovery_never_calls_generic_models_endpoint(
     assert result.source == "bundled_catalog"
     assert result.complete is True
     assert result.authoritative is True
+
+
+def test_volcengine_coding_plan_reads_restricted_models_inventory(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    config = model_execution_config()
+    config.providers["volc_connection"] = {
+        "catalog_id": "volcengine_coding_plan",
+        "discovery_strategy": "provider_adapter",
+        "bundled_models": ["core-model"],
+        "api_base": "https://ark.example/api/coding/v3",
+        "api_mode": "chat_completions",
+        "api_key": "coding-secret",
+    }
+    captured = []
+
+    def fake_urlopen(request, timeout):
+        captured.append((request, timeout))
+        return FakeResponse(
+            {"data": [{"id": "core-model"}, {"id": "live-extra-model"}]}
+        )
+
+    monkeypatch.setattr(
+        "infrastructure.models.validation.provider_validation.open_provider_request",
+        fake_urlopen,
+    )
+
+    result = discover_provider_models_result(
+        "volc_connection", config, allow_configured_fallback=False
+    )
+
+    assert [item.name for item in result.models] == [
+        "core-model",
+        "live-extra-model",
+    ]
+    assert [item.curated for item in result.models] == [True, False]
+    assert result.source == "provider_models"
+    assert result.complete is True
+    assert result.authoritative is True
+    assert captured[0][0].full_url == "https://ark.example/api/coding/v3/models"
+    assert captured[0][0].headers["Authorization"] == "Bearer coding-secret"
+
+
+def test_volcengine_coding_plan_does_not_treat_general_ark_models_as_entitlement(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    config = model_execution_config()
+    config.providers["volc_connection"] = {
+        "catalog_id": "volcengine_coding_plan",
+        "discovery_strategy": "provider_adapter",
+        "bundled_models": ["core-model"],
+        "api_base": "https://ark.example/api/v3",
+        "api_mode": "chat_completions",
+    }
+
+    def must_not_request(*_args, **_kwargs):
+        raise AssertionError("general Ark endpoint must not be used for Coding Plan")
+
+    monkeypatch.setattr(
+        "infrastructure.models.validation.provider_validation.open_provider_request",
+        must_not_request,
+    )
+
+    result = discover_provider_models_result(
+        "volc_connection", config, allow_configured_fallback=False
+    )
+
+    assert result.models == ()
+    assert result.complete is False
+    assert result.authoritative is False
 
 
 def test_incomplete_model_discovery_fallback_cannot_be_authoritative(

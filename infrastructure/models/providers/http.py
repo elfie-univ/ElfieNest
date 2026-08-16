@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from types import TracebackType
-from typing import Final, Optional, Protocol, Type, cast
+from typing import Callable, Final, Optional, Protocol, Type, cast
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 _READ_CHUNK_BYTES: Final[int] = 64 * 1024
@@ -58,6 +58,7 @@ def read_provider_response(
     *,
     max_bytes: int,
     deadline_seconds: float,
+    on_chunk: Callable[[bytes], None] | None = None,
 ) -> bytes:
     """Read a response with hard size and wall-clock bounds."""
     read1 = getattr(type(response), "read1", None)
@@ -65,6 +66,8 @@ def read_provider_response(
         payload_bytes = response.read(max_bytes + 1)
         if len(payload_bytes) > max_bytes:
             raise ValueError("Provider 响应体超过安全上限")
+        if payload_bytes and on_chunk is not None:
+            on_chunk(payload_bytes)
         return payload_bytes
 
     deadline = time.monotonic() + deadline_seconds
@@ -77,5 +80,7 @@ def read_provider_response(
         if not chunk:
             return bytes(payload)
         payload.extend(chunk)
+        if on_chunk is not None:
+            on_chunk(chunk)
         if len(payload) > max_bytes:
             raise ValueError("Provider 响应体超过安全上限")

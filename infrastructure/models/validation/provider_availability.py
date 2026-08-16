@@ -46,6 +46,15 @@ _REQUEST_NEUTRAL_CODES = frozenset(
     }
 )
 _TRANSIENT_CATEGORIES = frozenset({"network", "timeout", "server", "transport"})
+NON_RETRYABLE_REASONS = frozenset(
+    {
+        *_CONNECTION_BLOCK_CODES,
+        *_ENDPOINT_BLOCK_CODES,
+        "connection_not_configured",
+        "model_not_configured",
+        "source_missing",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -70,6 +79,7 @@ class ReachabilityAvailability:
     observed_at: str | None
     expires_at: str | None
     evidence_source: str | None
+    consecutive_transient_failures: int = 0
 
 
 def project_capability_availability(
@@ -115,7 +125,43 @@ def project_capability_availability(
     latest = ordered[0]
     observed_at = _parse(latest.observed_at)
     state = latest.details.get("capability_state")
+    evidence = latest.details.get("capability_evidence")
     source = _evidence_source(latest)
+    reason = _reason_code(latest)
+    if _is_connection_block(latest):
+        return EndpointAvailability(
+            subject_id,
+            "unavailable",
+            reason or "connection_blocked",
+            "connection",
+            latest.observed_at,
+            None,
+            source,
+        )
+    if _is_endpoint_block(latest):
+        return EndpointAvailability(
+            subject_id,
+            "unavailable",
+            reason or "endpoint_blocked",
+            "endpoint",
+            latest.observed_at,
+            None,
+            source,
+        )
+    # A Provider accepting a tool/image/reasoning-shaped request is useful
+    # diagnostics, but it is not proof that the endpoint actually exercised
+    # the channel.  Keep this channel unknown and retry on its normal bounded
+    # capability schedule until a declaration or verified observation exists.
+    if evidence == "accepted":
+        return EndpointAvailability(
+            subject_id,
+            "unknown",
+            "capability_accepted_unverified",
+            "endpoint",
+            latest.observed_at,
+            _retry_at(observed_at),
+            source,
+        )
     if state == "supported":
         if observed_at is not None and current - observed_at <= SUCCESS_FRESHNESS:
             return EndpointAvailability(
@@ -257,6 +303,11 @@ def project_endpoint_availability(
                 scope or "transport",
                 latest,
                 source,
+                expires_at=(
+                    _iso(latest_time + TRANSIENT_WINDOW)
+                    if latest_time is not None
+                    else None
+                ),
                 consecutive=failures,
             )
         return _snapshot(
@@ -281,6 +332,9 @@ def project_endpoint_availability(
         scope or "endpoint",
         latest,
         source,
+        expires_at=(
+            _iso(latest_time + CAPABILITY_RETRY) if latest_time is not None else None
+        ),
     )
 
 
@@ -333,7 +387,7 @@ def project_reachability(
         latest.status == "passed"
         and observed_at is not None
         and age is not None
-        and age <= REACHABILITY_FRESHNESS
+        and age < REACHABILITY_FRESHNESS
     ):
         return ReachabilityAvailability(
             subject_id,
@@ -344,9 +398,34 @@ def project_reachability(
             source,
         )
     if latest.status == "failed":
+        if _is_connection_block(latest):
+            return ReachabilityAvailability(
+                subject_id,
+                "unavailable",
+                _reason_code(latest) or "connection_blocked",
+                latest.observed_at,
+                None,
+                source,
+            )
+        if _is_transient(latest):
+            failures = _consecutive_transient_failures(list(ordered), observed_at)
+            if failures >= TRANSIENT_FAILURE_THRESHOLD:
+                return ReachabilityAvailability(
+                    subject_id,
+                    "unavailable",
+                    "transient_failure_threshold",
+                    latest.observed_at,
+                    (
+                        _iso(observed_at + TRANSIENT_WINDOW)
+                        if observed_at is not None
+                        else None
+                    ),
+                    source,
+                    failures,
+                )
         return ReachabilityAvailability(
             subject_id,
-            "unavailable" if _is_connection_block(latest) else "degraded",
+            "degraded",
             _reason_code(latest) or "reachability_failed",
             latest.observed_at,
             None,
@@ -533,6 +612,7 @@ __all__ = (
     "AvailabilityStatus",
     "CAPABILITY_RETRY",
     "EndpointAvailability",
+    "NON_RETRYABLE_REASONS",
     "REACHABILITY_FRESHNESS",
     "ProviderStatus",
     "ReachabilityAvailability",

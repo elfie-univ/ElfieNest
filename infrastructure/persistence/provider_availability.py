@@ -8,12 +8,16 @@ from concurrent.futures import Future
 from datetime import datetime, timedelta, timezone
 
 from app.features.configuration.providers import (
+    CapabilityName,
     StoredEndpointCapability,
     StoredModelAvailability,
 )
 from infrastructure.models.provider_records import (
     ProviderConnection,
     ProviderModelRecord,
+)
+from infrastructure.models.providers.endpoint_capabilities import (
+    endpoint_capabilities,
 )
 from infrastructure.models.storage_ports import ProviderStoragePort, ReportStoragePort
 from infrastructure.models.validation.capability_probes import (
@@ -24,6 +28,7 @@ from infrastructure.models.validation.core_validation_scheduler import (
     CoreValidationScheduler,
 )
 from infrastructure.models.validation.provider_availability import (
+    NON_RETRYABLE_REASONS,
     REACHABILITY_FRESHNESS,
     EndpointAvailability,
     ReachabilityAvailability,
@@ -45,16 +50,21 @@ class ProviderAvailabilityQuery:
         *,
         serving_index: Callable[[], ServingFoodIndex] | None = None,
         active_probe: Callable[[str], object] | None = None,
+        active_capability_probe: Callable[[str, CapabilityName], object] | None = None,
         active_reachability_probe: Callable[[str], object] | None = None,
         config_fingerprint: Callable[[ProviderConnection], str | None] | None = None,
+        reachability_fingerprint: Callable[[ProviderConnection], str | None]
+        | None = None,
         probe_cooldown: timedelta = timedelta(minutes=5),
     ) -> None:
         self._provider_storage = provider_storage
         self._reports = reports
         self._serving_index = serving_index
         self._active_probe = active_probe
+        self._active_capability_probe = active_capability_probe
         self._active_reachability_probe = active_reachability_probe
         self._config_fingerprint = config_fingerprint
+        self._reachability_config_fingerprint = reachability_fingerprint
         self._probe_cooldown = probe_cooldown
         self._probe_lock = threading.Lock()
         self._inflight: dict[str, Future[object]] = {}
@@ -89,6 +99,7 @@ class ProviderAvailabilityQuery:
         *,
         max_age: timedelta = timedelta(hours=24),
         allow_probe: bool = False,
+        capability: CapabilityName | None = None,
     ) -> StoredModelAvailability:
         """Read first; only an explicit active permission can start a probe.
 
@@ -97,26 +108,43 @@ class ProviderAvailabilityQuery:
         the same read-time projection after its probe completes.
         """
         current = self.get(reference)
-        if not allow_probe or self._active_probe is None:
+        active_probe: Callable[..., object] | None
+        probe_key = reference
+        if capability is None:
+            active_probe = self._active_probe
+        else:
+            active_probe = self._active_capability_probe
+            probe_key = f"{reference}:capability:{capability}"
+        if not allow_probe or active_probe is None:
+            return current
+        if current.reason_code in NON_RETRYABLE_REASONS:
             return current
         now = datetime.now(timezone.utc)
-        observed = _parse_timestamp(current.observed_at)
-        if (
-            observed is not None
-            and now - observed <= max_age
-            and current.status in {"available", "degraded"}
-        ):
-            return current
+        if capability is None:
+            observed = _parse_timestamp(current.observed_at)
+            if (
+                observed is not None
+                and now - observed <= max_age
+                and current.status in {"available", "degraded"}
+            ):
+                return current
+        else:
+            channel = "tool" if capability == "tools" else capability
+            channel_state = self._availability_for_channel(reference, channel)
+            if getattr(channel_state, "reason_code", None) in NON_RETRYABLE_REASONS:
+                return current
+            if not _channel_probe_due(channel_state, now, max_age):
+                return current
         with self._probe_lock:
-            recent = self._last_probe_at.get(reference)
+            recent = self._last_probe_at.get(probe_key)
             if recent is not None and now - recent < self._probe_cooldown:
                 return current
-            future = self._inflight.get(reference)
+            future = self._inflight.get(probe_key)
             if future is None:
                 owner = True
                 future = Future()
-                self._inflight[reference] = future
-                self._last_probe_at[reference] = now
+                self._inflight[probe_key] = future
+                self._last_probe_at[probe_key] = now
             else:
                 owner = False
         if not owner:
@@ -131,12 +159,17 @@ class ProviderAvailabilityQuery:
             return self.get(reference)
         try:
             assert future is not None
-            future.set_result(self._active_probe(reference))
+            if capability is None:
+                assert self._active_probe is not None
+                future.set_result(self._active_probe(reference))
+            else:
+                assert self._active_capability_probe is not None
+                future.set_result(self._active_capability_probe(reference, capability))
         except BaseException as error:
             future.set_exception(error)
         finally:
             with self._probe_lock:
-                self._inflight.pop(reference, None)
+                self._inflight.pop(probe_key, None)
         return self.get(reference)
 
     def ensure_reachability(
@@ -150,9 +183,15 @@ class ProviderAvailabilityQuery:
         current = self._read_reachability(connection_id)
         if not allow_probe or self._active_reachability_probe is None:
             return current
+        if current.reason_code in NON_RETRYABLE_REASONS:
+            return current
         now = datetime.now(timezone.utc)
         observed = _parse_timestamp(current.observed_at)
-        if observed is not None and now - observed <= max_age and current.status == "available":
+        if (
+            observed is not None
+            and now - observed <= max_age
+            and current.status == "available"
+        ):
             return current
         key = f"provider:{connection_id}:reachability"
         with self._probe_lock:
@@ -165,6 +204,7 @@ class ProviderAvailabilityQuery:
                 future = Future()
                 self._inflight[key] = future
                 self._last_probe_at[key] = now
+        assert future is not None
         if not owner:
             try:
                 future.result()
@@ -179,6 +219,7 @@ class ProviderAvailabilityQuery:
             with self._probe_lock:
                 self._inflight.pop(key, None)
         return self._read_reachability(connection_id)
+
     def run_core_validation(
         self,
         scheduler: CoreValidationScheduler,
@@ -213,12 +254,50 @@ class ProviderAvailabilityQuery:
                 model_id,
                 "connection_not_configured",
             )
-        return project_capability_availability(
+        model = next(
+            (item for item in connection.models if item.endpoint_model_id == model_id),
+            None,
+        )
+        if model is None:
+            return _unknown(reference, connection_id, model_id, "model_not_configured")
+        projection = project_capability_availability(
             reference,
             capability,
             self._reports.observations_for_subject("model", reference),
             config_fingerprint=self._fingerprint(connection),
         )
+        if projection.reason_code != "no_capability_evidence":
+            return projection
+        declaration = next(
+            (item for item in endpoint_capabilities(model) if item.name == capability),
+            None,
+        )
+        if declaration is None or declaration.evidence not in {
+            "declared",
+            "verified",
+        }:
+            return projection
+        if declaration.state == "supported":
+            return EndpointAvailability(
+                reference,
+                "available",
+                "declared_capability",
+                "endpoint",
+                None,
+                None,
+                "catalog",
+            )
+        if declaration.state == "unsupported":
+            return EndpointAvailability(
+                reference,
+                "unavailable",
+                "declared_capability_unsupported",
+                "endpoint",
+                None,
+                None,
+                "catalog",
+            )
+        return projection
 
     def _project(
         self,
@@ -239,7 +318,7 @@ class ProviderAvailabilityQuery:
             self._reports.observations_for_subject(
                 "provider", connection.connection_id
             ),
-            config_fingerprint=fingerprint,
+            config_fingerprint=self._reachability_fingerprint(connection),
         )
         connection_state = project_endpoint_availability(
             connection.connection_id,
@@ -270,7 +349,11 @@ class ProviderAvailabilityQuery:
             provider_status = "unavailable"
         elif reachability.status == "unavailable":
             provider_status = "unavailable"
-        elif reachability.status == "available" and provider_status == "unknown":
+        elif (
+            reachability.status == "available"
+            and provider_status == "unknown"
+            and states
+        ):
             provider_status = "healthy"
         if connection_block is not None and endpoint.status != "unavailable":
             endpoint = EndpointAvailability(
@@ -332,7 +415,7 @@ class ProviderAvailabilityQuery:
         return project_reachability(
             connection_id,
             self._reports.observations_for_subject("provider", connection_id),
-            config_fingerprint=self._fingerprint(connection),
+            config_fingerprint=self._reachability_fingerprint(connection),
         )
 
     def _connection_states(
@@ -341,13 +424,29 @@ class ProviderAvailabilityQuery:
     ) -> dict[str, EndpointAvailability]:
         states: dict[str, EndpointAvailability] = {}
         fingerprint = self._fingerprint(connection)
+        serving = self._serving_index() if self._serving_index is not None else None
+        core_references = set(serving.core_references) if serving is not None else set()
         for item in connection.models:
             reference = f"{connection.connection_id}/{item.endpoint_model_id}"
-            states[reference] = project_endpoint_availability(
+            # A Food that already points at an exact endpoint remains part of
+            # the serving/core path while that endpoint is hidden, retired, or
+            # absent from the latest authoritative inventory.  The lifecycle
+            # state is projected below; it must not silently remove the Food
+            # from the health surface or prevent later recovery evidence.
+            if reference not in core_references and (
+                item.hidden or item.retired or item.discovery_state != "present"
+            ):
+                continue
+            state = project_endpoint_availability(
                 reference,
                 self._reports.observations_for_subject("model", reference),
                 config_fingerprint=fingerprint,
             )
+            if item.retired:
+                state = _lifecycle_endpoint(state, reference, "model_retired")
+            elif item.discovery_state == "source_missing":
+                state = _lifecycle_endpoint(state, reference, "source_missing")
+            states[reference] = state
         return states
 
     def _fingerprint(self, connection: ProviderConnection) -> str | None:
@@ -361,6 +460,14 @@ class ProviderAvailabilityQuery:
             # adapters that have no fingerprint source at all; an empty
             # fingerprint rejects all fingerprinted evidence while retaining
             # explicitly unscoped legacy observations.
+            return ""
+
+    def _reachability_fingerprint(self, connection: ProviderConnection) -> str | None:
+        if self._reachability_config_fingerprint is None:
+            return self._fingerprint(connection)
+        try:
+            return self._reachability_config_fingerprint(connection)
+        except Exception:
             return ""
 
 
@@ -440,3 +547,26 @@ def _parse_timestamp(value: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
+
+
+def _channel_probe_due(
+    state: object,
+    now: datetime,
+    max_age: timedelta,
+) -> bool:
+    if getattr(state, "reason_code", None) in NON_RETRYABLE_REASONS:
+        return False
+    if getattr(state, "reason_code", None) in {
+        "declared_capability",
+        "declared_capability_unsupported",
+    }:
+        return False
+    expires_at = _parse_timestamp(getattr(state, "expires_at", None))
+    if expires_at is not None and now < expires_at:
+        return False
+    observed = _parse_timestamp(getattr(state, "observed_at", None))
+    return not (
+        observed is not None
+        and now - observed <= max_age
+        and getattr(state, "status", "unknown") in {"available", "degraded"}
+    )

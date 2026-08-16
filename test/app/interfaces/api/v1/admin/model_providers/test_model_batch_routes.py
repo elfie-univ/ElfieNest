@@ -224,6 +224,7 @@ def _create_connection(client: TestClient) -> str:
             "alias": "Batch Test",
             "api_base": "https://gateway.example/v1",
             "verify": False,
+            "refresh_models": False,
             "models": [{"id": "seed-model"}],
         },
     )

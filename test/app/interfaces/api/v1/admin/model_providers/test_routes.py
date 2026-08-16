@@ -12,6 +12,7 @@ from app.features.configuration import (
     StoredLocalProviderBinding,
     StoredLocalProviderCandidate,
     StoredLocalProviderProbe,
+    StoredModelRefresh,
     StoredProviderOAuthLoginStart,
     StoredProviderOAuthLoginStatus,
 )
@@ -110,6 +111,7 @@ def _create_connection(
                 "https://gateway.example/v1" if catalog_id == "custom_openai" else None
             ),
             "models": [{"id": "model-a", "display_name": "Model A"}],
+            "refresh_models": False,
         },
     )
     assert response.status_code == 201, response.text
@@ -267,6 +269,7 @@ def test_versioned_provider_create_and_list_use_strict_envelopes(
             "alias": "Primary",
             "api_key": "test-secret",
             "models": [{"id": "gpt-test"}],
+            "refresh_models": False,
         },
     )
     listed = client.get("/api/v1/admin/model-providers/connections")
@@ -341,7 +344,7 @@ def test_connection_identity_is_stable_across_alias_update(
     assert updated.json()["alias"] == "Renamed Work"
 
 
-def test_create_does_not_verify_unless_requested(tmp_path, monkeypatch) -> None:
+def test_create_keeps_full_verification_opt_in(tmp_path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
 
     with patch.object(
@@ -353,6 +356,31 @@ def test_create_does_not_verify_unless_requested(tmp_path, monkeypatch) -> None:
 
     assert created["connection_id"] == "custom_openai_0001"
     verification.assert_not_awaited()
+
+
+def test_create_defaults_to_loading_model_inventory(tmp_path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    with patch.object(
+        ProviderModelsAdapter,
+        "refresh_models",
+        new=AsyncMock(
+            return_value=StoredModelRefresh(
+                "updated", "2026-08-16T00:00:00+00:00", None, ()
+            )
+        ),
+    ) as refresh:
+        response = client.post(
+            "/api/v1/admin/model-providers/connections",
+            json={
+                "catalog_id": "custom_openai",
+                "alias": "Default discovery",
+                "api_base": "https://gateway.example/v1",
+                "models": [{"id": "model-a"}],
+            },
+        )
+
+    assert response.status_code == 201, response.text
+    refresh.assert_awaited_once()
 
 
 def test_model_matrix_reads_current_and_historical_sqlite_evidence(

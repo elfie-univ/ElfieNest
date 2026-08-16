@@ -113,7 +113,8 @@ def run_connection_reachability_check(
         "latency_ms": result.get("latency_ms"),
         "latency_class": classify_latency(float(result.get("latency_ms") or 0.0)),
         "error": None if passed else "Provider transport check failed",
-        "error_scope": result.get("error_scope") or ("transport" if not passed else None),
+        "error_scope": result.get("error_scope")
+        or ("transport" if not passed else None),
         "error_code": result.get("error_code"),
         "error_category": result.get("error_category"),
     }

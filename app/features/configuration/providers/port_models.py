@@ -246,6 +246,14 @@ class StoredMatrixCell:
     latency_ms: float | None
     latency_class: LatencyClass | None
     price_estimate: float | None
+    locality: Literal["local", "remote"] = "remote"
+    validated_at: str | None = None
+    time_to_first_token_ms: float | None = None
+    total_latency_ms: float | None = None
+    context_window_tokens: int | None = None
+    max_output_tokens: int | None = None
+    validation_source: str | None = None
+    capability_facts: tuple[StoredEndpointCapability, ...] = ()
 
 
 @dataclass(frozen=True)

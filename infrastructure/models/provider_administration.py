@@ -43,6 +43,9 @@ from app.features.configuration import (
     ValidationMode,
 )
 from app.features.configuration.providers import (
+    StoredEndpointCapability,
+)
+from app.features.configuration.providers import (
     ValidationStatus as ProviderValidationStatus,
 )
 from infrastructure.models.inference.llm_api import call_llm_api_with_trace
@@ -81,7 +84,6 @@ from infrastructure.models.storage_ports import (
     ReportStoragePort,
 )
 from infrastructure.models.validation.capability_probes import (
-    CapabilityName,
     CapabilityProbeResult,
     capability_error_result,
     capability_probe_request,
@@ -112,6 +114,7 @@ from infrastructure.models.validation.provider_validation_execution import (
     model_execution_projection,
 )
 from infrastructure.models.validation.provider_validation_policy import (
+    connection_reachability_fingerprint,
     connection_validation_fingerprint,
 )
 from infrastructure.models.validation.provider_validation_service import (
@@ -366,6 +369,23 @@ class ProviderModelsAdapter:
                 "Unable to fingerprint Provider connection"
             ) from error
 
+    def reachability_fingerprint(self, connection_id: str) -> str:
+        """Return a transport/auth fingerprint independent of model inventory."""
+        try:
+            stored = self._store.load_connections().get(connection_id)
+            if stored is None:
+                raise ProviderPortError("Provider connection is missing")
+            return connection_reachability_fingerprint(
+                stored,
+                secret_resolver=self._resolve_credential,
+            )
+        except ProviderPortError:
+            raise
+        except (ProviderStorageError, ValueError, OSError) as error:
+            raise ProviderPortError(
+                "Unable to fingerprint Provider reachability"
+            ) from error
+
     def load_local_binding(self) -> StoredLocalProviderBinding | None:
         try:
             connection = self._local_connection()
@@ -588,6 +608,14 @@ class ProviderModelsAdapter:
                     secret_resolver=self._resolve_credential,
                 )
             )
+            reachability_fingerprint = (
+                None
+                if stored_connection is None
+                else connection_reachability_fingerprint(
+                    stored_connection,
+                    secret_resolver=self._resolve_credential,
+                )
+            )
             availability = project_endpoint_availability(
                 subject_id,
                 observations,
@@ -597,10 +625,8 @@ class ProviderModelsAdapter:
                 connection_id,
                 ()
                 if stored_connection is None
-                else self._reports.observations_for_subject(
-                    "provider", connection_id
-                ),
-                config_fingerprint=fingerprint,
+                else self._reports.observations_for_subject("provider", connection_id),
+                config_fingerprint=reachability_fingerprint,
             )
             if (
                 reachability.status == "unavailable"
@@ -735,11 +761,7 @@ class ProviderModelsAdapter:
             raise ProviderPortError("Provider connection is missing")
         connection = self._provider_connection(self._connection(stored))
         current = next(
-            (
-                item
-                for item in connection.models
-                if item.endpoint_model_id == model_id
-            ),
+            (item for item in connection.models if item.endpoint_model_id == model_id),
             None,
         )
         if current is None:
@@ -747,8 +769,7 @@ class ProviderModelsAdapter:
 
         selected = tuple(
             dict.fromkeys(
-                capabilities
-                or ("tools", "vision", "reasoning", "structured_output")
+                capabilities or ("tools", "vision", "reasoning", "structured_output")
             )
         )
         to_probe = tuple(
@@ -759,8 +780,10 @@ class ProviderModelsAdapter:
         )
         if not to_probe:
             # Catalog declarations and a prior verified probe are stable
-            # capability evidence.  Avoid spending another paid request just
-            # because the dialog was reopened.
+            # capability evidence.  ``accepted`` is deliberately not in this
+            # set: it records an explicit probe whose payload was accepted but
+            # whose feature use was not observed, so another explicit probe may
+            # try to obtain real proof without making ordinary reads costly.
             return ()
 
         execution_id, config = self._model_execution_projection(connection)
@@ -867,8 +890,10 @@ class ProviderModelsAdapter:
                 self._model_execution_projection,
             )
             status = "passed" if raw.get("status") == "passed" else "failed"
+            raw_error = raw.get("error")
+            raw_latency = raw.get("latency_ms")
             error = sanitize_error(
-                raw.get("error") if isinstance(raw.get("error"), str) else None,
+                raw_error if isinstance(raw_error, str) else None,
                 secrets=(self._resolve_credential(connection.credential_ref),),
             )
             self._reports.append_observation(
@@ -878,21 +903,20 @@ class ProviderModelsAdapter:
                 status=status,
                 observed_at=datetime.now(timezone.utc).isoformat(),
                 latency_ms=(
-                    float(raw["latency_ms"])
-                    if isinstance(raw.get("latency_ms"), (int, float))
+                    float(raw_latency)
+                    if isinstance(raw_latency, (int, float))
+                    and not isinstance(raw_latency, bool)
                     else None
                 ),
                 error_category=(
-                    str(raw["error_category"])
-                    if raw.get("error_category")
-                    else None
+                    str(raw["error_category"]) if raw.get("error_category") else None
                 ),
                 error_message=error,
                 details={
                     "evidence_kind": "reachability",
                     "validation_mode": "reachability",
                     "evidence_source": "reachability",
-                    "config_fingerprint": connection_validation_fingerprint(
+                    "config_fingerprint": connection_reachability_fingerprint(
                         connection,
                         secret_resolver=self._resolve_credential,
                     ),
@@ -957,7 +981,11 @@ class ProviderModelsAdapter:
         if stored is None:
             raise ProviderPortError("Provider connection is missing")
         candidate = next(
-            (item for item in self.list_obsolete_models(connection_id) if item.model.model_id == model_id),
+            (
+                item
+                for item in self.list_obsolete_models(connection_id)
+                if item.model.model_id == model_id
+            ),
             None,
         )
         if candidate is None or not candidate.eligible:
@@ -966,9 +994,7 @@ class ProviderModelsAdapter:
             replace(
                 stored,
                 models=tuple(
-                    item
-                    for item in stored.models
-                    if item.endpoint_model_id != model_id
+                    item for item in stored.models if item.endpoint_model_id != model_id
                 ),
             )
         )
@@ -1153,8 +1179,8 @@ class ProviderModelsAdapter:
                 status="bundled_catalog",
                 checked_at=checked_at,
                 message=(
-                    "火山引擎 Coding Plan 使用配置文件中的官方 Model Name 清单，"
-                    "未使用 /models（通用模型列表与套餐不匹配）"
+                    "该 Provider 使用配置文件中的官方 Model Name 清单，"
+                    "未使用通用 /models（平台模型列表与产品权益不匹配）"
                 ),
                 models=tuple(
                     self._model(item)
@@ -1227,11 +1253,7 @@ class ProviderModelsAdapter:
                 and not discovered
                 and discovery.error is None
             )
-            if (
-                discovery.error
-                and not discovery.authoritative
-                and not discovered
-            ):
+            if discovery.error and not discovery.authoritative and not discovered:
                 fallback_models = self._curated_fallback_models(
                     provider_connection,
                     profile,
@@ -1256,9 +1278,8 @@ class ProviderModelsAdapter:
                     # click instead of being deleted or retyped.
                     hidden=(
                         False
-                        if item.name in self._serving_model_ids(
-                            provider_connection.connection_id
-                        )
+                        if item.name
+                        in self._serving_model_ids(provider_connection.connection_id)
                         else (
                             next(
                                 (
@@ -1266,10 +1287,7 @@ class ProviderModelsAdapter:
                                     for existing in provider_connection.models
                                     if existing.endpoint_model_id == item.name
                                 ),
-                                not (
-                                    item.curated
-                                    or item.source == "configured"
-                                ),
+                                not (item.curated or item.source == "configured"),
                             )
                         )
                     ),
@@ -1305,6 +1323,9 @@ class ProviderModelsAdapter:
             models,
             complete=discovery_complete,
             observed_at=checked_at,
+            authority_changed=(
+                discovery_complete and connection.catalog_id == "volcengine_coding_plan"
+            ),
             preserve_model_ids=self._serving_model_ids(
                 provider_connection.connection_id
             ),
@@ -1846,6 +1867,26 @@ class ProviderModelsAdapter:
     @classmethod
     def _matrix_cell(cls, raw: Mapping[str, Any]) -> StoredMatrixCell:
         benchmark = raw.get("benchmark_status")
+        raw_capability_facts = raw.get("capability_facts")
+        capability_facts = tuple(
+            StoredEndpointCapability(
+                name=cast(Any, item.get("name")),
+                state=cast(Any, item.get("state")),
+                evidence=cast(Any, item.get("evidence")),
+            )
+            for item in (
+                raw_capability_facts
+                if isinstance(raw_capability_facts, (list, tuple))
+                else ()
+            )
+            if isinstance(item, Mapping)
+            and item.get("name")
+            in {"tools", "vision", "reasoning", "structured_output"}
+            and item.get("state") in {"supported", "unsupported", "unknown"}
+            and item.get("evidence")
+            in {"declared", "declared_by_user", "accepted", "verified", "unknown"}
+        )
+        total_latency = cls._optional_float(raw.get("total_latency_ms"))
         return StoredMatrixCell(
             connection_id=str(raw.get("connection_id") or ""),
             model_id=cls._optional_string(raw.get("model_id")),
@@ -1858,6 +1899,16 @@ class ProviderModelsAdapter:
             latency_ms=cls._optional_float(raw.get("latency_ms")),
             latency_class=cls._latency_class(raw.get("latency_class")),
             price_estimate=cls._optional_float(raw.get("price_estimate")),
+            locality=("local" if raw.get("locality") == "local" else "remote"),
+            validated_at=cls._optional_string(raw.get("validated_at")),
+            time_to_first_token_ms=cls._optional_float(
+                raw.get("time_to_first_token_ms")
+            ),
+            total_latency_ms=total_latency,
+            context_window_tokens=cls._optional_int(raw.get("context_window_tokens")),
+            max_output_tokens=cls._optional_int(raw.get("max_output_tokens")),
+            validation_source=cls._optional_string(raw.get("validation_source")),
+            capability_facts=capability_facts,
         )
 
     @staticmethod
@@ -1887,6 +1938,12 @@ class ProviderModelsAdapter:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             return None
         return float(value)
+
+    @staticmethod
+    def _optional_int(value: object) -> int | None:
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        return value if value > 0 else None
 
     @staticmethod
     def _validation_status(value: object) -> ProviderValidationStatus:
@@ -1932,8 +1989,10 @@ def _latest_production_observation(observations: tuple[Any, ...]) -> Any | None:
     ]
     return max(
         production,
-        key=lambda item: _parse_timestamp(item.observed_at)
-        or datetime.min.replace(tzinfo=timezone.utc),
+        key=lambda item: (
+            _parse_timestamp(item.observed_at)
+            or datetime.min.replace(tzinfo=timezone.utc)
+        ),
         default=None,
     )
 
