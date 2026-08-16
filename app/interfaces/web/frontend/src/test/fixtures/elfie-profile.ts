@@ -15,6 +15,7 @@ export const PRIVATE_MODULE_TITLES = [
   "知识与信念",
   "粮食策略",
   "Telegram 聊天",
+  "Discord 聊天",
 ] as const
 
 class FixtureSourceError extends Error {

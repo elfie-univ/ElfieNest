@@ -1,5 +1,6 @@
 """Public facade for authorized message delivery and reply fan-out."""
 
+from .discord import DiscordReplyRecorder, DiscordUpdateHandler, DiscordUpdateOutcome
 from .errors import (
     DuplicateMessage,
     MessageDeliveryError,
@@ -53,6 +54,9 @@ __all__ = (
     "TelegramReplyRecorder",
     "TelegramUpdateHandler",
     "TelegramUpdateOutcome",
+    "DiscordReplyRecorder",
+    "DiscordUpdateHandler",
+    "DiscordUpdateOutcome",
     "UserMessageDeliveryAttempt",
     "deliver_owner_message",
 )

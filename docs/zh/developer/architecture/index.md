@@ -36,6 +36,7 @@ Feature 用例，Feature 声明自己需要的 Port，Infrastructure 实现 Port
 | `app/orchestration/lifecycle/` | Runtime 生命周期、完整健康、owner lease 与权威控制 | [运行时与数据](./runtime) |
 | `infrastructure/godot/lifecycle/` 与 `artifacts/` | 权威宿主选择、已导出 Runtime 启动和产物元数据 | [运行时与数据](./runtime) |
 | `app/interfaces/desktop/` | Electron Observer 窗口与公开 lifecycle client | [Desktop README](https://github.com/elfie-univ/ElfieNest/blob/main/app/interfaces/desktop/README.md) |
+| `app/features/communication/` 与 `infrastructure/communication/` | 面向主人的 Telegram、Discord 账号流程、Adapter 与消息路由 | [通信渠道](./communication) |
 | `godot_project/` | 独立 Godot 源工程：房间、几何、坐标、碰撞、角色和渲染源码 | [Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot_project/README.md) |
 | `devtools/` | 与普通用户产品隔离的模块实验台 | [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md) |
 

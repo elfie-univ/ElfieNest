@@ -589,8 +589,10 @@
 .profile-private-telegram__summary dd small { color: var(--text-muted); font-size: 12px; font-weight: 700; }
 .profile-private-telegram__actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .profile-private-telegram__actions > [data-slot="button"]:first-child { flex: 1 1 auto; }
+.profile-private-discord__actions > [data-slot="button"]:only-child { flex: 0 0 auto; }
 .profile-private-telegram__actions > a[data-slot="button"],
 .profile-private-telegram__wizard-actions > a[data-slot="button"] { color: var(--surface); }
+.profile-private-telegram__wizard-actions > a.profile-private-discord__open-button { color: var(--text); }
 .profile-private-telegram__menu { z-index: 80; display: grid; min-width: 168px; gap: 4px; padding: 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-raised); box-shadow: 0 16px 38px color-mix(in srgb, var(--shadow-color) 18%, transparent); }
 .profile-private-telegram__menu-item { padding: 9px 10px; border-radius: 8px; color: var(--text); font-size: 14px; font-weight: 700; cursor: pointer; outline: none; }
 .profile-private-telegram__menu-item[data-highlighted] { background: var(--surface-hover); }
@@ -981,6 +983,7 @@
   .profile-private-telegram__summary > div { grid-template-columns: 1fr; gap: 4px; }
   .profile-private-telegram__actions > [data-slot="button"]:first-child { flex: 1 1 auto; }
   .profile-private-telegram__actions > [data-slot="button"][data-size="icon"] { flex: 0 0 40px; }
+  .profile-private-discord__actions > [data-slot="button"]:only-child { flex: 0 0 40px; }
   .mobile-me-pane .account-menu__panel {
     position: static;
     width: auto;

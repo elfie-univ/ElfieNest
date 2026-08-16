@@ -103,6 +103,7 @@ def create_app(
         message_delivery=container.message_delivery,
         communication_realtime=container.communication_realtime,
         telegram_accounts=container.telegram_accounts,
+        discord_accounts=container.discord_accounts,
         observer=container.observer,
         session_logout=container.session_logout,
         adoption=container.adoption,

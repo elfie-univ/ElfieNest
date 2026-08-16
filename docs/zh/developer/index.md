@@ -8,6 +8,8 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
 - [当前架构](./architecture/)：系统全景、核心调用链和进程边界。
 - [模块边界](./architecture/module-boundaries)：每个根模块负责什么、不负责什么。
 - [认知信息流](./architecture/cognitive-flow)：从感知输入到执行回执的类型化流程。
+- [通信渠道](./architecture/communication)：已经验证的 Telegram 同款 Discord 账号、
+  配对、路由与生命周期边界。
 - [运行时与数据](./architecture/runtime)：配置、数据、服务和构建产物如何隔离。
 
 ## 设计与治理

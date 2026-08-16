@@ -12,10 +12,12 @@ import {
 import { ApiError } from "../api/http"
 import {
   adoptionInfo,
+  discordAccount,
   elfies,
   elfieFoodPolicy,
   profile,
   telegramAccount,
+  type DiscordAccount,
   type TelegramAccount,
   type ElfieFoodPolicy,
   type ElfieProfileDetail,
@@ -86,8 +88,11 @@ export function ChatPage() {
   const [selectedProfile, setSelectedProfile] = useState<ElfieProfileDetail | null>(null)
   const [selectedFoodPolicy, setSelectedFoodPolicy] = useState<ElfieFoodPolicy | null>(null)
   const [selectedTelegramAccount, setSelectedTelegramAccount] = useState<TelegramAccount | null>(null)
+  const [selectedDiscordAccount, setSelectedDiscordAccount] = useState<DiscordAccount | null>(null)
   const [telegramAccountLoading, setTelegramAccountLoading] = useState(false)
   const [telegramAccountError, setTelegramAccountError] = useState<string | null>(null)
+  const [discordAccountLoading, setDiscordAccountLoading] = useState(false)
+  const [discordAccountError, setDiscordAccountError] = useState<string | null>(null)
   const [speciesCatalog, setSpeciesCatalog] = useState<ReadonlyMap<string, AdoptionSpecies>>(() => new Map())
   const [failure, setFailure] = useState<ChatFailure | null>(null)
   const [draft, setDraft] = useState("")
@@ -185,8 +190,11 @@ export function ChatPage() {
     setSelectedProfile(null)
     setSelectedFoodPolicy(null)
     setSelectedTelegramAccount(null)
+    setSelectedDiscordAccount(null)
     setTelegramAccountLoading(false)
     setTelegramAccountError(null)
+    setDiscordAccountLoading(false)
+    setDiscordAccountError(null)
     if (selectedId === null || viewState.view !== "profile") return
     void Promise.all([profile(selectedId), elfieFoodPolicy(selectedId)])
       .then(async ([loadedProfile, foodPolicy]) => {
@@ -195,13 +203,20 @@ export function ChatPage() {
         if (loadedProfile.relationship !== "owned") return
         setTelegramAccountLoading(true)
         setTelegramAccountError(null)
-        try {
-          setSelectedTelegramAccount(await telegramAccount(selectedId))
-        } catch (reason: unknown) {
-          setTelegramAccountError(reason instanceof ApiError ? reason.message : null)
-        } finally {
-          setTelegramAccountLoading(false)
-        }
+        setDiscordAccountLoading(true)
+        setDiscordAccountError(null)
+        const results = await Promise.allSettled([
+          telegramAccount(selectedId),
+          discordAccount(selectedId),
+        ])
+        const telegramResult = results[0]
+        const discordResult = results[1]
+        if (telegramResult.status === "fulfilled") setSelectedTelegramAccount(telegramResult.value)
+        else setTelegramAccountError(telegramResult.reason instanceof ApiError ? telegramResult.reason.message : null)
+        if (discordResult.status === "fulfilled") setSelectedDiscordAccount(discordResult.value)
+        else setDiscordAccountError(discordResult.reason instanceof ApiError ? discordResult.reason.message : null)
+        setTelegramAccountLoading(false)
+        setDiscordAccountLoading(false)
       })
       .catch((reason: unknown) => {
         setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
@@ -295,6 +310,17 @@ export function ChatPage() {
       throw reason
     }
   }
+  const refreshSelectedDiscord = async (): Promise<void> => {
+    if (selectedId === null) return
+    setDiscordAccountError(null)
+    try {
+      setSelectedDiscordAccount(await discordAccount(selectedId))
+    } catch (reason: unknown) {
+      const detail = reason instanceof ApiError ? reason.message : null
+      setDiscordAccountError(detail)
+      throw reason
+    }
+  }
   const submit = async (): Promise<void> => {
     if (selectedId === null || !draft.trim()) return
     const text = draft.trim()
@@ -377,6 +403,8 @@ export function ChatPage() {
               onFoodSaved={saveSelectedFood}
               onTelegramAccountChange={setSelectedTelegramAccount}
               onTelegramRefresh={refreshSelectedTelegram}
+              onDiscordAccountChange={setSelectedDiscordAccount}
+              onDiscordRefresh={refreshSelectedDiscord}
               projection={presentElfieProfile(
                 selectedProfile ?? selected ?? null,
                 user.account_id,
@@ -389,6 +417,9 @@ export function ChatPage() {
               telegramAccount={selectedTelegramAccount}
               telegramAccountError={telegramAccountError}
               telegramAccountLoading={telegramAccountLoading}
+              discordAccount={selectedDiscordAccount}
+              discordAccountError={discordAccountError}
+              discordAccountLoading={discordAccountLoading}
             />
           </section>
         )}

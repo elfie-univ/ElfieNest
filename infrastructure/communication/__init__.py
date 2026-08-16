@@ -1,6 +1,7 @@
 """Technical adapters for product message transport."""
 
 from .channels import TelegramChannel, TelegramConnector, WeChatChannel, WeChatConnector
+from .discord import DiscordChannel, DiscordConnector
 from .elfie_delivery import (
     ElfieCommunicationChannelAdapter,
     ElfieMessageDeliveryAdapter,
@@ -15,6 +16,8 @@ __all__ = (
     "SameOriginMessagePublisher",
     "TelegramChannel",
     "TelegramConnector",
+    "DiscordChannel",
+    "DiscordConnector",
     "WeChatChannel",
     "WeChatConnector",
 )

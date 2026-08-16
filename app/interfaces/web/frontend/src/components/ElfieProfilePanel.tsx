@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import type { TelegramAccount } from "../api/client"
+import type { DiscordAccount, TelegramAccount } from "../api/client"
 import type { AdoptionSpecies } from "../api/me/adoption"
 import type { AppearanceCaptureAdapter } from "./elfie-profile/appearance-capture"
 import type { ElfieProfileProjection } from "./elfie-profile/projection"
@@ -23,11 +23,16 @@ type ElfieProfilePanelProps = {
   readonly onFoodSaved?: (() => Promise<void>) | undefined
   readonly onTelegramAccountChange?: ((account: TelegramAccount) => void) | undefined
   readonly onTelegramRefresh?: (() => Promise<void>) | undefined
+  readonly onDiscordAccountChange?: ((account: DiscordAccount) => void) | undefined
+  readonly onDiscordRefresh?: (() => Promise<void>) | undefined
   readonly projection: ElfieProfileProjection | null
   readonly speciesDefinition?: Pick<AdoptionSpecies, "display_name" | "display_name_zh"> | undefined
   readonly telegramAccount?: TelegramAccount | null
   readonly telegramAccountError?: string | null
   readonly telegramAccountLoading?: boolean
+  readonly discordAccount?: DiscordAccount | null
+  readonly discordAccountError?: string | null
+  readonly discordAccountLoading?: boolean
 }
 
 type LocalAvatar = {
@@ -43,11 +48,16 @@ export function ElfieProfilePanel({
   onFoodSaved,
   onTelegramAccountChange,
   onTelegramRefresh,
+  onDiscordAccountChange,
+  onDiscordRefresh,
   projection,
   speciesDefinition,
   telegramAccount = null,
   telegramAccountError = null,
   telegramAccountLoading = false,
+  discordAccount = null,
+  discordAccountError = null,
+  discordAccountLoading = false,
 }: ElfieProfilePanelProps) {
   const { t } = useTranslation("chat")
   const [activeSection, setActiveSection] = useState<ProfileSection>("archive")
@@ -147,11 +157,16 @@ export function ElfieProfilePanel({
               onFoodSaved={onFoodSaved}
               onTelegramAccountChange={onTelegramAccountChange}
               onTelegramRefresh={onTelegramRefresh}
+              onDiscordAccountChange={onDiscordAccountChange}
+              onDiscordRefresh={onDiscordRefresh}
               projection={projection}
               section="archive"
               telegramAccount={telegramAccount}
               telegramAccountError={telegramAccountError}
               telegramAccountLoading={telegramAccountLoading}
+              discordAccount={discordAccount}
+              discordAccountError={discordAccountError}
+              discordAccountLoading={discordAccountLoading}
             />
           </>
         ) : null}
@@ -161,11 +176,16 @@ export function ElfieProfilePanel({
             onFoodSaved={onFoodSaved}
             onTelegramAccountChange={onTelegramAccountChange}
             onTelegramRefresh={onTelegramRefresh}
+            onDiscordAccountChange={onDiscordAccountChange}
+            onDiscordRefresh={onDiscordRefresh}
             projection={projection}
             section="manage"
             telegramAccount={telegramAccount}
             telegramAccountError={telegramAccountError}
             telegramAccountLoading={telegramAccountLoading}
+            discordAccount={discordAccount}
+            discordAccountError={discordAccountError}
+            discordAccountLoading={discordAccountLoading}
           />
         ) : null}
       </div>

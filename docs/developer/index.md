@@ -12,6 +12,8 @@ source of truth.
   is not responsible for.
 - [Cognitive information flow](./architecture/cognitive-flow): the typed flow
   from perception input to execution receipt.
+- [Communication channels](./architecture/communication): the verified Telegram-shaped
+  Discord account, pairing, routing and lifecycle boundary.
 - [Runtime & data](./architecture/runtime): how configuration, data, services
   and build artifacts are isolated.
 

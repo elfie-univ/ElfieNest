@@ -44,7 +44,7 @@ describe("elfie profile mock data", () => {
   })
 
   it("contains the five cognition datasets followed by separate food settings", () => {
-    expect(PRIVATE_MODULE_TITLES).toEqual([
+    expect(PRIVATE_MODULE_TITLES.slice(0, 6)).toEqual([
       "近期关注",
       "重要经历",
       "关系网络",

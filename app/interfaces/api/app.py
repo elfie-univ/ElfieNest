@@ -24,7 +24,11 @@ from starlette.middleware.base import RequestResponseEndpoint
 from app.features.accounts import AccountsService
 from app.features.adoption import AdoptionService
 from app.features.bodies import BodiesService
-from app.features.communication import CommunicationFacade, TelegramAccountsService
+from app.features.communication import (
+    CommunicationFacade,
+    DiscordAccountsService,
+    TelegramAccountsService,
+)
 from app.features.configuration import (
     CapabilitiesService,
     FoodService,
@@ -119,6 +123,7 @@ def create_http_application(
     message_delivery: MessageDeliveryFacade,
     communication_realtime: CommunicationRealtimePort,
     telegram_accounts: TelegramAccountsService,
+    discord_accounts: DiscordAccountsService,
     observer: ObserverFacade,
     session_logout: SessionLogoutWorkflow,
     adoption: AdoptionService,
@@ -162,6 +167,7 @@ def create_http_application(
     app.state.message_delivery = message_delivery
     app.state.communication_realtime = communication_realtime
     app.state.telegram_accounts = telegram_accounts
+    app.state.discord_accounts = discord_accounts
     app.state.observer = observer
     app.state.session_logout = session_logout
     app.state.adoption = adoption

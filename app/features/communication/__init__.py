@@ -1,5 +1,31 @@
 """Public facade for product conversations and user-visible message history."""
 
+from .discord_errors import (
+    DiscordAccountConflict,
+    DiscordAccountError,
+    DiscordAccountInvalid,
+    DiscordAccountNotFound,
+    DiscordAccountUnavailable,
+)
+from .discord_models import (
+    AuthorizedDiscordMessage,
+    ConfigureDiscordAccountCommand,
+    CreateDiscordPairingSessionCommand,
+    DisconnectDiscordAccountCommand,
+    DiscordAccountResult,
+    DiscordAccountState,
+    DiscordPairingCompletion,
+    DiscordPairingSessionResult,
+    GetDiscordAccountQuery,
+)
+from .discord_port_models import (
+    DiscordBotInspection,
+    DiscordPrivateUpdate,
+    DiscordRuntimeAccount,
+    StoredDiscordAccount,
+    StoredDiscordBinding,
+)
+from .discord_service import DiscordAccountsService
 from .errors import (
     CommunicationError,
     CommunicationUnavailable,
@@ -94,4 +120,24 @@ __all__ = (
     "TelegramPairingSessionResult",
     "TelegramPrivateUpdate",
     "TelegramRuntimeAccount",
+    "AuthorizedDiscordMessage",
+    "ConfigureDiscordAccountCommand",
+    "CreateDiscordPairingSessionCommand",
+    "DisconnectDiscordAccountCommand",
+    "DiscordAccountConflict",
+    "DiscordAccountError",
+    "DiscordAccountInvalid",
+    "DiscordAccountNotFound",
+    "DiscordAccountResult",
+    "DiscordAccountState",
+    "DiscordAccountUnavailable",
+    "DiscordAccountsService",
+    "DiscordBotInspection",
+    "DiscordPairingCompletion",
+    "DiscordPairingSessionResult",
+    "DiscordPrivateUpdate",
+    "DiscordRuntimeAccount",
+    "GetDiscordAccountQuery",
+    "StoredDiscordAccount",
+    "StoredDiscordBinding",
 )

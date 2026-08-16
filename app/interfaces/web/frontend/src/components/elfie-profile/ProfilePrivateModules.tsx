@@ -4,13 +4,14 @@ import type { TFunction } from "i18next"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import type { TelegramAccount } from "../../api/client"
+import type { DiscordAccount, TelegramAccount } from "../../api/client"
 import { ProfileCareSettings } from "./ProfileCareSettings"
 import { ProfileImportantExperiences } from "./ProfileImportantExperiences"
 import { ProfileKnowledgeBeliefs } from "./ProfileKnowledgeBeliefs"
 import { ProfileRecentFocus } from "./ProfileRecentFocus"
 import { ProfileRelationshipWorld } from "./ProfileRelationshipWorld"
 import { ProfileTelegramAccount } from "./ProfileTelegramAccount"
+import { ProfileDiscordAccount } from "./ProfileDiscordAccount"
 import { ProfileWorldUnderstanding } from "./ProfileWorldUnderstanding"
 import type { CareSettings, PrivateCognition } from "./model"
 import type { ElfieProfileProjection } from "./projection"
@@ -20,14 +21,19 @@ type ProfilePrivateModulesProps = {
   readonly onFoodSaved?: (() => Promise<void>) | undefined
   readonly onTelegramAccountChange?: ((account: TelegramAccount) => void) | undefined
   readonly onTelegramRefresh?: (() => Promise<void>) | undefined
+  readonly onDiscordAccountChange?: ((account: DiscordAccount) => void) | undefined
+  readonly onDiscordRefresh?: (() => Promise<void>) | undefined
   readonly projection: ElfieProfileProjection
   readonly section?: ProfilePrivateModuleSection
   readonly telegramAccount?: TelegramAccount | null
   readonly telegramAccountError?: string | null
   readonly telegramAccountLoading?: boolean
+  readonly discordAccount?: DiscordAccount | null
+  readonly discordAccountError?: string | null
+  readonly discordAccountLoading?: boolean
 }
 
-type ModuleKey = "focus" | "timeline" | "relationships" | "world" | "knowledge" | "food" | "telegram"
+type ModuleKey = "focus" | "timeline" | "relationships" | "world" | "knowledge" | "food" | "telegram" | "discord"
 export type ProfilePrivateModuleSection = "all" | "archive" | "manage"
 
 type ModuleItem = {
@@ -48,11 +54,16 @@ export function ProfilePrivateModules({
   onFoodSaved,
   onTelegramAccountChange,
   onTelegramRefresh,
+  onDiscordAccountChange,
+  onDiscordRefresh,
   projection,
   section = "all",
   telegramAccount = null,
   telegramAccountError = null,
   telegramAccountLoading = false,
+  discordAccount = null,
+  discordAccountError = null,
+  discordAccountLoading = false,
 }: ProfilePrivateModulesProps) {
   const { t } = useTranslation("chat")
   const elfieId = projection.publicProfile.elfieId
@@ -84,9 +95,14 @@ export function ProfilePrivateModules({
     telegramAccountLoading,
     onTelegramAccountChange,
     onTelegramRefresh,
+    discordAccount,
+    discordAccountError,
+    discordAccountLoading,
+    onDiscordAccountChange,
+    onDiscordRefresh,
     t,
   ).filter((item) => section === "all"
-    || (section === "manage" ? item.key === "food" || item.key === "telegram" : item.key !== "food" && item.key !== "telegram"))
+    || (section === "manage" ? item.key === "food" || item.key === "telegram" || item.key === "discord" : item.key !== "food" && item.key !== "telegram" && item.key !== "discord"))
   const toggle = (key: ModuleKey): void => {
     setAccordion((current) => {
       const currentKeys = current.resetKey === resetKey ? current.openKeys : NO_OPEN_KEYS
@@ -148,6 +164,11 @@ function moduleItems(
   telegramAccountLoading: boolean,
   onTelegramAccountChange: ((account: TelegramAccount) => void) | undefined,
   onTelegramRefresh: (() => Promise<void>) | undefined,
+  discordAccount: DiscordAccount | null,
+  discordAccountError: string | null,
+  discordAccountLoading: boolean,
+  onDiscordAccountChange: ((account: DiscordAccount) => void) | undefined,
+  onDiscordRefresh: (() => Promise<void>) | undefined,
   t: TFunction<"chat">,
 ): readonly ModuleItem[] {
   return [
@@ -169,6 +190,19 @@ function moduleItems(
         elfieName={elfieName}
         onAccountChange={onTelegramAccountChange}
         onRefresh={onTelegramRefresh}
+      />,
+    },
+    {
+      key: "discord",
+      displayTitle: t("profile.private.titles.discord"),
+      renderBody: () => <ProfileDiscordAccount
+        account={discordAccount}
+        accountError={discordAccountError}
+        accountLoading={discordAccountLoading}
+        csrfToken={csrfToken}
+        elfieId={elfieId}
+        onAccountChange={onDiscordAccountChange}
+        onRefresh={onDiscordRefresh}
       />,
     },
   ]

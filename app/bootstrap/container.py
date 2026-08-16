@@ -14,6 +14,7 @@ from app.features.adoption import (
 )
 from app.features.bodies import BodiesService
 from app.features.communication import CommunicationFacade
+from app.features.communication.discord_service import DiscordAccountsService
 from app.features.communication.telegram_service import TelegramAccountsService
 from app.features.configuration import (
     CapabilitiesService,
@@ -120,6 +121,7 @@ class ApplicationContainer:
     message_delivery: MessageDeliveryFacade
     communication_realtime: SameOriginMessagePublisher
     telegram_accounts: TelegramAccountsService
+    discord_accounts: DiscordAccountsService
     runtime_lifecycle: ApplicationRuntimeLifecycle
     observer: ObserverFacade
     session_logout: SessionLogoutWorkflow
@@ -393,8 +395,9 @@ def build_application_container(
         message_delivery=communication.message_delivery,
         communication_realtime=communication.realtime,
         telegram_accounts=communication.telegram_accounts,
+        discord_accounts=communication.discord_accounts,
         runtime_lifecycle=ApplicationRuntimeLifecycle(
-            (communication.telegram_runtime,)
+            (communication.telegram_runtime, communication.discord_runtime)
         ),
         observer=observer,
         session_logout=SessionLogoutWorkflow(accounts, observer),

@@ -28,6 +28,7 @@ const chatApi = vi.hoisted(() => ({
   elfies: vi.fn(),
   messages: vi.fn(),
   profile: vi.fn(),
+  discordAccount: vi.fn(),
   telegramAccount: vi.fn(),
   sendMessage: vi.fn(),
 }))
@@ -48,6 +49,7 @@ vi.mock("../api/client", async (loadOriginal) => {
     elfieFoodPolicy: chatApi.elfieFoodPolicy,
     elfies: chatApi.elfies,
     profile: chatApi.profile,
+    discordAccount: chatApi.discordAccount,
     telegramAccount: chatApi.telegramAccount,
   }
 })
@@ -151,6 +153,16 @@ describe("ChatPage profile integration", () => {
       bot_username: null,
       bot_display_name: null,
       bound_telegram_username: null,
+      bound_display_name: null,
+      last_checked_at: null,
+      issue: null,
+    })
+    chatApi.discordAccount.mockResolvedValue({
+      elfie_id: "00000001",
+      state: "unconfigured",
+      bot_username: null,
+      bot_display_name: null,
+      bound_discord_username: null,
       bound_display_name: null,
       last_checked_at: null,
       issue: null,
