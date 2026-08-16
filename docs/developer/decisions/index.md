@@ -25,5 +25,6 @@ The current contract always states the enforceable rule.
 - [ADR-0017: Separate bundled defaults from user configuration](./0017-bundled-defaults-and-user-configuration)
 - [ADR-0021: Authoritative service lifecycle and independent capability health](./0021-authoritative-service-lifecycle)
 - [ADR-0022: Evidence-backed task closure and immutable two-phase governance](./0022-evidence-backed-task-closure)
+- [ADR-0023: Tiered validation and exact-snapshot reuse](./0023-tiered-validation-and-reuse)
 - [ADR-0019: Provider availability is endpoint-scoped and serving-driven](./0019-provider-endpoint-availability)
 - [ADR-0020: Configuration-driven species packages](./0020-configuration-driven-species-packages)

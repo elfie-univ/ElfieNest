@@ -216,7 +216,7 @@ def validate_task_closure(
         if incomplete:
             failures.append(f"task has non-complete rows: {', '.join(incomplete)}")
 
-    if conformance_rows and conformance is not None:
+    if conformance_rows and conformance is not None and mode == "complete":
         for row_id in conformance_rows:
             matches = conformance.get(row_id, [])
             if len(matches) != 1:

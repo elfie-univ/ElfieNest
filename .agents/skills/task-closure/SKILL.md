@@ -34,15 +34,31 @@ an implemented “main path” from being reported as final completion.
    `verifying` until its required runtime evidence exists.
 4. Verify in layers: focused behavior, negative/failure, concurrency/crash/
    recovery, platform/install, architecture/quality, and the final gate.
-5. Run both checks before claiming completion:
+5. Use the tiered gate for feedback during implementation:
+
+   ```bash
+   bash scripts/pre_submit_gate.sh --stage commit \
+     --base-sha "$(git rev-parse origin/main^{commit})" \
+     --closure-file task-closure.json
+   ```
+
+   A feature-branch push uses `--stage push`. The selector may escalate either
+   command to the main tier when the impact is unknown or governance-sensitive.
+   These progress checks must use `--mode progress`; they do not close the task.
+
+6. Run both final checks before claiming completion:
 
    ```bash
    .venv/bin/python3 scripts/check_task_closure.py \
      --file task-closure.json --base-sha "$(git rev-parse origin/main^{commit})"
-   bash scripts/pre_submit_gate.sh \
+   bash scripts/pre_submit_gate.sh --stage main \
      --base-sha "$(git rev-parse origin/main^{commit})" \
      --closure-file task-closure.json
    ```
+
+   The main stage is the complete CI-aligned backstop. It may reuse only a
+   successful exact-candidate result from `build/validation-cache/`; a changed
+   candidate, base, lockfile or toolchain invalidates that result.
 
 6. Report `complete`, `blocked`, and remaining items separately. If a required
    check is blocked, stop with the exact environment and next check; do not turn

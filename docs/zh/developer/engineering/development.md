@@ -169,14 +169,26 @@ Electron 登录入口和移动浏览器。
 
 ## 提交前检查
 
-准备交付一组改动前，至少确认：
+准备交付一组改动前，运行最小安全验证级别：普通提交使用 G1，功能分支推送使用 G2，主线
+合并或发布使用 G3。治理、工具链、锁文件和未知可执行路径改动自动升级到 G3。至少确认：
 
 1. 改动直接对应的测试通过；
 2. `test/architecture/` 通过；
-3. 统一质量门和 pre-commit 通过；
+3. 选定级别的门禁和 pre-commit 通过；
 4. 改动文档时，VitePress 能完整构建；
 5. 没有真实密钥、本机绝对路径、缓存或构建产物；
 6. README、架构文档与测试在新增目录或跨边界依赖后保持同步。
+
+```bash
+git fetch --prune origin main
+bash scripts/pre_submit_gate.sh --stage commit \
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --closure-file task-closure.json
+# 功能分支推送使用 --stage push；主线合并/发布使用 --stage main
+```
+
+成功结果只有在候选快照完全相同时才能复用；分类器升级或向主线交付时，完整 G3 后盾仍然
+是必需的。
 
 ```bash
 cd docs

@@ -25,7 +25,7 @@ class ContractRegistration:
 CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ContractRegistration(
         contract_id="repository-governance",
-        version="1.8",
+        version="1.9",
         english_path="docs/developer/contracts/repository-governance.md",
         chinese_path="docs/zh/developer/contracts/repository-governance.md",
         decision_paths=(
@@ -41,6 +41,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0012-effective-dependency-targets.md",
             "docs/developer/decisions/0015-evidence-backed-cleanup-closure.md",
             "docs/zh/developer/decisions/0015-evidence-backed-cleanup-closure.md",
+            "docs/developer/decisions/0023-tiered-validation-and-reuse.md",
+            "docs/zh/developer/decisions/0023-tiered-validation-and-reuse.md",
         ),
         agent_paths=(
             "AGENTS.md",
@@ -55,12 +57,16 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "scripts/architecture/effective_dependency_targets.py",
             "scripts/architecture/effective_dependency_text.py",
             "scripts/architecture/structural_scope_scan.py",
+            "scripts/architecture/validation_cache.py",
+            "scripts/architecture/validation_gate.py",
+            "scripts/architecture/validation_plan.py",
         ),
         test_paths=(
             "test/architecture/test_architecture_governance.py",
             "test/architecture/test_app_layer_boundaries.py",
             "test/architecture/test_effective_dependency_boundaries.py",
             "test/architecture/test_system_layer_boundaries.py",
+            "test/architecture/test_validation_gate.py",
         ),
     ),
     ContractRegistration(

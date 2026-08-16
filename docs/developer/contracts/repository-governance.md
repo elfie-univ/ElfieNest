@@ -1,6 +1,6 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.8
+**Contract version:** 1.9
 **Adopted:** 2026-08-12
 **Revised:** 2026-08-16
 **Enforced scope:** Repository-wide change classification and architecture boundaries
@@ -38,11 +38,37 @@ Architecture quality is maintained by one connected system:
 | Conformance registers | Name each temporary gap and its deletion gate | Temporary |
 | CI base-branch comparison and maintainer review | Prevent a change from weakening the rule that judges itself | Permanent |
 | Runtime health and Observer projections | Report operational health; separate from source architecture checks | Permanent |
+| Tiered validation and exact-snapshot reuse | Match local effort to changed risk without weakening the final backstop | Permanent |
 
 No one mechanism replaces another. Contracts state the target, `AGENTS.md`
 guides execution, machine gates reject detectable violations, conformance and
 baselines record only legacy debt, and human review covers semantic rules that
 cannot be proven mechanically.
+
+## Tiered validation and exact-snapshot reuse
+
+Validation is selected from the changed-path impact, and a higher-risk result
+may always escalate but never downgrade:
+
+| Tier | Trigger | Required checks |
+| --- | --- | --- |
+| G1 commit | ordinary local change | staged secret scan, diff check, changed-file quality, affected tests and closure `progress` |
+| G2 push | feature-branch push or an affected integration path | G1 plus quality baseline and the affected API, persistence, architecture or documentation integration checks |
+| G3 main | main-branch merge/release, governance/toolchain change or unknown impact | the complete existing pre-submit gate and closure `complete` |
+
+The candidate classifier owns the escalation decision. Unknown executable paths,
+governance, toolchain, lockfile and delivery changes go to G3. A normal commit
+does not wait for G3 unless its own impact requires that escalation; G3 remains
+the protected-branch backstop.
+
+Only a successful deterministic check may be reused. Its cache key includes the
+check/rule version, stage, immutable base SHA, changed candidate content,
+lockfiles, toolchain fingerprint and selection rules. Failed, blocked, timed-out
+or live-provider results are never stored as passes. The worktree fingerprint is
+checked again after the command; if it changed, the result is discarded. Cache
+records live only under ignored `build/validation-cache/` and contain no source,
+credentials or user data. GitHub status checks still have to pass on the latest
+commit SHA; a cached local result cannot replace CI for a new SHA.
 
 An architecture dependency is defined by the effective target, not only by an
 `import` statement. A repository module reached through `python -m`, a script

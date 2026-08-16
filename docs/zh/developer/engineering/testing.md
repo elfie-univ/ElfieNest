@@ -88,23 +88,27 @@ PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-f
 质量基线只容纳已经存在的诊断；新增 Ruff、格式或 MyPy 诊断必须修复，不通过扩大
 忽略项或改写基线隐藏。
 
-## 提交前硬门禁
+## 分级验证门禁
 
-提交或推送前必须先同步远程 `main`，再运行与 CI 对齐的完整门禁：
+先同步远程 `main`，再按改动运行最小安全级别：
 
 ```bash
 git fetch --prune origin main
-.venv/bin/python3 scripts/check_task_closure.py \
-  --file task-closure.json --base-sha "$(git rev-parse origin/main^{commit})"
-bash scripts/pre_submit_gate.sh \
+bash scripts/pre_submit_gate.sh --stage commit \
   --base-sha "$(git rev-parse origin/main^{commit})" \
   --closure-file task-closure.json
+# 功能分支推送：使用 --stage push
+# 主线合并或发布：使用 --stage main
 ```
 
-完成检查先拒绝未归属的改动、证据不完整的矩阵行，以及仍未关闭的 Conformance 行；
-硬门禁随后在临时候选树中纳入当前未暂存改动，并使用基础提交中的不可变架构检查器审查它，
-再运行锁文件、Node/pnpm、质量基线、pre-commit/Gitleaks、完整 pytest、CLI smoke 和文档构建。
-任何步骤失败，或回环端口环境预检被阻断，都不得提交、推送或合并。聚焦测试不能替代门禁。
+G1（`commit`）检查改动文件、受影响测试和 closure `progress`；G2（`push`）追加质量基线
+以及受影响的 API、持久化、架构或文档集成检查；G3（`main`）运行下面的完整门禁，包括不可变
+基础提交架构 ratchet、锁文件和工具链、pre-commit/Gitleaks、完整 pytest、CLI smoke 和文档
+构建。未知可执行路径、治理、工具链和锁文件改动自动升级到 G3。成功的精确候选结果可从被
+忽略的 `build/validation-cache/` 复用，但不能替代新 commit SHA 的 CI。
+
+必需检查失败，或 G3 的回环端口预检被阻断时，不得提交、推送或合并。聚焦测试是 G1/G2 的
+正常路径；当影响分类器要求 G3 时不能替代完整门禁。
 
 修改完成技能或门禁本身时分两个检查点：先提交治理-only 的分类注册，再提交受保护的
 检查器和集成；不得为了合并这两步而绕过不可变基础分支门禁。

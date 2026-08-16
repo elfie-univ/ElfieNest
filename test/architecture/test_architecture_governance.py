@@ -117,6 +117,10 @@ def test_task_closure_gate_files_are_governance_changes() -> None:
             "scripts/pre_submit_gate.sh",
             "task-closure.json",
             "test/scripts/test_check_task_closure.py",
+            "scripts/architecture/validation_cache.py",
+            "scripts/architecture/validation_gate.py",
+            "scripts/architecture/validation_plan.py",
+            "test/architecture/test_validation_gate.py",
         }
     )
     assert production == set()
@@ -126,6 +130,10 @@ def test_task_closure_gate_files_are_governance_changes() -> None:
         "scripts/pre_submit_gate.sh",
         "task-closure.json",
         "test/scripts/test_check_task_closure.py",
+        "scripts/architecture/validation_cache.py",
+        "scripts/architecture/validation_gate.py",
+        "scripts/architecture/validation_plan.py",
+        "test/architecture/test_validation_gate.py",
     }
 
 

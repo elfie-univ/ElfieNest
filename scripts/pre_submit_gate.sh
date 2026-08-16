@@ -8,6 +8,8 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 BASE_SHA=""
 CLOSURE_FILE=""
+STAGE="main"
+NO_CACHE=0
 CURRENT_STEP="argument validation"
 TEMP_ROOT=""
 CANDIDATE_ROOT="$PROJECT_ROOT"
@@ -15,10 +17,10 @@ CANDIDATE_ROOT="$PROJECT_ROOT"
 usage() {
     cat <<'EOF'
 Usage: scripts/pre_submit_gate.sh --closure-file PATH [--base-sha COMMIT]
+       [--stage commit|push|main]
 
-Run every local check required before committing or pushing a change. The base
-commit is used by the immutable architecture ratchets; when omitted, the
-current origin/main commit is used.
+The default main stage is dispatched through the reusable tiered gate. The
+internal --no-cache flag runs the complete CI-aligned main backstop directly.
 EOF
 }
 
@@ -60,6 +62,19 @@ while [[ $# -gt 0 ]]; do
             CLOSURE_FILE="${1#*=}"
             shift
             ;;
+        --stage)
+            [[ $# -ge 2 ]] || fail "--stage requires commit, push or main"
+            STAGE="$2"
+            shift 2
+            ;;
+        --stage=*)
+            STAGE="${1#*=}"
+            shift
+            ;;
+        --no-cache)
+            NO_CACHE=1
+            shift
+            ;;
         --help|-h)
             usage
             exit 0
@@ -79,6 +94,17 @@ case "$CLOSURE_FILE" in
 esac
 [[ -f "$PROJECT_ROOT/$CLOSURE_FILE" ]] || \
     fail "task closure file does not exist: $CLOSURE_FILE"
+case "$STAGE" in
+    commit|push|main) ;;
+    *) fail "--stage must be commit, push or main" ;;
+esac
+
+if [[ "$NO_CACHE" -eq 0 ]]; then
+    PYTHON_BIN="$PROJECT_ROOT/.venv/bin/python3"
+    [[ -x "$PYTHON_BIN" ]] || fail "missing repository interpreter: $PYTHON_BIN"
+    exec "$PYTHON_BIN" "$PROJECT_ROOT/scripts/architecture/validation_gate.py" \
+        --stage "$STAGE" --base-sha "$BASE_SHA" --closure-file "$CLOSURE_FILE"
+fi
 
 CURRENT_STEP="resolving the immutable base commit"
 if [[ -z "$BASE_SHA" ]]; then

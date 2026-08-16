@@ -215,15 +215,30 @@ single-page console has been retired.
 
 ## Pre-commit checks
 
-Before delivering a change set, confirm at least:
+Before delivering a change set, run the smallest safe validation tier: G1 for
+an ordinary commit, G2 for a feature push, and G3 for a main merge or release.
+Governance, toolchain, lockfile and unknown executable changes automatically
+escalate to G3. Confirm at least:
 
 1. The tests directly corresponding to the change pass;
 2. `test/architecture/` passes;
-3. The unified quality gate and pre-commit pass;
+3. The selected tier and pre-commit pass;
 4. When docs are changed, VitePress builds cleanly;
 5. There are no real keys, local absolute paths, caches or build artifacts;
 6. README, architecture docs and tests stay in sync after adding directories or
    cross-boundary dependencies.
+
+```bash
+git fetch --prune origin main
+bash scripts/pre_submit_gate.sh --stage commit \
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --closure-file task-closure.json
+# feature push: use --stage push; main merge/release: use --stage main
+```
+
+Successful results may be reused only for the exact same candidate snapshot;
+the complete G3 backstop remains mandatory when the classifier escalates or the
+change is delivered to main.
 
 ```bash
 cd docs

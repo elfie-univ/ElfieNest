@@ -83,9 +83,11 @@ Conformance 行仍 open，就不得声称清理完成，即使所有选中测试
 `已完成` 或 `阻塞`；“基本完成”“核心完成”不是交付状态。
 
 所有实现类任务必须使用项目技能 `$task-closure`，并在根目录维护机器可读的
-`task-closure.json`。提交前必须运行 `scripts/check_task_closure.py` 和带有
-`--closure-file task-closure.json` 的 `scripts/pre_submit_gate.sh`；门禁会校验所有改动已
-归属、每行证据完整、列出的 Conformance 行已关闭，并拒绝残余未清零的最终交付。
+`task-closure.json`。本地反馈使用 `scripts/pre_submit_gate.sh --stage commit`，功能分支推送
+使用 `--stage push`，主线合并/发布使用 `--stage main`；治理、工具链、锁文件和未知影响会
+自动升级到主线级别。G1/G2 使用 closure `progress`，只有 G3 才运行完整不可变架构、质量、
+测试和文档门禁并要求 closure `complete`。同一精确候选快照的成功结果可以复用，但缓存不能
+替代最新 commit SHA 的 CI，也不能把失败或阻塞结果当作通过。
 首次新增或修改该门禁本身时，必须先提交能被不可变基础规则识别的治理-only 注册变更，
 再提交受保护的技能、检查器和集成；不得为了同一变更绕过基础分支治理检查。
 

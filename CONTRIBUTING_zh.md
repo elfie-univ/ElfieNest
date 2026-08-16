@@ -135,22 +135,22 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 重复一遍；应在宿主或提升权限的环境中把同一条全量命令只运行一次。返回 `1` 表示预检
 本身出现未预期错误，必须先诊断。
 
-提交前先同步远程基础提交，再运行仓库硬门禁：
+提交前先同步远程基础提交，再按改动选择最小安全验证级别：
 
 ```bash
 git fetch --prune origin main
-.venv/bin/python3 scripts/check_task_closure.py \
-  --file task-closure.json \
-  --base-sha "$(git rev-parse origin/main^{commit})"
-bash scripts/pre_submit_gate.sh \
+bash scripts/pre_submit_gate.sh --stage commit \
   --base-sha "$(git rev-parse origin/main^{commit})" \
   --closure-file task-closure.json
+# 功能分支推送：把 commit 替换成 push
+# 主线合并/发布：把 commit 替换成 main
 ```
 
-完成检查必须先通过；它会拒绝未归属的改动、证据不完整的矩阵行和仍开放的列举
-Conformance 行。随后硬门禁运行不可变基础提交架构 ratchet、依赖和工具链检查、质量基线、
-pre-commit/Gitleaks、完整测试套件、CLI smoke 和文档构建。如果环境能力预检阻断或任一
-检查失败，不得提交、推送或合并。
+G1（`commit`）执行改动文件检查、受影响测试和 closure `progress`；G2（`push`）追加质量
+基线和受影响集成检查；G3（`main`）运行不可变基础提交架构 ratchet、依赖和工具链检查、
+质量基线、pre-commit/Gitleaks、完整测试套件、CLI smoke 和文档构建。未知、治理或工具链
+改动自动升级到 G3。成功的确定性结果只可对同一候选快照复用；缓存不能替代新 commit SHA
+的 CI。必需门禁阻断或失败时，不得提交、推送或合并。
 
 门禁包含的单项检查如下：
 

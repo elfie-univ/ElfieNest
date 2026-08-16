@@ -103,27 +103,31 @@ The quality baseline only admits already-existing diagnostics; any new Ruff,
 format or MyPy diagnostic must be fixed — never hidden by widening ignores or
 rewriting the baseline.
 
-## Mandatory pre-submit gate
+## Tiered validation gate
 
-Before committing or pushing, fetch the remote `main` base and run the
-CI-aligned hard gate:
+Fetch the remote `main` base, then run the smallest safe tier:
 
 ```bash
 git fetch --prune origin main
-.venv/bin/python3 scripts/check_task_closure.py \
-  --file task-closure.json --base-sha "$(git rev-parse origin/main^{commit})"
-bash scripts/pre_submit_gate.sh \
+bash scripts/pre_submit_gate.sh --stage commit \
   --base-sha "$(git rev-parse origin/main^{commit})" \
   --closure-file task-closure.json
+# feature push: use --stage push
+# main merge or release: use --stage main
 ```
 
-The closure check first rejects unclassified changes, incomplete evidence rows,
-and listed Conformance rows that are not closed. The hard gate then includes
-current unstaged changes in a temporary candidate tree and checks them with
-immutable-base architecture ratchets, the lock, Node/pnpm, quality baseline,
-pre-commit/Gitleaks, complete pytest, CLI smoke and documentation build checks.
-A failed check or a blocked loopback capability preflight means the change must
-not be committed, pushed or merged. Focused tests cannot replace this gate.
+G1 (`commit`) checks changed files, affected tests and closure `progress`. G2
+(`push`) adds the quality baseline and affected API, persistence, architecture
+or documentation integration checks. G3 (`main`) runs the complete gate below,
+including immutable-base architecture ratchets, lock and toolchain checks,
+pre-commit/Gitleaks, complete pytest, CLI smoke and documentation build. Unknown
+executable, governance, toolchain and lockfile changes escalate to G3. A
+successful exact-candidate result may be reused from ignored
+`build/validation-cache/`; it never replaces CI for a new commit SHA.
+
+If a required check fails or the G3 loopback preflight is blocked, do not commit,
+push or merge. Focused tests are the normal G1/G2 path; they do not replace G3
+when the impact classifier requires it.
 
 Changes to the closure skill or gate itself use two checkpoints: land the
 governance-only classifier registration first, then land the protected checker

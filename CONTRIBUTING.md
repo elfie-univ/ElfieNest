@@ -171,24 +171,26 @@ the full suite there and then repeat it; run the same full command once in a
 host or elevated environment. A return code of `1` is an unexpected probe
 failure and must be diagnosed first.
 
-Before submitting, run the repository hard gate after fetching the remote base:
+Use the smallest safe validation tier after fetching the remote base:
 
 ```bash
 git fetch --prune origin main
-.venv/bin/python3 scripts/check_task_closure.py \
-  --file task-closure.json \
-  --base-sha "$(git rev-parse origin/main^{commit})"
-bash scripts/pre_submit_gate.sh \
+bash scripts/pre_submit_gate.sh --stage commit \
   --base-sha "$(git rev-parse origin/main^{commit})" \
   --closure-file task-closure.json
+# feature-branch push: replace commit with push
+# main merge/release: replace commit with main
 ```
 
-The closure check must pass first; it rejects unclassified changes, incomplete
-evidence rows and open listed Conformance rows. The hard gate then includes the
-immutable-base architecture ratchets, dependency and toolchain checks, the
-quality baseline, pre-commit/Gitleaks, the complete test suite, CLI smoke and
-the documentation build. If the gate is blocked by the host capability
-preflight or any check fails, do not commit, push or merge.
+G1 (`commit`) runs changed-file checks, affected tests and closure `progress`.
+G2 (`push`) adds the quality baseline and affected integration checks. G3
+(`main`) runs the immutable-base architecture ratchets, dependency and
+toolchain checks, quality baseline, pre-commit/Gitleaks, complete test suite,
+CLI smoke and documentation build. Unknown, governance or toolchain changes
+automatically escalate to G3. Successful deterministic results may be reused
+only for the exact same candidate snapshot; a cache never replaces CI for a
+new commit SHA. If a required gate is blocked or fails, do not commit, push or
+merge.
 
 The individual checks performed by the gate are:
 

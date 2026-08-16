@@ -83,3 +83,19 @@ def test_listed_conformance_row_must_be_closed() -> None:
         },
     )
     assert failures == ["conformance row LFC-005 is in progress, not closed"]
+
+
+def test_progress_mode_allows_an_open_listed_conformance_row() -> None:
+    document = _document(
+        conformance={"rows": ["LFC-005"], "reason": ""},
+    )
+    failures = validate_task_closure(
+        document,
+        mode="progress",
+        conformance={
+            "LFC-005": [
+                ("in progress", "docs/developer/conformance/service-lifecycle.md")
+            ]
+        },
+    )
+    assert failures == []

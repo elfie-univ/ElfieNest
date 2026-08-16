@@ -1,10 +1,11 @@
 {
   "schema_version": 1,
-  "task": "close Provider availability conformance rows PMA-002 PMA-004 PMA-005",
+  "task": "Close Provider availability evidence and implement tiered validation, reuse and affected-test selection",
   "contract_refs": [
     "docs/developer/designs/provider-model-availability.md",
     "docs/developer/contracts/model-food-tool-behavior.md",
-    "docs/developer/conformance/provider-model-availability.md"
+    "docs/developer/conformance/provider-model-availability.md",
+    "repository-governance"
   ],
   "scope": [
     "app/bootstrap/api.py",
@@ -59,7 +60,33 @@
     "test/infrastructure/persistence/reports/*.py",
     "test/infrastructure/persistence/test_provider_availability.py",
     "test/support/provider.py",
-    "task-closure.json"
+    "task-closure.json",
+    "AGENTS.md",
+    ".agents/skills/task-closure/SKILL.md",
+    ".agents/skills/git-submit-and-push/SKILL.md",
+    ".github/workflows/ci.yml",
+    "CONTRIBUTING.md",
+    "CONTRIBUTING_zh.md",
+    "docs/developer/contracts/repository-governance.md",
+    "docs/zh/developer/contracts/repository-governance.md",
+    "docs/developer/decisions/0023-tiered-validation-and-reuse.md",
+    "docs/zh/developer/decisions/0023-tiered-validation-and-reuse.md",
+    "docs/developer/decisions/index.md",
+    "docs/zh/developer/decisions/index.md",
+    "docs/developer/engineering/testing.md",
+    "docs/zh/developer/engineering/testing.md",
+    "docs/developer/engineering/development.md",
+    "docs/zh/developer/engineering/development.md",
+    "scripts/architecture/check_governance_change.py",
+    "scripts/architecture/contract_registry.py",
+    "scripts/architecture/validation_cache.py",
+    "scripts/architecture/validation_gate.py",
+    "scripts/architecture/validation_plan.py",
+    "scripts/check_task_closure.py",
+    "scripts/pre_submit_gate.sh",
+    "test/architecture/test_architecture_governance.py",
+    "test/architecture/test_validation_gate.py",
+    "test/scripts/test_check_task_closure.py"
   ],
   "conformance": {
     "rows": [
@@ -153,6 +180,109 @@
         "command: ./.venv/bin/python3 -m pytest -q test/infrastructure/models/validation/test_provider_scheduler.py",
         "artifact: test/infrastructure/models/validation/test_provider_scheduler.py::test_two_real_workers_share_one_model_validation_lease and ::test_two_real_workers_share_one_retention_lease",
         "review: two independent processes shared one ReportRepository database; exactly one process ran each leased operation"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "GATE-001",
+      "requirement": "Classify changed paths and automatically select the smallest safe validation tier, escalating unknown and governance-sensitive changes.",
+      "status": "complete",
+      "implementation": [
+        "scripts/architecture/validation_plan.py: path classification, test selection and tier escalation"
+      ],
+      "automated_tests": [
+        "test/architecture/test_validation_gate.py: planner classification and selection cases"
+      ],
+      "runtime_scenarios": [
+        "Run validation_gate.py with commit and push stages against a Provider-focused candidate."
+      ],
+      "platform_conditions": [
+        "CPython 3.9.25; repository checkout with origin/main available"
+      ],
+      "evidence": [
+        "command: .venv/bin/python3 scripts/architecture/validation_gate.py --stage push --plan-only",
+        "command: uv run --no-sync pytest test/architecture/test_validation_gate.py",
+        "artifact: plan output selected Provider tests and escalated governance changes"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "GATE-002",
+      "requirement": "Reuse only successful validation results for an exact candidate snapshot and invalidate them when code, base, lockfiles, toolchain or selection rules change.",
+      "status": "complete",
+      "implementation": [
+        "scripts/architecture/validation_cache.py: content and environment fingerprint plus atomic pass cache",
+        "scripts/architecture/validation_gate.py: post-run fingerprint verification"
+      ],
+      "automated_tests": [
+        "test/architecture/test_validation_gate.py: cache hit, invalidation and atomic record cases"
+      ],
+      "runtime_scenarios": [
+        "Run the same stage twice and observe the second run reuses the exact-snapshot pass; change a file and observe a miss."
+      ],
+      "platform_conditions": [
+        "CPython 3.9.25; writable ignored build/ directory"
+      ],
+      "evidence": [
+        "command: uv run --no-sync pytest test/architecture/test_validation_gate.py",
+        "artifact: cache hit, failed-record rejection and content-invalidation cases passed"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "GATE-003",
+      "requirement": "Use focused checks for ordinary commits, affected integration checks for branch pushes, and retain the complete gate as the main-branch backstop.",
+      "status": "complete",
+      "implementation": [
+        "scripts/pre_submit_gate.sh: stage dispatch and main-gate compatibility",
+        ".agents/skills/git-submit-and-push/SKILL.md: delivery-stage commands",
+        ".github/workflows/ci.yml: stale-run cancellation"
+      ],
+      "automated_tests": [
+        "test/architecture/test_validation_gate.py: command-plan tests",
+        "test/architecture/test_architecture_governance.py: governance registration"
+      ],
+      "runtime_scenarios": [
+        "Run commit/push plan-only flows and the existing main gate through the internal no-cache path."
+      ],
+      "platform_conditions": [
+        "macOS development checkout; uv, Node 20+ and pnpm 10.12.1"
+      ],
+      "evidence": [
+        "command: bash -n scripts/pre_submit_gate.sh",
+        "command: git diff --check",
+        "command: uv run --no-sync pytest test/scripts/test_check_task_closure.py test/architecture/test_architecture_governance.py test/architecture/test_validation_gate.py",
+        "artifact: validation gate command plans and the complete main backstop are retained as the delivery evidence"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "GATE-004",
+      "requirement": "Keep governance contracts, agent guidance, CI concurrency and local contributor documentation consistent with the tiered workflow.",
+      "status": "complete",
+      "implementation": [
+        "docs/developer/contracts/repository-governance.md: tier contract",
+        "docs/developer/decisions/0023-tiered-validation-and-reuse.md: accepted decision",
+        "AGENTS.md and contributor guidance: execution rules",
+        ".github/workflows/ci.yml: stale-run cancellation"
+      ],
+      "automated_tests": [
+        "test/architecture/test_architecture_governance.py: registered bilingual governance artifacts"
+      ],
+      "runtime_scenarios": [
+        "Run the governance classifier and architecture governance tests against the candidate."
+      ],
+      "platform_conditions": [
+        "Clean repository checkout with both language mirrors present"
+      ],
+      "evidence": [
+        "command: uv run --no-sync pytest test/architecture/test_architecture_governance.py",
+        "command: uv run --no-sync ruff check scripts/architecture/validation_gate.py scripts/architecture/validation_cache.py scripts/architecture/validation_plan.py",
+        "review: English/Chinese contract and ADR mirrors are registered"
       ],
       "residuals": [],
       "blockers": []
