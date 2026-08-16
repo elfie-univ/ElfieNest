@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "task": "add the minimal owner-configured Discord communication channel",
+  "task": "add owner-configured Telegram and Discord communication with Elfie avatar sync",
   "contract_refs": [
     "docs/developer/contracts/application.md",
     "docs/developer/contracts/elfie.md",
@@ -12,6 +12,7 @@
     "app/bootstrap/api.py",
     "app/bootstrap/container.py",
     "app/features/communication/__init__.py",
+    "app/features/communication/avatar_ports.py",
     "app/features/communication/discord_*.py",
     "app/interfaces/api/app.py",
     "app/interfaces/api/v1/elfies/communication_accounts/__init__.py",
@@ -36,12 +37,14 @@
     "infrastructure/communication/__init__.py",
     "infrastructure/communication/channels/__init__.py",
     "infrastructure/communication/discord/*.py",
+    "infrastructure/communication/telegram/*.py",
     "infrastructure/persistence/configuration/discord_tokens.py",
     "infrastructure/persistence/elfie_workspace/discord_accounts.py",
     "test/app/features/communication/test_discord_accounts_service.py",
     "test/app/interfaces/api/v1/elfies/communication_accounts/test_discord_routes.py",
     "test/app/orchestration/message_delivery/test_discord_update_handler.py",
     "test/infrastructure/communication/discord/*.py",
+    "test/infrastructure/communication/telegram/*.py",
     "test/infrastructure/persistence/elfie_workspace/test_discord_accounts.py",
     "app/interfaces/web/frontend/src/api/elfies/communication-accounts.test.ts",
     "app/interfaces/web/frontend/src/components/elfie-profile/ProfileDiscordAccount.test.tsx",
@@ -155,6 +158,25 @@
         "artifact:task-closure.json",
         "review:App/Feature/Infrastructure ownership, secret boundary, idempotent external IDs and Telegram regression coverage were inspected",
         "review:the frozen-base official gate classified task-closure.json as governance and requires a separate governance change; the isolated two-phase candidate gate passed"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "REQ-006",
+      "requirement": "After a valid owner configuration, Telegram and Discord receive the current Elfie headshot as the bot profile image; portrait or platform upload failures are isolated and do not invalidate the saved account.",
+      "status": "complete",
+      "implementation": ["Communication-owned portrait Port, Telegram JPEG multipart uploader, Discord image-data uploader, and post-save configuration wiring"],
+      "automated_tests": ["Telegram and Discord service sync/failure-isolation tests", "Telegram multipart profile-photo and Discord Modify Current User client tests"],
+      "runtime_scenarios": ["Configure a valid account with a stored headshot and verify the platform updater is called after account persistence"],
+      "platform_conditions": ["Telegram Bot API supports setMyProfilePhoto with a static JPG upload", "Discord Bot API supports Modify Current User avatar image data", "Live platform credentials are required only for an external smoke replay"],
+      "evidence": [
+        "command:.venv/bin/python3 -m pytest -q test/app/features/communication/test_telegram_accounts_service.py test/app/features/communication/test_discord_accounts_service.py test/infrastructure/communication/telegram/test_client_and_mapper.py test/infrastructure/communication/discord/test_client_and_mapper.py",
+        "command:.venv/bin/ruff check app/features/communication/avatar_ports.py app/features/communication/telegram_ports.py app/features/communication/telegram_service.py app/features/communication/discord_ports.py app/features/communication/discord_service.py infrastructure/communication/telegram/client.py infrastructure/communication/discord/client.py app/bootstrap/app_wiring/communication.py",
+        "artifact:app/features/communication/avatar_ports.py",
+        "artifact:infrastructure/communication/telegram/client.py",
+        "artifact:infrastructure/communication/discord/client.py",
+        "review:account persistence completes before avatar sync; all sync exceptions are isolated from the owner-facing configuration result"
       ],
       "residuals": [],
       "blockers": []
