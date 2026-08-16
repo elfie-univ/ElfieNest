@@ -19,6 +19,7 @@ from app.orchestration.setup_installation import (
 )
 from infrastructure.models.setup_catalog import ProviderSetupCatalogAdapter
 from infrastructure.persistence.nest_db.store import init_db
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.setup import SQLiteSetupAdapter
 
 
@@ -56,7 +57,7 @@ def _client(tmp_path: Path) -> TestClient:
         owners=technology,
         ollama=technology,
         nest_choices=technology,
-        models=ProviderSetupCatalogAdapter(),
+        models=ProviderSetupCatalogAdapter(load_provider_catalog()),
     )
     app.state.setup_installation = AcceptedInstallation()
     app.include_router(router)

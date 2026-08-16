@@ -1,6 +1,7 @@
-from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.validation.validation_models import CheckStatus
+from infrastructure.persistence.configuration.bundled_defaults import load_tool_defaults
 from infrastructure.tools.validation.direct_validation import DirectToolValidationRunner
+from test.support.model_execution import model_execution_config
 
 
 class FakeSearch:
@@ -12,7 +13,9 @@ def test_direct_tool_suite_validates_local_tools_and_skips_network(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    runner = DirectToolValidationRunner(ModelExecutionConfig())
+    runner = DirectToolValidationRunner(
+        model_execution_config(), tool_defaults=load_tool_defaults()
+    )
 
     suite = runner.run()
 
@@ -26,7 +29,7 @@ def test_direct_tool_suite_validates_local_tools_and_skips_network(
 def test_network_tool_can_be_verified_with_injected_search(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     runner = DirectToolValidationRunner(
-        ModelExecutionConfig(), search_plugin=FakeSearch()
+        model_execution_config(), search_plugin=FakeSearch()
     )
 
     result = runner.verify_web_search()

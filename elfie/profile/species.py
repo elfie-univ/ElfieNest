@@ -53,9 +53,7 @@ class SpeciesAppearanceProfile:
     supported_controls: tuple[str, ...] = ()
     control_ranges: Mapping[str, ScaleRange] = field(default_factory=dict)
     proportion_scales: Mapping[str, ScaleRange] = field(default_factory=dict)
-    shape_correlations: Mapping[str, CorrelationWeights] = field(
-        default_factory=dict
-    )
+    shape_correlations: Mapping[str, CorrelationWeights] = field(default_factory=dict)
     distributions: Mapping[str, Distribution] = field(default_factory=dict)
     species_traits: tuple[str, ...] = ()
 

@@ -13,6 +13,9 @@ from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.provider_records import ProviderModelRecord
 from infrastructure.models.providers.ollama import OllamaManager
 from infrastructure.models.providers.profiles import get_product
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_system_defaults,
+)
 from infrastructure.persistence.configuration.secrets import (
     connection_secret_name,
     provider_secret_name,
@@ -22,7 +25,9 @@ from infrastructure.persistence.configuration.secrets import (
 from infrastructure.persistence.food import SQLiteFoodAdapter
 from infrastructure.persistence.layout.data_home import get_elfie_developer_home
 from infrastructure.persistence.layout.data_layout import final_root_layout
+from infrastructure.persistence.model_catalog import load_model_identities
 from infrastructure.persistence.nest_db.store import init_db
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
 from infrastructure.persistence.provider_storage import ProviderStorageAdapter
 
@@ -30,8 +35,9 @@ from infrastructure.persistence.provider_storage import ProviderStorageAdapter
 class _ElfieLabModelEnvironmentConfigSource:
     """Build the Runtime projection from one Elfie Lab data root."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, catalog) -> None:
         self._layout = final_root_layout(root)
+        self._catalog = catalog
 
     def load_env(self, config_home: Path | None) -> Mapping[str, str]:
         _ = config_home
@@ -47,7 +53,7 @@ class _ElfieLabModelEnvironmentConfigSource:
         for connection_id, connection in document.connections.items():
             if not connection.enabled or connection.archived:
                 continue
-            profile = get_product(connection.catalog_id)
+            profile = get_product(connection.catalog_id, catalog=self._catalog)
             if profile is None:
                 continue
             secret_name = connection.credential_ref or connection_secret_name(
@@ -89,6 +95,8 @@ class ElfieLabModelEnvironment:
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root).expanduser().resolve()
         self.layout = final_root_layout(self.root)
+        self.provider_catalog = load_provider_catalog()
+        self.identity_catalog = load_model_identities()
         self.ensure()
 
     def ensure(self) -> None:
@@ -120,7 +128,11 @@ class ElfieLabModelEnvironment:
     def load_model_execution_config(self) -> ModelExecutionConfig:
         return ModelExecutionConfig(
             config_home=str(self.root),
-            source=_ElfieLabModelEnvironmentConfigSource(self.root),
+            source=_ElfieLabModelEnvironmentConfigSource(
+                self.root, self.provider_catalog
+            ),
+            provider_catalog=self.provider_catalog,
+            system_defaults=load_system_defaults(),
         )
 
     def resolve_secret(self, name: str) -> str:
@@ -202,7 +214,7 @@ class ElfieLabModelEnvironment:
         for connection in document.connections.values():
             if not connection.enabled or connection.archived:
                 continue
-            profile = get_product(connection.catalog_id)
+            profile = get_product(connection.catalog_id, catalog=self.provider_catalog)
             local = bool(profile and profile.connection_method == "local")
             for model in connection.models:
                 reference = f"{connection.connection_id}/{model.endpoint_model_id}"

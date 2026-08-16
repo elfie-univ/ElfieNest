@@ -4,15 +4,18 @@ import pytest
 
 from infrastructure.models.providers.model_identity import (
     ModelIdentityCatalogError,
-    load_model_identities,
     match_model_identity,
     parse_model_identities,
 )
+from infrastructure.persistence.model_catalog import load_model_identities
 
 
 def test_model_identity_uses_curated_aliases_without_guessing_unknown_models():
-    matched = match_model_identity("xopglm5", "GLM-5")
-    unknown = match_model_identity("my-local-model-2026", "我的本地模型")
+    catalog = load_model_identities()
+    matched = match_model_identity("xopglm5", "GLM-5", catalog=catalog)
+    unknown = match_model_identity(
+        "my-local-model-2026", "我的本地模型", catalog=catalog
+    )
 
     assert matched is not None
     assert matched.canonical_model_id == "zhipu/glm-5"
@@ -50,7 +53,9 @@ def test_static_endpoint_declaration_is_scoped_to_provider() -> None:
     assert other_provider is None
 
 
-def test_static_endpoint_declaration_loads_output_limit_without_using_canonical_defaults() -> None:
+def test_static_endpoint_declaration_loads_output_limit_without_using_canonical_defaults() -> (
+    None
+):
     catalog = parse_model_identities(
         {
             "version": 1,

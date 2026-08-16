@@ -351,9 +351,9 @@ class LocalProviderModelResult:
     display_name: str
     installed: bool
     recommended: bool
-    availability_status: Literal[
-        "available", "degraded", "unavailable", "unknown"
-    ] = "unknown"
+    availability_status: Literal["available", "degraded", "unavailable", "unknown"] = (
+        "unknown"
+    )
     available: bool = False
 
 

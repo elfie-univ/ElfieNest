@@ -73,7 +73,7 @@ class ModelExecutionAgent:
 
     def __init__(
         self,
-        config: ModelExecutionConfig = None,
+        config: ModelExecutionConfig,
         *,
         ports: ModelExecutionAgentPorts,
         live_reload: bool = False,
@@ -81,7 +81,7 @@ class ModelExecutionAgent:
         food_catalog_repository: FoodPort | None = None,
         tool_port: ToolPort | None = None,
     ):
-        self.config = config or ModelExecutionConfig()
+        self.config = config
         self._ports = ports
         self._live_reload = live_reload
         self._main_food_loader = main_food_loader

@@ -13,6 +13,7 @@ from infrastructure.models.provider_records import (
     ProviderConnection,
     ProviderModelRecord,
 )
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.profiles import get_product
 
 ValidationMode = Literal["full", "cached", "heartbeat"]
@@ -55,18 +56,20 @@ def active_validation_models(
     return tuple(
         model
         for model in connection.models
-        if not model.hidden
-        and not model.retired
-        and model.discovery_state == "present"
+        if not model.hidden and not model.retired and model.discovery_state == "present"
     )
 
 
-def representative_model_id(connection: ProviderConnection) -> str | None:
+def representative_model_id(
+    connection: ProviderConnection,
+    *,
+    catalog: ProviderCatalog,
+) -> str | None:
     """Choose the profile test model, then a deterministic active model."""
     active = active_validation_models(connection)
     if not active:
         return None
-    profile = get_product(connection.catalog_id)
+    profile = get_product(connection.catalog_id, catalog=catalog)
     profile_test_model = profile.test_model.strip() if profile else ""
     selected = next(
         (
@@ -120,6 +123,7 @@ def choose_validation_mode(
     connection: ProviderConnection,
     latest: Mapping[str, Any],
     *,
+    catalog: ProviderCatalog,
     now: datetime | None = None,
     force_full: bool = False,
     secret_resolver: SecretResolver = _empty_secret,
@@ -129,7 +133,7 @@ def choose_validation_mode(
     fingerprint = connection_validation_fingerprint(
         connection, secret_resolver=secret_resolver
     )
-    representative = representative_model_id(connection)
+    representative = representative_model_id(connection, catalog=catalog)
     active_ids = tuple(
         sorted(
             model.endpoint_model_id for model in active_validation_models(connection)

@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.features.configuration import (
     StoredProviderConnection,
     StoredProviderModel,
@@ -20,10 +22,14 @@ from infrastructure.models.validation.provider_validation_policy import (
 from infrastructure.models.validation.provider_validation_service import (
     validate_connection,
 )
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_system_defaults,
+)
 from infrastructure.persistence.configuration.secrets import (
     resolve_secret,
     set_connection_secret,
 )
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,
@@ -35,6 +41,9 @@ from infrastructure.persistence.reports.validation_reports import (
     read_latest_model_validation,
 )
 from test.support.provider import provider_models_adapter
+
+PROVIDER_CATALOG = load_provider_catalog()
+SYSTEM_DEFAULTS = load_system_defaults()
 
 
 def _full_report(connection, checked_at: str) -> dict[str, object]:
@@ -69,6 +78,7 @@ def test_validation_policy_reuses_a_full_result_for_24_hours() -> None:
     decision = choose_validation_mode(
         connection,
         _full_report(connection, "2026-08-04T12:00:00+00:00"),
+        catalog=PROVIDER_CATALOG,
         now=datetime.fromisoformat("2026-08-05T11:59:59+00:00"),
     )
 
@@ -97,6 +107,7 @@ def test_validation_policy_reuses_a_recent_heartbeat_for_24_hours() -> None:
     decision = choose_validation_mode(
         connection,
         report,
+        catalog=PROVIDER_CATALOG,
         now=datetime.fromisoformat("2026-07-21T17:59:59+00:00"),
     )
 
@@ -117,6 +128,7 @@ def test_validation_policy_uses_one_heartbeat_before_30_days() -> None:
     decision = choose_validation_mode(
         connection,
         _full_report(connection, "2026-07-10T12:00:00+00:00"),
+        catalog=PROVIDER_CATALOG,
         now=datetime.fromisoformat("2026-07-20T12:00:01+00:00"),
     )
 
@@ -135,6 +147,7 @@ def test_validation_policy_requires_full_run_after_30_days_or_model_change() -> 
     expired = choose_validation_mode(
         connection,
         _full_report(connection, "2026-07-01T12:00:00+00:00"),
+        catalog=PROVIDER_CATALOG,
         now=datetime.fromisoformat("2026-08-05T12:00:01+00:00"),
     )
     changed = choose_validation_mode(
@@ -146,6 +159,7 @@ def test_validation_policy_requires_full_run_after_30_days_or_model_change() -> 
             ),
         ),
         _full_report(connection, "2026-08-05T11:00:00+00:00"),
+        catalog=PROVIDER_CATALOG,
         now=datetime.fromisoformat("2026-08-05T12:00:01+00:00"),
     )
 
@@ -198,7 +212,11 @@ def test_model_execution_projection_uses_connection_id_for_builtin_connection() 
         models=(ProviderModelRecord(endpoint_model_id="deepseek-v4-pro"),),
     )
 
-    execution_id, _config = model_execution_projection(connection)
+    execution_id, _config = model_execution_projection(
+        connection,
+        catalog=PROVIDER_CATALOG,
+        system_defaults=SYSTEM_DEFAULTS,
+    )
 
     assert execution_id == connection.connection_id
 
@@ -239,6 +257,7 @@ def test_single_validation_checks_configured_models_without_provider_models_prob
         payload = asyncio.run(
             validate_connection(
                 connection,
+                catalog=PROVIDER_CATALOG,
                 model_execution_projection=model_execution_projection,
                 reports=reports,
                 secret_resolver=resolve_secret,
@@ -289,6 +308,7 @@ def test_connection_block_stops_the_remaining_model_checks(
         payload = asyncio.run(
             validate_connection(
                 connection,
+                catalog=PROVIDER_CATALOG,
                 model_execution_projection=model_execution_projection,
                 reports=reports,
                 secret_resolver=resolve_secret,
@@ -331,6 +351,7 @@ def test_single_validation_reuses_recent_full_result_without_new_model_requests(
         first = asyncio.run(
             validate_connection(
                 connection,
+                catalog=PROVIDER_CATALOG,
                 model_execution_projection=model_execution_projection,
                 reports=reports,
                 secret_resolver=resolve_secret,
@@ -340,6 +361,7 @@ def test_single_validation_reuses_recent_full_result_without_new_model_requests(
         second = asyncio.run(
             validate_connection(
                 connection,
+                catalog=PROVIDER_CATALOG,
                 model_execution_projection=model_execution_projection,
                 reports=reports,
                 secret_resolver=resolve_secret,
@@ -363,7 +385,11 @@ def test_model_execution_projection_keeps_volcengine_profile_test_model() -> Non
         ),
     )
 
-    execution_id, config = model_execution_projection(connection)
+    execution_id, config = model_execution_projection(
+        connection,
+        catalog=PROVIDER_CATALOG,
+        system_defaults=SYSTEM_DEFAULTS,
+    )
 
     assert execution_id == connection.connection_id
     assert config.providers[execution_id]["test_model"] == "deepseek-v4-pro"
@@ -384,7 +410,11 @@ def test_model_execution_projection_keeps_endpoint_request_profile_shape() -> No
         ),
     )
 
-    execution_id, config = model_execution_projection(connection)
+    execution_id, config = model_execution_projection(
+        connection,
+        catalog=PROVIDER_CATALOG,
+        system_defaults=SYSTEM_DEFAULTS,
+    )
 
     assert config.providers[execution_id]["model_profiles"] == {
         "model-a": {
@@ -415,6 +445,7 @@ def test_volcengine_health_check_uses_configured_model_without_models_probe(
     )
 
     class Config:
+        provider_catalog = PROVIDER_CATALOG
         providers = {
             "volcengine_coding_plan": {
                 "api_base": "https://volc.example/api/coding/v3",
@@ -454,6 +485,7 @@ def test_volcengine_health_check_reports_unsupported_model(
     )
 
     class Config:
+        provider_catalog = PROVIDER_CATALOG
         providers = {
             "volcengine_coding_plan": {
                 "api_base": "https://volc.example/api/coding/v3",
@@ -467,6 +499,33 @@ def test_volcengine_health_check_reports_unsupported_model(
 
     assert result["status"] == "inactive"
     assert result["error"] == "HTTP 400（测试模型 not-a-volc-model）"
+
+
+def test_provider_health_rejects_missing_catalog_instead_of_using_generic_probe(
+    monkeypatch,
+) -> None:
+    from infrastructure.models.catalog import verify_provider
+
+    def unexpected_request(*args, **kwargs):
+        raise AssertionError("provider health must fail before any generic probe")
+
+    monkeypatch.setattr(
+        "infrastructure.models.catalog.open_provider_request",
+        unexpected_request,
+    )
+
+    class Config:
+        providers = {
+            "volcengine_coding_plan": {
+                "api_base": "https://volc.example/api/coding/v3",
+                "api_key": "test-key",
+                "api_mode": "chat_completions",
+                "test_model": "deepseek-v4-pro",
+            }
+        }
+
+    with pytest.raises(ValueError, match="injected provider catalog"):
+        verify_provider("volcengine_coding_plan", Config())
 
 
 class _ConnectedRequest:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, cast
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -269,9 +269,9 @@ class ProviderVerificationResponse(BaseModel):
     heartbeat_status: Optional[Literal["passed", "failed"]]
     representative_model_id: Optional[str]
     reason: Optional[str]
-    availability_status: Literal[
-        "available", "degraded", "unavailable", "unknown"
-    ] = "unknown"
+    availability_status: Literal["available", "degraded", "unavailable", "unknown"] = (
+        "unknown"
+    )
     reason_code: Optional[str] = None
     evidence_source: Optional[str] = None
     expires_at: Optional[str] = None
@@ -339,7 +339,19 @@ class ProviderModelResponse(BaseModel):
             last_seen_at=item.last_seen_at,
             request_profile_id=item.request_profile_id,
             request_profile_version=item.request_profile_version,
-            capability_evidence=dict(item.capability_evidence),
+            capability_evidence=cast(
+                dict[
+                    Literal["tools", "vision", "reasoning", "structured_output"],
+                    Literal[
+                        "declared",
+                        "declared_by_user",
+                        "accepted",
+                        "verified",
+                        "unknown",
+                    ],
+                ],
+                dict(item.capability_evidence),
+            ),
         )
 
 
@@ -348,9 +360,7 @@ class ProviderModelCapabilityResponse(BaseModel):
 
     name: Literal["tools", "vision", "reasoning", "structured_output"]
     state: Literal["supported", "unsupported", "unknown"]
-    evidence: Literal[
-        "declared", "declared_by_user", "accepted", "verified", "unknown"
-    ]
+    evidence: Literal["declared", "declared_by_user", "accepted", "verified", "unknown"]
 
 
 class ProviderModelAvailabilityResponse(BaseModel):
@@ -535,9 +545,9 @@ class LocalProviderModelResponse(BaseModel):
     display_name: str
     installed: bool
     recommended: bool
-    availability_status: Literal[
-        "available", "degraded", "unavailable", "unknown"
-    ] = "unknown"
+    availability_status: Literal["available", "degraded", "unavailable", "unknown"] = (
+        "unknown"
+    )
     available: bool = False
 
 

@@ -49,6 +49,7 @@ async def run_full(
     model_results: list[dict[str, Any]] = []
     promoted_transport_outage = False
     try:
+
         def record_batch(
             batch: tuple[Any, ...], raw_results: tuple[dict[str, Any], ...]
         ) -> bool:
@@ -90,8 +91,7 @@ async def run_full(
                         **{
                             key: value
                             for key, value in raw.items()
-                            if key
-                            in {"error_code", "error_scope", "error_category"}
+                            if key in {"error_code", "error_scope", "error_category"}
                         },
                     },
                 )
@@ -112,7 +112,8 @@ async def run_full(
                 1
                 for item in model_results
                 if item.get("error_scope") == "transport"
-                or item.get("error_category") in {"network", "timeout", "server", "transport"}
+                or item.get("error_category")
+                in {"network", "timeout", "server", "transport"}
             )
             if transport_failures >= 2:
                 promoted_transport_outage = True

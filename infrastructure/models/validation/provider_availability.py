@@ -14,9 +14,7 @@ from typing import Iterable, Literal
 from infrastructure.models.report_records import ValidationObservation
 
 AvailabilityStatus = Literal["available", "degraded", "unavailable", "unknown"]
-ProviderStatus = Literal[
-    "healthy", "degraded", "unavailable", "unknown", "disabled"
-]
+ProviderStatus = Literal["healthy", "degraded", "unavailable", "unknown", "disabled"]
 ErrorScope = Literal["request", "endpoint", "transport", "connection"]
 
 SUCCESS_FRESHNESS = timedelta(hours=24)
@@ -78,12 +76,13 @@ def project_endpoint_availability(
     )
     ordered = sorted(
         scoped_observations,
-        key=lambda item: (_parse(item.observed_at) or datetime.min.replace(tzinfo=timezone.utc), item.observation_id),
+        key=lambda item: (
+            _parse(item.observed_at) or datetime.min.replace(tzinfo=timezone.utc),
+            item.observation_id,
+        ),
         reverse=True,
     )
-    health_observations = [
-        item for item in ordered if not _is_request_neutral(item)
-    ]
+    health_observations = [item for item in ordered if not _is_request_neutral(item)]
     if not health_observations:
         return EndpointAvailability(
             subject_id,
@@ -191,9 +190,7 @@ def project_provider_status(
     states = tuple(endpoint_states)
     serving = None if serving_subject_ids is None else set(serving_subject_ids)
     scoped = tuple(
-        item
-        for item in states
-        if serving is None or item.subject_id in serving
+        item for item in states if serving is None or item.subject_id in serving
     )
     if not scoped:
         return "unknown"
@@ -302,7 +299,9 @@ def _error_scope(observation: ValidationObservation) -> ErrorScope | None:
 
 
 def _reason_code(observation: ValidationObservation) -> str | None:
-    raw = observation.details.get("error_code") or observation.details.get("reason_code")
+    raw = observation.details.get("error_code") or observation.details.get(
+        "reason_code"
+    )
     return str(raw) if isinstance(raw, str) and raw else observation.error_category
 
 

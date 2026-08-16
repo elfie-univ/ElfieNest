@@ -11,7 +11,7 @@ from infrastructure.models.capabilities import (
     canonical_display_name,
     known_capabilities,
 )
-from infrastructure.models.catalog import load_model_catalog
+from infrastructure.models.catalog import ModelEntry
 from infrastructure.models.food_technology import stored_food_package
 from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.storage_ports import ModelEvidencePort
@@ -53,10 +53,12 @@ class ModelExecutionOverviewGenerator:
         *,
         evidence: ModelEvidencePort,
         food_store: FoodPort | None = None,
+        model_catalog: Mapping[str, ModelEntry] | None = None,
     ) -> None:
         self.config = config
         self.evidence = evidence
         self.food_store = food_store
+        self.model_catalog = model_catalog
 
     def _load_food_catalog(self) -> FoodCatalog:
         if self.food_store is None:
@@ -77,7 +79,9 @@ class ModelExecutionOverviewGenerator:
         provider_evidence: dict[str, list[StoredModelEvidence]] = {}
         suites: list[ValidationSuite] = []
         provider_health: dict[str, str] = {}
-        model_catalog = load_model_catalog()
+        if self.model_catalog is None:
+            raise RuntimeError("模型执行概览未注入模型目录")
+        model_catalog = self.model_catalog
 
         for provider_id in configured_provider_ids(self.config):
             runner = ProviderValidationRunner(self.config)

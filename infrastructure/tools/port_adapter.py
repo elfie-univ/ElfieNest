@@ -11,7 +11,6 @@ from pydantic import JsonValue
 from elfie.brain.reasoning.tool_port import ToolKey, ToolRequest, ToolResult
 from elfie.message_types import ErrorInfo
 
-from .execution.config import load_tool_configs
 from .execution.executor import (
     FileAccessPlugin,
     PermissionManager,
@@ -65,7 +64,7 @@ class ToolPortAdapter:
         search_plugin: SearchPlugin,
         permission_manager: PermissionManager,
         observation_port: ToolObservationPort,
-        tool_config_loader: ToolConfigLoader = load_tool_configs,
+        tool_config_loader: ToolConfigLoader,
         workspace_resolver: WorkspaceResolver | None = None,
         allowed_tool_keys: Iterable[str] = (),
     ) -> None:
@@ -83,7 +82,7 @@ class ToolPortAdapter:
         config: ModelExecutionPolicySource,
         *,
         observation_port: ToolObservationPort,
-        tool_config_loader: ToolConfigLoader = load_tool_configs,
+        tool_config_loader: ToolConfigLoader,
         workspace_resolver: WorkspaceResolver | None = None,
         allowed_tool_keys: Iterable[str] | None = None,
     ) -> ToolPortAdapter:

@@ -148,6 +148,9 @@ def test_provider_aggregation_uses_serving_scope_when_supplied() -> None:
         now=NOW,
     )
 
-    assert project_provider_status(
-        (first, second), serving_subject_ids=("connection/primary",)
-    ) == "healthy"
+    assert (
+        project_provider_status(
+            (first, second), serving_subject_ids=("connection/primary",)
+        )
+        == "healthy"
+    )

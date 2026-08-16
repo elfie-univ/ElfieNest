@@ -8,15 +8,15 @@ from typing import Any, Callable, Mapping, cast
 
 from infrastructure.models.inference.token_usage import get_token_tracker
 from infrastructure.models.model_execution_config import ModelExecutionConfig
-from infrastructure.models.provider_errors import (
-    ProviderCallError,
-    classify_provider_error,
-)
 from infrastructure.models.model_execution_observations import (
     ModelCallObservation,
     ModelExecutionEventStatus,
     current_model_call_context,
     get_model_execution_observer,
+)
+from infrastructure.models.provider_errors import (
+    ProviderCallError,
+    classify_provider_error,
 )
 from infrastructure.models.providers.dispatch import (
     API_DISPATCH,
@@ -122,12 +122,16 @@ def call_llm_api(
                 ),
             )
         elif effective_request_options or (
-            timeout_seconds is not None and request_profile.api_mode == "chat_completions"
+            timeout_seconds is not None
+            and request_profile.api_mode == "chat_completions"
         ):
             dispatch_options: dict[str, Any] = {}
             if effective_request_options:
                 dispatch_options["request_options"] = dict(effective_request_options)
-            if timeout_seconds is not None and request_profile.api_mode == "chat_completions":
+            if (
+                timeout_seconds is not None
+                and request_profile.api_mode == "chat_completions"
+            ):
                 dispatch_options["timeout_seconds"] = timeout_seconds
             response_text, usage = dispatch_fn(*args, **dispatch_options)
         else:
@@ -179,7 +183,9 @@ def call_llm_api(
             finished_at=finished_at,
             duration_ms=(perf_counter() - started) * 1000.0,
             config_fingerprint=config_fingerprint,
-            prompt_tokens=_usage_count(usage, "prompt_tokens", "input_tokens", "prompt_eval_count"),
+            prompt_tokens=_usage_count(
+                usage, "prompt_tokens", "input_tokens", "prompt_eval_count"
+            ),
             completion_tokens=_usage_count(
                 usage, "completion_tokens", "output_tokens", "eval_count"
             ),
@@ -207,9 +213,7 @@ def _resolve_request_profile(
     """Resolve and validate the typed profile for this exact endpoint model."""
     raw_profiles = provider_cfg.get("model_profiles")
     raw_model_profile = (
-        raw_profiles.get(model_name)
-        if isinstance(raw_profiles, Mapping)
-        else None
+        raw_profiles.get(model_name) if isinstance(raw_profiles, Mapping) else None
     )
     profile_values = (
         raw_model_profile if isinstance(raw_model_profile, Mapping) else provider_cfg
@@ -289,13 +293,9 @@ def _provider_config_fingerprint(
         "models",
         "model_profiles",
     )
-    payload = {"model": model_name}
+    payload: dict[str, Any] = {"model": model_name}
     payload.update(
-        {
-            key: provider_cfg.get(key)
-            for key in stable_keys
-            if key in provider_cfg
-        }
+        {key: provider_cfg.get(key) for key in stable_keys if key in provider_cfg}
     )
     encoded = json.dumps(
         payload,

@@ -166,9 +166,12 @@ def test_connection_and_model_lifecycle_round_trip(tmp_path):
     assert restored.archived is True
     assert restored.enabled is False
     assert restored.models[0].source == "official"
-    assert "available" not in yaml.safe_load(
-        (tmp_path / "providers.yaml").read_text(encoding="utf-8")
-    )["connections"][connection.connection_id]["models"][0]
+    assert (
+        "available"
+        not in yaml.safe_load(
+            (tmp_path / "providers.yaml").read_text(encoding="utf-8")
+        )["connections"][connection.connection_id]["models"][0]
+    )
     assert restored.models[0].retired is True
 
 

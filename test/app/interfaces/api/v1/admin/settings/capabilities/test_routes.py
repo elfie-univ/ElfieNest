@@ -13,14 +13,15 @@ from app.features.configuration import (
 )
 from app.interfaces.api.v1.admin.settings.capabilities import router
 from app.interfaces.api.v1.auth import require_user
+from infrastructure.persistence.configuration.bundled_defaults import load_tool_defaults
+from infrastructure.persistence.configuration.capabilities import (
+    RuntimeCapabilitiesAdapter,
+)
 from infrastructure.persistence.configuration.secrets import (
     resolve_secret,
     set_tool_secret,
 )
-from infrastructure.tools import (
-    RuntimeCapabilitiesAdapter,
-    ToolCapabilitySecretAdapter,
-)
+from infrastructure.tools import ToolCapabilitySecretAdapter
 
 
 class PassingValidator:
@@ -43,6 +44,7 @@ def _client(tmp_path: Path, role="owner") -> tuple[TestClient, Path, Path]:
     app.state.capabilities = CapabilitiesService(
         RuntimeCapabilitiesAdapter(
             config_path,
+            defaults=load_tool_defaults(),
         ),
         ToolCapabilitySecretAdapter(
             secret_path,

@@ -61,9 +61,7 @@ def _parse_component(
     files = _parse_files(raw.get("files"))
     species_catalog_digest = raw.get("species_catalog_digest")
     if not isinstance(species_catalog_digest, str):
-        raise RuntimeArtifactContractError(
-            "species_catalog_digest must be a string"
-        )
+        raise RuntimeArtifactContractError("species_catalog_digest must be a string")
     return RuntimeArtifactComponent(
         kind=kind,
         version=_required_string(raw, "version"),

@@ -237,6 +237,22 @@ jobs:
           uv python install 3.9.25
           uv sync --locked --extra dev
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f2b2b233b538f500472c7274c7012f57857d8ce0 # v4.1.0
+        with:
+          version: 10.12.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: devtools/web/pnpm-lock.yaml
+
+      - name: Install Developer Tools frontend dependencies
+        working-directory: devtools/web
+        run: pnpm install --frozen-lockfile
+
       - name: Run Tests
         run: uv run --no-sync pytest --cov --cov-report=xml --cov-report=term-missing
 

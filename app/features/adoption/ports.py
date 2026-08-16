@@ -68,7 +68,9 @@ class SpeciesPresentationPort(Protocol):
 
     def urls(self, species_id: str) -> AdoptionSpeciesImages: ...
 
-    def read(self, species_id: str, image_kind: SpeciesImageKind) -> AdoptionSpeciesImage: ...
+    def read(
+        self, species_id: str, image_kind: SpeciesImageKind
+    ) -> AdoptionSpeciesImage: ...
 
 
 class AdoptionNarrativePort(Protocol):

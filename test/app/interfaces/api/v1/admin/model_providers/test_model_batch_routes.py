@@ -12,6 +12,7 @@ from app.features.configuration import ProvidersService
 from app.interfaces.api.v1.admin.model_providers.routes import router
 from app.interfaces.api.v1.auth import require_user
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
@@ -47,7 +48,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         references=NoProviderReferences(),
         technology=adapter,
         local_state=adapter,
-        local_technology=PublicOllamaProviderAdapter(),
+        local_technology=PublicOllamaProviderAdapter(catalog=load_provider_catalog()),
     )
     application.dependency_overrides[require_user] = lambda: AccountPrincipal(
         1,

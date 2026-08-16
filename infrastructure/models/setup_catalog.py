@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from app.features.setup import StoredSetupModelOption
 from infrastructure.models.providers.catalog import ProviderCatalog
-from infrastructure.persistence.provider_catalog import load_provider_catalog
 
 _APPROX_DOWNLOAD_MB = {
     "qwen2.5:0.5b": 398,
@@ -15,7 +14,9 @@ _APPROX_DOWNLOAD_MB = {
 
 class ProviderSetupCatalogAdapter:
     def __init__(self, catalog: ProviderCatalog | None = None) -> None:
-        self._catalog = catalog or load_provider_catalog()
+        if catalog is None:
+            raise ValueError("ProviderSetupCatalogAdapter requires an injected catalog")
+        self._catalog = catalog
 
     def list_setup_models(self) -> tuple[StoredSetupModelOption, ...]:
         return tuple(

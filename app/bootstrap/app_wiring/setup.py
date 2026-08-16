@@ -60,7 +60,9 @@ def build_setup_services(
     if evidence_port is None:
         from app.bootstrap.app_wiring.food import build_food_evidence
 
-        evidence_port = build_food_evidence(db_path)
+        if catalog is None:
+            raise ValueError("Setup composition requires an injected Provider catalog")
+        evidence_port = build_food_evidence(db_path, provider_catalog=catalog)
     return SetupServices(
         setup=SetupService(
             state=state,

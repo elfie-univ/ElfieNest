@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Union, cast
+from typing import Literal, Union
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse, Response
@@ -23,7 +23,6 @@ from app.features.adoption import (
     CreateCandidateSetCommand,
     GetAdoptionOptionsQuery,
     ReplyToCandidatesCommand,
-    SpeciesImageKind,
 )
 from app.interfaces.api.v1.auth import require_user
 from app.orchestration.resident_admission import (
@@ -105,7 +104,7 @@ def get_species_image(
         image = service.get_species_image(
             principal,
             species_id,
-            cast(SpeciesImageKind, image_kind),
+            image_kind,
         )
     except AdoptionError as error:
         return _error_response(error)

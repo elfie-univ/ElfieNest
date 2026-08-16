@@ -12,11 +12,11 @@ from elfie.brain.reasoning.food_port import (
 from elfie.brain.reasoning.tool_port import ToolPort
 from infrastructure.models.inference.multimodal import assemble_multimodal_payload
 from infrastructure.models.model_execution_config import ModelExecutionConfig
-from infrastructure.models.model_execution_ports import ModelExecutionToolLoopPort
 from infrastructure.models.model_execution_observations import (
     ModelCallContext,
     scoped_model_call_context,
 )
+from infrastructure.models.model_execution_ports import ModelExecutionToolLoopPort
 from infrastructure.models.model_reference import (
     ModelReferenceError,
     parse_model_reference,

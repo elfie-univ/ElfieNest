@@ -25,7 +25,11 @@ class _FakeModelExecution:
 def test_model_execution_receives_existing_food_and_warmup_dependencies(
     monkeypatch,
 ) -> None:
-    config = SimpleNamespace(system={"engine": {"tick_interval_sec": 2.25}})
+    provider_catalog = object()
+    config = SimpleNamespace(
+        system={"engine": {"tick_interval_sec": 2.25}},
+        provider_catalog=provider_catalog,
+    )
     repository = object()
     loader = object()
     monkeypatch.setattr(
@@ -44,7 +48,11 @@ def test_model_execution_receives_existing_food_and_warmup_dependencies(
     monkeypatch.setattr(
         model_execution_bootstrap,
         "build_food_service",
-        lambda db_path: ("food-service", db_path),
+        lambda db_path, *, provider_catalog: (
+            "food-service",
+            db_path,
+            provider_catalog,
+        ),
     )
     monkeypatch.setattr(
         model_execution_bootstrap,
@@ -63,7 +71,7 @@ def test_model_execution_receives_existing_food_and_warmup_dependencies(
     assert services.execution.kwargs["live_reload"] is True
     assert services.execution.kwargs["main_food_loader"] == (
         loader,
-        ("food-service", "/tmp/nest.db"),
+        ("food-service", "/tmp/nest.db", provider_catalog),
     )
     assert services.execution.kwargs["food_catalog_repository"] == (
         repository,

@@ -498,7 +498,10 @@ class CandidateRegistry:
         session = self._sessions.pop(adoption_session_id, None)
         if session is None:
             return
-        if self._active_sessions_by_owner.get(session.owner_user_id) == adoption_session_id:
+        if (
+            self._active_sessions_by_owner.get(session.owner_user_id)
+            == adoption_session_id
+        ):
             self._active_sessions_by_owner.pop(session.owner_user_id, None)
         self._session_locks.pop(adoption_session_id, None)
         expired_sets = tuple(
@@ -567,9 +570,7 @@ class CandidateRegistry:
     def _purge_expired_locked(self) -> None:
         now = time.monotonic()
         expired_sessions = tuple(
-            key
-            for key, session in self._sessions.items()
-            if now >= session.expires_at
+            key for key, session in self._sessions.items() if now >= session.expires_at
         )
         for key in expired_sessions:
             self._invalidate_session_locked(key)

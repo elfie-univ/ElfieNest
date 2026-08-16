@@ -12,7 +12,6 @@ from app.features.configuration import (
     StoredLocalProviderProbe,
 )
 from infrastructure.models.providers.catalog import ProviderCatalog
-from infrastructure.persistence.provider_catalog import load_provider_catalog
 
 from .ollama_platform import (
     DEFAULT_OLLAMA_ENDPOINT,
@@ -30,8 +29,10 @@ class PublicOllamaProviderAdapter:
         *,
         catalog: ProviderCatalog | None = None,
     ) -> None:
+        if catalog is None:
+            raise ValueError("PublicOllamaProviderAdapter requires an injected catalog")
         self._platform = platform or OllamaPlatformAdapter()
-        self._catalog = catalog or load_provider_catalog()
+        self._catalog = catalog
 
     def default_binding(self) -> StoredLocalProviderBinding:
         try:

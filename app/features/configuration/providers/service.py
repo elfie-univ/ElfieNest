@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import TypeVar
 
 from app.features.accounts import AccountPrincipal, is_manager
 
@@ -67,6 +68,7 @@ from .models import (
     VerifyProviderConnectionCommand,
 )
 from .port_models import (
+    CapabilityEvidence,
     StoredBenchmarkCombination,
     StoredLocalProviderBinding,
     StoredModelRefresh,
@@ -88,6 +90,8 @@ from .ports import (
     ProviderReferencePort,
     ProviderTechnologyPort,
 )
+
+_T = TypeVar("_T")
 
 
 class ProvidersService:
@@ -718,9 +722,13 @@ class ProvidersService:
         if any(item.model_id == command.model.model_id for item in connection.models):
             raise ProvidersConflict("The connection already contains this model ID")
         model = self._prepare_model(command.model)
-        updated_connection = self._replace_models(connection, (*connection.models, model))
+        updated_connection = self._replace_models(
+            connection, (*connection.models, model)
+        )
         persisted_model = next(
-            item for item in updated_connection.models if item.model_id == model.model_id
+            item
+            for item in updated_connection.models
+            if item.model_id == model.model_id
         )
         return self._model_result(updated_connection.connection_id, persisted_model)
 
@@ -775,7 +783,10 @@ class ProvidersService:
                         current.max_output_tokens,
                     ),
                     supports_tools=_replacement_value(
-                        item, "supports_tools", item.supports_tools, current.supports_tools
+                        item,
+                        "supports_tools",
+                        item.supports_tools,
+                        current.supports_tools,
                     ),
                     supports_vision=_replacement_value(
                         item,
@@ -1351,7 +1362,7 @@ def _updated_capability_evidence(
     fields: frozenset[str],
     *,
     values: dict[str, bool | None],
-) -> dict[str, str]:
+) -> dict[str, CapabilityEvidence]:
     evidence = dict(model.capability_evidence)
     for capability, field_name in {
         "tools": "supports_tools",
@@ -1371,7 +1382,7 @@ def _user_capability_evidence(
     current: StoredProviderModel,
     values: dict[str, bool | None],
     fields: frozenset[str] | None,
-) -> dict[str, str]:
+) -> dict[str, CapabilityEvidence]:
     evidence = dict(current.capability_evidence)
     field_names = {
         "tools": "supports_tools",
@@ -1382,18 +1393,16 @@ def _user_capability_evidence(
     for capability, value in values.items():
         if fields is not None and field_names[capability] not in fields:
             continue
-        evidence[capability] = (
-            "declared_by_user" if value is not None else "unknown"
-        )
+        evidence[capability] = "declared_by_user" if value is not None else "unknown"
     return evidence
 
 
 def _replacement_value(
     item: ProviderModelReplacement,
     field_name: str,
-    value: object,
-    current: object,
-) -> object:
+    value: _T,
+    current: _T,
+) -> _T:
     if item.fields is not None and field_name not in item.fields:
         return current
     return value

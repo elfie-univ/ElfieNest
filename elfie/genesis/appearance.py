@@ -140,7 +140,9 @@ def _overrides(
             else get_species_definition(species_id, adoptable_only=True)
         )
         preferences = (
-            species.genesis.appearance_preferences if species.genesis is not None else {}
+            species.genesis.appearance_preferences
+            if species.genesis is not None
+            else {}
         )
         preferred = tuple(
             option
@@ -156,7 +158,9 @@ def _overrides(
             else get_species_definition(species_id, adoptable_only=True)
         )
         preferences = (
-            species.genesis.appearance_preferences if species.genesis is not None else {}
+            species.genesis.appearance_preferences
+            if species.genesis is not None
+            else {}
         )
         preferred = tuple(
             option

@@ -12,7 +12,6 @@ from infrastructure.models.provider_records import (
 )
 from infrastructure.models.providers.model_identity import (
     ModelIdentityCatalog,
-    load_model_identities,
     match_model_identity,
 )
 from infrastructure.models.providers.remote_catalog import fetch_remote_models
@@ -164,7 +163,9 @@ def merge_refreshed_models(
         merged.append(
             replace(
                 existing,
-                discovery_state="source_missing" if missing else existing.discovery_state,
+                discovery_state="source_missing"
+                if missing
+                else existing.discovery_state,
                 consecutive_missing=missing_count,
             )
         )
@@ -212,12 +213,11 @@ def _catalog_model(
     provider_id: str | None = None,
     identity_catalog: ModelIdentityCatalog | None = None,
 ) -> ProviderModelRecord:
-    catalog = identity_catalog or load_model_identities()
-    identity = match_model_identity(model_id, model_id, catalog=catalog)
+    identity = match_model_identity(model_id, model_id, catalog=identity_catalog)
     declaration = (
         None
-        if provider_id is None
-        else catalog.endpoint_declaration(provider_id, model_id)
+        if provider_id is None or identity_catalog is None
+        else identity_catalog.endpoint_declaration(provider_id, model_id)
     )
     return ProviderModelRecord(
         endpoint_model_id=model_id,
@@ -238,9 +238,7 @@ def _catalog_model(
             None if declaration is None else declaration.supports_reasoning
         ),
         supports_structured_output=(
-            None
-            if declaration is None
-            else declaration.supports_structured_output
+            None if declaration is None else declaration.supports_structured_output
         ),
     )
 

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, Mapping
+
+from pydantic import JsonValue
 
 from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.provider_records import ProviderConnection
@@ -23,7 +25,8 @@ SecretResolver = Callable[[str], str]
 def model_execution_projection(
     connection: ProviderConnection,
     *,
-    catalog: ProviderCatalog | None = None,
+    catalog: ProviderCatalog,
+    system_defaults: Mapping[str, JsonValue],
     secret_resolver: SecretResolver = lambda _name: "",
 ) -> tuple[str, ModelExecutionConfig]:
     """Project one stable connection into the regular model adapter config."""
@@ -31,7 +34,10 @@ def model_execution_projection(
     if profile is None:
         raise ValueError("连接产品目录已经缺失")
     execution_id = connection.connection_id
-    config = ModelExecutionConfig(provider_catalog=catalog)
+    config = ModelExecutionConfig(
+        provider_catalog=catalog,
+        system_defaults=system_defaults,
+    )
     active_models = active_validation_models(connection)
     config.providers[execution_id] = {
         "catalog_id": connection.catalog_id,
@@ -61,7 +67,8 @@ def model_execution_projection(
             }
             for model in active_models
         },
-        "test_model": representative_model_id(connection) or profile.test_model,
+        "test_model": representative_model_id(connection, catalog=catalog)
+        or profile.test_model,
     }
     return execution_id, config
 

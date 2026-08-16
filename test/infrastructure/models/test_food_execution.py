@@ -2,10 +2,10 @@ import pytest
 
 from elfie.brain.reasoning.food_port import FoodAssignment, FoodPackage
 from infrastructure.models.food_execution import FoodExecutionError, FoodExecutor
-from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.tools import DisabledToolPort
 from infrastructure.tools.execution.loop import PortToolLoop
 from infrastructure.tools.execution.skills_prompt import inject_skills_system_prompt
+from test.support.model_execution import model_execution_config
 
 
 def test_executor_uses_role_then_one_fallback(monkeypatch, tmp_path):
@@ -18,7 +18,7 @@ def test_executor_uses_role_then_one_fallback(monkeypatch, tmp_path):
             raise RuntimeError("down")
         return "ok"
 
-    config = ModelExecutionConfig()
+    config = model_execution_config()
     config.providers["cloud_0001"] = {
         "api_mode": "chat_completions",
         "api_key": "test",
@@ -57,7 +57,7 @@ def test_executor_can_fail_fast_without_package_fallback(monkeypatch, tmp_path):
         calls.append(f"{provider}/{model}")
         raise RuntimeError("down")
 
-    config = ModelExecutionConfig()
+    config = model_execution_config()
     config.providers["cloud_0001"] = {
         "api_mode": "chat_completions",
         "api_key": "test",

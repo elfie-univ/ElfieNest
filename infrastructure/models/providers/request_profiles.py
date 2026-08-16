@@ -66,7 +66,9 @@ def default_request_profile_id(api_mode: str) -> str:
     try:
         return mapping[api_mode]
     except KeyError as error:
-        raise ValueError(f"未知 API mode，无法选择 Request Profile: {api_mode}") from error
+        raise ValueError(
+            f"未知 API mode，无法选择 Request Profile: {api_mode}"
+        ) from error
 
 
 def get_request_profile(profile_id: str, version: int | None = None) -> RequestProfile:

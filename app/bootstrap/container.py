@@ -38,7 +38,10 @@ from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAda
 from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.providers.openai_chatgpt import OpenAIChatGptOAuthAdapter
 from infrastructure.models.validation.serving_food import build_serving_food_index
-from infrastructure.persistence.configuration.bundled_defaults import load_nest_config
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_nest_config,
+    load_system_defaults,
+)
 from infrastructure.persistence.configuration.oauth_credentials import (
     OAuthCredentialAdapter,
     OAuthCredentialStore,
@@ -62,6 +65,7 @@ from infrastructure.persistence.layout.data_home import (
     get_provider_catalog_path,
 )
 from infrastructure.persistence.layout.data_layout import final_root_layout
+from infrastructure.persistence.model_catalog import load_model_identities
 from infrastructure.persistence.nest_db.nest_management import (
     SQLiteNestManagementAdapter,
 )
@@ -125,12 +129,18 @@ def build_application_container(
         data_home = data_home_from_db_path(db_path)
         provider_catalog_path = final_root_layout(data_home).provider_catalog_config
     provider_catalog = load_provider_catalog(provider_catalog_path)
+    identity_catalog = load_model_identities()
+    system_defaults = load_system_defaults()
     species_catalog = load_and_configure_species_catalog()
     nest_config = load_nest_config()
     report_repository = build_report_repository(db_path)
     provider_storage = ProviderStorageAdapter(provider_store)
     provider_reports = ReportStorageAdapter(report_repository)
-    provider_evidence = SQLiteFoodEvidenceAdapter(provider_store, report_repository)
+    provider_evidence = SQLiteFoodEvidenceAdapter(
+        provider_store,
+        report_repository,
+        provider_catalog,
+    )
     oauth_credentials = OAuthCredentialAdapter()
     provider_models = ProviderModelsAdapter(
         provider_storage,
@@ -138,6 +148,8 @@ def build_application_container(
         provider_evidence,
         oauth_credentials,
         catalog=provider_catalog,
+        identity_catalog=identity_catalog,
+        system_defaults=system_defaults,
     )
     if db_path != ":memory:":
         assert data_home is not None
@@ -148,7 +160,11 @@ def build_application_container(
             provider_store,
             secret_path=layout.auth_env,
         )
-        provider_evidence = SQLiteFoodEvidenceAdapter(provider_store, report_repository)
+        provider_evidence = SQLiteFoodEvidenceAdapter(
+            provider_store,
+            report_repository,
+            provider_catalog,
+        )
         oauth_credentials = OAuthCredentialAdapter(
             OAuthCredentialStore(layout.oauth_credentials)
         )
@@ -158,6 +174,8 @@ def build_application_container(
             provider_evidence,
             oauth_credentials,
             catalog=provider_catalog,
+            identity_catalog=identity_catalog,
+            system_defaults=system_defaults,
         )
     settings_adapter = RuntimeSettingsAdapter(config_path)
     food_persistence = SQLiteFoodAdapter(db_path)
@@ -175,7 +193,11 @@ def build_application_container(
         )
         food_packages = food_persistence.list_packages()
         default_food_id = next(
-            (package.food_id for package in food_packages if package.system_role == "common"),
+            (
+                package.food_id
+                for package in food_packages
+                if package.system_role == "common"
+            ),
             "",
         )
         emergency_food_id = next(
@@ -281,7 +303,11 @@ def build_application_container(
         elfies=elfies,
         providers=providers,
         availability=availability,
-        food=build_food_service(db_path, evidence=provider_evidence),
+        food=build_food_service(
+            db_path,
+            provider_catalog=provider_catalog,
+            evidence=provider_evidence,
+        ),
         capabilities=CapabilitiesService(
             capability_config,
             capability_secrets,

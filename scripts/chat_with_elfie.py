@@ -21,14 +21,14 @@ logger = logging.getLogger("chat")
 
 from app.bootstrap.app_wiring.storage import ensure_application_storage
 from app.bootstrap.model_execution import build_model_execution_services
-from app.bootstrap.system_wiring.entrypoints import get_db_path
+from app.bootstrap.system_wiring.entrypoints import (
+    get_db_path,
+    load_emotion_expression_defaults,
+)
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.bootstrap.system_wiring.nest_session import (
     build_nest_session_services,
     restore_registered_elfies,
-)
-from infrastructure.persistence.configuration.bundled_defaults import (
-    load_emotion_expression_defaults,
 )
 
 

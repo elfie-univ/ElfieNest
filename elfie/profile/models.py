@@ -190,7 +190,9 @@ class ElfieProfile:
             else:
                 catalog.definition(self.identity.species_id)
         except ValueError as error:
-            available = SUPPORTED_SPECIES if catalog is None else catalog.supported_species
+            available = (
+                SUPPORTED_SPECIES if catalog is None else catalog.supported_species
+            )
             raise ValueError(
                 f"不支持的 species_id={self.identity.species_id!r}，"
                 f"可选: {', '.join(available)}"

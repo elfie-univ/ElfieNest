@@ -8,12 +8,16 @@ from app.features.configuration.capabilities import (
     StoredLocalFileCapability,
     StoredWebSearchCapability,
 )
-from infrastructure.tools import RuntimeCapabilitiesAdapter
+from infrastructure.persistence.configuration.bundled_defaults import load_tool_defaults
+from infrastructure.persistence.configuration.capabilities import (
+    RuntimeCapabilitiesAdapter,
+)
 
 
 def _adapter(path: Path) -> RuntimeCapabilitiesAdapter:
     return RuntimeCapabilitiesAdapter(
         path,
+        defaults=load_tool_defaults(),
     )
 
 

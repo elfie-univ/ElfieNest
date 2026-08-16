@@ -83,7 +83,13 @@ def test_query_is_exact_endpoint_scoped_and_projects_connection_blocks() -> None
     )
     query = ProviderAvailabilityQuery(
         _Storage(connection),
-        _Reports((_observation("cloud_0001/main", code="billing_blocked", category="billing"),)),
+        _Reports(
+            (
+                _observation(
+                    "cloud_0001/main", code="billing_blocked", category="billing"
+                ),
+            )
+        ),
         serving_index=lambda: ServingFoodIndex(
             generation="g1",
             foods=(),
@@ -98,7 +104,10 @@ def test_query_is_exact_endpoint_scoped_and_projects_connection_blocks() -> None
     assert main.provider_status == "unavailable"
     assert main.capabilities[0].name == "tools"
     assert main.capabilities[0].state == "supported"
-    assert next(item for item in main.capabilities if item.name == "vision").state == "unsupported"
+    assert (
+        next(item for item in main.capabilities if item.name == "vision").state
+        == "unsupported"
+    )
     assert sibling.status == "unavailable"
     assert sibling.reason_code == "billing_blocked"
 
@@ -173,9 +182,7 @@ def test_active_probe_is_single_flight_and_cooldown_limited() -> None:
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = tuple(
             pool.map(
-                lambda _index: query.ensure(
-                    "cloud_0001/main", allow_probe=True
-                ),
+                lambda _index: query.ensure("cloud_0001/main", allow_probe=True),
                 (1, 2),
             )
         )

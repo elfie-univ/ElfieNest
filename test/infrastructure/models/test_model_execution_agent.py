@@ -7,11 +7,11 @@ from elfie.brain.reasoning.food_port import (
     NoAvailableFoodError,
 )
 from infrastructure.models.model_execution_agent import ModelExecutionAgent
-from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.model_execution_contracts import (
     StructuredGenerationMode,
     StructuredModelExecutionRequest,
 )
+from test.support.model_execution import model_execution_config
 
 
 def test_runtime_never_selects_arbitrary_custom_food(monkeypatch):
@@ -96,7 +96,7 @@ def test_ollama_connection_advertises_json_mode_for_decision_decoding(
     monkeypatch,
 ) -> None:
     agent = object.__new__(ModelExecutionAgent)
-    agent.config = ModelExecutionConfig(
+    agent.config = model_execution_config(
         providers={"ollama_0001": {"api_mode": "ollama"}}
     )
     agent._load_food_catalog = lambda: FoodCatalog(
@@ -122,7 +122,7 @@ def test_openai_compatible_connection_advertises_prompt_constrained_json_mode(
     monkeypatch,
 ) -> None:
     agent = object.__new__(ModelExecutionAgent)
-    agent.config = ModelExecutionConfig(
+    agent.config = model_execution_config(
         providers={"custom_0001": {"api_mode": "chat_completions"}}
     )
     agent._load_food_catalog = lambda: FoodCatalog(

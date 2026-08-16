@@ -7,11 +7,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple
 
-from infrastructure.persistence.configuration.documents import (
-    BundledConfigSource,
-    ConfigDocumentId,
-)
-
 MODEL_CATALOG_VERSION = 1
 _SEPARATORS = re.compile(r"[\s_]+")
 _CATALOG_FIELDS = frozenset({"version", "models", "entries"})
@@ -88,13 +83,6 @@ class ModelIdentityCatalog:
         return self.endpoint_declarations.get(
             f"{provider_id.strip()}/{endpoint_model_id.strip()}"
         )
-
-
-def load_model_identities(
-    root: Path | None = None,
-) -> ModelIdentityCatalog:
-    loaded = BundledConfigSource(root).load(ConfigDocumentId.MODEL_CATALOG)
-    return parse_model_identities(loaded.document, loaded.path)
 
 
 def parse_model_identities(
@@ -215,7 +203,9 @@ def match_model_identity(
     catalog: ModelIdentityCatalog | None = None,
 ) -> Optional[CanonicalModelIdentity]:
     """Match only exact curated aliases after harmless separator normalization."""
-    return (catalog or load_model_identities()).match(endpoint_model_id, display_name)
+    if catalog is None:
+        return None
+    return catalog.match(endpoint_model_id, display_name)
 
 
 def _normalize(value: str) -> str:
@@ -254,7 +244,6 @@ __all__ = (
     "EndpointModelDeclaration",
     "ModelIdentityCatalog",
     "ModelIdentityCatalogError",
-    "load_model_identities",
     "match_model_identity",
     "parse_model_identities",
 )

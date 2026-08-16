@@ -43,9 +43,7 @@ def test_model_food_tool_contract_defers_target_ownership_to_system() -> None:
 def test_provider_model_availability_rules_are_ratchet_protected() -> None:
     english = _source("docs/developer/contracts/model-food-tool-behavior.md")
     chinese = _source("docs/zh/developer/contracts/model-food-tool-behavior.md")
-    english_gap = _source(
-        "docs/developer/conformance/provider-model-availability.md"
-    )
+    english_gap = _source("docs/developer/conformance/provider-model-availability.md")
     chinese_gap = _source(
         "docs/zh/developer/conformance/provider-model-availability.md"
     )

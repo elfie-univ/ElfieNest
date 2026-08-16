@@ -61,12 +61,16 @@ class ElfiesService:
     ) -> tuple[VisibleElfieResult, ...]:
         try:
             records = self._queries.list_directory(
-                owner_user_id=(principal.user_id if query.relationship == "owned" else None),
+                owner_user_id=(
+                    principal.user_id if query.relationship == "owned" else None
+                ),
             )
             return tuple(
                 VisibleElfieResult(
                     relationship=(
-                        "owned" if record.owner_user_id == principal.user_id else "other"
+                        "owned"
+                        if record.owner_user_id == principal.user_id
+                        else "other"
                     ),
                     permissions=(
                         _OWNED_PERMISSIONS
@@ -198,6 +202,8 @@ def _species_presentation(
     try:
         definition = catalog.definition(species_id)
     except ValueError:
+        return None
+    if definition.status == "draft":
         return None
     return ElfieSpeciesPresentation(
         species_id=definition.species_id,

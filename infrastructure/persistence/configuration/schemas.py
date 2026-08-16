@@ -483,9 +483,7 @@ def _validate_nest_defaults(document: Mapping[str, Any], label: str) -> None:
     _positive_int(nest.get("bed_count"), f"{label}.nest.bed_count")
 
 
-def _validate_species_catalog_shape(
-    document: Mapping[str, Any], label: str
-) -> None:
+def _validate_species_catalog_shape(document: Mapping[str, Any], label: str) -> None:
     _keys(
         document,
         {
@@ -526,7 +524,11 @@ def _validate_species_catalog_shape(
                 f"{label}.species[{index}].status 必须是 draft/published/retired"
             )
         sort_order = item.get("sort_order")
-        if isinstance(sort_order, bool) or not isinstance(sort_order, int) or sort_order < 0:
+        if (
+            isinstance(sort_order, bool)
+            or not isinstance(sort_order, int)
+            or sort_order < 0
+        ):
             raise ConfigSchemaError(
                 f"{label}.species[{index}].sort_order 必须是非负整数"
             )

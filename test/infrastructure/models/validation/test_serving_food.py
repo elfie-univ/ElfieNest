@@ -113,6 +113,8 @@ def test_recent_optional_role_usage_activates_exact_endpoint() -> None:
         now=now,
     )
 
-    vision = next(item for item in index.core_endpoints if item.reference == "cloud/vision")
+    vision = next(
+        item for item in index.core_endpoints if item.reference == "cloud/vision"
+    )
     assert vision.food_ids == ("food_selected",)
     assert vision.roles == ("vision",)

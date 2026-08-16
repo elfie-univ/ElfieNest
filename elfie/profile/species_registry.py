@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
-from typing import Literal, Mapping
+from typing import Literal, Mapping, overload
 
 from .canon import SpeciesCanon
 from .species import SpeciesAppearanceProfile
@@ -28,9 +28,7 @@ class SpeciesGenesisProfile:
     config_version: str
     stage_ranges: Mapping[str, tuple[int, int]]
     personality_prior: tuple[float, ...]
-    appearance_preferences: Mapping[str, tuple[str, ...]] = field(
-        default_factory=dict
-    )
+    appearance_preferences: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -140,7 +138,15 @@ class _ConfiguredDefinitions(Sequence[SpeciesDefinition]):
     def __len__(self) -> int:
         return len(current_species_catalog().definitions)
 
-    def __getitem__(self, index: int) -> SpeciesDefinition:
+    @overload
+    def __getitem__(self, index: int) -> SpeciesDefinition: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> Sequence[SpeciesDefinition]: ...
+
+    def __getitem__(
+        self, index: int | slice
+    ) -> SpeciesDefinition | Sequence[SpeciesDefinition]:
         return current_species_catalog().definitions[index]
 
 
@@ -151,7 +157,13 @@ class _ConfiguredSpeciesIds(Sequence[str]):
     def __len__(self) -> int:
         return len(current_species_catalog().supported_species)
 
-    def __getitem__(self, index: int) -> str:
+    @overload
+    def __getitem__(self, index: int) -> str: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> Sequence[str]: ...
+
+    def __getitem__(self, index: int | slice) -> str | Sequence[str]:
         return current_species_catalog().supported_species[index]
 
     def __contains__(self, item: object) -> bool:
@@ -174,9 +186,7 @@ def list_species_definitions(
     *,
     include_disabled: bool = False,
 ) -> tuple[SpeciesDefinition, ...]:
-    return current_species_catalog().list_definitions(
-        include_disabled=include_disabled
-    )
+    return current_species_catalog().list_definitions(include_disabled=include_disabled)
 
 
 def get_species_definition(
@@ -202,7 +212,10 @@ def validate_species_registry() -> None:
     if len(set(sort_orders)) != len(sort_orders):
         raise ValueError("物种注册表包含重复的 sort_order")
     for definition in definitions:
-        if not definition.display_name.strip() or not definition.display_name_zh.strip():
+        if (
+            not definition.display_name.strip()
+            or not definition.display_name_zh.strip()
+        ):
             raise ValueError(f"物种 {definition.species_id!r} 缺少显示名称")
         if definition.status not in ("draft", "published", "retired"):
             raise ValueError(f"物种 {definition.species_id!r} 的 status 无效")

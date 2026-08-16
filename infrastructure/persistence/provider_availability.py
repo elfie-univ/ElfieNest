@@ -53,7 +53,9 @@ class ProviderAvailabilityQuery:
         connections = self._provider_storage.load_connections()
         connection = connections.get(connection_id)
         if connection is None:
-            return _unknown(reference, connection_id, model_id, "connection_not_configured")
+            return _unknown(
+                reference, connection_id, model_id, "connection_not_configured"
+            )
         model = next(
             (item for item in connection.models if item.endpoint_model_id == model_id),
             None,
@@ -98,12 +100,15 @@ class ProviderAvailabilityQuery:
             if recent is not None and now - recent < self._probe_cooldown:
                 return current
             future = self._inflight.get(reference)
-            owner = future is None
-            if owner:
+            if future is None:
+                owner = True
                 future = Future()
                 self._inflight[reference] = future
                 self._last_probe_at[reference] = now
+            else:
+                owner = False
         if not owner:
+            assert future is not None
             try:
                 future.result()
             except BaseException:
@@ -113,6 +118,7 @@ class ProviderAvailabilityQuery:
                 pass
             return self.get(reference)
         try:
+            assert future is not None
             future.set_result(self._active_probe(reference))
         except BaseException as error:
             future.set_exception(error)

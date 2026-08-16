@@ -14,6 +14,7 @@ from infrastructure.models.food_technology import (
     validate_food_package_model_references,
 )
 from infrastructure.models.provider_records import ProviderConnection
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.report_records import ValidationObservation
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
 from infrastructure.persistence.reports.report_repository import ReportRepository
@@ -21,6 +22,7 @@ from infrastructure.persistence.reports.report_repository import ReportRepositor
 
 def query_model_evidence(
     *,
+    provider_catalog: ProviderCatalog,
     repository: Optional[ReportRepository] = None,
     connection_store: Optional[ProviderConnectionStore] = None,
     connections: Optional[Mapping[str, ProviderConnection]] = None,
@@ -46,7 +48,7 @@ def query_model_evidence(
     for connection in inventory.values():
         if not connection.enabled or connection.archived:
             continue
-        profile = get_product(connection.catalog_id)
+        profile = get_product(connection.catalog_id, catalog=provider_catalog)
         is_local = bool(profile and profile.connection_method == "local")
         for model in connection.models:
             subject_id = f"{connection.connection_id}/{model.endpoint_model_id}"
@@ -100,13 +102,16 @@ class SQLiteFoodEvidenceAdapter:
         self,
         connection_store: ProviderConnectionStore,
         report_repository: ReportRepository,
+        provider_catalog: ProviderCatalog,
     ) -> None:
         self._connection_store = connection_store
         self._report_repository = report_repository
+        self._provider_catalog = provider_catalog
 
     def list_model_evidence(self) -> tuple[StoredModelEvidence, ...]:
         return tuple(
             query_model_evidence(
+                provider_catalog=self._provider_catalog,
                 connection_store=self._connection_store,
                 repository=self._report_repository,
             ).values()

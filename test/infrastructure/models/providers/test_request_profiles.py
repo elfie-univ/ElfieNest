@@ -45,9 +45,7 @@ def test_mismatched_model_profile_is_rejected() -> None:
         _resolve_request_profile(
             {
                 "api_mode": "chat_completions",
-                "model_profiles": {
-                    "model-a": {"request_profile_id": "ollama_chat_v1"}
-                },
+                "model_profiles": {"model-a": {"request_profile_id": "ollama_chat_v1"}},
             },
             "model-a",
             "chat_completions",

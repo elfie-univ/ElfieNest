@@ -42,15 +42,15 @@ def test_species_assets_are_validated_inside_their_package(tmp_path: Path) -> No
 def test_published_species_rejects_invalid_png_members(tmp_path: Path) -> None:
     root = tmp_path / "config"
     shutil.copytree(resolve_bundled_config_root(), root)
-    (root / "species" / "fox" / "assets" / "headshot.png").write_bytes(
-        b"not-a-png"
-    )
+    (root / "species" / "fox" / "assets" / "headshot.png").write_bytes(b"not-a-png")
 
     with pytest.raises(SpeciesCatalogError, match="有效 PNG"):
         load_species_catalog(root=root)
 
 
-def test_published_species_rejects_duplicate_presentation_images(tmp_path: Path) -> None:
+def test_published_species_rejects_duplicate_presentation_images(
+    tmp_path: Path,
+) -> None:
     root = tmp_path / "config"
     shutil.copytree(resolve_bundled_config_root(), root)
     source = root / "species" / "fox" / "assets" / "headshot.png"

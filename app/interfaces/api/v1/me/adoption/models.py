@@ -39,7 +39,9 @@ class CandidateSetRequest(BaseModel):
         min_length=5, max_length=5
     )
     batch_number: int = Field(default=1, ge=1, le=3)
-    adoption_session_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    adoption_session_id: Optional[str] = Field(
+        default=None, min_length=1, max_length=128
+    )
 
     @field_validator("answers")
     @classmethod

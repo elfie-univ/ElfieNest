@@ -92,6 +92,7 @@ from app.bootstrap.system_wiring.entrypoints import (
     get_db_path,
     get_elfie_home,
     inspect_godot_web_bundle,
+    load_emotion_expression_defaults,
     select_elfie_home,
 )
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
@@ -109,9 +110,6 @@ from app.orchestration.lifecycle import (
     RecoveryInProgressError,
     command_runs_service,
     validate_service_ports,
-)
-from infrastructure.persistence.configuration.bundled_defaults import (
-    load_emotion_expression_defaults,
 )
 
 

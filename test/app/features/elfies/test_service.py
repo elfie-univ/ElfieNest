@@ -196,7 +196,9 @@ def test_member_directory_exposes_visible_elfies_with_bounded_permissions() -> N
     assert results[1].permissions.can_view_profile is True
     assert results[1].permissions.can_view_cognition is False
 
-    owned = service.list_visible(_principal(), ListVisibleElfiesQuery(relationship="owned"))
+    owned = service.list_visible(
+        _principal(), ListVisibleElfiesQuery(relationship="owned")
+    )
     assert [item.profile.elfie_id for item in owned] == ["00000001"]
 
 

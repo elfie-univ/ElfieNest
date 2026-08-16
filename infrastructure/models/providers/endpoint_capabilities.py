@@ -28,15 +28,13 @@ class EndpointCapability:
 def endpoint_capabilities(model: ProviderModelRecord) -> tuple[EndpointCapability, ...]:
     """Project only the flags declared for this exact Provider Endpoint."""
 
-    return tuple(
-        _capability(model, name, value)
-        for name, value in (
-            ("tools", model.supports_tools),
-            ("vision", model.supports_vision),
-            ("reasoning", model.supports_reasoning),
-            ("structured_output", model.supports_structured_output),
-        )
+    capabilities: tuple[tuple[CapabilityName, bool | None], ...] = (
+        ("tools", model.supports_tools),
+        ("vision", model.supports_vision),
+        ("reasoning", model.supports_reasoning),
+        ("structured_output", model.supports_structured_output),
     )
+    return tuple(_capability(model, name, value) for name, value in capabilities)
 
 
 def _capability(

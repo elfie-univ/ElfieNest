@@ -5,12 +5,15 @@ from infrastructure.persistence.food_evidence import (
     query_model_evidence,
     record_model_evidence,
 )
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,
     ProviderModelRecord,
 )
 from infrastructure.persistence.reports.report_repository import ReportRepository
+
+PROVIDER_CATALOG = load_provider_catalog()
 
 
 def _configure_inventory(store: ProviderConnectionStore) -> None:
@@ -58,6 +61,7 @@ def test_projection_changes_from_never_to_passed_to_failed(tmp_path) -> None:
     now = datetime.now(timezone.utc)
 
     initial = query_model_evidence(
+        provider_catalog=PROVIDER_CATALOG,
         repository=repository,
         connection_store=provider_store,
         now=now,
@@ -70,6 +74,7 @@ def test_projection_changes_from_never_to_passed_to_failed(tmp_path) -> None:
         trigger="benchmark",
     )
     passed = query_model_evidence(
+        provider_catalog=PROVIDER_CATALOG,
         repository=repository,
         connection_store=provider_store,
         now=now,
@@ -87,6 +92,7 @@ def test_projection_changes_from_never_to_passed_to_failed(tmp_path) -> None:
         trigger="benchmark",
     )
     failed = query_model_evidence(
+        provider_catalog=PROVIDER_CATALOG,
         repository=repository,
         connection_store=provider_store,
         now=now + timedelta(seconds=1),
@@ -119,6 +125,7 @@ def test_projection_marks_stale_hidden_and_unavailable_as_ineligible(tmp_path) -
     )
 
     evidence = query_model_evidence(
+        provider_catalog=PROVIDER_CATALOG,
         repository=repository,
         connection_store=provider_store,
         now=now,
@@ -144,6 +151,7 @@ def test_projection_uses_inventory_identity(tmp_path) -> None:
     )
 
     evidence = query_model_evidence(
+        provider_catalog=PROVIDER_CATALOG,
         repository=repository,
         connection_store=provider_store,
         now=now,

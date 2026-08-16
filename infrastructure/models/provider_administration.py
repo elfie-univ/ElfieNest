@@ -8,6 +8,8 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, Callable, Literal, Mapping, Optional, cast
 
+from pydantic import JsonValue
+
 from app.features.configuration import (
     ApiMode,
     AuthType,
@@ -50,7 +52,10 @@ from infrastructure.models.providers.discovery import (
     merge_refreshed_models,
     remote_catalog_models,
 )
-from infrastructure.models.providers.model_identity import match_model_identity
+from infrastructure.models.providers.model_identity import (
+    ModelIdentityCatalog,
+    match_model_identity,
+)
 from infrastructure.models.providers.remote_catalog import (
     RemoteCatalogUnavailable,
     fetch_remote_models,
@@ -91,7 +96,6 @@ from infrastructure.models.validation.provider_validation_service import (
     validate_connection,
 )
 from infrastructure.models.validation.serving_food import ServingFoodIndex
-from infrastructure.persistence.provider_catalog import load_provider_catalog
 
 from .provider_errors import sanitize_error
 
@@ -163,17 +167,27 @@ class ProviderModelsAdapter:
         evidence: ModelEvidencePort,
         oauth_credentials: OAuthCredentialPort | None = None,
         catalog: ProviderCatalog | None = None,
+        identity_catalog: ModelIdentityCatalog | None = None,
+        system_defaults: Mapping[str, JsonValue] | None = None,
     ) -> None:
         self._store = storage
         self._reports = reports
         self._evidence = evidence
         self._oauth_credentials = oauth_credentials
-        self._catalog = catalog or load_provider_catalog()
+        if catalog is None:
+            raise ValueError("ProviderModelsAdapter requires an injected catalog")
+        if identity_catalog is None:
+            raise ValueError(
+                "ProviderModelsAdapter requires an injected model identity catalog"
+            )
+        if system_defaults is None:
+            raise ValueError("ProviderModelsAdapter requires injected system defaults")
+        self._catalog = catalog
+        self._identity_catalog = identity_catalog
+        self._system_defaults = system_defaults
         self._serving_index: Callable[[], ServingFoodIndex] | None = None
 
-    def set_serving_index(
-        self, serving_index: Callable[[], ServingFoodIndex]
-    ) -> None:
+    def set_serving_index(self, serving_index: Callable[[], ServingFoodIndex]) -> None:
         """Bind the shared derived ServingFood projection after composition."""
         self._serving_index = serving_index
 
@@ -313,7 +327,9 @@ class ProviderModelsAdapter:
         except ProviderPortError:
             raise
         except (ProviderStorageError, ValueError, OSError) as error:
-            raise ProviderPortError("Unable to fingerprint Provider connection") from error
+            raise ProviderPortError(
+                "Unable to fingerprint Provider connection"
+            ) from error
 
     def load_local_binding(self) -> StoredLocalProviderBinding | None:
         try:
@@ -467,7 +483,11 @@ class ProviderModelsAdapter:
         )
 
     def prepare_manual_model(self, model: ProviderModelInput) -> StoredProviderModel:
-        match = match_model_identity(model.model_id, model.display_name)
+        match = match_model_identity(
+            model.model_id,
+            model.display_name,
+            catalog=self._identity_catalog,
+        )
         return StoredProviderModel(
             model_id=model.model_id,
             display_name=model.display_name or model.model_id,
@@ -505,6 +525,7 @@ class ProviderModelsAdapter:
             return self._verification(
                 summarize_connection_validation(
                     self._provider_connection(connection),
+                    catalog=self._catalog,
                     reports=self._reports,
                     secret_resolver=self._resolve_credential,
                 )
@@ -556,9 +577,7 @@ class ProviderModelsAdapter:
                     ),
                 }
             )
-            return self._model_verification(
-                latest
-            )
+            return self._model_verification(latest)
         except (ValueError, OSError) as error:
             raise ProviderPortError("Unable to read model validation") from error
 
@@ -571,6 +590,7 @@ class ProviderModelsAdapter:
         try:
             result = await validate_connection(
                 self._provider_connection(connection),
+                catalog=self._catalog,
                 model_execution_projection=self._model_execution_projection,
                 reports=self._reports,
                 secret_resolver=self._resolve_credential,
@@ -603,24 +623,24 @@ class ProviderModelsAdapter:
                 self._model_execution_projection,
             )
             status = "passed" if raw.get("status") == "passed" else "failed"
+            raw_error = raw.get("error")
             error = sanitize_error(
-                raw.get("error") if isinstance(raw.get("error"), str) else None,
+                raw_error if isinstance(raw_error, str) else None,
                 secrets=(self._resolve_credential(connection.credential_ref),),
             )
+            raw_latency = raw.get("latency_ms")
             self._reports.write_model_validation_report(
                 connection.connection_id,
                 model_id,
                 status=status,
                 checked_at=datetime.now(timezone.utc).isoformat(),
                 latency_ms=(
-                    float(raw["latency_ms"])
-                    if isinstance(raw.get("latency_ms"), (int, float))
+                    float(raw_latency)
+                    if isinstance(raw_latency, (int, float))
                     else None
                 ),
                 latency_class=(
-                    str(raw["latency_class"])
-                    if raw.get("latency_class")
-                    else None
+                    str(raw["latency_class"]) if raw.get("latency_class") else None
                 ),
                 error=error,
                 trigger="full",
@@ -659,6 +679,7 @@ class ProviderModelsAdapter:
                 for item in bundled_catalog_models(
                     profile.bundled_models,
                     provider_id=profile.legacy_provider_id,
+                    identity_catalog=self._identity_catalog,
                 )
             )
             merged = merge_refreshed_models(
@@ -695,6 +716,7 @@ class ProviderModelsAdapter:
                         connection.catalog_id,
                         fetcher=fetch_remote_models,
                         provider_id=profile.legacy_provider_id,
+                        identity_catalog=self._identity_catalog,
                     )
                 except RemoteCatalogUnavailable:
                     catalog_models = ()
@@ -702,6 +724,7 @@ class ProviderModelsAdapter:
                     catalog_models = bundled_catalog_models(
                         profile.bundled_models,
                         provider_id=profile.legacy_provider_id,
+                        identity_catalog=self._identity_catalog,
                     )
             catalog_models = tuple(
                 _with_request_profile(item, provider_connection.api_mode)
@@ -746,7 +769,7 @@ class ProviderModelsAdapter:
             )
             if discovery.error and not discovery.authoritative and not discovered:
                 fallback_models = self._curated_fallback_models(
-                    connection,
+                    provider_connection,
                     profile,
                     checked_at=checked_at,
                 )
@@ -769,9 +792,7 @@ class ProviderModelsAdapter:
                             )
                         ),
                         source=(
-                            "manual"
-                            if item.source == "configured"
-                            else "official"
+                            "manual" if item.source == "configured" else "official"
                         ),
                     ),
                     # A broad authoritative platform inventory is retained
@@ -846,6 +867,7 @@ class ProviderModelsAdapter:
                 connection.catalog_id,
                 fetcher=fetch_remote_models,
                 provider_id=profile.legacy_provider_id,
+                identity_catalog=self._identity_catalog,
             )
         except RemoteCatalogUnavailable:
             pass
@@ -853,12 +875,12 @@ class ProviderModelsAdapter:
             catalog_models = bundled_catalog_models(
                 profile.bundled_models,
                 provider_id=profile.legacy_provider_id,
+                identity_catalog=self._identity_catalog,
             )
         if not catalog_models:
             return None
         catalog_models = tuple(
-            _with_request_profile(item, connection.api_mode)
-            for item in catalog_models
+            _with_request_profile(item, connection.api_mode) for item in catalog_models
         )
         merged = merge_refreshed_models(
             connection.models,
@@ -1008,6 +1030,7 @@ class ProviderModelsAdapter:
                     break
                 verification = await validate_connection(
                     self._provider_connection(stored),
+                    catalog=self._catalog,
                     model_execution_projection=self._model_execution_projection,
                     reports=self._reports,
                     secret_resolver=self._resolve_credential,
@@ -1073,6 +1096,7 @@ class ProviderModelsAdapter:
         execution_id, config = model_execution_projection(
             connection,
             catalog=self._catalog,
+            system_defaults=self._system_defaults,
             secret_resolver=self._resolve_credential,
         )
         if connection.credential_ref.startswith("oauth."):
@@ -1125,9 +1149,7 @@ class ProviderModelsAdapter:
             auth_type=cast(AuthType, item.auth_type),
             credential_ref=item.credential_ref,
             models=tuple(
-                cls._model(
-                    _with_request_profile(cls._model(model), item.api_mode)
-                )
+                cls._model(_with_request_profile(cls._model(model), item.api_mode))
                 for model in item.models
             ),
             enabled=item.enabled,
@@ -1145,9 +1167,7 @@ class ProviderModelsAdapter:
             auth_type=item.auth_type,
             credential_ref=item.credential_ref,
             models=tuple(
-                _with_request_profile(
-                    cls._provider_model(model), item.api_mode
-                )
+                _with_request_profile(cls._provider_model(model), item.api_mode)
                 for model in item.models
             ),
             enabled=item.enabled,
@@ -1260,7 +1280,9 @@ class ProviderModelsAdapter:
         )
 
     @staticmethod
-    def _availability_status(value: Any) -> str:
+    def _availability_status(
+        value: Any,
+    ) -> Literal["available", "degraded", "unavailable", "unknown"]:
         return (
             value
             if value in {"available", "degraded", "unavailable", "unknown"}

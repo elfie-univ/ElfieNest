@@ -13,7 +13,6 @@ from elfie.brain.reasoning.food_port import (
     NoAvailableFoodError,
 )
 from infrastructure.models.model_execution_agent import ModelExecutionAgent
-from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.model_execution_contracts import (
     ModelExecutionRequest,
     StructuredGenerationMode,
@@ -24,6 +23,7 @@ from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
+from test.support.model_execution import model_execution_config
 from test.support.model_execution_agent import model_execution_agent_ports
 
 
@@ -115,7 +115,7 @@ def _agent(
 ) -> ModelExecutionAgent:
     _configure_models()
     agent = ModelExecutionAgent(
-        ModelExecutionConfig(),
+        model_execution_config(),
         ports=model_execution_agent_ports(),
         main_food_loader=lambda _elfie_id: selection,
         food_catalog_repository=_InMemoryFoodPort(_catalog()),
@@ -286,7 +286,7 @@ def _adoption_agent(evidence: StoredModelEvidence) -> ModelExecutionAgent:
         }
     )
     agent = ModelExecutionAgent(
-        ModelExecutionConfig(),
+        model_execution_config(),
         ports=ports,
         food_catalog_repository=_InMemoryFoodPort(catalog),
     )
@@ -442,7 +442,7 @@ def test_runtime_returns_typed_error_for_an_unconfigured_clean_catalog(
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     _configure_models()
     agent = ModelExecutionAgent(
-        ModelExecutionConfig(),
+        model_execution_config(),
         ports=model_execution_agent_ports(),
         food_catalog_repository=_InMemoryFoodPort(FoodCatalog()),
     )

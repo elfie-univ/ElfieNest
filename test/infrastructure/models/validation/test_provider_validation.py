@@ -1,7 +1,6 @@
 import json
 import urllib.error
 
-from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.validation.provider_validation import (
     ProviderValidationRunner,
     classify_latency,
@@ -9,6 +8,7 @@ from infrastructure.models.validation.provider_validation import (
     discover_provider_models_result,
 )
 from infrastructure.models.validation.validation_models import CheckStatus
+from test.support.model_execution import model_execution_config
 
 
 def test_latency_is_classified_for_reports():
@@ -35,7 +35,7 @@ class FakeResponse:
 
 def test_discovers_ollama_models(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = ModelExecutionConfig()
+    config = model_execution_config()
     monkeypatch.setattr(
         "infrastructure.models.validation.provider_validation.open_provider_request",
         lambda request, timeout: FakeResponse(
@@ -53,7 +53,7 @@ def test_discovers_ollama_models(monkeypatch, tmp_path):
 
 def test_discovers_openai_compatible_models_with_bearer_header(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = ModelExecutionConfig()
+    config = model_execution_config()
     config.providers["openai"]["api_key"] = "local-test-key"
     captured = []
 
@@ -76,7 +76,7 @@ def test_catalog_only_discovery_never_calls_generic_models_endpoint(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = ModelExecutionConfig()
+    config = model_execution_config()
     config.providers["volc_connection"] = {
         "catalog_id": "volcengine_coding_plan",
         "discovery_strategy": "catalog_only",
@@ -105,7 +105,7 @@ def test_incomplete_model_discovery_fallback_cannot_be_authoritative(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = ModelExecutionConfig()
+    config = model_execution_config()
     config.providers["gateway"] = {
         "catalog_id": "custom_openai",
         "discovery_strategy": "standard_models",
@@ -133,7 +133,7 @@ def test_batch_model_validation_uses_formal_call_path_and_collects_failures(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = ModelExecutionConfig()
+    config = model_execution_config()
     calls = []
 
     def fake_call(config, provider, model, messages, temperature, max_tokens):
@@ -156,7 +156,7 @@ def test_batch_model_validation_uses_formal_call_path_and_collects_failures(
 
 def test_model_discovery_failure_becomes_check_result(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = ModelExecutionConfig()
+    config = model_execution_config()
 
     def fail(request, timeout):
         raise urllib.error.URLError("offline")
@@ -175,7 +175,7 @@ def test_discovery_uses_manual_models_when_models_endpoint_is_unavailable(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = ModelExecutionConfig()
+    config = model_execution_config()
     config.providers["custom_gateway"] = {
         "api_base": "https://gateway.example/v1",
         "api_mode": "chat_completions",
@@ -201,7 +201,7 @@ def test_xfyun_coding_plan_uses_official_model_alias_when_listing_is_unavailable
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = ModelExecutionConfig()
+    config = model_execution_config()
     config.providers["custom_openai"]["api_base"] = (
         "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2"
     )

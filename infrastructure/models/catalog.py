@@ -2,7 +2,7 @@
 
 提供:
 - ModelEntry: 单个模型的完整元数据
-- load_model_catalog(): 从登记的内置文档读取模型目录
+- parse_model_catalog(): 解析已加载的模型目录文档
 - ModelCatalog: 模型目录管理类
 - verify_provider(): Provider 连通性验证
 
@@ -11,6 +11,8 @@
 - Hermes Agent 的 HermesOverlay dataclass 模式
 """
 
+from __future__ import annotations
+
 import json
 import urllib.error
 import urllib.request
@@ -18,11 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.http import open_provider_request
-from infrastructure.persistence.configuration.documents import (
-    BundledConfigSource,
-    ConfigDocumentId,
-)
 
 MODEL_CATALOG_VERSION = 1
 _MODEL_CATALOG_FIELDS = frozenset({"version", "models", "entries"})
@@ -68,30 +67,31 @@ class ModelEntry:
     active: bool = False
 
 
-def load_model_catalog(root: Optional[Path] = None) -> Dict[str, ModelEntry]:
-    """Load the existing model metadata catalog from the registered document."""
-    loaded = BundledConfigSource(root).load(ConfigDocumentId.MODEL_CATALOG)
-    if loaded.document.get("version") != MODEL_CATALOG_VERSION:
-        raise ModelCatalogError(f"不支持的模型目录版本: {loaded.path}")
-    unknown_top_level = set(loaded.document) - _MODEL_CATALOG_FIELDS
+def parse_model_catalog(
+    document: Mapping[str, Any], source: Path
+) -> Dict[str, ModelEntry]:
+    """Parse an already-loaded model catalog without performing file I/O."""
+    if document.get("version") != MODEL_CATALOG_VERSION:
+        raise ModelCatalogError(f"不支持的模型目录版本: {source}")
+    unknown_top_level = set(document) - _MODEL_CATALOG_FIELDS
     if unknown_top_level:
         raise ModelCatalogError(
             f"模型目录顶层包含未知字段: {sorted(unknown_top_level)}"
         )
-    raw_entries = loaded.document.get("entries")
+    raw_entries = document.get("entries")
     if not isinstance(raw_entries, Mapping) or not raw_entries:
-        raise ModelCatalogError(f"模型目录缺少 entries: {loaded.path}")
+        raise ModelCatalogError(f"模型目录缺少 entries: {source}")
 
     result: Dict[str, ModelEntry] = {}
     for model_id, raw_entry in raw_entries.items():
         if not isinstance(model_id, str) or "/" not in model_id:
-            raise ModelCatalogError(f"模型 ID 无效: {model_id!r}")
+            raise ModelCatalogError(f"模型 ID 无效: {model_id!r}: {source}")
         if not isinstance(raw_entry, Mapping):
-            raise ModelCatalogError(f"模型记录必须是对象: {model_id}")
+            raise ModelCatalogError(f"模型记录必须是对象: {model_id}: {source}")
         unknown = set(raw_entry) - _MODEL_ENTRY_FIELDS
         if unknown:
             raise ModelCatalogError(
-                f"模型记录包含未知字段: {model_id} {sorted(unknown)}"
+                f"模型记录包含未知字段: {model_id} {sorted(unknown)}: {source}"
             )
         provider = raw_entry.get("provider")
         display_name = raw_entry.get("display_name")
@@ -118,7 +118,7 @@ def load_model_catalog(root: Optional[Path] = None) -> Dict[str, ModelEntry]:
             or not isinstance(active, bool)
             or model_id.split("/", 1)[0] != provider
         ):
-            raise ModelCatalogError(f"模型记录无效: {model_id}")
+            raise ModelCatalogError(f"模型记录无效: {model_id}: {source}")
         result[model_id] = ModelEntry(
             model_id=model_id,
             provider=provider,
@@ -141,15 +141,22 @@ class ModelCatalog:
     - 更新模型状态
     """
 
-    def __init__(self, config: Optional[Any] = None):
+    def __init__(
+        self,
+        config: Optional[Any] = None,
+        *,
+        catalog: Optional[Mapping[str, ModelEntry]] = None,
+    ):
         """初始化模型目录。
 
         Args:
             config: ModelExecutionConfig 实例，用于确定 provider 状态
+            catalog: 由 Bootstrap 或 Persistence 加载的模型目录
         """
+        if catalog is None:
+            raise ValueError("ModelCatalog requires an injected model catalog")
         self.config = config
         # 深拷贝已登记的内置目录，避免修改源数据。
-        bundled_catalog = load_model_catalog()
         self._catalog: Dict[str, ModelEntry] = {
             model_id: ModelEntry(
                 model_id=entry.model_id,
@@ -161,7 +168,7 @@ class ModelCatalog:
                 visible=entry.visible,
                 active=entry.active,
             )
-            for model_id, entry in bundled_catalog.items()
+            for model_id, entry in catalog.items()
         }
         # 根据配置更新 active 状态
         if config:
@@ -277,6 +284,7 @@ def _verify_custom_openai_provider(
     api_key: str,
     *,
     fallback_model: str = "",
+    provider_catalog: ProviderCatalog,
 ) -> Dict[str, Any]:
     import time
 
@@ -300,7 +308,10 @@ def _verify_custom_openai_provider(
     except urllib.error.HTTPError:
         pass
 
-    configured_models = configured_model_names(provider_info)
+    configured_models = configured_model_names(
+        provider_info,
+        catalog=provider_catalog,
+    )
     configured_test_model = str(provider_info.get("test_model") or "").strip()
     test_model = (
         configured_test_model
@@ -519,7 +530,12 @@ def _verify_openai_chat_endpoint(
         }
 
 
-def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
+def verify_provider(
+    provider_id: str,
+    config: Any,
+    *,
+    provider_catalog: ProviderCatalog | None = None,
+) -> Dict[str, Any]:
     """验证 Provider 连通性。
 
     通过 HTTP 请求检查 provider 是否可达和可用。
@@ -545,21 +561,10 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
     api_key = provider_info.get("api_key", "")
 
     # 获取 profile 以确定 api_mode 和 auth_type
-    provider_catalog = getattr(config, "provider_catalog", None)
-    profile = (
-        None if provider_catalog is None else provider_catalog.profiles.get(provider_id)
-    )
-    if profile is None:
-        # Small legacy callers sometimes pass a duck-typed config instead of
-        # ModelExecutionConfig.  Still use the product catalog here; treating
-        # every unknown profile as a generic OpenAI endpoint would probe
-        # /models first and break catalog-only subscriptions such as
-        # Volcengine Coding Plan.
-        from infrastructure.models.providers.profiles import (
-            load_bundled_provider_catalog,
-        )
-
-        profile = load_bundled_provider_catalog().profiles.get(provider_id)
+    resolved_catalog = provider_catalog or getattr(config, "provider_catalog", None)
+    if resolved_catalog is None:
+        raise ValueError("verify_provider requires an injected provider catalog")
+    profile = resolved_catalog.profiles.get(provider_id)
     if profile is None and (provider_id not in config.providers or not api_base):
         result["error"] = f"未知 provider: {provider_id}"
         return result
@@ -583,6 +588,7 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
                     api_base,
                     api_key,
                     fallback_model=profile.test_model if profile else "",
+                    provider_catalog=resolved_catalog,
                 )
             return _verify_openai_compatible_provider(
                 api_base,

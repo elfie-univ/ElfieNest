@@ -450,7 +450,9 @@ def test_model_replacement_preserves_omitted_endpoint_profile_and_capability() -
     )
     current = port.items[created.connection_id]
     configured = replace(
-        current.models[0] if current.models else StoredProviderModel("gpt-test", "GPT Test"),
+        current.models[0]
+        if current.models
+        else StoredProviderModel("gpt-test", "GPT Test"),
         model_id="gpt-test",
         display_name="GPT Test",
         supports_structured_output=True,

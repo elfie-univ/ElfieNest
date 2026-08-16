@@ -21,12 +21,16 @@ def _build_offline_validator(db_path: str) -> Callable[[], bool]:
             FoodValidationRunner,
         )
         from infrastructure.models.validation.validation_models import ValidationReport
+        from infrastructure.persistence.configuration.bundled_defaults import (
+            load_tool_defaults,
+        )
         from infrastructure.persistence.configuration.secrets import resolve_secret
         from infrastructure.persistence.food import SQLiteFoodAdapter
         from infrastructure.persistence.food_evidence import query_model_evidence
         from infrastructure.persistence.model_execution_config import (
             load_model_execution_config,
         )
+        from infrastructure.persistence.provider_catalog import load_provider_catalog
         from infrastructure.persistence.validation_artifacts import (
             save_validation_report,
         )
@@ -36,16 +40,19 @@ def _build_offline_validator(db_path: str) -> Callable[[], bool]:
         from infrastructure.tools.web_search.search import WebSearchPlugin
 
         config = load_model_execution_config()
+        provider_catalog = load_provider_catalog()
+        tool_defaults = load_tool_defaults()
         tool_suite = DirectToolValidationRunner(
             config,
             search_plugin=WebSearchPlugin.from_model_execution_policy(
                 config.runtime_policy,
+                defaults=tool_defaults,
                 secret_resolver=resolve_secret,
             ),
         ).run(include_network=False)
         food_suite = FoodValidationRunner().validate(
             SQLiteFoodAdapter(db_path).load(),
-            list(query_model_evidence().values()),
+            list(query_model_evidence(provider_catalog=provider_catalog).values()),
         )
         report = ValidationReport((tool_suite, food_suite))
         save_validation_report(report)
