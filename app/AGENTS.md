@@ -3,8 +3,9 @@
 本文件作用于整个 `app/`，是公开
 [`Application architecture contract`](../docs/developer/contracts/application.md)
 的代理执行摘要，并受
-[`System architecture contract`](../docs/developer/contracts/system.md) 的顶层边界
-约束。当前用户指令和根目录 `AGENTS.md` 优先；子目录 `AGENTS.md` 只能
+[`System architecture contract`](../docs/developer/contracts/system.md) 的顶层边界及
+[`Service lifecycle contract`](../docs/developer/contracts/service-lifecycle.md) 的运行时
+边界约束。当前用户指令和根目录 `AGENTS.md` 优先；子目录 `AGENTS.md` 只能
 细化本文件，不能改变依赖方向、所有权或契约。App 架构债务已清零；以下长期边界由
 永久 Scanner 和架构测试直接执行。
 
@@ -126,6 +127,8 @@ orchestration/
 - Feature 不直接调用 `Thread`、`Process`、`asyncio.create_task` 或无限循环。后台工作
   由受生命周期管理的 Scheduler/Runner Port 执行；Runtime 启停仍只属于
   `app/orchestration/lifecycle`。
+- 生命周期查询严格只读；`OFFLINE / CORE_READY / WORLD_READY`、模型健康投影、
+  generation 与 phase 必须来自同一权威快照，Interface 不得按端口或页面状态重算。
 - 配置有一个类型化所有者和明确优先级；Secret 只以引用或专用 Secret Port 流动，
   不进入普通 DTO、日志和缓存。缓存必须声明权威源、失效条件、作用域和可重建性。
 - 请求、任务和外部工作流传递关联 ID；日志只记录安全上下文，不记录密码、Token、

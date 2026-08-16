@@ -447,6 +447,32 @@ _TRIGGER_STATEMENTS: Final = (
                 )
             )
         BEGIN SELECT RAISE(ABORT,'visible_user_ids_json must contain unique positive integers'); END""",
+    """CREATE TRIGGER IF NOT EXISTS trg_food_packages_required_roles_insert
+        BEFORE INSERT ON food_packages
+        WHEN json_valid(NEW.required_roles_json)=0
+            OR json_type(NEW.required_roles_json)<>'array'
+            OR EXISTS(
+                SELECT 1 FROM json_each(NEW.required_roles_json)
+                WHERE type<>'text' OR value NOT IN ('reasoning','vision','tool')
+            )
+            OR EXISTS(
+                SELECT value FROM json_each(NEW.required_roles_json)
+                GROUP BY value HAVING COUNT(*)>1
+            )
+        BEGIN SELECT RAISE(ABORT,'required_roles_json is invalid'); END""",
+    """CREATE TRIGGER IF NOT EXISTS trg_food_packages_required_roles_update
+        BEFORE UPDATE OF required_roles_json ON food_packages
+        WHEN json_valid(NEW.required_roles_json)=0
+            OR json_type(NEW.required_roles_json)<>'array'
+            OR EXISTS(
+                SELECT 1 FROM json_each(NEW.required_roles_json)
+                WHERE type<>'text' OR value NOT IN ('reasoning','vision','tool')
+            )
+            OR EXISTS(
+                SELECT value FROM json_each(NEW.required_roles_json)
+                GROUP BY value HAVING COUNT(*)>1
+            )
+        BEGIN SELECT RAISE(ABORT,'required_roles_json is invalid'); END""",
 )
 
 _SEED_STATEMENTS: Final = (

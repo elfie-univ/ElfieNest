@@ -1,7 +1,7 @@
 # Application architecture contract
 
-**Contract version:** 1.8
-**Adopted:** 2026-08-14
+**Contract version:** 1.9
+**Adopted:** 2026-08-15
 **Scope:** `app/` and App-owned adapters in root `infrastructure/`
 
 > **Normative target.** This document is the long-term architecture authority
@@ -38,6 +38,11 @@ function. Those mechanisms require a separate demonstrated need and approval.
 The [system architecture contract](system) controls physical top-level
 placement. Production Adapters now live under root `infrastructure/`; the
 retired `app/infrastructure/` path must not be restored.
+
+The [service lifecycle contract](service-lifecycle) specializes this contract
+for Runtime state authority, readiness, entrypoints and managed-process
+ownership. It may refine lifecycle behavior but cannot reverse the dependency
+directions defined here.
 
 ## Four App areas and their Infrastructure adapters
 
@@ -95,7 +100,7 @@ The Feature owners are:
 | `elfies` | authorized Elfie directory, relationship/permission projection and authorized member/admin profile or cognition views | Elfie profile, cognition or memory facts; adoption ownership; Nest resident state |
 | `nest_management` | authorized product use-cases over the single public Nest facade | a second Nest repository semantic, geometry, coordinates or live Elfie composition |
 | `configuration/providers` | Provider connection administration, credential references and model-resource management projections | technical model discovery, probes, request translation or model calls |
-| `configuration/food` | Food package administration, assignments, generation and management reports | one Elfie's semantic model-role choice or physical storage implementation |
+| `configuration/food` | Food package administration, assignments, generation, persisted-evidence model-health projection and management reports | one Elfie's semantic model-role choice, technical model probes/calls or physical storage implementation |
 | `configuration/capabilities` | existing administrator-facing global tool and capability enablement | tool execution, Elfie Skill policy or speculative new capabilities |
 | `configuration/settings` | other existing global product settings with one typed owner and writer | Nest capacity, Provider/Food facts or arbitrary untyped sections |
 | `setup` | first-install draft, choices, validation, status and restricted projections | account, Provider, Food or Nest facts and installation task ownership |

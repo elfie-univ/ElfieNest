@@ -15,11 +15,19 @@ from infrastructure.models.provider_records import (
     ProviderConnection,
     ProviderModelRecord,
 )
-from infrastructure.models.providers.endpoint_capabilities import endpoint_capabilities
 from infrastructure.models.storage_ports import ProviderStoragePort, ReportStoragePort
+from infrastructure.models.validation.capability_probes import (
+    project_endpoint_capabilities,
+)
+from infrastructure.models.validation.core_validation_scheduler import (
+    CoreValidationRun,
+    CoreValidationScheduler,
+)
 from infrastructure.models.validation.provider_availability import (
     REACHABILITY_FRESHNESS,
     EndpointAvailability,
+    ReachabilityAvailability,
+    project_capability_availability,
     project_endpoint_availability,
     project_provider_status,
     project_reachability,
@@ -137,7 +145,7 @@ class ProviderAvailabilityQuery:
         *,
         max_age: timedelta = REACHABILITY_FRESHNESS,
         allow_probe: bool = False,
-    ) -> EndpointAvailability:
+    ) -> ReachabilityAvailability:
         """Read the five-minute transport stream and probe only with permission."""
         current = self._read_reachability(connection_id)
         if not allow_probe or self._active_reachability_probe is None:
@@ -171,6 +179,46 @@ class ProviderAvailabilityQuery:
             with self._probe_lock:
                 self._inflight.pop(key, None)
         return self._read_reachability(connection_id)
+    def run_core_validation(
+        self,
+        scheduler: CoreValidationScheduler,
+        *,
+        now: datetime | None = None,
+    ) -> CoreValidationRun:
+        """Run one injected scheduler pass against the current core projection."""
+
+        if self._serving_index is None:
+            return CoreValidationRun(False, "")
+        index = self._serving_index()
+        return scheduler.run_due(
+            index,
+            self._availability_for_channel,
+            now=now,
+        )
+
+    def _availability_for_channel(
+        self,
+        reference: str,
+        channel: str,
+    ) -> object:
+        if channel == "text":
+            return self.get(reference)
+        capability = {"tool": "tools"}.get(channel, channel)
+        connection_id, model_id = _split_reference(reference)
+        connection = self._provider_storage.load_connections().get(connection_id)
+        if connection is None:
+            return _unknown(
+                reference,
+                connection_id,
+                model_id,
+                "connection_not_configured",
+            )
+        return project_capability_availability(
+            reference,
+            capability,
+            self._reports.observations_for_subject("model", reference),
+            config_fingerprint=self._fingerprint(connection),
+        )
 
     def _project(
         self,
@@ -186,14 +234,14 @@ class ProviderAvailabilityQuery:
             observations,
             config_fingerprint=fingerprint,
         )
-        connection_state = project_endpoint_availability(
+        reachability = project_reachability(
             connection.connection_id,
             self._reports.observations_for_subject(
                 "provider", connection.connection_id
             ),
             config_fingerprint=fingerprint,
         )
-        reachability = project_reachability(
+        connection_state = project_endpoint_availability(
             connection.connection_id,
             self._reports.observations_for_subject(
                 "provider", connection.connection_id
@@ -258,22 +306,25 @@ class ProviderAvailabilityQuery:
             serving_roles=() if core is None else core.roles,
             capabilities=tuple(
                 StoredEndpointCapability(item.name, item.state, item.evidence)
-                for item in endpoint_capabilities(model)
+                for item in project_endpoint_capabilities(
+                    model,
+                    observations,
+                    config_fingerprint=fingerprint,
+                )
             ),
             reachability_status=reachability.status,
             reachability_observed_at=reachability.observed_at,
             reachability_expires_at=reachability.expires_at,
         )
 
-    def _read_reachability(self, connection_id: str) -> EndpointAvailability:
+    def _read_reachability(self, connection_id: str) -> ReachabilityAvailability:
         connections = self._provider_storage.load_connections()
         connection = connections.get(connection_id)
         if connection is None:
-            return EndpointAvailability(
+            return ReachabilityAvailability(
                 subject_id=connection_id,
                 status="unknown",
                 reason_code="connection_not_configured",
-                error_scope=None,
                 observed_at=None,
                 expires_at=None,
                 evidence_source=None,

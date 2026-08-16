@@ -48,6 +48,7 @@ def call_ollama_api(
     *,
     thinking: bool = False,
     request_options: dict[str, Any] | None = None,
+    response_capture: dict[str, Any] | None = None,
     timeout_seconds: float | None = None,
     return_metadata: bool = False,
 ) -> tuple[str, dict[str, Any]] | tuple[str, dict[str, Any], dict[str, Any]]:
@@ -92,6 +93,8 @@ def call_ollama_api(
                 "tool_called": bool(message.get("tool_calls")),
                 "reasoning_observed": bool(message.get("thinking")),
             }
+            if response_capture is not None:
+                _capture_message(response_capture, message)
             return (
                 (content, usage, metadata)
                 if return_metadata
@@ -116,6 +119,7 @@ def call_openai_compatible_api(
     request_options: dict[str, Any] | None = None,
     timeout_seconds: float | None = None,
     return_metadata: bool = False,
+    response_capture: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]] | tuple[str, dict[str, Any], dict[str, Any]]:
     if not api_base:
         raise ProviderCallError(
@@ -152,6 +156,8 @@ def call_openai_compatible_api(
             )
             usage = res_data.get("usage", {})
             message = res_data["choices"][0]["message"]
+            if response_capture is not None:
+                _capture_message(response_capture, message)
             content = message.get("content")
             metadata = {
                 "tool_called": bool(message.get("tool_calls")),
@@ -189,6 +195,7 @@ def call_anthropic_api(
     max_tokens: int,
     *,
     request_options: dict[str, Any] | None = None,
+    response_capture: dict[str, Any] | None = None,
     timeout_seconds: float | None = None,
     return_metadata: bool = False,
 ) -> tuple[str, dict[str, Any]] | tuple[str, dict[str, Any], dict[str, Any]]:
@@ -230,23 +237,32 @@ def call_anthropic_api(
                 ).decode("utf-8")
             )
             usage = res_data.get("usage", {})
-            blocks = res_data["content"]
-            text = "".join(
-                str(block.get("text") or "")
-                for block in blocks
-                if isinstance(block, dict)
-                and block.get("type", "text") == "text"
-            )
+            blocks = res_data.get("content", [])
+            text_parts: list[str] = []
+            tool_use_count = 0
+            reasoning_present = False
+            if isinstance(blocks, list):
+                for block in blocks:
+                    if not isinstance(block, dict):
+                        continue
+                    if isinstance(block.get("text"), str):
+                        text_parts.append(block["text"])
+                    if block.get("type") == "tool_use":
+                        tool_use_count += 1
+                    if block.get("type") in {"thinking", "redacted_thinking"}:
+                        reasoning_present = True
+            text = "".join(text_parts)
             metadata = {
-                "tool_called": any(
-                    isinstance(block, dict) and block.get("type") == "tool_use"
-                    for block in blocks
-                ),
-                "reasoning_observed": any(
-                    isinstance(block, dict) and block.get("type") == "thinking"
-                    for block in blocks
-                ),
+                "tool_called": tool_use_count > 0,
+                "reasoning_observed": reasoning_present,
             }
+            if response_capture is not None:
+                response_capture.update(
+                    {
+                        "tool_call_count": tool_use_count,
+                        "reasoning_present": reasoning_present,
+                    }
+                )
             return (
                 (text, usage, metadata)
                 if return_metadata
@@ -275,6 +291,7 @@ def call_codex_responses_api(
     credential_ref: str = "",
     account_id: str | None = None,
     oauth_credentials: OAuthCredentialPort | None = None,
+    response_capture: dict[str, Any] | None = None,
     timeout_seconds: float | None = None,
     return_metadata: bool = False,
 ) -> tuple[str, dict[str, Any]] | tuple[str, dict[str, Any], dict[str, Any]]:
@@ -333,9 +350,12 @@ def call_codex_responses_api(
                 max_bytes=32 * 1024 * 1024,
                 deadline_seconds=request_timeout,
             ).decode("utf-8")
-        text, usage = _parse_codex_response(raw)
+        text, usage = _parse_codex_response(raw, response_capture=response_capture)
         if return_metadata:
-            return text, usage, {}
+            return text, usage, {
+                "tool_called": bool(response_capture and response_capture.get("tool_call_count")),
+                "reasoning_observed": bool(response_capture and response_capture.get("reasoning_present")),
+            }
         return text, usage
     except urllib.error.HTTPError as error:
         summary = _http_error_summary(error)
@@ -429,10 +449,16 @@ def _merge_codex_request_options(
             payload["tool_choice"] = choice
 
 
-def _parse_codex_response(raw: str) -> tuple[str, dict[str, Any]]:
+def _parse_codex_response(
+    raw: str,
+    *,
+    response_capture: dict[str, Any] | None = None,
+) -> tuple[str, dict[str, Any]]:
     stripped = raw.lstrip()
     if stripped.startswith("{"):
         payload = json.loads(stripped)
+        if response_capture is not None:
+            _capture_responses_output(response_capture, payload)
         return _responses_text(payload), _responses_usage(payload)
     deltas: list[str] = []
     function_deltas: list[str] = []
@@ -448,11 +474,18 @@ def _parse_codex_response(raw: str) -> tuple[str, dict[str, Any]]:
             deltas.append(str(event.get("delta") or ""))
         if event.get("type") == "response.function_call_arguments.delta":
             function_deltas.append(str(event.get("delta") or ""))
+            if response_capture is not None:
+                response_capture["tool_call_count"] = 1
+        if event.get("type", "").startswith("response.reasoning"):
+            if response_capture is not None:
+                response_capture["reasoning_present"] = True
         if event.get("type") == "response.completed" and isinstance(
             event.get("response"), dict
         ):
             completed = event["response"]
     if completed is not None:
+        if response_capture is not None:
+            _capture_responses_output(response_capture, completed)
         text = (
             "".join(deltas)
             or "".join(function_deltas)
@@ -508,6 +541,37 @@ def _responses_usage(payload: Mapping[str, Any]) -> dict[str, Any]:
         "prompt_tokens": usage.get("input_tokens", 0),
         "completion_tokens": usage.get("output_tokens", 0),
     }
+
+
+def _capture_message(capture: dict[str, Any], message: Any) -> None:
+    if not isinstance(message, Mapping):
+        return
+    tool_calls = message.get("tool_calls")
+    capture["tool_call_count"] = len(tool_calls) if isinstance(tool_calls, list) else 0
+    capture["reasoning_present"] = bool(
+        message.get("reasoning_content")
+        or message.get("reasoning")
+        or message.get("thinking")
+    )
+    if isinstance(message.get("finish_reason"), str):
+        capture["finish_reason"] = message["finish_reason"]
+
+
+def _capture_responses_output(
+    capture: dict[str, Any], payload: Mapping[str, Any]
+) -> None:
+    output = payload.get("output")
+    if not isinstance(output, list):
+        return
+    tool_calls = sum(
+        1
+        for item in output
+        if isinstance(item, Mapping) and item.get("type") == "function_call"
+    )
+    capture["tool_call_count"] = tool_calls
+    capture["reasoning_present"] = any(
+        isinstance(item, Mapping) and item.get("type") == "reasoning" for item in output
+    )
 
 
 def _token_expired(expires_at: str | None) -> bool:

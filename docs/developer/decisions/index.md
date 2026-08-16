@@ -23,5 +23,6 @@ The current contract always states the enforceable rule.
 - [ADR-0017: Owner chat uses complete-response delivery](./0017-owner-chat-complete-response-delivery)
 - [ADR-0018: Database changes require impact inventory and final-state gates](./0018-database-change-impact-gates)
 - [ADR-0017: Separate bundled defaults from user configuration](./0017-bundled-defaults-and-user-configuration)
+- [ADR-0021: Authoritative service lifecycle and independent capability health](./0021-authoritative-service-lifecycle)
 - [ADR-0019: Provider availability is endpoint-scoped and serving-driven](./0019-provider-endpoint-availability)
 - [ADR-0020: Configuration-driven species packages](./0020-configuration-driven-species-packages)

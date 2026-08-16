@@ -3,7 +3,9 @@
 import os
 import signal
 from pathlib import Path
+from types import SimpleNamespace
 
+from infrastructure.platform.lifecycle import process
 from infrastructure.platform.lifecycle.process import LocalServiceProcessAdapter
 
 
@@ -57,3 +59,115 @@ def test_process_adapter_terminates_the_managed_process_group(monkeypatch) -> No
     LocalServiceProcessAdapter().terminate(17)
 
     assert signals == [(17, signal.SIGTERM)]
+
+
+def test_process_adapter_uses_taskkill_tree_on_windows(monkeypatch) -> None:
+    calls: list[tuple[tuple[str, ...], dict[str, object]]] = []
+
+    def run(command, **kwargs):
+        calls.append((tuple(command), kwargs))
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(
+        process,
+        "os",
+        SimpleNamespace(name="nt", environ=os.environ),
+    )
+    monkeypatch.setattr(process.subprocess, "run", run)
+
+    LocalServiceProcessAdapter().terminate(17, force=True)
+
+    assert calls[0][0] == ("taskkill", "/PID", "17", "/T", "/F")
+    assert calls[0][1]["timeout"] == 5.0
+
+
+def test_process_adapter_starts_a_windows_process_group(
+    monkeypatch, tmp_path: Path
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    class Process:
+        pid = 99
+
+    def popen(_command, **kwargs):
+        calls.append(kwargs)
+        return Process()
+
+    monkeypatch.setattr(
+        process,
+        "os",
+        SimpleNamespace(name="nt", environ=os.environ),
+    )
+    monkeypatch.setattr(process.subprocess, "Popen", popen)
+
+    pid = LocalServiceProcessAdapter().launch(("core",), tmp_path)
+
+    assert pid == 99
+    assert "start_new_session" not in calls[0]
+    assert calls[0]["creationflags"] == getattr(
+        process.subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+    )
+
+
+def test_process_adapter_cleans_windows_job_after_graceful_stop(monkeypatch) -> None:
+    calls: list[str] = []
+
+    class Job:
+        def close(self) -> None:
+            calls.append("close")
+
+    monkeypatch.setattr(
+        process,
+        "os",
+        SimpleNamespace(name="nt", environ=os.environ),
+    )
+    monkeypatch.setattr(
+        process,
+        "_terminate_windows_process_tree",
+        lambda pid, force: calls.append(f"kill:{pid}:{force}"),
+    )
+    adapter = LocalServiceProcessAdapter()
+    adapter._windows_jobs[17] = Job()
+
+    adapter.terminate(17)
+
+    assert calls == ["kill:17:False", "close"]
+
+
+def test_process_adapter_kills_child_when_windows_job_attach_fails(
+    monkeypatch, tmp_path: Path
+) -> None:
+    calls: list[str] = []
+
+    class Process:
+        pid = 99
+
+        def kill(self) -> None:
+            calls.append("kill")
+
+        def wait(self, timeout: float) -> int:
+            calls.append(f"wait:{timeout}")
+            return 1
+
+    monkeypatch.setattr(
+        process,
+        "os",
+        SimpleNamespace(name="nt", environ=os.environ),
+    )
+    monkeypatch.setattr(
+        process.subprocess, "Popen", lambda *_args, **_kwargs: Process()
+    )
+    monkeypatch.setattr(
+        process,
+        "attach_process_to_job",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("job failed")),
+    )
+
+    try:
+        LocalServiceProcessAdapter().launch(("core",), tmp_path)
+    except OSError as error:
+        assert str(error) == "job failed"
+    else:
+        raise AssertionError("launch must fail when the Job Object cannot attach")
+
+    assert calls == ["kill", "wait:1.0"]

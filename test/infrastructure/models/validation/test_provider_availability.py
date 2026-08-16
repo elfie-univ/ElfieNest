@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from infrastructure.models.report_records import ValidationObservation
 from infrastructure.models.validation.provider_availability import (
+    REACHABILITY_FRESHNESS,
     project_endpoint_availability,
     project_provider_status,
     project_reachability,
@@ -157,19 +158,15 @@ def test_provider_aggregation_uses_serving_scope_when_supplied() -> None:
     )
 
 
-def test_reachability_success_expires_after_five_minutes() -> None:
+def test_reachability_is_separate_and_expires_after_five_minutes() -> None:
     observation = _observation(
         1,
-        "2026-08-15T11:56:00+00:00",
+        "2026-08-15T11:57:00+00:00",
         "passed",
-        details={"evidence_source": "reachability"},
+        details={"evidence_kind": "reachability", "evidence_source": "heartbeat"},
     )
 
-    fresh = project_reachability(
-        "connection",
-        (observation,),
-        now=NOW,
-    )
+    fresh = project_reachability("connection", (observation,), now=NOW)
     stale = project_reachability(
         "connection",
         (observation,),
@@ -177,8 +174,25 @@ def test_reachability_success_expires_after_five_minutes() -> None:
     )
 
     assert fresh.status == "available"
+    assert (
+        fresh.expires_at
+        == (
+            datetime.fromisoformat(observation.observed_at) + REACHABILITY_FRESHNESS
+        ).isoformat()
+    )
     assert stale.status == "unknown"
-    assert stale.reason_code == "evidence_expired"
+    assert stale.reason_code == "reachability_expired"
+
+
+def test_untagged_provider_validation_is_not_reachability() -> None:
+    projection = project_reachability(
+        "connection",
+        (_observation(1, "2026-08-15T11:59:00+00:00", "passed"),),
+        now=NOW,
+    )
+
+    assert projection.status == "unknown"
+    assert projection.reason_code == "no_reachability_evidence"
 
 
 def test_capability_observation_does_not_change_text_health() -> None:

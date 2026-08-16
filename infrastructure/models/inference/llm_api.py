@@ -52,6 +52,7 @@ def call_llm_api_result(
     request_options: dict[str, Any] | None = None,
     timeout_seconds: float | None = None,
     capture_metadata: bool = True,
+    response_capture: dict[str, Any] | None = None,
 ) -> LLMCallResult:
     provider_cfg: dict[str, Any] = config.providers.get(provider, {})
     api_key = provider_cfg.get("api_key", "")
@@ -118,6 +119,7 @@ def call_llm_api_result(
                 ),
                 oauth_credentials=config.oauth_credentials,
                 timeout_seconds=timeout_seconds,
+                response_capture=response_capture,
                 **({"return_metadata": True} if capture_metadata else {}),
             )
             response_text, usage, metadata = _unpack_dispatch_result(dispatch_result)
@@ -144,10 +146,15 @@ def call_llm_api_result(
                     else None
                 ),
                 timeout_seconds=timeout_seconds,
+                response_capture=response_capture,
                 **({"return_metadata": True} if capture_metadata else {}),
             )
             response_text, usage, metadata = _unpack_dispatch_result(dispatch_result)
-        elif effective_request_options or timeout_seconds is not None:
+        elif (
+            effective_request_options
+            or response_capture is not None
+            or timeout_seconds is not None
+        ):
             dispatch_options: dict[str, Any] = {}
             if effective_request_options:
                 dispatch_options["request_options"] = dict(effective_request_options)
@@ -155,6 +162,8 @@ def call_llm_api_result(
                 dispatch_options["timeout_seconds"] = timeout_seconds
             if capture_metadata:
                 dispatch_options["return_metadata"] = True
+            if response_capture is not None:
+                dispatch_options["response_capture"] = response_capture
             response_text, usage, metadata = _unpack_dispatch_result(
                 dispatch_fn(*args, **dispatch_options)
             )
@@ -162,6 +171,11 @@ def call_llm_api_result(
             response_text, usage, metadata = _unpack_dispatch_result(
                 dispatch_fn(
                     *args,
+                    **(
+                        {"response_capture": response_capture}
+                        if response_capture is not None
+                        else {}
+                    ),
                     **({"return_metadata": True} if capture_metadata else {}),
                 )
             )
@@ -247,8 +261,38 @@ def call_llm_api(
         thinking=thinking,
         request_options=request_options,
         timeout_seconds=timeout_seconds,
-        capture_metadata=False,
+        capture_metadata=True,
     ).text
+
+
+def call_llm_api_with_trace(
+    config: ModelExecutionConfig,
+    provider: str,
+    model_name: str,
+    messages: list[dict[str, Any]],
+    temperature: float,
+    max_tokens: int,
+    *,
+    thinking: bool = False,
+    request_options: dict[str, Any] | None = None,
+    timeout_seconds: float | None = None,
+) -> tuple[str, Mapping[str, Any]]:
+    """Call one model and retain only capability-safe response metadata."""
+    capture: dict[str, Any] = {}
+    result = call_llm_api_result(
+        config,
+        provider,
+        model_name,
+        messages,
+        temperature,
+        max_tokens,
+        thinking=thinking,
+        request_options=request_options,
+        timeout_seconds=timeout_seconds,
+        capture_metadata=True,
+        response_capture=capture,
+    )
+    return result.text, {**dict(result.metadata), **capture}
 
 
 def _unpack_dispatch_result(

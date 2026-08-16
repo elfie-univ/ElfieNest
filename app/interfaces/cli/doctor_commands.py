@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import os
-import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Set, Tuple
+from typing import Optional, Tuple
 
 from app.orchestration.lifecycle import (
     DEFAULT_SERVICE_PORTS,
@@ -132,81 +130,6 @@ def find_all_elfienest_processes(
     return tuple(processes)
 
 
-def kill_processes_safely(
-    lifecycle: LifecycleFacade,
-    pids: Set[int],
-    timeout_seconds: float = 10.0,
-) -> Tuple[Tuple[int, bool, Optional[str]], ...]:
-    """Kill a set of processes safely with proper timeout."""
-    results: list[Tuple[int, bool, Optional[str]]] = []
-    for pid in pids:
-        try:
-            if not lifecycle.process_exists(pid):
-                results.append((pid, True, None))
-                continue
-
-            lifecycle.terminate_process(pid)
-            results.append((pid, True, None))
-        except ProcessLookupError:
-            results.append((pid, True, None))
-        except PermissionError as error:
-            results.append((pid, False, f"Permission denied: {error}"))
-        except OSError as error:
-            results.append((pid, False, str(error)))
-
-    # Wait for processes to exit
-    deadline = time.monotonic() + timeout_seconds
-    still_running: Set[int] = {pid for pid, success, _ in results if success}
-
-    while still_running and time.monotonic() < deadline:
-        for pid in list(still_running):
-            if not lifecycle.process_exists(pid):
-                still_running.remove(pid)
-        if still_running:
-            time.sleep(0.1)
-
-    # Force kill remaining processes
-    if still_running:
-        for pid in still_running:
-            try:
-                lifecycle.terminate_process(pid, force=True)
-            except (ProcessLookupError, PermissionError, OSError):
-                pass
-        time.sleep(0.5)
-
-    # Update results
-    final_results: list[Tuple[int, bool, Optional[str]]] = []
-    for pid, _, error_message in results:
-        if error_message:
-            final_results.append((pid, False, error_message))
-        elif lifecycle.process_exists(pid):
-            final_results.append((pid, False, "Process did not exit"))
-        else:
-            final_results.append((pid, True, None))
-
-    return tuple(final_results)
-
-
-def cleanup_pid_files(lifecycle: LifecycleFacade) -> Tuple[str, ...]:
-    """Clean up stale PID files."""
-    cleaned: list[str] = []
-    elfie_home = lifecycle.select_data_home(
-        None,
-        project_root=Path(__file__).resolve().parents[3],
-        runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-    )
-    pid_path = elfie_home / "elfienest.pid"
-
-    if lifecycle.receipt_exists(elfie_home):
-        try:
-            lifecycle.clear_receipt(elfie_home)
-            cleaned.append(f"Removed stale PID file: {pid_path}")
-        except OSError as error:
-            cleaned.append(f"Failed to remove PID file: {error}")
-
-    return tuple(cleaned)
-
-
 def diagnose_ports(
     lifecycle: LifecycleFacade,
     ports: Tuple[int, ...] = DEFAULT_SERVICE_PORTS,
@@ -252,136 +175,39 @@ def interactive_port_cleanup(
     *,
     force: bool = False,
 ) -> bool:
-    """Interactively clean up all ElfieNest-related processes and ports."""
-    # Step 1: Find all ElfieNest-related processes
-    all_processes = find_all_elfienest_processes(lifecycle)
+    """Diagnose occupied ports without terminating an unverified process.
 
-    # Step 2: Check port occupation
+    Port ownership is evidence only.  A Doctor command does not have the
+    current Runtime generation's authenticated process lease, so it must not
+    turn a port lookup into a kill operation.  The lifecycle start/stop
+    commands already have the exact data-root and process identity required to
+    stop a managed service safely.
+    """
+    _ = force
     occupied_ports = diagnose_ports(lifecycle, ports)
-
-    has_issues = all_processes or occupied_ports
-
-    if not has_issues:
+    if not occupied_ports:
         print("  ✅ No ElfieNest processes or occupied ports found")
         return True
 
-    # Print detailed diagnostics
     print()
-    if all_processes:
-        print("  📋 Found ElfieNest-related processes:")
-        print()
-        for proc in all_processes:
-            cmd_str = " ".join(proc.command)
-            if len(cmd_str) > 80:
-                cmd_str = cmd_str[:77] + "..."
-            print(f"  - PID {proc.pid} ({proc.process_type}):")
-            print(f"    Command: {cmd_str}")
-            if proc.cwd:
-                cwd_str = str(proc.cwd)
-                if len(cwd_str) > 80:
-                    cwd_str = cwd_str[:77] + "..."
-                print(f"    Working directory: {cwd_str}")
-            print()
-
-    if occupied_ports:
-        print("  ⚠️  Port occupation detected:")
-        print()
-        for port, proc_info in occupied_ports.items():
-            print(f"  - Port {port}:")
-            print(f"    PID: {proc_info.pid}")
-            if proc_info.command:
-                cmd_str = " ".join(proc_info.command)
-                if len(cmd_str) > 80:
-                    cmd_str = cmd_str[:77] + "..."
-                print(f"    Command: {cmd_str}")
-            if proc_info.cwd:
-                cwd_str = str(proc_info.cwd)
-                if len(cwd_str) > 80:
-                    cwd_str = cwd_str[:77] + "..."
-                print(f"    Working directory: {cwd_str}")
-            print()
-
-    # Ask for confirmation
-    if not force:
-        print("  💡 These processes are using service ports or are ElfieNest-related.")
-        print("     Killing them will stop any ElfieNest instances or other services.")
-        print()
-        try:
-            response = (
-                input("  Kill these processes and clean up? [y/N]: ").strip().lower()
-            )
-        except (EOFError, KeyboardInterrupt):
-            print("\n  Cancelled.")
-            return False
-
-        if response not in ("y", "yes"):
-            print("  Cancelled.")
-            return False
-
+    print("  ⚠️  Port occupation detected (diagnostic only):")
+    for port, proc_info in occupied_ports.items():
+        print(f"  - Port {port}: PID {proc_info.pid}")
+        if proc_info.command:
+            print(f"    Command: {_compact_command(proc_info.command)}")
+        if proc_info.cwd:
+            print(f"    Working directory: {proc_info.cwd}")
     print()
-    print("  🔧 Cleaning up ElfieNest processes and ports...")
-    print()
+    print("  ℹ️  Doctor will not terminate a process from a port lookup.")
+    print("     Stop the exact ElfieNest data root with 'elfienest stop',")
+    print("     or start with an explicit unused port.")
+    return False
 
-    all_success = True
 
-    # Step 3: Kill all ElfieNest processes
-    if all_processes:
-        pids = {proc.pid for proc in all_processes}
-        print(f"  📍 Stopping {len(pids)} ElfieNest process(es)...")
-        kill_results = kill_processes_safely(lifecycle, pids, timeout_seconds=10.0)
-
-        for pid, success, error in kill_results:
-            if success:
-                print(f"  ✅ Stopped PID {pid}")
-            else:
-                all_success = False
-                print(f"  ❌ Failed to stop PID {pid}: {error}")
-        print()
-
-    # Step 4: Kill any remaining port occupants
-    if occupied_ports:
-        print("  📍 Cleaning occupied ports...")
-        for port in occupied_ports.keys():
-            occupant_pid = lifecycle.port_occupant_pid(port)
-            results = (
-                kill_processes_safely(lifecycle, {occupant_pid}, timeout_seconds=5.0)
-                if occupant_pid is not None
-                else ()
-            )
-            success, error = (results[0][1], results[0][2]) if results else (True, None)
-            if success:
-                print(f"  ✅ Port {port} cleared")
-            else:
-                all_success = False
-                print(f"  ❌ Port {port} cleanup failed: {error}")
-        print()
-
-    # Step 5: Clean up PID files
-    print("  📍 Cleaning up stale files...")
-    cleaned_files = cleanup_pid_files(lifecycle)
-    if cleaned_files:
-        for msg in cleaned_files:
-            print(f"  ✅ {msg}")
-    else:
-        print("  ✅ No stale files found")
-    print()
-
-    # Step 6: Verify ports are released
-    print("  📍 Verifying port status...")
-    time.sleep(1.0)
-
-    if lifecycle.ports_in_use(ports):
-        all_success = False
-        print("  ⚠️  Some ports are still occupied after cleanup")
-
-        still_occupied = diagnose_ports(lifecycle, ports)
-        if still_occupied:
-            for port, remaining_info in still_occupied.items():
-                print(f"  - Port {port} still occupied by PID {remaining_info}")
-    else:
-        print("  ✅ All ports are now available")
-
-    return all_success
+def _compact_command(command: Tuple[str, ...]) -> str:
+    """Keep a diagnostic command line readable without changing its evidence."""
+    value = " ".join(command)
+    return value if len(value) <= 120 else value[:117] + "..."
 
 
 def run_doctor_with_port_fix(
@@ -389,17 +215,14 @@ def run_doctor_with_port_fix(
     fix_ports: bool = False,
     force: bool = False,
 ) -> int:
-    """Run doctor with optional port cleanup."""
+    """Run doctor with an explicitly non-destructive port diagnostic."""
     print("  🩺 Doctor diagnostics and auto-repair")
     print("  " + "=" * 45)
     print()
 
     # Port diagnostics first
     if fix_ports:
-        if not interactive_port_cleanup(lifecycle, force=force):
-            print()
-            print("  ❌ Port cleanup failed or cancelled")
-            return 1
+        interactive_port_cleanup(lifecycle, force=force)
         print()
 
     # Original doctor repairs

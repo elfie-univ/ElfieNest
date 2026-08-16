@@ -30,12 +30,8 @@ def query_model_evidence(
     now: Optional[datetime] = None,
 ) -> dict[str, StoredModelEvidence]:
     """Project endpoint models and immutable observations into Food evidence."""
-    latest = observations
-    if latest is None:
-        latest = (repository or ReportRepository()).current(subject_kind="model")
-    by_subject = {
-        item.subject_id: item for item in latest if item.subject_kind == "model"
-    }
+    report_repository = repository or ReportRepository()
+    explicit_observations = observations
     current = now or datetime.now(timezone.utc)
     inventory = (
         connections
@@ -52,12 +48,42 @@ def query_model_evidence(
         is_local = bool(profile and profile.connection_method == "local")
         for model in connection.models:
             subject_id = f"{connection.connection_id}/{model.endpoint_model_id}"
+            subject_observations = (
+                tuple(
+                    item
+                    for item in explicit_observations
+                    if item.subject_kind == "model" and item.subject_id == subject_id
+                )
+                if explicit_observations is not None
+                else report_repository.observations_for_subject("model", subject_id)
+            )
+            subject_observations = tuple(
+                sorted(
+                    subject_observations,
+                    key=lambda item: (item.observed_at, item.observation_id),
+                    reverse=True,
+                )
+            )
+            base_observation = next(
+                (
+                    item
+                    for item in subject_observations
+                    if item.details.get("evidence_kind") != "capability"
+                ),
+                None,
+            )
+            capability_observations = tuple(
+                item
+                for item in subject_observations
+                if item.details.get("evidence_kind") == "capability"
+            )
             result[subject_id] = _project_model(
                 subject_id,
                 model,
-                by_subject.get(subject_id),
+                base_observation,
                 is_local=is_local,
                 now=current,
+                capability_observations=capability_observations,
             )
     return result
 

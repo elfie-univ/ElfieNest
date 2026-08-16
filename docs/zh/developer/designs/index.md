@@ -7,5 +7,7 @@
 - [Elfie 顶级模块设计](./elfie-top-level-module-design)：一只完整 Elfie 的目标顶级所有权。
 - [Elfie 大脑十系统架构](./elfie-brain-ten-system-architecture)：Brain 的概念系统、边界、
   运行回路和渐进实现顺序。
+- [ElfieNest 服务生命周期状态机设计](./service-lifecycle-state-machine)：服务稳定态、
+  入口行为、进程所有权与故障收敛。
 - [Provider 与 Endpoint 模型可用性](./provider-model-availability)：精选模型加载、在用核心
   范围、低成本证据与统一健康投影。

@@ -7,7 +7,7 @@ import pytest
 
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import foreground_runtime, lifecycle_commands
-from app.orchestration.lifecycle.runtime_health import RuntimeHealth
+from app.orchestration.lifecycle.runtime_snapshot import RuntimeProjectionV1
 from app.orchestration.lifecycle.types import (
     LaunchFailedError,
     ServiceLifecycleResult,
@@ -21,7 +21,7 @@ class AlreadyRunningSupervisor:
     def start(self, *, owner_id: str) -> ServiceLifecycleResult:
         return ServiceLifecycleResult(status="already_running")
 
-    def status(self) -> RuntimeHealth:
+    def status(self) -> RuntimeProjectionV1:
         raise AssertionError("non-owner must not inspect foreground health")
 
     def stop(self) -> ServiceLifecycleResult:

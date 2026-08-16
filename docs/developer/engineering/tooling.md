@@ -21,6 +21,9 @@ uv sync --locked --extra dev
 
 Source development uses the in-repo `./elfienest.sh`. End users install a
 platform-native application package instead of running commands from a checkout.
+Native installers also expose the packaged management CLI as the global
+`elfienest` command; it reuses the installed Desktop Controller and production
+data root without opening the Viewer.
 
 Python `3.9.25` is the common pinned runtime for both the product and the
 development tools. Unless the maintainer explicitly approves a full-repo

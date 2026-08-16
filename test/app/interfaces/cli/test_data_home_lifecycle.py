@@ -5,10 +5,17 @@ from argparse import Namespace
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
+
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import lifecycle_commands
 from app.orchestration.lifecycle.facade import LifecycleFacade
-from app.orchestration.lifecycle.runtime_health import RuntimeHealth, RuntimeHealthState
+from app.orchestration.lifecycle.runtime_snapshot import (
+    BackendTier,
+    RuntimePhase,
+    RuntimeSnapshotV1,
+    RuntimeTarget,
+)
 from app.orchestration.lifecycle.types import ServiceLifecycleResult
 from infrastructure.persistence.layout.lifecycle_data_home import (
     LifecycleDataHomeAdapter,
@@ -18,14 +25,22 @@ from scripts import elfienest
 LIFECYCLE = create_lifecycle_facade()
 
 
+@pytest.fixture(autouse=True)
+def isolate_lifecycle_data_home(monkeypatch, tmp_path: Path) -> None:
+    """Never let lifecycle command tests read or write the developer home."""
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "elfie-home"))
+    monkeypatch.setattr(lifecycle_commands, "PROJECT_ROOT", tmp_path / "worktree")
+
+
 class _StartedSupervisor:
-    def status(self) -> RuntimeHealth:
-        return RuntimeHealth(
-            state=RuntimeHealthState.STOPPED,
+    def status(self):
+        return RuntimeSnapshotV1(
+            instance_id="test",
+            tier=BackendTier.OFFLINE,
+            phase=RuntimePhase.OFFLINE,
+            desired_target=RuntimeTarget.CORE,
             generation=0,
-            owner_lease=None,
-            components=(),
-        )
+        ).projection()
 
     def start(self, *, owner_id: str) -> ServiceLifecycleResult:
         assert owner_id == "cli"
@@ -41,13 +56,14 @@ class _StoppedSupervisor:
 
 
 class _HealthSupervisor:
-    def status(self) -> RuntimeHealth:
-        return RuntimeHealth(
-            state=RuntimeHealthState.STOPPED,
+    def status(self):
+        return RuntimeSnapshotV1(
+            instance_id="test",
+            tier=BackendTier.OFFLINE,
+            phase=RuntimePhase.OFFLINE,
+            desired_target=RuntimeTarget.CORE,
             generation=0,
-            owner_lease=None,
-            components=(),
-        )
+        ).projection()
 
 
 def test_start_options_forward_resolved_data_home(monkeypatch, tmp_path: Path) -> None:
@@ -100,6 +116,25 @@ def test_started_service_remembers_selected_home_for_later_commands(
     assert remembered == selected_home.resolve()
 
 
+def test_environment_data_home_takes_precedence_over_remembered_home(
+    monkeypatch, tmp_path: Path
+) -> None:
+    adapter = LifecycleDataHomeAdapter()
+    remembered_home = tmp_path / "remembered"
+    environment_home = tmp_path / "environment"
+    monkeypatch.setenv("ELFIE_HOME", str(environment_home))
+    monkeypatch.setattr(adapter, "_remembered", lambda *_args: remembered_home)
+
+    selected = adapter.select(
+        None,
+        project_root=tmp_path / "worktree",
+        runtime_mode="development",
+        use_remembered=True,
+    )
+
+    assert selected == environment_home.resolve()
+
+
 def test_start_uses_remembered_lifecycle_home_for_status_and_start_consistency(
     monkeypatch,
 ) -> None:
@@ -113,6 +148,13 @@ def test_start_uses_remembered_lifecycle_home_for_status_and_start_consistency(
     monkeypatch.setattr(lifecycle_commands, "_supervisor_for", supervisor)
     monkeypatch.setattr(
         lifecycle_commands, "_prepare_frontend_for_launch", lambda *_args: None
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_select_automatic_ports",
+        lambda _lifecycle, launch_command, _selected_home, avoid_pairs=(): (
+            launch_command
+        ),
     )
 
     result = lifecycle_commands.start_background_service(

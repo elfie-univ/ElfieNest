@@ -293,9 +293,7 @@ def _package_from_row(row: sqlite3.Row) -> StoredFoodPackage:
             vision_model=_optional_text(row["vision_model_ref"]),
             tool_model=_optional_text(row["tool_model_ref"]),
             fallback_model=_optional_text(row["fallback_model_ref"]),
-            required_roles=frozenset(
-                _decode_required_roles(str(row["required_roles_json"]))
-            ),
+            required_roles=_decode_required_roles(str(row["required_roles_json"])),
             visibility_mode=cast(FoodVisibilityMode, visibility_mode),
             visible_user_ids=_decode_user_ids(str(row["visible_user_ids_json"])),
         )
@@ -342,19 +340,20 @@ def _decode_user_ids(raw: str) -> tuple[int, ...]:
     return normalized
 
 
-def _decode_required_roles(raw: str) -> tuple[str, ...]:
+def _decode_required_roles(raw: str) -> frozenset[str]:
     try:
         decoded = json.loads(raw)
     except json.JSONDecodeError as error:
         raise FoodPortInvalid("Food required roles are corrupt") from error
     allowed = {"reasoning", "vision", "tool"}
-    if (
-        not isinstance(decoded, list)
-        or any(not isinstance(role, str) or role not in allowed for role in decoded)
-        or len(set(decoded)) != len(decoded)
+    if not isinstance(decoded, list) or any(
+        not isinstance(role, str) or role not in allowed for role in decoded
     ):
         raise FoodPortInvalid("Food required roles are corrupt")
-    return tuple(sorted(decoded))
+    normalized = tuple(sorted(set(decoded)))
+    if len(normalized) != len(decoded):
+        raise FoodPortInvalid("Food required roles are not canonical")
+    return frozenset(normalized)
 
 
 def _validate_selected_users(

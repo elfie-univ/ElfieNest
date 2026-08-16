@@ -11,24 +11,31 @@ from app.interfaces.cli.packaged_runtime import NativeTarget
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FORBIDDEN_RUNTIME_DIRECTORIES = frozenset({"desktop", "nest/godot", "nest/runtime"})
-RUNTIME_HEALTH_PATH = PROJECT_ROOT / "app/orchestration/lifecycle/runtime_health.py"
+RUNTIME_SNAPSHOT_PATH = PROJECT_ROOT / "app/orchestration/lifecycle/runtime_snapshot.py"
 GODOT_MAIN_PATH = PROJECT_ROOT / "godot_project/main.gd"
 GODOT_NEST_PATH = PROJECT_ROOT / "godot_project/rooms/nest.gd"
 GODOT_OBSERVER_BRIDGE_PATH = (
     PROJECT_ROOT / "godot_project/runtime/observer/observer_bridge.gd"
 )
 LIFECYCLE_CLIENT_PATH = PROJECT_ROOT / "app/interfaces/desktop/src/lifecycle_client.ts"
-REQUIRED_RUNTIME_HEALTH_TYPES = frozenset(
-    {"RuntimeComponent", "RuntimeHealthState", "RuntimeHealth", "OwnerLease"}
+REQUIRED_RUNTIME_SNAPSHOT_TYPES = frozenset(
+    {
+        "RuntimeComponent",
+        "ComponentState",
+        "BackendTier",
+        "RuntimePhase",
+        "RuntimeTarget",
+        "RuntimeSnapshotV1",
+        "RuntimeProjectionV1",
+        "OwnerLease",
+    }
 )
 REQUIRED_HOST_TYPES = frozenset(
     {"RuntimeDisplayMode", "RuntimeHostKind", "RuntimeHostDescriptor"}
 )
 OBSERVER_API_MODELS_PATH = PROJECT_ROOT / "app/interfaces/api/v1/observer/models.py"
 NEST_SEMANTIC_MODEL_PATH = PROJECT_ROOT / "app/orchestration/nest_session/models.py"
-EXPECTED_RUNTIME_HEALTH_STATES = frozenset(
-    {"starting", "ready", "degraded", "stopping", "stopped", "failed"}
-)
+EXPECTED_BACKEND_TIERS = frozenset({"offline", "core_ready", "world_ready"})
 EXPECTED_RUNTIME_COMPONENTS = frozenset(
     {"core", "gateway", "godot_authority", "ollama"}
 )
@@ -308,25 +315,29 @@ def test_desktop_interface_contains_no_supervisor_or_authority_protocol() -> Non
     assert offenders == {}
 
 
-def test_runtime_health_contract_models_all_components_states_and_owner_lease() -> None:
-    # Given: the Supervisor exposes one typed full-health contract.
+def test_runtime_snapshot_contract_models_stable_tiers_and_generation() -> None:
+    # Given: the lifecycle exposes one versioned authoritative snapshot.
     # When: its model declarations and closed enum values are inspected.
     # Then: all authority components, lifecycle states, generation and lease exist.
-    assert RUNTIME_HEALTH_PATH.is_file()
-    assert REQUIRED_RUNTIME_HEALTH_TYPES <= _class_names(RUNTIME_HEALTH_PATH)
+    assert RUNTIME_SNAPSHOT_PATH.is_file()
+    assert REQUIRED_RUNTIME_SNAPSHOT_TYPES <= _class_names(RUNTIME_SNAPSHOT_PATH)
     assert (
-        _enum_values(RUNTIME_HEALTH_PATH, "RuntimeComponent")
+        _enum_values(RUNTIME_SNAPSHOT_PATH, "RuntimeComponent")
         == EXPECTED_RUNTIME_COMPONENTS
     )
-    assert (
-        _enum_values(RUNTIME_HEALTH_PATH, "RuntimeHealthState")
-        == EXPECTED_RUNTIME_HEALTH_STATES
-    )
-    assert {"generation", "owner_lease"} <= set(
-        _class_field_annotations(RUNTIME_HEALTH_PATH, "RuntimeHealth")
-    )
+    assert _enum_values(RUNTIME_SNAPSHOT_PATH, "BackendTier") == EXPECTED_BACKEND_TIERS
+    assert {
+        "schema_version",
+        "instance_id",
+        "generation",
+        "revision",
+        "tier",
+        "phase",
+        "desired_target",
+        "components",
+    } <= set(_class_field_annotations(RUNTIME_SNAPSHOT_PATH, "RuntimeSnapshotV1"))
     assert {"owner_id", "generation"} <= set(
-        _class_field_annotations(RUNTIME_HEALTH_PATH, "OwnerLease")
+        _class_field_annotations(RUNTIME_SNAPSHOT_PATH, "OwnerLease")
     )
 
 

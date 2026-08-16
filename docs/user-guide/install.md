@@ -10,7 +10,7 @@ the package that matches your system:
 | Mac with Apple silicon | macOS arm64 |
 | Intel Mac | macOS x64 |
 | Windows PC | Windows x64 |
-| Linux PC | Linux x64 AppImage |
+| Linux PC | Linux x64 DEB |
 
 Download only from the [official Releases page](https://github.com/elfie-univ/ElfieNest/releases).
 The preview packages are not automatically updated, so check the release notes
@@ -24,10 +24,10 @@ when you install a newer version.
 
 1. Download the file for your computer.
 2. Open it and follow the normal installer steps for your system.
-   - On macOS, open the disk image and move ElfieNest to Applications.
+   - On macOS, open the PKG and complete the installer.
    - On Windows, run the installer and keep the default location unless your
      administrator tells you otherwise.
-   - On Linux, open the AppImage. Your desktop may ask you to allow it to run.
+   - On Linux, install the DEB with your system package manager.
 3. Start **ElfieNest** from Applications, the Start menu or your desktop.
 
 The first launch may take a little longer while the app prepares its local
@@ -46,9 +46,11 @@ open a phone view without reopening the desktop window.
 
 ## Remove the app
 
-Use your system's normal uninstall flow. Before removing the app, make sure you
-have decided whether the Nest data should be backed up or kept. If you are not
-sure, ask the Nest administrator; do not delete the data folder manually.
+Use your system's normal uninstall flow. The native installer also removes the
+global `elfienest` launcher when the package manager supports removal. Before
+removing the app, make sure you have decided whether the Nest data should be
+backed up or kept. If you are not sure, ask the Nest administrator; do not
+delete the data folder manually.
 
 ## Next step
 

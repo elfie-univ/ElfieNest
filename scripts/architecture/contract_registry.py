@@ -25,7 +25,7 @@ class ContractRegistration:
 CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ContractRegistration(
         contract_id="repository-governance",
-        version="1.7",
+        version="1.8",
         english_path="docs/developer/contracts/repository-governance.md",
         chinese_path="docs/zh/developer/contracts/repository-governance.md",
         decision_paths=(
@@ -78,7 +78,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="system-architecture",
-        version="1.8",
+        version="1.9",
         english_path="docs/developer/contracts/system.md",
         chinese_path="docs/zh/developer/contracts/system.md",
         decision_paths=(
@@ -96,6 +96,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0016-nest-persistence-port-ownership.md",
             "docs/developer/decisions/0017-bundled-defaults-and-user-configuration.md",
             "docs/zh/developer/decisions/0017-bundled-defaults-and-user-configuration.md",
+            "docs/developer/decisions/0021-authoritative-service-lifecycle.md",
+            "docs/zh/developer/decisions/0021-authoritative-service-lifecycle.md",
         ),
         agent_paths=(
             "elfie/AGENTS.md",
@@ -125,6 +127,33 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "test/architecture/test_runtime_observer_contracts.py",
             "test/architecture/test_database_change_boundaries.py",
             "test/architecture/test_storage_boundaries.py",
+        ),
+    ),
+    ContractRegistration(
+        contract_id="service-lifecycle",
+        version="1.0",
+        english_path="docs/developer/contracts/service-lifecycle.md",
+        chinese_path="docs/zh/developer/contracts/service-lifecycle.md",
+        decision_paths=(
+            "docs/developer/decisions/0021-authoritative-service-lifecycle.md",
+            "docs/zh/developer/decisions/0021-authoritative-service-lifecycle.md",
+        ),
+        agent_paths=(
+            "AGENTS.md",
+            "app/AGENTS.md",
+            "app/bootstrap/AGENTS.md",
+            "app/interfaces/cli/AGENTS.md",
+            "app/interfaces/desktop/AGENTS.md",
+            "app/orchestration/AGENTS.md",
+            "app/orchestration/lifecycle/AGENTS.md",
+            "infrastructure/AGENTS.md",
+            "infrastructure/godot/AGENTS.md",
+        ),
+        scanner_paths=(),
+        test_paths=("test/architecture/test_service_lifecycle_contract.py",),
+        conformance_paths=(
+            "docs/developer/conformance/service-lifecycle.md",
+            "docs/zh/developer/conformance/service-lifecycle.md",
         ),
     ),
     ContractRegistration(
@@ -233,7 +262,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="application-architecture",
-        version="1.8",
+        version="1.9",
         english_path="docs/developer/contracts/application.md",
         chinese_path="docs/zh/developer/contracts/application.md",
         decision_paths=(
@@ -247,6 +276,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0012-effective-dependency-targets.md",
             "docs/developer/decisions/0016-nest-persistence-port-ownership.md",
             "docs/zh/developer/decisions/0016-nest-persistence-port-ownership.md",
+            "docs/developer/decisions/0021-authoritative-service-lifecycle.md",
+            "docs/zh/developer/decisions/0021-authoritative-service-lifecycle.md",
         ),
         agent_paths=(
             "app/AGENTS.md",

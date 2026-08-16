@@ -52,19 +52,27 @@ def run_bootstrap(
     elfie_home: Path,
     *,
     path: str | None = None,
+    godot_bin: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     effective_path = (
         path or f"{project_root / '.fake-bin'}:/usr/bin:/bin:/usr/sbin:/sbin"
     )
+    environment = {
+        **os.environ,
+        "ELFIE_HOME": str(elfie_home),
+        "HOME": str(elfie_home.parent / "home"),
+        "PATH": effective_path,
+    }
+    # The fixture supplies the Godot executable through PATH. An ambient
+    # GODOT_BIN would intentionally override that fixture and make the report
+    # depend on the developer or CI host environment.
+    environment.pop("GODOT_BIN", None)
+    if godot_bin is not None:
+        environment["GODOT_BIN"] = godot_bin
     return subprocess.run(
         ["bash", str(scripts_dir / "bootstrap.sh"), "report", "--tier=build"],
         cwd=project_root,
-        env={
-            **os.environ,
-            "ELFIE_HOME": str(elfie_home),
-            "HOME": str(elfie_home.parent / "home"),
-            "PATH": effective_path,
-        },
+        env=environment,
         capture_output=True,
         text=True,
         check=False,

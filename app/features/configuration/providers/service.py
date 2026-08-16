@@ -54,6 +54,7 @@ from .models import (
     ProviderModelRefreshResult,
     ProviderModelReplacement,
     ProviderModelResult,
+    ProviderModelsCleanupResult,
     ProviderOAuthLoginStartResult,
     ProviderOAuthLoginStatusResult,
     ProviderObsoleteModelResult,
@@ -1092,6 +1093,56 @@ class ProvidersService:
             connection_id=connection.connection_id,
             model_id=current.model_id,
         )
+
+    def cleanup_obsolete_models(
+        self,
+        principal: AccountPrincipal,
+        command: CleanupObsoleteProviderModelsCommand,
+    ) -> ProviderModelsCleanupResult:
+        """Run the explicit, reference-checked source-managed cleanup action."""
+
+        self._require_manager(principal)
+        connection = self._require_connection(command.connection_id)
+        referenced: set[str] = set()
+        try:
+            for model in connection.models:
+                if self._references.models_referenced_by_food(
+                    connection.connection_id,
+                    model.model_id,
+                ):
+                    referenced.add(model.model_id)
+            candidates = self._technology.obsolete_model_ids(
+                connection,
+                referenced_model_ids=tuple(sorted(referenced)),
+            )
+        except ProviderPortError as error:
+            raise ProvidersUnavailable(
+                "Provider cleanup eligibility unavailable"
+            ) from error
+
+        if not candidates:
+            return ProviderModelsCleanupResult(connection.connection_id, ())
+
+        # Repeat the reference check immediately before the single replacement;
+        # a model that became referenced is retained instead of being deleted.
+        current = self._require_connection(connection.connection_id)
+        safe: list[str] = []
+        for model_id in candidates:
+            try:
+                still_referenced = self._references.models_referenced_by_food(
+                    current.connection_id,
+                    model_id,
+                )
+            except ProviderPortError as error:
+                raise ProvidersUnavailable("Provider references unavailable") from error
+            if not still_referenced:
+                safe.append(model_id)
+        if safe:
+            self._replace_models(
+                current,
+                tuple(item for item in current.models if item.model_id not in safe),
+            )
+        return ProviderModelsCleanupResult(current.connection_id, tuple(safe))
 
     def get_model_matrix(
         self,

@@ -25,16 +25,58 @@ def start_desktop_application(
     poll_interval_seconds: float = 0.2,
     monotonic: Callable[[], float] = time.monotonic,
     sleeper: Callable[[float], None] = time.sleep,
+    background: bool = False,
 ) -> ServiceLifecycleResult:
-    """Start a complete service supervised by Electron."""
+    """Start a complete service supervised by Electron.
+
+    ``background`` starts the same Controller and tray without opening the
+    Viewer. The Controller still owns the Runtime; only its presentation is
+    suppressed.
+    """
     existing_pid = host.process_id(elfie_home)
     if existing_pid is not None:
-        return ServiceLifecycleResult(status="already_running", pid=existing_pid)
+        if health_checker():
+            return ServiceLifecycleResult(status="already_running", pid=existing_pid)
+        executable = host.find_executable(project_root)
+        if executable is None:
+            return ServiceLifecycleResult(
+                status="failed",
+                pid=existing_pid,
+                error=LaunchFailedError(
+                    "ElfieNest Controller is running but its packaged executable is unavailable"
+                ),
+            )
+        try:
+            activation = host.launch((str(executable), "--background"), project_root)
+        except OSError as error:
+            return ServiceLifecycleResult(
+                status="failed", pid=existing_pid, error=LaunchFailedError(str(error))
+            )
+        if _wait_for_health(
+            health_checker,
+            timeout_seconds=timeout_seconds,
+            poll_interval_seconds=poll_interval_seconds,
+            monotonic=monotonic,
+            sleeper=sleeper,
+        ):
+            return ServiceLifecycleResult(status="already_running", pid=existing_pid)
+        _terminate(host, activation)
+        return ServiceLifecycleResult(
+            status="failed",
+            pid=existing_pid,
+            error=LaunchFailedError(
+                "Existing ElfieNest Controller did not restore the Server"
+            ),
+        )
     executable = host.find_executable(project_root)
     launch_command = (
         tuple(command)
         if command is not None
-        else ((str(executable),) if executable else ())
+        else (
+            (str(executable), "--background")
+            if executable and background
+            else ((str(executable),) if executable else ())
+        )
     )
     if not launch_command:
         return ServiceLifecycleResult(
@@ -128,6 +170,27 @@ def _wait_until_healthy(
             return True
         sleeper(poll_interval_seconds)
     return False
+
+
+def _wait_for_health(
+    checker: Callable[[], bool],
+    *,
+    timeout_seconds: float,
+    poll_interval_seconds: float,
+    monotonic: Callable[[], float],
+    sleeper: Callable[[float], None],
+) -> bool:
+    """Wait for an existing Controller to restore its Server.
+
+    The activation helper process is expected to exit after forwarding the
+    request to the single Controller, so its own PID is not part of readiness.
+    """
+    deadline = monotonic() + timeout_seconds
+    while monotonic() < deadline:
+        if checker():
+            return True
+        sleeper(poll_interval_seconds)
+    return checker()
 
 
 def _terminate(host: DesktopHostPort, process: DesktopProcess) -> None:

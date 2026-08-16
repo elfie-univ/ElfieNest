@@ -75,6 +75,24 @@ Conformance 行仍 open，就不得声称清理完成，即使所有选中测试
 仓库治理契约记录 `target`、`inventory`、`references`、`verification`、`residuals`
 五类证据。
 
+## 实现完成门禁
+
+当用户要求按已批准的设计或契约实现时，设计目标先冻结，不在实现过程中重新发明方案。
+开始改动前，把每项验收要求映射为一条紧凑的完成矩阵，至少记录实现位置、自动化测试、
+真实运行场景、平台/安装条件、证据和剩余项。状态只能是 `未开始`、`实现中`、`验证中`、
+`已完成` 或 `阻塞`；“基本完成”“核心完成”不是交付状态。
+
+- 只有矩阵中所有范围内条目都具备代码、测试和所需运行证据，才能声称任务完成；任何
+  未关闭的 P0、未验证的发布条件或未分类的残余都阻止整体完成声明。
+- 单元测试、构建成功、工作区干净或提交成功都不能单独证明完成。跨平台、安装、崩溃、
+  并发、压力和真实服务调用必须按设计要求分别验收。
+- 当前环境无法验证的条件必须标为 `阻塞`，写明缺失环境和下一步证据；不得用局部测试
+  抵销未完成的验收。
+- 进度询问只改变汇报，不自动关闭或丢弃未完成条目；除非用户明确暂停或改变范围，已批准
+  的实现应继续到所有条目关闭或明确阻塞。
+- 最终交付必须逐条报告已完成、保留和阻塞项，并给出可重放的验证证据。`.omo/` 只能
+  作为可选的私有进度材料，不能成为完成依据或替代本规则、契约、台账和机器门禁。
+
 完成前按实际 diff 重新判断风险并补足最小验证；达到验收条件后停止。若验证即将超出
 预算，报告现有证据和缺口，由用户决定是否扩大。
 
@@ -140,7 +158,8 @@ ElfieNest 当前目标是完成一套可安装、可运行、可观察、可继�
 中英文 [`System architecture contract`](docs/developer/contracts/system.md) 是跨根模块
 所有权和依赖方向的长期权威；Nest 内部所有权、Godot 语义线路和事件路由由中英文
 [`Nest–Godot semantic-world contract`](docs/developer/contracts/nest-godot-semantic-world.md)
-细化。系统形态为：
+细化；服务稳定态、入口与受管进程所有权由中英文
+[`Service lifecycle contract`](docs/developer/contracts/service-lifecycle.md)细化。系统形态为：
 
 ```text
 app/              产品入口、用例、编排与装配
@@ -170,7 +189,11 @@ godot_project/    独立 Godot 源工程与物理 authority
 - `app/orchestration/lifecycle` 是 Core、Gateway 与 Godot authority 启停、重启和收束的
   唯一编排者。Desktop/Observer 只是受限 lifecycle client 和只读观察面，不持有
   authority 凭据、不启动 Runtime、不发送原始协议帧。Interface 与 Feature 也不得构造
-  或接管 Engine、Gateway、Godot authority。
+  或接管 Engine、Gateway、Godot authority。Backend 稳定层级只有 `OFFLINE`、
+  `CORE_READY`、`WORLD_READY`；模型健康由模型能力服务从持久证据投影，Lifecycle 只消费。
+- 已打包 Desktop Controller 对每个 OS 用户全局唯一，Viewer 关闭不停止 Server；安装版
+  `elfienest start` 激活同一 Controller 而不打开 Viewer。源码 `./elfienest.sh` 只用于
+  隔离开发数据根，不能成为第二套生产入口。
 - Nest 拥有持久语义事实和技术无关的聚合快照；当前加载、保存、回滚与恢复时机及
   `NestStateStorePort` 归 `app/orchestration/nest_session`，具体 SQL/SQLite Adapter 归
   `infrastructure/persistence/`，由 Bootstrap 注入。App 不得因此直接修改 Nest 内部状态

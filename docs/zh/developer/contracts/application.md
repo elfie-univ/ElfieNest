@@ -1,7 +1,7 @@
 # 应用架构契约
 
-**契约版本：** 1.8
-**采用日期：** 2026-08-14
+**契约版本：** 1.9
+**采用日期：** 2026-08-15
 **适用范围：** `app/`，以及位于根 `infrastructure/` 的 App Adapter
 
 > **规范性目标。** 本文是 `app/` 下代码的长期架构权威，定义所有权、依赖方向和
@@ -31,6 +31,9 @@
 
 [系统架构契约](system)负责顶层物理目录。生产 Adapter 已归位根
 `infrastructure/`；禁止恢复已退役的 `app/infrastructure/` 路径。
+
+[服务生命周期契约](service-lifecycle)进一步规定 Runtime 状态 authority、就绪层级、
+入口和受管进程所有权；它可以细化生命周期行为，但不能反转本文的依赖方向。
 
 ## 四个 App 区域及其 Infrastructure Adapter
 
@@ -87,7 +90,7 @@ Feature 所有者如下：
 | `elfies` | 获授权的 Elfie 目录、关系/权限投影，以及成员/管理员 Profile 或认知视图 | Elfie Profile、认知或记忆事实；领养所有权；Nest 居民状态 |
 | `nest_management` | 通过唯一公开 Nest 门面提供的授权产品用例 | 第二套 Nest Repository 语义、几何、坐标或真实 Elfie 组合 |
 | `configuration/providers` | Provider 连接管理、凭据引用和模型资源管理投影 | 技术模型发现、探测、请求转换或模型调用 |
-| `configuration/food` | Food 包管理、分配、生成和管理报告 | 单只 Elfie 的语义模型角色选择或物理存储实现 |
+| `configuration/food` | Food 包管理、分配、生成、基于持久证据的模型健康投影和管理报告 | 单只 Elfie 的语义模型角色选择、技术模型探测/调用或物理存储实现 |
 | `configuration/capabilities` | 当前已有的管理员全局工具和能力开关 | 工具执行、Elfie Skill 策略或猜测性新能力 |
 | `configuration/settings` | 其他当前已有、具备唯一类型化所有者和写入者的全局产品设置 | Nest 容量、Provider/Food 事实或任意无类型 section |
 | `setup` | 首装草稿、选择、校验、状态和受限投影 | 账户、Provider、Food、Nest 事实及安装任务所有权 |

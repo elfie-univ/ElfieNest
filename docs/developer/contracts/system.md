@@ -1,6 +1,6 @@
 # System architecture contract
 
-**Contract version:** 1.8
+**Contract version:** 1.9
 **Adopted:** 2026-08-12
 **Revised:** 2026-08-15
 **Scope:** repository-wide target architecture
@@ -29,6 +29,11 @@ The [Configuration management contract](./configuration-management) refines
 the non-Python bundled-default root, user configuration root, typed loading
 boundary and release packaging. It cannot transfer semantic ownership from App,
 Elfie, Nest or an Infrastructure capability to the filesystem.
+
+The [Service lifecycle contract](./service-lifecycle) refines authoritative
+Runtime tiers, entrypoint semantics, managed-process ownership, model-health
+projection and convergence. It cannot move lifecycle authority out of
+`app/orchestration/lifecycle` or grant process authority to evidence readers.
 
 ## Target system shape
 
@@ -224,6 +229,7 @@ runtime fact has one semantic authority, one write path and explicit readers:
 | Nest residents, homes, facility semantics, household rules, environment time/intent and semantic interaction results | `nest/` | Nest Facade validates snapshots; App Orchestration coordinates persistence through its `NestStateStorePort`; Infrastructure implements storage | App Orchestration, affected Elfies through typed delivery and authorized Observer projections |
 | Food package administration and global tool enablement | App configuration Features | Infrastructure persistence through App-owned Ports | Elfie receives only its effective typed projection through Elfie-owned Ports |
 | Provider-connection administration and credential references | App configuration Features | Infrastructure persistence and secret Adapters through App-owned Ports | Authorized App management use-cases; Infrastructure receives only scoped technical inputs |
+| Effective Food/model-health aggregate | App configuration Food Feature | App Food policy projects active packages and persisted evidence supplied through Ports | Lifecycle and authorized management/capability projections |
 | Endpoint-model observations, technical validation and model calls | Infrastructure model capability | `infrastructure/models/` plus persistence/report Adapters | App management projections and Elfie `ModelPort` calls |
 | Tool choice for one cognition step | `elfie/` Skills and cognition policy | `infrastructure/tools/` executes an approved bounded request | Elfie consumes the typed result; App configures global availability |
 | House geometry, coordinates, collision, navigation and rendered physical events | `godot_project/` authority | Godot authority through `infrastructure/godot/` protocol Adapters | Nest receives world facts; an actor body receives its own receipts |

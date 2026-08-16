@@ -103,6 +103,25 @@ The quality baseline only admits already-existing diagnostics; any new Ruff,
 format or MyPy diagnostic must be fixed — never hidden by widening ignores or
 rewriting the baseline.
 
+## Mandatory pre-submit gate
+
+Before committing or pushing, fetch the remote `main` base and run the
+CI-aligned hard gate:
+
+```bash
+git fetch --prune origin main
+bash scripts/pre_submit_gate.sh \
+  --base-sha "$(git rev-parse origin/main^{commit})"
+```
+
+The gate includes current unstaged changes in a temporary candidate tree and
+checks them with immutable-base architecture ratchets. It then runs the lock,
+Node/pnpm, quality baseline, pre-commit/Gitleaks, complete pytest, CLI smoke and
+documentation build checks. A failed check or a blocked loopback capability
+preflight means the change must not be committed, pushed or merged. Focused
+tests, deleted tests, broad skips/xfails or a widened quality baseline cannot
+replace this gate.
+
 ## Documentation verification
 
 ```bash

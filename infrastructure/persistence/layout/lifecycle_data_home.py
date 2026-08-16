@@ -59,6 +59,8 @@ class LifecycleDataHomeAdapter:
     ) -> Path:
         if explicit_home is not None:
             return self._resolve(explicit_home, project_root, runtime_mode)
+        if os.environ.get("ELFIE_HOME"):
+            return self._resolve(None, project_root, runtime_mode)
         if use_remembered:
             remembered = self._remembered(project_root, runtime_mode)
             if remembered is not None:

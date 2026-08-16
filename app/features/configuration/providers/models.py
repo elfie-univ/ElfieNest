@@ -423,6 +423,12 @@ class ProviderModelDeletedResult:
 
 
 @dataclass(frozen=True)
+class ProviderModelsCleanupResult:
+    connection_id: str
+    model_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ProviderConnectionVerificationResult:
     connection_id: str
     verification: ProviderVerificationResult

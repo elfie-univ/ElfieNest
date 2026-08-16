@@ -38,15 +38,23 @@ case "$MODE" in
         # Help is a shell-owned command and piped command streams should not trigger
         # a dependency installation before they can report their requested output.
         skip_dependency_repair=false
+        skip_dependency_check=false
+        case "${ELFIENEST_SKIP_AUTO_REPAIR:-0}" in
+            1|true|TRUE|yes|YES) skip_dependency_repair=true ;;
+        esac
         if [[ $# -gt 0 ]]; then
             case "$1" in
-                help|h|\?|--help|-h) skip_dependency_repair=true ;;
+                help|h|\?|--help|-h) skip_dependency_check=true ;;
             esac
         elif [[ ! -t 0 ]]; then
-            skip_dependency_repair=true
+            skip_dependency_check=true
         fi
-        if [[ "$skip_dependency_repair" != "true" ]]; then
+        if [[ "$skip_dependency_check" != "true" ]]; then
             if ! "$SCRIPT_DIR/scripts/bootstrap.sh" check --tier=dev >/dev/null 2>&1; then
+                if [[ "$skip_dependency_repair" == "true" ]]; then
+                    echo "  ❌ Dependency installation failed: automatic repair is disabled by ELFIENEST_SKIP_AUTO_REPAIR" >&2
+                    exit 1
+                fi
                 echo "  🦊 Detected missing dependencies, installing..." >&2
                 if ! "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=dev; then
                     echo "  ❌ Dependency installation failed, please fix as instructed" >&2
@@ -192,7 +200,15 @@ interactive_mode() {
         args=("${argv[@]:1}")
         case "$cmd" in
             "" ) continue ;;
-            exit|quit|q) echo ""; echo "  Goodbye! 🦊"; echo ""; exit 0 ;;
+            exit|quit|q)
+                # The command was already persisted above. Prevent Bash from
+                # writing the same history entry again during shell shutdown.
+                unset HISTFILE
+                echo ""
+                echo "  Goodbye! 🦊"
+                echo ""
+                exit 0
+                ;;
             help|h|\?) show_help ;;
             serve) ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py serve "${args[@]}" ;;
             v) ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py version "${args[@]}" ;;

@@ -7,6 +7,7 @@
 - [文档结构](./documentation-structure)
 - [系统架构](./system)
 - [配置管理](./configuration-management)
+- [服务生命周期](./service-lifecycle)
 - [Nest–Godot 语义世界](./nest-godot-semantic-world)
 - [Elfie 内部架构](./elfie)
 - [Elfie Brain 内部架构](./brain)
