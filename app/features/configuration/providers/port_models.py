@@ -198,6 +198,9 @@ class StoredModelAvailability:
     serving_food_ids: tuple[str, ...]
     serving_roles: tuple[str, ...]
     capabilities: tuple[StoredEndpointCapability, ...]
+    reachability_status: AvailabilityStatus = "unknown"
+    reachability_observed_at: str | None = None
+    reachability_expires_at: str | None = None
 
 
 @dataclass(frozen=True)

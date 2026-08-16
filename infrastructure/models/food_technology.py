@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import Literal, Mapping, Optional, Protocol, cast
+from typing import Literal, Mapping, Optional, Protocol, Sequence, cast
 
 from pydantic import JsonValue
 
@@ -21,6 +21,7 @@ from app.features.configuration.food import (
     is_model_evidence_fresh,
     project_food_health,
 )
+from app.features.configuration.food.port_models import CapabilityState
 from elfie.brain.reasoning.food_port import FoodPackage as ModelExecutionFoodPackage
 from infrastructure.models.capabilities import (
     canonical_display_name,
@@ -177,6 +178,7 @@ def _project_model(
     *,
     is_local: bool,
     now: datetime,
+    capability_observations: Sequence[ValidationObservation] = (),
 ) -> StoredModelEvidence:
     state = _validation_state(model, observation, now)
     details: Mapping[str, JsonValue] = observation.details if observation else {}
@@ -186,9 +188,12 @@ def _project_model(
         if isinstance(raw_capabilities, (list, tuple, set))
         else frozenset()
     )
-    capabilities = observed_capabilities | known_capabilities(
-        model.endpoint_model_id,
-        model.display_name,
+    capabilities = set(
+        observed_capabilities
+        | known_capabilities(
+            model.endpoint_model_id,
+            model.display_name,
+        )
     )
     if model.supports_tools:
         capabilities |= {"tools"}
@@ -196,17 +201,41 @@ def _project_model(
         capabilities |= {"vision"}
     if model.supports_reasoning:
         capabilities |= {"reasoning"}
+    capability_states: dict[str, CapabilityState] = {}
+    seen_capabilities: set[str] = set()
+    for capability_observation in capability_observations:
+        capability = capability_observation.details.get("capability")
+        capability_state = capability_observation.details.get("capability_state")
+        if (
+            isinstance(capability, str)
+            and capability in {"tools", "vision", "reasoning", "structured_output"}
+            and isinstance(capability_state, str)
+            and capability_state in {"supported", "unsupported", "unknown"}
+        ):
+            # ``query_model_evidence`` supplies capability observations newest
+            # first.  Keep the first valid observation for each channel so an
+            # older result cannot overwrite a newer failure or unknown state.
+            if capability in seen_capabilities:
+                continue
+            seen_capabilities.add(capability)
+            capability_states[capability] = cast(CapabilityState, capability_state)
+            if capability_state == "supported":
+                capabilities.add(capability)
+            elif capability_state == "unsupported":
+                capabilities.discard(capability)
     evidence = StoredModelEvidence(
         reference=subject_id,
         display_name=canonical_display_name(subject_id, model.display_name),
-        capabilities=capabilities or frozenset({"text"}),
+        capabilities=frozenset(capabilities or {"text"}),
         verified=state == "verified",
         cost_grade=_int_value(details, "cost_grade", 2),
         latency_ms=observation.latency_ms if observation else None,
-        tool_test_passed=bool(details.get("tool_test_passed", False)),
+        tool_test_passed=bool(details.get("tool_test_passed", False))
+        or capability_states.get("tools") == "supported",
         local=is_local,
         observed_at=observation.observed_at if observation else "",
         status=state,
+        capability_states=capability_states,
     )
     return replace(evidence, fresh=is_model_evidence_fresh(evidence, now))
 

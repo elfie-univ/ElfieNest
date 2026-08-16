@@ -24,7 +24,7 @@ export type StartupProgressPhase =
   | "starting"
   | "core_ready"
   | "authority_starting"
-  | "ready"
+  | "world_ready"
   | "stopping"
   | "failed";
 
@@ -32,7 +32,7 @@ const startupCopy: Readonly<Record<StartupProgressPhase, string>> = {
   starting: "正在准备核心服务…",
   core_ready: "核心服务已就绪，正在打开监控页面…",
   authority_starting: "正在连接精灵巢…",
-  ready: "精灵巢已连接…",
+  world_ready: "精灵巢已连接…",
   stopping: "正在安全关闭后台服务…",
   failed: "后台服务启动失败",
 };

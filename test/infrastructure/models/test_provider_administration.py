@@ -218,6 +218,52 @@ def test_provider_adapter_preserves_stable_connection_counter(tmp_path) -> None:
     assert second.connection_id == "openai_api_0002"
 
 
+def test_capability_probe_records_verified_channel_evidence_without_text_in_report(
+    tmp_path,
+) -> None:
+    adapter = provider_models_adapter(
+        tmp_path / "providers.yaml",
+        tmp_path / "auth.env",
+    )
+    connection = adapter.create_connection(
+        StoredProviderConnection(
+            connection_id="",
+            catalog_id="custom_openai",
+            alias="Probe",
+            api_base="https://gateway.example/v1",
+            api_mode="chat_completions",
+            auth_type="bearer",
+            credential_ref="",
+            models=(StoredProviderModel("model-a", "Model A"),),
+        ),
+        None,
+    )
+
+    with patch(
+        "infrastructure.models.provider_administration.call_llm_api_with_trace",
+        return_value=("", {"tool_call_count": 1}),
+    ):
+        result = asyncio.run(
+            adapter.probe_model_capability(
+                f"{connection.connection_id}/model-a",
+                "tools",
+            )
+        )
+
+    assert result.state == "supported"
+    assert result.evidence == "verified"
+    observations = adapter._reports.observations_for_subject(
+        "model", f"{connection.connection_id}/model-a"
+    )
+    capability = next(
+        item
+        for item in observations
+        if item.details.get("evidence_kind") == "capability"
+    )
+    assert capability.details["capability_evidence"] == "verified"
+    assert "response_text" not in capability.details
+
+
 class _RunSpy:
     def __init__(self) -> None:
         self.finished_status: str | None = None

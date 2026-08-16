@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal, Union
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, Response
 
 from app.features.accounts import AccountPrincipal
@@ -24,6 +24,10 @@ from app.features.adoption import (
     CreateCandidateSetCommand,
     GetAdoptionOptionsQuery,
     ReplyToCandidatesCommand,
+)
+from app.interfaces.api.runtime_capability import (
+    RuntimeCapabilityDenied,
+    require_runtime_capability,
 )
 from app.interfaces.api.v1.auth import require_user
 from app.orchestration.resident_admission import (
@@ -54,11 +58,15 @@ ResidentAdmissionDependency = Depends(resident_admission_service)
 
 @router.get("", response_model=AdoptionOptionsResponse)
 def get_adoption_options(
+    request: Request,
     principal: AccountPrincipal = CurrentPrincipal,
     service: AdoptionService = AdoptionDependency,
 ) -> Union[AdoptionOptionsResponse, JSONResponse]:
     try:
+        require_runtime_capability(request.app, "adoption")
         result = service.get_options(principal, GetAdoptionOptionsQuery())
+    except RuntimeCapabilityDenied as error:
+        return _capability_error_response(error)
     except AdoptionError as error:
         return _error_response(error)
     return AdoptionOptionsResponse.from_result(result)
@@ -67,10 +75,12 @@ def get_adoption_options(
 @router.post("/candidate-sets", response_model=CandidateSetResponse)
 def create_candidate_set(
     body: CandidateSetRequest,
+    request: Request,
     principal: AccountPrincipal = CurrentPrincipal,
     service: AdoptionService = AdoptionDependency,
 ) -> Union[CandidateSetResponse, JSONResponse]:
     try:
+        require_runtime_capability(request.app, "adoption")
         result = service.create_candidate_set(
             principal,
             CreateCandidateSetCommand(
@@ -89,6 +99,8 @@ def create_candidate_set(
                 batch_number=body.batch_number,
             ),
         )
+    except RuntimeCapabilityDenied as error:
+        return _capability_error_response(error)
     except AdoptionError as error:
         return _error_response(error)
     return CandidateSetResponse.from_result(result)
@@ -126,10 +138,12 @@ def get_species_image(
 def reply_to_candidates(
     candidate_set_id: str,
     body: CandidateRepliesRequest,
+    request: Request,
     principal: AccountPrincipal = CurrentPrincipal,
     service: AdoptionService = AdoptionDependency,
 ) -> Union[CandidateRepliesResponse, JSONResponse]:
     try:
+        require_runtime_capability(request.app, "adoption")
         result = service.reply_to_candidates(
             principal,
             ReplyToCandidatesCommand(
@@ -138,6 +152,8 @@ def reply_to_candidates(
                 invitation_message=body.invitation_message,
             ),
         )
+    except RuntimeCapabilityDenied as error:
+        return _capability_error_response(error)
     except AdoptionError as error:
         return _error_response(error)
     return CandidateRepliesResponse.from_result(result)
@@ -146,10 +162,12 @@ def reply_to_candidates(
 @router.post("", status_code=201, response_model=AdoptionResultResponse)
 def commit_adoption(
     body: AdoptionCommitRequest,
+    request: Request,
     principal: AccountPrincipal = CurrentPrincipal,
     service: ResidentAdmissionService = ResidentAdmissionDependency,
 ) -> Union[AdoptionResultResponse, JSONResponse]:
     try:
+        require_runtime_capability(request.app, "adoption")
         result = service.admit(
             principal,
             AdmitAcceptedAdoptionCommand(
@@ -160,6 +178,8 @@ def commit_adoption(
                 headshot_image_url=body.headshot_image_url,
             ),
         )
+    except RuntimeCapabilityDenied as error:
+        return _capability_error_response(error)
     except (AdoptionError, ResidentAdmissionError) as error:
         return _error_response(error)
     return AdoptionResultResponse.from_result(result)
@@ -207,6 +227,17 @@ def _error_response(error: Exception) -> JSONResponse:
         )
     )
     return JSONResponse(status_code=status_code, content=payload.model_dump())
+
+
+def _capability_error_response(error: RuntimeCapabilityDenied) -> JSONResponse:
+    payload = AdoptionErrorResponse(
+        error=AdoptionErrorItem(
+            code=error.code,
+            message=error.detail,
+            details=AdoptionErrorDetails(),
+        )
+    )
+    return JSONResponse(status_code=503, content=payload.model_dump())
 
 
 __all__ = ("router",)

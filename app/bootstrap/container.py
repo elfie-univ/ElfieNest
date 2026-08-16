@@ -41,6 +41,12 @@ from infrastructure.models.model_execution_adapter import StructuredModelExecuti
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.providers.openai_chatgpt import OpenAIChatGptOAuthAdapter
+from infrastructure.models.validation.core_validation_scheduler import (
+    CoreValidationScheduler,
+)
+from infrastructure.models.validation.core_validation_worker import (
+    CoreValidationWorker,
+)
 from infrastructure.models.validation.serving_food import build_serving_food_index
 from infrastructure.persistence.configuration.bundled_defaults import (
     load_nest_config,
@@ -100,6 +106,7 @@ class ApplicationContainer:
     elfies: ElfiesService
     providers: ProvidersService
     availability: ProviderAvailabilityQuery
+    core_validation_worker: CoreValidationWorker | None
     food: FoodService
     capabilities: CapabilitiesService
     operations: OperationsFacade
@@ -222,6 +229,21 @@ def build_application_container(
             resolvable_references=resolvable,
         )
 
+    def _validate_core_channel(reference: str, channel: str) -> object:
+        if channel == "text":
+            return asyncio.run(provider_models.probe_model(reference))
+        capability_by_channel = {
+            "reasoning": "reasoning",
+            "vision": "vision",
+            "tool": "tools",
+        }
+        capability = capability_by_channel.get(channel)
+        if capability is None:
+            raise ValueError(f"unsupported core validation channel: {channel}")
+        return asyncio.run(
+            provider_models.probe_model_capability(reference, capability)  # type: ignore[arg-type]
+        )
+
     provider_models.set_serving_index(serving_index)
     availability = ProviderAvailabilityQuery(
         provider_storage,
@@ -234,6 +256,16 @@ def build_application_container(
             connection.connection_id
         ),
     )
+    core_validation_worker: CoreValidationWorker | None = None
+    if data_home is not None:
+        validation_scheduler = CoreValidationScheduler(
+            final_root_layout(data_home).runtime_locks / "core-validation.lock",
+            _validate_core_channel,
+            current_index=serving_index,
+        )
+        core_validation_worker = CoreValidationWorker(
+            lambda: availability.run_core_validation(validation_scheduler),
+        )
     elfies = ElfiesService(
         SQLiteElfiesProjectionAdapter(db_path),
         catalog=species_catalog,
@@ -271,6 +303,7 @@ def build_application_container(
         provider_state=provider_models,
         food_evidence=provider_evidence,
         catalog=provider_catalog,
+        data_home=data_home,
     )
     bodies = BodiesService(SQLiteBodiesAdapter(db_path))
     embodiment = EmbodimentSessionService(SQLiteEmbodimentLeaseAdapter(db_path))
@@ -309,6 +342,7 @@ def build_application_container(
         elfies=elfies,
         providers=providers,
         availability=availability,
+        core_validation_worker=core_validation_worker,
         food=build_food_service(
             db_path,
             provider_catalog=provider_catalog,

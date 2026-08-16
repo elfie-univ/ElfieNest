@@ -73,8 +73,19 @@ class SetupAccountPort(Protocol):
 
 
 class SetupOllamaInstallPort(Protocol):
-    def ensure_installation(self, report: Callable[[str], None]) -> None: ...
+    def ensure_installation(
+        self, report: Callable[[str], None]
+    ) -> Optional[SetupOllamaTaskLease]: ...
     def ensure_model(self, model_id: str, report: Callable[[str], None]) -> str: ...
+
+
+class SetupOllamaTaskLease(Protocol):
+    """A short-lived lease held while Setup mutates the local model service."""
+
+    def release(self) -> None: ...
+
+
+SetupOllamaTaskLeaseFactory = Callable[[], Optional[SetupOllamaTaskLease]]
 
 
 class SetupProviderPort(Protocol):
@@ -105,5 +116,7 @@ __all__ = (
     "SetupOllamaBinding",
     "SetupOllamaProbe",
     "SetupOllamaInstallPort",
+    "SetupOllamaTaskLease",
+    "SetupOllamaTaskLeaseFactory",
     "SetupProviderPort",
 )

@@ -55,6 +55,11 @@ export function ManageMonitorPanel() {
   const operationalIssues = filterOperationalIssues(issues)
   const health = resolveHealth(snapshot, operationalIssues)
   const modelSummary = summarizeModels(snapshot)
+  const modelHealthy = modelSummary === null
+    ? false
+    : snapshot?.runtime?.lifecycle === undefined
+      ? modelSummary.healthy === modelSummary.configured
+      : snapshot.runtime.lifecycle.model_state === "ready"
   const unassignedCount = countUnassignedElfies(snapshot)
   const authRequired = snapshot?.authRequired === true
   const allSourcesFailed = !authRequired && snapshot?.failedSources.length === MONITOR_SOURCE_KEYS.length
@@ -69,9 +74,9 @@ export function ManageMonitorPanel() {
     {issueAttention && <PersistentStatus kind="warning" message={t("runtimeMonitor.health.pending")} />}
     <div className="monitor-metrics">
       <Metric label={t("runtimeMonitor.cards.health")} value={t(`runtimeMonitor.health.${health}`)} detail={healthDetail(health, operationalIssues, snapshot, t)} state={healthMetricState(health)} />
+      <Metric label={t("runtimeMonitor.cards.services")} value={modelSummary === null ? "—" : `${modelSummary.healthy}/${modelSummary.configured}`} detail={modelSummary === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.servicesDetail", { count: modelSummary.availableModels, local: localServiceText(snapshot?.ollama ?? null, t) })} state={modelSummary === null ? "neutral" : modelHealthy ? "good" : "warning"} />
       <Metric label={t("runtimeMonitor.cards.users")} value={snapshot?.users === null || snapshot === null ? "—" : String(snapshot.users.length)} detail={snapshot?.users === null || snapshot === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.usersDetail", { count: onlineUsers(snapshot.users) })} state="neutral" />
       <Metric label={t("runtimeMonitor.cards.elfies")} value={snapshot?.elfies === null || snapshot === null ? "—" : String(snapshot.elfies.length)} detail={snapshot?.elfies === null || snapshot === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.elfiesDetail", { online: onlineElfies(snapshot.elfies), unassigned: unassignedCount ?? "—" })} state="neutral" />
-      <Metric label={t("runtimeMonitor.cards.services")} value={modelSummary === null ? "—" : `${modelSummary.healthy}/${modelSummary.configured}`} detail={modelSummary === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.servicesDetail", { count: modelSummary.availableModels, local: localServiceText(snapshot?.ollama ?? null, t) })} state={modelSummary === null ? "neutral" : modelSummary.healthy === modelSummary.configured ? "good" : "warning"} />
     </div>
     <div className="monitor-layout">
       <section className="monitor-module">
@@ -159,6 +164,10 @@ function buildIssues(snapshot: MonitorSnapshot): readonly MonitorIssue[] {
   if (snapshot.runtime !== null && snapshot.runtime.status !== "ok") issues.push({ kind: "runtime" })
   const providers = snapshot.providers ? operationalProviders(snapshot.providers) : []
   if (snapshot.providers !== null && providers.length === 0) issues.push({ kind: "no-services" })
+  const lifecycle = snapshot.runtime?.lifecycle
+  if (lifecycle !== undefined && (lifecycle.failures.length > 0 || lifecycle.tier === "offline")) {
+    issues.push({ kind: "runtime" })
+  }
   for (const provider of providers) {
     const status = serviceStatus(provider, snapshot.ollama)
     if (status === "attention") {
@@ -179,6 +188,7 @@ function filterOperationalIssues(issues: readonly MonitorIssue[]): readonly Moni
 function resolveHealth(snapshot: MonitorSnapshot | null, issues: readonly MonitorIssue[]): HealthLevel {
   if (snapshot === null || snapshot.health === null) return "unknown"
   if (issues.some((issue) => issue.kind === "system")) return "error"
+  if (snapshot.runtime?.lifecycle?.tier === "offline") return "error"
   return issues.length === 0 ? "ok" : "attention"
 }
 

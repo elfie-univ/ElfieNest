@@ -2,16 +2,27 @@
 
 from __future__ import annotations
 
+import hashlib
+import os
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable, Optional
 
 from app.features.accounts import AccountsService
 from app.features.configuration import ProviderLocalStatePort
+from app.features.configuration.providers import StoredLocalProviderBinding
 from app.features.setup import SetupService
-from app.orchestration.setup_installation import SetupInstallationService
+from app.orchestration.setup_installation import (
+    SetupInstallationService,
+    SetupOllamaBinding,
+    SetupOllamaTaskLease,
+)
 from infrastructure.models.food_technology import (
     FoodEvidencePort,
     ModelFoodTechnologyAdapter,
 )
+from infrastructure.models.ollama.lifecycle_ollama import OllamaLifecycleAdapter
+from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.setup_catalog import ProviderSetupCatalogAdapter
 from infrastructure.models.setup_food import SetupFoodAdapter
@@ -45,16 +56,36 @@ def build_setup_services(
     provider_state: ProviderLocalStatePort,
     food_evidence: FoodEvidencePort | None = None,
     catalog: ProviderCatalog | None = None,
+    data_home: Path | None = None,
 ) -> SetupServices:
     state = SQLiteSetupAdapter(db_path)
     setup_accounts = SetupAccountsAdapter(accounts)
     providers = SetupProviderAdapter(provider_state)
+    ollama_task_lease_factory = _build_ollama_task_lease_factory(
+        providers,
+        data_home,
+        catalog,
+    )
     ollama = SetupOllamaAdapter(
         technology=PublicOllamaSetupTechnologyAdapter(),
         load_binding=providers.load_ollama_binding,
         save_binding=providers.save_ollama_binding,
         save_model=providers.save_ollama_model,
+        acquire_task_lease=ollama_task_lease_factory,
     )
+
+    def acquire_setup_task_lease() -> Optional[SetupOllamaTaskLease]:
+        if ollama_task_lease_factory is None:
+            return None
+        binding = providers.load_ollama_binding()
+        if binding is None:
+            return None
+        return ollama_task_lease_factory(binding)
+
+    setup_task_lease_factory = (
+        acquire_setup_task_lease if ollama_task_lease_factory is not None else None
+    )
+
     food_persistence = SQLiteFoodAdapter(db_path)
     evidence_port = food_evidence
     if evidence_port is None:
@@ -84,8 +115,57 @@ def build_setup_services(
             ),
             nest=SetupNestAdapter(nest),
             runner=ThreadSetupInstallationRunner(),
+            ollama_task_lease_factory=setup_task_lease_factory,
         ),
     )
+
+
+def _build_ollama_task_lease_factory(
+    providers: SetupProviderAdapter,
+    data_home: Path | None,
+    catalog: ProviderCatalog | None,
+) -> Callable[[SetupOllamaBinding], Optional[SetupOllamaTaskLease]] | None:
+    """Share the user-scoped Ollama lease with Setup model downloads."""
+    if data_home is None:
+        return None
+    if catalog is None:
+        raise ValueError(
+            "Ollama lease composition requires an injected Provider catalog"
+        )
+
+    def load_binding(_home: Path) -> StoredLocalProviderBinding | None:
+        binding = providers.load_ollama_binding()
+        if binding is None:
+            return None
+        return StoredLocalProviderBinding(
+            api_base=binding.api_base,
+            platform=binding.platform,
+            install_kind=binding.install_kind,
+            launch_target=binding.launch_target,
+            version=binding.version,
+            installer_source_url=binding.installer_source_url,
+            installer_sha256=binding.installer_sha256,
+        )
+
+    lifecycle = OllamaLifecycleAdapter(
+        PublicOllamaProviderAdapter(catalog=catalog),
+        binding_loader=load_binding,
+    )
+    owner_id = f"setup:{os.getpid()}"
+    instance_id = (
+        "setup-"
+        + hashlib.sha256(str(data_home.resolve()).encode("utf-8")).hexdigest()[:16]
+    )
+
+    def acquire(_binding: SetupOllamaBinding) -> Optional[SetupOllamaTaskLease]:
+        return lifecycle.acquire(
+            owner_id=owner_id,
+            instance_id=instance_id,
+            generation=1,
+            elfie_home=data_home,
+        )
+
+    return acquire
 
 
 __all__ = ("SetupServices", "build_setup_services")

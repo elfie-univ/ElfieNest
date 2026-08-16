@@ -595,6 +595,15 @@ class NestSession:
     def _runtime_world_revision(self) -> int:
         return self._runtime_sync.configured_revision or 0
 
+    @property
+    def runtime_world_ready(self) -> bool:
+        """Return whether the current Godot world passed semantic setup."""
+        return bool(
+            self.world_runtime.runtime_ready
+            and self._runtime_sync.configured_revision is not None
+            and not self.nest.reconciliation_required
+        )
+
     def configure_cognition(self, model_port: ModelPort) -> None:
         """Inject the configured model boundary into every registered Elfie."""
         with self._lifecycle_lock:

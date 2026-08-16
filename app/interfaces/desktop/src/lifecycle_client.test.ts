@@ -137,7 +137,7 @@ test("managed lifecycle client activates a user-selected data root", async () =>
 test("managed lifecycle client attaches to a ready CLI-owned Runtime without starting it", async () => {
   // Given: the public CLI reports a ready Runtime leased by CLI.
   const runner = commandRunner([
-    JSON.stringify({ state: "ready", generation: 11, owner_lease: { owner_id: "cli" } }),
+    JSON.stringify({ state: "world_ready", tier: "world_ready", phase: "world_ready", generation: 11, owner_lease: { owner_id: "cli" } }),
   ]);
   const client = new ManagedRuntimeLifecycleClient("desktop-11", runner);
 
@@ -152,7 +152,7 @@ test("managed lifecycle client attaches to a ready CLI-owned Runtime without sta
 test("managed lifecycle client refuses an external checkout without a verified owner lease", async () => {
   // Given: another checkout already serves the Core, without a Desktop owner lease.
   const runner = commandRunner([
-    JSON.stringify({ state: "degraded", generation: 0, owner_lease: null }),
+    JSON.stringify({ state: "core_ready", tier: "core_ready", phase: "failed", generation: 0, owner_lease: null }),
   ]);
   const client = new ManagedRuntimeLifecycleClient("desktop-external", runner);
 
@@ -170,8 +170,15 @@ test("managed lifecycle client refuses an external checkout without a verified o
 test("managed lifecycle client starts a stopped Runtime with its desktop lease", async () => {
   // Given: no Runtime exists before the UI session starts.
   const runner = commandRunner([
-    JSON.stringify({ state: "stopped", generation: 0, owner_lease: null }),
-    JSON.stringify({ state: "ready", generation: 12, owner_lease: { owner_id: "desktop-12" } }),
+    JSON.stringify({ state: "offline", tier: "offline", phase: "offline", generation: 0, owner_lease: null }),
+    JSON.stringify({
+      state: "world_ready",
+      tier: "world_ready",
+      phase: "world_ready",
+      generation: 12,
+      owner_lease: { owner_id: "desktop-12" },
+      endpoints: [{ name: "http", scheme: "http", host: "127.0.0.1", port: 18234 }],
+    }),
   ]);
   const client = new ManagedRuntimeLifecycleClient("desktop-12", runner);
 
@@ -179,11 +186,75 @@ test("managed lifecycle client starts a stopped Runtime with its desktop lease",
   const attachment = await client.attachOrStart();
 
   // Then: it receives an owner lease only after the post-start status verifies it.
-  assert.deepEqual(attachment, { kind: "owned", generation: 12, ownerLease: "desktop-12" });
+  assert.deepEqual(attachment, {
+    kind: "owned",
+    generation: 12,
+    ownerLease: "desktop-12",
+    httpUrl: "http://127.0.0.1:18234/",
+  });
   assert.deepEqual(runner.calls, [
     { argumentsList: ["status", "--json"] },
     { argumentsList: ["start", "--owner-id", "desktop-12", "--json"] },
   ]);
+});
+
+test("managed lifecycle client attaches after another owner finishes startup", async () => {
+  const runner = commandRunner([
+    JSON.stringify({
+      state: "offline",
+      tier: "offline",
+      phase: "core_starting",
+      generation: 14,
+      owner_lease: null,
+      startup_owner_id: "cli",
+    }),
+    JSON.stringify({
+      state: "core_ready",
+      tier: "core_ready",
+      phase: "core_ready",
+      generation: 14,
+      owner_lease: { owner_id: "cli" },
+    }),
+  ]);
+  const client = new ManagedRuntimeLifecycleClient("desktop-14", runner);
+
+  const attachment = await client.attachOrStart();
+
+  assert.deepEqual(attachment, { kind: "attached", generation: 14 });
+  assert.deepEqual(runner.calls, [
+    { argumentsList: ["status", "--json"] },
+    { argumentsList: ["status", "--json"] },
+  ]);
+});
+
+test("managed lifecycle client preserves the authoritative startup failure detail", async () => {
+  const runner = commandRunner([
+    JSON.stringify({
+      state: "offline",
+      tier: "offline",
+      phase: "core_starting",
+      generation: 15,
+      owner_lease: null,
+      startup_owner_id: "cli",
+    }),
+    JSON.stringify({
+      state: "offline",
+      tier: "offline",
+      phase: "failed",
+      generation: 15,
+      owner_lease: null,
+      failures: [{ code: "START_FAILED", detail: "Godot WebSocket port is unavailable" }],
+    }),
+  ]);
+  const client = new ManagedRuntimeLifecycleClient("desktop-15", runner);
+
+  const attachment = await client.attachOrStart();
+
+  assert.deepEqual(attachment, {
+    kind: "failed",
+    reason: "Godot WebSocket port is unavailable",
+    recoverable: true,
+  });
 });
 
 test("managed lifecycle client streams Core-ready progress before full Runtime readiness", async () => {
@@ -199,7 +270,9 @@ test("managed lifecycle client streams Core-ready progress before full Runtime r
     onLine(coreReady);
     onLine(authorityStarting);
     const status = JSON.stringify({
-      state: "ready",
+      state: "world_ready",
+      tier: "world_ready",
+      phase: "world_ready",
       generation: 13,
       owner_lease: { owner_id: "desktop-13" },
       startup_owner_id: null,
@@ -207,7 +280,7 @@ test("managed lifecycle client streams Core-ready progress before full Runtime r
     return `${coreReady}\n${authorityStarting}\n${status}\n`;
   };
   const initial = commandRunner([
-    JSON.stringify({ state: "stopped", generation: 0, owner_lease: null }),
+    JSON.stringify({ state: "offline", tier: "offline", phase: "offline", generation: 0, owner_lease: null }),
   ]);
   const statusCalls = initial.calls;
   const composedRunner: LifecycleCommandRunner = {
@@ -249,17 +322,13 @@ test("managed lifecycle client cancels an in-flight start through the public sto
   ]);
 });
 
-test("managed lifecycle client restarts its owned Runtime after authority failure", async () => {
+test("managed lifecycle client keeps the owned Core after authority failure", async () => {
   const runner = commandRunner([
     JSON.stringify({
-      state: "failed",
+      state: "core_ready",
+      tier: "core_ready",
+      phase: "failed",
       generation: 14,
-      owner_lease: { owner_id: "desktop-14" },
-    }),
-    "stopped",
-    JSON.stringify({
-      state: "ready",
-      generation: 15,
       owner_lease: { owner_id: "desktop-14" },
     }),
   ]);
@@ -269,20 +338,20 @@ test("managed lifecycle client restarts its owned Runtime after authority failur
 
   assert.deepEqual(attachment, {
     kind: "owned",
-    generation: 15,
+    generation: 14,
     ownerLease: "desktop-14",
   });
   assert.deepEqual(runner.calls, [
     { argumentsList: ["status", "--json"] },
-    { argumentsList: ["stop", "--owner-id", "desktop-14"] },
-    { argumentsList: ["start", "--owner-id", "desktop-14", "--json"] },
   ]);
 });
 
 test("managed lifecycle client refuses to recover another owner's Runtime", async () => {
   const runner = commandRunner([
     JSON.stringify({
-      state: "failed",
+      state: "core_ready",
+      tier: "core_ready",
+      phase: "failed",
       generation: 16,
       owner_lease: { owner_id: "cli" },
     }),

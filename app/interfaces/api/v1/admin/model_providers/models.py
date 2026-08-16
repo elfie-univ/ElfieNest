@@ -381,6 +381,9 @@ class ProviderModelAvailabilityResponse(BaseModel):
     serving_food_ids: tuple[str, ...]
     serving_roles: tuple[str, ...]
     capabilities: tuple[ProviderModelCapabilityResponse, ...]
+    reachability_status: Literal["available", "degraded", "unavailable", "unknown"]
+    reachability_observed_at: Optional[str]
+    reachability_expires_at: Optional[str]
 
     @classmethod
     def from_result(
@@ -407,6 +410,9 @@ class ProviderModelAvailabilityResponse(BaseModel):
                 )
                 for capability in item.capabilities
             ),
+            reachability_status=item.reachability_status,
+            reachability_observed_at=item.reachability_observed_at,
+            reachability_expires_at=item.reachability_expires_at,
         )
 
 

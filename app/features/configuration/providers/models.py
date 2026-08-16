@@ -210,6 +210,11 @@ class DeleteProviderModelCommand:
 
 
 @dataclass(frozen=True)
+class CleanupObsoleteProviderModelsCommand:
+    connection_id: str
+
+
+@dataclass(frozen=True)
 class GetProviderModelMatrixQuery:
     as_of: str | None = None
     run_id: str | None = None
@@ -386,6 +391,12 @@ class ProviderConnectionDeletedResult:
 class ProviderModelDeletedResult:
     connection_id: str
     model_id: str
+
+
+@dataclass(frozen=True)
+class ProviderModelsCleanupResult:
+    connection_id: str
+    model_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)

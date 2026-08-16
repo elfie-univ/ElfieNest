@@ -42,6 +42,63 @@ def call_llm_api(
     request_options: dict[str, Any] | None = None,
     timeout_seconds: float | None = None,
 ) -> str:
+    """Call one model through its typed Provider adapter."""
+    return _call_llm_api(
+        config,
+        provider,
+        model_name,
+        messages,
+        temperature,
+        max_tokens,
+        thinking=thinking,
+        request_options=request_options,
+        timeout_seconds=timeout_seconds,
+        response_capture=None,
+    )
+
+
+def call_llm_api_with_trace(
+    config: ModelExecutionConfig,
+    provider: str,
+    model_name: str,
+    messages: list[dict[str, Any]],
+    temperature: float,
+    max_tokens: int,
+    *,
+    thinking: bool = False,
+    request_options: dict[str, Any] | None = None,
+    timeout_seconds: float | None = None,
+) -> tuple[str, Mapping[str, Any]]:
+    """Call one model and retain only capability-safe response metadata."""
+    capture: dict[str, Any] = {}
+    response = _call_llm_api(
+        config,
+        provider,
+        model_name,
+        messages,
+        temperature,
+        max_tokens,
+        thinking=thinking,
+        request_options=request_options,
+        timeout_seconds=timeout_seconds,
+        response_capture=capture,
+    )
+    return response, capture
+
+
+def _call_llm_api(
+    config: ModelExecutionConfig,
+    provider: str,
+    model_name: str,
+    messages: list[dict[str, Any]],
+    temperature: float,
+    max_tokens: int,
+    *,
+    thinking: bool = False,
+    request_options: dict[str, Any] | None = None,
+    timeout_seconds: float | None = None,
+    response_capture: dict[str, Any] | None = None,
+) -> str:
     provider_cfg: dict[str, Any] = config.providers.get(provider, {})
     api_key = provider_cfg.get("api_key", "")
     api_base = provider_cfg.get("api_base", "")
@@ -77,6 +134,24 @@ def call_llm_api(
         elif request_profile.api_mode == "anthropic_messages":
             args = (api_base, api_key, model_name, messages, temperature, max_tokens)
         elif request_profile.api_mode == "codex_responses":
+            codex_options: dict[str, Any] = {
+                "request_options": (
+                    dict(effective_request_options)
+                    if effective_request_options
+                    else None
+                ),
+                "credential_ref": str(provider_cfg.get("credential_ref") or ""),
+                "account_id": (
+                    str(provider_cfg["account_id"])
+                    if provider_cfg.get("account_id")
+                    else None
+                ),
+                "oauth_credentials": config.oauth_credentials,
+            }
+            if response_capture is not None:
+                codex_options["response_capture"] = response_capture
+            if timeout_seconds is not None:
+                codex_options["timeout_seconds"] = timeout_seconds
             response_text, usage = dispatch_fn(
                 api_base,
                 api_key,
@@ -85,19 +160,7 @@ def call_llm_api(
                 temperature,
                 max_tokens,
                 provider,
-                request_options=(
-                    dict(effective_request_options)
-                    if effective_request_options
-                    else None
-                ),
-                credential_ref=str(provider_cfg.get("credential_ref") or ""),
-                account_id=(
-                    str(provider_cfg["account_id"])
-                    if provider_cfg.get("account_id")
-                    else None
-                ),
-                oauth_credentials=config.oauth_credentials,
-                timeout_seconds=timeout_seconds,
+                **codex_options,
             )
             args = ()
         else:
@@ -122,13 +185,24 @@ def call_llm_api(
                     else None
                 ),
                 timeout_seconds=timeout_seconds,
+                **(
+                    {"response_capture": response_capture}
+                    if response_capture is not None
+                    else {}
+                ),
             )
-        elif effective_request_options or timeout_seconds is not None:
+        elif (
+            effective_request_options
+            or response_capture is not None
+            or timeout_seconds is not None
+        ):
             dispatch_options: dict[str, Any] = {}
             if effective_request_options:
                 dispatch_options["request_options"] = dict(effective_request_options)
             if timeout_seconds is not None:
                 dispatch_options["timeout_seconds"] = timeout_seconds
+            if response_capture is not None:
+                dispatch_options["response_capture"] = response_capture
             response_text, usage = dispatch_fn(*args, **dispatch_options)
         else:
             response_text, usage = dispatch_fn(*args)

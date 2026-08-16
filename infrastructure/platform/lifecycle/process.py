@@ -16,6 +16,11 @@ from app.orchestration.lifecycle.ports import (
     ProcessInspectorPort,
     ProcessSnapshot,
 )
+from infrastructure.platform.lifecycle.windows_job import (
+    WindowsJobObject,
+    attach_process_to_job,
+    deterministic_job_name,
+)
 
 PID_FILENAME: Final = "elfienest.pid"
 DEFAULT_SERVICE_PORTS: Final[Tuple[int, ...]] = (8000, 8765)
@@ -297,6 +302,7 @@ class LocalServiceProcessAdapter:
 
     def __init__(self, inspector: Optional[ProcessInspectorPort] = None) -> None:
         self._inspector = inspector or DefaultProcessInspector()
+        self._windows_jobs: dict[int, WindowsJobObject] = {}
 
     def exists(self, pid: int) -> bool:
         return self._inspector.exists(pid)
@@ -318,19 +324,60 @@ class LocalServiceProcessAdapter:
         child_environment = os.environ.copy()
         if environment is not None:
             child_environment.update(environment)
-        process = subprocess.Popen(
-            command,
-            cwd=str(cwd),
-            env=child_environment,
-            start_new_session=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        if os.name == "nt":
+            # Keep a distinct Windows process group so a console close cannot
+            # strand a frozen Core child.  Termination below still targets the
+            # complete tree rather than relying on parentage alone.
+            process = subprocess.Popen(
+                command,
+                cwd=str(cwd),
+                env=child_environment,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+            )
+            job_name = child_environment.get("ELFIENEST_JOB_NAME")
+            if not job_name:
+                job_name = deterministic_job_name("core", str(process.pid))
+            try:
+                job = attach_process_to_job(process.pid, job_name)
+            except Exception:
+                # Popen succeeded but the ownership backstop did not.  Do not
+                # return a Core that the lifecycle cannot later clean up.
+                try:
+                    process.kill()
+                    process.wait(timeout=1.0)
+                except (OSError, subprocess.SubprocessError, TimeoutError):
+                    pass
+                raise
+            if job is not None:
+                self._windows_jobs[process.pid] = job
+        else:
+            process = subprocess.Popen(
+                command,
+                cwd=str(cwd),
+                env=child_environment,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
         return process.pid
 
     def terminate(self, pid: int, *, force: bool = False) -> None:
         import signal
 
+        if os.name == "nt":
+            job = self._windows_jobs.get(pid)
+            try:
+                if force and job is not None:
+                    job.terminate()
+                else:
+                    _terminate_windows_process_tree(pid, force=force)
+            finally:
+                if job is not None:
+                    job.close()
+                    self._windows_jobs.pop(pid, None)
+            return
         requested_signal = signal.SIGKILL if force else signal.SIGTERM
         try:
             process_group = os.getpgid(pid)
@@ -407,3 +454,24 @@ class LocalServiceProcessAdapter:
 
     def register_current(self, elfie_home: Path) -> Path:
         return register_current_service(elfie_home)
+
+
+def _terminate_windows_process_tree(pid: int, *, force: bool) -> None:
+    """Terminate one validated Windows process and its descendants."""
+    command = ["taskkill", "/PID", str(pid), "/T"]
+    if force:
+        command.append("/F")
+    completed = subprocess.run(
+        command,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=5.0,
+    )
+    # taskkill returns 128 when the target exited between identity validation
+    # and the kill request.  That race is already a successful stop outcome.
+    if completed.returncode not in {0, 128}:
+        detail = (completed.stderr or completed.stdout).strip()
+        raise OSError(
+            detail or f"taskkill failed with exit code {completed.returncode}"
+        )

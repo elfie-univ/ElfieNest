@@ -118,3 +118,25 @@ def test_recent_optional_role_usage_activates_exact_endpoint() -> None:
     )
     assert vision.food_ids == ("food_selected",)
     assert vision.roles == ("vision",)
+
+
+def test_required_optional_role_is_core_without_recent_usage() -> None:
+    package = StoredFoodPackage(
+        food_id="food_selected",
+        display_name="food_selected",
+        primary_model="cloud/main",
+        vision_model="cloud/vision",
+        required_roles=frozenset({"vision"}),
+    )
+
+    index = build_serving_food_index(
+        (package,),
+        (StoredElfieFoodAssignment("elfie-1", 7, "food_selected"),),
+        default_food_id="food_selected",
+        emergency_food_id="food_emergency",
+    )
+
+    vision = next(
+        item for item in index.core_endpoints if item.reference == "cloud/vision"
+    )
+    assert vision.roles == ("vision",)

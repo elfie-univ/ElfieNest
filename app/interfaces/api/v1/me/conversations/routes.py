@@ -18,6 +18,10 @@ from app.features.communication import (
     MessageInvalid,
     MessageResult,
 )
+from app.interfaces.api.runtime_capability import (
+    RuntimeCapabilityDenied,
+    require_runtime_capability,
+)
 from app.interfaces.api.v1.auth import require_user
 from app.orchestration.message_delivery import (
     DuplicateMessage,
@@ -131,10 +135,13 @@ def submit_message(
     principal: AccountPrincipal = CurrentPrincipal,
 ) -> Union[MessageResponse, JSONResponse]:
     try:
+        require_runtime_capability(request.app, "chat")
         result = delivery_facade(request).submit_user_message(
             principal,
             SubmitUserMessageCommand(elfie_id=elfie_id, text=body.text),
         )
+    except RuntimeCapabilityDenied as error:
+        return capability_error_response(error)
     except CommunicationError as error:
         return communication_error_response(error)
     except MessageDeliveryError as error:
@@ -180,6 +187,17 @@ def delivery_error_response(error: MessageDeliveryError) -> JSONResponse:
     return JSONResponse(status_code=status_code, content=body.model_dump(mode="json"))
 
 
+def capability_error_response(error: RuntimeCapabilityDenied) -> JSONResponse:
+    body = CommunicationErrorResponse(
+        error=CommunicationErrorItem(
+            code=error.code,
+            message=error.detail,
+            details=CommunicationErrorDetails(),
+        )
+    )
+    return JSONResponse(status_code=503, content=body.model_dump(mode="json"))
+
+
 def _message_response(message: MessageResult) -> MessageResponse:
     return MessageResponse(
         id=message.id,
@@ -192,6 +210,7 @@ def _message_response(message: MessageResult) -> MessageResponse:
 
 __all__ = (
     "communication_error_response",
+    "capability_error_response",
     "communication_facade",
     "delivery_error_response",
     "delivery_facade",

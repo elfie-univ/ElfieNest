@@ -20,6 +20,8 @@ from .ports import (
     SetupOllamaBinding,
     SetupOllamaInstallPort,
     SetupOllamaProbe,
+    SetupOllamaTaskLease,
+    SetupOllamaTaskLeaseFactory,
     SetupProviderPort,
 )
 from .service import SetupInstallationService
@@ -44,5 +46,7 @@ __all__ = (
     "SetupOllamaBinding",
     "SetupOllamaInstallPort",
     "SetupOllamaProbe",
+    "SetupOllamaTaskLease",
+    "SetupOllamaTaskLeaseFactory",
     "SetupProviderPort",
 )

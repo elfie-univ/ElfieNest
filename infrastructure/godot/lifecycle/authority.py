@@ -23,6 +23,7 @@ from infrastructure.godot.lifecycle.launcher import (
     plan_godot_runtime_launch,
     start_godot_runtime,
     stop_godot_runtime,
+    terminate_recorded_godot_runtime,
 )
 
 
@@ -101,6 +102,12 @@ class GodotAuthorityHostAdapter:
 
     def _stop_recorded(self, pid: int) -> None:
         if not self._inspector.exists(pid) or not self._recorded_matches(pid):
+            return
+        if os.name == "nt":
+            try:
+                terminate_recorded_godot_runtime(pid)
+            except (OSError, ProcessLookupError):
+                return
             return
         try:
             process_group = os.getpgid(pid)

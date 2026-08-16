@@ -124,19 +124,18 @@ jobs:
           [[ -f "$artifact_for_shell" ]]
           printf 'Built %s: %s\n' "$RELEASE_TARGET" "$artifact"
 
-      - name: Validate macOS installer contents
+      - name: Validate macOS PKG contents
         if: runner.os == 'macOS'
         env:
           RELEASE_TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
           artifact="$(cat "$RUNNER_TEMP/elfienest-artifact-path")"
-          mountpoint="$(mktemp -d "$RUNNER_TEMP/elfienest-dmg.XXXXXX")"
-          hdiutil attach -nobrowse -readonly -mountpoint "$mountpoint" "$artifact" >/dev/null
-          trap 'hdiutil detach "$mountpoint" >/dev/null 2>&1 || true; rmdir "$mountpoint" 2>/dev/null || true' EXIT
-          test -x "$mountpoint/ElfieNest.app/Contents/MacOS/ElfieNest"
-          test -x "$mountpoint/ElfieNest.app/Contents/Resources/management-cli/ElfieNestCli"
-          test -f "$mountpoint/ElfieNest.app/Contents/Resources/manifest.json"
+          pkgutil --check-signature "$artifact" >/dev/null 2>&1 || true
+          payload_files="$(pkgutil --payload-files "$artifact")"
+          grep -q './ElfieNest.app/Contents/MacOS/ElfieNest' <<< "$payload_files"
+          grep -q './ElfieNest.app/Contents/Resources/management-cli/ElfieNestCli' <<< "$payload_files"
+          grep -q './ElfieNest.app/Contents/Resources/manifest.json' <<< "$payload_files"
 
       - name: Validate Windows installer contents
         if: runner.os == 'Windows'
@@ -152,20 +151,20 @@ jobs:
           if (-not (Test-Path -LiteralPath (Join-Path $installRoot "resources/management-cli/ElfieNestCli.exe"))) { throw "Management CLI missing" }
           if (-not (Test-Path -LiteralPath (Join-Path $installRoot "resources/manifest.json"))) { throw "Release manifest missing" }
 
-      - name: Validate Linux AppImage contents
+      - name: Validate Linux DEB contents
         if: runner.os == 'Linux'
         env:
           RELEASE_TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
           artifact="$(cat "$RUNNER_TEMP/elfienest-artifact-path")"
-          chmod +x "$artifact"
-          extract_root="$RUNNER_TEMP/elfienest-appimage"
-          mkdir -p "$extract_root"
-          (cd "$extract_root" && "$artifact" --appimage-extract >/dev/null)
-          test -x "$extract_root/squashfs-root/AppRun"
-          test -x "$extract_root/squashfs-root/resources/management-cli/ElfieNestCli"
-          test -f "$extract_root/squashfs-root/resources/manifest.json"
+          dpkg-deb --info "$artifact" >/dev/null
+          extract_root="$RUNNER_TEMP/elfienest-deb"
+          rm -rf "$extract_root"
+          dpkg-deb --extract "$artifact" "$extract_root"
+          test -x "$extract_root/opt/ElfieNest/resources/management-cli/ElfieNestCli"
+          test -f "$extract_root/opt/ElfieNest/resources/manifest.json"
+          test -x "$extract_root/usr/bin/elfienest-gui"
 
       - name: Upload target installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -226,7 +225,7 @@ jobs:
             echo "Release tag $release_tag does not match $expected_tag" >&2
             exit 1
           }
-          mapfile -t packages < <(find release-artifacts -maxdepth 1 -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.AppImage' \) -print | sort)
+          mapfile -t packages < <(find release-artifacts -maxdepth 1 -type f \( -name '*.pkg' -o -name '*.exe' -o -name '*.deb' \) -print | sort)
           [[ "${#packages[@]}" == "4" ]] || {
             printf 'Expected four installers, found %s\n' "${#packages[@]}" >&2
             exit 1
@@ -234,7 +233,7 @@ jobs:
           printf 'release_tag=%s\nversion=%s\n' "$release_tag" "$version" >> "$GITHUB_OUTPUT"
           (
             cd release-artifacts
-            sha256sum *.dmg *.exe *.AppImage
+            sha256sum *.pkg *.exe *.deb
           ) > release-artifacts/SHA256SUMS
           python - "$release_tag" "$version" "${packages[@]}" <<'PY'
           import hashlib
@@ -284,8 +283,8 @@ jobs:
             --title "ElfieNest ${{ steps.metadata.outputs.release_tag }}" \
             --generate-notes \
             "${release_args[@]}" \
-            release-artifacts/*.dmg \
+            release-artifacts/*.pkg \
             release-artifacts/*.exe \
-            release-artifacts/*.AppImage \
+            release-artifacts/*.deb \
             release-artifacts/SHA256SUMS \
             release-artifacts/manifest.json

@@ -6,6 +6,7 @@ import asyncio
 import threading
 from dataclasses import replace
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import Any, Callable, Literal, Mapping, Optional, cast
 
 from pydantic import JsonValue
@@ -41,6 +42,11 @@ from app.features.configuration import (
 from app.features.configuration.providers import (
     ValidationStatus as ProviderValidationStatus,
 )
+from infrastructure.models.inference.llm_api import call_llm_api_with_trace
+from infrastructure.models.model_execution_observations import (
+    ModelCallContext,
+    scoped_model_call_context,
+)
 from infrastructure.models.oauth_credentials import OAuthCredentialPort
 from infrastructure.models.provider_records import (
     ProviderConnection,
@@ -49,6 +55,7 @@ from infrastructure.models.provider_records import (
 from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.discovery import (
     bundled_catalog_models,
+    cleanup_eligible_models,
     merge_refreshed_models,
     remote_catalog_models,
 )
@@ -69,6 +76,13 @@ from infrastructure.models.storage_ports import (
     ProviderStorageError,
     ProviderStoragePort,
     ReportStoragePort,
+)
+from infrastructure.models.validation.capability_probes import (
+    CapabilityName,
+    CapabilityProbeResult,
+    capability_error_result,
+    capability_probe_request,
+    evaluate_capability_probe,
 )
 from infrastructure.models.validation.provider_availability import (
     project_endpoint_availability,
@@ -97,11 +111,22 @@ from infrastructure.models.validation.provider_validation_service import (
 )
 from infrastructure.models.validation.serving_food import ServingFoodIndex
 
-from .provider_errors import sanitize_error
+from .provider_errors import classify_provider_error, sanitize_error
 
 _DISCOVERY_TIMEOUT_SECONDS = 7.0
 _DISCOVERY_SLOTS = threading.BoundedSemaphore(3)
 _BENCHMARK_CONCURRENCY = 2
+
+
+def _latest_production_use(observations: tuple[Any, ...]) -> str | None:
+    timestamps = [
+        item.observed_at
+        for item in observations
+        if item.details.get("workload_kind") == "production"
+        and item.details.get("evidence_kind") != "capability"
+        and isinstance(item.observed_at, str)
+    ]
+    return max(timestamps) if timestamps else None
 
 
 def _with_request_profile(
@@ -663,6 +688,155 @@ class ProviderModelsAdapter:
         except BaseException:
             self._reports.finish_run(run_id, status="failed")
             raise
+
+    async def probe_model_capability(
+        self,
+        reference: str,
+        capability: CapabilityName,
+    ) -> CapabilityProbeResult:
+        """Execute one real, channel-specific probe and persist safe evidence."""
+
+        connection_id, separator, model_id = reference.partition("/")
+        if not separator or not connection_id or not model_id:
+            raise ProviderPortError("模型引用必须为 connection_id/model_id")
+        stored = self._store.load_connections().get(connection_id)
+        if stored is None:
+            raise ProviderPortError("Provider connection is missing")
+        connection = self._provider_connection(self._connection(stored))
+        if not any(item.endpoint_model_id == model_id for item in connection.models):
+            raise ProviderPortError("Provider model is missing")
+
+        request = capability_probe_request(
+            capability,
+            api_mode=connection.api_mode,
+        )
+        run_id = self._reports.start_run(
+            scope=f"model:{reference}:capability:{capability}",
+            trigger="single",
+        )
+        started = perf_counter()
+        try:
+            execution_id, config = self._model_execution_projection(connection)
+            with scoped_model_call_context(
+                ModelCallContext(
+                    connection_id=connection.connection_id,
+                    endpoint_model_id=model_id,
+                    semantic_role=capability,
+                    workload_kind="validation",
+                )
+            ):
+                response_text, response_metadata = await asyncio.to_thread(
+                    call_llm_api_with_trace,
+                    config,
+                    execution_id,
+                    model_id,
+                    request.messages,
+                    0.0,
+                    16,
+                    thinking=request.thinking,
+                    request_options=request.request_options,
+                    timeout_seconds=20.0,
+                )
+            result = evaluate_capability_probe(
+                capability,
+                response_text,
+                response_metadata,
+            )
+            self._append_capability_observation(
+                run_id,
+                connection,
+                model_id,
+                result,
+                latency_ms=(perf_counter() - started) * 1000.0,
+            )
+            self._reports.finish_run(run_id, status="complete")
+            return result
+
+        except BaseException as error:
+            classification = classify_provider_error(error)
+            result = capability_error_result(capability, classification.code)
+            safe_error = sanitize_error(
+                str(error),
+                secrets=(self._resolve_credential(connection.credential_ref),),
+            )
+            self._append_capability_observation(
+                run_id,
+                connection,
+                model_id,
+                result,
+                latency_ms=(perf_counter() - started) * 1000.0,
+                error=safe_error,
+                error_category=classification.category,
+                error_scope=classification.scope,
+            )
+            self._reports.finish_run(run_id, status="complete")
+            return result
+
+    def _append_capability_observation(
+        self,
+        run_id: str,
+        connection: ProviderConnection,
+        model_id: str,
+        result: CapabilityProbeResult,
+        *,
+        latency_ms: float,
+        error: str | None = None,
+        error_category: str | None = None,
+        error_scope: str | None = None,
+    ) -> None:
+        details: dict[str, Any] = {
+            "evidence_kind": "capability",
+            "capability": result.capability,
+            "capability_state": result.state,
+            "capability_evidence": result.evidence,
+            "reason_code": result.reason_code,
+            "evidence_source": "controlled_probe",
+            "validation_mode": "capability",
+            "config_fingerprint": connection_validation_fingerprint(
+                connection,
+                secret_resolver=self._resolve_credential,
+            ),
+            **dict(result.details),
+        }
+        if error_scope is not None:
+            details["error_scope"] = error_scope
+        self._reports.append_observation(
+            run_id=run_id,
+            subject_kind="model",
+            subject_id=f"{connection.connection_id}/{model_id}",
+            status=(
+                "passed"
+                if result.state == "supported"
+                else "warning"
+                if result.state == "unknown"
+                else "failed"
+            ),
+            latency_ms=latency_ms,
+            error_category=error_category,
+            error_message=error,
+            details=details,
+        )
+
+    def obsolete_model_ids(
+        self,
+        connection: StoredProviderConnection,
+        *,
+        referenced_model_ids: tuple[str, ...] = (),
+    ) -> tuple[str, ...]:
+        """Return only source-managed models that pass the 30-day evidence gate."""
+
+        provider_connection = self._provider_connection(connection)
+        production_used_after: dict[str, str | None] = {}
+        for model in provider_connection.models:
+            reference = f"{provider_connection.connection_id}/{model.endpoint_model_id}"
+            production_used_after[model.endpoint_model_id] = _latest_production_use(
+                self._reports.observations_for_subject("model", reference)
+            )
+        return cleanup_eligible_models(
+            provider_connection.models,
+            referenced_model_ids=referenced_model_ids,
+            production_used_after=production_used_after,
+        )
 
     async def refresh_models(
         self,

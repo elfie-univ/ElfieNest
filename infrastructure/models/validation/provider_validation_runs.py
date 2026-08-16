@@ -85,6 +85,7 @@ async def run_full(
                     run_id=run_id,
                     details={
                         "validation_mode": "full",
+                        "evidence_kind": "model_validation",
                         "full_run_id": run_id,
                         "config_fingerprint": decision.fingerprint,
                         "evidence_source": "validation",
@@ -168,6 +169,7 @@ async def run_full(
         )
         metadata = {
             "validation_mode": "full",
+            "evidence_kind": "reachability",
             "full_run_id": run_id,
             "full_checked_at": finished_at,
             "full_status": status,
@@ -268,6 +270,7 @@ async def run_heartbeat(
     )
     metadata = {
         "validation_mode": "heartbeat",
+        "evidence_kind": "reachability",
         "full_run_id": decision.source_run_id,
         "full_checked_at": decision.full_checked_at,
         "full_status": decision.full_status,

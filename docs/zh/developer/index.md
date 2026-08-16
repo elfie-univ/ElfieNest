@@ -17,6 +17,8 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
   一级所有权。
 - [Elfie 大脑十系统架构](./designs/elfie-brain-ten-system-architecture)：Brain 的概念系统、
   运行关系和渐进实现顺序。
+- [服务生命周期状态机设计](./designs/service-lifecycle-state-machine)：服务稳定层级、入口、
+  进程所有权和收敛。
 - [Provider 与 Endpoint 模型可用性](./designs/provider-model-availability)：精选模型加载、
   在用核心范围和节省资源的健康证据。
 - [架构契约](./contracts/)：长期保留的规范性规则。
@@ -25,12 +27,15 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
 - [文档结构契约](./contracts/documentation-structure)：公开分区、Developer 文档分类和
   双语结构规则。
 - [系统架构契约](./contracts/system)：四大目标模块、系统级 Ports/Adapters 和迁移方向。
+- [服务生命周期契约](./contracts/service-lifecycle)：Runtime 状态、入口语义和受管进程的
+  规范性不变量。
 - [Elfie 内部架构契约](./contracts/elfie)：一只 Elfie 的聚合、生命系统与 Port 所有权边界。
 - [Elfie Brain 内部架构契约](./contracts/brain)：Turn、思考、心智状态与跨回合活动所有权。
 - [Elfie 一致性](./conformance/elfie)：主体级生命系统迁移的收口证据，等待独立治理删除。
   Brain 已完成一致性收口，其契约由永久架构测试守护。
 - [应用架构契约](./contracts/application)：`app/` 新增和已迁移代码的所有权、
   依赖方向、Port/Adapter 和组合根规范。
+- [服务生命周期一致性](./conformance/service-lifecycle)：已接受契约与当前实现之间的开放缺口。
 - [架构决策记录（ADR）](./decisions/)：长期架构变更的已接受原因。
 
 ## 工程实践
