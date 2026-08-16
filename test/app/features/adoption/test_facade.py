@@ -8,6 +8,7 @@ import pytest
 from app.features.accounts import AccountPrincipal
 from app.features.adoption import (
     AdoptionCandidateSetExpired,
+    AdoptionGenerationTimeout,
     AdoptionInvalid,
     AdoptionNestCapacityRecord,
     AdoptionPolicyRecord,
@@ -21,6 +22,7 @@ from app.features.adoption import (
     GetAdoptionOptionsQuery,
     ReplyToCandidatesCommand,
     ReserveAcceptedAdoptionCommand,
+    StaticSpeciesRuntimeReadiness,
 )
 
 
@@ -182,6 +184,26 @@ def test_candidate_creation_rejects_a_species_without_a_complete_runtime_package
         service.create_candidate_set(principal(), command)
 
 
+def test_adoption_uses_the_validated_runtime_species_intersection() -> None:
+    service = AdoptionService(
+        Policy(),
+        Persistence(),
+        narrative=Narrative(),
+        species_runtime=StaticSpeciesRuntimeReadiness(("fox",)),
+    )
+
+    options = service.get_options(principal(), GetAdoptionOptionsQuery())
+    assert tuple(species.species_id for species in options.species) == ("fox",)
+
+    with pytest.raises(AdoptionInvalid, match="dog"):
+        service.create_candidate_set(
+            principal(),
+            CreateCandidateSetCommand(
+                **{**candidate_command().__dict__, "species_id": "dog"}
+            ),
+        )
+
+
 def test_candidate_reply_and_reservation_preserve_accepted_snapshot() -> None:
     persistence = Persistence()
     service = AdoptionService(Policy(), persistence, narrative=Narrative())
@@ -340,6 +362,32 @@ def test_slow_reveal_cannot_publish_after_the_absolute_ttl(
                 candidate_ids=(candidate_set.candidates[0].candidate_id,),
             ),
         )
+
+
+def test_invitation_timeout_rolls_back_to_a_retryable_candidate_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    narrative = Narrative()
+
+    def timeout(*_args, **_kwargs):
+        raise TimeoutError("model call exceeded deadline")
+
+    monkeypatch.setattr(narrative, "reveal_many", timeout)
+    service = AdoptionService(Policy(), Persistence(), narrative=narrative)
+    candidate_set = service.create_candidate_set(principal(), candidate_command())
+    command = ReplyToCandidatesCommand(
+        candidate_set_id=candidate_set.candidate_set_id,
+        candidate_ids=(candidate_set.candidates[0].candidate_id,),
+    )
+
+    with pytest.raises(AdoptionGenerationTimeout, match="超时"):
+        service.reply_to_candidates(principal(), command)
+
+    monkeypatch.setattr(
+        narrative, "reveal_many", Narrative.reveal_many.__get__(narrative)
+    )
+    retry = service.reply_to_candidates(principal(), command)
+    assert retry.replies[0].reveal is not None
 
 
 def test_reply_uses_strong_model_reveal_before_reservation() -> None:

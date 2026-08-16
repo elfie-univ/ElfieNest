@@ -52,6 +52,8 @@ class SelfhoodSnapshot(FrozenContractModel):
     norms: Tuple[_NonBlankText, ...] = ()
     identity_facts: Tuple[_NonBlankText, ...] = ()
     behavior_anchors: Tuple[_NonBlankText, ...] = ()
+    sensory_biases: Tuple[_NonBlankText, ...] = ()
+    species_knowledge: Tuple[_NonBlankText, ...] = ()
     knowledge_boundaries: Tuple[_NonBlankText, ...] = ()
     source_event_ids: Tuple[EventId, ...] = ()
     unknown_fields: Tuple[_NonBlankText, ...] = ()
@@ -72,6 +74,8 @@ class SelfhoodSnapshot(FrozenContractModel):
                 "norms",
                 "identity_facts",
                 "behavior_anchors",
+                "sensory_biases",
+                "species_knowledge",
                 "knowledge_boundaries",
             ),
             freshness="unknown",

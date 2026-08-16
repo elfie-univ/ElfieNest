@@ -13,6 +13,7 @@ from app.features.adoption import (
     AdoptionCandidateSetExpired,
     AdoptionCapacityReached,
     AdoptionError,
+    AdoptionGenerationTimeout,
     AdoptionInvalid,
     AdoptionNestCapacityReached,
     AdoptionOwnerNotFound,
@@ -171,6 +172,9 @@ def _error_response(error: Exception) -> JSONResponse:
     if isinstance(error, AdoptionInvalid):
         status_code = 422
         code = "invalid_adoption"
+    elif isinstance(error, AdoptionGenerationTimeout):
+        status_code = 504
+        code = "adoption_generation_timeout"
     elif isinstance(error, AdoptionCandidateSetExpired):
         status_code = 410
         code = "adoption_candidate_set_expired"

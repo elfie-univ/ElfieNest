@@ -48,6 +48,7 @@ def call_ollama_api(
     *,
     thinking: bool = False,
     request_options: dict[str, Any] | None = None,
+    timeout_seconds: float | None = None,
 ) -> tuple[str, dict[str, Any]]:
     headers: dict[str, str] = {"Content-Type": "application/json"}
     url = f"{ollama_host}/api/chat"
@@ -69,12 +70,13 @@ def call_ollama_api(
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
     try:
-        with open_provider_request(req, timeout=300) as response:
+        request_timeout = timeout_seconds if timeout_seconds is not None else 300.0
+        with open_provider_request(req, timeout=request_timeout) as response:
             res_data = json.loads(
                 read_provider_response(
                     response,
                     max_bytes=8 * 1024 * 1024,
-                    deadline_seconds=300,
+                    deadline_seconds=request_timeout,
                 ).decode("utf-8")
             )
             usage: dict[str, Any] = {}
@@ -167,6 +169,7 @@ def call_anthropic_api(
     max_tokens: int,
     *,
     request_options: dict[str, Any] | None = None,
+    timeout_seconds: float | None = None,
 ) -> tuple[str, dict[str, Any]]:
     url = f"{api_base.rstrip('/')}/messages"
     system_prompt = ""
@@ -196,12 +199,13 @@ def call_anthropic_api(
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
     try:
-        with open_provider_request(req, timeout=60) as response:
+        request_timeout = timeout_seconds if timeout_seconds is not None else 60.0
+        with open_provider_request(req, timeout=request_timeout) as response:
             res_data = json.loads(
                 read_provider_response(
                     response,
                     max_bytes=8 * 1024 * 1024,
-                    deadline_seconds=60,
+                    deadline_seconds=request_timeout,
                 ).decode("utf-8")
             )
             usage = res_data.get("usage", {})
@@ -229,6 +233,7 @@ def call_codex_responses_api(
     credential_ref: str = "",
     account_id: str | None = None,
     oauth_credentials: OAuthCredentialPort | None = None,
+    timeout_seconds: float | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Call the ChatGPT Codex Responses transport with a refreshable user token."""
     _ = temperature, max_tokens
@@ -278,9 +283,12 @@ def call_codex_responses_api(
         method="POST",
     )
     try:
-        with open_provider_request(request, timeout=300) as response:
+        request_timeout = timeout_seconds if timeout_seconds is not None else 300.0
+        with open_provider_request(request, timeout=request_timeout) as response:
             raw = read_provider_response(
-                response, max_bytes=32 * 1024 * 1024, deadline_seconds=300
+                response,
+                max_bytes=32 * 1024 * 1024,
+                deadline_seconds=request_timeout,
             ).decode("utf-8")
         return _parse_codex_response(raw)
     except urllib.error.HTTPError as error:

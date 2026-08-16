@@ -402,7 +402,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
         setInfo(nextInfo)
         if (nextInfo.availability === "nest_full") setEntryBlock("nest-full")
         else if (nextInfo.availability === "member_quota_full") setEntryBlock("member-full")
-        else if (nextInfo.availability === "model_unavailable") setEntryBlock("unavailable")
+        else if (nextInfo.availability === "model_unavailable" || nextInfo.availability === "species_unavailable") setEntryBlock("unavailable")
 
         const saved = loaded.state
         if (
@@ -815,7 +815,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           {entryChecking ? <AdoptionEntryCheck t={t} /> : null}
           {journeyReady && state.screen === "welcome" ? <WelcomeScreen t={t} onStart={goToBasic} /> : null}
           {journeyReady && state.screen === "basic" ? <BasicScreen allowedSpecies={allowedSpecies} canAdopt={info?.quota.can_adopt ?? true} draft={state.draft} dispatch={dispatch} locale={locale} speciesName={(id) => speciesName(id, info?.species.find((species) => species.species_id === id), locale)} stageName={(value) => stageName(t, value)} t={t} /> : null}
-          {journeyReady && state.screen === "appearance" ? <AppearanceScreen draft={state.draft} dispatch={dispatch} t={t} /> : null}
+          {journeyReady && state.screen === "appearance" ? <AppearanceScreen controls={info?.species.find((species) => species.species_id === state.draft.speciesId)?.appearance_controls ?? []} draft={state.draft} dispatch={dispatch} t={t} /> : null}
           {journeyReady && state.screen === "companionship" ? <CompanionshipScreen draft={state.draft} dispatch={dispatch} onAnswer={answerCompanionship} questionIndex={state.questionIndex} t={t} /> : null}
           {journeyReady && state.screen === "generating" && generationRequest !== null ? <GeneratingScreen csrfToken={csrfToken} frameRef={portraitFrameRef} onError={onGenerationError} onReady={onGenerationReady} request={generationRequest} runtimeActive={portraitRuntimeEnabled && portraitRuntimeRequested} runtimeGeneration={portraitRuntimeGeneration} t={t} /> : null}
           {journeyReady && state.screen === "shortlist" ? <ShortlistScreen candidates={state.candidates} candidateBatch={state.candidateBatch} dispatch={dispatch} onRegenerate={() => { void generateCandidates() }} selectedIds={state.selectedCandidateIds} t={t} /> : null}
@@ -913,16 +913,21 @@ function BasicScreen({
   </section>
 }
 
-function AppearanceScreen({ draft, dispatch, t }: { readonly draft: AdoptionDraftState["draft"]; readonly dispatch: React.Dispatch<AdoptionAction>; readonly t: JourneyT }) {
-  const groups: Record<(typeof APPEARANCE_GROUPS)[number], readonly string[]> = {
+function AppearanceScreen({ controls, draft, dispatch, t }: { readonly controls: readonly AdoptionInfo["species"][number]["appearance_controls"][number][]; readonly draft: AdoptionDraftState["draft"]; readonly dispatch: React.Dispatch<AdoptionAction>; readonly t: JourneyT }) {
+  const defaults: Record<(typeof APPEARANCE_GROUPS)[number], readonly string[]> = {
     stature: ["small", "standard", "tall", "any"],
     build: ["slim", "standard", "round", "any"],
     face: ["soft", "balanced", "defined", "any"],
     signature: ["warm", "marked", "ears", "any"],
   }
+  const configured = new Map(controls.map((control) => [control.control_id, control.options]))
+  const groups = APPEARANCE_GROUPS.map((group) => ({
+    group,
+    options: configured.get(group) ?? defaults[group],
+  }))
   return <section>
     <ScreenIntro badge={t("adoption.journey.badges.detailedMatch", { current: 1, total: 2 })} title={t("adoption.journey.appearance.title")} />
-    <div className="adoption-appearance-grid">{APPEARANCE_GROUPS.map((group) => <fieldset className="adoption-fieldset" key={group}><legend>{t(`adoption.journey.appearance.groups.${group}.label`)}</legend><div className="adoption-appearance-options">{groups[group].map((value) => <ChoiceButton className="adoption-appearance-choice" key={value} onClick={() => dispatch({ type: "set-appearance", field: group, value } as AdoptionAction)} selected={draft[group] === value}><span className={`adoption-shape adoption-shape--${value}`} aria-hidden="true" />{t(`adoption.journey.appearance.groups.${group}.${value}`)}</ChoiceButton>)}</div></fieldset>)}</div>
+    <div className="adoption-appearance-grid">{groups.map(({ group, options }) => <fieldset className="adoption-fieldset" key={group}><legend>{t(`adoption.journey.appearance.groups.${group}.label`)}</legend><div className="adoption-appearance-options">{options.map((value) => <ChoiceButton className="adoption-appearance-choice" key={value} onClick={() => dispatch({ type: "set-appearance", field: group, value } as AdoptionAction)} selected={draft[group] === value}><span className={`adoption-shape adoption-shape--${value}`} aria-hidden="true" />{t(`adoption.journey.appearance.groups.${group}.${value}`)}</ChoiceButton>)}</div></fieldset>)}</div>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.appearance.priorityLabel")}</legend><div className="adoption-option-row">{(["stature", "build", "face", "signature"] as const).map((priority) => <ChoiceButton key={priority} onClick={() => dispatch({ type: "set-appearance", field: "priority", value: priority })} selected={draft.priority === priority}>{t(`adoption.journey.appearance.groups.${priority}.label`)}</ChoiceButton>)}</div></fieldset>
   </section>
 }

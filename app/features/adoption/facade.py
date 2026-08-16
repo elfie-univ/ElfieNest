@@ -17,6 +17,7 @@ from .errors import (
 )
 from .models import (
     AcceptedAdoptionReservation,
+    AdoptionAppearanceControl,
     AdoptionAvailability,
     AdoptionNestCapacity,
     AdoptionOptionsResult,
@@ -44,6 +45,8 @@ from .ports import (
     AdoptionPortOwnerNotFound,
     CandidatePortraitPort,
     SpeciesPresentationPort,
+    SpeciesRuntimeReadinessPort,
+    StaticSpeciesRuntimeReadiness,
 )
 
 _HEIGHTS = ("short", "standard", "tall")
@@ -67,12 +70,20 @@ class AdoptionService:
         narrative: AdoptionNarrativePort | None = None,
         catalog: SpeciesCatalog | None = None,
         species_presentation: SpeciesPresentationPort | None = None,
+        species_runtime: SpeciesRuntimeReadinessPort | None = None,
     ) -> None:
         self._policy = policy
         self._persistence = persistence
         self._narrative = narrative
         self._catalog = catalog or current_species_catalog()
         self._species_presentation = species_presentation
+        self._species_runtime = species_runtime or StaticSpeciesRuntimeReadiness(
+            tuple(
+                definition.godot_package_id
+                for definition in self._catalog.definitions
+                if definition.adoptable
+            )
+        )
         self._candidates = candidates or CandidateRegistry(
             portraits=portraits,
             narrative=narrative,
@@ -103,6 +114,8 @@ class AdoptionService:
             if nest_remaining == 0
             else "member_quota_full"
             if remaining == 0
+            else "species_unavailable"
+            if not self._available_definitions()
             else "available"
             if self._narrative_ready()
             else "model_unavailable"
@@ -111,7 +124,7 @@ class AdoptionService:
             personality_styles=policy.enabled_personality_styles,
             species=tuple(
                 _species_result(definition, self._species_presentation)
-                for definition in self._catalog.list_definitions()
+                for definition in self._available_definitions()
             ),
             heights=_HEIGHTS,
             builds=_BUILDS,
@@ -137,7 +150,7 @@ class AdoptionService:
     ) -> CandidateSetResult:
         policy = self._load_policy()
         try:
-            self._catalog.definition(command.species_id, adoptable_only=True)
+            self._require_adoptable_species(command.species_id)
         except ValueError as error:
             raise AdoptionInvalid(
                 f"不支持的 species_id={command.species_id!r}"
@@ -180,7 +193,7 @@ class AdoptionService:
             candidate_id=command.candidate_id,
         )
         try:
-            self._catalog.definition(candidate.public.species_id, adoptable_only=True)
+            self._require_adoptable_species(candidate.public.species_id)
         except ValueError as error:
             raise AdoptionInvalid(
                 f"不支持的 species_id={candidate.public.species_id!r}"
@@ -224,7 +237,7 @@ class AdoptionService:
 
         _ = principal
         try:
-            self._catalog.definition(species_id, adoptable_only=True)
+            self._require_adoptable_species(species_id)
             if self._species_presentation is None:
                 raise AdoptionUnavailable("物种图片服务未装配")
             return self._species_presentation.read(species_id, image_kind)
@@ -276,6 +289,20 @@ class AdoptionService:
         except (OSError, RuntimeError, ValueError):
             return False
 
+    def _available_definitions(self) -> tuple[SpeciesDefinition, ...]:
+        return tuple(
+            definition
+            for definition in self._catalog.definitions
+            if definition.adoptable
+            and self._species_runtime.is_available(definition.godot_package_id)
+        )
+
+    def _require_adoptable_species(self, species_id: str) -> SpeciesDefinition:
+        definition = self._catalog.definition(species_id, adoptable_only=True)
+        if not self._species_runtime.is_available(definition.godot_package_id):
+            raise ValueError(f"物种 {species_id!r} 的 Godot 资源包不可用")
+        return definition
+
 
 __all__ = ("AdoptionService",)
 
@@ -300,6 +327,13 @@ def _species_result(
         scene_id=definition.scene_id,
         sort_order=definition.sort_order,
         presentation_images=images,
+        appearance_controls=tuple(
+            AdoptionAppearanceControl(
+                control_id=control_id,
+                options=definition.appearance.control_options[control_id],
+            )
+            for control_id in definition.appearance.supported_controls
+        ),
     )
 
 

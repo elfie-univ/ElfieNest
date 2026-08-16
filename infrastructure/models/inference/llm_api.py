@@ -97,6 +97,7 @@ def call_llm_api(
                     else None
                 ),
                 oauth_credentials=config.oauth_credentials,
+                timeout_seconds=timeout_seconds,
             )
             args = ()
         else:
@@ -120,18 +121,13 @@ def call_llm_api(
                     if effective_request_options
                     else None
                 ),
+                timeout_seconds=timeout_seconds,
             )
-        elif effective_request_options or (
-            timeout_seconds is not None
-            and request_profile.api_mode == "chat_completions"
-        ):
+        elif effective_request_options or timeout_seconds is not None:
             dispatch_options: dict[str, Any] = {}
             if effective_request_options:
                 dispatch_options["request_options"] = dict(effective_request_options)
-            if (
-                timeout_seconds is not None
-                and request_profile.api_mode == "chat_completions"
-            ):
+            if timeout_seconds is not None:
                 dispatch_options["timeout_seconds"] = timeout_seconds
             response_text, usage = dispatch_fn(*args, **dispatch_options)
         else:

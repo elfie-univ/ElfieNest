@@ -105,12 +105,18 @@ class SelfhoodSystem:
             unknown_fields.append("speech_style")
         identity_facts = _text_tuple(data.get("identity_facts"))
         behavior_anchors = _text_tuple(data.get("behavior_anchors"))
+        sensory_biases = _text_tuple(data.get("sensory_biases"))
+        species_knowledge = _text_tuple(data.get("species_knowledge"))
         knowledge_boundaries = _text_tuple(data.get("knowledge_boundaries"))
         norms = _text_tuple(data.get("norms"))
         if not identity_facts:
             unknown_fields.append("identity_facts")
         if not behavior_anchors:
             unknown_fields.append("behavior_anchors")
+        if not sensory_biases:
+            unknown_fields.append("sensory_biases")
+        if not species_knowledge:
+            unknown_fields.append("species_knowledge")
         if not knowledge_boundaries:
             unknown_fields.append("knowledge_boundaries")
         if not norms:
@@ -144,6 +150,8 @@ class SelfhoodSystem:
             unknown_fields=tuple(unknown_fields),
             identity_facts=identity_facts,
             behavior_anchors=behavior_anchors,
+            sensory_biases=sensory_biases,
+            species_knowledge=species_knowledge,
             knowledge_boundaries=knowledge_boundaries,
             freshness="current" if data else "unknown",
         )
@@ -271,6 +279,8 @@ class SelfhoodSystem:
             "norms": list(snapshot.norms),
             "identity_facts": list(snapshot.identity_facts),
             "behavior_anchors": list(snapshot.behavior_anchors),
+            "sensory_biases": list(snapshot.sensory_biases),
+            "species_knowledge": list(snapshot.species_knowledge),
             "knowledge_boundaries": list(snapshot.knowledge_boundaries),
         }
 
@@ -288,6 +298,8 @@ class SelfhoodSystem:
                 candidate.species_name != current.species_name,
                 candidate.identity_facts != current.identity_facts,
                 candidate.behavior_anchors != current.behavior_anchors,
+                candidate.sensory_biases != current.sensory_biases,
+                candidate.species_knowledge != current.species_knowledge,
                 candidate.knowledge_boundaries != current.knowledge_boundaries,
             )
         ):

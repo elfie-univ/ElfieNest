@@ -61,6 +61,8 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(
         assert elfie.profile.identity.species_id == species_id
         assert elfie.profile.identity.origin.home_world_id == "elfaria"
         assert elfie.selfhood_snapshot().species_name == species_name
+        assert elfie.selfhood_snapshot().sensory_biases
+        assert elfie.selfhood_snapshot().species_knowledge
         assert any(
             "Elfaria" in fact for fact in elfie.selfhood_snapshot().identity_facts
         )
@@ -71,6 +73,9 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(
             "SELECT species, is_self FROM known_elfies"
         ).fetchone()
         assert (known_elfie["species"], known_elfie["is_self"]) == (species_name, 1)
+        self_model = memory_store.get_node("genesis:self-model:00000001")
+        assert self_model is not None
+        assert self_model.metadata["species_knowledge"]
         person = memory_store.conn.execute(
             "SELECT relationship_label, is_owner FROM people"
         ).fetchone()

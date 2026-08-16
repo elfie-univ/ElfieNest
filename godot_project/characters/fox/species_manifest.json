@@ -28,7 +28,28 @@
       "TailLength": {"mode": "length", "bones": ["mixamorig_Tail_Bone"]}
     },
     "blend_shapes": {},
-    "material_parameters": {}
+    "material_parameters": {
+      "palette_id": {
+        "mode": "albedo_tint",
+        "values": {
+          "red": [1.0, 0.55, 0.34, 1.0],
+          "golden": [1.0, 0.78, 0.34, 1.0],
+          "cross": [0.78, 0.45, 0.25, 1.0],
+          "silver": [0.75, 0.82, 0.90, 1.0],
+          "melanistic": [0.35, 0.35, 0.40, 1.0],
+          "pale": [1.0, 0.90, 0.72, 1.0]
+        }
+      },
+      "pattern_id": {
+        "mode": "pattern_id",
+        "values": {
+          "classic": 0,
+          "bicolor": 1,
+          "cross": 2,
+          "face_mask": 3
+        }
+      }
+    }
   },
   "required_animations": [
     "idle",

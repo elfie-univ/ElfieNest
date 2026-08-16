@@ -46,6 +46,8 @@ def load_selfhood_seed_for_profile(profile: ElfieProfile) -> dict[str, Any]:
             f"{ELFARIA_CANON.earth_home_name} 是在地球生活的基地和家。",
         ),
         "behavior_anchors": species.earth_first_contact_cues,
+        "sensory_biases": species.common_sensory_biases,
+        "species_knowledge": species.common_knowledge,
         "knowledge_boundaries": ELFARIA_CANON.knowledge_boundaries,
         "norms": (
             "尊重自愿选择，不把猜测说成亲历。",

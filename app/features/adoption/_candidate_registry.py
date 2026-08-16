@@ -30,6 +30,7 @@ from elfie.profile import (
 
 from .errors import (
     AdoptionCandidateSetExpired,
+    AdoptionGenerationTimeout,
     AdoptionInvalid,
     AdoptionSessionBusy,
     AdoptionUnavailable,
@@ -338,6 +339,18 @@ class CandidateRegistry:
                         invitation_message,
                     )
                 )
+            except TimeoutError as error:
+                with self._registry_lock:
+                    current = self._sessions.get(snapshot.adoption_session_id)
+                    if current is not None and current.version == in_flight_version:
+                        self._sessions[snapshot.adoption_session_id] = replace(
+                            current,
+                            phase="candidates_ready",
+                            version=current.version + 1,
+                        )
+                raise AdoptionGenerationTimeout(
+                    "候选身份生成超时，请稍后重试"
+                ) from error
             except Exception as error:
                 with self._registry_lock:
                     current = self._sessions.get(snapshot.adoption_session_id)
