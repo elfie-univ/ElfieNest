@@ -1,110 +1,158 @@
 {
   "schema_version": 1,
-  "task": "persist task-closure skill and pre-submit gate",
-  "contract_refs": ["docs/developer/contracts/repository-governance.md"],
+  "task": "close Provider availability conformance rows PMA-002 PMA-004 PMA-005",
+  "contract_refs": [
+    "docs/developer/designs/provider-model-availability.md",
+    "docs/developer/contracts/model-food-tool-behavior.md",
+    "docs/developer/conformance/provider-model-availability.md"
+  ],
   "scope": [
-    ".agents/skills/git-submit-and-push/SKILL.md",
-    ".agents/skills/task-closure/**",
-    "AGENTS.md",
-    "CONTRIBUTING.md",
-    "CONTRIBUTING_zh.md",
-    "docs/developer/decisions/0022-evidence-backed-task-closure.md",
-    "docs/developer/decisions/index.md",
-    "docs/developer/engineering/testing.md",
-    "docs/zh/developer/decisions/0022-evidence-backed-task-closure.md",
-    "docs/zh/developer/decisions/index.md",
-    "docs/zh/developer/engineering/testing.md",
-    "scripts/README.md",
-    "scripts/README_zh.md",
-    "scripts/architecture/check_governance_change.py",
-    "scripts/check_task_closure.py",
-    "scripts/pre_submit_gate.sh",
-    "test/scripts/test_check_task_closure.py",
-    "test/architecture/test_architecture_governance.py",
+    "app/bootstrap/api.py",
+    "app/bootstrap/container.py",
+    "app/bootstrap/app_wiring/*.py",
+    "app/features/configuration/food/*.py",
+    "app/features/configuration/providers/*.py",
+    "app/interfaces/api/v1/admin/food_packages/*.py",
+    "app/interfaces/api/v1/admin/model_providers/*.py",
+    "app/interfaces/web/frontend/src/api/admin/food-packages.ts",
+    "app/interfaces/web/frontend/src/api/owner-providers.ts",
+    "app/interfaces/web/frontend/src/components/FoodRecipeEditor.tsx",
+    "app/interfaces/web/frontend/src/components/OwnerProviderPanel.tsx",
+    "app/interfaces/web/frontend/src/components/ProviderModelsDialog.test.tsx",
+    "app/interfaces/web/frontend/src/components/ProviderModelsDialog.tsx",
+    "app/interfaces/web/frontend/src/i18n/locales/en-US/manage.ts",
+    "app/interfaces/web/frontend/src/i18n/locales/zh-CN/manage.ts",
+    "app/interfaces/web/frontend/src/styles.css",
+    "config/models/provider-catalog.yaml",
+    "docs/developer/conformance/provider-model-availability.md",
+    "docs/developer/designs/provider-model-availability.md",
+    "docs/zh/developer/conformance/provider-model-availability.md",
+    "infrastructure/models/catalog.py",
+    "infrastructure/models/food_technology.py",
+    "infrastructure/models/inference/llm_api.py",
+    "infrastructure/models/model_execution_observations.py",
+    "infrastructure/models/model_execution_overview.py",
+    "infrastructure/models/provider_administration.py",
+    "infrastructure/models/providers/discovery.py",
+    "infrastructure/models/providers/dispatch.py",
+    "infrastructure/models/providers/http.py",
+    "infrastructure/models/report_records.py",
+    "infrastructure/models/setup_food.py",
+    "infrastructure/models/validation/*.py",
+    "infrastructure/persistence/food.py",
+    "infrastructure/persistence/food_evidence.py",
+    "infrastructure/persistence/model_health_projection.py",
+    "infrastructure/persistence/nest_db/final_schema.py",
+    "infrastructure/persistence/provider_availability.py",
+    "infrastructure/persistence/report_storage.py",
+    "infrastructure/persistence/reports/*.py",
+    "test/app/features/configuration/food/*.py",
+    "test/app/features/configuration/providers/*.py",
+    "test/app/interfaces/api/v1/admin/food_packages/*.py",
+    "test/app/interfaces/api/v1/admin/model_providers/*.py",
+    "test/infrastructure/models/providers/*.py",
+    "test/infrastructure/models/test_food_evidence.py",
+    "test/infrastructure/models/test_openai_chatgpt.py",
+    "test/infrastructure/models/test_provider_administration.py",
+    "test/infrastructure/models/test_provider_catalog.py",
+    "test/infrastructure/models/validation/*.py",
+    "test/infrastructure/persistence/reports/*.py",
+    "test/infrastructure/persistence/test_provider_availability.py",
+    "test/support/provider.py",
     "task-closure.json"
   ],
   "conformance": {
-    "rows": [],
-    "reason": "This is a repository-governance gate change; it does not implement a product contract row."
+    "rows": [
+      "PMA-002",
+      "PMA-004",
+      "PMA-005"
+    ],
+    "reason": ""
   },
   "rows": [
     {
-      "id": "REQ-001",
-      "requirement": "Persist a reusable task-closure skill with strict completion states and evidence rules.",
+      "id": "PMA-002",
+      "requirement": "For the current release, run endpoint-scoped reasoning, tool and vision capability probes through the typed Provider request profiles against one configured, actively used remote Provider representative; unconfigured Provider adapters are outside this release acceptance scope.",
       "status": "complete",
-      "implementation": [".agents/skills/task-closure/SKILL.md"],
-      "automated_tests": ["Skill structural validator"],
-      "runtime_scenarios": ["A future implementation task can create and validate task-closure.json before commit."],
-      "platform_conditions": ["Project skill discovery through .agents/skills"],
+      "implementation": [
+        "infrastructure/models/validation/provider_capability_probes.py",
+        "infrastructure/models/provider_administration.py",
+        "app/interfaces/api/v1/admin/model_providers/routes.py"
+      ],
+      "automated_tests": [
+        "test/infrastructure/models/validation/test_provider_capability_probes.py",
+        "test/infrastructure/models/providers/test_request_profiles.py"
+      ],
+      "runtime_scenarios": [
+        "Replay the capability matrix against the configured Volcengine Coding Plan connection using the credential already stored out of band under ~/.elfienest.",
+        "The Volcengine connection passed all 8 active model text checks; each model then ran tools, vision and reasoning probes with exact endpoint evidence.",
+        "The release representative rule leaves unconfigured Provider adapters deferred until they become configured and actively used."
+      ],
+      "platform_conditions": [
+        "CPython 3.9.25 and outbound HTTPS",
+        "Real Provider subscription and credential supplied outside the repository"
+      ],
       "evidence": [
-        "command: /usr/bin/python3 skill-creator quick validation",
-        "artifact: .agents/skills/task-closure/SKILL.md",
-        "review: workflow requires complete evidence or explicit blocked status"
+        "command: ./.venv/bin/python3 -m pytest -q test/infrastructure/models/validation/test_provider_capability_probes.py test/infrastructure/models/providers/test_request_profiles.py",
+        "host: $ELFIE_HOME/reports/ai-runtime.sqlite; full_run=run_81c08bccaf6e41d69ced2114d5fcb715; 8 capability runs completed",
+        "artifact: $ELFIE_HOME/configs/providers.yaml; 8 exact endpoint records now carry per-model capability evidence; no secrets were read into the repository",
+        "review: live Volcengine evidence shows tools and reasoning verified on all 8 models, vision unsupported on 7 models, and vision accepted but not yet verified on deepseek-v4-pro; this satisfies the representative-Provider release gate"
       ],
       "residuals": [],
       "blockers": []
     },
     {
-      "id": "REQ-002",
-      "requirement": "Reject incomplete matrices, unclassified changes, broad scopes, and open listed Conformance rows.",
+      "id": "PMA-004",
+      "requirement": "When the serving Food/model projection changes during a validation run, the in-flight run must stop using the stale generation and the next generation must be eligible for validation.",
       "status": "complete",
-      "implementation": ["scripts/check_task_closure.py"],
-      "automated_tests": ["test/scripts/test_check_task_closure.py"],
-      "runtime_scenarios": ["Run the checker against valid, incomplete, broad-scope, and open-Conformance fixtures."],
-      "platform_conditions": ["CPython 3.9.25 in the repository environment"],
+      "implementation": [
+        "infrastructure/models/validation/serving_food.py",
+        "infrastructure/models/validation/core_validation_scheduler.py",
+        "infrastructure/models/validation/provider_scheduler.py",
+        "app/bootstrap/container.py"
+      ],
+      "automated_tests": [
+        "test/infrastructure/models/validation/test_core_validation_scheduler.py",
+        "test/infrastructure/models/validation/test_provider_scheduler.py"
+      ],
+      "runtime_scenarios": [
+        "Run a replayable scheduler scenario with a mutable ServingFoodIndex, a delayed validation callback and a Food edit that changes the generation; verify stale queued channels are cancelled and the next generation runs."
+      ],
+      "platform_conditions": [
+        "CPython 3.9.25, isolated temporary data root and SQLite report database"
+      ],
       "evidence": [
-        "command: .venv/bin/python3 -m pytest test/scripts/test_check_task_closure.py",
-        "artifact: scripts/check_task_closure.py",
-        "review: complete mode requires empty residuals and replayable evidence"
+        "command: ./.venv/bin/python3 -m pytest -q test/infrastructure/models/validation/test_core_validation_scheduler.py",
+        "artifact: test/infrastructure/models/validation/test_core_validation_scheduler.py::test_food_edit_invalidates_in_flight_generation_and_next_generation_runs",
+        "review: old generation attempts only the in-flight channel, cancels remaining stale channels, and the changed generation is validated on the next run"
       ],
       "residuals": [],
       "blockers": []
     },
     {
-      "id": "REQ-003",
-      "requirement": "Make the pre-submit gate require and execute the closure check before technical quality checks.",
+      "id": "PMA-005",
+      "requirement": "Two real validation workers sharing one report database must never execute the same validation or retention lease concurrently.",
       "status": "complete",
-      "implementation": ["scripts/pre_submit_gate.sh", ".agents/skills/git-submit-and-push/SKILL.md"],
-      "automated_tests": ["Pre-submit gate help/argument validation and closure checker integration"],
-      "runtime_scenarios": ["A missing or incomplete task-closure.json stops the gate before commit-quality checks."],
-      "platform_conditions": ["Repository pre-submit workflow on the supported contributor host"],
-      "evidence": [
-        "command: bash scripts/pre_submit_gate.sh --help",
-        "command: bash scripts/pre_submit_gate.sh --base-sha 83fad247 --closure-file task-closure.json",
-        "artifact: scripts/pre_submit_gate.sh requires --closure-file",
-        "review: git-submit-and-push now passes the closure file"
+      "implementation": [
+        "infrastructure/models/validation/provider_scheduler.py",
+        "infrastructure/persistence/reports/report_repository.py",
+        "infrastructure/persistence/reports/report_schema.py",
+        "app/bootstrap/container.py"
       ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "REQ-004",
-      "requirement": "Make the workflow discoverable in agent rules, contributor guides and bilingual developer testing documentation.",
-      "status": "complete",
-      "implementation": ["AGENTS.md", "CONTRIBUTING.md", "CONTRIBUTING_zh.md", "docs/developer/engineering/testing.md", "docs/zh/developer/engineering/testing.md", "scripts/README.md", "scripts/README_zh.md"],
-      "automated_tests": ["Architecture/documentation structure checks"],
-      "runtime_scenarios": ["A new task follows the documented matrix and final gate commands."],
-      "platform_conditions": ["English and Chinese developer documentation mirrors"],
-      "evidence": [
-        "command: .venv/bin/python3 -m pytest test/architecture/test_documentation_structure.py",
-        "artifact: AGENTS.md, bilingual contributor/testing documentation and scripts README",
-        "review: no completion claim is allowed while a required row is open"
+      "automated_tests": [
+        "test/infrastructure/models/validation/test_provider_scheduler.py",
+        "test/infrastructure/persistence/reports/test_validation_reports.py"
       ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "REQ-005",
-      "requirement": "Document the two-phase bootstrap required when changing the immutable-base governance guard itself.",
-      "status": "complete",
-      "implementation": [".agents/skills/task-closure/SKILL.md"],
-      "automated_tests": ["Skill structural validator"],
-      "runtime_scenarios": ["A gate change is first classified by a governance-only checkpoint, then verified as a protected implementation change."],
-      "platform_conditions": ["Immutable-base repository governance checker"],
+      "runtime_scenarios": [
+        "Run two separate POSIX Worker processes against one temporary SQLite report database and record the winner/loser for both model-validation and retention leases."
+      ],
+      "platform_conditions": [
+        "CPython 3.9.25 on macOS/POSIX, multiprocessing fork context and SQLite WAL-capable temporary filesystem"
+      ],
       "evidence": [
-        "command: .venv/bin/python3 /Users/Lendfating/.codex/skills/.system/skill-creator/scripts/quick_validate.py .agents/skills/task-closure",
-        "artifact: task-closure skill Bootstrapping or changing the gate section",
-        "review: mixed governance/implementation changes remain blocked rather than bypassing the guard"
+        "command: ./.venv/bin/python3 -m pytest -q test/infrastructure/models/validation/test_provider_scheduler.py",
+        "artifact: test/infrastructure/models/validation/test_provider_scheduler.py::test_two_real_workers_share_one_model_validation_lease and ::test_two_real_workers_share_one_retention_lease",
+        "review: two independent processes shared one ReportRepository database; exactly one process ran each leased operation"
       ],
       "residuals": [],
       "blockers": []
