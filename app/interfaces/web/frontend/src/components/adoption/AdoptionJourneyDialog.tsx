@@ -1217,19 +1217,18 @@ async function waitWithTimeout<T>(promise: Promise<T>, milliseconds: number, rea
 function ShortlistScreen({ candidates, candidateBatch, dispatch, onRegenerate, selectedIds, t }: { readonly candidates: readonly Candidate[]; readonly candidateBatch: number; readonly dispatch: React.Dispatch<AdoptionAction>; readonly onRegenerate: () => void; readonly selectedIds: readonly string[]; readonly t: JourneyT }) {
   const canRegenerate = candidateBatch < MAX_CANDIDATE_BATCHES
   return <section>
-    <ScreenIntro eyebrow={t("adoption.journey.shortlist.eyebrow")} title={t("adoption.journey.shortlist.title")} />
+    <div className="adoption-shortlist-header">
+      <ScreenIntro eyebrow={t("adoption.journey.shortlist.eyebrow")} title={t("adoption.journey.shortlist.title")} />
+      <div className="adoption-shortlist-header__actions">
+        <span>{t("adoption.journey.shortlist.batch", { current: candidateBatch, max: MAX_CANDIDATE_BATCHES })}</span>
+        <Button disabled={!canRegenerate} onClick={onRegenerate} type="button" variant="outline">{canRegenerate ? t("adoption.journey.shortlist.regenerate") : t("adoption.journey.shortlist.batchComplete", { max: MAX_CANDIDATE_BATCHES })}</Button>
+      </div>
+    </div>
     <div className="adoption-candidate-grid">
       {candidates.map((candidate, index) => {
         const selected = selectedIds.includes(candidate.candidateId)
         return <ChoiceButton aria-label={t("adoption.journey.shortlist.candidate", { number: index + 1 })} className="adoption-candidate-card" key={candidate.candidateId} onClick={() => dispatch({ type: "toggle-candidate", candidateId: candidate.candidateId })} selected={selected}><img alt="" src={candidateImageUrl(candidate, "fullBody")} /><span className="adoption-candidate-card__copy"><strong>{t("adoption.journey.shortlist.candidate", { number: index + 1 })}</strong><small>{candidateAgeLabel(t, candidate.ageMonths)} · {t(`adoption.journey.genders.${candidate.gender}`)}</small><TagList values={candidate.personalityTags.slice(0, 3)} /></span></ChoiceButton>
       })}
-    </div>
-    <div className="adoption-shortlist-toolbar">
-      <span className="adoption-shortlist-selection-hint">{t("adoption.journey.shortlist.selectionHint")}</span>
-      <div className="adoption-shortlist-toolbar__actions">
-        <span>{t("adoption.journey.shortlist.batch", { current: candidateBatch, max: MAX_CANDIDATE_BATCHES })}</span>
-        <Button disabled={!canRegenerate} onClick={onRegenerate} type="button" variant="outline">{canRegenerate ? t("adoption.journey.shortlist.regenerate") : t("adoption.journey.shortlist.batchComplete", { max: MAX_CANDIDATE_BATCHES })}</Button>
-      </div>
     </div>
   </section>
 }

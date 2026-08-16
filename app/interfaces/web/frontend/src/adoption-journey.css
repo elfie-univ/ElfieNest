@@ -128,8 +128,9 @@
 .adoption-candidate-card img, .adoption-reply-card img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; object-position: 50% 8%; border-radius: 9px; }
 .adoption-candidate-card__copy { display: grid; align-content: start; gap: 7px; min-width: 0; }
 .adoption-candidate-card__copy strong, .adoption-reply-card strong { font-size: 17px; }
-.adoption-shortlist-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; color: var(--text-muted); }
-.adoption-shortlist-toolbar__actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.adoption-shortlist-header { display: flex; align-items: start; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
+.adoption-shortlist-header .adoption-screen-intro { flex: 1; margin-bottom: 0; }
+.adoption-shortlist-header__actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding-top: 4px; color: var(--text-muted); }
 
 .adoption-signal { position: relative; height: 2px; margin: 52px 12% 40px; overflow: hidden; background: var(--border); }
 .adoption-signal span { position: absolute; top: 50%; left: 0; width: 32%; height: 6px; transform: translate3d(0, -50%, 0); border-radius: 999px; background: var(--accent); will-change: transform; animation: adoption-signal 1.9s cubic-bezier(.45, 0, .55, 1) infinite alternate; }
@@ -256,6 +257,8 @@
   .adoption-question-index__item small { display: none; }
   .adoption-answer-grid, .adoption-candidate-grid, .adoption-reply-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .adoption-candidate-card:last-child { grid-column: 1 / -1; }
+  .adoption-shortlist-header { display: grid; gap: 12px; }
+  .adoption-shortlist-header__actions { justify-content: flex-start; padding-top: 0; }
   .adoption-invite-grid { grid-template-columns: 1fr; }
   .adoption-welcome { grid-template-columns: 1fr; min-height: 0; gap: 22px; }
   .adoption-welcome__art { width: min(100%, 330px); aspect-ratio: 4 / 5; }
@@ -274,9 +277,7 @@
   .adoption-progress li > button span { font-size: 12px; }
   .adoption-answer-grid, .adoption-candidate-grid, .adoption-reply-grid { grid-template-columns: 1fr; }
   .adoption-candidate-card:last-child { grid-column: auto; }
-  .adoption-shortlist-toolbar { align-items: stretch; flex-direction: column; }
   .adoption-dialog__footer { align-items: center; flex-direction: row; }
-  .adoption-shortlist-toolbar__actions { justify-content: space-between; }
   .adoption-name-option-row { align-items: stretch; flex-wrap: wrap; }
   .adoption-name-option-row input { width: 100%; flex-basis: 100%; }
   .adoption-dialog__footer > div { width: auto; flex: 1 1 auto; justify-content: flex-end; flex-wrap: nowrap; margin-inline-start: auto; }

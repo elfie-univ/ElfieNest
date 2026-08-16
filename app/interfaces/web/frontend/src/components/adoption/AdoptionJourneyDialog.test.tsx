@@ -122,7 +122,9 @@ async function reachShortlist(user: ReturnType<typeof userEvent.setup>) {
   await openBasic(user)
   await user.click(screen.getByRole("button", { name: "灵狐" }))
   await user.click(screen.getByRole("button", { name: "开始寻找候选" }))
-  expect(await screen.findByRole("heading", { name: "看看这 5 位 Elfie" })).toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "选一位你最喜欢的 Elfie" })).toBeInTheDocument()
+  expect(screen.getByText("第 1 / 3 批")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "再找一批" })).toBeInTheDocument()
 }
 
 describe("AdoptionJourneyDialog", () => {
@@ -244,7 +246,7 @@ describe("AdoptionJourneyDialog", () => {
     await user.click(screen.getByRole("button", { name: "灵狐" }))
     expect(screen.getByRole("button", { name: "开始寻找候选" })).toBeEnabled()
     await user.click(screen.getByRole("button", { name: "开始寻找候选" }))
-    expect(await screen.findByRole("heading", { name: "看看这 5 位 Elfie" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "选一位你最喜欢的 Elfie" })).toBeInTheDocument()
     expect(api.adoptionCandidates).toHaveBeenCalledWith(expect.objectContaining({
       species_id: "fox",
       life_stage: "any",
@@ -256,7 +258,7 @@ describe("AdoptionJourneyDialog", () => {
     const second = screen.getByRole("button", { name: "候选者 2" })
     await user.click(first)
     expect(first).toHaveAttribute("aria-pressed", "true")
-    expect(screen.getByText("选一位你最想迎接的 Elfie")).toBeInTheDocument()
+    expect(screen.queryByText("选一位你最想迎接的 Elfie")).not.toBeInTheDocument()
     expect(screen.queryByText("已选择 1 位")).not.toBeInTheDocument()
     await user.click(second)
     expect(first).toHaveAttribute("aria-pressed", "false")
@@ -296,7 +298,7 @@ describe("AdoptionJourneyDialog", () => {
     expect(screen.getByText("详细匹配：2/2")).toBeInTheDocument()
     expect(screen.queryByText("问题 1 / 5")).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "开始寻找候选" }))
-    expect(await screen.findByRole("heading", { name: "看看这 5 位 Elfie" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "选一位你最喜欢的 Elfie" })).toBeInTheDocument()
 
     expect(api.adoptionCandidates).toHaveBeenCalledWith(expect.objectContaining({
       appearance: { stature: "any", build: "any", face: "any", signature: "any", priority: "face" },
