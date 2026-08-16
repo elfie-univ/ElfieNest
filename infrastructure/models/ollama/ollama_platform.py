@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import signal
 import subprocess
 import tempfile
 import time
@@ -79,15 +77,6 @@ class OllamaProbe:
     endpoint: str
     version: str | None = None
     detail: str | None = None
-
-
-@dataclass(frozen=True)
-class OllamaProcessIdentity:
-    """Exact identity evidence for an Ollama process started by ElfieNest."""
-
-    pid: int
-    executable: str
-    birth_identity: str
 
 
 @dataclass(frozen=True)
@@ -296,9 +285,7 @@ class OllamaPlatformAdapter:
         if result.returncode != 0:
             raise RuntimeError(failure)
 
-    def start_bound_installation(
-        self, binding: OllamaBinding
-    ) -> OllamaProcessIdentity | None:
+    def start_bound_installation(self, binding: OllamaBinding) -> None:
         """Start exactly the recorded public installation without blocking the caller."""
         self.verify_recorded_installation(binding)
         command = launch_command(
@@ -306,53 +293,13 @@ class OllamaPlatformAdapter:
             binding.install_kind,
             binding.launch_target,
         )
-        process = self._process_launcher(
+        self._process_launcher(
             command,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
-        pid = getattr(process, "pid", None)
-        if not isinstance(pid, int) or pid <= 0:
-            return None
-        for _ in range(20):
-            identity = process_identity(pid)
-            if identity is not None:
-                return identity
-            time.sleep(0.05)
-        return None
-
-    def stop_started_process(
-        self,
-        identity: OllamaProcessIdentity,
-        *,
-        force: bool = False,
-        timeout_seconds: float = 5.0,
-    ) -> None:
-        """Stop only an exact process identity previously returned by this adapter."""
-        current = process_identity(identity.pid)
-        if current is None or current != identity:
-            raise RuntimeError("拒绝停止身份已变化的 Ollama 进程")
-        if os.name == "nt":
-            os.kill(identity.pid, signal.SIGTERM)
-        else:
-            try:
-                os.killpg(identity.pid, signal.SIGKILL if force else signal.SIGTERM)
-            except ProcessLookupError:
-                return
-        deadline = time.monotonic() + max(0.0, timeout_seconds)
-        while process_identity(identity.pid) is not None:
-            if time.monotonic() >= deadline:
-                if not force:
-                    self.stop_started_process(
-                        identity,
-                        force=True,
-                        timeout_seconds=1.0,
-                    )
-                    return
-                raise TimeoutError("Ollama 进程未在期限内退出")
-            time.sleep(0.1)
 
     def official_binding_after_install(
         self,
@@ -390,52 +337,3 @@ def wait_for_healthy(
         time.sleep(0.25)
         probe = adapter.probe(binding)
     return probe
-
-
-def process_birth_identity(pid: int) -> str:
-    """Return a platform process-start identity, or an empty value if unavailable."""
-    proc_stat = Path("/proc") / str(pid) / "stat"
-    try:
-        if proc_stat.is_file():
-            raw = proc_stat.read_text(encoding="utf-8")
-            remainder = raw.rpartition(")")[2].split()
-            if len(remainder) > 19:
-                return remainder[19]
-    except OSError:
-        pass
-    try:
-        completed = subprocess.run(
-            ["ps", "-p", str(pid), "-o", "lstart="],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return ""
-    return completed.stdout.strip()
-
-
-def process_executable(pid: int) -> str:
-    """Return the current executable path when the platform exposes it."""
-    try:
-        return str(Path(os.readlink(f"/proc/{pid}/exe")).resolve())
-    except (FileNotFoundError, OSError, RuntimeError):
-        try:
-            completed = subprocess.run(
-                ["ps", "-p", str(pid), "-o", "comm="],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return ""
-        return completed.stdout.strip()
-
-
-def process_identity(pid: int) -> OllamaProcessIdentity | None:
-    """Read exact process evidence without granting control from PID alone."""
-    birth = process_birth_identity(pid)
-    executable = process_executable(pid)
-    if not birth or not executable:
-        return None
-    return OllamaProcessIdentity(pid, executable, birth)

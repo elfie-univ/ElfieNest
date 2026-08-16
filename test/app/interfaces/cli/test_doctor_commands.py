@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import doctor_commands
 from app.orchestration.lifecycle import DoctorRepairResult, DoctorValidationResult
-from app.orchestration.lifecycle.ports import LocalProcessEntry, ProcessSnapshot
+from app.orchestration.lifecycle.ports import LocalProcessEntry
 
 
 def test_doctor_repair_creates_home_dirs_without_implicit_foods(
@@ -76,31 +74,3 @@ def test_process_discovery_uses_lifecycle_owned_service_identity() -> None:
     assert [(process.pid, process.process_type) for process in processes] == [
         (42, "python")
     ]
-
-
-def test_port_fix_is_diagnostic_only_and_never_kills_an_occupant(capsys) -> None:
-    class FakeLifecycle:
-        def port_occupant_pid(self, port: int) -> int | None:
-            assert port == 8000
-            return 4242
-
-        def inspect_process(self, pid: int) -> ProcessSnapshot:
-            assert pid == 4242
-            return ProcessSnapshot(
-                pid, cwd=Path("/third-party"), command=("other-service",)
-            )
-
-        def process_exists(self, pid: int) -> bool:
-            return pid == 4242
-
-        def terminate_process(self, pid: int, *, force: bool = False) -> None:
-            raise AssertionError(f"Doctor must not terminate PID {pid}")
-
-    assert (
-        doctor_commands.interactive_port_cleanup(
-            FakeLifecycle(), ports=(8000,), force=True
-        )
-        is False
-    )
-    output = capsys.readouterr().out
-    assert "diagnostic only" in output

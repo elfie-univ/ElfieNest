@@ -30,9 +30,6 @@ DESKTOP_HOST_MAIN: Final = (
 DESKTOP_AUTHORITY_DIR: Final = (
     PROJECT_ROOT / "infrastructure" / "godot" / "lifecycle" / "electron"
 )
-DESKTOP_PACKAGING_DIR: Final = (
-    PROJECT_ROOT / "app" / "bootstrap" / "desktop_host" / "packaging"
-)
 StageResult = TypeVar("StageResult")
 
 
@@ -311,7 +308,6 @@ def _stage_desktop_application(target: str, resources: Path) -> Path:
         DESKTOP_AUTHORITY_DIR,
         application / "infrastructure" / "godot" / "lifecycle" / "electron",
     )
-    shutil.copytree(DESKTOP_PACKAGING_DIR, application / "packaging")
     shutil.copy2(DESKTOP_DIR / "package.json", application / "package.json")
     shutil.copytree(DESKTOP_DIR / "assets", application / "assets")
     shutil.copy2(
@@ -362,10 +358,10 @@ def _electron_target_arguments(target: str) -> tuple[str, str]:
 def _installer_glob(target: str) -> str:
     """Return the only installer file extension valid for the native target."""
     extensions = {
-        "darwin-arm64": "*.pkg",
-        "darwin-x64": "*.pkg",
+        "darwin-arm64": "*.dmg",
+        "darwin-x64": "*.dmg",
         "win32-x64": "*.exe",
-        "linux-x64": "*.deb",
+        "linux-x64": "*.AppImage",
     }
     try:
         return extensions[target]

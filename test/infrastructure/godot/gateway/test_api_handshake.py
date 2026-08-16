@@ -4,27 +4,8 @@ import json
 from types import SimpleNamespace
 
 import anyio
-import pytest
 
 from infrastructure.godot.gateway.api import GodotAPIServer
-
-
-def test_gateway_start_propagates_bind_failure_detail(monkeypatch) -> None:
-    server = GodotAPIServer(port=8765, handshake_nonce="nonce-1")
-
-    def fail_startup() -> None:
-        server._startup_error = OSError("address already in use")
-        server._ready.set()
-
-    monkeypatch.setattr(server, "_run_event_loop", fail_startup)
-
-    with pytest.raises(
-        RuntimeError,
-        match="Godot Runtime gateway failed to start: address already in use",
-    ):
-        server.start()
-
-    assert server._running is False
 
 
 class FakeWebSocket:

@@ -40,74 +40,11 @@ class ModelExecutionObserverResponse(BaseModel):
     last_event: Optional[ModelExecutionEventResponse]
 
 
-class RuntimeLifecycleComponentResponse(BaseModel):
-    model_config = _STRICT
-
-    component: StrictStr
-    state: StrictStr
-    detail: StrictStr
-    pid: Optional[StrictInt]
-    executable: Optional[StrictStr]
-    birth_identity: Optional[StrictStr]
-
-
-class RuntimeLifecycleEndpointResponse(BaseModel):
-    model_config = _STRICT
-
-    name: StrictStr
-    scheme: StrictStr
-    host: StrictStr
-    port: StrictInt
-    protocol_version: StrictStr
-
-
-class RuntimeLifecycleFailureResponse(BaseModel):
-    model_config = _STRICT
-
-    code: StrictStr
-    detail: StrictStr
-    phase: StrictStr
-
-
-class RuntimeLifecycleTimingResponse(BaseModel):
-    model_config = _STRICT
-
-    phase: StrictStr
-    duration_ms: Optional[StrictInt]
-    elapsed_ms: Optional[StrictInt]
-
-
-class RuntimeLifecycleProjectionResponse(BaseModel):
-    """The sanitized, versioned lifecycle projection used by status surfaces."""
-
-    model_config = _STRICT
-
-    schema_version: StrictInt
-    instance_id: StrictStr
-    generation: StrictInt
-    revision: StrictInt
-    tier: StrictStr
-    phase: StrictStr
-    subphase: StrictStr
-    desired_target: StrictStr
-    reached_target: Optional[StrictStr]
-    components: Tuple[RuntimeLifecycleComponentResponse, ...]
-    endpoints: Tuple[RuntimeLifecycleEndpointResponse, ...]
-    model_state: StrictStr
-    model_common_state: StrictStr
-    model_emergency_state: StrictStr
-    model_revision: Optional[StrictInt]
-    failures: Tuple[RuntimeLifecycleFailureResponse, ...]
-    timings: Tuple[RuntimeLifecycleTimingResponse, ...]
-    protocol_versions: Tuple[StrictStr, ...]
-
-
 class RuntimeStatusResponse(BaseModel):
     model_config = _STRICT
 
     status: Literal["ok"]
     observer: ModelExecutionObserverResponse
-    lifecycle: Optional[RuntimeLifecycleProjectionResponse] = None
 
 
 class MobileAccessResponse(BaseModel):
@@ -143,6 +80,5 @@ __all__ = (
     "RuntimeErrorResponse",
     "ModelExecutionEventResponse",
     "ModelExecutionObserverResponse",
-    "RuntimeLifecycleProjectionResponse",
     "RuntimeStatusResponse",
 )

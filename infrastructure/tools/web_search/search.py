@@ -8,7 +8,11 @@ from typing import Callable, Dict, List, Mapping, Optional
 
 from pydantic import JsonValue
 
-from infrastructure.tools.execution.config import SecretResolver, load_tool_configs
+from infrastructure.tools.execution.config import (
+    SecretResolver,
+    ToolDefaults,
+    load_tool_configs,
+)
 
 logger = logging.getLogger("infrastructure.tools.search")
 
@@ -36,6 +40,7 @@ class WebSearchPlugin:
         cls,
         runtime_policy: Mapping[str, JsonValue] | None,
         *,
+        defaults: ToolDefaults | None = None,
         secret_resolver: Optional[SecretResolver] = None,
         config_loader: Optional[
             Callable[
@@ -44,11 +49,14 @@ class WebSearchPlugin:
             ]
         ] = None,
     ) -> WebSearchPlugin:
-        configs = (
-            config_loader(runtime_policy)
-            if config_loader is not None
-            else load_tool_configs(runtime_policy, secret_resolver=secret_resolver)
-        )
+        if config_loader is not None:
+            configs = config_loader(runtime_policy)
+        elif defaults is not None:
+            configs = load_tool_configs(
+                runtime_policy, defaults=defaults, secret_resolver=secret_resolver
+            )
+        else:
+            raise ValueError("WebSearchPlugin requires injected tool defaults")
         config = configs["web_search"]
         return cls(
             provider=str(config.get("provider") or "duckduckgo"),

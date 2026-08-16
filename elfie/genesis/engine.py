@@ -30,6 +30,8 @@ from .selection import (
 
 _STAGES = ("youth", "young_adult", "mature", "elder")
 _GENDERS = ("male", "female")
+
+
 class GenesisEngine:
     """Build five intentionally different, deterministic candidate cores."""
 

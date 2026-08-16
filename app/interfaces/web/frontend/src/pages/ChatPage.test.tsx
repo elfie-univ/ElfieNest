@@ -323,11 +323,12 @@ describe("ChatPage list pane headings", () => {
     expect(screen.getByPlaceholderText("搜索精灵")).toBeInTheDocument()
   })
 
-  it("uses a three-item mobile tab bar without manage or QR shortcuts", async () => {
+  it("keeps the global mobile tab bar out of full-screen chat and profile views", async () => {
     renderChatPage("zh-CN")
 
     const mobileTabs = screen.getByLabelText("聊天移动导航")
     expect(mobileTabs.closest(".chat-page")).toBeInTheDocument()
+    expect(mobileTabs).toHaveClass("mobile-tabbar--hidden")
     expect(await within(mobileTabs).findByRole("button", { name: "聊天记录" })).toHaveTextContent("消息")
     expect(within(mobileTabs).getByRole("button", { name: "精灵列表" })).toHaveTextContent("精灵")
     expect(within(mobileTabs).getByRole("button", { name: "我的" })).toHaveTextContent("我的")

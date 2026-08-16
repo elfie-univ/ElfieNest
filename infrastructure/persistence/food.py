@@ -72,10 +72,9 @@ class SQLiteFoodAdapter:
                     """INSERT INTO food_packages
                        (food_key,display_name,system_role,primary_model_ref,
                         reasoning_model_ref,vision_model_ref,tool_model_ref,
-                        fallback_model_ref,required_roles_json,visibility_mode,
-                        visible_user_ids_json,
+                        fallback_model_ref,visibility_mode,visible_user_ids_json,
                         enabled,archived)
-                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
                     _write_values(package),
                 )
                 connection.commit()
@@ -101,8 +100,7 @@ class SQLiteFoodAdapter:
                     """UPDATE food_packages
                        SET display_name=?,system_role=?,primary_model_ref=?,
                            reasoning_model_ref=?,vision_model_ref=?,tool_model_ref=?,
-                           fallback_model_ref=?,required_roles_json=?,visibility_mode=?,
-                           visible_user_ids_json=?,
+                           fallback_model_ref=?,visibility_mode=?,visible_user_ids_json=?,
                            enabled=?,archived=?
                        WHERE food_key=?""",
                     _write_values(package)[1:] + (package.food_id,),
@@ -250,8 +248,7 @@ def list_food_model_references(
 
 _PACKAGE_SELECT = """SELECT food_key,display_name,system_role,primary_model_ref,
                              reasoning_model_ref,vision_model_ref,tool_model_ref,
-                             fallback_model_ref,required_roles_json,visibility_mode,
-                             visible_user_ids_json,
+                             fallback_model_ref,visibility_mode,visible_user_ids_json,
                              enabled,archived
                       FROM food_packages"""
 
@@ -266,7 +263,6 @@ def _write_values(package: StoredFoodPackage) -> tuple[str | int | None, ...]:
         package.vision_model,
         package.tool_model,
         package.fallback_model,
-        json.dumps(sorted(package.required_roles), separators=(",", ":")),
         package.visibility_mode,
         json.dumps(package.visible_user_ids, separators=(",", ":")),
         int(package.enabled),
@@ -293,7 +289,6 @@ def _package_from_row(row: sqlite3.Row) -> StoredFoodPackage:
             vision_model=_optional_text(row["vision_model_ref"]),
             tool_model=_optional_text(row["tool_model_ref"]),
             fallback_model=_optional_text(row["fallback_model_ref"]),
-            required_roles=_decode_required_roles(str(row["required_roles_json"])),
             visibility_mode=cast(FoodVisibilityMode, visibility_mode),
             visible_user_ids=_decode_user_ids(str(row["visible_user_ids_json"])),
         )
@@ -338,22 +333,6 @@ def _decode_user_ids(raw: str) -> tuple[int, ...]:
     if len(normalized) != len(decoded):
         raise FoodPortInvalid("Food visible users are not canonical")
     return normalized
-
-
-def _decode_required_roles(raw: str) -> frozenset[str]:
-    try:
-        decoded = json.loads(raw)
-    except json.JSONDecodeError as error:
-        raise FoodPortInvalid("Food required roles are corrupt") from error
-    allowed = {"reasoning", "vision", "tool"}
-    if not isinstance(decoded, list) or any(
-        not isinstance(role, str) or role not in allowed for role in decoded
-    ):
-        raise FoodPortInvalid("Food required roles are corrupt")
-    normalized = tuple(sorted(set(decoded)))
-    if len(normalized) != len(decoded):
-        raise FoodPortInvalid("Food required roles are not canonical")
-    return frozenset(normalized)
 
 
 def _validate_selected_users(

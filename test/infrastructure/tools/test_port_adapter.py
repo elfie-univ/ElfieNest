@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from elfie.brain.reasoning.tool_port import ToolRequest
+from infrastructure.persistence.configuration.bundled_defaults import load_tool_defaults
+from infrastructure.tools.execution.config import load_tool_configs
 from infrastructure.tools.execution.observation import (
     PermissionDecisionObservation,
     ToolCallObservation,
@@ -72,6 +74,9 @@ def _adapter(
         search_plugin=search,
         permission_manager=permissions,
         observation_port=observer,
+        tool_config_loader=lambda policy: load_tool_configs(
+            policy, defaults=load_tool_defaults()
+        ),
         workspace_resolver=resolver,
         allowed_tool_keys=allowed,
     )

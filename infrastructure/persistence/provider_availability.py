@@ -15,20 +15,12 @@ from infrastructure.models.provider_records import (
     ProviderConnection,
     ProviderModelRecord,
 )
+from infrastructure.models.providers.endpoint_capabilities import endpoint_capabilities
 from infrastructure.models.storage_ports import ProviderStoragePort, ReportStoragePort
 from infrastructure.models.validation.provider_availability import (
     EndpointAvailability,
-    project_capability_availability,
     project_endpoint_availability,
     project_provider_status,
-    project_reachability,
-)
-from infrastructure.models.validation.capability_probes import (
-    project_endpoint_capabilities,
-)
-from infrastructure.models.validation.core_validation_scheduler import (
-    CoreValidationRun,
-    CoreValidationScheduler,
 )
 from infrastructure.models.validation.serving_food import ServingFoodIndex
 
@@ -61,7 +53,9 @@ class ProviderAvailabilityQuery:
         connections = self._provider_storage.load_connections()
         connection = connections.get(connection_id)
         if connection is None:
-            return _unknown(reference, connection_id, model_id, "connection_not_configured")
+            return _unknown(
+                reference, connection_id, model_id, "connection_not_configured"
+            )
         model = next(
             (item for item in connection.models if item.endpoint_model_id == model_id),
             None,
@@ -106,12 +100,15 @@ class ProviderAvailabilityQuery:
             if recent is not None and now - recent < self._probe_cooldown:
                 return current
             future = self._inflight.get(reference)
-            owner = future is None
-            if owner:
+            if future is None:
+                owner = True
                 future = Future()
                 self._inflight[reference] = future
                 self._last_probe_at[reference] = now
+            else:
+                owner = False
         if not owner:
+            assert future is not None
             try:
                 future.result()
             except BaseException:
@@ -121,6 +118,7 @@ class ProviderAvailabilityQuery:
                 pass
             return self.get(reference)
         try:
+            assert future is not None
             future.set_result(self._active_probe(reference))
         except BaseException as error:
             future.set_exception(error)
@@ -128,47 +126,6 @@ class ProviderAvailabilityQuery:
             with self._probe_lock:
                 self._inflight.pop(reference, None)
         return self.get(reference)
-
-    def run_core_validation(
-        self,
-        scheduler: CoreValidationScheduler,
-        *,
-        now: datetime | None = None,
-    ) -> CoreValidationRun:
-        """Run one injected scheduler pass against the current core projection."""
-
-        if self._serving_index is None:
-            return CoreValidationRun(False, "")
-        index = self._serving_index()
-        return scheduler.run_due(
-            index,
-            self._availability_for_channel,
-            now=now,
-        )
-
-    def _availability_for_channel(
-        self,
-        reference: str,
-        channel: str,
-    ) -> object:
-        if channel == "text":
-            return self.get(reference)
-        capability = {"tool": "tools"}.get(channel, channel)
-        connection_id, model_id = _split_reference(reference)
-        connection = self._provider_storage.load_connections().get(connection_id)
-        if connection is None:
-            return _unknown(
-                reference,
-                connection_id,
-                model_id,
-                "connection_not_configured",
-            )
-        return project_capability_availability(
-            reference,
-            capability,
-            self._reports.observations_for_subject("model", reference),
-            config_fingerprint=self._fingerprint(connection),
-        )
 
     def _project(
         self,
@@ -182,13 +139,6 @@ class ProviderAvailabilityQuery:
         endpoint = project_endpoint_availability(
             reference,
             observations,
-            config_fingerprint=fingerprint,
-        )
-        reachability = project_reachability(
-            connection.connection_id,
-            self._reports.observations_for_subject(
-                "provider", connection.connection_id
-            ),
             config_fingerprint=fingerprint,
         )
         connection_state = project_endpoint_availability(
@@ -252,15 +202,8 @@ class ProviderAvailabilityQuery:
             serving_roles=() if core is None else core.roles,
             capabilities=tuple(
                 StoredEndpointCapability(item.name, item.state, item.evidence)
-                for item in project_endpoint_capabilities(
-                    model,
-                    observations,
-                    config_fingerprint=fingerprint,
-                )
+                for item in endpoint_capabilities(model)
             ),
-            reachability_status=reachability.status,
-            reachability_observed_at=reachability.observed_at,
-            reachability_expires_at=reachability.expires_at,
         )
 
     def _connection_states(
@@ -320,9 +263,6 @@ def _unknown(
         serving_food_ids=(),
         serving_roles=(),
         capabilities=(),
-        reachability_status="unknown",
-        reachability_observed_at=None,
-        reachability_expires_at=None,
     )
 
 

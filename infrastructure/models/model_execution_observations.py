@@ -142,15 +142,15 @@ class ModelCallObservation:
         for key, value in optional_text.items():
             if value:
                 metadata[key] = value
-        optional_numbers = {
+        optional_numbers: dict[str, int | float | None] = {
             "duration_ms": self.duration_ms,
             "time_to_first_token_ms": self.time_to_first_token_ms,
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
         }
-        for key, value in optional_numbers.items():
-            if value is not None:
-                metadata[key] = value
+        for key, numeric_value in optional_numbers.items():
+            if numeric_value is not None:
+                metadata[key] = numeric_value
         return ModelExecutionEvent(
             event_type=ModelExecutionEventType.MODEL_CALL,
             status=self.status,

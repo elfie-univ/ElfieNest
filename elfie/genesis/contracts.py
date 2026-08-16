@@ -44,6 +44,7 @@ class PersonalitySeed:
     speech_style: SelfhoodSpeechStyle = SelfhoodSpeechStyle()
     norms: tuple[str, ...] = ()
     behavior_anchors: tuple[str, ...] = ()
+    sensory_biases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,7 @@ class SelfModelSeed:
     known_facts: tuple[str, ...]
     unknown_facts: tuple[str, ...]
     knowledge_scope: tuple[str, ...] = ()
+    species_knowledge: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

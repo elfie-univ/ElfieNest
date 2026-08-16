@@ -5,13 +5,15 @@ from __future__ import annotations
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Mapping, Optional
+from typing import Any, AsyncIterator, Optional
 
 from fastapi import FastAPI
 
-from app.features.adoption import CandidatePortraitPort
+from app.features.adoption import (
+    CandidatePortraitPort,
+    SpeciesRuntimeReadinessPort,
+)
 from app.interfaces.api.app import create_http_application
-from app.interfaces.api.runtime_capability import RuntimeCapabilityGate
 from app.interfaces.api.service_access import ServiceAccessPolicy
 from app.interfaces.web.build_discovery import (
     WebBuild,
@@ -42,8 +44,7 @@ def create_app(
     web_build_dir: Optional[Path] = None,
     model_execution: StructuredModelExecution | None = None,
     portraits: CandidatePortraitPort | None = None,
-    runtime_capability_gate: RuntimeCapabilityGate | None = None,
-    runtime_projection: Callable[[], Mapping[str, object]] | None = None,
+    species_runtime: SpeciesRuntimeReadinessPort | None = None,
 ) -> FastAPI:
     selected_db_path = db_path or str(get_db_path())
     ensure_application_storage(selected_db_path)
@@ -59,6 +60,7 @@ def create_app(
         nest_session=None if engine is None else engine.session,
         model_execution=model_execution,
         portraits=portraits,
+        species_runtime=species_runtime,
     )
     build_dir = _web_build_directory(web_build_dir)
     web_build, web_build_error = _discover_web_build(build_dir)
@@ -67,13 +69,7 @@ def create_app(
     @asynccontextmanager
     async def application_lifespan(_app: FastAPI) -> AsyncIterator[None]:
         container.setup_installation.recover()
-        if engine is not None and container.core_validation_worker is not None:
-            container.core_validation_worker.start()
-        try:
-            yield
-        finally:
-            if container.core_validation_worker is not None:
-                container.core_validation_worker.stop()
+        yield
 
     return create_http_application(
         accounts=container.accounts,
@@ -101,14 +97,12 @@ def create_app(
         engine_ready=engine is not None,
         godot_web_ready=godot_web_bundle_present,
         godot_runtime_ready=lambda: bool(
-            engine is not None and engine.session.runtime_world_ready
+            engine is not None and engine.world_runtime.runtime_ready
         ),
         godot_web_dir=configured_godot_web_directory(),
         service_access=service_access,
         web_build=web_build,
         web_build_error=web_build_error,
-        runtime_capability_gate=runtime_capability_gate,
-        runtime_projection=runtime_projection,
     )
 
 

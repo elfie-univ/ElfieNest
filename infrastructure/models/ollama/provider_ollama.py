@@ -12,13 +12,11 @@ from app.features.configuration import (
     StoredLocalProviderProbe,
 )
 from infrastructure.models.providers.catalog import ProviderCatalog
-from infrastructure.persistence.provider_catalog import load_provider_catalog
 
 from .ollama_platform import (
     DEFAULT_OLLAMA_ENDPOINT,
     OllamaBinding,
     OllamaPlatformAdapter,
-    OllamaProcessIdentity,
     wait_for_healthy,
 )
 from .ollama_platform_commands import official_launch_target
@@ -31,8 +29,10 @@ class PublicOllamaProviderAdapter:
         *,
         catalog: ProviderCatalog | None = None,
     ) -> None:
+        if catalog is None:
+            raise ValueError("PublicOllamaProviderAdapter requires an injected catalog")
         self._platform = platform or OllamaPlatformAdapter()
-        self._catalog = catalog or load_provider_catalog()
+        self._catalog = catalog
 
     def default_binding(self) -> StoredLocalProviderBinding:
         try:
@@ -136,42 +136,6 @@ class PublicOllamaProviderAdapter:
             ValueError,
         ) as error:
             raise ProviderPortError("Unable to start local Provider") from error
-
-    def start_owned(
-        self,
-        binding: StoredLocalProviderBinding,
-    ) -> OllamaProcessIdentity:
-        """Start a directly manageable binding and return exact process evidence."""
-        platform_binding = _platform_binding(binding)
-        try:
-            process = self._platform.start_bound_installation(platform_binding)
-            if process is None or not process.birth_identity:
-                raise RuntimeError("无法取得 Ollama 进程的精确身份")
-            probe = wait_for_healthy(self._platform, platform_binding)
-            if probe.state != "healthy":
-                self._platform.stop_started_process(process, force=True)
-                raise RuntimeError("Ollama 启动后仍未健康")
-            return process
-        except (
-            FileNotFoundError,
-            OSError,
-            PermissionError,
-            RuntimeError,
-            TimeoutError,
-            ValueError,
-        ) as error:
-            raise ProviderPortError("Unable to start owned local Provider") from error
-
-    def stop_owned(
-        self,
-        process: OllamaProcessIdentity,
-        *,
-        force: bool = False,
-    ) -> None:
-        try:
-            self._platform.stop_started_process(process, force=force)
-        except (OSError, RuntimeError, TimeoutError, ValueError) as error:
-            raise ProviderPortError("Unable to stop owned local Provider") from error
 
     def pull_model(
         self,

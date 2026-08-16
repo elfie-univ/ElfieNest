@@ -19,8 +19,7 @@ uv sync --locked --extra dev
 ```
 
 源码开发使用仓库内的 `./elfienest.sh`。最终用户安装平台原生应用包，不从源码
-checkout 执行安装命令。原生安装器还会把包内管理 CLI 暴露为全局 `elfienest` 命令；
-它复用已安装的 Desktop Controller 和生产数据目录，但不会打开 Viewer。
+checkout 执行安装命令。
 
 Python `3.9.25` 是产品和开发工具的共同固定运行时。除非负责人明确批准全仓升级，
 不得改用系统 `python`/`python3`、其他虚拟环境或 `ELFIENEST_PYTHON` 覆盖入口；

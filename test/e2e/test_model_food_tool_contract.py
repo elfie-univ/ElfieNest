@@ -1,5 +1,6 @@
 from dataclasses import replace
 from datetime import datetime, timezone
+from functools import partial
 
 import pytest
 
@@ -21,6 +22,9 @@ from infrastructure.models.model_execution_contracts import (
 from infrastructure.models.model_execution_observations import (
     get_model_execution_observer,
 )
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_tool_defaults,
+)
 from infrastructure.persistence.configuration.runtime_settings import (
     write_runtime_settings,
     write_tool_settings,
@@ -38,12 +42,14 @@ from infrastructure.persistence.model_execution_config import (
     load_model_execution_config,
 )
 from infrastructure.persistence.nest_db.store import get_db, init_db
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
 from infrastructure.persistence.reports.report_repository import ReportRepository
 from infrastructure.tools import ToolPortAdapter
+from infrastructure.tools.execution.config import load_tool_configs
 from test.support.model_execution_agent import model_execution_agent_ports
 
 
@@ -124,7 +130,9 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
         scope="contract-acceptance",
         trigger="test",
     )
-    evidence = tuple(query_model_evidence().values())
+    evidence = tuple(
+        query_model_evidence(provider_catalog=load_provider_catalog()).values()
+    )
 
     emergency_preview = FoodPlanner().propose_package(
         next(item for item in initial if item.food_id == FOOD_EMERGENCY_ID),
@@ -199,6 +207,10 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
     tool_port = ToolPortAdapter.from_model_execution_config(
         runtime_config,
         observation_port=get_model_execution_observer(),
+        tool_config_loader=partial(
+            load_tool_configs,
+            defaults=load_tool_defaults(),
+        ),
         workspace_resolver=lambda scope_id: (
             workspace if scope_id == "00000001" else None
         ),

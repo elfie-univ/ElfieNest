@@ -36,37 +36,6 @@ class RecoveryInProgressError(ServiceLifecycleError):
 
 
 @dataclass(frozen=True)
-class SnapshotRecoveryRequiredError(ServiceLifecycleError):
-    """The selected data root cannot be treated as a fresh Runtime root."""
-
-    path: Path
-    detail: str
-
-    def __str__(self) -> str:
-        return f"Runtime snapshot recovery is required ({self.path}): {self.detail}"
-
-
-@dataclass(frozen=True)
-class LifecycleBusyError(ServiceLifecycleError):
-    """A different lifecycle operation currently owns the generation."""
-
-    detail: str
-
-    def __str__(self) -> str:
-        return self.detail
-
-
-@dataclass(frozen=True)
-class LifecycleCancelledError(ServiceLifecycleError):
-    """A lifecycle command was cancelled at a safe ownership checkpoint."""
-
-    detail: str = "Runtime lifecycle operation was cancelled"
-
-    def __str__(self) -> str:
-        return self.detail
-
-
-@dataclass(frozen=True)
 class AuthorityHostError(ServiceLifecycleError):
     """The configured Godot authority host could not be started or stopped safely."""
 
@@ -170,5 +139,3 @@ class ServiceLifecycleResult:
     pid: Optional[int] = None
     error: Optional[ServiceLifecycleError] = None
     command: Optional[Tuple[str, ...]] = None
-    operation_id: Optional[str] = None
-    generation: Optional[int] = None

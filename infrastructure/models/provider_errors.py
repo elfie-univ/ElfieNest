@@ -110,9 +110,7 @@ def classify_provider_error(error: BaseException) -> ProviderErrorClassification
     if isinstance(error, TimeoutError):
         return ProviderErrorClassification("timeout", "transport", "timeout")
     if error.__class__.__name__ == "OllamaNotReadyError":
-        return ProviderErrorClassification(
-            "ollama_unavailable", "transport", "network"
-        )
+        return ProviderErrorClassification("ollama_unavailable", "transport", "network")
     if isinstance(error, ValueError):
         return ProviderErrorClassification("invalid_request", "request", "request")
     return ProviderErrorClassification("provider_error", "endpoint", "provider")

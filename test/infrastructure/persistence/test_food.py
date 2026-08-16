@@ -44,7 +44,6 @@ def test_adapter_round_trips_packages_assignments_and_provider_references(
         enabled=True,
         primary_model="cloud/main",
         reasoning_model="cloud/reasoning",
-        required_roles=frozenset({"reasoning", "vision"}),
         visibility_mode="users",
         visible_user_ids=(7,),
     )

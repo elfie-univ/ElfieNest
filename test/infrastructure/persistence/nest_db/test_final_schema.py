@@ -126,7 +126,6 @@ EXPECTED_COLUMNS: Final = {
         "vision_model_ref",
         "tool_model_ref",
         "fallback_model_ref",
-        "required_roles_json",
         "visibility_mode",
         "visible_user_ids_json",
         "enabled",

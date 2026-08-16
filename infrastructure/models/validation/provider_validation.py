@@ -14,6 +14,7 @@ from infrastructure.models.catalog import verify_provider
 from infrastructure.models.inference.llm_api import call_llm_api
 from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.provider_errors import classify_provider_error
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.dispatch import detect_api_mode_for_url
 from infrastructure.models.providers.http import (
     open_provider_request,
@@ -133,7 +134,7 @@ def discover_provider_models_result(
         )
 
     if strategy == "provider_adapter":
-        configured = _configured_models(provider)
+        configured = _configured_models(provider, config.provider_catalog)
         return ModelDiscoveryResult(
             provider_id,
             tuple(
@@ -214,7 +215,7 @@ def discover_provider_models_result(
     # entitlement.  Falling back to configured IDs here would falsely turn a
     # recommendation into an account-owned model.
     if discovery_error is not None and allow_configured_fallback:
-        configured = _configured_models(provider)
+        configured = _configured_models(provider, config.provider_catalog)
         if configured:
             return ModelDiscoveryResult(
                 provider_id,
@@ -268,7 +269,7 @@ def _provider_profile(
 ) -> Any:
     catalog = config.provider_catalog
     if catalog is None:
-        return None
+        raise ValueError("Provider validation requires an injected provider catalog")
     catalog_id = str(provider.get("catalog_id") or provider_id)
     return catalog.products.get(catalog_id) or catalog.profiles.get(provider_id)
 
@@ -282,10 +283,12 @@ def _bundled_model_names(provider: Mapping[str, Any], profile: Any) -> list[str]
     return list(dict.fromkeys(str(item).strip() for item in raw if str(item).strip()))
 
 
-def _configured_models(provider: Mapping[str, Any]) -> list[tuple[str, str]]:
+def _configured_models(
+    provider: Mapping[str, Any], catalog: ProviderCatalog | None = None
+) -> list[tuple[str, str]]:
     return [
         (item.model_id, item.display_name)
-        for item in configured_model_specs(provider)
+        for item in configured_model_specs(provider, catalog=catalog)
     ]
 
 
@@ -330,7 +333,11 @@ class ProviderValidationRunner:
 
     def verify_provider(self, provider_id: str) -> CheckResult:
         started = time.perf_counter()
-        result = verify_provider(provider_id, self.config)
+        result = verify_provider(
+            provider_id,
+            self.config,
+            provider_catalog=self.config.provider_catalog,
+        )
         duration_ms = (time.perf_counter() - started) * 1000
         active = result.get("status") == "active"
         measured_latency = float(result.get("latency_ms") or duration_ms)

@@ -77,9 +77,7 @@ def core_profile(
             -2.0,
             2.0,
         )
-        for user, species_value, stage_value in zip(
-            q, species.personality_prior, stage
-        )
+        for user, species_value, stage_value in zip(q, species.personality_prior, stage)
     )
     return profile(latent)
 

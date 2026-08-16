@@ -26,9 +26,11 @@ def _write_runtime(directory: Path, fingerprint: str) -> None:
     (directory / "build-manifest.json").write_text(
         json.dumps(
             {
+                "schema_version": 2,
                 "files": files,
                 "source_fingerprint": fingerprint,
                 "species_catalog_digest": current_species_catalog_digest(),
+                "species_package_ids": ["dog", "fox"],
                 "export_boundary": export_boundary_manifest(),
             }
         ),

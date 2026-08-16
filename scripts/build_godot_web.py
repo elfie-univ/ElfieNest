@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from infrastructure.godot.artifacts.web_build import main
+from scripts.godot_species_validation import run_godot_species_validation
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(godot_runner=run_godot_species_validation))

@@ -22,6 +22,7 @@ from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAda
 from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.validation.provider_validation import DiscoveredModel
 from infrastructure.persistence.food_evidence import record_model_evidence
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.reports.report_repository import ReportRepository
 from test.support.provider import provider_models_adapter
 
@@ -66,7 +67,8 @@ def _client(
         references=NoProviderReferences(),
         technology=adapter,
         local_state=adapter,
-        local_technology=local_technology or PublicOllamaProviderAdapter(),
+        local_technology=local_technology
+        or PublicOllamaProviderAdapter(catalog=load_provider_catalog()),
         oauth=oauth,
     )
     application.dependency_overrides[require_user] = lambda: _principal(role)
@@ -87,7 +89,7 @@ def _anonymous_client(tmp_path, monkeypatch) -> TestClient:
         references=NoProviderReferences(),
         technology=adapter,
         local_state=adapter,
-        local_technology=PublicOllamaProviderAdapter(),
+        local_technology=PublicOllamaProviderAdapter(catalog=load_provider_catalog()),
     )
     application.include_router(router)
     return TestClient(application)

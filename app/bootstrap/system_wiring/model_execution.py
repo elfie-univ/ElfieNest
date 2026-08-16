@@ -21,6 +21,7 @@ from infrastructure.models.model_execution_ports import (
     ModelExecutionPermissionPort,
     ModelExecutionToolLoopPort,
 )
+from infrastructure.persistence.configuration.bundled_defaults import load_tool_defaults
 from infrastructure.persistence.configuration.secrets import resolve_secret
 from infrastructure.persistence.layout.data_home import get_model_execution_config_paths
 from infrastructure.persistence.model_execution_config import (
@@ -42,8 +43,13 @@ def build_model_execution_agent_ports(
     report_writer: ReportStorageAdapter | None = None,
 ) -> ModelExecutionAgentPorts:
     observer = get_model_execution_observer(report_writer)
-    tool_config_loader = partial(load_tool_configs, secret_resolver=resolve_secret)
-    allowed_tool_keys = partial(effective_tool_keys, secret_resolver=resolve_secret)
+    tool_defaults = load_tool_defaults()
+    tool_config_loader = partial(
+        load_tool_configs, defaults=tool_defaults, secret_resolver=resolve_secret
+    )
+    allowed_tool_keys = partial(
+        effective_tool_keys, defaults=tool_defaults, secret_resolver=resolve_secret
+    )
 
     def build_permission_manager(
         config: ModelExecutionConfig, observation_port: ModelExecutionObserverPort
@@ -70,6 +76,7 @@ def build_model_execution_agent_ports(
         config_paths=get_model_execution_config_paths,
         search_factory=partial(
             WebSearchPlugin.from_model_execution_policy,
+            defaults=tool_defaults,
             secret_resolver=resolve_secret,
         ),
         permission_factory=build_permission_manager,
@@ -102,7 +109,10 @@ def build_agent_validation_composition(
     report_writer: ReportStorageAdapter | None = None,
 ) -> AgentValidationComposition:
     observer = get_model_execution_observer(report_writer)
-    tool_config_loader = partial(load_tool_configs, secret_resolver=resolve_secret)
+    tool_defaults = load_tool_defaults()
+    tool_config_loader = partial(
+        load_tool_configs, defaults=tool_defaults, secret_resolver=resolve_secret
+    )
 
     def tool_port_factory(
         config: ModelExecutionConfig, root: Path, tool_key: str

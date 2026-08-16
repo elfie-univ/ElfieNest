@@ -1,9 +1,5 @@
 from pathlib import Path
 
-from app.orchestration.lifecycle.runtime_snapshot import (
-    EndpointSnapshot,
-    RuntimeSnapshotV1,
-)
 from app.orchestration.lifecycle.service import stop_service
 from app.orchestration.lifecycle.types import (
     InvalidPidFileError,
@@ -29,38 +25,6 @@ def test_stop_fails_closed_without_receipt_when_ports_active(tmp_path: Path) -> 
     port = FakeProcessPort(cwd=tmp_path, ports_active=True)
     result = stop_service(tmp_path / "home", tmp_path, process_port=port)
     assert isinstance(result.error, ServicePortsActiveError)
-
-
-def test_stop_uses_published_dynamic_endpoints_without_receipt(tmp_path: Path) -> None:
-    class DynamicPort(FakeProcessPort):
-        def __init__(self) -> None:
-            super().__init__(cwd=tmp_path, ports_active=True)
-            self.checked: list[tuple[int, ...]] = []
-
-        def ports_in_use(self, ports) -> bool:
-            self.checked.append(tuple(ports))
-            return True
-
-    class Record:
-        def read(self) -> RuntimeSnapshotV1:
-            return RuntimeSnapshotV1(
-                instance_id="instance",
-                endpoints=(
-                    EndpointSnapshot("http", "http", "127.0.0.1", 12401),
-                    EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 12402),
-                ),
-            )
-
-    port = DynamicPort()
-    result = stop_service(
-        tmp_path / "home",
-        tmp_path,
-        process_port=port,
-        runtime_record=Record(),
-    )
-
-    assert isinstance(result.error, ServicePortsActiveError)
-    assert port.checked == [(12401, 12402)]
 
 
 def test_stop_rejects_mismatched_process_without_signal(tmp_path: Path) -> None:

@@ -18,17 +18,11 @@ from infrastructure.godot.lifecycle.host_contract import (
     RuntimeHostSelectionContext,
     select_platform_authority_host,
 )
-from infrastructure.platform.lifecycle.windows_job import (
-    WindowsJobObject,
-    attach_process_to_job,
-    deterministic_job_name,
-)
 
 AUTHORITY_ROLE_ARGUMENT: Final = "--elfienest-role=godot-authority"
 RUNTIME_HOST_ENV: Final = "ELFIENEST_RUNTIME_HOST"
 AUTHORITY_STOP_GRACE_SECONDS: Final = 1.0
 AUTHORITY_STOP_FORCE_GRACE_SECONDS: Final = 1.0
-_WINDOWS_AUTHORITY_JOBS: dict[int, WindowsJobObject] = {}
 
 
 class AuthorityLaunchFailureKind(str, Enum):
@@ -251,123 +245,39 @@ def start_godot_runtime(
     )
     child_environment = dict(values)
     child_environment.update(plan.environment)
-    if os.name == "nt":
-        try:
-            process = subprocess.Popen(
-                plan.command,
-                cwd=str(plan.cwd),
-                env=child_environment,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
-            )
-            job_name = deterministic_job_name(
-                "godot",
-                f"{plan.cwd}:{request.core_pid or 0}:{request.ws_port}",
-            )
-            try:
-                job = attach_process_to_job(process.pid, job_name)
-            except Exception:
-                # A launched authority without a Job Object is not safely
-                # owned.  Tear down this exact handle before surfacing launch
-                # failure so the Core never inherits an orphan.
-                try:
-                    process.kill()
-                    process.wait(timeout=1.0)
-                except (OSError, subprocess.SubprocessError, TimeoutError):
-                    pass
-                raise
-            if job is not None:
-                _WINDOWS_AUTHORITY_JOBS[process.pid] = job
-            return process
-        except OSError as error:
-            raise AuthorityLaunchError(
-                AuthorityLaunchFailureKind.PROCESS_LAUNCH,
-                str(error),
-                Path(plan.command[0]),
-            ) from error
-    else:
-        try:
-            return subprocess.Popen(
-                plan.command,
-                cwd=str(plan.cwd),
-                env=child_environment,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-        except OSError as error:
-            raise AuthorityLaunchError(
-                AuthorityLaunchFailureKind.PROCESS_LAUNCH,
-                str(error),
-                Path(plan.command[0]),
-            ) from error
+    try:
+        return subprocess.Popen(
+            plan.command,
+            cwd=str(plan.cwd),
+            env=child_environment,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError as error:
+        raise AuthorityLaunchError(
+            AuthorityLaunchFailureKind.PROCESS_LAUNCH,
+            str(error),
+            Path(plan.command[0]),
+        ) from error
 
 
 def stop_godot_runtime(process: Optional[OwnedRuntimeProcess]) -> None:
     """Stop only the exact authority child handle owned by this Supervisor."""
-    if process is None:
-        return
-    job = _WINDOWS_AUTHORITY_JOBS.pop(process.pid, None) if os.name == "nt" else None
-    if process.poll() is not None:
-        if job is not None:
-            job.close()
+    if process is None or process.poll() is not None:
         return
     try:
         if os.name == "nt":
-            _terminate_windows_process_tree(process.pid, force=False)
+            process.terminate()
         else:
             os.killpg(process.pid, signal.SIGTERM)
         process.wait(timeout=AUTHORITY_STOP_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
         if os.name == "nt":
-            if job is not None:
-                try:
-                    job.terminate()
-                finally:
-                    job.close()
-                process.wait(timeout=AUTHORITY_STOP_FORCE_GRACE_SECONDS)
-                return
-            _terminate_windows_process_tree(process.pid, force=True)
+            process.kill()
         else:
             os.killpg(process.pid, signal.SIGKILL)
         process.wait(timeout=AUTHORITY_STOP_FORCE_GRACE_SECONDS)
     except (OSError, ProcessLookupError):
-        if job is not None:
-            job.close()
         return
-    finally:
-        if job is not None:
-            job.close()
-
-
-def terminate_recorded_godot_runtime(pid: int, *, force: bool = False) -> None:
-    """Stop a previously recorded, already identity-validated authority PID."""
-    if os.name == "nt":
-        _terminate_windows_process_tree(pid, force=force)
-        return
-    process_group = os.getpgid(pid)
-    if process_group != pid:
-        return
-    os.killpg(process_group, signal.SIGKILL if force else signal.SIGTERM)
-
-
-def _terminate_windows_process_tree(pid: int, *, force: bool) -> None:
-    """Terminate one validated authority process and its descendants."""
-    command = ["taskkill", "/PID", str(pid), "/T"]
-    if force:
-        command.append("/F")
-    completed = subprocess.run(
-        command,
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=5.0,
-    )
-    if completed.returncode not in {0, 128}:
-        detail = (completed.stderr or completed.stdout).strip()
-        raise OSError(
-            detail or f"taskkill failed with exit code {completed.returncode}"
-        )

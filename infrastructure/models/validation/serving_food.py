@@ -61,11 +61,7 @@ def build_serving_food_index(
     """
     current = _utc(now or datetime.now(timezone.utc))
     package_map = {item.food_id: item for item in packages}
-    resolvable = (
-        None
-        if resolvable_references is None
-        else set(resolvable_references)
-    )
+    resolvable = None if resolvable_references is None else set(resolvable_references)
     assignment_rows = tuple(assignments)
     production_observations = tuple(
         item
@@ -73,9 +69,7 @@ def build_serving_food_index(
         if item.details.get("workload_kind") == "production"
     )
     direct_food_reasons: dict[str, set[str]] = {}
-    optional_role_foods: dict[str, set[str]] = {
-        role: set() for role in _OPTIONAL_ROLES
-    }
+    optional_role_foods: dict[str, set[str]] = {role: set() for role in _OPTIONAL_ROLES}
     for observation in production_observations:
         food_id = _text(observation.details.get("food_id"))
         if not food_id:

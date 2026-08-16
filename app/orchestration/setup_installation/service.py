@@ -20,8 +20,6 @@ from .ports import (
     SetupInstallationStatePort,
     SetupNestPort,
     SetupOllamaInstallPort,
-    SetupOllamaTaskLease,
-    SetupOllamaTaskLeaseFactory,
     SetupProviderPort,
 )
 
@@ -40,7 +38,6 @@ class SetupInstallationService:
         food: SetupFoodPort,
         nest: SetupNestPort,
         runner: SetupInstallationRunnerPort,
-        ollama_task_lease_factory: SetupOllamaTaskLeaseFactory | None = None,
     ) -> None:
         self._key = key
         self._state = state
@@ -50,7 +47,6 @@ class SetupInstallationService:
         self._food = food
         self._nest = nest
         self._runner = runner
-        self._ollama_task_lease_factory = ollama_task_lease_factory
 
     def confirm(
         self, command: ConfirmSetupInstallationCommand
@@ -119,61 +115,46 @@ class SetupInstallationService:
             return
         phase = current.install_step or 2
         model_reference = None
-        task_lease: SetupOllamaTaskLease | None = None
-        try:
-            if phase <= 2:
-                if draft.use_local_ollama:
-                    task_lease = self._ollama.ensure_installation(self._reporter(2))
-                else:
-                    self._reporter(2)("ollama.skipped")
-                self._state.complete_phase(2)
-                phase = 3
-            if draft.use_local_ollama and task_lease is None:
-                if self._ollama_task_lease_factory is not None:
-                    task_lease = self._ollama_task_lease_factory()
-                    if task_lease is None:
-                        raise SetupInstallationUnavailable(
-                            "无法取得 Ollama Setup 任务租约"
-                        )
-            if phase <= 3:
-                if draft.use_local_ollama:
-                    if draft.model_id is None:
-                        raise SetupInstallationInvalid("Setup 模型草稿缺失")
-                    model_reference = self._ollama.ensure_model(
-                        draft.model_id, self._reporter(3)
-                    )
-                else:
-                    self._reporter(3)("model.skipped")
-                self._state.complete_phase(3)
-                phase = 4
-            if phase <= 4:
-                if draft.use_local_ollama:
-                    if draft.model_id is None:
-                        raise SetupInstallationInvalid("Setup 模型草稿缺失")
-                    model_reference = (
-                        model_reference
-                        or self._providers.configured_model_reference(draft.model_id)
-                    )
-                    if model_reference is None:
-                        raise SetupInstallationInvalid("Setup 模型连接记录缺失")
-                    self._reporter(4)("food.emergency")
-                    self._food.ensure_emergency_food(model_reference)
-                else:
-                    self._reporter(4)("food.skipped")
-                self._state.complete_phase(4)
-                phase = 5
-            if phase <= 5:
-                if draft.bed_count is None:
-                    raise SetupInstallationInvalid("Setup 床位草稿缺失")
-                self._reporter(5)("nest.apply")
-                self._nest.set_bed_count(draft.bed_count)
-                self._state.complete_phase(5)
-        finally:
-            if task_lease is not None:
-                try:
-                    task_lease.release()
-                except Exception:  # noqa: BLE001 - cleanup is best effort at worker boundary
-                    logger.exception("Setup Ollama task lease release failed")
+        if phase <= 2:
+            if draft.use_local_ollama:
+                self._ollama.ensure_installation(self._reporter(2))
+            else:
+                self._reporter(2)("ollama.skipped")
+            self._state.complete_phase(2)
+            phase = 3
+        if phase <= 3:
+            if draft.use_local_ollama:
+                if draft.model_id is None:
+                    raise SetupInstallationInvalid("Setup 模型草稿缺失")
+                model_reference = self._ollama.ensure_model(
+                    draft.model_id, self._reporter(3)
+                )
+            else:
+                self._reporter(3)("model.skipped")
+            self._state.complete_phase(3)
+            phase = 4
+        if phase <= 4:
+            if draft.use_local_ollama:
+                if draft.model_id is None:
+                    raise SetupInstallationInvalid("Setup 模型草稿缺失")
+                model_reference = (
+                    model_reference
+                    or self._providers.configured_model_reference(draft.model_id)
+                )
+                if model_reference is None:
+                    raise SetupInstallationInvalid("Setup 模型连接记录缺失")
+                self._reporter(4)("food.emergency")
+                self._food.ensure_emergency_food(model_reference)
+            else:
+                self._reporter(4)("food.skipped")
+            self._state.complete_phase(4)
+            phase = 5
+        if phase <= 5:
+            if draft.bed_count is None:
+                raise SetupInstallationInvalid("Setup 床位草稿缺失")
+            self._reporter(5)("nest.apply")
+            self._nest.set_bed_count(draft.bed_count)
+            self._state.complete_phase(5)
 
     def _reporter(self, phase: int) -> Callable[[str], None]:
         progress = {2: 30, 3: 50, 4: 70, 5: 90}[phase]

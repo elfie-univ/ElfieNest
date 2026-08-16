@@ -9,13 +9,7 @@ from infrastructure.models.provider_records import (
     ProviderConnection,
     ProviderModelRecord,
 )
-from infrastructure.models.validation.serving_food import (
-    CoreEndpointRoute,
-    ServingFoodIndex,
-)
-from infrastructure.models.validation.core_validation_scheduler import (
-    CoreValidationScheduler,
-)
+from infrastructure.models.validation.serving_food import ServingFoodIndex
 from infrastructure.persistence.provider_availability import ProviderAvailabilityQuery
 
 
@@ -89,7 +83,13 @@ def test_query_is_exact_endpoint_scoped_and_projects_connection_blocks() -> None
     )
     query = ProviderAvailabilityQuery(
         _Storage(connection),
-        _Reports((_observation("cloud_0001/main", code="billing_blocked", category="billing"),)),
+        _Reports(
+            (
+                _observation(
+                    "cloud_0001/main", code="billing_blocked", category="billing"
+                ),
+            )
+        ),
         serving_index=lambda: ServingFoodIndex(
             generation="g1",
             foods=(),
@@ -104,7 +104,10 @@ def test_query_is_exact_endpoint_scoped_and_projects_connection_blocks() -> None
     assert main.provider_status == "unavailable"
     assert main.capabilities[0].name == "tools"
     assert main.capabilities[0].state == "supported"
-    assert next(item for item in main.capabilities if item.name == "vision").state == "unsupported"
+    assert (
+        next(item for item in main.capabilities if item.name == "vision").state
+        == "unsupported"
+    )
     assert sibling.status == "unavailable"
     assert sibling.reason_code == "billing_blocked"
 
@@ -179,9 +182,7 @@ def test_active_probe_is_single_flight_and_cooldown_limited() -> None:
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = tuple(
             pool.map(
-                lambda _index: query.ensure(
-                    "cloud_0001/main", allow_probe=True
-                ),
+                lambda _index: query.ensure("cloud_0001/main", allow_probe=True),
                 (1, 2),
             )
         )
@@ -189,76 +190,3 @@ def test_active_probe_is_single_flight_and_cooldown_limited() -> None:
 
     assert len(results) == 2
     assert calls == 1
-
-
-def test_core_validation_entry_point_uses_current_serving_index(tmp_path) -> None:
-    connection = ProviderConnection(
-        connection_id="cloud_0001",
-        catalog_id="custom_openai",
-        alias="Cloud",
-        api_base="https://example.test",
-        api_mode="chat_completions",
-        auth_type="bearer",
-        credential_ref="CLOUD_KEY",
-        models=(ProviderModelRecord("main", source="manual"),),
-    )
-    calls: list[tuple[str, str]] = []
-    query = ProviderAvailabilityQuery(
-        _Storage(connection),
-        _Reports(()),
-        serving_index=lambda: ServingFoodIndex(
-            generation="g1",
-            foods=(),
-            core_endpoints=(),
-        ),
-    )
-    scheduler = CoreValidationScheduler(
-        tmp_path / "lease.lock",
-        lambda reference, channel: calls.append((reference, channel)),
-    )
-
-    result = query.run_core_validation(scheduler)
-
-    assert result.acquired is True
-    assert calls == []
-
-
-def test_core_validation_uses_role_evidence_not_text_health(tmp_path) -> None:
-    connection = ProviderConnection(
-        connection_id="cloud_0001",
-        catalog_id="custom_openai",
-        alias="Cloud",
-        api_base="https://example.test",
-        api_mode="chat_completions",
-        auth_type="bearer",
-        credential_ref="CLOUD_KEY",
-        models=(
-            ProviderModelRecord(
-                "main",
-                supports_vision=True,
-                source="manual",
-            ),
-        ),
-    )
-    model_ref = "cloud_0001/main"
-    query = ProviderAvailabilityQuery(
-        _Storage(connection),
-        _Reports((_observation(model_ref),)),
-        serving_index=lambda: ServingFoodIndex(
-            generation="g1",
-            foods=(),
-            core_endpoints=(
-                CoreEndpointRoute(model_ref, ("food_common",), ("vision",)),
-            ),
-        ),
-    )
-    calls: list[tuple[str, str]] = []
-    scheduler = CoreValidationScheduler(
-        tmp_path / "lease.lock",
-        lambda reference, channel: calls.append((reference, channel)),
-    )
-
-    result = query.run_core_validation(scheduler)
-
-    assert result.acquired is True
-    assert calls == [(model_ref, "vision")]

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 
 import type { AdoptionSpecies } from "../../api/me/adoption"
 import { Icon } from "../Icon"
+import { strongestBigFiveDescriptors } from "./chart-options"
 import type { ElfieProfileProjection } from "./projection"
 
 type SpeciesPresentation = Pick<AdoptionSpecies, "display_name" | "display_name_zh">
@@ -29,6 +30,16 @@ export function PersonalIdentityFrame({
   const gender = normalizedGender(profile.gender, t)
   const biography = profile.biography.trim()
   const showBiography = biography.toLowerCase() !== "genesis"
+  const personalityLabels = {
+    openness: t("profile.bigFive.traits.openness.label"),
+    conscientiousness: t("profile.bigFive.traits.conscientiousness.label"),
+    extraversion: t("profile.bigFive.traits.extraversion.label"),
+    agreeableness: t("profile.bigFive.traits.agreeableness.label"),
+    neuroticism: t("profile.bigFive.traits.neuroticism.label"),
+  } as const
+  const personalitySummary = strongestBigFiveDescriptors(profile.bigFive)
+    .map(({ trait }) => personalityLabels[trait])
+    .join("、")
 
   return (
     <header className="profile-dossier__identity">
@@ -63,6 +74,10 @@ export function PersonalIdentityFrame({
           </div>
         </div>
         <IdentityMetadata projection={projection} t={t} />
+        {personalitySummary ? <div className="profile-dossier__personality">
+          <span>{t("profile.identity.personality")}</span>
+          <p>{personalitySummary}</p>
+        </div> : null}
         {showBiography ? <div className="profile-dossier__biography">
           <span>{t("profile.identity.biographyLabel")}</span>
           <p>{biography || t("profile.identity.missingBiography")}</p>

@@ -49,6 +49,7 @@ async def run_full(
     model_results: list[dict[str, Any]] = []
     promoted_transport_outage = False
     try:
+
         def record_batch(
             batch: tuple[Any, ...], raw_results: tuple[dict[str, Any], ...]
         ) -> bool:
@@ -84,15 +85,13 @@ async def run_full(
                     run_id=run_id,
                     details={
                         "validation_mode": "full",
-                        "evidence_kind": "model_validation",
                         "full_run_id": run_id,
                         "config_fingerprint": decision.fingerprint,
                         "evidence_source": "validation",
                         **{
                             key: value
                             for key, value in raw.items()
-                            if key
-                            in {"error_code", "error_scope", "error_category"}
+                            if key in {"error_code", "error_scope", "error_category"}
                         },
                     },
                 )
@@ -113,7 +112,8 @@ async def run_full(
                 1
                 for item in model_results
                 if item.get("error_scope") == "transport"
-                or item.get("error_category") in {"network", "timeout", "server", "transport"}
+                or item.get("error_category")
+                in {"network", "timeout", "server", "transport"}
             )
             if transport_failures >= 2:
                 promoted_transport_outage = True
@@ -168,7 +168,6 @@ async def run_full(
         )
         metadata = {
             "validation_mode": "full",
-            "evidence_kind": "reachability",
             "full_run_id": run_id,
             "full_checked_at": finished_at,
             "full_status": status,
@@ -269,7 +268,6 @@ async def run_heartbeat(
     )
     metadata = {
         "validation_mode": "heartbeat",
-        "evidence_kind": "reachability",
         "full_run_id": decision.source_run_id,
         "full_checked_at": decision.full_checked_at,
         "full_status": decision.full_status,

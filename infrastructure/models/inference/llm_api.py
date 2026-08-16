@@ -8,15 +8,15 @@ from typing import Any, Callable, Mapping, cast
 
 from infrastructure.models.inference.token_usage import get_token_tracker
 from infrastructure.models.model_execution_config import ModelExecutionConfig
-from infrastructure.models.provider_errors import (
-    ProviderCallError,
-    classify_provider_error,
-)
 from infrastructure.models.model_execution_observations import (
     ModelCallObservation,
     ModelExecutionEventStatus,
     current_model_call_context,
     get_model_execution_observer,
+)
+from infrastructure.models.provider_errors import (
+    ProviderCallError,
+    classify_provider_error,
 )
 from infrastructure.models.providers.dispatch import (
     API_DISPATCH,
@@ -41,63 +41,6 @@ def call_llm_api(
     thinking: bool = False,
     request_options: dict[str, Any] | None = None,
     timeout_seconds: float | None = None,
-) -> str:
-    """Call one model through its typed Provider adapter."""
-    return _call_llm_api(
-        config,
-        provider,
-        model_name,
-        messages,
-        temperature,
-        max_tokens,
-        thinking=thinking,
-        request_options=request_options,
-        timeout_seconds=timeout_seconds,
-        response_capture=None,
-    )
-
-
-def call_llm_api_with_trace(
-    config: ModelExecutionConfig,
-    provider: str,
-    model_name: str,
-    messages: list[dict[str, Any]],
-    temperature: float,
-    max_tokens: int,
-    *,
-    thinking: bool = False,
-    request_options: dict[str, Any] | None = None,
-    timeout_seconds: float | None = None,
-) -> tuple[str, Mapping[str, Any]]:
-    """Call one model and retain only capability-safe response metadata."""
-    capture: dict[str, Any] = {}
-    response = _call_llm_api(
-        config,
-        provider,
-        model_name,
-        messages,
-        temperature,
-        max_tokens,
-        thinking=thinking,
-        request_options=request_options,
-        timeout_seconds=timeout_seconds,
-        response_capture=capture,
-    )
-    return response, capture
-
-
-def _call_llm_api(
-    config: ModelExecutionConfig,
-    provider: str,
-    model_name: str,
-    messages: list[dict[str, Any]],
-    temperature: float,
-    max_tokens: int,
-    *,
-    thinking: bool = False,
-    request_options: dict[str, Any] | None = None,
-    timeout_seconds: float | None = None,
-    response_capture: dict[str, Any] | None = None,
 ) -> str:
     provider_cfg: dict[str, Any] = config.providers.get(provider, {})
     api_key = provider_cfg.get("api_key", "")
@@ -134,22 +77,6 @@ def _call_llm_api(
         elif request_profile.api_mode == "anthropic_messages":
             args = (api_base, api_key, model_name, messages, temperature, max_tokens)
         elif request_profile.api_mode == "codex_responses":
-            codex_options: dict[str, Any] = {
-                "request_options": (
-                    dict(effective_request_options)
-                    if effective_request_options
-                    else None
-                ),
-                "credential_ref": str(provider_cfg.get("credential_ref") or ""),
-                "account_id": (
-                    str(provider_cfg["account_id"])
-                    if provider_cfg.get("account_id")
-                    else None
-                ),
-                "oauth_credentials": config.oauth_credentials,
-            }
-            if response_capture is not None:
-                codex_options["response_capture"] = response_capture
             response_text, usage = dispatch_fn(
                 api_base,
                 api_key,
@@ -158,7 +85,19 @@ def _call_llm_api(
                 temperature,
                 max_tokens,
                 provider,
-                **codex_options,
+                request_options=(
+                    dict(effective_request_options)
+                    if effective_request_options
+                    else None
+                ),
+                credential_ref=str(provider_cfg.get("credential_ref") or ""),
+                account_id=(
+                    str(provider_cfg["account_id"])
+                    if provider_cfg.get("account_id")
+                    else None
+                ),
+                oauth_credentials=config.oauth_credentials,
+                timeout_seconds=timeout_seconds,
             )
             args = ()
         else:
@@ -182,27 +121,14 @@ def _call_llm_api(
                     if effective_request_options
                     else None
                 ),
-                **(
-                    {"response_capture": response_capture}
-                    if response_capture is not None
-                    else {}
-                ),
+                timeout_seconds=timeout_seconds,
             )
-        elif (
-            effective_request_options
-            or response_capture is not None
-            or (
-                timeout_seconds is not None
-                and request_profile.api_mode == "chat_completions"
-            )
-        ):
+        elif effective_request_options or timeout_seconds is not None:
             dispatch_options: dict[str, Any] = {}
             if effective_request_options:
                 dispatch_options["request_options"] = dict(effective_request_options)
-            if timeout_seconds is not None and request_profile.api_mode == "chat_completions":
+            if timeout_seconds is not None:
                 dispatch_options["timeout_seconds"] = timeout_seconds
-            if response_capture is not None:
-                dispatch_options["response_capture"] = response_capture
             response_text, usage = dispatch_fn(*args, **dispatch_options)
         else:
             response_text, usage = dispatch_fn(*args)
@@ -253,7 +179,9 @@ def _call_llm_api(
             finished_at=finished_at,
             duration_ms=(perf_counter() - started) * 1000.0,
             config_fingerprint=config_fingerprint,
-            prompt_tokens=_usage_count(usage, "prompt_tokens", "input_tokens", "prompt_eval_count"),
+            prompt_tokens=_usage_count(
+                usage, "prompt_tokens", "input_tokens", "prompt_eval_count"
+            ),
             completion_tokens=_usage_count(
                 usage, "completion_tokens", "output_tokens", "eval_count"
             ),
@@ -281,9 +209,7 @@ def _resolve_request_profile(
     """Resolve and validate the typed profile for this exact endpoint model."""
     raw_profiles = provider_cfg.get("model_profiles")
     raw_model_profile = (
-        raw_profiles.get(model_name)
-        if isinstance(raw_profiles, Mapping)
-        else None
+        raw_profiles.get(model_name) if isinstance(raw_profiles, Mapping) else None
     )
     profile_values = (
         raw_model_profile if isinstance(raw_model_profile, Mapping) else provider_cfg
@@ -363,13 +289,9 @@ def _provider_config_fingerprint(
         "models",
         "model_profiles",
     )
-    payload = {"model": model_name}
+    payload: dict[str, Any] = {"model": model_name}
     payload.update(
-        {
-            key: provider_cfg.get(key)
-            for key in stable_keys
-            if key in provider_cfg
-        }
+        {key: provider_cfg.get(key) for key in stable_keys if key in provider_cfg}
     )
     encoded = json.dumps(
         payload,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Mapping, Optional, cast
+from typing import Callable, Mapping, Optional, cast
 
 from pydantic import JsonValue
 
@@ -12,6 +12,9 @@ from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.request_profiles import default_request_profile_id
 from infrastructure.models.validation.provider_validation_policy import (
     connection_validation_fingerprint,
+)
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_system_defaults,
 )
 from infrastructure.persistence.configuration.config_store import ConfigStoreError
 from infrastructure.persistence.configuration.documents import (
@@ -115,6 +118,15 @@ class LocalModelExecutionConfigSource:
                 if secret_name.startswith("oauth.")
                 else None
             )
+            secret_resolver: Callable[[str], str]
+            if secret_name.startswith("oauth."):
+
+                def resolve_oauth_secret(_name: str, token=oauth) -> str:
+                    return "" if token is None else token.access_token
+
+                secret_resolver = resolve_oauth_secret
+            else:
+                secret_resolver = resolve_secret
             providers[connection_id] = {
                 "catalog_id": connection.catalog_id,
                 "display_name": connection.alias,
@@ -133,15 +145,7 @@ class LocalModelExecutionConfigSource:
                 "account_id": oauth.account_id if oauth is not None else None,
                 "config_fingerprint": connection_validation_fingerprint(
                     connection,
-                    secret_resolver=(
-                        (
-                            lambda _name, token=oauth: ""
-                            if token is None
-                            else token.access_token
-                        )
-                        if secret_name.startswith("oauth.")
-                        else resolve_secret
-                    ),
+                    secret_resolver=secret_resolver,
                 ),
                 "models": [
                     {
@@ -198,6 +202,7 @@ def load_model_execution_config(config_home: str | None = None) -> ModelExecutio
     return ModelExecutionConfig(
         config_home=config_home,
         provider_catalog=provider_catalog,
+        system_defaults=load_system_defaults(),
         source=LocalModelExecutionConfigSource(
             oauth_credentials,
             provider_catalog=provider_catalog,

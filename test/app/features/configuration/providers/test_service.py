@@ -9,7 +9,6 @@ from app.features.accounts import AccountPrincipal, AccountRole
 from app.features.configuration import (
     AddProviderModelCommand,
     ChangeProviderConnectionLifecycleCommand,
-    CleanupObsoleteProviderModelsCommand,
     CompleteProviderOAuthLoginCommand,
     CreateProviderConnectionCommand,
     DeleteProviderConnectionCommand,
@@ -154,8 +153,6 @@ class FakeReferences:
 
 
 class FakeTechnology:
-    obsolete_ids: tuple[str, ...] = ()
-
     def prepare_manual_model(self, model: ProviderModelInput) -> StoredProviderModel:
         return StoredProviderModel(model.model_id, model.display_name or model.model_id)
 
@@ -189,19 +186,6 @@ class FakeTechnology:
     ) -> StoredModelRefresh:
         return StoredModelRefresh(
             "updated", "2026-08-10T00:00:00+00:00", None, connection.models
-        )
-
-    def obsolete_model_ids(
-        self,
-        connection: StoredProviderConnection,
-        *,
-        referenced_model_ids: tuple[str, ...] = (),
-    ) -> tuple[str, ...]:
-        _ = connection
-        return tuple(
-            model_id
-            for model_id in self.obsolete_ids
-            if model_id not in referenced_model_ids
         )
 
     def model_matrix(self, *args, **kwargs) -> StoredModelMatrix:
@@ -456,49 +440,6 @@ def test_manual_model_management_reuses_connection_fact() -> None:
     assert listed[0].models[0].display_name == "Test"
 
 
-def test_cleanup_obsolete_models_rechecks_food_references_before_replacement() -> None:
-    service, port, references = _service()
-    connection = StoredProviderConnection(
-        connection_id="openai_api_0001",
-        catalog_id="openai_api",
-        alias="OpenAI",
-        api_base="https://api.openai.com/v1",
-        api_mode="chat_completions",
-        auth_type="bearer",
-        credential_ref="",
-        models=(
-            StoredProviderModel(
-                "obsolete",
-                "Obsolete",
-                source="bundled_catalog",
-                discovery_state="source_missing",
-            ),
-            StoredProviderModel("keep", "Keep", source="manual"),
-        ),
-    )
-    port.items[connection.connection_id] = connection
-    technology = service._technology
-    assert isinstance(technology, FakeTechnology)
-    technology.obsolete_ids = ("obsolete",)
-
-    result = service.cleanup_obsolete_models(
-        _principal(),
-        CleanupObsoleteProviderModelsCommand(connection.connection_id),
-    )
-
-    assert result.model_ids == ("obsolete",)
-    assert [item.model_id for item in port.items[connection.connection_id].models] == [
-        "keep"
-    ]
-    references.model_references = ("food-reference",)
-    port.items[connection.connection_id] = connection
-    result = service.cleanup_obsolete_models(
-        _principal(),
-        CleanupObsoleteProviderModelsCommand(connection.connection_id),
-    )
-    assert result.model_ids == ()
-
-
 def test_model_replacement_preserves_omitted_endpoint_profile_and_capability() -> None:
     service, port, _ = _service()
     created = asyncio.run(
@@ -509,7 +450,9 @@ def test_model_replacement_preserves_omitted_endpoint_profile_and_capability() -
     )
     current = port.items[created.connection_id]
     configured = replace(
-        current.models[0] if current.models else StoredProviderModel("gpt-test", "GPT Test"),
+        current.models[0]
+        if current.models
+        else StoredProviderModel("gpt-test", "GPT Test"),
         model_id="gpt-test",
         display_name="GPT Test",
         supports_structured_output=True,

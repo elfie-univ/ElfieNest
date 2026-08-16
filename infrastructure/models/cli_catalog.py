@@ -6,9 +6,9 @@ import json
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from typing import Mapping, Optional
+from typing import Mapping
 
-from infrastructure.models.catalog import ModelEntry, load_model_catalog
+from infrastructure.models.catalog import ModelEntry
 
 _COST_LABELS = {0: "免费", 1: "极低", 2: "低", 3: "中", 4: "高"}
 
@@ -36,8 +36,8 @@ class _LocalModelScan:
 
 
 class CliModelCatalogAdapter:
-    def __init__(self, catalog: Optional[Mapping[str, ModelEntry]] = None) -> None:
-        self._catalog = dict(catalog or load_model_catalog())
+    def __init__(self, catalog: Mapping[str, ModelEntry]) -> None:
+        self._catalog = dict(catalog)
 
     def list_models(self) -> tuple[_CatalogModel, ...]:
         return tuple(

@@ -13,49 +13,47 @@ from pydantic import JsonValue
 from infrastructure.models.oauth_credentials import OAuthCredentialPort
 from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.request_profiles import default_request_profile_id
-from infrastructure.persistence.configuration.bundled_defaults import (
-    load_system_defaults,
-)
-from infrastructure.persistence.provider_catalog import load_provider_catalog
 
 
-def _model_execution_default(name: str) -> object:
-    values = load_system_defaults().get("model_execution")
+def _model_execution_default(
+    system_defaults: Mapping[str, JsonValue], name: str
+) -> object:
+    values = system_defaults.get("model_execution")
     if not isinstance(values, Mapping) or name not in values:
         raise ValueError(f"system-defaults.yaml 缺少 system.model_execution.{name}")
     return values[name]
 
 
-def _default_ollama_host() -> str:
-    value = _model_execution_default("ollama_host")
+def _default_ollama_host(system_defaults: Mapping[str, JsonValue]) -> str:
+    value = _model_execution_default(system_defaults, "ollama_host")
     if not isinstance(value, str) or not value.strip():
         raise ValueError("system.model_execution.ollama_host 必须是非空字符串")
     return os.getenv("OLLAMA_HOST", value)
 
 
-def _default_energy_threshold() -> float:
-    value = _model_execution_default("energy_threshold_fast")
+def _default_energy_threshold(system_defaults: Mapping[str, JsonValue]) -> float:
+    value = _model_execution_default(system_defaults, "energy_threshold_fast")
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError("system.model_execution.energy_threshold_fast 必须是数字")
     return float(value)
 
 
-def _default_complexity_threshold() -> int:
-    value = _model_execution_default("complexity_threshold_deep")
+def _default_complexity_threshold(system_defaults: Mapping[str, JsonValue]) -> int:
+    value = _model_execution_default(system_defaults, "complexity_threshold_deep")
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError("system.model_execution.complexity_threshold_deep 必须是整数")
     return value
 
 
-def _default_temperature() -> float:
-    value = _model_execution_default("temperature")
+def _default_temperature(system_defaults: Mapping[str, JsonValue]) -> float:
+    value = _model_execution_default(system_defaults, "temperature")
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError("system.model_execution.temperature 必须是数字")
     return float(value)
 
 
-def _default_max_tokens() -> int:
-    value = _model_execution_default("max_tokens")
+def _default_max_tokens(system_defaults: Mapping[str, JsonValue]) -> int:
+    value = _model_execution_default(system_defaults, "max_tokens")
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError("system.model_execution.max_tokens 必须是整数")
     return value
@@ -185,18 +183,21 @@ class ModelExecutionConfig:
         repr=False,
         compare=False,
     )
-
-    ollama_host: str = field(default_factory=_default_ollama_host)
-
-    energy_threshold_fast: float = field(default_factory=_default_energy_threshold)
-    complexity_threshold_deep: int = field(
-        default_factory=_default_complexity_threshold
+    system_defaults: Mapping[str, JsonValue] | None = field(
+        default=None,
+        repr=False,
+        compare=False,
     )
 
-    temperature: float = field(default_factory=_default_temperature)
-    max_tokens: int = field(default_factory=_default_max_tokens)
+    ollama_host: str | None = None
 
-    system: Dict[str, JsonValue] = field(default_factory=load_system_defaults)
+    energy_threshold_fast: float | None = None
+    complexity_threshold_deep: int | None = None
+
+    temperature: float | None = None
+    max_tokens: int | None = None
+
+    system: Dict[str, JsonValue] = field(default_factory=dict)
     runtime_policy: Mapping[str, JsonValue] = field(default_factory=dict)
 
     # 开发工具使用独立配置目录，避免误读正式环境的密钥和策略。
@@ -213,8 +214,31 @@ class ModelExecutionConfig:
     )
 
     def __post_init__(self) -> None:
-        provider_catalog = self.provider_catalog or load_provider_catalog()
+        provider_catalog = self.provider_catalog
+        if provider_catalog is None:
+            raise ValueError(
+                "ModelExecutionConfig requires an injected provider catalog"
+            )
+        system_defaults = self.system_defaults
+        if system_defaults is None:
+            raise ValueError("ModelExecutionConfig requires injected system defaults")
         self.provider_catalog = provider_catalog
+        defaults_document = copy.deepcopy(dict(system_defaults))
+        self.system_defaults = defaults_document
+        if self.ollama_host is None:
+            self.ollama_host = _default_ollama_host(defaults_document)
+        if self.energy_threshold_fast is None:
+            self.energy_threshold_fast = _default_energy_threshold(defaults_document)
+        if self.complexity_threshold_deep is None:
+            self.complexity_threshold_deep = _default_complexity_threshold(
+                defaults_document
+            )
+        if self.temperature is None:
+            self.temperature = _default_temperature(defaults_document)
+        if self.max_tokens is None:
+            self.max_tokens = _default_max_tokens(defaults_document)
+        if not self.system:
+            self.system = copy.deepcopy(defaults_document)
         config_home = Path(self.config_home).expanduser() if self.config_home else None
         source: ModelExecutionConfigSource = (
             self.source or DefaultModelExecutionConfigSource()
@@ -287,11 +311,15 @@ class ModelExecutionConfig:
 
                 # 更新其他字段属性（system 键深层合并，其余直接覆盖）
                 explicit_defaults = {
-                    "ollama_host": _default_ollama_host(),
-                    "energy_threshold_fast": _default_energy_threshold(),
-                    "complexity_threshold_deep": _default_complexity_threshold(),
-                    "temperature": _default_temperature(),
-                    "max_tokens": _default_max_tokens(),
+                    "ollama_host": _default_ollama_host(defaults_document),
+                    "energy_threshold_fast": _default_energy_threshold(
+                        defaults_document
+                    ),
+                    "complexity_threshold_deep": _default_complexity_threshold(
+                        defaults_document
+                    ),
+                    "temperature": _default_temperature(defaults_document),
+                    "max_tokens": _default_max_tokens(defaults_document),
                 }
                 for k, v in saved_cfg.items():
                     if k != "providers" and hasattr(self, k) and v is not None:
@@ -360,11 +388,6 @@ class ModelExecutionConfig:
         # 同步本地 ollama_host 的最新变更到 providers 字典中
         if self.ollama_host:
             self.providers["ollama"]["api_base"] = self.ollama_host
-
-    @classmethod
-    def load(cls, config_home: str | None = None) -> ModelExecutionConfig:
-        """加载当前模型执行配置（每次调用重新读取）。"""
-        return cls(config_home=config_home)
 
     def to_dict(self) -> Dict[str, JsonValue]:
         """将当前混配配置全量转化为字典格式以供持久化保存"""

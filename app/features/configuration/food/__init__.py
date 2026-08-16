@@ -37,13 +37,11 @@ from .policy import (
     FoodPlanner,
     is_model_evidence_fresh,
     project_food_health,
-    project_model_service_health,
 )
 from .port_models import (
     FOOD_ROLES,
     FoodSystemRole,
     FoodVisibilityMode,
-    ModelHealthStatus,
     StoredElfieFoodAssignment,
     StoredFoodChange,
     StoredFoodDefaults,
@@ -51,7 +49,6 @@ from .port_models import (
     StoredFoodPackage,
     StoredFoodProposal,
     StoredModelEvidence,
-    StoredModelServiceHealth,
 )
 from .ports import (
     ElfieFoodAssignmentPort,
@@ -111,11 +108,8 @@ __all__ = (
     "StoredFoodPackage",
     "StoredFoodProposal",
     "StoredModelEvidence",
-    "ModelHealthStatus",
-    "StoredModelServiceHealth",
     "UpdateMainFoodPolicyCommand",
     "UpdateFoodPackageCommand",
     "is_model_evidence_fresh",
-    "project_model_service_health",
     "project_food_health",
 )

@@ -48,10 +48,6 @@ and install-smoke each target. A missing runner is reported as `incomplete`,
 never as a cross-built or passed artifact. All intermediates live in `build/`,
 and final installers only in `dist/`.
 
-The native targets are macOS `PKG`, Windows `NSIS`, and Linux `DEB`. Their
-installer hooks expose the packaged management CLI as the global `elfienest`
-command and remove only the launcher owned by that installation.
-
 ```bash
 # Build the current native target locally; this does not upload or publish.
 .venv/bin/python scripts/release.py --target darwin-x64

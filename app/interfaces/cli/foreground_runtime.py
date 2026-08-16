@@ -10,16 +10,18 @@ from typing import Callable, Final, Optional, Sequence
 
 from app.interfaces.cli import lifecycle_commands
 from app.orchestration.lifecycle import (
-    BackendTier,
     FrontendPreparationError,
     LaunchFailedError,
     LifecycleFacade,
+    RuntimeHealthState,
     ServiceLifecycleResult,
 )
 
 WaitOnce = Callable[[threading.Event], bool]
 HEALTH_CHECK_INTERVAL_SECONDS: Final = 0.5
-TERMINAL_HEALTH_STATES: Final = frozenset((BackendTier.OFFLINE,))
+TERMINAL_HEALTH_STATES: Final = frozenset(
+    (RuntimeHealthState.FAILED, RuntimeHealthState.STOPPED)
+)
 
 
 def run_foreground_service(
@@ -30,16 +32,6 @@ def run_foreground_service(
 ) -> ServiceLifecycleResult:
     """Run one foreground-owned Runtime generation until shutdown."""
     command = lifecycle.default_service_command(options)
-    selected_home = lifecycle_commands._data_home_for_command(
-        lifecycle,
-        command,
-        use_remembered_home=False,
-    )
-    command = lifecycle_commands._select_automatic_ports(
-        lifecycle,
-        command,
-        selected_home,
-    )
     try:
         http_port = lifecycle_commands._validated_http_port(command)
     except ValueError as error:
@@ -79,14 +71,14 @@ def run_foreground_service(
         try:
             while True:
                 health = supervisor.status()
-                if health.tier in TERMINAL_HEALTH_STATES:
+                if health.state in TERMINAL_HEALTH_STATES:
                     supervisor.stop()
                     failure = ServiceLifecycleResult(
                         status="failed",
                         pid=started.pid,
                         command=started.command or command,
                         error=LaunchFailedError(
-                            f"Foreground Runtime health changed to {health.tier.value}"
+                            f"Foreground Runtime health changed to {health.state.value}"
                         ),
                     )
                     print(f"  ❌ Foreground Runtime stopped: {failure.error}")

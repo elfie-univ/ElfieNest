@@ -203,6 +203,8 @@ def _species_presentation(
         definition = catalog.definition(species_id)
     except ValueError:
         return None
+    if definition.status == "draft":
+        return None
     return ElfieSpeciesPresentation(
         species_id=definition.species_id,
         canon_id=definition.canon_id,

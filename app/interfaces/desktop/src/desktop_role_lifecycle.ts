@@ -7,16 +7,11 @@ import type {
 export const DESKTOP_UI_INSTANCE_NAMESPACE = "elfienest.desktop-ui";
 
 export type RuntimeAttachment =
-  | Readonly<{
-      readonly kind: "attached";
-      readonly generation: number;
-      readonly httpUrl?: string;
-    }>
+  | Readonly<{ readonly kind: "attached"; readonly generation: number }>
   | Readonly<{
       readonly kind: "owned";
       readonly generation: number;
       readonly ownerLease: string;
-      readonly httpUrl?: string;
     }>
   | Readonly<{
       readonly kind: "failed";
@@ -55,11 +50,6 @@ export class DesktopRoleController {
   async start(
     onProgress?: (phase: RuntimeStartupPhase) => void,
   ): Promise<DesktopRoleState> {
-    const existingStart = this.startPromise;
-    if (existingStart !== undefined) {
-      this.currentState = await existingStart;
-      return this.currentState;
-    }
     const pending = (async (): Promise<RuntimeAttachment> => {
       const inspection = await this.lifecycleClient.inspectDataHome();
       if (inspection.state !== "fresh" && inspection.state !== "ready") {
@@ -127,18 +117,6 @@ export class DesktopRoleController {
 
   async closeWindow(): Promise<void> {
     // Closing an observer window intentionally has no lifecycle side effect.
-  }
-
-  async ensureRuntime(
-    onProgress?: (phase: RuntimeStartupPhase) => void,
-  ): Promise<DesktopRoleState> {
-    if (this.startPromise !== undefined) {
-      this.currentState = await this.startPromise;
-    }
-    if (this.currentState.kind === "owned") {
-      return this.maintainOwnedRuntime();
-    }
-    return this.start(onProgress);
   }
 
   async maintainOwnedRuntime(): Promise<DesktopRoleState> {

@@ -118,6 +118,13 @@ class AdoptionSpeciesImagesResponse(BaseModel):
     full_body_url: str = Field(min_length=1)
 
 
+class AdoptionAppearanceControlResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    control_id: str = Field(min_length=1)
+    options: tuple[str, ...] = Field(min_length=1)
+
+
 class AdoptionSpeciesResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -129,6 +136,7 @@ class AdoptionSpeciesResponse(BaseModel):
     scene_id: str = Field(min_length=1)
     sort_order: int
     presentation_images: AdoptionSpeciesImagesResponse
+    appearance_controls: tuple[AdoptionAppearanceControlResponse, ...] = ()
 
 
 class AdoptionOptionsResponse(BaseModel):
@@ -142,7 +150,11 @@ class AdoptionOptionsResponse(BaseModel):
     quota: AdoptionQuotaResponse
     nest_capacity: AdoptionNestCapacityResponse
     availability: Literal[
-        "available", "nest_full", "member_quota_full", "model_unavailable"
+        "available",
+        "nest_full",
+        "member_quota_full",
+        "model_unavailable",
+        "species_unavailable",
     ]
 
     @classmethod
@@ -161,6 +173,13 @@ class AdoptionOptionsResponse(BaseModel):
                     presentation_images=AdoptionSpeciesImagesResponse(
                         headshot_url=species.presentation_images.headshot_url,
                         full_body_url=species.presentation_images.full_body_url,
+                    ),
+                    appearance_controls=tuple(
+                        AdoptionAppearanceControlResponse(
+                            control_id=control.control_id,
+                            options=control.options,
+                        )
+                        for control in species.appearance_controls
                     ),
                 )
                 for species in result.species
@@ -316,6 +335,7 @@ __all__ = (
     "AdoptionNestCapacityResponse",
     "AdoptionResultResponse",
     "AdoptionSpeciesImagesResponse",
+    "AdoptionAppearanceControlResponse",
     "AdoptionSpeciesResponse",
     "CandidateAppearanceRequest",
     "CandidateRepliesRequest",

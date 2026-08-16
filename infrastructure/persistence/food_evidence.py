@@ -14,6 +14,7 @@ from infrastructure.models.food_technology import (
     validate_food_package_model_references,
 )
 from infrastructure.models.provider_records import ProviderConnection
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.report_records import ValidationObservation
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
 from infrastructure.persistence.reports.report_repository import ReportRepository
@@ -21,6 +22,7 @@ from infrastructure.persistence.reports.report_repository import ReportRepositor
 
 def query_model_evidence(
     *,
+    provider_catalog: ProviderCatalog,
     repository: Optional[ReportRepository] = None,
     connection_store: Optional[ProviderConnectionStore] = None,
     connections: Optional[Mapping[str, ProviderConnection]] = None,
@@ -28,8 +30,12 @@ def query_model_evidence(
     now: Optional[datetime] = None,
 ) -> dict[str, StoredModelEvidence]:
     """Project endpoint models and immutable observations into Food evidence."""
-    report_repository = repository or ReportRepository()
-    explicit_observations = observations
+    latest = observations
+    if latest is None:
+        latest = (repository or ReportRepository()).current(subject_kind="model")
+    by_subject = {
+        item.subject_id: item for item in latest if item.subject_kind == "model"
+    }
     current = now or datetime.now(timezone.utc)
     inventory = (
         connections
@@ -42,46 +48,16 @@ def query_model_evidence(
     for connection in inventory.values():
         if not connection.enabled or connection.archived:
             continue
-        profile = get_product(connection.catalog_id)
+        profile = get_product(connection.catalog_id, catalog=provider_catalog)
         is_local = bool(profile and profile.connection_method == "local")
         for model in connection.models:
             subject_id = f"{connection.connection_id}/{model.endpoint_model_id}"
-            subject_observations = (
-                tuple(
-                    item
-                    for item in explicit_observations
-                    if item.subject_kind == "model" and item.subject_id == subject_id
-                )
-                if explicit_observations is not None
-                else report_repository.observations_for_subject("model", subject_id)
-            )
-            subject_observations = tuple(
-                sorted(
-                    subject_observations,
-                    key=lambda item: (item.observed_at, item.observation_id),
-                    reverse=True,
-                )
-            )
-            base_observation = next(
-                (
-                    item
-                    for item in subject_observations
-                    if item.details.get("evidence_kind") != "capability"
-                ),
-                None,
-            )
-            capability_observations = tuple(
-                item
-                for item in subject_observations
-                if item.details.get("evidence_kind") == "capability"
-            )
             result[subject_id] = _project_model(
                 subject_id,
                 model,
-                base_observation,
+                by_subject.get(subject_id),
                 is_local=is_local,
                 now=current,
-                capability_observations=capability_observations,
             )
     return result
 
@@ -126,13 +102,16 @@ class SQLiteFoodEvidenceAdapter:
         self,
         connection_store: ProviderConnectionStore,
         report_repository: ReportRepository,
+        provider_catalog: ProviderCatalog,
     ) -> None:
         self._connection_store = connection_store
         self._report_repository = report_repository
+        self._provider_catalog = provider_catalog
 
     def list_model_evidence(self) -> tuple[StoredModelEvidence, ...]:
         return tuple(
             query_model_evidence(
+                provider_catalog=self._provider_catalog,
                 connection_store=self._connection_store,
                 repository=self._report_repository,
             ).values()

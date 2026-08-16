@@ -9,6 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from infrastructure.persistence.configuration.bundled_defaults import load_tool_defaults
+from infrastructure.persistence.configuration.capabilities import (
+    RuntimeCapabilitiesAdapter,
+)
 from infrastructure.persistence.configuration.secrets import (
     resolve_secret,
     set_tool_secret,
@@ -22,7 +26,6 @@ from infrastructure.persistence.model_execution_config import (
 )
 from infrastructure.tools import (
     DirectCapabilityValidationAdapter,
-    RuntimeCapabilitiesAdapter,
     ToolCapabilitySecretAdapter,
 )
 from infrastructure.tools.validation.direct_validation import DirectToolValidationRunner
@@ -42,10 +45,12 @@ def build_capability_adapters(
         if config_path == get_config_path()
         else config_path.with_name("tools.yaml")
     )
+    tool_defaults = load_tool_defaults()
 
     return (
         RuntimeCapabilitiesAdapter(
             tool_path,
+            defaults=tool_defaults,
         ),
         ToolCapabilitySecretAdapter(
             secret_path,
@@ -58,6 +63,7 @@ def build_capability_adapters(
                 config,
                 search_plugin=WebSearchPlugin.from_model_execution_policy(
                     config.runtime_policy,
+                    defaults=tool_defaults,
                     secret_resolver=resolve_secret,
                 ),
             ),

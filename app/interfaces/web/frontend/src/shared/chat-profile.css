@@ -181,6 +181,40 @@
   .profile-dossier__metadata { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 }
 .profile-dossier__chat { grid-area: chat; align-self: start; }
+.profile-dossier__mobile-actions, .profile-dossier__mobile-subpage-head { display: none; }
+.profile-dossier__tabs {
+  display: flex;
+  gap: 28px;
+  padding: 18px 0 0;
+  border-bottom: 1px solid var(--border);
+}
+.profile-dossier__tab {
+  min-height: 48px;
+  padding: 0 2px;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: 16px;
+  font-weight: 800;
+}
+.profile-dossier__tab:hover { color: var(--text); }
+.profile-dossier__tab--active {
+  border-bottom-color: var(--accent);
+  color: var(--accent-hover);
+}
+.profile-dossier__tab-content { min-width: 0; }
+.profile-dossier__personality {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.5;
+}
+.profile-dossier__personality span { color: var(--text-muted); font-weight: 700; }
+.profile-dossier__personality p { margin: 0; overflow-wrap: anywhere; }
 .profile-dossier__biography {
   min-width: 0;
   margin-top: 0;
@@ -795,12 +829,51 @@
     margin-top: 10px;
     font-size: 15px;
   }
+  .profile-dossier__identity {
+    grid-template-areas:
+      "back back"
+      "portrait identity"
+      "chat chat";
+    grid-template-columns: 78px minmax(0, 1fr);
+    row-gap: 0;
+  }
   .profile-dossier__chat {
     position: static;
     z-index: auto;
-    min-height: 36px;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 18px;
     padding-inline: 12px;
   }
+  .profile-dossier__mobile-actions {
+    display: grid;
+    gap: 10px;
+    padding: 18px 0 4px;
+  }
+  .profile-dossier__mobile-actions > [data-slot="button"] {
+    width: 100%;
+    min-height: 44px;
+  }
+  .profile-dossier__mobile-subpage-head {
+    display: none;
+  }
+  .profile-dossier--mobile-card .profile-dossier__tab-content { display: none; }
+  .profile-dossier--mobile-subpage .profile-dossier__identity,
+  .profile-dossier--mobile-subpage .profile-dossier__mobile-actions { display: none; }
+  .profile-dossier--mobile-subpage .profile-dossier__mobile-subpage-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    margin: -4px 0 10px;
+  }
+  .profile-dossier__mobile-subpage-head > [data-slot="button"] { transform: rotate(90deg); }
+  .profile-dossier__mobile-subpage-head h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: 20px;
+  }
+  .profile-dossier__tabs { display: none; }
   .profile-radar--compact .profile-radar__content {
     width: 100%;
     grid-template-columns: minmax(0, 1fr);
@@ -858,6 +931,7 @@
     background: color-mix(in srgb, var(--surface) 96%, transparent);
     box-shadow: 0 -10px 24px color-mix(in srgb, var(--shadow-color) 10%, transparent);
   }
+  .mobile-tabbar--hidden { display: none !important; }
   .mobile-tabbar__item {
     display: grid !important;
     height: 56px;

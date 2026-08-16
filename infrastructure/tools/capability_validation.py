@@ -15,7 +15,6 @@ from app.features.configuration.capabilities import (
 )
 from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.validation.validation_models import CheckResult
-from infrastructure.tools.validation.direct_validation import DirectToolValidationRunner
 
 
 class ValidationRunner(Protocol):
@@ -32,8 +31,8 @@ class DirectCapabilityValidationAdapter:
 
     def __init__(
         self,
-        config_loader: Callable[[], ModelExecutionConfig] = ModelExecutionConfig.load,
-        runner_factory: RunnerFactory = DirectToolValidationRunner,
+        config_loader: Callable[[], ModelExecutionConfig],
+        runner_factory: RunnerFactory,
     ) -> None:
         self._config_loader = config_loader
         self._runner_factory = runner_factory

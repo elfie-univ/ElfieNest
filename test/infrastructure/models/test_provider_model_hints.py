@@ -1,3 +1,5 @@
+import pytest
+
 from infrastructure.models.providers.model_hints import (
     ProviderModelSpec,
     configured_model_names,
@@ -5,6 +7,9 @@ from infrastructure.models.providers.model_hints import (
     parse_model_input,
     suggested_model_names,
 )
+from infrastructure.persistence.provider_catalog import load_provider_catalog
+
+PROVIDER_CATALOG = load_provider_catalog()
 
 
 def test_parses_multiple_manual_model_ids_with_chinese_or_ascii_commas():
@@ -13,7 +18,8 @@ def test_parses_multiple_manual_model_ids_with_chinese_or_ascii_commas():
 
 def test_suggests_official_xfyun_coding_plan_alias():
     assert suggested_model_names(
-        "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2"
+        "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
+        catalog=PROVIDER_CATALOG,
     ) == ["astron-code-latest"]
 
 
@@ -22,8 +28,19 @@ def test_placeholder_does_not_override_known_endpoint_suggestion():
         {
             "api_base": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
             "test_model": "custom-model",
-        }
+        },
+        catalog=PROVIDER_CATALOG,
     ) == ["astron-code-latest"]
+
+
+def test_placeholder_requires_catalog_instead_of_silently_dropping_suggestion():
+    with pytest.raises(ValueError, match="Provider catalog is required"):
+        configured_model_specs(
+            {
+                "api_base": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
+                "test_model": "custom-model",
+            }
+        )
 
 
 def test_reads_model_id_and_display_name_pairs():

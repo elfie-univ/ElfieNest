@@ -16,6 +16,7 @@ from infrastructure.models.providers.discovery import (
     bundled_catalog_models,
     merge_refreshed_models,
 )
+from infrastructure.persistence.model_catalog import load_model_identities
 from test.support.provider import provider_models_adapter
 
 
@@ -64,7 +65,9 @@ def test_refresh_keeps_missing_discovered_models_until_two_complete_omissions() 
 def test_manual_model_does_not_inherit_capabilities_from_canonical_identity(
     tmp_path,
 ) -> None:
-    adapter = provider_models_adapter(tmp_path / "providers.yaml", tmp_path / "auth.env")
+    adapter = provider_models_adapter(
+        tmp_path / "providers.yaml", tmp_path / "auth.env"
+    )
 
     prepared = adapter.prepare_manual_model(
         ProviderModelInput(model_id="xopglm5", display_name="GLM-5")
@@ -77,8 +80,13 @@ def test_manual_model_does_not_inherit_capabilities_from_canonical_identity(
 
 
 def test_bundled_endpoint_metadata_is_not_shared_across_providers() -> None:
-    openai = bundled_catalog_models(("gpt-4o",), provider_id="openai")[0]
-    custom = bundled_catalog_models(("gpt-4o",), provider_id="custom_openai")[0]
+    identity_catalog = load_model_identities()
+    openai = bundled_catalog_models(
+        ("gpt-4o",), provider_id="openai", identity_catalog=identity_catalog
+    )[0]
+    custom = bundled_catalog_models(
+        ("gpt-4o",), provider_id="custom_openai", identity_catalog=identity_catalog
+    )[0]
 
     assert openai.context_window_tokens == 128000
     assert openai.supports_vision is True
@@ -208,52 +216,6 @@ def test_provider_adapter_preserves_stable_connection_counter(tmp_path) -> None:
     second = adapter.create_connection(draft, None)
 
     assert second.connection_id == "openai_api_0002"
-
-
-def test_capability_probe_records_verified_channel_evidence_without_text_in_report(
-    tmp_path,
-) -> None:
-    adapter = provider_models_adapter(
-        tmp_path / "providers.yaml",
-        tmp_path / "auth.env",
-    )
-    connection = adapter.create_connection(
-        StoredProviderConnection(
-            connection_id="",
-            catalog_id="custom_openai",
-            alias="Probe",
-            api_base="https://gateway.example/v1",
-            api_mode="chat_completions",
-            auth_type="bearer",
-            credential_ref="",
-            models=(StoredProviderModel("model-a", "Model A"),),
-        ),
-        None,
-    )
-
-    with patch(
-        "infrastructure.models.provider_administration.call_llm_api_with_trace",
-        return_value=("", {"tool_call_count": 1}),
-    ):
-        result = asyncio.run(
-            adapter.probe_model_capability(
-                f"{connection.connection_id}/model-a",
-                "tools",
-            )
-        )
-
-    assert result.state == "supported"
-    assert result.evidence == "verified"
-    observations = adapter._reports.observations_for_subject(
-        "model", f"{connection.connection_id}/model-a"
-    )
-    capability = next(
-        item
-        for item in observations
-        if item.details.get("evidence_kind") == "capability"
-    )
-    assert capability.details["capability_evidence"] == "verified"
-    assert "response_text" not in capability.details
 
 
 class _RunSpy:

@@ -29,10 +29,7 @@ from infrastructure.models.model_execution_adapter import (
 )
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
-from infrastructure.persistence.configuration.bundled_defaults import (
-    load_emotion_expression_defaults,
-    load_nest_config,
-)
+from infrastructure.persistence.configuration.bundled_defaults import load_nest_config
 from infrastructure.persistence.elfie_workspace.brain_state import (
     YamlEnergyLimitsAdapter,
     YamlSelfhoodSeedAdapter,
@@ -75,11 +72,6 @@ class ElfieRestoreFailure:
 class ElfieRestoreResult:
     restored: tuple[RestoredElfie, ...]
     failures: tuple[ElfieRestoreFailure, ...]
-
-
-def load_emotion_expression_config():
-    """Expose bundled emotion defaults through the Bootstrap boundary."""
-    return load_emotion_expression_defaults()
 
 
 def build_nest_session_services(

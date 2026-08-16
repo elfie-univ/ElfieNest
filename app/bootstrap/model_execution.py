@@ -22,6 +22,7 @@ from infrastructure.models.model_execution_agent import ModelExecutionAgent
 from infrastructure.models.model_execution_observations import (
     get_model_execution_observer,
 )
+from infrastructure.persistence.configuration.bundled_defaults import load_tool_defaults
 from infrastructure.persistence.configuration.secrets import resolve_secret
 from infrastructure.persistence.food import SQLiteFoodAdapter
 from infrastructure.persistence.layout.data_home import (
@@ -62,6 +63,9 @@ def build_model_execution_services(
             )
         )
     config = load_model_execution_config()
+    provider_catalog = config.provider_catalog
+    if provider_catalog is None:
+        raise RuntimeError("Model execution requires an injected Provider catalog")
     raw_engine_config = config.system.get("engine", {})
     engine_config = raw_engine_config if isinstance(raw_engine_config, Mapping) else {}
     raw_tick_interval = engine_config.get("tick_interval_sec", 1.5)
@@ -73,11 +77,17 @@ def build_model_execution_services(
     )
     main_food_loader: Callable[[str], MainFoodSelection] | None = None
     if resolve_main_food:
-        main_food_loader = final_main_food_loader(build_food_service(db_path))
+        main_food_loader = final_main_food_loader(
+            build_food_service(db_path, provider_catalog=provider_catalog)
+        )
     tool_port = ToolPortAdapter.from_model_execution_config(
         config,
         observation_port=get_model_execution_observer(),
-        tool_config_loader=partial(load_tool_configs, secret_resolver=resolve_secret),
+        tool_config_loader=partial(
+            load_tool_configs,
+            defaults=load_tool_defaults(),
+            secret_resolver=resolve_secret,
+        ),
         workspace_resolver=(
             lambda elfie_id: (
                 get_elfie_workspace_dir(elfie_id) if elfie_id is not None else None
@@ -89,7 +99,10 @@ def build_model_execution_services(
         ports=build_model_execution_agent_ports(
             model_evidence_source=lambda: {
                 item.reference: item
-                for item in build_food_evidence(db_path).list_model_evidence()
+                for item in build_food_evidence(
+                    db_path,
+                    provider_catalog=provider_catalog,
+                ).list_model_evidence()
             },
             report_writer=ReportStorageAdapter(build_report_repository(db_path)),
         ),

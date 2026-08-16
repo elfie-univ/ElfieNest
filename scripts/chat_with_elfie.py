@@ -21,11 +21,13 @@ logger = logging.getLogger("chat")
 
 from app.bootstrap.app_wiring.storage import ensure_application_storage
 from app.bootstrap.model_execution import build_model_execution_services
-from app.bootstrap.system_wiring.entrypoints import get_db_path
+from app.bootstrap.system_wiring.entrypoints import (
+    get_db_path,
+    load_emotion_expression_defaults,
+)
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.bootstrap.system_wiring.nest_session import (
     build_nest_session_services,
-    load_emotion_expression_config,
     restore_registered_elfies,
 )
 
@@ -58,7 +60,7 @@ def main():
         restore_result = restore_registered_elfies(
             db_path,
             engine.session,
-            emotion_expression_config=load_emotion_expression_config(),
+            emotion_expression_config=load_emotion_expression_defaults(),
         )
         if not restore_result.restored:
             lifecycle.stop_runtime_channel(nest_session.world_runtime)

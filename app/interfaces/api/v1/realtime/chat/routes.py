@@ -9,10 +9,6 @@ from pydantic import ValidationError
 from starlette.websockets import WebSocketDisconnect
 
 from app.features.communication import CommunicationError
-from app.interfaces.api.runtime_capability import (
-    RuntimeCapabilityDenied,
-    require_runtime_capability,
-)
 from app.orchestration.message_delivery import (
     DuplicateMessage,
     MessageDeliveryError,
@@ -86,7 +82,6 @@ async def chat_websocket(websocket: WebSocket) -> None:
                 await _send_error(websocket, "聊天字段无效")
                 continue
             try:
-                require_runtime_capability(websocket.app, "chat")
                 result = delivery.submit_user_message(
                     principal,
                     SubmitUserMessageCommand(
@@ -94,9 +89,6 @@ async def chat_websocket(websocket: WebSocket) -> None:
                         text=incoming.text,
                     ),
                 )
-            except RuntimeCapabilityDenied as error:
-                await _send_error(websocket, f"{error.code}: {error.detail}")
-                continue
             except CommunicationError as error:
                 await _send_error(websocket, str(error))
                 continue

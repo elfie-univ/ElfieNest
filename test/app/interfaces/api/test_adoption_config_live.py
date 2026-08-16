@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
+from app.features.adoption import StaticSpeciesRuntimeReadiness
 from elfie.profile import SUPPORTED_SPECIES
 from infrastructure.persistence.nest_db.store import init_db
 
@@ -23,7 +24,11 @@ def db_path(tmp_path: Path) -> str:
 def client(db_path: str) -> TestClient:
     init_db(db_path)
     create_test_owner(db_path)
-    application = create_app(engine=None, db_path=db_path)
+    application = create_app(
+        engine=None,
+        db_path=db_path,
+        species_runtime=StaticSpeciesRuntimeReadiness(("fox", "dog")),
+    )
     with TestClient(application) as test_client:
         yield test_client
 

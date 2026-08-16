@@ -15,12 +15,7 @@ from typing import (
     Tuple,
 )
 
-from pydantic import JsonValue
-
-from app.orchestration.lifecycle.runtime_snapshot import (
-    ModelHealthProjection,
-    RuntimeSnapshotV1,
-)
+from app.orchestration.lifecycle.runtime_health import RuntimeHealth
 
 
 @dataclass(frozen=True)
@@ -204,7 +199,7 @@ class LifecycleLease(Protocol):
 
 
 class RecoveryLockPort(Protocol):
-    """Short cross-process command exclusion for lifecycle state transitions."""
+    """Cross-process exclusion between Owner recovery and Core startup."""
 
     def acquire_start_lease(
         self, elfie_home: Path, *, blocking: bool = False
@@ -311,17 +306,6 @@ class DesktopHostPort(Protocol):
         """Terminate a recovered Desktop PID."""
 
 
-class ControllerIpcPort(Protocol):
-    """Authenticated local command client for the packaged Desktop Controller."""
-
-    def request(
-        self,
-        command: str,
-        payload: Optional[Mapping[str, JsonValue]] = None,
-    ) -> Optional[Mapping[str, JsonValue]]:
-        """Return a Controller response, or None when no Controller is published."""
-
-
 class HttpProbePort(Protocol):
     """Bounded HTTP GET capability for Runtime readiness probes."""
 
@@ -348,22 +332,6 @@ class OptionalRuntimeComponentPort(Protocol):
     def prepare(self) -> None:
         """Best-effort start of an already configured public installation."""
 
-    def acquire(
-        self,
-        *,
-        owner_id: str,
-        instance_id: str,
-        generation: int,
-        elfie_home: Optional[Path] = None,
-    ) -> Optional[LifecycleLease]:
-        """Acquire a shared local component lease for one Runtime generation."""
-
-
-class ModelHealthProjectionPort(Protocol):
-    """Read the Food-owned model health projection for one data root."""
-
-    def read(self) -> ModelHealthProjection: ...
-
 
 class FrontendPreparationPort(Protocol):
     """Prepare source Web artifacts without exposing package-manager mechanics."""
@@ -378,34 +346,16 @@ class GodotWebPreparationPort(Protocol):
 
 
 class RuntimeRecordPort(Protocol):
-    """Durable authoritative snapshot required by RuntimeSupervisor."""
+    """Durable owner-generation record required by RuntimeSupervisor."""
 
-    def read(self) -> RuntimeSnapshotV1:
-        """Read a validated snapshot without repairing or creating state."""
+    def read(self) -> RuntimeHealth:
+        """Read a validated record or a stable empty/failed state."""
 
-    def initialize_if_fresh(self) -> RuntimeSnapshotV1:
-        """Create the first snapshot only after proving the root is fresh."""
+    def write(self, health: RuntimeHealth) -> None:
+        """Atomically persist a complete Runtime record."""
 
-    def write(self, snapshot: RuntimeSnapshotV1) -> None:
-        """Atomically persist one complete snapshot; OFFLINE is retained."""
-
-    def begin_writer_handoff(
-        self, *, generation: int, owner_id: str
-    ) -> "RuntimeWriterHandoff":
-        """Issue a generation-scoped credential for the next Core writer."""
-
-    def revoke_writer_handoff(self) -> None:
-        """Invalidate the current writer credential after clean shutdown."""
-
-
-@dataclass(frozen=True)
-class RuntimeWriterHandoff:
-    """Private parent-to-Core writer credential handoff."""
-
-    token: str
-    digest: str
-    generation: int
-    owner_id: str
+    def remove(self) -> None:
+        """Remove the durable record after a completed stop."""
 
 
 class AuthorityHostPort(Protocol):
@@ -420,4 +370,3 @@ class AuthorityHostPort(Protocol):
 
 AuthorityHostFactory = Callable[[AuthorityHostConfig], AuthorityHostPort]
 RuntimeRecordFactory = Callable[[Path], RuntimeRecordPort]
-ModelHealthProjectionFactory = Callable[[Path], ModelHealthProjectionPort]

@@ -6,7 +6,6 @@ import errno
 import os
 import signal
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -274,61 +273,3 @@ def test_stop_targets_only_the_process_started_by_this_launcher(
     # Then: only that owned start_new_session process group is terminated.
     assert groups == [(18161, signal.SIGTERM)]
     assert calls == [("wait", launcher.AUTHORITY_STOP_GRACE_SECONDS)]
-
-
-def test_stop_uses_windows_process_tree_for_owned_authority(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[tuple[tuple[str, ...], dict[str, object]]] = []
-
-    class OwnedProcess:
-        pid = 18162
-
-        def poll(self) -> None:
-            return None
-
-        def wait(self, timeout: float) -> int:
-            calls.append((("wait",), {"timeout": timeout}))
-            return 0
-
-        def terminate(self) -> None:
-            raise AssertionError("Windows cleanup must include descendants")
-
-        def kill(self) -> None:
-            raise AssertionError("Windows cleanup must include descendants")
-
-    def run(command, **kwargs):
-        calls.append((tuple(command), kwargs))
-        return type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-
-    monkeypatch.setattr(launcher, "os", SimpleNamespace(name="nt"))
-    monkeypatch.setattr(launcher.subprocess, "run", run)
-
-    launcher.stop_godot_runtime(OwnedProcess())
-
-    assert calls[0][0] == ("taskkill", "/PID", "18162", "/T")
-    assert calls[1][0] == ("wait",)
-
-
-def test_windows_authority_job_is_closed_when_process_already_exited(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[str] = []
-
-    class Job:
-        def close(self) -> None:
-            calls.append("close")
-
-    class OwnedProcess:
-        pid = 18163
-
-        def poll(self) -> int:
-            return 0
-
-    monkeypatch.setattr(launcher, "os", SimpleNamespace(name="nt"))
-    launcher._WINDOWS_AUTHORITY_JOBS[18163] = Job()
-
-    launcher.stop_godot_runtime(OwnedProcess())
-
-    assert calls == ["close"]
-    assert 18163 not in launcher._WINDOWS_AUTHORITY_JOBS

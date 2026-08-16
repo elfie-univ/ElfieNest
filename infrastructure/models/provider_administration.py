@@ -6,8 +6,9 @@ import asyncio
 import threading
 from dataclasses import replace
 from datetime import datetime, timezone
-from time import perf_counter
 from typing import Any, Callable, Literal, Mapping, Optional, cast
+
+from pydantic import JsonValue
 
 from app.features.configuration import (
     ApiMode,
@@ -41,11 +42,6 @@ from app.features.configuration.providers import (
     ValidationStatus as ProviderValidationStatus,
 )
 from infrastructure.models.oauth_credentials import OAuthCredentialPort
-from infrastructure.models.inference.llm_api import call_llm_api_with_trace
-from infrastructure.models.model_execution_observations import (
-    ModelCallContext,
-    scoped_model_call_context,
-)
 from infrastructure.models.provider_records import (
     ProviderConnection,
     ProviderModelRecord,
@@ -53,11 +49,13 @@ from infrastructure.models.provider_records import (
 from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.discovery import (
     bundled_catalog_models,
-    cleanup_eligible_models,
     merge_refreshed_models,
     remote_catalog_models,
 )
-from infrastructure.models.providers.model_identity import match_model_identity
+from infrastructure.models.providers.model_identity import (
+    ModelIdentityCatalog,
+    match_model_identity,
+)
 from infrastructure.models.providers.remote_catalog import (
     RemoteCatalogUnavailable,
     fetch_remote_models,
@@ -74,13 +72,6 @@ from infrastructure.models.storage_ports import (
 )
 from infrastructure.models.validation.provider_availability import (
     project_endpoint_availability,
-)
-from infrastructure.models.validation.capability_probes import (
-    CapabilityName,
-    CapabilityProbeResult,
-    capability_error_result,
-    capability_probe_request,
-    evaluate_capability_probe,
 )
 from infrastructure.models.validation.provider_model_benchmark import (
     bounded_benchmark,
@@ -105,24 +96,12 @@ from infrastructure.models.validation.provider_validation_service import (
     validate_connection,
 )
 from infrastructure.models.validation.serving_food import ServingFoodIndex
-from infrastructure.persistence.provider_catalog import load_provider_catalog
 
-from .provider_errors import classify_provider_error, sanitize_error
+from .provider_errors import sanitize_error
 
 _DISCOVERY_TIMEOUT_SECONDS = 7.0
 _DISCOVERY_SLOTS = threading.BoundedSemaphore(3)
 _BENCHMARK_CONCURRENCY = 2
-
-
-def _latest_production_use(observations: tuple[Any, ...]) -> str | None:
-    timestamps = [
-        item.observed_at
-        for item in observations
-        if item.details.get("workload_kind") == "production"
-        and item.details.get("evidence_kind") != "capability"
-        and isinstance(item.observed_at, str)
-    ]
-    return max(timestamps) if timestamps else None
 
 
 def _with_request_profile(
@@ -188,17 +167,27 @@ class ProviderModelsAdapter:
         evidence: ModelEvidencePort,
         oauth_credentials: OAuthCredentialPort | None = None,
         catalog: ProviderCatalog | None = None,
+        identity_catalog: ModelIdentityCatalog | None = None,
+        system_defaults: Mapping[str, JsonValue] | None = None,
     ) -> None:
         self._store = storage
         self._reports = reports
         self._evidence = evidence
         self._oauth_credentials = oauth_credentials
-        self._catalog = catalog or load_provider_catalog()
+        if catalog is None:
+            raise ValueError("ProviderModelsAdapter requires an injected catalog")
+        if identity_catalog is None:
+            raise ValueError(
+                "ProviderModelsAdapter requires an injected model identity catalog"
+            )
+        if system_defaults is None:
+            raise ValueError("ProviderModelsAdapter requires injected system defaults")
+        self._catalog = catalog
+        self._identity_catalog = identity_catalog
+        self._system_defaults = system_defaults
         self._serving_index: Callable[[], ServingFoodIndex] | None = None
 
-    def set_serving_index(
-        self, serving_index: Callable[[], ServingFoodIndex]
-    ) -> None:
+    def set_serving_index(self, serving_index: Callable[[], ServingFoodIndex]) -> None:
         """Bind the shared derived ServingFood projection after composition."""
         self._serving_index = serving_index
 
@@ -338,7 +327,9 @@ class ProviderModelsAdapter:
         except ProviderPortError:
             raise
         except (ProviderStorageError, ValueError, OSError) as error:
-            raise ProviderPortError("Unable to fingerprint Provider connection") from error
+            raise ProviderPortError(
+                "Unable to fingerprint Provider connection"
+            ) from error
 
     def load_local_binding(self) -> StoredLocalProviderBinding | None:
         try:
@@ -492,7 +483,11 @@ class ProviderModelsAdapter:
         )
 
     def prepare_manual_model(self, model: ProviderModelInput) -> StoredProviderModel:
-        match = match_model_identity(model.model_id, model.display_name)
+        match = match_model_identity(
+            model.model_id,
+            model.display_name,
+            catalog=self._identity_catalog,
+        )
         return StoredProviderModel(
             model_id=model.model_id,
             display_name=model.display_name or model.model_id,
@@ -530,6 +525,7 @@ class ProviderModelsAdapter:
             return self._verification(
                 summarize_connection_validation(
                     self._provider_connection(connection),
+                    catalog=self._catalog,
                     reports=self._reports,
                     secret_resolver=self._resolve_credential,
                 )
@@ -581,9 +577,7 @@ class ProviderModelsAdapter:
                     ),
                 }
             )
-            return self._model_verification(
-                latest
-            )
+            return self._model_verification(latest)
         except (ValueError, OSError) as error:
             raise ProviderPortError("Unable to read model validation") from error
 
@@ -596,6 +590,7 @@ class ProviderModelsAdapter:
         try:
             result = await validate_connection(
                 self._provider_connection(connection),
+                catalog=self._catalog,
                 model_execution_projection=self._model_execution_projection,
                 reports=self._reports,
                 secret_resolver=self._resolve_credential,
@@ -628,24 +623,24 @@ class ProviderModelsAdapter:
                 self._model_execution_projection,
             )
             status = "passed" if raw.get("status") == "passed" else "failed"
+            raw_error = raw.get("error")
             error = sanitize_error(
-                raw.get("error") if isinstance(raw.get("error"), str) else None,
+                raw_error if isinstance(raw_error, str) else None,
                 secrets=(self._resolve_credential(connection.credential_ref),),
             )
+            raw_latency = raw.get("latency_ms")
             self._reports.write_model_validation_report(
                 connection.connection_id,
                 model_id,
                 status=status,
                 checked_at=datetime.now(timezone.utc).isoformat(),
                 latency_ms=(
-                    float(raw["latency_ms"])
-                    if isinstance(raw.get("latency_ms"), (int, float))
+                    float(raw_latency)
+                    if isinstance(raw_latency, (int, float))
                     else None
                 ),
                 latency_class=(
-                    str(raw["latency_class"])
-                    if raw.get("latency_class")
-                    else None
+                    str(raw["latency_class"]) if raw.get("latency_class") else None
                 ),
                 error=error,
                 trigger="full",
@@ -669,156 +664,6 @@ class ProviderModelsAdapter:
             self._reports.finish_run(run_id, status="failed")
             raise
 
-    async def probe_model_capability(
-        self,
-        reference: str,
-        capability: CapabilityName,
-    ) -> CapabilityProbeResult:
-        """Execute one real, channel-specific probe and persist safe evidence."""
-
-        connection_id, separator, model_id = reference.partition("/")
-        if not separator or not connection_id or not model_id:
-            raise ProviderPortError("模型引用必须为 connection_id/model_id")
-        stored = self._store.load_connections().get(connection_id)
-        if stored is None:
-            raise ProviderPortError("Provider connection is missing")
-        connection = self._provider_connection(self._connection(stored))
-        if not any(item.endpoint_model_id == model_id for item in connection.models):
-            raise ProviderPortError("Provider model is missing")
-
-        request = capability_probe_request(
-            capability,
-            api_mode=connection.api_mode,
-        )
-        run_id = self._reports.start_run(
-            scope=f"model:{reference}:capability:{capability}",
-            trigger="single",
-        )
-        started = perf_counter()
-        try:
-            execution_id, config = self._model_execution_projection(connection)
-            with scoped_model_call_context(
-                ModelCallContext(
-                    connection_id=connection.connection_id,
-                    endpoint_model_id=model_id,
-                    semantic_role=capability,
-                    workload_kind="validation",
-                )
-            ):
-                response_text, response_metadata = await asyncio.to_thread(
-                    call_llm_api_with_trace,
-                    config,
-                    execution_id,
-                    model_id,
-                    request.messages,
-                    0.0,
-                    16,
-                    thinking=request.thinking,
-                    request_options=request.request_options,
-                    timeout_seconds=20.0,
-                )
-            result = evaluate_capability_probe(
-                capability,
-                response_text,
-                response_metadata,
-            )
-            self._append_capability_observation(
-                run_id,
-                connection,
-                model_id,
-                result,
-                latency_ms=(perf_counter() - started) * 1000.0,
-            )
-            self._reports.finish_run(run_id, status="complete")
-            return result
-
-        except BaseException as error:
-            classification = classify_provider_error(error)
-            result = capability_error_result(capability, classification.code)
-            safe_error = sanitize_error(
-                str(error),
-                secrets=(self._resolve_credential(connection.credential_ref),),
-            )
-            self._append_capability_observation(
-                run_id,
-                connection,
-                model_id,
-                result,
-                latency_ms=(perf_counter() - started) * 1000.0,
-                error=safe_error,
-                error_category=classification.category,
-                error_scope=classification.scope,
-            )
-            self._reports.finish_run(run_id, status="complete")
-            return result
-
-    def _append_capability_observation(
-        self,
-        run_id: str,
-        connection: ProviderConnection,
-        model_id: str,
-        result: CapabilityProbeResult,
-        *,
-        latency_ms: float,
-        error: str | None = None,
-        error_category: str | None = None,
-        error_scope: str | None = None,
-    ) -> None:
-        details: dict[str, Any] = {
-            "evidence_kind": "capability",
-            "capability": result.capability,
-            "capability_state": result.state,
-            "capability_evidence": result.evidence,
-            "reason_code": result.reason_code,
-            "evidence_source": "controlled_probe",
-            "validation_mode": "capability",
-            "config_fingerprint": connection_validation_fingerprint(
-                connection,
-                secret_resolver=self._resolve_credential,
-            ),
-            **dict(result.details),
-        }
-        if error_scope is not None:
-            details["error_scope"] = error_scope
-        self._reports.append_observation(
-            run_id=run_id,
-            subject_kind="model",
-            subject_id=f"{connection.connection_id}/{model_id}",
-            status=(
-                "passed"
-                if result.state == "supported"
-                else "warning"
-                if result.state == "unknown"
-                else "failed"
-            ),
-            latency_ms=latency_ms,
-            error_category=error_category,
-            error_message=error,
-            details=details,
-        )
-
-    def obsolete_model_ids(
-        self,
-        connection: ProviderConnection,
-        *,
-        referenced_model_ids: tuple[str, ...] = (),
-        now: datetime | None = None,
-    ) -> tuple[str, ...]:
-        """Return only source-managed models that pass the 30-day evidence gate."""
-
-        production_used_after: dict[str, str | None] = {}
-        for model in connection.models:
-            reference = f"{connection.connection_id}/{model.endpoint_model_id}"
-            production_used_after[model.endpoint_model_id] = _latest_production_use(
-                self._reports.observations_for_subject("model", reference)
-            )
-        return cleanup_eligible_models(
-            connection.models,
-            referenced_model_ids=referenced_model_ids,
-            production_used_after=production_used_after,
-            now=now,
-        )
-
     async def refresh_models(
         self,
         connection: StoredProviderConnection,
@@ -834,6 +679,7 @@ class ProviderModelsAdapter:
                 for item in bundled_catalog_models(
                     profile.bundled_models,
                     provider_id=profile.legacy_provider_id,
+                    identity_catalog=self._identity_catalog,
                 )
             )
             merged = merge_refreshed_models(
@@ -870,6 +716,7 @@ class ProviderModelsAdapter:
                         connection.catalog_id,
                         fetcher=fetch_remote_models,
                         provider_id=profile.legacy_provider_id,
+                        identity_catalog=self._identity_catalog,
                     )
                 except RemoteCatalogUnavailable:
                     catalog_models = ()
@@ -877,6 +724,7 @@ class ProviderModelsAdapter:
                     catalog_models = bundled_catalog_models(
                         profile.bundled_models,
                         provider_id=profile.legacy_provider_id,
+                        identity_catalog=self._identity_catalog,
                     )
             catalog_models = tuple(
                 _with_request_profile(item, provider_connection.api_mode)
@@ -921,7 +769,7 @@ class ProviderModelsAdapter:
             )
             if discovery.error and not discovery.authoritative and not discovered:
                 fallback_models = self._curated_fallback_models(
-                    connection,
+                    provider_connection,
                     profile,
                     checked_at=checked_at,
                 )
@@ -944,9 +792,7 @@ class ProviderModelsAdapter:
                             )
                         ),
                         source=(
-                            "manual"
-                            if item.source == "configured"
-                            else "official"
+                            "manual" if item.source == "configured" else "official"
                         ),
                     ),
                     # A broad authoritative platform inventory is retained
@@ -1021,6 +867,7 @@ class ProviderModelsAdapter:
                 connection.catalog_id,
                 fetcher=fetch_remote_models,
                 provider_id=profile.legacy_provider_id,
+                identity_catalog=self._identity_catalog,
             )
         except RemoteCatalogUnavailable:
             pass
@@ -1028,12 +875,12 @@ class ProviderModelsAdapter:
             catalog_models = bundled_catalog_models(
                 profile.bundled_models,
                 provider_id=profile.legacy_provider_id,
+                identity_catalog=self._identity_catalog,
             )
         if not catalog_models:
             return None
         catalog_models = tuple(
-            _with_request_profile(item, connection.api_mode)
-            for item in catalog_models
+            _with_request_profile(item, connection.api_mode) for item in catalog_models
         )
         merged = merge_refreshed_models(
             connection.models,
@@ -1183,6 +1030,7 @@ class ProviderModelsAdapter:
                     break
                 verification = await validate_connection(
                     self._provider_connection(stored),
+                    catalog=self._catalog,
                     model_execution_projection=self._model_execution_projection,
                     reports=self._reports,
                     secret_resolver=self._resolve_credential,
@@ -1248,6 +1096,7 @@ class ProviderModelsAdapter:
         execution_id, config = model_execution_projection(
             connection,
             catalog=self._catalog,
+            system_defaults=self._system_defaults,
             secret_resolver=self._resolve_credential,
         )
         if connection.credential_ref.startswith("oauth."):
@@ -1300,9 +1149,7 @@ class ProviderModelsAdapter:
             auth_type=cast(AuthType, item.auth_type),
             credential_ref=item.credential_ref,
             models=tuple(
-                cls._model(
-                    _with_request_profile(cls._model(model), item.api_mode)
-                )
+                cls._model(_with_request_profile(cls._model(model), item.api_mode))
                 for model in item.models
             ),
             enabled=item.enabled,
@@ -1320,9 +1167,7 @@ class ProviderModelsAdapter:
             auth_type=item.auth_type,
             credential_ref=item.credential_ref,
             models=tuple(
-                _with_request_profile(
-                    cls._provider_model(model), item.api_mode
-                )
+                _with_request_profile(cls._provider_model(model), item.api_mode)
                 for model in item.models
             ),
             enabled=item.enabled,
@@ -1435,7 +1280,9 @@ class ProviderModelsAdapter:
         )
 
     @staticmethod
-    def _availability_status(value: Any) -> str:
+    def _availability_status(
+        value: Any,
+    ) -> Literal["available", "degraded", "unavailable", "unknown"]:
         return (
             value
             if value in {"available", "degraded", "unavailable", "unknown"}

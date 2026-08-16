@@ -14,7 +14,6 @@ from app.features.configuration import (
     BenchmarkCombination,
     BenchmarkProviderModelsCommand,
     ChangeProviderConnectionLifecycleCommand,
-    CleanupObsoleteProviderModelsCommand,
     CompleteProviderOAuthLoginCommand,
     ConnectionUpdateField,
     CreateProviderConnectionCommand,
@@ -526,28 +525,6 @@ def delete_model(
     except _PROVIDER_ERRORS as error:
         return _error_response(error)
     return DetailResponse(detail=f"Provider model '{model_id}' deleted")
-
-
-@router.post(
-    "/connections/{connection_id}/models/cleanup-obsolete",
-    response_model=DetailResponse,
-)
-def cleanup_obsolete_models(
-    connection_id: str,
-    principal: AccountPrincipal = CurrentPrincipal,
-    service: ProvidersService = ProvidersDependency,
-) -> RouteResult:
-    try:
-        result = service.cleanup_obsolete_models(
-            principal,
-            CleanupObsoleteProviderModelsCommand(connection_id),
-        )
-    except _PROVIDER_ERRORS as error:
-        return _error_response(error)
-    cleaned = ", ".join(result.model_ids) if result.model_ids else "none"
-    return DetailResponse(
-        detail=f"Obsolete Provider models cleaned for '{result.connection_id}': {cleaned}"
-    )
 
 
 @router.get("/model-matrix", response_model=ModelMatrixResponse)

@@ -5,10 +5,10 @@ from unittest.mock import MagicMock, patch
 
 from infrastructure.models.catalog import (
     ModelCatalog,
-    load_model_catalog,
     verify_provider,
 )
-from infrastructure.models.model_execution_config import ModelExecutionConfig
+from infrastructure.persistence.model_catalog import load_model_catalog
+from test.support.model_execution import model_execution_config
 
 BUILTIN_MODEL_CATALOG = load_model_catalog()
 
@@ -72,12 +72,12 @@ class TestModelCatalog:
 
     def test_loads_builtin_catalog(self):
         """ModelCatalog 加载内置目录"""
-        catalog = ModelCatalog()
+        catalog = ModelCatalog(catalog=BUILTIN_MODEL_CATALOG)
         assert len(catalog.get_all_models()) >= 15
 
     def test_get_visible_models(self):
         """get_visible_models 返回可见模型"""
-        catalog = ModelCatalog()
+        catalog = ModelCatalog(catalog=BUILTIN_MODEL_CATALOG)
         visible = catalog.get_visible_models()
         # 默认所有模型都是可见的
         assert len(visible) >= 15
@@ -86,7 +86,7 @@ class TestModelCatalog:
 
     def test_get_active_models(self):
         """get_active_models 返回可用模型"""
-        catalog = ModelCatalog()
+        catalog = ModelCatalog(catalog=BUILTIN_MODEL_CATALOG)
         active = catalog.get_active_models()
         # 默认只有 Ollama 模型是 active 的
         for entry in active.values():
@@ -94,7 +94,7 @@ class TestModelCatalog:
 
     def test_filter_by_capability_vision(self):
         """get_models_by_capability 按 vision 能力筛选"""
-        catalog = ModelCatalog()
+        catalog = ModelCatalog(catalog=BUILTIN_MODEL_CATALOG)
         vision_models = catalog.get_models_by_capability("vision")
         assert len(vision_models) > 0
         for entry in vision_models:
@@ -102,7 +102,7 @@ class TestModelCatalog:
 
     def test_filter_by_capability_text(self):
         """get_models_by_capability 按 text 能力筛选"""
-        catalog = ModelCatalog()
+        catalog = ModelCatalog(catalog=BUILTIN_MODEL_CATALOG)
         text_models = catalog.get_models_by_capability("text")
         assert len(text_models) > 0
         for entry in text_models:
@@ -110,7 +110,7 @@ class TestModelCatalog:
 
     def test_filter_by_provider_openai(self):
         """get_models_by_provider 按 openai 筛选"""
-        catalog = ModelCatalog()
+        catalog = ModelCatalog(catalog=BUILTIN_MODEL_CATALOG)
         openai_models = catalog.get_models_by_provider("openai")
         assert len(openai_models) > 0
         for entry in openai_models:
@@ -118,7 +118,7 @@ class TestModelCatalog:
 
     def test_filter_by_provider_ollama(self):
         """get_models_by_provider 按 ollama 筛选"""
-        catalog = ModelCatalog()
+        catalog = ModelCatalog(catalog=BUILTIN_MODEL_CATALOG)
         ollama_models = catalog.get_models_by_provider("ollama")
         assert len(ollama_models) > 0
         for entry in ollama_models:
@@ -126,7 +126,7 @@ class TestModelCatalog:
 
     def test_update_visibility(self):
         """update_visibility 切换可见性"""
-        catalog = ModelCatalog()
+        catalog = ModelCatalog(catalog=BUILTIN_MODEL_CATALOG)
         # 隐藏一个模型
         result = catalog.update_visibility("openai/gpt-4o", False)
         assert result is True
@@ -137,7 +137,7 @@ class TestModelCatalog:
 
     def test_update_visibility_nonexistent_model(self):
         """update_visibility 对不存在的模型返回 False"""
-        catalog = ModelCatalog()
+        catalog = ModelCatalog(catalog=BUILTIN_MODEL_CATALOG)
         result = catalog.update_visibility("nonexistent/model", False)
         assert result is False
 
@@ -146,11 +146,11 @@ class TestModelCatalog:
     ):
         """refresh_status 根据 API key 更新 active 状态"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = ModelExecutionConfig()
+        config = model_execution_config()
         config.providers["openai"]["api_key"] = "sk-test"
         config.providers["deepseek"]["api_key"] = ""
 
-        catalog = ModelCatalog(config)
+        catalog = ModelCatalog(config, catalog=BUILTIN_MODEL_CATALOG)
         catalog.refresh_status()
 
         openai_models = catalog.get_models_by_provider("openai")
@@ -164,8 +164,8 @@ class TestModelCatalog:
     def test_refresh_status_keeps_ollama_active(self, monkeypatch, tmp_path):
         """refresh_status 保持 Ollama 模型为 active"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = ModelExecutionConfig()
-        catalog = ModelCatalog(config)
+        config = model_execution_config()
+        catalog = ModelCatalog(config, catalog=BUILTIN_MODEL_CATALOG)
 
         ollama_models = catalog.get_models_by_provider("ollama")
         for entry in ollama_models:
@@ -173,7 +173,7 @@ class TestModelCatalog:
 
     def test_get_model_returns_entry(self):
         """get_model 返回正确的 ModelEntry"""
-        catalog = ModelCatalog()
+        catalog = ModelCatalog(catalog=BUILTIN_MODEL_CATALOG)
         entry = catalog.get_model("openai/gpt-4o")
         assert entry is not None
         assert entry.model_id == "openai/gpt-4o"
@@ -182,13 +182,13 @@ class TestModelCatalog:
 
     def test_get_model_returns_none_for_nonexistent(self):
         """get_model 对不存在的模型返回 None"""
-        catalog = ModelCatalog()
+        catalog = ModelCatalog(catalog=BUILTIN_MODEL_CATALOG)
         entry = catalog.get_model("nonexistent/model")
         assert entry is None
 
     def test_empty_catalog_falls_back_to_builtin(self):
         """空配置时使用内置目录"""
-        catalog = ModelCatalog(config=None)
+        catalog = ModelCatalog(config=None, catalog=BUILTIN_MODEL_CATALOG)
         assert len(catalog.get_all_models()) >= 15
 
 
@@ -198,7 +198,7 @@ class TestVerifyProvider:
     def test_verify_ollama_returns_active(self, monkeypatch, tmp_path):
         """verify_provider 对 Ollama 返回 active（模拟成功）"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = ModelExecutionConfig()
+        config = model_execution_config()
 
         # Mock the credential-safe Provider transport.
         mock_response = MagicMock()
@@ -219,7 +219,7 @@ class TestVerifyProvider:
     def test_verify_openai_with_api_key(self, monkeypatch, tmp_path):
         """verify_provider 对 OpenAI 使用 Bearer token"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = ModelExecutionConfig()
+        config = model_execution_config()
         config.providers["openai"]["api_key"] = "sk-test"
 
         mock_response = MagicMock()
@@ -247,7 +247,7 @@ class TestVerifyProvider:
     def test_verify_anthropic_with_api_key(self, monkeypatch, tmp_path):
         """verify_provider 对 Anthropic 使用 x-api-key header"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = ModelExecutionConfig()
+        config = model_execution_config()
         config.providers["anthropic"] = {
             "api_key": "sk-ant-test",
             "api_base": "https://api.anthropic.com/v1",
@@ -278,7 +278,7 @@ class TestVerifyProvider:
     def test_verify_provider_timeout(self, monkeypatch, tmp_path):
         """verify_provider 超时时返回 inactive"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = ModelExecutionConfig()
+        config = model_execution_config()
 
         def raise_timeout(*args, **kwargs):
             raise TimeoutError("Connection timed out")
@@ -295,7 +295,7 @@ class TestVerifyProvider:
     def test_verify_provider_connection_error(self, monkeypatch, tmp_path):
         """verify_provider 连接错误时返回 inactive"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = ModelExecutionConfig()
+        config = model_execution_config()
 
         def raise_url_error(*args, **kwargs):
             raise urllib.error.URLError("Connection refused")
@@ -312,7 +312,7 @@ class TestVerifyProvider:
     def test_verify_provider_http_error(self, monkeypatch, tmp_path):
         """verify_provider HTTP 错误时返回 inactive"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = ModelExecutionConfig()
+        config = model_execution_config()
 
         def raise_http_error(*args, **kwargs):
             raise urllib.error.HTTPError(
@@ -331,7 +331,7 @@ class TestVerifyProvider:
     def test_verify_unknown_provider(self, monkeypatch, tmp_path):
         """verify_provider 对未知 provider 返回 unverified"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = ModelExecutionConfig()
+        config = model_execution_config()
 
         result = verify_provider("unknown_provider", config)
 
@@ -340,7 +340,7 @@ class TestVerifyProvider:
 
     def test_verify_configured_dynamic_custom_provider(self, monkeypatch, tmp_path):
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = ModelExecutionConfig()
+        config = model_execution_config()
         config.providers["custom_gateway"] = {
             "api_base": "https://gateway.example/v1",
             "api_mode": "chat_completions",

@@ -210,11 +210,6 @@ class DeleteProviderModelCommand:
 
 
 @dataclass(frozen=True)
-class CleanupObsoleteProviderModelsCommand:
-    connection_id: str
-
-
-@dataclass(frozen=True)
 class GetProviderModelMatrixQuery:
     as_of: str | None = None
     run_id: str | None = None
@@ -356,9 +351,9 @@ class LocalProviderModelResult:
     display_name: str
     installed: bool
     recommended: bool
-    availability_status: Literal[
-        "available", "degraded", "unavailable", "unknown"
-    ] = "unknown"
+    availability_status: Literal["available", "degraded", "unavailable", "unknown"] = (
+        "unknown"
+    )
     available: bool = False
 
 
@@ -391,12 +386,6 @@ class ProviderConnectionDeletedResult:
 class ProviderModelDeletedResult:
     connection_id: str
     model_id: str
-
-
-@dataclass(frozen=True)
-class ProviderModelsCleanupResult:
-    connection_id: str
-    model_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)

@@ -159,13 +159,6 @@ class ProviderTechnologyPort(Protocol):
 
     async def probe_model(self, reference: str) -> None: ...
 
-    def obsolete_model_ids(
-        self,
-        connection: StoredProviderConnection,
-        *,
-        referenced_model_ids: tuple[str, ...] = (),
-    ) -> tuple[str, ...]: ...
-
     def model_matrix(
         self,
         connections: tuple[StoredProviderConnection, ...],

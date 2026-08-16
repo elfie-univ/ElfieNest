@@ -9,12 +9,16 @@ from typing import Any, Callable, Optional, cast
 from app.features.adoption import (
     AdoptionService,
     CandidatePortraitPort,
+    SpeciesRuntimeReadinessPort,
 )
 from app.features.configuration.settings import SettingsStorePort
 from app.orchestration.nest_session import NestSession
 from app.orchestration.resident_admission import ResidentAdmissionService
 from elfie.public import BodyPort, ElfieFactory
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
+from infrastructure.godot.artifacts.species_runtime_catalog import (
+    build_species_runtime_catalog,
+)
 from infrastructure.godot.body_transport import (
     RuntimeIntentPayload,
     RuntimeIntentResult,
@@ -50,6 +54,7 @@ from infrastructure.platform import (
     SettingsAdoptionPolicyAdapter,
 )
 from nest.public import NestConfig
+from scripts.godot_species_validation import run_godot_species_validation
 
 
 @dataclass(frozen=True)
@@ -67,8 +72,14 @@ def build_adoption_services(
     portraits: CandidatePortraitPort | None = None,
     nest_config: NestConfig | None = None,
     catalog: Any | None = None,
+    species_runtime: SpeciesRuntimeReadinessPort | None = None,
 ) -> AdoptionServices:
     catalog = catalog or load_and_configure_species_catalog()
+    if species_runtime is None:
+        species_runtime = build_species_runtime_catalog(
+            catalog,
+            godot_runner=run_godot_species_validation,
+        )
 
     def body_factory(elfie_id: str, _workspace: str) -> BodyPort | None:
         if nest_session is None:
@@ -108,6 +119,7 @@ def build_adoption_services(
         narrative=narrative,
         catalog=catalog,
         species_presentation=BundledSpeciesPresentationAdapter(catalog=catalog),
+        species_runtime=species_runtime,
     )
     return AdoptionServices(
         adoption=adoption,

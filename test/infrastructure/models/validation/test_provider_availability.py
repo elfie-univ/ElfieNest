@@ -4,10 +4,8 @@ from datetime import datetime, timezone
 
 from infrastructure.models.report_records import ValidationObservation
 from infrastructure.models.validation.provider_availability import (
-    REACHABILITY_FRESHNESS,
     project_endpoint_availability,
     project_provider_status,
-    project_reachability,
 )
 
 NOW = datetime(2026, 8, 15, 12, 0, tzinfo=timezone.utc)
@@ -150,51 +148,9 @@ def test_provider_aggregation_uses_serving_scope_when_supplied() -> None:
         now=NOW,
     )
 
-    assert project_provider_status(
-        (first, second), serving_subject_ids=("connection/primary",)
-    ) == "healthy"
-
-
-def test_reachability_is_separate_and_expires_after_five_minutes() -> None:
-    passed = _observation(
-        1,
-        "2026-08-15T11:57:00+00:00",
-        "passed",
-        details={"evidence_kind": "reachability", "evidence_source": "heartbeat"},
+    assert (
+        project_provider_status(
+            (first, second), serving_subject_ids=("connection/primary",)
+        )
+        == "healthy"
     )
-    projection = project_reachability(
-        "connection",
-        (passed,),
-        now=NOW,
-    )
-
-    assert projection.status == "available"
-    assert projection.expires_at == (
-        datetime.fromisoformat(passed.observed_at) + REACHABILITY_FRESHNESS
-    ).isoformat()
-
-    expired = project_reachability(
-        "connection",
-        (
-            _observation(
-                1,
-                "2026-08-15T11:50:00+00:00",
-                "passed",
-                details={"evidence_kind": "reachability"},
-            ),
-        ),
-        now=NOW,
-    )
-    assert expired.status == "unknown"
-    assert expired.reason_code == "reachability_expired"
-
-
-def test_untagged_provider_validation_is_not_reachability() -> None:
-    projection = project_reachability(
-        "connection",
-        (_observation(1, "2026-08-15T11:59:00+00:00", "passed"),),
-        now=NOW,
-    )
-
-    assert projection.status == "unknown"
-    assert projection.reason_code == "no_reachability_evidence"

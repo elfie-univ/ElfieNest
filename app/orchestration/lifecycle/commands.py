@@ -64,7 +64,7 @@ def http_port_from_command(command: Sequence[str]) -> int:
     return DEFAULT_HTTP_PORT
 
 
-def service_ports_from_command(command: Sequence[str]) -> Tuple[int, int]:
+def service_ports_from_command(command: Sequence[str]) -> Tuple[int, ...]:
     """Return the HTTP and Godot WebSocket ports."""
     godot_ws_port = DEFAULT_GODOT_WS_PORT
     for index, argument in enumerate(command):

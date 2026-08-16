@@ -78,7 +78,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="system-architecture",
-        version="1.8",
+        version="1.9",
         english_path="docs/developer/contracts/system.md",
         chinese_path="docs/zh/developer/contracts/system.md",
         decision_paths=(
@@ -130,6 +130,33 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
         ),
     ),
     ContractRegistration(
+        contract_id="service-lifecycle",
+        version="1.0",
+        english_path="docs/developer/contracts/service-lifecycle.md",
+        chinese_path="docs/zh/developer/contracts/service-lifecycle.md",
+        decision_paths=(
+            "docs/developer/decisions/0021-authoritative-service-lifecycle.md",
+            "docs/zh/developer/decisions/0021-authoritative-service-lifecycle.md",
+        ),
+        agent_paths=(
+            "AGENTS.md",
+            "app/AGENTS.md",
+            "app/bootstrap/AGENTS.md",
+            "app/interfaces/cli/AGENTS.md",
+            "app/interfaces/desktop/AGENTS.md",
+            "app/orchestration/AGENTS.md",
+            "app/orchestration/lifecycle/AGENTS.md",
+            "infrastructure/AGENTS.md",
+            "infrastructure/godot/AGENTS.md",
+        ),
+        scanner_paths=(),
+        test_paths=("test/architecture/test_service_lifecycle_contract.py",),
+        conformance_paths=(
+            "docs/developer/conformance/service-lifecycle.md",
+            "docs/zh/developer/conformance/service-lifecycle.md",
+        ),
+    ),
+    ContractRegistration(
         contract_id="configuration-management",
         version="1.2",
         english_path="docs/developer/contracts/configuration-management.md",
@@ -155,33 +182,6 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
         conformance_paths=(
             "docs/developer/conformance/configuration-management.md",
             "docs/zh/developer/conformance/configuration-management.md",
-        ),
-    ),
-    ContractRegistration(
-        contract_id="service-lifecycle",
-        version="1.0",
-        english_path="docs/developer/contracts/service-lifecycle.md",
-        chinese_path="docs/zh/developer/contracts/service-lifecycle.md",
-        decision_paths=(
-            "docs/developer/decisions/0021-authoritative-service-lifecycle.md",
-            "docs/zh/developer/decisions/0021-authoritative-service-lifecycle.md",
-        ),
-        agent_paths=(
-            "AGENTS.md",
-            "app/AGENTS.md",
-            "app/bootstrap/AGENTS.md",
-            "app/interfaces/cli/AGENTS.md",
-            "app/interfaces/desktop/AGENTS.md",
-            "app/orchestration/AGENTS.md",
-            "app/orchestration/lifecycle/AGENTS.md",
-            "infrastructure/AGENTS.md",
-            "infrastructure/godot/AGENTS.md",
-        ),
-        scanner_paths=(),
-        test_paths=("test/architecture/test_service_lifecycle_contract.py",),
-        conformance_paths=(
-            "docs/developer/conformance/service-lifecycle.md",
-            "docs/zh/developer/conformance/service-lifecycle.md",
         ),
     ),
     ContractRegistration(

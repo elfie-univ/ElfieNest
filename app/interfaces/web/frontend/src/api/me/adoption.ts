@@ -18,6 +18,10 @@ const AdoptionInfoSchema = z.object({
       headshot_url: z.string().min(1),
       full_body_url: z.string().min(1),
     }).strict(),
+    appearance_controls: z.array(z.object({
+      control_id: z.string().min(1),
+      options: z.array(z.string().min(1)).min(1),
+    }).strict()).default([]),
   })),
   heights: z.array(z.string()),
   builds: z.array(z.string()),
@@ -38,6 +42,7 @@ const AdoptionInfoSchema = z.object({
     "nest_full",
     "member_quota_full",
     "model_unavailable",
+    "species_unavailable",
   ]),
 })
 

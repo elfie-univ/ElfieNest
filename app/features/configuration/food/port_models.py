@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Literal, Mapping
+from dataclasses import dataclass
+from typing import Literal
 
 FoodSystemRole = Literal["emergency", "common"]
 FoodVisibilityMode = Literal["global", "users"]
-ModelHealthStatus = Literal["unconfigured", "healthy", "degraded", "unavailable"]
-CapabilityState = Literal["supported", "unsupported", "unknown"]
 
 FOOD_ROLES = ("primary", "reasoning", "vision", "tool", "fallback")
 
@@ -80,7 +78,6 @@ class StoredModelEvidence:
     observed_at: str = ""
     status: str = "never_verified"
     fresh: bool = False
-    capability_states: Mapping[str, CapabilityState] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -88,17 +85,6 @@ class StoredFoodHealth:
     status: str
     locality: str
     latest_evidence_at: str | None
-
-
-@dataclass(frozen=True)
-class StoredModelServiceHealth:
-    """Aggregate model capability health projected from Food evidence."""
-
-    status: ModelHealthStatus
-    common_status: ModelHealthStatus
-    emergency_status: ModelHealthStatus
-    required_food_ids: tuple[str, ...] = ()
-    latest_evidence_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -126,13 +112,11 @@ __all__ = (
     "FOOD_ROLES",
     "FoodSystemRole",
     "FoodVisibilityMode",
-    "ModelHealthStatus",
     "StoredElfieFoodAssignment",
     "StoredFoodChange",
     "StoredFoodDefaults",
     "StoredFoodHealth",
     "StoredFoodPackage",
-    "StoredModelServiceHealth",
     "StoredFoodProposal",
     "StoredModelEvidence",
 )

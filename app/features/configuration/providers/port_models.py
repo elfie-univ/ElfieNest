@@ -167,9 +167,9 @@ class StoredModelVerification:
     error: str | None = None
     validation_mode: ValidationMode | None = None
     full_run_id: str | None = None
-    availability_status: Literal[
-        "available", "degraded", "unavailable", "unknown"
-    ] = "unknown"
+    availability_status: Literal["available", "degraded", "unavailable", "unknown"] = (
+        "unknown"
+    )
     reason_code: str | None = None
     evidence_source: str | None = None
     expires_at: str | None = None
@@ -198,9 +198,6 @@ class StoredModelAvailability:
     serving_food_ids: tuple[str, ...]
     serving_roles: tuple[str, ...]
     capabilities: tuple[StoredEndpointCapability, ...]
-    reachability_status: AvailabilityStatus = "unknown"
-    reachability_observed_at: str | None = None
-    reachability_expires_at: str | None = None
 
 
 @dataclass(frozen=True)

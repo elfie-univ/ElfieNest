@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import TypeVar
 
 from app.features.accounts import AccountPrincipal, is_manager
 
@@ -20,7 +21,6 @@ from .models import (
     AddProviderModelCommand,
     BenchmarkProviderModelsCommand,
     ChangeProviderConnectionLifecycleCommand,
-    CleanupObsoleteProviderModelsCommand,
     CompleteProviderOAuthLoginCommand,
     CreateProviderConnectionCommand,
     DefaultLocalProviderConnectionResult,
@@ -45,7 +45,6 @@ from .models import (
     ProviderMatrixModelResult,
     ProviderMatrixSnapshotResult,
     ProviderModelDeletedResult,
-    ProviderModelsCleanupResult,
     ProviderModelInput,
     ProviderModelMatrixResult,
     ProviderModelRefreshResult,
@@ -69,6 +68,7 @@ from .models import (
     VerifyProviderConnectionCommand,
 )
 from .port_models import (
+    CapabilityEvidence,
     StoredBenchmarkCombination,
     StoredLocalProviderBinding,
     StoredModelRefresh,
@@ -90,6 +90,8 @@ from .ports import (
     ProviderReferencePort,
     ProviderTechnologyPort,
 )
+
+_T = TypeVar("_T")
 
 
 class ProvidersService:
@@ -720,9 +722,13 @@ class ProvidersService:
         if any(item.model_id == command.model.model_id for item in connection.models):
             raise ProvidersConflict("The connection already contains this model ID")
         model = self._prepare_model(command.model)
-        updated_connection = self._replace_models(connection, (*connection.models, model))
+        updated_connection = self._replace_models(
+            connection, (*connection.models, model)
+        )
         persisted_model = next(
-            item for item in updated_connection.models if item.model_id == model.model_id
+            item
+            for item in updated_connection.models
+            if item.model_id == model.model_id
         )
         return self._model_result(updated_connection.connection_id, persisted_model)
 
@@ -777,7 +783,10 @@ class ProvidersService:
                         current.max_output_tokens,
                     ),
                     supports_tools=_replacement_value(
-                        item, "supports_tools", item.supports_tools, current.supports_tools
+                        item,
+                        "supports_tools",
+                        item.supports_tools,
+                        current.supports_tools,
                     ),
                     supports_vision=_replacement_value(
                         item,
@@ -980,54 +989,6 @@ class ProvidersService:
             connection_id=connection.connection_id,
             model_id=current.model_id,
         )
-
-    def cleanup_obsolete_models(
-        self,
-        principal: AccountPrincipal,
-        command: CleanupObsoleteProviderModelsCommand,
-    ) -> ProviderModelsCleanupResult:
-        """Run the explicit, reference-checked source-managed cleanup action."""
-
-        self._require_manager(principal)
-        connection = self._require_connection(command.connection_id)
-        referenced: set[str] = set()
-        try:
-            for model in connection.models:
-                if self._references.models_referenced_by_food(
-                    connection.connection_id,
-                    model.model_id,
-                ):
-                    referenced.add(model.model_id)
-            candidates = self._technology.obsolete_model_ids(
-                connection,
-                referenced_model_ids=tuple(sorted(referenced)),
-            )
-        except ProviderPortError as error:
-            raise ProvidersUnavailable("Provider cleanup eligibility unavailable") from error
-
-        if not candidates:
-            return ProviderModelsCleanupResult(connection.connection_id, ())
-
-        # Repeat the reference check immediately before the single replacement;
-        # a model that became referenced is retained instead of being deleted.
-        current = self._require_connection(connection.connection_id)
-        safe: list[str] = []
-        for model_id in candidates:
-            try:
-                still_referenced = self._references.models_referenced_by_food(
-                    current.connection_id,
-                    model_id,
-                )
-            except ProviderPortError as error:
-                raise ProvidersUnavailable("Provider references unavailable") from error
-            if not still_referenced:
-                safe.append(model_id)
-        if safe:
-            self._replace_models(
-                current,
-                tuple(item for item in current.models if item.model_id not in safe),
-            )
-        return ProviderModelsCleanupResult(current.connection_id, tuple(safe))
 
     def get_model_matrix(
         self,
@@ -1401,7 +1362,7 @@ def _updated_capability_evidence(
     fields: frozenset[str],
     *,
     values: dict[str, bool | None],
-) -> dict[str, str]:
+) -> dict[str, CapabilityEvidence]:
     evidence = dict(model.capability_evidence)
     for capability, field_name in {
         "tools": "supports_tools",
@@ -1421,7 +1382,7 @@ def _user_capability_evidence(
     current: StoredProviderModel,
     values: dict[str, bool | None],
     fields: frozenset[str] | None,
-) -> dict[str, str]:
+) -> dict[str, CapabilityEvidence]:
     evidence = dict(current.capability_evidence)
     field_names = {
         "tools": "supports_tools",
@@ -1432,18 +1393,16 @@ def _user_capability_evidence(
     for capability, value in values.items():
         if fields is not None and field_names[capability] not in fields:
             continue
-        evidence[capability] = (
-            "declared_by_user" if value is not None else "unknown"
-        )
+        evidence[capability] = "declared_by_user" if value is not None else "unknown"
     return evidence
 
 
 def _replacement_value(
     item: ProviderModelReplacement,
     field_name: str,
-    value: object,
-    current: object,
-) -> object:
+    value: _T,
+    current: _T,
+) -> _T:
     if item.fields is not None and field_name not in item.fields:
         return current
     return value

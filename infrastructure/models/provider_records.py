@@ -25,9 +25,7 @@ CapabilityEvidenceLevel = Literal[
 ]
 _MODEL_SOURCES = frozenset({"official", "remote_catalog", "bundled_catalog", "manual"})
 _DISCOVERY_STATES = frozenset({"present", "source_missing"})
-_CAPABILITY_NAMES = frozenset(
-    {"tools", "vision", "reasoning", "structured_output"}
-)
+_CAPABILITY_NAMES = frozenset({"tools", "vision", "reasoning", "structured_output"})
 _CAPABILITY_EVIDENCE = frozenset(
     {"declared", "declared_by_user", "accepted", "verified", "unknown"}
 )
@@ -115,7 +113,10 @@ class ProviderModelRecord:
             raise ValueError(f"未知模型发现状态: {self.discovery_state}")
         if self.request_profile_id is None and self.request_profile_version is not None:
             raise ValueError("request_profile_version 不能脱离 request_profile_id")
-        if self.request_profile_version is not None and self.request_profile_version <= 0:
+        if (
+            self.request_profile_version is not None
+            and self.request_profile_version <= 0
+        ):
             raise ValueError("request_profile_version 必须为正整数")
         evidence = dict(self.capability_evidence)
         if set(evidence) - _CAPABILITY_NAMES:
@@ -125,10 +126,7 @@ class ProviderModelRecord:
             for value in evidence.values()
         ):
             raise ValueError("capability_evidence 包含未知证据等级")
-        if (
-            isinstance(self.consecutive_missing, bool)
-            or self.consecutive_missing < 0
-        ):
+        if isinstance(self.consecutive_missing, bool) or self.consecutive_missing < 0:
             raise ValueError("consecutive_missing 不能为负数")
         for value, name in (
             (self.context_window_tokens, "context_window_tokens"),
@@ -239,9 +237,7 @@ class ProviderModelRecord:
             hidden=_required_bool(raw.get("hidden", False), "hidden"),
             retired=_required_bool(raw.get("retired", False), "retired"),
             available=_required_bool(raw.get("available", True), "available"),
-            discovery_state=_discovery_state(
-                raw.get("discovery_state", "present")
-            ),
+            discovery_state=_discovery_state(raw.get("discovery_state", "present")),
             consecutive_missing=_optional_non_negative_int(
                 raw.get("consecutive_missing", 0), "consecutive_missing"
             ),

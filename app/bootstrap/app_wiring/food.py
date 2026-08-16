@@ -10,6 +10,7 @@ from infrastructure.models.food_technology import (
     FoodEvidencePort,
     ModelFoodTechnologyAdapter,
 )
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.persistence.food import SQLiteFoodAdapter
 from infrastructure.persistence.food_evidence import SQLiteFoodEvidenceAdapter
 from infrastructure.persistence.layout.data_home import (
@@ -35,10 +36,14 @@ def build_report_repository(db_path: str) -> ReportRepository:
 def build_food_service(
     db_path: str,
     *,
+    provider_catalog: ProviderCatalog,
     evidence: FoodEvidencePort | None = None,
 ) -> FoodService:
     persistence = SQLiteFoodAdapter(db_path)
-    evidence_port = evidence or build_food_evidence(db_path)
+    evidence_port = evidence or build_food_evidence(
+        db_path,
+        provider_catalog=provider_catalog,
+    )
     return FoodService(
         catalog=persistence,
         technology=ModelFoodTechnologyAdapter(evidence_port),
@@ -49,6 +54,7 @@ def build_food_service(
 def build_food_evidence(
     db_path: str,
     *,
+    provider_catalog: ProviderCatalog,
     report_repository: ReportRepository | None = None,
 ) -> SQLiteFoodEvidenceAdapter:
     provider_path = None
@@ -59,6 +65,7 @@ def build_food_evidence(
     return SQLiteFoodEvidenceAdapter(
         ProviderConnectionStore(provider_path),
         report_repository or build_report_repository(db_path),
+        provider_catalog,
     )
 
 

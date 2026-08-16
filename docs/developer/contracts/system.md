@@ -1,6 +1,6 @@
 # System architecture contract
 
-**Contract version:** 1.8
+**Contract version:** 1.9
 **Adopted:** 2026-08-12
 **Revised:** 2026-08-15
 **Scope:** repository-wide target architecture

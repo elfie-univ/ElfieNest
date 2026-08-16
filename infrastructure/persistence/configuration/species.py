@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import re
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 from elfie.profile import (
     SPECIES_CANON_VERSION,
@@ -24,6 +24,7 @@ from elfie.profile import (
     SpeciesDefinition,
     SpeciesGenesisProfile,
     SpeciesPresentationImages,
+    SpeciesStatus,
 )
 
 from .config_store import ConfigStoreError, read_yaml_mapping
@@ -64,6 +65,7 @@ _REQUIRED_SHAPE_CORRELATIONS = (
     "Face_CheekFullness",
     "Face_LowerFullness",
 )
+_REQUIRED_SEMANTIC_CONTROLS = ("stature", "build", "face", "signature")
 
 
 class SpeciesCatalogError(ConfigDocumentError):
@@ -94,7 +96,9 @@ class BundledSpeciesCatalogSource:
                 entry = _object(raw_entry, f"species[{index}]")
                 definition = self._load_definition(entry)
             except (OSError, ConfigStoreError, TypeError, ValueError) as error:
-                status = raw_entry.get("status") if isinstance(raw_entry, Mapping) else None
+                status = (
+                    raw_entry.get("status") if isinstance(raw_entry, Mapping) else None
+                )
                 if status == "draft":
                     # Draft members are deliberately fail-closed and omitted
                     # from runtime projections until their package is complete.
@@ -197,7 +201,15 @@ class BundledSpeciesCatalogSource:
                 raise ValueError(f"物种图片缺失: {relative}")
             if path.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
                 raise ValueError(f"物种图片不是有效 PNG: {relative}")
-        if len({(package_root / relative).read_bytes() for relative in (headshot, full_body)}) != 2:
+        if (
+            len(
+                {
+                    (package_root / relative).read_bytes()
+                    for relative in (headshot, full_body)
+                }
+            )
+            != 2
+        ):
             raise ValueError("物种 headshot 与 full_body 不得使用同一张图片")
         return SpeciesPresentationImages(headshot=headshot, full_body=full_body)
 
@@ -255,6 +267,7 @@ def _appearance_profile(
         eye_colors=_string_tuple(document, "eye_colors"),
         nose_colors=_string_tuple(document, "nose_colors"),
         supported_controls=_string_tuple(document, "supported_controls"),
+        control_options=_control_options(document.get("control_options")),
         control_ranges=_ranges(document.get("control_ranges"), "control_ranges"),
         proportion_scales=_ranges(
             document.get("proportion_scales"), "proportion_scales", optional=True
@@ -271,13 +284,47 @@ def _appearance_profile(
     missing_shapes = set(_REQUIRED_SHAPE_CORRELATIONS).difference(
         profile.shape_correlations
     )
-    if missing_proportions or missing_shapes or "ear_droop" not in profile.distributions:
+    missing_controls = set(_REQUIRED_SEMANTIC_CONTROLS).difference(
+        profile.supported_controls
+    )
+    missing_control_ranges = set(_REQUIRED_SEMANTIC_CONTROLS).difference(
+        profile.control_ranges
+    )
+    missing_control_options = set(_REQUIRED_SEMANTIC_CONTROLS).difference(
+        profile.control_options
+    )
+    if (
+        missing_proportions
+        or missing_shapes
+        or missing_controls
+        or missing_control_ranges
+        or missing_control_options
+        or "ear_droop" not in profile.distributions
+    ):
         raise ValueError(
             f"{species_id} appearance 缺少必要控制: "
             f"proportion={sorted(missing_proportions)} "
-            f"shape={sorted(missing_shapes)} ear_droop={'ear_droop' not in profile.distributions}"
+            f"shape={sorted(missing_shapes)} "
+            f"controls={sorted(missing_controls)} "
+            f"control_ranges={sorted(missing_control_ranges)} "
+            f"control_options={sorted(missing_control_options)} "
+            f"ear_droop={'ear_droop' not in profile.distributions}"
         )
     return profile
+
+
+def _control_options(value: Any) -> dict[str, tuple[str, ...]]:
+    if not isinstance(value, Mapping):
+        raise ValueError("control_options 必须是对象")
+    result: dict[str, tuple[str, ...]] = {}
+    for control_id, raw_options in value.items():
+        if not isinstance(control_id, str) or not control_id.strip():
+            raise ValueError("control_options 包含无效控制项")
+        options = _tuple_value(raw_options, f"control_options.{control_id}")
+        if not options or len(set(options)) != len(options):
+            raise ValueError(f"control_options.{control_id} 必须是非空且不重复的数组")
+        result[control_id] = options
+    return result
 
 
 def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
@@ -290,7 +337,10 @@ def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
         if (
             not isinstance(raw_range, (list, tuple))
             or len(raw_range) != 2
-            or any(isinstance(value, bool) or not isinstance(value, int) for value in raw_range)
+            or any(
+                isinstance(value, bool) or not isinstance(value, int)
+                for value in raw_range
+            )
         ):
             raise ValueError(f"genesis.stage_ranges.{stage} 必须是两个整数")
         minimum, maximum = int(raw_range[0]), int(raw_range[1])
@@ -301,7 +351,10 @@ def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
     if (
         not isinstance(prior, (list, tuple))
         or len(prior) != _GENESIS_TRAITS
-        or any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in prior)
+        or any(
+            isinstance(value, bool) or not isinstance(value, (int, float))
+            for value in prior
+        )
     ):
         raise ValueError("genesis.personality_prior 必须是 5 个数字")
     raw_preferences = document.get("appearance_preferences", {})
@@ -353,11 +406,11 @@ def _package_id(mapping: Mapping[str, Any], key: str) -> str:
     return value
 
 
-def _status(mapping: Mapping[str, Any]) -> str:
+def _status(mapping: Mapping[str, Any]) -> SpeciesStatus:
     value = _string(mapping, "status")
     if value not in ("draft", "published", "retired"):
         raise ValueError("status 必须是 draft/published/retired")
-    return value
+    return cast(SpeciesStatus, value)
 
 
 def _positive_int(mapping: Mapping[str, Any], key: str) -> int:
@@ -402,7 +455,10 @@ def _ranges(
     if value is None and optional:
         return {}
     mapping = _object(value or {}, label)
-    return {str(key): _scale_value(_object(raw, f"{label}.{key}"), f"{label}.{key}") for key, raw in mapping.items()}
+    return {
+        str(key): _scale_value(_object(raw, f"{label}.{key}"), f"{label}.{key}")
+        for key, raw in mapping.items()
+    }
 
 
 def _weights(mapping: Mapping[str, Any], key: str) -> CorrelationWeights:
@@ -438,7 +494,10 @@ def _distributions(value: Any) -> Mapping[str, Distribution]:
             minimum=_number(item.get("minimum", -1.0), f"distributions.{key}.minimum"),
             maximum=_number(item.get("maximum", 1.0), f"distributions.{key}.maximum"),
         )
-        if distribution.standard_deviation <= 0 or distribution.minimum > distribution.maximum:
+        if (
+            distribution.standard_deviation <= 0
+            or distribution.minimum > distribution.maximum
+        ):
             raise ValueError(f"distributions.{key} 范围无效")
         result[str(key)] = distribution
     return result
@@ -451,7 +510,9 @@ def _string_tuple(mapping: Mapping[str, Any], key: str) -> tuple[str, ...]:
 def _tuple_value(value: Any, label: str) -> tuple[str, ...]:
     if not isinstance(value, (list, tuple)) or not value:
         raise ValueError(f"{label} 必须是非空字符串数组")
-    result = tuple(item.strip() for item in value if isinstance(item, str) and item.strip())
+    result = tuple(
+        item.strip() for item in value if isinstance(item, str) and item.strip()
+    )
     if len(result) != len(value):
         raise ValueError(f"{label} 必须是非空字符串数组")
     return result

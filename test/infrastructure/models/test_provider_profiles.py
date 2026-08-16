@@ -17,6 +17,7 @@ from infrastructure.persistence.provider_connections import (
 )
 
 BUILTIN_PROFILES = load_provider_catalog().profiles
+PROVIDER_CATALOG = load_provider_catalog()
 
 
 class TestBuiltinProfiles:
@@ -221,7 +222,9 @@ def test_verify_custom_openai_falls_back_to_chat_completion_when_models_endpoint
 
     from infrastructure.models.catalog import verify_provider
 
-    result = verify_provider("custom_openai", Config())
+    result = verify_provider(
+        "custom_openai", Config(), provider_catalog=PROVIDER_CATALOG
+    )
 
     assert result["status"] == "active"
     assert calls[0][0] == "https://proxy.example.com/v1/models"
@@ -259,7 +262,9 @@ def test_verify_custom_openai_returns_actionable_error_when_models_and_chat_fail
 
     from infrastructure.models.catalog import verify_provider
 
-    result = verify_provider("custom_openai", Config())
+    result = verify_provider(
+        "custom_openai", Config(), provider_catalog=PROVIDER_CATALOG
+    )
 
     assert result["status"] == "inactive"
     assert "Base URL 应该类似" in result["error"]

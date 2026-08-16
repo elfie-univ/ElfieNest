@@ -96,6 +96,9 @@ def test_elfienest_entrypoint_dispatches_cli_to_elfienest_script(
         PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh",
         scripts_dir / "bootstrap_runtime_dependencies.sh",
     )
+    # This test exercises dispatch after a healthy dependency check; the
+    # missing-dependency diagnostic is covered by the following test.
+    write_executable(scripts_dir / "bootstrap.sh", "#!/bin/bash\nexit 0\n")
     (scripts_dir / "serve.py").write_text("", encoding="utf-8")
     (project_root / "build/web").mkdir(parents=True)
     (project_root / "build/web/manifest.json").write_text("{}\n", encoding="utf-8")
@@ -120,6 +123,7 @@ printf '%s\n' "$*" > "$ENTRYPOINT_LOG"
         {
             "ELFIENEST_SKIP_AUTO_REPAIR": "1",
             "ENTRYPOINT_LOG": str(invocation_log),
+            "PATH": "/usr/bin:/bin",
         }
     )
 
@@ -178,7 +182,7 @@ exit 1
     env = os.environ.copy()
     env.update(
         {
-            "ELFIENEST_SKIP_AUTO_REPAIR": "1",
+            "ELFIENEST_SKIP_AUTO_REPAIR": "0",
             "PATH": "/usr/bin:/bin",
         }
     )

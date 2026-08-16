@@ -30,6 +30,7 @@ from elfie.profile import (
     WORLD_CANON_VERSION,
     AppearanceResolver,
     ElfieOrigin,
+    SpeciesCanon,
     SpeciesCatalog,
     create_visual_profile,
     get_species_canon_for_technical_id,
@@ -137,7 +138,10 @@ class FinalElfieWorkspaceAdapter:
             )
             resolved = AppearanceResolver(self._catalog).resolve(profile)
             selfhood_seed = _selfhood_seed(
-                reservation, resolved.height_scale, resolved.build_scale
+                reservation,
+                resolved.height_scale,
+                resolved.build_scale,
+                catalog=self._catalog,
             )
             YamlProfileStoreAdapter(layout.profile.parent).save(profile)
             YamlSelfhoodSeedAdapter(layout.brain).save(selfhood_seed)
@@ -150,7 +154,13 @@ class FinalElfieWorkspaceAdapter:
             )
             with SQLiteMemoryStoreAdapter(layout.knowledge_database) as memory_store:
                 GenesisMemoryCommitter().commit(
-                    _genesis_bundle(reservation, profile, selfhood_seed), memory_store
+                    _genesis_bundle(
+                        reservation,
+                        profile,
+                        selfhood_seed,
+                        catalog=self._catalog,
+                    ),
+                    memory_store,
                 )
             _persist_portraits(layout.assets, reservation)
             return str(layout.workspace)
@@ -236,10 +246,12 @@ def _selfhood_seed(
     reservation: AcceptedAdoptionReservation,
     height_scale: float,
     build_scale: float,
+    *,
+    catalog: SpeciesCatalog | None = None,
 ) -> dict[str, object]:
     if reservation.genesis_candidate is not None:
         candidate = reservation.genesis_candidate
-        species = get_species_canon_for_technical_id(reservation.species_id)
+        species = _species_canon(reservation.species_id, catalog=catalog)
         big_five = {
             trait: round((value + 2.0) / 4.0, 4)
             for trait, value in zip(
@@ -283,6 +295,8 @@ def _selfhood_seed(
                 f"{ELFARIA_CANON.earth_home_name} 是在地球生活的基地和家。",
             ),
             "behavior_anchors": species.earth_first_contact_cues,
+            "sensory_biases": species.common_sensory_biases,
+            "species_knowledge": species.common_knowledge,
             "knowledge_boundaries": ELFARIA_CANON.knowledge_boundaries,
             "norms": (
                 "尊重自愿选择，不把猜测说成亲历。",
@@ -317,7 +331,7 @@ def _selfhood_seed(
         _GREETINGS["完全随机"],
     )
     greetings = rng.sample(greeting_pool, rng.randint(2, min(3, len(greeting_pool))))
-    species = get_species_canon_for_technical_id(reservation.species_id)
+    species = _species_canon(reservation.species_id, catalog=catalog)
     return {
         "metadata": {
             "name": reservation.name,
@@ -347,6 +361,8 @@ def _selfhood_seed(
             f"{ELFARIA_CANON.earth_home_name} 是在地球生活的基地和家。",
         ),
         "behavior_anchors": species.earth_first_contact_cues,
+        "sensory_biases": species.common_sensory_biases,
+        "species_knowledge": species.common_knowledge,
         "knowledge_boundaries": ELFARIA_CANON.knowledge_boundaries,
         "norms": (
             "尊重自愿选择，不把猜测说成亲历。",
@@ -364,9 +380,11 @@ def _genesis_bundle(
     reservation: AcceptedAdoptionReservation,
     profile,
     selfhood_seed: dict[str, object],
+    *,
+    catalog: SpeciesCatalog | None = None,
 ) -> GenesisBundle:
     """Build the small, explicit set of facts known at first arrival."""
-    species = get_species_canon_for_technical_id(reservation.species_id)
+    species = _species_canon(reservation.species_id, catalog=catalog)
     raw_big_five = selfhood_seed.get("big_five", {})
     if not isinstance(raw_big_five, dict):
         raw_big_five = {}
@@ -406,6 +424,7 @@ def _genesis_bundle(
                 "不知道时说明不知道，并在真实接触中学习地球。",
             ),
             behavior_anchors=species.earth_first_contact_cues,
+            sensory_biases=species.common_sensory_biases,
         ),
         memory_seeds=(
             MemorySeed(
@@ -492,6 +511,7 @@ def _genesis_bundle(
                 "只把 Profile、Genesis 资料和亲历记忆当作我的身份依据。",
                 "不把地球模型的常识冒充为 Elfaria 的亲历。",
             ),
+            species_knowledge=species.common_knowledge,
         ),
         biography_plan=BiographyEnrichmentPlan(
             allowed_memory_seed_ids=(
@@ -510,6 +530,16 @@ def _genesis_bundle(
             status="validated",
         ),
     )
+
+
+def _species_canon(
+    species_id: str,
+    *,
+    catalog: SpeciesCatalog | None = None,
+) -> SpeciesCanon:
+    if catalog is not None:
+        return catalog.definition(species_id, adoptable_only=True).canon
+    return get_species_canon_for_technical_id(species_id)
 
 
 def _portrait_metadata(reservation: AcceptedAdoptionReservation) -> dict[str, object]:
