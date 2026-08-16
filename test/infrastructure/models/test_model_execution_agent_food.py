@@ -334,19 +334,22 @@ def test_adoption_structured_generation_uses_a_bounded_provider_timeout(
 
     monkeypatch.setattr(agent, "_call_food_llm_api", caller)
 
-    agent.generate_adoption_structured(
-        StructuredModelExecutionRequest(
-            prompt="structured",
-            messages=(),
-            response_schema_name="answer",
-            response_schema={"type": "object"},
-            selected_mode=StructuredGenerationMode.JSON_TEXT,
-            allowed_tools=(),
-        )
+    request = StructuredModelExecutionRequest(
+        prompt="structured",
+        messages=(),
+        response_schema_name="answer",
+        response_schema={"type": "object"},
+        selected_mode=StructuredGenerationMode.JSON_TEXT,
+        allowed_tools=(),
     )
+    agent.generate_adoption_structured(request)
 
     assert calls
     assert calls[0][-1] == 20.0
+
+    agent.generate_adoption_structured(request.model_copy(update={"timeout_seconds": 4.5}))
+
+    assert calls[-1][-1] == 4.5
 
 
 @pytest.mark.parametrize(

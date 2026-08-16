@@ -3,6 +3,35 @@ extends RefCounted
 
 const BASE_COLLISION_RADIUS := 0.34
 const BASE_COLLISION_HEIGHT := 1.72
+const APPEARANCE_SHADER_CODE := """
+shader_type spatial;
+render_mode diffuse_burley;
+
+uniform sampler2D base_texture : source_color;
+uniform bool use_base_texture = false;
+uniform vec4 base_color : source_color = vec4(1.0);
+uniform vec4 appearance_tint : source_color = vec4(1.0);
+uniform int appearance_pattern = 0;
+
+void fragment() {
+    vec4 base = base_color;
+    if (use_base_texture) {
+        base *= texture(base_texture, UV);
+    }
+    vec3 color = base.rgb * appearance_tint.rgb;
+    float accent = 0.0;
+    if (appearance_pattern == 1) {
+        accent = step(0.5, fract(UV.x * 7.0));
+    } else if (appearance_pattern == 2) {
+        accent = step(0.5, fract(UV.x * 4.0) + fract(UV.y * 4.0));
+    } else if (appearance_pattern == 3) {
+        accent = step(0.55, abs(fract(UV.x * 3.0) - 0.5));
+    }
+    color = mix(color, color * vec3(0.48, 0.64, 0.82), accent * 0.42);
+    ALBEDO = color;
+    ALPHA = base.a;
+}
+"""
 
 
 static func apply(
@@ -41,6 +70,11 @@ static func apply(
 		visual_root,
 		appearance.get("blend_shapes", {}),
 		bindings.get("blend_shapes", {}),
+	)
+	_apply_material_parameters(
+		visual_root,
+		appearance.get("material_parameters", {}),
+		bindings.get("material_parameters", {}),
 	)
 
 
@@ -178,6 +212,75 @@ static func _apply_blend_shapes(
 					"blend_shapes/%s" % shape_name,
 					clampf(float((raw_values as Dictionary)[semantic_name]), 0.0, 1.0),
 				)
+
+
+static func _apply_material_parameters(
+	visual_root: Node3D,
+	raw_values: Variant,
+	raw_bindings: Variant,
+) -> void:
+	if not raw_values is Dictionary or not raw_bindings is Dictionary:
+		return
+	var bindings := raw_bindings as Dictionary
+	var tint := Color.WHITE
+	var pattern_id := 0
+	var has_material_binding := false
+	for semantic_name: String in bindings:
+		var binding: Variant = bindings[semantic_name]
+		if not binding is Dictionary:
+			continue
+		var value: Variant = (raw_values as Dictionary).get(semantic_name)
+		var values: Variant = (binding as Dictionary).get("values", {})
+		if not values is Dictionary:
+			continue
+		var mapped: Variant = (values as Dictionary).get(String(value))
+		if mapped == null:
+			continue
+		var mode: String = String((binding as Dictionary).get("mode", ""))
+		if mode == "albedo_tint":
+			var color: Variant = _color_value(mapped)
+			if color != null:
+				tint = _multiply_color(tint, color)
+				has_material_binding = true
+		elif mode == "pattern_id" and (mapped is int or mapped is float):
+			pattern_id = int(mapped)
+			has_material_binding = true
+	if not has_material_binding:
+		return
+	var shader := Shader.new()
+	shader.code = APPEARANCE_SHADER_CODE
+	for node in visual_root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance == null or mesh_instance.mesh == null:
+			continue
+		for surface_index in range(mesh_instance.mesh.get_surface_count()):
+			var source_material: Material = mesh_instance.get_active_material(surface_index)
+			var material: ShaderMaterial = ShaderMaterial.new()
+			material.shader = shader
+			material.set_shader_parameter("appearance_tint", tint)
+			material.set_shader_parameter("appearance_pattern", pattern_id)
+			if source_material is BaseMaterial3D:
+				material.set_shader_parameter("base_color", source_material.albedo_color)
+				if source_material.albedo_texture != null:
+					material.set_shader_parameter("base_texture", source_material.albedo_texture)
+					material.set_shader_parameter("use_base_texture", true)
+			mesh_instance.set_surface_override_material(surface_index, material)
+
+
+static func _color_value(value: Variant) -> Variant:
+	if value is Array and (value as Array).size() >= 3:
+		var values := value as Array
+		return Color(
+			float(values[0]),
+			float(values[1]),
+			float(values[2]),
+			float(values[3]) if values.size() > 3 else 1.0,
+		)
+	return null
+
+
+static func _multiply_color(left: Color, right: Color) -> Color:
+	return Color(left.r * right.r, left.g * right.g, left.b * right.b, left.a * right.a)
 
 
 static func _string_array(value: Variant) -> Array[String]:

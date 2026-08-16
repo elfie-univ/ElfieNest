@@ -290,7 +290,11 @@ class ModelExecutionAgent:
             temperature=request.temperature,
             max_tokens=request.max_tokens,
             thinking=request.reasoning_mode == "long",
-            timeout_seconds=_ADOPTION_MODEL_TIMEOUT_SECONDS,
+            timeout_seconds=(
+                request.timeout_seconds
+                if request.timeout_seconds is not None
+                else _ADOPTION_MODEL_TIMEOUT_SECONDS
+            ),
         )
         try:
             execution = executor.execute(

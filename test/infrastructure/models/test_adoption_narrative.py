@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from time import monotonic, sleep
 
 import pytest
 
@@ -42,6 +43,21 @@ class FailingExecution(FakeExecution):
     ) -> StructuredModelExecutionResult:
         self.requests.append(request)
         raise RuntimeError("provider unavailable")
+
+
+class SlowExecution(FakeExecution):
+    def generate_adoption_structured(
+        self,
+        request: StructuredModelExecutionRequest,
+    ) -> StructuredModelExecutionResult:
+        self.requests.append(request)
+        sleep(0.1)
+        return request.to_result(
+            text=(
+                '{"original_name":"洛弥","suggested_name":"小洛",'
+                '"personal_story":"我喜欢先安静地观察周围，再邀请你一起探索新鲜事。"}'
+            )
+        )
 
 
 class FlakyExecution(FakeExecution):
@@ -170,3 +186,46 @@ def test_provider_failure_does_not_replace_persisted_entry_readiness(
     with pytest.raises(RuntimeError, match="provider unavailable"):
         adapter.reveal(_candidate(), "很高兴认识你")
     assert len(execution.requests) == 6
+
+
+def test_reveal_rejects_an_expired_total_deadline_before_calling_model() -> None:
+    execution = FakeExecution(_capabilities("openai/gpt-5.2"))
+
+    with pytest.raises(TimeoutError, match="total time budget"):
+        StructuredAdoptionNarrativeAdapter(execution).reveal(
+            _candidate(), "很高兴认识你", deadline=0.0
+        )
+
+    assert execution.requests == []
+
+
+def test_reveal_carries_a_request_timeout_budget_to_model_execution() -> None:
+    execution = FakeExecution(
+        _capabilities("openai/gpt-5.2"),
+        (
+            '{"original_name":"洛弥","suggested_name":"小洛",'
+            '"personal_story":"我喜欢先安静地观察周围，再邀请你一起探索新鲜事。"}',
+        ),
+    )
+
+    StructuredAdoptionNarrativeAdapter(execution).reveal(
+        _candidate(), "很高兴认识你"
+    )
+
+    assert execution.requests[0].timeout_seconds is not None
+    assert 0.0 < execution.requests[0].timeout_seconds <= 30.0
+
+
+def test_reveal_many_returns_at_the_absolute_deadline_even_if_a_worker_hangs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(adoption_narrative, "_REVEAL_TOTAL_TIMEOUT_SECONDS", 0.01)
+    adapter = StructuredAdoptionNarrativeAdapter(
+        SlowExecution(_capabilities("openai/gpt-5.2"))
+    )
+
+    started = monotonic()
+    with pytest.raises(TimeoutError, match="total time budget"):
+        adapter.reveal_many((_candidate(),), "很高兴认识你")
+
+    assert monotonic() - started < 0.08

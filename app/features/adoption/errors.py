@@ -45,6 +45,10 @@ class AdoptionUnavailable(AdoptionError):
     """An authoritative Adoption dependency is unavailable."""
 
 
+class AdoptionGenerationTimeout(AdoptionUnavailable):
+    """The invitation reveal exceeded its bounded user-facing deadline."""
+
+
 __all__ = (
     "AdoptionCandidateNotAccepted",
     "AdoptionCandidateSetExpired",
@@ -55,4 +59,5 @@ __all__ = (
     "AdoptionNestCapacityReached",
     "AdoptionOwnerNotFound",
     "AdoptionUnavailable",
+    "AdoptionGenerationTimeout",
 )

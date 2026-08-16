@@ -19,6 +19,9 @@ from infrastructure.godot.body_transport import (
     RuntimeIntentPayload,
     RuntimeIntentResult,
 )
+from infrastructure.godot.artifacts.species_runtime_catalog import (
+    build_species_runtime_catalog,
+)
 from infrastructure.models.adoption_narrative import (
     AdoptionStructuredModelExecution,
     StructuredAdoptionNarrativeAdapter,
@@ -67,8 +70,10 @@ def build_adoption_services(
     portraits: CandidatePortraitPort | None = None,
     nest_config: NestConfig | None = None,
     catalog: Any | None = None,
+    species_runtime: Any | None = None,
 ) -> AdoptionServices:
     catalog = catalog or load_and_configure_species_catalog()
+    species_runtime = species_runtime or build_species_runtime_catalog(catalog)
 
     def body_factory(elfie_id: str, _workspace: str) -> BodyPort | None:
         if nest_session is None:
@@ -108,6 +113,7 @@ def build_adoption_services(
         narrative=narrative,
         catalog=catalog,
         species_presentation=BundledSpeciesPresentationAdapter(catalog=catalog),
+        species_runtime=species_runtime,
     )
     return AdoptionServices(
         adoption=adoption,

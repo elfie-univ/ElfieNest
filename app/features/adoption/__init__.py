@@ -5,6 +5,7 @@ from .errors import (
     AdoptionCandidateSetExpired,
     AdoptionCapacityReached,
     AdoptionError,
+    AdoptionGenerationTimeout,
     AdoptionInvalid,
     AdoptionNestCapacityReached,
     AdoptionOwnerNotFound,
@@ -14,6 +15,7 @@ from .errors import (
 from .facade import AdoptionService
 from .models import (
     AcceptedAdoptionReservation,
+    AdoptionAppearanceControl,
     AdoptionNestCapacity,
     AdoptionOptionsResult,
     AdoptionQuota,
@@ -49,15 +51,19 @@ from .ports import (
     AdoptionPortOwnerNotFound,
     CandidatePortraitPort,
     SpeciesPresentationPort,
+    SpeciesRuntimeReadinessPort,
+    StaticSpeciesRuntimeReadiness,
 )
 
 __all__ = (
     "AcceptedAdoptionReservation",
+    "AdoptionAppearanceControl",
     "AdoptionSpecies",
     "AdoptionCandidateNotAccepted",
     "AdoptionCandidateSetExpired",
     "AdoptionCapacityReached",
     "AdoptionError",
+    "AdoptionGenerationTimeout",
     "AdoptionInvalid",
     "AdoptionNestCapacity",
     "AdoptionSpeciesImage",
@@ -88,6 +94,8 @@ __all__ = (
     "CandidateSetResult",
     "CandidatePortraitPort",
     "SpeciesPresentationPort",
+    "SpeciesRuntimeReadinessPort",
+    "StaticSpeciesRuntimeReadiness",
     "SpeciesImageKind",
     "CreateCandidateSetCommand",
     "GetAdoptionOptionsQuery",

@@ -5,6 +5,11 @@ supported_controls:
   - build
   - face
   - signature
+control_options:
+  stature: [small, standard, tall, any]
+  build: [slim, standard, round, any]
+  face: [soft, balanced, defined, any]
+  signature: [warm, marked, ears, any]
 control_ranges:
   stature: {minimum: 0.88, base: 0.98, maximum: 1.08}
   build: {minimum: 0.86, base: 0.96, maximum: 1.08}

@@ -64,6 +64,7 @@ _REQUIRED_SHAPE_CORRELATIONS = (
     "Face_CheekFullness",
     "Face_LowerFullness",
 )
+_REQUIRED_SEMANTIC_CONTROLS = ("stature", "build", "face", "signature")
 
 
 class SpeciesCatalogError(ConfigDocumentError):
@@ -255,6 +256,7 @@ def _appearance_profile(
         eye_colors=_string_tuple(document, "eye_colors"),
         nose_colors=_string_tuple(document, "nose_colors"),
         supported_controls=_string_tuple(document, "supported_controls"),
+        control_options=_control_options(document.get("control_options")),
         control_ranges=_ranges(document.get("control_ranges"), "control_ranges"),
         proportion_scales=_ranges(
             document.get("proportion_scales"), "proportion_scales", optional=True
@@ -271,13 +273,47 @@ def _appearance_profile(
     missing_shapes = set(_REQUIRED_SHAPE_CORRELATIONS).difference(
         profile.shape_correlations
     )
-    if missing_proportions or missing_shapes or "ear_droop" not in profile.distributions:
+    missing_controls = set(_REQUIRED_SEMANTIC_CONTROLS).difference(
+        profile.supported_controls
+    )
+    missing_control_ranges = set(_REQUIRED_SEMANTIC_CONTROLS).difference(
+        profile.control_ranges
+    )
+    missing_control_options = set(_REQUIRED_SEMANTIC_CONTROLS).difference(
+        profile.control_options
+    )
+    if (
+        missing_proportions
+        or missing_shapes
+        or missing_controls
+        or missing_control_ranges
+        or missing_control_options
+        or "ear_droop" not in profile.distributions
+    ):
         raise ValueError(
             f"{species_id} appearance 缺少必要控制: "
             f"proportion={sorted(missing_proportions)} "
-            f"shape={sorted(missing_shapes)} ear_droop={'ear_droop' not in profile.distributions}"
+            f"shape={sorted(missing_shapes)} "
+            f"controls={sorted(missing_controls)} "
+            f"control_ranges={sorted(missing_control_ranges)} "
+            f"control_options={sorted(missing_control_options)} "
+            f"ear_droop={'ear_droop' not in profile.distributions}"
         )
     return profile
+
+
+def _control_options(value: Any) -> dict[str, tuple[str, ...]]:
+    if not isinstance(value, Mapping):
+        raise ValueError("control_options 必须是对象")
+    result: dict[str, tuple[str, ...]] = {}
+    for control_id, raw_options in value.items():
+        if not isinstance(control_id, str) or not control_id.strip():
+            raise ValueError("control_options 包含无效控制项")
+        options = _tuple_value(raw_options, f"control_options.{control_id}")
+        if not options or len(set(options)) != len(options):
+            raise ValueError(f"control_options.{control_id} 必须是非空且不重复的数组")
+        result[control_id] = options
+    return result
 
 
 def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:

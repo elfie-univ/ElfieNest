@@ -8,15 +8,15 @@ from typing import Any, Callable, Mapping, cast
 
 from infrastructure.models.inference.token_usage import get_token_tracker
 from infrastructure.models.model_execution_config import ModelExecutionConfig
-from infrastructure.models.provider_errors import (
-    ProviderCallError,
-    classify_provider_error,
-)
 from infrastructure.models.model_execution_observations import (
     ModelCallObservation,
     ModelExecutionEventStatus,
     current_model_call_context,
     get_model_execution_observer,
+)
+from infrastructure.models.provider_errors import (
+    ProviderCallError,
+    classify_provider_error,
 )
 from infrastructure.models.providers.dispatch import (
     API_DISPATCH,
@@ -97,6 +97,7 @@ def call_llm_api(
                     else None
                 ),
                 oauth_credentials=config.oauth_credentials,
+                timeout_seconds=timeout_seconds,
             )
             args = ()
         else:
@@ -120,14 +121,13 @@ def call_llm_api(
                     if effective_request_options
                     else None
                 ),
+                timeout_seconds=timeout_seconds,
             )
-        elif effective_request_options or (
-            timeout_seconds is not None and request_profile.api_mode == "chat_completions"
-        ):
+        elif effective_request_options or timeout_seconds is not None:
             dispatch_options: dict[str, Any] = {}
             if effective_request_options:
                 dispatch_options["request_options"] = dict(effective_request_options)
-            if timeout_seconds is not None and request_profile.api_mode == "chat_completions":
+            if timeout_seconds is not None:
                 dispatch_options["timeout_seconds"] = timeout_seconds
             response_text, usage = dispatch_fn(*args, **dispatch_options)
         else:

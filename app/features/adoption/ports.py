@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Mapping, Protocol
 
 from elfie.genesis import CandidateReveal, GenesisCandidate
@@ -71,6 +72,27 @@ class SpeciesPresentationPort(Protocol):
     def read(self, species_id: str, image_kind: SpeciesImageKind) -> AdoptionSpeciesImage: ...
 
 
+class SpeciesRuntimeReadinessPort(Protocol):
+    """Expose only species packages proven usable by the active Godot runtime."""
+
+    def available_species_ids(self) -> tuple[str, ...]: ...
+
+    def is_available(self, species_id: str) -> bool: ...
+
+
+@dataclass(frozen=True)
+class StaticSpeciesRuntimeReadiness:
+    """Small value adapter used by the composition root and focused tests."""
+
+    species_ids: tuple[str, ...]
+
+    def available_species_ids(self) -> tuple[str, ...]:
+        return self.species_ids
+
+    def is_available(self, species_id: str) -> bool:
+        return species_id in self.species_ids
+
+
 class AdoptionNarrativePort(Protocol):
     """Strong-model boundary for post-acceptance names and personal stories."""
 
@@ -99,4 +121,6 @@ __all__ = (
     "AdoptionPortError",
     "AdoptionPortOwnerNotFound",
     "SpeciesPresentationPort",
+    "SpeciesRuntimeReadinessPort",
+    "StaticSpeciesRuntimeReadiness",
 )

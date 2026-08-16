@@ -17,6 +17,7 @@ AdoptionAvailability = Literal[
     "nest_full",
     "member_quota_full",
     "model_unavailable",
+    "species_unavailable",
 ]
 
 
@@ -47,6 +48,12 @@ class AdoptionSpeciesImages:
 
 
 @dataclass(frozen=True)
+class AdoptionAppearanceControl:
+    control_id: str
+    options: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class AdoptionSpecies:
     """Stable metadata projected from the immutable species registry."""
 
@@ -58,6 +65,7 @@ class AdoptionSpecies:
     scene_id: str
     sort_order: int
     presentation_images: AdoptionSpeciesImages
+    appearance_controls: tuple[AdoptionAppearanceControl, ...]
 
 
 SpeciesImageKind = Literal["headshot", "full-body"]
@@ -183,6 +191,7 @@ class AcceptedAdoptionReservation:
 __all__ = (
     "AcceptedAdoptionReservation",
     "AdoptionSpecies",
+    "AdoptionAppearanceControl",
     "AdoptionOptionsResult",
     "AdoptionAvailability",
     "AdoptionNestCapacity",
