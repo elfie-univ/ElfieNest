@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "task": "persist task-closure skill and pre-submit gate",
+  "contract_refs": ["docs/developer/contracts/repository-governance.md"],
+  "scope": [
+    ".agents/skills/git-submit-and-push/SKILL.md",
+    ".agents/skills/task-closure/**",
+    "AGENTS.md",
+    "docs/developer/decisions/0022-evidence-backed-task-closure.md",
+    "docs/developer/decisions/index.md",
+    "docs/developer/engineering/testing.md",
+    "docs/zh/developer/decisions/0022-evidence-backed-task-closure.md",
+    "docs/zh/developer/decisions/index.md",
+    "docs/zh/developer/engineering/testing.md",
+    "scripts/README.md",
+    "scripts/README_zh.md",
+    "scripts/architecture/check_governance_change.py",
+    "scripts/check_task_closure.py",
+    "scripts/pre_submit_gate.sh",
+    "test/scripts/test_check_task_closure.py",
+    "test/architecture/test_architecture_governance.py",
+    "task-closure.json"
+  ],
+  "conformance": {
+    "rows": [],
+    "reason": "This is a repository-governance gate change; it does not implement a product contract row."
+  },
+  "rows": [
+    {
+      "id": "REQ-001",
+      "requirement": "Persist a reusable task-closure skill with strict completion states and evidence rules.",
+      "status": "complete",
+      "implementation": [".agents/skills/task-closure/SKILL.md"],
+      "automated_tests": ["Skill structural validator"],
+      "runtime_scenarios": ["A future implementation task can create and validate task-closure.json before commit."],
+      "platform_conditions": ["Project skill discovery through .agents/skills"],
+      "evidence": [
+        "command: /usr/bin/python3 skill-creator quick validation",
+        "artifact: .agents/skills/task-closure/SKILL.md",
+        "review: workflow requires complete evidence or explicit blocked status"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "REQ-002",
+      "requirement": "Reject incomplete matrices, unclassified changes, broad scopes, and open listed Conformance rows.",
+      "status": "complete",
+      "implementation": ["scripts/check_task_closure.py"],
+      "automated_tests": ["test/scripts/test_check_task_closure.py"],
+      "runtime_scenarios": ["Run the checker against valid, incomplete, broad-scope, and open-Conformance fixtures."],
+      "platform_conditions": ["CPython 3.9.25 in the repository environment"],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest test/scripts/test_check_task_closure.py",
+        "artifact: scripts/check_task_closure.py",
+        "review: complete mode requires empty residuals and replayable evidence"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "REQ-003",
+      "requirement": "Make the pre-submit gate require and execute the closure check before technical quality checks.",
+      "status": "complete",
+      "implementation": ["scripts/pre_submit_gate.sh", ".agents/skills/git-submit-and-push/SKILL.md"],
+      "automated_tests": ["Pre-submit gate help/argument validation and closure checker integration"],
+      "runtime_scenarios": ["A missing or incomplete task-closure.json stops the gate before commit-quality checks."],
+      "platform_conditions": ["Repository pre-submit workflow on the supported contributor host"],
+      "evidence": [
+        "command: bash scripts/pre_submit_gate.sh --help",
+        "command: bash scripts/pre_submit_gate.sh --base-sha 83fad247 --closure-file task-closure.json",
+        "artifact: scripts/pre_submit_gate.sh requires --closure-file",
+        "review: git-submit-and-push now passes the closure file"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "REQ-004",
+      "requirement": "Make the workflow discoverable in agent rules and bilingual developer testing documentation.",
+      "status": "complete",
+      "implementation": ["AGENTS.md", "docs/developer/engineering/testing.md", "docs/zh/developer/engineering/testing.md", "scripts/README.md", "scripts/README_zh.md"],
+      "automated_tests": ["Architecture/documentation structure checks"],
+      "runtime_scenarios": ["A new task follows the documented matrix and final gate commands."],
+      "platform_conditions": ["English and Chinese developer documentation mirrors"],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest test/architecture/test_documentation_structure.py",
+        "artifact: AGENTS.md and bilingual testing documentation",
+        "review: no completion claim is allowed while a required row is open"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "REQ-005",
+      "requirement": "Document the two-phase bootstrap required when changing the immutable-base governance guard itself.",
+      "status": "complete",
+      "implementation": [".agents/skills/task-closure/SKILL.md"],
+      "automated_tests": ["Skill structural validator"],
+      "runtime_scenarios": ["A gate change is first classified by a governance-only checkpoint, then verified as a protected implementation change."],
+      "platform_conditions": ["Immutable-base repository governance checker"],
+      "evidence": [
+        "command: .venv/bin/python3 /Users/Lendfating/.codex/skills/.system/skill-creator/scripts/quick_validate.py .agents/skills/task-closure",
+        "artifact: task-closure skill Bootstrapping or changing the gate section",
+        "review: mixed governance/implementation changes remain blocked rather than bypassing the guard"
+      ],
+      "residuals": [],
+      "blockers": []
+    }
+  ]
+}

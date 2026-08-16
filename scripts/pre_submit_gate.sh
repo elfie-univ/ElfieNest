@@ -7,13 +7,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 BASE_SHA=""
+CLOSURE_FILE=""
 CURRENT_STEP="argument validation"
 TEMP_ROOT=""
 CANDIDATE_ROOT="$PROJECT_ROOT"
 
 usage() {
     cat <<'EOF'
-Usage: scripts/pre_submit_gate.sh [--base-sha COMMIT]
+Usage: scripts/pre_submit_gate.sh --closure-file PATH [--base-sha COMMIT]
 
 Run every local check required before committing or pushing a change. The base
 commit is used by the immutable architecture ratchets; when omitted, the
@@ -50,6 +51,15 @@ while [[ $# -gt 0 ]]; do
             BASE_SHA="${1#*=}"
             shift
             ;;
+        --closure-file)
+            [[ $# -ge 2 ]] || fail "--closure-file requires a repository-relative path"
+            CLOSURE_FILE="$2"
+            shift 2
+            ;;
+        --closure-file=*)
+            CLOSURE_FILE="${1#*=}"
+            shift
+            ;;
         --help|-h)
             usage
             exit 0
@@ -59,6 +69,16 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+[[ -n "$CLOSURE_FILE" ]] || \
+    fail "--closure-file is required; create the task acceptance matrix first"
+case "$CLOSURE_FILE" in
+    /*|../*|*/../*|*/..)
+        fail "--closure-file must stay inside the repository"
+        ;;
+esac
+[[ -f "$PROJECT_ROOT/$CLOSURE_FILE" ]] || \
+    fail "task closure file does not exist: $CLOSURE_FILE"
 
 CURRENT_STEP="resolving the immutable base commit"
 if [[ -z "$BASE_SHA" ]]; then
@@ -277,6 +297,11 @@ prepare_candidate_tree
 
 CURRENT_STEP="running immutable-base architecture governance checks"
 run_candidate_architecture_gate
+
+run_step "checking the task closure matrix" \
+    "$PYTHON_BIN" "$CANDIDATE_ROOT/scripts/check_task_closure.py" \
+    --file "$CANDIDATE_ROOT/$CLOSURE_FILE" \
+    --base-sha "$BASE_SHA" --mode complete
 
 run_step "checking the dependency lock" \
     "$UV_BIN" lock --check

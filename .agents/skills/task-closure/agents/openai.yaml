@@ -1,0 +1,4 @@
+interface:
+  display_name: "Task Closure"
+  short_description: "Require evidence before declaring tasks complete"
+  default_prompt: "Use $task-closure to execute this task to a verified, evidence-backed closure."
