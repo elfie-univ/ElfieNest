@@ -5,11 +5,15 @@ import { useTranslation } from "react-i18next"
 
 import {
   addProviderModel,
+  cleanupObsoleteProviderModels,
+  listObsoleteProviderModels,
+  probeProviderModelCapabilities,
   refreshProviderModels,
   saveProviderModels,
   updateProviderModel,
   type ProviderConnection,
   type ProviderModel,
+  type ProviderObsoleteModel,
 } from "../api/owner-providers"
 import { ApiError } from "../api/http"
 import { ManageDialog } from "./ManageDialog"
@@ -60,6 +64,9 @@ export function ProviderModelsDialog({
   const [manualContext, setManualContext] = useState("")
   const [manualOutput, setManualOutput] = useState("")
   const [pending, setPending] = useState(false)
+  const [obsoleteModels, setObsoleteModels] = useState<readonly ProviderObsoleteModel[]>([])
+  const [showObsolete, setShowObsolete] = useState(false)
+  const [selectedObsolete, setSelectedObsolete] = useState<readonly string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const { show } = useToast()
@@ -76,9 +83,16 @@ export function ProviderModelsDialog({
     setManualOutput("")
     setError(null)
     setNotice(connection.model_refresh?.message ?? null)
+    setObsoleteModels([])
+    setShowObsolete(false)
+    setSelectedObsolete([])
   }, [connection, open])
 
   if (!connection) return null
+
+  const visibleModels = connection.models.filter((model) => model.discovery_state !== "source_missing")
+  const normalModels = visibleModels.filter((model) => !model.hidden)
+  const otherModels = visibleModels.filter((model) => model.hidden)
 
   const refresh = async (): Promise<void> => {
     setPending(true)
@@ -97,14 +111,14 @@ export function ProviderModelsDialog({
   }
 
   const beginEditing = (): void => {
-    setDrafts(toEditableModels(connection.models.filter((model) => model.discovery_state !== "source_missing")))
+    setDrafts(toEditableModels(visibleModels))
     setEditing(true)
     setAddingManual(false)
     setError(null)
   }
 
   const cancelEditing = (): void => {
-    setDrafts(toEditableModels(connection.models.filter((model) => model.discovery_state !== "source_missing")))
+    setDrafts(toEditableModels(visibleModels))
     setEditing(false)
     setError(null)
   }
@@ -173,6 +187,56 @@ export function ProviderModelsDialog({
     setDrafts((current) => current.map((draft) => draft.original_id === modelId ? { ...draft, ...changes } : draft))
   }
 
+  const loadObsolete = async (): Promise<void> => {
+    setPending(true)
+    try {
+      setObsoleteModels(await listObsoleteProviderModels(connection.connection_id))
+      setSelectedObsolete([])
+      setShowObsolete(true)
+      setError(null)
+    } catch (reason: unknown) {
+      setError(reason instanceof ApiError ? reason.message : t("providerModels.errors.load"))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const cleanupObsolete = async (): Promise<void> => {
+    if (selectedObsolete.length === 0) return
+    setPending(true)
+    try {
+      await cleanupObsoleteProviderModels(connection.connection_id, selectedObsolete, csrfToken)
+      show({ kind: "success", message: t("providerModels.notices.cleaned") })
+      setSelectedObsolete([])
+      setShowObsolete(false)
+      setError(null)
+      await onChanged()
+    } catch (reason: unknown) {
+      setError(reason instanceof ApiError ? reason.message : t("providerModels.errors.cleanup"))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const probeCapabilities = async (model: ProviderModel): Promise<void> => {
+    setPending(true)
+    try {
+      await probeProviderModelCapabilities(
+        connection.connection_id,
+        model.id,
+        ["tools", "vision", "reasoning", "structured_output"],
+        csrfToken,
+      )
+      show({ kind: "success", message: t("providerModels.notices.capabilitiesProbed") })
+      setError(null)
+      await onChanged()
+    } catch (reason: unknown) {
+      setError(reason instanceof ApiError ? reason.message : t("providerModels.errors.probe"))
+    } finally {
+      setPending(false)
+    }
+  }
+
   return <ManageDialog
     contentClassName="provider-models-dialog"
     onOpenChange={onOpenChange}
@@ -183,6 +247,7 @@ export function ProviderModelsDialog({
     {notice ? <Notice message={notice} /> : null}
     <div className="provider-models-toolbar manage-actions">
       <RefreshButton disabled={pending} label={t("providerModels.actions.refresh")} onClick={() => { void refresh() }} />
+      <Button disabled={pending} onClick={() => { void loadObsolete() }} type="button" variant="outline">{t("providerModels.actions.obsolete")}</Button>
       <Button disabled={pending} onClick={() => { setAddingManual((value) => !value); setEditing(false) }} type="button">{t("providerModels.actions.addManual")}</Button>
       {editing
         ? <>
@@ -198,7 +263,37 @@ export function ProviderModelsDialog({
       <Input aria-label={t("providerModels.fields.maxOutput")} min={1} onChange={(event) => setManualOutput(event.target.value)} placeholder={t("providerModels.fields.maxOutput")} type="number" value={manualOutput} />
       <Button disabled={pending} type="submit">{t("providerModels.actions.add")}</Button>
     </form> : null}
-    {connection.models.filter((model) => model.discovery_state !== "source_missing").length === 0 ? <p className="empty-state">{t("providerModels.empty")}</p> : <div className="provider-model-table-wrap">
+    {showObsolete ? <section aria-label={t("providerModels.labels.obsolete")} className="provider-obsolete-models">
+      <div className="provider-obsolete-models-header">
+        <strong>{t("providerModels.labels.obsolete")}</strong>
+        <Button disabled={pending || selectedObsolete.length === 0} onClick={() => { void cleanupObsolete() }} type="button" variant="outline">{t("providerModels.actions.cleanup")}</Button>
+      </div>
+      {obsoleteModels.length === 0 ? <p className="empty-state">{t("providerModels.emptyObsolete")}</p> : <div className="provider-obsolete-model-list">
+        {obsoleteModels.map((item) => <label className="provider-obsolete-model" key={item.model.id}>
+          <input
+            checked={selectedObsolete.includes(item.model.id)}
+            disabled={!item.eligible || pending}
+            onChange={(event) => setSelectedObsolete((current) => event.target.checked
+              ? [...current, item.model.id]
+              : current.filter((modelId) => modelId !== item.model.id))}
+            type="checkbox"
+          />
+          <span><strong>{item.model.display_name}</strong> <code>{item.model.id}</code></span>
+          <span>{item.reason}</span>
+        </label>)}
+      </div>}
+    </section> : null}
+    {otherModels.length > 0 ? <details className="provider-other-models">
+      <summary>{t("providerModels.labels.otherDiscovered", { count: otherModels.length })}</summary>
+      <div className="provider-other-model-list">
+        {otherModels.map((model) => <div className="provider-other-model" key={model.id}>
+          <span className="provider-other-model__name"><strong>{model.display_name}</strong> <code>{model.id}</code></span>
+          <span className="provider-other-model__meta">{t(sourceKey(model.source))}</span>
+          <Button disabled={pending} onClick={() => { void toggleEnabled(model, true) }} size="sm" type="button">{t("providerModels.actions.enable")}</Button>
+        </div>)}
+      </div>
+    </details> : null}
+    {normalModels.length === 0 ? <p className="empty-state">{otherModels.length > 0 ? t("providerModels.emptyEnabled") : t("providerModels.empty")}</p> : <div className="provider-model-table-wrap">
       <Table aria-label={t("providerModels.labels.list", { name: connection.alias })} className="provider-model-table">
         <TableHeader><TableRow>
           <TableHead>{t("providerModels.columns.displayName")}</TableHead>
@@ -209,8 +304,8 @@ export function ProviderModelsDialog({
           <TableHead>{t("providerModels.columns.status")}</TableHead>
           <TableHead>{t("providerModels.columns.actions")}</TableHead>
         </TableRow></TableHeader>
-        <TableBody>{connection.models.filter((model) => model.discovery_state !== "source_missing").map((model, index) => {
-          const draft = drafts[index] ?? toEditableModel(model)
+        <TableBody>{normalModels.map((model) => {
+          const draft = drafts.find((item) => item.original_id === model.id) ?? toEditableModel(model)
           const row = editing ? draft : toEditableModel(model)
           return <TableRow key={model.id}>
             <TableCell>{editing ? <Input aria-label={`${t("providerModels.fields.displayName")} ${model.display_name}`} onChange={(event) => updateDraft(model.id, { display_name: event.target.value })} value={row.display_name} /> : <strong>{model.display_name}</strong>}</TableCell>
@@ -227,7 +322,10 @@ export function ProviderModelsDialog({
               <CapabilityCell label={t("providerModels.labels.reasoning")} onChange={editing ? (value) => updateDraft(model.id, { supports_reasoning: value }) : undefined} value={editing ? row.supports_reasoning : model.supports_reasoning} />
             </div></TableCell>
             <TableCell><ModelVerification model={model} /></TableCell>
-            <TableCell><Button disabled={pending} onClick={() => { void toggleEnabled(model, row.hidden) }} size="sm" type="button" variant="outline">{row.hidden ? t("providerModels.actions.enable") : t("providerModels.actions.disable")}</Button></TableCell>
+            <TableCell><div className="provider-model-row-actions">
+              <Button disabled={pending} onClick={() => { void probeCapabilities(model) }} size="sm" type="button" variant="outline">{t("providerModels.actions.probe")}</Button>
+              <Button disabled={pending} onClick={() => { void toggleEnabled(model, row.hidden) }} size="sm" type="button" variant="outline">{row.hidden ? t("providerModels.actions.enable") : t("providerModels.actions.disable")}</Button>
+            </div></TableCell>
           </TableRow>
         })}</TableBody>
       </Table>

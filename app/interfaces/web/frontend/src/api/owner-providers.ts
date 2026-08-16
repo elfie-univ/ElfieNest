@@ -52,6 +52,34 @@ const ProviderModelSchema = z.object({
   verification: VerificationSchema,
 })
 
+const CapabilityProbeResultSchema = z.object({
+  capability: z.enum(["tools", "vision", "reasoning", "structured_output"]),
+  state: z.enum(["supported", "unsupported", "unknown"]),
+  evidence: z.enum(["declared", "declared_by_user", "accepted", "verified", "unknown"]),
+  status: z.enum(["passed", "failed"]),
+  latency_ms: z.number(),
+  error: z.string().nullable(),
+  error_code: z.string().nullable(),
+  error_scope: z.string().nullable(),
+  error_category: z.string().nullable(),
+})
+
+const ProviderCapabilityProbeSchema = z.object({
+  reference: z.string(),
+  results: z.array(CapabilityProbeResultSchema),
+})
+
+const ProviderObsoleteModelSchema = z.object({
+  model: ProviderModelSchema,
+  eligible: z.boolean(),
+  reason: z.string(),
+  last_production_at: z.string().nullable(),
+})
+
+const ProviderObsoleteModelsSchema = z.object({
+  items: z.array(ProviderObsoleteModelSchema),
+})
+
 const ProviderProductSchema = z.object({
   catalog_id: z.string(),
   name: z.string(),
@@ -176,6 +204,8 @@ export type ProviderConnection = z.infer<typeof ProviderConnectionSchema>
 export type ProviderOAuthLoginStart = z.infer<typeof ProviderOAuthLoginStartSchema>
 export type ProviderOAuthLoginStatus = z.infer<typeof ProviderOAuthLoginStatusSchema>
 export type ProviderModel = z.infer<typeof ProviderModelSchema>
+export type ProviderCapabilityProbe = z.infer<typeof CapabilityProbeResultSchema>
+export type ProviderObsoleteModel = z.infer<typeof ProviderObsoleteModelSchema>
 export type ModelMatrix = z.infer<typeof ModelMatrixSchema>
 export type ProviderModelDraft = {
   readonly id: string
@@ -360,6 +390,41 @@ export async function updateProviderModel(
     "PATCH",
     csrfToken,
     update,
+  ))
+}
+
+export async function probeProviderModelCapabilities(
+  connectionId: string,
+  modelId: string,
+  capabilities: readonly ("tools" | "vision" | "reasoning" | "structured_output")[],
+  csrfToken: string,
+): Promise<z.infer<typeof ProviderCapabilityProbeSchema>> {
+  return ProviderCapabilityProbeSchema.parse(await ownerWrite(
+    `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}/models/${encodeURIComponent(modelId)}/capability-probes`,
+    "POST",
+    csrfToken,
+    { capabilities },
+  ))
+}
+
+export async function listObsoleteProviderModels(
+  connectionId: string,
+): Promise<readonly ProviderObsoleteModel[]> {
+  return ProviderObsoleteModelsSchema.parse(await ownerRead(
+    `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}/models/obsolete`,
+  )).items
+}
+
+export async function cleanupObsoleteProviderModels(
+  connectionId: string,
+  modelIds: readonly string[],
+  csrfToken: string,
+): Promise<ProviderConnection> {
+  return ProviderConnectionSchema.parse(await ownerWrite(
+    `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}/models/obsolete/cleanup`,
+    "POST",
+    csrfToken,
+    { model_ids: modelIds },
   ))
 }
 

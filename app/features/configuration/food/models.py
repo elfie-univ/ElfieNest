@@ -31,6 +31,7 @@ class CreateFoodPackageCommand:
     roles: FoodRolesInput
     visibility_mode: FoodVisibilityMode
     visible_user_ids: tuple[int, ...]
+    required_roles: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,7 @@ class UpdateFoodPackageCommand:
     roles: FoodRolesInput
     visibility_mode: FoodVisibilityMode
     visible_user_ids: tuple[int, ...]
+    required_roles: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -108,6 +110,7 @@ class FoodPackageResult:
     health: str
     locality: str
     latest_evidence_at: str | None
+    required_roles: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -8,11 +8,13 @@ from typing import FrozenSet, Literal, Mapping
 from .port_models import (
     ApiMode,
     AuthType,
+    CapabilityName,
     ConnectionMethod,
     DiscoveryStrategy,
     LatencyClass,
     LocalProviderState,
     ModelSource,
+    StoredCapabilityProbeResult,
     ValidationMode,
     ValidationStatus,
 )
@@ -210,6 +212,24 @@ class DeleteProviderModelCommand:
 
 
 @dataclass(frozen=True)
+class ProbeProviderModelCapabilitiesCommand:
+    connection_id: str
+    model_id: str
+    capabilities: tuple[CapabilityName, ...] = ()
+
+
+@dataclass(frozen=True)
+class ListObsoleteProviderModelsQuery:
+    connection_id: str
+
+
+@dataclass(frozen=True)
+class CleanupObsoleteProviderModelsCommand:
+    connection_id: str
+    model_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class GetProviderModelMatrixQuery:
     as_of: str | None = None
     run_id: str | None = None
@@ -305,6 +325,20 @@ class ProviderModelRefreshResult:
     checked_at: str
     message: str | None
     models: tuple[ProviderModelResult, ...]
+
+
+@dataclass(frozen=True)
+class ProviderCapabilityProbeResult:
+    reference: str
+    results: tuple[StoredCapabilityProbeResult, ...]
+
+
+@dataclass(frozen=True)
+class ProviderObsoleteModelResult:
+    model: ProviderModelResult
+    eligible: bool
+    reason: str
+    last_production_at: str | None = None
 
 
 @dataclass(frozen=True)

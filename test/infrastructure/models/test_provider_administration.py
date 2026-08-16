@@ -17,6 +17,14 @@ from infrastructure.models.providers.discovery import (
     merge_refreshed_models,
 )
 from infrastructure.persistence.model_catalog import load_model_identities
+from infrastructure.models.validation.provider_capability_probes import (
+    CapabilityProbeResult,
+)
+from infrastructure.models.validation.provider_validation import (
+    DiscoveredModel,
+    ModelDiscoveryResult,
+)
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 from test.support.provider import provider_models_adapter
 
 
@@ -62,6 +70,97 @@ def test_refresh_keeps_missing_discovered_models_until_two_complete_omissions() 
     assert missing.available is False
 
 
+def test_authority_change_hides_old_inventory_but_preserves_serving_endpoint() -> None:
+    existing = (
+        ProviderModelRecord("old-platform-model", source="official"),
+        ProviderModelRecord("serving-model", source="official"),
+        ProviderModelRecord("manual-model", source="manual"),
+    )
+
+    merged = merge_refreshed_models(
+        existing,
+        (ProviderModelRecord("new-curated-model", source="official"),),
+        complete=True,
+        authority_changed=True,
+        preserve_model_ids=("serving-model",),
+    )
+
+    old = next(item for item in merged if item.endpoint_model_id == "old-platform-model")
+    serving = next(item for item in merged if item.endpoint_model_id == "serving-model")
+    manual = next(item for item in merged if item.endpoint_model_id == "manual-model")
+    assert old.discovery_state == "source_missing"
+    assert serving.discovery_state == "present"
+    assert manual.discovery_state == "present"
+
+
+def test_live_refresh_retains_broad_inventory_as_hidden_other_models(tmp_path) -> None:
+    adapter = provider_models_adapter(
+        tmp_path / "providers.yaml",
+        tmp_path / "auth.env",
+    )
+    product = adapter.get_product("openai_api")
+    assert product is not None
+    curated_model = load_provider_catalog().products[product.catalog_id].bundled_models[0]
+    connection = adapter.create_connection(
+        StoredProviderConnection(
+            connection_id="",
+            catalog_id=product.catalog_id,
+            alias=product.name,
+            api_base=product.api_base,
+            api_mode=product.api_mode,
+            auth_type=product.auth_type,
+            credential_ref="",
+            models=(
+                StoredProviderModel(
+                    "old-platform-model",
+                    "Old platform model",
+                    source="official",
+                    consecutive_missing=1,
+                ),
+            ),
+        ),
+        None,
+    )
+    discovery = ModelDiscoveryResult(
+        provider=connection.connection_id,
+        models=(
+            DiscoveredModel(
+                connection.connection_id,
+                curated_model,
+                source="provider_models",
+                curated=True,
+            ),
+            DiscoveredModel(
+                connection.connection_id,
+                "other-platform-model",
+                source="provider_models",
+            ),
+        ),
+        source="provider_models",
+        complete=True,
+        authoritative=True,
+    )
+
+    with patch.object(type(adapter), "_discover_with_slot", return_value=discovery):
+        refreshed = asyncio.run(adapter.refresh_models(connection))
+
+    assert [item.model_id for item in refreshed.models if not item.hidden] == [curated_model]
+    other = next(
+        item
+        for item in refreshed.models
+        if item.model_id == "other-platform-model"
+    )
+    assert other.hidden is True
+    assert other.discovery_state == "present"
+    assert refreshed.persisted_models is not None
+    stale = next(
+        item
+        for item in refreshed.persisted_models
+        if item.model_id == "old-platform-model"
+    )
+    assert stale.discovery_state == "source_missing"
+
+
 def test_manual_model_does_not_inherit_capabilities_from_canonical_identity(
     tmp_path,
 ) -> None:
@@ -79,6 +178,102 @@ def test_manual_model_does_not_inherit_capabilities_from_canonical_identity(
     assert prepared.supports_reasoning is None
 
 
+def test_capability_probe_persists_endpoint_specific_evidence(tmp_path) -> None:
+    adapter = provider_models_adapter(
+        tmp_path / "providers.yaml",
+        tmp_path / "auth.env",
+    )
+    connection = adapter.create_connection(
+        StoredProviderConnection(
+            connection_id="",
+            catalog_id="custom_openai",
+            alias="Gateway",
+            api_base="https://gateway.example/v1",
+            api_mode="chat_completions",
+            auth_type="bearer",
+            credential_ref="",
+            models=(StoredProviderModel("model-a", "Model A"),),
+        ),
+        None,
+    )
+    with patch(
+        "infrastructure.models.provider_administration.run_capability_probes",
+        return_value=(
+            CapabilityProbeResult(
+                "tools",
+                "supported",
+                "verified",
+                "passed",
+                12.0,
+            ),
+        ),
+    ):
+        results = asyncio.run(
+            adapter.probe_capabilities(
+                f"{connection.connection_id}/model-a",
+                ("tools",),
+            )
+        )
+
+    assert results[0].evidence == "verified"
+    refreshed = adapter.get_connection(connection.connection_id)
+    assert refreshed is not None
+    model = refreshed.models[0]
+    assert model.supports_tools is True
+    assert model.capability_evidence["tools"] == "verified"
+
+    with patch(
+        "infrastructure.models.provider_administration.run_capability_probes",
+        side_effect=AssertionError("verified capability must not be re-probed"),
+    ):
+        assert asyncio.run(
+            adapter.probe_capabilities(
+                f"{connection.connection_id}/model-a",
+                ("tools",),
+            )
+        ) == ()
+
+
+def test_source_missing_model_is_listed_as_cleanup_candidate_after_retention(
+    tmp_path,
+) -> None:
+    adapter = provider_models_adapter(
+        tmp_path / "providers.yaml",
+        tmp_path / "auth.env",
+    )
+    connection = adapter.create_connection(
+        StoredProviderConnection(
+            connection_id="",
+            catalog_id="custom_openai",
+            alias="Gateway",
+            api_base="https://gateway.example/v1",
+            api_mode="chat_completions",
+            auth_type="bearer",
+            credential_ref="",
+            models=(
+                StoredProviderModel(
+                    "retired-model",
+                    "Retired model",
+                    source="remote_catalog",
+                    discovery_state="source_missing",
+                    consecutive_missing=2,
+                    last_seen_at="2025-01-01T00:00:00+00:00",
+                ),
+            ),
+        ),
+        None,
+    )
+
+    candidates = adapter.list_obsolete_models(connection.connection_id)
+
+    assert len(candidates) == 1
+    assert candidates[0].eligible is True
+    adapter.delete_obsolete_model(connection.connection_id, "retired-model")
+    refreshed = adapter.get_connection(connection.connection_id)
+    assert refreshed is not None
+    assert refreshed.models == ()
+
+
 def test_bundled_endpoint_metadata_is_not_shared_across_providers() -> None:
     identity_catalog = load_model_identities()
     openai = bundled_catalog_models(
@@ -90,6 +285,7 @@ def test_bundled_endpoint_metadata_is_not_shared_across_providers() -> None:
 
     assert openai.context_window_tokens == 128000
     assert openai.supports_vision is True
+    assert openai.capability_evidence["vision"] == "declared"
     assert custom.context_window_tokens is None
     assert custom.supports_vision is None
 

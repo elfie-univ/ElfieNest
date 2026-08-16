@@ -23,6 +23,7 @@ CapabilityState = Literal["supported", "unsupported", "unknown"]
 CapabilityEvidence = Literal[
     "declared", "declared_by_user", "accepted", "verified", "unknown"
 ]
+CapabilityName = Literal["tools", "vision", "reasoning", "structured_output"]
 LatencyClass = Literal["fast", "normal", "slow"]
 LocalProviderState = Literal[
     "absent",
@@ -177,6 +178,27 @@ class StoredModelVerification:
 
 
 @dataclass(frozen=True)
+class StoredCapabilityProbeResult:
+    capability: CapabilityName
+    state: CapabilityState
+    evidence: CapabilityEvidence
+    status: Literal["passed", "failed"]
+    latency_ms: float
+    error: str | None = None
+    error_code: str | None = None
+    error_scope: str | None = None
+    error_category: str | None = None
+
+
+@dataclass(frozen=True)
+class StoredObsoleteModel:
+    model: StoredProviderModel
+    eligible: bool
+    reason: str
+    last_production_at: str | None = None
+
+
+@dataclass(frozen=True)
 class StoredEndpointCapability:
     name: Literal["tools", "vision", "reasoning", "structured_output"]
     state: CapabilityState
@@ -198,6 +220,9 @@ class StoredModelAvailability:
     serving_food_ids: tuple[str, ...]
     serving_roles: tuple[str, ...]
     capabilities: tuple[StoredEndpointCapability, ...]
+    reachability_status: AvailabilityStatus = "unknown"
+    reachability_observed_at: str | None = None
+    reachability_expires_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -302,4 +327,5 @@ __all__ = tuple(name for name in globals() if name.startswith("Stored")) + (
     "ModelSource",
     "ValidationMode",
     "ValidationStatus",
+    "CapabilityName",
 )

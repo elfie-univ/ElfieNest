@@ -3,6 +3,7 @@ import { z } from "zod"
 import { ownerRead, ownerWrite } from "../http"
 
 const AssignmentSchema = z.object({ model: z.string() }).strict()
+const RequiredRoleSchema = z.enum(["reasoning", "vision", "tool"])
 const FoodRolesSchema = z.object({
   primary: AssignmentSchema.nullable(),
   reasoning: AssignmentSchema.nullable(),
@@ -23,6 +24,7 @@ export const FoodPackageSchema = z.object({
   health: z.string(),
   locality: z.string(),
   latest_evidence_at: z.string().nullable(),
+  required_roles: z.array(RequiredRoleSchema).optional(),
 }).strict()
 
 export const FoodCatalogSchema = z.object({
@@ -69,6 +71,7 @@ export type FoodCatalog = z.infer<typeof FoodCatalogSchema>
 export type FoodPreview = z.infer<typeof FoodPreviewSchema>
 export type FoodPackageDraft = Pick<FoodPackage, "display_name" | "enabled" | "roles" | "visibility_mode"> & {
   readonly visible_user_ids: readonly number[]
+  readonly required_roles?: readonly z.infer<typeof RequiredRoleSchema>[]
 }
 
 const COLLECTION_PATH = "/api/v1/admin/food-packages"

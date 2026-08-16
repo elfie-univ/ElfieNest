@@ -34,6 +34,10 @@ class DiscoveredModel:
     name: str
     source: str = "api"
     display_name: str = ""
+    # ``True`` means the live ID is also present in the product-maintained
+    # core list.  It is an inventory/display hint only; it does not assert
+    # that the endpoint supports any capability.
+    curated: bool = False
 
     @property
     def model_id(self) -> str:
@@ -58,6 +62,7 @@ class ModelDiscoveryResult:
     complete: bool
     authoritative: bool
     error: str | None = None
+    error_code: str | None = None
 
 
 ModelCaller = Callable[
@@ -211,6 +216,12 @@ def discover_provider_models_result(
         if payload.get("has_more") is True or payload.get("next_cursor"):
             discovery_error = RuntimeError("模型清单分页未完整读取")
             names = []
+
+    # Keep the complete live inventory, but mark the product-maintained core
+    # IDs so the administration layer can show those by default and put the
+    # rest in a collapsed "other discovered" section.  The raw /models list
+    # is therefore useful without flooding the normal product UI or requiring
+    # the user to type every non-core ID again.
     # An authenticated, complete empty response is an authoritative empty
     # entitlement.  Falling back to configured IDs here would falsely turn a
     # recommendation into an account-owned model.
@@ -244,7 +255,9 @@ def discover_provider_models_result(
                 f"{discovery_error}。该 Provider 可能不支持 /models，"
                 "Please manually enter model ID in Provider configuration"
             ),
+            error_code=None,
         )
+    curated_ids = set(_bundled_model_names(provider, profile))
     return ModelDiscoveryResult(
         provider_id,
         tuple(
@@ -253,6 +266,7 @@ def discover_provider_models_result(
                 name,
                 source="ollama" if api_mode == "ollama" else "provider_models",
                 display_name=name,
+                curated=name in curated_ids,
             )
             for name in sorted(set(names))
         ),

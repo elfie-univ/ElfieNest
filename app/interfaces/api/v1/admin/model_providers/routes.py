@@ -14,6 +14,7 @@ from app.features.configuration import (
     BenchmarkCombination,
     BenchmarkProviderModelsCommand,
     ChangeProviderConnectionLifecycleCommand,
+    CleanupObsoleteProviderModelsCommand,
     CompleteProviderOAuthLoginCommand,
     ConnectionUpdateField,
     CreateProviderConnectionCommand,
@@ -23,10 +24,12 @@ from app.features.configuration import (
     InspectLocalProviderQuery,
     InstallLocalProviderCommand,
     LifecycleAction,
+    ListObsoleteProviderModelsQuery,
     ListProviderConnectionsQuery,
     ListProviderProductsQuery,
     LocalProviderStatusResult,
     ModelUpdateField,
+    ProbeProviderModelCapabilitiesCommand,
     ProviderAvailabilityPort,
     ProviderConnectionNotFound,
     ProviderModelInput,
@@ -65,6 +68,9 @@ from .models import (
     LocalProviderTaskResponse,
     ModelMatrixResponse,
     ModelRefreshResponse,
+    ProviderCapabilityProbeItemResponse,
+    ProviderCapabilityProbeRequest,
+    ProviderCapabilityProbeResponse,
     ProviderConnectionCreateRequest,
     ProviderConnectionPatchRequest,
     ProviderConnectionResponse,
@@ -79,6 +85,9 @@ from .models import (
     ProviderOAuthLoginStartRequest,
     ProviderOAuthLoginStartResponse,
     ProviderOAuthLoginStatusResponse,
+    ProviderObsoleteCleanupRequest,
+    ProviderObsoleteModelResponse,
+    ProviderObsoleteModelsResponse,
     ProviderProductResponse,
     ProviderProductsResponse,
     ValidationRunResponse,
@@ -100,8 +109,10 @@ RouteResult = Union[
     ModelRefreshResponse,
     ProviderConnectionResponse,
     ProviderConnectionsResponse,
+    ProviderCapabilityProbeResponse,
     ProviderModelResponse,
     ProviderModelAvailabilityListResponse,
+    ProviderObsoleteModelsResponse,
     ProviderProductsResponse,
     ValidationRunResponse,
     VerifyConnectionResponse,
@@ -525,6 +536,89 @@ def delete_model(
     except _PROVIDER_ERRORS as error:
         return _error_response(error)
     return DetailResponse(detail=f"Provider model '{model_id}' deleted")
+
+
+@router.post(
+    "/connections/{connection_id}/models/{model_id:path}/capability-probes",
+    response_model=ProviderCapabilityProbeResponse,
+)
+async def probe_model_capabilities(
+    connection_id: str,
+    model_id: str,
+    body: ProviderCapabilityProbeRequest,
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: ProvidersService = ProvidersDependency,
+) -> RouteResult:
+    try:
+        result = await service.probe_capabilities(
+            principal,
+            ProbeProviderModelCapabilitiesCommand(
+                connection_id=connection_id,
+                model_id=model_id,
+                capabilities=tuple(body.capabilities),
+            ),
+        )
+    except _PROVIDER_ERRORS as error:
+        return _error_response(error)
+    return ProviderCapabilityProbeResponse(
+        reference=result.reference,
+        results=tuple(
+            ProviderCapabilityProbeItemResponse(**vars(item))
+            for item in result.results
+        ),
+    )
+
+
+@router.get(
+    "/connections/{connection_id}/models/obsolete",
+    response_model=ProviderObsoleteModelsResponse,
+)
+def list_obsolete_models(
+    connection_id: str,
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: ProvidersService = ProvidersDependency,
+) -> RouteResult:
+    try:
+        items = service.list_obsolete_models(
+            principal,
+            ListObsoleteProviderModelsQuery(connection_id),
+        )
+    except _PROVIDER_ERRORS as error:
+        return _error_response(error)
+    return ProviderObsoleteModelsResponse(
+        items=tuple(
+            ProviderObsoleteModelResponse(
+                model=ProviderModelResponse.from_result(item.model),
+                eligible=item.eligible,
+                reason=item.reason,
+                last_production_at=item.last_production_at,
+            )
+            for item in items
+        )
+    )
+
+
+@router.post(
+    "/connections/{connection_id}/models/obsolete/cleanup",
+    response_model=ProviderConnectionResponse,
+)
+def cleanup_obsolete_models(
+    connection_id: str,
+    body: ProviderObsoleteCleanupRequest,
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: ProvidersService = ProvidersDependency,
+) -> RouteResult:
+    try:
+        result = service.cleanup_obsolete_models(
+            principal,
+            CleanupObsoleteProviderModelsCommand(
+                connection_id=connection_id,
+                model_ids=tuple(body.model_ids),
+            ),
+        )
+    except _PROVIDER_ERRORS as error:
+        return _error_response(error)
+    return ProviderConnectionResponse.from_result(result)
 
 
 @router.get("/model-matrix", response_model=ModelMatrixResponse)

@@ -18,6 +18,7 @@ def _package(
     vision: str | None = None,
     fallback: str | None = None,
     system_role: str | None = None,
+    required_roles: frozenset[str] = frozenset(),
 ) -> StoredFoodPackage:
     return StoredFoodPackage(
         food_id=food_id,
@@ -27,6 +28,7 @@ def _package(
         reasoning_model=reasoning,
         vision_model=vision,
         fallback_model=fallback,
+        required_roles=required_roles,
     )
 
 
@@ -118,3 +120,24 @@ def test_recent_optional_role_usage_activates_exact_endpoint() -> None:
     )
     assert vision.food_ids == ("food_selected",)
     assert vision.roles == ("vision",)
+
+
+def test_required_optional_role_stays_core_without_recent_usage() -> None:
+    now = datetime.now(timezone.utc)
+    index = build_serving_food_index(
+        (
+            _package(
+                "food_selected",
+                "cloud/main",
+                vision="cloud/vision",
+                required_roles=frozenset({"vision"}),
+            ),
+        ),
+        (StoredElfieFoodAssignment("elfie-1", 7, "food_selected"),),
+        default_food_id="food_selected",
+        emergency_food_id="food_emergency",
+        observations=(),
+        now=now,
+    )
+
+    assert "cloud/vision" in index.core_references

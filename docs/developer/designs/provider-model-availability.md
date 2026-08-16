@@ -109,11 +109,12 @@ discovery failure and falls back to the curated source; it is not silently
 truncated into an apparently authoritative list.
 
 The normal UI inventory is the union of curated, manual and currently referenced
-models. Additional IDs from a genuinely authoritative official inventory may be
-searched in a collapsed **Other discovered** view, but they do not affect card
-counts or automatic validation until selected or referenced. A large raw
-discovery result is diagnostic input, not a list that must be shown or persisted
-unchanged.
+models. Additional IDs from a genuinely authoritative official inventory are
+retained in a bounded, hidden endpoint inventory and shown only in a collapsed
+**Other discovered** view. They do not affect card counts or automatic
+validation until selected or referenced, but the user can enable one without
+retyping its ID. A large raw discovery result is never shown as the normal
+subscription list or validated wholesale.
 
 ### 3.3 Endpoint metadata and request profiles
 

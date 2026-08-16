@@ -64,6 +64,7 @@ def create_food_package(
                 roles=_roles_input(body),
                 visibility_mode=body.visibility_mode,
                 visible_user_ids=body.visible_user_ids,
+                required_roles=body.required_roles or (),
             ),
         )
     except _FOOD_ERRORS as error:
@@ -97,6 +98,7 @@ def update_food_package(
                 roles=_roles_input(body),
                 visibility_mode=body.visibility_mode,
                 visible_user_ids=body.visible_user_ids,
+                required_roles=body.required_roles,
             ),
         )
     except _FOOD_ERRORS as error:

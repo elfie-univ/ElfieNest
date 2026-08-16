@@ -7,7 +7,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 
 
 def connect_report_database(path: Path) -> sqlite3.Connection:
@@ -29,6 +29,11 @@ def initialize_report_database(path: Path) -> None:
         ).fetchone()[0]
         if current == 1:
             _migrate_subject_kinds(connection)
+        # Reinstall this trigger so databases created before the retention
+        # policy get the same guarded maintenance path as fresh databases.
+        connection.execute(
+            "DROP TRIGGER IF EXISTS validation_observations_no_delete"
+        )
         connection.executescript(_IMMUTABILITY_TRIGGERS)
         connection.execute(
             """
@@ -81,6 +86,44 @@ ON validation_observations (
 
 CREATE INDEX IF NOT EXISTS idx_validation_run
 ON validation_observations (run_id, observation_id);
+
+CREATE TABLE IF NOT EXISTS validation_rollups (
+    subject_kind TEXT NOT NULL,
+    subject_id TEXT NOT NULL,
+    bucket_start TEXT NOT NULL,
+    observation_count INTEGER NOT NULL CHECK(observation_count > 0),
+    passed_count INTEGER NOT NULL CHECK(passed_count >= 0),
+    failed_count INTEGER NOT NULL CHECK(failed_count >= 0),
+    warning_count INTEGER NOT NULL CHECK(warning_count >= 0),
+    skipped_count INTEGER NOT NULL CHECK(skipped_count >= 0),
+    average_latency_ms REAL,
+    min_latency_ms REAL,
+    max_latency_ms REAL,
+    first_observed_at TEXT NOT NULL,
+    last_observed_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY(subject_kind, subject_id, bucket_start)
+);
+
+CREATE INDEX IF NOT EXISTS idx_validation_rollup_subject_time
+ON validation_rollups(subject_kind, subject_id, bucket_start DESC);
+
+CREATE TABLE IF NOT EXISTS report_maintenance (
+    id INTEGER PRIMARY KEY CHECK(id = 1),
+    retention_enabled INTEGER NOT NULL DEFAULT 0 CHECK(retention_enabled IN (0,1))
+);
+
+INSERT OR IGNORE INTO report_maintenance (id, retention_enabled) VALUES (1, 0);
+
+CREATE TABLE IF NOT EXISTS validation_leases (
+    lease_key TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    acquired_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_validation_lease_expiry
+ON validation_leases (expires_at);
 """
 
 _IMMUTABILITY_TRIGGERS = """
@@ -92,6 +135,7 @@ END;
 
 CREATE TRIGGER IF NOT EXISTS validation_observations_no_delete
 BEFORE DELETE ON validation_observations
+WHEN COALESCE((SELECT retention_enabled FROM report_maintenance WHERE id = 1), 0) = 0
 BEGIN
     SELECT RAISE(ABORT, 'validation observations are immutable');
 END;

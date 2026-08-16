@@ -49,7 +49,8 @@ def call_ollama_api(
     thinking: bool = False,
     request_options: dict[str, Any] | None = None,
     timeout_seconds: float | None = None,
-) -> tuple[str, dict[str, Any]]:
+    return_metadata: bool = False,
+) -> tuple[str, dict[str, Any]] | tuple[str, dict[str, Any], dict[str, Any]]:
     headers: dict[str, str] = {"Content-Type": "application/json"}
     url = f"{ollama_host}/api/chat"
     payload = {
@@ -85,7 +86,17 @@ def call_ollama_api(
                     "prompt_tokens": res_data.get("prompt_eval_count", 0),
                     "completion_tokens": res_data.get("eval_count", 0),
                 }
-            return res_data["message"]["content"], usage
+            message = res_data["message"]
+            content = message.get("content", "")
+            metadata = {
+                "tool_called": bool(message.get("tool_calls")),
+                "reasoning_observed": bool(message.get("thinking")),
+            }
+            return (
+                (content, usage, metadata)
+                if return_metadata
+                else (content, usage)
+            )
     except Exception as e:
         logger.error("本地 Ollama 调用异常: %s", e)
         raise OllamaNotReadyError(
@@ -104,7 +115,8 @@ def call_openai_compatible_api(
     *,
     request_options: dict[str, Any] | None = None,
     timeout_seconds: float | None = None,
-) -> tuple[str, dict[str, Any]]:
+    return_metadata: bool = False,
+) -> tuple[str, dict[str, Any]] | tuple[str, dict[str, Any], dict[str, Any]]:
     if not api_base:
         raise ProviderCallError(
             f"❌ 未找到大模型服务商 '{provider}' 的有效 API Base 配置！",
@@ -141,12 +153,20 @@ def call_openai_compatible_api(
             usage = res_data.get("usage", {})
             message = res_data["choices"][0]["message"]
             content = message.get("content")
+            metadata = {
+                "tool_called": bool(message.get("tool_calls")),
+                "reasoning_observed": bool(message.get("reasoning_content")),
+            }
             if not isinstance(content, str) or not content.strip():
                 reasoning_content = message.get("reasoning_content")
                 content = (
                     reasoning_content if isinstance(reasoning_content, str) else ""
                 )
-            return content, usage
+            return (
+                (content, usage, metadata)
+                if return_metadata
+                else (content, usage)
+            )
     except Exception as e:
         logger.error("Cloud LLM API call exception: %s", e)
         if isinstance(e, urllib.error.HTTPError):
@@ -170,7 +190,8 @@ def call_anthropic_api(
     *,
     request_options: dict[str, Any] | None = None,
     timeout_seconds: float | None = None,
-) -> tuple[str, dict[str, Any]]:
+    return_metadata: bool = False,
+) -> tuple[str, dict[str, Any]] | tuple[str, dict[str, Any], dict[str, Any]]:
     url = f"{api_base.rstrip('/')}/messages"
     system_prompt = ""
     filtered_messages = []
@@ -209,7 +230,28 @@ def call_anthropic_api(
                 ).decode("utf-8")
             )
             usage = res_data.get("usage", {})
-            return res_data["content"][0]["text"], usage
+            blocks = res_data["content"]
+            text = "".join(
+                str(block.get("text") or "")
+                for block in blocks
+                if isinstance(block, dict)
+                and block.get("type", "text") == "text"
+            )
+            metadata = {
+                "tool_called": any(
+                    isinstance(block, dict) and block.get("type") == "tool_use"
+                    for block in blocks
+                ),
+                "reasoning_observed": any(
+                    isinstance(block, dict) and block.get("type") == "thinking"
+                    for block in blocks
+                ),
+            }
+            return (
+                (text, usage, metadata)
+                if return_metadata
+                else (text, usage)
+            )
     except urllib.error.HTTPError as e:
         err_msg = _http_error_summary(e)
         raise provider_error_from_http(
@@ -234,7 +276,8 @@ def call_codex_responses_api(
     account_id: str | None = None,
     oauth_credentials: OAuthCredentialPort | None = None,
     timeout_seconds: float | None = None,
-) -> tuple[str, dict[str, Any]]:
+    return_metadata: bool = False,
+) -> tuple[str, dict[str, Any]] | tuple[str, dict[str, Any], dict[str, Any]]:
     """Call the ChatGPT Codex Responses transport with a refreshable user token."""
     _ = temperature, max_tokens
     token: OAuthToken | None = None
@@ -290,7 +333,10 @@ def call_codex_responses_api(
                 max_bytes=32 * 1024 * 1024,
                 deadline_seconds=request_timeout,
             ).decode("utf-8")
-        return _parse_codex_response(raw)
+        text, usage = _parse_codex_response(raw)
+        if return_metadata:
+            return text, usage, {}
+        return text, usage
     except urllib.error.HTTPError as error:
         summary = _http_error_summary(error)
         raise provider_error_from_http(
@@ -355,6 +401,9 @@ def _merge_codex_request_options(
         if isinstance(json_schema, dict):
             format_value.update(json_schema)
         payload["text"] = {"format": format_value}
+    reasoning = request_options.get("reasoning")
+    if isinstance(reasoning, dict):
+        payload["reasoning"] = dict(reasoning)
     tools = request_options.get("tools")
     if isinstance(tools, list):
         payload["tools"] = [

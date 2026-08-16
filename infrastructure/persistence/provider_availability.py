@@ -18,9 +18,11 @@ from infrastructure.models.provider_records import (
 from infrastructure.models.providers.endpoint_capabilities import endpoint_capabilities
 from infrastructure.models.storage_ports import ProviderStoragePort, ReportStoragePort
 from infrastructure.models.validation.provider_availability import (
+    REACHABILITY_FRESHNESS,
     EndpointAvailability,
     project_endpoint_availability,
     project_provider_status,
+    project_reachability,
 )
 from infrastructure.models.validation.serving_food import ServingFoodIndex
 
@@ -35,6 +37,7 @@ class ProviderAvailabilityQuery:
         *,
         serving_index: Callable[[], ServingFoodIndex] | None = None,
         active_probe: Callable[[str], object] | None = None,
+        active_reachability_probe: Callable[[str], object] | None = None,
         config_fingerprint: Callable[[ProviderConnection], str | None] | None = None,
         probe_cooldown: timedelta = timedelta(minutes=5),
     ) -> None:
@@ -42,6 +45,7 @@ class ProviderAvailabilityQuery:
         self._reports = reports
         self._serving_index = serving_index
         self._active_probe = active_probe
+        self._active_reachability_probe = active_reachability_probe
         self._config_fingerprint = config_fingerprint
         self._probe_cooldown = probe_cooldown
         self._probe_lock = threading.Lock()
@@ -127,6 +131,47 @@ class ProviderAvailabilityQuery:
                 self._inflight.pop(reference, None)
         return self.get(reference)
 
+    def ensure_reachability(
+        self,
+        connection_id: str,
+        *,
+        max_age: timedelta = REACHABILITY_FRESHNESS,
+        allow_probe: bool = False,
+    ) -> EndpointAvailability:
+        """Read the five-minute transport stream and probe only with permission."""
+        current = self._read_reachability(connection_id)
+        if not allow_probe or self._active_reachability_probe is None:
+            return current
+        now = datetime.now(timezone.utc)
+        observed = _parse_timestamp(current.observed_at)
+        if observed is not None and now - observed <= max_age and current.status == "available":
+            return current
+        key = f"provider:{connection_id}:reachability"
+        with self._probe_lock:
+            recent = self._last_probe_at.get(key)
+            if recent is not None and now - recent < self._probe_cooldown:
+                return current
+            future = self._inflight.get(key)
+            owner = future is None
+            if owner:
+                future = Future()
+                self._inflight[key] = future
+                self._last_probe_at[key] = now
+        if not owner:
+            try:
+                future.result()
+            except BaseException:
+                pass
+            return self._read_reachability(connection_id)
+        try:
+            future.set_result(self._active_reachability_probe(connection_id))
+        except BaseException as error:
+            future.set_exception(error)
+        finally:
+            with self._probe_lock:
+                self._inflight.pop(key, None)
+        return self._read_reachability(connection_id)
+
     def _project(
         self,
         connection: ProviderConnection,
@@ -142,6 +187,13 @@ class ProviderAvailabilityQuery:
             config_fingerprint=fingerprint,
         )
         connection_state = project_endpoint_availability(
+            connection.connection_id,
+            self._reports.observations_for_subject(
+                "provider", connection.connection_id
+            ),
+            config_fingerprint=fingerprint,
+        )
+        reachability = project_reachability(
             connection.connection_id,
             self._reports.observations_for_subject(
                 "provider", connection.connection_id
@@ -168,6 +220,10 @@ class ProviderAvailabilityQuery:
         )
         if connection_block is not None:
             provider_status = "unavailable"
+        elif reachability.status == "unavailable":
+            provider_status = "unavailable"
+        elif reachability.status == "available" and provider_status == "unknown":
+            provider_status = "healthy"
         if connection_block is not None and endpoint.status != "unavailable":
             endpoint = EndpointAvailability(
                 subject_id=reference,
@@ -204,6 +260,28 @@ class ProviderAvailabilityQuery:
                 StoredEndpointCapability(item.name, item.state, item.evidence)
                 for item in endpoint_capabilities(model)
             ),
+            reachability_status=reachability.status,
+            reachability_observed_at=reachability.observed_at,
+            reachability_expires_at=reachability.expires_at,
+        )
+
+    def _read_reachability(self, connection_id: str) -> EndpointAvailability:
+        connections = self._provider_storage.load_connections()
+        connection = connections.get(connection_id)
+        if connection is None:
+            return EndpointAvailability(
+                subject_id=connection_id,
+                status="unknown",
+                reason_code="connection_not_configured",
+                error_scope=None,
+                observed_at=None,
+                expires_at=None,
+                evidence_source=None,
+            )
+        return project_reachability(
+            connection_id,
+            self._reports.observations_for_subject("provider", connection_id),
+            config_fingerprint=self._fingerprint(connection),
         )
 
     def _connection_states(
@@ -263,6 +341,9 @@ def _unknown(
         serving_food_ids=(),
         serving_roles=(),
         capabilities=(),
+        reachability_status="unknown",
+        reachability_observed_at=None,
+        reachability_expires_at=None,
     )
 
 

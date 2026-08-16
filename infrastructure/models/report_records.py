@@ -33,4 +33,23 @@ class ValidationObservation:
     details: Mapping[str, JsonValue]
 
 
-__all__ = ("ReportRun", "ValidationObservation")
+@dataclass(frozen=True)
+class ValidationRollup:
+    """Content-free aggregate retained after raw observations expire."""
+
+    subject_kind: str
+    subject_id: str
+    bucket_start: str
+    observation_count: int
+    passed_count: int
+    failed_count: int
+    warning_count: int
+    skipped_count: int
+    average_latency_ms: Optional[float]
+    min_latency_ms: Optional[float]
+    max_latency_ms: Optional[float]
+    first_observed_at: str
+    last_observed_at: str
+
+
+__all__ = ("ReportRun", "ValidationObservation", "ValidationRollup")

@@ -95,6 +95,7 @@ class FoodService:
             roles=command.roles,
             visibility_mode=command.visibility_mode,
             visible_user_ids=command.visible_user_ids,
+            required_roles=command.required_roles,
         )
         self._validate_references(package, evidence)
         try:
@@ -128,6 +129,11 @@ class FoodService:
             visible_user_ids=command.visible_user_ids,
             system_role=existing.system_role,
             archived=existing.archived,
+            required_roles=(
+                existing.required_roles
+                if command.required_roles is None
+                else command.required_roles
+            ),
         )
         self._validate_references(package, evidence)
         try:
@@ -407,6 +413,7 @@ class FoodService:
         roles: FoodRolesInput,
         visibility_mode: FoodVisibilityMode,
         visible_user_ids: tuple[int, ...],
+        required_roles: tuple[str, ...] | frozenset[str] = (),
         system_role: FoodSystemRole | None = None,
         archived: bool = False,
     ) -> StoredFoodPackage:
@@ -428,6 +435,7 @@ class FoodService:
             fallback_model=cls._normalize_model(roles.fallback),
             visibility_mode=visibility_mode,
             visible_user_ids=normalized_ids,
+            required_roles=cls._normalize_required_roles(required_roles),
         )
         if package.archived and package.enabled:
             raise FoodValidationError("An archived Food package cannot be enabled")
@@ -442,6 +450,18 @@ class FoodService:
         normalized = display_name.strip()
         if not normalized:
             raise FoodValidationError("Food display name is required")
+        return normalized
+
+    @staticmethod
+    def _normalize_required_roles(
+        required_roles: tuple[str, ...] | frozenset[str],
+    ) -> frozenset[str]:
+        allowed = {"reasoning", "vision", "tool"}
+        normalized = frozenset(
+            role.strip() for role in required_roles if role.strip()
+        )
+        if normalized - allowed:
+            raise FoodValidationError("Required Food roles are invalid")
         return normalized
 
     @staticmethod
@@ -539,6 +559,7 @@ class FoodService:
             health=health.status,
             locality=health.locality,
             latest_evidence_at=health.latest_evidence_at,
+            required_roles=tuple(sorted(package.required_roles)),
         )
 
     @staticmethod

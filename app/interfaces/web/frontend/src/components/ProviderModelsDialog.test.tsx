@@ -3,7 +3,13 @@ import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { saveProviderModels, updateProviderModel, type ProviderConnection } from "../api/owner-providers"
+import {
+  cleanupObsoleteProviderModels,
+  listObsoleteProviderModels,
+  saveProviderModels,
+  updateProviderModel,
+  type ProviderConnection,
+} from "../api/owner-providers"
 import { createI18n } from "../i18n/config"
 import { ProviderModelsDialog } from "./ProviderModelsDialog"
 import { ToastProvider } from "./ui/toast"
@@ -13,6 +19,9 @@ vi.mock("../api/owner-providers", async (loadOriginal) => {
   return {
     ...original,
     addProviderModel: vi.fn(),
+    cleanupObsoleteProviderModels: vi.fn(),
+    listObsoleteProviderModels: vi.fn(),
+    probeProviderModelCapabilities: vi.fn(),
     refreshProviderModels: vi.fn(),
     saveProviderModels: vi.fn(),
     updateProviderModel: vi.fn(),
@@ -80,6 +89,8 @@ describe("ProviderModelsDialog", () => {
   beforeEach(() => {
     vi.mocked(saveProviderModels).mockResolvedValue(connection)
     vi.mocked(updateProviderModel).mockResolvedValue(connection.models[0]!)
+    vi.mocked(listObsoleteProviderModels).mockResolvedValue([])
+    vi.mocked(cleanupObsoleteProviderModels).mockResolvedValue(connection)
   })
 
   it("keeps every model toolbar action visibly filled", () => {
@@ -184,14 +195,81 @@ describe("ProviderModelsDialog", () => {
     expect(within(dialog).getByRole("button", { name: "保存全部" })).toBeEnabled()
     expect(within(dialog).getByDisplayValue("Unsaved name")).toBeInTheDocument()
   }, 10_000)
+
+  it("keeps obsolete models out of the main list and cleans only eligible selections", async () => {
+    const user = userEvent.setup()
+    vi.mocked(listObsoleteProviderModels).mockResolvedValueOnce([{
+      model: {
+        ...connection.models[0]!,
+        id: "retired-model",
+        display_name: "Retired model",
+        discovery_state: "source_missing",
+        consecutive_missing: 4,
+        last_seen_at: "2026-01-01T00:00:00Z",
+      },
+      eligible: true,
+      reason: "可清理：来源缺失超过 30 天且无近期生产使用",
+      last_production_at: null,
+    }])
+    renderDialog({
+      ...connection,
+      models: [...connection.models, {
+        ...connection.models[0]!,
+        id: "retired-model",
+        display_name: "Retired model",
+        discovery_state: "source_missing",
+      }],
+    })
+
+    const dialog = screen.getByRole("dialog", { name: "OpenAI Main 的模型" })
+    expect(within(dialog).queryByText("Retired model")).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole("button", { name: "查看过期模型" }))
+    expect(await within(dialog).findByText("Retired model")).toBeInTheDocument()
+    const checkbox = within(dialog).getByRole("checkbox")
+    await user.click(checkbox)
+    await user.click(within(dialog).getByRole("button", { name: "清理选中模型" }))
+
+    expect(cleanupObsoleteProviderModels).toHaveBeenCalledWith(
+      "conn-openai",
+      ["retired-model"],
+      "csrf",
+    )
+  }, 10_000)
+
+  it("offers discovered non-core models without asking the user to retype them", async () => {
+    const user = userEvent.setup()
+    renderDialog({
+      ...connection,
+      models: [connection.models[0]!, {
+        ...connection.models[0]!,
+        id: "platform-model",
+        display_name: "Platform model",
+        source: "official",
+        hidden: true,
+        available: false,
+      }],
+    })
+
+    const dialog = screen.getByRole("dialog", { name: "OpenAI Main 的模型" })
+    await user.click(within(dialog).getByText("其它已发现模型（1）"))
+    expect(within(dialog).getByText("Platform model")).toBeInTheDocument()
+    await user.click(within(dialog).getByRole("button", { name: "启用" }))
+
+    expect(updateProviderModel).toHaveBeenCalledWith(
+      "conn-openai",
+      "platform-model",
+      { hidden: false },
+      "csrf",
+    )
+  }, 10_000)
 })
 
-function renderDialog(): void {
+function renderDialog(target: ProviderConnection = connection): void {
   const i18n = createI18n()
   document.documentElement.lang = "zh-CN"
   render(
     <I18nextProvider i18n={i18n}>
-      <ToastProvider><ProviderModelsDialog connection={connection} csrfToken="csrf" onChanged={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></ToastProvider>
+      <ToastProvider><ProviderModelsDialog connection={target} csrfToken="csrf" onChanged={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></ToastProvider>
     </I18nextProvider>,
   )
 }

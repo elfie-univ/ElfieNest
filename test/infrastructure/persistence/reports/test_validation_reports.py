@@ -244,6 +244,98 @@ def test_validation_observations_are_sqlite_immutable(tmp_path: Path) -> None:
             )
 
 
+def test_retention_rolls_up_then_removes_only_finished_old_observations(
+    tmp_path: Path,
+) -> None:
+    repository = ReportRepository(tmp_path / "retention.sqlite")
+    old_run = repository.start_run(
+        scope="single_model",
+        trigger="scheduled",
+        started_at="2026-07-01T00:00:00+00:00",
+    )
+    repository.append_observation(
+        run_id=old_run,
+        subject_kind="model",
+        subject_id="cloud/main",
+        observed_at="2026-07-01T01:00:00+00:00",
+        status="passed",
+        latency_ms=10.0,
+    )
+    repository.append_observation(
+        run_id=old_run,
+        subject_kind="model",
+        subject_id="cloud/main",
+        observed_at="2026-07-01T02:00:00+00:00",
+        status="failed",
+        latency_ms=30.0,
+    )
+    repository.finish_run(
+        old_run,
+        status="partial",
+        finished_at="2026-07-01T03:00:00+00:00",
+    )
+    current_run = repository.start_run(
+        scope="single_model",
+        trigger="scheduled",
+        started_at="2026-08-16T00:00:00+00:00",
+    )
+    repository.append_observation(
+        run_id=current_run,
+        subject_kind="model",
+        subject_id="cloud/main",
+        observed_at="2026-08-16T01:00:00+00:00",
+        status="passed",
+    )
+
+    assert repository.compact_observations("2026-08-01T00:00:00+00:00") == 2
+    rollups = repository.validation_rollups(subject_id="cloud/main")
+    assert len(rollups) == 1
+    assert rollups[0].observation_count == 2
+    assert rollups[0].passed_count == 1
+    assert rollups[0].failed_count == 1
+    assert repository.latest("model", "cloud/main") is not None
+    assert repository.latest("model", "cloud/main").observed_at == (
+        "2026-08-16T01:00:00+00:00"
+    )
+
+
+def test_validation_lease_is_exclusive_and_expires(tmp_path: Path) -> None:
+    repository = ReportRepository(tmp_path / "leases.sqlite")
+
+    assert repository.try_acquire_validation_lease(
+        "model:cloud/main:validation",
+        "worker-a",
+        lease_seconds=60,
+        now="2026-08-16T00:00:00+00:00",
+    )
+    assert not repository.try_acquire_validation_lease(
+        "model:cloud/main:validation",
+        "worker-b",
+        lease_seconds=60,
+        now="2026-08-16T00:00:30+00:00",
+    )
+    assert repository.release_validation_lease(
+        "model:cloud/main:validation", "worker-a"
+    )
+    assert repository.try_acquire_validation_lease(
+        "model:cloud/main:validation",
+        "worker-b",
+        lease_seconds=60,
+        now="2026-08-16T00:00:31+00:00",
+    )
+
+    assert not repository.try_acquire_validation_lease(
+        "model:cloud/main:validation",
+        "worker-a",
+        lease_seconds=60,
+        now="2026-08-16T00:00:45+00:00",
+    )
+    assert repository.try_acquire_validation_lease(
+        "model:cloud/main:validation",
+        "worker-a",
+        lease_seconds=60,
+        now="2026-08-16T00:02:00+00:00",
+    )
 def test_exports_and_legacy_reports_never_affect_queries(tmp_path: Path) -> None:
     database = tmp_path / "reports" / "ai-runtime.sqlite"
     repository = ReportRepository(database)

@@ -355,6 +355,78 @@ class ProviderModelResponse(BaseModel):
         )
 
 
+class ProviderCapabilityProbeRequest(BaseModel):
+    model_config = StrictModel
+
+    capabilities: List[
+        Literal["tools", "vision", "reasoning", "structured_output"]
+    ] = Field(default_factory=list, max_length=4)
+
+    @field_validator("capabilities")
+    @classmethod
+    def unique_capabilities(
+        cls,
+        values: List[str],
+    ) -> List[str]:
+        if len(set(values)) != len(values):
+            raise ValueError("能力探测不能重复")
+        return values
+
+
+class ProviderObsoleteCleanupRequest(BaseModel):
+    model_config = StrictModel
+
+    model_ids: List[str] = Field(min_length=1, max_length=200)
+
+    @field_validator("model_ids")
+    @classmethod
+    def unique_model_ids(cls, values: List[str]) -> List[str]:
+        normalized = [value.strip() for value in values]
+        if any(not value for value in normalized):
+            raise ValueError("待清理模型 ID 不能为空")
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("待清理模型不能重复")
+        return normalized
+
+
+class ProviderCapabilityProbeItemResponse(BaseModel):
+    model_config = StrictModel
+
+    capability: Literal["tools", "vision", "reasoning", "structured_output"]
+    state: Literal["supported", "unsupported", "unknown"]
+    evidence: Literal[
+        "declared", "declared_by_user", "accepted", "verified", "unknown"
+    ]
+    status: Literal["passed", "failed"]
+    latency_ms: float
+    error: Optional[str]
+    error_code: Optional[str]
+    error_scope: Optional[str]
+    error_category: Optional[str]
+
+
+class ProviderCapabilityProbeResponse(BaseModel):
+    model_config = StrictModel
+
+    reference: str
+    results: tuple[ProviderCapabilityProbeItemResponse, ...]
+
+
+class ProviderObsoleteModelResponse(BaseModel):
+    model_config = StrictModel
+
+    model: ProviderModelResponse
+    eligible: bool
+    reason: str
+    last_production_at: Optional[str]
+
+
+class ProviderObsoleteModelsResponse(BaseModel):
+    model_config = StrictModel
+
+    items: tuple[ProviderObsoleteModelResponse, ...]
+
+
 class ProviderModelCapabilityResponse(BaseModel):
     model_config = StrictModel
 
@@ -381,6 +453,11 @@ class ProviderModelAvailabilityResponse(BaseModel):
     serving_food_ids: tuple[str, ...]
     serving_roles: tuple[str, ...]
     capabilities: tuple[ProviderModelCapabilityResponse, ...]
+    reachability_status: Literal[
+        "available", "degraded", "unavailable", "unknown"
+    ] = "unknown"
+    reachability_observed_at: Optional[str] = None
+    reachability_expires_at: Optional[str] = None
 
     @classmethod
     def from_result(
@@ -407,6 +484,9 @@ class ProviderModelAvailabilityResponse(BaseModel):
                 )
                 for capability in item.capabilities
             ),
+            reachability_status=item.reachability_status,
+            reachability_observed_at=item.reachability_observed_at,
+            reachability_expires_at=item.reachability_expires_at,
         )
 
 

@@ -64,6 +64,8 @@ def project_endpoint_availability(
     *,
     now: datetime | None = None,
     config_fingerprint: str | None = None,
+    success_freshness: timedelta = SUCCESS_FRESHNESS,
+    evidence_sources: set[str] | frozenset[str] | None = None,
 ) -> EndpointAvailability:
     """Project one exact Endpoint subject with conservative hysteresis."""
 
@@ -73,6 +75,9 @@ def project_endpoint_availability(
         for item in observations
         if config_fingerprint is None
         or item.details.get("config_fingerprint") in {None, config_fingerprint}
+        if evidence_sources is None
+        or item.details.get("evidence_source") in evidence_sources
+        if item.details.get("validation_mode") != "capability"
     )
     ordered = sorted(
         scoped_observations,
@@ -120,7 +125,7 @@ def project_endpoint_availability(
         )
 
     if latest.status == "passed":
-        if latest_time is not None and current - latest_time <= SUCCESS_FRESHNESS:
+        if latest_time is not None and current - latest_time <= success_freshness:
             return _snapshot(
                 subject_id,
                 "available",
@@ -128,7 +133,7 @@ def project_endpoint_availability(
                 None,
                 latest,
                 source,
-                expires_at=_iso(latest_time + SUCCESS_FRESHNESS),
+                expires_at=_iso(latest_time + success_freshness),
             )
         return _snapshot(
             subject_id,
@@ -173,6 +178,27 @@ def project_endpoint_availability(
         scope or "endpoint",
         latest,
         source,
+    )
+
+
+REACHABILITY_FRESHNESS = timedelta(minutes=5)
+
+
+def project_reachability(
+    subject_id: str,
+    observations: Iterable[ValidationObservation],
+    *,
+    now: datetime | None = None,
+    config_fingerprint: str | None = None,
+) -> EndpointAvailability:
+    """Project only non-generation Provider reachability evidence."""
+    return project_endpoint_availability(
+        subject_id,
+        observations,
+        now=now,
+        config_fingerprint=config_fingerprint,
+        success_freshness=REACHABILITY_FRESHNESS,
+        evidence_sources={"reachability"},
     )
 
 
@@ -337,6 +363,8 @@ __all__ = (
     "AvailabilityStatus",
     "EndpointAvailability",
     "ProviderStatus",
+    "REACHABILITY_FRESHNESS",
     "project_endpoint_availability",
+    "project_reachability",
     "project_provider_status",
 )

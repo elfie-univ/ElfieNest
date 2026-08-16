@@ -21,6 +21,7 @@ from .models import (
     AddProviderModelCommand,
     BenchmarkProviderModelsCommand,
     ChangeProviderConnectionLifecycleCommand,
+    CleanupObsoleteProviderModelsCommand,
     CompleteProviderOAuthLoginCommand,
     CreateProviderConnectionCommand,
     DefaultLocalProviderConnectionResult,
@@ -30,13 +31,16 @@ from .models import (
     GetProviderModelMatrixQuery,
     InspectLocalProviderQuery,
     InstallLocalProviderCommand,
+    ListObsoleteProviderModelsQuery,
     ListProviderConnectionsQuery,
     ListProviderProductsQuery,
     LocalProviderModelResult,
     LocalProviderStatusResult,
+    ProbeProviderModelCapabilitiesCommand,
     ProviderBenchmarkResult,
     ProviderBenchmarkRunResult,
     ProviderBrandResult,
+    ProviderCapabilityProbeResult,
     ProviderConnectionDeletedResult,
     ProviderConnectionResult,
     ProviderConnectionVerificationResult,
@@ -52,6 +56,7 @@ from .models import (
     ProviderModelResult,
     ProviderOAuthLoginStartResult,
     ProviderOAuthLoginStatusResult,
+    ProviderObsoleteModelResult,
     ProviderProductResult,
     ProviderValidationItemResult,
     ProviderValidationRunResult,
@@ -710,6 +715,104 @@ class ProvidersService:
         return self._refresh_result(
             await self._refresh(self._require_connection(command.connection_id)),
             command.connection_id,
+        )
+
+    async def probe_capabilities(
+        self,
+        principal: AccountPrincipal,
+        command: ProbeProviderModelCapabilitiesCommand,
+    ) -> ProviderCapabilityProbeResult:
+        self._require_manager(principal)
+        self._require_connection(command.connection_id)
+        reference = f"{command.connection_id}/{command.model_id}"
+        try:
+            results = await self._technology.probe_capabilities(
+                reference,
+                command.capabilities,
+            )
+        except ProviderPortError as error:
+            raise ProvidersUnavailable("Provider capability probe unavailable") from error
+        return ProviderCapabilityProbeResult(
+            reference=reference,
+            results=tuple(results),
+        )
+
+    def list_obsolete_models(
+        self,
+        principal: AccountPrincipal,
+        query: ListObsoleteProviderModelsQuery,
+    ) -> tuple[ProviderObsoleteModelResult, ...]:
+        self._require_manager(principal)
+        connection = self._require_connection(query.connection_id)
+        try:
+            candidates = self._technology.list_obsolete_models(
+                connection.connection_id
+            )
+            projected: list[ProviderObsoleteModelResult] = []
+            for candidate in candidates:
+                references = self._references.models_referenced_by_food(
+                    connection.connection_id,
+                    candidate.model.model_id,
+                )
+                eligible = candidate.eligible and not references
+                reason = candidate.reason
+                if references:
+                    reason = "仍被 Food 使用：" + ", ".join(references)
+                projected.append(
+                    ProviderObsoleteModelResult(
+                        model=self._model_result(connection.connection_id, candidate.model),
+                        eligible=eligible,
+                        reason=reason,
+                        last_production_at=candidate.last_production_at,
+                    )
+                )
+            return tuple(projected)
+        except ProviderPortError as error:
+            raise ProvidersUnavailable("Obsolete Provider models unavailable") from error
+
+    def cleanup_obsolete_models(
+        self,
+        principal: AccountPrincipal,
+        command: CleanupObsoleteProviderModelsCommand,
+    ) -> ProviderConnectionResult:
+        self._require_manager(principal)
+        connection = self._require_connection(command.connection_id)
+        model_ids = tuple(dict.fromkeys(model_id.strip() for model_id in command.model_ids))
+        if not model_ids or any(not model_id for model_id in model_ids):
+            raise ProvidersValidationError("待清理模型不能为空")
+        try:
+            candidates = {
+                item.model.model_id: item
+                for item in self._technology.list_obsolete_models(
+                    connection.connection_id
+                )
+            }
+            for model_id in model_ids:
+                candidate = candidates.get(model_id)
+                if candidate is None:
+                    raise ProviderModelNotFound(model_id)
+                references = self._references.models_referenced_by_food(
+                    connection.connection_id,
+                    model_id,
+                )
+                if references:
+                    raise ProvidersConflict(
+                        "The model is referenced by food packages: "
+                        + ", ".join(references)
+                    )
+                if not candidate.eligible:
+                    raise ProvidersConflict(candidate.reason)
+            for model_id in model_ids:
+                self._technology.delete_obsolete_model(
+                    connection.connection_id,
+                    model_id,
+                )
+        except (ProviderModelNotFound, ProvidersConflict):
+            raise
+        except ProviderPortError as error:
+            raise ProvidersUnavailable("Obsolete Provider model cleanup unavailable") from error
+        return self._connection_result(
+            self._require_connection(connection.connection_id)
         )
 
     def add_model(

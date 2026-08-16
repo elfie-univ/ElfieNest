@@ -17,6 +17,37 @@ def test_latency_is_classified_for_reports():
     assert classify_latency(8_000) == "slow"
 
 
+def test_transport_probe_uses_get_only_and_treats_missing_models_endpoint_as_reachable(
+    monkeypatch, tmp_path
+):
+    from infrastructure.models.catalog import verify_provider_transport
+
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    config = model_execution_config()
+    config.providers["custom_openai"] = {
+        "api_base": "https://gateway.example/v1",
+        "api_mode": "chat_completions",
+        "api_key": "secret-for-test",
+    }
+    captured = []
+
+    def unsupported(request, timeout):
+        captured.append((request, timeout))
+        raise urllib.error.HTTPError(request.full_url, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(
+        "infrastructure.models.catalog.open_provider_request",
+        unsupported,
+    )
+
+    result = verify_provider_transport("custom_openai", config)
+
+    assert result["status"] == "active"
+    assert result["transport_status"] == "reachable"
+    assert captured[0][0].method == "GET"
+    assert captured[0][0].data is None
+
+
 class FakeResponse:
     status = 200
 
@@ -70,6 +101,96 @@ def test_discovers_openai_compatible_models_with_bearer_header(monkeypatch, tmp_
 
     assert [model.name for model in models] == ["model-a", "model-b"]
     assert captured[0].headers["Authorization"] == "Bearer local-test-key"
+
+
+def test_curated_provider_discovery_keeps_broad_inventory_and_marks_core_models(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    config = model_execution_config()
+    curated_model = str(config.providers["openai"]["bundled_models"][0])
+
+    monkeypatch.setattr(
+        "infrastructure.models.validation.provider_validation.open_provider_request",
+        lambda request, timeout: FakeResponse(
+            {
+                "data": [
+                    {"id": "internal-platform-model"},
+                    {"id": curated_model},
+                    {"id": "another-unrelated-model"},
+                ]
+            }
+        ),
+    )
+
+    result = discover_provider_models_result(
+        "openai",
+        config,
+        allow_configured_fallback=False,
+    )
+
+    assert [model.name for model in result.models] == [
+        "another-unrelated-model",
+        curated_model,
+        "internal-platform-model",
+    ]
+    assert [model.curated for model in result.models] == [False, True, False]
+    assert result.complete is True
+    assert result.authoritative is True
+
+
+def test_curated_provider_keeps_inventory_when_no_id_matches_core_list(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    config = model_execution_config()
+
+    monkeypatch.setattr(
+        "infrastructure.models.validation.provider_validation.open_provider_request",
+        lambda request, timeout: FakeResponse(
+            {"data": [{"id": "unknown-platform-model"}]}
+        ),
+    )
+
+    result = discover_provider_models_result(
+        "openai",
+        config,
+        allow_configured_fallback=False,
+    )
+
+    assert [model.name for model in result.models] == ["unknown-platform-model"]
+    assert result.models[0].curated is False
+    assert result.authoritative is True
+
+
+def test_custom_openai_discovery_uses_gateway_models_without_requiring_manual_ids(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    config = model_execution_config()
+    captured = []
+
+    monkeypatch.setattr(
+        "infrastructure.models.validation.provider_validation.open_provider_request",
+        lambda request, timeout: (captured.append(request), FakeResponse({
+            "data": [{"id": "gateway-model"}, {"id": "another-gateway-model"}],
+        }))[1],
+    )
+
+    result = discover_provider_models_result(
+        "custom_openai",
+        config,
+        allow_configured_fallback=False,
+    )
+
+    assert [model.name for model in result.models] == [
+        "another-gateway-model",
+        "gateway-model",
+    ]
+    assert all(not model.curated for model in result.models)
+    assert captured[0].full_url.endswith("/models")
+    assert result.source == "provider_models"
+    assert result.authoritative is True
 
 
 def test_catalog_only_discovery_never_calls_generic_models_endpoint(

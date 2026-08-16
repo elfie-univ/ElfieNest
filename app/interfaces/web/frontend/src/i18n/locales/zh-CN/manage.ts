@@ -55,7 +55,7 @@ export const manage = {
   providerConnections: {
     actions: { addOther: "添加其他订阅", archive: "归档", authorize: "使用 OpenAI 账号登录", authorizing: "正在生成授权码…", back: "上一步", batchValidate: "批量验证", cancel: "取消", cancelWaiting: "取消等待", choose: "继续", configure: "配置 {{name}}", copyCode: "复制授权码", delete: "删除", disable: "停用", edit: "修改", enable: "启用", forceFullValidate: "强制全量验证", matrix: "同模型对比", models: "模型", more: "更多", refresh: "重新读取", regenerateCode: "重新生成授权码", restore: "恢复", save: "保存配置", saving: "保存中…", validate: "验证", validating: "验证中…" },
     available: { title: "添加新的远程订阅" },
-    card: { availabilityStats: "共 {{total}} 个模型（当前可用 {{available}} 个 · {{core}}/{{coreTotal}} 个核心）", cached: "24 小时内沿用上次验证结果", modelStats: "共 {{total}} 个模型（已启用 {{enabled}} 个 · 验证通过 {{verified}} 个）", needsFullValidation: "需要重新进行全量验证", needsHeartbeat: "需要验证一个代表模型" },
+    card: { availabilityStats: "共 {{total}} 个模型（当前可用 {{available}} 个 · {{core}}/{{coreTotal}} 个核心）", cached: "24 小时内沿用上次验证结果", modelStats: "共 {{total}} 个模型（已启用 {{enabled}} 个 · 验证通过 {{verified}} 个）", needsFullValidation: "需要重新进行全量验证", needsHeartbeat: "需要验证一个代表模型", otherDiscovered: "另有 {{count}} 个已发现模型待启用" },
     ollama: {
       actions: { download: "下载安装", downloading: "下载中…", install: "安装", installing: "安装中… {{progress}}%", repairRequired: "需要修复", restart: "重启", start: "启动", starting: "启动中…" },
       card: { availableModels: "{{count}} 个可用模型", loading: "正在读取本地模型…" },
@@ -75,13 +75,15 @@ export const manage = {
     status: { available: "可用", degraded: "部分可用", failed: "验证失败", never: "未验证", partial: "部分可用", passed: "验证通过", unavailable: "不可用", unknown: "状态未知" },
   },
   providerModels: {
-    actions: { add: "添加模型", addManual: "手工添加模型", cancel: "取消", disable: "停用", editAll: "编辑全部", enable: "启用", refresh: "重新读取模型", saveAll: "保存全部" },
+    actions: { add: "添加模型", addManual: "手工添加模型", cancel: "取消", cleanup: "清理选中模型", disable: "停用", editAll: "编辑全部", enable: "启用", obsolete: "查看过期模型", probe: "验证能力", refresh: "重新读取模型", saveAll: "保存全部" },
     columns: { actions: "操作", capabilities: "视觉/工具/推理", displayName: "显示名称", limits: "上下文/输出", source: "来源", status: "状态/速度" },
     empty: "尚未发现模型，可以重新读取或手工添加。",
-    errors: { load: "模型清单读取失败", save: "模型信息没有保存", update: "模型没有更新" },
+    emptyEnabled: "暂无已启用模型；可以从下方已发现模型中一键启用。",
+    emptyObsolete: "没有可处理的过期模型。",
+    errors: { cleanup: "过期模型没有清理", load: "模型清单读取失败", probe: "模型能力验证失败", save: "模型信息没有保存", update: "模型没有更新" },
     fields: { context: "上下文窗口", displayName: "显示名称", displayNamePlaceholder: "例如 GLM-5", maxOutput: "最大输出 Token", modelId: "模型 ID", modelIdPlaceholder: "服务端实际模型 ID" },
-    labels: { available: "可用", degraded: "降级", list: "{{name}} 模型列表", neverVerified: "未验证", reasoning: "推理", title: "{{name}} 的模型", tools: "工具", unavailable: "不可用", vision: "视觉" },
-    notices: { added: "手工模型已添加。", disabled: "模型已停用。", enabled: "模型已启用。", refreshed: "模型清单已更新。", savedAll: "全部模型信息已保存。" },
+    labels: { available: "可用", degraded: "降级", list: "{{name}} 模型列表", neverVerified: "未验证", obsolete: "来源已缺失的模型", otherDiscovered: "其它已发现模型（{{count}}）", reasoning: "推理", title: "{{name}} 的模型", tools: "工具", unavailable: "不可用", vision: "视觉" },
+    notices: { added: "手工模型已添加。", capabilitiesProbed: "模型能力验证已完成。", cleaned: "过期模型已清理。", disabled: "模型已停用。", enabled: "模型已启用。", refreshed: "模型清单已更新。", savedAll: "全部模型信息已保存。" },
     sources: { bundled: "内置目录", manual: "手工添加", official: "官方发现", remote: "远程目录" },
   },
   foodPackages: {
@@ -92,7 +94,7 @@ export const manage = {
     modelStatus: { available: "可用", localAvailable: "运行中", unavailable: "不可用", unconfigured: "未配置", unverified: "未验证" },
     notices: { created: "{{name}} 已创建。", saved: "{{name}} 已保存。", updated: "{{name}} 已更新。" },
     recipe: { description: "直接调整五个模型角色和自定义粮食的可见用户。", name: "套餐名称", none: "未配置", title: "编辑 {{name}}" },
-    roles: { fallback: "备用模型", primary: "主要模型", reasoning: "推理模型", tool: "工具模型", vision: "视觉模型" },
+    roles: { fallback: "备用模型", primary: "主要模型", reasoning: "推理模型", requiredOptional: "需要定期验证的可选角色", tool: "工具模型", vision: "视觉模型" },
     title: "粮食套餐",
     sourceStates: { all: "全部可用订阅（{{count}}）", empty: "暂无可用订阅", loading: "正在读取订阅…", none: "未选择生成来源", partial: "{{names}} +{{more}}" },
     values: { allUsers: "所有人可见", archived: "已归档", notConfigured: "未配置", running: "运行中", selectedCurrentUsers: "指定用户：当前 {{count}} 人", selectedUsers: "指定用户：{{count}} 人", stopped: "已停用", visibilityError: "读取失败" },

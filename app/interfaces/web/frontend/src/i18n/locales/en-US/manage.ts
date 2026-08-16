@@ -55,7 +55,7 @@ export const manage = {
   providerConnections: {
     actions: { addOther: "Add another subscription", archive: "Archive", authorize: "Sign in with OpenAI", authorizing: "Generating authorization code...", back: "Back", batchValidate: "Validate all", cancel: "Cancel", cancelWaiting: "Stop waiting", choose: "Continue", configure: "Configure {{name}}", copyCode: "Copy code", delete: "Delete", disable: "Disable", edit: "Edit", enable: "Enable", forceFullValidate: "Force full validation", matrix: "Same-model comparison", models: "Models", more: "More", refresh: "Reload", regenerateCode: "Generate a new code", restore: "Restore", save: "Save configuration", saving: "Saving...", validate: "Validate", validating: "Validating..." },
     available: { title: "Add a remote subscription" },
-    card: { availabilityStats: "{{total}} models ({{available}} currently available · {{core}}/{{coreTotal}} core)", cached: "Using the last validation result for 24 hours", modelStats: "{{total}} models ({{enabled}} enabled · {{verified}} verified)", needsFullValidation: "A new full validation is required", needsHeartbeat: "One representative model needs a heartbeat check" },
+    card: { availabilityStats: "{{total}} models ({{available}} currently available · {{core}}/{{coreTotal}} core)", cached: "Using the last validation result for 24 hours", modelStats: "{{total}} models ({{enabled}} enabled · {{verified}} verified)", needsFullValidation: "A new full validation is required", needsHeartbeat: "One representative model needs a heartbeat check", otherDiscovered: "{{count}} discovered models are ready to enable" },
     ollama: {
       actions: { download: "Download", downloading: "Downloading...", install: "Install", installing: "Installing... {{progress}}%", repairRequired: "Needs repair", restart: "Restart", start: "Start", starting: "Starting..." },
       card: { availableModels: "{{count}} available models", loading: "Reading local models..." },
@@ -75,13 +75,15 @@ export const manage = {
     status: { available: "Available", degraded: "Partly available", failed: "Validation failed", never: "Not validated", partial: "Partly available", passed: "Validated", unavailable: "Unavailable", unknown: "Status unknown" },
   },
   providerModels: {
-    actions: { add: "Add model", addManual: "Add model manually", cancel: "Cancel", disable: "Disable", editAll: "Edit all", enable: "Enable", refresh: "Reload models", saveAll: "Save all" },
+    actions: { add: "Add model", addManual: "Add model manually", cancel: "Cancel", cleanup: "Clean selected models", disable: "Disable", editAll: "Edit all", enable: "Enable", obsolete: "View obsolete models", probe: "Verify capabilities", refresh: "Reload models", saveAll: "Save all" },
     columns: { actions: "Actions", capabilities: "Vision / tools / reasoning", displayName: "Display name", limits: "Context / output", source: "Source", status: "Status / speed" },
     empty: "No models found. Reload or add one manually.",
-    errors: { load: "Unable to load the model list.", save: "Unable to save model information.", update: "Unable to update the model." },
+    emptyEnabled: "No enabled models yet; enable one from the discovered models below.",
+    emptyObsolete: "No obsolete models need attention.",
+    errors: { cleanup: "Unable to clean obsolete models.", load: "Unable to load the model list.", probe: "Unable to verify model capabilities.", save: "Unable to save model information.", update: "Unable to update the model." },
     fields: { context: "Context window", displayName: "Display name", displayNamePlaceholder: "For example, GLM-5", maxOutput: "Maximum output tokens", modelId: "Model ID", modelIdPlaceholder: "Model ID used by the service" },
-    labels: { available: "Available", degraded: "Degraded", list: "{{name}} model list", neverVerified: "Not verified", reasoning: "Reasoning", title: "Models for {{name}}", tools: "Tools", unavailable: "Unavailable", vision: "Vision" },
-    notices: { added: "Manual model added.", disabled: "Model disabled.", enabled: "Model enabled.", refreshed: "Model list updated.", savedAll: "All model information was saved." },
+    labels: { available: "Available", degraded: "Degraded", list: "{{name}} model list", neverVerified: "Not verified", obsolete: "Models missing from the source", otherDiscovered: "Other discovered models ({{count}})", reasoning: "Reasoning", title: "Models for {{name}}", tools: "Tools", unavailable: "Unavailable", vision: "Vision" },
+    notices: { added: "Manual model added.", capabilitiesProbed: "Model capabilities verified.", cleaned: "Obsolete models cleaned.", disabled: "Model disabled.", enabled: "Model enabled.", refreshed: "Model list updated.", savedAll: "All model information was saved." },
     sources: { bundled: "Bundled catalog", manual: "Manual", official: "Official discovery", remote: "Remote catalog" },
   },
   foodPackages: {
@@ -92,7 +94,7 @@ export const manage = {
     modelStatus: { available: "Available", localAvailable: "Running", unavailable: "Unavailable", unconfigured: "Not configured", unverified: "Unverified" },
     notices: { created: "{{name}} created.", saved: "{{name}} saved.", updated: "{{name}} updated." },
     recipe: { description: "Adjust the five model roles and the visible users for a custom food.", name: "Package name", none: "Not configured", title: "Edit {{name}}" },
-    roles: { fallback: "Fallback", primary: "Primary", reasoning: "Reasoning", tool: "Tool", vision: "Vision" },
+    roles: { fallback: "Fallback", primary: "Primary", reasoning: "Reasoning", requiredOptional: "Optional roles to validate regularly", tool: "Tool", vision: "Vision" },
     title: "Food packages",
     sourceStates: { all: "All available subscriptions ({{count}})", empty: "No available subscriptions", loading: "Loading subscriptions...", none: "No generation source", partial: "{{names}} +{{more}}" },
     values: { allUsers: "Everyone", archived: "Archived", notConfigured: "Not configured", running: "Running", selectedCurrentUsers: "Selected users: all {{count}}", selectedUsers: "Selected users: {{count}}", stopped: "Stopped", visibilityError: "Read failed" },

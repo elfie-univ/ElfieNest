@@ -7,7 +7,11 @@ from typing import Literal
 
 from pydantic import JsonValue
 
-from infrastructure.models.report_records import ReportRun, ValidationObservation
+from infrastructure.models.report_records import (
+    ReportRun,
+    ValidationObservation,
+    ValidationRollup,
+)
 from infrastructure.persistence.reports.report_repository import ReportRepository
 from infrastructure.persistence.reports.validation_reports import (
     read_latest_model_validation,
@@ -98,6 +102,20 @@ class ReportStorageAdapter:
         subject_id: str,
     ) -> tuple[ValidationObservation, ...]:
         return self._repository.observations_for_subject(subject_kind, subject_id)
+
+    def compact_observations(self, before: str) -> int:
+        return self._repository.compact_observations(before)
+
+    def validation_rollups(
+        self,
+        *,
+        subject_kind: str | None = None,
+        subject_id: str | None = None,
+    ) -> tuple[ValidationRollup, ...]:
+        return self._repository.validation_rollups(
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+        )
 
     def get_run(self, run_id: str) -> ReportRun:
         return self._repository.get_run(run_id)

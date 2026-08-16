@@ -37,6 +37,9 @@ from infrastructure.models.model_execution_adapter import StructuredModelExecuti
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.providers.openai_chatgpt import OpenAIChatGptOAuthAdapter
+from infrastructure.models.validation.provider_scheduler import (
+    ProviderValidationScheduler,
+)
 from infrastructure.models.validation.serving_food import build_serving_food_index
 from infrastructure.persistence.configuration.bundled_defaults import (
     load_nest_config,
@@ -96,6 +99,7 @@ class ApplicationContainer:
     elfies: ElfiesService
     providers: ProvidersService
     availability: ProviderAvailabilityQuery
+    provider_scheduler: ProviderValidationScheduler
     food: FoodService
     capabilities: CapabilitiesService
     operations: OperationsFacade
@@ -225,6 +229,9 @@ def build_application_container(
         active_probe=lambda reference: asyncio.run(
             provider_models.probe_model(reference)
         ),
+        active_reachability_probe=lambda connection_id: asyncio.run(
+            provider_models.probe_reachability(connection_id)
+        ),
         config_fingerprint=lambda connection: provider_models.validation_fingerprint(
             connection.connection_id
         ),
@@ -232,6 +239,19 @@ def build_application_container(
     elfies = ElfiesService(
         SQLiteElfiesProjectionAdapter(db_path),
         catalog=species_catalog,
+    )
+    provider_scheduler = ProviderValidationScheduler(
+        availability,
+        serving_index,
+        report_repository,
+        connection_ids=lambda: tuple(
+            connection.connection_id
+            for connection in provider_storage.load_connections().values()
+            if connection.enabled and not connection.archived
+        ),
+        maintenance=lambda cutoff: report_repository.compact_observations(
+            cutoff.isoformat()
+        ),
     )
     accounts = build_accounts_service(db_path, settings=settings_adapter)
     communication = build_communication_services(
@@ -308,6 +328,7 @@ def build_application_container(
             provider_catalog=provider_catalog,
             evidence=provider_evidence,
         ),
+        provider_scheduler=provider_scheduler,
         capabilities=CapabilitiesService(
             capability_config,
             capability_secrets,

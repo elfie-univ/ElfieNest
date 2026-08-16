@@ -321,6 +321,7 @@ function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onForceF
 }) {
   const { t } = useTranslation("manage")
   const activeModels = connection.models.filter((model) => !model.hidden && !model.retired && model.discovery_state !== "source_missing")
+  const otherDiscoveredCount = connection.models.filter((model) => model.hidden && !model.retired && model.discovery_state !== "source_missing").length
   const enabledCount = activeModels.length
   const verifiedCount = activeModels.filter((model) => model.verification.status === "passed").length
   const failedCount = activeModels.filter((model) => model.verification.status === "failed").length
@@ -359,7 +360,7 @@ function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onForceF
       core: coreAvailableCount,
       coreTotal: coreModels.length,
     })
-    : t("providerConnections.card.modelStats", { total: connection.models.length, enabled: enabledCount, verified: verifiedCount })
+    : t("providerConnections.card.modelStats", { total: enabledCount, enabled: enabledCount, verified: verifiedCount })
   const validationHint = connection.verification.needs_full_validation
     ? t("providerConnections.card.needsFullValidation")
     : connection.verification.needs_heartbeat
@@ -367,7 +368,7 @@ function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onForceF
       : connection.verification.validation_mode === "cached"
         ? t("providerConnections.card.cached")
         : null
-  return <article className={`provider-card provider-card--${health}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${health}`}>{status}</span></div><p className="provider-card__model-stats">{modelStats}</p>{validationHint ? <small className="provider-card__validation-hint">{validationHint}</small> : null}<div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><ProviderLifecycleMenu archived={connection.archived} busy={busy} enabled={connection.enabled} onDelete={onDelete} onForceFull={onForceFull} onLifecycle={onLifecycle} /></div></article>
+  return <article className={`provider-card provider-card--${health}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${health}`}>{status}</span></div><p className="provider-card__model-stats">{modelStats}</p>{otherDiscoveredCount > 0 ? <small className="provider-card__discovered-hint">{t("providerConnections.card.otherDiscovered", { count: otherDiscoveredCount })}</small> : null}{validationHint ? <small className="provider-card__validation-hint">{validationHint}</small> : null}<div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><ProviderLifecycleMenu archived={connection.archived} busy={busy} enabled={connection.enabled} onDelete={onDelete} onForceFull={onForceFull} onLifecycle={onLifecycle} /></div></article>
 }
 
 type AvailabilityModel = ProviderConnection["models"][number]

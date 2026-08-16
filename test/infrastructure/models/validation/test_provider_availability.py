@@ -6,6 +6,7 @@ from infrastructure.models.report_records import ValidationObservation
 from infrastructure.models.validation.provider_availability import (
     project_endpoint_availability,
     project_provider_status,
+    project_reachability,
 )
 
 NOW = datetime(2026, 8, 15, 12, 0, tzinfo=timezone.utc)
@@ -154,3 +155,44 @@ def test_provider_aggregation_uses_serving_scope_when_supplied() -> None:
         )
         == "healthy"
     )
+
+
+def test_reachability_success_expires_after_five_minutes() -> None:
+    observation = _observation(
+        1,
+        "2026-08-15T11:56:00+00:00",
+        "passed",
+        details={"evidence_source": "reachability"},
+    )
+
+    fresh = project_reachability(
+        "connection",
+        (observation,),
+        now=NOW,
+    )
+    stale = project_reachability(
+        "connection",
+        (observation,),
+        now=datetime(2026, 8, 15, 12, 2, tzinfo=timezone.utc),
+    )
+
+    assert fresh.status == "available"
+    assert stale.status == "unknown"
+    assert stale.reason_code == "evidence_expired"
+
+
+def test_capability_observation_does_not_change_text_health() -> None:
+    observation = _observation(
+        1,
+        "2026-08-15T11:59:00+00:00",
+        "passed",
+        details={"validation_mode": "capability", "evidence_source": "capability_probe"},
+    )
+
+    snapshot = project_endpoint_availability(
+        "connection/model",
+        (observation,),
+        now=NOW,
+    )
+
+    assert snapshot.status == "unknown"

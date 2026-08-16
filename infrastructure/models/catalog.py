@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -635,3 +636,123 @@ def verify_provider(
         result["error"] = str(e)
 
     return result
+
+
+def verify_provider_transport(provider_id: str, config: Any) -> Dict[str, Any]:
+    """Check only a Provider HTTP endpoint; never send a model generation request."""
+    provider_info = config.providers.get(provider_id, {})
+    api_base = str(provider_info.get("api_base") or "").rstrip("/")
+    api_key = str(provider_info.get("api_key") or "")
+    api_mode = str(provider_info.get("api_mode") or "chat_completions")
+    if not api_base:
+        return {
+            "status": "inactive",
+            "error": "Provider 缺少 API Base",
+            "error_code": "provider_base_missing",
+            "error_scope": "connection",
+            "error_category": "configuration",
+        }
+    url = f"{api_base}/api/tags" if api_mode == "ollama" else f"{api_base}/models"
+    headers: Dict[str, str] = {"Accept": "application/json"}
+    if api_mode == "anthropic_messages":
+        if api_key:
+            headers["x-api-key"] = api_key
+        headers["anthropic-version"] = "2023-06-01"
+    elif api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    started = time.perf_counter()
+    try:
+        request = urllib.request.Request(url, headers=headers, method="GET")
+        with open_provider_request(request, timeout=5) as response:
+            latency_ms = round((time.perf_counter() - started) * 1000, 2)
+            status_code = int(response.status)
+        if 200 <= status_code < 300:
+            return {"status": "active", "latency_ms": latency_ms}
+        if status_code in {404, 405, 501}:
+            # The host is reachable but does not expose a discovery endpoint;
+            # model entitlement remains unknown until an exact model call.
+            return {
+                "status": "active",
+                "latency_ms": latency_ms,
+                "transport_status": "reachable",
+                "error_code": "reachability_endpoint_missing",
+                "error_scope": "transport",
+            }
+        if status_code in {401, 403}:
+            return {
+                "status": "inactive",
+                "error_code": "invalid_credential",
+                "error_scope": "connection",
+                "error_category": "authentication",
+            }
+        if status_code == 402:
+            return {
+                "status": "inactive",
+                "error_code": "billing_blocked",
+                "error_scope": "connection",
+                "error_category": "billing",
+            }
+        if status_code == 429:
+            return {
+                "status": "inactive",
+                "error_code": "quota_exhausted",
+                "error_scope": "connection",
+                "error_category": "quota",
+            }
+        return {
+            "status": "inactive",
+            "error_code": "provider_unreachable",
+            "error_scope": "transport",
+            "error_category": "server" if status_code >= 500 else "network",
+        }
+    except urllib.error.HTTPError as error:
+        if error.code in {404, 405, 501}:
+            return {
+                "status": "active",
+                "transport_status": "reachable",
+                "error_code": "reachability_endpoint_missing",
+                "error_scope": "transport",
+            }
+        if error.code in {401, 403}:
+            code = "invalid_credential"
+            category = "authentication"
+            scope = "connection"
+        elif error.code == 402:
+            code = "billing_blocked"
+            category = "billing"
+            scope = "connection"
+        elif error.code == 429:
+            code = "quota_exhausted"
+            category = "quota"
+            scope = "connection"
+        else:
+            code = "provider_unreachable"
+            category = "server" if error.code >= 500 else "network"
+            scope = "transport"
+        return {
+            "status": "inactive",
+            "error_code": code,
+            "error_scope": scope,
+            "error_category": category,
+        }
+    except urllib.error.URLError:
+        return {
+            "status": "inactive",
+            "error_code": "network_error",
+            "error_scope": "transport",
+            "error_category": "network",
+        }
+    except TimeoutError:
+        return {
+            "status": "inactive",
+            "error_code": "timeout",
+            "error_scope": "transport",
+            "error_category": "timeout",
+        }
+    except Exception:
+        return {
+            "status": "inactive",
+            "error_code": "provider_unreachable",
+            "error_scope": "transport",
+            "error_category": "network",
+        }

@@ -7,6 +7,7 @@ from typing import Callable
 
 from pydantic import JsonValue
 
+from infrastructure.models.catalog import verify_provider_transport
 from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.provider_records import ProviderConnection
 from infrastructure.models.validation.provider_validation import (
@@ -19,6 +20,7 @@ ModelExecutionProjection = Callable[
     [ProviderConnection], tuple[str, ModelExecutionConfig]
 ]
 _MODEL_TIMEOUT_SECONDS = 20.0
+_REACHABILITY_TIMEOUT_SECONDS = 10.0
 
 
 def run_connection_model_check(
@@ -96,3 +98,60 @@ async def bounded_connection_model_check(
                 "error_scope": classification.scope,
                 "error_category": classification.category,
             }
+
+
+def run_connection_reachability_check(
+    connection: ProviderConnection,
+    model_execution_projection: ModelExecutionProjection,
+) -> dict[str, JsonValue]:
+    """Perform the zero-generation Provider transport/authentication check."""
+    execution_id, config = model_execution_projection(connection)
+    result = verify_provider_transport(execution_id, config)
+    passed = result.get("status") == "active"
+    return {
+        "status": "passed" if passed else "failed",
+        "latency_ms": result.get("latency_ms"),
+        "latency_class": classify_latency(float(result.get("latency_ms") or 0.0)),
+        "error": None if passed else "Provider transport check failed",
+        "error_scope": result.get("error_scope") or ("transport" if not passed else None),
+        "error_code": result.get("error_code"),
+        "error_category": result.get("error_category"),
+    }
+
+
+async def bounded_connection_reachability_check(
+    connection: ProviderConnection,
+    model_execution_projection: ModelExecutionProjection,
+) -> dict[str, JsonValue]:
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(
+                run_connection_reachability_check,
+                connection,
+                model_execution_projection,
+            ),
+            timeout=_REACHABILITY_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        return {
+            "status": "failed",
+            "latency_ms": None,
+            "latency_class": None,
+            "error": "Provider 连通性检查超时（10 秒）",
+            "error_code": "timeout",
+            "error_scope": "transport",
+            "error_category": "timeout",
+        }
+    except Exception as exc:
+        from infrastructure.models.provider_errors import classify_provider_error
+
+        classification = classify_provider_error(exc)
+        return {
+            "status": "failed",
+            "latency_ms": None,
+            "latency_class": None,
+            "error": f"Provider 连通性检查失败: {type(exc).__name__}",
+            "error_code": classification.code,
+            "error_scope": classification.scope,
+            "error_category": classification.category,
+        }

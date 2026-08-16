@@ -64,7 +64,11 @@ def create_app(
     @asynccontextmanager
     async def application_lifespan(_app: FastAPI) -> AsyncIterator[None]:
         container.setup_installation.recover()
-        yield
+        container.provider_scheduler.start()
+        try:
+            yield
+        finally:
+            container.provider_scheduler.stop()
 
     return create_http_application(
         accounts=container.accounts,

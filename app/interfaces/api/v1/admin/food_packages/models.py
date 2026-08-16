@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.features.configuration import food as food_feature
 
 StrictUserId = Annotated[int, Field(strict=True, gt=0)]
+RequiredFoodRole = Literal["reasoning", "vision", "tool"]
 
 
 class FoodRoleAssignmentRequest(BaseModel):
@@ -35,6 +36,7 @@ class FoodPackageWriteRequest(BaseModel):
     roles: FoodRolesRequest
     visibility_mode: Literal["global", "users"] = "global"
     visible_user_ids: tuple[StrictUserId, ...] = ()
+    required_roles: Optional[tuple[RequiredFoodRole, ...]] = None
 
 
 class FoodGenerationPreviewRequest(BaseModel):
@@ -88,6 +90,7 @@ class FoodPackageResponse(BaseModel):
     health: str
     locality: str
     latest_evidence_at: Optional[str]
+    required_roles: tuple[RequiredFoodRole, ...] = ()
 
     @classmethod
     def from_result(cls, result: food_feature.FoodPackageResult) -> FoodPackageResponse:
@@ -103,6 +106,7 @@ class FoodPackageResponse(BaseModel):
             health=result.health,
             locality=result.locality,
             latest_evidence_at=result.latest_evidence_at,
+            required_roles=tuple(result.required_roles),
         )
 
 

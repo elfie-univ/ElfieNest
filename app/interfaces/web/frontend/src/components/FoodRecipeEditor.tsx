@@ -46,6 +46,14 @@ export function FoodRecipeEditor({ food, modelOptions, onCancel, onSave, users }
       roles: { ...current.roles, [role]: value === NONE ? null : { model: value } },
     }))
   }
+  const toggleRequiredRole = (role: "reasoning" | "vision" | "tool", enabled: boolean): void => {
+    setDraft((current) => {
+      const required = new Set(current.required_roles ?? [])
+      if (enabled) required.add(role)
+      else required.delete(role)
+      return { ...current, required_roles: [...required].sort() }
+    })
+  }
   const submit = async (): Promise<void> => {
     if (draft.visibility_mode === "users" && draft.visible_user_ids.length === 0) return
     setPending(true)
@@ -71,6 +79,17 @@ export function FoodRecipeEditor({ food, modelOptions, onCancel, onSave, users }
       options={options}
       value={draft.roles[role]?.model ?? NONE}
     />)}
+    <fieldset className="food-required-roles">
+      <legend>{t("foodPackages.roles.requiredOptional")}</legend>
+      {([
+        ["reasoning", t("foodPackages.roles.reasoning")],
+        ["vision", t("foodPackages.roles.vision")],
+        ["tool", t("foodPackages.roles.tool")],
+      ] as const).map(([role, label]) => <label key={role}>
+        <input checked={(draft.required_roles ?? []).includes(role)} onChange={(event) => toggleRequiredRole(role, event.target.checked)} type="checkbox" />
+        <span>{label}</span>
+      </label>)}
+    </fieldset>
     {!food.system_role ? <div className="food-recipe-visibility">
       <span className="food-generation-scope-row__label">{t("foodPackages.columns.visibility")}</span>
       <FoodVisibilitySelect

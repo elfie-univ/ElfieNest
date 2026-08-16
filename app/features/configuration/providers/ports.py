@@ -7,8 +7,10 @@ from typing import Awaitable, Callable, Protocol
 
 from .models import ProviderModelInput
 from .port_models import (
+    CapabilityName,
     StoredBenchmarkCombination,
     StoredBenchmarkRun,
+    StoredCapabilityProbeResult,
     StoredLocalProviderBinding,
     StoredLocalProviderCandidate,
     StoredLocalProviderProbe,
@@ -16,6 +18,7 @@ from .port_models import (
     StoredModelMatrix,
     StoredModelRefresh,
     StoredModelVerification,
+    StoredObsoleteModel,
     StoredProviderConnection,
     StoredProviderModel,
     StoredProviderOAuthLoginStart,
@@ -158,6 +161,21 @@ class ProviderTechnologyPort(Protocol):
     ) -> StoredModelRefresh: ...
 
     async def probe_model(self, reference: str) -> None: ...
+
+    async def probe_capabilities(
+        self,
+        reference: str,
+        capabilities: tuple[CapabilityName, ...] = (),
+    ) -> tuple[StoredCapabilityProbeResult, ...]: ...
+
+    def list_obsolete_models(
+        self,
+        connection_id: str,
+    ) -> tuple[StoredObsoleteModel, ...]: ...
+
+    def delete_obsolete_model(self, connection_id: str, model_id: str) -> None: ...
+
+    async def probe_reachability(self, connection_id: str) -> None: ...
 
     def model_matrix(
         self,

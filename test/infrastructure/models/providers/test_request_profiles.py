@@ -1,6 +1,10 @@
 import pytest
 
-from infrastructure.models.inference.llm_api import _resolve_request_profile
+from infrastructure.models.inference.llm_api import (
+    _adapt_messages,
+    _adapt_request_options,
+    _resolve_request_profile,
+)
 from infrastructure.models.providers.request_profiles import (
     default_request_profile_id,
     get_request_profile,
@@ -50,3 +54,52 @@ def test_mismatched_model_profile_is_rejected() -> None:
             "model-a",
             "chat_completions",
         )
+
+
+def test_semantic_tool_and_image_options_use_the_anthropic_wire_shape() -> None:
+    profile = get_request_profile("anthropic_messages_v1", 1)
+    options = _adapt_request_options(
+        {
+            "tool_definitions": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "noop",
+                        "description": "No-op",
+                        "parameters": {"type": "object"},
+                    },
+                }
+            ],
+            "reasoning_mode": "medium",
+        },
+        profile,
+    )
+    messages = _adapt_messages(
+        [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "describe"},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "data:image/png;base64,AAAA",
+                        },
+                    },
+                ],
+            }
+        ],
+        profile,
+    )
+
+    assert options is not None
+    assert options["tools"][0]["input_schema"] == {"type": "object"}
+    assert options["thinking"]["type"] == "enabled"
+    assert messages[0]["content"][1] == {
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": "image/png",
+            "data": "AAAA",
+        },
+    }

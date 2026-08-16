@@ -63,6 +63,7 @@ def merge_refreshed_models(
     complete: bool = True,
     observed_at: str | None = None,
     authority_changed: bool = False,
+    preserve_model_ids: Iterable[str] = (),
 ) -> tuple[ProviderModelRecord, ...]:
     """Merge one discovery result without deleting on a partial refresh.
 
@@ -73,6 +74,7 @@ def merge_refreshed_models(
     """
     existing_by_id = {model.endpoint_model_id: model for model in existing_models}
     refreshed_by_id = {model.endpoint_model_id: model for model in refreshed_models}
+    preserved_ids = set(preserve_model_ids)
     seen_at = observed_at or datetime.now(timezone.utc).isoformat()
     merged: list[ProviderModelRecord] = []
     for refreshed in refreshed_models:
@@ -147,6 +149,13 @@ def merge_refreshed_models(
         )
     for existing in existing_models:
         if existing.endpoint_model_id in refreshed_by_id:
+            continue
+        if existing.endpoint_model_id in preserved_ids:
+            # A currently serving Food may still depend on an endpoint that
+            # disappeared from a product's curated catalog. Keep that exact
+            # reference visible and protected; cleanup remains guarded by the
+            # all-reference check instead of silently breaking production.
+            merged.append(existing)
             continue
         if existing.source == "manual" or not complete:
             merged.append(existing)
@@ -239,6 +248,20 @@ def _catalog_model(
         ),
         supports_structured_output=(
             None if declaration is None else declaration.supports_structured_output
+        ),
+        capability_evidence=(
+            {}
+            if declaration is None
+            else {
+                name: "declared"
+                for name, value in {
+                    "tools": declaration.supports_tools,
+                    "vision": declaration.supports_vision,
+                    "reasoning": declaration.supports_reasoning,
+                    "structured_output": declaration.supports_structured_output,
+                }.items()
+                if value is not None
+            }
         ),
     )
 
