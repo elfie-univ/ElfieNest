@@ -1,288 +1,160 @@
 {
   "schema_version": 1,
-  "task": "Close Provider availability evidence and implement tiered validation, reuse and affected-test selection",
+  "task": "add the minimal owner-configured Discord communication channel",
   "contract_refs": [
-    "docs/developer/designs/provider-model-availability.md",
-    "docs/developer/contracts/model-food-tool-behavior.md",
-    "docs/developer/conformance/provider-model-availability.md",
-    "repository-governance"
+    "docs/developer/contracts/application.md",
+    "docs/developer/contracts/elfie.md",
+    "docs/developer/contracts/system.md",
+    "docs/developer/contracts/service-lifecycle.md"
   ],
   "scope": [
+    "app/bootstrap/app_wiring/communication.py",
     "app/bootstrap/api.py",
     "app/bootstrap/container.py",
-    "app/bootstrap/app_wiring/*.py",
-    "app/features/configuration/food/*.py",
-    "app/features/configuration/providers/*.py",
-    "app/interfaces/api/v1/admin/food_packages/*.py",
-    "app/interfaces/api/v1/admin/model_providers/*.py",
-    "app/interfaces/web/frontend/src/api/admin/food-packages.ts",
-    "app/interfaces/web/frontend/src/api/owner-providers.ts",
-    "app/interfaces/web/frontend/src/components/FoodRecipeEditor.tsx",
-    "app/interfaces/web/frontend/src/components/OwnerProviderPanel.tsx",
-    "app/interfaces/web/frontend/src/components/ProviderModelsDialog.test.tsx",
-    "app/interfaces/web/frontend/src/components/ProviderModelsDialog.tsx",
-    "app/interfaces/web/frontend/src/i18n/locales/en-US/manage.ts",
-    "app/interfaces/web/frontend/src/i18n/locales/zh-CN/manage.ts",
-    "app/interfaces/web/frontend/src/styles.css",
-    "config/models/provider-catalog.yaml",
-    "docs/developer/conformance/provider-model-availability.md",
-    "docs/developer/designs/provider-model-availability.md",
-    "docs/zh/developer/conformance/provider-model-availability.md",
-    "infrastructure/models/catalog.py",
-    "infrastructure/models/food_technology.py",
-    "infrastructure/models/inference/llm_api.py",
-    "infrastructure/models/model_execution_observations.py",
-    "infrastructure/models/model_execution_overview.py",
-    "infrastructure/models/provider_administration.py",
-    "infrastructure/models/providers/discovery.py",
-    "infrastructure/models/providers/dispatch.py",
-    "infrastructure/models/providers/http.py",
-    "infrastructure/models/report_records.py",
-    "infrastructure/models/setup_food.py",
-    "infrastructure/models/validation/*.py",
-    "infrastructure/persistence/food.py",
-    "infrastructure/persistence/food_evidence.py",
-    "infrastructure/persistence/model_health_projection.py",
-    "infrastructure/persistence/nest_db/final_schema.py",
-    "infrastructure/persistence/provider_availability.py",
-    "infrastructure/persistence/report_storage.py",
-    "infrastructure/persistence/reports/*.py",
-    "test/app/features/configuration/food/*.py",
-    "test/app/features/configuration/providers/*.py",
-    "test/app/interfaces/api/v1/admin/food_packages/*.py",
-    "test/app/interfaces/api/v1/admin/model_providers/*.py",
-    "test/infrastructure/models/providers/*.py",
-    "test/infrastructure/models/test_food_evidence.py",
-    "test/infrastructure/models/test_openai_chatgpt.py",
-    "test/infrastructure/models/test_provider_administration.py",
-    "test/infrastructure/models/test_provider_catalog.py",
-    "test/infrastructure/models/validation/*.py",
-    "test/infrastructure/persistence/reports/*.py",
-    "test/infrastructure/persistence/test_provider_availability.py",
-    "test/support/provider.py",
-    "task-closure.json",
-    "AGENTS.md",
-    ".agents/skills/task-closure/SKILL.md",
-    ".agents/skills/git-submit-and-push/SKILL.md",
-    ".github/workflows/ci.yml",
-    "CONTRIBUTING.md",
-    "CONTRIBUTING_zh.md",
-    "docs/developer/contracts/repository-governance.md",
-    "docs/zh/developer/contracts/repository-governance.md",
-    "docs/developer/decisions/0023-tiered-validation-and-reuse.md",
-    "docs/zh/developer/decisions/0023-tiered-validation-and-reuse.md",
-    "docs/developer/decisions/index.md",
-    "docs/zh/developer/decisions/index.md",
-    "docs/developer/engineering/testing.md",
-    "docs/zh/developer/engineering/testing.md",
-    "docs/developer/engineering/development.md",
-    "docs/zh/developer/engineering/development.md",
-    "scripts/architecture/check_governance_change.py",
-    "scripts/architecture/contract_registry.py",
-    "scripts/architecture/validation_cache.py",
-    "scripts/architecture/validation_gate.py",
-    "scripts/architecture/validation_plan.py",
-    "scripts/check_task_closure.py",
-    "scripts/pre_submit_gate.sh",
-    "test/architecture/test_architecture_governance.py",
-    "test/architecture/test_validation_gate.py",
-    "test/scripts/test_check_task_closure.py"
+    "app/features/communication/__init__.py",
+    "app/features/communication/discord_*.py",
+    "app/interfaces/api/app.py",
+    "app/interfaces/api/v1/elfies/communication_accounts/__init__.py",
+    "app/interfaces/api/v1/elfies/communication_accounts/discord_*.py",
+    "app/interfaces/web/frontend/src/api/client.ts",
+    "app/interfaces/web/frontend/src/api/elfies/communication-accounts.ts",
+    "app/interfaces/web/frontend/src/components/ElfieProfilePanel.tsx",
+    "app/interfaces/web/frontend/src/components/elfie-profile/ProfileDiscordAccount.tsx",
+    "app/interfaces/web/frontend/src/components/elfie-profile/ProfileDiscordAccount.test.tsx",
+    "app/interfaces/web/frontend/src/components/elfie-profile/ProfilePrivateModules.tsx",
+    "app/interfaces/web/frontend/src/components/elfie-profile/ProfilePrivateModules.test.tsx",
+    "app/interfaces/web/frontend/src/components/elfie-profile/mock-data.test.ts",
+    "app/interfaces/web/frontend/src/components/ElfieProfilePanel.test.tsx",
+    "app/interfaces/web/frontend/src/i18n/locales/en-US/chat.ts",
+    "app/interfaces/web/frontend/src/i18n/locales/zh-CN/chat.ts",
+    "app/interfaces/web/frontend/src/pages/ChatPage.tsx",
+    "app/interfaces/web/frontend/src/pages/ChatPage.profile.test.tsx",
+    "app/interfaces/web/frontend/src/shared/chat-profile.css",
+    "app/orchestration/message_delivery/__init__.py",
+    "app/orchestration/message_delivery/discord.py",
+    "app/orchestration/message_delivery/discord_runtime_ports.py",
+    "infrastructure/communication/__init__.py",
+    "infrastructure/communication/channels/__init__.py",
+    "infrastructure/communication/discord/*.py",
+    "infrastructure/persistence/configuration/discord_tokens.py",
+    "infrastructure/persistence/elfie_workspace/discord_accounts.py",
+    "test/app/features/communication/test_discord_accounts_service.py",
+    "test/app/interfaces/api/v1/elfies/communication_accounts/test_discord_routes.py",
+    "test/app/orchestration/message_delivery/test_discord_update_handler.py",
+    "test/infrastructure/communication/discord/*.py",
+    "test/infrastructure/persistence/elfie_workspace/test_discord_accounts.py",
+    "app/interfaces/web/frontend/src/api/elfies/communication-accounts.test.ts",
+    "app/interfaces/web/frontend/src/components/elfie-profile/ProfileDiscordAccount.test.tsx",
+    "app/interfaces/web/frontend/src/components/elfie-profile/ProfilePrivateModules.test.tsx",
+    "app/interfaces/web/frontend/src/pages/ChatPage.profile.test.tsx",
+    "app/interfaces/web/frontend/src/test/fixtures/elfie-profile.ts",
+    "docs/developer/architecture/communication.md",
+    "docs/zh/developer/architecture/communication.md",
+    "docs/developer/index.md",
+    "docs/zh/developer/index.md",
+    "docs/developer/architecture/index.md",
+    "docs/zh/developer/architecture/index.md",
+    "docs/.vitepress/config.mts",
+    "task-closure.json"
   ],
   "conformance": {
-    "rows": [
-      "PMA-002",
-      "PMA-004",
-      "PMA-005"
-    ],
+    "rows": ["ELF-007", "ELF-009"],
     "reason": ""
   },
   "rows": [
     {
-      "id": "PMA-002",
-      "requirement": "For the current release, run endpoint-scoped reasoning, tool and vision capability probes through the typed Provider request profiles against one configured, actively used remote Provider representative; unconfigured Provider adapters are outside this release acceptance scope.",
+      "id": "REQ-001",
+      "requirement": "An owner can configure one Discord Bot Token per Elfie, the token is validated and stored only through the secret boundary, and the API never returns it.",
       "status": "complete",
-      "implementation": [
-        "infrastructure/models/validation/provider_capability_probes.py",
-        "infrastructure/models/provider_administration.py",
-        "app/interfaces/api/v1/admin/model_providers/routes.py"
-      ],
-      "automated_tests": [
-        "test/infrastructure/models/validation/test_provider_capability_probes.py",
-        "test/infrastructure/models/providers/test_request_profiles.py"
-      ],
-      "runtime_scenarios": [
-        "Replay the capability matrix against the configured Volcengine Coding Plan connection using the credential already stored out of band under ~/.elfienest.",
-        "The Volcengine connection passed all 8 active model text checks; each model then ran tools, vision and reasoning probes with exact endpoint evidence.",
-        "The release representative rule leaves unconfigured Provider adapters deferred until they become configured and actively used."
-      ],
-      "platform_conditions": [
-        "CPython 3.9.25 and outbound HTTPS",
-        "Real Provider subscription and credential supplied outside the repository"
-      ],
+      "implementation": ["Discord account Feature, credential Adapter, persistence Adapter, and versioned owner routes"],
+      "automated_tests": ["Discord account service tests", "Discord route contract tests"],
+      "runtime_scenarios": ["Owner configures a valid Bot Token and reloads the account projection"],
+      "platform_conditions": ["Local ElfieNest process with an owner session", "Discord Bot Token available for live replay"],
       "evidence": [
-        "command: ./.venv/bin/python3 -m pytest -q test/infrastructure/models/validation/test_provider_capability_probes.py test/infrastructure/models/providers/test_request_profiles.py",
-        "host: $ELFIE_HOME/reports/ai-runtime.sqlite; full_run=run_81c08bccaf6e41d69ced2114d5fcb715; 8 capability runs completed",
-        "artifact: $ELFIE_HOME/configs/providers.yaml; 8 exact endpoint records now carry per-model capability evidence; no secrets were read into the repository",
-        "review: live Volcengine evidence shows tools and reasoning verified on all 8 models, vision unsupported on 7 models, and vision accepted but not yet verified on deepseek-v4-pro; this satisfies the representative-Provider release gate"
+        "command:.venv/bin/python3 -m pytest -q test/app/features/communication/test_discord_accounts_service.py test/app/interfaces/api/v1/elfies/communication_accounts/test_discord_routes.py",
+        "artifact:app/features/communication/discord_service.py",
+        "artifact:infrastructure/persistence/configuration/discord_tokens.py",
+        "review:owner-scoped routes and response DTOs never expose bot_token or credential_ref"
       ],
       "residuals": [],
       "blockers": []
     },
     {
-      "id": "PMA-004",
-      "requirement": "When the serving Food/model projection changes during a validation run, the in-flight run must stop using the stale generation and the next generation must be eligible for validation.",
+      "id": "REQ-002",
+      "requirement": "A one-time private Discord pairing code binds the external user and DM conversation to the owning Elfie; unknown users and non-DM messages are terminally rejected before canonical message delivery.",
       "status": "complete",
-      "implementation": [
-        "infrastructure/models/validation/serving_food.py",
-        "infrastructure/models/validation/core_validation_scheduler.py",
-        "infrastructure/models/validation/provider_scheduler.py",
-        "app/bootstrap/container.py"
-      ],
-      "automated_tests": [
-        "test/infrastructure/models/validation/test_core_validation_scheduler.py",
-        "test/infrastructure/models/validation/test_provider_scheduler.py"
-      ],
-      "runtime_scenarios": [
-        "Run a replayable scheduler scenario with a mutable ServingFoodIndex, a delayed validation callback and a Food edit that changes the generation; verify stale queued channels are cancelled and the next generation runs."
-      ],
-      "platform_conditions": [
-        "CPython 3.9.25, isolated temporary data root and SQLite report database"
-      ],
+      "implementation": ["Discord pairing service, strict Gateway mapper, and Discord message-delivery handler"],
+      "automated_tests": ["Pairing success/expiry/replay tests", "Unknown sender and non-DM rejection tests", "Canonical delivery identity/idempotency tests"],
+      "runtime_scenarios": ["Owner generates a code, the bound user sends a DM, and an unbound user is ignored without a reply"],
+      "platform_conditions": ["Bot is installed in a server that the test Discord user can access", "DM-only P0; no public-channel intent"],
       "evidence": [
-        "command: ./.venv/bin/python3 -m pytest -q test/infrastructure/models/validation/test_core_validation_scheduler.py",
-        "artifact: test/infrastructure/models/validation/test_core_validation_scheduler.py::test_food_edit_invalidates_in_flight_generation_and_next_generation_runs",
-        "review: old generation attempts only the in-flight channel, cancels remaining stale channels, and the changed generation is validated on the next run"
+        "command:.venv/bin/python3 -m pytest -q test/app/features/communication/test_discord_accounts_service.py test/app/orchestration/message_delivery/test_discord_update_handler.py test/infrastructure/communication/discord/test_client_and_mapper.py",
+        "artifact:app/orchestration/message_delivery/discord.py",
+        "artifact:infrastructure/communication/discord/mapper.py",
+        "review:single-use pairing and exact user/channel/DM authorization terminate before SubmitUserMessageCommand"
       ],
       "residuals": [],
       "blockers": []
     },
     {
-      "id": "PMA-005",
-      "requirement": "Two real validation workers sharing one report database must never execute the same validation or retention lease concurrently.",
+      "id": "REQ-003",
+      "requirement": "Discord receives DM events through a lifecycle-owned Gateway worker, sends text replies through REST, handles heartbeat/reconnect/resume boundaries, and attaches the existing Elfie communication channel only after pairing.",
       "status": "complete",
-      "implementation": [
-        "infrastructure/models/validation/provider_scheduler.py",
-        "infrastructure/persistence/reports/report_repository.py",
-        "infrastructure/persistence/reports/report_schema.py",
-        "app/bootstrap/container.py"
-      ],
-      "automated_tests": [
-        "test/infrastructure/models/validation/test_provider_scheduler.py",
-        "test/infrastructure/persistence/reports/test_validation_reports.py"
-      ],
-      "runtime_scenarios": [
-        "Run two separate POSIX Worker processes against one temporary SQLite report database and record the winner/loser for both model-validation and retention leases."
-      ],
-      "platform_conditions": [
-        "CPython 3.9.25 on macOS/POSIX, multiprocessing fork context and SQLite WAL-capable temporary filesystem"
-      ],
+      "implementation": ["Discord REST client, Gateway client, mapper, channel, worker, supervisor, and lifecycle wiring"],
+      "automated_tests": ["REST/mapper tests", "Gateway payload and worker tests", "Channel receipt/history tests", "Runtime attach/detach and retry tests"],
+      "runtime_scenarios": ["Configured account connects, pairs, exchanges text, and stops cleanly"],
+      "platform_conditions": ["Outbound network access to Discord API/Gateway", "Gateway session can reconnect without leaking worker threads"],
       "evidence": [
-        "command: ./.venv/bin/python3 -m pytest -q test/infrastructure/models/validation/test_provider_scheduler.py",
-        "artifact: test/infrastructure/models/validation/test_provider_scheduler.py::test_two_real_workers_share_one_model_validation_lease and ::test_two_real_workers_share_one_retention_lease",
-        "review: two independent processes shared one ReportRepository database; exactly one process ran each leased operation"
+        "command:.venv/bin/python3 -m pytest -q test/infrastructure/communication/discord test/infrastructure/persistence/elfie_workspace/test_discord_accounts.py",
+        "artifact:infrastructure/communication/discord/client.py",
+        "artifact:infrastructure/communication/discord/runner.py",
+        "artifact:app/bootstrap/container.py",
+        "review:Gateway heartbeat/reconnect/resume, REST replies, bounded worker cleanup and lifecycle wiring are covered"
       ],
       "residuals": [],
       "blockers": []
     },
     {
-      "id": "GATE-001",
-      "requirement": "Classify changed paths and automatically select the smallest safe validation tier, escalating unknown and governance-sensitive changes.",
+      "id": "REQ-004",
+      "requirement": "The owner-facing UI exposes a novice-friendly Discord wizard with strict API schemas, copy/open actions, pairing status polling, reconnect/disconnect states, and Chinese/English text without direct component HTTP calls.",
       "status": "complete",
-      "implementation": [
-        "scripts/architecture/validation_plan.py: path classification, test selection and tier escalation"
-      ],
-      "automated_tests": [
-        "test/architecture/test_validation_gate.py: planner classification and selection cases"
-      ],
-      "runtime_scenarios": [
-        "Run validation_gate.py with commit and push stages against a Provider-focused candidate."
-      ],
-      "platform_conditions": [
-        "CPython 3.9.25; repository checkout with origin/main available"
-      ],
+      "implementation": ["Discord API client, Profile Discord account module, profile wiring, localization, and shared visual treatment"],
+      "automated_tests": ["API client contract tests", "Discord account component tests", "Profile module/page regression tests"],
+      "runtime_scenarios": ["Owner opens the profile, completes the wizard, sees waiting/active states, and can disconnect"],
+      "platform_conditions": ["Node.js 20+ and pnpm 10.12.1", "Both zh-CN and en-US locales"],
       "evidence": [
-        "command: .venv/bin/python3 scripts/architecture/validation_gate.py --stage push --plan-only",
-        "command: uv run --no-sync pytest test/architecture/test_validation_gate.py",
-        "artifact: plan output selected Provider tests and escalated governance changes"
+        "command:pnpm exec vitest run --maxWorkers=1 src/api/elfies/communication-accounts.test.ts src/components/elfie-profile/ProfileDiscordAccount.test.tsx src/components/elfie-profile/ProfilePrivateModules.test.tsx src/components/ElfieProfilePanel.test.tsx src/pages/ChatPage.profile.test.tsx",
+        "command:pnpm exec tsc --noEmit -p tsconfig.json",
+        "artifact:app/interfaces/web/frontend/src/components/elfie-profile/ProfileDiscordAccount.tsx",
+        "artifact:app/interfaces/web/frontend/src/api/elfies/communication-accounts.ts",
+        "artifact:app/interfaces/web/frontend/src/shared/chat-profile.css",
+        "review:three-step owner wizard, copy/open actions, polling, disconnect and bilingual strings use the shared private-channel UI",
+        "review:Discord is mounted in the adopter-only manage accordion beside Telegram; default-collapsed and expanded parent states were replayed in the browser preview",
+        "artifact:/Users/Lendfating/.codex/visualizations/2026/08/16/01a00a57-bea7-76b2-920e-be80f6c2b15c/discord-flow/13-final-parent-collapsed.png",
+        "artifact:/Users/Lendfating/.codex/visualizations/2026/08/16/01a00a57-bea7-76b2-920e-be80f6c2b15c/discord-flow/14-final-parent-discord-expanded.png"
       ],
       "residuals": [],
       "blockers": []
     },
     {
-      "id": "GATE-002",
-      "requirement": "Reuse only successful validation results for an exact candidate snapshot and invalidate them when code, base, lockfiles, toolchain or selection rules change.",
+      "id": "REQ-005",
+      "requirement": "The change preserves communication authority, typed boundaries, owner authorization, idempotent external message IDs, and the repository architecture/quality gates.",
       "status": "complete",
-      "implementation": [
-        "scripts/architecture/validation_cache.py: content and environment fingerprint plus atomic pass cache",
-        "scripts/architecture/validation_gate.py: post-run fingerprint verification"
-      ],
-      "automated_tests": [
-        "test/architecture/test_validation_gate.py: cache hit, invalidation and atomic record cases"
-      ],
-      "runtime_scenarios": [
-        "Run the same stage twice and observe the second run reuses the exact-snapshot pass; change a file and observe a miss."
-      ],
-      "platform_conditions": [
-        "CPython 3.9.25; writable ignored build/ directory"
-      ],
+      "implementation": ["App/Infrastructure dependency direction, focused tests, and closure matrix"],
+      "automated_tests": ["Focused Python tests", "Focused frontend tests/typecheck", "Architecture scanners", "Task closure and pre-submit gates"],
+      "runtime_scenarios": ["Re-run the exact focused commands and the final gate from a clean candidate tree"],
+      "platform_conditions": ["Repository .venv and frontend dependencies available", "origin/main resolves to the immutable base"],
       "evidence": [
-        "command: uv run --no-sync pytest test/architecture/test_validation_gate.py",
-        "artifact: cache hit, failed-record rejection and content-invalidation cases passed"
-      ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "GATE-003",
-      "requirement": "Use focused checks for ordinary commits, affected integration checks for branch pushes, and retain the complete gate as the main-branch backstop.",
-      "status": "complete",
-      "implementation": [
-        "scripts/pre_submit_gate.sh: stage dispatch and main-gate compatibility",
-        ".agents/skills/git-submit-and-push/SKILL.md: delivery-stage commands",
-        ".github/workflows/ci.yml: stale-run cancellation"
-      ],
-      "automated_tests": [
-        "test/architecture/test_validation_gate.py: command-plan tests",
-        "test/architecture/test_architecture_governance.py: governance registration"
-      ],
-      "runtime_scenarios": [
-        "Run commit/push plan-only flows and the existing main gate through the internal no-cache path."
-      ],
-      "platform_conditions": [
-        "macOS development checkout; uv, Node 20+ and pnpm 10.12.1"
-      ],
-      "evidence": [
-        "command: bash -n scripts/pre_submit_gate.sh",
-        "command: git diff --check",
-        "command: uv run --no-sync pytest test/scripts/test_check_task_closure.py test/architecture/test_architecture_governance.py test/architecture/test_validation_gate.py",
-        "artifact: validation gate command plans and the complete main backstop are retained as the delivery evidence"
-      ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "GATE-004",
-      "requirement": "Keep governance contracts, agent guidance, CI concurrency and local contributor documentation consistent with the tiered workflow.",
-      "status": "complete",
-      "implementation": [
-        "docs/developer/contracts/repository-governance.md: tier contract",
-        "docs/developer/decisions/0023-tiered-validation-and-reuse.md: accepted decision",
-        "AGENTS.md and contributor guidance: execution rules",
-        ".github/workflows/ci.yml: stale-run cancellation"
-      ],
-      "automated_tests": [
-        "test/architecture/test_architecture_governance.py: registered bilingual governance artifacts"
-      ],
-      "runtime_scenarios": [
-        "Run the governance classifier and architecture governance tests against the candidate."
-      ],
-      "platform_conditions": [
-        "Clean repository checkout with both language mirrors present"
-      ],
-      "evidence": [
-        "command: uv run --no-sync pytest test/architecture/test_architecture_governance.py",
-        "command: uv run --no-sync ruff check scripts/architecture/validation_gate.py scripts/architecture/validation_cache.py scripts/architecture/validation_plan.py",
-        "review: English/Chinese contract and ADR mirrors are registered"
+        "command:.venv/bin/python3 -m pytest -q test/architecture/test_app_layer_boundaries.py test/architecture/test_system_layer_boundaries.py test/architecture/test_gateway_runtime_boundaries.py test/architecture/test_bootstrap_wiring_boundaries.py test/architecture/test_storage_boundaries.py test/architecture/test_runtime_import_boundaries.py test/architecture/test_effective_dependency_boundaries.py test/architecture/test_project_structure.py",
+        "command:.venv/bin/ruff check app/features/communication/discord_*.py infrastructure/communication/discord infrastructure/persistence/configuration/discord_tokens.py infrastructure/persistence/elfie_workspace/discord_accounts.py",
+        "command:git diff --check",
+        "command:.venv/bin/mypy -O json app elfie nest infrastructure devtools scripts",
+        "command:UV_CACHE_DIR=/private/tmp/elfienest-uv-cache uv run --no-sync python scripts/check_quality_baseline.py",
+        "command:isolated two-phase bash scripts/pre_submit_gate.sh --base-sha 20a7ac9cb60ae5e3000c215a35d78c7bc97f716c --closure-file task-closure.json (2526 passed, 3 skipped; documentation build passed)",
+        "artifact:docs/developer/architecture/communication.md",
+        "artifact:task-closure.json",
+        "review:App/Feature/Infrastructure ownership, secret boundary, idempotent external IDs and Telegram regression coverage were inspected",
+        "review:the frozen-base official gate classified task-closure.json as governance and requires a separate governance change; the isolated two-phase candidate gate passed"
       ],
       "residuals": [],
       "blockers": []
