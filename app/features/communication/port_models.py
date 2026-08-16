@@ -26,6 +26,8 @@ class ConversationMessageWrite:
     user_id: int
     message_id: Optional[str] = None
     meta: str = ""
+    external_actor_id: Optional[str] = None
+    external_actor_display_name: Optional[str] = None
 
 
 __all__ = ("ConversationMessageWrite", "StoredConversationMessage")

@@ -94,14 +94,20 @@ PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-f
 
 ```bash
 git fetch --prune origin main
+.venv/bin/python3 scripts/check_task_closure.py \
+  --file task-closure.json --base-sha "$(git rev-parse origin/main^{commit})"
 bash scripts/pre_submit_gate.sh \
-  --base-sha "$(git rev-parse origin/main^{commit})"
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --closure-file task-closure.json
 ```
 
-门禁会在临时候选树中纳入当前未暂存改动，并使用基础提交中的不可变架构检查器审查它；
-随后运行锁文件、Node/pnpm、质量基线、pre-commit/Gitleaks、完整 pytest、CLI smoke 和
-文档构建。任何步骤失败，或回环端口环境预检被阻断，都不得提交、推送或合并。不能用
-聚焦测试、删除测试、宽泛 skip/xfail 或质量基线更新替代门禁。
+完成检查先拒绝未归属的改动、证据不完整的矩阵行，以及仍未关闭的 Conformance 行；
+硬门禁随后在临时候选树中纳入当前未暂存改动，并使用基础提交中的不可变架构检查器审查它，
+再运行锁文件、Node/pnpm、质量基线、pre-commit/Gitleaks、完整 pytest、CLI smoke 和文档构建。
+任何步骤失败，或回环端口环境预检被阻断，都不得提交、推送或合并。聚焦测试不能替代门禁。
+
+修改完成技能或门禁本身时分两个检查点：先提交治理-only 的分类注册，再提交受保护的
+检查器和集成；不得为了合并这两步而绕过不可变基础分支门禁。
 
 ## 文档验证
 

@@ -16,6 +16,7 @@
 | `release.py` | 发布构建 | 组装 staging 资源并调用 electron-builder |
 | `check_quality_baseline.py` | 质量门 | 比较 Ruff、Ruff format、MyPy 当前诊断与受控历史基线 |
 | `check_quality_environment.py` | 质量预检 | 在昂贵的全量门禁前检查全仓测试所需的宿主能力 |
+| `check_task_closure.py` | 完成门禁 | 校验任务完成矩阵、改动归属、证据和列出的 Conformance 收口 |
 | `check_node_toolchain.sh` | 质量门 | 校验根目录 Node.js/pnpm 锚点与所有独立 Node 项目的清单 |
 | `architecture/app_layer_scan.py` | 架构门禁 | 对 App 层精确旧债做棘轮约束，基线删除后切换为 deny-all |
 | `architecture/system_layer_scan.py` | 架构门禁 | 对 Elfie/Nest 系统边界精确旧债做棘轮约束，基线删除后切换为 deny-all |

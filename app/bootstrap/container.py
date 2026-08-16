@@ -14,6 +14,7 @@ from app.features.adoption import (
 )
 from app.features.bodies import BodiesService
 from app.features.communication import CommunicationFacade
+from app.features.communication.telegram_service import TelegramAccountsService
 from app.features.configuration import (
     CapabilitiesService,
     EnsureDefaultLocalProviderConnectionCommand,
@@ -26,6 +27,7 @@ from app.features.nest_management import NestManagementService
 from app.features.operations import OperationsFacade
 from app.features.setup import SetupService
 from app.orchestration.embodiment import BodyDeviceChannel, EmbodimentSessionService
+from app.orchestration.lifecycle import ApplicationRuntimeLifecycle
 from app.orchestration.message_delivery import (
     MessageDeliveryFacade,
     MessageDeliveryOwnerBroadcaster,
@@ -117,6 +119,8 @@ class ApplicationContainer:
     communication: CommunicationFacade
     message_delivery: MessageDeliveryFacade
     communication_realtime: SameOriginMessagePublisher
+    telegram_accounts: TelegramAccountsService
+    runtime_lifecycle: ApplicationRuntimeLifecycle
     observer: ObserverFacade
     session_logout: SessionLogoutWorkflow
     adoption: AdoptionService
@@ -378,6 +382,10 @@ def build_application_container(
         communication=communication.communication,
         message_delivery=communication.message_delivery,
         communication_realtime=communication.realtime,
+        telegram_accounts=communication.telegram_accounts,
+        runtime_lifecycle=ApplicationRuntimeLifecycle(
+            (communication.telegram_runtime,)
+        ),
         observer=observer,
         session_logout=SessionLogoutWorkflow(accounts, observer),
         adoption=adoption.adoption,

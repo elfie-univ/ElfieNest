@@ -29,6 +29,9 @@ class RecordUserMessageCommand:
     text: str
     channel: str
     message_id: Optional[str] = None
+    conversation_id: Optional[str] = None
+    external_actor_id: Optional[str] = None
+    external_actor_display_name: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -37,6 +40,8 @@ class RecordElfieMessageCommand:
     text: str
     channel: str
     meta: str
+    conversation_id: Optional[str] = None
+    message_id: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -52,6 +57,9 @@ class PreparedUserMessageResult:
     text: str
     channel: str
     message_id: Optional[str]
+    conversation_id: Optional[str] = None
+    external_actor_id: Optional[str] = None
+    external_actor_display_name: Optional[str] = None
 
 
 @dataclass(frozen=True)

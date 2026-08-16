@@ -10,6 +10,7 @@ from app.orchestration.message_delivery import (
     UserMessageDeliveryAttempt,
 )
 from elfie.communication import InboundDisposition, InboundDispositionStatus
+from elfie.communication.channel import CommunicationChannel
 
 
 class OwnerMessageSession(Protocol):
@@ -24,6 +25,35 @@ class OwnerMessageSession(Protocol):
         account_id: str,
         channel_id: str,
     ) -> Optional[InboundDisposition]: ...
+
+
+class ElfieCommunicationChannelAdapter:
+    """Expose optional NestSession channel attachment through the App-owned Port."""
+
+    def __init__(self, session: object | None) -> None:
+        self._session = session
+
+    def attach_communication_channel(
+        self, elfie_id: str, channel: CommunicationChannel
+    ) -> bool:
+        attach = getattr(self._session, "attach_communication_channel", None)
+        if not callable(attach):
+            return False
+        try:
+            return bool(attach(elfie_id, channel))
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return False
+
+    def detach_communication_channel(
+        self, elfie_id: str, channel: CommunicationChannel
+    ) -> None:
+        detach = getattr(self._session, "detach_communication_channel", None)
+        if not callable(detach):
+            return
+        try:
+            detach(elfie_id, channel)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return
 
 
 class ElfieMessageDeliveryAdapter:
@@ -77,4 +107,8 @@ class ElfieMessageDeliveryAdapter:
         )
 
 
-__all__ = ("ElfieMessageDeliveryAdapter", "OwnerMessageSession")
+__all__ = (
+    "ElfieCommunicationChannelAdapter",
+    "ElfieMessageDeliveryAdapter",
+    "OwnerMessageSession",
+)

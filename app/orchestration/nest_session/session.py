@@ -37,7 +37,13 @@ from app.orchestration.nest_session.runtime_sync import NestRuntimeSynchronizer
 from app.orchestration.nest_session.world_perception import (
     nest_event_to_body_sensor_event,
 )
-from elfie.public import BodySensorEvent, Elfie, InboundDisposition, ModelPort
+from elfie.public import (
+    BodySensorEvent,
+    CommunicationChannel,
+    Elfie,
+    InboundDisposition,
+    ModelPort,
+)
 from nest.public import (
     Nest,
     NestEventEnvelope,
@@ -177,6 +183,38 @@ class NestSession:
     def get_elfie(self, elfie_id: str) -> Elfie | None:
         with self._lifecycle_lock:
             return self.elfies.get(elfie_id)
+
+    def attach_communication_channel(
+        self,
+        elfie_id: str,
+        channel: CommunicationChannel,
+    ) -> bool:
+        """Attach one injected platform channel to its explicit Elfie target."""
+        with self._lifecycle_lock:
+            elfie = self.elfies.get(elfie_id)
+            if elfie is None:
+                return False
+            elfie.register_communication_channel(
+                channel,
+                connect=False,
+                replace=True,
+            )
+            return True
+
+    def detach_communication_channel(
+        self,
+        elfie_id: str,
+        channel: CommunicationChannel,
+    ) -> None:
+        """Detach only the worker's own channel, preserving newer replacements."""
+        with self._lifecycle_lock:
+            elfie = self.elfies.get(elfie_id)
+            if elfie is None:
+                return
+            elfie.unregister_communication_channel(
+                channel.channel_id,
+                expected=channel,
+            )
 
     def elfie_items_snapshot(self) -> tuple[tuple[str, Elfie], ...]:
         with self._lifecycle_lock:

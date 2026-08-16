@@ -24,6 +24,32 @@ from .models import (
 from .port_models import ConversationMessageWrite, StoredConversationMessage
 from .ports import CommunicationPortError, ConversationHistoryPort
 from .service import CommunicationFacade
+from .telegram_errors import (
+    TelegramAccountConflict,
+    TelegramAccountError,
+    TelegramAccountInvalid,
+    TelegramAccountNotFound,
+    TelegramAccountUnavailable,
+)
+from .telegram_models import (
+    AuthorizedTelegramMessage,
+    ConfigureTelegramAccountCommand,
+    CreateTelegramPairingSessionCommand,
+    DisconnectTelegramAccountCommand,
+    GetTelegramAccountQuery,
+    TelegramAccountResult,
+    TelegramAccountState,
+    TelegramPairingCompletion,
+    TelegramPairingSessionResult,
+)
+from .telegram_port_models import (
+    StoredTelegramAccount,
+    StoredTelegramBinding,
+    TelegramBotInspection,
+    TelegramPrivateUpdate,
+    TelegramRuntimeAccount,
+)
+from .telegram_service import TelegramAccountsService
 
 __all__ = (
     "CommunicationError",
@@ -48,4 +74,24 @@ __all__ = (
     "RecordedElfieMessageResult",
     "RecordUserMessageCommand",
     "StoredConversationMessage",
+    "AuthorizedTelegramMessage",
+    "ConfigureTelegramAccountCommand",
+    "CreateTelegramPairingSessionCommand",
+    "DisconnectTelegramAccountCommand",
+    "GetTelegramAccountQuery",
+    "StoredTelegramAccount",
+    "StoredTelegramBinding",
+    "TelegramAccountConflict",
+    "TelegramAccountError",
+    "TelegramAccountInvalid",
+    "TelegramAccountNotFound",
+    "TelegramAccountResult",
+    "TelegramAccountState",
+    "TelegramAccountUnavailable",
+    "TelegramAccountsService",
+    "TelegramBotInspection",
+    "TelegramPairingCompletion",
+    "TelegramPairingSessionResult",
+    "TelegramPrivateUpdate",
+    "TelegramRuntimeAccount",
 )

@@ -14,6 +14,9 @@ class SubmitUserMessageCommand:
     text: str
     channel: str = "web"
     external_message_id: Optional[str] = None
+    conversation_id: Optional[str] = None
+    external_actor_id: Optional[str] = None
+    external_actor_display_name: Optional[str] = None
 
 
 @dataclass(frozen=True)

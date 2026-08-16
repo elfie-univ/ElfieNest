@@ -28,6 +28,10 @@ from app.orchestration.lifecycle.ports import (
     ServicePortStatus,
     UninstallState,
 )
+from app.orchestration.lifecycle.runtime_resources import (
+    ApplicationRuntimeLifecycle,
+    ManagedRuntimeResource,
+)
 from app.orchestration.lifecycle.runtime_snapshot import (
     BackendTier,
     ComponentSnapshot,
@@ -57,6 +61,7 @@ from app.orchestration.lifecycle.types import (
 from app.orchestration.lifecycle.world_worker import RuntimeWorldWorker
 
 __all__ = [
+    "ApplicationRuntimeLifecycle",
     "AuthorityHostConfig",
     "CapabilityDeniedError",
     "CapabilityPermit",
@@ -85,6 +90,7 @@ __all__ = [
     "ModelHealthProjection",
     "ModelOverallState",
     "OwnerLease",
+    "ManagedRuntimeResource",
     "RecoveryInProgressError",
     "RuntimeComponent",
     "RuntimeObservation",

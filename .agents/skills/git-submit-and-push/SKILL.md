@@ -14,12 +14,14 @@ description: 评估已完成改动的提交时机，并完成 Git 提交和远�
 3. 不提交仍在调试、测试失败、存在已知 bug 或尚待确认的半成品。对于需要用户目视验收的界面改动，用户说“没 bug 了”“可以了”或“验收通过”即视为提交和推送确认。
 4. 提交前运行 `git status --short --branch`，确认当前分支、远端跟踪关系和所有改动来源。
 5. 不覆盖或回退用户已有改动。用户要求提交“当前代码”时包含当前工作区全部目标改动；范围不明确时根据当前任务边界审慎选择。
-6. 暂存或提交前必须先同步远端基础提交并运行仓库硬门禁：
-   `git fetch --prune origin main`，然后执行
-   `bash scripts/pre_submit_gate.sh --base-sha "$(git rev-parse origin/main^{commit})"`。
-   门禁会把未暂存改动放入临时候选树，运行不可变基础分支架构 ratchet、锁文件与工具链、
-   质量基线、pre-commit/Gitleaks、完整 pytest 和文档构建；门禁失败或环境预检未通过时
-   不得提交、推送或合并。聚焦测试通过不能替代这一步。
+6. 暂存或提交前必须先建立并通过 `task-closure` 的 `task-closure.json`，再同步远端基础
+   提交并运行仓库硬门禁：`git fetch --prune origin main`，然后执行
+   `bash scripts/pre_submit_gate.sh --base-sha "$(git rev-parse origin/main^{commit})" --closure-file task-closure.json`。
+   门禁会把未暂存改动放入临时候选树，运行完成矩阵、不可变基础分支架构 ratchet、锁文件与
+   工具链、质量基线、pre-commit/Gitleaks、完整 pytest 和文档构建；任何未完成矩阵行、开放
+   Conformance 行、门禁失败或环境预检未通过时不得提交、推送或合并。聚焦测试通过不能替代这一步。
+   如果本次改动本身新增或修改完成门禁，先按 `$task-closure` 的两阶段治理 bootstrap
+   落地分类注册，再提交受保护的检查器与集成；不可用当前未发布的规则绕过不可变基础检查。
 7. 检查暂存内容，禁止提交本地密钥、Token、密码、运行时配置或被 `.gitignore` 保护的敏感文件。
 8. 禁止使用 `--no-verify` 绕过 pre-commit。钩子失败时修复问题并重新提交。
 9. 创建 commit 后立即推送当前分支。已有上游时运行 `git push`；没有上游时运行 `git push -u origin <branch>`。
@@ -38,7 +40,8 @@ git diff --stat
 
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh \
-  --base-sha "$(git rev-parse origin/main^{commit})"
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --closure-file task-closure.json
 ```
 
 读取关键差异并运行相关测试。硬门禁会审查当前工作树（包括未暂存文件）；若本地落后

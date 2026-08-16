@@ -109,6 +109,26 @@ def test_registered_temporary_debt_artifacts_are_live() -> None:
         )
 
 
+def test_task_closure_gate_files_are_governance_changes() -> None:
+    governance, production = classify_paths(
+        {
+            ".agents/skills/task-closure/SKILL.md",
+            "scripts/check_task_closure.py",
+            "scripts/pre_submit_gate.sh",
+            "task-closure.json",
+            "test/scripts/test_check_task_closure.py",
+        }
+    )
+    assert production == set()
+    assert governance == {
+        ".agents/skills/task-closure/SKILL.md",
+        "scripts/check_task_closure.py",
+        "scripts/pre_submit_gate.sh",
+        "task-closure.json",
+        "test/scripts/test_check_task_closure.py",
+    }
+
+
 def test_contract_change_requires_mirror_version_bump_and_bilingual_adr(
     tmp_path: Path,
     monkeypatch,

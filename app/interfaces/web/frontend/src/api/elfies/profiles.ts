@@ -138,9 +138,11 @@ const ProfileDetailResponseSchema = z.object({
   permissions: PermissionsSchema,
   profile: ElfieProfileSchema,
   private_cognition: PrivateCognitionSchema.nullable(),
-}).strict().transform(({ profile: value, private_cognition }) => ({
+}).strict().transform(({ profile: value, private_cognition, relationship, permissions }) => ({
   ...value,
+  permissions,
   private_cognition,
+  relationship,
 }))
 
 export type ElfieRelationship = z.infer<typeof ElfieRelationshipSchema>

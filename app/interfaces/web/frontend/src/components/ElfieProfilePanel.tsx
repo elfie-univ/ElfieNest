@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
+import type { TelegramAccount } from "../api/client"
 import type { AdoptionSpecies } from "../api/me/adoption"
 import type { AppearanceCaptureAdapter } from "./elfie-profile/appearance-capture"
 import type { ElfieProfileProjection } from "./elfie-profile/projection"
@@ -20,8 +21,13 @@ type ElfieProfilePanelProps = {
   readonly onBack: () => void
   readonly onChat: () => void
   readonly onFoodSaved?: (() => Promise<void>) | undefined
+  readonly onTelegramAccountChange?: ((account: TelegramAccount) => void) | undefined
+  readonly onTelegramRefresh?: (() => Promise<void>) | undefined
   readonly projection: ElfieProfileProjection | null
   readonly speciesDefinition?: Pick<AdoptionSpecies, "display_name" | "display_name_zh"> | undefined
+  readonly telegramAccount?: TelegramAccount | null
+  readonly telegramAccountError?: string | null
+  readonly telegramAccountLoading?: boolean
 }
 
 type LocalAvatar = {
@@ -35,8 +41,13 @@ export function ElfieProfilePanel({
   onBack,
   onChat,
   onFoodSaved,
+  onTelegramAccountChange,
+  onTelegramRefresh,
   projection,
   speciesDefinition,
+  telegramAccount = null,
+  telegramAccountError = null,
+  telegramAccountLoading = false,
 }: ElfieProfilePanelProps) {
   const { t } = useTranslation("chat")
   const [activeSection, setActiveSection] = useState<ProfileSection>("archive")
@@ -134,8 +145,13 @@ export function ElfieProfilePanel({
             <ProfilePrivateModules
               csrfToken={csrfToken}
               onFoodSaved={onFoodSaved}
+              onTelegramAccountChange={onTelegramAccountChange}
+              onTelegramRefresh={onTelegramRefresh}
               projection={projection}
               section="archive"
+              telegramAccount={telegramAccount}
+              telegramAccountError={telegramAccountError}
+              telegramAccountLoading={telegramAccountLoading}
             />
           </>
         ) : null}
@@ -143,8 +159,13 @@ export function ElfieProfilePanel({
           <ProfilePrivateModules
             csrfToken={csrfToken}
             onFoodSaved={onFoodSaved}
+            onTelegramAccountChange={onTelegramAccountChange}
+            onTelegramRefresh={onTelegramRefresh}
             projection={projection}
             section="manage"
+            telegramAccount={telegramAccount}
+            telegramAccountError={telegramAccountError}
+            telegramAccountLoading={telegramAccountLoading}
           />
         ) : null}
       </div>

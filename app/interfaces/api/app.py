@@ -24,7 +24,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 from app.features.accounts import AccountsService
 from app.features.adoption import AdoptionService
 from app.features.bodies import BodiesService
-from app.features.communication import CommunicationFacade
+from app.features.communication import CommunicationFacade, TelegramAccountsService
 from app.features.configuration import (
     CapabilitiesService,
     FoodService,
@@ -118,6 +118,7 @@ def create_http_application(
     communication: CommunicationFacade,
     message_delivery: MessageDeliveryFacade,
     communication_realtime: CommunicationRealtimePort,
+    telegram_accounts: TelegramAccountsService,
     observer: ObserverFacade,
     session_logout: SessionLogoutWorkflow,
     adoption: AdoptionService,
@@ -160,6 +161,7 @@ def create_http_application(
     app.state.communication = communication
     app.state.message_delivery = message_delivery
     app.state.communication_realtime = communication_realtime
+    app.state.telegram_accounts = telegram_accounts
     app.state.observer = observer
     app.state.session_logout = session_logout
     app.state.adoption = adoption
@@ -299,6 +301,9 @@ def create_http_application(
     from .v1.auth.routes import router as auth_router  # noqa: PLC0415
     from .v1.elfies import router as elfies_router  # noqa: PLC0415
     from .v1.elfies.bodies import router as bodies_router  # noqa: PLC0415
+    from .v1.elfies.communication_accounts import (
+        router as elfie_communication_accounts_router,  # noqa: PLC0415
+    )
     from .v1.elfies.food_policy import (
         router as elfie_food_policy_router,  # noqa: PLC0415
     )
@@ -318,6 +323,7 @@ def create_http_application(
     app.include_router(model_providers_router)
     app.include_router(food_packages_router)
     app.include_router(elfie_food_policy_router)
+    app.include_router(elfie_communication_accounts_router)
     app.include_router(bodies_router)
     app.include_router(capabilities_router)
     app.include_router(runtime_router)

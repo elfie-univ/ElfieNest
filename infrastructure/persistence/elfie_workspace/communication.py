@@ -68,6 +68,8 @@ class SQLiteConversationHistoryAdapter:
                     channel=message.channel,
                     user_id=message.user_id,
                     meta=message.meta,
+                    external_actor_id=message.external_actor_id,
+                    external_actor_display_name=message.external_actor_display_name,
                 ),
                 data_home=data_home_from_db_path(self._db_path),
             )

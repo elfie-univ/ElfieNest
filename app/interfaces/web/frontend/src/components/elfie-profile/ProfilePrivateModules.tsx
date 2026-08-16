@@ -4,11 +4,13 @@ import type { TFunction } from "i18next"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
+import type { TelegramAccount } from "../../api/client"
 import { ProfileCareSettings } from "./ProfileCareSettings"
 import { ProfileImportantExperiences } from "./ProfileImportantExperiences"
 import { ProfileKnowledgeBeliefs } from "./ProfileKnowledgeBeliefs"
 import { ProfileRecentFocus } from "./ProfileRecentFocus"
 import { ProfileRelationshipWorld } from "./ProfileRelationshipWorld"
+import { ProfileTelegramAccount } from "./ProfileTelegramAccount"
 import { ProfileWorldUnderstanding } from "./ProfileWorldUnderstanding"
 import type { CareSettings, PrivateCognition } from "./model"
 import type { ElfieProfileProjection } from "./projection"
@@ -16,11 +18,16 @@ import type { ElfieProfileProjection } from "./projection"
 type ProfilePrivateModulesProps = {
   readonly csrfToken?: string | undefined
   readonly onFoodSaved?: (() => Promise<void>) | undefined
+  readonly onTelegramAccountChange?: ((account: TelegramAccount) => void) | undefined
+  readonly onTelegramRefresh?: (() => Promise<void>) | undefined
   readonly projection: ElfieProfileProjection
   readonly section?: ProfilePrivateModuleSection
+  readonly telegramAccount?: TelegramAccount | null
+  readonly telegramAccountError?: string | null
+  readonly telegramAccountLoading?: boolean
 }
 
-type ModuleKey = "focus" | "timeline" | "relationships" | "world" | "knowledge" | "food"
+type ModuleKey = "focus" | "timeline" | "relationships" | "world" | "knowledge" | "food" | "telegram"
 export type ProfilePrivateModuleSection = "all" | "archive" | "manage"
 
 type ModuleItem = {
@@ -36,7 +43,17 @@ type AccordionState = {
 
 const NO_OPEN_KEYS: readonly ModuleKey[] = []
 
-export function ProfilePrivateModules({ csrfToken, onFoodSaved, projection, section = "all" }: ProfilePrivateModulesProps) {
+export function ProfilePrivateModules({
+  csrfToken,
+  onFoodSaved,
+  onTelegramAccountChange,
+  onTelegramRefresh,
+  projection,
+  section = "all",
+  telegramAccount = null,
+  telegramAccountError = null,
+  telegramAccountLoading = false,
+}: ProfilePrivateModulesProps) {
   const { t } = useTranslation("chat")
   const elfieId = projection.publicProfile.elfieId
   const resetKey = `${elfieId}:${projection.kind}`
@@ -55,8 +72,21 @@ export function ProfilePrivateModules({ csrfToken, onFoodSaved, projection, sect
   if (projection.kind === "visitor") return null
 
   const openKeys = accordion.resetKey === resetKey ? accordion.openKeys : NO_OPEN_KEYS
-  const items = moduleItems(projection.privateCognition, projection.careSettings, elfieId, csrfToken, onFoodSaved, t)
-    .filter((item) => section === "all" || (section === "manage" ? item.key === "food" : item.key !== "food"))
+  const items = moduleItems(
+    projection.privateCognition,
+    projection.careSettings,
+    elfieId,
+    projection.publicProfile.name,
+    csrfToken,
+    onFoodSaved,
+    telegramAccount,
+    telegramAccountError,
+    telegramAccountLoading,
+    onTelegramAccountChange,
+    onTelegramRefresh,
+    t,
+  ).filter((item) => section === "all"
+    || (section === "manage" ? item.key === "food" || item.key === "telegram" : item.key !== "food" && item.key !== "telegram"))
   const toggle = (key: ModuleKey): void => {
     setAccordion((current) => {
       const currentKeys = current.resetKey === resetKey ? current.openKeys : NO_OPEN_KEYS
@@ -110,8 +140,14 @@ function moduleItems(
   cognition: PrivateCognition,
   careSettings: CareSettings,
   elfieId: string,
+  elfieName: string,
   csrfToken: string | undefined,
   onFoodSaved: (() => Promise<void>) | undefined,
+  telegramAccount: TelegramAccount | null,
+  telegramAccountError: string | null,
+  telegramAccountLoading: boolean,
+  onTelegramAccountChange: ((account: TelegramAccount) => void) | undefined,
+  onTelegramRefresh: (() => Promise<void>) | undefined,
   t: TFunction<"chat">,
 ): readonly ModuleItem[] {
   return [
@@ -121,5 +157,19 @@ function moduleItems(
     { key: "world", displayTitle: t("profile.private.titles.world"), renderBody: () => <ProfileWorldUnderstanding world={cognition.worldUnderstanding} status={cognition.status} /> },
     { key: "knowledge", displayTitle: t("profile.private.titles.knowledge"), renderBody: () => <ProfileKnowledgeBeliefs knowledge={cognition.knowledgeBeliefs} status={cognition.status} /> },
     { key: "food", displayTitle: t("profile.private.titles.food"), renderBody: () => <ProfileCareSettings csrfToken={csrfToken} elfieId={elfieId} onSaved={onFoodSaved} settings={careSettings} /> },
+    {
+      key: "telegram",
+      displayTitle: t("profile.private.titles.telegram"),
+      renderBody: () => <ProfileTelegramAccount
+        account={telegramAccount}
+        accountError={telegramAccountError}
+        accountLoading={telegramAccountLoading}
+        csrfToken={csrfToken}
+        elfieId={elfieId}
+        elfieName={elfieName}
+        onAccountChange={onTelegramAccountChange}
+        onRefresh={onTelegramRefresh}
+      />,
+    },
   ]
 }

@@ -73,12 +73,19 @@ def create_app(
     async def application_lifespan(_app: FastAPI) -> AsyncIterator[None]:
         container.setup_installation.recover()
         container.provider_scheduler.start()
-        if engine is not None and container.core_validation_worker is not None:
-            container.core_validation_worker.start()
+        core_validation_started = False
+        runtime_started = False
         try:
+            if engine is not None and container.core_validation_worker is not None:
+                container.core_validation_worker.start()
+                core_validation_started = True
+            container.runtime_lifecycle.start()
+            runtime_started = True
             yield
         finally:
-            if container.core_validation_worker is not None:
+            if runtime_started:
+                container.runtime_lifecycle.stop()
+            if core_validation_started and container.core_validation_worker is not None:
                 container.core_validation_worker.stop()
             container.provider_scheduler.stop()
 
@@ -95,6 +102,7 @@ def create_app(
         communication=container.communication,
         message_delivery=container.message_delivery,
         communication_realtime=container.communication_realtime,
+        telegram_accounts=container.telegram_accounts,
         observer=container.observer,
         session_logout=container.session_logout,
         adoption=container.adoption,

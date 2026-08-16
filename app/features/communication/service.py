@@ -142,6 +142,9 @@ class CommunicationFacade:
             text=_message_text(command.text),
             channel=command.channel,
             message_id=command.message_id,
+            conversation_id=command.conversation_id,
+            external_actor_id=command.external_actor_id,
+            external_actor_display_name=command.external_actor_display_name,
         )
 
     def record_user_message(
@@ -161,13 +164,18 @@ class CommunicationFacade:
             stored = self._history.append_message(
                 ConversationMessageWrite(
                     elfie_id=access.elfie_id,
-                    conversation_id=_owner_conversation_id(access.owner_user_id),
+                    conversation_id=(
+                        prepared.conversation_id
+                        or _owner_conversation_id(access.owner_user_id)
+                    ),
                     sender="user",
                     text=prepared.text,
                     channel=prepared.channel,
                     user_id=access.owner_user_id,
                     message_id=prepared.message_id,
                     meta="已投递到下一次 tick",
+                    external_actor_id=prepared.external_actor_id,
+                    external_actor_display_name=prepared.external_actor_display_name,
                 )
             )
         except CommunicationPortError as error:
@@ -189,11 +197,14 @@ class CommunicationFacade:
             stored = self._history.append_message(
                 ConversationMessageWrite(
                     elfie_id=elfie_id,
-                    conversation_id=_owner_conversation_id(owner_user_id),
+                    conversation_id=(
+                        command.conversation_id or _owner_conversation_id(owner_user_id)
+                    ),
                     sender="elfie",
                     text=text,
                     channel=command.channel,
                     user_id=owner_user_id,
+                    message_id=command.message_id,
                     meta=command.meta,
                 )
             )

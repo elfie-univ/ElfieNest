@@ -33,12 +33,17 @@ GOVERNANCE_PREFIXES = (
     "docs/developer/decisions/",
     "docs/zh/developer/contracts/",
     "docs/zh/developer/decisions/",
+    ".agents/skills/",
     "scripts/architecture/",
 )
 GOVERNANCE_EXACT = {
     ".pre-commit-config.yaml",
     ".github/workflows/ci.yml",
     "scripts/check_quality_baseline.py",
+    "scripts/check_task_closure.py",
+    "scripts/pre_submit_gate.sh",
+    "task-closure.json",
+    "test/scripts/test_check_task_closure.py",
     "test/architecture/AGENTS.md",
     "test/architecture/test_app_layer_boundaries.py",
     "test/architecture/test_system_layer_boundaries.py",

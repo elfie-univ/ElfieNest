@@ -15,6 +15,8 @@ import {
   elfies,
   elfieFoodPolicy,
   profile,
+  telegramAccount,
+  type TelegramAccount,
   type ElfieFoodPolicy,
   type ElfieProfileDetail,
   type AdoptionSpecies,
@@ -83,6 +85,9 @@ export function ChatPage() {
   const [history, setHistory] = useState<readonly ChatMessage[]>([])
   const [selectedProfile, setSelectedProfile] = useState<ElfieProfileDetail | null>(null)
   const [selectedFoodPolicy, setSelectedFoodPolicy] = useState<ElfieFoodPolicy | null>(null)
+  const [selectedTelegramAccount, setSelectedTelegramAccount] = useState<TelegramAccount | null>(null)
+  const [telegramAccountLoading, setTelegramAccountLoading] = useState(false)
+  const [telegramAccountError, setTelegramAccountError] = useState<string | null>(null)
   const [speciesCatalog, setSpeciesCatalog] = useState<ReadonlyMap<string, AdoptionSpecies>>(() => new Map())
   const [failure, setFailure] = useState<ChatFailure | null>(null)
   const [draft, setDraft] = useState("")
@@ -179,11 +184,24 @@ export function ChatPage() {
   useEffect(() => {
     setSelectedProfile(null)
     setSelectedFoodPolicy(null)
+    setSelectedTelegramAccount(null)
+    setTelegramAccountLoading(false)
+    setTelegramAccountError(null)
     if (selectedId === null || viewState.view !== "profile") return
     void Promise.all([profile(selectedId), elfieFoodPolicy(selectedId)])
-      .then(([loadedProfile, foodPolicy]) => {
+      .then(async ([loadedProfile, foodPolicy]) => {
         setSelectedProfile(loadedProfile)
         setSelectedFoodPolicy(foodPolicy)
+        if (loadedProfile.relationship !== "owned") return
+        setTelegramAccountLoading(true)
+        setTelegramAccountError(null)
+        try {
+          setSelectedTelegramAccount(await telegramAccount(selectedId))
+        } catch (reason: unknown) {
+          setTelegramAccountError(reason instanceof ApiError ? reason.message : null)
+        } finally {
+          setTelegramAccountLoading(false)
+        }
       })
       .catch((reason: unknown) => {
         setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
@@ -266,6 +284,17 @@ export function ChatPage() {
     setSelectedProfile(loadedProfile)
     setSelectedFoodPolicy(foodPolicy)
   }
+  const refreshSelectedTelegram = async (): Promise<void> => {
+    if (selectedId === null) return
+    setTelegramAccountError(null)
+    try {
+      setSelectedTelegramAccount(await telegramAccount(selectedId))
+    } catch (reason: unknown) {
+      const detail = reason instanceof ApiError ? reason.message : null
+      setTelegramAccountError(detail)
+      throw reason
+    }
+  }
   const submit = async (): Promise<void> => {
     if (selectedId === null || !draft.trim()) return
     const text = draft.trim()
@@ -346,6 +375,8 @@ export function ChatPage() {
               onBack={() => go({ view: "elfies" })}
               onChat={() => { if (selectedId !== null) go({ view: "conversation", elfie: selectedId }) }}
               onFoodSaved={saveSelectedFood}
+              onTelegramAccountChange={setSelectedTelegramAccount}
+              onTelegramRefresh={refreshSelectedTelegram}
               projection={presentElfieProfile(
                 selectedProfile ?? selected ?? null,
                 user.account_id,
@@ -355,6 +386,9 @@ export function ChatPage() {
               speciesDefinition={selectedProfile?.species
                 ?? selected?.species
                 ?? speciesCatalog.get(selectedProfile?.species_id ?? selected?.species_id ?? "")}
+              telegramAccount={selectedTelegramAccount}
+              telegramAccountError={telegramAccountError}
+              telegramAccountLoading={telegramAccountLoading}
             />
           </section>
         )}

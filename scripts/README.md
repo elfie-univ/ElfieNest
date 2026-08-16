@@ -18,6 +18,7 @@ environment.
 | `release.py` | Release build | Assembles staging resources and invokes electron-builder |
 | `check_quality_baseline.py` | Quality gate | Compares current Ruff, Ruff format and MyPy diagnostics against the controlled historical baseline |
 | `check_quality_environment.py` | Quality preflight | Checks host capabilities required by repository-wide tests before the expensive full gate |
+| `check_task_closure.py` | Completion gate | Validates the task acceptance matrix, changed-path scope, evidence and listed Conformance closure |
 | `check_node_toolchain.sh` | Quality gate | Verifies the root Node.js/pnpm anchor and all independent Node project manifests |
 | `architecture/app_layer_scan.py` | Architecture gate | Ratchets exact legacy App-layer violations and switches to deny-all after baseline removal |
 | `architecture/system_layer_scan.py` | Architecture gate | Ratchets exact Elfie/Nest system-boundary violations and switches to deny-all after baseline removal |
