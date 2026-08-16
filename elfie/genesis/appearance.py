@@ -5,7 +5,12 @@ from __future__ import annotations
 import hashlib
 import random
 
-from elfie.profile import AppearanceGenerator, AppearanceGenome, get_species_definition
+from elfie.profile import (
+    AppearanceGenerator,
+    AppearanceGenome,
+    SpeciesCatalog,
+    get_species_definition,
+)
 
 from .contracts import CandidateSignature, GenesisAppearanceIntent
 from .personality import clamp
@@ -18,6 +23,7 @@ def generate_appearance(
     intent: GenesisAppearanceIntent,
     role: str,
     rng: random.Random,
+    catalog: SpeciesCatalog | None = None,
 ) -> AppearanceGenome:
     height = {"small": "short", "tall": "tall"}.get(intent.stature)
     build = {"slim": "slim", "round": "plump"}.get(intent.build)
@@ -35,11 +41,11 @@ def generate_appearance(
     elif role == "discovery_variant":
         height = rng.choice(("short", "standard", "tall"))
         build = rng.choice(("slim", "standard", "plump"))
-    return AppearanceGenerator(seed).generate(
+    return AppearanceGenerator(seed, catalog=catalog).generate(
         species_id=species_id,
         height_direction=height,
         build_direction=build,
-        overrides=_overrides(species_id, intent, role, rng),
+        overrides=_overrides(species_id, intent, role, rng, catalog=catalog),
     )
 
 
@@ -108,6 +114,8 @@ def _overrides(
     intent: GenesisAppearanceIntent,
     role: str,
     rng: random.Random,
+    *,
+    catalog: SpeciesCatalog | None = None,
 ) -> dict[str, object]:
     overrides: dict[str, object] = {}
     if intent.face == "soft":
@@ -126,19 +134,37 @@ def _overrides(
             "muzzle_length_bias": rng.uniform(-0.55, 0.55),
         }
     if intent.signature == "warm":
-        species = get_species_definition(species_id)
+        species = (
+            catalog.definition(species_id, adoptable_only=True)
+            if catalog is not None
+            else get_species_definition(species_id, adoptable_only=True)
+        )
+        preferences = (
+            species.genesis.appearance_preferences
+            if species.genesis is not None
+            else {}
+        )
         preferred = tuple(
             option
-            for option in ("golden", "silver", "pale", "cream", "red_brown")
+            for option in preferences.get("warm", ())
             if option in species.appearance.palettes
         )
         palettes = preferred or species.appearance.palettes
         overrides["coat"] = {"palette_id": rng.choice(palettes)}
     elif intent.signature == "marked":
-        species = get_species_definition(species_id)
+        species = (
+            catalog.definition(species_id, adoptable_only=True)
+            if catalog is not None
+            else get_species_definition(species_id, adoptable_only=True)
+        )
+        preferences = (
+            species.genesis.appearance_preferences
+            if species.genesis is not None
+            else {}
+        )
         preferred = tuple(
             option
-            for option in ("bicolor", "face_mask", "cross", "tricolor", "tabby")
+            for option in preferences.get("marked", ())
             if option in species.appearance.patterns
         )
         patterns = preferred or species.appearance.patterns

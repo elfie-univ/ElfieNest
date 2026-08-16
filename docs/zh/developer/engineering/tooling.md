@@ -18,13 +18,12 @@ ElfieNest 固定使用 CPython 3.9.25，依赖以 `uv.lock` 为准：
 uv sync --locked --extra dev
 ```
 
-`./install.sh` 不使用 `sudo`，完整安装时会创建当前用户可用的 `elfienest` 与
-`uninstall-elfienest` 命令。源码开发也可以始终使用仓库内的
-`./elfienest.sh`。
+源码开发使用仓库内的 `./elfienest.sh`。最终用户安装平台原生应用包，不从源码
+checkout 执行安装命令。
 
 Python `3.9.25` 是产品和开发工具的共同固定运行时。除非负责人明确批准全仓升级，
 不得改用系统 `python`/`python3`、其他虚拟环境或 `ELFIENEST_PYTHON` 覆盖入口；
-安装、CLI、Developer Tools、测试和 CR 一律经 `uv` 与仓库 `.venv`。环境失效时只需
+源码 CLI、Developer Tools、测试和 CR 一律经 `uv` 与仓库 `.venv`。环境失效时只需
 运行 `./elfienest.sh version`；首次开发运行会自动检查并补齐受控依赖。
 
 ### Node.js 与 pnpm 工具链

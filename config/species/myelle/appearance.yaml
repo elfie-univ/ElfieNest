@@ -1,0 +1,51 @@
+schema_version: 1
+profile_version: 1
+supported_controls:
+  - stature
+  - build
+  - face
+  - signature
+control_options:
+  stature: [small, standard, tall, any]
+  build: [slim, standard, round, any]
+  face: [soft, balanced, defined, any]
+  signature: [warm, marked, ears, any]
+control_ranges:
+  stature: {minimum: 0.88, base: 0.98, maximum: 1.08}
+  build: {minimum: 0.86, base: 0.96, maximum: 1.08}
+  face: {minimum: -1.00, base: 0.00, maximum: 1.00}
+  signature: {minimum: -1.00, base: 0.00, maximum: 1.00}
+stature_scale: {minimum: 0.88, base: 0.98, maximum: 1.08}
+build_scale: {minimum: 0.86, base: 0.96, maximum: 1.08}
+build_weights: {body_fat: 0.36, frame_size: 0.24, muscularity: 0.18, local_bias: 0.00}
+proportion_scales:
+  HeadScale: {minimum: 0.92, base: 1.00, maximum: 1.10}
+  NeckLength: {minimum: 0.88, base: 1.00, maximum: 1.12}
+  ArmLength: {minimum: 0.92, base: 1.00, maximum: 1.08}
+  LegLength: {minimum: 0.92, base: 1.00, maximum: 1.12}
+  ShoulderWidth: {minimum: 0.88, base: 0.98, maximum: 1.08}
+  HandScale: {minimum: 0.88, base: 0.98, maximum: 1.08}
+  PawScale: {minimum: 0.86, base: 0.96, maximum: 1.06}
+  TailLength: {minimum: 0.90, base: 1.00, maximum: 1.14}
+  EyeScale: {minimum: 0.94, base: 1.04, maximum: 1.14}
+  EyeSpacing: {minimum: 0.94, base: 1.00, maximum: 1.06}
+  EyeHeight: {minimum: 0.96, base: 1.00, maximum: 1.04}
+shape_correlations:
+  Body_ChestFullness: {body_fat: 0.38, frame_size: 0.24, muscularity: 0.18, local_bias: 0.28}
+  Body_WaistWidth: {body_fat: 0.52, frame_size: 0.16, muscularity: 0.00, local_bias: 0.24}
+  Body_BellyDepth: {body_fat: 0.68, frame_size: 0.00, muscularity: 0.00, local_bias: 0.24}
+  Body_HipWidth: {body_fat: 0.48, frame_size: 0.22, muscularity: 0.00, local_bias: 0.24}
+  Body_HipDepth: {body_fat: 0.56, frame_size: 0.00, muscularity: 0.00, local_bias: 0.24}
+  Body_ArmThickness: {body_fat: 0.52, frame_size: 0.18, muscularity: 0.22, local_bias: 0.24}
+  Body_LegThickness: {body_fat: 0.58, frame_size: 0.18, muscularity: 0.22, local_bias: 0.20}
+  Body_NeckThickness: {body_fat: 0.48, frame_size: 0.18, muscularity: 0.00, local_bias: 0.20}
+  Body_PawFullness: {body_fat: 0.34, frame_size: 0.18, muscularity: 0.00, local_bias: 0.28}
+  Face_CheekFullness: {body_fat: 0.50, frame_size: 0.12, muscularity: 0.00, local_bias: 0.28}
+  Face_LowerFullness: {body_fat: 0.42, frame_size: 0.00, muscularity: 0.00, local_bias: 0.26}
+palettes: [black, white, cream, ginger, gray, calico, tuxedo]
+patterns: [solid, tabby, bicolor, calico, tuxedo]
+eye_colors: [green, amber, blue, hazel, blue_gray]
+nose_colors: [pink, black, dark_brown, charcoal]
+distributions:
+  ear_droop: {mean: 0.10, standard_deviation: 0.17, minimum: 0.00, maximum: 1.00}
+species_traits: [whisker_sensitivity_bias, ear_focus_bias, tail_balance_bias]

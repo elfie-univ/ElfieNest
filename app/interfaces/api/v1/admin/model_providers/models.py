@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, cast
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -19,6 +19,7 @@ from app.features.configuration import (
     ProviderProductResult,
     ProviderValidationRunResult,
     ProviderVerificationResult,
+    StoredModelAvailability,
 )
 
 StrictModel = ConfigDict(extra="forbid", strict=True)
@@ -37,6 +38,9 @@ class ProviderModelWriteRequest(BaseModel):
     supports_tools: Optional[bool] = None
     supports_vision: Optional[bool] = None
     supports_reasoning: Optional[bool] = None
+    supports_structured_output: Optional[bool] = None
+    request_profile_id: Optional[str] = Field(default=None, max_length=100)
+    request_profile_version: Optional[int] = Field(default=None, gt=0)
 
     @field_validator("id")
     @classmethod
@@ -86,6 +90,9 @@ class ProviderModelPatchRequest(BaseModel):
     supports_tools: Optional[bool] = None
     supports_vision: Optional[bool] = None
     supports_reasoning: Optional[bool] = None
+    supports_structured_output: Optional[bool] = None
+    request_profile_id: Optional[str] = Field(default=None, max_length=100)
+    request_profile_version: Optional[int] = Field(default=None, gt=0)
     hidden: Optional[bool] = None
     retired: Optional[bool] = None
 
@@ -262,6 +269,13 @@ class ProviderVerificationResponse(BaseModel):
     heartbeat_status: Optional[Literal["passed", "failed"]]
     representative_model_id: Optional[str]
     reason: Optional[str]
+    availability_status: Literal["available", "degraded", "unavailable", "unknown"] = (
+        "unknown"
+    )
+    reason_code: Optional[str] = None
+    evidence_source: Optional[str] = None
+    expires_at: Optional[str] = None
+    is_core: bool = False
 
     @classmethod
     def from_result(
@@ -282,10 +296,26 @@ class ProviderModelResponse(BaseModel):
     supports_tools: Optional[bool]
     supports_vision: Optional[bool]
     supports_reasoning: Optional[bool]
+    supports_structured_output: Optional[bool]
     hidden: bool
     retired: bool
     available: bool
     verification: ProviderVerificationResponse
+    discovery_state: str = "present"
+    consecutive_missing: int = 0
+    last_seen_at: Optional[str] = None
+    request_profile_id: Optional[str] = None
+    request_profile_version: Optional[int] = None
+    capability_evidence: dict[
+        Literal["tools", "vision", "reasoning", "structured_output"],
+        Literal[
+            "declared",
+            "declared_by_user",
+            "accepted",
+            "verified",
+            "unknown",
+        ],
+    ] = Field(default_factory=dict)
 
     @classmethod
     def from_result(cls, item: ProviderModelResult) -> ProviderModelResponse:
@@ -299,11 +329,91 @@ class ProviderModelResponse(BaseModel):
             supports_tools=item.supports_tools,
             supports_vision=item.supports_vision,
             supports_reasoning=item.supports_reasoning,
+            supports_structured_output=item.supports_structured_output,
             hidden=item.hidden,
             retired=item.retired,
             available=item.available,
             verification=ProviderVerificationResponse.from_result(item.verification),
+            discovery_state=item.discovery_state,
+            consecutive_missing=item.consecutive_missing,
+            last_seen_at=item.last_seen_at,
+            request_profile_id=item.request_profile_id,
+            request_profile_version=item.request_profile_version,
+            capability_evidence=cast(
+                dict[
+                    Literal["tools", "vision", "reasoning", "structured_output"],
+                    Literal[
+                        "declared",
+                        "declared_by_user",
+                        "accepted",
+                        "verified",
+                        "unknown",
+                    ],
+                ],
+                dict(item.capability_evidence),
+            ),
         )
+
+
+class ProviderModelCapabilityResponse(BaseModel):
+    model_config = StrictModel
+
+    name: Literal["tools", "vision", "reasoning", "structured_output"]
+    state: Literal["supported", "unsupported", "unknown"]
+    evidence: Literal["declared", "declared_by_user", "accepted", "verified", "unknown"]
+
+
+class ProviderModelAvailabilityResponse(BaseModel):
+    model_config = StrictModel
+
+    reference: str
+    connection_id: str
+    model_id: str
+    status: Literal["available", "degraded", "unavailable", "unknown"]
+    reason_code: Optional[str]
+    provider_status: Literal[
+        "healthy", "degraded", "unavailable", "unknown", "disabled"
+    ]
+    evidence_source: Optional[str]
+    observed_at: Optional[str]
+    expires_at: Optional[str]
+    is_core: bool
+    serving_food_ids: tuple[str, ...]
+    serving_roles: tuple[str, ...]
+    capabilities: tuple[ProviderModelCapabilityResponse, ...]
+
+    @classmethod
+    def from_result(
+        cls, item: StoredModelAvailability
+    ) -> ProviderModelAvailabilityResponse:
+        return cls(
+            reference=item.reference,
+            connection_id=item.connection_id,
+            model_id=item.model_id,
+            status=item.status,
+            reason_code=item.reason_code,
+            provider_status=item.provider_status,
+            evidence_source=item.evidence_source,
+            observed_at=item.observed_at,
+            expires_at=item.expires_at,
+            is_core=item.is_core,
+            serving_food_ids=item.serving_food_ids,
+            serving_roles=item.serving_roles,
+            capabilities=tuple(
+                ProviderModelCapabilityResponse(
+                    name=capability.name,
+                    state=capability.state,
+                    evidence=capability.evidence,
+                )
+                for capability in item.capabilities
+            ),
+        )
+
+
+class ProviderModelAvailabilityListResponse(BaseModel):
+    model_config = StrictModel
+
+    items: tuple[ProviderModelAvailabilityResponse, ...]
 
 
 class ModelRefreshResponse(BaseModel):
@@ -435,6 +545,10 @@ class LocalProviderModelResponse(BaseModel):
     display_name: str
     installed: bool
     recommended: bool
+    availability_status: Literal["available", "degraded", "unavailable", "unknown"] = (
+        "unknown"
+    )
+    available: bool = False
 
 
 class LocalProviderStatusResponse(BaseModel):

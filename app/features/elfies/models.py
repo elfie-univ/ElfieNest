@@ -56,10 +56,21 @@ class ElfieAppearanceResult:
 
 
 @dataclass(frozen=True)
+class ElfieSpeciesPresentation:
+    species_id: str
+    canon_id: str
+    display_name: str
+    display_name_zh: str
+    earth_shape_label: str
+    status: Literal["published", "retired"]
+
+
+@dataclass(frozen=True)
 class ElfieProfileResult:
     elfie_id: str
     name: str
     species_id: str
+    species: ElfieSpeciesPresentation | None
     gender: str | None
     birth_date: str | None
     summary: str | None
@@ -201,6 +212,7 @@ __all__ = (
     "ElfiePermissionsResult",
     "ElfieProfileDetailResult",
     "ElfieProfileResult",
+    "ElfieSpeciesPresentation",
     "ElfiePortraitResult",
     "ElfieRelationship",
     "ExperienceResult",

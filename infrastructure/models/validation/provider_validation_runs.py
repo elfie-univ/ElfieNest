@@ -47,54 +47,114 @@ async def run_full(
     models = active_validation_models(connection)
     model_ids = tuple(model.endpoint_model_id for model in models)
     model_results: list[dict[str, Any]] = []
+    promoted_transport_outage = False
     try:
-        semaphore = asyncio.Semaphore(_MODEL_CONCURRENCY)
-        for model in models:
-            raw = await bounded_connection_model_check(
-                connection,
-                model.endpoint_model_id,
-                semaphore,
-                model_execution_projection,
+
+        def record_batch(
+            batch: tuple[Any, ...], raw_results: tuple[dict[str, Any], ...]
+        ) -> bool:
+            nonlocal promoted_transport_outage
+            for model, raw in zip(batch, raw_results):
+                checked_at = _now()
+                status = "passed" if raw.get("status") == "passed" else "failed"
+                error = sanitize_error(
+                    _optional_text(raw.get("error")),
+                    secrets=(
+                        connection_api_key(
+                            connection,
+                            secret_resolver=secret_resolver,
+                        ),
+                    ),
+                )
+                latency = raw.get("latency_ms")
+                latency_ms = (
+                    float(latency) if isinstance(latency, (int, float)) else None
+                )
+                latency_class = (
+                    str(raw.get("latency_class")) if raw.get("latency_class") else None
+                )
+                reports.write_model_validation_report(
+                    connection.connection_id,
+                    model.endpoint_model_id,
+                    status=status,
+                    checked_at=checked_at,
+                    latency_ms=latency_ms,
+                    latency_class=latency_class,
+                    error=error,
+                    trigger="full",
+                    run_id=run_id,
+                    details={
+                        "validation_mode": "full",
+                        "full_run_id": run_id,
+                        "config_fingerprint": decision.fingerprint,
+                        "evidence_source": "validation",
+                        **{
+                            key: value
+                            for key, value in raw.items()
+                            if key in {"error_code", "error_scope", "error_category"}
+                        },
+                    },
+                )
+                model_results.append(
+                    {
+                        "model_id": model.endpoint_model_id,
+                        "status": status,
+                        "checked_at": checked_at,
+                        "latency_ms": latency_ms,
+                        "latency_class": latency_class,
+                        "error": error,
+                        "error_code": raw.get("error_code"),
+                        "error_scope": raw.get("error_scope"),
+                        "error_category": raw.get("error_category"),
+                    }
+                )
+            transport_failures = sum(
+                1
+                for item in model_results
+                if item.get("error_scope") == "transport"
+                or item.get("error_category")
+                in {"network", "timeout", "server", "transport"}
             )
-            checked_at = _now()
-            status = "passed" if raw.get("status") == "passed" else "failed"
-            error = sanitize_error(
-                _optional_text(raw.get("error")),
-                secrets=(
-                    connection_api_key(connection, secret_resolver=secret_resolver),
-                ),
+            if transport_failures >= 2:
+                promoted_transport_outage = True
+            return (
+                any(raw.get("error_scope") == "connection" for raw in raw_results)
+                or promoted_transport_outage
             )
-            latency = raw.get("latency_ms")
-            latency_ms = float(latency) if isinstance(latency, (int, float)) else None
-            latency_class = (
-                str(raw.get("latency_class")) if raw.get("latency_class") else None
+
+        # Probe the first model alone.  This preserves the account-wide early
+        # stop guarantee: a billing/credential block must not start sibling
+        # requests.  Once the connection is known to be reachable, the
+        # remaining model checks use bounded parallelism.
+        blocked = False
+        if models:
+            first_batch = (models[0],)
+            first_raw = await asyncio.gather(
+                bounded_connection_model_check(
+                    connection,
+                    models[0].endpoint_model_id,
+                    asyncio.Semaphore(1),
+                    model_execution_projection,
+                )
             )
-            reports.write_model_validation_report(
-                connection.connection_id,
-                model.endpoint_model_id,
-                status=status,
-                checked_at=checked_at,
-                latency_ms=latency_ms,
-                latency_class=latency_class,
-                error=error,
-                trigger="full",
-                run_id=run_id,
-                details={
-                    "validation_mode": "full",
-                    "full_run_id": run_id,
-                    "config_fingerprint": decision.fingerprint,
-                },
+            blocked = record_batch(first_batch, tuple(first_raw))
+        for offset in range(1, len(models), _MODEL_CONCURRENCY):
+            if blocked:
+                break
+            batch = models[offset : offset + _MODEL_CONCURRENCY]
+            semaphore = asyncio.Semaphore(_MODEL_CONCURRENCY)
+            raw_results = await asyncio.gather(
+                *(
+                    bounded_connection_model_check(
+                        connection,
+                        model.endpoint_model_id,
+                        semaphore,
+                        model_execution_projection,
+                    )
+                    for model in batch
+                )
             )
-            model_results.append(
-                {
-                    "model_id": model.endpoint_model_id,
-                    "status": status,
-                    "checked_at": checked_at,
-                    "latency_ms": latency_ms,
-                    "latency_class": latency_class,
-                    "error": error,
-                }
-            )
+            blocked = record_batch(batch, tuple(raw_results))
         finished_at = _now()
         status = (
             "passed"
@@ -118,6 +178,26 @@ async def run_full(
                 1 for item in model_results if item["status"] == "passed"
             ),
         }
+        first_error = next(
+            (item for item in model_results if item.get("error_code")), None
+        )
+        if first_error is not None:
+            metadata.update(
+                {
+                    "error_code": first_error.get("error_code"),
+                    "error_scope": first_error.get("error_scope"),
+                    "error_category": first_error.get("error_category"),
+                }
+            )
+        if promoted_transport_outage:
+            metadata.update(
+                {
+                    "error_code": "connection_transient_outage",
+                    "error_scope": "connection",
+                    "error_category": "transport",
+                    "hard_blocker": True,
+                }
+            )
         reports.write_provider_validation_report(
             connection.connection_id,
             status=status,

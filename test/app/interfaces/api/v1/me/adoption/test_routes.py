@@ -106,6 +106,12 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
         "remaining": 4,
     }
     assert options.json()["availability"] == "available"
+    assert options.json()["species"][0]["appearance_controls"] == [
+        {"control_id": "stature", "options": ["small", "standard", "tall", "any"]},
+        {"control_id": "build", "options": ["slim", "standard", "round", "any"]},
+        {"control_id": "face", "options": ["soft", "balanced", "defined", "any"]},
+        {"control_id": "signature", "options": ["warm", "marked", "ears", "any"]},
+    ]
     candidates = client.post(
         "/api/v1/me/adoption/candidate-sets",
         json={

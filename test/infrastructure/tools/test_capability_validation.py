@@ -2,6 +2,7 @@ from app.features.configuration.capabilities import StoredValidationResult
 from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.validation.validation_models import CheckResult, CheckStatus
 from infrastructure.tools import DirectCapabilityValidationAdapter
+from test.support.model_execution import model_execution_config
 
 
 class FakeRunner:
@@ -30,7 +31,7 @@ def _factory(config: ModelExecutionConfig):
 
 def test_validation_adapter_delegates_and_keeps_only_typed_details():
     adapter = DirectCapabilityValidationAdapter(
-        config_loader=lambda: ModelExecutionConfig(),
+        config_loader=lambda: model_execution_config(),
         runner_factory=_factory,
     )
 
@@ -43,7 +44,7 @@ def test_validation_adapter_delegates_and_keeps_only_typed_details():
 
 def test_validation_adapter_uses_existing_file_sandbox_check():
     adapter = DirectCapabilityValidationAdapter(
-        config_loader=lambda: ModelExecutionConfig(),
+        config_loader=lambda: model_execution_config(),
         runner_factory=_factory,
     )
 

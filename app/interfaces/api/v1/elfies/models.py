@@ -32,10 +32,20 @@ class ElfieAppearanceResponse(_StrictModel):
     species_traits: Dict[StrictStr, StrictFloat]
 
 
+class ElfieSpeciesPresentationResponse(_StrictModel):
+    species_id: str
+    canon_id: str
+    display_name: str
+    display_name_zh: str
+    earth_shape_label: str
+    status: Literal["published", "retired"]
+
+
 class ElfieProfileResponse(_StrictModel):
     elfie_id: str
     name: str
     species_id: str
+    species: Optional[ElfieSpeciesPresentationResponse]
     gender: Optional[str]
     birth_date: Optional[str]
     summary: Optional[str]
@@ -156,6 +166,7 @@ __all__ = (
     "ElfieAppearanceResponse",
     "ElfieProfileDetailResponse",
     "ElfieProfileResponse",
+    "ElfieSpeciesPresentationResponse",
     "ElfiesErrorDetails",
     "ElfiesErrorItem",
     "ElfiesErrorResponse",

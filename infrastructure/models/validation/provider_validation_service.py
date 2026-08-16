@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Literal, Mapping
 
 from infrastructure.models.provider_records import ProviderConnection
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.storage_ports import ReportStoragePort
 
 from .provider_validation_checks import ModelExecutionProjection
@@ -23,6 +24,7 @@ SecretResolver = Callable[[str], str]
 async def validate_connection(
     connection: ProviderConnection,
     *,
+    catalog: ProviderCatalog,
     model_execution_projection: ModelExecutionProjection,
     reports: ReportStoragePort,
     secret_resolver: SecretResolver,
@@ -37,6 +39,7 @@ async def validate_connection(
     decision = choose_validation_mode(
         connection,
         latest,
+        catalog=catalog,
         force_full=force_full,
         secret_resolver=secret_resolver,
     )
@@ -65,6 +68,7 @@ async def validate_connection(
 def summarize_connection_validation(
     connection: ProviderConnection,
     *,
+    catalog: ProviderCatalog,
     reports: ReportStoragePort,
     secret_resolver: SecretResolver,
 ) -> dict[str, Any]:
@@ -83,10 +87,12 @@ def summarize_connection_validation(
             "full_run_id": None,
             "full_checked_at": None,
             "heartbeat_checked_at": None,
-            "representative_model_id": representative_model_id(connection),
+            "representative_model_id": representative_model_id(
+                connection, catalog=catalog
+            ),
         }
     decision = choose_validation_mode(
-        connection, latest, secret_resolver=secret_resolver
+        connection, latest, catalog=catalog, secret_resolver=secret_resolver
     )
     metadata = latest.get("metadata")
     metadata = metadata if isinstance(metadata, dict) else {}

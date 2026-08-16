@@ -49,6 +49,7 @@ from infrastructure.models.model_reference import parse_model_reference
 
 logger = logging.getLogger("infrastructure.models.model_execution_agent")
 MainFoodLoader = Callable[[str], MainFoodSelection]
+_ADOPTION_MODEL_TIMEOUT_SECONDS = 20.0
 
 
 class _UnavailableToolPort:
@@ -72,7 +73,7 @@ class ModelExecutionAgent:
 
     def __init__(
         self,
-        config: ModelExecutionConfig = None,
+        config: ModelExecutionConfig,
         *,
         ports: ModelExecutionAgentPorts,
         live_reload: bool = False,
@@ -80,7 +81,7 @@ class ModelExecutionAgent:
         food_catalog_repository: FoodPort | None = None,
         tool_port: ToolPort | None = None,
     ):
-        self.config = config or ModelExecutionConfig()
+        self.config = config
         self._ports = ports
         self._live_reload = live_reload
         self._main_food_loader = main_food_loader
@@ -289,6 +290,11 @@ class ModelExecutionAgent:
             temperature=request.temperature,
             max_tokens=request.max_tokens,
             thinking=request.reasoning_mode == "long",
+            timeout_seconds=(
+                request.timeout_seconds
+                if request.timeout_seconds is not None
+                else _ADOPTION_MODEL_TIMEOUT_SECONDS
+            ),
         )
         try:
             execution = executor.execute(
@@ -663,11 +669,7 @@ class ModelExecutionAgent:
         if not package.enabled or package.archived or package.primary is None:
             return False
         evidence = self._ports.model_evidence_source().get(package.primary.model)
-        if (
-            evidence is None
-            or evidence.local
-            or evidence.status not in {"verified", "stale"}
-        ):
+        if evidence is None or evidence.local or not evidence.fresh:
             return False
         try:
             provider = self._provider_for_model(package.primary.model)
@@ -683,9 +685,10 @@ class ModelExecutionAgent:
         self,
         *,
         provider_options: Dict[str, Any] | None = None,
-        temperature: float = 0.7,
-        max_tokens: int = 1500,
+        temperature: float,
+        max_tokens: int,
         thinking: bool = False,
+        timeout_seconds: float | None = None,
     ) -> FoodExecutor:
         def caller(
             provider: str,
@@ -695,7 +698,7 @@ class ModelExecutionAgent:
             _max_tokens: int,
             options: dict[str, Any],
         ) -> str:
-            return self._call_food_llm_api(
+            call_args = (
                 provider,
                 model,
                 messages,
@@ -704,6 +707,9 @@ class ModelExecutionAgent:
                 {**options, **(provider_options or {})},
                 thinking,
             )
+            if timeout_seconds is None:
+                return self._call_food_llm_api(*call_args)
+            return self._call_food_llm_api(*call_args, timeout_seconds)
 
         return FoodExecutor(
             config=self.config,
@@ -755,6 +761,7 @@ class ModelExecutionAgent:
         max_tokens: int,
         request_options: Dict[str, Any],
         thinking: bool = False,
+        timeout_seconds: float | None = None,
     ) -> str:
         return call_llm_api(
             self.config,
@@ -765,4 +772,5 @@ class ModelExecutionAgent:
             max_tokens,
             thinking=thinking,
             request_options=request_options,
+            timeout_seconds=timeout_seconds,
         )

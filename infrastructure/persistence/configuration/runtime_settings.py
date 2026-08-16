@@ -12,6 +12,11 @@ from infrastructure.persistence.configuration.config_store import (
     read_yaml_mapping,
     write_yaml_mapping,
 )
+from infrastructure.persistence.configuration.documents import ConfigDocumentId
+from infrastructure.persistence.configuration.schemas import (
+    ConfigSchemaError,
+    validate_registered_document,
+)
 from infrastructure.persistence.layout.data_home import (
     ensure_elfie_home,
     get_config_path,
@@ -26,40 +31,27 @@ def _backup(path: Path) -> None:
         shutil.copy2(str(path), str(path.with_suffix(f"{path.suffix}.bak")))
 
 
-def _without_plaintext_api_keys(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            key: _without_plaintext_api_keys(item)
-            for key, item in value.items()
-            if key != "api_key"
-        }
-    if isinstance(value, list):
-        return [_without_plaintext_api_keys(item) for item in value]
-    return value
-
-
 def read_runtime_settings() -> dict[str, Any]:
-    """Read Runtime settings with Tool settings projected into the public shape."""
+    """Read only the user-owned Runtime settings document."""
     config = copy.deepcopy(read_yaml_mapping(get_config_path()))
+    _validate_runtime_document(config, get_config_path())
     config.pop("version", None)
     if "providers" in config:
         raise ConfigStoreError(
             "Runtime 设置不接受 providers；请使用 ProviderConnectionStore"
         )
 
-    runtime_policy = config.get("runtime_policy")
-    if isinstance(runtime_policy, dict):
-        runtime_policy.pop("tools", None)
-
-    tool_path = get_tool_config_path()
-    if tool_path.exists():
-        tool_document = read_yaml_mapping(tool_path)
-        runtime_policy = config.get("runtime_policy")
-        if not isinstance(runtime_policy, dict):
-            runtime_policy = {}
-            config["runtime_policy"] = runtime_policy
-        runtime_policy["tools"] = copy.deepcopy(tool_document.get("tools", {}))
     return config
+
+
+def read_tool_settings() -> dict[str, Any]:
+    """Read only the user-owned Tool settings document."""
+    document = copy.deepcopy(read_yaml_mapping(get_tool_config_path()))
+    _validate_runtime_document(
+        document, get_tool_config_path(), ConfigDocumentId.TOOL_SETTINGS
+    )
+    document.pop("version", None)
+    return document
 
 
 def write_runtime_settings(
@@ -67,28 +59,57 @@ def write_runtime_settings(
     *,
     backup_existing: bool = True,
 ) -> None:
-    """Write Runtime and Tool settings without reading or writing Provider data."""
+    """Write only Runtime settings without touching Tool or Provider data."""
     if "providers" in config:
         raise ConfigStoreError(
             "Runtime 设置不接受 providers；请使用 ProviderConnectionStore"
         )
-    ensure_elfie_home()
+    runtime_policy = config.get("runtime_policy")
+    if isinstance(runtime_policy, Mapping) and "tools" in runtime_policy:
+        raise ConfigStoreError(
+            "Runtime 设置不接受 runtime_policy.tools；请使用 ToolSettingsAdapter"
+        )
     safe_config = copy.deepcopy(dict(config))
-    runtime_policy = safe_config.get("runtime_policy")
-    tools: Any = {}
-    if isinstance(runtime_policy, dict):
-        tools = _without_plaintext_api_keys(runtime_policy.pop("tools", {}))
+    path = get_config_path()
+    document = {"version": CONFIG_DOCUMENT_VERSION, **safe_config}
+    _validate_runtime_document(document, path)
+    ensure_elfie_home()
+    if read_yaml_mapping(path) == document:
+        return
+    if backup_existing:
+        _backup(path)
+    write_yaml_mapping(path, document)
 
-    documents = (
-        (get_config_path(), {"version": CONFIG_DOCUMENT_VERSION, **safe_config}),
-        (
-            get_tool_config_path(),
-            {"version": CONFIG_DOCUMENT_VERSION, "tools": tools},
-        ),
-    )
-    for path, document in documents:
-        if read_yaml_mapping(path) == document:
-            continue
-        if backup_existing:
-            _backup(path)
-        write_yaml_mapping(path, document)
+
+def write_tool_settings(
+    tools: Mapping[str, Any],
+    *,
+    backup_existing: bool = True,
+) -> None:
+    """Write the dedicated user Tool settings document."""
+    path = get_tool_config_path()
+    document = {"version": CONFIG_DOCUMENT_VERSION, "tools": copy.deepcopy(dict(tools))}
+    _validate_runtime_document(document, path, ConfigDocumentId.TOOL_SETTINGS)
+    ensure_elfie_home()
+    if read_yaml_mapping(path) == document:
+        return
+    if backup_existing:
+        _backup(path)
+    write_yaml_mapping(path, document)
+
+
+def _validate_runtime_document(
+    document: Mapping[str, Any],
+    path: Path,
+    document_id: ConfigDocumentId = ConfigDocumentId.RUNTIME_SETTINGS,
+) -> None:
+    if not document:
+        return
+    if document.get("version") != CONFIG_DOCUMENT_VERSION:
+        raise ConfigStoreError(
+            f"{document_id.value} 配置版本不支持: {document.get('version')!r}"
+        )
+    try:
+        validate_registered_document(document_id, document, path)
+    except ConfigSchemaError as exc:
+        raise ConfigStoreError(str(exc)) from exc

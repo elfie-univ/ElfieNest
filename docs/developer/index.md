@@ -23,6 +23,8 @@ source of truth.
   target first-class ownership of one complete Elfie.
 - [Elfie Brain ten-system architecture](./designs/elfie-brain-ten-system-architecture):
   Brain's conceptual systems, runtime relationships and incremental implementation order.
+- [Provider and endpoint-model availability](./designs/provider-model-availability):
+  curated loading, serving-core scope and cost-aware health evidence.
 - [Architecture contracts](./contracts/): the long-lived normative rules.
 - [Repository architecture governance](./contracts/repository-governance): how
   contracts, ADRs, local Agent rules, scanners, baselines and CI form one

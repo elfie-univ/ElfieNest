@@ -12,6 +12,7 @@ from infrastructure.models.food_technology import (
     FoodEvidencePort,
     ModelFoodTechnologyAdapter,
 )
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.setup_catalog import ProviderSetupCatalogAdapter
 from infrastructure.models.setup_food import SetupFoodAdapter
 from infrastructure.models.setup_ollama import SetupOllamaAdapter
@@ -43,6 +44,7 @@ def build_setup_services(
     nest: SQLiteNestManagementAdapter,
     provider_state: ProviderLocalStatePort,
     food_evidence: FoodEvidencePort | None = None,
+    catalog: ProviderCatalog | None = None,
 ) -> SetupServices:
     state = SQLiteSetupAdapter(db_path)
     setup_accounts = SetupAccountsAdapter(accounts)
@@ -58,14 +60,16 @@ def build_setup_services(
     if evidence_port is None:
         from app.bootstrap.app_wiring.food import build_food_evidence
 
-        evidence_port = build_food_evidence(db_path)
+        if catalog is None:
+            raise ValueError("Setup composition requires an injected Provider catalog")
+        evidence_port = build_food_evidence(db_path, provider_catalog=catalog)
     return SetupServices(
         setup=SetupService(
             state=state,
             owners=setup_accounts,
             ollama=ollama,
             nest_choices=NestConfigSetupChoiceAdapter(),
-            models=ProviderSetupCatalogAdapter(),
+            models=ProviderSetupCatalogAdapter(catalog),
         ),
         installation=SetupInstallationService(
             key=db_path,

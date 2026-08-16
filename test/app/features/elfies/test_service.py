@@ -191,10 +191,14 @@ def test_member_directory_exposes_visible_elfies_with_bounded_permissions() -> N
         "openness",
         "extraversion",
     )
+    assert results[0].profile.species is not None
+    assert results[0].profile.species.display_name_zh == "灵狐"
     assert results[1].permissions.can_view_profile is True
     assert results[1].permissions.can_view_cognition is False
 
-    owned = service.list_visible(_principal(), ListVisibleElfiesQuery(relationship="owned"))
+    owned = service.list_visible(
+        _principal(), ListVisibleElfiesQuery(relationship="owned")
+    )
     assert [item.profile.elfie_id for item in owned] == ["00000001"]
 
 
@@ -208,6 +212,29 @@ def test_member_profile_of_another_member_is_public_without_cognition() -> None:
 
     assert result.relationship == "other"
     assert result.private_cognition is None
+
+
+def test_retired_species_can_still_be_presented_when_catalog_contains_it() -> None:
+    from dataclasses import replace
+
+    from elfie.profile import current_species_catalog
+
+    catalog = current_species_catalog()
+    fox = catalog.definition("fox")
+    retired = replace(fox, canon_id="old-fox", status="retired")
+    retired_catalog = replace(
+        catalog,
+        definitions=tuple(
+            retired if definition.species_id == "fox" else definition
+            for definition in catalog.definitions
+        ),
+    )
+    service = ElfiesService(FakeElfiesPort(), catalog=retired_catalog)
+
+    result = service.list_visible(_principal(), ListVisibleElfiesQuery())[0]
+
+    assert result.profile.species is not None
+    assert result.profile.species.status == "retired"
 
 
 def test_profile_preserves_the_five_existing_cognition_modules() -> None:

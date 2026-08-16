@@ -125,10 +125,9 @@ def test_root_infrastructure_is_a_first_class_python_source() -> None:
     assert 'include = ["app*", "elfie*", "infrastructure*", "nest*"]' in pyproject
     assert 'known-first-party = ["app", "elfie", "infrastructure", "nest"]' in pyproject
     assert 'source = ["app", "elfie", "infrastructure", "nest"]' in pyproject
-    assert (
-        '"infrastructure.models.providers" = '
-        '["provider-catalog.yaml", "model-catalog.yaml"]' in pyproject
-    )
+    assert '"infrastructure.models.providers"' not in pyproject
+    assert (PROJECT_ROOT / "config" / "models" / "provider-catalog.yaml").is_file()
+    assert (PROJECT_ROOT / "config" / "models" / "model-catalog.yaml").is_file()
     assert "ai_runtime" not in pyproject
 
 

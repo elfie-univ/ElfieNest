@@ -17,6 +17,12 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
+from infrastructure.godot.artifacts.species_package_validation import (
+    GodotSpeciesValidationRunner,
+    SpeciesPackageValidationError,
+    validate_source_species_packages,
+)
+from infrastructure.persistence.configuration.species import load_species_catalog
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 GODOT_PROJECT = PROJECT_ROOT / "godot_project"
@@ -76,7 +82,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> int:
+def main(*, godot_runner: GodotSpeciesValidationRunner | None = None) -> int:
     args = parse_args()
     output = args.output.expanduser().resolve()
     if args.check:
@@ -85,13 +91,20 @@ def main() -> int:
         print(f"✅ Godot Web Runtime is up-to-date: {output / ENTRY_NAME}")
         return 0
 
-    return _export_runtime(output, args.godot, args.allow_version_mismatch)
+    return _export_runtime(
+        output,
+        args.godot,
+        args.allow_version_mismatch,
+        godot_runner=godot_runner,
+    )
 
 
 def _export_runtime(
     output: Path,
     explicit_binary: Optional[Path],
     allow_version_mismatch: bool,
+    *,
+    godot_runner: GodotSpeciesValidationRunner | None,
 ) -> int:
     """Export the Godot Runtime and atomically replace the current bundle after validation."""
     binary = _find_godot(explicit_binary)
@@ -116,13 +129,33 @@ def _export_runtime(
         )
         return 2
 
+    if godot_runner is None:
+        print("❌ Godot Web build requires an injected species validation runner.")
+        return 1
+    try:
+        species_package_ids = validate_source_species_packages(
+            config_root=PROJECT_ROOT / "config",
+            godot_project=GODOT_PROJECT,
+            godot_runner=godot_runner,
+            godot_binary=binary,
+        )
+    except SpeciesPackageValidationError as error:
+        print(f"❌ Species package validation failed: {error}")
+        return 1
+
     with _build_lock(output):
         if runtime_is_current(output):
             print(
                 f"✅ Godot Web Runtime was updated by another process: {output / ENTRY_NAME}"
             )
             return 0
-        return _export_runtime_locked(output, binary, actual_version, required_version)
+        return _export_runtime_locked(
+            output,
+            binary,
+            actual_version,
+            required_version,
+            species_package_ids,
+        )
 
 
 def _export_runtime_locked(
@@ -130,6 +163,7 @@ def _export_runtime_locked(
     binary: Path,
     actual_version: Optional[str],
     required_version: Optional[str],
+    species_package_ids: tuple[str, ...],
 ) -> int:
     """Run one real Godot export while holding the exclusive lock."""
     staging = output.parent / f".{output.name}.staging"
@@ -167,7 +201,13 @@ def _export_runtime_locked(
         )
         return 1
 
-    _write_manifest(staging, actual_version or "unknown", current_source_fingerprint())
+    _write_manifest(
+        staging,
+        actual_version or "unknown",
+        current_source_fingerprint(),
+        current_species_catalog_digest(),
+        species_package_ids,
+    )
     shutil.rmtree(previous, ignore_errors=True)
     if output.exists():
         output.replace(previous)
@@ -198,19 +238,25 @@ def _missing_artifacts(directory: Path) -> List[str]:
 
 
 def _write_manifest(
-    directory: Path, godot_version: str, source_fingerprint: str
+    directory: Path,
+    godot_version: str,
+    source_fingerprint: str,
+    species_catalog_digest: str,
+    species_package_ids: tuple[str, ...],
 ) -> None:
     files: Dict[str, Dict[str, object]] = {}
     for path in sorted(item for item in directory.iterdir() if item.is_file()):
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         files[path.name] = {"bytes": path.stat().st_size, "sha256": digest}
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "godot_version": godot_version,
         "preset": PRESET_NAME,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "entry": ENTRY_NAME,
         "source_fingerprint": source_fingerprint,
+        "species_catalog_digest": species_catalog_digest,
+        "species_package_ids": list(species_package_ids),
         "export_boundary": export_boundary_manifest(),
         "files": files,
     }
@@ -236,6 +282,11 @@ def current_source_fingerprint() -> str:
         digest.update(path.read_bytes())
         digest.update(b"\0")
     return digest.hexdigest()
+
+
+def current_species_catalog_digest() -> str:
+    """Return the bundled species catalog digest paired with this export."""
+    return load_species_catalog(root=PROJECT_ROOT / "config").digest
 
 
 def patch_web_entry_for_lan_http(entry: Path) -> None:
@@ -278,9 +329,29 @@ def runtime_is_current(output: Path) -> bool:
         return False
     if not isinstance(manifest, dict):
         return False
+    try:
+        schema_version = int(manifest.get("schema_version", 0))
+    except (TypeError, ValueError):
+        return False
+    if schema_version < 2:
+        return False
     if manifest.get("export_boundary") != export_boundary_manifest():
         return False
     if manifest.get("source_fingerprint") != current_source_fingerprint():
+        return False
+    if manifest.get("species_catalog_digest") != current_species_catalog_digest():
+        return False
+    expected_species = tuple(
+        item.godot_package_id
+        for item in load_species_catalog(root=PROJECT_ROOT / "config").definitions
+        if item.resolvable
+    )
+    raw_species_ids = manifest.get("species_package_ids")
+    if not isinstance(raw_species_ids, list) or any(
+        not isinstance(item, str) for item in raw_species_ids
+    ):
+        return False
+    if tuple(sorted(raw_species_ids)) != tuple(sorted(expected_species)):
         return False
     expected_files = manifest.get("files")
     if not isinstance(expected_files, dict):
@@ -383,13 +454,24 @@ def _print_template_hint(version: str) -> None:
 class GodotWebBuildAdapter:
     """Infrastructure implementation of lifecycle-owned Godot Web preparation."""
 
+    def __init__(self, *, godot_runner: GodotSpeciesValidationRunner) -> None:
+        self._godot_runner = godot_runner
+
     def prepare(self, runtime_mode: str, *, is_frozen: bool) -> bool:
         if runtime_mode == "release" and is_frozen:
             return True
         if runtime_mode == "development":
             if runtime_is_current(DEFAULT_OUTPUT):
                 return True
-            return _export_runtime(DEFAULT_OUTPUT, None, False) == 0
+            return (
+                _export_runtime(
+                    DEFAULT_OUTPUT,
+                    None,
+                    False,
+                    godot_runner=self._godot_runner,
+                )
+                == 0
+            )
         return _print_bundle_check(DEFAULT_OUTPUT) == 0
 
 

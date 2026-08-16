@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,14 @@ def _write_godot_bundle(root: Path) -> None:
         _write_file(root / f"elfienest.{suffix}", suffix.encode("utf-8"))
 
 
+def _write_config_bundle(root: Path) -> None:
+    _write_file(root / "app" / "system-defaults.yaml", b"version: 1\nsystem: {}\n")
+    shutil.copytree(
+        assemble_desktop_resources.DEFAULT_CONFIG_SOURCE / "species",
+        root / "species",
+    )
+
+
 def test_assemble_resources_copies_one_target_and_writes_a_manifest(
     tmp_path: Path,
 ) -> None:
@@ -35,10 +44,12 @@ def test_assemble_resources_copies_one_target_and_writes_a_manifest(
     godot = tmp_path / "godot-web"
     core = tmp_path / "core" / "ElfieNestCore"
     cli = tmp_path / "cli" / "ElfieNestCli"
+    config = tmp_path / "config"
     _write_web_bundle(web)
     _write_godot_bundle(godot)
     _write_file(core, b"core")
     _write_file(cli, b"cli")
+    _write_config_bundle(config)
 
     # When: staging assembles only that target.
     resources = assemble_desktop_resources.assemble_resources(
@@ -48,6 +59,7 @@ def test_assemble_resources_copies_one_target_and_writes_a_manifest(
         godot_source=godot,
         core_source=core,
         cli_source=cli,
+        config_source=config,
         application_version="0.1.0",
     )
 
@@ -57,6 +69,7 @@ def test_assemble_resources_copies_one_target_and_writes_a_manifest(
     assert (resources / "godot-web" / "elfienest.wasm").read_bytes() == b"wasm"
     assert (resources / "python-core" / "ElfieNestCore").read_bytes() == b"core"
     assert (resources / "management-cli" / "ElfieNestCli").read_bytes() == b"cli"
+    assert (resources / "config" / "app" / "system-defaults.yaml").is_file()
     assert not (resources / "ollama").exists()
     manifest = json.loads((resources / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["application_version"] == "0.1.0"
@@ -75,10 +88,12 @@ def test_assemble_resources_requires_the_single_product_react_shell(
     godot = tmp_path / "godot-web"
     core = tmp_path / "core" / "ElfieNestCore"
     cli = tmp_path / "cli" / "ElfieNestCli"
+    config = tmp_path / "config"
     _write_file(web / "manifest.json", b"{}")
     _write_godot_bundle(godot)
     _write_file(core, b"core")
     _write_file(cli, b"cli")
+    _write_config_bundle(config)
 
     # When/Then: packaging refuses a server-routed SPA without its one shell.
     with pytest.raises(
@@ -92,5 +107,6 @@ def test_assemble_resources_requires_the_single_product_react_shell(
             godot_source=godot,
             core_source=core,
             cli_source=cli,
+            config_source=config,
             application_version="0.1.0",
         )

@@ -14,6 +14,13 @@ build/staging/<platform-arch>/resources/
 │   ├── manifest.json
 │   ├── index.html
 │   └── assets/
+├── config/
+│   ├── app/
+│   ├── brain/
+│   ├── models/
+│   ├── nest/
+│   ├── species/
+│   └── tools/
 ├── python-core/ElfieNestCore
 ├── management-cli/ElfieNestCli
 └── manifest.json

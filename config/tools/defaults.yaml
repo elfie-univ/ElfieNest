@@ -1,0 +1,21 @@
+version: 1
+tools:
+  web_search:
+    enabled: true
+    provider: duckduckgo
+    api_base: ""
+    api_key_env: ELFIE_WEB_SEARCH_API_KEY
+    max_results: 3
+    max_result_bytes: 16000
+    timeout_seconds: 5.0
+    max_tool_calls: 3
+    max_total_result_bytes: 48000
+  local_file:
+    enabled: false
+    root: ""
+    root_policy: elfie_workspace
+    max_read_bytes: 65536
+    max_items: 200
+    max_result_bytes: 16000
+    max_tool_calls: 3
+    max_total_result_bytes: 48000

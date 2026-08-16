@@ -7,6 +7,7 @@ from infrastructure.persistence.configuration.config_store import ConfigStoreErr
 from infrastructure.persistence.configuration.runtime_settings import (
     read_runtime_settings,
     write_runtime_settings,
+    write_tool_settings,
 )
 from infrastructure.persistence.layout.data_home import (
     get_config_path,
@@ -27,17 +28,19 @@ def test_runtime_config_bundle_splits_and_reassembles_public_shape(
         "runtime_policy": {
             "task_routes": {"reasoning": "focus"},
             "tool_permissions": {"RUN_SKILL": {"mode": "allow"}},
-            "tools": {
-                "web_search": {
-                    "enabled": True,
-                    "provider": "tavily",
-                    "max_results": 4,
-                }
-            },
         },
     }
 
     write_runtime_settings(composite)
+    write_tool_settings(
+        {
+            "web_search": {
+                "enabled": True,
+                "provider": "tavily",
+                "max_results": 4,
+            }
+        }
+    )
 
     runtime_document = yaml.safe_load(get_config_path().read_text(encoding="utf-8"))
     tool_document = yaml.safe_load(get_tool_config_path().read_text(encoding="utf-8"))
@@ -48,9 +51,22 @@ def test_runtime_config_bundle_splits_and_reassembles_public_shape(
     assert not get_provider_config_path().exists()
     assert tool_document == {
         "version": 1,
-        "tools": composite["runtime_policy"]["tools"],
+        "tools": {
+            "web_search": {
+                "enabled": True,
+                "provider": "tavily",
+                "max_results": 4,
+            }
+        },
     }
-    assert read_runtime_settings() == composite
+    assert read_runtime_settings() == {
+        "config_version": 2,
+        "models": {"openai/gpt-test": {"visible": True}},
+        "runtime_policy": {
+            "task_routes": {"reasoning": "focus"},
+            "tool_permissions": {"RUN_SKILL": {"mode": "allow"}},
+        },
+    }
 
 
 def test_runtime_config_bundle_creates_a_backup_for_each_existing_document(
@@ -61,17 +77,14 @@ def test_runtime_config_bundle_creates_a_backup_for_each_existing_document(
     provider_store = ProviderConnectionStore()
     provider_store.create(catalog_id="ollama", alias="Ollama")
     provider_bytes = get_provider_config_path().read_bytes()
-    initial = {
-        "runtime_policy": {"tools": {"web_search": {"enabled": False}}},
-    }
+    initial = {"system": {"marker": "initial"}}
     write_runtime_settings(initial)
+    write_tool_settings({"web_search": {"enabled": False}})
 
-    updated = {
-        "runtime_policy": {"tools": {"web_search": {"enabled": True}}},
-    }
-    write_runtime_settings(updated)
+    write_runtime_settings({"system": {"marker": "updated"}})
+    write_tool_settings({"web_search": {"enabled": True}})
 
-    assert not get_config_path().with_suffix(".yaml.bak").exists()
+    assert get_config_path().with_suffix(".yaml.bak").exists()
     assert get_tool_config_path().with_suffix(".yaml.bak").exists()
     assert not get_provider_config_path().with_suffix(".yaml.bak").exists()
     assert get_provider_config_path().read_bytes() == provider_bytes
@@ -90,14 +103,6 @@ def test_runtime_settings_rejects_provider_payloads_without_side_effects(
                     "openai": {
                         "api_base": "https://api.openai.com/v1",
                         "api_key": "provider-plaintext",
-                    }
-                },
-                "runtime_policy": {
-                    "tools": {
-                        "web_search": {
-                            "enabled": True,
-                            "api_key": "tool-plaintext",
-                        }
                     }
                 },
             }
@@ -131,22 +136,13 @@ def test_runtime_config_bundle_follows_current_elfie_home(
 
 def test_unchanged_tool_document_is_not_rewritten(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    write_runtime_settings(
-        {
-            "system": {"appearance": {"theme": "light"}},
-            "runtime_policy": {"tools": {"web_search": {"enabled": True}}},
-        }
-    )
+    write_runtime_settings({"system": {"appearance": {"theme": "light"}}})
+    write_tool_settings({"web_search": {"enabled": True}})
     tool_path = get_tool_config_path()
     original_inode = tool_path.stat().st_ino
     original_bytes = tool_path.read_bytes()
 
-    write_runtime_settings(
-        {
-            "system": {"appearance": {"theme": "dark"}},
-            "runtime_policy": {"tools": {"web_search": {"enabled": True}}},
-        }
-    )
+    write_runtime_settings({"system": {"appearance": {"theme": "dark"}}})
 
     assert tool_path.stat().st_ino == original_inode
     assert tool_path.read_bytes() == original_bytes

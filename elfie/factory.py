@@ -25,6 +25,7 @@ class ElfieAssembly:
     memory_store: MemoryStorePort
     selfhood_seed: Mapping[str, object] | None = None
     energy_limits: Mapping[str, object] | None = None
+    emotion_expression_config: Mapping[str, object] | None = None
     body: BodyPort | None = None
     bodies: tuple[BodyPort, ...] = ()
     current_body_id: str | None = None
@@ -55,6 +56,7 @@ class ElfieFactory:
             memory_store=assembly.memory_store,
             selfhood_seed=assembly.selfhood_seed,
             energy_limits=assembly.energy_limits,
+            emotion_expression_config=assembly.emotion_expression_config,
             body=assembly.body,
             communication=assembly.communication,
             skills=assembly.skills,

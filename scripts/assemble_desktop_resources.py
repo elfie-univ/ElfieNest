@@ -10,12 +10,14 @@ import shutil
 from pathlib import Path
 from typing import Final, Iterable, Mapping
 
+from infrastructure.persistence.configuration.species import load_species_catalog
 from scripts import check_release_version, package_python_core
 
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[1]
 DEFAULT_STAGING_ROOT: Final = PROJECT_ROOT / "build" / "staging"
 DEFAULT_WEB_SOURCE: Final = PROJECT_ROOT / "build" / "web"
 DEFAULT_GODOT_SOURCE: Final = PROJECT_ROOT / "build" / "components" / "godot-web"
+DEFAULT_CONFIG_SOURCE: Final = PROJECT_ROOT / "config"
 REQUIRED_WEB_FILES: Final = ("manifest.json", "index.html")
 REQUIRED_GODOT_FILES: Final = (
     "elfienest.html",
@@ -83,6 +85,7 @@ def assemble_resources(
     core_source: Path,
     cli_source: Path,
     application_version: str,
+    config_source: Path | None = None,
 ) -> Path:
     """Build one atomic flat resource root from validated component inputs."""
     if target not in package_python_core.TARGETS:
@@ -99,6 +102,17 @@ def assemble_resources(
         raise ResourceAssemblyError(
             f"resource-component-missing component=management-cli path={cli_source}"
         )
+    selected_config_source = config_source or DEFAULT_CONFIG_SOURCE
+    if not selected_config_source.is_dir():
+        raise ResourceAssemblyError(
+            f"resource-component-missing component=config path={selected_config_source}"
+        )
+    try:
+        load_species_catalog(root=selected_config_source)
+    except (OSError, ValueError, RuntimeError) as error:
+        raise ResourceAssemblyError(
+            f"resource-component-incomplete component=species-config path={selected_config_source}"
+        ) from error
     target_root = output_root / target
     resources = target_root / "resources"
     staging = output_root / f".{target}.staging"
@@ -106,6 +120,11 @@ def assemble_resources(
     try:
         _copy_directory(web_source, staging / "resources" / "web", "web")
         _copy_directory(godot_source, staging / "resources" / "godot-web", "godot-web")
+        _copy_directory(
+            selected_config_source,
+            staging / "resources" / "config",
+            "config",
+        )
         core_destination = staging / "resources" / "python-core"
         core_destination.mkdir(parents=True, exist_ok=True)
         shutil.copy2(core_source, core_destination / core_name)
@@ -128,6 +147,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-root", type=Path, default=DEFAULT_STAGING_ROOT)
     parser.add_argument("--web-source", type=Path, default=DEFAULT_WEB_SOURCE)
     parser.add_argument("--godot-source", type=Path, default=DEFAULT_GODOT_SOURCE)
+    parser.add_argument("--config-source", type=Path, default=DEFAULT_CONFIG_SOURCE)
     parser.add_argument("--core-source", type=Path)
     parser.add_argument("--cli-source", type=Path)
     return parser.parse_args()
@@ -159,6 +179,7 @@ def main() -> int:
             godot_source=args.godot_source,
             core_source=core_source,
             cli_source=cli_source,
+            config_source=args.config_source,
             application_version=check_release_version.project_version(),
         )
     except (

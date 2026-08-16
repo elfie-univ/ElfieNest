@@ -31,6 +31,7 @@ from infrastructure.models.model_execution_observations import (
     get_model_execution_observer,
 )
 from infrastructure.models.model_execution_ports import ModelExecutionAgentPorts
+from infrastructure.persistence.configuration.bundled_defaults import load_tool_defaults
 from infrastructure.tools.execution.config import effective_tool_keys, load_tool_configs
 from infrastructure.tools.execution.loop import PortToolLoop
 from infrastructure.tools.execution.permissions import PermissionManager
@@ -429,6 +430,11 @@ def create_model_execution(
     brain_tool_port = ToolPortAdapter.from_model_execution_config(
         config,
         observation_port=get_model_execution_observer(),
+        tool_config_loader=partial(
+            load_tool_configs,
+            defaults=load_tool_defaults(),
+            secret_resolver=model_environment.resolve_secret,
+        ),
         allowed_tool_keys=("web_search", "local_file"),
         workspace_resolver=workspace_resolver,
     )
@@ -445,8 +451,10 @@ def _model_execution_agent_ports(
     model_environment: ElfieLabModelEnvironment,
 ) -> ModelExecutionAgentPorts:
     observer = get_model_execution_observer()
+    tool_defaults = load_tool_defaults()
     tool_config_loader = partial(
         load_tool_configs,
+        defaults=tool_defaults,
         secret_resolver=model_environment.resolve_secret,
     )
 
@@ -469,12 +477,14 @@ def _model_execution_agent_ports(
         config_paths=model_environment.config_paths,
         search_factory=partial(
             WebSearchPlugin.from_model_execution_policy,
+            defaults=tool_defaults,
             secret_resolver=model_environment.resolve_secret,
         ),
         permission_factory=build_permission_manager,
         tool_config_loader=tool_config_loader,
         effective_tool_keys=partial(
             effective_tool_keys,
+            defaults=tool_defaults,
             secret_resolver=model_environment.resolve_secret,
         ),
         file_access_factory=build_file_access,

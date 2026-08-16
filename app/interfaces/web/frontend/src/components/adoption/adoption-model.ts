@@ -111,7 +111,7 @@ export const DEFAULT_DRAFT: AdoptionDraft = {
   face: "any",
   signature: "any",
   priority: "face",
-  answers: [null, null, null, null, null],
+  answers: ["any", "any", "any", "any", "any"],
 }
 
 export const INITIAL_ADOPTION_STATE: AdoptionDraftState = {
@@ -143,7 +143,7 @@ export type AdoptionAction =
   | { readonly type: "candidates-ready"; readonly setId: string; readonly sessionId: string; readonly batch: number; readonly candidates: readonly Candidate[]; readonly selectedIds?: readonly string[] }
   | { readonly type: "candidate-set-recovered"; readonly setId: string }
   | { readonly type: "toggle-candidate"; readonly candidateId: string }
-  | { readonly type: "replies-ready"; readonly replies: readonly CandidateReply[] }
+  | { readonly type: "replies-ready"; readonly replies: readonly CandidateReply[]; readonly finalCandidateId: string }
   | { readonly type: "invitation-message-enabled"; readonly value: boolean }
   | { readonly type: "invitation-message"; readonly value: string }
   | { readonly type: "select-final"; readonly candidateId: string }
@@ -159,8 +159,14 @@ function isAppearanceField(field: AdoptionAction & { type: "set-appearance" }): 
 
 export function adoptionReducer(state: AdoptionDraftState, action: AdoptionAction): AdoptionDraftState {
   switch (action.type) {
-    case "restore":
-      return { ...action.state, error: null }
+    case "restore": {
+      const screen = action.state.screen === "review"
+        ? "basic"
+        : action.state.screen === "replies"
+          ? action.state.finalCandidateId === null ? "shortlist" : "naming"
+          : action.state.screen
+      return { ...action.state, screen, error: null }
+    }
     case "screen":
       return { ...state, screen: action.screen, error: null }
     case "set-basic": {
@@ -193,12 +199,12 @@ export function adoptionReducer(state: AdoptionDraftState, action: AdoptionActio
       return { ...state, candidateSetId: action.setId, error: null }
     case "toggle-candidate": {
       const selected = state.selectedCandidateIds.includes(action.candidateId)
-        ? state.selectedCandidateIds.filter((id) => id !== action.candidateId)
-        : state.selectedCandidateIds.length < 3 ? [...state.selectedCandidateIds, action.candidateId] : state.selectedCandidateIds
+        ? []
+        : [action.candidateId]
       return { ...state, selectedCandidateIds: selected, error: null }
     }
     case "replies-ready":
-      return { ...state, screen: "replies", replies: action.replies, finalCandidateId: null, error: null }
+      return { ...state, screen: "naming", replies: action.replies, finalCandidateId: action.finalCandidateId, error: null }
     case "invitation-message-enabled":
       return { ...state, invitationMessageEnabled: action.value, invitationMessage: action.value ? state.invitationMessage : "", error: null }
     case "invitation-message":
@@ -210,7 +216,7 @@ export function adoptionReducer(state: AdoptionDraftState, action: AdoptionActio
     case "custom-name":
       return { ...state, customName: action.value, nameMode: "custom", error: null }
     case "error":
-      return { ...state, screen: state.screen === "generating" || state.screen === "committing" ? "review" : state.screen, error: action.message }
+      return { ...state, screen: state.screen === "generating" || state.screen === "committing" ? "basic" : state.screen, error: action.message }
     case "clear-error":
       return { ...state, error: null }
     case "reset":
@@ -229,6 +235,6 @@ export function selectedName(state: AdoptionDraftState): string {
   if (candidate === undefined) return ""
   if (candidate.reveal === null) return state.customName.trim()
   if (state.nameMode === "suggested") return candidate.reveal.suggestedName
-  if (state.nameMode === "custom") return state.customName.trim()
+  if (state.nameMode === "custom") return state.customName.trim() || candidate.reveal.originalName
   return candidate.reveal.originalName
 }

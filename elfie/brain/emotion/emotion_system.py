@@ -10,7 +10,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Callable, Dict, Final, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Final, Mapping, Optional, Tuple
 
 from elfie.brain.emotion.accumulator.decay import decay
 from elfie.brain.emotion.accumulator.frequency import FrequencyTracker
@@ -72,6 +72,7 @@ class EmotionSystem:
         personality: Optional[Dict[str, float]] = None,
         *,
         clock: Callable[[], float] = time.monotonic,
+        expression_config: Mapping[str, Any] | None = None,
     ):
         """初始化情绪系统
 
@@ -79,6 +80,9 @@ class EmotionSystem:
             personality: 可选的Big Five性格特征字典，用于调节情绪反应
         """
         self._clock = clock
+        from elfie.brain.emotion.expression_mapper import ExpressionMapper
+
+        self._expression_mapper = ExpressionMapper(expression_config)
         self.last_updated_at = float(clock())
         self.revision = 0
         self._source_event_ids: deque[EventId] = deque(maxlen=32)
@@ -386,7 +390,4 @@ class EmotionSystem:
                 "emotion": str
             }
         """
-        from elfie.brain.emotion.expression_mapper import ExpressionMapper
-
-        mapper = ExpressionMapper()
-        return mapper.get_expression_for_emotions(self.emotions)
+        return self._expression_mapper.get_expression_for_emotions(self.emotions)

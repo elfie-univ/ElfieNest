@@ -12,6 +12,7 @@ from infrastructure.models.provider_records import (
 )
 
 _CATALOG_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+_DOCUMENT_FIELDS = frozenset({"version", "connection_counters", "connections"})
 
 
 class InvalidProviderConnectionDocument(ValueError):
@@ -42,6 +43,11 @@ def parse_provider_document(raw: Mapping[str, Any]) -> ProviderConnectionDocumen
     if version != CONNECTION_DOCUMENT_VERSION:
         raise InvalidProviderConnectionDocument(
             f"只支持 Provider 连接配置 v2，收到版本: {version!r}"
+        )
+    unknown = sorted(str(key) for key in set(raw) - _DOCUMENT_FIELDS)
+    if unknown:
+        raise InvalidProviderConnectionDocument(
+            f"Provider 连接文档包含未知字段: {unknown}"
         )
     raw_counters = raw.get("connection_counters", {})
     raw_connections = raw.get("connections", {})

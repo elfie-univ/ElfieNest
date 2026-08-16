@@ -13,7 +13,6 @@ from elfie.brain.reasoning.food_port import (
     NoAvailableFoodError,
 )
 from infrastructure.models.model_execution_agent import ModelExecutionAgent
-from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.model_execution_contracts import (
     ModelExecutionRequest,
     StructuredGenerationMode,
@@ -24,6 +23,7 @@ from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
+from test.support.model_execution import model_execution_config
 from test.support.model_execution_agent import model_execution_agent_ports
 
 
@@ -115,7 +115,7 @@ def _agent(
 ) -> ModelExecutionAgent:
     _configure_models()
     agent = ModelExecutionAgent(
-        ModelExecutionConfig(),
+        model_execution_config(),
         ports=model_execution_agent_ports(),
         main_food_loader=lambda _elfie_id: selection,
         food_catalog_repository=_InMemoryFoodPort(_catalog()),
@@ -286,7 +286,7 @@ def _adoption_agent(evidence: StoredModelEvidence) -> ModelExecutionAgent:
         }
     )
     agent = ModelExecutionAgent(
-        ModelExecutionConfig(),
+        model_execution_config(),
         ports=ports,
         food_catalog_repository=_InMemoryFoodPort(catalog),
     )
@@ -295,7 +295,7 @@ def _adoption_agent(evidence: StoredModelEvidence) -> ModelExecutionAgent:
     return agent
 
 
-def test_adoption_accepts_latest_passed_remote_evidence_even_when_stale() -> None:
+def test_adoption_rejects_remote_evidence_that_is_no_longer_fresh() -> None:
     agent = _adoption_agent(
         StoredModelEvidence(
             reference="openai/gpt-5.2",
@@ -308,10 +308,50 @@ def test_adoption_accepts_latest_passed_remote_evidence_even_when_stale() -> Non
         )
     )
 
-    capabilities = agent.adoption_capabilities()
+    with pytest.raises(NoAvailableFoodError):
+        agent.adoption_capabilities()
 
-    assert capabilities.provider == "openai"
-    assert capabilities.model_key == "openai/gpt-5.2"
+
+def test_adoption_structured_generation_uses_a_bounded_provider_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = _adoption_agent(
+        StoredModelEvidence(
+            reference="openai/gpt-5.2",
+            display_name="GPT-5.2",
+            capabilities=frozenset({"text"}),
+            verified=True,
+            local=False,
+            status="verified",
+            fresh=True,
+        )
+    )
+    calls: list[tuple[object, ...]] = []
+
+    def caller(*args):
+        calls.append(args)
+        return "{}"
+
+    monkeypatch.setattr(agent, "_call_food_llm_api", caller)
+
+    request = StructuredModelExecutionRequest(
+        prompt="structured",
+        messages=(),
+        response_schema_name="answer",
+        response_schema={"type": "object"},
+        selected_mode=StructuredGenerationMode.JSON_TEXT,
+        allowed_tools=(),
+    )
+    agent.generate_adoption_structured(request)
+
+    assert calls
+    assert calls[0][-1] == 20.0
+
+    agent.generate_adoption_structured(
+        request.model_copy(update={"timeout_seconds": 4.5})
+    )
+
+    assert calls[-1][-1] == 4.5
 
 
 @pytest.mark.parametrize(
@@ -407,7 +447,7 @@ def test_runtime_returns_typed_error_for_an_unconfigured_clean_catalog(
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     _configure_models()
     agent = ModelExecutionAgent(
-        ModelExecutionConfig(),
+        model_execution_config(),
         ports=model_execution_agent_ports(),
         food_catalog_repository=_InMemoryFoodPort(FoodCatalog()),
     )

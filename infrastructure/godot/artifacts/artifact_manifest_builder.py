@@ -67,10 +67,15 @@ def _build_godot_component(
     metadata = _load_build_metadata(directory / "build-manifest.json")
     version = metadata.get("godot_version")
     entrypoint = metadata.get("entry")
+    species_catalog_digest = metadata.get("species_catalog_digest")
     if not isinstance(version, str) or not version:
         raise RuntimeArtifactContractError(f"{kind.value}: godot_version is required")
     if not isinstance(entrypoint, str) or not entrypoint:
         raise RuntimeArtifactContractError(f"{kind.value}: entry is required")
+    if not isinstance(species_catalog_digest, str) or not species_catalog_digest:
+        raise RuntimeArtifactContractError(
+            f"{kind.value}: species_catalog_digest is required"
+        )
     return RuntimeArtifactComponent(
         kind=kind,
         version=version,
@@ -78,6 +83,7 @@ def _build_godot_component(
         entrypoint=entrypoint,
         applicable_targets=expected_component_applicability(kind),
         files=_artifact_files(directory),
+        species_catalog_digest=species_catalog_digest,
     )
 
 
@@ -102,6 +108,7 @@ def _build_desktop_component(
             )
             if not file.path.endswith(".test.js")
         ),
+        species_catalog_digest="",
     )
 
 

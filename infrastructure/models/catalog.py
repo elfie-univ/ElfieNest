@@ -2,7 +2,7 @@
 
 提供:
 - ModelEntry: 单个模型的完整元数据
-- BUILTIN_MODEL_CATALOG: 内置模型目录（15+ 模型）
+- parse_model_catalog(): 解析已加载的模型目录文档
 - ModelCatalog: 模型目录管理类
 - verify_provider(): Provider 连通性验证
 
@@ -11,14 +11,35 @@
 - Hermes Agent 的 HermesOverlay dataclass 模式
 """
 
+from __future__ import annotations
+
 import json
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Mapping, Optional
 
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.http import open_provider_request
-from infrastructure.models.providers.profiles import get_profile
+
+MODEL_CATALOG_VERSION = 1
+_MODEL_CATALOG_FIELDS = frozenset({"version", "models", "entries"})
+_MODEL_ENTRY_FIELDS = frozenset(
+    {
+        "provider",
+        "display_name",
+        "capabilities",
+        "context_window",
+        "cost_tier",
+        "visible",
+        "active",
+    }
+)
+
+
+class ModelCatalogError(RuntimeError):
+    """The registered model catalog is missing or violates its schema."""
 
 
 @dataclass
@@ -46,271 +67,69 @@ class ModelEntry:
     active: bool = False
 
 
-# ---------------------------------------------------------------------------
-# 内置模型目录（15+ 模型，来自 9 个 Provider）
-# ---------------------------------------------------------------------------
+def parse_model_catalog(
+    document: Mapping[str, Any], source: Path
+) -> Dict[str, ModelEntry]:
+    """Parse an already-loaded model catalog without performing file I/O."""
+    if document.get("version") != MODEL_CATALOG_VERSION:
+        raise ModelCatalogError(f"不支持的模型目录版本: {source}")
+    unknown_top_level = set(document) - _MODEL_CATALOG_FIELDS
+    if unknown_top_level:
+        raise ModelCatalogError(
+            f"模型目录顶层包含未知字段: {sorted(unknown_top_level)}"
+        )
+    raw_entries = document.get("entries")
+    if not isinstance(raw_entries, Mapping) or not raw_entries:
+        raise ModelCatalogError(f"模型目录缺少 entries: {source}")
 
-BUILTIN_MODEL_CATALOG: Dict[str, ModelEntry] = {
-    # Ollama 本地模型（免费）
-    "ollama/qwen3.5:0.8b": ModelEntry(
-        model_id="ollama/qwen3.5:0.8b",
-        provider="ollama",
-        display_name="Qwen3.5 0.8B",
-        capabilities=["text", "code"],
-        context_window=32000,
-        cost_tier=0,
-        visible=True,
-        active=True,  # Ollama 始终 active
-    ),
-    "ollama/qwen2.5:0.5b": ModelEntry(
-        model_id="ollama/qwen2.5:0.5b",
-        provider="ollama",
-        display_name="Qwen2.5 0.5B",
-        capabilities=["text"],
-        context_window=32000,
-        cost_tier=0,
-        visible=True,
-        active=True,
-    ),
-    "ollama/llama3.2:1b": ModelEntry(
-        model_id="ollama/llama3.2:1b",
-        provider="ollama",
-        display_name="Llama 3.2 1B",
-        capabilities=["text"],
-        context_window=128000,
-        cost_tier=0,
-        visible=True,
-        active=True,
-    ),
-    "ollama/moondream": ModelEntry(
-        model_id="ollama/moondream",
-        provider="ollama",
-        display_name="Moondream (Vision)",
-        capabilities=["text", "vision"],
-        context_window=4096,
-        cost_tier=0,
-        visible=True,
-        active=True,
-    ),
-    "ollama/llava": ModelEntry(
-        model_id="ollama/llava",
-        provider="ollama",
-        display_name="LLaVA (Vision)",
-        capabilities=["text", "vision"],
-        context_window=4096,
-        cost_tier=0,
-        visible=True,
-        active=True,
-    ),
-    # OpenAI 模型
-    "openai/gpt-4o": ModelEntry(
-        model_id="openai/gpt-4o",
-        provider="openai",
-        display_name="GPT-4o",
-        capabilities=["text", "vision", "audio", "code", "reasoning"],
-        context_window=128000,
-        cost_tier=4,
-        visible=True,
-        active=False,
-    ),
-    "openai/gpt-4o-mini": ModelEntry(
-        model_id="openai/gpt-4o-mini",
-        provider="openai",
-        display_name="GPT-4o Mini",
-        capabilities=["text", "vision", "code"],
-        context_window=128000,
-        cost_tier=2,
-        visible=True,
-        active=False,
-    ),
-    "openai/o1-mini": ModelEntry(
-        model_id="openai/o1-mini",
-        provider="openai",
-        display_name="O1 Mini",
-        capabilities=["text", "code", "reasoning"],
-        context_window=128000,
-        cost_tier=3,
-        visible=True,
-        active=False,
-    ),
-    # Anthropic 模型
-    "anthropic/claude-3-opus-20240229": ModelEntry(
-        model_id="anthropic/claude-3-opus-20240229",
-        provider="anthropic",
-        display_name="Claude 3 Opus",
-        capabilities=["text", "vision", "code", "reasoning"],
-        context_window=200000,
-        cost_tier=4,
-        visible=True,
-        active=False,
-    ),
-    "anthropic/claude-3-sonnet-20240229": ModelEntry(
-        model_id="anthropic/claude-3-sonnet-20240229",
-        provider="anthropic",
-        display_name="Claude 3 Sonnet",
-        capabilities=["text", "vision", "code", "reasoning"],
-        context_window=200000,
-        cost_tier=3,
-        visible=True,
-        active=False,
-    ),
-    "anthropic/claude-3-haiku-20240307": ModelEntry(
-        model_id="anthropic/claude-3-haiku-20240307",
-        provider="anthropic",
-        display_name="Claude 3 Haiku",
-        capabilities=["text", "vision", "code"],
-        context_window=200000,
-        cost_tier=2,
-        visible=True,
-        active=False,
-    ),
-    # DeepSeek 模型
-    "deepseek/deepseek-chat": ModelEntry(
-        model_id="deepseek/deepseek-chat",
-        provider="deepseek",
-        display_name="DeepSeek Chat",
-        capabilities=["text", "code"],
-        context_window=64000,
-        cost_tier=1,
-        visible=True,
-        active=False,
-    ),
-    "deepseek/deepseek-reasoner": ModelEntry(
-        model_id="deepseek/deepseek-reasoner",
-        provider="deepseek",
-        display_name="DeepSeek Reasoner",
-        capabilities=["text", "code", "reasoning"],
-        context_window=64000,
-        cost_tier=2,
-        visible=True,
-        active=False,
-    ),
-    # Google Gemini 模型
-    "gemini/gemini-1.5-flash": ModelEntry(
-        model_id="gemini/gemini-1.5-flash",
-        provider="gemini",
-        display_name="Gemini 1.5 Flash",
-        capabilities=["text", "vision", "audio", "code"],
-        context_window=1000000,
-        cost_tier=1,
-        visible=True,
-        active=False,
-    ),
-    "gemini/gemini-1.5-pro": ModelEntry(
-        model_id="gemini/gemini-1.5-pro",
-        provider="gemini",
-        display_name="Gemini 1.5 Pro",
-        capabilities=["text", "vision", "audio", "code", "reasoning"],
-        context_window=2000000,
-        cost_tier=3,
-        visible=True,
-        active=False,
-    ),
-    # Ali Qwen 模型
-    "qwen/qwen-turbo": ModelEntry(
-        model_id="qwen/qwen-turbo",
-        provider="qwen",
-        display_name="Qwen Turbo",
-        capabilities=["text", "code"],
-        context_window=128000,
-        cost_tier=1,
-        visible=True,
-        active=False,
-    ),
-    "qwen/qwen-max": ModelEntry(
-        model_id="qwen/qwen-max",
-        provider="qwen",
-        display_name="Qwen Max",
-        capabilities=["text", "code", "reasoning"],
-        context_window=32000,
-        cost_tier=3,
-        visible=True,
-        active=False,
-    ),
-    "qwen/qwen-vl-plus": ModelEntry(
-        model_id="qwen/qwen-vl-plus",
-        provider="qwen",
-        display_name="Qwen VL Plus",
-        capabilities=["text", "vision"],
-        context_window=8000,
-        cost_tier=2,
-        visible=True,
-        active=False,
-    ),
-    # xAI Grok 模型
-    "xai/grok-beta": ModelEntry(
-        model_id="xai/grok-beta",
-        provider="xai",
-        display_name="Grok Beta",
-        capabilities=["text", "code"],
-        context_window=128000,
-        cost_tier=2,
-        visible=True,
-        active=False,
-    ),
-    "xai/grok-2-1212": ModelEntry(
-        model_id="xai/grok-2-1212",
-        provider="xai",
-        display_name="Grok 2",
-        capabilities=["text", "code", "reasoning"],
-        context_window=128000,
-        cost_tier=3,
-        visible=True,
-        active=False,
-    ),
-    # Mistral 模型
-    "mistral/mistral-small-latest": ModelEntry(
-        model_id="mistral/mistral-small-latest",
-        provider="mistral",
-        display_name="Mistral Small",
-        capabilities=["text", "code"],
-        context_window=32000,
-        cost_tier=1,
-        visible=True,
-        active=False,
-    ),
-    "mistral/mistral-large-latest": ModelEntry(
-        model_id="mistral/mistral-large-latest",
-        provider="mistral",
-        display_name="Mistral Large",
-        capabilities=["text", "code", "reasoning"],
-        context_window=128000,
-        cost_tier=3,
-        visible=True,
-        active=False,
-    ),
-    "mistral/pixtral-12b-2409": ModelEntry(
-        model_id="mistral/pixtral-12b-2409",
-        provider="mistral",
-        display_name="Pixtral 12B",
-        capabilities=["text", "vision"],
-        context_window=128000,
-        cost_tier=2,
-        visible=True,
-        active=False,
-    ),
-    # Groq 模型
-    "groq/llama-3.1-8b-instant": ModelEntry(
-        model_id="groq/llama-3.1-8b-instant",
-        provider="groq",
-        display_name="Llama 3.1 8B (Groq)",
-        capabilities=["text", "code"],
-        context_window=128000,
-        cost_tier=1,
-        visible=True,
-        active=False,
-    ),
-    "groq/llama-3.3-70b-versatile": ModelEntry(
-        model_id="groq/llama-3.3-70b-versatile",
-        provider="groq",
-        display_name="Llama 3.3 70B (Groq)",
-        capabilities=["text", "code", "reasoning"],
-        context_window=128000,
-        cost_tier=2,
-        visible=True,
-        active=False,
-    ),
-}
+    result: Dict[str, ModelEntry] = {}
+    for model_id, raw_entry in raw_entries.items():
+        if not isinstance(model_id, str) or "/" not in model_id:
+            raise ModelCatalogError(f"模型 ID 无效: {model_id!r}: {source}")
+        if not isinstance(raw_entry, Mapping):
+            raise ModelCatalogError(f"模型记录必须是对象: {model_id}: {source}")
+        unknown = set(raw_entry) - _MODEL_ENTRY_FIELDS
+        if unknown:
+            raise ModelCatalogError(
+                f"模型记录包含未知字段: {model_id} {sorted(unknown)}: {source}"
+            )
+        provider = raw_entry.get("provider")
+        display_name = raw_entry.get("display_name")
+        capabilities = raw_entry.get("capabilities")
+        context_window = raw_entry.get("context_window")
+        cost_tier = raw_entry.get("cost_tier")
+        visible = raw_entry.get("visible")
+        active = raw_entry.get("active")
+        if (
+            not isinstance(provider, str)
+            or not provider
+            or not isinstance(display_name, str)
+            or not display_name
+            or not isinstance(capabilities, list)
+            or not all(isinstance(item, str) and item for item in capabilities)
+            or isinstance(context_window, bool)
+            or not isinstance(context_window, int)
+            or context_window <= 0
+            or isinstance(cost_tier, bool)
+            or not isinstance(cost_tier, int)
+            or cost_tier < 0
+            or cost_tier > 4
+            or not isinstance(visible, bool)
+            or not isinstance(active, bool)
+            or model_id.split("/", 1)[0] != provider
+        ):
+            raise ModelCatalogError(f"模型记录无效: {model_id}: {source}")
+        result[model_id] = ModelEntry(
+            model_id=model_id,
+            provider=provider,
+            display_name=display_name,
+            capabilities=list(capabilities),
+            context_window=context_window,
+            cost_tier=cost_tier,
+            visible=visible,
+            active=active,
+        )
+    return result
 
 
 class ModelCatalog:
@@ -322,14 +141,22 @@ class ModelCatalog:
     - 更新模型状态
     """
 
-    def __init__(self, config: Optional[Any] = None):
+    def __init__(
+        self,
+        config: Optional[Any] = None,
+        *,
+        catalog: Optional[Mapping[str, ModelEntry]] = None,
+    ):
         """初始化模型目录。
 
         Args:
             config: ModelExecutionConfig 实例，用于确定 provider 状态
+            catalog: 由 Bootstrap 或 Persistence 加载的模型目录
         """
+        if catalog is None:
+            raise ValueError("ModelCatalog requires an injected model catalog")
         self.config = config
-        # 深拷贝内置目录，避免修改原数据
+        # 深拷贝已登记的内置目录，避免修改源数据。
         self._catalog: Dict[str, ModelEntry] = {
             model_id: ModelEntry(
                 model_id=entry.model_id,
@@ -341,7 +168,7 @@ class ModelCatalog:
                 visible=entry.visible,
                 active=entry.active,
             )
-            for model_id, entry in BUILTIN_MODEL_CATALOG.items()
+            for model_id, entry in catalog.items()
         }
         # 根据配置更新 active 状态
         if config:
@@ -455,6 +282,9 @@ def _verify_custom_openai_provider(
     provider_info: Dict[str, str],
     api_base: str,
     api_key: str,
+    *,
+    fallback_model: str = "",
+    provider_catalog: ProviderCatalog,
 ) -> Dict[str, Any]:
     import time
 
@@ -478,15 +308,24 @@ def _verify_custom_openai_provider(
     except urllib.error.HTTPError:
         pass
 
-    configured_models = configured_model_names(provider_info)
+    configured_models = configured_model_names(
+        provider_info,
+        catalog=provider_catalog,
+    )
     configured_test_model = str(provider_info.get("test_model") or "").strip()
     test_model = (
         configured_test_model
-        if configured_test_model and configured_test_model != "custom-model"
+        if configured_test_model
         else configured_models[0]
         if configured_models
-        else configured_test_model or "custom-model"
+        else fallback_model.strip()
     )
+    if not test_model:
+        return {
+            "status": "unverified",
+            "latency_ms": None,
+            "error": "未配置可用于验证的测试模型",
+        }
     chat_url = f"{api_base.rstrip('/')}/chat/completions"
     payload = json.dumps(
         {
@@ -691,7 +530,12 @@ def _verify_openai_chat_endpoint(
         }
 
 
-def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
+def verify_provider(
+    provider_id: str,
+    config: Any,
+    *,
+    provider_catalog: ProviderCatalog | None = None,
+) -> Dict[str, Any]:
     """验证 Provider 连通性。
 
     通过 HTTP 请求检查 provider 是否可达和可用。
@@ -717,7 +561,10 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
     api_key = provider_info.get("api_key", "")
 
     # 获取 profile 以确定 api_mode 和 auth_type
-    profile = get_profile(provider_id)
+    resolved_catalog = provider_catalog or getattr(config, "provider_catalog", None)
+    if resolved_catalog is None:
+        raise ValueError("verify_provider requires an injected provider catalog")
+    profile = resolved_catalog.profiles.get(provider_id)
     if profile is None and (provider_id not in config.providers or not api_base):
         result["error"] = f"未知 provider: {provider_id}"
         return result
@@ -736,7 +583,13 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
             url = f"{api_base.rstrip('/')}/api/tags"
         elif api_mode == "chat_completions":
             if provider_id == "custom_openai" or profile is None:
-                return _verify_custom_openai_provider(provider_info, api_base, api_key)
+                return _verify_custom_openai_provider(
+                    provider_info,
+                    api_base,
+                    api_key,
+                    fallback_model=profile.test_model if profile else "",
+                    provider_catalog=resolved_catalog,
+                )
             return _verify_openai_compatible_provider(
                 api_base,
                 api_key,

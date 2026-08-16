@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 
 from infrastructure.models.inference.llm_api import API_DISPATCH, call_llm_api
-from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.model_execution_observations import (
     FallbackObservation,
     ModelCallObservation,
@@ -18,6 +17,7 @@ from infrastructure.models.model_execution_observations import (
     get_model_execution_observer,
 )
 from infrastructure.tools.execution.executor import ToolExecutionContext, ToolExecutor
+from test.support.model_execution import model_execution_config
 
 
 @pytest.fixture(autouse=True)
@@ -164,7 +164,7 @@ def test_call_llm_api_records_successful_model_call(monkeypatch: pytest.MonkeyPa
         return "observed response", {"prompt_tokens": 2, "completion_tokens": 3}
 
     monkeypatch.setitem(API_DISPATCH, "chat_completions", fake_dispatch)
-    config = ModelExecutionConfig()
+    config = model_execution_config()
     config.providers["observed"] = {
         "api_base": "https://api.observed.test",
         "api_key": "",
@@ -206,7 +206,7 @@ def test_call_llm_api_records_failed_model_call(monkeypatch: pytest.MonkeyPatch)
         raise RuntimeError("provider down")
 
     monkeypatch.setitem(API_DISPATCH, "chat_completions", fake_dispatch)
-    config = ModelExecutionConfig()
+    config = model_execution_config()
     config.providers["broken"] = {
         "api_base": "https://api.broken.test",
         "api_key": "",

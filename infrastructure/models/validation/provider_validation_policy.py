@@ -13,6 +13,7 @@ from infrastructure.models.provider_records import (
     ProviderConnection,
     ProviderModelRecord,
 )
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.profiles import get_product
 
 ValidationMode = Literal["full", "cached", "heartbeat"]
@@ -53,16 +54,22 @@ def active_validation_models(
 ) -> tuple[ProviderModelRecord, ...]:
     """Return configured models that are enabled for subscription validation."""
     return tuple(
-        model for model in connection.models if not model.hidden and not model.retired
+        model
+        for model in connection.models
+        if not model.hidden and not model.retired and model.discovery_state == "present"
     )
 
 
-def representative_model_id(connection: ProviderConnection) -> str | None:
+def representative_model_id(
+    connection: ProviderConnection,
+    *,
+    catalog: ProviderCatalog,
+) -> str | None:
     """Choose the profile test model, then a deterministic active model."""
     active = active_validation_models(connection)
     if not active:
         return None
-    profile = get_product(connection.catalog_id)
+    profile = get_product(connection.catalog_id, catalog=catalog)
     profile_test_model = profile.test_model.strip() if profile else ""
     selected = next(
         (
@@ -116,6 +123,7 @@ def choose_validation_mode(
     connection: ProviderConnection,
     latest: Mapping[str, Any],
     *,
+    catalog: ProviderCatalog,
     now: datetime | None = None,
     force_full: bool = False,
     secret_resolver: SecretResolver = _empty_secret,
@@ -125,7 +133,7 @@ def choose_validation_mode(
     fingerprint = connection_validation_fingerprint(
         connection, secret_resolver=secret_resolver
     )
-    representative = representative_model_id(connection)
+    representative = representative_model_id(connection, catalog=catalog)
     active_ids = tuple(
         sorted(
             model.endpoint_model_id for model in active_validation_models(connection)
@@ -242,11 +250,15 @@ def _model_fingerprint(model: ProviderModelRecord) -> dict[str, Any]:
         "display_name": model.display_name,
         "canonical_model_id": model.canonical_model_id,
         "source": model.source,
+        "request_profile_id": model.request_profile_id,
+        "request_profile_version": model.request_profile_version,
         "context_window_tokens": model.context_window_tokens,
         "max_output_tokens": model.max_output_tokens,
         "supports_tools": model.supports_tools,
         "supports_vision": model.supports_vision,
         "supports_reasoning": model.supports_reasoning,
+        "supports_structured_output": model.supports_structured_output,
+        "capability_evidence": dict(sorted(model.capability_evidence.items())),
         "hidden": model.hidden,
         "retired": model.retired,
     }

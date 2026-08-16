@@ -104,7 +104,6 @@ def test_elfienest_entrypoint_dispatches_cli_to_elfienest_script(
         (godot_web / f"elfienest.{suffix}").parent.mkdir(parents=True, exist_ok=True)
         (godot_web / f"elfienest.{suffix}").write_text("runtime\n", encoding="utf-8")
     (project_root / "desktop/node_modules").mkdir(parents=True)
-    write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
 
     invocation_log = tmp_path / "invocation.log"
     write_executable(
@@ -164,7 +163,6 @@ def test_entrypoint_explains_missing_dependencies_without_misreporting_python(
         scripts_dir / "bootstrap_runtime_dependencies.sh",
     )
     (scripts_dir / "serve.py").write_text("", encoding="utf-8")
-    write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
     write_executable(
         project_root / ".venv" / "bin" / "python3",
         """#!/bin/bash

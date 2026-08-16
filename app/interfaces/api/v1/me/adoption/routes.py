@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Union
+from typing import Literal, Union
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from app.features.accounts import AccountPrincipal
 from app.features.adoption import (
@@ -13,6 +13,7 @@ from app.features.adoption import (
     AdoptionCandidateSetExpired,
     AdoptionCapacityReached,
     AdoptionError,
+    AdoptionGenerationTimeout,
     AdoptionInvalid,
     AdoptionNestCapacityReached,
     AdoptionOwnerNotFound,
@@ -93,6 +94,31 @@ def create_candidate_set(
     return CandidateSetResponse.from_result(result)
 
 
+@router.get("/species/{species_id}/images/{image_kind}", response_model=None)
+def get_species_image(
+    species_id: str,
+    image_kind: Literal["headshot", "full-body"],
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: AdoptionService = AdoptionDependency,
+) -> Union[Response, JSONResponse]:
+    try:
+        image = service.get_species_image(
+            principal,
+            species_id,
+            image_kind,
+        )
+    except AdoptionError as error:
+        return _error_response(error)
+    return Response(
+        content=image.content,
+        media_type=image.media_type,
+        headers={
+            "ETag": f'"{image.etag}"',
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
+
+
 @router.post(
     "/candidate-sets/{candidate_set_id}/replies",
     response_model=CandidateRepliesResponse,
@@ -146,6 +172,9 @@ def _error_response(error: Exception) -> JSONResponse:
     if isinstance(error, AdoptionInvalid):
         status_code = 422
         code = "invalid_adoption"
+    elif isinstance(error, AdoptionGenerationTimeout):
+        status_code = 504
+        code = "adoption_generation_timeout"
     elif isinstance(error, AdoptionCandidateSetExpired):
         status_code = 410
         code = "adoption_candidate_set_expired"

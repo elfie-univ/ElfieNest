@@ -109,7 +109,7 @@ jobs:
           ELFIE_DEV_HOME="$ELFIE_DEV_HOME" \
             "$python_bin" scripts/release.py \
               --target "$RELEASE_TARGET" \
-              --source-install-artifact-output "$ARTIFACT_PATH_FILE"
+              --native-package-output "$ARTIFACT_PATH_FILE"
           status=$?
           set -e
           # release.py deliberately reports 3 until post-build install evidence is attached.

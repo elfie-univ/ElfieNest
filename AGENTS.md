@@ -61,6 +61,12 @@
 只有任务前同命令基线、依赖诊断或已有 CI/Issue 能证明时，才把失败判定为既有问题；
 否则标记“归属未确认”。已确认的范围外失败只记录，不修复、不扩大当前任务。
 
+CI 或测试失败必须先按 [`Testing & quality`](docs/developer/engineering/testing.md#ci-and-test-failure-triage)
+中的流程完成证据收集、设计动机恢复和根因分类，再决定改生产代码、改测试夹具、补迁移
+装配还是报告环境问题。红色 job 不是直接修改断言的指令；涉及 lazy import、动态入口或
+fallback 时，必须把它们当作真实依赖和行为边界检查，不能用隐藏 fallback、删除测试或放宽
+质量门禁来消除症状。交付时必须分别报告保留的功能、验证证据和未解决的环境/范围残余。
+
 “测试通过”“工作区干净”或“已经推送”都不能单独支持“清理完成”或“符合契约”的
 结论。清理任务必须先明确目标条款与范围，递归盘点其中已跟踪、未跟踪、被忽略和空路径，
 把每个路径与目标归置逐项分类，并按需追踪 Import、动态入口、场景/资源、导出、CLI、
@@ -121,6 +127,11 @@ ElfieNest 当前目标是完成一套可安装、可运行、可观察、可继�
   `docs/developer/tooling.md` 为准，不在本文件复制另一套教程。
 - 中间构建产物只写根 `build/`，最终发行物只写根 `dist/`，生产数据只写统一 resolver
   定位的 `ELFIE_HOME`；生成物不得写回源码目录。
+- 应用内置默认配置的目标唯一源码根是小写 `config/`，发行时唯一副本是
+  `resources/config/`；用户配置唯一写入根是 `${ELFIE_HOME}/configs/`。首次运行不得
+  复制默认值，业务/领域代码不得自行解析路径或 YAML，现存迁移缺口只按双语
+  [`Configuration management contract`](docs/developer/contracts/configuration-management.md)
+  与对应 Conformance 收敛，禁止新增散落配置、重复默认值或通用深合并入口。
 - SQL 只能存在于持久化层。数据根、数据库职责和 Developer Tools 隔离规则见
   `infrastructure/persistence/AGENTS.md`；Developer Tools 不得读写生产 `ELFIE_HOME`。
 

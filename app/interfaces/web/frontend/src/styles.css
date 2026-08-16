@@ -225,6 +225,7 @@
 .provider-card--ollama-absent, .provider-card--ollama-deleted { background: var(--surface-raised); box-shadow: inset 3px 0 0 #b08b5b; }
 .provider-card--ollama-installing { box-shadow: inset 3px 0 0 #b67a3e; }
 .provider-card--ollama-installing { background: #fbf0e2; }
+.provider-card--ollama-no_models { background: #fbf0e2; box-shadow: inset 3px 0 0 #b67a3e; }
 .provider-card--ollama-failed, .provider-card--ollama-cancelled, .provider-card--ollama-repair_required { background: #f9eaea; box-shadow: inset 3px 0 0 #9d4137; }
 .provider-card--add { min-height: 0; padding-block: 12px; place-items: center; align-content: center; color: var(--text-muted); border-style: dashed; cursor: pointer; text-align: center; }
 .provider-card--add:hover { color: var(--text); border-color: var(--accent); background: var(--hover-bg); }
@@ -260,6 +261,7 @@
 .status-badge--healthy { color: #2e6846; background: #dfefdf; }
 .status-badge--stopped, .status-badge--absent { color: #815b30; background: #f4e8d4; }
 .status-badge--installing { color: #8b5a1f; background: #f7e7cc; }
+.status-badge--no_models { color: #8b5a1f; background: #f7e7cc; }
 .status-badge--deleted, .status-badge--failed, .status-badge--cancelled, .status-badge--repair_required { color: #963f35; background: #f6dddd; }
 .provider-form-dialog { width: min(720px, calc(100vw - 32px)); }
 .provider-form { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 0; padding: 0; border: 0; }

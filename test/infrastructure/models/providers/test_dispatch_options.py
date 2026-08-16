@@ -27,6 +27,7 @@ def test_food_provider_options_are_sent_without_overriding_core_fields():
                 "think": True,
                 "options": {"think": True},
             },
+            timeout_seconds=4.5,
         )
 
     request = urlopen.call_args.args[0]
@@ -35,6 +36,7 @@ def test_food_provider_options_are_sent_without_overriding_core_fields():
     assert payload["think"] is False
     assert payload["options"]["temperature"] == 0.2
     assert "think" not in payload["options"]
+    assert urlopen.call_args.kwargs["timeout"] == 4.5
 
 
 def test_runtime_can_explicitly_enable_top_level_ollama_thinking():

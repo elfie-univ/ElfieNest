@@ -14,16 +14,23 @@ from app.features.configuration import (
     StoredRuntimeSettings,
     StoredSecuritySettings,
 )
-from infrastructure.models.model_execution_config import DEFAULT_SYSTEM_SETTINGS
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_system_defaults,
+)
 from infrastructure.persistence.configuration.config_store import (
     ConfigStoreError,
     read_yaml_mapping,
     write_yaml_mapping,
 )
+from infrastructure.persistence.configuration.documents import ConfigDocumentId
 from infrastructure.persistence.configuration.runtime_settings import (
     CONFIG_DOCUMENT_VERSION,
     read_runtime_settings,
     write_runtime_settings,
+)
+from infrastructure.persistence.configuration.schemas import (
+    ConfigSchemaError,
+    validate_registered_document,
 )
 from infrastructure.persistence.layout.data_home import get_config_path
 
@@ -31,8 +38,14 @@ from infrastructure.persistence.layout.data_home import get_config_path
 class RuntimeSettingsAdapter:
     """Preserve unrelated Runtime fields while owning typed ``system`` sections."""
 
-    def __init__(self, config_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        config_path: Path | None = None,
+        *,
+        bundled_root: Path | None = None,
+    ) -> None:
         self._config_path = config_path or get_config_path()
+        self._bundled_root = bundled_root
 
     def load_elfie_settings(self) -> StoredElfieSettings:
         section = self._section("adoption")
@@ -128,7 +141,7 @@ class RuntimeSettingsAdapter:
 
     def reset_settings(self) -> None:
         document = self._read_document()
-        document["system"] = copy.deepcopy(DEFAULT_SYSTEM_SETTINGS)
+        document.pop("system", None)
         self._write_document(document)
 
     def _section(self, name: str) -> dict[str, object]:
@@ -142,12 +155,11 @@ class RuntimeSettingsAdapter:
             self._invalid(f"system.{name}", "必须是对象")
         return self._typed_mapping(raw_section)
 
-    @staticmethod
-    def _default_section(name: str) -> dict[str, object]:
-        raw_section = DEFAULT_SYSTEM_SETTINGS.get(name)
+    def _default_section(self, name: str) -> dict[str, object]:
+        raw_section = load_system_defaults(root=self._bundled_root).get(name)
         if not isinstance(raw_section, Mapping):
-            RuntimeSettingsAdapter._invalid(f"default system.{name}", "必须是对象")
-        return RuntimeSettingsAdapter._typed_mapping(raw_section)
+            self._invalid(f"default system.{name}", "必须是对象")
+        return self._typed_mapping(raw_section)
 
     def _save_section(self, name: str, section: Mapping[str, object]) -> None:
         document = self._read_document()
@@ -164,6 +176,7 @@ class RuntimeSettingsAdapter:
             if self._config_path == get_config_path():
                 return read_runtime_settings()
             document = copy.deepcopy(read_yaml_mapping(self._config_path))
+            self._validate_document(document)
             document.pop("version", None)
             return document
         except ConfigStoreError as error:
@@ -174,6 +187,11 @@ class RuntimeSettingsAdapter:
             if self._config_path == get_config_path():
                 write_runtime_settings(document)
                 return
+            payload = {
+                "version": CONFIG_DOCUMENT_VERSION,
+                **copy.deepcopy(dict(document)),
+            }
+            self._validate_document(payload)
             if self._config_path.exists():
                 shutil.copy2(
                     str(self._config_path),
@@ -183,7 +201,7 @@ class RuntimeSettingsAdapter:
                 )
             write_yaml_mapping(
                 self._config_path,
-                {"version": CONFIG_DOCUMENT_VERSION, **copy.deepcopy(dict(document))},
+                payload,
             )
         except (ConfigStoreError, OSError) as error:
             raise SettingsStorageError(str(error)) from error
@@ -241,6 +259,22 @@ class RuntimeSettingsAdapter:
     @staticmethod
     def _invalid(field: str, detail: str) -> NoReturn:
         raise SettingsStorageError(f"无效 Runtime 设置 {field}: {detail}")
+
+    def _validate_document(self, document: Mapping[str, Any]) -> None:
+        if not document:
+            return
+        if document.get("version") != CONFIG_DOCUMENT_VERSION:
+            raise SettingsStorageError(
+                f"Runtime 设置版本不支持: {document.get('version')!r}"
+            )
+        try:
+            validate_registered_document(
+                ConfigDocumentId.RUNTIME_SETTINGS,
+                document,
+                self._config_path,
+            )
+        except ConfigSchemaError as error:
+            raise SettingsStorageError(str(error)) from error
 
 
 __all__ = ("RuntimeSettingsAdapter",)

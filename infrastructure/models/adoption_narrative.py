@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor
-from time import sleep
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from time import monotonic, sleep
 from typing import Any, Mapping, Protocol
 
 from elfie.genesis import BIG_FIVE_TRAITS, CandidateReveal, GenesisCandidate
@@ -29,6 +30,7 @@ _REVEAL_SCHEMA: Mapping[str, Any] = {
     },
 }
 _REVEAL_RETRY_DELAYS_SECONDS = (0.35, 0.8)
+_REVEAL_TOTAL_TIMEOUT_SECONDS = 30.0
 
 
 class AdoptionStructuredModelExecution(Protocol):
@@ -59,7 +61,14 @@ class StructuredAdoptionNarrativeAdapter:
         self,
         candidate: GenesisCandidate,
         invitation_message: str,
+        *,
+        deadline: float | None = None,
     ) -> CandidateReveal:
+        deadline = (
+            deadline
+            if deadline is not None
+            else monotonic() + _REVEAL_TOTAL_TIMEOUT_SECONDS
+        )
         capabilities = self._qualified_capabilities()
         if capabilities is None:
             raise RuntimeError("configured model is temporarily unavailable")
@@ -70,6 +79,9 @@ class StructuredAdoptionNarrativeAdapter:
         )
         feedback = ""
         for attempt in range(len(_REVEAL_RETRY_DELAYS_SECONDS) + 1):
+            remaining = deadline - monotonic()
+            if remaining <= 0.0:
+                raise TimeoutError("Adoption reveal exceeded its total time budget")
             prompt = _prompt(candidate, invitation_message, feedback)
             request = StructuredModelExecutionRequest(
                 prompt=prompt,
@@ -97,19 +109,30 @@ class StructuredAdoptionNarrativeAdapter:
                 model_key=capabilities.model_key,
                 temperature=0.62,
                 max_tokens=min(384, capabilities.max_output_tokens),
+                timeout_seconds=remaining,
             )
             try:
                 result = self._execution.generate_adoption_structured(request)
-            except (OSError, RuntimeError):
+            except (OSError, RuntimeError) as error:
                 if attempt >= len(_REVEAL_RETRY_DELAYS_SECONDS):
                     raise
-                sleep(_REVEAL_RETRY_DELAYS_SECONDS[attempt])
+                remaining = deadline - monotonic()
+                if remaining <= 0.0:
+                    raise TimeoutError(
+                        "Adoption reveal exceeded its total time budget"
+                    ) from error
+                sleep(min(_REVEAL_RETRY_DELAYS_SECONDS[attempt], remaining))
                 continue
             try:
                 return _validated_reveal(_parse_json(result.text), candidate.species_id)
             except ValueError as error:
                 if attempt >= len(_REVEAL_RETRY_DELAYS_SECONDS):
                     raise
+                remaining = deadline - monotonic()
+                if remaining <= 0.0:
+                    raise TimeoutError(
+                        "Adoption reveal exceeded its total time budget"
+                    ) from error
                 feedback = str(error)
         raise RuntimeError("Adoption reveal validation did not complete")
 
@@ -119,22 +142,39 @@ class StructuredAdoptionNarrativeAdapter:
         invitation_message: str,
     ) -> Mapping[str, CandidateReveal]:
         """Run the independent invitation reveals concurrently at the Adapter boundary."""
-        with ThreadPoolExecutor(
+        if not candidates:
+            return {}
+        executor = ThreadPoolExecutor(
             max_workers=len(candidates),
             thread_name_prefix="adoption-reveal",
-        ) as executor:
-            futures = {
-                candidate.candidate_id: executor.submit(
-                    self.reveal,
-                    candidate,
-                    invitation_message,
-                )
-                for candidate in candidates
-            }
-            return {
-                candidate_id: future.result()
-                for candidate_id, future in futures.items()
-            }
+        )
+        deadline = monotonic() + _REVEAL_TOTAL_TIMEOUT_SECONDS
+        futures = {
+            candidate.candidate_id: executor.submit(
+                self.reveal,
+                candidate,
+                invitation_message,
+                deadline=deadline,
+            )
+            for candidate in candidates
+        }
+        try:
+            results: dict[str, CandidateReveal] = {}
+            for candidate_id, future in futures.items():
+                remaining = deadline - monotonic()
+                if remaining <= 0.0:
+                    raise TimeoutError("Adoption reveal exceeded its total time budget")
+                try:
+                    results[candidate_id] = future.result(timeout=remaining)
+                except FutureTimeoutError as error:
+                    raise TimeoutError(
+                        "Adoption reveal exceeded its total time budget"
+                    ) from error
+            return results
+        finally:
+            for future in futures.values():
+                future.cancel()
+            executor.shutdown(wait=False, cancel_futures=True)
 
 
 def _is_qualified(capabilities: object) -> bool:

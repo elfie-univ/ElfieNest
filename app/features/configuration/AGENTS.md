@@ -5,6 +5,9 @@
 
 - 每份配置只有一个语义所有者、一个强类型 Schema、一个写入 Port 和明确优先级；
   禁止双写、第二事实源、任意 `{section: dict}` 接口或隐式 Fallback Read。
+- 根 `config/` 是不可写内置默认值，`${ELFIE_HOME}/configs/` 是用户配置；Feature 只能
+  通过自身 Port 读写归其所有的强类型用户文档或 section，不能直接读文件、修改内置
+  默认值，或把“用户优先”扩张为通用深合并。
 - Provider 连接管理和凭据引用属于本 Feature；Provider 目录/发现、连接协议和模型探测
   的技术实现属于 `infrastructure/models/`。Food 管理和全局工具启用属于本 Feature；
   工具实际执行属于 `infrastructure/tools/`。

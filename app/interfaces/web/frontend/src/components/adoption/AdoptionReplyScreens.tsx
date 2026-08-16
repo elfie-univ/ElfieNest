@@ -1,119 +1,70 @@
-import type { ReactNode } from "react"
-import { RadioGroup as RadioGroupPrimitive } from "radix-ui"
-
-import { Icon } from "../Icon"
 import type {
   AdoptionAction,
   CandidateReply,
-  NameMode,
 } from "./adoption-model"
+import { Button } from "../ui/button"
 
 type JourneyT = (key: string, options?: Record<string, unknown>) => string
 type CandidateImageUrl = (candidate: Pick<CandidateReply, "headshotImageUrl" | "fullBodyImageUrl" | "speciesId">, kind?: "headshot" | "fullBody") => string
 
-type RepliesScreenProps = {
-  readonly candidateLabel: (candidateId: string) => string
-  readonly dispatch: React.Dispatch<AdoptionAction>
-  readonly finalCandidateId: string | null
-  readonly intro: ReactNode
-  readonly replies: readonly CandidateReply[]
-  readonly candidateImageUrl: CandidateImageUrl
-  readonly t: JourneyT
+function candidateAgeLabel(t: JourneyT, ageMonths: number): string {
+  const years = Math.floor(ageMonths / 12)
+  const months = ageMonths % 12
+  if (years === 0) return t("adoption.journey.shortlist.ageMonths", { count: months })
+  if (months === 0) return t("adoption.journey.shortlist.ageYears", { count: years })
+  return t("adoption.journey.shortlist.ageYearsMonths", { years, months })
 }
 
-export function RepliesScreen({ candidateImageUrl, candidateLabel, dispatch, finalCandidateId, intro, replies, t }: RepliesScreenProps) {
-  return <section>
-    {intro}
-    <div className="adoption-reply-grid">
-      {replies.map((reply) => reply.status === "accepted" ? (
-        <button
-          aria-pressed={finalCandidateId === reply.candidateId}
-          className={`adoption-choice adoption-reply-card ${finalCandidateId === reply.candidateId ? "adoption-choice--selected" : ""}`}
-          key={reply.candidateId}
-          onClick={() => dispatch({ type: "select-final", candidateId: reply.candidateId })}
-          type="button"
-        >
-          <img alt="" src={candidateImageUrl(reply, "headshot")} />
-          <strong>{reply.reveal?.originalName ?? candidateLabel(reply.candidateId)}</strong>
-          <span>{reply.message}</span>
-          {reply.reveal?.personalStory ? <small>{reply.reveal.personalStory}</small> : null}
-          {finalCandidateId === reply.candidateId ? <span className="adoption-choice__check"><Icon name="check" size={16} /></span> : null}
-        </button>
-      ) : (
-        <div className="adoption-reply-card adoption-reply-card--unsure" key={reply.candidateId}>
-          <img alt="" src={candidateImageUrl(reply, "headshot")} />
-          <strong>{candidateLabel(reply.candidateId)}</strong>
-          <small>{t("adoption.journey.replies.pending")}</small>
-          <span>{reply.message}</span>
-        </div>
-      ))}
-    </div>
-  </section>
+function trimTrailingPeriods(value: string): string {
+  return value.replace(/[。.]+$/u, "")
 }
 
-type NamingScreenProps = {
+type ArrivalWelcomeScreenProps = {
   readonly candidate: CandidateReply
   readonly candidateImageUrl: CandidateImageUrl
   readonly candidateLabel: string
   readonly customName: string
+  readonly nameMode: "original" | "suggested" | "custom"
   readonly dispatch: React.Dispatch<AdoptionAction>
-  readonly intro: ReactNode
-  readonly nameMode: NameMode
+  readonly onFinish: () => void
+  readonly pending: boolean
   readonly t: JourneyT
 }
 
-export function NamingScreen({ candidate, candidateImageUrl, candidateLabel, customName, dispatch, intro, nameMode, t }: NamingScreenProps) {
-  const setNameMode = (value: string): void => {
-    if (value === "original" || value === "suggested" || value === "custom") {
-      dispatch({ type: "name-mode", mode: value })
-    }
-  }
+export function ArrivalWelcomeScreen({ candidate, candidateImageUrl, candidateLabel, customName, nameMode, dispatch, onFinish, pending, t }: ArrivalWelcomeScreenProps) {
+  const originalName = candidate.reveal?.originalName ?? candidateLabel
+  const displayName = nameMode === "custom" && customName.trim() ? customName.trim() : originalName
+  const introduction = trimTrailingPeriods(candidate.reveal?.personalStory ?? t("adoption.journey.arrival.introFallback"))
 
-  return <section>
-    {intro}
-    <div className="adoption-naming-layout">
-      <div className="adoption-naming-person">
-        <img alt={t("adoption.journey.naming.portraitAlt", { name: candidate.reveal?.originalName ?? candidateLabel })} src={candidateImageUrl(candidate, "headshot")} />
-        <strong>{candidate.reveal?.originalName ?? candidateLabel}</strong>
+  return <section className="adoption-arrival adoption-arrival--welcome">
+    <div className="adoption-arrival__person">
+      <div className="adoption-arrival__portal"><img alt={t("adoption.journey.naming.portraitAlt", { name: originalName })} src={candidateImageUrl(candidate)} /></div>
+      <div className="adoption-arrival__person-info">
+        <strong>{originalName}</strong>
+        <span>{candidateAgeLabel(t, candidate.ageMonths)} · {t(`adoption.journey.genders.${candidate.gender}`)}</span>
+        <div className="adoption-tag-list adoption-arrival__tags">
+          {candidate.personalityTags.slice(0, 3).map((value, index) => <span className="adoption-tag" key={`${index}-${value}`}>{value}</span>)}
+        </div>
+        <blockquote className="adoption-arrival__introduction">
+          <p>{introduction}</p>
+        </blockquote>
       </div>
-      <fieldset className="adoption-name-options">
-        <legend>{t("adoption.journey.naming.label")}</legend>
-        <RadioGroupPrimitive.Root
-          aria-label={t("adoption.journey.naming.label")}
-          className="adoption-name-options__group"
-          onValueChange={setNameMode}
-          value={nameMode}
-        >
-          <RadioGroupPrimitive.Item className="adoption-name-option" value="original">
-            <span aria-hidden="true" className="adoption-name-option__radio">
-              <RadioGroupPrimitive.Indicator className="adoption-name-option__indicator" forceMount><Icon name="check" size={14} /></RadioGroupPrimitive.Indicator>
-            </span>
-            <span>{t("adoption.journey.naming.original", { name: candidate.reveal?.originalName ?? candidateLabel })}</span>
-          </RadioGroupPrimitive.Item>
-          <RadioGroupPrimitive.Item className="adoption-name-option" value="suggested">
-            <span aria-hidden="true" className="adoption-name-option__radio">
-              <RadioGroupPrimitive.Indicator className="adoption-name-option__indicator" forceMount><Icon name="check" size={14} /></RadioGroupPrimitive.Indicator>
-            </span>
-            <span>{t("adoption.journey.naming.suggested", { name: candidate.reveal?.suggestedName ?? t("adoption.journey.naming.suggestedUnavailable") })}</span>
-          </RadioGroupPrimitive.Item>
-          <div className="adoption-name-option-row" data-selected={nameMode === "custom" ? "true" : "false"}>
-            <RadioGroupPrimitive.Item className="adoption-name-option" value="custom">
-              <span aria-hidden="true" className="adoption-name-option__radio">
-                <RadioGroupPrimitive.Indicator className="adoption-name-option__indicator" forceMount><Icon name="check" size={14} /></RadioGroupPrimitive.Indicator>
-              </span>
-              <span>{t("adoption.journey.naming.custom")}</span>
-            </RadioGroupPrimitive.Item>
-            <input
-              aria-label={t("adoption.journey.naming.customInput")}
-              maxLength={20}
-              onChange={(event) => dispatch({ type: "custom-name", value: event.target.value })}
-              onFocus={() => dispatch({ type: "name-mode", mode: "custom" })}
-              placeholder={t("adoption.journey.naming.customPlaceholder")}
-              value={customName}
-            />
-          </div>
-        </RadioGroupPrimitive.Root>
-      </fieldset>
+    </div>
+    <div className="adoption-arrival__copy">
+      <h2>{t("adoption.journey.arrival.welcomeTitle", { name: displayName })}</h2>
+      <label className="adoption-arrival__name">
+        <span>{t("adoption.journey.arrival.nameLabel")}</span>
+        <input
+          aria-label={t("adoption.journey.arrival.nameInput")}
+          maxLength={20}
+          onChange={(event) => dispatch({ type: "custom-name", value: event.target.value })}
+          placeholder={originalName}
+          value={nameMode === "custom" ? customName : originalName}
+        />
+      </label>
+      <div className="adoption-arrival__actions">
+        <Button disabled={pending} onClick={onFinish} type="button">{t("adoption.journey.arrival.enter")}</Button>
+      </div>
     </div>
   </section>
 }

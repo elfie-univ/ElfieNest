@@ -49,7 +49,8 @@ def ensure_bundle(*, pnpm_command: str | None = None) -> Path:
             "pnpm was not found, cannot build the Developer Tools frontend"
         )
     install = [pnpm, "install", "--frozen-lockfile"]
-    if not (WEB_SOURCE / "node_modules").is_dir():
+    dependencies_ready = (WEB_SOURCE / "node_modules" / ".bin" / "tsc").is_file()
+    if not dependencies_ready:
         subprocess.run(install, cwd=WEB_SOURCE, check=True)
     subprocess.run([pnpm, "run", "build"], cwd=WEB_SOURCE, check=True)
     OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)

@@ -21,3 +21,6 @@
 - [ADR-0016：Nest 状态存储 Port 归 App Orchestration](./0016-nest-persistence-port-ownership)
 - [ADR-0017：主人聊天采用完整回复投递](./0017-owner-chat-complete-response-delivery)
 - [ADR-0018：数据库变更必须经过影响盘点与最终状态门禁](./0018-database-change-impact-gates)
+- [ADR-0017：分离内置默认配置与用户配置](./0017-bundled-defaults-and-user-configuration)
+- [ADR-0019：Provider 可用性按 Endpoint 定义并由在用路径驱动](./0019-provider-endpoint-availability)
+- [ADR-0020：配置驱动的物种包](./0020-configuration-driven-species-packages)

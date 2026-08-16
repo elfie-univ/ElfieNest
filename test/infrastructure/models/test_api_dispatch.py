@@ -11,7 +11,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 from infrastructure.models.model_execution_agent import ModelExecutionAgent
-from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.providers.dispatch import (
     API_DISPATCH as _API_DISPATCH,
 )
@@ -27,6 +26,7 @@ from infrastructure.models.providers.dispatch import (
 from infrastructure.models.providers.dispatch import (
     detect_api_mode_for_url as _detect_api_mode_for_url,
 )
+from test.support.model_execution import model_execution_config
 from test.support.model_execution_agent import model_execution_agent_ports
 
 
@@ -377,6 +377,31 @@ class TestCallOpenaiCompatibleApi:
         assert result == "validated by reasoning"
         assert usage["completion_tokens"] == 5
 
+    def test_openai_compatible_request_accepts_a_bounded_timeout(self):
+        mock_response = Mock()
+        mock_response.read.return_value = json.dumps(
+            {"choices": [{"message": {"content": "bounded"}}]}
+        ).encode("utf-8")
+        mock_response.__enter__ = Mock(return_value=mock_response)
+        mock_response.__exit__ = Mock(return_value=False)
+
+        with patch(
+            "infrastructure.models.providers.dispatch.open_provider_request",
+            return_value=mock_response,
+        ) as open_request:
+            _call_openai_compatible_api(
+                api_base="https://ark.example/api/coding/v3",
+                api_key="test-key",
+                model_name="deepseek-v4-flash-260425",
+                messages=[{"role": "user", "content": "Reply with OK."}],
+                temperature=0.0,
+                max_tokens=8,
+                provider="volcengine_coding_plan",
+                timeout_seconds=20.0,
+            )
+
+        assert open_request.call_args.kwargs["timeout"] == 20.0
+
     def test_openai_missing_api_base(self):
         """OpenAI API 应在缺少 api_base 时抛出错误"""
         with pytest.raises(ValueError) as exc_info:
@@ -431,7 +456,7 @@ class TestApiDispatch:
 
     def test_dispatch_to_ollama(self):
         """_call_llm_api 应正确分发到 Ollama"""
-        config = ModelExecutionConfig()
+        config = model_execution_config()
         config.providers["ollama"] = {
             "api_base": "http://localhost:11434",
             "api_mode": "ollama",
@@ -462,7 +487,7 @@ class TestApiDispatch:
 
     def test_dispatch_to_anthropic(self):
         """_call_llm_api 应正确分发到 Anthropic"""
-        config = ModelExecutionConfig()
+        config = model_execution_config()
         config.providers["anthropic"] = {
             "api_base": "https://api.anthropic.com/v1",
             "api_key": "sk-ant-test",
@@ -494,7 +519,7 @@ class TestApiDispatch:
 
     def test_dispatch_to_openai_compatible(self):
         """_call_llm_api 应正确分发到 OpenAI Compatible"""
-        config = ModelExecutionConfig()
+        config = model_execution_config()
         config.providers["openai"] = {
             "api_base": "https://api.openai.com/v1",
             "api_key": "sk-test",
@@ -526,7 +551,7 @@ class TestApiDispatch:
 
     def test_dispatch_auto_detect_mode(self):
         """_call_llm_api 应在未指定 api_mode 时自动检测"""
-        config = ModelExecutionConfig()
+        config = model_execution_config()
         config.providers["anthropic"] = {
             "api_base": "https://api.anthropic.com/v1",
             "api_key": "sk-ant-test",
@@ -557,7 +582,7 @@ class TestApiDispatch:
 
     def test_dispatch_default_to_chat_completions(self):
         """_call_llm_api 应默认使用 chat_completions"""
-        config = ModelExecutionConfig()
+        config = model_execution_config()
         config.providers["unknown"] = {
             "api_base": "https://unknown.api.com/v1",
             "api_key": "test-key",

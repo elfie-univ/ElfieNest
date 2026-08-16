@@ -25,10 +25,12 @@ from elfie.profile import (
     ElfieProfile,
     EmbodimentProfile,
     ProfileProvenance,
+    SpeciesCatalog,
 )
 
 from .errors import (
     AdoptionCandidateSetExpired,
+    AdoptionGenerationTimeout,
     AdoptionInvalid,
     AdoptionSessionBusy,
     AdoptionUnavailable,
@@ -124,8 +126,10 @@ class CandidateRegistry:
         genesis: GenesisEngine | None = None,
         portraits: CandidatePortraitPort | None = None,
         narrative: AdoptionNarrativePort | None = None,
+        catalog: SpeciesCatalog | None = None,
     ) -> None:
-        self._genesis = genesis or GenesisEngine()
+        self._catalog = catalog
+        self._genesis = genesis or GenesisEngine(catalog=catalog)
         self._portraits = portraits
         self._narrative = narrative
         self._candidate_sets: dict[str, CandidateSetSnapshot] = {}
@@ -335,6 +339,18 @@ class CandidateRegistry:
                         invitation_message,
                     )
                 )
+            except TimeoutError as error:
+                with self._registry_lock:
+                    current = self._sessions.get(snapshot.adoption_session_id)
+                    if current is not None and current.version == in_flight_version:
+                        self._sessions[snapshot.adoption_session_id] = replace(
+                            current,
+                            phase="candidates_ready",
+                            version=current.version + 1,
+                        )
+                raise AdoptionGenerationTimeout(
+                    "候选身份生成超时，请稍后重试"
+                ) from error
             except Exception as error:
                 with self._registry_lock:
                     current = self._sessions.get(snapshot.adoption_session_id)
@@ -495,7 +511,10 @@ class CandidateRegistry:
         session = self._sessions.pop(adoption_session_id, None)
         if session is None:
             return
-        if self._active_sessions_by_owner.get(session.owner_user_id) == adoption_session_id:
+        if (
+            self._active_sessions_by_owner.get(session.owner_user_id)
+            == adoption_session_id
+        ):
             self._active_sessions_by_owner.pop(session.owner_user_id, None)
         self._session_locks.pop(adoption_session_id, None)
         expired_sets = tuple(
@@ -564,9 +583,7 @@ class CandidateRegistry:
     def _purge_expired_locked(self) -> None:
         now = time.monotonic()
         expired_sessions = tuple(
-            key
-            for key, session in self._sessions.items()
-            if now >= session.expires_at
+            key for key, session in self._sessions.items() if now >= session.expires_at
         )
         for key in expired_sessions:
             self._invalidate_session_locked(key)
@@ -591,7 +608,7 @@ class CandidateRegistry:
             headshot_image_url=headshot_url,
             appearance_tags=_appearance_tags(candidate, appearance),
             personality_tags=candidate.personality.candidate.labels,
-            runtime_appearance=_runtime_appearance(candidate),
+            runtime_appearance=_runtime_appearance(candidate, catalog=self._catalog),
         )
         return CandidateSnapshot(
             public=public,
@@ -626,7 +643,11 @@ def _appearance_tags(
     return (stature, build, face, signature)
 
 
-def _runtime_appearance(candidate: GenesisCandidate) -> dict[str, object]:
+def _runtime_appearance(
+    candidate: GenesisCandidate,
+    *,
+    catalog: SpeciesCatalog | None = None,
+) -> dict[str, object]:
     """Resolve the candidate genome into the payload owned by the Godot Web runtime."""
     profile = ElfieProfile(
         schema_version=1,
@@ -643,7 +664,7 @@ def _runtime_appearance(candidate: GenesisCandidate) -> dict[str, object]:
         ),
         embodiment=EmbodimentProfile(),
     )
-    return AppearanceResolver().resolve(profile).to_payload()
+    return AppearanceResolver(catalog=catalog).resolve(profile).to_payload()
 
 
 def _height_label(candidate: GenesisCandidate) -> str:

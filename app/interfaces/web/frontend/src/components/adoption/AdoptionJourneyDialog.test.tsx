@@ -1,11 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { createI18n } from "../../i18n/config"
 import { ApiError } from "../../api/http"
-import type { AdoptionCandidateSet } from "../../api/me/adoption"
+import { createI18n } from "../../i18n/config"
 import { AdoptionJourneyDialog } from "./AdoptionJourneyDialog"
 
 const api = vi.hoisted(() => ({
@@ -54,6 +53,19 @@ function candidate(index: number) {
   }
 }
 
+function reply(index: number) {
+  return {
+    ...candidate(index),
+    status: "accepted" as const,
+    message: "",
+    reveal: {
+      original_name: `Aro ${index}`,
+      suggested_name: `阿洛 ${index}`,
+      personal_story: `我是 Aro ${index}，很高兴来到 Nest。`,
+    },
+  }
+}
+
 const species = [
   {
     species_id: "fox",
@@ -63,6 +75,10 @@ const species = [
     earth_shape_label: "fox-like",
     scene_id: "fox",
     sort_order: 0,
+    presentation_images: {
+      headshot_url: "/api/v1/me/adoption/species/fox/images/headshot",
+      full_body_url: "/api/v1/me/adoption/species/fox/images/full-body",
+    },
   },
   {
     species_id: "dog",
@@ -72,10 +88,50 @@ const species = [
     earth_shape_label: "dog-like",
     scene_id: "dog",
     sort_order: 1,
+    presentation_images: {
+      headshot_url: "/api/v1/me/adoption/species/dog/images/headshot",
+      full_body_url: "/api/v1/me/adoption/species/dog/images/full-body",
+    },
   },
 ] as const
 
+function renderJourney(options: {
+  readonly accountId?: string
+  readonly onAdopted?: (elfieId: string) => Promise<void>
+  readonly onOpenChange?: (open: boolean) => void
+} = {}) {
+  return render(
+    <I18nextProvider i18n={createI18n()}>
+      <AdoptionJourneyDialog
+        accountId={options.accountId ?? "owner"}
+        csrfToken="csrf"
+        onAdopted={options.onAdopted ?? (async () => undefined)}
+        onOpenChange={options.onOpenChange ?? vi.fn()}
+        open
+      />
+    </I18nextProvider>,
+  )
+}
+
+async function openBasic(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: "开始寻找" }))
+  expect(await screen.findByRole("heading", { name: "先选一个基础方向" })).toBeInTheDocument()
+}
+
+async function reachShortlist(user: ReturnType<typeof userEvent.setup>) {
+  await openBasic(user)
+  await user.click(screen.getByRole("button", { name: "灵狐" }))
+  await user.click(screen.getByRole("button", { name: "开始寻找候选" }))
+  expect(await screen.findByRole("heading", { name: "选一位你最喜欢的 Elfie" })).toBeInTheDocument()
+  expect(screen.getByText("第 1 / 3 批")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "再找一批" })).toBeInTheDocument()
+}
+
 describe("AdoptionJourneyDialog", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() })
@@ -89,15 +145,22 @@ describe("AdoptionJourneyDialog", () => {
       nest_capacity: { used: 0, max: 4, remaining: 4 },
       availability: "available",
     })
-    api.adoptionCandidates.mockResolvedValue({ candidate_set_id: "set-1", adoption_session_id: "session-1", batch_number: 1, candidates: [0, 1, 2, 3, 4].map(candidate) })
-    api.adoptionReplies.mockResolvedValue({ candidate_set_id: "set-1", replies: [candidate(0), candidate(1)].map((item, index) => ({ ...item, status: "accepted", message: `Reply ${index}`, reveal: null })) })
+    api.adoptionCandidates.mockResolvedValue({
+      candidate_set_id: "set-1",
+      adoption_session_id: "session-1",
+      batch_number: 1,
+      candidates: [0, 1, 2, 3, 4].map(candidate),
+    })
+    api.adoptionReplies.mockImplementation(async (_setId: string, candidateIds: readonly string[]) => ({
+      candidate_set_id: "set-1",
+      replies: candidateIds.map((candidateId) => reply(Number(candidateId.replace("candidate-", "")))),
+    }))
     api.commitAdoption.mockResolvedValue({ elfie_id: "00000001", name: "Aro 0", species_id: "fox" })
   })
 
-  it("blocks a skipped welcome entry when the adoption quota is full", async () => {
+  it("blocks entry when the adoption quota is full", async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
-    window.localStorage.setItem("elfienest.adoption-welcome.owner.v1", "skipped")
     api.adoptionInfo.mockResolvedValueOnce({
       personality_styles: ["好奇探索"],
       species,
@@ -108,486 +171,168 @@ describe("AdoptionJourneyDialog", () => {
       availability: "nest_full",
     })
 
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={onOpenChange} open /></I18nextProvider>)
+    renderJourney({ onOpenChange })
 
     const dialog = await screen.findByRole("alertdialog")
     expect(dialog).toHaveTextContent("领养名额已满")
-    expect(dialog).toHaveTextContent("当前 Nest 暂时没有新的领养名额，请联系管理员调整后再来。")
-    expect(screen.queryByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("heading", { name: "邀请一位精灵，从 Elfaria 到地球与你相遇" })).not.toBeInTheDocument()
-
+    expect(dialog).toHaveTextContent("当前 Nest 暂时没有新的领养名额")
     await user.click(screen.getByRole("button", { name: "知道了" }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it("blocks the entry when the strong model is not ready and can retry the check", async () => {
-    const user = userEvent.setup()
-    api.adoptionInfo.mockResolvedValueOnce({
-      personality_styles: ["好奇探索"],
-      species,
-      heights: ["short", "standard", "tall"],
-      builds: ["slim", "standard", "plump"],
-      quota: { used: 0, max: 3, remaining: 3, can_adopt: true },
-      nest_capacity: { used: 0, max: 4, remaining: 4 },
-      availability: "model_unavailable",
-    })
+  it("keeps the welcome copy compact and hides the explanation by default", async () => {
+    renderJourney()
 
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
-
-    const block = await screen.findByRole("alertdialog")
-    expect(block).toHaveTextContent("虫洞通道暂不稳定")
-    expect(block).toHaveTextContent("现在还不能开始领养。请稍后重试；如果一直无法恢复，请联系管理员。")
-    expect(block).not.toHaveTextContent("模型")
-    expect(block).not.toHaveTextContent("服务")
-    expect(screen.queryByRole("heading", { name: "邀请一位精灵，从 Elfaria 到地球与你相遇" })).not.toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "重新检查" }))
-    expect(await screen.findByRole("heading", { name: "邀请一位精灵，从 Elfaria 到地球与你相遇" })).toBeInTheDocument()
-    expect(api.adoptionInfo).toHaveBeenCalledTimes(2)
+    expect(await screen.findByRole("heading", { name: "一位来自遥远星球 Elfaria 的朋友，正在等你相遇" })).toBeInTheDocument()
+    expect(screen.getByRole("checkbox", { name: "以后跳过这段介绍" })).toBeChecked()
+    expect(screen.queryByText("先选一个方向，马上看看适合你的 Elfie。")).not.toBeInTheDocument()
+    expect(screen.getByText("不确定的地方会交给缘分；想让匹配更贴合，也可以展开详细匹配")).not.toBeVisible()
+    expect(screen.getByRole("button", { name: "开始寻找" })).toBeInTheDocument()
   })
 
-  it("shows a clear restart message when the server candidate session is gone", async () => {
-    const user = userEvent.setup()
-    api.adoptionCandidates
-      .mockResolvedValueOnce({ candidate_set_id: "set-1", adoption_session_id: "session-1", batch_number: 1, candidates: [0, 1, 2, 3, 4].map(candidate) })
-    api.adoptionReplies.mockRejectedValueOnce(new ApiError(410, "gone", [], "adoption_candidate_set_expired"))
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
+  it("advances the candidate-search story while candidate profiles are in transit", async () => {
+    api.adoptionCandidates.mockImplementationOnce(() => new Promise<never>(() => undefined))
+    renderJourney()
+    expect(await screen.findByRole("heading", { name: "一位来自遥远星球 Elfaria 的朋友，正在等你相遇" })).toBeInTheDocument()
 
-    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /灵狐/ }))
-    await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
-    await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
-    for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
-    await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
-    await user.click(screen.getByRole("button", { name: "确认意向" }))
-    await user.click(screen.getByRole("button", { name: "开始匹配" }))
-    await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })
-    await user.click(screen.getByRole("button", { name: /候选者 1/ }))
-    await user.click(screen.getByRole("button", { name: /发送意向/ }))
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole("button", { name: "开始寻找" }))
+    fireEvent.click(screen.getByRole("button", { name: "灵狐" }))
+    fireEvent.click(screen.getByRole("button", { name: "开始寻找候选" }))
 
-    expect(await screen.findByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).toBeInTheDocument()
-    expect(screen.getByText("本次领养已失效，请重新开始。")).toBeInTheDocument()
-    expect(api.adoptionCandidates).toHaveBeenCalledTimes(1)
-    expect(api.adoptionReplies).toHaveBeenCalledTimes(1)
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
-  }, 15000)
+    expect(screen.getByRole("heading", { name: "正在穿过星海，为你寻找合拍的 Elfie" })).toBeInTheDocument()
+    expect(screen.getByText("正在将你的期待传往 Elfaria")).toBeInTheDocument()
 
-  it("clears an expired device draft before the user resumes", async () => {
-    window.localStorage.setItem("elfienest.adoption-draft.owner.v2", JSON.stringify({
-      accountId: "owner",
-      savedAt: Date.now() - 1_000,
-      sessionExpiresAt: Date.now() - 1,
-      state: {
-        dirty: true,
-        screen: "shortlist",
-        adoptionSessionId: "expired-session",
-        candidateBatch: 1,
-        draft: { speciesId: "fox", answers: ["any", "any", "any", "any", "any"] },
-      },
-    }))
+    act(() => { vi.advanceTimersByTime(4_000) })
+    expect(screen.getByText("来自 Elfaria 的候选资料正在传回地球")).toBeInTheDocument()
 
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
-
-    expect(await screen.findByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).toBeInTheDocument()
-    expect(screen.getByText("本次领养已失效，请重新开始。")).toBeInTheDocument()
-    expect(window.localStorage.getItem("elfienest.adoption-draft.owner.v2")).toBeNull()
-    expect(api.adoptionCandidates).not.toHaveBeenCalled()
+    act(() => { vi.advanceTimersByTime(6_000) })
+    expect(screen.getByText("Elfaria 离地球很远，候选资料仍在传回途中")).toBeInTheDocument()
   })
 
-  it("shows the restart message when an open adoption session reaches its fixed deadline", async () => {
+  it("advances the selected Elfie's departure story while waiting", async () => {
     const user = userEvent.setup()
-    const setTimeoutSpy = vi.spyOn(window, "setTimeout")
-    try {
-      render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
+    renderJourney()
+    await reachShortlist(user)
+    await user.click(screen.getByRole("button", { name: "候选者 1" }))
+    api.adoptionReplies.mockImplementationOnce(() => new Promise<never>(() => undefined))
 
-      await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-      await user.click(screen.getByRole("button", { name: /灵狐/ }))
-      await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
-      await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
-      for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
-      await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
-      await user.click(screen.getByRole("button", { name: "确认意向" }))
-      await user.click(screen.getByRole("button", { name: "开始匹配" }))
-      await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole("button", { name: "迎接 TA" }))
 
-      const expirationCallback = setTimeoutSpy.mock.calls.find((call) => {
-        const delay = call[1]
-        return typeof delay === "number" && delay > 4 * 60 * 60 * 1000
-      })?.[0]
-      if (typeof expirationCallback !== "function") throw new Error("adoption expiry timer was not scheduled")
-      await act(async () => { expirationCallback() })
+    expect(screen.getByRole("heading", { name: "TA 正在从遥远的 Elfaria 赶往地球" })).toBeInTheDocument()
+    expect(screen.getByText("TA 正在收拾行李，准备出发")).toBeInTheDocument()
 
-      expect(await screen.findByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).toBeInTheDocument()
-      expect(screen.getByText("本次领养已失效，请重新开始。")).toBeInTheDocument()
-    } finally {
-      setTimeoutSpy.mockRestore()
-    }
-  }, 15000)
+    act(() => { vi.advanceTimersByTime(4_000) })
+    expect(screen.getByText("TA 已经离开 Elfaria，正在穿越星海")).toBeInTheDocument()
 
-  it("keeps the approved story flow from welcome through candidate generation", async () => {
+    act(() => { vi.advanceTimersByTime(6_000) })
+    expect(screen.getByText("Elfaria 离地球很远，TA 还在路上")).toBeInTheDocument()
+  })
+
+  it("runs the quick three-step flow and welcomes one selected Elfie", async () => {
     const user = userEvent.setup()
+    const onOpenChange = vi.fn()
     const onAdopted = vi.fn(async () => undefined)
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={onAdopted} onOpenChange={vi.fn()} open /></I18nextProvider>)
+    renderJourney({ onOpenChange, onAdopted })
 
-    expect(await screen.findByRole("heading", { name: "认识一位来自 Elfaria 的朋友" })).toBeInTheDocument()
-    expect(await screen.findByRole("heading", { name: "邀请一位精灵，从 Elfaria 到地球与你相遇" })).toBeInTheDocument()
-    expect(screen.getByRole("img", { name: "来自 Elfaria、正在前往地球的 Elfie" })).toHaveAttribute("src", expect.stringContaining("elfaria-arrival-square.png"))
-    expect(screen.getByRole("img", { name: "来自 Elfaria、正在前往地球的 Elfie" })).not.toHaveAttribute("src", "/adoption/elfaria-arrival-square.png")
-    expect(screen.getByRole("checkbox", { name: "以后不再显示" })).not.toBeChecked()
-    expect(screen.getByRole("checkbox", { name: "以后不再显示" })).toHaveClass("adoption-welcome__checkbox")
-    expect(document.querySelector(".adoption-portrait-renderer")).not.toBeInTheDocument()
-    expect(screen.queryByText("你提交的是愿意认识怎样的朋友；候选精灵也会阅读这份意向。")).not.toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "写下邀请" }))
-    expect(await screen.findByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).toBeInTheDocument()
-    await waitFor(() => expect(document.querySelector(".adoption-portrait-renderer")).toBeInTheDocument())
-    expect(screen.queryByText("第一步 · 基本意向")).not.toBeInTheDocument()
-    expect(screen.queryByText("先确定物种、生命阶段和性别倾向。选择的是愿意见见的范围，不是在设置某一位精灵的身份。")).not.toBeInTheDocument()
-    expect(screen.queryByText("看看灵狐报名者")).not.toBeInTheDocument()
-    const speciesChoices = screen.getAllByRole("button", { name: /灵狐|灵犬/ })
-    expect(speciesChoices).toHaveLength(2)
-    expect(speciesChoices[0]).toHaveTextContent("灵狐")
-    expect(speciesChoices[0]).toHaveAttribute("aria-pressed", "false")
-    expect(speciesChoices.every((choice) => choice.querySelector("img") === null)).toBe(true)
-    await user.click(screen.getByRole("button", { name: /灵狐/ }))
-    await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
-    expect(screen.queryByText("第二步 · 外貌倾向")).not.toBeInTheDocument()
-    expect(screen.queryByText("用容易理解的视觉印象表达偏好。每项都可以交给缘分，实际候选仍会保留自己的特点。")).not.toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
-    expect(screen.queryByText("第三步 · 相处期待")).not.toBeInTheDocument()
-    expect(screen.queryByText("一次回答一个生活情景。候选 Elfie 也会阅读这些答案，判断这样的 Nest 是否适合自己。")).not.toBeInTheDocument()
-    expect(screen.queryByText("生活情景 1 · 忙碌时")).not.toBeInTheDocument()
+    await openBasic(user)
+    const progress = screen.getByRole("list", { name: "领养阶段" })
+    expect(progress).toHaveTextContent("1基础匹配2选择 Elfie3欢迎 TA")
+    expect(screen.getAllByRole("button", { name: "不限" })).toHaveLength(2)
+    expect(screen.queryByText("约 1 分钟")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "开始寻找候选" })).toBeDisabled()
 
-    for (let index = 0; index < 5; index += 1) {
-      await user.click(screen.getByRole("button", { name: "都可以" }))
-      if (index < 4) expect(screen.getByText(`问题 ${index + 2} / 5`)).toBeInTheDocument()
-    }
+    await user.click(screen.getByRole("button", { name: "灵狐" }))
+    expect(screen.getByRole("button", { name: "开始寻找候选" })).toBeEnabled()
+    await user.click(screen.getByRole("button", { name: "开始寻找候选" }))
+    expect(await screen.findByRole("heading", { name: "选一位你最喜欢的 Elfie" })).toBeInTheDocument()
+    expect(api.adoptionCandidates).toHaveBeenCalledWith(expect.objectContaining({
+      species_id: "fox",
+      life_stage: "any",
+      gender: "any",
+      answers: ["any", "any", "any", "any", "any"],
+    }), "csrf")
 
-    expect(screen.getByRole("heading", { name: "如果未来一起生活……" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "继续：确认意向" })).toBeEnabled()
-    await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
-    expect(await screen.findByRole("heading", { name: "确认你的邀请意向" })).toBeInTheDocument()
-    expect(screen.queryByText("发送后，系统会根据这些范围现场生成 5 位可能合适的报名者。这里仍然可以返回修改。")).not.toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "确认意向" }))
-    expect(screen.getByRole("alertdialog")).toHaveTextContent("确认开始匹配")
-    expect(api.adoptionCandidates).not.toHaveBeenCalled()
-    expect(screen.getByRole("button", { name: "开始匹配" })).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "开始匹配" }))
-    expect(await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })).toBeInTheDocument()
-    await waitFor(() => expect(document.querySelector(".adoption-portrait-renderer")).not.toBeInTheDocument())
-    expect(screen.queryByText("选择 1–3 位发送认识邀请。这里使用静态报名照，不同时加载多个 3D 形象。")).not.toBeInTheDocument()
-    expect(api.adoptionCandidates).toHaveBeenCalledWith(expect.objectContaining({ species_id: "fox" }), "csrf")
-  }, 15000)
+    const first = screen.getByRole("button", { name: "候选者 1" })
+    const second = screen.getByRole("button", { name: "候选者 2" })
+    await user.click(first)
+    expect(first).toHaveAttribute("aria-pressed", "true")
+    expect(screen.queryByText("选一位你最想迎接的 Elfie")).not.toBeInTheDocument()
+    expect(screen.queryByText("已选择 1 位")).not.toBeInTheDocument()
+    await user.click(second)
+    expect(first).toHaveAttribute("aria-pressed", "false")
+    expect(second).toHaveAttribute("aria-pressed", "true")
+    expect(screen.queryByRole("button", { name: /拒绝|写信|回信/ })).not.toBeInTheDocument()
 
-  it("recreates the browser-side portrait runtime when the user returns after five idle minutes", async () => {
-    const user = userEvent.setup()
-    const setTimeoutSpy = vi.spyOn(window, "setTimeout")
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
-
-    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await waitFor(() => expect(document.querySelector(".adoption-portrait-renderer")).toBeInTheDocument())
-    const firstFrame = document.querySelector(".adoption-portrait-renderer")
-    const now = Date.now()
-    const dateNow = vi.spyOn(Date, "now").mockReturnValue(now + 5 * 60 * 1000 + 1)
-    try {
-      const idleCallback = setTimeoutSpy.mock.calls.find((call) => call[1] === 5 * 60 * 1000)?.[0]
-      if (typeof idleCallback !== "function") throw new Error("portrait runtime idle timer was not scheduled")
-      await act(async () => { idleCallback() })
-      await waitFor(() => expect(document.querySelector(".adoption-portrait-renderer")).not.toBeInTheDocument())
-      await act(async () => { window.dispatchEvent(new Event("focus")) })
-      await waitFor(() => {
-        const resumedFrame = document.querySelector(".adoption-portrait-renderer")
-        expect(resumedFrame).toBeInTheDocument()
-        expect(resumedFrame).not.toBe(firstFrame)
-      })
-    } finally {
-      dateNow.mockRestore()
-      setTimeoutSpy.mockRestore()
-    }
-  })
-
-  it("reuses the candidate response when an idle portrait runtime is rebuilt during generation", async () => {
-    const user = userEvent.setup()
-    const candidateRequest: { resolve?: (value: AdoptionCandidateSet) => void } = {}
-    api.adoptionCandidates.mockImplementationOnce(() => new Promise<AdoptionCandidateSet>((resolve) => { candidateRequest.resolve = resolve }))
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
-
-    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /灵狐/ }))
-    await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
-    await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
-    for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
-    await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
-    await user.click(screen.getByRole("button", { name: "确认意向" }))
-    await user.click(screen.getByRole("button", { name: "开始匹配" }))
-    await waitFor(() => expect(api.adoptionCandidates).toHaveBeenCalledTimes(1))
-    const firstFrame = document.querySelector(".adoption-portrait-renderer")
-    expect(firstFrame).toBeInTheDocument()
-
-    const now = Date.now()
-    const dateNow = vi.spyOn(Date, "now").mockReturnValue(now + 5 * 60 * 1000 + 1)
-    try {
-      await act(async () => { window.dispatchEvent(new Event("focus")) })
-      await waitFor(() => expect(document.querySelector(".adoption-portrait-renderer")).not.toBe(firstFrame))
-      expect(api.adoptionCandidates).toHaveBeenCalledTimes(1)
-      const completeCandidates = candidateRequest.resolve
-      if (completeCandidates === undefined) throw new Error("candidate request was not started")
-      await act(async () => {
-        completeCandidates({ candidate_set_id: "set-1", adoption_session_id: "session-1", batch_number: 1, candidates: [0, 1, 2, 3, 4].map(candidate) })
-      })
-      expect(await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })).toBeInTheDocument()
-      expect(api.adoptionCandidates).toHaveBeenCalledTimes(1)
-    } finally {
-      dateNow.mockRestore()
-    }
-  }, 15000)
-
-  it("requires every companionship answer before opening the review", async () => {
-    const user = userEvent.setup()
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
-
-    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /灵狐/ }))
-    await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
-    await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
-    await user.click(screen.getByRole("button", { name: /生活节奏/ }))
-    await user.click(screen.getByRole("button", { name: "都可以" }))
-
-    expect(screen.getByRole("heading", { name: "如果未来一起生活……" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "继续：确认意向" })).toBeDisabled()
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
-
-    for (const label of ["忙碌时", "新鲜事", "计划变化", "有分歧"]) {
-      await user.click(screen.getByRole("button", { name: new RegExp(label) }))
-      await user.click(screen.getByRole("button", { name: "都可以" }))
-    }
-    await user.click(screen.getByRole("button", { name: /生活节奏/ }))
-    await user.click(screen.getByRole("button", { name: "都可以" }))
-    expect(screen.getByRole("button", { name: "继续：确认意向" })).toBeEnabled()
-    await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
-    expect(await screen.findByRole("heading", { name: "确认你的邀请意向" })).toBeInTheDocument()
-  })
-
-  it("allows editing earlier stages before confirmation and locks them after confirmation", async () => {
-    const user = userEvent.setup()
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
-
-    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /灵狐/ }))
-    await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
-    await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
-    for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
-    await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
-
-    await user.click(screen.getByRole("button", { name: "基本意向" }))
-    expect(screen.getByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "双向确认" }))
-    expect(screen.getByRole("heading", { name: "确认你的邀请意向" })).toBeInTheDocument()
-
-    await user.click(screen.getByRole("button", { name: "确认意向" }))
-    await user.click(screen.getByRole("button", { name: "开始匹配" }))
-    expect(await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "基本意向" })).toBeDisabled()
+    await user.click(screen.getByRole("button", { name: "迎接 TA" }))
+    expect(await screen.findByRole("heading", { name: "欢迎来到 Nest，Aro 1" })).toBeInTheDocument()
+    expect(api.adoptionReplies).toHaveBeenCalledWith("set-1", ["candidate-1"], "", "csrf")
+    expect(screen.queryByText("TA 的自我介绍")).not.toBeInTheDocument()
+    expect(screen.getByText("3 岁 · 女性")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "返回" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /拒绝|写信|回信/ })).not.toBeInTheDocument()
+
+    const nameInput = screen.getByRole("textbox", { name: "给 TA 一个称呼" })
+    await user.clear(nameInput)
+    await user.type(nameInput, "洛洛")
+    expect(screen.getByRole("heading", { name: "欢迎来到 Nest，洛洛" })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "和 TA 聊聊" }))
+    expect(api.commitAdoption).toHaveBeenCalledWith("set-1", "candidate-1", "洛洛", "csrf", expect.any(Object))
+    expect(onAdopted).toHaveBeenCalledWith("00000001")
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(screen.queryByRole("heading", { name: "TA 正在从遥远的 Elfaria 赶往地球" })).not.toBeInTheDocument()
   }, 15000)
 
-  it("shows the welcome page again until the user explicitly skips it", async () => {
+  it("keeps detailed matching optional while reusing the same candidate page", async () => {
     const user = userEvent.setup()
-    const props = { accountId: "owner", csrfToken: "csrf", onAdopted: vi.fn(async () => undefined), onOpenChange: vi.fn() }
-    const first = render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog {...props} open /></I18nextProvider>)
-    const checkbox = await screen.findByRole("checkbox", { name: "以后不再显示" })
+    renderJourney()
 
-    expect(checkbox).not.toBeChecked()
-    await user.click(screen.getByRole("button", { name: "写下邀请" }))
-    first.unmount()
+    await openBasic(user)
+    await user.click(screen.getByRole("button", { name: "灵狐" }))
+    await user.click(screen.getByRole("button", { name: "展开详细匹配" }))
+    expect(await screen.findByRole("heading", { name: "再告诉我们你的外貌偏好" })).toBeInTheDocument()
+    expect(screen.getByText("详细匹配：1/2")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "继续：相处期待" }))
+    expect(await screen.findByRole("heading", { name: "如果未来一起生活……" })).toBeInTheDocument()
+    expect(screen.getByText("详细匹配：2/2")).toBeInTheDocument()
+    expect(screen.queryByText("问题 1 / 5")).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "开始寻找候选" }))
+    expect(await screen.findByRole("heading", { name: "选一位你最喜欢的 Elfie" })).toBeInTheDocument()
 
-    const second = render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog {...props} open /></I18nextProvider>)
-    expect(await screen.findByRole("heading", { name: "邀请一位精灵，从 Elfaria 到地球与你相遇" })).toBeInTheDocument()
-    await user.click(screen.getByRole("checkbox", { name: "以后不再显示" }))
-    expect(screen.getByRole("checkbox", { name: "以后不再显示" })).toBeChecked()
-    await user.click(screen.getByRole("button", { name: "写下邀请" }))
-    second.unmount()
-
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog {...props} open /></I18nextProvider>)
-    expect(await screen.findByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).toBeInTheDocument()
-  })
-
-  it("allows selecting up to three candidates and keeps the selected snapshot", async () => {
-    const user = userEvent.setup()
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
-    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /灵狐/ }))
-    await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
-    await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
-    for (let index = 0; index < 5; index += 1) {
-      await user.click(screen.getByRole("button", { name: "都可以" }))
-    }
-    await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
-    await user.click(screen.getByRole("button", { name: "确认意向" }))
-    await user.click(screen.getByRole("button", { name: "开始匹配" }))
-    await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })
-    await user.click(screen.getByRole("button", { name: /候选者 1/ }))
-    await user.click(screen.getByRole("button", { name: /候选者 2/ }))
-    await user.click(screen.getByRole("button", { name: /写一封信/ }))
-    const messageBox = screen.getByRole("textbox", { name: "给候选者的话" })
-    await user.type(messageBox, "很高兴认识你")
-    await user.click(screen.getByRole("button", { name: "保存这封信" }))
-    await user.click(screen.getByRole("button", { name: /发送意向/ }))
-    expect(screen.queryByRole("textbox", { name: "给候选者的话" })).not.toBeInTheDocument()
-    await waitFor(() => expect(api.adoptionReplies).toHaveBeenCalledWith("set-1", ["candidate-0", "candidate-1"], "很高兴认识你", "csrf"))
-    expect(await screen.findByRole("heading", { name: "你收到了 2 封愿意继续认识的回信" })).toBeInTheDocument()
-    expect(screen.queryByText("来自 Elfaria 的回信")).not.toBeInTheDocument()
-    expect(screen.queryByText("选择一封愿意继续认识的回信。")).not.toBeInTheDocument()
-    expect(screen.queryByText("Your answers sounded familiar.")).not.toBeInTheDocument()
-    expect(screen.queryByText("从愿意继续认识的 Elfie 中选择一位。打开回信时只展示静态形象和一小段自我表达。")).not.toBeInTheDocument()
-    await user.click(screen.getAllByRole("button", { name: /候选者/ })[0]!)
-    await user.click(screen.getByRole("button", { name: /选择 TA 继续/ }))
-    expect(await screen.findByRole("heading", { name: "约定在地球上的称呼" })).toBeInTheDocument()
-    expect(screen.queryByText("Elfie 已经有自己的原名。你们可以保留原名、使用 TA 提议的地球昵称，或者提出一个新称呼。")).not.toBeInTheDocument()
-    expect(screen.queryByText("Reply 0")).not.toBeInTheDocument()
-    expect(screen.getByRole("radiogroup", { name: "地球称呼" })).toBeInTheDocument()
-    expect(screen.getByRole("radio", { name: /保留原名/ })).toBeChecked()
-    expect(document.querySelectorAll(".adoption-name-option__radio")).toHaveLength(3)
-    const customNameInput = screen.getByRole("textbox", { name: "新称呼" })
-    expect(customNameInput.parentElement).toHaveAttribute("data-selected", "false")
-    await user.click(customNameInput)
-    expect(screen.getByRole("radio", { name: /提出一个新称呼/ })).toBeChecked()
-    expect(customNameInput.parentElement).toHaveAttribute("data-selected", "true")
-    await user.click(screen.getByRole("button", { name: "返回" }))
-    expect(await screen.findByRole("heading", { name: "你收到了 2 封愿意继续认识的回信" })).toBeInTheDocument()
+    expect(api.adoptionCandidates).toHaveBeenCalledWith(expect.objectContaining({
+      appearance: { stature: "any", build: "any", face: "any", signature: "any", priority: "face" },
+    }), "csrf")
   }, 15000)
 
-  it("keeps a failed invitation on the sending page and offers retry or exit", async () => {
+  it("keeps one-candidate invitation failures recoverable", async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     api.adoptionReplies.mockRejectedValue(new Error("signal unavailable"))
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={onOpenChange} open /></I18nextProvider>)
+    renderJourney({ onOpenChange })
 
-    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /灵狐/ }))
-    await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
-    await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
-    for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
-    await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
-    await user.click(screen.getByRole("button", { name: "确认意向" }))
-    await user.click(screen.getByRole("button", { name: "开始匹配" }))
-    await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })
-    for (const index of [2, 3, 5]) await user.click(screen.getByRole("button", { name: new RegExp(`候选者 ${index}`) }))
-    await user.click(screen.getByRole("button", { name: /发送意向/ }))
+    await reachShortlist(user)
+    await user.click(screen.getByRole("button", { name: "候选者 3" }))
+    await user.click(screen.getByRole("button", { name: "迎接 TA" }))
 
     const failureDialog = await screen.findByRole("alertdialog")
-    expect(failureDialog).toHaveTextContent("邀请暂未送达")
-    expect(failureDialog).toHaveTextContent("虫洞信号暂时不稳，这份邀请还没有抵达。你的选择已经保留。")
-    const sendingTitle = screen.getByRole("heading", { name: "正在发送你的邀请" })
-    const sendingSection = sendingTitle.closest("section")
-    const inviteGrid = sendingSection?.querySelector(".adoption-invite-grid")
-    const progress = sendingSection?.querySelector("[role='progressbar']")
-    const cards = inviteGrid?.querySelectorAll(".adoption-invite-card") ?? []
-    expect(cards).toHaveLength(3)
-    expect(cards[0]).toHaveTextContent("候选者 2")
-    expect(cards[0]).toHaveTextContent("Curious")
-    expect(inviteGrid?.nextElementSibling).toBe(progress)
-    expect(screen.queryByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole("button", { name: "再试一次" }))
-    await waitFor(() => expect(api.adoptionReplies).toHaveBeenCalledTimes(2))
-    expect(await screen.findByRole("alertdialog")).toHaveTextContent("邀请暂未送达")
+    expect(failureDialog).toHaveTextContent("TA 暂时还没到达")
+    expect(screen.getByRole("heading", { name: "TA 正在从遥远的 Elfaria 赶往地球" })).toBeInTheDocument()
+    expect(api.adoptionReplies).toHaveBeenCalledWith("set-1", ["candidate-2"], "", "csrf")
     await user.click(screen.getByRole("button", { name: "稍后再说" }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
   }, 15000)
 
-  it("silently retries transient invitation failures before showing the failure dialog", async () => {
+  it("restarts when the candidate session has expired", async () => {
     const user = userEvent.setup()
-    api.adoptionReplies
-      .mockRejectedValueOnce(new ApiError(503, "temporary", [], "adoption_unavailable"))
-      .mockRejectedValueOnce(new ApiError(503, "temporary", [], "adoption_unavailable"))
-      .mockResolvedValueOnce({ candidate_set_id: "set-1", replies: [candidate(0), candidate(1)].map((item, index) => ({ ...item, status: "accepted", message: `Reply ${index}`, reveal: null })) })
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
+    api.adoptionReplies.mockRejectedValueOnce(new ApiError(410, "gone", [], "adoption_candidate_set_expired"))
+    renderJourney()
 
-    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /灵狐/ }))
-    await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
-    await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
-    for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
-    await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
-    await user.click(screen.getByRole("button", { name: "确认意向" }))
-    await user.click(screen.getByRole("button", { name: "开始匹配" }))
-    await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })
-    for (const index of [1, 2]) await user.click(screen.getByRole("button", { name: new RegExp(`候选者 ${index}`) }))
-    await user.click(screen.getByRole("button", { name: /发送意向/ }))
+    await reachShortlist(user)
+    await user.click(screen.getByRole("button", { name: "候选者 1" }))
+    await user.click(screen.getByRole("button", { name: "迎接 TA" }))
 
-    expect(await screen.findByRole("heading", { name: "你收到了 2 封愿意继续认识的回信" }, { timeout: 5000 })).toBeInTheDocument()
-    expect(api.adoptionReplies).toHaveBeenCalledTimes(3)
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
-  }, 15000)
-
-  it("lets the welcome checkbox label toggle the library checkbox", async () => {
-    const user = userEvent.setup()
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
-
-    const checkbox = await screen.findByRole("checkbox", { name: "以后不再显示" })
-    await user.click(screen.getByText("以后不再显示"))
-    expect(checkbox).toBeChecked()
-    await user.click(screen.getByText("以后不再显示"))
-    expect(checkbox).not.toBeChecked()
-  })
-
-  it("keeps the arrival page to its main title without the old helper copy", async () => {
-    const user = userEvent.setup()
-    const onOpenChange = vi.fn()
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={onOpenChange} open /></I18nextProvider>)
-
-    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /灵狐/ }))
-    await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
-    await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
-    for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
-    await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
-    await user.click(screen.getByRole("button", { name: "确认意向" }))
-    await user.click(screen.getByRole("button", { name: "开始匹配" }))
-    await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })
-    for (const index of [1, 2]) await user.click(screen.getByRole("button", { name: new RegExp(`候选者 ${index}`) }))
-    await user.click(screen.getByRole("button", { name: /发送意向/ }))
-    await screen.findByRole("heading", { name: "你收到了 2 封愿意继续认识的回信" })
-    await user.click(screen.getAllByRole("button", { name: /候选者/ })[0]!)
-    await user.click(screen.getByRole("button", { name: /选择 TA 继续/ }))
-    await user.click(screen.getByRole("radio", { name: /提出一个新称呼/ }))
-    await user.type(screen.getByRole("textbox", { name: "新称呼" }), "Aro 0")
-    await user.click(screen.getByRole("button", { name: /确认迎接/ }))
-    expect(screen.getByRole("alertdialog")).toHaveTextContent("确认迎接")
-    expect(api.commitAdoption).not.toHaveBeenCalled()
-    await user.click(screen.getByRole("button", { name: /确认迎接/ }))
-    expect(await screen.findByRole("heading", { name: "Aro 0 来到 Nest 了" })).toBeInTheDocument()
-    expect(screen.queryByText("Elfaria 通道已稳定")).not.toBeInTheDocument()
-    expect(screen.queryByText("从这一刻起，Aro 0 会以自己的外貌和性格与你一起生活。")).not.toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "去 Nest 见 TA" }))
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(screen.queryByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).not.toBeInTheDocument()
-  }, 15000)
-
-  it("offers at most three candidate batches and removes the old stability note", async () => {
-    const user = userEvent.setup()
-    api.adoptionCandidates
-      .mockResolvedValueOnce({ candidate_set_id: "set-1", adoption_session_id: "session-1", batch_number: 1, candidates: [0, 1, 2, 3, 4].map(candidate) })
-      .mockResolvedValueOnce({ candidate_set_id: "set-2", adoption_session_id: "session-1", batch_number: 2, candidates: [5, 6, 7, 8, 9].map(candidate) })
-      .mockResolvedValueOnce({ candidate_set_id: "set-3", adoption_session_id: "session-1", batch_number: 3, candidates: [10, 11, 12, 13, 14].map(candidate) })
-
-    render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></I18nextProvider>)
-    await user.click(await screen.findByRole("button", { name: "写下邀请" }))
-    await user.click(screen.getByRole("button", { name: /灵狐/ }))
-    await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
-    await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
-    for (let index = 0; index < 5; index += 1) await user.click(screen.getByRole("button", { name: "都可以" }))
-    await user.click(screen.getByRole("button", { name: "继续：确认意向" }))
-    await user.click(screen.getByRole("button", { name: "确认意向" }))
-    await user.click(screen.getByRole("button", { name: "开始匹配" }))
-    await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })
-    expect(screen.getByText("第 1 / 3 批")).toBeInTheDocument()
-    expect(screen.queryByText("选中后仍可取消；候选档案不会重新随机。")).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole("button", { name: "再找一批" }))
-    await screen.findByText("第 2 / 3 批")
-    await user.click(screen.getByRole("button", { name: "再找一批" }))
-    await screen.findByText("第 3 / 3 批")
-    expect(screen.getByRole("button", { name: "已看完 3 批" })).toBeDisabled()
-    expect(api.adoptionCandidates).toHaveBeenCalledTimes(3)
+    expect(await screen.findByRole("heading", { name: "先选一个基础方向" })).toBeInTheDocument()
+    expect(screen.getByText("本次领养已失效，请重新开始")).toBeInTheDocument()
   }, 15000)
 })

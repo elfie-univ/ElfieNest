@@ -1,0 +1,64 @@
+version: 1
+# 情绪表达映射配置
+# 定义每种情绪触发的表情、动作、语音语气
+
+emotions:
+  happiness:
+    expression: "happy_face"
+    actions:
+      low: ["wag_tail"]           # 值20-40
+      medium: ["wiggle_ears"]     # 值40-70
+      high: ["jump", "wag_tail"]  # 值70+
+    voice_modifier: "cheerful"
+    threshold: 30
+    
+  sadness:
+    expression: "sad_face"
+    actions:
+      low: ["droop_head"]
+      medium: ["slow_movement"]
+      high: ["droop_head", "slow_movement"]
+    voice_modifier: "sorrowful"
+    threshold: 40
+    
+  anger:
+    expression: "angry_face"
+    actions:
+      low: ["shake_head"]
+      medium: ["stomp"]
+      high: ["shake_head", "stomp"]
+    voice_modifier: "firm"
+    threshold: 40
+    
+  fear:
+    expression: "fearful_face"
+    actions:
+      low: ["tremble"]
+      medium: ["hide"]
+      high: ["tremble", "hide"]
+    voice_modifier: "nervous"
+    threshold: 35
+    
+  surprise:
+    expression: "surprised_face"
+    actions:
+      low: ["blink_eyes"]
+      medium: ["jump"]
+      high: ["jump", "blink_eyes"]
+    voice_modifier: "excited"
+    threshold: 30
+    
+  disgust:
+    expression: "disgusted_face"
+    actions:
+      low: ["shake_head"]
+      medium: ["step_back"]
+      high: ["shake_head", "step_back"]
+    voice_modifier: "disgusted"
+    threshold: 45
+
+# 默认表达（无强烈情绪时）
+default_expression:
+  expression: "neutral_face"
+  actions: []
+  voice_modifier: "neutral"

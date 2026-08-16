@@ -12,6 +12,7 @@ from infrastructure.models.validation.validation_models import (
     CheckStatus,
     ValidationSuite,
 )
+from infrastructure.tools.execution.config import ToolDefaults
 from infrastructure.tools.local_file.local_files import LocalFileAccessPlugin
 from infrastructure.tools.web_search.search import WebSearchPlugin
 
@@ -26,12 +27,14 @@ class DirectToolValidationRunner:
         config: object,
         *,
         search_plugin: SearchPlugin | None = None,
+        tool_defaults: ToolDefaults | None = None,
     ) -> None:
         self.config = config
         self.search_plugin = (
             search_plugin
             or WebSearchPlugin.from_model_execution_policy(
-                getattr(config, "runtime_policy", {})
+                getattr(config, "runtime_policy", {}),
+                defaults=tool_defaults,
             )
         )
 

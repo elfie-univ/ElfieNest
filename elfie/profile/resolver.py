@@ -12,6 +12,7 @@ from .species import (
     SpeciesAppearanceProfile,
     get_species_profile,
 )
+from .species_registry import SpeciesCatalog
 
 
 @dataclass(frozen=True)
@@ -34,9 +35,16 @@ class ResolvedAppearance:
 class AppearanceResolver:
     """集中执行相关性、范围和资源命名映射。"""
 
+    def __init__(self, catalog: SpeciesCatalog | None = None) -> None:
+        self._catalog = catalog
+
     def resolve(self, profile: ElfieProfile) -> ResolvedAppearance:
-        profile.validate()
-        species = get_species_profile(profile.identity.species_id)
+        profile.validate(catalog=self._catalog)
+        species = (
+            self._catalog.definition(profile.identity.species_id).appearance
+            if self._catalog is not None
+            else get_species_profile(profile.identity.species_id)
+        )
         genome = profile.appearance
         if genome.species_profile_version != species.profile_version:
             raise ValueError(

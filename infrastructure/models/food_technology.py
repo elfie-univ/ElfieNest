@@ -140,7 +140,12 @@ def validate_food_package_model_references(
             ),
             None,
         )
-        if model is None or model.hidden or model.retired or not model.available:
+        if (
+            model is None
+            or model.hidden
+            or model.retired
+            or model.discovery_state != "present"
+        ):
             raise ModelReferenceError(f"粮食 '{package.food_id}' 引用了不可用模型")
 
 
@@ -215,7 +220,10 @@ def _validation_state(
         return "hidden"
     if model.retired:
         return "retired"
-    if not model.available:
+    # ``available`` is read-only compatibility for pre-v2 documents.  New
+    # writes omit it; current state is otherwise controlled by discovery and
+    # append-only validation evidence.
+    if not model.available or model.discovery_state != "present":
         return "unavailable"
     if observation is None:
         return "never_verified"

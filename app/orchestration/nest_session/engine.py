@@ -27,6 +27,7 @@ class ElfieNestEngine:
         *,
         tick_interval_sec: float = 1.5,
         state_store: NestStateStorePort | None = None,
+        nest_config: NestConfig | None = None,
     ) -> None:
         """初始化引擎。
 
@@ -37,7 +38,7 @@ class ElfieNestEngine:
         self.tick_interval_sec = tick_interval_sec
 
         # 1. 实例化核心组件
-        self.nest = Nest(NestConfig())
+        self.nest = Nest(nest_config or NestConfig())
         self.world_runtime = world_runtime
         self.session = NestSession(
             self.nest,

@@ -6,7 +6,9 @@ import asyncio
 import threading
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import Any, Literal, Mapping, Optional, cast
+from typing import Any, Callable, Literal, Mapping, Optional, cast
+
+from pydantic import JsonValue
 
 from app.features.configuration import (
     ApiMode,
@@ -44,16 +46,23 @@ from infrastructure.models.provider_records import (
     ProviderConnection,
     ProviderModelRecord,
 )
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.discovery import (
     bundled_catalog_models,
     merge_refreshed_models,
     remote_catalog_models,
 )
-from infrastructure.models.providers.model_identity import match_model_identity
-from infrastructure.models.providers.profiles import PROVIDER_CATALOG, get_product
+from infrastructure.models.providers.model_identity import (
+    ModelIdentityCatalog,
+    match_model_identity,
+)
 from infrastructure.models.providers.remote_catalog import (
     RemoteCatalogUnavailable,
     fetch_remote_models,
+)
+from infrastructure.models.providers.request_profiles import (
+    default_request_profile_id,
+    get_request_profile,
 )
 from infrastructure.models.storage_ports import (
     ModelEvidencePort,
@@ -61,28 +70,91 @@ from infrastructure.models.storage_ports import (
     ProviderStoragePort,
     ReportStoragePort,
 )
+from infrastructure.models.validation.provider_availability import (
+    project_endpoint_availability,
+)
 from infrastructure.models.validation.provider_model_benchmark import (
     bounded_benchmark,
     validate_combinations,
 )
 from infrastructure.models.validation.provider_model_matrix import build_model_matrix
 from infrastructure.models.validation.provider_validation import (
-    DiscoveredModel,
-    discover_provider_models,
+    ModelDiscoveryResult,
+    discover_provider_models_result,
+)
+from infrastructure.models.validation.provider_validation_checks import (
+    bounded_connection_model_check,
 )
 from infrastructure.models.validation.provider_validation_execution import (
     model_execution_projection,
+)
+from infrastructure.models.validation.provider_validation_policy import (
+    connection_validation_fingerprint,
 )
 from infrastructure.models.validation.provider_validation_service import (
     summarize_connection_validation,
     validate_connection,
 )
+from infrastructure.models.validation.serving_food import ServingFoodIndex
 
 from .provider_errors import sanitize_error
 
 _DISCOVERY_TIMEOUT_SECONDS = 7.0
 _DISCOVERY_SLOTS = threading.BoundedSemaphore(3)
 _BENCHMARK_CONCURRENCY = 2
+
+
+def _with_request_profile(
+    model: ProviderModelRecord | StoredProviderModel,
+    api_mode: str,
+) -> ProviderModelRecord:
+    """Attach the typed adapter profile without changing model capabilities."""
+
+    if isinstance(model, StoredProviderModel):
+        current_id = model.request_profile_id
+        current_version = model.request_profile_version
+        record = ProviderModelRecord(
+            endpoint_model_id=model.model_id,
+            display_name=model.display_name,
+            canonical_model_id=model.canonical_model_id,
+            source=model.source,
+            request_profile_id=current_id,
+            request_profile_version=current_version,
+            context_window_tokens=model.context_window_tokens,
+            max_output_tokens=model.max_output_tokens,
+            supports_tools=model.supports_tools,
+            supports_vision=model.supports_vision,
+            supports_reasoning=model.supports_reasoning,
+            supports_structured_output=model.supports_structured_output,
+            capability_evidence=model.capability_evidence,
+            hidden=model.hidden,
+            retired=model.retired,
+            available=(
+                not model.hidden
+                and not model.retired
+                and model.discovery_state == "present"
+            ),
+            discovery_state=model.discovery_state,
+            consecutive_missing=model.consecutive_missing,
+            last_seen_at=model.last_seen_at,
+        )
+    else:
+        record = model
+    if record.request_profile_id:
+        profile = get_request_profile(
+            record.request_profile_id,
+            record.request_profile_version,
+        )
+        if profile.api_mode != api_mode:
+            raise ValueError(
+                f"Request Profile {profile.profile_id} 与 API mode {api_mode} 不匹配"
+            )
+        return record
+    return replace(
+        record,
+        request_profile_id=default_request_profile_id(api_mode),
+        request_profile_version=1,
+    )
 
 
 class ProviderModelsAdapter:
@@ -94,22 +166,41 @@ class ProviderModelsAdapter:
         reports: ReportStoragePort,
         evidence: ModelEvidencePort,
         oauth_credentials: OAuthCredentialPort | None = None,
+        catalog: ProviderCatalog | None = None,
+        identity_catalog: ModelIdentityCatalog | None = None,
+        system_defaults: Mapping[str, JsonValue] | None = None,
     ) -> None:
         self._store = storage
         self._reports = reports
         self._evidence = evidence
         self._oauth_credentials = oauth_credentials
+        if catalog is None:
+            raise ValueError("ProviderModelsAdapter requires an injected catalog")
+        if identity_catalog is None:
+            raise ValueError(
+                "ProviderModelsAdapter requires an injected model identity catalog"
+            )
+        if system_defaults is None:
+            raise ValueError("ProviderModelsAdapter requires injected system defaults")
+        self._catalog = catalog
+        self._identity_catalog = identity_catalog
+        self._system_defaults = system_defaults
+        self._serving_index: Callable[[], ServingFoodIndex] | None = None
+
+    def set_serving_index(self, serving_index: Callable[[], ServingFoodIndex]) -> None:
+        """Bind the shared derived ServingFood projection after composition."""
+        self._serving_index = serving_index
 
     def list_products(self) -> tuple[StoredProviderProduct, ...]:
         try:
             return tuple(
-                self._product(catalog_id) for catalog_id in PROVIDER_CATALOG.products
+                self._product(catalog_id) for catalog_id in self._catalog.products
             )
         except (KeyError, ValueError) as error:
             raise ProviderPortError("Provider catalog is invalid") from error
 
     def get_product(self, catalog_id: str) -> StoredProviderProduct | None:
-        if get_product(catalog_id) is None:
+        if catalog_id not in self._catalog.products:
             return None
         try:
             return self._product(catalog_id)
@@ -164,7 +255,12 @@ class ProviderModelsAdapter:
                 api_mode=connection.api_mode,
                 auth_type=connection.auth_type,
                 credential_ref=connection.credential_ref,
-                models=tuple(self._provider_model(item) for item in connection.models),
+                models=tuple(
+                    _with_request_profile(
+                        self._provider_model(item), connection.api_mode
+                    )
+                    for item in connection.models
+                ),
             )
             created = self._store.create_with_secret(created, api_key)
             return self._connection(created)
@@ -217,6 +313,23 @@ class ProviderModelsAdapter:
             return self._store.has_secret(credential_ref)
         except (ProviderStorageError, OSError) as error:
             raise ProviderPortError("Unable to resolve Provider credential") from error
+
+    def validation_fingerprint(self, connection_id: str) -> str:
+        """Return the current non-secret fingerprint for availability projection."""
+        try:
+            stored = self._store.load_connections().get(connection_id)
+            if stored is None:
+                raise ProviderPortError("Provider connection is missing")
+            return connection_validation_fingerprint(
+                stored,
+                secret_resolver=self._resolve_credential,
+            )
+        except ProviderPortError:
+            raise
+        except (ProviderStorageError, ValueError, OSError) as error:
+            raise ProviderPortError(
+                "Unable to fingerprint Provider connection"
+            ) from error
 
     def load_local_binding(self) -> StoredLocalProviderBinding | None:
         try:
@@ -299,10 +412,15 @@ class ProviderModelsAdapter:
             if connection is None:
                 raise ProviderPortError("Local Provider connection is missing")
             models = {item.endpoint_model_id: item for item in connection.models}
-            models[model_id] = ProviderModelRecord(
-                endpoint_model_id=model_id,
-                display_name=model_id,
-                source="official",
+            existing = models.get(model_id)
+            models[model_id] = _with_request_profile(
+                existing
+                or ProviderModelRecord(
+                    endpoint_model_id=model_id,
+                    display_name=model_id,
+                    source="official",
+                ),
+                connection.api_mode,
             )
             self._store.replace(replace(connection, models=tuple(models.values())))
             return f"{connection.connection_id}/{model_id}"
@@ -338,7 +456,15 @@ class ProviderModelsAdapter:
                 )
                 for model_id in model_ids
             )
-            self._store.replace(replace(connection, models=models))
+            self._store.replace(
+                replace(
+                    connection,
+                    models=tuple(
+                        _with_request_profile(model, connection.api_mode)
+                        for model in models
+                    ),
+                )
+            )
         except ProviderPortError:
             raise
         except (ProviderStorageError, ValueError, OSError) as error:
@@ -357,38 +483,38 @@ class ProviderModelsAdapter:
         )
 
     def prepare_manual_model(self, model: ProviderModelInput) -> StoredProviderModel:
-        match = match_model_identity(model.model_id, model.display_name)
+        match = match_model_identity(
+            model.model_id,
+            model.display_name,
+            catalog=self._identity_catalog,
+        )
         return StoredProviderModel(
             model_id=model.model_id,
             display_name=model.display_name or model.model_id,
             canonical_model_id=model.canonical_model_id
             or (match.canonical_model_id if match else None),
             source="manual",
-            context_window_tokens=model.context_window_tokens
-            or (match.context_window_tokens if match else None),
-            max_output_tokens=model.max_output_tokens
-            or (match.max_output_tokens if match else None),
-            supports_tools=(
-                model.supports_tools
-                if model.supports_tools is not None
-                else match.supports_tools
-                if match
-                else None
-            ),
-            supports_vision=(
-                model.supports_vision
-                if model.supports_vision is not None
-                else match.supports_vision
-                if match
-                else None
-            ),
-            supports_reasoning=(
-                model.supports_reasoning
-                if model.supports_reasoning is not None
-                else match.supports_reasoning
-                if match
-                else None
-            ),
+            # Canonical identity only groups/display-matches.  Endpoint
+            # limits and capabilities must be explicitly declared for this
+            # connection or established by a controlled probe.
+            context_window_tokens=model.context_window_tokens,
+            max_output_tokens=model.max_output_tokens,
+            supports_tools=model.supports_tools,
+            supports_vision=model.supports_vision,
+            supports_reasoning=model.supports_reasoning,
+            supports_structured_output=model.supports_structured_output,
+            capability_evidence={
+                name: "declared_by_user"
+                for name, value in {
+                    "tools": model.supports_tools,
+                    "vision": model.supports_vision,
+                    "reasoning": model.supports_reasoning,
+                    "structured_output": model.supports_structured_output,
+                }.items()
+                if value is not None
+            },
+            request_profile_id=model.request_profile_id,
+            request_profile_version=model.request_profile_version,
         )
 
     def summarize_connection(
@@ -399,6 +525,7 @@ class ProviderModelsAdapter:
             return self._verification(
                 summarize_connection_validation(
                     self._provider_connection(connection),
+                    catalog=self._catalog,
                     reports=self._reports,
                     secret_resolver=self._resolve_credential,
                 )
@@ -412,13 +539,45 @@ class ProviderModelsAdapter:
         model_id: str,
     ) -> StoredModelVerification:
         try:
-            return self._model_verification(
+            subject_id = f"{connection_id}/{model_id}"
+            observations = self._reports.observations_for_subject(
+                "model",
+                subject_id,
+            )
+            stored_connection = self._store.load_connections().get(connection_id)
+            fingerprint = (
+                None
+                if stored_connection is None
+                else connection_validation_fingerprint(
+                    stored_connection,
+                    secret_resolver=self._resolve_credential,
+                )
+            )
+            availability = project_endpoint_availability(
+                subject_id,
+                observations,
+                config_fingerprint=fingerprint,
+            )
+            latest = dict(
                 self._reports.read_latest_model_validation(
                     connection_id,
                     model_id,
                     validation_mode="full",
                 )
             )
+            latest.update(
+                {
+                    "availability_status": availability.status,
+                    "reason_code": availability.reason_code,
+                    "evidence_source": availability.evidence_source,
+                    "expires_at": availability.expires_at,
+                    "is_core": (
+                        self._serving_index is not None
+                        and subject_id in self._serving_index().core_references
+                    ),
+                }
+            )
+            return self._model_verification(latest)
         except (ValueError, OSError) as error:
             raise ProviderPortError("Unable to read model validation") from error
 
@@ -431,6 +590,7 @@ class ProviderModelsAdapter:
         try:
             result = await validate_connection(
                 self._provider_connection(connection),
+                catalog=self._catalog,
                 model_execution_projection=self._model_execution_projection,
                 reports=self._reports,
                 secret_resolver=self._resolve_credential,
@@ -440,18 +600,95 @@ class ProviderModelsAdapter:
         except (ValueError, OSError) as error:
             raise ProviderPortError("Unable to validate Provider connection") from error
 
+    async def probe_model(self, reference: str) -> None:
+        """Run one explicitly requested exact-endpoint probe and append evidence."""
+        connection_id, separator, model_id = reference.partition("/")
+        if not separator or not connection_id or not model_id:
+            raise ProviderPortError("模型引用必须为 connection_id/model_id")
+        stored = self._store.load_connections().get(connection_id)
+        if stored is None:
+            raise ProviderPortError("Provider connection is missing")
+        connection = self._provider_connection(self._connection(stored))
+        if not any(item.endpoint_model_id == model_id for item in connection.models):
+            raise ProviderPortError("Provider model is missing")
+        run_id = self._reports.start_run(
+            scope=f"model:{reference}",
+            trigger="single",
+        )
+        try:
+            raw = await bounded_connection_model_check(
+                connection,
+                model_id,
+                asyncio.Semaphore(1),
+                self._model_execution_projection,
+            )
+            status = "passed" if raw.get("status") == "passed" else "failed"
+            raw_error = raw.get("error")
+            error = sanitize_error(
+                raw_error if isinstance(raw_error, str) else None,
+                secrets=(self._resolve_credential(connection.credential_ref),),
+            )
+            raw_latency = raw.get("latency_ms")
+            self._reports.write_model_validation_report(
+                connection.connection_id,
+                model_id,
+                status=status,
+                checked_at=datetime.now(timezone.utc).isoformat(),
+                latency_ms=(
+                    float(raw_latency)
+                    if isinstance(raw_latency, (int, float))
+                    else None
+                ),
+                latency_class=(
+                    str(raw["latency_class"]) if raw.get("latency_class") else None
+                ),
+                error=error,
+                trigger="full",
+                run_id=run_id,
+                details={
+                    "validation_mode": "single",
+                    "evidence_source": "validation",
+                    "config_fingerprint": connection_validation_fingerprint(
+                        connection,
+                        secret_resolver=self._resolve_credential,
+                    ),
+                    **{
+                        key: value
+                        for key, value in raw.items()
+                        if key in {"error_code", "error_scope", "error_category"}
+                    },
+                },
+            )
+            self._reports.finish_run(run_id, status="complete")
+        except BaseException:
+            self._reports.finish_run(run_id, status="failed")
+            raise
+
     async def refresh_models(
         self,
         connection: StoredProviderConnection,
     ) -> StoredModelRefresh:
         provider_connection = self._provider_connection(connection)
-        profile = get_product(connection.catalog_id)
+        profile = self._catalog.products.get(connection.catalog_id)
         if profile is None:
             raise ProviderPortError("Provider product catalog entry is missing")
         checked_at = datetime.now(timezone.utc).isoformat()
         if profile.discovery_strategy == "catalog_only":
-            bundled_models = bundled_catalog_models(profile.bundled_models)
-            merged = merge_refreshed_models(provider_connection.models, bundled_models)
+            bundled_models = tuple(
+                _with_request_profile(item, provider_connection.api_mode)
+                for item in bundled_catalog_models(
+                    profile.bundled_models,
+                    provider_id=profile.legacy_provider_id,
+                    identity_catalog=self._identity_catalog,
+                )
+            )
+            merged = merge_refreshed_models(
+                provider_connection.models,
+                bundled_models,
+                complete=True,
+                observed_at=checked_at,
+                authority_changed=True,
+            )
             return StoredModelRefresh(
                 status="bundled_catalog",
                 checked_at=checked_at,
@@ -459,10 +696,15 @@ class ProviderModelsAdapter:
                     "火山引擎 Coding Plan 使用配置文件中的官方 Model Name 清单，"
                     "未使用 /models（通用模型列表与套餐不匹配）"
                 ),
-                models=tuple(self._model(item) for item in merged),
+                models=tuple(
+                    self._model(item)
+                    for item in merged
+                    if item.discovery_state == "present"
+                ),
+                persisted_models=tuple(self._model(item) for item in merged),
             )
         try:
-            discovered = await asyncio.wait_for(
+            discovery = await asyncio.wait_for(
                 asyncio.to_thread(self._discover_with_slot, provider_connection),
                 timeout=_DISCOVERY_TIMEOUT_SECONDS,
             )
@@ -473,20 +715,38 @@ class ProviderModelsAdapter:
                     catalog_models = remote_catalog_models(
                         connection.catalog_id,
                         fetcher=fetch_remote_models,
+                        provider_id=profile.legacy_provider_id,
+                        identity_catalog=self._identity_catalog,
                     )
                 except RemoteCatalogUnavailable:
                     catalog_models = ()
                 if not catalog_models:
-                    catalog_models = bundled_catalog_models(profile.bundled_models)
+                    catalog_models = bundled_catalog_models(
+                        profile.bundled_models,
+                        provider_id=profile.legacy_provider_id,
+                        identity_catalog=self._identity_catalog,
+                    )
+            catalog_models = tuple(
+                _with_request_profile(item, provider_connection.api_mode)
+                for item in catalog_models
+            )
             if catalog_models:
                 merged = merge_refreshed_models(
-                    provider_connection.models, catalog_models
+                    provider_connection.models,
+                    catalog_models,
+                    complete=False,
+                    observed_at=checked_at,
                 )
                 return StoredModelRefresh(
                     status=catalog_models[0].source,
                     checked_at=checked_at,
                     message="模型接口不可用，已使用内置产品清单",
-                    models=tuple(self._model(item) for item in merged),
+                    models=tuple(
+                        self._model(item)
+                        for item in merged
+                        if item.discovery_state == "present"
+                    ),
+                    persisted_models=tuple(self._model(item) for item in merged),
                 )
             message = sanitize_error(
                 str(error),
@@ -498,18 +758,74 @@ class ProviderModelsAdapter:
                 message=f"模型获取失败，请手工添加模型：{message}",
                 models=connection.models,
             )
+        if isinstance(discovery, ModelDiscoveryResult):
+            discovered = discovery.models
+            discovery_complete = discovery.complete and discovery.authoritative
+            authoritative_empty = (
+                discovery.complete
+                and discovery.authoritative
+                and not discovered
+                and discovery.error is None
+            )
+            if discovery.error and not discovery.authoritative and not discovered:
+                fallback_models = self._curated_fallback_models(
+                    provider_connection,
+                    profile,
+                    checked_at=checked_at,
+                )
+                if fallback_models:
+                    return fallback_models
+        else:
+            # Keep injected test/developer adapters that still return the
+            # legacy list shape from breaking the refresh boundary.
+            discovered = tuple(discovery)
+            discovery_complete = True
+            authoritative_empty = False
         models = tuple(
-            self._provider_model(
-                self.prepare_manual_model(
-                    ProviderModelInput(
-                        model_id=item.name,
-                        display_name=item.display_name or item.name,
-                    )
+            _with_request_profile(
+                replace(
+                    self._provider_model(
+                        self.prepare_manual_model(
+                            ProviderModelInput(
+                                model_id=item.name,
+                                display_name=item.display_name or item.name,
+                            )
+                        ),
+                        source=(
+                            "manual" if item.source == "configured" else "official"
+                        ),
+                    ),
+                    # A broad authoritative platform inventory is retained
+                    # for diagnostics, but only the product's curated set or
+                    # an already selected/configured endpoint enters the
+                    # normal model list and automatic validation.
+                    hidden=(
+                        item.name not in set(profile.bundled_models)
+                        and item.name
+                        not in {
+                            existing.endpoint_model_id
+                            for existing in provider_connection.models
+                        }
+                    ),
                 ),
-                source="official",
+                provider_connection.api_mode,
             )
             for item in discovered
         )
+        if not models and authoritative_empty:
+            merged = merge_refreshed_models(
+                provider_connection.models,
+                (),
+                complete=True,
+                observed_at=checked_at,
+            )
+            return StoredModelRefresh(
+                status="authoritative_empty",
+                checked_at=checked_at,
+                message="Provider 已返回完整的空模型清单，当前账号没有可用模型",
+                models=(),
+                persisted_models=tuple(self._model(item) for item in merged),
+            )
         if not models:
             return StoredModelRefresh(
                 status="failed",
@@ -517,12 +833,71 @@ class ProviderModelsAdapter:
                 message="模型接口未返回结果，请手工添加模型",
                 models=connection.models,
             )
-        merged = merge_refreshed_models(provider_connection.models, models)
+        merged = merge_refreshed_models(
+            provider_connection.models,
+            models,
+            complete=discovery_complete,
+            observed_at=checked_at,
+        )
         return StoredModelRefresh(
             status="updated",
             checked_at=checked_at,
             message=None,
-            models=tuple(self._model(item) for item in merged),
+            models=tuple(
+                self._model(item)
+                for item in merged
+                if item.discovery_state == "present"
+            ),
+            persisted_models=tuple(self._model(item) for item in merged),
+        )
+
+    def _curated_fallback_models(
+        self,
+        connection: ProviderConnection,
+        profile: Any,
+        *,
+        checked_at: str,
+    ) -> StoredModelRefresh | None:
+        """Use labelled curated data only after an official refresh failed."""
+        if connection.catalog_id == "custom_openai":
+            return None
+        catalog_models: tuple[ProviderModelRecord, ...] = ()
+        try:
+            catalog_models = remote_catalog_models(
+                connection.catalog_id,
+                fetcher=fetch_remote_models,
+                provider_id=profile.legacy_provider_id,
+                identity_catalog=self._identity_catalog,
+            )
+        except RemoteCatalogUnavailable:
+            pass
+        if not catalog_models:
+            catalog_models = bundled_catalog_models(
+                profile.bundled_models,
+                provider_id=profile.legacy_provider_id,
+                identity_catalog=self._identity_catalog,
+            )
+        if not catalog_models:
+            return None
+        catalog_models = tuple(
+            _with_request_profile(item, connection.api_mode) for item in catalog_models
+        )
+        merged = merge_refreshed_models(
+            connection.models,
+            catalog_models,
+            complete=False,
+            observed_at=checked_at,
+        )
+        return StoredModelRefresh(
+            status=catalog_models[0].source,
+            checked_at=checked_at,
+            message="模型接口不可用，已使用标记为推荐的产品清单",
+            models=tuple(
+                self._model(item)
+                for item in merged
+                if item.discovery_state == "present"
+            ),
+            persisted_models=tuple(self._model(item) for item in merged),
         )
 
     def model_matrix(
@@ -655,6 +1030,7 @@ class ProviderModelsAdapter:
                     break
                 verification = await validate_connection(
                     self._provider_connection(stored),
+                    catalog=self._catalog,
                     model_execution_projection=self._model_execution_projection,
                     reports=self._reports,
                     secret_resolver=self._resolve_credential,
@@ -700,12 +1076,12 @@ class ProviderModelsAdapter:
 
     def _discover_with_slot(
         self, connection: ProviderConnection
-    ) -> list[DiscoveredModel]:
+    ) -> ModelDiscoveryResult:
         if not _DISCOVERY_SLOTS.acquire(blocking=False):
             raise RuntimeError("模型发现任务过多，请稍后重试")
         try:
             execution_id, config = self._model_execution_projection(connection)
-            return discover_provider_models(
+            return discover_provider_models_result(
                 execution_id,
                 config,
                 timeout=5.0,
@@ -719,6 +1095,8 @@ class ProviderModelsAdapter:
     ) -> tuple[str, Any]:
         execution_id, config = model_execution_projection(
             connection,
+            catalog=self._catalog,
+            system_defaults=self._system_defaults,
             secret_resolver=self._resolve_credential,
         )
         if connection.credential_ref.startswith("oauth."):
@@ -740,10 +1118,9 @@ class ProviderModelsAdapter:
             return "" if token is None else token.access_token
         return self._store.resolve_secret(credential_ref)
 
-    @staticmethod
-    def _product(catalog_id: str) -> StoredProviderProduct:
-        profile = PROVIDER_CATALOG.products[catalog_id]
-        brand = PROVIDER_CATALOG.brands[profile.brand_id]
+    def _product(self, catalog_id: str) -> StoredProviderProduct:
+        profile = self._catalog.products[catalog_id]
+        brand = self._catalog.brands[profile.brand_id]
         return StoredProviderProduct(
             catalog_id=catalog_id,
             name=profile.name,
@@ -771,7 +1148,10 @@ class ProviderModelsAdapter:
             api_mode=cast(ApiMode, item.api_mode),
             auth_type=cast(AuthType, item.auth_type),
             credential_ref=item.credential_ref,
-            models=tuple(cls._model(model) for model in item.models),
+            models=tuple(
+                cls._model(_with_request_profile(cls._model(model), item.api_mode))
+                for model in item.models
+            ),
             enabled=item.enabled,
             archived=item.archived,
         )
@@ -786,7 +1166,10 @@ class ProviderModelsAdapter:
             api_mode=item.api_mode,
             auth_type=item.auth_type,
             credential_ref=item.credential_ref,
-            models=tuple(cls._provider_model(model) for model in item.models),
+            models=tuple(
+                _with_request_profile(cls._provider_model(model), item.api_mode)
+                for model in item.models
+            ),
             enabled=item.enabled,
             archived=item.archived,
         )
@@ -798,14 +1181,25 @@ class ProviderModelsAdapter:
             display_name=item.display_name,
             canonical_model_id=item.canonical_model_id,
             source=item.source,
+            request_profile_id=item.request_profile_id,
+            request_profile_version=item.request_profile_version,
             context_window_tokens=item.context_window_tokens,
             max_output_tokens=item.max_output_tokens,
             supports_tools=item.supports_tools,
             supports_vision=item.supports_vision,
             supports_reasoning=item.supports_reasoning,
+            supports_structured_output=item.supports_structured_output,
+            capability_evidence=item.capability_evidence,
             hidden=item.hidden,
             retired=item.retired,
-            available=item.available,
+            available=(
+                not item.hidden
+                and not item.retired
+                and item.discovery_state == "present"
+            ),
+            discovery_state=item.discovery_state,
+            consecutive_missing=item.consecutive_missing,
+            last_seen_at=item.last_seen_at,
         )
 
     @staticmethod
@@ -819,14 +1213,25 @@ class ProviderModelsAdapter:
             display_name=item.display_name,
             canonical_model_id=item.canonical_model_id,
             source=source or item.source,
+            request_profile_id=item.request_profile_id,
+            request_profile_version=item.request_profile_version,
             context_window_tokens=item.context_window_tokens,
             max_output_tokens=item.max_output_tokens,
             supports_tools=item.supports_tools,
             supports_vision=item.supports_vision,
             supports_reasoning=item.supports_reasoning,
+            supports_structured_output=item.supports_structured_output,
+            capability_evidence=item.capability_evidence,
             hidden=item.hidden,
             retired=item.retired,
-            available=item.available,
+            available=(
+                not item.hidden
+                and not item.retired
+                and item.discovery_state == "present"
+            ),
+            discovery_state=item.discovery_state,
+            consecutive_missing=item.consecutive_missing,
+            last_seen_at=item.last_seen_at,
         )
 
     @classmethod
@@ -865,6 +1270,23 @@ class ProviderModelsAdapter:
             error=cls._optional_string(raw.get("error")),
             validation_mode=(None if mode is None else cls._validation_mode(mode)),
             full_run_id=cls._optional_string(raw.get("full_run_id")),
+            availability_status=cls._availability_status(
+                raw.get("availability_status")
+            ),
+            reason_code=cls._optional_string(raw.get("reason_code")),
+            evidence_source=cls._optional_string(raw.get("evidence_source")),
+            expires_at=cls._optional_string(raw.get("expires_at")),
+            is_core=raw.get("is_core") is True,
+        )
+
+    @staticmethod
+    def _availability_status(
+        value: Any,
+    ) -> Literal["available", "degraded", "unavailable", "unknown"]:
+        return (
+            value
+            if value in {"available", "degraded", "unavailable", "unknown"}
+            else "unknown"
         )
 
     @classmethod

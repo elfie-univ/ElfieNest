@@ -11,10 +11,9 @@ from infrastructure.models.capabilities import (
     canonical_display_name,
     known_capabilities,
 )
-from infrastructure.models.catalog import BUILTIN_MODEL_CATALOG
+from infrastructure.models.catalog import ModelEntry
 from infrastructure.models.food_technology import stored_food_package
 from infrastructure.models.model_execution_config import ModelExecutionConfig
-from infrastructure.models.providers.profiles import BUILTIN_PROFILES
 from infrastructure.models.storage_ports import ModelEvidencePort
 from infrastructure.models.validation.provider_validation import (
     ProviderValidationRunner,
@@ -40,7 +39,9 @@ def configured_provider_ids(config: ModelExecutionConfig) -> list[str]:
         if provider.get("api_key"):
             configured.append(provider_id)
             continue
-        if provider_id not in BUILTIN_PROFILES and auth_type == "none" and api_base:
+        catalog = config.provider_catalog
+        known_provider = catalog is not None and provider_id in catalog.profiles
+        if not known_provider and auth_type == "none" and api_base:
             configured.append(provider_id)
     return configured
 
@@ -52,10 +53,12 @@ class ModelExecutionOverviewGenerator:
         *,
         evidence: ModelEvidencePort,
         food_store: FoodPort | None = None,
+        model_catalog: Mapping[str, ModelEntry] | None = None,
     ) -> None:
         self.config = config
         self.evidence = evidence
         self.food_store = food_store
+        self.model_catalog = model_catalog
 
     def _load_food_catalog(self) -> FoodCatalog:
         if self.food_store is None:
@@ -76,6 +79,9 @@ class ModelExecutionOverviewGenerator:
         provider_evidence: dict[str, list[StoredModelEvidence]] = {}
         suites: list[ValidationSuite] = []
         provider_health: dict[str, str] = {}
+        if self.model_catalog is None:
+            raise RuntimeError("模型执行概览未注入模型目录")
+        model_catalog = self.model_catalog
 
         for provider_id in configured_provider_ids(self.config):
             runner = ProviderValidationRunner(self.config)
@@ -116,7 +122,7 @@ class ModelExecutionOverviewGenerator:
                             continue
                         model_id = f"{provider_id}/{result.model}"
                         previous = evidence_before.get(model_id)
-                        catalog_entry = BUILTIN_MODEL_CATALOG.get(model_id)
+                        catalog_entry = model_catalog.get(model_id)
                         discovered_name = (
                             model_by_id[result.model].display_name
                             if result.model in model_by_id

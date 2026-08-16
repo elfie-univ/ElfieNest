@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 
 from infrastructure.models.cli_catalog import CliModelCatalogAdapter
+from infrastructure.persistence.model_catalog import load_model_catalog
+
+MODEL_CATALOG = load_model_catalog()
 
 
 class Response:
@@ -14,7 +17,7 @@ class Response:
 
 
 def test_cli_catalog_projects_existing_visible_model_metadata() -> None:
-    rows = CliModelCatalogAdapter().list_models()
+    rows = CliModelCatalogAdapter(MODEL_CATALOG).list_models()
 
     by_id = {row.model_id: row for row in rows}
     assert by_id["openai/gpt-4o"].capabilities_text.startswith("text, vision")
@@ -37,7 +40,7 @@ def test_cli_catalog_scans_existing_ollama_inventory(monkeypatch) -> None:
         ),
     )
 
-    result = CliModelCatalogAdapter().scan_local_models()
+    result = CliModelCatalogAdapter(MODEL_CATALOG).scan_local_models()
 
     assert result.status == "available"
     assert result.models[0].name == "qwen:test"

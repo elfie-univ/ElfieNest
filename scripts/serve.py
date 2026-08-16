@@ -92,6 +92,7 @@ from app.bootstrap.system_wiring.entrypoints import (
     get_db_path,
     get_elfie_home,
     inspect_godot_web_bundle,
+    load_emotion_expression_defaults,
     select_elfie_home,
 )
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
@@ -374,7 +375,11 @@ def main():
     # 4. Dynamically load all Elfies from the database.
     loaded_elfies: list[dict] = []
     try:
-        restore_result = restore_registered_elfies(db_path, engine.session)
+        restore_result = restore_registered_elfies(
+            db_path,
+            engine.session,
+            emotion_expression_config=load_emotion_expression_defaults(),
+        )
         loaded_elfies = [
             {"id": item.elfie_id, "name": item.name} for item in restore_result.restored
         ]

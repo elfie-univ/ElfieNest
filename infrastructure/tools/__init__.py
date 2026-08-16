@@ -1,6 +1,5 @@
 """Technical adapters for App-owned capability configuration."""
 
-from .capability_configuration import RuntimeCapabilitiesAdapter
 from .capability_secrets import ToolCapabilitySecretAdapter
 from .capability_validation import DirectCapabilityValidationAdapter
 from .execution.config import (
@@ -26,7 +25,6 @@ __all__ = (
     "PermissionDecisionObservation",
     "PermissionDeniedError",
     "PermissionManager",
-    "RuntimeCapabilitiesAdapter",
     "PortToolLoop",
     "DisabledToolPort",
     "ToolPortAdapter",

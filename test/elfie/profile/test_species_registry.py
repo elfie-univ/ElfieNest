@@ -20,7 +20,9 @@ def test_species_registry_is_complete_and_stably_ordered() -> None:
     )
     assert tuple(definition.sort_order for definition in definitions) == (0, 1)
     assert all(definition.scene_id for definition in definitions)
-    assert all(len(definition.canon.candidate_names) >= 5 for definition in definitions)
+    assert all(
+        not hasattr(definition.canon, "candidate_names") for definition in definitions
+    )
 
     project_root = Path(__file__).resolve().parents[3]
     package_root = project_root / "godot_project" / "characters"

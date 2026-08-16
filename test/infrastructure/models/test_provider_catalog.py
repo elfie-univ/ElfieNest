@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from infrastructure.models.providers.catalog import (
-    BUNDLED_PROVIDER_CATALOG_PATH,
+    ProviderCatalogError,
+    parse_provider_catalog,
 )
-from infrastructure.models.providers.profiles import BUILTIN_PROFILES
+from infrastructure.persistence.configuration.documents import (
+    resolve_bundled_config_root,
+)
 from infrastructure.persistence.provider_catalog import load_provider_catalog
 
 
@@ -84,12 +88,16 @@ def _override_document() -> dict:
     }
 
 
+def _bundled_provider_catalog_path() -> Path:
+    return resolve_bundled_config_root() / "models" / "provider-catalog.yaml"
+
+
 def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
     catalog = load_provider_catalog(Path("/definitely/missing/provider-catalog.yaml"))
 
-    assert catalog.source == BUNDLED_PROVIDER_CATALOG_PATH
+    assert catalog.source == _bundled_provider_catalog_path()
     assert catalog.version == 2
-    assert catalog.profiles == BUILTIN_PROFILES
+    assert catalog.profiles == load_provider_catalog().profiles
     assert catalog.products["openai_api"].legacy_provider_id == "openai"
     assert catalog.products["openai_api"].usage_scope == "general"
     assert catalog.brands["openai"].logo_asset == "brands/openai.svg"
@@ -157,7 +165,7 @@ def test_invalid_local_provider_catalog_falls_back_to_bundled(
 
     catalog = load_provider_catalog(override_path)
 
-    assert catalog.source == BUNDLED_PROVIDER_CATALOG_PATH
+    assert catalog.source == _bundled_provider_catalog_path()
     assert "openai" in catalog.profiles
 
 
@@ -172,7 +180,7 @@ def test_provider_catalog_rejects_plaintext_credentials(tmp_path) -> None:
 
     catalog = load_provider_catalog(override_path)
 
-    assert catalog.source == BUNDLED_PROVIDER_CATALOG_PATH
+    assert catalog.source == _bundled_provider_catalog_path()
     assert "new_gateway" not in catalog.profiles
 
 
@@ -189,5 +197,13 @@ def test_provider_catalog_rejects_grouped_bundled_models(tmp_path) -> None:
 
     catalog = load_provider_catalog(override_path)
 
-    assert catalog.source == BUNDLED_PROVIDER_CATALOG_PATH
+    assert catalog.source == _bundled_provider_catalog_path()
     assert "new_gateway" not in catalog.profiles
+
+
+def test_provider_catalog_rejects_unknown_nested_fields() -> None:
+    document = _override_document()
+    document["products"]["example_api"]["unowned"] = True
+
+    with pytest.raises(ProviderCatalogError, match="unknown fields"):
+        parse_provider_catalog(document, Path("provider-catalog.yaml"))

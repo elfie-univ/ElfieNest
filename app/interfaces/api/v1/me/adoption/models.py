@@ -39,7 +39,9 @@ class CandidateSetRequest(BaseModel):
         min_length=5, max_length=5
     )
     batch_number: int = Field(default=1, ge=1, le=3)
-    adoption_session_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    adoption_session_id: Optional[str] = Field(
+        default=None, min_length=1, max_length=128
+    )
 
     @field_validator("answers")
     @classmethod
@@ -109,6 +111,20 @@ class AdoptionNestCapacityResponse(BaseModel):
     remaining: int
 
 
+class AdoptionSpeciesImagesResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    headshot_url: str = Field(min_length=1)
+    full_body_url: str = Field(min_length=1)
+
+
+class AdoptionAppearanceControlResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    control_id: str = Field(min_length=1)
+    options: tuple[str, ...] = Field(min_length=1)
+
+
 class AdoptionSpeciesResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -119,6 +135,8 @@ class AdoptionSpeciesResponse(BaseModel):
     earth_shape_label: str = Field(min_length=1)
     scene_id: str = Field(min_length=1)
     sort_order: int
+    presentation_images: AdoptionSpeciesImagesResponse
+    appearance_controls: tuple[AdoptionAppearanceControlResponse, ...] = ()
 
 
 class AdoptionOptionsResponse(BaseModel):
@@ -132,7 +150,11 @@ class AdoptionOptionsResponse(BaseModel):
     quota: AdoptionQuotaResponse
     nest_capacity: AdoptionNestCapacityResponse
     availability: Literal[
-        "available", "nest_full", "member_quota_full", "model_unavailable"
+        "available",
+        "nest_full",
+        "member_quota_full",
+        "model_unavailable",
+        "species_unavailable",
     ]
 
     @classmethod
@@ -148,6 +170,17 @@ class AdoptionOptionsResponse(BaseModel):
                     earth_shape_label=species.earth_shape_label,
                     scene_id=species.scene_id,
                     sort_order=species.sort_order,
+                    presentation_images=AdoptionSpeciesImagesResponse(
+                        headshot_url=species.presentation_images.headshot_url,
+                        full_body_url=species.presentation_images.full_body_url,
+                    ),
+                    appearance_controls=tuple(
+                        AdoptionAppearanceControlResponse(
+                            control_id=control.control_id,
+                            options=control.options,
+                        )
+                        for control in species.appearance_controls
+                    ),
                 )
                 for species in result.species
             ),
@@ -301,6 +334,8 @@ __all__ = (
     "AdoptionOptionsResponse",
     "AdoptionNestCapacityResponse",
     "AdoptionResultResponse",
+    "AdoptionSpeciesImagesResponse",
+    "AdoptionAppearanceControlResponse",
     "AdoptionSpeciesResponse",
     "CandidateAppearanceRequest",
     "CandidateRepliesRequest",

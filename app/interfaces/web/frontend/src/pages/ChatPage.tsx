@@ -352,7 +352,9 @@ export function ChatPage() {
                 selectedId === null ? null : data?.adopterAccountIds[selectedId] || null,
                 selectedFoodPolicy,
               )}
-              speciesDefinition={speciesCatalog.get(selectedProfile?.species_id ?? selected?.species_id ?? "")}
+              speciesDefinition={selectedProfile?.species
+                ?? selected?.species
+                ?? speciesCatalog.get(selectedProfile?.species_id ?? selected?.species_id ?? "")}
             />
           </section>
         )}

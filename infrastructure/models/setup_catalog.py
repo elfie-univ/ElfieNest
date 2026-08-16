@@ -1,7 +1,9 @@
 """Provider-catalog projection used by first-run Setup model selection."""
 
+from __future__ import annotations
+
 from app.features.setup import StoredSetupModelOption
-from infrastructure.models.providers.profiles import PROVIDER_CATALOG
+from infrastructure.models.providers.catalog import ProviderCatalog
 
 _APPROX_DOWNLOAD_MB = {
     "qwen2.5:0.5b": 398,
@@ -11,6 +13,11 @@ _APPROX_DOWNLOAD_MB = {
 
 
 class ProviderSetupCatalogAdapter:
+    def __init__(self, catalog: ProviderCatalog | None = None) -> None:
+        if catalog is None:
+            raise ValueError("ProviderSetupCatalogAdapter requires an injected catalog")
+        self._catalog = catalog
+
     def list_setup_models(self) -> tuple[StoredSetupModelOption, ...]:
         return tuple(
             StoredSetupModelOption(
@@ -19,7 +26,7 @@ class ProviderSetupCatalogAdapter:
                 approx_download_mb=_APPROX_DOWNLOAD_MB[item.model_id],
                 recommended=item.recommended,
             )
-            for item in PROVIDER_CATALOG.ollama_recommended_models
+            for item in self._catalog.ollama_recommended_models
         )
 
 

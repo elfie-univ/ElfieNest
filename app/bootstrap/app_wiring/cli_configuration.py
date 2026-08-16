@@ -15,13 +15,22 @@ from app.features.configuration.food import FoodService
 from infrastructure.models.cli_catalog import CliModelCatalogAdapter
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.provider_administration import ProviderModelsAdapter
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_system_defaults,
+)
 from infrastructure.persistence.configuration.settings import RuntimeSettingsAdapter
 from infrastructure.persistence.food_evidence import SQLiteFoodEvidenceAdapter
 from infrastructure.persistence.layout.data_home import (
     data_home_from_db_path,
     get_config_path,
+    get_provider_catalog_path,
 )
 from infrastructure.persistence.layout.data_layout import final_root_layout
+from infrastructure.persistence.model_catalog import (
+    load_model_catalog,
+    load_model_identities,
+)
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
 from infrastructure.persistence.provider_references import (
     SQLiteProviderReferenceAdapter,
@@ -47,13 +56,29 @@ class CliConfigurationContainer:
 def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
     config_path = get_config_path()
     secret_path = None
+    provider_catalog_path = get_provider_catalog_path()
+    if db_path != ":memory:":
+        provider_catalog_path = final_root_layout(
+            data_home_from_db_path(db_path)
+        ).provider_catalog_config
+    provider_catalog = load_provider_catalog(provider_catalog_path)
+    identity_catalog = load_model_identities()
+    model_catalog = load_model_catalog()
+    system_defaults = load_system_defaults()
     provider_reports = ReportStorageAdapter(ReportRepository())
     provider_store = ProviderConnectionStore()
-    provider_evidence = SQLiteFoodEvidenceAdapter(provider_store, ReportRepository())
+    provider_evidence = SQLiteFoodEvidenceAdapter(
+        provider_store,
+        ReportRepository(),
+        provider_catalog,
+    )
     provider_models = ProviderModelsAdapter(
         ProviderStorageAdapter(provider_store),
         provider_reports,
         provider_evidence,
+        catalog=provider_catalog,
+        identity_catalog=identity_catalog,
+        system_defaults=system_defaults,
     )
     if db_path != ":memory:":
         layout = final_root_layout(data_home_from_db_path(db_path))
@@ -63,6 +88,7 @@ def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
         provider_evidence = SQLiteFoodEvidenceAdapter(
             provider_store,
             ReportRepository(),
+            provider_catalog,
         )
         provider_models = ProviderModelsAdapter(
             ProviderStorageAdapter(
@@ -71,6 +97,9 @@ def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
             ),
             provider_reports,
             provider_evidence,
+            catalog=provider_catalog,
+            identity_catalog=identity_catalog,
+            system_defaults=system_defaults,
         )
     providers = ProvidersService(
         catalog=provider_models,
@@ -78,7 +107,7 @@ def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
         references=SQLiteProviderReferenceAdapter(db_path),
         technology=provider_models,
         local_state=provider_models,
-        local_technology=PublicOllamaProviderAdapter(),
+        local_technology=PublicOllamaProviderAdapter(catalog=provider_catalog),
     )
     if db_path != ":memory:":
         providers.ensure_default_local_connection(
@@ -90,7 +119,11 @@ def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
     )
     return CliConfigurationContainer(
         providers=providers,
-        food=build_food_service(db_path, evidence=provider_evidence),
+        food=build_food_service(
+            db_path,
+            provider_catalog=provider_catalog,
+            evidence=provider_evidence,
+        ),
         capabilities=CapabilitiesService(
             capability_config,
             capability_secrets,
@@ -103,7 +136,7 @@ def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
             role="owner",
             default_landing_page="manage",
         ),
-        models=CliModelCatalogAdapter(),
+        models=CliModelCatalogAdapter(model_catalog),
     )
 
 

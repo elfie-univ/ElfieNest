@@ -18,6 +18,10 @@ from typing import Dict, List, Optional
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
+from infrastructure.godot.artifacts.species_package_validation import (
+    SpeciesPackageValidationError,
+    validate_source_species_packages,
+)
 from infrastructure.godot.artifacts.web_build import (
     _find_godot as find_godot_helper,
 )
@@ -27,6 +31,8 @@ from infrastructure.godot.artifacts.web_build import (
 from infrastructure.godot.artifacts.web_build import (
     _project_version as project_version_helper,
 )
+from infrastructure.persistence.configuration.species import load_species_catalog
+from scripts.godot_species_validation import run_godot_species_validation
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 GODOT_PROJECT = PROJECT_ROOT / "godot_project"
@@ -88,6 +94,16 @@ def main() -> int:
 
 def _export_runtime(output: Path, binary: Path, godot_version: str) -> int:
     """Export into staging and atomically replace only a complete bundle."""
+    try:
+        species_package_ids = validate_source_species_packages(
+            config_root=PROJECT_ROOT / "config",
+            godot_project=GODOT_PROJECT,
+            godot_runner=run_godot_species_validation,
+            godot_binary=binary,
+        )
+    except SpeciesPackageValidationError as error:
+        print(f"❌ Species package validation failed: {error}")
+        return 1
     staging = output.parent / ".godot-linux-dedicated.staging"
     previous = output.parent / ".godot-linux-dedicated.previous"
     shutil.rmtree(staging, ignore_errors=True)
@@ -118,7 +134,13 @@ def _export_runtime(output: Path, binary: Path, godot_version: str) -> int:
             + ", ".join(missing)
         )
         return 1
-    _write_manifest(staging, godot_version, current_source_fingerprint())
+    _write_manifest(
+        staging,
+        godot_version,
+        current_source_fingerprint(),
+        current_species_catalog_digest(),
+        species_package_ids,
+    )
     shutil.rmtree(previous, ignore_errors=True)
     if output.exists():
         output.replace(previous)
@@ -168,6 +190,11 @@ def current_source_fingerprint() -> str:
     return digest.hexdigest()
 
 
+def current_species_catalog_digest() -> str:
+    """Return the bundled species catalog digest paired with this export."""
+    return load_species_catalog(root=PROJECT_ROOT / "config").digest
+
+
 def runtime_is_current(output: Path) -> bool:
     """Check the Dedicated manifest, executable and source fingerprint."""
     if _missing_artifacts(output):
@@ -179,9 +206,29 @@ def runtime_is_current(output: Path) -> bool:
         return False
     if not isinstance(manifest, dict):
         return False
+    try:
+        schema_version = int(manifest.get("schema_version", 0))
+    except (TypeError, ValueError):
+        return False
+    if schema_version < 2:
+        return False
     if manifest.get("export_boundary") != export_boundary_manifest():
         return False
     if manifest.get("source_fingerprint") != current_source_fingerprint():
+        return False
+    if manifest.get("species_catalog_digest") != current_species_catalog_digest():
+        return False
+    expected_species = tuple(
+        item.godot_package_id
+        for item in load_species_catalog(root=PROJECT_ROOT / "config").definitions
+        if item.resolvable
+    )
+    raw_species_ids = manifest.get("species_package_ids")
+    if not isinstance(raw_species_ids, list) or any(
+        not isinstance(item, str) for item in raw_species_ids
+    ):
+        return False
+    if tuple(sorted(raw_species_ids)) != tuple(sorted(expected_species)):
         return False
     files = manifest.get("files")
     if not isinstance(files, dict) or set(files) != {ENTRY_NAME}:
@@ -196,16 +243,24 @@ def runtime_is_current(output: Path) -> bool:
     )
 
 
-def _write_manifest(directory: Path, godot_version: str, fingerprint: str) -> None:
+def _write_manifest(
+    directory: Path,
+    godot_version: str,
+    fingerprint: str,
+    species_catalog_digest: str,
+    species_package_ids: tuple[str, ...],
+) -> None:
     """Write a typed-by-shape artifact digest for the single executable."""
     entry = directory / ENTRY_NAME
     manifest: Dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "godot_version": godot_version,
         "preset": PRESET_NAME,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "entry": ENTRY_NAME,
         "source_fingerprint": fingerprint,
+        "species_catalog_digest": species_catalog_digest,
+        "species_package_ids": list(species_package_ids),
         "export_boundary": export_boundary_manifest(),
         "files": {
             ENTRY_NAME: {

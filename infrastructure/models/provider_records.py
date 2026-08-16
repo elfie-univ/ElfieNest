@@ -15,7 +15,58 @@ ModelSource = Literal[
     "bundled_catalog",
     "manual",
 ]
+DiscoveryState = Literal["present", "source_missing"]
+CapabilityEvidenceLevel = Literal[
+    "declared",
+    "declared_by_user",
+    "accepted",
+    "verified",
+    "unknown",
+]
 _MODEL_SOURCES = frozenset({"official", "remote_catalog", "bundled_catalog", "manual"})
+_DISCOVERY_STATES = frozenset({"present", "source_missing"})
+_CAPABILITY_NAMES = frozenset({"tools", "vision", "reasoning", "structured_output"})
+_CAPABILITY_EVIDENCE = frozenset(
+    {"declared", "declared_by_user", "accepted", "verified", "unknown"}
+)
+_DOCUMENT_FIELDS = frozenset({"version", "connection_counters", "connections"})
+_CONNECTION_FIELDS = frozenset(
+    {
+        "catalog_id",
+        "alias",
+        "api_base",
+        "api_mode",
+        "auth_type",
+        "credential_ref",
+        "installation",
+        "models",
+        "enabled",
+        "archived",
+    }
+)
+_MODEL_FIELDS = frozenset(
+    {
+        "id",
+        "display_name",
+        "source",
+        "request_profile_id",
+        "request_profile_version",
+        "canonical_model_id",
+        "context_window_tokens",
+        "max_output_tokens",
+        "supports_tools",
+        "supports_vision",
+        "supports_reasoning",
+        "supports_structured_output",
+        "capability_evidence",
+        "hidden",
+        "retired",
+        "available",
+        "discovery_state",
+        "consecutive_missing",
+        "last_seen_at",
+    }
+)
 
 
 class InvalidProviderConnectionDocument(ValueError):
@@ -34,14 +85,23 @@ class ProviderModelRecord:
     display_name: str = ""
     canonical_model_id: Optional[str] = None
     source: ModelSource = "manual"
+    request_profile_id: Optional[str] = None
+    request_profile_version: Optional[int] = None
     context_window_tokens: Optional[int] = None
     max_output_tokens: Optional[int] = None
     supports_tools: Optional[bool] = None
     supports_vision: Optional[bool] = None
     supports_reasoning: Optional[bool] = None
+    supports_structured_output: Optional[bool] = None
+    capability_evidence: Mapping[str, CapabilityEvidenceLevel] = field(
+        default_factory=dict
+    )
     hidden: bool = False
     retired: bool = False
     available: bool = True
+    discovery_state: DiscoveryState = "present"
+    consecutive_missing: int = 0
+    last_seen_at: Optional[str] = None
 
     def __post_init__(self) -> None:
         endpoint_model_id = self.endpoint_model_id.strip()
@@ -49,6 +109,25 @@ class ProviderModelRecord:
             raise ValueError("endpoint_model_id 不能为空")
         if self.source not in _MODEL_SOURCES:
             raise ValueError(f"未知模型来源: {self.source}")
+        if self.discovery_state not in _DISCOVERY_STATES:
+            raise ValueError(f"未知模型发现状态: {self.discovery_state}")
+        if self.request_profile_id is None and self.request_profile_version is not None:
+            raise ValueError("request_profile_version 不能脱离 request_profile_id")
+        if (
+            self.request_profile_version is not None
+            and self.request_profile_version <= 0
+        ):
+            raise ValueError("request_profile_version 必须为正整数")
+        evidence = dict(self.capability_evidence)
+        if set(evidence) - _CAPABILITY_NAMES:
+            raise ValueError("capability_evidence 包含未知能力")
+        if any(
+            not isinstance(value, str) or value not in _CAPABILITY_EVIDENCE
+            for value in evidence.values()
+        ):
+            raise ValueError("capability_evidence 包含未知证据等级")
+        if isinstance(self.consecutive_missing, bool) or self.consecutive_missing < 0:
+            raise ValueError("consecutive_missing 不能为负数")
         for value, name in (
             (self.context_window_tokens, "context_window_tokens"),
             (self.max_output_tokens, "max_output_tokens"),
@@ -62,6 +141,24 @@ class ProviderModelRecord:
         if self.canonical_model_id is not None:
             canonical = self.canonical_model_id.strip()
             object.__setattr__(self, "canonical_model_id", canonical or None)
+        if self.request_profile_id is not None:
+            profile_id = self.request_profile_id.strip()
+            object.__setattr__(self, "request_profile_id", profile_id or None)
+        if self.request_profile_id is None and self.request_profile_version is not None:
+            raise ValueError("request_profile_version 不能脱离 request_profile_id")
+        if self.request_profile_id:
+            from infrastructure.models.providers.request_profiles import (
+                get_request_profile,
+            )
+
+            try:
+                get_request_profile(
+                    self.request_profile_id,
+                    self.request_profile_version,
+                )
+            except ValueError as error:
+                raise ValueError("request_profile_id 或版本无效") from error
+        object.__setattr__(self, "capability_evidence", evidence)
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -69,6 +166,10 @@ class ProviderModelRecord:
             "display_name": self.display_name,
             "source": self.source,
         }
+        if self.request_profile_id:
+            result["request_profile_id"] = self.request_profile_id
+        if self.request_profile_version is not None:
+            result["request_profile_version"] = self.request_profile_version
         optional = {
             "canonical_model_id": self.canonical_model_id,
             "context_window_tokens": self.context_window_tokens,
@@ -76,6 +177,10 @@ class ProviderModelRecord:
             "supports_tools": self.supports_tools,
             "supports_vision": self.supports_vision,
             "supports_reasoning": self.supports_reasoning,
+            "supports_structured_output": self.supports_structured_output,
+            "capability_evidence": (
+                dict(self.capability_evidence) if self.capability_evidence else None
+            ),
         }
         result.update(
             {key: value for key, value in optional.items() if value is not None}
@@ -84,12 +189,19 @@ class ProviderModelRecord:
             result["hidden"] = True
         if self.retired:
             result["retired"] = True
-        if not self.available:
-            result["available"] = False
+        # ``available`` remains readable for old v2 documents, but current
+        # availability is evidence-derived and must never be persisted here.
+        if self.discovery_state != "present":
+            result["discovery_state"] = self.discovery_state
+        if self.consecutive_missing:
+            result["consecutive_missing"] = self.consecutive_missing
+        if self.last_seen_at:
+            result["last_seen_at"] = self.last_seen_at
         return result
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> ProviderModelRecord:
+        _reject_unknown(raw, _MODEL_FIELDS, "模型配置")
         raw_source = str(raw.get("source") or "manual")
         if raw_source not in _MODEL_SOURCES:
             raise ValueError(f"未知模型来源: {raw_source}")
@@ -98,6 +210,10 @@ class ProviderModelRecord:
             display_name=str(raw.get("display_name") or ""),
             canonical_model_id=_optional_string(raw.get("canonical_model_id")),
             source=cast(ModelSource, raw_source),
+            request_profile_id=_optional_string(raw.get("request_profile_id")),
+            request_profile_version=_optional_positive_int(
+                raw.get("request_profile_version"), "request_profile_version"
+            ),
             context_window_tokens=_optional_positive_int(
                 raw.get("context_window_tokens"), "context_window_tokens"
             ),
@@ -111,9 +227,21 @@ class ProviderModelRecord:
             supports_reasoning=_optional_bool(
                 raw.get("supports_reasoning"), "supports_reasoning"
             ),
+            supports_structured_output=_optional_bool(
+                raw.get("supports_structured_output"),
+                "supports_structured_output",
+            ),
+            capability_evidence=_capability_evidence(
+                raw.get("capability_evidence", {})
+            ),
             hidden=_required_bool(raw.get("hidden", False), "hidden"),
             retired=_required_bool(raw.get("retired", False), "retired"),
             available=_required_bool(raw.get("available", True), "available"),
+            discovery_state=_discovery_state(raw.get("discovery_state", "present")),
+            consecutive_missing=_optional_non_negative_int(
+                raw.get("consecutive_missing", 0), "consecutive_missing"
+            ),
+            last_seen_at=_optional_string(raw.get("last_seen_at")),
         )
 
 
@@ -171,6 +299,7 @@ class ProviderConnection:
     def from_dict(
         cls, connection_id: str, raw: Mapping[str, Any]
     ) -> ProviderConnection:
+        _reject_unknown(raw, _CONNECTION_FIELDS, "连接配置")
         raw_models = raw.get("models", [])
         raw_installation = raw.get("installation", {})
         if not isinstance(raw_models, list):
@@ -220,6 +349,7 @@ def parse_provider_document(raw: Mapping[str, Any]) -> ProviderConnectionDocumen
         raise InvalidProviderConnectionDocument(
             f"只支持 Provider 连接配置 v2，收到版本: {version!r}"
         )
+    _reject_unknown(raw, _DOCUMENT_FIELDS, "Provider 连接文档")
     raw_counters = raw.get("connection_counters", {})
     raw_connections = raw.get("connections", {})
     if not isinstance(raw_counters, Mapping) or not isinstance(
@@ -261,13 +391,50 @@ def _optional_positive_int(value: Any, field_name: str) -> Optional[int]:
     return value
 
 
+def _optional_non_negative_int(value: Any, field_name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise ValueError(f"{field_name} 必须是非负整数")
+    return value
+
+
+def _discovery_state(value: Any) -> DiscoveryState:
+    if value not in _DISCOVERY_STATES:
+        raise ValueError(f"未知模型发现状态: {value}")
+    return cast(DiscoveryState, value)
+
+
 def _optional_bool(value: Any, field_name: str) -> Optional[bool]:
     if value is None:
         return None
     return _required_bool(value, field_name)
 
 
+def _capability_evidence(value: Any) -> dict[str, CapabilityEvidenceLevel]:
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise ValueError("capability_evidence 必须是对象")
+    result: dict[str, CapabilityEvidenceLevel] = {}
+    for name, evidence in value.items():
+        if not isinstance(name, str) or name not in _CAPABILITY_NAMES:
+            raise ValueError(f"未知能力: {name}")
+        if not isinstance(evidence, str) or evidence not in _CAPABILITY_EVIDENCE:
+            raise ValueError(f"未知能力证据等级: {evidence}")
+        result[str(name)] = cast(CapabilityEvidenceLevel, evidence)
+    return result
+
+
 def _required_bool(value: Any, field_name: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{field_name} 必须为布尔值")
     return value
+
+
+def _reject_unknown(
+    raw: Mapping[str, Any],
+    allowed: frozenset[str],
+    label: str,
+) -> None:
+    unknown = sorted(str(key) for key in set(raw) - allowed)
+    if unknown:
+        raise ValueError(f"{label}包含未知字段: {unknown}")

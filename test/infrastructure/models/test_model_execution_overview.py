@@ -1,21 +1,30 @@
 import os
+from pathlib import Path
+
+import pytest
+import yaml
 
 from app.features.configuration.food import StoredModelEvidence
 from elfie.brain.reasoning.food_port import FoodAssignment, FoodCatalog, FoodPackage
-from infrastructure.models.model_execution_config import ModelExecutionConfig
+from infrastructure.models.model_execution_config import _default_temperature
 from infrastructure.models.model_execution_overview import (
     build_overview,
     configured_provider_ids,
     render_provider_model_matrix,
 )
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_system_defaults,
+)
+from infrastructure.persistence.configuration.documents import ConfigDocumentError
 from infrastructure.persistence.model_execution_overview import (
     ModelExecutionOverviewStore,
 )
+from test.support.model_execution import model_execution_config
 
 
 def test_only_configured_providers_are_listed(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = ModelExecutionConfig(config_home=str(tmp_path))
+    config = model_execution_config(config_home=str(tmp_path))
     config.providers["openai"]["api_key"] = ""
     config.providers["openai"]["status"] = "inactive"
     config.providers["deepseek"]["api_key"] = "configured-locally"
@@ -23,11 +32,29 @@ def test_only_configured_providers_are_listed(monkeypatch, tmp_path):
     assert configured_provider_ids(config) == ["ollama", "deepseek"]
 
 
+def test_model_execution_defaults_do_not_fallback_to_python_literals(
+    monkeypatch, tmp_path
+):
+    source_path = (
+        Path(__file__).resolve().parents[3] / "config" / "app" / "system-defaults.yaml"
+    )
+    document = yaml.safe_load(source_path.read_text(encoding="utf-8"))
+    del document["system"]["model_execution"]["temperature"]
+    root = tmp_path / "bundled"
+    path = root / "app" / "system-defaults.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    monkeypatch.setenv("ELFIENEST_BUNDLED_CONFIG_DIR", str(root))
+
+    with pytest.raises(ConfigDocumentError, match="temperature"):
+        _default_temperature(load_system_defaults())
+
+
 def test_overview_groups_same_model_across_providers_and_renders_responsively(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = ModelExecutionConfig(config_home=str(tmp_path))
+    config = model_execution_config(config_home=str(tmp_path))
     config.providers["openai"]["api_key"] = "configured-locally"
     evidence = [
         StoredModelEvidence(

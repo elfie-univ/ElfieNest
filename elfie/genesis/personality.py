@@ -5,15 +5,10 @@ from __future__ import annotations
 import random
 from typing import Iterable, Mapping, Sequence
 
-from elfie.profile import get_species_definition
+from elfie.profile import SpeciesCatalog, get_species_definition
 
 from .contracts import BIG_FIVE_TRAITS, BigFiveProfile, GenesisError
 
-SPECIES_PRIORS: Mapping[str, tuple[float, ...]] = {
-    "dog": (0.10, 0.05, 0.15, 0.25, -0.10),
-    "fox": (0.25, -0.05, 0.10, 0.00, 0.05),
-    "cat": (0.18, 0.02, -0.05, 0.08, 0.12),
-}
 STAGE_PRIORS: Mapping[str, tuple[float, ...]] = {
     "youth": (0.05, -0.10, 0.05, 0.00, 0.10),
     "young_adult": (0.05, 0.00, 0.05, 0.00, 0.00),
@@ -48,10 +43,17 @@ LABELS: Mapping[str, tuple[tuple[str, float], ...]] = {
 
 
 def core_profile(
-    *, species_id: str, life_stage: str, answers: Sequence[str]
+    *,
+    species_id: str,
+    life_stage: str,
+    answers: Sequence[str],
+    catalog: SpeciesCatalog | None = None,
 ) -> BigFiveProfile:
     try:
-        get_species_definition(species_id)
+        if catalog is not None:
+            catalog.definition(species_id, adoptable_only=True)
+        else:
+            get_species_definition(species_id, adoptable_only=True)
     except ValueError as error:
         raise GenesisError(f"不支持的物种: {species_id}") from error
     validate_answers(answers)
@@ -61,11 +63,21 @@ def core_profile(
         values = [left + right for left, right in zip(values, vector)]
     count = max(1, len(answers))
     q = [value / count for value in values]
-    species = SPECIES_PRIORS.get(species_id, (0.0,) * len(BIG_FIVE_TRAITS))
+    species = (
+        catalog.definition(species_id, adoptable_only=True).genesis
+        if catalog is not None
+        else get_species_definition(species_id, adoptable_only=True).genesis
+    )
+    if species is None:
+        raise GenesisError(f"物种 {species_id!r} 缺少 Genesis 配置")
     stage = STAGE_PRIORS[life_stage]
     latent = tuple(
-        clamp((5.0 * user + species_value + 0.5 * stage_value) / 6.5, -2.0, 2.0)
-        for user, species_value, stage_value in zip(q, species, stage)
+        clamp(
+            (5.0 * user + species_value + 0.5 * stage_value) / 6.5,
+            -2.0,
+            2.0,
+        )
+        for user, species_value, stage_value in zip(q, species.personality_prior, stage)
     )
     return profile(latent)
 
@@ -126,7 +138,6 @@ def clamp(value: float, minimum: float, maximum: float) -> float:
 __all__ = (
     "ANSWER_VECTORS",
     "LABELS",
-    "SPECIES_PRIORS",
     "STAGE_PRIORS",
     "clamp",
     "core_profile",

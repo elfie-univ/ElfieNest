@@ -1,5 +1,6 @@
 from infrastructure.models.ollama.ollama_platform import OllamaBinding, OllamaProbe
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
+from infrastructure.persistence.provider_catalog import load_provider_catalog
 
 
 class HealthyPlatform:
@@ -14,7 +15,9 @@ class HealthyPlatform:
 
 
 def test_provider_ollama_adapter_projects_the_authoritative_candidates() -> None:
-    adapter = PublicOllamaProviderAdapter(platform=HealthyPlatform())  # type: ignore[arg-type]
+    adapter = PublicOllamaProviderAdapter(
+        platform=HealthyPlatform(), catalog=load_provider_catalog()
+    )  # type: ignore[arg-type]
     binding = adapter.default_binding()
 
     assert binding.install_kind == "existing-public"

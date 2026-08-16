@@ -1,9 +1,11 @@
 import stat
 from pathlib import Path
 
-from elfie.brain.energy import load_packaged_energy_limits
-from elfie.brain.selfhood import load_packaged_selfhood_seed
 from elfie.profile import create_visual_profile
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_energy_defaults,
+    load_selfhood_defaults,
+)
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
@@ -49,8 +51,8 @@ def test_default_owner_seeds_are_loaded_without_a_profile_file(
     tmp_path: Path,
 ) -> None:
     # When: the profile domain reads its immutable bundled defaults.
-    selfhood = load_packaged_selfhood_seed()
-    energy = load_packaged_energy_limits()
+    selfhood = load_selfhood_defaults()
+    energy = load_energy_defaults()
 
     # Then: the section is available without requiring a user profile file.
     assert "big_five" in selfhood

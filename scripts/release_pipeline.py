@@ -212,6 +212,7 @@ def _assemble(target: str, core: Path, cli: Path, version: str) -> Path:
         godot_source=BUILD_DIR / "components" / "godot-web",
         core_source=core,
         cli_source=cli,
+        config_source=PROJECT_ROOT / "config",
         application_version=version,
     )
 

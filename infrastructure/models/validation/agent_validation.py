@@ -6,6 +6,7 @@ import tempfile
 import time
 from collections.abc import Callable, Sequence
 from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from typing import Protocol
 
@@ -89,7 +90,7 @@ class ModelAgentValidationRunner:
                 policy = deepcopy(getattr(self.config, "runtime_policy", {}))
                 tools = policy.setdefault("tools", {})
                 tools.setdefault(tool_name, {})["enabled"] = True
-                validation_config = ModelExecutionConfig(runtime_policy=policy)
+                validation_config = replace(self.config, runtime_policy=policy)
                 tool_port = self._tool_port_factory(
                     validation_config, files_root, tool_name
                 )

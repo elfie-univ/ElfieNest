@@ -38,7 +38,16 @@ def _write_godot_manifest(directory: Path, entry: str, version: str) -> None:
         if path.is_file()
     }
     (directory / "build-manifest.json").write_text(
-        json.dumps({"entry": entry, "files": files, "godot_version": version}),
+        json.dumps(
+            {
+                "entry": entry,
+                "files": files,
+                "godot_version": version,
+                "species_catalog_digest": hashlib.sha256(
+                    b"species-catalog-fixture"
+                ).hexdigest(),
+            }
+        ),
         encoding="utf-8",
     )
 

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import FrozenSet, Optional, Union, cast
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
-from app.features.accounts import AccountPrincipal
+from app.features.accounts import AccountPrincipal, is_manager
 from app.features.configuration import (
     AddProviderModelCommand,
     BenchmarkCombination,
@@ -26,6 +27,7 @@ from app.features.configuration import (
     ListProviderProductsQuery,
     LocalProviderStatusResult,
     ModelUpdateField,
+    ProviderAvailabilityPort,
     ProviderConnectionNotFound,
     ProviderModelInput,
     ProviderModelNotFound,
@@ -48,7 +50,7 @@ from app.features.configuration import (
 )
 from app.interfaces.api.v1.auth import require_user
 
-from .dependencies import providers_service
+from .dependencies import provider_availability, providers_service
 from .models import (
     BenchmarkModelsRequest,
     BenchmarkRunResponse,
@@ -67,6 +69,8 @@ from .models import (
     ProviderConnectionPatchRequest,
     ProviderConnectionResponse,
     ProviderConnectionsResponse,
+    ProviderModelAvailabilityListResponse,
+    ProviderModelAvailabilityResponse,
     ProviderModelPatchRequest,
     ProviderModelResponse,
     ProviderModelsReplaceRequest,
@@ -87,6 +91,8 @@ router = APIRouter(
 )
 CurrentPrincipal = Depends(require_user)
 ProvidersDependency = Depends(providers_service)
+ModelAvailabilityReferences = Query(default=[], max_length=256)
+ProviderAvailabilityDependency = Depends(provider_availability)
 RouteResult = Union[
     BenchmarkRunResponse,
     DetailResponse,
@@ -95,6 +101,7 @@ RouteResult = Union[
     ProviderConnectionResponse,
     ProviderConnectionsResponse,
     ProviderModelResponse,
+    ProviderModelAvailabilityListResponse,
     ProviderProductsResponse,
     ValidationRunResponse,
     VerifyConnectionResponse,
@@ -451,6 +458,7 @@ def replace_models(
                         **vars(_model_input(item)),
                         original_model_id=item.original_id,
                         hidden=item.hidden,
+                        fields=frozenset(item.model_fields_set),
                     )
                     for item in body.models
                 ),
@@ -487,6 +495,9 @@ def update_model(
                 supports_tools=body.supports_tools,
                 supports_vision=body.supports_vision,
                 supports_reasoning=body.supports_reasoning,
+                supports_structured_output=body.supports_structured_output,
+                request_profile_id=body.request_profile_id,
+                request_profile_version=body.request_profile_version,
                 hidden=body.hidden,
                 retired=body.retired,
             ),
@@ -531,6 +542,43 @@ def model_matrix(
     except _PROVIDER_ERRORS as error:
         return _error_response(error)
     return ModelMatrixResponse.from_result(result)
+
+
+@router.get(
+    "/availability",
+    response_model=ProviderModelAvailabilityListResponse,
+)
+def model_availability(
+    reference: list[str] = ModelAvailabilityReferences,
+    principal: AccountPrincipal = CurrentPrincipal,
+    availability: ProviderAvailabilityPort = ProviderAvailabilityDependency,
+) -> ProviderModelAvailabilityListResponse:
+    _require_manager_for_probe(principal)
+    items = availability.get_many(tuple(reference))
+    return ProviderModelAvailabilityListResponse(
+        items=tuple(
+            ProviderModelAvailabilityResponse.from_result(item) for item in items
+        )
+    )
+
+
+@router.post(
+    "/availability/ensure",
+    response_model=ProviderModelAvailabilityResponse,
+)
+def ensure_model_availability(
+    reference: str = Query(..., min_length=3),
+    max_age_seconds: int = Query(default=86400, ge=0, le=604800),
+    principal: AccountPrincipal = CurrentPrincipal,
+    availability: ProviderAvailabilityPort = ProviderAvailabilityDependency,
+) -> ProviderModelAvailabilityResponse:
+    _require_manager_for_probe(principal)
+    item = availability.ensure(
+        reference,
+        max_age=timedelta(seconds=max_age_seconds),
+        allow_probe=True,
+    )
+    return ProviderModelAvailabilityResponse.from_result(item)
 
 
 @router.post("/model-benchmarks", response_model=BenchmarkRunResponse)
@@ -603,6 +651,9 @@ def _model_input(body: ProviderModelWriteRequest) -> ProviderModelInput:
         supports_tools=body.supports_tools,
         supports_vision=body.supports_vision,
         supports_reasoning=body.supports_reasoning,
+        supports_structured_output=body.supports_structured_output,
+        request_profile_id=body.request_profile_id,
+        request_profile_version=body.request_profile_version,
     )
 
 
@@ -622,6 +673,8 @@ def _local_provider_response(
                 display_name=item.display_name,
                 installed=item.installed,
                 recommended=item.recommended,
+                availability_status=item.availability_status,
+                available=item.available,
             )
             for item in result.models
         ),
@@ -642,6 +695,11 @@ _PROVIDER_ERRORS = (
     ProvidersUnavailable,
     ProvidersValidationError,
 )
+
+
+def _require_manager_for_probe(principal: AccountPrincipal) -> None:
+    if not is_manager(principal.role):
+        raise HTTPException(status_code=403, detail="Provider 可用性查询需要管理员权限")
 
 
 def _error_response(error: Exception) -> JSONResponse:

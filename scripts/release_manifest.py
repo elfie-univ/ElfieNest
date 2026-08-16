@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Dict, Final, Mapping, Tuple
 
+from infrastructure.persistence.configuration.species import load_species_catalog
 from scripts import package_python_core
 
 REQUIRED_WEB_FILES: Final[Tuple[str, ...]] = (
@@ -18,6 +19,17 @@ REQUIRED_GODOT_FILES: Final[Tuple[str, ...]] = (
     "godot-web/elfienest.js",
     "godot-web/elfienest.wasm",
     "godot-web/elfienest.pck",
+)
+REQUIRED_CONFIG_FILES: Final[Tuple[str, ...]] = (
+    "config/app/system-defaults.yaml",
+    "config/models/provider-catalog.yaml",
+    "config/models/model-catalog.yaml",
+    "config/tools/defaults.yaml",
+    "config/brain/energy.yaml",
+    "config/brain/selfhood.yaml",
+    "config/brain/emotion-expressions.yaml",
+    "config/nest/defaults.yaml",
+    "config/species/catalog.yaml",
 )
 
 
@@ -51,6 +63,12 @@ def validate_release_resources(resources: Path) -> None:
         raise ReleaseResourceManifestError(
             f"release-manifest-required-files-missing paths={','.join(missing)}"
         )
+    try:
+        load_species_catalog(root=resources / "config")
+    except (OSError, ValueError, RuntimeError) as error:
+        raise ReleaseResourceManifestError(
+            "release-manifest-species-config-invalid"
+        ) from error
     actual = _actual_paths(resources)
     if actual != set(expected):
         raise ReleaseResourceManifestError("release-manifest-file-set-mismatch")
@@ -98,6 +116,7 @@ def _required_paths(target: str) -> set[str]:
     return {
         *REQUIRED_WEB_FILES,
         *REQUIRED_GODOT_FILES,
+        *REQUIRED_CONFIG_FILES,
         f"python-core/ElfieNestCore{executable_suffix}",
         f"management-cli/ElfieNestCli{executable_suffix}",
     }

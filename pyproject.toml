@@ -44,11 +44,6 @@ build-constraint-dependencies = ["setuptools==80.9.0"]
 where = ["."]
 include = ["app*", "elfie*", "infrastructure*", "nest*"]
 
-[tool.setuptools.package-data]
-"infrastructure.models.providers" = ["provider-catalog.yaml", "model-catalog.yaml"]
-"elfie.brain.selfhood" = ["defaults.yaml"]
-"elfie.brain.energy" = ["defaults.yaml"]
-
 [tool.ruff]
 line-length = 88
 target-version = "py39"

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import logging
 import threading
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Mapping, Union
+from typing import Iterator, Mapping, Union
 
 from pydantic import JsonValue
 
@@ -31,6 +33,41 @@ class ModelExecutionEventType(str, Enum):
 class ModelExecutionEventStatus(str, Enum):
     OK = "ok"
     ERROR = "error"
+
+
+@dataclass(frozen=True)
+class ModelCallContext:
+    """Stable, non-content context attached to one real model request."""
+
+    connection_id: str | None = None
+    endpoint_model_id: str | None = None
+    food_id: str | None = None
+    semantic_role: str | None = None
+    route_stage: str | None = None
+    workload_kind: str = "production"
+    scope_id: str | None = None
+
+
+_model_call_context: ContextVar[ModelCallContext | None] = ContextVar(
+    "model_call_context",
+    default=None,
+)
+
+
+@contextmanager
+def scoped_model_call_context(
+    context: ModelCallContext,
+) -> Iterator[None]:
+    """Scope request attribution without changing the model-caller Port."""
+    token = _model_call_context.set(context)
+    try:
+        yield
+    finally:
+        _model_call_context.reset(token)
+
+
+def current_model_call_context() -> ModelCallContext | None:
+    return _model_call_context.get()
 
 
 @dataclass(frozen=True)
@@ -61,6 +98,23 @@ class ModelCallObservation:
     prompt_chars: int
     response_chars: int = 0
     error_type: str = ""
+    error_code: str | None = None
+    error_scope: str | None = None
+    error_category: str | None = None
+    connection_id: str | None = None
+    endpoint_model_id: str | None = None
+    food_id: str | None = None
+    semantic_role: str | None = None
+    route_stage: str | None = None
+    workload_kind: str = "unknown"
+    scope_id: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    duration_ms: float | None = None
+    time_to_first_token_ms: float | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    config_fingerprint: str | None = None
 
     def to_event(self) -> ModelExecutionEvent:
         metadata: dict[str, ModelExecutionMetadataValue] = {
@@ -70,6 +124,33 @@ class ModelCallObservation:
         }
         if self.error_type:
             metadata["error_type"] = self.error_type
+        optional_text = {
+            "connection_id": self.connection_id,
+            "endpoint_model_id": self.endpoint_model_id,
+            "error_code": self.error_code,
+            "error_scope": self.error_scope,
+            "error_category": self.error_category,
+            "food_id": self.food_id,
+            "semantic_role": self.semantic_role,
+            "route_stage": self.route_stage,
+            "workload_kind": self.workload_kind,
+            "scope_id": self.scope_id,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "config_fingerprint": self.config_fingerprint,
+        }
+        for key, value in optional_text.items():
+            if value:
+                metadata[key] = value
+        optional_numbers: dict[str, int | float | None] = {
+            "duration_ms": self.duration_ms,
+            "time_to_first_token_ms": self.time_to_first_token_ms,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+        }
+        for key, numeric_value in optional_numbers.items():
+            if numeric_value is not None:
+                metadata[key] = numeric_value
         return ModelExecutionEvent(
             event_type=ModelExecutionEventType.MODEL_CALL,
             status=self.status,
@@ -265,18 +346,27 @@ class ModelExecutionObserver:
         try:
             if self._report_writer is None:
                 return
+            subject_kind, subject_id = _report_subject(event)
             run_id = self._report_writer.start_run(
                 scope=f"runtime:{event.event_type.value}",
                 trigger="runtime",
             )
             self._report_writer.append_observation(
                 run_id=run_id,
-                subject_kind=_report_subject_kind(event.event_type),
-                subject_id=event.subject,
+                subject_kind=subject_kind,
+                subject_id=subject_id,
                 status=(
                     "passed"
                     if event.status is ModelExecutionEventStatus.OK
                     else "failed"
+                ),
+                latency_ms=_metadata_float(event.metadata, "duration_ms"),
+                time_to_first_token_ms=_metadata_float(
+                    event.metadata, "time_to_first_token_ms"
+                ),
+                error_category=(
+                    _metadata_text(event.metadata, "error_category")
+                    or _metadata_text(event.metadata, "error_type")
                 ),
                 details={
                     "event_type": event.event_type.value,
@@ -286,6 +376,15 @@ class ModelExecutionObserver:
             self._report_writer.finish_run(run_id, status="complete")
         except Exception as failure:
             logger.warning("模型执行观测事件持久化失败: %s", failure)
+
+
+def _report_subject(event: ModelExecutionEvent) -> tuple[str, str]:
+    if event.event_type is ModelExecutionEventType.MODEL_CALL:
+        connection_id = _metadata_text(event.metadata, "connection_id")
+        endpoint_model_id = _metadata_text(event.metadata, "endpoint_model_id")
+        if connection_id and endpoint_model_id:
+            return "model", f"{connection_id}/{endpoint_model_id}"
+    return _report_subject_kind(event.event_type), event.subject
 
 
 def _report_subject_kind(event_type: ModelExecutionEventType) -> str:
@@ -298,6 +397,24 @@ def _report_subject_kind(event_type: ModelExecutionEventType) -> str:
     if event_type is ModelExecutionEventType.PROVIDER_VERIFY:
         return "provider"
     return "runtime"
+
+
+def _metadata_text(
+    metadata: Mapping[str, ModelExecutionMetadataValue],
+    key: str,
+) -> str | None:
+    value = metadata.get(key)
+    return value if isinstance(value, str) and value else None
+
+
+def _metadata_float(
+    metadata: Mapping[str, ModelExecutionMetadataValue],
+    key: str,
+) -> float | None:
+    value = metadata.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
 
 
 def _model_execution_metadata(

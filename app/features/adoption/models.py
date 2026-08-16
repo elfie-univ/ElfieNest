@@ -13,7 +13,11 @@ CandidateGender = Literal["male", "female", "any"]
 ElfieGender = Literal["male", "female"]
 CandidateReplyStatus = Literal["accepted", "unsure"]
 AdoptionAvailability = Literal[
-    "available", "nest_full", "member_quota_full", "model_unavailable"
+    "available",
+    "nest_full",
+    "member_quota_full",
+    "model_unavailable",
+    "species_unavailable",
 ]
 
 
@@ -38,6 +42,18 @@ class AdoptionNestCapacity:
 
 
 @dataclass(frozen=True)
+class AdoptionSpeciesImages:
+    headshot_url: str
+    full_body_url: str
+
+
+@dataclass(frozen=True)
+class AdoptionAppearanceControl:
+    control_id: str
+    options: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class AdoptionSpecies:
     """Stable metadata projected from the immutable species registry."""
 
@@ -48,6 +64,18 @@ class AdoptionSpecies:
     earth_shape_label: str
     scene_id: str
     sort_order: int
+    presentation_images: AdoptionSpeciesImages
+    appearance_controls: tuple[AdoptionAppearanceControl, ...]
+
+
+SpeciesImageKind = Literal["headshot", "full-body"]
+
+
+@dataclass(frozen=True)
+class AdoptionSpeciesImage:
+    content: bytes
+    media_type: str
+    etag: str
 
 
 @dataclass(frozen=True)
@@ -163,9 +191,12 @@ class AcceptedAdoptionReservation:
 __all__ = (
     "AcceptedAdoptionReservation",
     "AdoptionSpecies",
+    "AdoptionAppearanceControl",
     "AdoptionOptionsResult",
     "AdoptionAvailability",
     "AdoptionNestCapacity",
+    "AdoptionSpeciesImage",
+    "AdoptionSpeciesImages",
     "AdoptionQuota",
     "CandidateAppearance",
     "CandidateGender",
@@ -183,4 +214,5 @@ __all__ = (
     "ReplyToCandidatesCommand",
     "ReserveAcceptedAdoptionCommand",
     "SpeciesId",
+    "SpeciesImageKind",
 )

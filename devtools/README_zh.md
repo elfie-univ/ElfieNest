@@ -10,7 +10,7 @@
 先准备仓库锁定的 Python 环境，再查看可用工具：
 
 ```bash
-./install.sh --env-only
+./elfienest.sh version
 ./developer.sh --help
 ```
 

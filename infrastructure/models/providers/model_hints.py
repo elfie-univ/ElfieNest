@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
 from infrastructure.models.capabilities import canonical_display_name
-from infrastructure.models.providers.profiles import PROVIDER_CATALOG
+from infrastructure.models.providers.catalog import ProviderCatalog
 
 _PLACEHOLDER_MODELS = {"custom-model"}
 
@@ -17,7 +17,11 @@ class ProviderModelSpec:
     display_name: str
 
 
-def configured_model_specs(provider: Mapping[str, Any]) -> list[ProviderModelSpec]:
+def configured_model_specs(
+    provider: Mapping[str, Any],
+    *,
+    catalog: ProviderCatalog | None = None,
+) -> list[ProviderModelSpec]:
     """返回手工模型目录，并兼容旧版字符串列表。"""
     specs: list[ProviderModelSpec] = []
     raw_models = provider.get("models", ())
@@ -47,20 +51,32 @@ def configured_model_specs(provider: Mapping[str, Any]) -> list[ProviderModelSpe
     )
     if unique:
         return unique
+    if catalog is None:
+        raise ValueError(
+            "Provider catalog is required when model IDs are not configured"
+        )
     return [
         ProviderModelSpec(model_id, model_id)
-        for model_id in suggested_model_names(str(provider.get("api_base", "")))
+        for model_id in suggested_model_names(
+            str(provider.get("api_base", "")), catalog=catalog
+        )
     ]
 
 
-def configured_model_names(provider: Mapping[str, Any]) -> list[str]:
+def configured_model_names(
+    provider: Mapping[str, Any], *, catalog: ProviderCatalog | None = None
+) -> list[str]:
     """返回 Provider 手工配置的模型；未配置时使用已知端点建议。"""
-    return [item.model_id for item in configured_model_specs(provider)]
+    return [item.model_id for item in configured_model_specs(provider, catalog=catalog)]
 
 
-def suggested_model_names(api_base: str) -> list[str]:
+def suggested_model_names(
+    api_base: str,
+    *,
+    catalog: ProviderCatalog,
+) -> list[str]:
     """仅对官方明确规定固定调用 ID 的已知端点给出建议。"""
-    return PROVIDER_CATALOG.suggested_models(api_base)
+    return catalog.suggested_models(api_base)
 
 
 def parse_model_input(value: str) -> list[str]:

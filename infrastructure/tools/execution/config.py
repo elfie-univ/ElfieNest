@@ -25,38 +25,21 @@ def _environment_secret(name: str) -> str:
     return os.environ.get(name, "")
 
 
-def default_tool_configs() -> dict[str, dict[str, JsonValue]]:
-    return {
-        "web_search": {
-            "enabled": True,
-            "provider": "duckduckgo",
-            "api_base": "",
-            "api_key_env": "ELFIE_WEB_SEARCH_API_KEY",
-            "max_results": 3,
-            "max_result_bytes": 16000,
-            "timeout_seconds": 5.0,
-            "max_tool_calls": 3,
-            "max_total_result_bytes": 48000,
-        },
-        "local_file": {
-            "enabled": False,
-            "root": "",
-            "root_policy": "elfie_workspace",
-            "max_read_bytes": 65536,
-            "max_items": 200,
-            "max_result_bytes": 16000,
-            "max_tool_calls": 3,
-            "max_total_result_bytes": 48000,
-        },
-    }
+ToolDefaults = Mapping[str, Mapping[str, JsonValue]]
+
+
+def default_tool_configs(defaults: ToolDefaults) -> dict[str, dict[str, JsonValue]]:
+    """Copy defaults supplied by Bootstrap/Persistence into a tool projection."""
+    return deepcopy({key: dict(value) for key, value in defaults.items()})
 
 
 def load_tool_configs(
     runtime_policy: Mapping[str, JsonValue] | None,
     *,
+    defaults: ToolDefaults,
     secret_resolver: Optional[SecretResolver] = None,
 ) -> dict[str, dict[str, JsonValue]]:
-    configs = default_tool_configs()
+    configs = default_tool_configs(defaults)
     raw_tools = (
         runtime_policy.get("tools", {}) if isinstance(runtime_policy, Mapping) else {}
     )
@@ -75,10 +58,13 @@ def load_tool_configs(
 def public_tool_configs(
     runtime_policy: Mapping[str, JsonValue] | None,
     *,
+    defaults: ToolDefaults,
     secret_resolver: Optional[SecretResolver] = None,
 ) -> dict[str, dict[str, JsonValue]]:
     configs = deepcopy(
-        load_tool_configs(runtime_policy, secret_resolver=secret_resolver)
+        load_tool_configs(
+            runtime_policy, defaults=defaults, secret_resolver=secret_resolver
+        )
     )
     for config in configs.values():
         api_key = str(config.pop("api_key", "") or "")
@@ -89,12 +75,13 @@ def public_tool_configs(
 def enabled_tool_keys(
     runtime_policy: Mapping[str, JsonValue] | None,
     *,
+    defaults: ToolDefaults,
     secret_resolver: Optional[SecretResolver] = None,
 ) -> tuple[str, ...]:
     return tuple(
         key
         for key, config in load_tool_configs(
-            runtime_policy, secret_resolver=secret_resolver
+            runtime_policy, defaults=defaults, secret_resolver=secret_resolver
         ).items()
         if config.get("enabled") is True
     )
@@ -104,10 +91,15 @@ def effective_tool_keys(
     runtime_policy: Mapping[str, JsonValue] | None,
     requested_tools: tuple[str, ...],
     *,
+    defaults: ToolDefaults,
     secret_resolver: Optional[SecretResolver] = None,
 ) -> tuple[str, ...]:
     """Return the ordered, duplicate-free safe tool authorization intersection."""
-    enabled = set(enabled_tool_keys(runtime_policy, secret_resolver=secret_resolver))
+    enabled = set(
+        enabled_tool_keys(
+            runtime_policy, defaults=defaults, secret_resolver=secret_resolver
+        )
+    )
     result: list[str] = []
     for tool_key in requested_tools:
         if (

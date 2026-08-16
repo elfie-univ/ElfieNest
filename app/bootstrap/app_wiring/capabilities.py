@@ -9,24 +9,23 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from infrastructure.persistence.configuration.config_store import (
-    read_yaml_mapping,
-    write_yaml_mapping,
-)
-from infrastructure.persistence.configuration.runtime_settings import (
-    read_runtime_settings,
-    write_runtime_settings,
+from infrastructure.persistence.configuration.bundled_defaults import load_tool_defaults
+from infrastructure.persistence.configuration.capabilities import (
+    RuntimeCapabilitiesAdapter,
 )
 from infrastructure.persistence.configuration.secrets import (
     resolve_secret,
     set_tool_secret,
+)
+from infrastructure.persistence.layout.data_home import (
+    get_config_path,
+    get_tool_config_path,
 )
 from infrastructure.persistence.model_execution_config import (
     load_model_execution_config,
 )
 from infrastructure.tools import (
     DirectCapabilityValidationAdapter,
-    RuntimeCapabilitiesAdapter,
     ToolCapabilitySecretAdapter,
 )
 from infrastructure.tools.validation.direct_validation import DirectToolValidationRunner
@@ -41,22 +40,17 @@ def build_capability_adapters(
     ToolCapabilitySecretAdapter,
     DirectCapabilityValidationAdapter,
 ]:
-    def read_document(path: Path):
-        if path == config_path:
-            return read_runtime_settings()
-        return read_yaml_mapping(path)
-
-    def write_document(path: Path, document):
-        if path == config_path:
-            write_runtime_settings(document)
-        else:
-            write_yaml_mapping(path, document)
+    tool_path = (
+        get_tool_config_path()
+        if config_path == get_config_path()
+        else config_path.with_name("tools.yaml")
+    )
+    tool_defaults = load_tool_defaults()
 
     return (
         RuntimeCapabilitiesAdapter(
-            config_path,
-            read_document=read_document,
-            write_document=write_document,
+            tool_path,
+            defaults=tool_defaults,
         ),
         ToolCapabilitySecretAdapter(
             secret_path,
@@ -69,6 +63,7 @@ def build_capability_adapters(
                 config,
                 search_plugin=WebSearchPlugin.from_model_execution_policy(
                     config.runtime_policy,
+                    defaults=tool_defaults,
                     secret_resolver=resolve_secret,
                 ),
             ),

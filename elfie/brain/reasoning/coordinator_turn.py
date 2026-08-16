@@ -427,6 +427,14 @@ class CoordinatorTurnFactory:
         if behavior_anchors:
             lines.append("- 物种相关的初遇倾向只是可能的观察顺序，不是固定人格：")
             lines.extend(f"  - {item}" for item in behavior_anchors)
+        sensory_biases = getattr(selfhood, "sensory_biases", ())
+        if sensory_biases:
+            lines.append("- 物种常见的感知偏好只是注意线索，不是确定事实：")
+            lines.extend(f"  - {item}" for item in sensory_biases)
+        species_knowledge = getattr(selfhood, "species_knowledge", ())
+        if species_knowledge:
+            lines.append("- 物种共有知识是有限的背景知识，不等于个体亲历：")
+            lines.extend(f"  - {item}" for item in species_knowledge)
         if anchor.knowledge_boundaries:
             lines.append("- 知识边界：")
             lines.extend(f"  - {item}" for item in anchor.knowledge_boundaries)

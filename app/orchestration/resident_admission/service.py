@@ -40,9 +40,9 @@ class ResidentAdmissionService:
         self._elfies = elfies
         self._residents = residents
         self._admission_lock = threading.RLock()
-        self._completed: OrderedDict[
-            tuple[int, str], ResidentAdmissionResult
-        ] = OrderedDict()
+        self._completed: OrderedDict[tuple[int, str], ResidentAdmissionResult] = (
+            OrderedDict()
+        )
 
     def admit(
         self,
