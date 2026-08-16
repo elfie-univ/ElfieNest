@@ -69,6 +69,7 @@ GODOT_ROOT_ENTRIES: Dict[str, ScopeEntry] = {
 
 GODOT_RUNTIME_ENTRIES: Dict[str, ScopeEntry] = {
     **_files("species_catalog.gd", disposition="target"),
+    **_files("species_catalog.gd.uid", disposition="generated"),
     "actor": ScopeEntry("directory", "target"),
     "endpoint": ScopeEntry("directory", "target"),
     "lab": ScopeEntry("directory", "presentation"),
