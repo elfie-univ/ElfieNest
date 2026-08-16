@@ -175,14 +175,20 @@ Before submitting, run the repository hard gate after fetching the remote base:
 
 ```bash
 git fetch --prune origin main
-bash scripts/pre_submit_gate.sh \
+.venv/bin/python3 scripts/check_task_closure.py \
+  --file task-closure.json \
   --base-sha "$(git rev-parse origin/main^{commit})"
+bash scripts/pre_submit_gate.sh \
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --closure-file task-closure.json
 ```
 
-This gate includes the immutable-base architecture ratchets, dependency and
-toolchain checks, the quality baseline, pre-commit/Gitleaks, the complete test
-suite, CLI smoke and the documentation build. If the gate is blocked by the
-host capability preflight or any check fails, do not commit, push or merge.
+The closure check must pass first; it rejects unclassified changes, incomplete
+evidence rows and open listed Conformance rows. The hard gate then includes the
+immutable-base architecture ratchets, dependency and toolchain checks, the
+quality baseline, pre-commit/Gitleaks, the complete test suite, CLI smoke and
+the documentation build. If the gate is blocked by the host capability
+preflight or any check fails, do not commit, push or merge.
 
 The individual checks performed by the gate are:
 

@@ -6,6 +6,8 @@
     ".agents/skills/git-submit-and-push/SKILL.md",
     ".agents/skills/task-closure/**",
     "AGENTS.md",
+    "CONTRIBUTING.md",
+    "CONTRIBUTING_zh.md",
     "docs/developer/decisions/0022-evidence-backed-task-closure.md",
     "docs/developer/decisions/index.md",
     "docs/developer/engineering/testing.md",
@@ -77,15 +79,15 @@
     },
     {
       "id": "REQ-004",
-      "requirement": "Make the workflow discoverable in agent rules and bilingual developer testing documentation.",
+      "requirement": "Make the workflow discoverable in agent rules, contributor guides and bilingual developer testing documentation.",
       "status": "complete",
-      "implementation": ["AGENTS.md", "docs/developer/engineering/testing.md", "docs/zh/developer/engineering/testing.md", "scripts/README.md", "scripts/README_zh.md"],
+      "implementation": ["AGENTS.md", "CONTRIBUTING.md", "CONTRIBUTING_zh.md", "docs/developer/engineering/testing.md", "docs/zh/developer/engineering/testing.md", "scripts/README.md", "scripts/README_zh.md"],
       "automated_tests": ["Architecture/documentation structure checks"],
       "runtime_scenarios": ["A new task follows the documented matrix and final gate commands."],
       "platform_conditions": ["English and Chinese developer documentation mirrors"],
       "evidence": [
         "command: .venv/bin/python3 -m pytest test/architecture/test_documentation_structure.py",
-        "artifact: AGENTS.md and bilingual testing documentation",
+        "artifact: AGENTS.md, bilingual contributor/testing documentation and scripts README",
         "review: no completion claim is allowed while a required row is open"
       ],
       "residuals": [],

@@ -139,11 +139,16 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 ```bash
 git fetch --prune origin main
-bash scripts/pre_submit_gate.sh \
+.venv/bin/python3 scripts/check_task_closure.py \
+  --file task-closure.json \
   --base-sha "$(git rev-parse origin/main^{commit})"
+bash scripts/pre_submit_gate.sh \
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --closure-file task-closure.json
 ```
 
-这个门禁包含不可变基础提交架构 ratchet、依赖和工具链检查、质量基线、
+完成检查必须先通过；它会拒绝未归属的改动、证据不完整的矩阵行和仍开放的列举
+Conformance 行。随后硬门禁运行不可变基础提交架构 ratchet、依赖和工具链检查、质量基线、
 pre-commit/Gitleaks、完整测试套件、CLI smoke 和文档构建。如果环境能力预检阻断或任一
 检查失败，不得提交、推送或合并。
 
