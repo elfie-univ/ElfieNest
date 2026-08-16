@@ -231,6 +231,10 @@ def test_bootstrap_report_marks_healthy_path_ollama_as_external(tmp_path: Path) 
     prepare_build_runtime(project_root)
     fake_bin = tmp_path / "fake-bin"
     make_executable(fake_bin / "ollama")
+    make_executable(
+        fake_bin / "godot4",
+        "#!/bin/sh\necho '4.7.1.stable'\n",
+    )
     elfie_home = tmp_path / "elfie-home"
     elfie_home.mkdir()
 
