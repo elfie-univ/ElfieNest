@@ -22,6 +22,9 @@ partial task from being reported as finished.
 - `scripts/check_task_closure.py` runs before the full pre-submit gate and
   rejects incomplete rows, unclassified changes, broad scopes and listed open
   Conformance rows.
+- The root `AGENTS.md` and contributor testing guidance are part of this
+  governance surface; changes to their completion rules must ship with this
+  bilingual ADR and remain separately reviewable from protected implementation.
 - Changes to the closure skill or its guards use two phases: first land the
   governance-only classifier/ADR/test registration; then land the protected
   checker, integration and behavior tests. Immutable-base governance checks are
