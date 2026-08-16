@@ -177,6 +177,21 @@ class AccountsService:
             ttl_seconds=policy.session_ttl_seconds,
         )
 
+    def find_principal(self, user_id: int) -> AccountPrincipal | None:
+        """Resolve a current least-surprise principal for trusted App workflows."""
+        try:
+            record = self._require_management().find_profile(user_id)
+        except AccountPersistenceError:
+            return None
+        if record is None:
+            return None
+        return AccountPrincipal(
+            user_id=record.user_id,
+            account_id=record.account_id,
+            role=record.role,
+            default_landing_page=record.default_landing_page,
+        )
+
     def authenticate_session(self, token: str) -> AccountPrincipal | None:
         return self._require_sessions().find_session(token, self._now())
 

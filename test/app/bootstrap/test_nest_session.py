@@ -37,6 +37,12 @@ class _FakeSession:
 
 
 def test_restore_registered_elfies_isolates_one_invalid_profile(monkeypatch) -> None:
+    catalog_calls: list[bool] = []
+    monkeypatch.setattr(
+        nest_session_bootstrap,
+        "load_and_configure_species_catalog",
+        lambda: catalog_calls.append(True),
+    )
     rows = (
         SimpleNamespace(elfie_id="ready", name="Ready"),
         SimpleNamespace(elfie_id="broken", name="Broken"),
@@ -99,6 +105,7 @@ def test_restore_registered_elfies_isolates_one_invalid_profile(monkeypatch) -> 
         session,  # type: ignore[arg-type]
     )
 
+    assert catalog_calls == [True]
     assert result.restored == (nest_session_bootstrap.RestoredElfie("ready", "Ready"),)
     assert result.failures == (
         nest_session_bootstrap.ElfieRestoreFailure(

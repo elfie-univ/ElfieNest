@@ -33,6 +33,9 @@ from infrastructure.persistence.configuration.bundled_defaults import (
     load_emotion_expression_defaults,
     load_nest_config,
 )
+from infrastructure.persistence.configuration.species import (
+    load_and_configure_species_catalog,
+)
 from infrastructure.persistence.elfie_workspace.brain_state import (
     YamlEnergyLimitsAdapter,
     YamlSelfhoodSeedAdapter,
@@ -134,6 +137,11 @@ def restore_registered_elfies(
     emotion_expression_config: Mapping[str, object] | None = None,
 ) -> ElfieRestoreResult:
     """Restore the existing persisted Elfies and register them in one Nest Session."""
+    # Restoration validates each persisted profile through the domain's injected
+    # species catalog. The foreground service restores residents before it
+    # constructs the HTTP application container, so this bootstrap boundary must
+    # establish that catalog before invoking ElfieFactory.
+    load_and_configure_species_catalog()
     factory = ElfieFactory()
     restored: list[RestoredElfie] = []
     failures: list[ElfieRestoreFailure] = []

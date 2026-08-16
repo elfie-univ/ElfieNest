@@ -15,10 +15,17 @@ def ensure_chat_conversation(
     user_id: int | None,
     created_at: str,
     needs_external_account: bool,
+    external_actor_id: str | None = None,
+    external_actor_display_name: str | None = None,
 ) -> tuple[str, str, str]:
     """Create stable final-schema accounts and active participants idempotently."""
     self_account_id = f"self:{channel}:{elfie_id}"
-    external_identity = "anonymous" if user_id is None else f"user:{user_id}"
+    external_identity = (
+        external_actor_id
+        if external_actor_id is not None
+        else ("anonymous" if user_id is None else f"user:{user_id}")
+    )
+    external_display_name = external_actor_display_name or external_identity
     external_account_id = f"external:{channel}:{external_identity}"
     storage_conversation_id = (
         "conversation:"
@@ -60,7 +67,7 @@ def ensure_chat_conversation(
                 external_account_id,
                 channel,
                 external_identity,
-                external_identity,
+                external_display_name,
                 created_at,
                 created_at,
                 created_at,
@@ -72,7 +79,7 @@ def ensure_chat_conversation(
             (
                 storage_conversation_id,
                 external_account_id,
-                external_identity,
+                external_display_name,
                 created_at,
             ),
         )

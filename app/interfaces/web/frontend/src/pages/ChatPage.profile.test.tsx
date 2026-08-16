@@ -28,6 +28,7 @@ const chatApi = vi.hoisted(() => ({
   elfies: vi.fn(),
   messages: vi.fn(),
   profile: vi.fn(),
+  telegramAccount: vi.fn(),
   sendMessage: vi.fn(),
 }))
 
@@ -47,6 +48,7 @@ vi.mock("../api/client", async (loadOriginal) => {
     elfieFoodPolicy: chatApi.elfieFoodPolicy,
     elfies: chatApi.elfies,
     profile: chatApi.profile,
+    telegramAccount: chatApi.telegramAccount,
   }
 })
 
@@ -93,6 +95,7 @@ const elfie = {
 
 function profileDetail(source: typeof elfie) {
   return {
+    relationship: "owned" as const,
     ...source,
     private_cognition: {
       status: "ready" as const,
@@ -142,6 +145,16 @@ describe("ChatPage profile integration", () => {
     })
     chatApi.messages.mockResolvedValue([])
     chatApi.profile.mockResolvedValue(profileDetail(elfie))
+    chatApi.telegramAccount.mockResolvedValue({
+      elfie_id: "00000001",
+      state: "unconfigured",
+      bot_username: null,
+      bot_display_name: null,
+      bound_telegram_username: null,
+      bound_display_name: null,
+      last_checked_at: null,
+      issue: null,
+    })
   })
 
   it("restores a profile deep link from the URL across a fresh render", async () => {

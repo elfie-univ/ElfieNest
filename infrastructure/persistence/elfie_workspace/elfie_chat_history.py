@@ -66,6 +66,8 @@ class ElfieChatMessageInput:
     user_id: int | None = None
     meta: str = ""
     attachment_refs: tuple[str, ...] = ()
+    external_actor_id: str | None = None
+    external_actor_display_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -117,8 +119,15 @@ def record_elfie_chat_message(
                 created_at=created_at,
                 needs_external_account=(
                     message.sender is ElfieChatSender.USER
-                    or message.user_id is not None
+                    or message.external_actor_id is not None
+                    or (
+                        message.sender is ElfieChatSender.ELFIE
+                        and message.channel == "web"
+                        and message.user_id is not None
+                    )
                 ),
+                external_actor_id=message.external_actor_id,
+                external_actor_display_name=message.external_actor_display_name,
             )
         )
         sender_type, direction = _STORAGE_SENDERS[message.sender]

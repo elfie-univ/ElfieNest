@@ -53,6 +53,7 @@ describe("member Elfies client", () => {
     const result = await profile("00000002")
 
     expect(result.name).toBe("Kettle")
+    expect(result.relationship).toBe("other")
     expect(result.private_cognition).toBeNull()
   })
 })

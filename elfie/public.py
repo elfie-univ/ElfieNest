@@ -20,6 +20,7 @@ from elfie.brain.reasoning.food_port import MainFoodSelection
 from elfie.brain.reasoning.model_port import ModelPort
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.communication import (
+    CommunicationChannel,
     CommunicationEnvelope,
     DeliveryReceipt,
     DeliveryStatus,
@@ -51,6 +52,7 @@ __all__ = [
     "HeardUtterancePayload",
     "NestFactNoticePayload",
     "CommunicationEnvelope",
+    "CommunicationChannel",
     "DeliveryReceipt",
     "DeliveryStatus",
     "Elfie",

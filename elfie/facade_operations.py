@@ -162,6 +162,20 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             replace=replace,
         )
 
+    def unregister_communication_channel(
+        self,
+        channel_id: str,
+        *,
+        expected: RegisteredChannel | None = None,
+    ) -> bool:
+        """Detach exactly the expected channel without racing a replacement."""
+        current = self._communication.router.get(channel_id)
+        if current is None or (expected is not None and current is not expected):
+            return False
+        current.disconnect()
+        self._communication.router.unregister(channel_id)
+        return True
+
     def configure_cognition(
         self,
         model_port: ModelPort,

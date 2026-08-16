@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "task": "Deliver owner-configured Telegram communication for Elfie",
+  "contract_refs": [
+    "docs/developer/contracts/system.md",
+    "docs/developer/contracts/application.md"
+  ],
+  "scope": [
+    "app/bootstrap/api.py",
+    "app/bootstrap/app_wiring/communication.py",
+    "app/bootstrap/container.py",
+    "app/bootstrap/system_wiring/nest_session.py",
+    "app/features/accounts/service.py",
+    "app/features/communication/**",
+    "app/interfaces/api/app.py",
+    "app/interfaces/api/v1/elfies/communication_accounts/**",
+    "app/interfaces/web/frontend/src/api/client.ts",
+    "app/interfaces/web/frontend/src/api/elfies/profiles.ts",
+    "app/interfaces/web/frontend/src/api/elfies/profiles.test.ts",
+    "app/interfaces/web/frontend/src/api/elfies/communication-accounts.ts",
+    "app/interfaces/web/frontend/src/api/elfies/communication-accounts.test.ts",
+    "app/interfaces/web/frontend/src/components/ElfieProfilePanel.tsx",
+    "app/interfaces/web/frontend/src/components/ElfieProfilePanel.test.tsx",
+    "app/interfaces/web/frontend/src/components/elfie-profile/ProfilePrivateModules.tsx",
+    "app/interfaces/web/frontend/src/components/elfie-profile/ProfileTelegramAccount.tsx",
+    "app/interfaces/web/frontend/src/components/elfie-profile/ProfileTelegramAccount.test.tsx",
+    "app/interfaces/web/frontend/src/components/elfie-profile/profile-presentation.test.ts",
+    "app/interfaces/web/frontend/src/i18n/locales/en-US/chat.ts",
+    "app/interfaces/web/frontend/src/i18n/locales/zh-CN/chat.ts",
+    "app/interfaces/web/frontend/src/pages/ChatPage.tsx",
+    "app/interfaces/web/frontend/src/pages/ChatPage.profile.test.tsx",
+    "app/interfaces/web/frontend/src/shared/chat-profile.css",
+    "app/interfaces/web/frontend/src/test/fixtures/elfie-profile.ts",
+    "app/orchestration/lifecycle/__init__.py",
+    "app/orchestration/lifecycle/runtime_resources.py",
+    "app/orchestration/message_delivery/**",
+    "app/orchestration/nest_session/session.py",
+    "elfie/public.py",
+    "elfie/facade_operations.py",
+    "infrastructure/communication/**",
+    "infrastructure/persistence/configuration/telegram_tokens.py",
+    "infrastructure/persistence/elfie_workspace/communication.py",
+    "infrastructure/persistence/elfie_workspace/elfie_chat_history.py",
+    "infrastructure/persistence/elfie_workspace/elfie_chat_history_support.py",
+    "infrastructure/persistence/elfie_workspace/telegram_accounts.py",
+    "test/app/bootstrap/test_nest_session.py",
+    "test/app/features/communication/**",
+    "test/app/interfaces/api/v1/elfies/communication_accounts/**",
+    "test/app/orchestration/lifecycle/test_runtime_resources.py",
+    "test/app/orchestration/message_delivery/**",
+    "test/infrastructure/communication/**",
+    "test/infrastructure/persistence/configuration/test_telegram_tokens.py",
+    "test/infrastructure/persistence/elfie_workspace/test_telegram_accounts.py",
+    "design-qa.md",
+    "task-closure-telegram.json"
+  ],
+  "conformance": {
+    "rows": [],
+    "reason": "Telegram uses existing App, Elfie, communication, message-delivery, lifecycle, and persistence boundaries; no conformance register row is changed."
+  },
+  "rows": [
+    {
+      "id": "TELEGRAM-UI-001",
+      "requirement": "An Elfie owner can configure Telegram from Elfie detail management through the three-step desktop/mobile flow and see connected or reconfiguration state.",
+      "status": "complete",
+      "implementation": [
+        "app/interfaces/web/frontend/src/components/elfie-profile/ProfileTelegramAccount.tsx",
+        "app/interfaces/web/frontend/src/components/elfie-profile/ProfilePrivateModules.tsx",
+        "app/interfaces/web/frontend/src/shared/chat-profile.css"
+      ],
+      "automated_tests": [
+        "pnpm exec vitest run src/components/elfie-profile/ProfileTelegramAccount.test.tsx src/components/elfie-profile/ProfilePrivateModules.test.tsx src/components/elfie-profile/profile-presentation.test.ts --maxWorkers=1",
+        "pnpm run typecheck",
+        "pnpm run build"
+      ],
+      "runtime_scenarios": [
+        "Authenticated owner opens /chat?view=profile&elfie=16878131, enters 管理精灵 → Telegram 聊天, completes steps 1–3, uses Back, and reopens the connected card."
+      ],
+      "platform_conditions": [
+        "Desktop Chromium 1440 × 1000",
+        "Mobile Chromium 390 × 844"
+      ],
+      "evidence": [
+        "command: pnpm exec vitest run src/components/elfie-profile/ProfileTelegramAccount.test.tsx src/components/elfie-profile/ProfilePrivateModules.test.tsx src/components/elfie-profile/profile-presentation.test.ts --maxWorkers=1",
+        "artifact: design-qa.md and /Users/zhenli/.codex/visualizations/2026/08/16/01a007e1-1c2b-71f2-928f-45ee8d6a27c1/telegram-setup-flow.html",
+        "host: authenticated local owner page with desktop and mobile captures",
+        "review: final visual QA found no actionable P0/P1/P2 issue"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "TELEGRAM-ACCOUNT-002",
+      "requirement": "The owner can validate a Bot Token, bind exactly one Telegram bot to the owned Elfie, view masked status, and unlink or reconfigure without exposing the secret.",
+      "status": "complete",
+      "implementation": [
+        "app/features/communication/telegram_service.py",
+        "app/interfaces/api/v1/elfies/communication_accounts/routes.py",
+        "infrastructure/persistence/configuration/telegram_tokens.py",
+        "infrastructure/persistence/elfie_workspace/telegram_accounts.py"
+      ],
+      "automated_tests": [
+        "pytest test/app/features/communication/test_telegram_accounts_service.py test/app/interfaces/api/v1/elfies/communication_accounts/test_telegram_routes.py test/infrastructure/persistence/configuration/test_telegram_tokens.py test/infrastructure/persistence/elfie_workspace/test_telegram_accounts.py"
+      ],
+      "runtime_scenarios": [
+        "Owner-only local API flow validates, stores, reads masked metadata, and removes a Telegram binding through the SQLite/data-home adapters."
+      ],
+      "platform_conditions": [
+        "CPython 3.9.25 repository environment",
+        "ELFIE_HOME-backed SQLite and ignored token storage"
+      ],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest test/app/features/communication/test_telegram_accounts_service.py test/app/interfaces/api/v1/elfies/communication_accounts/test_telegram_routes.py test/infrastructure/persistence/configuration/test_telegram_tokens.py test/infrastructure/persistence/elfie_workspace/test_telegram_accounts.py",
+        "artifact: app/interfaces/api/v1/elfies/communication_accounts/routes.py and infrastructure/persistence/configuration/telegram_tokens.py",
+        "review: token values are never rendered in the connected-account card or committed artifacts"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "TELEGRAM-MESSAGE-003",
+      "requirement": "Telegram updates are received by the adapter, routed through the existing message-delivery path, persisted in chat history, and answered through the injected Elfie model path.",
+      "status": "complete",
+      "implementation": [
+        "infrastructure/communication/telegram/**",
+        "app/orchestration/message_delivery/telegram.py",
+        "app/orchestration/message_delivery/service.py",
+        "infrastructure/communication/elfie_delivery.py",
+        "infrastructure/persistence/elfie_workspace/elfie_chat_history.py"
+      ],
+      "automated_tests": [
+        "pytest test/infrastructure/communication/telegram test/app/orchestration/message_delivery/test_telegram_update_handler.py test/app/orchestration/message_delivery/test_message_delivery_facade.py"
+      ],
+      "runtime_scenarios": [
+        "Deterministic Telegram update fixture traverses mapper, owner binding, message delivery, history persistence, and reply dispatch without a second chat authority."
+      ],
+      "platform_conditions": [
+        "Deterministic adapter replay does not require a live credential",
+        "Runtime resource lifecycle is owned by application lifespan"
+      ],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest test/infrastructure/communication/telegram test/app/orchestration/message_delivery/test_telegram_update_handler.py test/app/orchestration/message_delivery/test_message_delivery_facade.py",
+        "artifact: app/orchestration/message_delivery/telegram.py and infrastructure/communication/telegram/runner.py",
+        "review: delivery remains behind existing communication and message-delivery ports"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "TELEGRAM-ARCH-004",
+      "requirement": "Telegram is assembled through existing Bootstrap and lifecycle boundaries without a second authority or forbidden dependency direction.",
+      "status": "complete",
+      "implementation": [
+        "app/bootstrap/api.py",
+        "app/bootstrap/app_wiring/communication.py",
+        "app/bootstrap/container.py",
+        "app/orchestration/lifecycle/runtime_resources.py",
+        "app/features/communication/telegram_ports.py"
+      ],
+      "automated_tests": [
+        "bash scripts/pre_submit_gate.sh --base-sha origin/main --closure-file task-closure-telegram.json"
+      ],
+      "runtime_scenarios": [
+        "Application lifespan starts and stops the Telegram runtime resource alongside the existing core validation worker, including partial-start cleanup."
+      ],
+      "platform_conditions": [
+        "Latest fetched origin/main base",
+        "Repository architecture and quality toolchain"
+      ],
+      "evidence": [
+        "command: bash scripts/pre_submit_gate.sh --base-sha origin/main --closure-file task-closure-telegram.json",
+        "artifact: app/bootstrap/api.py and app/orchestration/lifecycle/runtime_resources.py",
+        "review: app, elfie, nest, infrastructure, and interface ownership remains aligned with existing contracts"
+      ],
+      "residuals": [],
+      "blockers": []
+    }
+  ]
+}

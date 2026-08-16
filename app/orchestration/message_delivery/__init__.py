@@ -26,6 +26,11 @@ from .ports import (
     OwnerMessageBroadcaster,
 )
 from .service import MessageDeliveryFacade
+from .telegram import (
+    TelegramReplyRecorder,
+    TelegramUpdateHandler,
+    TelegramUpdateOutcome,
+)
 
 __all__ = (
     "DeliverElfieReplyCommand",
@@ -45,6 +50,9 @@ __all__ = (
     "OwnerMessageBroadcaster",
     "SubmittedMessageResult",
     "SubmitUserMessageCommand",
+    "TelegramReplyRecorder",
+    "TelegramUpdateHandler",
+    "TelegramUpdateOutcome",
     "UserMessageDeliveryAttempt",
     "deliver_owner_message",
 )

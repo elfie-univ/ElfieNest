@@ -99,6 +99,41 @@ def test_user_message_is_written_once_only_after_accepted_receipt() -> None:
     communication.record_prepared_user_message.assert_called_once()
 
 
+def test_external_channel_preserves_conversation_and_routes_through_same_channel() -> (
+    None
+):
+    events: list[str] = []
+    communication = _communication(events)
+    communication.prepare_user_message.side_effect = None
+    communication.prepare_user_message.return_value = PreparedUserMessageResult(
+        access=ConversationAccessResult("00000001", 7, "owner"),
+        text="你好",
+        channel="telegram",
+        message_id="telegram:991:update:42",
+        conversation_id="telegram:1701",
+        external_actor_id="701",
+        external_actor_display_name="七号主人",
+    )
+    delivery = Delivery(events, DeliveryAdmission(status="accepted"))
+    facade = MessageDeliveryFacade(communication, delivery, Live(events))
+
+    facade.submit_user_message(
+        _principal(),
+        SubmitUserMessageCommand(
+            elfie_id="00000001",
+            text="你好",
+            channel="telegram",
+            conversation_id="telegram:1701",
+            external_message_id="telegram:991:update:42",
+            external_actor_id="701",
+            external_actor_display_name="七号主人",
+        ),
+    )
+
+    assert delivery.attempts[0].channel_id == "telegram"
+    assert delivery.attempts[0].conversation_id == "telegram:1701"
+
+
 def test_duplicate_receipt_does_not_write_history() -> None:
     events: list[str] = []
     communication = _communication(events)

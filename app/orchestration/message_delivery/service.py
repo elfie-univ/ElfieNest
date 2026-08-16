@@ -49,6 +49,9 @@ class MessageDeliveryFacade:
                 text=command.text,
                 channel=command.channel,
                 message_id=command.external_message_id,
+                conversation_id=command.conversation_id,
+                external_actor_id=command.external_actor_id,
+                external_actor_display_name=command.external_actor_display_name,
             ),
         )
         access = prepared.access
@@ -59,8 +62,12 @@ class MessageDeliveryFacade:
                     text=prepared.text,
                     owner_user_id=access.owner_user_id,
                     owner_account_id=access.owner_account_id,
-                    conversation_id=f"owner:{access.owner_user_id}",
-                    channel_id="godot-owner",
+                    conversation_id=(
+                        prepared.conversation_id or f"owner:{access.owner_user_id}"
+                    ),
+                    channel_id=(
+                        "godot-owner" if command.channel == "web" else command.channel
+                    ),
                     external_message_id=command.external_message_id,
                 )
             )

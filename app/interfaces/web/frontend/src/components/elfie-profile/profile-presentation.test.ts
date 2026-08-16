@@ -5,6 +5,8 @@ import type { ElfieFoodPolicy } from "../../api/elfies/food-policy"
 import { presentElfieProfile } from "./profile-presentation"
 
 const REAL_API_PROFILE = {
+  relationship: "owned" as const,
+  permissions: { can_view_profile: true, can_view_cognition: true },
   appearance: null,
   big_five: null,
   birth_date: null,

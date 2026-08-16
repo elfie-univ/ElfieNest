@@ -53,13 +53,33 @@ def test_wechat_channel_sends_envelope_with_typed_receipt() -> None:
 
 
 def test_telegram_channel_sends_envelope_with_typed_receipt() -> None:
-    connector = TelegramConnector()
-    channel = TelegramChannel(connector)
+    class Client:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def send_message(self, chat_id: str, text: str):
+            from infrastructure.communication.telegram.client import TelegramSentMessage
+
+            assert (chat_id, text) == ("1701", "你好")
+            return TelegramSentMessage(17)
+
+        def close(self) -> None:
+            self.closed = True
+
+    client = Client()
+    connector = TelegramConnector(client)
+    channel = TelegramChannel(
+        connector,
+        elfie_id="elfie-1",
+        bot_id="991",
+        conversation_id="telegram:1701",
+    )
 
     assert channel.connect() is True
-    receipt = channel.send_envelope(outbound("telegram", "chat-1"))
+    receipt = channel.send_envelope(outbound("telegram", "telegram:1701"))
 
     assert receipt.status is DeliveryStatus.SENT
     assert receipt.channel_id == "telegram"
     channel.disconnect()
     assert connector.is_connected is False
+    assert client.closed is True

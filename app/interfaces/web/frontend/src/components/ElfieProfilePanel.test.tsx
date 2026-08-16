@@ -287,7 +287,7 @@ describe("ElfieProfilePanel", () => {
     expect(screen.getByText("外观照片", { selector: ".profile-appearance__title" })).toBeInTheDocument()
     expect(screen.getByText("大五人格", { selector: ".profile-dossier__section-name" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "拍照" })).not.toBeInTheDocument()
-    for (const title of PRIVATE_MODULE_TITLES.slice(0, -1)) {
+    for (const title of PRIVATE_MODULE_TITLES.filter((item) => item !== "粮食策略" && item !== "Telegram 聊天")) {
       expect(screen.getByRole("button", { name: title })).toBeInTheDocument()
     }
     expect(screen.queryByRole("button", { name: "粮食策略" })).not.toBeInTheDocument()
@@ -306,6 +306,7 @@ describe("ElfieProfilePanel", () => {
     const user = userEvent.setup()
     await user.click(screen.getByRole("tab", { name: "管理精灵" }))
     expect(screen.getByRole("button", { name: "粮食策略" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Telegram 聊天" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "近期关注" })).not.toBeInTheDocument()
   })
 
