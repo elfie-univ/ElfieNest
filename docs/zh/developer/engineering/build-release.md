@@ -44,6 +44,9 @@ ARM64、macOS x64、Windows x64、Linux x64。安装包不包含 Ollama 引擎�
 只能报告 `incomplete`，不能伪造跨平台成功。所有中间物都在 `build/`，最终安装包只在
 `dist/`：
 
+原生 target 使用 macOS `PKG`、Windows `NSIS` 和 Linux `DEB`。各安装器钩子会把包内管理
+CLI 暴露为全局 `elfienest` 命令，并且只移除当前安装所拥有的 launcher。
+
 ```bash
 # 构建当前原生 target；只在本地 build/dist 生成，不上传或发布
 .venv/bin/python scripts/release.py --target darwin-x64

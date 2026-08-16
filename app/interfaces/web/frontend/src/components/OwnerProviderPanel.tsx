@@ -320,24 +320,46 @@ function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onForceF
   readonly onVerify: () => void
 }) {
   const { t } = useTranslation("manage")
-  const activeModels = connection.models.filter((model) => !model.hidden && !model.retired)
+  const activeModels = connection.models.filter((model) => !model.hidden && !model.retired && model.discovery_state !== "source_missing")
   const enabledCount = activeModels.length
   const verifiedCount = activeModels.filter((model) => model.verification.status === "passed").length
   const failedCount = activeModels.filter((model) => model.verification.status === "failed").length
-  const health = enabledCount === 0
-    ? "never"
-    : verifiedCount === enabledCount
-      ? "passed"
-      : verifiedCount > 0
-        ? "partial"
-        : failedCount > 0 ? "failed" : "never"
-  const status = health === "passed"
-    ? t("providerConnections.status.passed")
-    : health === "partial"
-      ? t("providerConnections.status.partial")
-      : health === "failed"
-        ? t("providerConnections.status.failed")
-        : t("providerConnections.status.never")
+  const hasAvailability = activeModels.some((model) => model.verification.availability_status !== undefined)
+  const availableCount = activeModels.filter((model) => {
+    const status = model.verification.availability_status
+    return status === "available"
+  }).length
+  const coreModels = activeModels.filter((model) => model.verification.is_core === true)
+  const coreAvailableCount = coreModels.filter((model) => {
+    const status = model.verification.availability_status
+    return status === "available"
+  }).length
+  const health = hasAvailability
+    ? availabilityCardHealth(connection, activeModels)
+    : enabledCount === 0
+      ? "never"
+      : verifiedCount === enabledCount
+        ? "passed"
+        : verifiedCount > 0
+          ? "partial"
+          : failedCount > 0 ? "failed" : "never"
+  const status = hasAvailability
+    ? availabilityCardLabel(health, t)
+    : health === "passed"
+      ? t("providerConnections.status.passed")
+      : health === "partial"
+        ? t("providerConnections.status.partial")
+        : health === "failed"
+          ? t("providerConnections.status.failed")
+          : t("providerConnections.status.never")
+  const modelStats = hasAvailability
+    ? t("providerConnections.card.availabilityStats", {
+      total: enabledCount,
+      available: availableCount,
+      core: coreAvailableCount,
+      coreTotal: coreModels.length,
+    })
+    : t("providerConnections.card.modelStats", { total: connection.models.length, enabled: enabledCount, verified: verifiedCount })
   const validationHint = connection.verification.needs_full_validation
     ? t("providerConnections.card.needsFullValidation")
     : connection.verification.needs_heartbeat
@@ -345,5 +367,30 @@ function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onForceF
       : connection.verification.validation_mode === "cached"
         ? t("providerConnections.card.cached")
         : null
-  return <article className={`provider-card provider-card--${health}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${health}`}>{status}</span></div><p className="provider-card__model-stats">{t("providerConnections.card.modelStats", { total: connection.models.length, enabled: enabledCount, verified: verifiedCount })}</p>{validationHint ? <small className="provider-card__validation-hint">{validationHint}</small> : null}<div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><ProviderLifecycleMenu archived={connection.archived} busy={busy} enabled={connection.enabled} onDelete={onDelete} onForceFull={onForceFull} onLifecycle={onLifecycle} /></div></article>
+  return <article className={`provider-card provider-card--${health}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${health}`}>{status}</span></div><p className="provider-card__model-stats">{modelStats}</p>{validationHint ? <small className="provider-card__validation-hint">{validationHint}</small> : null}<div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><ProviderLifecycleMenu archived={connection.archived} busy={busy} enabled={connection.enabled} onDelete={onDelete} onForceFull={onForceFull} onLifecycle={onLifecycle} /></div></article>
+}
+
+type AvailabilityModel = ProviderConnection["models"][number]
+
+function availabilityCardHealth(
+  connection: ProviderConnection,
+  models: readonly AvailabilityModel[],
+): "passed" | "partial" | "failed" | "never" {
+  if (!connection.enabled || connection.archived || models.length === 0) return "never"
+  const statuses = models.map((model) => model.verification.availability_status)
+  if (statuses.every((status) => status === "available")) return "passed"
+  if (statuses.some((status) => status === "available" || status === "degraded")) return "partial"
+  return statuses.some((status) => status === "unavailable") ? "failed" : "never"
+}
+
+function availabilityCardLabel(
+  health: "passed" | "partial" | "failed" | "never",
+  t: (key: string) => string,
+): string {
+  switch (health) {
+    case "passed": return t("providerConnections.status.available")
+    case "partial": return t("providerConnections.status.degraded")
+    case "failed": return t("providerConnections.status.unavailable")
+    case "never": return t("providerConnections.status.unknown")
+  }
 }

@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -eu
+
+target_root="${3:-/}"
+cli="${target_root%/}/Applications/ElfieNest.app/Contents/Resources/management-cli/ElfieNestCli"
+if [ ! -x "$cli" ]; then
+    echo "ElfieNest management CLI is missing after installation: $cli" >&2
+    exit 1
+fi
+
+mkdir -p /usr/local/bin
+ln -sfn "$cli" /usr/local/bin/elfienest
+chmod 755 /usr/local/bin/elfienest

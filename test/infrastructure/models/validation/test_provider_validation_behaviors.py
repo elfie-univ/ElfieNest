@@ -251,6 +251,55 @@ def test_single_validation_checks_configured_models_without_provider_models_prob
     assert payload["model_count"] == 2
 
 
+def test_connection_block_stops_the_remaining_model_checks(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Blocked account",
+        api_base="https://gateway.example/v1",
+        models=(
+            ProviderModelRecord(endpoint_model_id="model-a"),
+            ProviderModelRecord(endpoint_model_id="model-b"),
+        ),
+    )
+    reports = ReportStorageAdapter(ReportRepository())
+    calls: list[str] = []
+
+    def model_check(connection, model_id, model_execution_projection):
+        _ = connection, model_execution_projection
+        calls.append(model_id)
+        return {
+            "status": "failed",
+            "latency_ms": 10.0,
+            "latency_class": "fast",
+            "error": "账号余额不足",
+            "error_code": "billing_blocked",
+            "error_scope": "connection",
+            "error_category": "billing",
+        }
+
+    with patch(
+        "infrastructure.models.validation.provider_validation_checks.run_connection_model_check",
+        side_effect=model_check,
+    ):
+        payload = asyncio.run(
+            validate_connection(
+                connection,
+                model_execution_projection=model_execution_projection,
+                reports=reports,
+                secret_resolver=resolve_secret,
+            )
+        )
+
+    assert calls == ["model-a"]
+    assert payload["status"] == "failed"
+    assert payload["model_count"] == 1
+
+
 def test_single_validation_reuses_recent_full_result_without_new_model_requests(
     tmp_path: Path,
     monkeypatch,
@@ -318,6 +367,31 @@ def test_model_execution_projection_keeps_volcengine_profile_test_model() -> Non
 
     assert execution_id == connection.connection_id
     assert config.providers[execution_id]["test_model"] == "deepseek-v4-pro"
+
+
+def test_model_execution_projection_keeps_endpoint_request_profile_shape() -> None:
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Custom",
+        api_mode="chat_completions",
+        models=(
+            ProviderModelRecord(
+                endpoint_model_id="model-a",
+                request_profile_id="openai_chat_v1",
+                request_profile_version=1,
+            ),
+        ),
+    )
+
+    execution_id, config = model_execution_projection(connection)
+
+    assert config.providers[execution_id]["model_profiles"] == {
+        "model-a": {
+            "request_profile_id": "openai_chat_v1",
+            "request_profile_version": 1,
+        }
+    }
 
 
 def test_volcengine_health_check_uses_configured_model_without_models_probe(

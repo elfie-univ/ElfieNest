@@ -19,9 +19,7 @@ from app.orchestration.lifecycle import (
 
 WaitOnce = Callable[[threading.Event], bool]
 HEALTH_CHECK_INTERVAL_SECONDS: Final = 0.5
-TERMINAL_HEALTH_STATES: Final = frozenset(
-    (BackendTier.OFFLINE,)
-)
+TERMINAL_HEALTH_STATES: Final = frozenset((BackendTier.OFFLINE,))
 
 
 def run_foreground_service(

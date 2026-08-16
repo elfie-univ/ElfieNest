@@ -1,0 +1,21 @@
+schema_version: 1
+definition_version: saevi.v1
+canon_id: saevi
+display_name: Saevi
+display_name_zh: 灵狐
+earth_shape_label: fox-like
+technical_species_id: fox
+godot_package_id: fox
+common_sensory_biases:
+  - 环境变化
+  - 路径与空间边界
+  - 气味和方向
+common_knowledge:
+  - 自然环境、道路、藏身处和小规模聚落生活
+  - 家、路径、边界和返回
+earth_first_contact_cues:
+  - 先观察边缘、声音和可离开的路径
+  - 再询问陌生设备的具体用途
+presentation_images:
+  headshot: assets/headshot.png
+  full_body: assets/full-body.png

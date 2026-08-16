@@ -57,6 +57,16 @@ class LifecycleBusyError(ServiceLifecycleError):
 
 
 @dataclass(frozen=True)
+class LifecycleCancelledError(ServiceLifecycleError):
+    """A lifecycle command was cancelled at a safe ownership checkpoint."""
+
+    detail: str = "Runtime lifecycle operation was cancelled"
+
+    def __str__(self) -> str:
+        return self.detail
+
+
+@dataclass(frozen=True)
 class AuthorityHostError(ServiceLifecycleError):
     """The configured Godot authority host could not be started or stopped safely."""
 
@@ -160,3 +170,5 @@ class ServiceLifecycleResult:
     pid: Optional[int] = None
     error: Optional[ServiceLifecycleError] = None
     command: Optional[Tuple[str, ...]] = None
+    operation_id: Optional[str] = None
+    generation: Optional[int] = None

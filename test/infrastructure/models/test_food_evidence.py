@@ -22,7 +22,7 @@ def _configure_inventory(store: ProviderConnectionStore) -> None:
             models=(
                 ProviderModelRecord("local", supports_tools=True),
                 ProviderModelRecord("hidden", hidden=True),
-                ProviderModelRecord("unavailable", available=False),
+                ProviderModelRecord("unavailable", discovery_state="source_missing"),
                 ProviderModelRecord("odd-id", display_name="GLM-5"),
             ),
         )
@@ -150,3 +150,156 @@ def test_projection_uses_inventory_identity(tmp_path) -> None:
     )
 
     assert evidence["ollama_0001/odd-id"].display_name == "GLM-5"
+
+
+def test_capability_observations_overlay_model_health_without_replacing_it(
+    tmp_path,
+) -> None:
+    provider_store = ProviderConnectionStore(tmp_path / "providers.yaml")
+    repository = ReportRepository(tmp_path / "reports.db")
+    _configure_inventory(provider_store)
+    now = datetime.now(timezone.utc)
+    reference = "ollama_0001/local"
+
+    base_run = repository.start_run(scope=f"model:{reference}", trigger="full")
+    repository.append_observation(
+        run_id=base_run,
+        subject_kind="model",
+        subject_id=reference,
+        observed_at=now.isoformat(),
+        status="passed",
+        details={
+            "evidence_kind": "model_validation",
+            "validation_mode": "full",
+        },
+    )
+    repository.finish_run(base_run, status="complete")
+    capability_run = repository.start_run(
+        scope=f"model:{reference}:capability:tools",
+        trigger="single",
+    )
+    repository.append_observation(
+        run_id=capability_run,
+        subject_kind="model",
+        subject_id=reference,
+        observed_at=(now + timedelta(seconds=1)).isoformat(),
+        status="passed",
+        details={
+            "evidence_kind": "capability",
+            "capability": "tools",
+            "capability_state": "supported",
+            "capability_evidence": "verified",
+        },
+    )
+    repository.finish_run(capability_run, status="complete")
+
+    evidence = query_model_evidence(
+        repository=repository,
+        connection_store=provider_store,
+        now=now + timedelta(seconds=1),
+    )[reference]
+
+    assert evidence.status == "verified"
+    assert evidence.verified is True
+    assert evidence.capability_states == {"tools": "supported"}
+    assert "tools" in evidence.capabilities
+    assert evidence.tool_test_passed is True
+
+
+def test_unsupported_capability_does_not_make_text_health_disappear(tmp_path) -> None:
+    provider_store = ProviderConnectionStore(tmp_path / "providers.yaml")
+    repository = ReportRepository(tmp_path / "reports.db")
+    _configure_inventory(provider_store)
+    now = datetime.now(timezone.utc)
+    reference = "ollama_0001/local"
+
+    base_run = repository.start_run(scope=f"model:{reference}", trigger="full")
+    repository.append_observation(
+        run_id=base_run,
+        subject_kind="model",
+        subject_id=reference,
+        observed_at=now.isoformat(),
+        status="passed",
+        details={"evidence_kind": "model_validation", "validation_mode": "full"},
+    )
+    repository.finish_run(base_run, status="complete")
+    capability_run = repository.start_run(
+        scope=f"model:{reference}:capability:vision",
+        trigger="single",
+    )
+    repository.append_observation(
+        run_id=capability_run,
+        subject_kind="model",
+        subject_id=reference,
+        observed_at=(now + timedelta(seconds=1)).isoformat(),
+        status="failed",
+        details={
+            "evidence_kind": "capability",
+            "capability": "vision",
+            "capability_state": "unsupported",
+            "capability_evidence": "verified",
+        },
+    )
+    repository.finish_run(capability_run, status="complete")
+
+    evidence = query_model_evidence(
+        repository=repository,
+        connection_store=provider_store,
+        now=now + timedelta(seconds=1),
+    )[reference]
+
+    assert evidence.status == "verified"
+    assert evidence.verified is True
+    assert evidence.capability_states == {"vision": "unsupported"}
+
+
+def test_latest_capability_observation_wins_over_older_observation(tmp_path) -> None:
+    provider_store = ProviderConnectionStore(tmp_path / "providers.yaml")
+    repository = ReportRepository(tmp_path / "reports.db")
+    _configure_inventory(provider_store)
+    now = datetime.now(timezone.utc)
+    reference = "ollama_0001/local"
+
+    base_run = repository.start_run(scope=f"model:{reference}", trigger="full")
+    repository.append_observation(
+        run_id=base_run,
+        subject_kind="model",
+        subject_id=reference,
+        observed_at=now.isoformat(),
+        status="passed",
+        details={"evidence_kind": "model_validation", "validation_mode": "full"},
+    )
+    repository.finish_run(base_run, status="complete")
+
+    capability_run = repository.start_run(
+        scope=f"model:{reference}:capability:vision",
+        trigger="single",
+    )
+    for observed_at, state in (
+        (now + timedelta(seconds=1), "supported"),
+        (now + timedelta(seconds=2), "unsupported"),
+    ):
+        repository.append_observation(
+            run_id=capability_run,
+            subject_kind="model",
+            subject_id=reference,
+            observed_at=observed_at.isoformat(),
+            status="passed" if state == "supported" else "failed",
+            details={
+                "evidence_kind": "capability",
+                "capability": "vision",
+                "capability_state": state,
+                "capability_evidence": "verified",
+            },
+        )
+    repository.finish_run(capability_run, status="complete")
+
+    evidence = query_model_evidence(
+        repository=repository,
+        connection_store=provider_store,
+        now=now + timedelta(seconds=2),
+    )[reference]
+
+    assert evidence.status == "verified"
+    assert evidence.capability_states == {"vision": "unsupported"}
+    assert "vision" not in evidence.capabilities

@@ -19,6 +19,15 @@ def test_force_cleanup_reports_ports_still_occupied() -> None:
     assert remaining == [(8765, "Godot WebSocket")]
 
 
+def test_force_flag_never_terminates_a_port_occupant() -> None:
+    source = (Path(__file__).resolve().parents[4] / "scripts" / "serve.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Compatibility flag; never terminates a port occupant" in source
+    assert "terminate_process(" not in source
+
+
 def test_implicit_defaults_move_as_a_pair_when_another_process_owns_them(
     tmp_path: Path,
 ) -> None:

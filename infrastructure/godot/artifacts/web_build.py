@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
+from infrastructure.persistence.configuration.species import load_species_catalog
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 GODOT_PROJECT = PROJECT_ROOT / "godot_project"
@@ -167,7 +168,12 @@ def _export_runtime_locked(
         )
         return 1
 
-    _write_manifest(staging, actual_version or "unknown", current_source_fingerprint())
+    _write_manifest(
+        staging,
+        actual_version or "unknown",
+        current_source_fingerprint(),
+        current_species_catalog_digest(),
+    )
     shutil.rmtree(previous, ignore_errors=True)
     if output.exists():
         output.replace(previous)
@@ -198,7 +204,10 @@ def _missing_artifacts(directory: Path) -> List[str]:
 
 
 def _write_manifest(
-    directory: Path, godot_version: str, source_fingerprint: str
+    directory: Path,
+    godot_version: str,
+    source_fingerprint: str,
+    species_catalog_digest: str,
 ) -> None:
     files: Dict[str, Dict[str, object]] = {}
     for path in sorted(item for item in directory.iterdir() if item.is_file()):
@@ -211,6 +220,7 @@ def _write_manifest(
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "entry": ENTRY_NAME,
         "source_fingerprint": source_fingerprint,
+        "species_catalog_digest": species_catalog_digest,
         "export_boundary": export_boundary_manifest(),
         "files": files,
     }
@@ -236,6 +246,11 @@ def current_source_fingerprint() -> str:
         digest.update(path.read_bytes())
         digest.update(b"\0")
     return digest.hexdigest()
+
+
+def current_species_catalog_digest() -> str:
+    """Return the bundled species catalog digest paired with this export."""
+    return load_species_catalog(root=PROJECT_ROOT / "config").digest
 
 
 def patch_web_entry_for_lan_http(entry: Path) -> None:
@@ -281,6 +296,8 @@ def runtime_is_current(output: Path) -> bool:
     if manifest.get("export_boundary") != export_boundary_manifest():
         return False
     if manifest.get("source_fingerprint") != current_source_fingerprint():
+        return False
+    if manifest.get("species_catalog_digest") != current_species_catalog_digest():
         return False
     expected_files = manifest.get("files")
     if not isinstance(expected_files, dict):

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Optional
+from typing import Any, AsyncIterator, Callable, Mapping, Optional
 
 from fastapi import FastAPI
 
@@ -43,6 +43,7 @@ def create_app(
     model_execution: StructuredModelExecution | None = None,
     portraits: CandidatePortraitPort | None = None,
     runtime_capability_gate: RuntimeCapabilityGate | None = None,
+    runtime_projection: Callable[[], Mapping[str, object]] | None = None,
 ) -> FastAPI:
     selected_db_path = db_path or str(get_db_path())
     ensure_application_storage(selected_db_path)
@@ -66,7 +67,13 @@ def create_app(
     @asynccontextmanager
     async def application_lifespan(_app: FastAPI) -> AsyncIterator[None]:
         container.setup_installation.recover()
-        yield
+        if engine is not None and container.core_validation_worker is not None:
+            container.core_validation_worker.start()
+        try:
+            yield
+        finally:
+            if container.core_validation_worker is not None:
+                container.core_validation_worker.stop()
 
     return create_http_application(
         accounts=container.accounts,
@@ -74,6 +81,7 @@ def create_app(
         nest_management=container.nest_management,
         elfies=container.elfies,
         providers=container.providers,
+        availability=container.availability,
         food=container.food,
         capabilities=container.capabilities,
         operations=container.operations,
@@ -100,6 +108,7 @@ def create_app(
         web_build=web_build,
         web_build_error=web_build_error,
         runtime_capability_gate=runtime_capability_gate,
+        runtime_projection=runtime_projection,
     )
 
 

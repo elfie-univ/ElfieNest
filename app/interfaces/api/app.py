@@ -7,7 +7,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import AsyncContextManager, Callable, Protocol  # noqa: E402
+from typing import (
+    AsyncContextManager,
+    Callable,
+    Mapping,
+    Protocol,
+)  # noqa: E402
 
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket
 from fastapi.exceptions import RequestValidationError
@@ -23,6 +28,7 @@ from app.features.communication import CommunicationFacade
 from app.features.configuration import (
     CapabilitiesService,
     FoodService,
+    ProviderAvailabilityPort,
     ProvidersService,
     SettingsService,
 )
@@ -105,6 +111,7 @@ def create_http_application(
     nest_management: NestManagementService,
     elfies: ElfiesService,
     providers: ProvidersService,
+    availability: ProviderAvailabilityPort,
     food: FoodService,
     capabilities: CapabilitiesService,
     operations: OperationsFacade,
@@ -129,6 +136,7 @@ def create_http_application(
     web_build: WebBuild | None,
     web_build_error: str | None,
     runtime_capability_gate: RuntimeCapabilityGate | None = None,
+    runtime_projection: Callable[[], Mapping[str, object]] | None = None,
 ) -> FastAPI:
     """Create and configure the FastAPI application.
 
@@ -145,6 +153,7 @@ def create_http_application(
     app.state.nest_management = nest_management
     app.state.elfies = elfies
     app.state.providers = providers
+    app.state.provider_availability = availability
     app.state.food = food
     app.state.capabilities = capabilities
     app.state.operations = operations
@@ -163,6 +172,7 @@ def create_http_application(
     app.state.web_build = web_build
     app.state.web_build_error = web_build_error
     app.state.runtime_capability_gate = runtime_capability_gate
+    app.state.runtime_projection = runtime_projection
     app.add_middleware(AvatarUploadBodyLimitMiddleware)
 
     configure_service_access(app, service_access)

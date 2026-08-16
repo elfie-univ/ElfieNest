@@ -2,6 +2,7 @@
 
 import sys
 import time
+import hashlib
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence
 
@@ -306,6 +307,10 @@ def start_service(
         environment = {
             MANAGED_START_ENV: "1",
             "ELFIENEST_SUPERVISED": "1",
+            "ELFIENEST_JOB_NAME": (
+                "Local\\ElfieNest.core."
+                + hashlib.sha256(str(elfie_home.resolve()).encode("utf-8")).hexdigest()[:24]
+            ),
         }
         if child_environment is not None:
             environment.update(child_environment)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.features.accounts import AccountPrincipal, is_manager
+from elfie.profile import SpeciesCatalog, current_species_catalog
 
 from .cognition import project_cognition
 from .errors import ElfieNotFound, ElfiesForbidden, ElfiesUnavailable
@@ -15,6 +16,7 @@ from .models import (
     ElfiePortraitResult,
     ElfieProfileDetailResult,
     ElfieProfileResult,
+    ElfieSpeciesPresentation,
     GetElfiePortraitQuery,
     GetElfieProfileQuery,
     ListAdminElfiesQuery,
@@ -43,8 +45,14 @@ _VISITOR_PERMISSIONS = ElfiePermissionsResult(
 
 
 class ElfiesService:
-    def __init__(self, queries: ElfiesQueryPort) -> None:
+    def __init__(
+        self,
+        queries: ElfiesQueryPort,
+        *,
+        catalog: SpeciesCatalog | None = None,
+    ) -> None:
         self._queries = queries
+        self._catalog = catalog or current_species_catalog()
 
     def list_visible(
         self,
@@ -53,12 +61,16 @@ class ElfiesService:
     ) -> tuple[VisibleElfieResult, ...]:
         try:
             records = self._queries.list_directory(
-                owner_user_id=(principal.user_id if query.relationship == "owned" else None),
+                owner_user_id=(
+                    principal.user_id if query.relationship == "owned" else None
+                ),
             )
             return tuple(
                 VisibleElfieResult(
                     relationship=(
-                        "owned" if record.owner_user_id == principal.user_id else "other"
+                        "owned"
+                        if record.owner_user_id == principal.user_id
+                        else "other"
                     ),
                     permissions=(
                         _OWNED_PERMISSIONS
@@ -155,6 +167,7 @@ class ElfiesService:
             elfie_id=record.elfie_id,
             name=record.name,
             species_id=record.species_id,
+            species=_species_presentation(self._catalog, record.species_id),
             gender=record.gender,
             birth_date=record.birth_date,
             summary=record.summary,
@@ -180,6 +193,24 @@ class ElfiesService:
                 )
             ),
         )
+
+
+def _species_presentation(
+    catalog: SpeciesCatalog,
+    species_id: str,
+) -> ElfieSpeciesPresentation | None:
+    try:
+        definition = catalog.definition(species_id)
+    except ValueError:
+        return None
+    return ElfieSpeciesPresentation(
+        species_id=definition.species_id,
+        canon_id=definition.canon_id,
+        display_name=definition.display_name,
+        display_name_zh=definition.display_name_zh,
+        earth_shape_label=definition.earth_shape_label,
+        status=definition.status,
+    )
 
 
 def _big_five(source: ElfieProfileRecord) -> BigFiveResult | None:

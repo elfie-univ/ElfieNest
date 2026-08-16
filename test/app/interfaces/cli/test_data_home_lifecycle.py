@@ -5,6 +5,8 @@ from argparse import Namespace
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
+
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import lifecycle_commands
 from app.orchestration.lifecycle.facade import LifecycleFacade
@@ -21,6 +23,13 @@ from infrastructure.persistence.layout.lifecycle_data_home import (
 from scripts import elfienest
 
 LIFECYCLE = create_lifecycle_facade()
+
+
+@pytest.fixture(autouse=True)
+def isolate_lifecycle_data_home(monkeypatch, tmp_path: Path) -> None:
+    """Never let lifecycle command tests read or write the developer home."""
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "elfie-home"))
+    monkeypatch.setattr(lifecycle_commands, "PROJECT_ROOT", tmp_path / "worktree")
 
 
 class _StartedSupervisor:
@@ -139,6 +148,13 @@ def test_start_uses_remembered_lifecycle_home_for_status_and_start_consistency(
     monkeypatch.setattr(lifecycle_commands, "_supervisor_for", supervisor)
     monkeypatch.setattr(
         lifecycle_commands, "_prepare_frontend_for_launch", lambda *_args: None
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_select_automatic_ports",
+        lambda _lifecycle, launch_command, _selected_home, avoid_pairs=(): (
+            launch_command
+        ),
     )
 
     result = lifecycle_commands.start_background_service(

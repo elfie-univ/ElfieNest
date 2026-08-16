@@ -15,8 +15,8 @@ from app.features.communication import (
     StoredConversationMessage,
 )
 from app.features.elfies import ElfiesService
-from app.interfaces.api.v1.auth import require_user
 from app.interfaces.api.runtime_capability import RuntimeCapabilityDenied
+from app.interfaces.api.v1.auth import require_user
 from app.interfaces.api.v1.me.conversations import router as conversations_router
 from app.interfaces.api.v1.realtime.chat import router as realtime_router
 from app.orchestration.message_delivery import (

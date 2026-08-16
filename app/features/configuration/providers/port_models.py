@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, field
+from typing import Literal, Mapping
 
 ApiMode = Literal["ollama", "chat_completions", "anthropic_messages", "codex_responses"]
 AuthType = Literal["none", "bearer", "x-api-key"]
@@ -12,8 +12,17 @@ DiscoveryStrategy = Literal[
     "catalog_only", "ollama", "provider_adapter", "standard_models"
 ]
 ModelSource = Literal["official", "remote_catalog", "bundled_catalog", "manual"]
+DiscoveryState = Literal["present", "source_missing"]
 ValidationMode = Literal["none", "full", "cached", "heartbeat", "benchmark"]
 ValidationStatus = Literal["never", "passed", "failed"]
+AvailabilityStatus = Literal["available", "degraded", "unavailable", "unknown"]
+ProviderAvailabilityStatus = Literal[
+    "healthy", "degraded", "unavailable", "unknown", "disabled"
+]
+CapabilityState = Literal["supported", "unsupported", "unknown"]
+CapabilityEvidence = Literal[
+    "declared", "declared_by_user", "accepted", "verified", "unknown"
+]
 LatencyClass = Literal["fast", "normal", "slow"]
 LocalProviderState = Literal[
     "absent",
@@ -55,14 +64,21 @@ class StoredProviderModel:
     display_name: str
     canonical_model_id: str | None = None
     source: ModelSource = "manual"
+    request_profile_id: str | None = None
+    request_profile_version: int | None = None
     context_window_tokens: int | None = None
     max_output_tokens: int | None = None
     supports_tools: bool | None = None
     supports_vision: bool | None = None
     supports_reasoning: bool | None = None
+    supports_structured_output: bool | None = None
+    capability_evidence: Mapping[str, CapabilityEvidence] = field(default_factory=dict)
     hidden: bool = False
     retired: bool = False
     available: bool = True
+    discovery_state: DiscoveryState = "present"
+    consecutive_missing: int = 0
+    last_seen_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -151,6 +167,40 @@ class StoredModelVerification:
     error: str | None = None
     validation_mode: ValidationMode | None = None
     full_run_id: str | None = None
+    availability_status: Literal[
+        "available", "degraded", "unavailable", "unknown"
+    ] = "unknown"
+    reason_code: str | None = None
+    evidence_source: str | None = None
+    expires_at: str | None = None
+    is_core: bool = False
+
+
+@dataclass(frozen=True)
+class StoredEndpointCapability:
+    name: Literal["tools", "vision", "reasoning", "structured_output"]
+    state: CapabilityState
+    evidence: CapabilityEvidence
+
+
+@dataclass(frozen=True)
+class StoredModelAvailability:
+    reference: str
+    connection_id: str
+    model_id: str
+    status: AvailabilityStatus
+    reason_code: str | None
+    provider_status: ProviderAvailabilityStatus
+    evidence_source: str | None
+    observed_at: str | None
+    expires_at: str | None
+    is_core: bool
+    serving_food_ids: tuple[str, ...]
+    serving_roles: tuple[str, ...]
+    capabilities: tuple[StoredEndpointCapability, ...]
+    reachability_status: AvailabilityStatus = "unknown"
+    reachability_observed_at: str | None = None
+    reachability_expires_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -159,6 +209,9 @@ class StoredModelRefresh:
     checked_at: str
     message: str | None
     models: tuple[StoredProviderModel, ...]
+    # Retained inventory is persisted even when source_missing models are
+    # hidden from the normal model list.
+    persisted_models: tuple[StoredProviderModel, ...] | None = None
 
 
 @dataclass(frozen=True)

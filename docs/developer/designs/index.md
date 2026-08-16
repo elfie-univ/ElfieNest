@@ -12,3 +12,5 @@ in [Conformance](../conformance/).
   the conceptual systems, boundaries, runtime loops and implementation order of Brain.
 - [ElfieNest service lifecycle state-machine design](./service-lifecycle-state-machine):
   authoritative service states, entrypoint behavior, ownership and failure convergence.
+- [Provider and endpoint-model availability](./provider-model-availability):
+  curated model loading, serving-core scope, low-cost evidence and shared health projections.

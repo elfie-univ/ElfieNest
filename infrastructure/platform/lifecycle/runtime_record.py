@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
+import secrets
 import tempfile
 import uuid
 from pathlib import Path
@@ -23,6 +25,7 @@ from app.orchestration.lifecycle.runtime_snapshot import (
     RuntimeTarget,
     TimingSnapshot,
 )
+from app.orchestration.lifecycle.ports import RuntimeWriterHandoff
 from app.orchestration.lifecycle.types import SnapshotRecoveryRequiredError
 
 RUNTIME_RECORD_FILENAME: Final = "runtime.json"
@@ -36,15 +39,49 @@ class FileRuntimeRecordAdapter:
     missing or malformed snapshot is surfaced as recovery-required.
     """
 
-    def __init__(self, elfie_home: Path) -> None:
+    def __init__(
+        self,
+        elfie_home: Path,
+        *,
+        writer_token: str | None = None,
+    ) -> None:
         self._elfie_home = elfie_home
+        self._writer_token = writer_token or self._read_writer_token()
+        # Only the lifecycle parent that explicitly issued the handoff may
+        # create a new credential. A child may use its inherited token, but it
+        # can never mint a replacement after its generation is revoked.
+        self._handoff_armed = False
+
+    def begin_writer_handoff(
+        self, *, generation: int, owner_id: str
+    ) -> RuntimeWriterHandoff:
+        token = secrets.token_urlsafe(32)
+        self._writer_token = token
+        self._handoff_armed = True
+        self._write_writer_token(token)
+        return RuntimeWriterHandoff(
+            token=token,
+            digest=_digest(token),
+            generation=generation,
+            owner_id=owner_id,
+        )
+
+    def revoke_writer_handoff(self) -> None:
+        self._writer_token = None
+        self._handoff_armed = False
+        try:
+            self._writer_token_path().unlink()
+        except FileNotFoundError:
+            pass
 
     def read(self) -> RuntimeSnapshotV1:
         path = self._record_path()
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except FileNotFoundError:
-            return self._recovery_snapshot("SNAPSHOT_MISSING", "Runtime snapshot is missing")
+            return self._recovery_snapshot(
+                "SNAPSHOT_MISSING", "Runtime snapshot is missing"
+            )
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
             return self._recovery_snapshot("SNAPSHOT_CORRUPT", str(error))
         try:
@@ -59,7 +96,9 @@ class FileRuntimeRecordAdapter:
             if snapshot.phase is RuntimePhase.RECOVERY_REQUIRED:
                 raise SnapshotRecoveryRequiredError(
                     self._elfie_home,
-                    snapshot.failures[0].detail if snapshot.failures else "Invalid Runtime snapshot",
+                    snapshot.failures[0].detail
+                    if snapshot.failures
+                    else "Invalid Runtime snapshot",
                 )
             return snapshot
         if not self._root_is_fresh():
@@ -73,12 +112,17 @@ class FileRuntimeRecordAdapter:
 
     def write(self, snapshot: RuntimeSnapshotV1) -> None:
         if snapshot.schema_version != 1:
-            raise ValueError(f"Unsupported Runtime snapshot schema: {snapshot.schema_version}")
+            raise ValueError(
+                f"Unsupported Runtime snapshot schema: {snapshot.schema_version}"
+            )
         if not snapshot.instance_id or snapshot.instance_id == "uninitialized":
             raise ValueError("Runtime snapshot instance_id must be initialized")
         if snapshot.generation < 0 or snapshot.revision < 0:
-            raise ValueError("Runtime snapshot generation and revision must be non-negative")
+            raise ValueError(
+                "Runtime snapshot generation and revision must be non-negative"
+            )
         previous = self._read_valid_for_write()
+        self._authorize_write(previous, snapshot)
         if previous is not None:
             if previous.instance_id != snapshot.instance_id:
                 raise ValueError("Runtime snapshot instance identity changed")
@@ -106,6 +150,36 @@ class FileRuntimeRecordAdapter:
             temporary_path.unlink(missing_ok=True)
             raise
 
+    def _authorize_write(
+        self,
+        previous: RuntimeSnapshotV1 | None,
+        snapshot: RuntimeSnapshotV1,
+    ) -> None:
+        """Reject writes from a stale generation or an unarmed writer."""
+        current_digest = _digest(self._writer_token) if self._writer_token else None
+        previous_digest = (
+            None if previous is None else previous.writer_credential_digest
+        )
+        requested_digest = snapshot.writer_credential_digest
+
+        if previous_digest is not None and current_digest != previous_digest:
+            raise PermissionError("Runtime writer credential does not own this generation")
+        if requested_digest is not None and current_digest != requested_digest:
+            raise PermissionError("Runtime snapshot writer credential is invalid")
+        if (
+            requested_digest is not None
+            and previous_digest is None
+            and not self._handoff_armed
+        ):
+            raise PermissionError("Runtime writer handoff was not issued by the parent")
+        if (
+            previous is not None
+            and previous_digest is None
+            and requested_digest is None
+            and not self._handoff_armed
+        ):
+            raise PermissionError("Runtime writer credential has been revoked")
+
     def _read_valid_for_write(self) -> RuntimeSnapshotV1 | None:
         if not self._record_path().exists():
             return None
@@ -113,7 +187,9 @@ class FileRuntimeRecordAdapter:
         if snapshot.phase is RuntimePhase.RECOVERY_REQUIRED:
             raise SnapshotRecoveryRequiredError(
                 self._elfie_home,
-                snapshot.failures[0].detail if snapshot.failures else "Invalid Runtime snapshot",
+                snapshot.failures[0].detail
+                if snapshot.failures
+                else "Invalid Runtime snapshot",
             )
         return snapshot
 
@@ -154,7 +230,9 @@ class FileRuntimeRecordAdapter:
                 state=ComponentState(item["state"]),
                 detail=_string(item.get("detail", ""), "component.detail"),
                 pid=_optional_positive_int(item.get("pid"), "component.pid"),
-                executable=_optional_string(item.get("executable"), "component.executable"),
+                executable=_optional_string(
+                    item.get("executable"), "component.executable"
+                ),
                 birth_identity=_optional_string(
                     item.get("birth_identity"), "component.birth_identity"
                 ),
@@ -197,7 +275,9 @@ class FileRuntimeRecordAdapter:
         owner_lease = (
             OwnerLease(
                 owner_id=_string(owner["owner_id"], "owner_lease.owner_id"),
-                generation=_nonnegative_int(owner["generation"], "owner_lease.generation"),
+                generation=_nonnegative_int(
+                    owner["generation"], "owner_lease.generation"
+                ),
             )
             if owner is not None
             else None
@@ -223,10 +303,14 @@ class FileRuntimeRecordAdapter:
             endpoints=endpoints,
             model_state=ModelOverallState(payload.get("model_state", "unconfigured")),
             model_common_state=ModelOverallState(
-                payload.get("model_common_state", payload.get("model_state", "unconfigured"))
+                payload.get(
+                    "model_common_state", payload.get("model_state", "unconfigured")
+                )
             ),
             model_emergency_state=ModelOverallState(
-                payload.get("model_emergency_state", payload.get("model_state", "unconfigured"))
+                payload.get(
+                    "model_emergency_state", payload.get("model_state", "unconfigured")
+                )
             ),
             model_revision=_optional_nonnegative_int(
                 payload.get("model_revision"), "model_revision"
@@ -244,6 +328,10 @@ class FileRuntimeRecordAdapter:
             ),
             owner_lease=owner_lease,
             startup_owner_id=startup_owner_id,
+            writer_credential_digest=_optional_string(
+                payload.get("writer_credential_digest"),
+                "writer_credential_digest",
+            ),
         )
 
     @staticmethod
@@ -308,7 +396,36 @@ class FileRuntimeRecordAdapter:
                 else None
             ),
             "startup_owner_id": snapshot.startup_owner_id,
+            "writer_credential_digest": snapshot.writer_credential_digest,
         }
+
+    def _writer_token_path(self) -> Path:
+        return self._elfie_home / "runtime" / "writer.token"
+
+    def _read_writer_token(self) -> str | None:
+        try:
+            token = self._writer_token_path().read_text(encoding="utf-8").strip()
+        except (FileNotFoundError, OSError, UnicodeError):
+            return None
+        return token or None
+
+    def _write_writer_token(self, token: str) -> None:
+        self._elfie_home.mkdir(mode=0o700, parents=True, exist_ok=True)
+        runtime_dir = self._elfie_home / "runtime"
+        runtime_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=".writer.", dir=str(runtime_dir)
+        )
+        temporary_path = Path(temporary_name)
+        try:
+            os.fchmod(descriptor, 0o600)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as secret:
+                secret.write(token)
+                secret.write("\n")
+            temporary_path.replace(self._writer_token_path())
+        except OSError:
+            temporary_path.unlink(missing_ok=True)
+            raise
 
     @staticmethod
     def _recovery_snapshot(code: str, detail: str) -> RuntimeSnapshotV1:
@@ -365,3 +482,7 @@ def _optional_nonnegative_int(value: Any, field_name: str) -> int | None:
     if value is None:
         return None
     return _nonnegative_int(value, field_name)
+
+
+def _digest(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()

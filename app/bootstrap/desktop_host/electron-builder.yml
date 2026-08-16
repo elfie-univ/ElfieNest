@@ -2,6 +2,8 @@ appId: com.elfienest.desktop
 productName: ElfieNest
 artifactName: ElfieNest-${version}-internal-${os}-${arch}.${ext}
 asar: true
+directories:
+  buildResources: .
 extraMetadata:
   main: bootstrap/desktop_host.mjs
 files:
@@ -15,10 +17,21 @@ extraResources:
     to: .
 mac:
   icon: assets/elfienest-macos-app-icon.png
-  target: [dmg]
+  target: [pkg]
+pkg:
+  installLocation: /Applications
+  mustClose: [com.elfienest.desktop]
+  scripts: packaging/macos
 win:
   icon: assets/elfienest-app-icon.png
   target: [nsis]
+nsis:
+  include: packaging/windows/installer.nsh
+  oneClick: false
 linux:
   icon: assets/elfienest-app-icon.png
-  target: [AppImage]
+  executableName: elfienest-gui
+  target: [deb]
+deb:
+  afterInstall: packaging/linux/after-install.sh
+  afterRemove: packaging/linux/after-remove.sh

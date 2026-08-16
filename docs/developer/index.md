@@ -25,6 +25,8 @@ source of truth.
   Brain's conceptual systems, runtime relationships and incremental implementation order.
 - [Service lifecycle state-machine design](./designs/service-lifecycle-state-machine):
   stable service tiers, entrypoints, process ownership and convergence.
+- [Provider and endpoint-model availability](./designs/provider-model-availability):
+  curated loading, serving-core scope and cost-aware health evidence.
 - [Architecture contracts](./contracts/): the long-lived normative rules.
 - [Repository architecture governance](./contracts/repository-governance): how
   contracts, ADRs, local Agent rules, scanners, baselines and CI form one

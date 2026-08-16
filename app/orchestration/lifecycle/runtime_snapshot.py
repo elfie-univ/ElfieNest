@@ -202,6 +202,9 @@ class RuntimeSnapshotV1:
     protocol_versions: Tuple[str, ...] = ()
     owner_lease: Optional[OwnerLease] = None
     startup_owner_id: Optional[str] = None
+    # Hash only; the raw handoff token is passed to the managed Core through
+    # its private environment and is never exposed in the public projection.
+    writer_credential_digest: Optional[str] = None
 
     def component(self, component: RuntimeComponent) -> ComponentSnapshot:
         for item in self.components:

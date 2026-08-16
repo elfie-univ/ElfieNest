@@ -1,4 +1,4 @@
-# ADR-0019: Authoritative service lifecycle and independent capability health
+# ADR-0021: Authoritative service lifecycle and independent capability health
 
 - **Status:** Accepted
 - **Date:** 2026-08-15

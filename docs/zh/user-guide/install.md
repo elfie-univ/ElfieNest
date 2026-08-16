@@ -9,7 +9,7 @@
 | Apple 芯片 Mac | macOS arm64 |
 | Intel 芯片 Mac | macOS x64 |
 | Windows 电脑 | Windows x64 |
-| Linux 电脑 | Linux x64 AppImage |
+| Linux 电脑 | Linux x64 DEB |
 
 请只从[官方 Releases 页面](https://github.com/elfie-univ/ElfieNest/releases)下载。
 预览版目前不会自动更新，升级前请先看对应版本的发布说明。
@@ -21,9 +21,9 @@
 
 1. 下载与你的电脑匹配的文件。
 2. 双击打开，并按系统的常规安装步骤操作。
-   - macOS：打开磁盘映像，把 ElfieNest 拖到“应用程序”。
+   - macOS：打开 PKG，按安装器提示完成安装。
    - Windows：运行安装程序，除非管理员另有说明，否则保留默认安装位置。
-   - Linux：打开 AppImage；系统可能会先询问是否允许它运行。
+   - Linux：使用系统软件包管理器安装 DEB。
 3. 从“应用程序”“开始”菜单或桌面启动 **ElfieNest**。
 
 第一次打开时，应用需要准备本地服务，可能会比平时多等一会儿。不要同时打开多个
@@ -39,8 +39,8 @@ ElfieNest 窗口。
 
 ## 如何卸载
 
-使用系统自带的常规卸载流程。卸载前先确认是否需要备份或保留 Nest 数据；不确定时请询问
-管理员，不要手动删除数据目录。
+使用系统自带的常规卸载流程；系统支持时，原生安装器也会移除全局 `elfienest` launcher。
+卸载前先确认是否需要备份或保留 Nest 数据；不确定时请询问管理员，不要手动删除数据目录。
 
 ## 下一步
 

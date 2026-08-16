@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import time
+import uuid
 from contextlib import contextmanager, nullcontext
 from dataclasses import replace
-from typing import Callable, Iterator, Optional
+from typing import Callable, Iterator, MutableMapping, Optional
 
 from app.orchestration.lifecycle.ports import (
     AuthorityHostPort,
@@ -20,6 +21,7 @@ from app.orchestration.lifecycle.runtime_snapshot import (
     ComponentState,
     FailureSnapshot,
     ModelHealthProjection,
+    ModelOverallState,
     OwnerLease,
     RuntimeComponent,
     RuntimeObservation,
@@ -34,6 +36,8 @@ from app.orchestration.lifecycle.types import (
     AuthorityHostError,
     LaunchFailedError,
     LifecycleBusyError,
+    LifecycleCancelledError,
+    ServiceLifecycleError,
     ServiceLifecycleResult,
     SnapshotRecoveryRequiredError,
 )
@@ -45,6 +49,7 @@ OwnedRecord = Callable[[], bool]
 ProgressCallback = Callable[[RuntimeProgressPhase], None]
 CommandLeaseFactory = Callable[[], LifecycleLease]
 ModelProjectionProbe = Callable[[], ModelHealthProjection]
+CancellationProbe = Callable[[], bool]
 
 
 class RuntimeSupervisor:
@@ -65,11 +70,13 @@ class RuntimeSupervisor:
         owns_pid_record: OwnedRecord = lambda: True,
         authority_host: Optional[AuthorityHostPort] = None,
         authority_timeout_seconds: float = 10.0,
+        model_timeout_seconds: float = 60.0,
         monotonic: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
         progress_callback: Optional[ProgressCallback] = None,
         command_lease_factory: Optional[CommandLeaseFactory] = None,
         model_projection_probe: Optional[ModelProjectionProbe] = None,
+        child_environment: Optional[MutableMapping[str, str]] = None,
     ) -> None:
         self._runtime_record = runtime_record
         self._health_probe = health_probe
@@ -78,11 +85,13 @@ class RuntimeSupervisor:
         self._owns_pid_record = owns_pid_record
         self._authority_host = authority_host
         self._authority_timeout_seconds = authority_timeout_seconds
+        self._model_timeout_seconds = model_timeout_seconds
         self._monotonic = monotonic
         self._sleeper = sleeper
         self._progress_callback = progress_callback
         self._command_lease_factory = command_lease_factory
         self._model_projection_probe = model_projection_probe
+        self._child_environment = child_environment
         self._authority_process: Optional[AuthorityProcess] = None
         self._start_started_at: Optional[float] = None
         self._world_started_at: Optional[float] = None
@@ -94,29 +103,52 @@ class RuntimeSupervisor:
         desired_target: RuntimeTarget = RuntimeTarget.NORMAL,
         wait_target: RuntimeTarget = RuntimeTarget.CORE,
         correlation_id: Optional[str] = None,
+        cancel_check: Optional[CancellationProbe] = None,
     ) -> ServiceLifecycleResult:
         """Reserve one generation, reach Core, then converge World safely."""
+        operation_id = correlation_id or uuid.uuid4().hex
         try:
             record_before_start = self._initialize_and_read()
         except SnapshotRecoveryRequiredError as error:
-            return ServiceLifecycleResult(status="failed", error=LaunchFailedError(str(error)))
+            return self._operation_result(
+                ServiceLifecycleResult(
+                    status="failed", error=LaunchFailedError(str(error))
+                ),
+                operation_id,
+            )
 
+        existing_attachment: Optional[tuple[str, Optional[int]]] = None
         with self._command_lock():
             record_before_start = self._runtime_record.read()
             if record_before_start.phase is RuntimePhase.RECOVERY_REQUIRED:
-                return ServiceLifecycleResult(
-                    status="failed",
-                    error=LaunchFailedError(self._recovery_detail(record_before_start)),
+                return self._operation_result(
+                    ServiceLifecycleResult(
+                        status="failed",
+                        error=LaunchFailedError(
+                            self._recovery_detail(record_before_start)
+                        ),
+                    ),
+                    operation_id,
                 )
             if record_before_start.startup_owner_id is not None:
                 if record_before_start.startup_owner_id == owner_id:
-                    return ServiceLifecycleResult(
-                        status="failed",
-                        error=LifecycleBusyError("Runtime startup is already owned by this command"),
+                    return self._operation_result(
+                        ServiceLifecycleResult(
+                            status="failed",
+                            error=LifecycleBusyError(
+                                "Runtime startup is already owned by this command"
+                            ),
+                        ),
+                        operation_id,
                     )
-                return ServiceLifecycleResult(
-                    status="failed",
-                    error=LifecycleBusyError("Runtime startup is already owned by another command"),
+                return self._operation_result(
+                    ServiceLifecycleResult(
+                        status="failed",
+                        error=LifecycleBusyError(
+                            "Runtime startup is already owned by another command"
+                        ),
+                    ),
+                    operation_id,
                 )
             if record_before_start.phase in {
                 RuntimePhase.QUIESCING,
@@ -124,12 +156,24 @@ class RuntimeSupervisor:
                 RuntimePhase.MODEL_LEASE_RELEASING,
                 RuntimePhase.CORE_STOPPING,
             }:
-                return ServiceLifecycleResult(
-                    status="failed",
-                    error=LifecycleBusyError("Runtime is stopping; wait for OFFLINE before starting again"),
+                return self._operation_result(
+                    ServiceLifecycleResult(
+                        status="failed",
+                        error=LifecycleBusyError(
+                            "Runtime is stopping; wait for OFFLINE before starting again"
+                        ),
+                    ),
+                    operation_id,
                 )
-            if record_before_start.owner_lease is not None and record_before_start.tier is not BackendTier.OFFLINE:
+            if (
+                record_before_start.owner_lease is not None
+                and record_before_start.tier is not BackendTier.OFFLINE
+            ):
                 if self._owns_pid_record():
+                    existing_attachment = (
+                        record_before_start.owner_lease.owner_id,
+                        record_before_start.component(RuntimeComponent.CORE).pid,
+                    )
                     requested = max(
                         record_before_start.desired_target,
                         desired_target,
@@ -141,56 +185,113 @@ class RuntimeSupervisor:
                         desired_target=requested,
                     )
                     self._runtime_record.write(updated)
-                    return ServiceLifecycleResult(status="already_running")
-                record_before_start = self._offline_snapshot(
-                    record_before_start,
-                    phase=RuntimePhase.PREFLIGHT,
-                    detail="stale generation reconciled before restart",
-                )
-                self._runtime_record.write(record_before_start)
+                else:
+                    record_before_start = self._offline_snapshot(
+                        record_before_start,
+                        phase=RuntimePhase.PREFLIGHT,
+                        detail="stale generation reconciled before restart",
+                    )
+                    self._runtime_record.write(record_before_start)
 
-            generation = record_before_start.generation + 1
-            starting = replace(
-                record_before_start,
-                revision=record_before_start.revision + 1,
-                generation=generation,
-                tier=BackendTier.OFFLINE,
-                phase=RuntimePhase.CORE_STARTING,
-                subphase="core",
-                desired_target=desired_target,
-                reached_target=None,
-                components=(),
-                endpoints=(),
-                failures=(),
-                correlation_id=correlation_id,
-                owner_lease=None,
-                startup_owner_id=owner_id,
+            # An attached caller waits after releasing this command lease so
+            # the existing Core can publish World readiness in parallel.
+            if existing_attachment is None:
+                generation = record_before_start.generation + 1
+                writer_handoff = self._begin_writer_handoff(
+                    generation=generation,
+                    owner_id=owner_id,
+                )
+                if writer_handoff is not None and self._child_environment is not None:
+                    self._child_environment[
+                        "ELFIENEST_RUNTIME_WRITER_TOKEN"
+                    ] = writer_handoff.token
+                starting = replace(
+                    record_before_start,
+                    revision=record_before_start.revision + 1,
+                    generation=generation,
+                    tier=BackendTier.OFFLINE,
+                    phase=RuntimePhase.CORE_STARTING,
+                    subphase="core",
+                    desired_target=desired_target,
+                    reached_target=None,
+                    components=(),
+                    endpoints=(),
+                    failures=(),
+                    correlation_id=operation_id,
+                    owner_lease=None,
+                    startup_owner_id=owner_id,
+                    writer_credential_digest=(
+                        None if writer_handoff is None else writer_handoff.digest
+                    ),
+                )
+                self._runtime_record.write(starting)
+
+        if existing_attachment is not None:
+            existing_owner_id, attached_pid = existing_attachment
+            wait_error = self._wait_for_existing_target(
+                existing_owner_id,
+                wait_target,
+                cancel_check,
             )
-            self._runtime_record.write(starting)
+            return self._operation_result(
+                ServiceLifecycleResult(
+                    status="failed" if wait_error is not None else "already_running",
+                    pid=attached_pid,
+                    error=wait_error,
+                ),
+                operation_id,
+            )
 
         self._emit_progress(RuntimeProgressPhase.STARTING)
         self._start_started_at = self._monotonic()
         self._world_started_at = None
 
+        if self._startup_cancelled(owner_id, cancel_check):
+            return self._cancel_start(
+                owner_id, "Runtime startup was cancelled", operation_id
+            )
+
         def core_and_gateway_ready() -> bool:
+            if self._startup_cancelled(owner_id, cancel_check):
+                raise LifecycleCancelledError("Runtime startup was cancelled")
             return self._health_probe().core_ready
 
         try:
             result = self._start_core(core_and_gateway_ready)
+        except LifecycleCancelledError as error:
+            return self._cancel_start(owner_id, str(error), operation_id)
         except Exception as error:  # noqa: BLE001 - convert adapter failures to typed state
-            return self._fail_start(owner_id, f"Core startup failed: {error}")
+            return self._fail_start(owner_id, f"Core startup failed: {error}", operation_id)
         if result.status not in {"started", "already_running"}:
-            return self._fail_start(owner_id, str(result.error or "Core startup failed"))
+            return self._fail_start(
+                owner_id, str(result.error or "Core startup failed"), operation_id
+            )
+
+        if self._startup_cancelled(owner_id, cancel_check):
+            return self._cancel_start(
+                owner_id, "Runtime startup was cancelled", operation_id
+            )
 
         try:
             observation = self._health_probe()
         except Exception as error:  # noqa: BLE001 - startup must release its claim
-            return self._fail_start(owner_id, f"Core readiness probe failed: {error}")
+            return self._fail_start(
+                owner_id, f"Core readiness probe failed: {error}", operation_id
+            )
         if not observation.core_ready:
-            return self._fail_start(owner_id, "Core did not publish CORE_READY")
+            return self._fail_start(
+                owner_id, "Core did not publish CORE_READY", operation_id
+            )
         if not self._promote_core_ready(owner_id, observation, pid=result.pid):
-            return self._fail_start(owner_id, "Runtime startup was cancelled before CORE_READY")
+            return self._cancel_start(
+                owner_id, "Runtime startup was cancelled before CORE_READY", operation_id
+            )
         self._emit_progress(RuntimeProgressPhase.CORE_READY)
+
+        if cancel_check is not None and cancel_check():
+            return self._cancel_start(
+                owner_id, "Runtime startup was cancelled", operation_id
+            )
 
         if (
             desired_target.rank >= RuntimeTarget.WORLD.rank
@@ -200,17 +301,37 @@ class RuntimeSupervisor:
                 try:
                     self._start_authority(owner_id)
                 except AuthorityHostError as error:
+                    if self._owner_operation_cancelled(owner_id, cancel_check):
+                        return self._cancel_start(owner_id, str(error), operation_id)
                     self._record_core_failure(owner_id, str(error))
                     self._emit_progress(RuntimeProgressPhase.FAILED)
-                    return ServiceLifecycleResult(
-                        status="failed", pid=result.pid, command=result.command, error=LaunchFailedError(str(error))
+                    return self._operation_result(
+                        ServiceLifecycleResult(
+                            status="failed",
+                            pid=result.pid,
+                            command=result.command,
+                            error=LaunchFailedError(str(error)),
+                        ),
+                        operation_id,
                     )
                 if not self._wait_for_world(owner_id):
+                    if self._owner_operation_cancelled(owner_id, cancel_check):
+                        return self._cancel_start(
+                            owner_id,
+                            "Runtime startup was cancelled before World readiness",
+                            operation_id,
+                        )
                     detail = self._authority_readiness_failure_detail()
                     self._record_core_failure(owner_id, detail)
                     self._emit_progress(RuntimeProgressPhase.FAILED)
-                    return ServiceLifecycleResult(
-                        status="failed", pid=result.pid, command=result.command, error=LaunchFailedError(detail)
+                    return self._operation_result(
+                        ServiceLifecycleResult(
+                            status="failed",
+                            pid=result.pid,
+                            command=result.command,
+                            error=LaunchFailedError(detail),
+                        ),
+                        operation_id,
                     )
 
         world_reached: Optional[bool] = False
@@ -224,26 +345,60 @@ class RuntimeSupervisor:
                 else self._wait_for_world_handoff(owner_id)
             )
             if world_reached is not True:
-                return ServiceLifecycleResult(
-                    status="failed",
-                    pid=result.pid,
-                    command=result.command,
-                    error=LaunchFailedError(
-                        "Runtime startup was cancelled before World readiness completed"
+                if self._owner_operation_cancelled(owner_id, cancel_check):
+                    return self._cancel_start(
+                        owner_id,
+                        "Runtime startup was cancelled before World readiness",
+                        operation_id,
+                    )
+                return self._operation_result(
+                    ServiceLifecycleResult(
+                        status="failed",
+                        pid=result.pid,
+                        command=result.command,
+                        error=LaunchFailedError(
+                            "Runtime startup was cancelled before World readiness completed"
+                        ),
                     ),
+                    operation_id,
                 )
         if world_reached:
             self._emit_progress(RuntimeProgressPhase.WORLD_READY)
-        return result
+        if (
+            desired_target is RuntimeTarget.NORMAL
+            and wait_target is RuntimeTarget.NORMAL
+        ):
+            if not self._wait_for_normal(owner_id, cancel_check):
+                if self._owner_operation_cancelled(owner_id, cancel_check):
+                    return self._cancel_start(
+                        owner_id,
+                        "Runtime startup was cancelled before Normal readiness",
+                        operation_id,
+                    )
+                detail = self._model_readiness_failure_detail()
+                return self._operation_result(
+                    ServiceLifecycleResult(
+                        status="failed",
+                        pid=result.pid,
+                        command=result.command,
+                        error=LaunchFailedError(detail),
+                    ),
+                    operation_id,
+                )
+        return self._operation_result(result, operation_id)
 
-    def stop(self) -> ServiceLifecycleResult:
+    def stop(self, *, correlation_id: Optional[str] = None) -> ServiceLifecycleResult:
         """Quiesce, release the owned authority and retain an OFFLINE snapshot."""
+        operation_id = correlation_id or uuid.uuid4().hex
         with self._command_lock():
             record = self._runtime_record.read()
             if record.phase is RuntimePhase.RECOVERY_REQUIRED:
-                return ServiceLifecycleResult(
-                    status="failed",
-                    error=LaunchFailedError(self._recovery_detail(record)),
+                return self._operation_result(
+                    ServiceLifecycleResult(
+                        status="failed",
+                        error=LaunchFailedError(self._recovery_detail(record)),
+                    ),
+                    operation_id,
                 )
             if record.owner_lease is not None or record.startup_owner_id is not None:
                 self._runtime_record.write(
@@ -252,8 +407,8 @@ class RuntimeSupervisor:
                         revision=record.revision + 1,
                         phase=RuntimePhase.QUIESCING,
                         subphase="stop_requested",
-                        )
                     )
+                )
         self._emit_progress(RuntimeProgressPhase.STOPPING)
         stop_started_at = self._monotonic()
         self._transition_stop_phase(RuntimePhase.WORLD_STOPPING, "world")
@@ -289,6 +444,7 @@ class RuntimeSupervisor:
                         endpoints=(),
                         owner_lease=None,
                         startup_owner_id=None,
+                        writer_credential_digest=None,
                         failures=(),
                         timings=_append_timing(
                             current.timings,
@@ -297,7 +453,10 @@ class RuntimeSupervisor:
                         ),
                     )
                 )
-            return result
+                revoke = getattr(self._runtime_record, "revoke_writer_handoff", None)
+                if callable(revoke):
+                    revoke()
+            return self._operation_result(result, operation_id)
 
         detail_parts = []
         if authority_error is not None:
@@ -308,11 +467,14 @@ class RuntimeSupervisor:
             detail_parts.append("Core did not confirm shutdown")
         detail = "; ".join(detail_parts)
         self._record_stop_failure(detail)
-        return ServiceLifecycleResult(
-            status="failed",
-            pid=result.pid,
-            command=result.command,
-            error=LaunchFailedError(detail),
+        return self._operation_result(
+            ServiceLifecycleResult(
+                status="failed",
+                pid=result.pid,
+                command=result.command,
+                error=LaunchFailedError(detail),
+            ),
+            operation_id,
         )
 
     def _transition_stop_phase(self, phase: RuntimePhase, subphase: str) -> None:
@@ -339,6 +501,30 @@ class RuntimeSupervisor:
     def status(self) -> RuntimeProjectionV1:
         """Return a read-only projection; status never repairs or starts anything."""
         projection = self._runtime_record.read().projection()
+        if projection.tier is not BackendTier.OFFLINE:
+            try:
+                core_is_present = self._owns_pid_record()
+            except (OSError, RuntimeError, ValueError):
+                core_is_present = True
+            if not core_is_present:
+                projection = replace(
+                    projection,
+                    tier=BackendTier.OFFLINE,
+                    phase=RuntimePhase.FAILED,
+                    subphase="core_missing",
+                    reached_target=None,
+                    components=(),
+                    endpoints=(),
+                    owner_lease=None,
+                    startup_owner_id=None,
+                    failures=(
+                        FailureSnapshot(
+                            "CORE_NOT_RUNNING",
+                            "Core process is no longer present for this Runtime generation",
+                            "status",
+                        ),
+                    ),
+                )
         if self._model_projection_probe is None:
             return projection
         try:
@@ -359,6 +545,12 @@ class RuntimeSupervisor:
             if callable(initializer):
                 return initializer()
             return self._runtime_record.read()
+
+    def _begin_writer_handoff(self, *, generation: int, owner_id: str):
+        begin = getattr(self._runtime_record, "begin_writer_handoff", None)
+        if not callable(begin):
+            return None
+        return begin(generation=generation, owner_id=owner_id)
 
     @contextmanager
     def _command_lock(self) -> Iterator[None]:
@@ -382,6 +574,8 @@ class RuntimeSupervisor:
         with self._command_lock():
             current = self._runtime_record.read()
             if current.startup_owner_id != owner_id:
+                return False
+            if current.phase is not RuntimePhase.CORE_STARTING:
                 return False
             components = tuple(
                 replace(item, pid=pid if pid is not None else item.pid)
@@ -470,7 +664,9 @@ class RuntimeSupervisor:
         authority = self._authority_host.start()
         if authority is None:
             raise AuthorityHostError("Godot authority Runtime failed to start")
-        if not self._startup_claim_matches(owner_id) and not self._owner_matches(owner_id):
+        if not self._startup_claim_matches(owner_id) and not self._owner_matches(
+            owner_id
+        ):
             self._authority_host.stop(authority)
             raise AuthorityHostError("Runtime startup was cancelled")
         self._authority_process = authority
@@ -528,10 +724,17 @@ class RuntimeSupervisor:
                 return False
             self._sleeper(0.1)
 
-    def _wait_for_world_handoff(self, owner_id: str) -> Optional[bool]:
+    def _wait_for_world_handoff(
+        self,
+        owner_id: str,
+        *,
+        cancel_check: Optional[CancellationProbe] = None,
+    ) -> Optional[bool]:
         """Wait for the Core-resident worker to publish WORLD_READY."""
         deadline = self._monotonic() + self._authority_timeout_seconds
         while True:
+            if cancel_check is not None and cancel_check():
+                return False
             current = self._runtime_record.read()
             if current.owner_lease is None or current.owner_lease.owner_id != owner_id:
                 return None
@@ -541,11 +744,80 @@ class RuntimeSupervisor:
                 RuntimePhase.FAILED,
                 RuntimePhase.RECOVERY_REQUIRED,
                 RuntimePhase.OFFLINE,
+                RuntimePhase.QUIESCING,
+                RuntimePhase.WORLD_STOPPING,
+                RuntimePhase.MODEL_LEASE_RELEASING,
+                RuntimePhase.CORE_STOPPING,
             }:
                 return False
             if self._monotonic() >= deadline:
                 return False
             self._sleeper(0.1)
+
+    def _wait_for_existing_target(
+        self,
+        owner_id: str,
+        wait_target: RuntimeTarget,
+        cancel_check: Optional[CancellationProbe],
+    ) -> Optional[ServiceLifecycleError]:
+        """Wait for an already-owned generation without taking its ownership."""
+        if wait_target.rank < RuntimeTarget.WORLD.rank:
+            return None
+        world = self._wait_for_world_handoff(owner_id, cancel_check=cancel_check)
+        if world is not True:
+            if cancel_check is not None and cancel_check():
+                return LifecycleCancelledError(
+                    "Runtime wait was cancelled before World readiness"
+                )
+            return LaunchFailedError(
+                "Runtime generation did not reach WORLD_READY before the wait timeout"
+            )
+        if wait_target is not RuntimeTarget.NORMAL:
+            return None
+        if self._wait_for_normal(owner_id, cancel_check):
+            return None
+        if cancel_check is not None and cancel_check():
+            return LifecycleCancelledError(
+                "Runtime wait was cancelled before Normal readiness"
+            )
+        return LaunchFailedError(self._model_readiness_failure_detail())
+
+    def _wait_for_normal(
+        self,
+        owner_id: str,
+        cancel_check: Optional[CancellationProbe],
+    ) -> bool:
+        """Wait for the derived Normal target without probing the model."""
+        if self._model_projection_probe is None:
+            return False
+        deadline = self._monotonic() + self._model_timeout_seconds
+        while True:
+            if self._owner_operation_cancelled(owner_id, cancel_check):
+                return False
+            current = self._runtime_record.read()
+            if current.tier is not BackendTier.WORLD_READY:
+                return False
+            try:
+                model = self._model_projection_probe()
+            except (OSError, RuntimeError, ValueError):
+                model = None
+            if model is not None and model.state is ModelOverallState.READY:
+                return True
+            if self._monotonic() >= deadline:
+                return False
+            self._sleeper(0.1)
+
+    def _model_readiness_failure_detail(self) -> str:
+        if self._model_projection_probe is None:
+            return "Normal readiness requires a model health projection"
+        try:
+            model = self._model_projection_probe()
+        except (OSError, RuntimeError, ValueError) as error:
+            return f"Model health projection failed before Normal readiness: {error}"
+        return (
+            "Model service did not reach READY before Normal readiness timeout "
+            f"(state={model.state.value})"
+        )
 
     def _authority_readiness_failure_detail(self) -> str:
         authority_poll = getattr(self._authority_process, "poll", None)
@@ -560,7 +832,12 @@ class RuntimeSupervisor:
         component = record.component(RuntimeComponent.GODOT_AUTHORITY)
         return RecordedAuthorityProcess(component.pid) if component.pid else None
 
-    def _fail_start(self, owner_id: str, detail: str) -> ServiceLifecycleResult:
+    def _fail_start(
+        self,
+        owner_id: str,
+        detail: str,
+        operation_id: Optional[str] = None,
+    ) -> ServiceLifecycleResult:
         cleanup_detail = self._stop_owned_resources()
         if cleanup_detail:
             detail = f"{detail}; cleanup incomplete: {cleanup_detail}"
@@ -580,12 +857,65 @@ class RuntimeSupervisor:
                     )
                 )
         self._emit_progress(RuntimeProgressPhase.FAILED)
-        return ServiceLifecycleResult(status="failed", error=LaunchFailedError(detail))
+        return self._operation_result(
+            ServiceLifecycleResult(status="failed", error=LaunchFailedError(detail)),
+            operation_id,
+        )
+
+    def _cancel_start(
+        self,
+        owner_id: str,
+        detail: str,
+        operation_id: Optional[str] = None,
+    ) -> ServiceLifecycleResult:
+        """Release resources acquired by a cancelled start without overwriting stop."""
+        cleanup_detail = self._stop_owned_resources()
+        if cleanup_detail:
+            detail = f"{detail}; cleanup incomplete: {cleanup_detail}"
+        with self._command_lock():
+            current = self._runtime_record.read()
+            if current.startup_owner_id == owner_id:
+                self._runtime_record.write(
+                    replace(
+                        current,
+                        revision=current.revision + 1,
+                        tier=BackendTier.OFFLINE,
+                        phase=RuntimePhase.FAILED,
+                        subphase="start_cancelled",
+                        owner_lease=None,
+                        startup_owner_id=None,
+                        failures=(FailureSnapshot("START_CANCELLED", detail, "start"),),
+                    )
+                )
+        self._emit_progress(RuntimeProgressPhase.FAILED)
+        return self._operation_result(
+            ServiceLifecycleResult(
+                status="failed",
+                error=LifecycleCancelledError(detail),
+            ),
+            operation_id,
+        )
+
+    def _operation_result(
+        self,
+        result: ServiceLifecycleResult,
+        operation_id: Optional[str],
+    ) -> ServiceLifecycleResult:
+        if operation_id is None:
+            return result
+        try:
+            generation = self._runtime_record.read().generation
+        except (OSError, RuntimeError, ValueError):
+            generation = None
+        return replace(result, operation_id=operation_id, generation=generation)
 
     def _record_core_failure(self, owner_id: str, detail: str) -> None:
         with self._command_lock():
             current = self._runtime_record.read()
-            if current.owner_lease is not None and current.owner_lease.owner_id == owner_id:
+            if (
+                current.owner_lease is not None
+                and current.owner_lease.owner_id == owner_id
+            ):
                 components = tuple(
                     replace(
                         item,
@@ -610,7 +940,9 @@ class RuntimeSupervisor:
                 )
         self._stop_authority_only()
 
-    def _with_authority_evidence(self, observation: RuntimeObservation) -> RuntimeObservation:
+    def _with_authority_evidence(
+        self, observation: RuntimeObservation
+    ) -> RuntimeObservation:
         authority = self._authority_process
         if authority is None:
             return observation
@@ -658,7 +990,9 @@ class RuntimeSupervisor:
         try:
             core_result = self._stop_core()
             if core_result.status not in {"stopped", "already_stopped"}:
-                errors.append(str(core_result.error or "Core shutdown was not confirmed"))
+                errors.append(
+                    str(core_result.error or "Core shutdown was not confirmed")
+                )
         except Exception as error:  # noqa: BLE001 - preserve typed start failure
             errors.append(f"Core shutdown failed: {error}")
         return "; ".join(errors) if errors else None
@@ -678,14 +1012,51 @@ class RuntimeSupervisor:
 
     def _owner_matches(self, owner_id: str) -> bool:
         record = self._runtime_record.read()
-        return record.owner_lease is not None and record.owner_lease.owner_id == owner_id
+        return (
+            record.owner_lease is not None
+            and record.owner_lease.owner_id == owner_id
+            and record.phase
+            not in {
+                RuntimePhase.QUIESCING,
+                RuntimePhase.WORLD_STOPPING,
+                RuntimePhase.MODEL_LEASE_RELEASING,
+                RuntimePhase.CORE_STOPPING,
+            }
+        )
+
+    def _startup_cancelled(
+        self,
+        owner_id: str,
+        cancel_check: Optional[CancellationProbe],
+    ) -> bool:
+        if cancel_check is not None and cancel_check():
+            return True
+        record = self._runtime_record.read()
+        return (
+            record.startup_owner_id != owner_id
+            or record.phase is not RuntimePhase.CORE_STARTING
+        )
+
+    def _owner_operation_cancelled(
+        self,
+        owner_id: str,
+        cancel_check: Optional[CancellationProbe],
+    ) -> bool:
+        if cancel_check is not None and cancel_check():
+            return True
+        return not self._owner_matches(owner_id)
 
     def _startup_claim_matches(self, owner_id: str) -> bool:
         record = self._runtime_record.read()
-        return record.startup_owner_id == owner_id and record.phase is RuntimePhase.CORE_STARTING
+        return (
+            record.startup_owner_id == owner_id
+            and record.phase is RuntimePhase.CORE_STARTING
+        )
 
     @staticmethod
-    def _offline_snapshot(record: RuntimeSnapshotV1, *, phase: RuntimePhase, detail: str) -> RuntimeSnapshotV1:
+    def _offline_snapshot(
+        record: RuntimeSnapshotV1, *, phase: RuntimePhase, detail: str
+    ) -> RuntimeSnapshotV1:
         return replace(
             record,
             revision=record.revision + 1,
@@ -698,7 +1069,11 @@ class RuntimeSupervisor:
 
     @staticmethod
     def _recovery_detail(snapshot: RuntimeSnapshotV1) -> str:
-        return snapshot.failures[0].detail if snapshot.failures else "Runtime snapshot recovery is required"
+        return (
+            snapshot.failures[0].detail
+            if snapshot.failures
+            else "Runtime snapshot recovery is required"
+        )
 
     def _emit_progress(self, phase: RuntimeProgressPhase) -> None:
         if self._progress_callback is not None:

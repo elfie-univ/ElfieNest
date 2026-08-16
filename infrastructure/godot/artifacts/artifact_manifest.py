@@ -57,6 +57,7 @@ class RuntimeArtifactComponent:
     entrypoint: str
     applicable_targets: frozenset[RuntimeTarget]
     files: Tuple[RuntimeArtifactFile, ...]
+    species_catalog_digest: str
 
 
 @dataclass(frozen=True)
@@ -123,6 +124,7 @@ class RuntimeArtifactManifest:
                     "version": component.version,
                     "mode": component.mode.value,
                     "entrypoint": component.entrypoint,
+                    "species_catalog_digest": component.species_catalog_digest,
                     "applicable_targets": sorted(
                         target.value for target in component.applicable_targets
                     ),

@@ -9,7 +9,10 @@ import sys
 from pathlib import Path
 
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
-from scripts.build_godot_dedicated import runtime_is_current
+from scripts.build_godot_dedicated import (
+    current_species_catalog_digest,
+    runtime_is_current,
+)
 
 
 def _write_bundle(directory: Path, fingerprint: str) -> None:
@@ -28,6 +31,7 @@ def _write_bundle(directory: Path, fingerprint: str) -> None:
             {
                 "files": metadata,
                 "source_fingerprint": fingerprint,
+                "species_catalog_digest": current_species_catalog_digest(),
                 "export_boundary": export_boundary_manifest(),
             }
         ),

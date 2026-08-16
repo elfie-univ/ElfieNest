@@ -128,8 +128,14 @@ class OllamaLifecycleAdapter:
                 state = _prune_holders(state)
                 origin = state.get("origin")
                 if origin == "ELFIENEST_OWNED":
+                    if holder_identity is None:
+                        raise OllamaLeaseError(
+                            "无法取得当前 Core holder 的精确进程身份"
+                        )
                     owned_identity = _state_process_identity(state)
-                    if owned_identity is not None and _identity_is_current(owned_identity):
+                    if owned_identity is not None and _identity_is_current(
+                        owned_identity
+                    ):
                         state["holders"] = _add_holder(
                             state.get("holders"),
                             holder_id,
@@ -163,6 +169,8 @@ class OllamaLifecycleAdapter:
                 _write_services(state_path, services)
                 return self._lease("EXTERNAL", service_key, holder_id)
 
+            if holder_identity is None:
+                raise OllamaLeaseError("无法取得当前 Core holder 的精确进程身份")
             process = self._start_owned(binding)
             state = _binding_state(binding)
             state.update(
@@ -432,7 +440,10 @@ def _read_services(path: Path) -> dict[str, dict[str, Any]]:
         return {}
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise OllamaLeaseError(f"Ollama lease state is unreadable: {error}") from error
-    if not isinstance(payload, dict) or payload.get("schema_version") != _SCHEMA_VERSION:
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != _SCHEMA_VERSION
+    ):
         raise OllamaLeaseError("Ollama lease state schema is invalid")
     services = payload.get("services", {})
     if not isinstance(services, dict):
@@ -469,7 +480,11 @@ def _write_services(path: Path, services: Mapping[str, Mapping[str, Any]]) -> No
 def _lock_descriptor(descriptor: int) -> None:
     if os.name == "nt":
         os.lseek(descriptor, 0, os.SEEK_SET)
-        msvcrt.locking(descriptor, msvcrt.LK_LOCK, 1)
+        getattr(msvcrt, "locking")(  # noqa: B009
+            descriptor,
+            getattr(msvcrt, "LK_LOCK"),  # noqa: B009
+            1,  # noqa: B009
+        )
         return
     fcntl.flock(descriptor, fcntl.LOCK_EX)
 
@@ -477,7 +492,11 @@ def _lock_descriptor(descriptor: int) -> None:
 def _unlock_descriptor(descriptor: int) -> None:
     if os.name == "nt":
         os.lseek(descriptor, 0, os.SEEK_SET)
-        msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+        getattr(msvcrt, "locking")(  # noqa: B009
+            descriptor,
+            getattr(msvcrt, "LK_UNLCK"),  # noqa: B009
+            1,  # noqa: B009
+        )
         return
     fcntl.flock(descriptor, fcntl.LOCK_UN)
 

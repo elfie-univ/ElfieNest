@@ -19,6 +19,8 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
   运行关系和渐进实现顺序。
 - [服务生命周期状态机设计](./designs/service-lifecycle-state-machine)：服务稳定层级、入口、
   进程所有权和收敛。
+- [Provider 与 Endpoint 模型可用性](./designs/provider-model-availability)：精选模型加载、
+  在用核心范围和节省资源的健康证据。
 - [架构契约](./contracts/)：长期保留的规范性规则。
 - [仓库架构治理](./contracts/repository-governance)：契约、ADR、本地 Agent 规约、
   Scanner、基线和 CI 如何组成一套可执行的质量闭环。

@@ -48,6 +48,16 @@ class AuthorityHost:
         self.stopped.append(process.pid)
 
 
+class CrashingProcess(Process):
+    def __init__(self, pid: int) -> None:
+        super().__init__(pid)
+        self.poll_count = 0
+
+    def poll(self) -> int | None:
+        self.poll_count += 1
+        return None if self.poll_count == 1 else 1
+
+
 def _core_snapshot() -> RuntimeSnapshotV1:
     return RuntimeSnapshotV1(
         instance_id="instance",
@@ -82,7 +92,10 @@ def test_worker_converges_world_after_core_without_blocking_core_state() -> None
     assert host.started == 1
     assert record.read().tier is BackendTier.WORLD_READY
     assert record.read().phase is RuntimePhase.WORLD_READY
-    assert record.read().component(RuntimeComponent.GODOT_AUTHORITY).state is ComponentState.READY
+    assert (
+        record.read().component(RuntimeComponent.GODOT_AUTHORITY).state
+        is ComponentState.READY
+    )
 
 
 def test_worker_world_failure_preserves_core_and_stops_only_authority() -> None:
@@ -103,14 +116,25 @@ def test_worker_world_failure_preserves_core_and_stops_only_authority() -> None:
     assert host.stopped == [9002]
     assert record.read().tier is BackendTier.CORE_READY
     assert record.read().phase is RuntimePhase.FAILED
-    assert record.read().component(RuntimeComponent.GODOT_AUTHORITY).state is ComponentState.FAILED
+    assert (
+        record.read().component(RuntimeComponent.GODOT_AUTHORITY).state
+        is ComponentState.FAILED
+    )
 
 
 def test_worker_retries_world_convergence_with_a_bounded_budget() -> None:
     snapshot = _core_snapshot()
     record = MemoryRecord(snapshot)
     host = AuthorityHost(Process(9003))
-    readiness = iter((False, True))
+    readiness = iter((False, True, True))
+    worker_holder: list[RuntimeWorldWorker] = []
+    sleep_count = [0]
+
+    def stop_watchdog(_seconds: float) -> None:
+        sleep_count[0] += 1
+        if sleep_count[0] >= 2:
+            worker_holder[0]._stop_event.set()
+
     worker = RuntimeWorldWorker(
         runtime_record=record,
         authority_host=host,
@@ -118,10 +142,33 @@ def test_worker_retries_world_convergence_with_a_bounded_budget() -> None:
         authority_timeout_seconds=0.0,
         retry_delay_seconds=0.0,
         max_attempts=3,
-        sleeper=lambda _seconds: None,
+        sleeper=stop_watchdog,
     )
+    worker_holder.append(worker)
 
     worker._run()
 
     assert host.started == 2
     assert record.read().tier is BackendTier.WORLD_READY
+
+
+def test_worker_watchdog_demotes_world_after_authority_crash() -> None:
+    snapshot = _core_snapshot()
+    record = MemoryRecord(snapshot)
+    host = AuthorityHost(CrashingProcess(9004))
+    worker = RuntimeWorldWorker(
+        runtime_record=record,
+        authority_host=host,
+        world_ready_probe=lambda: True,
+        authority_timeout_seconds=0.0,
+        max_attempts=1,
+        sleeper=lambda _seconds: None,
+    )
+
+    worker._run()
+
+    assert host.started == 1
+    assert host.stopped == [9004]
+    assert record.read().tier is BackendTier.CORE_READY
+    assert record.read().phase is RuntimePhase.FAILED
+    assert record.read().failures[0].code == "AUTHORITY_EXITED"

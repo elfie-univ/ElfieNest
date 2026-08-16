@@ -7,6 +7,8 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Protocol, Sequence
 
+from pydantic import JsonValue
+
 from app.orchestration.lifecycle import desktop
 from app.orchestration.lifecycle.capability_gate import (
     DEFAULT_CAPABILITY_REQUIREMENTS,
@@ -17,6 +19,7 @@ from app.orchestration.lifecycle.helpers import existing_service_command, record
 from app.orchestration.lifecycle.ports import (
     AuthorityHostConfig,
     AuthorityHostFactory,
+    ControllerIpcPort,
     DataHomeInspection,
     DataHomeRecoveryResult,
     DesktopHostPort,
@@ -70,13 +73,14 @@ class RuntimeLifecycle(Protocol):
         desired_target: RuntimeTarget = RuntimeTarget.NORMAL,
         wait_target: RuntimeTarget = RuntimeTarget.CORE,
         correlation_id: Optional[str] = None,
+        cancel_check: Optional[Callable[[], bool]] = None,
     ) -> ServiceLifecycleResult:
         """Start one owned Runtime generation."""
 
     def status(self) -> RuntimeProjectionV1:
         """Return the latest read-only Runtime projection."""
 
-    def stop(self) -> ServiceLifecycleResult:
+    def stop(self, *, correlation_id: Optional[str] = None) -> ServiceLifecycleResult:
         """Stop the currently owned Runtime generation."""
 
 
@@ -93,6 +97,7 @@ class LifecycleFacade:
         http_probe: HttpProbePort,
         runtime_record_factory: RuntimeRecordFactory,
         authority_host_factory: AuthorityHostFactory,
+        controller_ipc: Optional[ControllerIpcPort] = None,
         optional_component: Optional[OptionalRuntimeComponentPort] = None,
         model_projection_factory: Optional[ModelHealthProjectionFactory] = None,
         frontend_preparation: Optional[FrontendPreparationPort] = None,
@@ -110,6 +115,7 @@ class LifecycleFacade:
         self._http_probe = http_probe
         self._runtime_record_factory = runtime_record_factory
         self._authority_host_factory = authority_host_factory
+        self._controller_ipc = controller_ipc
         self._optional_component = optional_component
         self._model_projection_factory = model_projection_factory
         self._frontend_preparation = frontend_preparation
@@ -312,6 +318,24 @@ class LifecycleFacade:
         """Read the authoritative snapshot for a Core-resident handoff."""
         return self._runtime_record_factory(elfie_home).read()
 
+    def runtime_projection(self, elfie_home: Path) -> RuntimeProjectionV1:
+        """Return the read-only snapshot plus the current Food model projection.
+
+        The durable Runtime record remains the only lifecycle fact source.  The
+        model fields are overlaid from Food's persisted evidence exactly as the
+        capability gate does; this method does not start services or perform a
+        live inference check.
+        """
+        snapshot = self.runtime_snapshot(elfie_home)
+        model = self.model_health_projection(elfie_home)
+        return replace(
+            snapshot.projection(),
+            model_state=model.state,
+            model_common_state=model.common_state,
+            model_emergency_state=model.emergency_state,
+            model_revision=model.revision,
+        )
+
     def issue_capability_permit(
         self,
         elfie_home: Path,
@@ -320,16 +344,7 @@ class LifecycleFacade:
         registry: CapabilityRequirementRegistry = DEFAULT_CAPABILITY_REQUIREMENTS,
     ) -> CapabilityPermit:
         """Issue a revision-bound permit without starting or probing anything."""
-        snapshot = self.runtime_snapshot(elfie_home)
-        model = self.model_health_projection(elfie_home)
-        projection = replace(
-            snapshot.projection(),
-            model_state=model.state,
-            model_common_state=model.common_state,
-            model_emergency_state=model.emergency_state,
-            model_revision=model.revision,
-        )
-        return registry.issue(operation, projection)
+        return registry.issue(operation, self.runtime_projection(elfie_home))
 
     def model_health_projection(self, elfie_home: Path) -> ModelHealthProjection:
         """Read the Food-owned model projection without performing validation."""
@@ -369,6 +384,7 @@ class LifecycleFacade:
     ) -> RuntimeLifecycle:
         """Construct the lifecycle workflow from already injected Port factories."""
         command = tuple(launch_command)
+        environment = dict(child_environment or {})
         return RuntimeSupervisor(
             runtime_record=self._runtime_record_factory(elfie_home),
             health_probe=health_probe,
@@ -378,7 +394,7 @@ class LifecycleFacade:
                 health_checker=healthy,
                 command=command,
                 timeout_seconds=core_timeout_seconds,
-                child_environment=child_environment,
+                child_environment=environment,
             ),
             stop_core=lambda: self.stop_service(elfie_home, project_root),
             owns_pid_record=lambda: (
@@ -400,6 +416,7 @@ class LifecycleFacade:
                 elfie_home
             ),
             model_projection_probe=lambda: self.model_health_projection(elfie_home),
+            child_environment=environment,
         )
 
     def runtime_world_worker(
@@ -478,6 +495,16 @@ class LifecycleFacade:
             elfie_home,
             host=self._desktop_host,
         )
+
+    def controller_request(
+        self,
+        command: str,
+        payload: Optional[Mapping[str, JsonValue]] = None,
+    ) -> Optional[Mapping[str, JsonValue]]:
+        """Send one authenticated local command without owning Controller state."""
+        if self._controller_ipc is None:
+            return None
+        return self._controller_ipc.request(command, payload)
 
     def desktop_process_id(self, elfie_home: Path) -> Optional[int]:
         return desktop.desktop_process_id(elfie_home, host=self._desktop_host)

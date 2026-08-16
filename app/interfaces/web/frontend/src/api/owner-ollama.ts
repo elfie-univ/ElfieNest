@@ -25,6 +25,8 @@ const OllamaModelSchema = z.object({
   display_name: z.string(),
   installed: z.boolean(),
   recommended: z.boolean(),
+  availability_status: z.enum(["available", "degraded", "unavailable", "unknown"]).optional(),
+  available: z.boolean().optional(),
 })
 
 const OllamaStatusSchema = z.object({

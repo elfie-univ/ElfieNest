@@ -16,7 +16,15 @@ import {
   backgroundMenuTemplate,
   normalizeApplicationMenuLocale,
 } from "./application_menu.js";
-import { DESKTOP_UI_INSTANCE_NAMESPACE, DesktopRoleController } from "./desktop_role_lifecycle.js";
+import {
+  DesktopRoleController,
+  type DesktopRoleState,
+} from "./desktop_role_lifecycle.js";
+import {
+  controllerHomeForAppData,
+  startControllerIpcServer,
+  type ControllerIpcServer,
+} from "./controller_ipc.js";
 import {
   lifecycleCommandExecutable,
   ManagedRuntimeLifecycleClient,
@@ -48,8 +56,10 @@ let runtimeUiAvailable = false;
 let managementUiLoaded = false;
 let recoveryActionHandler: ((action: RecoveryAction) => void) | undefined;
 let recoveryActionRunning = false;
+let controllerIpcServer: ControllerIpcServer | undefined;
 const controllerOnly = process.argv.includes("--background");
 let controllerEnsurePending = false;
+let controllerStartPromise: Promise<DesktopRoleState> | undefined;
 
 type RecoveryAction =
   | "recover-data-home"
@@ -314,7 +324,7 @@ async function startDesktop(): Promise<void> {
       new ProcessLifecycleCommandRunner(lifecycleCommand),
     ),
   );
-  const state = await roleController.start((phase) => {
+  const startup = roleController.start((phase) => {
     const window = managementWindow.current();
     if (window === undefined) return;
     if (phase === "core_ready") {
@@ -325,6 +335,24 @@ async function startDesktop(): Promise<void> {
       showStartupProgress(window, phase);
     }
   });
+  controllerStartPromise = startup;
+  controllerIpcServer = await startControllerIpcServer(app.getPath("userData"), {
+    ACTIVATE_VIEWER: async () => {
+      showManagementWindow();
+      return { accepted: true, ...controllerStatePayload() };
+    },
+    ENSURE_SERVER: async () => {
+      await ensureControllerRuntime();
+      return { accepted: true, ...controllerStatePayload() };
+    },
+    STATUS: async () => controllerStatePayload(),
+    STOP_SERVER: async () => {
+      setImmediate(() => requestExplicitApplicationExit());
+      return { accepted: true, state: "stopping" };
+    },
+  });
+  const state = await startup;
+  controllerStartPromise = undefined;
   if (state.kind === "failed") {
     if (state.recovery !== undefined) {
       recoveryActionHandler = (action) => {
@@ -347,10 +375,7 @@ async function startDesktop(): Promise<void> {
 }
 
 function startDesktopUiRole(): void {
-  app.setPath(
-    "userData",
-    join(app.getPath("userData"), DESKTOP_UI_INSTANCE_NAMESPACE),
-  );
+  app.setPath("userData", controllerHomeForAppData(app.getPath("appData")));
   const hasSingleInstanceLock = app.requestSingleInstanceLock();
   if (!hasSingleInstanceLock) {
     app.quit();
@@ -406,8 +431,21 @@ function startDesktopUiRole(): void {
     });
 }
 
+function controllerStatePayload(): Readonly<{ state: string; reason?: string }> {
+  const state = roleController?.state;
+  if (state === undefined) return { state: "starting" };
+  if (state.kind === "failed") {
+    return { state: "failed", reason: state.reason };
+  }
+  return { state: state.kind };
+}
+
 async function ensureControllerRuntime(): Promise<void> {
   if (roleController === undefined) {
+    if (controllerStartPromise !== undefined) {
+      await controllerStartPromise;
+      return;
+    }
     controllerEnsurePending = true;
     return;
   }
@@ -437,7 +475,11 @@ app.on("before-quit", (event) => {
       const message = error instanceof Error ? error.message : String(error);
       console.error("ElfieNest Runtime cleanup during quit failed", message);
     })
-    .finally(() => app.exit(0));
+    .finally(async () => {
+      await controllerIpcServer?.close();
+      controllerIpcServer = undefined;
+      app.exit(0);
+    });
 });
 
 app.on("activate", () => {

@@ -137,13 +137,13 @@ def test_web_reports_external_port_owner_when_default_health_fails(
     assert "occupied by external process" in capsys.readouterr().out
 
 
-def test_json_status_attaches_to_an_existing_elfienest_runtime(
+def test_json_status_does_not_attach_by_port_to_an_existing_runtime(
     monkeypatch,
     tmp_path: Path,
     capsys,
 ) -> None:
     # Given: this installation has no lifecycle receipt, while another checkout
-    # already serves an authenticated ElfieNest Core on the default port.
+    # already serves an ElfieNest Core on the default port.
     monkeypatch.setattr(
         LIFECYCLE,
         "select_data_home",
@@ -155,39 +155,16 @@ def test_json_status_attaches_to_an_existing_elfienest_runtime(
         "_supervisor_for",
         lambda *_args, **_kwargs: _StoppedSupervisor(),
     )
-    monkeypatch.setattr(
-        LIFECYCLE,
-        "http_get",
-        lambda *_args, **_kwargs: SimpleNamespace(
-            status=200,
-            body=json.dumps(
-                {
-                    "status": "ok",
-                    "engine_ready": True,
-                    "godot_web_ready": True,
-                    "godot_runtime_ready": False,
-                }
-            ).encode("utf-8"),
-        ),
-    )
-    monkeypatch.setattr(LIFECYCLE, "optional_component_ready", lambda: False)
 
-    # When: packaged Desktop asks its embedded CLI for attachable Runtime state.
+    # When: packaged Desktop asks its embedded CLI for current-project state.
     lifecycle_commands.show_service_status(LIFECYCLE, json_output=True)
 
-    # Then: it sees an attached degraded Runtime and does not try to start a
-    # second Core. The missing owner lease also prevents Desktop from stopping it.
+    # Then: port evidence is not treated as an attachable Runtime authority.
     payload = json.loads(capsys.readouterr().out)
-    assert payload["state"] == "core_ready"
-    assert payload["tier"] == "core_ready"
+    assert payload["state"] == "offline"
+    assert payload["tier"] == "offline"
     assert payload["generation"] == 0
     assert payload["owner_lease"] is None
-    assert {item["name"]: item["state"] for item in payload["components"]} == {
-        "core": "ready",
-        "gateway": "ready",
-        "godot_authority": "failed",
-        "ollama": "degraded",
-    }
 
 
 def test_json_status_rejects_an_unrelated_http_service(

@@ -42,6 +42,9 @@ const connection = {
       supports_tools: true,
       supports_vision: false,
       supports_reasoning: null,
+      supports_structured_output: true,
+      request_profile_id: "openai.chat_completions",
+      request_profile_version: 1,
       hidden: false,
       retired: false,
       available: true,
@@ -150,7 +153,15 @@ describe("ProviderModelsDialog", () => {
     expect(saveProviderModels).toHaveBeenCalledWith(
       "conn-openai",
       expect.arrayContaining([
-        expect.objectContaining({ original_id: "gpt-test", display_name: "GPT Test Updated", supports_vision: null, hidden: false }),
+        expect.objectContaining({
+          original_id: "gpt-test",
+          display_name: "GPT Test Updated",
+          supports_vision: null,
+          supports_structured_output: true,
+          request_profile_id: "openai.chat_completions",
+          request_profile_version: 1,
+          hidden: false,
+        }),
         expect.objectContaining({ original_id: "manual-model", id: "manual-model", hidden: true }),
       ]),
       "csrf",

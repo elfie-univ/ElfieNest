@@ -28,6 +28,7 @@ from app.orchestration.lifecycle.runtime_snapshot import (
 
 WorldReadyProbe = Callable[[], bool]
 CommandLeaseFactory = Callable[[], LifecycleLease]
+WATCHDOG_FAILURE_POLLS = 3
 
 
 class RuntimeWorldWorker:
@@ -109,18 +110,64 @@ class RuntimeWorldWorker:
                 and snapshot.desired_target.rank >= RuntimeTarget.WORLD.rank
             ):
                 self._converge(snapshot)
+            latest = self._runtime_record.read()
+            if latest.tier is BackendTier.WORLD_READY:
+                self._watch_world(latest)
                 latest = self._runtime_record.read()
                 if latest.tier is BackendTier.WORLD_READY:
                     return
-                if latest.phase is RuntimePhase.RECOVERY_REQUIRED:
-                    return
-                if latest.desired_target.rank < RuntimeTarget.WORLD.rank:
-                    return
+            if latest.phase is RuntimePhase.RECOVERY_REQUIRED:
+                return
+            if latest.desired_target.rank < RuntimeTarget.WORLD.rank:
+                self._stop_authority()
+                return
+            if latest.tier is BackendTier.CORE_READY:
                 attempts += 1
                 if attempts >= self._max_attempts:
                     return
                 self._sleeper(self._retry_delay_seconds)
                 continue
+            self._sleeper(self._poll_interval_seconds)
+
+    def _watch_world(self, claimed: RuntimeSnapshotV1) -> None:
+        """Keep a live World tier honest and demote it after authority loss."""
+        owner_lease = claimed.owner_lease
+        if owner_lease is None:
+            return
+        unhealthy_polls = 0
+        while not self._stop_event.is_set():
+            current = self._runtime_record.read()
+            if not self._world_claim_is_current(
+                current, owner_lease.owner_id, owner_lease.generation
+            ):
+                self._stop_authority()
+                return
+            process = self._authority_process
+            process_poll = getattr(process, "poll", None)
+            if callable(process_poll) and process_poll() is not None:
+                self._record_failure(
+                    owner_lease.owner_id,
+                    owner_lease.generation,
+                    "AUTHORITY_EXITED",
+                    "Godot authority Runtime exited after World readiness",
+                )
+                return
+            try:
+                ready = self._world_ready_probe()
+            except (OSError, RuntimeError, ValueError):
+                ready = False
+            if not ready:
+                unhealthy_polls += 1
+                if unhealthy_polls >= WATCHDOG_FAILURE_POLLS:
+                    self._record_failure(
+                        owner_lease.owner_id,
+                        owner_lease.generation,
+                        "WORLD_DISCONNECTED",
+                        "Godot authority Runtime no longer satisfies World readiness",
+                    )
+                    return
+            else:
+                unhealthy_polls = 0
             self._sleeper(self._poll_interval_seconds)
 
     def _converge(self, claimed: RuntimeSnapshotV1) -> None:
@@ -273,7 +320,10 @@ class RuntimeWorldWorker:
         self._stop_authority()
         with self._command_lock():
             current = self._runtime_record.read()
-            if not self._claim_is_current(current, owner_id, generation):
+            if not (
+                self._claim_is_current(current, owner_id, generation)
+                or self._world_claim_is_current(current, owner_id, generation)
+            ):
                 return
             self._runtime_record.write(
                 replace(
@@ -322,7 +372,26 @@ class RuntimeWorldWorker:
             and snapshot.owner_lease.generation == generation
             and snapshot.tier is BackendTier.CORE_READY
             and snapshot.phase
-            in {RuntimePhase.CORE_READY, RuntimePhase.WORLD_STARTING, RuntimePhase.FAILED}
+            in {
+                RuntimePhase.CORE_READY,
+                RuntimePhase.WORLD_STARTING,
+                RuntimePhase.FAILED,
+            }
+            and snapshot.desired_target.rank >= RuntimeTarget.WORLD.rank
+        )
+
+    @staticmethod
+    def _world_claim_is_current(
+        snapshot: RuntimeSnapshotV1,
+        owner_id: str,
+        generation: int,
+    ) -> bool:
+        return (
+            snapshot.owner_lease is not None
+            and snapshot.owner_lease.owner_id == owner_id
+            and snapshot.owner_lease.generation == generation
+            and snapshot.tier is BackendTier.WORLD_READY
+            and snapshot.phase is RuntimePhase.WORLD_READY
             and snapshot.desired_target.rank >= RuntimeTarget.WORLD.rank
         )
 

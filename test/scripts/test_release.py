@@ -111,7 +111,7 @@ def test_release_session_dispatches_all_targets_and_requires_artifact_hash_and_s
     tmp_path: Path,
 ) -> None:
     # Given: four native runners, each returning a verified installer and smoke evidence.
-    artifact = tmp_path / "ElfieNest.dmg"
+    artifact = tmp_path / "ElfieNest.pkg"
     artifact.write_bytes(b"installer")
     requests = release_planning.release_requests(
         targets=release.SUPPORTED_TARGETS,
@@ -151,7 +151,7 @@ def test_release_session_keeps_successful_artifacts_when_one_runner_is_missing(
     tmp_path: Path,
 ) -> None:
     # Given: only one native runner is configured for a two-target matrix.
-    artifact = tmp_path / "ElfieNest.dmg"
+    artifact = tmp_path / "ElfieNest.pkg"
     artifact.write_bytes(b"installer")
     requests = release_planning.release_requests(
         targets=("darwin-arm64", "win32-x64"),
@@ -216,7 +216,7 @@ def test_native_package_output_writes_the_current_native_package(
     tmp_path: Path,
 ) -> None:
     # Given: a native build whose installer has not yet received post-install smoke evidence.
-    artifact = tmp_path / "ElfieNest.dmg"
+    artifact = tmp_path / "ElfieNest.pkg"
     artifact.write_bytes(b"installer")
     output = tmp_path / "artifact-path"
     monkeypatch.setattr(
@@ -250,7 +250,7 @@ def test_native_pipeline_passes_the_exact_target_to_the_packager(tmp_path) -> No
     core = tmp_path / "ElfieNestCore"
     cli = tmp_path / "ElfieNestCli"
     resources = tmp_path / "resources"
-    artifact = tmp_path / "ElfieNest-0.1.0-internal-mac-arm64.dmg"
+    artifact = tmp_path / "ElfieNest-0.1.0-internal-mac-arm64.pkg"
 
     def package(target: str, received_resources, environment: dict[str, str]):
         assert received_resources == resources
@@ -357,9 +357,35 @@ def test_desktop_packaging_uses_only_the_current_brand_icon() -> None:
     assert macos_icon.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert macos_icon.read_bytes() != desktop_icon.read_bytes()
     assert "mac:\n  icon: assets/elfienest-macos-app-icon.png" in builder_config
+    assert "target: [pkg]" in builder_config
+    assert "scripts: packaging/macos" in builder_config
     assert "win:\n  icon: assets/elfienest-app-icon.png" in builder_config
+    assert "include: packaging/windows/installer.nsh" in builder_config
     assert "linux:\n  icon: assets/elfienest-app-icon.png" in builder_config
+    assert "executableName: elfienest-gui" in builder_config
+    assert "target: [deb]" in builder_config
+    assert "afterInstall: packaging/linux/after-install.sh" in builder_config
     assert not retired_icon.exists()
+
+
+def test_native_installers_publish_the_global_cli_launcher_contract() -> None:
+    # Given: the native installer hooks used by the packaged application.
+    packaging = PROJECT_ROOT / "app" / "bootstrap" / "desktop_host" / "packaging"
+    mac = (packaging / "macos" / "postinstall").read_text(encoding="utf-8")
+    linux_install = (packaging / "linux" / "after-install.sh").read_text(encoding="utf-8")
+    linux_remove = (packaging / "linux" / "after-remove.sh").read_text(encoding="utf-8")
+    windows = (packaging / "windows" / "installer.nsh").read_text(encoding="utf-8")
+
+    # Then: each installer creates/removes only the packaged management CLI launcher.
+    assert "/usr/local/bin/elfienest" in mac
+    assert 'target_root="${3:-/}"' in mac
+    assert 'Applications/ElfieNest.app/Contents/Resources/management-cli/ElfieNestCli' in mac
+    assert "/usr/local/bin/elfienest" in linux_install
+    assert "resources/management-cli/ElfieNestCli" in linux_install
+    assert "resources/management-cli/ElfieNestCli" in linux_remove
+    assert "management-cli\\ElfieNestCli.exe" in windows
+    assert "customInstall" in windows
+    assert "customUnInstall" in windows
 
 
 def test_release_cli_only_reports_success_after_its_native_pipeline_finishes(
@@ -367,7 +393,7 @@ def test_release_cli_only_reports_success_after_its_native_pipeline_finishes(
     tmp_path: Path,
 ) -> None:
     # Given: an otherwise native release request with a deterministic pipeline.
-    artifact = tmp_path / "ElfieNest-0.1.0-internal-mac-arm64.dmg"
+    artifact = tmp_path / "ElfieNest-0.1.0-internal-mac-arm64.pkg"
     calls: list[str] = []
     monkeypatch.setattr(
         release.package_python_core, "host_target", lambda: "darwin-arm64"
@@ -396,7 +422,7 @@ def test_release_artifact_output_is_available_only_for_one_complete_native_targe
     tmp_path: Path,
 ) -> None:
     # Given: a native build that returns one installer path.
-    artifact = tmp_path / "ElfieNest.dmg"
+    artifact = tmp_path / "ElfieNest.pkg"
     output = tmp_path / "artifact-path"
     monkeypatch.setattr(
         release.package_python_core, "host_target", lambda: "darwin-arm64"
@@ -494,7 +520,7 @@ def test_packager_publishes_only_the_verified_single_native_installer(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    # Given: a target staging root and an Electron command adapter that produces one DMG.
+    # Given: a target staging root and an Electron command adapter that produces one PKG.
     build_root = tmp_path / "build"
     dist_root = tmp_path / "dist"
     resources = build_root / "staging" / "darwin-arm64" / "resources"
@@ -510,6 +536,9 @@ def test_packager_publishes_only_the_verified_single_native_installer(
         assert (cwd / "bootstrap" / "desktop_host.mjs").is_file()
         assert (cwd / "desktop-interface" / "main.js").is_file()
         assert (cwd / "packaged-resources").is_dir()
+        assert (cwd / "packaging" / "windows" / "installer.nsh").is_file()
+        assert (cwd / "packaging" / "linux" / "after-install.sh").is_file()
+        assert (cwd / "packaging" / "macos" / "postinstall").is_file()
         assert (cwd / "assets" / "elfienest-tray-icon.png").read_bytes() == (
             PROJECT_ROOT
             / "docs"
@@ -524,7 +553,7 @@ def test_packager_publishes_only_the_verified_single_native_installer(
         )
         output = Path(output_argument.split("=", 1)[1])
         output.mkdir(parents=True)
-        (output / "ElfieNest-0.1.0-internal-mac-arm64.dmg").write_bytes(b"installer")
+        (output / "ElfieNest-0.1.0-internal-mac-arm64.pkg").write_bytes(b"installer")
 
     monkeypatch.setattr(release_pipeline, "BUILD_DIR", build_root)
     monkeypatch.setattr(release_pipeline, "DIST_DIR", dist_root)
@@ -538,7 +567,7 @@ def test_packager_publishes_only_the_verified_single_native_installer(
     )
 
     # Then: only the final installer appears in dist and its target reaches the builder.
-    assert artifact == dist_root / "ElfieNest-0.1.0-internal-mac-arm64.dmg"
+    assert artifact == dist_root / "ElfieNest-0.1.0-internal-mac-arm64.pkg"
     assert artifact.read_bytes() == b"installer"
     assert observed_environment["ELFIENEST_TARGET"] == "darwin-arm64"
     assert observed_environment["ELFIENEST_PROJECT_ROOT"] == str(PROJECT_ROOT)
@@ -569,7 +598,7 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
         )
         output = Path(output_argument.split("=", 1)[1])
         output.mkdir(parents=True)
-        (output / "ElfieNest-0.1.0-internal-mac-arm64.dmg").write_bytes(b"installer")
+        (output / "ElfieNest-0.1.0-internal-mac-arm64.pkg").write_bytes(b"installer")
 
     monkeypatch.setattr(release_pipeline, "BUILD_DIR", build_root)
     monkeypatch.setattr(release_pipeline, "DIST_DIR", dist_root)
@@ -609,7 +638,7 @@ def test_packager_replaces_a_previous_same_version_local_artifact(
     resources = build_root / "staging" / "darwin-arm64" / "resources"
     resources.mkdir(parents=True)
     _create_built_desktop_interface(build_root)
-    destination = dist_root / "ElfieNest-0.1.0-internal-mac-arm64.dmg"
+    destination = dist_root / "ElfieNest-0.1.0-internal-mac-arm64.pkg"
     destination.parent.mkdir()
     destination.write_bytes(b"previous")
 

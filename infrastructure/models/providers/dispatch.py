@@ -9,6 +9,11 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, cast
 
 from infrastructure.models.oauth_credentials import OAuthCredentialPort, OAuthToken
+from infrastructure.models.provider_errors import (
+    ProviderCallError,
+    provider_error_from_http,
+    provider_network_error,
+)
 from infrastructure.models.providers.http import (
     ProviderHttpResponse,
     open_provider_request,
@@ -43,6 +48,7 @@ def call_ollama_api(
     *,
     thinking: bool = False,
     request_options: dict[str, Any] | None = None,
+    response_capture: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     headers: dict[str, str] = {"Content-Type": "application/json"}
     url = f"{ollama_host}/api/chat"
@@ -78,7 +84,10 @@ def call_ollama_api(
                     "prompt_tokens": res_data.get("prompt_eval_count", 0),
                     "completion_tokens": res_data.get("eval_count", 0),
                 }
-            return res_data["message"]["content"], usage
+            message = res_data["message"]
+            if response_capture is not None:
+                _capture_message(response_capture, message)
+            return message["content"], usage
     except Exception as e:
         logger.error("本地 Ollama 调用异常: %s", e)
         raise OllamaNotReadyError(
@@ -97,9 +106,15 @@ def call_openai_compatible_api(
     *,
     request_options: dict[str, Any] | None = None,
     timeout_seconds: float | None = None,
+    response_capture: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     if not api_base:
-        raise ValueError(f"❌ 未找到大模型服务商 '{provider}' 的有效 API Base 配置！")
+        raise ProviderCallError(
+            f"❌ 未找到大模型服务商 '{provider}' 的有效 API Base 配置！",
+            code="provider_base_missing",
+            scope="connection",
+            category="configuration",
+        )
 
     headers: dict[str, str] = {"Content-Type": "application/json"}
     url = f"{api_base}/chat/completions"
@@ -128,6 +143,8 @@ def call_openai_compatible_api(
             )
             usage = res_data.get("usage", {})
             message = res_data["choices"][0]["message"]
+            if response_capture is not None:
+                _capture_message(response_capture, message)
             content = message.get("content")
             if not isinstance(content, str) or not content.strip():
                 reasoning_content = message.get("reasoning_content")
@@ -139,10 +156,11 @@ def call_openai_compatible_api(
         logger.error("Cloud LLM API call exception: %s", e)
         if isinstance(e, urllib.error.HTTPError):
             err_msg = _http_error_summary(e)
-            raise RuntimeError(
-                f"❌ 云端大模型接口 ({provider}) 返回 HTTP {e.code} 错误。响应详情: {err_msg}"
+            raise provider_error_from_http(
+                e,
+                f"❌ 云端大模型接口 ({provider}) 返回 HTTP {e.code} 错误。响应详情: {err_msg}",
             ) from e
-        raise RuntimeError(
+        raise provider_network_error(
             f"❌ 物理层无法连通云端大模型服务接口 ({provider}): {e}"
         ) from e
 
@@ -156,6 +174,7 @@ def call_anthropic_api(
     max_tokens: int,
     *,
     request_options: dict[str, Any] | None = None,
+    response_capture: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     url = f"{api_base.rstrip('/')}/messages"
     system_prompt = ""
@@ -194,14 +213,36 @@ def call_anthropic_api(
                 ).decode("utf-8")
             )
             usage = res_data.get("usage", {})
-            return res_data["content"][0]["text"], usage
+            blocks = res_data.get("content", [])
+            text_parts = []
+            tool_use_count = 0
+            reasoning_present = False
+            if isinstance(blocks, list):
+                for block in blocks:
+                    if not isinstance(block, dict):
+                        continue
+                    if isinstance(block.get("text"), str):
+                        text_parts.append(block["text"])
+                    if block.get("type") == "tool_use":
+                        tool_use_count += 1
+                    if block.get("type") in {"thinking", "redacted_thinking"}:
+                        reasoning_present = True
+            if response_capture is not None:
+                response_capture.update(
+                    {
+                        "tool_call_count": tool_use_count,
+                        "reasoning_present": reasoning_present,
+                    }
+                )
+            return "".join(text_parts), usage
     except urllib.error.HTTPError as e:
         err_msg = _http_error_summary(e)
-        raise RuntimeError(
-            f"❌ Anthropic API 返回 HTTP {e.code} 错误。响应详情: {err_msg}"
+        raise provider_error_from_http(
+            e,
+            f"❌ Anthropic API 返回 HTTP {e.code} 错误。响应详情: {err_msg}",
         ) from e
     except Exception as e:
-        raise RuntimeError(f"❌ 物理层无法连通 Anthropic 服务: {e}") from e
+        raise provider_network_error(f"❌ 物理层无法连通 Anthropic 服务: {e}") from e
 
 
 def call_codex_responses_api(
@@ -217,6 +258,7 @@ def call_codex_responses_api(
     credential_ref: str = "",
     account_id: str | None = None,
     oauth_credentials: OAuthCredentialPort | None = None,
+    response_capture: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Call the ChatGPT Codex Responses transport with a refreshable user token."""
     _ = temperature, max_tokens
@@ -228,7 +270,12 @@ def call_codex_responses_api(
     access_token = token.access_token if token is not None else api_key
     account_id = token.account_id if token is not None else account_id
     if not access_token:
-        raise ValueError("ChatGPT 授权已失效，请重新登录")
+        raise ProviderCallError(
+            "ChatGPT 授权已失效，请重新登录",
+            code="invalid_credential",
+            scope="connection",
+            category="authentication",
+        )
     instructions = "\n\n".join(
         str(item.get("content") or "")
         for item in messages
@@ -265,16 +312,17 @@ def call_codex_responses_api(
             raw = read_provider_response(
                 response, max_bytes=32 * 1024 * 1024, deadline_seconds=300
             ).decode("utf-8")
-        return _parse_codex_response(raw)
+        return _parse_codex_response(raw, response_capture=response_capture)
     except urllib.error.HTTPError as error:
         summary = _http_error_summary(error)
-        raise RuntimeError(
-            f"❌ ChatGPT Codex 接口返回 HTTP {error.code} 错误。响应详情: {summary}"
+        raise provider_error_from_http(
+            error,
+            f"❌ ChatGPT Codex 接口返回 HTTP {error.code} 错误。响应详情: {summary}",
         ) from error
     except Exception as error:
-        if isinstance(error, (RuntimeError, ValueError)):
+        if isinstance(error, (ProviderCallError, ValueError)):
             raise
-        raise RuntimeError(
+        raise provider_network_error(
             f"❌ 物理层无法连通 ChatGPT Codex 服务 ({provider}): {error}"
         ) from error
 
@@ -354,10 +402,16 @@ def _merge_codex_request_options(
             payload["tool_choice"] = choice
 
 
-def _parse_codex_response(raw: str) -> tuple[str, dict[str, Any]]:
+def _parse_codex_response(
+    raw: str,
+    *,
+    response_capture: dict[str, Any] | None = None,
+) -> tuple[str, dict[str, Any]]:
     stripped = raw.lstrip()
     if stripped.startswith("{"):
         payload = json.loads(stripped)
+        if response_capture is not None:
+            _capture_responses_output(response_capture, payload)
         return _responses_text(payload), _responses_usage(payload)
     deltas: list[str] = []
     function_deltas: list[str] = []
@@ -373,11 +427,18 @@ def _parse_codex_response(raw: str) -> tuple[str, dict[str, Any]]:
             deltas.append(str(event.get("delta") or ""))
         if event.get("type") == "response.function_call_arguments.delta":
             function_deltas.append(str(event.get("delta") or ""))
+            if response_capture is not None:
+                response_capture["tool_call_count"] = 1
+        if event.get("type", "").startswith("response.reasoning"):
+            if response_capture is not None:
+                response_capture["reasoning_present"] = True
         if event.get("type") == "response.completed" and isinstance(
             event.get("response"), dict
         ):
             completed = event["response"]
     if completed is not None:
+        if response_capture is not None:
+            _capture_responses_output(response_capture, completed)
         text = (
             "".join(deltas)
             or "".join(function_deltas)
@@ -433,6 +494,36 @@ def _responses_usage(payload: Mapping[str, Any]) -> dict[str, Any]:
         "prompt_tokens": usage.get("input_tokens", 0),
         "completion_tokens": usage.get("output_tokens", 0),
     }
+
+
+def _capture_message(capture: dict[str, Any], message: Any) -> None:
+    if not isinstance(message, Mapping):
+        return
+    tool_calls = message.get("tool_calls")
+    capture["tool_call_count"] = len(tool_calls) if isinstance(tool_calls, list) else 0
+    capture["reasoning_present"] = bool(
+        message.get("reasoning_content")
+        or message.get("reasoning")
+        or message.get("thinking")
+    )
+    if isinstance(message.get("finish_reason"), str):
+        capture["finish_reason"] = message["finish_reason"]
+
+
+def _capture_responses_output(capture: dict[str, Any], payload: Mapping[str, Any]) -> None:
+    output = payload.get("output")
+    if not isinstance(output, list):
+        return
+    tool_calls = sum(
+        1
+        for item in output
+        if isinstance(item, Mapping) and item.get("type") == "function_call"
+    )
+    capture["tool_call_count"] = tool_calls
+    capture["reasoning_present"] = any(
+        isinstance(item, Mapping) and item.get("type") == "reasoning"
+        for item in output
+    )
 
 
 def _token_expired(expires_at: str | None) -> bool:

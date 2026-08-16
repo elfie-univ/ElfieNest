@@ -68,7 +68,9 @@ def test_health_uses_primary_and_same_food_fallback_evidence() -> None:
     assert health.locality == "mixed"
 
 
-def test_model_service_health_ignores_inactive_models_and_requires_emergency_food() -> None:
+def test_model_service_health_ignores_inactive_models_and_requires_emergency_food() -> (
+    None
+):
     packages = (
         StoredFoodPackage(
             food_id="food_common",
@@ -100,7 +102,34 @@ def test_model_service_health_ignores_inactive_models_and_requires_emergency_foo
     assert health.required_food_ids == ("food_common", "food_emergency")
 
 
-def test_model_service_health_degrades_for_missing_emergency_but_unavailable_common_blocks() -> None:
+def test_required_role_needs_verified_capability_evidence() -> None:
+    package = StoredFoodPackage(
+        food_id="food_common",
+        display_name="Common",
+        primary_model="cloud/main",
+        vision_model="cloud/vision",
+        required_roles=frozenset({"vision"}),
+    )
+    evidence = (
+        _evidence("cloud/main"),
+        StoredModelEvidence(
+            reference="cloud/vision",
+            display_name="cloud/vision",
+            capabilities=frozenset({"text", "vision"}),
+            verified=True,
+            capability_states={"vision": "unsupported"},
+            observed_at=datetime.now(timezone.utc).isoformat(),
+        ),
+    )
+
+    health = project_food_health(package, {item.reference: item for item in evidence})
+
+    assert health.status == "unavailable"
+
+
+def test_model_service_health_degrades_for_missing_emergency_but_unavailable_common_blocks() -> (
+    None
+):
     packages = (
         StoredFoodPackage(
             food_id="food_common",

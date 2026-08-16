@@ -94,7 +94,9 @@ def test_config(
         if local.state == "healthy":
             print("  ✅ Ollama connection successful")
         else:
-            print("  ⚠️  Ollama is unavailable; configure a model provider before chatting")
+            print(
+                "  ⚠️  Ollama is unavailable; configure a model provider before chatting"
+            )
 
     print("\n  [2/3] Testing database...")
     try:

@@ -10,7 +10,7 @@ Startup flow:
 Command-line arguments:
     --port          HTTP port (default 8000)
     --godot-ws-port Godot WebSocket port (default 8765)
-    --force         Force restart (kill processes occupying ports)
+    --force         Compatibility flag; port occupants are never terminated by lookup
 
 CLI tools:
     .venv/bin/python scripts/elfienest.py config    Open config TUI
@@ -31,7 +31,6 @@ import os
 import secrets
 import sys
 import threading
-import time
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -55,7 +54,7 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force restart: kill processes occupying ports",
+        help="Compatibility flag; never terminates a port occupant",
     )
     parser.add_argument(
         "--lan",
@@ -131,9 +130,11 @@ from app.bootstrap.system_wiring.entrypoints import (
 from app.bootstrap.system_wiring.lifecycle import (
     create_lifecycle_facade,
     create_runtime_capability_gate,
+    runtime_projection_payload,
 )
 from app.bootstrap.system_wiring.nest_session import (
     build_nest_session_services,
+    load_emotion_expression_config,
     restore_registered_elfies,
 )
 from app.features.accounts import SeedInitialOwnerCommand
@@ -146,11 +147,7 @@ from app.orchestration.lifecycle import (
     AuthorityHostConfig,
     FrontendPreparationError,
     RecoveryInProgressError,
-    command_runs_service,
     validate_service_ports,
-)
-from infrastructure.persistence.configuration.bundled_defaults import (
-    load_emotion_expression_defaults,
 )
 
 WORLD_CONVERGENCE_TIMEOUT_SECONDS = 120.0
@@ -183,10 +180,13 @@ def select_implicit_service_ports(
     if not occupied:
         return selected_http, selected_ws
     try:
-        if lifecycle.existing_service_command(
-            data_home,
-            Path(__file__).resolve().parent.parent,
-        ) is not None:
+        if (
+            lifecycle.existing_service_command(
+                data_home,
+                Path(__file__).resolve().parent.parent,
+            )
+            is not None
+        ):
             return selected_http, selected_ws
     except OSError:
         return selected_http, selected_ws
@@ -319,36 +319,6 @@ def main():
             "  💡 Run after modifying Godot assets or before release: ./elfienest.sh build-godot-web"
         )
 
-    def is_port_in_use(port):
-        return lifecycle.ports_in_use((port,))
-
-    def kill_process_on_port(port):
-        """Terminate only the current project's registered service process."""
-        expected_root = Path(__file__).resolve().parent.parent
-        expected_script = Path(__file__).resolve()
-        try:
-            occupant = lifecycle.port_occupant_pid(port)
-            pids = (occupant,) if occupant is not None else ()
-            killed = []
-            for pid in pids:
-                try:
-                    snapshot = lifecycle.inspect_process(pid)
-                    process_cwd = snapshot.cwd.resolve()
-                except (OSError, ValueError, RuntimeError):
-                    continue
-                if process_cwd != expected_root or not command_runs_service(
-                    snapshot.command, process_cwd, expected_script
-                ):
-                    continue
-                try:
-                    lifecycle.terminate_process(pid, force=True)
-                    killed.append(str(pid))
-                except OSError:
-                    pass
-            return killed
-        except OSError:
-            return []
-
     ports_to_check = [
         (args.port, "HTTP"),
         (args.godot_ws_port, "Godot WebSocket"),
@@ -356,52 +326,24 @@ def main():
 
     occupied = []
     for port, name in ports_to_check:
-        if is_port_in_use(port):
+        if lifecycle.ports_in_use((port,)):
             occupied.append((port, name))
 
     if occupied:
+        print("\n" + "=" * 56)
+        print("  ⚠️  Port conflict, cannot start service")
+        print("=" * 56)
+        for port, name in occupied:
+            print(f"  ❌ Port {port} ({name}) already in use")
+        print("\n  💡 Solutions:")
+        print("     1. Stop the owning ElfieNest instance from its own data root")
+        print("     2. Use different ports:")
+        print("        ./elfienest.sh --port 8001 --godot-ws-port 8866")
         if args.force:
-            print("\n" + "=" * 56)
-            print("  🔄 Force restart mode: terminating processes on occupied ports...")
-            print("=" * 56)
-            for port, name in occupied:
-                pids = kill_process_on_port(port)
-                if pids:
-                    print(
-                        f"  ✓ Port {port} ({name}): terminated process PID {', '.join(pids)}"
-                    )
-                else:
-                    print(f"  ⚠ Port {port} ({name}): unable to terminate")
-            print()
-            time.sleep(1)
-            remaining = remaining_occupied_ports(occupied, is_port_in_use)
-            if remaining:
-                print("=" * 56)
-                print("  ❌ Force restart failed, ports still occupied")
-                print("=" * 56)
-                for port, name in remaining:
-                    print(f"  ❌ Port {port} ({name}) still occupied")
-                print("  Please manually close these processes and retry.")
-                print("=" * 56 + "\n")
-                start_lease.release()
-                sys.exit(1)
-        else:
-            print("\n" + "=" * 56)
-            print("  ⚠️  Port conflict, cannot start service")
-            print("=" * 56)
-            for port, name in occupied:
-                print(f"  ❌ Port {port} ({name}) already in use")
-            print("\n  💡 Solutions:")
-            print("     1. Force restart (auto-kill occupying processes):")
-            print("        ./elfienest.sh --force")
-            print("        or")
-            print("        elfienest --force")
-            print("     2. Manually close and retry")
-            print("     3. Use different ports:")
-            print("        ./elfienest.sh --port 8001 --godot-ws-port 8866")
-            print("=" * 56 + "\n")
-            start_lease.release()
-            sys.exit(1)
+            print("     --force is compatibility-only; no process was terminated")
+        print("=" * 56 + "\n")
+        start_lease.release()
+        sys.exit(1)
 
     try:
         register_service_process_for_start(
@@ -457,11 +399,11 @@ def main():
 
     engine_ready.wait(timeout=5.0)
     if "engine" not in engine_holder:
-        error = engine_start_error.get("error")
-        if error is None:
+        engine_error = engine_start_error.get("error")
+        if engine_error is None:
             print("❌ Engine failed to become ready within 5s")
         else:
-            print(f"❌ Engine failed to become ready: {error}")
+            print(f"❌ Engine failed to become ready: {engine_error}")
         sys.exit(1)
     engine = engine_holder["engine"]
     print("  ℹ️ Godot Web Runtime is hosted by ElfieNest Desktop hidden window")
@@ -472,7 +414,7 @@ def main():
         restore_result = restore_registered_elfies(
             db_path,
             engine.session,
-            emotion_expression_config=load_emotion_expression_defaults(),
+            emotion_expression_config=load_emotion_expression_config(),
         )
         loaded_elfies = [
             {"id": item.elfie_id, "name": item.name} for item in restore_result.restored
@@ -501,6 +443,7 @@ def main():
 
     godot_build_thread: threading.Thread | None = None
     if args.runtime_mode == "development" and not godot_ready:
+
         def prepare_godot_in_background() -> None:
             try:
                 if prepare_godot_web_runtime(lifecycle, args.runtime_mode):
@@ -509,7 +452,12 @@ def main():
                     print(
                         "  ⚠️  Godot Web Runtime preparation failed; 3D preview remains unavailable"
                     )
-            except (OSError, RuntimeError, ValueError, FrontendPreparationError) as error:
+            except (
+                OSError,
+                RuntimeError,
+                ValueError,
+                FrontendPreparationError,
+            ) as error:
                 print(f"  ⚠️  Godot Web Runtime preparation failed: {error}")
 
         godot_build_thread = threading.Thread(
@@ -573,6 +521,9 @@ def main():
         service_mode=ServiceMode.LAN.value if args.lan else ServiceMode.LOOPBACK.value,
         model_execution=model_execution_services.execution,
         runtime_capability_gate=create_runtime_capability_gate(
+            lifecycle, get_elfie_home()
+        ),
+        runtime_projection=lambda: runtime_projection_payload(
             lifecycle, get_elfie_home()
         ),
     )

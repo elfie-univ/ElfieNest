@@ -133,6 +133,42 @@ def test_manager_runtime_status_preserves_the_existing_projection() -> None:
     assert len(observer.snapshot()) == 2
 
 
+def test_manager_runtime_status_includes_the_authoritative_lifecycle_projection() -> (
+    None
+):
+    observer = ModelExecutionObserver()
+    app = _client(observer, "owner").app
+    app.state.runtime_projection = lambda: {
+        "schema_version": 1,
+        "instance_id": "instance",
+        "generation": 3,
+        "revision": 7,
+        "tier": "core_ready",
+        "phase": "core_ready",
+        "subphase": "",
+        "desired_target": "normal",
+        "reached_target": "core",
+        "components": [],
+        "endpoints": [],
+        "model_state": "degraded",
+        "model_common_state": "ready",
+        "model_emergency_state": "unavailable",
+        "model_revision": 4,
+        "failures": [],
+        "timings": [{"phase": "core", "duration_ms": 12, "elapsed_ms": None}],
+        "protocol_versions": ["runtime/1"],
+    }
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/admin/runtime/status")
+
+    assert response.status_code == 200
+    lifecycle = response.json()["lifecycle"]
+    assert lifecycle["tier"] == "core_ready"
+    assert lifecycle["model_emergency_state"] == "unavailable"
+    assert lifecycle["timings"] == [{"phase": "core", "duration_ms": 12}]
+
+
 def test_non_manager_receives_the_standard_error_envelope() -> None:
     with _client(ModelExecutionObserver(), "user") as client:
         response = client.get("/api/v1/admin/runtime/status")

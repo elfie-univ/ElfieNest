@@ -1,8 +1,8 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.7
+**Contract version:** 1.8
 **Adopted:** 2026-08-12
-**Revised:** 2026-08-14
+**Revised:** 2026-08-16
 **Enforced scope:** Repository-wide change classification and architecture boundaries
 
 This contract defines how ElfieNest architecture rules are organized, changed
@@ -54,6 +54,32 @@ including newly introduced source roots. It classifies both caller and target
 by module ownership rather than blacklisting a current offender. Targets that
 cannot be statically resolved require a typed Port or Bootstrap-owned launch
 plan and human review.
+
+## Implementation completion and delivery closure
+
+An approved design or contract is the fixed target for implementation. The
+executor must derive a compact acceptance matrix before changing code; each row
+maps one requirement to its implementation location, automated checks, real
+runtime scenario, platform or installation condition, evidence and residuals.
+The matrix may be kept in the relevant task or conformance register, but it
+must not become a second architectural authority.
+
+The only delivery states are `not started`, `implementing`, `verifying`,
+`complete` and `blocked`. “Mostly complete” and “core complete” are progress
+descriptions, never completion claims. A row can be `complete` only when its
+implementation, required automated tests and required replayable runtime
+evidence all pass. A task cannot be `complete` while an in-scope P0, release
+condition, unclassified residual or required platform check remains open.
+
+Tests, builds, a clean worktree and a successful commit are evidence for their
+own checks only; none substitutes for real startup, shutdown, crash, concurrency,
+installation, cross-platform, stress or provider checks required by the target.
+If the current environment cannot perform a required check, the row remains
+`blocked` with the missing environment and next evidence step recorded. A
+progress request does not close or discard open rows. A final handoff reports
+completed, retained and blocked items separately and includes commands or
+scenarios that reproduce the claimed evidence. `.omo/` is optional private
+progress material and is never the source of truth for completion.
 
 ## End-to-end governance workflow
 

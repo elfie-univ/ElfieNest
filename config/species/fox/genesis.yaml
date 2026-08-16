@@ -1,0 +1,12 @@
+schema_version: 1
+config_version: saevi-genesis.v1
+personality_prior: [0.25, -0.05, 0.10, 0.00, 0.05]
+stage_ranges:
+  youth: [6, 23]
+  young_adult: [24, 59]
+  mature: [60, 119]
+  elder: [120, 180]
+appearance_preferences:
+  warm: [golden, red, cream]
+  marked: [face_mask, bicolor, cross]
+  ears: [fox]

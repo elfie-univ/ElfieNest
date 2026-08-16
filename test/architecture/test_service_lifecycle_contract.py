@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -54,8 +53,8 @@ def test_service_lifecycle_contract_freezes_entrypoint_and_process_ownership() -
 
 def test_service_lifecycle_governance_artifacts_remain_linked() -> None:
     required = {
-        "docs/developer/decisions/0019-authoritative-service-lifecycle.md",
-        "docs/zh/developer/decisions/0019-authoritative-service-lifecycle.md",
+        "docs/developer/decisions/0021-authoritative-service-lifecycle.md",
+        "docs/zh/developer/decisions/0021-authoritative-service-lifecycle.md",
         "docs/developer/designs/service-lifecycle-state-machine.md",
         "docs/zh/developer/designs/service-lifecycle-state-machine.md",
         "docs/developer/conformance/service-lifecycle.md",
@@ -64,10 +63,10 @@ def test_service_lifecycle_governance_artifacts_remain_linked() -> None:
     assert all((PROJECT_ROOT / path).is_file() for path in required)
 
     english_adr = _source(
-        "docs/developer/decisions/0019-authoritative-service-lifecycle.md"
+        "docs/developer/decisions/0021-authoritative-service-lifecycle.md"
     )
     chinese_adr = _source(
-        "docs/zh/developer/decisions/0019-authoritative-service-lifecycle.md"
+        "docs/zh/developer/decisions/0021-authoritative-service-lifecycle.md"
     )
     assert "ADR-0014 remains historical evidence" in english_adr
     assert "ADR-0014 继续作为" in chinese_adr

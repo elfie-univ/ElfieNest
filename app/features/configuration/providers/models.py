@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import FrozenSet, Literal
+from dataclasses import dataclass, field
+from typing import FrozenSet, Literal, Mapping
 
 from .port_models import (
     ApiMode,
@@ -28,6 +28,9 @@ ModelUpdateField = Literal[
     "supports_tools",
     "supports_vision",
     "supports_reasoning",
+    "supports_structured_output",
+    "request_profile_id",
+    "request_profile_version",
     "hidden",
     "retired",
 ]
@@ -46,12 +49,19 @@ class ProviderModelInput:
     supports_tools: bool | None = None
     supports_vision: bool | None = None
     supports_reasoning: bool | None = None
+    supports_structured_output: bool | None = None
+    request_profile_id: str | None = None
+    request_profile_version: int | None = None
 
 
 @dataclass(frozen=True)
 class ProviderModelReplacement(ProviderModelInput):
     original_model_id: str = ""
     hidden: bool = False
+    # ``None`` means a typed caller supplied a complete replacement record;
+    # the HTTP adapter passes the actual field set so omitted optional fields
+    # cannot erase endpoint-specific metadata.
+    fields: FrozenSet[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -186,6 +196,9 @@ class UpdateProviderModelCommand:
     supports_tools: bool | None = None
     supports_vision: bool | None = None
     supports_reasoning: bool | None = None
+    supports_structured_output: bool | None = None
+    request_profile_id: str | None = None
+    request_profile_version: int | None = None
     hidden: bool | None = None
     retired: bool | None = None
 
@@ -194,6 +207,11 @@ class UpdateProviderModelCommand:
 class DeleteProviderModelCommand:
     connection_id: str
     model_id: str
+
+
+@dataclass(frozen=True)
+class CleanupObsoleteProviderModelsCommand:
+    connection_id: str
 
 
 @dataclass(frozen=True)
@@ -255,6 +273,11 @@ class ProviderVerificationResult:
     heartbeat_status: Literal["passed", "failed"] | None
     representative_model_id: str | None
     reason: str | None
+    availability_status: str = "unknown"
+    reason_code: str | None = None
+    evidence_source: str | None = None
+    expires_at: str | None = None
+    is_core: bool = False
 
 
 @dataclass(frozen=True)
@@ -272,6 +295,13 @@ class ProviderModelResult:
     retired: bool
     available: bool
     verification: ProviderVerificationResult
+    discovery_state: str = "present"
+    consecutive_missing: int = 0
+    last_seen_at: str | None = None
+    request_profile_id: str | None = None
+    request_profile_version: int | None = None
+    supports_structured_output: bool | None = None
+    capability_evidence: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -326,6 +356,10 @@ class LocalProviderModelResult:
     display_name: str
     installed: bool
     recommended: bool
+    availability_status: Literal[
+        "available", "degraded", "unavailable", "unknown"
+    ] = "unknown"
+    available: bool = False
 
 
 @dataclass(frozen=True)
@@ -357,6 +391,12 @@ class ProviderConnectionDeletedResult:
 class ProviderModelDeletedResult:
     connection_id: str
     model_id: str
+
+
+@dataclass(frozen=True)
+class ProviderModelsCleanupResult:
+    connection_id: str
+    model_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)

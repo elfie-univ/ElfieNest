@@ -32,7 +32,6 @@ from app.orchestration.lifecycle import (
     RuntimePhase,
     RuntimeProgressPhase,
     RuntimeProjectionV1,
-    RuntimeSnapshotV1,
     RuntimeTarget,
     ServiceLifecycleResult,
     ServicePortsActiveError,
@@ -46,6 +45,7 @@ WEB_URL = "http://127.0.0.1:8000/"
 WEB_HEALTH_URL = "http://127.0.0.1:8000/api/health"
 BACKGROUND_START_TIMEOUT_SECONDS = 60.0
 AUTHORITY_START_TIMEOUT_SECONDS = 120.0
+CONTROLLER_STOP_TIMEOUT_SECONDS = 15.0
 
 
 def _runtime_project_root() -> Path:
@@ -103,7 +103,9 @@ def _full_runtime_health(
     lifecycle: LifecycleFacade,
     port: int,
     godot_ws_port: int = DEFAULT_GODOT_WS_PORT,
-    model_projection: ModelHealthProjection | Callable[[], ModelHealthProjection] | None = None,
+    model_projection: ModelHealthProjection
+    | Callable[[], ModelHealthProjection]
+    | None = None,
 ) -> RuntimeObservation:
     """Map bounded endpoint evidence into a lifecycle observation.
 
@@ -180,7 +182,9 @@ def _full_runtime_health(
             ),
             ComponentSnapshot(
                 RuntimeComponent.OLLAMA,
-                ComponentState.READY if ollama is ModelOverallState.READY else ComponentState.DEGRADED,
+                ComponentState.READY
+                if ollama is ModelOverallState.READY
+                else ComponentState.DEGRADED,
             ),
         ),
         endpoints=(
@@ -287,7 +291,10 @@ def _prepare_frontend_for_launch(lifecycle: LifecycleFacade) -> None:
 def _runtime_is_stably_running(supervisor: RuntimeLifecycle) -> bool:
     """Treat a leased Core/World generation as an idempotent running service."""
     projection = supervisor.status()
-    return projection.owner_lease is not None and projection.tier is not BackendTier.OFFLINE
+    return (
+        projection.owner_lease is not None
+        and projection.tier is not BackendTier.OFFLINE
+    )
 
 
 def _data_home_launch_error(
@@ -312,13 +319,17 @@ def _data_home_launch_error(
 
 
 def _has_port_option(command: Sequence[str], option: str) -> bool:
-    return any(argument == option or argument.startswith(f"{option}=") for argument in command)
+    return any(
+        argument == option or argument.startswith(f"{option}=") for argument in command
+    )
 
 
 def _select_automatic_ports(
     lifecycle: LifecycleFacade,
     command: Sequence[str],
     data_home: Path,
+    *,
+    avoid_pairs: Sequence[tuple[int, int]] = (),
 ) -> tuple[str, ...]:
     """Choose a stable per-data-root pair only for implicit default ports.
 
@@ -332,15 +343,16 @@ def _select_automatic_ports(
     ):
         return selected
     try:
-        occupied = lifecycle.ports_in_use(
-            (DEFAULT_HTTP_PORT, DEFAULT_GODOT_WS_PORT)
-        )
+        occupied = lifecycle.ports_in_use((DEFAULT_HTTP_PORT, DEFAULT_GODOT_WS_PORT))
     except OSError:
         return selected
-    if not occupied:
+    if not occupied and not avoid_pairs:
         return selected
     try:
-        if lifecycle.existing_service_command(data_home, _runtime_project_root()) is not None:
+        if (
+            lifecycle.existing_service_command(data_home, _runtime_project_root())
+            is not None
+        ):
             return selected
     except OSError:
         return selected
@@ -351,6 +363,8 @@ def _select_automatic_ports(
         ws_port = http_port + 1
         if ws_port > 65535:
             break
+        if (http_port, ws_port) in avoid_pairs:
+            continue
         try:
             if lifecycle.ports_in_use((http_port, ws_port)):
                 continue
@@ -358,6 +372,33 @@ def _select_automatic_ports(
             return selected
         return (*selected, "--port", str(http_port), "--godot-ws-port", str(ws_port))
     return selected
+
+
+def _without_port_options(command: Sequence[str]) -> tuple[str, ...]:
+    """Remove implicit endpoint choices before a bounded conflict retry."""
+    result: list[str] = []
+    skip_next = False
+    for argument in command:
+        if skip_next:
+            skip_next = False
+            continue
+        if argument in {"--port", "--godot-ws-port"}:
+            skip_next = True
+            continue
+        if argument.startswith("--port=") or argument.startswith("--godot-ws-port="):
+            continue
+        result.append(argument)
+    return tuple(result)
+
+
+def _is_automatic_port_conflict(result: ServiceLifecycleResult) -> bool:
+    """Recognize only bind-conflict failures eligible for an endpoint retry."""
+    if isinstance(result.error, ServicePortsActiveError):
+        return True
+    detail = str(result.error or "").lower()
+    return (
+        "address already in use" in detail or "port" in detail and "occupied" in detail
+    )
 
 
 def start_background_service(
@@ -382,6 +423,9 @@ def start_background_service(
         if command is not None
         else lifecycle.default_service_command(("--lan",))
     )
+    implicit_ports = not _has_port_option(
+        launch_command, "--port"
+    ) and not _has_port_option(launch_command, "--godot-ws-port")
     try:
         http_port = _validated_http_port(launch_command)
     except ValueError as error:
@@ -448,7 +492,39 @@ def start_background_service(
         )
         _print_start_result_or_json(lifecycle, result, json_output=json_output)
         return result
+    attempted_ports: list[tuple[int, int]] = []
     result = supervisor.start(owner_id=owner_id)
+    while (
+        result.status == "failed"
+        and implicit_ports
+        and _is_automatic_port_conflict(result)
+        and len(attempted_ports) < 2
+    ):
+        attempted_ports.append(service_ports_from_command(launch_command))
+        retry_base = _without_port_options(launch_command)
+        selected_home = _data_home_for_command(
+            lifecycle,
+            retry_base,
+            use_remembered_home=True,
+        )
+        retry_command = _select_automatic_ports(
+            lifecycle,
+            retry_base,
+            selected_home,
+            avoid_pairs=attempted_ports,
+        )
+        if retry_command == retry_base:
+            break
+        launch_command = retry_command
+        http_port = _validated_http_port(launch_command)
+        supervisor = _supervisor_for(
+            lifecycle,
+            launch_command,
+            http_port,
+            use_remembered_home=True,
+            progress_callback=progress_callback,
+        )
+        result = supervisor.start(owner_id=owner_id)
     if result.status in {"started", "already_running"}:
         try:
             _remember_lifecycle_data_home(
@@ -486,6 +562,34 @@ def stop_background_service(
         lifecycle.default_service_command(),
         use_remembered_home=True,
     )
+    if owner_id == "cli" and _should_start_packaged_controller():
+        try:
+            controller_result = lifecycle.controller_request("STOP_SERVER")
+        except RuntimeError as error:
+            result = ServiceLifecycleResult(
+                status="failed",
+                error=LaunchFailedError(f"Controller stop rejected: {error}"),
+            )
+            print(f"  ❌ Failed to stop service: {result.error}")
+            return result
+        if controller_result is not None:
+            failure = _controller_failure_result(controller_result, "stop")
+            if failure is not None:
+                print(f"  ❌ Failed to stop service: {failure.error}")
+                return failure
+            if not _wait_for_runtime_offline(lifecycle, selected_home):
+                result = ServiceLifecycleResult(
+                    status="failed",
+                    error=LaunchFailedError(
+                        "Controller accepted stop but Runtime did not reach OFFLINE "
+                        f"within {CONTROLLER_STOP_TIMEOUT_SECONDS:g} seconds"
+                    ),
+                )
+                print(f"  ❌ Failed to stop service: {result.error}")
+                return result
+            print("  ✅ Service stopped")
+            return ServiceLifecycleResult(status="stopped")
+
     supervisor = _supervisor_for(
         lifecycle,
         lifecycle.default_service_command(),
@@ -514,9 +618,9 @@ def stop_background_service(
         result.status in {"stopped", "already_stopped"}
         and _should_start_packaged_controller()
     ):
-        controller_result = lifecycle.stop_desktop(selected_home)
-        if controller_result.status == "failed":
-            result = controller_result
+        desktop_result = lifecycle.stop_desktop(selected_home)
+        if desktop_result.status == "failed":
+            result = desktop_result
     if result.status == "stopped":
         print("  ✅ Service stopped")
     elif result.status == "already_stopped":
@@ -589,7 +693,7 @@ def restart_background_service(lifecycle: LifecycleFacade) -> ServiceLifecycleRe
                         print(f"    Working directory: {cwd_str}")
                     print()
                 print(
-                    "  💡 Run 'elfienest doctor --fix-ports' to diagnose and clean occupied ports"
+                    "  💡 Run 'elfienest doctor --fix-ports' to inspect the occupant, then choose an unused port"
                 )
 
         return stopped
@@ -655,7 +759,7 @@ def restart_background_service(lifecycle: LifecycleFacade) -> ServiceLifecycleRe
                         print(f"    Working directory: {cwd_str}")
                     print()
                 print(
-                    "  💡 Run 'elfienest doctor --fix-ports' to diagnose and clean occupied ports"
+                    "  💡 Run 'elfienest doctor --fix-ports' to inspect the occupant, then choose an unused port"
                 )
 
     return result
@@ -681,10 +785,6 @@ def show_service_status(
         status_port,
         use_remembered_home=running is None,
     ).status()
-    if running is None and health.tier is BackendTier.OFFLINE:
-        external_health = _attachable_external_runtime_health(lifecycle, status_port)
-        if external_health is not None:
-            health = external_health
     if json_output:
         _print_runtime_health_json(health)
         return
@@ -826,6 +926,24 @@ def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
 
 def start_desktop_application(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
     """Explicitly start the packaged Electron Desktop supervisor."""
+    if _should_start_packaged_controller():
+        try:
+            controller_result = lifecycle.controller_request("ACTIVATE_VIEWER")
+        except RuntimeError as error:
+            result = ServiceLifecycleResult(
+                status="failed",
+                error=LaunchFailedError(f"Controller activation rejected: {error}"),
+            )
+            print(f"  ❌ Desktop failed to start: {result.error}")
+            return result
+        if controller_result is not None:
+            failure = _controller_failure_result(controller_result, "activate Viewer")
+            if failure is not None:
+                print(f"  ❌ Desktop failed to start: {failure.error}")
+                return failure
+            print("  ✅ Desktop Viewer activated")
+            return ServiceLifecycleResult(status="already_running")
+
     selected_home = lifecycle.select_data_home(
         None,
         project_root=_runtime_project_root(),
@@ -845,9 +963,10 @@ def start_desktop_application(lifecycle: LifecycleFacade) -> ServiceLifecycleRes
 
 def _should_start_packaged_controller() -> bool:
     """Installed CLI owns a tray Controller; its internal calls do not."""
-    return bool(os.environ.get("ELFIENEST_DESKTOP_BIN")) and os.environ.get(
-        "ELFIENEST_CONTROLLER_CLIENT"
-    ) != "1"
+    return (
+        bool(os.environ.get("ELFIENEST_DESKTOP_BIN"))
+        and os.environ.get("ELFIENEST_CONTROLLER_CLIENT") != "1"
+    )
 
 
 def _start_packaged_controller(
@@ -856,6 +975,37 @@ def _start_packaged_controller(
     json_output: bool,
 ) -> ServiceLifecycleResult:
     """Ensure the installed Controller without opening its Viewer."""
+    try:
+        controller_result = lifecycle.controller_request("ENSURE_SERVER")
+    except RuntimeError as error:
+        result = ServiceLifecycleResult(
+            status="failed",
+            error=LaunchFailedError(f"Controller start rejected: {error}"),
+        )
+        if json_output:
+            _print_start_result_or_json(lifecycle, result, json_output=True)
+        else:
+            print(f"  ❌ Controller failed to start: {result.error}")
+        return result
+    if controller_result is not None:
+        failure = _controller_failure_result(controller_result, "start")
+        if failure is not None:
+            if json_output:
+                _print_start_result_or_json(lifecycle, failure, json_output=True)
+            else:
+                print(f"  ❌ Controller failed to start: {failure.error}")
+            return failure
+        selected_home = _data_home_for_command(
+            lifecycle,
+            lifecycle.default_service_command(("--lan",)),
+            use_remembered_home=True,
+        )
+        if json_output:
+            _print_runtime_health_json(lifecycle.runtime_projection(selected_home))
+        else:
+            print("  ⭕ Controller already running; Viewer remains closed")
+        return ServiceLifecycleResult(status="already_running")
+
     launch_command = lifecycle.default_service_command(("--lan",))
     selected_home = _data_home_for_command(
         lifecycle,
@@ -882,6 +1032,53 @@ def _start_packaged_controller(
     else:
         print(f"  ❌ Controller failed to start: {result.error}")
     return result
+
+
+def _controller_failure_result(
+    controller_result: object,
+    action: str,
+) -> ServiceLifecycleResult | None:
+    """Map a Controller's explicit failed state to the CLI lifecycle result."""
+    if (
+        not isinstance(controller_result, dict)
+        or controller_result.get("state") != "failed"
+    ):
+        return None
+    reason = controller_result.get("reason")
+    detail = (
+        reason
+        if isinstance(reason, str) and reason
+        else "Controller reported a failed state"
+    )
+    return ServiceLifecycleResult(
+        status="failed",
+        error=LaunchFailedError(f"Controller failed to {action}: {detail}"),
+    )
+
+
+def _wait_for_runtime_offline(
+    lifecycle: LifecycleFacade,
+    elfie_home: Path,
+    *,
+    timeout_seconds: float = CONTROLLER_STOP_TIMEOUT_SECONDS,
+    poll_interval_seconds: float = 0.1,
+) -> bool:
+    """Wait for the Controller-owned Runtime to publish a confirmed OFFLINE state."""
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        try:
+            snapshot = lifecycle.runtime_snapshot(elfie_home)
+        except (OSError, RuntimeError, ValueError):
+            return False
+        if (
+            snapshot.tier is BackendTier.OFFLINE
+            and snapshot.owner_lease is None
+            and snapshot.startup_owner_id is None
+        ):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(poll_interval_seconds)
 
 
 def _controller_runtime_ready(lifecycle: LifecycleFacade, elfie_home: Path) -> bool:
@@ -912,35 +1109,6 @@ def _published_service_ports(
     if http_port <= 0 or godot_ws_port <= 0:
         return None
     return http_port, godot_ws_port
-
-
-def _attachable_external_runtime_health(
-    lifecycle: LifecycleFacade,
-    port: int,
-) -> RuntimeProjectionV1 | None:
-    """Map a verified ElfieNest Core owned elsewhere to a non-owned attachment."""
-    observed = _full_runtime_health(lifecycle, port)
-    components = {item.component: item.state for item in observed.components}
-    if any(
-        components.get(component) is not ComponentState.READY
-        for component in (RuntimeComponent.CORE, RuntimeComponent.GATEWAY)
-    ):
-        return None
-    tier = (
-        BackendTier.WORLD_READY
-        if observed.world_ready
-        else BackendTier.CORE_READY
-    )
-    return RuntimeSnapshotV1(
-        instance_id="external",
-        tier=tier,
-        phase=RuntimePhase.WORLD_READY if observed.world_ready else RuntimePhase.CORE_READY,
-        desired_target=RuntimeTarget.NORMAL,
-        reached_target=RuntimeTarget.WORLD if observed.world_ready else RuntimeTarget.CORE,
-        generation=0,
-        components=observed.components,
-        model_state=observed.model_state,
-    ).projection()
 
 
 def _external_recorded_service(
@@ -1008,7 +1176,7 @@ def _print_start_result(
                         print(f"    Working directory: {cwd_str}")
                     print()
                 print(
-                    "  💡 Run 'elfienest doctor --fix-ports' to diagnose and clean occupied ports"
+                    "  💡 Run 'elfienest doctor --fix-ports' to inspect the occupant, then choose an unused port"
                 )
             else:
                 print(
@@ -1136,6 +1304,8 @@ def _print_start_result_or_json(
                 "error": str(result.error)
                 if result.error is not None
                 else "start failed",
+                "operation_id": result.operation_id,
+                "generation": result.generation,
             },
             ensure_ascii=False,
             sort_keys=True,

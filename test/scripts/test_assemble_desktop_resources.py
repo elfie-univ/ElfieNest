@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,10 @@ def _write_godot_bundle(root: Path) -> None:
 
 def _write_config_bundle(root: Path) -> None:
     _write_file(root / "app" / "system-defaults.yaml", b"version: 1\nsystem: {}\n")
+    shutil.copytree(
+        assemble_desktop_resources.DEFAULT_CONFIG_SOURCE / "species",
+        root / "species",
+    )
 
 
 def test_assemble_resources_copies_one_target_and_writes_a_manifest(

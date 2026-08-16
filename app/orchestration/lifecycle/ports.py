@@ -15,6 +15,8 @@ from typing import (
     Tuple,
 )
 
+from pydantic import JsonValue
+
 from app.orchestration.lifecycle.runtime_snapshot import (
     ModelHealthProjection,
     RuntimeSnapshotV1,
@@ -309,6 +311,17 @@ class DesktopHostPort(Protocol):
         """Terminate a recovered Desktop PID."""
 
 
+class ControllerIpcPort(Protocol):
+    """Authenticated local command client for the packaged Desktop Controller."""
+
+    def request(
+        self,
+        command: str,
+        payload: Optional[Mapping[str, JsonValue]] = None,
+    ) -> Optional[Mapping[str, JsonValue]]:
+        """Return a Controller response, or None when no Controller is published."""
+
+
 class HttpProbePort(Protocol):
     """Bounded HTTP GET capability for Runtime readiness probes."""
 
@@ -375,6 +388,24 @@ class RuntimeRecordPort(Protocol):
 
     def write(self, snapshot: RuntimeSnapshotV1) -> None:
         """Atomically persist one complete snapshot; OFFLINE is retained."""
+
+    def begin_writer_handoff(
+        self, *, generation: int, owner_id: str
+    ) -> "RuntimeWriterHandoff":
+        """Issue a generation-scoped credential for the next Core writer."""
+
+    def revoke_writer_handoff(self) -> None:
+        """Invalidate the current writer credential after clean shutdown."""
+
+
+@dataclass(frozen=True)
+class RuntimeWriterHandoff:
+    """Private parent-to-Core writer credential handoff."""
+
+    token: str
+    digest: str
+    generation: int
+    owner_id: str
 
 
 class AuthorityHostPort(Protocol):

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from app.orchestration.lifecycle import ModelOverallState
-from infrastructure.models.model_health_projection import (
+from infrastructure.persistence.model_health_projection import (
     FoodModelHealthProjectionAdapter,
 )
 

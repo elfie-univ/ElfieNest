@@ -55,6 +55,11 @@ export function ManageMonitorPanel() {
   const operationalIssues = filterOperationalIssues(issues)
   const health = resolveHealth(snapshot, operationalIssues)
   const modelSummary = summarizeModels(snapshot)
+  const modelHealthy = modelSummary === null
+    ? false
+    : snapshot?.runtime?.lifecycle === undefined
+      ? modelSummary.healthy === modelSummary.configured
+      : snapshot.runtime.lifecycle.model_state === "ready"
   const unassignedCount = countUnassignedElfies(snapshot)
   const authRequired = snapshot?.authRequired === true
   const allSourcesFailed = !authRequired && snapshot?.failedSources.length === MONITOR_SOURCE_KEYS.length
@@ -69,14 +74,14 @@ export function ManageMonitorPanel() {
     {issueAttention && <PersistentStatus kind="warning" message={t("runtimeMonitor.health.pending")} />}
     <div className="monitor-metrics">
       <Metric label={t("runtimeMonitor.cards.health")} value={t(`runtimeMonitor.health.${health}`)} detail={healthDetail(health, operationalIssues, snapshot, t)} state={healthMetricState(health)} />
-      <Metric label={t("runtimeMonitor.cards.services")} value={modelSummary === null ? "—" : `${modelSummary.healthy}/${modelSummary.configured}`} detail={modelSummary === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.servicesDetail", { count: modelSummary.availableModels, local: localServiceText(snapshot?.ollama ?? null, t) })} state={modelSummary === null ? "neutral" : modelSummary.healthy === modelSummary.configured ? "good" : "warning"} />
+      <Metric label={t("runtimeMonitor.cards.services")} value={modelSummary === null ? "—" : `${modelSummary.healthy}/${modelSummary.configured}`} detail={modelSummary === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.servicesDetail", { count: modelSummary.availableModels, local: localServiceText(snapshot?.ollama ?? null, t) })} state={modelSummary === null ? "neutral" : modelHealthy ? "good" : "warning"} />
       <Metric label={t("runtimeMonitor.cards.users")} value={snapshot?.users === null || snapshot === null ? "—" : String(snapshot.users.length)} detail={snapshot?.users === null || snapshot === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.usersDetail", { count: onlineUsers(snapshot.users) })} state="neutral" />
       <Metric label={t("runtimeMonitor.cards.elfies")} value={snapshot?.elfies === null || snapshot === null ? "—" : String(snapshot.elfies.length)} detail={snapshot?.elfies === null || snapshot === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.elfiesDetail", { online: onlineElfies(snapshot.elfies), unassigned: unassignedCount ?? "—" })} state="neutral" />
     </div>
     <div className="monitor-layout">
       <section className="monitor-module">
         <h3>{t("runtimeMonitor.modules.services")}</h3>
-        {snapshot?.providers === null || snapshot === null ? <p className="empty">{t("runtimeMonitor.moduleUnavailable")}</p> : snapshot.providers.filter((provider) => !provider.archived).length === 0 ? <p className="empty">{t("runtimeMonitor.services.empty")}</p> : <ul className="monitor-service-list">{snapshot.providers.filter((provider) => !provider.archived).map((provider) => <ServiceRow key={`${provider.catalog_id}-${provider.alias}`} provider={provider} ollama={snapshot.ollama} t={t} />)}</ul>}
+        {snapshot?.providers === null || snapshot === null ? <p className="empty">{t("runtimeMonitor.moduleUnavailable")}</p> : operationalProviders(snapshot.providers).length === 0 ? <p className="empty">{t("runtimeMonitor.services.empty")}</p> : <ul className="monitor-service-list">{operationalProviders(snapshot.providers).map((provider) => <ServiceRow key={`${provider.catalog_id}-${provider.alias}`} provider={provider} ollama={snapshot.ollama} t={t} />)}</ul>}
       </section>
       <section className="monitor-module">
         <h3>{t("runtimeMonitor.modules.events")}</h3>
@@ -106,10 +111,10 @@ function countUnassignedElfies(snapshot: MonitorSnapshot | null): number | null 
 
 function summarizeModels(snapshot: MonitorSnapshot | null): { readonly configured: number; readonly healthy: number; readonly availableModels: number } | null {
   if (snapshot?.providers === null || snapshot === null) return null
-  const providers = snapshot.providers.filter((provider) => !provider.archived)
-  const healthy = providers.filter((provider) => serviceStatus(provider, snapshot.ollama) === "healthy").length
-  const availableModels = providers.filter((provider) => provider.enabled).flatMap((provider) => provider.models).filter((model) => model.available && !model.hidden && !model.retired).length
-  return { configured: providers.length, healthy, availableModels }
+  const relevant = operationalProviders(snapshot.providers)
+  const healthy = relevant.filter((provider) => serviceStatus(provider, snapshot.ollama) === "healthy").length
+  const availableModels = relevant.filter((provider) => provider.enabled).reduce((count, provider) => count + availableModelCount(provider, snapshot.ollama), 0)
+  return { configured: relevant.length, healthy, availableModels }
 }
 
 function getSystemServiceStatuses(health: MonitorHealth): readonly SystemServiceStatus[] {
@@ -126,7 +131,24 @@ function systemServiceName(id: SystemServiceId, t: TFunction<"manage">): string 
 
 function serviceStatus(provider: MonitorProvider, ollama: MonitorOllama | null): ServiceStatus {
   if (!provider.enabled) return "disabled"
-  if (provider.catalog_id === "ollama") return ollama === null ? "unknown" : ollama.state === "healthy" ? "healthy" : "attention"
+  if (provider.catalog_id === "ollama") {
+    if (ollama === null) return "unknown"
+    const installed = ollama.models?.filter((model) => model.installed) ?? []
+    const available = installed.filter((model) => model.available === true)
+    if (ollama.state !== "healthy" || ollama.installed_model_count === 0) return "attention"
+    if (ollama.models === undefined) return "healthy"
+    if (available.length === installed.length && installed.length > 0) return "healthy"
+    return available.length > 0 ? "attention" : "unknown"
+  }
+  const eligible = provider.models.filter((model) => !model.hidden && !model.retired && model.discovery_state !== "source_missing")
+  const core = eligible.filter((model) => model.verification?.is_core === true)
+  const hasCoreEvidence = eligible.some((model) => model.verification?.is_core !== undefined)
+  const models = hasCoreEvidence ? core : eligible
+  const availability = models.map(modelAvailability)
+  if (availability.length > 0) {
+    if (availability.every((status) => status === "available")) return "healthy"
+    if (availability.some((status) => status === "available" || status === "degraded" || status === "unavailable")) return "attention"
+  }
   switch (provider.verification.status) {
     case "passed": return "healthy"
     case "failed": return "attention"
@@ -140,8 +162,12 @@ function buildIssues(snapshot: MonitorSnapshot): readonly MonitorIssue[] {
   const unhealthySystemServices = snapshot.health === null ? [] : getSystemServiceStatuses(snapshot.health).filter((service) => !service.healthy).map((service) => service.id)
   if (unhealthySystemServices.length > 0) issues.push({ kind: "system", services: unhealthySystemServices })
   if (snapshot.runtime !== null && snapshot.runtime.status !== "ok") issues.push({ kind: "runtime" })
-  const providers = snapshot.providers?.filter((provider) => !provider.archived) ?? []
+  const providers = snapshot.providers ? operationalProviders(snapshot.providers) : []
   if (snapshot.providers !== null && providers.length === 0) issues.push({ kind: "no-services" })
+  const lifecycle = snapshot.runtime?.lifecycle
+  if (lifecycle !== undefined && (lifecycle.failures.length > 0 || lifecycle.tier === "offline")) {
+    issues.push({ kind: "runtime" })
+  }
   for (const provider of providers) {
     const status = serviceStatus(provider, snapshot.ollama)
     if (status === "attention") {
@@ -156,12 +182,13 @@ function buildIssues(snapshot: MonitorSnapshot): readonly MonitorIssue[] {
 }
 
 function filterOperationalIssues(issues: readonly MonitorIssue[]): readonly MonitorIssue[] {
-  return issues.filter((issue) => issue.kind !== "beds")
+  return issues.filter((issue) => issue.kind !== "beds" && issue.kind !== "no-services")
 }
 
 function resolveHealth(snapshot: MonitorSnapshot | null, issues: readonly MonitorIssue[]): HealthLevel {
   if (snapshot === null || snapshot.health === null) return "unknown"
   if (issues.some((issue) => issue.kind === "system")) return "error"
+  if (snapshot.runtime?.lifecycle?.tier === "offline") return "error"
   return issues.length === 0 ? "ok" : "attention"
 }
 
@@ -216,8 +243,41 @@ function issueText(issue: MonitorIssue, t: TFunction<"manage">): string {
 
 function ServiceRow({ ollama, provider, t }: { readonly ollama: MonitorOllama | null; readonly provider: MonitorProvider; readonly t: TFunction<"manage"> }) {
   const status = serviceStatus(provider, ollama)
-  const availableModels = provider.models.filter((model) => model.available && !model.hidden && !model.retired).length
+  const availableModels = availableModelCount(provider, ollama)
   return <li className={`monitor-service monitor-service--${status}`}><div className="monitor-service__heading"><strong>{provider.alias}</strong><span>{t(`runtimeMonitor.services.status.${status}`)}</span></div><small>{t("runtimeMonitor.services.availableModels", { count: availableModels })}</small></li>
+}
+
+type MonitorModel = MonitorProvider["models"][number]
+
+function modelAvailability(model: MonitorModel): "available" | "degraded" | "unavailable" | "unknown" {
+  return model.verification?.availability_status ?? (model.available ? "available" : "unknown")
+}
+
+function modelIsUsable(model: MonitorModel): boolean {
+  const status = modelAvailability(model)
+  return status === "available"
+}
+
+function hasServingCore(provider: MonitorProvider): boolean {
+  return provider.models.some((model) => model.hidden === false && model.retired === false && model.verification?.is_core === true)
+}
+
+function operationalProviders(providers: readonly MonitorProvider[]): readonly MonitorProvider[] {
+  return providers.filter((provider) => !provider.archived && hasServingCore(provider))
+}
+
+function availableModelCount(provider: MonitorProvider, ollama: MonitorOllama | null): number {
+  if (provider.catalog_id === "ollama" && ollama !== null) {
+    const installed = ollama.models?.filter((model) => model.installed) ?? []
+    return ollama.models === undefined
+      ? ollama.installed_model_count
+      : installed.filter((model) => model.available === true).length
+  }
+  const eligible = provider.models.filter((model) => !model.hidden && !model.retired && model.discovery_state !== "source_missing")
+  const core = eligible.filter((model) => model.verification?.is_core === true)
+  const hasCoreEvidence = eligible.some((model) => model.verification?.is_core !== undefined)
+  const models = hasCoreEvidence ? core : eligible
+  return models.filter(modelIsUsable).length
 }
 
 function Metric({ detail, label, state, value }: { readonly detail: string; readonly label: string; readonly state: MetricState; readonly value: string }) {

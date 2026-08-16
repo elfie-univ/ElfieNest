@@ -1,17 +1,11 @@
-"""Immutable Elfaria world and species facts used by Elfie identity anchors.
-
-The visual profile uses the technical ``fox``/``dog``/``cat`` identifiers that
-the current body assets understand.  This module is the narrative canon layer:
-it gives those technical profiles their Elfaria names without making the model
-pretend that Earth animal names are formal species names.
-"""
+"""Elfaria world facts and the configured narrative species cards."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 WORLD_CANON_VERSION = "elfaria-world.v0.1"
-SPECIES_CANON_VERSION = "elfaria-species.v0.1"
+SPECIES_CANON_VERSION = "elfaria-species.v0.2"
 
 
 @dataclass(frozen=True)
@@ -32,16 +26,19 @@ class WorldCanon:
 
 @dataclass(frozen=True)
 class SpeciesCanon:
-    """Narrative identity and bounded common knowledge for one species."""
+    """Narrative identity and bounded common knowledge for one species.
+
+    Names are intentionally absent. A candidate's name is generated during
+    the invitation/reveal step by the configured narrative model, not stored
+    as a species property.
+    """
 
     canon_id: str
     display_name: str
     display_name_zh: str
     earth_shape_label: str
     technical_species_id: str
-    visual_runtime_supported: bool
     sort_order: int
-    candidate_names: tuple[tuple[str, str], ...]
     common_sensory_biases: tuple[str, ...]
     common_knowledge: tuple[str, ...]
     earth_first_contact_cues: tuple[str, ...]
@@ -65,117 +62,33 @@ ELFARIA_CANON = WorldCanon(
 )
 
 
-_SPECIES_CANON: dict[str, SpeciesCanon] = {
-    "saevi": SpeciesCanon(
-        canon_id="saevi",
-        display_name="Saevi",
-        display_name_zh="灵狐",
-        earth_shape_label="fox-like",
-        technical_species_id="fox",
-        visual_runtime_supported=True,
-        sort_order=0,
-        candidate_names=(
-            ("阿洛", "洛洛"),
-            ("洛弥", "米娅"),
-            ("柚子", "小柚"),
-            ("星遥", "遥遥"),
-            ("赤砂", "砂砂"),
-        ),
-        common_sensory_biases=("环境变化", "路径与空间边界", "气味和方向"),
-        common_knowledge=(
-            "自然环境、道路、藏身处和小规模聚落生活",
-            "家、路径、边界和返回",
-        ),
-        earth_first_contact_cues=(
-            "先观察边缘、声音和可离开的路径",
-            "再询问陌生设备的具体用途",
-        ),
-    ),
-    "tovren": SpeciesCanon(
-        canon_id="tovren",
-        display_name="Tovren",
-        display_name_zh="灵犬",
-        earth_shape_label="dog-like",
-        technical_species_id="dog",
-        visual_runtime_supported=True,
-        sort_order=1,
-        candidate_names=(
-            ("布谷", "布布"),
-            ("诺拉", "诺诺"),
-            ("山雀", "小山"),
-            ("米栗", "栗栗"),
-            ("奥丘", "丘丘"),
-        ),
-        common_sensory_biases=("声音方向", "脚步与呼唤", "群体节奏和协作信号"),
-        common_knowledge=(
-            "公共活动、共同劳动、巡路和互相照应",
-            "队伍行动和熟悉的声音线索",
-        ),
-        earth_first_contact_cues=(
-            "先判断声音来源、距离和是否有同伴回应",
-            "再理解通信设备的用途",
-        ),
-    ),
-    "myelle": SpeciesCanon(
-        canon_id="myelle",
-        display_name="Myelle",
-        display_name_zh="灵猫",
-        earth_shape_label="cat-like",
-        technical_species_id="cat",
-        # Myelle remains a narrative design card, but is not product-visible
-        # until a complete Godot species package is supplied and verified.
-        visual_runtime_supported=False,
-        sort_order=2,
-        candidate_names=(
-            ("弥弥", "米米"),
-            ("阿澜", "澜澜"),
-            ("星栖", "栖栖"),
-            ("绒昼", "昼昼"),
-            ("奈可", "可可"),
-        ),
-        common_sensory_biases=("细微声音", "距离和高低差", "平衡与安静移动"),
-        common_knowledge=(
-            "安静角落、垂直空间、观察位置和低干扰生活",
-            "距离和允许靠近的空间信号",
-        ),
-        earth_first_contact_cues=(
-            "先观察边缘、反光、声音和运动轨迹",
-            "接触并记忆后再把设备当作熟悉事物",
-        ),
-    ),
-}
-
-_SPECIES_BY_TECHNICAL_ID = {
-    profile.technical_species_id: profile for profile in _SPECIES_CANON.values()
-}
-
-
 def list_species_canons() -> tuple[SpeciesCanon, ...]:
-    """Return all narrative species cards in their stable product order."""
+    """Return configured cards in their stable catalog order."""
+
+    from .species_registry import list_species_definitions  # noqa: PLC0415
+
     return tuple(
-        sorted(_SPECIES_CANON.values(), key=lambda profile: profile.sort_order)
+        definition.canon
+        for definition in list_species_definitions(include_disabled=True)
     )
 
 
 def get_species_canon(canon_id: str) -> SpeciesCanon:
-    """Return one formal Elfaria species card by its narrative ID."""
-    try:
-        return _SPECIES_CANON[canon_id]
-    except KeyError as exc:
-        raise ValueError(
-            f"不支持的 Elfaria 物种 canon_id={canon_id!r}，可选: "
-            + ", ".join(sorted(_SPECIES_CANON))
-        ) from exc
+    """Return one configured formal Elfaria species card."""
+
+    for canon in list_species_canons():
+        if canon.canon_id == canon_id:
+            return canon
+    raise ValueError(f"不支持的 Elfaria 物种 canon_id={canon_id!r}")
 
 
 def get_species_canon_for_technical_id(species_id: str) -> SpeciesCanon:
-    """Map an existing visual/body species ID to its narrative species card."""
-    try:
-        return _SPECIES_BY_TECHNICAL_ID[species_id]
-    except KeyError as exc:
-        raise ValueError(
-            f"没有为技术物种 species_id={species_id!r} 配置 Elfaria canon"
-        ) from exc
+    """Map an existing stable technical species ID to its narrative card."""
+
+    for canon in list_species_canons():
+        if canon.technical_species_id == species_id:
+            return canon
+    raise ValueError(f"没有为技术物种 species_id={species_id!r} 配置 Elfaria canon")
 
 
 __all__ = (

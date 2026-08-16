@@ -222,9 +222,7 @@ def test_shutdown_request_stops_once_and_returns_stop_result(
     assert handlers[1] is signal.Handlers.SIG_DFL
 
 
-@pytest.mark.parametrize(
-    "failed_state", (BackendTier.OFFLINE,)
-)
+@pytest.mark.parametrize("failed_state", (BackendTier.OFFLINE,))
 def test_terminal_health_stops_once_then_returns_typed_failure(
     monkeypatch: pytest.MonkeyPatch,
     failed_state: BackendTier,

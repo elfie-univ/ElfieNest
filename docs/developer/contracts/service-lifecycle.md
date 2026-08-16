@@ -7,7 +7,7 @@
 > **Normative target.** This contract fixes the service-state authority and the
 > invariants shared by Desktop, CLI, Doctor, installers and status surfaces.
 > Rationale and explanatory detail belong to
-> [ADR-0019](../decisions/0019-authoritative-service-lifecycle) and the reviewed
+> [ADR-0021](../decisions/0021-authoritative-service-lifecycle) and the reviewed
 > [state-machine design](../designs/service-lifecycle-state-machine). Current
 > gaps belong only in [Conformance](../conformance/service-lifecycle).
 

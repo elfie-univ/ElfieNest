@@ -35,9 +35,7 @@ REQUIRED_HOST_TYPES = frozenset(
 )
 OBSERVER_API_MODELS_PATH = PROJECT_ROOT / "app/interfaces/api/v1/observer/models.py"
 NEST_SEMANTIC_MODEL_PATH = PROJECT_ROOT / "app/orchestration/nest_session/models.py"
-EXPECTED_BACKEND_TIERS = frozenset(
-    {"offline", "core_ready", "world_ready"}
-)
+EXPECTED_BACKEND_TIERS = frozenset({"offline", "core_ready", "world_ready"})
 EXPECTED_RUNTIME_COMPONENTS = frozenset(
     {"core", "gateway", "godot_authority", "ollama"}
 )
@@ -327,10 +325,7 @@ def test_runtime_snapshot_contract_models_stable_tiers_and_generation() -> None:
         _enum_values(RUNTIME_SNAPSHOT_PATH, "RuntimeComponent")
         == EXPECTED_RUNTIME_COMPONENTS
     )
-    assert (
-        _enum_values(RUNTIME_SNAPSHOT_PATH, "BackendTier")
-        == EXPECTED_BACKEND_TIERS
-    )
+    assert _enum_values(RUNTIME_SNAPSHOT_PATH, "BackendTier") == EXPECTED_BACKEND_TIERS
     assert {
         "schema_version",
         "instance_id",
@@ -340,9 +335,7 @@ def test_runtime_snapshot_contract_models_stable_tiers_and_generation() -> None:
         "phase",
         "desired_target",
         "components",
-    } <= set(
-        _class_field_annotations(RUNTIME_SNAPSHOT_PATH, "RuntimeSnapshotV1")
-    )
+    } <= set(_class_field_annotations(RUNTIME_SNAPSHOT_PATH, "RuntimeSnapshotV1"))
     assert {"owner_id", "generation"} <= set(
         _class_field_annotations(RUNTIME_SNAPSHOT_PATH, "OwnerLease")
     )

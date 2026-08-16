@@ -167,12 +167,12 @@ def main() -> None:
     doctor_parser.add_argument(
         "--fix-ports",
         action="store_true",
-        help="Detect and clean up occupied service ports",
+        help="Diagnose occupied service ports without terminating processes",
     )
     doctor_parser.add_argument(
         "--force",
         action="store_true",
-        help="Skip confirmation prompts when cleaning ports",
+        help="Compatibility flag; Doctor never terminates port occupants",
     )
     subparsers.add_parser("uninstall", help="Uninstall and data cleanup")
     subparsers.add_parser("version", help="Show version")

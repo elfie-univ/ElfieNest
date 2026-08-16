@@ -21,6 +21,39 @@ const ModelExecutionEventSchema = z.object({
 const RuntimeStatusSchema = z.object({
   status: z.string(),
   observer: z.object({ event_count: z.number(), last_event: ModelExecutionEventSchema.nullable() }),
+  lifecycle: z.object({
+    schema_version: z.number().int(),
+    instance_id: z.string(),
+    generation: z.number().int(),
+    revision: z.number().int(),
+    tier: z.enum(["offline", "core_ready", "world_ready"]),
+    phase: z.string(),
+    subphase: z.string(),
+    desired_target: z.enum(["core", "world", "normal"]),
+    reached_target: z.enum(["core", "world", "normal"]).nullable().optional(),
+    components: z.array(z.object({
+      component: z.string(),
+      state: z.string(),
+      detail: z.string(),
+      pid: z.number().int().nullable().optional(),
+      executable: z.string().nullable().optional(),
+      birth_identity: z.string().nullable().optional(),
+    }).strict()),
+    endpoints: z.array(z.object({
+      name: z.string(),
+      scheme: z.string(),
+      host: z.string(),
+      port: z.number().int(),
+      protocol_version: z.string(),
+    }).strict()),
+    model_state: z.enum(["unconfigured", "ready", "degraded", "unavailable"]),
+    model_common_state: z.enum(["unconfigured", "ready", "degraded", "unavailable"]),
+    model_emergency_state: z.enum(["unconfigured", "ready", "degraded", "unavailable"]),
+    model_revision: z.number().int().nullable().optional(),
+    failures: z.array(z.object({ code: z.string(), detail: z.string(), phase: z.string() }).strict()),
+    timings: z.array(z.object({ phase: z.string(), duration_ms: z.number().int().nullable().optional(), elapsed_ms: z.number().int().nullable().optional() }).strict()),
+    protocol_versions: z.array(z.string()),
+  }).strict().optional(),
 }).strict()
 
 const UserSummarySchema = z.object({
@@ -49,6 +82,11 @@ const ProviderSummarySchema = z.object({
     available: z.boolean(),
     hidden: z.boolean(),
     retired: z.boolean(),
+    discovery_state: z.enum(["present", "source_missing"]).optional(),
+    verification: z.object({
+      availability_status: z.enum(["available", "degraded", "unavailable", "unknown"]).optional(),
+      is_core: z.boolean().optional(),
+    }).passthrough().optional(),
   }).passthrough()),
 }).passthrough()
 const ProviderListSchema = z.object({ items: z.array(ProviderSummarySchema) }).transform(({ items }) => items)
@@ -57,6 +95,11 @@ const OllamaStatusSchema = z.object({
   state: z.enum(["absent", "healthy", "stopped", "deleted", "installing", "failed", "cancelled", "repair_required"]),
   recommended_model: z.string().nullable(),
   installed_model_count: z.number().int().min(0),
+  models: z.array(z.object({
+    installed: z.boolean(),
+    available: z.boolean().optional(),
+    availability_status: z.enum(["available", "degraded", "unavailable", "unknown"]).optional(),
+  }).passthrough()).optional(),
 }).passthrough()
 
 export type MonitorHealth = z.infer<typeof HealthSchema>

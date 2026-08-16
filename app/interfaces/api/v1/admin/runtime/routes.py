@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Union
 
 from fastapi import APIRouter, Depends, Request
@@ -27,6 +28,7 @@ from .models import (
     RuntimeErrorDetails,
     RuntimeErrorItem,
     RuntimeErrorResponse,
+    RuntimeLifecycleProjectionResponse,
     RuntimeStatusResponse,
 )
 
@@ -45,6 +47,7 @@ def operations_facade(request: Request) -> OperationsFacade:
 @router.get(
     "/status",
     response_model=RuntimeStatusResponse,
+    response_model_exclude_none=True,
     responses={
         403: {"model": RuntimeErrorResponse},
         503: {"model": RuntimeErrorResponse},
@@ -70,7 +73,27 @@ def get_runtime_status(
             event_count=result.observer.event_count,
             last_event=last_event,
         ),
+        lifecycle=_lifecycle_projection(request),
     )
+
+
+def _lifecycle_projection(
+    request: Request,
+) -> RuntimeLifecycleProjectionResponse | None:
+    """Read the injected authoritative projection without starting or repairing."""
+    provider = getattr(request.app.state, "runtime_projection", None)
+    if not callable(provider):
+        return None
+    try:
+        payload = provider()
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if not isinstance(payload, Mapping):
+        return None
+    try:
+        return RuntimeLifecycleProjectionResponse.model_validate(payload)
+    except ValueError:
+        return None
 
 
 @router.get(

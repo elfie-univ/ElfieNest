@@ -21,6 +21,7 @@ from app.orchestration.lifecycle.runtime_snapshot import (
 from app.orchestration.lifecycle.runtime_supervisor import RuntimeSupervisor
 from app.orchestration.lifecycle.types import (
     AuthorityHostError,
+    LifecycleCancelledError,
     ServiceLifecycleResult,
 )
 from test.app.orchestration.lifecycle.service_fakes import FakeClock
@@ -135,6 +136,8 @@ def test_start_persists_core_then_world_as_one_generation() -> None:
     result = supervisor.start(owner_id="cli", wait_target=RuntimeTarget.WORLD)
 
     assert result.status == "started"
+    assert result.operation_id
+    assert result.generation == 1
     projection = supervisor.status()
     assert projection.tier is BackendTier.WORLD_READY
     assert projection.generation == 1
@@ -173,6 +176,54 @@ def test_core_wait_target_does_not_start_world() -> None:
     assert supervisor.status().tier is BackendTier.CORE_READY
 
 
+def test_start_cancellation_cleans_up_before_core_launch() -> None:
+    record = MemoryRecord()
+    calls: list[str] = []
+    supervisor = _supervisor(
+        record=record,
+        start_core=lambda healthy: (
+            calls.append("core") or ServiceLifecycleResult(status="started")
+        ),
+        stop_core=lambda: (
+            calls.append("stop") or ServiceLifecycleResult(status="already_stopped")
+        ),
+    )
+
+    result = supervisor.start(owner_id="desktop", cancel_check=lambda: True)
+
+    assert result.status == "failed"
+    assert isinstance(result.error, LifecycleCancelledError)
+    assert calls == ["stop"]
+    assert record.value.tier is BackendTier.OFFLINE
+    assert record.value.phase is RuntimePhase.FAILED
+    assert record.value.failures[0].code == "START_CANCELLED"
+
+
+def test_start_cancellation_observed_by_core_health_checkpoint() -> None:
+    record = MemoryRecord()
+    calls: list[str] = []
+
+    def start_core(healthy: Callable[[], bool]) -> ServiceLifecycleResult:
+        calls.append("core")
+        record.write(replace(record.read(), phase=RuntimePhase.QUIESCING, revision=1))
+        healthy()
+        return ServiceLifecycleResult(status="started")
+
+    supervisor = _supervisor(
+        record=record,
+        start_core=start_core,
+        stop_core=lambda: (
+            calls.append("stop") or ServiceLifecycleResult(status="already_stopped")
+        ),
+    )
+
+    result = supervisor.start(owner_id="desktop")
+
+    assert result.status == "failed"
+    assert isinstance(result.error, LifecycleCancelledError)
+    assert calls == ["core", "stop"]
+
+
 def test_world_wait_can_attach_to_core_resident_convergence() -> None:
     record = MemoryRecord()
     world_published = False
@@ -190,11 +241,14 @@ def test_world_wait_can_attach_to_core_resident_convergence() -> None:
                 tier=BackendTier.WORLD_READY,
                 phase=RuntimePhase.WORLD_READY,
                 reached_target=RuntimeTarget.WORLD,
-                components=(*current.components, ComponentSnapshot(
-                    RuntimeComponent.GODOT_AUTHORITY,
-                    ComponentState.READY,
-                    pid=7105,
-                )),
+                components=(
+                    *current.components,
+                    ComponentSnapshot(
+                        RuntimeComponent.GODOT_AUTHORITY,
+                        ComponentState.READY,
+                        pid=7105,
+                    ),
+                ),
             )
         )
 
@@ -213,6 +267,127 @@ def test_world_wait_can_attach_to_core_resident_convergence() -> None:
     assert supervisor.status().tier is BackendTier.WORLD_READY
 
 
+def test_normal_wait_requires_model_projection_after_world_ready() -> None:
+    record = MemoryRecord()
+    model_states = [
+        ModelHealthProjection(
+            state=ModelOverallState.DEGRADED,
+            common_state=ModelOverallState.READY,
+            emergency_state=ModelOverallState.READY,
+        ),
+        ModelHealthProjection(
+            state=ModelOverallState.READY,
+            common_state=ModelOverallState.READY,
+            emergency_state=ModelOverallState.READY,
+            revision=3,
+        ),
+    ]
+    model_index = 0
+
+    def model_probe() -> ModelHealthProjection:
+        nonlocal model_index
+        value = model_states[min(model_index, len(model_states) - 1)]
+        model_index += 1
+        return value
+    published = False
+
+    def sleeper(_seconds: float) -> None:
+        nonlocal published
+        if published:
+            return
+        published = True
+        current = record.read()
+        record.write(
+            replace(
+                current,
+                revision=current.revision + 1,
+                tier=BackendTier.WORLD_READY,
+                phase=RuntimePhase.WORLD_READY,
+                reached_target=RuntimeTarget.WORLD,
+                components=(
+                    *current.components,
+                    ComponentSnapshot(
+                        RuntimeComponent.GODOT_AUTHORITY,
+                        ComponentState.READY,
+                        pid=7105,
+                    ),
+                ),
+            )
+        )
+
+    supervisor = _supervisor(
+        record=record,
+        authority_host=None,
+        authority_timeout_seconds=1.0,
+        sleeper=sleeper,
+        model_projection_probe=model_probe,
+    )
+
+    result = supervisor.start(
+        owner_id="cli",
+        desired_target=RuntimeTarget.NORMAL,
+        wait_target=RuntimeTarget.NORMAL,
+    )
+
+    assert result.status == "started"
+    assert supervisor.status().tier is BackendTier.WORLD_READY
+
+
+def test_normal_wait_timeout_keeps_world_ready_core_running() -> None:
+    record = MemoryRecord()
+    clock = FakeClock()
+    published = False
+
+    def sleeper(_seconds: float) -> None:
+        nonlocal published
+        clock.sleep(_seconds)
+        if published:
+            return
+        published = True
+        current = record.read()
+        record.write(
+            replace(
+                current,
+                revision=current.revision + 1,
+                tier=BackendTier.WORLD_READY,
+                phase=RuntimePhase.WORLD_READY,
+                reached_target=RuntimeTarget.WORLD,
+                components=(
+                    *current.components,
+                    ComponentSnapshot(
+                        RuntimeComponent.GODOT_AUTHORITY,
+                        ComponentState.READY,
+                        pid=7105,
+                    ),
+                ),
+            )
+        )
+
+    supervisor = _supervisor(
+        record=record,
+        authority_host=None,
+        authority_timeout_seconds=0.2,
+        monotonic=clock.monotonic,
+        sleeper=sleeper,
+        model_projection_probe=lambda: ModelHealthProjection(
+            state=ModelOverallState.DEGRADED,
+            common_state=ModelOverallState.READY,
+            emergency_state=ModelOverallState.READY,
+        ),
+    )
+
+    result = supervisor.start(
+        owner_id="cli",
+        desired_target=RuntimeTarget.NORMAL,
+        wait_target=RuntimeTarget.NORMAL,
+    )
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert "model" in str(result.error).lower()
+    assert supervisor.status().tier is BackendTier.WORLD_READY
+
+
 def test_repeated_start_attaches_and_only_raises_desired_target() -> None:
     record = MemoryRecord()
     calls: list[str] = []
@@ -224,13 +399,62 @@ def test_repeated_start_attaches_and_only_raises_desired_target() -> None:
         ),
     )
 
-    assert supervisor.start(owner_id="cli", desired_target=RuntimeTarget.CORE).status == "started"
+    assert (
+        supervisor.start(owner_id="cli", desired_target=RuntimeTarget.CORE).status
+        == "started"
+    )
     result = supervisor.start(owner_id="desktop", desired_target=RuntimeTarget.NORMAL)
 
     assert result.status == "already_running"
     assert calls == ["core"]
     assert supervisor.status().desired_target is RuntimeTarget.NORMAL
     assert supervisor.status().owner_lease == OwnerLease("cli", 1)
+
+
+def test_repeated_start_waits_for_escalated_world_target() -> None:
+    record = MemoryRecord()
+    published = False
+
+    def sleeper(_seconds: float) -> None:
+        nonlocal published
+        if published:
+            return
+        published = True
+        current = record.read()
+        record.write(
+            replace(
+                current,
+                revision=current.revision + 1,
+                tier=BackendTier.WORLD_READY,
+                phase=RuntimePhase.WORLD_READY,
+                reached_target=RuntimeTarget.WORLD,
+            )
+        )
+
+    supervisor = _supervisor(
+        record=record,
+        sleeper=sleeper,
+        authority_timeout_seconds=1.0,
+    )
+    assert (
+        supervisor.start(
+            owner_id="cli",
+            desired_target=RuntimeTarget.CORE,
+            wait_target=RuntimeTarget.CORE,
+        ).status
+        == "started"
+    )
+
+    result = supervisor.start(
+        owner_id="desktop",
+        desired_target=RuntimeTarget.WORLD,
+        wait_target=RuntimeTarget.WORLD,
+    )
+
+    assert result.status == "already_running"
+    assert result.generation == 1
+    assert supervisor.status().tier is BackendTier.WORLD_READY
+    assert supervisor.status().desired_target is RuntimeTarget.WORLD
 
 
 def test_start_during_shutdown_returns_busy_without_raising_target() -> None:
@@ -374,10 +598,36 @@ def test_status_projects_latest_model_evidence_without_rewriting_snapshot() -> N
     assert record.read().model_state is ModelOverallState.DEGRADED
 
 
+def test_status_projects_offline_when_the_recorded_core_process_is_gone() -> None:
+    record = MemoryRecord()
+    record.value = replace(
+        record.value,
+        tier=BackendTier.WORLD_READY,
+        phase=RuntimePhase.WORLD_READY,
+        owner_lease=OwnerLease("cli", 1),
+        components=(
+            ComponentSnapshot(RuntimeComponent.CORE, ComponentState.READY, pid=7101),
+            ComponentSnapshot(RuntimeComponent.GATEWAY, ComponentState.READY, pid=7101),
+        ),
+    )
+    supervisor = _supervisor(record=record, owns_pid_record=lambda: False)
+
+    projection = supervisor.status()
+
+    assert projection.tier is BackendTier.OFFLINE
+    assert projection.phase is RuntimePhase.FAILED
+    assert projection.subphase == "core_missing"
+    assert projection.failures[0].code == "CORE_NOT_RUNNING"
+    assert record.read().tier is BackendTier.WORLD_READY
+
+
 def test_stop_publishes_reverse_ownership_phases_before_shutdown() -> None:
     record = MemoryRecord()
     supervisor = _supervisor(record=record)
-    assert supervisor.start(owner_id="cli", desired_target=RuntimeTarget.CORE).status == "started"
+    assert (
+        supervisor.start(owner_id="cli", desired_target=RuntimeTarget.CORE).status
+        == "started"
+    )
 
     result = supervisor.stop()
 
@@ -405,7 +655,10 @@ def test_stop_continues_core_shutdown_when_authority_stop_fails() -> None:
             calls.append("stop-core") or ServiceLifecycleResult(status="stopped")
         ),
     )
-    assert supervisor.start(owner_id="cli", wait_target=RuntimeTarget.WORLD).status == "started"
+    assert (
+        supervisor.start(owner_id="cli", wait_target=RuntimeTarget.WORLD).status
+        == "started"
+    )
 
     result = supervisor.stop()
 
@@ -413,3 +666,52 @@ def test_stop_continues_core_shutdown_when_authority_stop_fails() -> None:
     assert calls[-1] == "stop-core"
     assert supervisor.status().phase is RuntimePhase.FAILED
     assert supervisor.status().failures[0].code == "STOP_INCOMPLETE"
+
+
+def test_lifecycle_pressure_gate_runs_warm_and_cold_cycles() -> None:
+    """Keep the release reliability counts as a cheap, repeatable regression gate."""
+    record = MemoryRecord()
+    core_starts = 0
+    core_stops = 0
+
+    def start_core(healthy: Callable[[], bool]) -> ServiceLifecycleResult:
+        nonlocal core_starts
+        core_starts += 1
+        assert healthy()
+        return ServiceLifecycleResult(status="started", pid=7101)
+
+    def stop_core() -> ServiceLifecycleResult:
+        nonlocal core_stops
+        core_stops += 1
+        return ServiceLifecycleResult(status="stopped", pid=7101)
+
+    supervisor = _supervisor(
+        record=record,
+        start_core=start_core,
+        stop_core=stop_core,
+    )
+
+    # Warm attach must never create a second Core generation or launch.
+    assert (
+        supervisor.start(owner_id="cli", desired_target=RuntimeTarget.CORE).status
+        == "started"
+    )
+    for _ in range(300):
+        result = supervisor.start(owner_id="desktop", desired_target=RuntimeTarget.CORE)
+        assert result.status == "already_running"
+        assert result.generation == 1
+        assert supervisor.status().tier is BackendTier.CORE_READY
+
+    # Cold cycles must fully publish OFFLINE before the next generation starts.
+    for expected_generation in range(2, 52):
+        stopped = supervisor.stop()
+        assert stopped.status == "stopped"
+        assert supervisor.status().tier is BackendTier.OFFLINE
+
+        started = supervisor.start(owner_id="cli", desired_target=RuntimeTarget.CORE)
+        assert started.status == "started"
+        assert started.generation == expected_generation
+        assert supervisor.status().tier is BackendTier.CORE_READY
+
+    assert core_starts == 51
+    assert core_stops == 50

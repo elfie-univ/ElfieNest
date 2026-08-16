@@ -140,8 +140,32 @@ def project_food_health(
             _locality(package, evidence),
             latest,
         )
+    for role in package.required_roles:
+        model_reference = package.model_for_role(role)
+        role_evidence = (
+            None if model_reference is None else evidence.get(model_reference)
+        )
+        capability = {
+            "reasoning": "reasoning",
+            "vision": "vision",
+            "tool": "tools",
+        }.get(role)
+        if (
+            role_evidence is None
+            or not is_model_evidence_fresh(role_evidence)
+            or capability is None
+            or role_evidence.capability_states.get(capability) != "supported"
+        ):
+            return StoredFoodHealth(
+                "unavailable",
+                _locality(package, evidence),
+                latest,
+            )
     optional_failed = any(
-        item is None or not is_model_evidence_fresh(item) for item in referenced[1:]
+        item is None
+        or not is_model_evidence_fresh(item)
+        or any(state != "supported" for state in item.capability_states.values())
+        for item in referenced[1:]
     )
     return StoredFoodHealth(
         "degraded" if optional_failed else "healthy",
@@ -193,7 +217,9 @@ def project_model_service_health(
         missing="unavailable",
     )
     required_food_ids = tuple(
-        dict.fromkeys(item.food_id for item in (*assigned_common, emergency) if item is not None)
+        dict.fromkeys(
+            item.food_id for item in (*assigned_common, emergency) if item is not None
+        )
     )
     latest = max(
         (
@@ -238,7 +264,11 @@ def _aggregate_food_statuses(
     if "degraded" in statuses:
         return "degraded"
     if "unconfigured" in statuses or "disabled" in statuses or "archived" in statuses:
-        return "unconfigured" if len(packages) == 1 and missing == "unconfigured" else "unavailable"
+        return (
+            "unconfigured"
+            if len(packages) == 1 and missing == "unconfigured"
+            else "unavailable"
+        )
     if all(status == "healthy" for status in statuses):
         return "healthy"
     return "unavailable"

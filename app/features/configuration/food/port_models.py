@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, field
+from typing import Literal, Mapping
 
 FoodSystemRole = Literal["emergency", "common"]
 FoodVisibilityMode = Literal["global", "users"]
-ModelHealthStatus = Literal[
-    "unconfigured", "healthy", "degraded", "unavailable"
-]
+ModelHealthStatus = Literal["unconfigured", "healthy", "degraded", "unavailable"]
+CapabilityState = Literal["supported", "unsupported", "unknown"]
 
 FOOD_ROLES = ("primary", "reasoning", "vision", "tool", "fallback")
 
@@ -36,6 +35,10 @@ class StoredFoodPackage:
     fallback_model: str | None = None
     visibility_mode: FoodVisibilityMode = "global"
     visible_user_ids: tuple[int, ...] = ()
+    # Product policy can require an optional role without making it a
+    # permanently scheduled probe for every Food.  Persistence may omit this
+    # empty default until the policy is explicitly exposed.
+    required_roles: frozenset[str] = frozenset()
 
     @property
     def model_references(self) -> tuple[str, ...]:
@@ -77,6 +80,7 @@ class StoredModelEvidence:
     observed_at: str = ""
     status: str = "never_verified"
     fresh: bool = False
+    capability_states: Mapping[str, CapabilityState] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

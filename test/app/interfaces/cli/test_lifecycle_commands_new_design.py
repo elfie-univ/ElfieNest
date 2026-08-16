@@ -12,6 +12,7 @@ from app.orchestration.lifecycle import (
     DataHomeInspection,
     DataHomeState,
     EndpointSnapshot,
+    LaunchFailedError,
     RuntimePhase,
     RuntimeSnapshotV1,
     RuntimeTarget,
@@ -26,10 +27,21 @@ LIFECYCLE = create_lifecycle_facade()
 
 @pytest.fixture(autouse=True)
 def isolate_lifecycle_home(monkeypatch, tmp_path: Path) -> None:
+    selected_home = tmp_path / "elfie-home"
     monkeypatch.setattr(
         LIFECYCLE,
         "select_data_home",
-        lambda *_args, **_kwargs: tmp_path / "elfie-home",
+        lambda *_args, **_kwargs: selected_home,
+    )
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "inspect_data_home",
+        lambda *_args, **_kwargs: DataHomeInspection(
+            state=DataHomeState.FRESH,
+            home=selected_home,
+            detail="isolated test data root",
+            recoverable=False,
+        ),
     )
     monkeypatch.setattr(
         LIFECYCLE,
@@ -161,6 +173,51 @@ def test_packaged_start_uses_background_controller_without_starting_a_second_cor
     # Core is started once by the Controller's internal lifecycle client.
     assert result.status == "started"
     assert calls == [True]
+
+
+def test_packaged_start_surfaces_controller_failure(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("ELFIENEST_DESKTOP_BIN", "/Applications/ElfieNest")
+    monkeypatch.delenv("ELFIENEST_CONTROLLER_CLIENT", raising=False)
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "controller_request",
+        lambda *_args, **_kwargs: {
+            "state": "failed",
+            "reason": "Core could not bind its endpoint",
+        },
+    )
+
+    result = lifecycle_commands.start_background_service(LIFECYCLE)
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert "Core could not bind its endpoint" in str(result.error)
+    assert "Core could not bind its endpoint" in capsys.readouterr().out
+
+
+def test_packaged_stop_waits_for_confirmed_offline_state(monkeypatch) -> None:
+    monkeypatch.setenv("ELFIENEST_DESKTOP_BIN", "/Applications/ElfieNest")
+    monkeypatch.delenv("ELFIENEST_CONTROLLER_CLIENT", raising=False)
+    snapshots = iter((_stable_health(), _stopped_health()))
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "controller_request",
+        lambda *_args, **_kwargs: {"accepted": True, "state": "stopping"},
+    )
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "runtime_snapshot",
+        lambda *_args, **_kwargs: next(snapshots),
+    )
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "runtime_supervisor",
+        lambda *_args, **_kwargs: pytest.fail("Controller stop must own the stop path"),
+    )
+
+    result = lifecycle_commands.stop_background_service(LIFECYCLE)
+
+    assert result.status == "stopped"
 
 
 def test_start_reports_incompatible_database_before_launch(monkeypatch, capsys) -> None:
@@ -441,6 +498,36 @@ def test_start_moves_implicit_default_ports_when_external_process_occupies_them(
     assert commands[-1] != commands[0]
 
 
+def test_start_retries_an_implicit_bind_conflict_on_a_new_pair(monkeypatch) -> None:
+    commands: list[tuple[str, ...]] = []
+    supervisors = [
+        _LaunchSupervisor(
+            _stopped_health(),
+            [],
+            start_result=ServiceLifecycleResult(
+                status="failed",
+                error=LaunchFailedError("[Errno 48] Address already in use"),
+            ),
+        ),
+        _LaunchSupervisor(_stopped_health(), []),
+    ]
+
+    def build_supervisor(_lifecycle, command, _port, **_kwargs):
+        commands.append(tuple(command))
+        return supervisors.pop(0)
+
+    monkeypatch.setattr(lifecycle_commands, "_supervisor_for", build_supervisor)
+    monkeypatch.setattr(LIFECYCLE, "ports_in_use", lambda _ports: False)
+
+    result = lifecycle_commands.start_background_service(LIFECYCLE)
+
+    assert result.status == "started"
+    assert len(commands) == 2
+    assert "--port" not in commands[0]
+    assert "--port" in commands[1]
+    assert "--godot-ws-port" in commands[1]
+
+
 def test_start_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
     # Given
     commands: list[tuple[str, ...]] = []
@@ -450,6 +537,7 @@ def test_start_uses_core_when_desktop_executable_is_present(monkeypatch) -> None
         "start_desktop",
         lambda *_args, **_kwargs: pytest.fail("start must not launch Desktop"),
     )
+    monkeypatch.setattr(LIFECYCLE, "ports_in_use", lambda _ports: False)
 
     def build_supervisor(_lifecycle, command, _port, **_kwargs):
         commands.append(tuple(command))
@@ -609,6 +697,7 @@ def test_web_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
         lambda *_args, **_kwargs: pytest.fail("web must not launch Desktop"),
     )
     monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
+    monkeypatch.setattr(LIFECYCLE, "default_port_statuses", lambda: [])
     monkeypatch.setattr(
         lifecycle_commands,
         "start_background_service",

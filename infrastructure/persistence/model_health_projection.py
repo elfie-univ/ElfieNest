@@ -1,4 +1,4 @@
-"""Read-only model-service health projection for Runtime lifecycle."""
+"""Read-only persistence adapter for the Food model-health projection."""
 
 from __future__ import annotations
 

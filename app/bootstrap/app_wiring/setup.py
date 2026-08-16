@@ -21,9 +21,9 @@ from infrastructure.models.food_technology import (
     FoodEvidencePort,
     ModelFoodTechnologyAdapter,
 )
-from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.ollama.lifecycle_ollama import OllamaLifecycleAdapter
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
+from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.setup_catalog import ProviderSetupCatalogAdapter
 from infrastructure.models.setup_food import SetupFoodAdapter
 from infrastructure.models.setup_ollama import SetupOllamaAdapter
@@ -61,9 +61,7 @@ def build_setup_services(
     state = SQLiteSetupAdapter(db_path)
     setup_accounts = SetupAccountsAdapter(accounts)
     providers = SetupProviderAdapter(provider_state)
-    ollama_task_lease_factory = _build_ollama_task_lease_factory(
-        providers, data_home
-    )
+    ollama_task_lease_factory = _build_ollama_task_lease_factory(providers, data_home)
     ollama = SetupOllamaAdapter(
         technology=PublicOllamaSetupTechnologyAdapter(),
         load_binding=providers.load_ollama_binding,
@@ -143,9 +141,10 @@ def _build_ollama_task_lease_factory(
         binding_loader=load_binding,
     )
     owner_id = f"setup:{os.getpid()}"
-    instance_id = "setup-" + hashlib.sha256(
-        str(data_home.resolve()).encode("utf-8")
-    ).hexdigest()[:16]
+    instance_id = (
+        "setup-"
+        + hashlib.sha256(str(data_home.resolve()).encode("utf-8")).hexdigest()[:16]
+    )
 
     def acquire(_binding: SetupOllamaBinding) -> Optional[SetupOllamaTaskLease]:
         return lifecycle.acquire(

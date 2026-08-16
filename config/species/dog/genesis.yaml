@@ -1,0 +1,12 @@
+schema_version: 1
+config_version: tovren-genesis.v1
+personality_prior: [0.10, 0.05, 0.15, 0.25, -0.10]
+stage_ranges:
+  youth: [6, 23]
+  young_adult: [24, 71]
+  mature: [72, 167]
+  elder: [168, 240]
+appearance_preferences:
+  warm: [golden, cream, red_brown]
+  marked: [face_mask, tricolor, bicolor]
+  ears: [dog]

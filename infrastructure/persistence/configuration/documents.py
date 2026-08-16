@@ -44,6 +44,7 @@ class ConfigDocumentId(str, Enum):
     SELFHOOD_DEFAULTS = "selfhood_defaults"
     EMOTION_EXPRESSIONS = "emotion_expressions"
     NEST_DEFAULTS = "nest_defaults"
+    SPECIES_CATALOG = "species_catalog"
     RUNTIME_SETTINGS = "runtime_settings"
     PROVIDER_CONNECTIONS = "provider_connections"
     TOOL_SETTINGS = "tool_settings"
@@ -178,6 +179,19 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         "nest",
         True,
         "nest-defaults-v1",
+        "immutable-bundled",
+        "bootstrap",
+        "fail-closed",
+    ),
+    ConfigDocumentId.SPECIES_CATALOG: ConfigDocumentSpec(
+        ConfigDocumentId.SPECIES_CATALOG,
+        "species/catalog.yaml",
+        None,
+        1,
+        ConfigPolicy.BUNDLED_ONLY,
+        "infrastructure.persistence.configuration.species",
+        True,
+        "species-catalog-v1",
         "immutable-bundled",
         "bootstrap",
         "fail-closed",

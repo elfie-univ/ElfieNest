@@ -28,10 +28,14 @@ def _projection(
         generation=4,
         revision=9,
         tier=tier,
-        phase=RuntimePhase.WORLD_READY if tier is BackendTier.WORLD_READY else RuntimePhase.CORE_READY,
+        phase=RuntimePhase.WORLD_READY
+        if tier is BackendTier.WORLD_READY
+        else RuntimePhase.CORE_READY,
         subphase="",
         desired_target=RuntimeTarget.NORMAL,
-        reached_target=RuntimeTarget.WORLD if tier is BackendTier.WORLD_READY else RuntimeTarget.CORE,
+        reached_target=RuntimeTarget.WORLD
+        if tier is BackendTier.WORLD_READY
+        else RuntimeTarget.CORE,
         model_state=model,
         model_common_state=common,
         model_emergency_state=emergency,

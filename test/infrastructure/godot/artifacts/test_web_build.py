@@ -7,6 +7,7 @@ from pathlib import Path
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
 from infrastructure.godot.artifacts.web_build import (
     current_source_fingerprint,
+    current_species_catalog_digest,
     patch_web_entry_for_lan_http,
     runtime_is_current,
 )
@@ -27,6 +28,7 @@ def _write_runtime(directory: Path, fingerprint: str) -> None:
             {
                 "files": files,
                 "source_fingerprint": fingerprint,
+                "species_catalog_digest": current_species_catalog_digest(),
                 "export_boundary": export_boundary_manifest(),
             }
         ),
