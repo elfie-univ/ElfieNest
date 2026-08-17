@@ -165,8 +165,7 @@ _ADDITIVE_COLUMN_DEFINITIONS: Final[dict[str, str]] = {
     "users.gender": "TEXT NOT NULL DEFAULT 'male' CHECK(gender IN ('male','female'))",
     "users.birth_date": "TEXT",
     "users.presence": (
-        "TEXT NOT NULL DEFAULT 'offline' "
-        "CHECK(presence IN ('online','away','offline'))"
+        "TEXT NOT NULL DEFAULT 'offline' CHECK(presence IN ('online','away','offline'))"
     ),
     "users.last_seen_at": "TEXT",
     "users.elfie_limit": (
@@ -225,7 +224,7 @@ _ADDITIVE_COLUMN_DEFINITIONS: Final[dict[str, str]] = {
     "nest_settings.clock_paused": "INTEGER NOT NULL DEFAULT 0 CHECK(clock_paused IN (0,1))",
     "nest_settings.time_scale": "REAL NOT NULL DEFAULT 1 CHECK(time_scale>0)",
     "nest_settings.environment_desired_json": (
-        "TEXT NOT NULL DEFAULT '{\"object_id\":\"nest/environment\",\"lights_on\":true,\"quiet_mode\":false}' "
+        'TEXT NOT NULL DEFAULT \'{"object_id":"nest/environment","lights_on":true,"quiet_mode":false}\' '
         "CHECK(json_valid(environment_desired_json) AND json_type(environment_desired_json)='object')"
     ),
     "nest_settings.environment_rules_json": (
@@ -295,9 +294,8 @@ class FinalNestSchemaRepairError(RuntimeError):
         super().__init__(str(self))
 
     def __str__(self) -> str:
-        return (
-            "数据库结构与当前版本不兼容：缺少不可安全补齐的字段 "
-            + ", ".join(self.missing_columns)
+        return "数据库结构与当前版本不兼容：缺少不可安全补齐的字段 " + ", ".join(
+            self.missing_columns
         )
 
 

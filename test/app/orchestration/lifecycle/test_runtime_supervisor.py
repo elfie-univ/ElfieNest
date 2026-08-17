@@ -59,7 +59,9 @@ class MemoryRecord:
     def read(self) -> RuntimeSnapshotV1:
         return self.value
 
-    def initialize_if_fresh(self, *, allow_existing_root: bool = False) -> RuntimeSnapshotV1:
+    def initialize_if_fresh(
+        self, *, allow_existing_root: bool = False
+    ) -> RuntimeSnapshotV1:
         self.prepared = allow_existing_root
         return self.value
 

@@ -240,8 +240,7 @@ def inspect_data_home(data_home: Path) -> DataHomeInspection:
                     state=DataHomeState.PARTIAL,
                     home=home,
                     detail=(
-                        "启动时可以补齐缺少的当前字段 "
-                        + ", ".join(missing_columns)
+                        "启动时可以补齐缺少的当前字段 " + ", ".join(missing_columns)
                     ),
                     recoverable=False,
                 )
