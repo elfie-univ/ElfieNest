@@ -20,6 +20,8 @@ type MonitorFixture = {
   readonly noFoods?: boolean
   readonly emergencyDegraded?: boolean
   readonly unassignedElfie?: boolean
+  readonly remoteSubscription?: boolean
+  readonly localOnlyCommon?: boolean
 }
 
 const healthyFixture: MonitorFixture = {
@@ -150,6 +152,24 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     expect(systemEvents?.compareDocumentPosition(aiService as Node) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
+  it("shows interstellar travel as enabled when the common Food has a usable remote subscription", async () => {
+    mockSnapshot({ ...healthyFixture, remoteSubscription: true })
+    renderPanel()
+
+    const region = await screen.findByRole("region", { name: "Interstellar travel" })
+    expect(region).toHaveTextContent("Enabled")
+    expect(region).not.toHaveTextContent("Please provide at least one valid model subscription")
+  })
+
+  it("does not count a local Ollama model as a valid interstellar subscription", async () => {
+    mockSnapshot({ ...healthyFixture, localOnlyCommon: true })
+    renderPanel()
+
+    const region = await screen.findByRole("region", { name: "Interstellar travel" })
+    expect(region).toHaveTextContent("Not enabled")
+    expect(region).toHaveTextContent("Please provide at least one valid model subscription")
+  })
+
   it("shows only abnormal Food details when the AI service needs attention", async () => {
     mockSnapshot({ ...healthyFixture, emergencyDegraded: true })
     renderPanel()
@@ -207,7 +227,15 @@ function monitorPayload(path: string, fixture: MonitorFixture): unknown {
         verification: { status: "passed" },
         model_counts: { total: 1, enabled: 1, in_use: fixture.noCoreModel ? 0 : 1, available: 1, degraded: 0, pending: 0, unavailable: 0 },
         models: [{ available: true, hidden: false, retired: false, ...(fixture.noCoreModel ? {} : { verification: { is_core: true } }) }],
-      }] }
+      }, ...(fixture.remoteSubscription ? [{
+        catalog_id: "volcengine",
+        alias: "Volcengine Coding Plan",
+        enabled: true,
+        archived: false,
+        verification: { status: "passed", availability_status: "available" },
+        model_counts: { total: 7, enabled: 7, in_use: 0, available: 7, degraded: 0, pending: 0, unavailable: 0 },
+        models: Array.from({ length: 7 }, () => ({ available: true, hidden: false, retired: false, verification: { availability_status: "available", is_core: true } })),
+      }] : [])] }
     case "/api/v1/admin/model-providers/ollama":
       return {
         state: "healthy",
@@ -238,9 +266,9 @@ function monitorPayload(path: string, fixture: MonitorFixture): unknown {
             archived: false,
             visibility_mode: "global",
             visible_user_ids: [],
-            roles: { primary: null, reasoning: null, vision: null, tool: null, fallback: null },
+            roles: { primary: fixture.remoteSubscription || fixture.localOnlyCommon ? { model: fixture.localOnlyCommon ? "qwen2.5:0.5b" : "deepseek-v4-flash" } : null, reasoning: null, vision: null, tool: null, fallback: null },
             health: "healthy",
-            locality: "remote",
+            locality: fixture.localOnlyCommon ? "local" : "remote",
             latest_evidence_at: "2026-08-16T00:00:00Z",
           },
           {

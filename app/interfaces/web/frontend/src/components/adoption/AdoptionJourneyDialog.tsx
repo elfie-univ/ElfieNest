@@ -21,7 +21,6 @@ import { Checkbox } from "../ui/checkbox"
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -289,17 +288,14 @@ function AdoptionEntryCheck({ t }: { readonly t: JourneyT }) {
 function AdoptionEntryBlockDialog({
   block,
   onExit,
-  onRetry,
   open,
   t,
 }: {
   readonly block: AdoptionEntryBlock
   readonly onExit: () => void
-  readonly onRetry: () => void
   readonly open: boolean
   readonly t: JourneyT
 }) {
-  const capacity = block !== "unavailable"
   const titleKey = block === "unavailable"
     ? "adoption.journey.entryBlock.unavailableTitle"
     : "adoption.journey.entryBlock.quotaTitle"
@@ -315,10 +311,7 @@ function AdoptionEntryBlockDialog({
         <AlertDialogDescription>{t(descriptionKey)}</AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
-        {capacity ? <AlertDialogAction onClick={onExit}>{t("adoption.journey.entryBlock.dismiss")}</AlertDialogAction> : <>
-          <AlertDialogCancel>{t("adoption.journey.entryBlock.exit")}</AlertDialogCancel>
-          <AlertDialogAction onClick={(event) => { event.preventDefault(); onRetry() }}>{t("adoption.journey.entryBlock.retry")}</AlertDialogAction>
-        </>}
+        <AlertDialogAction onClick={onExit}>{t("adoption.journey.entryBlock.dismiss")}</AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>
@@ -330,7 +323,6 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   const [state, dispatch] = useReducer(adoptionReducer, INITIAL_ADOPTION_STATE)
   const [info, setInfo] = useState<AdoptionInfo | null>(null)
   const [loadingInfo, setLoadingInfo] = useState(false)
-  const [entryRequest, setEntryRequest] = useState(0)
   const [entryBlock, setEntryBlock] = useState<AdoptionEntryBlock | null>(null)
   const [closePrompt, setClosePrompt] = useState(false)
   const [invitationFailureOpen, setInvitationFailureOpen] = useState(false)
@@ -455,7 +447,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       }
     })()
     return () => { active = false }
-  }, [accountId, csrfToken, entryRequest, handleExpiredSession, open])
+  }, [accountId, csrfToken, handleExpiredSession, open])
 
   useEffect(() => {
     if (!open) return
@@ -763,13 +755,6 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     onOpenChange(false)
   }
 
-  const retryEntryCheck = (): void => {
-    setEntryBlock(null)
-    setInfo(null)
-    setLoadingInfo(true)
-    setEntryRequest((value) => value + 1)
-  }
-
   const retryInvitation = (): void => {
     retryingInvitationRef.current = true
     setInvitationFailureOpen(false)
@@ -862,7 +847,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           title={invitationFailureTitle}
         />
 
-        {entryBlock !== null ? <AdoptionEntryBlockDialog block={entryBlock} onExit={exitEntryBlock} onRetry={retryEntryCheck} open t={t} /> : null}
+        {entryBlock !== null ? <AdoptionEntryBlockDialog block={entryBlock} onExit={exitEntryBlock} open t={t} /> : null}
 
         {closePrompt ? (
           <div aria-labelledby="adoption-close-title" aria-modal="true" className="adoption-close-prompt" role="alertdialog">

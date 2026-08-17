@@ -12,6 +12,7 @@ import {
   type MonitorProvider,
   type MonitorSnapshot,
 } from "../api/owner-monitor"
+import { compareLocalizedText, currentLocale } from "../i18n/format"
 import { PersistentStatus } from "./PersistentStatus"
 import { RefreshButton } from "./RefreshButton"
 import { useToast } from "./ui/toast"
@@ -20,6 +21,7 @@ type MetricState = "good" | "neutral" | "warning" | "error"
 type HealthLevel = "ok" | "attention" | "error" | "unknown"
 type ServiceStatus = "healthy" | "attention" | "unavailable" | "unverified" | "disabled" | "unknown"
 type AiServiceState = "healthy" | "attention" | "unavailable" | "unconfigured" | "configuredNoFood" | "unknown"
+type InterstellarState = "enabled" | "unavailable" | "unknown"
 const SYSTEM_SERVICE_IDS = ["core", "godotWeb", "godotRuntime"] as const
 type SystemServiceId = (typeof SYSTEM_SERVICE_IDS)[number]
 type SystemServiceStatus = { readonly id: SystemServiceId; readonly healthy: boolean }
@@ -32,7 +34,7 @@ type MonitorIssue =
   | { readonly kind: "beds"; readonly count: number }
 
 export function ManageMonitorPanel() {
-  const { t } = useTranslation("manage")
+  const { t, i18n } = useTranslation("manage")
   const [snapshot, setSnapshot] = useState<MonitorSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const wasAttention = useRef(false)
@@ -89,7 +91,8 @@ export function ManageMonitorPanel() {
       <section className="monitor-module">
         <h3>{t("runtimeMonitor.modules.services")}</h3>
         {snapshot?.providers === null || snapshot === null ? <p className="empty">{t("runtimeMonitor.moduleUnavailable")}</p> : operationalProviders(snapshot.providers).length === 0 ? <p className="empty">{t("runtimeMonitor.services.empty")}</p> : <ul className="monitor-service-list">{operationalProviders(snapshot.providers).map((provider) => <ServiceRow key={`${provider.catalog_id}-${provider.alias}`} provider={provider} ollama={snapshot.ollama} t={t} />)}</ul>}
-        <FoodStatusGrid foods={snapshot?.foods ?? null} t={t} />
+        <FoodStatusGrid foods={snapshot?.foods ?? null} locale={currentLocale(i18n)} t={t} />
+        <InterstellarStatus snapshot={snapshot} t={t} />
       </section>
     </div>
   </section>
@@ -390,8 +393,8 @@ function ServiceRow({ ollama, provider, t }: { readonly ollama: MonitorOllama | 
   </li>
 }
 
-function FoodStatusGrid({ foods, t }: { readonly foods: readonly MonitorFood[] | null; readonly t: TFunction<"manage"> }) {
-  const visible = visibleMonitorFoods(foods)
+function FoodStatusGrid({ foods, locale, t }: { readonly foods: readonly MonitorFood[] | null; readonly locale: ReturnType<typeof currentLocale>; readonly t: TFunction<"manage"> }) {
+  const visible = visibleMonitorFoods(foods, locale)
   return <section aria-label={t("runtimeMonitor.foods.title")} className="monitor-food-status">
     <h4>{t("runtimeMonitor.foods.title")}</h4>
     {foods === null ? <p className="empty">{t("runtimeMonitor.moduleUnavailable")}</p> : visible.length === 0 ? <p className="empty">{t("runtimeMonitor.foods.empty")}</p> : <div className="monitor-food-grid">
@@ -403,12 +406,33 @@ function FoodStatusGrid({ foods, t }: { readonly foods: readonly MonitorFood[] |
   </section>
 }
 
-function visibleMonitorFoods(foods: readonly MonitorFood[] | null): readonly MonitorFood[] {
+function InterstellarStatus({ snapshot, t }: { readonly snapshot: MonitorSnapshot | null; readonly t: TFunction<"manage"> }) {
+  const state = resolveInterstellarState(snapshot)
+  return <section aria-label={t("runtimeMonitor.interstellar.title")} className="monitor-interstellar-status">
+    <h4>{t("runtimeMonitor.interstellar.title")}</h4>
+    {state === "unknown" ? <p className="empty">{t("runtimeMonitor.interstellar.reading")}</p> : <article className={`monitor-interstellar monitor-interstellar--${state}`}>
+      <strong>{t(`runtimeMonitor.interstellar.status.${state}`)}</strong>
+      {state === "unavailable" ? <small>{t("runtimeMonitor.interstellar.unavailableDetail")}</small> : null}
+    </article>}
+  </section>
+}
+
+function resolveInterstellarState(snapshot: MonitorSnapshot | null): InterstellarState {
+  if (snapshot === null || snapshot.runtime === null || snapshot.providers === null || snapshot.foods === null) return "unknown"
+  const common = snapshot.foods.find((food) => food.system_role === "common")
+  if (common === undefined || common.archived || !common.enabled || common.roles.primary === null || common.locality === "local") return "unavailable"
+  const commonState = snapshot.runtime.lifecycle?.model_common_state
+  if (commonState === "unconfigured" || commonState === "unavailable") return "unavailable"
+  const remoteModelAvailable = operationalProviders(snapshot.providers).some((provider) => provider.catalog_id !== "ollama" && provider.model_counts.available > 0)
+  return remoteModelAvailable && (commonState === undefined || commonState === "ready" || commonState === "degraded") ? "enabled" : "unavailable"
+}
+
+function visibleMonitorFoods(foods: readonly MonitorFood[] | null, locale: ReturnType<typeof currentLocale>): readonly MonitorFood[] {
   if (foods === null) return []
   const rank = (food: MonitorFood): number => food.system_role === "common" ? 0 : food.system_role === "emergency" ? 1 : 2
   return foods
     .filter((food) => !food.archived && (food.enabled || food.system_role !== null))
-    .sort((left, right) => rank(left) - rank(right) || left.display_name.localeCompare(right.display_name))
+    .sort((left, right) => rank(left) - rank(right) || compareLocalizedText(left.display_name, right.display_name, locale))
 }
 
 function operationalProviders(providers: readonly MonitorProvider[]): readonly MonitorProvider[] {

@@ -227,6 +227,12 @@
 .monitor-food--degraded, .monitor-food--unknown { border-color: color-mix(in srgb, #b67a3e 32%, var(--border)); background: color-mix(in srgb, #f7e7cc 55%, var(--surface-raised)); }
 .monitor-food--unavailable { border-color: color-mix(in srgb, var(--error-text) 32%, var(--border)); background: color-mix(in srgb, #f6dddd 55%, var(--surface-raised)); }
 .monitor-food--unconfigured { color: var(--text-muted); background: var(--code-bg); }
+.monitor-interstellar-status { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
+.monitor-interstellar-status h4 { margin: 0 0 9px; font-size: 14px; color: var(--text-muted); }
+.monitor-interstellar { display: grid; gap: 4px; padding: 9px 10px; border-radius: 8px; background: var(--code-bg); border-left: 3px solid var(--border); }
+.monitor-interstellar small { color: var(--text-muted); font-size: 13px; }
+.monitor-interstellar--enabled { border-left-color: #43805a; background: color-mix(in srgb, #dfefdf 55%, var(--surface-raised)); }
+.monitor-interstellar--unavailable { border-left-color: #b67a3e; background: color-mix(in srgb, #f7e7cc 55%, var(--surface-raised)); }
 .provider-card--passed { background: #edf7ed; box-shadow: inset 3px 0 0 #43805a; }
 .provider-card--partial { background: #fbf0e2; box-shadow: inset 3px 0 0 #b67a3e; }
 .provider-card--failed { background: #f9eaea; box-shadow: inset 3px 0 0 #9d4137; }

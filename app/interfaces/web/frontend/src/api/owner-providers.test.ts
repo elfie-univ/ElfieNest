@@ -77,6 +77,7 @@ describe("versioned model Provider client", () => {
       usage_scope: "general",
       verification,
       models: [],
+      model_counts: { total: 0, enabled: 0, in_use: 0, available: 0, degraded: 0, pending: 0, unavailable: 0 },
       model_refresh: null,
     })
 

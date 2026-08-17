@@ -180,6 +180,32 @@ describe("AdoptionJourneyDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
+  it("shows only the compact administrator message when interstellar travel is unavailable", async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    api.adoptionInfo.mockResolvedValueOnce({
+      personality_styles: ["好奇探索"],
+      species,
+      heights: ["short", "standard", "tall"],
+      builds: ["slim", "standard", "plump"],
+      quota: { used: 0, max: 3, remaining: 3, can_adopt: true },
+      nest_capacity: { used: 0, max: 4, remaining: 4 },
+      availability: "model_unavailable",
+    })
+
+    renderJourney({ onOpenChange })
+
+    const dialog = await screen.findByRole("alertdialog")
+    expect(dialog).toHaveTextContent("星际穿越尚未开启")
+    expect(dialog).toHaveTextContent("请联系管理员")
+    expect(screen.getByRole("button", { name: "知道了" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "重新检查" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "退出领养" })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "知道了" }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it("keeps the welcome copy compact and hides the explanation by default", async () => {
     renderJourney()
 
