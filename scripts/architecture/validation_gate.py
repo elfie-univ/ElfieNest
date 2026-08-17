@@ -103,32 +103,47 @@ def _commands(
 
 
 def run_stage(
-    stage: str, base_sha: str, closure_file: str, cache_root: Path, no_cache: bool
+    stage: str,
+    base_sha: str,
+    closure_file: str,
+    cache_root: Path,
+    no_cache: bool,
+    allow_external_environment_blockers: bool,
 ) -> int:
     paths = changed_paths(base_sha)
     plan = build_plan(paths, stage)
     print(json.dumps(plan, ensure_ascii=False, indent=2))
     if stage == "main" or int(cast(int, plan["effective_tier"])) == 3:
         if stage != "main":
-            return run_stage("main", base_sha, closure_file, cache_root, no_cache)
+            return run_stage(
+                "main",
+                base_sha,
+                closure_file,
+                cache_root,
+                no_cache,
+                allow_external_environment_blockers,
+            )
         key = candidate_fingerprint(base_sha, "main", paths)
         lock = cache_root / f"{key}.lock"
         with cache_lock(lock):
             if not no_cache and cache_hit(cache_root, key):
                 print(f"✅ reused exact passed main gate: {key}")
                 return 0
+            main_command = [
+                "bash",
+                "scripts/pre_submit_gate.sh",
+                "--stage",
+                "main",
+                "--no-cache",
+                "--base-sha",
+                base_sha,
+                "--closure-file",
+                closure_file,
+            ]
+            if allow_external_environment_blockers:
+                main_command.append("--allow-external-environment-blockers")
             result = subprocess.run(
-                [
-                    "bash",
-                    "scripts/pre_submit_gate.sh",
-                    "--stage",
-                    "main",
-                    "--no-cache",
-                    "--base-sha",
-                    base_sha,
-                    "--closure-file",
-                    closure_file,
-                ],
+                main_command,
                 cwd=PROJECT_ROOT,
                 check=False,
             ).returncode
@@ -194,6 +209,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--cache-root", default="build/validation-cache")
     parser.add_argument("--plan-only", action="store_true")
     parser.add_argument("--no-cache", action="store_true")
+    parser.add_argument(
+        "--allow-external-environment-blockers",
+        action="store_true",
+        help="allow only explicitly classified external-environment blockers",
+    )
     args = parser.parse_args(argv)
     base = (
         args.base_sha
@@ -211,6 +231,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         args.closure_file,
         PROJECT_ROOT / args.cache_root,
         args.no_cache,
+        args.allow_external_environment_blockers,
     )
 
 

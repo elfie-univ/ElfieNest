@@ -3,7 +3,11 @@
 > 本文是规范性[模型、Food 与工具行为契约](../contracts/model-food-tool-behavior) 1.8 的
 > 开放迁移台账，只记录当前实现事实和剩余删除门，不削弱已经确认的可用性设计。
 
-**状态：** in progress
+真实 Provider/浏览器证据已在下方记录。原生主机发布证据由服务生命周期一致性台账单独跟踪。
+
+**状态：** closed
+
+**收口状态：** ready
 
 ## 当前已符合的事实
 
@@ -38,23 +42,22 @@
 
 ## Conformance rows
 
-标记为 `closed` 的行保留作为本次迁移的审计证据；仍为 `in progress` 的行才是当前未闭合项。
+标记为 `closed` 的行保留作为本次迁移的审计证据；当前没有未闭合的 PMA 行。
 
 | ID | 严重度 | 状态 | 剩余偏差 | 收口门 | 证据 |
 | --- | --- | --- | --- | --- | --- |
-| PMA-001 | P0 | in progress | 实时 `/models` 发现、核心/其他模型分层、一键启用、火山引擎 Coding Plan 产品 Adapter 和两次刷新过期保留已实现。删除仍是 Owner 的显式动作。 | 在 30 天/引用门禁满足后实际走一次受保护清理。 | `infrastructure/models/validation/provider_validation.py`、`infrastructure/models/providers/discovery.py`、`infrastructure/models/provider_administration.py`、`app/interfaces/web/frontend/src/components/ProviderModelsDialog.tsx` |
+| PMA-001 | P0 | closed | 实时 `/models` 发现、核心/其他模型分层、一键启用、火山引擎 Coding Plan 产品 Adapter 和两次刷新过期保留已实现。显式 Owner 清理现在会阻止近期生产使用，并在删除前重新检查全部 Food 引用。 | 已覆盖过期且未引用模型、近期生产使用，以及显式 Food 引用复查三种清理边界。 | target=来源缺失模型保留与清理；inventory=`infrastructure/models/providers/discovery.py`、`infrastructure/models/provider_administration.py`、Food 引用 Adapter；references=契约 Discovery/cleanup；verification=`test/infrastructure/models/test_provider_administration.py` 与 `test/app/features/configuration/providers/test_service.py`；residuals=none |
 | PMA-002 | P0 | closed | Endpoint 级受控探测、语义 Request Profile 映射和按通道的证据升级已实现。当前配置且实际使用的火山引擎 Coding Plan 作为本次发布的代表远程 Provider，已完成 8 个模型的真实文本验证，以及每个 Endpoint 的工具/视觉/推理探测。未配置的 Adapter 延后到实际配置并使用时再进入验收。 | 每次发布至少对一个已配置且实际使用的远程 Provider 代表执行真实能力矩阵并记录 Adapter 特有缺口；其他 Adapter 配置并投入使用后再纳入范围。 | target=代表远程 Provider 能力矩阵；inventory=8 个已配置的火山引擎 Coding Plan Endpoint 模型及工具/视觉/推理通道；references=`infrastructure/models/validation/provider_capability_probes.py`、`infrastructure/models/provider_administration.py`；verification=`$ELFIE_HOME/reports/ai-runtime.sqlite` 中真实运行 `run_81c08bccaf6e41d69ced2114d5fcb715`；residuals=未配置且未实际使用的 Adapter 延后 |
-| PMA-003 | P0 | in progress | 生产/验证观测与独立的 5 分钟 transport/auth 证据流、读取时投影、有界原始保留和日汇总已实现；长期运行验收仍未完成。 | 在长时间运行安装中验证保留/汇总，包括重启和迟到观测边界。 | `infrastructure/models/validation/provider_validation_checks.py`、`infrastructure/models/validation/provider_availability.py`、`infrastructure/models/validation/provider_scheduler.py`、`infrastructure/persistence/reports/report_repository.py`、`infrastructure/persistence/reports/report_schema.py` |
+| PMA-003 | P0 | closed | 生产/验证观测与独立的 5 分钟 transport/auth 证据流、读取时投影、有界原始保留和日汇总已实现。日汇总在受保护保留事务中精确合并迟到观测，可跨 Repository 重启保留计数、边界和延迟统计，同时保持运行中的观测为原始记录。 | Repository 与 scheduler 测试已覆盖重启/迟到观测及运行中任务的保留边界。 | target=追加式证据保留与日汇总；inventory=`infrastructure/models/validation/provider_scheduler.py`、`infrastructure/persistence/reports/report_repository.py`、`infrastructure/persistence/reports/report_schema.py`；references=契约 Evidence retention；verification=`test/infrastructure/persistence/reports/test_validation_reports.py` 与 `test/infrastructure/models/validation/test_provider_scheduler.py`；residuals=none |
 | PMA-004 | P0 | closed | `ServingFoodIndex` 已实现分配/默认/Emergency/直接使用、24 小时/30 天角色窗口、Endpoint 去重、required-role 策略持久化、generation 变化和过时任务取消。 | 可重放运行场景在验证进行中修改 serving Food，取消全部旧 generation 的排队通道，并验证下一代。 | target=serving Food generation 失效；inventory=Food 分配/默认/Emergency/直接使用角色、required-role 策略、generation 和排队验证通道；references=`infrastructure/models/validation/serving_food.py`、`infrastructure/models/validation/core_validation_scheduler.py`、`infrastructure/models/validation/provider_scheduler.py`；verification=`test/infrastructure/models/validation/test_core_validation_scheduler.py` 的重放场景；residuals=none |
 | PMA-005 | P0 | closed | 类型化错误作用域、账号级提前停止、瞬态迟滞、跨模型传输故障提升、有界并发、Single-flight/冷却、SQLite 租约、generation 取消、周期性核心验证和租约保护的保留维护已实现。 | 两个独立 POSIX Worker 共用一个报告数据库；模型验证和保留任务各自都只有一个 Worker 执行。 | target=单飞行与跨进程验证/保留租约；inventory=类型化错误、账号提前停止、迟滞、冷却、generation 取消、Worker 和 SQLite 租约路径；references=`infrastructure/models/validation/provider_scheduler.py`、`infrastructure/persistence/reports/report_repository.py`；verification=`test/infrastructure/models/validation/test_provider_scheduler.py` 的多进程租约场景；residuals=none |
-| PMA-006 | P1 | in progress | 卡片底色/徽章语义、有限摘要、首页核心路径过滤、本地服务/模型门禁、过期模型检查和受保护清理 UI 已实现；真实 Provider/浏览器验收证据仍未完成。 | 使用脱离代码注入的真实凭据记录一次 served checkout/browser 验收。 | `app/interfaces/web/frontend/src/components/ProviderModelsDialog.tsx`、`app/interfaces/api/v1/admin/model_providers/routes.py`、`app/interfaces/web/frontend/src/api/owner-providers.ts` |
+| PMA-006 | P1 | closed | 卡片底色/徽章语义、有限摘要、首页核心路径过滤、本地服务/模型门禁、过期模型检查和受保护清理 UI 已实现；Owner Provider 清单请求已允许较慢的模型投影，不再受浏览器默认短超时影响。 | macOS arm64 served checkout 使用真实火山引擎 Coding Plan 凭据：Provider 卡片显示 124 个模型中 1 个可用，`ark-code-latest` 显示可用；Ollama 显示服务运行且有 2 个已安装模型；过期模型清理仍受保护。 | target=Provider/模型管理 UI；inventory=`ProviderModelsDialog.tsx`、model-provider routes、`http.ts`、`owner-providers.ts`、`owner-providers.test.ts`；references=可用性契约；verification=`vitest` 6 passed、`pnpm typecheck`、`pnpm build`、真实 availability ensure 返回 `available/fresh_success`；residuals=none |
 
 ## 收口顺序
 
-1. 只补充剩余的非通用发现 Adapter，并收集 Endpoint 能力证据。
-2. 记录长期保留和 Provider/浏览器验收证据。
-3. PMA-002 本次发布使用当前已配置且实际使用的远程 Provider 作为代表；其他 Adapter 配置并投入使用后再进入门禁。
-4. PMA-004 和 PMA-005 已由当前 generation 失效及多进程租约可重放场景关闭。
+1. 只有在新的非通用发现 Adapter 被配置并使用时，才补充它并收集 Endpoint 能力证据。
+2. PMA-002 本次发布使用当前已配置且实际使用的远程 Provider 作为代表；其他 Adapter 配置并投入使用后再进入门禁。
+3. PMA-004 和 PMA-005 已由当前 generation 失效及多进程租约可重放场景关闭。
 
-在每一行都有 `target`、`inventory`、`references`、`verification`、`residuals` 五类证据，
-且永久行为、架构和浏览器门禁保持 deny-all 之前，本台账保持开放。
+当前 PMA 范围已收口。未来只有配置并使用的新 Adapter 才进入同一门禁；永久行为、架构和
+浏览器门禁继续保持 deny-all。

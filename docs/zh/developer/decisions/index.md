@@ -25,5 +25,6 @@
 - [ADR-0021：权威服务生命周期与独立能力健康](./0021-authoritative-service-lifecycle)
 - [ADR-0022：基于证据的任务收敛与不可变治理两阶段流程](./0022-evidence-backed-task-closure)
 - [ADR-0023：分级验证与精确快照复用](./0023-tiered-validation-and-reuse)
+- [ADR-0024：缺少外部环境时使用显式本地 checkpoint](./0024-external-environment-checkpoints)
 - [ADR-0019：Provider 可用性按 Endpoint 定义并由在用路径驱动](./0019-provider-endpoint-availability)
 - [ADR-0020：配置驱动的物种包](./0020-configuration-driven-species-packages)

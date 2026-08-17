@@ -19,6 +19,9 @@ an implemented “main path” from being reported as final completion.
   and an empty residual list.
 - A missing OS, service, credential, package, or clean machine is `blocked`, not
   complete. Name the missing condition and the next replayable check.
+- A local checkpoint may explicitly pass only rows marked
+  `blocker_class: "external_environment"`; this preserves their `blocked` status
+  and never authorizes a final completion claim.
 - Do not commit or push a final result while an in-scope row, P0 condition,
   release condition, or conformance row is open.
 
@@ -55,6 +58,11 @@ an implemented “main path” from being reported as final completion.
      --base-sha "$(git rev-parse origin/main^{commit})" \
      --closure-file task-closure.json
    ```
+
+   A local checkpoint may add
+   `--allow-external-environment-blockers` when the only open rows are
+   explicitly classified external-environment gaps. The default gate remains
+   strict for final delivery and protected branches.
 
    The main stage is the complete CI-aligned backstop. It may reuse only a
    successful exact-candidate result from `build/validation-cache/`; a changed
@@ -103,3 +111,7 @@ The matrix is intentionally compact and machine-checkable:
 `scope` is a bounded list of paths/globs; unclassified changes fail the gate.
 Do not use a catch-all `*` or `**` scope. `conformance.rows` must be closed by
 the candidate when listed; otherwise the gate fails.
+
+Blocked rows must include `blocker_class`; the only checkpoint-allowable value
+is `external_environment`. A code failure, missing evidence or unclassified
+blocker remains a hard gate failure.

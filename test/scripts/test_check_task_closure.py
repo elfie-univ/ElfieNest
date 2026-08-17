@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
+
 from scripts.check_task_closure import validate_task_closure
 
 
@@ -58,6 +61,99 @@ def test_open_row_and_residual_block_complete_mode() -> None:
     document["rows"] = [row]
     failures = validate_task_closure(document)
     assert any("non-complete rows" in failure for failure in failures)
+
+
+def test_external_environment_blocker_requires_explicit_checkpoint_override() -> None:
+    document = _document()
+    rows = document["rows"]
+    assert isinstance(rows, list)
+    row = dict(rows[0])
+    row.update(
+        {
+            "status": "blocked",
+            "blocker_class": "external_environment",
+            "blockers": ["Windows host is unavailable"],
+            "residuals": ["Windows process-tree acceptance"],
+        }
+    )
+    document["rows"] = [row]
+
+    strict_failures = validate_task_closure(document, mode="complete")
+    assert any("non-complete rows" in failure for failure in strict_failures)
+    assert (
+        validate_task_closure(
+            document,
+            mode="complete",
+            allow_external_environment_blockers=True,
+        )
+        == []
+    )
+
+
+def test_checkpoint_override_rejects_non_external_blocker() -> None:
+    document = _document()
+    rows = document["rows"]
+    assert isinstance(rows, list)
+    row = dict(rows[0])
+    row.update(
+        {
+            "status": "blocked",
+            "blocker_class": "implementation_failure",
+            "blockers": ["A regression remains"],
+            "residuals": ["Failure reproduction"],
+        }
+    )
+    document["rows"] = [row]
+
+    failures = validate_task_closure(
+        document,
+        mode="complete",
+        allow_external_environment_blockers=True,
+    )
+    assert any("blocker_class is invalid" in failure for failure in failures)
+    assert any("non-complete rows" in failure for failure in failures)
+
+
+def test_blocked_row_requires_blocker_class() -> None:
+    document = _document()
+    rows = document["rows"]
+    assert isinstance(rows, list)
+    row = dict(rows[0])
+    row.update(
+        {
+            "status": "blocked",
+            "blockers": ["An external condition is missing"],
+            "residuals": ["Replay the check"],
+        }
+    )
+    document["rows"] = [row]
+
+    failures = validate_task_closure(document, mode="progress")
+    assert any("blocker_class must classify" in failure for failure in failures)
+
+
+def test_external_environment_override_is_exposed_by_the_cli() -> None:
+    result = subprocess.run(
+        [sys.executable, "scripts/check_task_closure.py", "--help"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "--allow-external-environment-blockers" in result.stdout
+
+
+def test_pre_submit_gate_exposes_the_same_checkpoint_flag() -> None:
+    result = subprocess.run(
+        ["bash", "scripts/pre_submit_gate.sh", "--help"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "--allow-external-environment-blockers" in result.stdout
 
 
 def test_unclassified_path_and_catch_all_scope_are_rejected() -> None:

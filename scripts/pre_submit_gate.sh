@@ -8,6 +8,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 BASE_SHA=""
 CLOSURE_FILE=""
+ALLOW_EXTERNAL_ENVIRONMENT_BLOCKERS=0
 STAGE="main"
 NO_CACHE=0
 CURRENT_STEP="argument validation"
@@ -17,7 +18,7 @@ CANDIDATE_ROOT="$PROJECT_ROOT"
 usage() {
     cat <<'EOF'
 Usage: scripts/pre_submit_gate.sh --closure-file PATH [--base-sha COMMIT]
-       [--stage commit|push|main]
+       [--stage commit|push|main] [--allow-external-environment-blockers]
 
 The default main stage is dispatched through the reusable tiered gate. The
 internal --no-cache flag runs the complete CI-aligned main backstop directly.
@@ -62,6 +63,10 @@ while [[ $# -gt 0 ]]; do
             CLOSURE_FILE="${1#*=}"
             shift
             ;;
+        --allow-external-environment-blockers)
+            ALLOW_EXTERNAL_ENVIRONMENT_BLOCKERS=1
+            shift
+            ;;
         --stage)
             [[ $# -ge 2 ]] || fail "--stage requires commit, push or main"
             STAGE="$2"
@@ -102,8 +107,14 @@ esac
 if [[ "$NO_CACHE" -eq 0 ]]; then
     PYTHON_BIN="$PROJECT_ROOT/.venv/bin/python3"
     [[ -x "$PYTHON_BIN" ]] || fail "missing repository interpreter: $PYTHON_BIN"
-    exec "$PYTHON_BIN" "$PROJECT_ROOT/scripts/architecture/validation_gate.py" \
+    VALIDATION_ARGS=(
         --stage "$STAGE" --base-sha "$BASE_SHA" --closure-file "$CLOSURE_FILE"
+    )
+    if (( ALLOW_EXTERNAL_ENVIRONMENT_BLOCKERS )); then
+        VALIDATION_ARGS+=(--allow-external-environment-blockers)
+    fi
+    exec "$PYTHON_BIN" "$PROJECT_ROOT/scripts/architecture/validation_gate.py" \
+        "${VALIDATION_ARGS[@]}"
 fi
 
 CURRENT_STEP="resolving the immutable base commit"
@@ -324,10 +335,16 @@ prepare_candidate_tree
 CURRENT_STEP="running immutable-base architecture governance checks"
 run_candidate_architecture_gate
 
+CLOSURE_CHECK_FLAGS=(--mode complete)
+if (( ALLOW_EXTERNAL_ENVIRONMENT_BLOCKERS )); then
+    CLOSURE_CHECK_FLAGS+=(--allow-external-environment-blockers)
+    echo "⚠️ allowing only explicitly classified external-environment blockers for this local checkpoint"
+fi
+
 run_step "checking the task closure matrix" \
     "$PYTHON_BIN" "$CANDIDATE_ROOT/scripts/check_task_closure.py" \
     --file "$CANDIDATE_ROOT/$CLOSURE_FILE" \
-    --base-sha "$BASE_SHA" --mode complete
+    --base-sha "$BASE_SHA" "${CLOSURE_CHECK_FLAGS[@]}"
 
 run_step "checking the dependency lock" \
     "$UV_BIN" lock --check

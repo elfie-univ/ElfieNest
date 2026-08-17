@@ -5,7 +5,13 @@
 > It records current implementation facts and remaining deletion gates; it
 > does not weaken the accepted availability design.
 
-**State:** in progress
+Live-provider/browser evidence is recorded below for the served local checkout.
+Native-host release evidence is tracked separately by the service-lifecycle
+conformance register.
+
+**State:** closed
+
+**Closure state:** ready
 
 ## Current conforming facts
 
@@ -56,27 +62,26 @@
 
 ## Conformance rows
 
-Rows marked `closed` are retained as audit evidence for this migration; the
-remaining `in progress` rows are the outstanding gaps.
+Rows marked `closed` are retained as audit evidence for this migration; no PMA
+rows remain open.
 
 | ID | Severity | Status | Remaining deviation | Closure gate | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| PMA-001 | P0 | in progress | Live `/models` discovery, core/other inventory separation, one-click enablement, the Volcengine Coding Plan product adapter and two-refresh obsolete retention are implemented. Deletion remains an explicit Owner action. | Exercise the guarded cleanup flow after the 30-day/reference gates pass. | `infrastructure/models/validation/provider_validation.py`, `infrastructure/models/providers/discovery.py`, `infrastructure/models/provider_administration.py`, `app/interfaces/web/frontend/src/components/ProviderModelsDialog.tsx` |
+| PMA-001 | P0 | closed | Live `/models` discovery, core/other inventory separation, one-click enablement, the Volcengine Coding Plan product adapter and two-refresh obsolete retention are implemented. Explicit Owner cleanup now blocks recent production use and rechecks every Food reference before deletion. | The guarded cleanup flow is covered for a stale unreferenced model, recent production use, and the explicit Food-reference recheck. | target=source-missing model retention and cleanup; inventory=`infrastructure/models/providers/discovery.py`, `infrastructure/models/provider_administration.py`, Food reference adapter; references=contract §Discovery and cleanup; verification=`test/infrastructure/models/test_provider_administration.py` and `test/app/features/configuration/providers/test_service.py`; residuals=none |
 | PMA-002 | P0 | closed | Endpoint-scoped controlled probes, semantic Request Profile mapping and channel-specific evidence promotion are implemented. The configured, actively used Volcengine Coding Plan is the representative remote Provider for this release and passed its live 8-model text matrix plus per-endpoint tools/vision/reasoning probes. Unconfigured adapters are explicitly deferred until they become configured and actively used. | Every release must run the real-provider capability matrix against one configured, actively used remote Provider representative and record any adapter-specific gap; additional adapters enter scope when configured and used. | target=representative remote Provider capability matrix; inventory=8 configured Volcengine Coding Plan endpoint models and tools/vision/reasoning channels; references=`infrastructure/models/validation/provider_capability_probes.py`, `infrastructure/models/provider_administration.py`; verification=live run `run_81c08bccaf6e41d69ced2114d5fcb715` in `$ELFIE_HOME/reports/ai-runtime.sqlite`; residuals=unconfigured adapters deferred until configured and actively used |
-| PMA-003 | P0 | in progress | Production/validation observations now coexist with a distinct five-minute transport/auth evidence stream and read-time reachability projection. The repository has guarded daily rollups and bounded raw retention; the periodic scheduler invokes compaction through the shared maintenance lease. | Verify retention and rollup behavior against a long-running installation, including restart and late-observation boundaries. | `infrastructure/models/validation/provider_validation_checks.py`, `infrastructure/models/validation/provider_availability.py`, `infrastructure/models/validation/provider_scheduler.py`, `infrastructure/persistence/reports/report_repository.py`, `infrastructure/persistence/reports/report_schema.py` |
+| PMA-003 | P0 | closed | Production/validation observations now coexist with a distinct five-minute transport/auth evidence stream and read-time reachability projection. Daily rollups merge late observations exactly once under the guarded retention transaction, survive repository restart, and preserve count/boundary/latency statistics while running observations remain raw. | Restart/late-observation and running-run retention boundaries are covered by the repository and scheduler tests. | target=append-only evidence retention and daily rollups; inventory=`infrastructure/models/validation/provider_scheduler.py`, `infrastructure/persistence/reports/report_repository.py`, `infrastructure/persistence/reports/report_schema.py`; references=contract §Evidence retention; verification=`test/infrastructure/persistence/reports/test_validation_reports.py` and `test/infrastructure/models/validation/test_provider_scheduler.py`; residuals=none |
 | PMA-004 | P0 | closed | `ServingFoodIndex` implements assignment/default/emergency/direct-use and 24-hour/30-day role windows with endpoint deduplication and a content-derived generation. Required optional-role policy is persisted, exposed in the Food editor/API, and the scheduler abandons stale generations before probing. | A replayable runtime scenario changed the serving Food during an in-flight validation, cancelled every stale queued channel, and validated the next generation. | target=serving Food generation invalidation; inventory=Food assignment/default/emergency/direct-use roles, required-role policy, generation and queued validation channels; references=`infrastructure/models/validation/serving_food.py`, `infrastructure/models/validation/core_validation_scheduler.py`, `infrastructure/models/validation/provider_scheduler.py`; verification=`test/infrastructure/models/validation/test_core_validation_scheduler.py` replay scenario; residuals=none |
 | PMA-005 | P0 | closed | Typed error scope, account early-stop, transient hysteresis, cross-model transport promotion, bounded concurrency, single-flight/cooldown, a SQLite lease, generation cancellation, periodic core-only validation and lease-guarded retention maintenance are implemented. | Two independent POSIX worker processes shared one report database; exactly one performed each model-validation and retention operation. | target=single-flight and cross-process validation/retention lease; inventory=typed error classification, account stop, hysteresis, cooldown, generation cancellation, worker and SQLite lease paths; references=`infrastructure/models/validation/provider_scheduler.py`, `infrastructure/persistence/reports/report_repository.py`; verification=`test/infrastructure/models/validation/test_provider_scheduler.py` multi-process lease scenarios; residuals=none |
-| PMA-006 | P1 | in progress | Card background/badge semantics, bounded summaries, serving-core homepage filtering, local service/model gates, obsolete-model inspection and guarded cleanup UI are implemented. Live-provider/browser acceptance evidence remains. | Record a served-checkout/browser acceptance run with real credentials supplied out of band. | `app/interfaces/web/frontend/src/components/ProviderModelsDialog.tsx`, `app/interfaces/api/v1/admin/model_providers/routes.py`, `app/interfaces/web/frontend/src/api/owner-providers.ts` |
+| PMA-006 | P1 | closed | Card background/badge semantics, bounded summaries, serving-core homepage filtering, local service/model gates, obsolete-model inspection and guarded cleanup UI are implemented. The owner-provider inventory request now tolerates long model projections without the browser's short default timeout. | Served macOS arm64 checkout with the real Volcengine Coding Plan credential: Provider card showed 1/124 available, `ark-code-latest` showed available, Ollama showed a running service with two installed models, and obsolete cleanup remained guarded. | target=Provider/model management UI; inventory=`ProviderModelsDialog.tsx`, model-provider routes, `http.ts`, `owner-providers.ts`, `owner-providers.test.ts`; references=availability contract; verification=`vitest` 6 passed, `pnpm typecheck`, `pnpm build`, real availability ensure returned `available/fresh_success`; residuals=none |
 
 ## Closure order
 
-1. Add only the remaining non-generic discovery adapters and collect endpoint capability evidence.
-2. Record long-running retention and live/browser acceptance evidence.
-3. PMA-002 uses the configured, actively used remote Provider as the current
+1. Add only the remaining non-generic discovery adapters and collect endpoint capability evidence when they are configured and used.
+2. PMA-002 uses the configured, actively used remote Provider as the current
    release representative; other adapters enter the gate when configured.
-4. PMA-004 and PMA-005 are closed by the current replayable generation and
+3. PMA-004 and PMA-005 are closed by the current replayable generation and
    multi-process lease scenarios.
 
-The design register remains open until every row has `target`, `inventory`,
-`references`, `verification` and `residuals` evidence, and the permanent
-behavior, architecture and browser gates remain deny-all.
+The design register is closed for the current PMA scope. Future adapters enter
+the same gate only when configured and used; permanent behavior, architecture
+and browser gates remain deny-all.

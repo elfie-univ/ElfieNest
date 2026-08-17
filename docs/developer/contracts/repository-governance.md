@@ -1,8 +1,8 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.9
+**Contract version:** 1.10
 **Adopted:** 2026-08-12
-**Revised:** 2026-08-16
+**Revised:** 2026-08-17
 **Enforced scope:** Repository-wide change classification and architecture boundaries
 
 This contract defines how ElfieNest architecture rules are organized, changed
@@ -107,6 +107,13 @@ completed, retained and blocked items separately and includes commands or
 scenarios that reproduce the claimed evidence. `.omo/` is optional private
 progress material and is never the source of truth for completion.
 
+A local checkpoint may explicitly allow only blocked rows whose machine-readable
+`blocker_class` is `external_environment`. This preserves a reviewable commit
+when the current host cannot provide a required OS or installed environment;
+it does not change the row status, remove its residual, or authorize a final
+completion, merge or protected-branch delivery. The default pre-submit gate
+and CI omit the exception. Any other blocked row remains a hard failure.
+
 ## End-to-end governance workflow
 
 Every architecture-sensitive change follows one visible loop:
@@ -182,6 +189,11 @@ device, API, Desktop, CLI, Setup, accounts, configuration,
 persistence, architecture-scanner and architecture-test boundaries.
 
 ## Change classes
+
+Task acceptance matrices named `task-closure*.json` are governance artifacts,
+including task-specific files such as `task-closure-lifecycle.json`. They are
+classified together so a task can keep separate matrices without making the
+classifier mistake one for product implementation.
 
 Every reviewed commit or pull request is one of two classes:
 

@@ -19,6 +19,7 @@ ALLOWED_STATUSES = {
     "complete",
     "blocked",
 }
+ALLOWED_BLOCKER_CLASSES = {"external_environment"}
 REQUIRED_ROW_FIELDS = {
     "id",
     "requirement",
@@ -37,6 +38,18 @@ EVIDENCE_PREFIXES = ("command:", "artifact:", "host:", "review:")
 def _is_string_list(value: Any) -> bool:
     return isinstance(value, list) and all(
         isinstance(item, str) and item.strip() for item in value
+    )
+
+
+def _is_external_environment_blocker(row: Mapping[str, Any]) -> bool:
+    """Return whether a blocked row is safe for an explicit local checkpoint."""
+    return (
+        row.get("status") == "blocked"
+        and row.get("blocker_class") == "external_environment"
+        and _is_string_list(row.get("blockers"))
+        and _is_string_list(row.get("residuals"))
+        and _is_string_list(row.get("platform_conditions"))
+        and _is_string_list(row.get("evidence"))
     )
 
 
@@ -93,6 +106,7 @@ def validate_task_closure(
     changed: Iterable[str] = (),
     closure_file: str = "",
     mode: str = "complete",
+    allow_external_environment_blockers: bool = False,
     conformance: Optional[Mapping[str, list[tuple[str, str]]]] = None,
 ) -> list[str]:
     """Return actionable validation failures for a task closure document."""
@@ -159,6 +173,15 @@ def validate_task_closure(
         if status not in ALLOWED_STATUSES:
             failures.append(f"{prefix}.status is invalid: {status!r}")
 
+        blocker_class = row.get("blocker_class")
+        if blocker_class is not None and (
+            not isinstance(blocker_class, str)
+            or blocker_class not in ALLOWED_BLOCKER_CLASSES
+        ):
+            failures.append(f"{prefix}.blocker_class is invalid: {blocker_class!r}")
+        if status != "blocked" and blocker_class is not None:
+            failures.append(f"{prefix}.blocker_class is only valid for blocked rows")
+
         for field in (
             "implementation",
             "automated_tests",
@@ -173,6 +196,10 @@ def validate_task_closure(
 
         if status == "blocked" and not _is_string_list(row.get("blockers")):
             failures.append(f"{prefix}.blockers must explain the blocking condition")
+        if status == "blocked" and blocker_class is None:
+            failures.append(
+                f"{prefix}.blocker_class must classify the blocking condition"
+            )
         if status == "complete":
             for field in (
                 "implementation",
@@ -211,7 +238,14 @@ def validate_task_closure(
         incomplete = [
             str(row.get("id", index))
             for index, row in enumerate(rows)
-            if not isinstance(row, dict) or row.get("status") != "complete"
+            if not isinstance(row, dict)
+            or (
+                row.get("status") != "complete"
+                and not (
+                    allow_external_environment_blockers
+                    and _is_external_environment_blocker(row)
+                )
+            )
         ]
         if incomplete:
             failures.append(f"task has non-complete rows: {', '.join(incomplete)}")
@@ -241,6 +275,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default="complete",
         help="progress validates shape; complete also requires every row closed",
     )
+    parser.add_argument(
+        "--allow-external-environment-blockers",
+        action="store_true",
+        help=(
+            "allow blocked rows classified as external_environment for a local "
+            "checkpoint; this never closes the rows"
+        ),
+    )
     args = parser.parse_args(argv)
 
     path = Path(args.file)
@@ -265,6 +307,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         changed=changed_paths(PROJECT_ROOT, args.base_sha),
         closure_file=relative_file,
         mode=args.mode,
+        allow_external_environment_blockers=args.allow_external_environment_blockers,
         conformance=_conformance_statuses(PROJECT_ROOT),
     )
     if failures:
