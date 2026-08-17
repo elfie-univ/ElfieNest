@@ -122,6 +122,10 @@ strictly `owner > admin > user`: Owner is the single governance account, Admin
 is a full management account, and User is a chat-only account. User requests to
 `/manage` or `/monitor` server-redirect to `/chat`; Owner and Admin can use both
 management pages and may switch their own default page to chat.
+After Owner setup, `/login` also offers public registration for ordinary User
+accounts. A successful registration creates a User-only account and signs the
+browser in immediately; the first Owner flow and later role changes remain
+administrator-controlled.
 
 ### Web localization contract
 

@@ -135,6 +135,26 @@ export async function login(accountId: string, password: string, next: string): 
   return LoginResponseSchema.parse(result).landing_path
 }
 
+export async function register(
+  displayName: string,
+  accountId: string,
+  password: string,
+  next: string,
+): Promise<string> {
+  const safeNext = safeLoginNextPath(next)
+  const target = safeNext ? `?next=${safeNext}` : ""
+  const result = await requestJson(`/api/v1/auth/register${target}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      account_id: accountId,
+      display_name: displayName,
+      password,
+    }),
+  })
+  return LoginResponseSchema.parse(result).landing_path
+}
+
 export async function saveLandingPage(
   page: "chat" | "manage",
   csrfToken: string,

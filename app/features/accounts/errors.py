@@ -35,6 +35,10 @@ class AccountValidationFailed(AccountsError):
     pass
 
 
+class RegistrationUnavailable(AccountsError):
+    pass
+
+
 class CurrentPasswordIncorrect(AccountsError):
     pass
 
@@ -89,4 +93,5 @@ __all__ = (
     "ManagedAccountCapacityReached",
     "ManagedAccountHasElfies",
     "PasswordReuseRejected",
+    "RegistrationUnavailable",
 )

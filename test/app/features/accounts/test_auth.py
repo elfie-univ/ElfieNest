@@ -8,22 +8,28 @@ from datetime import datetime, timezone
 import pytest
 
 from app.features.accounts import (
+    AccountConflict,
     AccountCredentials,
     AccountForbidden,
+    AccountPersistenceConflict,
     AccountPrincipal,
     AccountsService,
     AuthenticationFailed,
     LoginCommand,
     LoginRateLimited,
+    OwnerAccountRecord,
     RateLimiter,
+    RegisterAccountCommand,
+    RegistrationUnavailable,
     SecurityPolicy,
     hash_password,
+    parse_account_role,
     verify_password,
 )
 
 
 class MemoryAccounts:
-    def __init__(self) -> None:
+    def __init__(self, *, owner_available: bool = True) -> None:
         self.credentials = AccountCredentials(
             user_id=1,
             account_id="owner",
@@ -32,16 +38,26 @@ class MemoryAccounts:
             display_name="Owner",
             default_landing_page="manage",
         )
+        self._credentials = {self.credentials.account_id: self.credentials}
+        self._next_user_id = 2
+        self._owner_available = owner_available
         self.sessions: dict[str, AccountPrincipal] = {}
         self.revoked: list[str] = []
 
     def find_credentials(self, account_id: str) -> AccountCredentials | None:
-        return self.credentials if account_id == self.credentials.account_id else None
+        return self._credentials.get(account_id)
 
     def issue_session(self, user_id: int, expires_at: datetime) -> str:
-        assert user_id == self.credentials.user_id
         assert expires_at > datetime.now(timezone.utc)
-        principal = AccountPrincipal(1, "owner", "owner", "manage")
+        credentials = next(
+            item for item in self._credentials.values() if item.user_id == user_id
+        )
+        principal = AccountPrincipal(
+            credentials.user_id,
+            credentials.account_id,
+            parse_account_role(credentials.role),
+            credentials.default_landing_page,
+        )
         self.sessions["session-token"] = principal
         return "session-token"
 
@@ -51,6 +67,38 @@ class MemoryAccounts:
     def revoke_session(self, raw_token: str, revoked_at: datetime) -> None:
         self.sessions.pop(raw_token, None)
         self.revoked.append(raw_token)
+
+    def create_user_account(
+        self,
+        *,
+        account_id: str,
+        display_name: str,
+        password_hash: str,
+    ) -> int:
+        if account_id in self._credentials:
+            raise AccountPersistenceConflict("duplicate account")
+        user_id = self._next_user_id
+        self._next_user_id += 1
+        self._credentials[account_id] = AccountCredentials(
+            user_id=user_id,
+            account_id=account_id,
+            password_hash=password_hash,
+            role="user",
+            display_name=display_name,
+            default_landing_page="chat",
+        )
+        return user_id
+
+    def find_owner_account(self) -> OwnerAccountRecord | None:
+        if not self._owner_available:
+            return None
+        return OwnerAccountRecord(
+            user_id=1,
+            account_id="owner",
+            display_name="Owner",
+            created_at="2026-08-01T00:00:00+00:00",
+            updated_at="2026-08-01T00:00:00+00:00",
+        )
 
 
 class StaticSecurityPolicy:
@@ -68,6 +116,17 @@ class StaticSecurityPolicy:
 def _service(max_attempts: int = 2) -> tuple[AccountsService, MemoryAccounts]:
     adapter = MemoryAccounts()
     return AccountsService(adapter, StaticSecurityPolicy(max_attempts)), adapter
+
+
+def _registration_service(
+    *, owner_available: bool = True
+) -> tuple[AccountsService, MemoryAccounts]:
+    adapter = MemoryAccounts(owner_available=owner_available)
+    return AccountsService(
+        adapter,
+        StaticSecurityPolicy(),
+        management=adapter,
+    ), adapter
 
 
 def test_password_hash_round_trip_and_malformed_input() -> None:
@@ -90,6 +149,44 @@ def test_login_returns_strict_principal_and_session_result() -> None:
     assert result.ttl_seconds == 86_400
     assert service.authenticate_session(result.session_token) == result.principal
     assert adapter.sessions
+
+
+def test_registration_creates_a_user_and_issues_a_session_without_relogin() -> None:
+    service, adapter = _registration_service()
+
+    result = service.register(
+        RegisterAccountCommand(
+            account_id=" member01 ",
+            display_name=" Member One ",
+            password="member-secret",
+        )
+    )
+
+    assert result.principal == AccountPrincipal(2, "member01", "user", "chat")
+    assert result.display_name == "Member One"
+    assert result.session_token == "session-token"
+    assert (
+        adapter.find_session(result.session_token, datetime.now(timezone.utc))
+        == result.principal
+    )
+
+
+def test_registration_rejects_duplicate_account_ids() -> None:
+    service, _ = _registration_service()
+    command = RegisterAccountCommand("member01", "Member One", "member-secret")
+
+    service.register(command)
+    with pytest.raises(AccountConflict):
+        service.register(command)
+
+
+def test_registration_waits_for_first_owner_setup() -> None:
+    service, _ = _registration_service(owner_available=False)
+
+    with pytest.raises(RegistrationUnavailable):
+        service.register(
+            RegisterAccountCommand("member01", "Member One", "member-secret")
+        )
 
 
 def test_login_failure_is_rate_limited_by_client_and_account() -> None:

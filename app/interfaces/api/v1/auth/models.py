@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
+
+from app.features.accounts import validate_password_strength
 
 
 class AuthUserResponse(BaseModel):
@@ -23,6 +25,35 @@ class LoginResponse(BaseModel):
     user: AuthUserResponse
     csrf_token: str
     landing_path: Literal["/chat", "/manage", "/monitor"]
+
+
+class RegisterRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    display_name: StrictStr = Field(min_length=1, max_length=64)
+    account_id: StrictStr = Field(min_length=3, max_length=32)
+    password: StrictStr = Field(min_length=6, max_length=128)
+
+    @field_validator("display_name")
+    @classmethod
+    def normalize_display_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("显示名称不能为空")
+        return normalized
+
+    @field_validator("account_id")
+    @classmethod
+    def normalize_account_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not 3 <= len(normalized) <= 32:
+            raise ValueError("登录账号去除首尾空格后必须为 3-32 个字符")
+        return normalized
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return validate_password_strength(value)
 
 
 class LogoutResponse(BaseModel):
@@ -44,4 +75,10 @@ class ErrorResponse(BaseModel):
     error: ErrorBody
 
 
-__all__ = ("AuthUserResponse", "ErrorResponse", "LoginResponse", "LogoutResponse")
+__all__ = (
+    "AuthUserResponse",
+    "ErrorResponse",
+    "LoginResponse",
+    "LogoutResponse",
+    "RegisterRequest",
+)

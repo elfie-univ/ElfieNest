@@ -152,6 +152,20 @@ class ManagementStub:
         )
         return user_id
 
+    def create_user_account(
+        self,
+        *,
+        account_id: str,
+        display_name: str,
+        password_hash: str,
+    ) -> int:
+        return self.create_managed_account(
+            account_id=account_id,
+            display_name=display_name,
+            password_hash=password_hash,
+            role="user",
+        )
+
     def update_managed_quota(self, user_id: int, quota: int | None) -> bool:
         record = self.users.get(user_id)
         if record is None or record.role == "owner":

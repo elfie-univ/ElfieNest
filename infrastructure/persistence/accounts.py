@@ -342,6 +342,20 @@ class SQLiteAccountsAdapter:
             raise AccountPersistenceError(str(error)) from error
         return None if row is None else _managed_record(row)
 
+    def create_user_account(
+        self,
+        *,
+        account_id: str,
+        display_name: str,
+        password_hash: str,
+    ) -> int:
+        return self._create_account(
+            account_id=account_id,
+            display_name=display_name,
+            password_hash=password_hash,
+            role="user",
+        )
+
     def create_managed_account(
         self,
         *,
@@ -349,6 +363,21 @@ class SQLiteAccountsAdapter:
         display_name: str | None,
         password_hash: str,
         role: ManagedAccountRole,
+    ) -> int:
+        return self._create_account(
+            account_id=account_id,
+            display_name=display_name,
+            password_hash=password_hash,
+            role=role,
+        )
+
+    def _create_account(
+        self,
+        *,
+        account_id: str,
+        display_name: str | None,
+        password_hash: str,
+        role: str,
     ) -> int:
         try:
             with app_sqlite_connection(self._db_path) as connection:

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { requestJson } from "./http"
-import { currentUser, heartbeat, login, logout, safeLoginNextPath, updateProfile } from "./session"
+import { currentUser, heartbeat, login, logout, register, safeLoginNextPath, updateProfile } from "./session"
 
 vi.mock("./http", () => ({
   csrfHeaders: vi.fn((_csrfToken: string, json = false) => json
@@ -110,6 +110,22 @@ describe("canonical account requests", () => {
     expect(requestBody.get("account_id")).toBe("owner01")
     expect(requestBody.get("username")).toBeNull()
     expect(requestBody.get("password")).toBe("secret-pass")
+  })
+
+  it("registers with the canonical identity fields and accepts the automatic landing path", async () => {
+    vi.mocked(requestJson).mockResolvedValue({ landing_path: "/chat" })
+
+    await expect(register("New Member", "member01", "secret-pass", "/chat")).resolves.toBe("/chat")
+
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/auth/register?next=/chat", {
+      body: JSON.stringify({
+        account_id: "member01",
+        display_name: "New Member",
+        password: "secret-pass",
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    })
   })
 
   it("sends display_name for profile updates", async () => {

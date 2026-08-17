@@ -37,6 +37,7 @@ describe("localized login", () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it("keeps the compact language switcher in the login frame instead of the card", () => {
@@ -131,5 +132,63 @@ describe("localized login", () => {
     expect(screen.queryByRole("heading")).not.toBeInTheDocument()
     expect(screen.queryByText("回来吧，精灵正在等你。", { exact: true })).not.toBeInTheDocument()
     expect(screen.queryByText("登录后进入属于你的聊天与管理空间。", { exact: true })).not.toBeInTheDocument()
+  })
+
+  it("switches between login and registration without leaving the page", async () => {
+    const user = userEvent.setup()
+    renderLogin("zh-CN")
+
+    await user.click(screen.getByRole("button", { name: "没有账号？立即注册" }))
+
+    expect(screen.getByRole("button", { name: "注册并进入" })).toBeInTheDocument()
+    expect(getFieldInput("显示名称")).toBeInTheDocument()
+    expect(getFieldInput("确认密码")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "已有账号？返回登录" })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "已有账号？返回登录" }))
+
+    expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument()
+    expect(screen.queryByRole("group", { name: "显示名称" })).not.toBeInTheDocument()
+  })
+
+  it("automatically signs in after a successful registration", async () => {
+    const user = userEvent.setup()
+    const redirects = { assign: vi.fn() }
+    vi.stubGlobal("location", {
+      assign: redirects.assign,
+      href: "http://localhost:3000/login",
+      origin: "http://localhost:3000",
+      search: "?next=/chat",
+    })
+    vi.spyOn(client, "register").mockResolvedValue("/chat")
+    renderLogin("zh-CN")
+
+    await user.click(screen.getByRole("button", { name: "没有账号？立即注册" }))
+    fireEvent.change(getFieldInput("显示名称"), { target: { value: "New Member" } })
+    fireEvent.change(getFieldInput("账号"), { target: { value: "member01" } })
+    fireEvent.change(getFieldInput("密码"), { target: { value: "secret-pass" } })
+    fireEvent.change(getFieldInput("确认密码"), { target: { value: "secret-pass" } })
+
+    await user.click(screen.getByRole("button", { name: "注册并进入" }))
+
+    expect(client.register).toHaveBeenCalledWith("New Member", "member01", "secret-pass", "/chat")
+    expect(redirects.assign).toHaveBeenCalledWith("/chat")
+  })
+
+  it("blocks registration when the password confirmation does not match", async () => {
+    const user = userEvent.setup()
+    const registerSpy = vi.spyOn(client, "register")
+    renderLogin("zh-CN")
+
+    await user.click(screen.getByRole("button", { name: "没有账号？立即注册" }))
+    fireEvent.change(getFieldInput("显示名称"), { target: { value: "New Member" } })
+    fireEvent.change(getFieldInput("账号"), { target: { value: "member01" } })
+    fireEvent.change(getFieldInput("密码"), { target: { value: "secret-pass" } })
+    fireEvent.change(getFieldInput("确认密码"), { target: { value: "different-pass" } })
+
+    await user.click(screen.getByRole("button", { name: "注册并进入" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("两次输入的密码不一致。")
+    expect(registerSpy).not.toHaveBeenCalled()
   })
 })

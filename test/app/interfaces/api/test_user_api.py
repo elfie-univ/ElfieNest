@@ -115,6 +115,46 @@ def _create_user_via_owner(
     return resp.json()["user_id"]
 
 
+class TestAuthRegistration:
+    def test_register_creates_a_user_and_logs_in_immediately(
+        self, client: TestClient
+    ) -> None:
+        response = client.post(
+            "/api/v1/auth/register?next=/manage",
+            json={
+                "display_name": "New Member",
+                "account_id": "new-member",
+                "password": "member-secret",
+            },
+        )
+
+        assert response.status_code == 201, response.text
+        body = response.json()
+        assert body["user"]["account_id"] == "new-member"
+        assert body["user"]["display_name"] == "New Member"
+        assert body["user"]["role"] == "user"
+        assert body["landing_path"] == "/chat"
+        assert response.headers.get("X-CSRF-Token")
+
+        current = client.get("/api/v1/me")
+        assert current.status_code == 200
+        assert current.json()["account_id"] == "new-member"
+        assert current.json()["role"] == "user"
+
+    def test_register_rejects_a_duplicate_account(self, client: TestClient) -> None:
+        payload = {
+            "display_name": "New Member",
+            "account_id": "new-member",
+            "password": "member-secret",
+        }
+        assert client.post("/api/v1/auth/register", json=payload).status_code == 201
+
+        response = client.post("/api/v1/auth/register", json=payload)
+
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "account_conflict"
+
+
 # ===================================================================
 # 领养信息
 # ===================================================================

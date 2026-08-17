@@ -85,6 +85,24 @@ def test_sqlite_accounts_adapter_round_trips_strict_principal(tmp_path: Path) ->
     assert adapter.find_session(token, now) is None
 
 
+def test_sqlite_accounts_adapter_creates_a_regular_user(tmp_path: Path) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+    create_test_owner(db_path)
+    adapter = SQLiteAccountsAdapter(db_path)
+
+    user_id = adapter.create_user_account(
+        account_id="member01",
+        display_name="Member One",
+        password_hash=hash_password("member-secret"),
+    )
+
+    credentials = adapter.find_credentials("member01")
+    assert credentials is not None
+    assert credentials.user_id == user_id
+    assert credentials.role == "user"
+    assert credentials.display_name == "Member One"
+
+
 def test_first_owner_creation_is_atomic_and_idempotent(tmp_path: Path) -> None:
     db_path = init_db(str(tmp_path / "nest.db"))
     adapter = SQLiteAccountsAdapter(db_path)

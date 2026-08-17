@@ -37,6 +37,7 @@ describe("localized operation errors", () => {
     // Given: every operation allowed to choose a localized fallback.
     const expected = [
       "auth.login",
+      "auth.register",
       "setup.load",
       "setup.save",
       "setup.install",

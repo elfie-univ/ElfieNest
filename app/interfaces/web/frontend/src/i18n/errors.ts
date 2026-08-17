@@ -5,6 +5,7 @@ import { resources } from "./resources"
 
 export const errorOperations = [
   "auth.login",
+  "auth.register",
   "setup.load",
   "setup.save",
   "setup.install",
@@ -47,6 +48,8 @@ function operationFallback(
   switch (operation) {
     case "auth.login":
       return localeResources.auth.errors.login
+    case "auth.register":
+      return localeResources.auth.errors.register
     case "setup.load":
       return localeResources.setup.errors.load
     case "setup.save":
