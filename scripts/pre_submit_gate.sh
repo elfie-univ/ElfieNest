@@ -7,21 +7,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 BASE_SHA=""
-CLOSURE_FILE=""
-ALLOW_EXTERNAL_ENVIRONMENT_BLOCKERS=0
 STAGE="main"
 NO_CACHE=0
+DIRECT_MAIN=0
 CURRENT_STEP="argument validation"
 TEMP_ROOT=""
 CANDIDATE_ROOT="$PROJECT_ROOT"
 
 usage() {
     cat <<'EOF'
-Usage: scripts/pre_submit_gate.sh --closure-file PATH [--base-sha COMMIT]
-       [--stage commit|push|main] [--allow-external-environment-blockers]
+Usage: scripts/pre_submit_gate.sh [--base-sha COMMIT]
+       [--stage commit|push|main]
 
 The default main stage is dispatched through the reusable tiered gate. The
-internal --no-cache flag runs the complete CI-aligned main backstop directly.
+internal --direct-main flag runs the CI-aligned main backstop directly while
+still reusing valid test bundles. Add --no-cache to force every bundle.
 EOF
 }
 
@@ -54,19 +54,6 @@ while [[ $# -gt 0 ]]; do
             BASE_SHA="${1#*=}"
             shift
             ;;
-        --closure-file)
-            [[ $# -ge 2 ]] || fail "--closure-file requires a repository-relative path"
-            CLOSURE_FILE="$2"
-            shift 2
-            ;;
-        --closure-file=*)
-            CLOSURE_FILE="${1#*=}"
-            shift
-            ;;
-        --allow-external-environment-blockers)
-            ALLOW_EXTERNAL_ENVIRONMENT_BLOCKERS=1
-            shift
-            ;;
         --stage)
             [[ $# -ge 2 ]] || fail "--stage requires commit, push or main"
             STAGE="$2"
@@ -80,6 +67,10 @@ while [[ $# -gt 0 ]]; do
             NO_CACHE=1
             shift
             ;;
+        --direct-main)
+            DIRECT_MAIN=1
+            shift
+            ;;
         --help|-h)
             usage
             exit 0
@@ -90,29 +81,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-[[ -n "$CLOSURE_FILE" ]] || \
-    fail "--closure-file is required; create the task acceptance matrix first"
-case "$CLOSURE_FILE" in
-    /*|../*|*/../*|*/..)
-        fail "--closure-file must stay inside the repository"
-        ;;
-esac
-[[ -f "$PROJECT_ROOT/$CLOSURE_FILE" ]] || \
-    fail "task closure file does not exist: $CLOSURE_FILE"
 case "$STAGE" in
     commit|push|main) ;;
     *) fail "--stage must be commit, push or main" ;;
 esac
 
-if [[ "$NO_CACHE" -eq 0 ]]; then
+if [[ "$NO_CACHE" -eq 0 && "$DIRECT_MAIN" -eq 0 ]]; then
     PYTHON_BIN="$PROJECT_ROOT/.venv/bin/python3"
     [[ -x "$PYTHON_BIN" ]] || fail "missing repository interpreter: $PYTHON_BIN"
     VALIDATION_ARGS=(
-        --stage "$STAGE" --base-sha "$BASE_SHA" --closure-file "$CLOSURE_FILE"
+        --stage "$STAGE" --base-sha "$BASE_SHA"
     )
-    if (( ALLOW_EXTERNAL_ENVIRONMENT_BLOCKERS )); then
-        VALIDATION_ARGS+=(--allow-external-environment-blockers)
-    fi
     exec "$PYTHON_BIN" "$PROJECT_ROOT/scripts/architecture/validation_gate.py" \
         "${VALIDATION_ARGS[@]}"
 fi
@@ -144,6 +123,7 @@ node_major="${node_major%%.*}"
 
 UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/elfienest-uv-cache}"
 PRE_COMMIT_HOME="${PRE_COMMIT_HOME:-/tmp/elfienest-precommit}"
+VALIDATION_CACHE_ROOT="${ELFIENEST_VALIDATION_CACHE_ROOT:-$PROJECT_ROOT/build/validation-cache}"
 export UV_CACHE_DIR PRE_COMMIT_HOME
 
 run_step() {
@@ -335,17 +315,6 @@ prepare_candidate_tree
 CURRENT_STEP="running immutable-base architecture governance checks"
 run_candidate_architecture_gate
 
-CLOSURE_CHECK_FLAGS=(--mode complete)
-if (( ALLOW_EXTERNAL_ENVIRONMENT_BLOCKERS )); then
-    CLOSURE_CHECK_FLAGS+=(--allow-external-environment-blockers)
-    echo "⚠️ allowing only explicitly classified external-environment blockers for this local checkpoint"
-fi
-
-run_step "checking the task closure matrix" \
-    "$PYTHON_BIN" "$CANDIDATE_ROOT/scripts/check_task_closure.py" \
-    --file "$CANDIDATE_ROOT/$CLOSURE_FILE" \
-    --base-sha "$BASE_SHA" "${CLOSURE_CHECK_FLAGS[@]}"
-
 run_step "checking the dependency lock" \
     "$UV_BIN" lock --check
 run_step "checking Node and pnpm manifests" \
@@ -359,8 +328,15 @@ run_step "installing Developer Tools frontend dependencies" \
     run_in_dir "$PROJECT_ROOT/devtools/web" "$PNPM_BIN" install --frozen-lockfile
 run_step "running the exact environment capability preflight" \
     "$UV_BIN" run --no-sync python "$PROJECT_ROOT/scripts/check_quality_environment.py"
-run_step "running the complete CI test suite once" \
-    "$UV_BIN" run --no-sync pytest --cov --cov-report=xml --cov-report=term-missing
+BUNDLE_ARGS=(
+    --all --base-sha "$BASE_SHA" --cache-root "$VALIDATION_CACHE_ROOT"
+)
+if (( NO_CACHE )); then
+    BUNDLE_ARGS+=(--no-cache)
+fi
+run_step "running missing CI test bundles and combining coverage evidence" \
+    "$PYTHON_BIN" "$PROJECT_ROOT/scripts/architecture/validation_test_bundles.py" \
+    "${BUNDLE_ARGS[@]}"
 run_step "checking the pinned CPython runtime" \
     "$PYTHON_BIN" -c \
     'import platform,sys; raise SystemExit(0 if sys.implementation.name == "cpython" and platform.python_version() == "3.9.25" else 1)'

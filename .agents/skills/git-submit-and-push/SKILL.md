@@ -14,24 +14,22 @@ description: 评估已完成改动的提交时机，并完成 Git 提交和远�
 3. 不提交仍在调试、测试失败、存在已知 bug 或尚待确认的半成品。对于需要用户目视验收的界面改动，用户说“没 bug 了”“可以了”或“验收通过”即视为提交和推送确认。
 4. 提交前运行 `git status --short --branch`，确认当前分支、远端跟踪关系和所有改动来源。
 5. 不覆盖或回退用户已有改动。用户要求提交“当前代码”时包含当前工作区全部目标改动；范围不明确时根据当前任务边界审慎选择。
-6. 暂存或提交前必须先建立 `task-closure.json`，同步远端基础提交，再按交付层级运行分级门禁：
+6. 暂存或提交前先同步远端基础提交，再按交付层级运行分级门禁：
    普通本地提交运行 G1，功能分支推送运行 G2，主线合并/发布或治理、工具链、未知影响改动
    运行 G3：
 
    ```bash
    git fetch --prune origin main
    bash scripts/pre_submit_gate.sh --stage commit \
-     --base-sha "$(git rev-parse origin/main^{commit})" \
-     --closure-file task-closure.json
+     --base-sha "$(git rev-parse origin/main^{commit})"
    # feature push: replace commit with push
    # main merge/release: replace commit with main
    ```
 
    G1 只执行改动文件和受影响测试；G2 追加受影响的集成、质量和架构检查；G3 才运行完整
    CI 对齐门禁、完整 pytest 和文档构建。G3 可以复用同一精确候选快照的成功结果，但不能
-   用本地缓存替代最新 commit SHA 的 CI。任何未完成矩阵行、门禁失败或环境阻塞都禁止交付。
-   如果本次改动本身修改完成门禁，先按 `$task-closure` 的两阶段治理 bootstrap 落地分类注册，
-   再提交受保护的检查器与集成；不可用当前未发布的规则绕过不可变基础检查。
+   用本地缓存替代最新 commit SHA 的 CI。Conformance 台账中的未关闭条目、门禁失败或环境
+   阻塞都必须在交付报告中明确，不能被本地缓存或口头结论掩盖。
 7. 检查暂存内容，禁止提交本地密钥、Token、密码、运行时配置或被 `.gitignore` 保护的敏感文件。
 8. 禁止使用 `--no-verify` 绕过 pre-commit。钩子失败时修复问题并重新提交。
 9. 创建 commit 后立即推送当前分支。已有上游时运行 `git push`；没有上游时运行 `git push -u origin <branch>`。
@@ -50,8 +48,7 @@ git diff --stat
 
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})" \
-  --closure-file task-closure.json
+  --base-sha "$(git rev-parse origin/main^{commit})"
 ```
 
 读取关键差异并运行相关测试。分级门禁会审查当前工作树（包括未暂存文件）；若本地落后

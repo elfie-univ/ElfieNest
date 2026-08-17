@@ -176,21 +176,44 @@ Use the smallest safe validation tier after fetching the remote base:
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})" \
-  --closure-file task-closure.json
+  --base-sha "$(git rev-parse origin/main^{commit})"
 # feature-branch push: replace commit with push
 # main merge/release: replace commit with main
 ```
 
-G1 (`commit`) runs changed-file checks, affected tests and closure `progress`.
+G1 (`commit`) runs changed-file checks and affected tests.
 G2 (`push`) adds the quality baseline and affected integration checks. G3
 (`main`) runs the immutable-base architecture ratchets, dependency and
 toolchain checks, quality baseline, pre-commit/Gitleaks, complete test suite,
 CLI smoke and documentation build. Unknown, governance or toolchain changes
-automatically escalate to G3. Successful deterministic results may be reused
-only for the exact same candidate snapshot; a cache never replaces CI for a
-new commit SHA. If a required gate is blocked or fails, do not commit, push or
-merge.
+automatically escalate to G3. Passed deterministic test checks are keyed by command,
+scoped inputs and tools rather than by tier, so G2 reuses an unchanged focused
+test from G1. G3 runs only missing or invalidated top-level test bundles, then
+combines all bundle coverage fragments and enforces the repository threshold
+once. An earlier complete registered bundle is reusable by G3; a narrower node
+or file is not. During repair, rerun the
+exact failure first, expand to its owning module and affected integration only
+as needed, then run a required G3 once for the final executable candidate. If a
+G3 bundle fails, earlier passed bundles remain reusable; the next invocation
+skips them and resumes with the failed or still-missing bundle. A
+cache never replaces CI for a new commit SHA. If a required gate is blocked or
+fails, do not commit, push or merge.
+
+Use the controlled runner when a local test result should be reusable by a
+later gate:
+
+```bash
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --selectors test/app/features/setup/
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+  --bundle godot
+```
+
+A `--selectors` value equal to one complete registered bundle, such as
+`test/godot/`, is routed to the same coverage-bearing bundle evidence. Direct
+`pytest` is still appropriate for an exact failing node during diagnosis, but
+that raw invocation is not submission-cache evidence.
 
 The individual checks performed by the gate are:
 

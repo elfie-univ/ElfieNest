@@ -425,6 +425,14 @@ class RuntimeSupervisor:
         with self._command_lock():
             record = self._runtime_record.read()
             if record.phase is RuntimePhase.RECOVERY_REQUIRED:
+                if not self._core_identity_present():
+                    return self._operation_result(
+                        ServiceLifecycleResult(
+                            status="already_stopped",
+                            error=None,
+                        ),
+                        operation_id,
+                    )
                 return self._operation_result(
                     ServiceLifecycleResult(
                         status="failed",

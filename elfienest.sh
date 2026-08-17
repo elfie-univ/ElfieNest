@@ -102,8 +102,7 @@ show_help() {
     echo "    stop           Stop current service"
     echo "    restart        Force restart current service"
     echo "    status         Show service and port status"
-    echo "    web            Ensure service is running and open Web console"
-    echo "    desktop        Launch packaged ElfieNest Desktop"
+    echo "    web            Ensure service, open Web console, and show mobile QR code"
     echo "    mobile         Show mobile access URL and QR code"
     echo "    config         Provider, model, Food and tool configuration (interactive menu)"
     echo "    owner          Owner account menu"
@@ -212,7 +211,7 @@ interactive_mode() {
             help|h|\?) show_help ;;
             serve) ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py serve "${args[@]}" ;;
             v) ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py version "${args[@]}" ;;
-            config|owner|doctor|status|web|desktop|mobile|stop|restart|start|version|setup|uninstall)
+            config|owner|doctor|status|web|mobile|stop|restart|start|version|setup|uninstall)
                 ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py "$cmd" "${args[@]}" ;;
             *)
                 echo ""

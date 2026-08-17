@@ -40,7 +40,6 @@ import {
 } from "./windows/runtime_windows.js";
 import {
   closeKeepsBackgroundServiceRunning,
-  DEFAULT_MANAGEMENT_UI_URL,
 } from "./windows/window_options.js";
 import { SingleWindowRegistry } from "./windows/window_registry.js";
 
@@ -68,8 +67,8 @@ type RecoveryAction =
   | "continue-start"
   | "quit";
 
-const uiUrl = process.env["ELFIENEST_UI_URL"] ?? DEFAULT_MANAGEMENT_UI_URL;
-let runtimeUiUrl = uiUrl;
+const configuredUiUrl = process.env["ELFIENEST_UI_URL"];
+let runtimeUiUrl = configuredUiUrl;
 
 function trayIconPath(): string {
   const projectRoot = process.env["ELFIENEST_PROJECT_ROOT"];
@@ -98,7 +97,12 @@ function ensureManagementWindow(): Readonly<{ window: BrowserWindow; created: bo
 }
 
 async function loadManagementUi(window: BrowserWindow): Promise<void> {
-  if (managementUiLoaded || !runtimeUiAvailable || window.isDestroyed()) return;
+  if (
+    managementUiLoaded
+    || !runtimeUiAvailable
+    || runtimeUiUrl === undefined
+    || window.isDestroyed()
+  ) return;
   managementUiLoaded = true;
   try {
     await window.loadURL(runtimeUiUrl);
@@ -226,7 +230,11 @@ async function continueAfterDataHomeRecovery(): Promise<void> {
   }
   runtimeUiAvailable = true;
   if (state.kind === "attached" || state.kind === "owned") {
-    runtimeUiUrl = state.httpUrl ?? uiUrl;
+    runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
+  }
+  if (runtimeUiUrl === undefined) {
+    showStartupFailure(window, new Error("Runtime did not publish an HTTP endpoint"));
+    return;
   }
   await loadManagementUi(window);
   startOwnedRuntimeMaintenance();
@@ -368,7 +376,10 @@ async function startDesktop(): Promise<void> {
   if (window !== undefined) {
     runtimeUiAvailable = true;
     if (state.kind === "attached" || state.kind === "owned") {
-      runtimeUiUrl = state.httpUrl ?? uiUrl;
+      runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
+    }
+    if (runtimeUiUrl === undefined) {
+      throw new Error("Runtime did not publish an HTTP endpoint");
     }
     await loadManagementUi(window);
   }

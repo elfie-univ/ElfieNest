@@ -41,8 +41,6 @@ from app.orchestration.lifecycle import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-WEB_URL = "http://127.0.0.1:8000/"
-WEB_HEALTH_URL = "http://127.0.0.1:8000/api/health"
 BACKGROUND_START_TIMEOUT_SECONDS = 60.0
 AUTHORITY_START_TIMEOUT_SECONDS = 120.0
 CONTROLLER_STOP_TIMEOUT_SECONDS = 15.0
@@ -291,6 +289,15 @@ def _data_home_for_command(
         project_root=_runtime_project_root(),
         runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
         use_remembered=use_remembered_home,
+    )
+
+
+def selected_runtime_data_home(lifecycle: LifecycleFacade) -> Path:
+    """Return the remembered production data root used by lifecycle commands."""
+    return _data_home_for_command(
+        lifecycle,
+        lifecycle.default_service_command(),
+        use_remembered_home=True,
     )
 
 
@@ -914,15 +921,22 @@ def show_service_status(
 
 def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
     """Ensure a healthy service and open the Web management console."""
-    default_home = _data_home_for_command(
-        lifecycle,
-        lifecycle.default_service_command(),
-        use_remembered_home=True,
-    )
+    default_home = selected_runtime_data_home(lifecycle)
     running = lifecycle.existing_service_command(default_home, _runtime_project_root())
     if running is not None:
         _, running_command = running
-        port = http_port_from_command(running_command)
+        port = published_http_port_for_home(lifecycle, default_home)
+        if port is None and _has_port_option(running_command, "--port"):
+            port = http_port_from_command(running_command)
+        if port is None:
+            result = ServiceLifecycleResult(
+                status="failed",
+                error=LaunchFailedError(
+                    "Registered service did not publish an HTTP endpoint"
+                ),
+            )
+            print(f"  ❌ Cannot open Web console: {result.error}")
+            return result
         if not _web_is_healthy(lifecycle, port):
             result = ServiceLifecycleResult(
                 status="failed",
@@ -952,7 +966,10 @@ def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
             print(
                 "  ⚠️  Service not verified by current project PID receipt; start/restart won't take over."
             )
-            return ServiceLifecycleResult(status="already_running")
+            return ServiceLifecycleResult(
+                status="already_running",
+                command=("--port", str(probe_port)),
+            )
         if any(
             port_status.running for port_status in lifecycle.default_port_statuses()
         ):
@@ -968,9 +985,22 @@ def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
         result = start_background_service(lifecycle)
         if result.status not in {"started", "already_running"}:
             return result
-        port = http_port_from_command(
-            result.command or lifecycle.default_service_command(("--lan",))
-        )
+        port = published_http_port_for_home(lifecycle, default_home)
+        if (
+            port is None
+            and result.command is not None
+            and _has_port_option(result.command, "--port")
+        ):
+            port = http_port_from_command(result.command)
+        if port is None:
+            result = ServiceLifecycleResult(
+                status="failed",
+                error=LaunchFailedError(
+                    "Service started but Runtime did not publish an HTTP endpoint"
+                ),
+            )
+            print(f"  ❌ Cannot open Web console: {result.error}")
+            return result
         if not _web_is_healthy(lifecycle, port):
             result = ServiceLifecycleResult(
                 status="failed",
@@ -983,7 +1013,9 @@ def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
     web_url = f"http://127.0.0.1:{port}/"
     webbrowser.open(web_url)
     print(f"  🌐 Opened Web console: {web_url}")
-    return ServiceLifecycleResult(status="already_running")
+    return ServiceLifecycleResult(
+        status="already_running", command=("--port", str(port))
+    )
 
 
 def start_desktop_application(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
@@ -1083,6 +1115,7 @@ def _start_packaged_controller(
             _print_runtime_health_json(lifecycle.runtime_projection(selected_home))
         else:
             print("  ⭕ Controller already running; Viewer remains closed")
+            _print_web_console_link_for_home(lifecycle, selected_home)
         return ServiceLifecycleResult(status="already_running")
 
     launch_command = lifecycle.default_service_command(("--lan",))
@@ -1107,8 +1140,10 @@ def _start_packaged_controller(
             _print_start_result_or_json(lifecycle, result, json_output=True)
     elif result.status == "started":
         print(f"  ✅ Controller started (PID {result.pid}); Viewer remains closed")
+        _print_web_console_link_for_home(lifecycle, selected_home)
     elif result.status == "already_running":
         print(f"  ⭕ Controller already running (PID {result.pid})")
+        _print_web_console_link_for_home(lifecycle, selected_home)
     else:
         print(f"  ❌ Controller failed to start: {result.error}")
     return result
@@ -1169,7 +1204,7 @@ def _controller_runtime_ready(lifecycle: LifecycleFacade, elfie_home: Path) -> b
         return False
 
 
-def _web_is_healthy(lifecycle: LifecycleFacade, port: int = 8000) -> bool:
+def _web_is_healthy(lifecycle: LifecycleFacade, port: int) -> bool:
     health_url = f"http://127.0.0.1:{port}/api/health"
     try:
         return lifecycle.http_get(health_url, timeout_seconds=2.0).status == 200
@@ -1189,6 +1224,20 @@ def _published_service_ports(
     if http_port <= 0 or godot_ws_port <= 0:
         return None
     return http_port, godot_ws_port
+
+
+def published_http_port_for_home(
+    lifecycle: LifecycleFacade, selected_home: Path
+) -> int | None:
+    """Read the current HTTP endpoint from the lifecycle-owned snapshot."""
+    try:
+        projection = lifecycle.runtime_snapshot(selected_home).projection()
+    except (OSError, RuntimeError, ValueError):
+        return None
+    for endpoint in projection.endpoints:
+        if endpoint.name == "http" and 1 <= endpoint.port <= 65535:
+            return endpoint.port
+    return None
 
 
 def _external_recorded_service(
@@ -1222,13 +1271,61 @@ def _validated_http_port(command: Sequence[str]) -> int:
     return ports[0]
 
 
+def _web_console_url(
+    result: ServiceLifecycleResult,
+    supervisor: RuntimeLifecycle | None = None,
+    projection: RuntimeProjectionV1 | None = None,
+) -> str | None:
+    """Return the loopback Web URL from the published Runtime endpoint."""
+    port: int | None = None
+    if result.command is not None:
+        if _has_port_option(result.command, "--port"):
+            port = http_port_from_command(result.command)
+    if port is None:
+        published_ports = _published_service_ports(projection) if projection else None
+        if published_ports is None and supervisor is not None:
+            try:
+                published_ports = _published_service_ports(supervisor.status())
+            except (OSError, RuntimeError, ValueError):
+                published_ports = None
+        port = published_ports[0] if published_ports is not None else None
+    if port is None:
+        return None
+    return f"http://127.0.0.1:{port}/"
+
+
+def _print_web_console_link_for_home(
+    lifecycle: LifecycleFacade, selected_home: Path
+) -> None:
+    try:
+        projection = lifecycle.runtime_snapshot(selected_home).projection()
+    except (OSError, RuntimeError, ValueError):
+        projection = None
+    web_url = _web_console_url(
+        ServiceLifecycleResult(status="started"), projection=projection
+    )
+    if web_url is not None:
+        print(f"  🌐 Web console: {web_url}")
+
+
 def _print_start_result(
-    lifecycle: LifecycleFacade, result: ServiceLifecycleResult
+    lifecycle: LifecycleFacade,
+    result: ServiceLifecycleResult,
+    *,
+    supervisor: RuntimeLifecycle | None = None,
 ) -> None:
     if result.status == "started":
         print(f"  ✅ Service started (PID {result.pid})")
+        if supervisor is not None:
+            web_url = _web_console_url(result, supervisor)
+            if web_url is not None:
+                print(f"  🌐 Web console: {web_url}")
     elif result.status == "already_running":
         print(f"  ⭕ Service already running (PID {result.pid})")
+        if supervisor is not None:
+            web_url = _web_console_url(result, supervisor)
+            if web_url is not None:
+                print(f"  🌐 Web console: {web_url}")
     else:
         print(f"  ❌ Service failed to start: {result.error}")
 
@@ -1355,7 +1452,7 @@ def _print_start_result_or_json(
 ) -> None:
     """Keep the human CLI unchanged while exposing one machine-readable start result."""
     if not json_output:
-        _print_start_result(lifecycle, result)
+        _print_start_result(lifecycle, result, supervisor=supervisor)
         return
     if result.status in {"started", "already_running"} and supervisor is not None:
         _print_runtime_health_json(supervisor.status())

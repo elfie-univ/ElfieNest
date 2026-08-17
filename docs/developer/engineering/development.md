@@ -235,8 +235,7 @@ escalate to G3. Confirm at least:
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})" \
-  --closure-file task-closure.json
+  --base-sha "$(git rev-parse origin/main^{commit})"
 # feature push: use --stage push; main merge/release: use --stage main
 ```
 

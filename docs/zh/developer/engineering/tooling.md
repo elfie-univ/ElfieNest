@@ -22,6 +22,10 @@ uv sync --locked --extra dev
 checkout 执行安装命令。原生安装器还会把包内管理 CLI 暴露为全局 `elfienest` 命令；
 它复用已安装的 Desktop Controller 和生产数据目录，但不会打开 Viewer。
 
+两套 CLI 的命令面是有意区分的：源码开发入口 `./elfienest.sh` 不注册
+`desktop` 命令；安装后的管理 CLI 因为能够激活打包的 Desktop Controller，才提供
+`desktop`。`serve` 仍然是源码开发模式的前台入口。
+
 Python `3.9.25` 是产品和开发工具的共同固定运行时。除非负责人明确批准全仓升级，
 不得改用系统 `python`/`python3`、其他虚拟环境或 `ELFIENEST_PYTHON` 覆盖入口；
 源码 CLI、Developer Tools、测试和 CR 一律经 `uv` 与仓库 `.venv`。环境失效时只需
@@ -60,7 +64,7 @@ bash scripts/check_node_toolchain.sh
 | `status` | 查看登记服务与端口状态 |
 | `stop` | 停止当前项目登记的服务 |
 | `restart` | 停止并重新启动当前服务 |
-| `web` | 确保服务可用并打开 Web 管理台 |
+| `web` | 确保服务可用、打开 Web 管理台，并打印手机二维码 |
 | `config` | 打开方向键配置中心 |
 | `setup` | 运行首次设置向导 |
 | `doctor` | 检查本地环境和配置 |
@@ -81,6 +85,9 @@ bash scripts/check_node_toolchain.sh
 ./elfienest.sh serve --port 8001 --godot-ws-port 8768
 ./elfienest.sh start
 ```
+
+后台 `start` 成功后，CLI 会打印本机 Web 管理台地址。`web` 还会按两步显示：第一步
+是当前无线网络，第二步是指向局域网地址的二维码。
 
 服务使用已配置的粮食与模型 Provider。Setup 中的公共 Ollama 是可选项，选择后固定为
 唯一 endpoint；在聊天或领养验收前必须先配置可用的模型 Provider。`serve --force` 只尝试终止由

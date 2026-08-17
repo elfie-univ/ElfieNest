@@ -40,13 +40,19 @@ GOVERNANCE_EXACT = {
     ".pre-commit-config.yaml",
     ".github/workflows/ci.yml",
     "scripts/check_quality_baseline.py",
+    # Retired task-closure paths remain governance-classified so their deletion
+    # cannot be mixed with product implementation during this cleanup.
     "scripts/check_task_closure.py",
     "scripts/pre_submit_gate.sh",
     "task-closure.json",
-    "test/scripts/test_check_task_closure.py",
+    "task-closure-lifecycle.json",
+    "task-closure-model-availability.json",
+    "task-closure-telegram.json",
+    "task-closure-third-batch.json",
     "test/architecture/AGENTS.md",
     "test/architecture/test_app_layer_boundaries.py",
     "test/architecture/test_system_layer_boundaries.py",
+    "test/scripts/test_check_task_closure.py",
 }
 CONTRACT_VERSION_PATTERN = re.compile(
     r"\*\*(?:Contract version|契约版本)[：:]\*\*\s*([^\s]+)"
@@ -58,7 +64,6 @@ ARCHITECTURE_BASELINE_SUPPORT_FILES = frozenset(
 )
 GOVERNANCE_CONTRACT_PATH = "docs/developer/contracts/repository-governance.md"
 CONTRACT_REGISTRY_PATH = "scripts/architecture/contract_registry.py"
-TASK_CLOSURE_PREFIX = "task-closure"
 CONFORMANCE_PREFIXES = (
     "docs/developer/conformance/",
     "docs/zh/developer/conformance/",
@@ -100,7 +105,6 @@ def is_governance_file(path: str) -> bool:
         path.endswith("/AGENTS.md")
         or path == "AGENTS.md"
         or path in GOVERNANCE_EXACT
-        or (path.startswith(TASK_CLOSURE_PREFIX) and path.endswith(".json"))
         or path.startswith(GOVERNANCE_PREFIXES)
         or path.startswith(ARCHITECTURE_TEST_PREFIX)
     )

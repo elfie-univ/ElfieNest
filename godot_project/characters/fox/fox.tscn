@@ -14,6 +14,7 @@ script = ExtResource("1_actor")
 species_id = "fox"
 
 [node name="VisualRoot" type="Node3D" parent="."]
+scale = Vector3(0.7, 0.7, 0.7)
 
 [node name="character" parent="VisualRoot" instance=ExtResource("2_model")]
 
@@ -21,5 +22,6 @@ species_id = "fox"
 root_node = NodePath("../VisualRoot/character/Armature")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-position = Vector3(0, 0.86, 0)
+position = Vector3(0, 0.602, 0)
+scale = Vector3(0.7, 0.7, 0.7)
 shape = SubResource("CapsuleShape3D_fox")

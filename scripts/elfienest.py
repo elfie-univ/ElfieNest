@@ -41,7 +41,9 @@ from app.interfaces.cli.doctor_commands import run_doctor
 from app.interfaces.cli.foreground_runtime import run_foreground_service
 from app.interfaces.cli.lifecycle_commands import (
     open_web_console,
+    published_http_port_for_home,
     restart_background_service,
+    selected_runtime_data_home,
     show_service_status,
     start_background_service,
     start_desktop_application,
@@ -58,7 +60,11 @@ from app.interfaces.cli.runtime_commands import dispatch_db, show_version
 from app.interfaces.cli.tui.common import print_banner
 from app.interfaces.cli.tui.config_app import run_config_tui
 from app.interfaces.cli.uninstall_commands import run_uninstall_menu
-from app.orchestration.lifecycle import LifecycleFacade, ServiceLifecycleResult
+from app.orchestration.lifecycle import (
+    LifecycleFacade,
+    ServiceLifecycleResult,
+    http_port_from_command,
+)
 
 if getattr(sys, "frozen", False):
     try:
@@ -170,8 +176,12 @@ def main() -> None:
     status_parser.add_argument(
         "--json", action="store_true", help="Output component health JSON"
     )
-    subparsers.add_parser("web", help="Ensure service running and open Web console")
-    subparsers.add_parser("desktop", help="Launch packaged ElfieNest Desktop")
+    subparsers.add_parser(
+        "web",
+        help="Ensure service, open Web console, and show mobile QR code",
+    )
+    if _is_packaged_cli_runtime():
+        subparsers.add_parser("desktop", help="Launch packaged ElfieNest Desktop")
     subparsers.add_parser("mobile", help="Show mobile access URL and QR code")
     stop_parser = subparsers.add_parser("stop", help="Stop service")
     stop_parser.add_argument("--owner-id", default="cli", help=argparse.SUPPRESS)
@@ -254,14 +264,34 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
     elif args.command == "status":
         show_service_status(lifecycle, json_output=getattr(args, "json", False))
     elif args.command == "web":
-        _exit_on_lifecycle_failure(open_web_console(lifecycle))
+        result = open_web_console(lifecycle)
+        if result.status in {"started", "already_running"}:
+            http_port = (
+                http_port_from_command(result.command)
+                if result.command is not None
+                else published_http_port_for_home(
+                    lifecycle, selected_runtime_data_home(lifecycle)
+                )
+            )
+            mobile_exit_code = show_mobile_access(
+                lifecycle,
+                build_operations_facade(str(get_db_path())),
+                http_port=http_port,
+                clear_terminal=False,
+            )
+            if mobile_exit_code != 0:
+                raise SystemExit(mobile_exit_code)
+        _exit_on_lifecycle_failure(result)
     elif args.command == "desktop":
         _exit_on_lifecycle_failure(start_desktop_application(lifecycle))
     elif args.command == "mobile":
+        selected_home = selected_runtime_data_home(lifecycle)
         raise SystemExit(
             show_mobile_access(
                 lifecycle,
                 build_operations_facade(str(get_db_path())),
+                http_port=published_http_port_for_home(lifecycle, selected_home),
+                clear_terminal=True,
             )
         )
     elif args.command == "start":

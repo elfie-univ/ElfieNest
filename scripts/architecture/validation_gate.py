@@ -17,6 +17,7 @@ if __package__ is None:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.architecture.validation_cache import (
+    backstop_fingerprint,
     cache_hit,
     cache_lock,
     cache_store,
@@ -33,24 +34,14 @@ def _command(label: str, command: Sequence[str], env: Dict[str, str]) -> int:
 
 
 def _commands(
-    plan: Dict[str, object], base_sha: str, closure_file: str
+    plan: Dict[str, object],
+    base_sha: str,
+    *,
+    no_cache: bool = False,
 ) -> List[Tuple[str, List[str]]]:
     uv = shutil.which("uv") or "uv"
     commands: List[Tuple[str, List[str]]] = [
         ("diff format", ["git", "diff", "--check", base_sha, "--"]),
-        (
-            "task closure progress",
-            [
-                sys.executable,
-                "scripts/check_task_closure.py",
-                "--file",
-                closure_file,
-                "--base-sha",
-                base_sha,
-                "--mode",
-                "progress",
-            ],
-        ),
     ]
     plan_paths = cast(Sequence[object], plan["paths"])
     paths = [
@@ -76,7 +67,17 @@ def _commands(
     plan_tests = cast(Sequence[object], plan["tests"])
     tests = [path for path in plan_tests if isinstance(path, str)]
     if tests:
-        commands.append(("affected tests", [uv, "run", "--no-sync", "pytest", *tests]))
+        affected_command = [
+            sys.executable,
+            "scripts/architecture/validation_test_bundles.py",
+            "--base-sha",
+            base_sha,
+            "--selectors",
+            *tests,
+        ]
+        if no_cache:
+            affected_command.append("--no-cache")
+        commands.append(("affected tests", affected_command))
     if int(cast(int, plan["effective_tier"])) >= 2:
         commands.append(
             (
@@ -102,13 +103,41 @@ def _commands(
     return commands
 
 
+def _main_revalidation_commands(
+    paths: Sequence[str],
+    base_sha: str,
+) -> List[Tuple[str, List[str]]]:
+    """Checks that remain candidate-specific after a G3 backstop is reused."""
+
+    uv = shutil.which("uv") or "uv"
+    commands: List[Tuple[str, List[str]]] = [
+        ("diff format", ["git", "diff", "--check", base_sha, "--"]),
+    ]
+    gitleaks_paths = [path for path in paths if (PROJECT_ROOT / path).is_file()]
+    if gitleaks_paths:
+        commands.append(
+            (
+                "changed-file secret scan",
+                [
+                    uv,
+                    "run",
+                    "--no-sync",
+                    "pre-commit",
+                    "run",
+                    "gitleaks",
+                    "--files",
+                    *gitleaks_paths,
+                ],
+            )
+        )
+    return commands
+
+
 def run_stage(
     stage: str,
     base_sha: str,
-    closure_file: str,
     cache_root: Path,
     no_cache: bool,
-    allow_external_environment_blockers: bool,
 ) -> int:
     paths = changed_paths(base_sha)
     plan = build_plan(paths, stage)
@@ -118,33 +147,74 @@ def run_stage(
             return run_stage(
                 "main",
                 base_sha,
-                closure_file,
                 cache_root,
                 no_cache,
-                allow_external_environment_blockers,
             )
         key = candidate_fingerprint(base_sha, "main", paths)
-        lock = cache_root / f"{key}.lock"
+        backstop_key = backstop_fingerprint(base_sha, paths)
+        lock = cache_root / f"{backstop_key}.lock"
         with cache_lock(lock):
+            if not no_cache:
+                current_paths = changed_paths(base_sha)
+                current_key = candidate_fingerprint(base_sha, "main", current_paths)
+                if current_key != key:
+                    paths = current_paths
+                    key = current_key
+                    backstop_key = backstop_fingerprint(base_sha, paths)
             if not no_cache and cache_hit(cache_root, key):
                 print(f"✅ reused exact passed main gate: {key}")
+                return 0
+            if not no_cache and cache_hit(cache_root, backstop_key):
+                print(
+                    "✅ reusing passed expensive main backstop; "
+                    "rechecking current candidate metadata"
+                )
+                env = os.environ.copy()
+                env.setdefault("UV_CACHE_DIR", "/tmp/elfienest-uv-cache")
+                env.setdefault("PRE_COMMIT_HOME", "/tmp/elfienest-precommit")
+                for label, command in _main_revalidation_commands(
+                    paths,
+                    base_sha,
+                ):
+                    if _command(label, command, env) != 0:
+                        return 1
+                after = candidate_fingerprint(base_sha, "main", changed_paths(base_sha))
+                if after != key:
+                    print(
+                        "❌ worktree changed during metadata revalidation; "
+                        "result was discarded",
+                        file=sys.stderr,
+                    )
+                    return 1
+                cache_store(
+                    cache_root,
+                    key,
+                    "main",
+                    base_sha,
+                    reused_from=backstop_key,
+                )
+                print(
+                    "✅ main validation passed without repeating full pytest, "
+                    "dependency installs, or documentation build"
+                )
                 return 0
             main_command = [
                 "bash",
                 "scripts/pre_submit_gate.sh",
                 "--stage",
                 "main",
-                "--no-cache",
+                "--direct-main",
                 "--base-sha",
                 base_sha,
-                "--closure-file",
-                closure_file,
             ]
-            if allow_external_environment_blockers:
-                main_command.append("--allow-external-environment-blockers")
+            if no_cache:
+                main_command.append("--no-cache")
+            main_env = os.environ.copy()
+            main_env["ELFIENEST_VALIDATION_CACHE_ROOT"] = str(cache_root)
             result = subprocess.run(
                 main_command,
                 cwd=PROJECT_ROOT,
+                env=main_env,
                 check=False,
             ).returncode
             after = candidate_fingerprint(base_sha, "main", changed_paths(base_sha))
@@ -155,11 +225,18 @@ def run_stage(
                 )
                 return 1
             if result == 0 and not no_cache:
+                cache_store(cache_root, backstop_key, "main-backstop", base_sha)
                 cache_store(cache_root, key, "main", base_sha)
             return result
     key = candidate_fingerprint(base_sha, stage, paths)
     lock = cache_root / f"{key}.lock"
     with cache_lock(lock):
+        if not no_cache:
+            current_paths = changed_paths(base_sha)
+            current_key = candidate_fingerprint(base_sha, stage, current_paths)
+            if current_key != key:
+                paths = current_paths
+                key = current_key
         if not no_cache and cache_hit(cache_root, key):
             print(f"✅ reused exact passed {stage} validation: {key}")
             return 0
@@ -168,7 +245,7 @@ def run_stage(
         env.setdefault("UV_CACHE_DIR", "/tmp/elfienest-uv-cache")
         env.setdefault("PRE_COMMIT_HOME", "/tmp/elfienest-precommit")
         gitleaks_paths = [path for path in paths if (PROJECT_ROOT / path).is_file()]
-        commands = _commands(plan, base_sha, closure_file)
+        commands = _commands(plan, base_sha, no_cache=no_cache)
         if gitleaks_paths:
             commands.insert(
                 1,
@@ -205,15 +282,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage", choices=tuple(TIER_NAMES.values()), required=True)
     parser.add_argument("--base-sha", default="")
-    parser.add_argument("--closure-file", default="task-closure.json")
     parser.add_argument("--cache-root", default="build/validation-cache")
     parser.add_argument("--plan-only", action="store_true")
     parser.add_argument("--no-cache", action="store_true")
-    parser.add_argument(
-        "--allow-external-environment-blockers",
-        action="store_true",
-        help="allow only explicitly classified external-environment blockers",
-    )
     args = parser.parse_args(argv)
     base = (
         args.base_sha
@@ -228,10 +299,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     return run_stage(
         args.stage,
         base,
-        args.closure_file,
         PROJECT_ROOT / args.cache_root,
         args.no_cache,
-        args.allow_external_environment_blockers,
     )
 
 

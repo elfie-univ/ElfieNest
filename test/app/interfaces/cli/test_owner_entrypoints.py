@@ -52,6 +52,7 @@ def test_interactive_help_exposes_owner_account_management() -> None:
     assert "serve --godot-ws-port <PORT>" in result.stdout
     assert "start --godot-ws-port <PORT>" in result.stdout
     assert "serve --ws-port" not in result.stdout
+    assert "desktop" not in result.stdout
 
 
 def test_direct_help_alias_uses_shell_help() -> None:

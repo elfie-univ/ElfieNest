@@ -30,6 +30,11 @@ HIGH_RISK_EXACT = frozenset(
         "pnpm-lock.yaml",
         "scripts/check_task_closure.py",
         "scripts/pre_submit_gate.sh",
+        "task-closure.json",
+        "task-closure-lifecycle.json",
+        "task-closure-model-availability.json",
+        "task-closure-telegram.json",
+        "task-closure-third-batch.json",
         "test/scripts/test_check_task_closure.py",
     }
 )
@@ -121,8 +126,6 @@ def build_plan(paths: Iterable[str], requested_stage: str) -> Dict[str, object]:
             required_tier = 3
             reasons.append(f"{path} changes validation or delivery governance")
             architecture = architecture or path.startswith("scripts/architecture/")
-            continue
-        if path == "task-closure.json":
             continue
         if path.endswith(("package.json", "pnpm-lock.yaml")):
             required_tier = 3

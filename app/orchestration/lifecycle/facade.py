@@ -437,9 +437,13 @@ class LifecycleFacade:
         """Construct the lifecycle workflow from already injected Port factories."""
         command = tuple(launch_command)
         environment = dict(child_environment or {})
+
+        def _prepare_data_home() -> None:
+            self.prepare_data_home(elfie_home)
+
         return RuntimeSupervisor(
             runtime_record=self._runtime_record_factory(elfie_home),
-            prepare_data_home=lambda: self.prepare_data_home(elfie_home),
+            prepare_data_home=_prepare_data_home,
             health_probe=health_probe,
             start_core=lambda healthy: self.start_service(
                 elfie_home,

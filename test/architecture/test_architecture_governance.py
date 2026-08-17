@@ -109,35 +109,28 @@ def test_registered_temporary_debt_artifacts_are_live() -> None:
         )
 
 
-def test_task_closure_gate_files_are_governance_changes() -> None:
+def test_retired_task_closure_paths_are_governance_changes() -> None:
     governance, production = classify_paths(
         {
-            ".agents/skills/task-closure/SKILL.md",
             "scripts/check_task_closure.py",
-            "scripts/pre_submit_gate.sh",
             "task-closure.json",
             "task-closure-lifecycle.json",
+            "task-closure-model-availability.json",
             "task-closure-telegram.json",
+            "task-closure-third-batch.json",
             "test/scripts/test_check_task_closure.py",
-            "scripts/architecture/validation_cache.py",
-            "scripts/architecture/validation_gate.py",
-            "scripts/architecture/validation_plan.py",
-            "test/architecture/test_validation_gate.py",
         }
     )
+
     assert production == set()
     assert governance == {
-        ".agents/skills/task-closure/SKILL.md",
         "scripts/check_task_closure.py",
-        "scripts/pre_submit_gate.sh",
         "task-closure.json",
         "task-closure-lifecycle.json",
+        "task-closure-model-availability.json",
         "task-closure-telegram.json",
+        "task-closure-third-batch.json",
         "test/scripts/test_check_task_closure.py",
-        "scripts/architecture/validation_cache.py",
-        "scripts/architecture/validation_gate.py",
-        "scripts/architecture/validation_plan.py",
-        "test/architecture/test_validation_gate.py",
     }
 
 

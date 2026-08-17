@@ -100,7 +100,9 @@ def test_partial_current_table_contract_is_repaired_in_place(
     assert "home_anchor_id" in columns
 
 
-def test_ready_root_skips_repair_work(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_ready_root_skips_repair_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Given: a root that already satisfies the current contract.
     home = tmp_path / "data"
     home.mkdir()

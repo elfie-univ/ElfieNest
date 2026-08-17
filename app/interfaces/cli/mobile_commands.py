@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from app.features.operations import GetMobileAccessQuery, OperationsFacade
 from app.interfaces.cli.tui.common import clear_screen, print_banner
 from app.orchestration.lifecycle import LifecycleFacade
@@ -18,21 +20,17 @@ except ImportError:
 def show_mobile_access(
     lifecycle: LifecycleFacade,
     operations: OperationsFacade,
+    *,
+    http_port: Optional[int] = None,
+    clear_terminal: bool = True,
 ) -> int:
-    clear_screen()
+    if clear_terminal:
+        clear_screen()
     print_banner()
 
     print("  📱 Mobile Access")
     print("  " + "=" * 45)
     print()
-
-    port_statuses = lifecycle.default_port_statuses()
-
-    http_port = None
-    for status in port_statuses:
-        if status.name == "HTTP" and status.running:
-            http_port = status.port
-            break
 
     if http_port is None:
         print("  ⚠️  Service not running")
@@ -50,14 +48,17 @@ def show_mobile_access(
     url = access.urls[0]
     wifi_name = access.network_name
 
-    print(f"  URL: {url}")
+    print("  Step 1: Connect your phone to this Wi-Fi network")
     if wifi_name:
         if wifi_name == "<redacted>":
             print("  Network: WiFi Connected (name hidden by system)")
         else:
             print(f"  Network: {wifi_name}")
+    else:
+        print("  Network: Use the same Wi-Fi network as this computer")
     print()
 
+    print("  Step 2: Scan the QR code below with your phone")
     if QRCODE_AVAILABLE:
         qr = qrcode.QRCode(
             version=1,
@@ -77,21 +78,11 @@ def show_mobile_access(
                 line += "██" if cell else "  "
             print(line)
         print()
-        print("  📷 Scan QR code or enter URL to access")
     else:
         print("  💡 Install qrcode library to show QR code:")
         print("     uv pip install qrcode[pil]")
         print()
-        print(f"  Enter this URL on your phone: {url}")
-
-    print()
-    if wifi_name:
-        if wifi_name == "<redacted>":
-            print("  ℹ️  Phone and computer should be on the same WiFi network")
-        else:
-            print(f"  ℹ️  Connect phone to: {wifi_name}")
-    else:
-        print("  ⚠️  Ensure phone and computer are on the same network")
+    print(f"  URL: {url}")
     print()
 
     return 0

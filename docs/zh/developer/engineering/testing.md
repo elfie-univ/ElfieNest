@@ -95,37 +95,64 @@ PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-f
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})" \
-  --closure-file task-closure.json
+  --base-sha "$(git rev-parse origin/main^{commit})"
 # 功能分支推送：使用 --stage push
 # 主线合并或发布：使用 --stage main
 ```
 
-G1（`commit`）检查改动文件、受影响测试和 closure `progress`；G2（`push`）追加质量基线
-以及受影响的 API、持久化、架构或文档集成检查；G3（`main`）运行下面的完整门禁，包括不可变
-基础提交架构 ratchet、锁文件和工具链、pre-commit/Gitleaks、完整 pytest、CLI smoke 和文档
-构建。未知可执行路径、治理、工具链和锁文件改动自动升级到 G3。成功的精确候选结果可从被
-忽略的 `build/validation-cache/` 复用，但不能替代新 commit SHA 的 CI。
+G1（`commit`）检查改动文件和受影响测试；G2（`push`）追加质量基线
+以及受影响的 API、持久化、架构或文档集成检查；G3（`main`）把当前候选检查与不可变基础
+提交架构 ratchet、锁文件和工具链、pre-commit/Gitleaks、完整 pytest、CLI smoke 和文档
+构建组合起来。未知可执行路径、治理、工具链和锁文件改动自动升级到 G3。
+
+成功的确定性测试检查按命令、作用域输入内容与文件模式、所需不可变基础提交和本机工具计算，
+不按交付级别重复记账，因此 G2 会复用 G1 已通过且未变化的聚焦测试。本地 G3 pytest 后盾
+拆为 `app`、`architecture`、`devtools`、`e2e`、`elfie`、`godot`、`infrastructure`、
+`nest` 和 `scripts` 九个已注册顶层包。它只运行缺失或失效的包；包输入包含测试和共享
+`conftest.py` 的本地 Python 传递 import，只有通过记录、覆盖率片段摘要/版本和可读覆盖率
+数据都一致时才能复用。同一次运行共享仓库快照，并在命中前复核签名，最后合并全部片段并
+只执行一次全仓覆盖率阈值。一个包失败后，此前通过的包记录仍然保留；下次调用会跳过它们，
+从失败或尚未运行的包继续。
+
+需要复用的聚焦检查或完整测试包应通过受控运行器执行：
+
+```bash
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --selectors test/app/features/setup/
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+  --bundle godot
+```
+
+如果 `--selectors` 精确命中一个已注册测试包，它会产生 G3 使用的同一份带覆盖率证据。
+更窄的 node/单文件结果只能按原聚焦命令复用，不能证明所属完整包。原始 `pytest` 只用于
+诊断，不产生提交缓存证据。
+
+内部 `--direct-main` 路径会执行完整 main 后盾，但复用有效测试包证据。`--no-cache` 是
+明确要求的干净重放：它必须从门禁继续透传到测试包运行器，不能悄悄复用聚焦测试、测试包
+或后盾记录。
+
+G3 还为其余昂贵后盾保存按检查划分的证据。未知可执行输入会使所有测试包失效。缓存位于被忽略的
+`build/validation-cache/`，不能替代新 commit SHA 的 CI。
 
 必需检查失败，或 G3 的回环端口预检被阻断时，不得提交、推送或合并。聚焦测试是 G1/G2 的
 正常路径；当影响分类器要求 G3 时不能替代完整门禁。
 
-完成检查会拒绝未归属的改动、证据不完整的矩阵行，以及仍未关闭的 Conformance 行。如果某一
-行仅因为当前机器缺少所需操作系统或已安装主机而阻塞，应标记
-`blocker_class: "external_environment"`，并在本地 checkpoint 明确使用以下参数：
+### 失败修复阶梯
 
-```bash
-bash scripts/pre_submit_gate.sh \
-  --base-sha "$(git rev-parse origin/main^{commit})" \
-  --closure-file task-closure.json \
-  --allow-external-environment-blockers
-```
+不要在每次修复编辑后重启宽泛门禁。只有上一层通过，或发现新的依赖边界时才扩大：
 
-该参数不会关闭这条记录，不允许代码或工具失败通过，也不能用于最终受保护分支交付；仍必须
-由 CI 或匹配主机完成缺失的验收。聚焦测试不能替代任一门禁。
+1. 只重跑精确失败的 pytest node ID 或失败命令；
+2. 它通过且执行代码发生变化后，再跑所属测试文件或模块；
+3. 只有对应边界发生变化，才跑直接受影响的集成或架构检查；
+4. 只对最终可执行候选运行一次必需的 G3 后盾。
 
-修改完成技能或门禁本身时分两个检查点：先提交治理-only 的分类注册，再提交受保护的
-检查器和集成；不得为了合并这两步而绕过不可变基础分支门禁。
+同一源码状态下不得重复成功命令。怀疑环境或偶发失败时，可以写明理由后诊断性重跑一次，
+但不能因此重启整套测试。每次扩大范围都必须指出新增风险、改动依赖或交付阶段。
+
+仍未关闭的 Conformance 行必须保留缺失证据和下一步主机/CI 验收，不得在本地报告为完成。
+这类外部条件不是本地实现失败，但也不能替代最终受保护分支交付所需的验收。聚焦测试不能
+替代任一门禁。
 
 ## 文档验证
 

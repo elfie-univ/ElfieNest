@@ -205,7 +205,7 @@ def test_mobile_access_projects_the_existing_lan_bind_policy() -> None:
     app = FastAPI()
     app.state.mobile_access = ServiceAccessPolicy.create(
         "lan",
-        8000,
+        15212,
         lan_addresses=("192.168.1.8",),
     )
     app.dependency_overrides[require_manager] = lambda: _principal("owner")
@@ -218,7 +218,7 @@ def test_mobile_access_projects_the_existing_lan_bind_policy() -> None:
     assert response.json() == {
         "available": True,
         "network_name": None,
-        "urls": ["http://192.168.1.8:8000/"],
+        "urls": ["http://192.168.1.8:15212/"],
     }
 
 
@@ -233,7 +233,7 @@ def test_mobile_access_projects_the_current_wifi_name() -> None:
     )
     app.state.mobile_access = ServiceAccessPolicy.create(
         "lan",
-        8000,
+        15212,
         lan_addresses=("192.168.1.8",),
     )
     app.dependency_overrides[require_manager] = lambda: _principal("owner")
@@ -246,7 +246,7 @@ def test_mobile_access_projects_the_current_wifi_name() -> None:
     assert response.json() == {
         "available": True,
         "network_name": "Elfie Home",
-        "urls": ["http://192.168.1.8:8000/"],
+        "urls": ["http://192.168.1.8:15212/"],
     }
 
 

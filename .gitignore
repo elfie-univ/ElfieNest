@@ -62,6 +62,7 @@ dist/
 /.omo/
 /.sisyphus/
 /.agents/knowledge/
+/task-closure*.json
 
 # 7. Godot 4+ 虚拟空间本地编译与导入缓存 (防止二进制资产及缓存进入仓库)
 /godot_project/.godot/

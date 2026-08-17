@@ -3,7 +3,6 @@ import test from "node:test";
 
 import {
   closeKeepsBackgroundServiceRunning,
-  DEFAULT_MANAGEMENT_UI_URL,
   MACOS_CONTENT_INSET_CSS,
   mainWindowOptions,
 } from "./window_options.js";
@@ -32,8 +31,7 @@ test("window close hides the management window unless explicit exit was requeste
   assert.equal(closeKeepsBackgroundServiceRunning(true), false);
 });
 
-test("desktop starts at the server-owned landing route and reserves macOS traffic-light space", () => {
-  assert.equal(DEFAULT_MANAGEMENT_UI_URL, "http://127.0.0.1:8000/");
+test("desktop reserves macOS traffic-light space for the server-owned landing route", () => {
   assert.match(MACOS_CONTENT_INSET_CSS, /\.manage-sidebar/);
   assert.match(MACOS_CONTENT_INSET_CSS, /\.setup-rail/);
   assert.match(MACOS_CONTENT_INSET_CSS, /\.app-rail/);

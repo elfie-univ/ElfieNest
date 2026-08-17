@@ -6,10 +6,9 @@
 > it is not a release-closure claim.
 
 External acceptance gaps are recorded as **not tested (external)**, not as local
-implementation failures. They do not block a local checkpoint when the closure
-gate is invoked with `--allow-external-environment-blockers`; they remain open
-for final release until the named host or installed-environment evidence is
-recorded.
+implementation failures. They remain open until the named host or installed-
+environment evidence is recorded, and must not be reported as complete merely
+because local checks passed.
 
 | ID | Severity | Status | Current deviation | Closure gate | Evidence |
 | --- | --- | --- | --- | --- | --- |

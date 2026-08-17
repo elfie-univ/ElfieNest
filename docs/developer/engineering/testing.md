@@ -110,46 +110,81 @@ Fetch the remote `main` base, then run the smallest safe tier:
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})" \
-  --closure-file task-closure.json
+  --base-sha "$(git rev-parse origin/main^{commit})"
 # feature push: use --stage push
 # main merge or release: use --stage main
 ```
 
-G1 (`commit`) checks changed files, affected tests and closure `progress`. G2
+G1 (`commit`) checks changed files and affected tests. G2
 (`push`) adds the quality baseline and affected API, persistence, architecture
-or documentation integration checks. G3 (`main`) runs the complete gate below,
-including immutable-base architecture ratchets, lock and toolchain checks,
+or documentation integration checks. G3 (`main`) combines current-candidate
+checks with the immutable-base ratchets, lock and toolchain checks,
 pre-commit/Gitleaks, complete pytest, CLI smoke and documentation build. Unknown
-executable, governance, toolchain and lockfile changes escalate to G3. A
-successful exact-candidate result may be reused from ignored
-`build/validation-cache/`; it never replaces CI for a new commit SHA.
+executable, governance, toolchain and lockfile changes escalate to G3.
+
+Successful deterministic test checks are keyed by command, scoped input contents and
+file modes, the required immutable base, and local tools—not by delivery tier.
+G2 therefore reuses an unchanged focused test already passed by G1. The local
+G3 pytest backstop is split into the registered top-level packages `app`,
+`architecture`, `devtools`, `e2e`, `elfie`, `godot`, `infrastructure`, `nest`
+and `scripts`. It runs only missing or invalidated bundles. Bundle inputs include
+the transitive local Python imports of their tests and shared `conftest.py`
+fixtures; reuse additionally requires a matching pass record, coverage fragment
+digest/version and readable coverage data. One invocation shares a repository
+snapshot and rechecks signatures before accepting a hit. It then combines every
+fragment and enforces the repository coverage threshold once. If one bundle
+fails, previous successful bundle records remain; the next invocation skips them
+and resumes with the failed or still-missing bundle.
+
+Run reusable focused or complete-bundle checks through the controlled runner:
+
+```bash
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --selectors test/app/features/setup/
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+  --bundle godot
+```
+
+If `--selectors` exactly names one registered bundle, it creates the same
+coverage-bearing evidence that G3 consumes. A narrower node/file result remains
+reusable only as that exact focused command and cannot prove its owning bundle.
+Raw `pytest` is diagnostic and does not create submission-cache evidence.
+
+The internal `--direct-main` path runs the complete main backstop while reusing
+valid bundle evidence. `--no-cache` is an explicit clean replay: it must be
+passed through the gate and bundle runner, and it must not silently reuse a
+focused test, bundle, or backstop record.
+
+G3 additionally stores check-scoped evidence for its remaining expensive
+backstop. Unknown executable inputs invalidate all bundles. Cache records live under
+ignored `build/validation-cache/` and never replace CI for a new commit SHA.
 
 If a required check fails or the G3 loopback preflight is blocked, do not commit,
 push or merge. Focused tests are the normal G1/G2 path; they do not replace G3
 when the impact classifier requires it.
 
-The closure check rejects unclassified changes, incomplete evidence rows, and
-listed Conformance rows that are not closed. If a row is blocked only because
-the current machine lacks a required OS or installed host, classify it as
-`blocker_class: "external_environment"` and use the explicit local checkpoint
-flag:
+### Failure repair ladder
 
-```bash
-bash scripts/pre_submit_gate.sh \
-  --base-sha "$(git rev-parse origin/main^{commit})" \
-  --closure-file task-closure.json \
-  --allow-external-environment-blockers
-```
+Do not restart a broad gate after every repair edit. Expand only when the prior
+level passes or a newly discovered dependency requires it:
 
-This exception does not close the row, does not allow code or tool failures,
-and must not be used for final protected-branch delivery; CI or a matching host
-still has to run the missing acceptance. Focused tests cannot replace either
-gate.
+1. rerun the exact failed pytest node ID or failing command;
+2. if it passes and executable code changed, run its owning test file or module;
+3. run the directly affected integration or architecture check only when that
+   boundary changed;
+4. run the required G3 backstop once for the final executable candidate.
 
-Changes to the closure skill or gate itself use two checkpoints: land the
-governance-only classifier registration first, then land the protected checker
-and integration. The immutable-base guard must not be bypassed to combine them.
+On the same source state, never repeat a successful command. An environmental
+or flaky suspicion permits one diagnostic rerun with the reason recorded; it
+does not justify restarting the whole suite. Every expansion must name the new
+risk, changed dependency or delivery stage that requires it.
+
+Conformance rows that remain open because the current machine lacks a required
+OS or installed host stay explicitly open and must name the missing evidence.
+They are not local implementation failures, but they also cannot be presented
+as complete; CI or a matching host must provide the missing acceptance before
+protected-branch delivery. Focused tests cannot replace either gate.
 
 ## Documentation verification
 

@@ -184,8 +184,7 @@ Electron 登录入口和移动浏览器。
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})" \
-  --closure-file task-closure.json
+  --base-sha "$(git rev-parse origin/main^{commit})"
 # 功能分支推送使用 --stage push；主线合并/发布使用 --stage main
 ```
 

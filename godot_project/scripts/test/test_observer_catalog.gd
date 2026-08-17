@@ -4,7 +4,9 @@ const MAIN_SCRIPT := preload("res://main.gd")
 const NEST_SCENE := preload("res://rooms/nest.tscn")
 const OBSERVER_PRESENTATION := preload("res://runtime/observer/observer_presentation.gd")
 const OBSERVER_BRIDGE := preload("res://runtime/observer/observer_bridge.gd")
+const ACTOR_APPEARANCE := preload("res://runtime/actor/actor_appearance.gd")
 const FOX_SCENE := preload("res://characters/fox/fox.tscn")
+const DOG_SCENE := preload("res://characters/dog/dog.tscn")
 const EXPECTED_INITIAL_VIEW_COUNT: int = 20
 
 
@@ -212,16 +214,71 @@ func run() -> void:
 		return
 	var characters := Node3D.new()
 	root.add_child(characters)
+	var synthetic_visual_root := Node3D.new()
+	root.add_child(synthetic_visual_root)
+	var synthetic_mesh := MeshInstance3D.new()
+	var synthetic_box := BoxMesh.new()
+	synthetic_box.size = Vector3(1.0, 2.0, 1.0)
+	synthetic_mesh.mesh = synthetic_box
+	synthetic_mesh.position.y = 1.25
+	synthetic_visual_root.add_child(synthetic_mesh)
+	var synthetic_ground_offset := ACTOR_APPEARANCE.ground_visual_to_plane(
+		synthetic_visual_root,
+		0.0,
+	)
+	if not _require(
+		is_equal_approx(synthetic_ground_offset, -0.25)
+			and is_equal_approx(synthetic_visual_root.global_position.y, -0.25),
+		"Visual grounding did not move a model whose lowest point was above the floor",
+	):
+		return
+	synthetic_visual_root.queue_free()
 	var presentation := OBSERVER_PRESENTATION.new()
 	root.add_child(presentation)
-	presentation.setup(nest, characters, {"fox": FOX_SCENE})
+	presentation.setup(nest, characters, {"fox": FOX_SCENE, "dog": DOG_SCENE})
 	presentation.apply_snapshot(valid_semantic_snapshot)
 	await _wait_frames(2)
+	var grounded_actor := characters.get_child(0) as ElfieActor
+	var grounded_visual_root := grounded_actor.get_node("VisualRoot") as Node3D
+	var grounded_foot_y := float(
+		ACTOR_APPEARANCE._foot_contact_y(grounded_visual_root)
+	)
 	if not _require(
 		characters.get_child_count() == 1
-			and (characters.get_child(0) as ElfieActor).global_position
-				== nest.resolve_anchor("dorm-01/bed-01").global_position,
+			and grounded_actor.global_position
+				== nest.resolve_anchor("dorm-01/bed-01").global_position
+			and is_equal_approx(
+				grounded_foot_y,
+				nest.resolve_anchor("dorm-01/bed-01").global_position.y,
+			),
 		"Observer presentation did not place the Elfie at its semantic home anchor"
+	):
+		return
+	var multi_snapshot := valid_semantic_snapshot.duplicate(true)
+	var dog_entity := (multi_snapshot["entities"]["fox-1"] as Dictionary).duplicate(true)
+	dog_entity["species_id"] = "dog"
+	dog_entity["home_anchor_id"] = "dorm-01/bed-02"
+	(multi_snapshot["entities"] as Dictionary)["dog-1"] = dog_entity
+	(multi_snapshot["entity_revisions"] as Dictionary)["dog-1"] = 1
+	presentation.apply_snapshot(multi_snapshot)
+	await _wait_frames(2)
+	var dog_actor := characters.get_node_or_null("Dog") as ElfieActor
+	var dog_visual_root := dog_actor.get_node("VisualRoot") as Node3D if dog_actor != null else null
+	var dog_foot_y := float(
+		ACTOR_APPEARANCE._foot_contact_y(dog_visual_root)
+		if dog_visual_root != null
+		else INF
+	)
+	if not _require(
+		dog_actor != null
+			and characters.get_child_count() == 2
+			and dog_actor.global_position
+				== nest.resolve_anchor("dorm-01/bed-02").global_position
+			and is_equal_approx(
+				dog_foot_y,
+				nest.resolve_anchor("dorm-01/bed-02").global_position.y,
+			),
+		"Observer presentation did not ground both actors in a multi-Elfie snapshot",
 	):
 		return
 	presentation.apply_snapshot(valid_semantic_snapshot)

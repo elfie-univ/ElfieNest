@@ -49,23 +49,28 @@ Prepare the locked environment once:
 uv sync --locked --extra dev
 ```
 
-Run the tests directly affected by your change first, then the architecture
-contracts:
+Run reusable affected tests through the controlled validation runner. A
+selector that exactly matches a registered top-level bundle creates the same
+coverage-bearing evidence used by local G3:
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/elfie/brain/
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/architecture/
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --selectors test/elfie/brain/
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+  --bundle architecture
 ```
+
+Direct `pytest` is reserved for diagnosis such as rerunning one failed node. It
+does not create reusable submission evidence; after the repair, run the owning
+selector or bundle through the controlled runner once.
 
 Full test suite:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync python scripts/check_quality_environment.py
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py --all
 ```
 
 Run the preflight first. Exit `2` means the current sandbox cannot bind the

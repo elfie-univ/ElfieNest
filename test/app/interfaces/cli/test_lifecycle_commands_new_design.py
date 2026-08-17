@@ -130,7 +130,7 @@ def test_start_when_stably_running_skips_frontend_preflight(monkeypatch) -> None
     )
 
     assert result.status == "already_running"
-    assert events == ["status", "start"]
+    assert events == ["status", "start", "status"]
 
 
 def test_health_probe_uses_core_published_ports_instead_of_command_defaults() -> None:
@@ -188,7 +188,35 @@ def test_start_when_stopped_prepares_frontend_before_launch(monkeypatch) -> None
     )
 
     assert result.status == "started"
-    assert events == ["status", "build", "start"]
+    assert events == ["status", "build", "start", "status"]
+
+
+def test_start_prints_the_published_web_console_url(monkeypatch, capsys) -> None:
+    events: list[str] = []
+    supervisor = _LaunchSupervisor(
+        _stopped_health(),
+        events,
+        start_result=ServiceLifecycleResult(
+            status="started",
+            pid=42,
+            command=(
+                "python",
+                "serve.py",
+                "--port",
+                "15212",
+                "--godot-ws-port",
+                "15213",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands, "_supervisor_for", lambda *_args, **_kwargs: supervisor
+    )
+
+    result = lifecycle_commands.start_background_service(LIFECYCLE)
+
+    assert result.status == "started"
+    assert "Web console: http://127.0.0.1:15212/" in capsys.readouterr().out
 
 
 def test_packaged_start_uses_background_controller_without_starting_a_second_core(
@@ -215,6 +243,134 @@ def test_packaged_start_uses_background_controller_without_starting_a_second_cor
     assert result.status == "started"
     assert calls == [True]
     assert timeouts == [lifecycle_commands.BACKGROUND_START_TIMEOUT_SECONDS]
+
+
+def test_packaged_start_prints_the_published_web_console_url(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("ELFIENEST_DESKTOP_BIN", "/Applications/ElfieNest")
+    monkeypatch.delenv("ELFIENEST_CONTROLLER_CLIENT", raising=False)
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "start_desktop",
+        lambda *_args, **_kwargs: ServiceLifecycleResult(status="started", pid=99),
+    )
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "runtime_snapshot",
+        lambda *_args, **_kwargs: RuntimeSnapshotV1(
+            instance_id="installed-instance",
+            endpoints=(
+                EndpointSnapshot("http", "http", "127.0.0.1", 15212),
+                EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 15213),
+            ),
+        ),
+    )
+
+    result = lifecycle_commands.start_background_service(LIFECYCLE)
+
+    assert result.status == "started"
+    assert "Web console: http://127.0.0.1:15212/" in capsys.readouterr().out
+
+
+def test_web_command_passes_the_web_port_to_mobile_access(monkeypatch) -> None:
+    accesses: list[tuple[int, bool]] = []
+    monkeypatch.setattr(
+        elfienest,
+        "open_web_console",
+        lambda _lifecycle: ServiceLifecycleResult(
+            status="already_running", command=("--port", "15212")
+        ),
+    )
+    monkeypatch.setattr(elfienest, "build_operations_facade", lambda _path: object())
+    monkeypatch.setattr(elfienest, "get_db_path", lambda: "/tmp/nest.db")
+    monkeypatch.setattr(
+        elfienest,
+        "show_mobile_access",
+        lambda _lifecycle, _operations, *, http_port, clear_terminal: (
+            accesses.append((http_port, clear_terminal)) or 0
+        ),
+    )
+    monkeypatch.setattr(elfienest, "_exit_on_lifecycle_failure", lambda _result: None)
+
+    elfienest._dispatch_command(Namespace(command="web"), LIFECYCLE)
+
+    assert accesses == [(15212, False)]
+
+
+def test_web_after_packaged_start_uses_the_published_http_endpoint(
+    monkeypatch,
+) -> None:
+    opened: list[str] = []
+    dynamic_runtime = RuntimeSnapshotV1(
+        instance_id="packaged-instance",
+        generation=4,
+        tier=BackendTier.CORE_READY,
+        phase=RuntimePhase.CORE_READY,
+        desired_target=RuntimeTarget.NORMAL,
+        endpoints=(
+            EndpointSnapshot("http", "http", "127.0.0.1", 18234),
+            EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 18235),
+        ),
+    )
+    monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
+    monkeypatch.setattr(LIFECYCLE, "default_port_statuses", lambda: ())
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_supervisor_for",
+        lambda *_args, **_kwargs: _LaunchSupervisor(_stopped_health(), []),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "start_background_service",
+        lambda _lifecycle: ServiceLifecycleResult(status="started", pid=99),
+    )
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "runtime_snapshot",
+        lambda *_args: dynamic_runtime,
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_web_is_healthy",
+        lambda _lifecycle, port: port == 18234,
+    )
+    monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
+
+    result = lifecycle_commands.open_web_console(LIFECYCLE)
+
+    assert result.status == "already_running"
+    assert result.command == ("--port", "18234")
+    assert opened == ["http://127.0.0.1:18234/"]
+
+
+def test_mobile_command_uses_the_published_http_endpoint(monkeypatch) -> None:
+    accesses: list[tuple[int | None, bool]] = []
+    monkeypatch.setattr(
+        elfienest,
+        "selected_runtime_data_home",
+        lambda _lifecycle: Path("/tmp/selected-elfienest"),
+    )
+    monkeypatch.setattr(
+        elfienest,
+        "published_http_port_for_home",
+        lambda _lifecycle, _home: 18234,
+    )
+    monkeypatch.setattr(elfienest, "build_operations_facade", lambda _path: object())
+    monkeypatch.setattr(elfienest, "get_db_path", lambda: "/tmp/nest.db")
+    monkeypatch.setattr(
+        elfienest,
+        "show_mobile_access",
+        lambda _lifecycle, _operations, *, http_port, clear_terminal: (
+            accesses.append((http_port, clear_terminal)) or 0
+        ),
+    )
+
+    with pytest.raises(SystemExit) as exit_signal:
+        elfienest._dispatch_command(Namespace(command="mobile"), LIFECYCLE)
+
+    assert exit_signal.value.code == 0
+    assert accesses == [(18234, True)]
 
 
 def test_packaged_start_rejects_data_home_before_controller_or_desktop_launch(
@@ -506,7 +662,7 @@ def test_start_is_idempotent_when_service_is_already_running(
     lifecycle_commands.start_background_service(LIFECYCLE)
 
     # Then
-    assert events == ["status", "start"]
+    assert events == ["status", "start", "status"]
     assert "already running" in capsys.readouterr().out
 
 
@@ -772,6 +928,41 @@ def test_web_opens_the_tracked_service_port(monkeypatch) -> None:
     # Then
     assert result.status == "already_running"
     assert opened == ["http://127.0.0.1:8100/"]
+
+
+def test_web_uses_the_published_port_for_an_automatic_running_service(
+    monkeypatch,
+) -> None:
+    opened: list[str] = []
+    dynamic_runtime = RuntimeSnapshotV1(
+        instance_id="automatic-instance",
+        generation=5,
+        tier=BackendTier.CORE_READY,
+        phase=RuntimePhase.CORE_READY,
+        desired_target=RuntimeTarget.NORMAL,
+        endpoints=(
+            EndpointSnapshot("http", "http", "127.0.0.1", 18234),
+            EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 18235),
+        ),
+    )
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "existing_service_command",
+        lambda *args: (42, ("python", "scripts/serve.py")),
+    )
+    monkeypatch.setattr(LIFECYCLE, "runtime_snapshot", lambda *_args: dynamic_runtime)
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_web_is_healthy",
+        lambda _lifecycle, port: port == 18234,
+    )
+    monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
+
+    result = lifecycle_commands.open_web_console(LIFECYCLE)
+
+    assert result.status == "already_running"
+    assert result.command == ("--port", "18234")
+    assert opened == ["http://127.0.0.1:18234/"]
 
 
 def test_web_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:

@@ -140,17 +140,35 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})" \
-  --closure-file task-closure.json
+  --base-sha "$(git rev-parse origin/main^{commit})"
 # 功能分支推送：把 commit 替换成 push
 # 主线合并/发布：把 commit 替换成 main
 ```
 
-G1（`commit`）执行改动文件检查、受影响测试和 closure `progress`；G2（`push`）追加质量
+G1（`commit`）执行改动文件检查和受影响测试；G2（`push`）追加质量
 基线和受影响集成检查；G3（`main`）运行不可变基础提交架构 ratchet、依赖和工具链检查、
 质量基线、pre-commit/Gitleaks、完整测试套件、CLI smoke 和文档构建。未知、治理或工具链
-改动自动升级到 G3。成功的确定性结果只可对同一候选快照复用；缓存不能替代新 commit SHA
-的 CI。必需门禁阻断或失败时，不得提交、推送或合并。
+改动自动升级到 G3。确定性测试检查按命令、作用域输入和工具记账，不按级别重复记账，因此 G2
+会复用 G1 已经通过且输入未变的聚焦测试。G3 只运行缺失或失效的顶层测试包，再合并所有包
+的覆盖率片段并只执行一次全仓阈值；此前完整执行的已注册测试包可复用，更窄的 node 或文件
+不可冒充完整包。修复循环先只重跑精确失败项，再按需扩大到所属模块和受影响集成，最后只对最终可执行
+候选运行一次必需 G3。若某个 G3 测试包失败，之前通过的包仍可复用；下次调用会跳过它们，
+从失败或尚未运行的包继续。缓存不能替代新 commit SHA 的 CI。必需门禁阻断或失败时，不得提交、
+推送或合并。
+
+如果本地测试结果需要被后续门禁复用，应通过受控运行器执行：
+
+```bash
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --selectors test/app/features/setup/
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+  --bundle godot
+```
+
+当 `--selectors` 恰好等于一个完整已注册测试包，例如 `test/godot/`，它会直接使用同一份
+带覆盖率的测试包证据。诊断精确失败 node 时仍可直接运行 `pytest`，但这类原始命令不产生
+可供提交门禁复用的证据。
 
 门禁包含的单项检查如下：
 
