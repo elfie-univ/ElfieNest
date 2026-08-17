@@ -1,4 +1,4 @@
-"""Versioned login and logout routes."""
+"""Versioned login, registration and logout routes."""
 
 from __future__ import annotations
 
@@ -8,17 +8,30 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from app.features.accounts import (
+    AccountConflict,
     AccountPrincipal,
     AccountsService,
+    AccountsUnavailable,
+    AccountValidationFailed,
+    AuthenticatedSession,
     AuthenticationFailed,
     LoginCommand,
     LoginRateLimited,
+    ManagedAccountCapacityReached,
+    RegisterAccountCommand,
+    RegistrationUnavailable,
 )
 from app.orchestration.observer import SessionLogoutWorkflow
 
 from ...page_routes import post_login_landing_path
 from .dependencies import accounts_service, get_current_user
-from .models import AuthUserResponse, ErrorResponse, LoginResponse, LogoutResponse
+from .models import (
+    AuthUserResponse,
+    ErrorResponse,
+    LoginResponse,
+    LogoutResponse,
+    RegisterRequest,
+)
 from .security import generate_csrf_token
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -69,31 +82,42 @@ async def login(
     except AuthenticationFailed:
         return _error(401, "authentication_failed", "登录账号或密码错误")
 
-    csrf_token = generate_csrf_token(authenticated.session_token)
-    principal = authenticated.principal
-    response_body = LoginResponse(
-        user=AuthUserResponse(
-            user_id=principal.user_id,
-            account_id=principal.account_id,
-            display_name=authenticated.display_name,
-            role=principal.role,
-            default_landing_page=principal.default_landing_page,
-        ),
-        csrf_token=csrf_token,
-        landing_path=post_login_landing_path(
-            principal, request.query_params.get("next")
-        ),
-    )
-    response = JSONResponse(content=response_body.model_dump(mode="json"))
-    response.set_cookie(
-        key="session_token",
-        value=authenticated.session_token,
-        httponly=True,
-        samesite="lax",
-        max_age=authenticated.ttl_seconds,
-    )
-    response.headers["X-CSRF-Token"] = csrf_token
-    return response
+    return _authenticated_response(request, authenticated)
+
+
+@router.post(
+    "/register",
+    status_code=201,
+    response_model=LoginResponse,
+    responses={
+        409: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+    },
+)
+def register(
+    body: RegisterRequest,
+    request: Request,
+    service: AccountsService = AccountsDependency,
+) -> Union[LoginResponse, JSONResponse]:
+    try:
+        authenticated = service.register(
+            RegisterAccountCommand(
+                account_id=body.account_id,
+                display_name=body.display_name,
+                password=body.password,
+            )
+        )
+    except AccountConflict:
+        return _error(409, "account_conflict", "登录账号已存在")
+    except RegistrationUnavailable:
+        return _error(409, "registration_unavailable", "系统尚未完成首启设置")
+    except ManagedAccountCapacityReached:
+        return _error(409, "account_capacity_reached", "账号人数已满")
+    except AccountValidationFailed as error:
+        return _error(422, "invalid_registration_request", str(error))
+    except AccountsUnavailable:
+        return _error(503, "accounts_unavailable", "账户服务暂时不可用")
+    return _authenticated_response(request, authenticated, status_code=201)
 
 
 @router.post("/logout", response_model=LogoutResponse)
@@ -109,6 +133,42 @@ async def logout(
         workflow.logout(token)
     response = JSONResponse(content={"detail": "已登出"})
     response.delete_cookie(key="session_token")
+    return response
+
+
+def _authenticated_response(
+    request: Request,
+    authenticated: AuthenticatedSession,
+    *,
+    status_code: int = 200,
+) -> JSONResponse:
+    csrf_token = generate_csrf_token(authenticated.session_token)
+    principal = authenticated.principal
+    response_body = LoginResponse(
+        user=AuthUserResponse(
+            user_id=principal.user_id,
+            account_id=principal.account_id,
+            display_name=authenticated.display_name,
+            role=principal.role,
+            default_landing_page=principal.default_landing_page,
+        ),
+        csrf_token=csrf_token,
+        landing_path=post_login_landing_path(
+            principal, request.query_params.get("next")
+        ),
+    )
+    response = JSONResponse(
+        status_code=status_code,
+        content=response_body.model_dump(mode="json"),
+    )
+    response.set_cookie(
+        key="session_token",
+        value=authenticated.session_token,
+        httponly=True,
+        samesite="lax",
+        max_age=authenticated.ttl_seconds,
+    )
+    response.headers["X-CSRF-Token"] = csrf_token
     return response
 
 

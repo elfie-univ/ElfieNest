@@ -26,6 +26,13 @@ class LoginCommand:
 
 
 @dataclass(frozen=True)
+class RegisterAccountCommand:
+    account_id: str
+    display_name: str
+    password: str
+
+
+@dataclass(frozen=True)
 class HasOwnerQuery:
     pass
 
@@ -269,6 +276,7 @@ __all__ = (
     "OwnerAccountResult",
     "Presence",
     "ProfileField",
+    "RegisterAccountCommand",
     "RecoverOwnerAccountCommand",
     "RecordAccountHeartbeatCommand",
     "ResetManagedAccountPasswordCommand",

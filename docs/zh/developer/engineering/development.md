@@ -98,6 +98,8 @@ Core 提供五个同源产品页面：本机首启的 `/setup`，以及 `/login`
 账号层级严格为 `owner > admin > user`：Owner 是唯一治理账号，Admin 是完整管理账号，
 User 只能使用聊天产品。User 请求 `/manage` 或 `/monitor` 时由服务端重定向到 `/chat`；
 Owner 与 Admin 都可以使用两个管理页，并可将自己的默认页改为聊天页。
+完成 Owner 首启后，`/login` 也提供普通 User 自助注册。注册成功会创建固定为 User
+角色的账号并立即建立浏览器会话；首次 Owner 流程和之后的角色调整仍由管理员控制。
 
 ### Web 多语言契约
 

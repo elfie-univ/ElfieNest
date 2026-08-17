@@ -242,7 +242,7 @@ def create_http_application(
         )
 
     # -------------------------------------------------------------------
-    # CSRF 中间件（login 端点豁免）
+    # CSRF 中间件（匿名认证端点豁免）
     # -------------------------------------------------------------------
     @app.middleware("http")
     async def csrf_middleware(
@@ -251,7 +251,10 @@ def create_http_application(
     ) -> Response:
         if request.method in ("POST", "PUT", "PATCH", "DELETE"):
             path = request.url.path
-            csrf_exempt = path == "/api/v1/auth/login"
+            csrf_exempt = path in {
+                "/api/v1/auth/login",
+                "/api/v1/auth/register",
+            }
             if not csrf_exempt:
                 try:
                     if path.startswith("/api/v1/setup/draft/"):

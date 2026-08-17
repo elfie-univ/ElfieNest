@@ -110,6 +110,14 @@ class AccountManagementPort(Protocol):
         role: ManagedAccountRole,
     ) -> int: ...
 
+    def create_user_account(
+        self,
+        *,
+        account_id: str,
+        display_name: str,
+        password_hash: str,
+    ) -> int: ...
+
     def update_managed_quota(self, user_id: int, quota: int | None) -> bool: ...
 
     def delete_managed_account(self, user_id: int) -> bool: ...

@@ -25,6 +25,7 @@ from .errors import (
     ManagedAccountCapacityReached,
     ManagedAccountHasElfies,
     PasswordReuseRejected,
+    RegistrationUnavailable,
 )
 from .models import (
     AccountHeartbeatResult,
@@ -48,7 +49,9 @@ from .models import (
     OwnerAccountResult,
     RecordAccountHeartbeatCommand,
     RecoverOwnerAccountCommand,
+    RegisterAccountCommand,
     ResetManagedAccountPasswordCommand,
+    SecurityPolicy,
     SeedInitialOwnerCommand,
     SeedInitialOwnerResult,
     TemporaryPasswordResult,
@@ -68,6 +71,7 @@ from .port_models import (
 )
 from .ports import (
     AccountAvatarPort,
+    AccountCredentials,
     AccountManagementPort,
     AccountPersistenceCapacityError,
     AccountPersistenceConflict,
@@ -160,22 +164,39 @@ class AccountsService:
             raise AuthenticationFailed
 
         limiter.clear(command.client_key, command.account_id)
-        principal = AccountPrincipal(
-            user_id=credentials.user_id,
-            account_id=credentials.account_id,
-            role=parse_account_role(credentials.role),
-            default_landing_page=credentials.default_landing_page,
-        )
-        token = sessions.issue_session(
-            principal.user_id,
-            self._now() + timedelta(seconds=policy.session_ttl_seconds),
-        )
-        return AuthenticatedSession(
-            principal=principal,
-            display_name=credentials.display_name,
-            session_token=token,
-            ttl_seconds=policy.session_ttl_seconds,
-        )
+        return self._authenticated_session(credentials, policy)
+
+    def register(self, command: RegisterAccountCommand) -> AuthenticatedSession:
+        policy = self._require_security_policy().load()
+        if not self.has_owner(HasOwnerQuery()):
+            raise RegistrationUnavailable("系统尚未完成首启设置")
+
+        account_id = command.account_id.strip()
+        display_name = self._normalize_display_name(command.display_name)
+        self._validate_identity(account_id, display_name)
+        if display_name is None:
+            raise AccountValidationFailed("显示名称不能为空")
+        try:
+            validate_password_strength(command.password)
+        except PasswordPolicyError as error:
+            raise AccountValidationFailed(str(error)) from error
+
+        try:
+            self._require_management().create_user_account(
+                account_id=account_id,
+                display_name=display_name,
+                password_hash=hash_password(command.password),
+            )
+            credentials = self._require_sessions().find_credentials(account_id)
+        except AccountPersistenceConflict as error:
+            raise AccountConflict("登录账号已存在") from error
+        except AccountPersistenceCapacityError as error:
+            raise ManagedAccountCapacityReached("账号人数已满") from error
+        except AccountPersistenceError as error:
+            raise AccountsUnavailable("账户暂时无法创建") from error
+        if credentials is None:
+            raise AccountsUnavailable("注册账户暂时无法读取")
+        return self._authenticated_session(credentials, policy)
 
     def find_principal(self, user_id: int) -> AccountPrincipal | None:
         """Resolve a current least-surprise principal for trusted App workflows."""
@@ -584,6 +605,26 @@ class AccountsService:
             display_name=record.display_name,
             created_at=record.created_at,
             updated_at=record.updated_at,
+        )
+
+    def _authenticated_session(
+        self, credentials: AccountCredentials, policy: SecurityPolicy
+    ) -> AuthenticatedSession:
+        principal = AccountPrincipal(
+            user_id=credentials.user_id,
+            account_id=credentials.account_id,
+            role=parse_account_role(credentials.role),
+            default_landing_page=credentials.default_landing_page,
+        )
+        token = self._require_sessions().issue_session(
+            principal.user_id,
+            self._now() + timedelta(seconds=policy.session_ttl_seconds),
+        )
+        return AuthenticatedSession(
+            principal=principal,
+            display_name=credentials.display_name,
+            session_token=token,
+            ttl_seconds=policy.session_ttl_seconds,
         )
 
     def _rate_limiter(self, max_attempts: int, window_seconds: int) -> RateLimiter:
