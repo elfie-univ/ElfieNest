@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "task": "close second-batch model availability conformance",
+  "contract_refs": [
+    "docs/developer/contracts/model-food-tool-behavior.md",
+    "docs/developer/contracts/service-lifecycle.md",
+    "docs/developer/conformance/provider-model-availability.md",
+    "docs/developer/conformance/service-lifecycle.md"
+  ],
+  "scope": [
+    "infrastructure/models/providers/discovery.py",
+    "infrastructure/models/provider_administration.py",
+    "infrastructure/models/report_records.py",
+    "infrastructure/persistence/reports/report_schema.py",
+    "infrastructure/persistence/reports/report_repository.py",
+    "infrastructure/persistence/model_health_projection.py",
+    "app/orchestration/lifecycle/capability_gate.py",
+    "docs/developer/conformance/provider-model-availability.md",
+    "docs/developer/conformance/service-lifecycle.md",
+    "docs/zh/developer/conformance/provider-model-availability.md",
+    "docs/zh/developer/conformance/service-lifecycle.md",
+    "test/app/orchestration/lifecycle/test_capability_gate.py",
+    "test/infrastructure/models/test_provider_administration.py",
+    "test/infrastructure/persistence/test_model_health_projection.py",
+    "test/infrastructure/persistence/reports/test_validation_reports.py",
+    "test/infrastructure/models/validation/test_provider_scheduler.py",
+    "task-closure-model-availability.json"
+  ],
+  "conformance": {
+    "rows": [
+      "PMA-001",
+      "PMA-003",
+      "LFC-004"
+    ],
+    "reason": ""
+  },
+  "rows": [
+    {
+      "id": "PMA-001",
+      "requirement": "Source-missing endpoint models are retained for history and can be explicitly cleaned only after the 30-day source gate, no recent production use, and the all-Food-reference guard pass.",
+      "status": "complete",
+      "implementation": [
+        "infrastructure/models/providers/discovery.py",
+        "infrastructure/models/provider_administration.py"
+      ],
+      "automated_tests": [
+        "test/infrastructure/models/test_provider_administration.py"
+      ],
+      "runtime_scenarios": [
+        "Replay an obsolete model with recent production use and an inactive Food reference; both remain protected.",
+        "Replay an unreferenced source-missing model older than 30 days; explicit cleanup removes only that model."
+      ],
+      "platform_conditions": [
+        "CPython 3.9.25 and isolated Provider/report/Food data roots"
+      ],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest -q test/infrastructure/models/test_provider_administration.py test/app/features/configuration/providers/test_service.py",
+        "artifact: source-missing models remain retained for recent production use and are deleted only after the stale-source gate passes",
+        "review: explicit cleanup rechecks source age, production evidence, and every Food reference before mutation"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "PMA-003",
+      "requirement": "Finished raw observations are rolled into content-free daily aggregates exactly once, survive repository restart, and merge late observations without losing counts, boundaries, or latency statistics.",
+      "status": "complete",
+      "implementation": [
+        "infrastructure/models/report_records.py",
+        "infrastructure/persistence/reports/report_schema.py",
+        "infrastructure/persistence/reports/report_repository.py"
+      ],
+      "automated_tests": [
+        "test/infrastructure/persistence/reports/test_validation_reports.py",
+        "test/infrastructure/models/validation/test_provider_scheduler.py"
+      ],
+      "runtime_scenarios": [
+        "Compact old finished observations, recreate the repository, append a late observation to the same daily bucket, and compact again.",
+        "Leave a running run untouched while finished old runs are compacted."
+      ],
+      "platform_conditions": [
+        "CPython 3.9.25, SQLite WAL-capable temporary filesystem"
+      ],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest -q test/infrastructure/persistence/reports/test_validation_reports.py test/infrastructure/models/validation/test_provider_scheduler.py",
+        "artifact: daily rollups merge counts, boundaries, and latency after repository restart while running observations remain raw",
+        "review: retention is the only deletion path and rollup updates are performed under one SQLite write transaction"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "LFC-004",
+      "requirement": "Every registered product operation is server-gated by the same lifecycle/model projection: Core operations require Core, world operations require World, chat requires an executable Common route, and adoption requires World plus READY Common/Emergency model service.",
+      "status": "complete",
+      "implementation": [
+        "app/orchestration/lifecycle/capability_gate.py",
+        "infrastructure/persistence/model_health_projection.py"
+      ],
+      "automated_tests": [
+        "test/app/orchestration/lifecycle/test_capability_gate.py",
+        "test/infrastructure/persistence/test_model_health_projection.py",
+        "test/app/interfaces/api/v1/me/adoption/test_routes.py",
+        "test/app/interfaces/api/v1/realtime/chat/test_routes.py"
+      ],
+      "runtime_scenarios": [
+        "Project persisted Common/Emergency Food evidence and issue permits without startup inference.",
+        "Reject chat/adoption at the server boundary when their required model route is unavailable."
+      ],
+      "platform_conditions": [
+        "CPython 3.9.25 and isolated persisted model evidence"
+      ],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest -q test/app/orchestration/lifecycle/test_capability_gate.py test/infrastructure/persistence/test_model_health_projection.py test/app/interfaces/api/v1/me/adoption/test_routes.py test/app/interfaces/api/v1/realtime/chat/test_routes.py",
+        "artifact: persisted Common/Emergency evidence projects to READY and binds permits to the lifecycle/model revisions",
+        "review: Core/World/Chat/Adoption operations are server-gated by the single capability registry; no startup inference is introduced"
+      ],
+      "residuals": [],
+      "blockers": []
+    }
+  ]
+}

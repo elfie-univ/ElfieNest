@@ -1,0 +1,392 @@
+{
+  "schema_version": 1,
+  "task": "close first-batch service lifecycle reliability gaps",
+  "contract_refs": [
+    "docs/developer/contracts/service-lifecycle.md",
+    "docs/developer/decisions/0021-authoritative-service-lifecycle.md"
+  ],
+  "scope": [
+    ".agents/skills/task-closure/SKILL.md",
+    "app/orchestration/lifecycle/commands.py",
+    "app/orchestration/lifecycle/desktop.py",
+    "app/orchestration/lifecycle/facade.py",
+    "app/orchestration/lifecycle/ports.py",
+    "app/orchestration/lifecycle/runtime_snapshot.py",
+    "app/orchestration/lifecycle/runtime_supervisor.py",
+    "app/orchestration/lifecycle/start_cleanup.py",
+    "app/orchestration/lifecycle/types.py",
+    "app/orchestration/lifecycle/world_worker.py",
+    "app/interfaces/cli/doctor_commands.py",
+    "app/interfaces/cli/lifecycle_commands.py",
+    "app/interfaces/cli/packaged_runtime.py",
+    "app/interfaces/desktop/src/controller_ipc.ts",
+    "app/interfaces/desktop/src/desktop_role_lifecycle.ts",
+    "app/interfaces/desktop/src/lifecycle_client.ts",
+    "app/interfaces/desktop/src/main.ts",
+    "infrastructure/godot/lifecycle/authority.py",
+    "infrastructure/godot/lifecycle/launcher.py",
+    "infrastructure/models/ollama/ollama_platform.py",
+    "infrastructure/models/ollama/lifecycle_ollama.py",
+    "infrastructure/platform/lifecycle/controller_ipc.py",
+    "infrastructure/platform/lifecycle/process.py",
+    "infrastructure/platform/lifecycle/recovery_lock.py",
+    "infrastructure/platform/lifecycle/runtime_record.py",
+    "infrastructure/platform/lifecycle/windows_job.py",
+    "scripts/architecture/check_governance_change.py",
+    "scripts/architecture/contract_registry.py",
+    "scripts/check_task_closure.py",
+    "scripts/elfienest.py",
+    "scripts/pre_submit_gate.sh",
+    "scripts/serve.py",
+    "test/app/interfaces/cli/test_doctor_commands.py",
+    "test/app/interfaces/cli/test_lifecycle_commands_new_design.py",
+    "test/app/interfaces/cli/test_packaged_cli_lifecycle.py",
+    "test/app/interfaces/cli/test_data_home_lifecycle.py",
+    "test/app/orchestration/lifecycle/test_desktop.py",
+    "test/app/interfaces/cli/test_runtime_contract_entrypoints.py",
+    "test/app/orchestration/lifecycle/test_runtime_supervisor.py",
+    "test/app/orchestration/lifecycle/test_facade_ports.py",
+    "test/app/orchestration/lifecycle/test_service_start.py",
+    "test/app/orchestration/lifecycle/test_world_worker.py",
+    "test/scripts/test_serve_seed.py",
+    "test/infrastructure/godot/lifecycle/test_authority.py",
+    "test/infrastructure/godot/lifecycle/test_launcher.py",
+    "test/infrastructure/models/ollama/test_ollama_platform.py",
+    "test/infrastructure/models/ollama/test_lifecycle_ollama.py",
+    "test/infrastructure/platform/lifecycle/test_controller_ipc.py",
+    "test/infrastructure/platform/lifecycle/test_process.py",
+    "test/infrastructure/platform/lifecycle/test_recovery_lock.py",
+    "test/architecture/test_architecture_governance.py",
+    "test/scripts/test_check_task_closure.py",
+    "docs/developer/contracts/repository-governance.md",
+    "docs/zh/developer/contracts/repository-governance.md",
+    "docs/developer/decisions/index.md",
+    "docs/zh/developer/decisions/index.md",
+    "docs/developer/decisions/0024-external-environment-checkpoints.md",
+    "docs/zh/developer/decisions/0024-external-environment-checkpoints.md",
+    "docs/developer/engineering/security-data.md",
+    "docs/developer/engineering/testing.md",
+    "docs/zh/developer/engineering/security-data.md",
+    "docs/zh/developer/engineering/testing.md",
+    "docs/developer/engineering/tooling.md",
+    "docs/zh/developer/engineering/tooling.md",
+    "docs/developer/architecture/runtime.md",
+    "docs/zh/developer/architecture/runtime.md",
+    "task-closure.json"
+  ],
+  "conformance": {
+    "rows": [],
+    "reason": "This batch records implementation and local evidence; the cross-platform Conformance rows remain open until their external host acceptance is completed."
+  },
+  "rows": [
+    {
+      "id": "CLI-001",
+      "requirement": "Installed elfienest start must reject --data-home before contacting or launching the Controller; source CLI must continue forwarding --data-home.",
+      "status": "complete",
+      "implementation": [
+        "scripts/elfienest.py",
+        "app/interfaces/cli/lifecycle_commands.py"
+      ],
+      "automated_tests": [
+        "test/app/interfaces/cli/test_lifecycle_commands_new_design.py",
+        "test/app/interfaces/cli/test_data_home_lifecycle.py"
+      ],
+      "runtime_scenarios": [
+        "Packaged CLI rejects explicit --data-home without starting a process",
+        "Source CLI forwards an explicit isolated --data-home"
+      ],
+      "platform_conditions": [
+        "macOS packaged CLI and source CLI"
+      ],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest test/app/interfaces/cli/test_lifecycle_commands_new_design.py test/app/interfaces/cli/test_data_home_lifecycle.py test/app/orchestration/lifecycle/test_desktop.py test/app/orchestration/lifecycle/test_facade_ports.py test/app/orchestration/lifecycle/test_runtime_supervisor.py test/app/orchestration/lifecycle/test_world_worker.py test/infrastructure/models/ollama/test_lifecycle_ollama.py test/scripts/test_serve_seed.py — 98 passed",
+        "runtime: final packaged CLI --help omits --data-home; explicit --data-home exits 2 with the supported data-home activation guidance and no Runtime process remains",
+        "runtime: ./elfienest.sh start --data-home /private/tmp/elfienest-dev-cli-contract-v7 --help exposes the source-only option",
+        "artifact: /Users/Lendfating/.codex/worktrees/4316/ElfieNest/dist/ElfieNest-0.1.0-beta.1-internal-mac-arm64.pkg sha256=0c2dde2ce09f19bb546971557309f0c6fbc83784ad3e41a87c39ac76cfc001bc"
+      ],
+      "blockers": [],
+      "residuals": []
+    },
+    {
+      "id": "CLI-002",
+      "requirement": "Installed elfienest start uses the canonical production data root and reuses one Controller without opening Viewer or creating a transient receipt.",
+      "status": "complete",
+      "implementation": [
+        "app/interfaces/cli/lifecycle_commands.py",
+        "app/orchestration/lifecycle/desktop.py"
+      ],
+      "automated_tests": [
+        "test/app/interfaces/cli/test_lifecycle_commands_new_design.py",
+        "test/app/orchestration/lifecycle/test_desktop.py"
+      ],
+      "runtime_scenarios": [
+        "First packaged start reaches a non-OFFLINE authoritative snapshot",
+        "Repeated packaged start attaches to the existing Controller",
+        "Controller stop leaves no stale Desktop receipt"
+      ],
+      "platform_conditions": [
+        "macOS native package and isolated production data root"
+      ],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest test/app/interfaces/cli/test_lifecycle_commands_new_design.py test/app/orchestration/lifecycle/test_desktop.py test/app/interfaces/cli/test_data_home_lifecycle.py — 51 passed",
+        "runtime: final packaged CLI first start on /private/tmp/elfienest-installed-cli-final-v7-q3 reached CORE_READY with Core pid 56875, HTTP 8000, Godot WS 8765 and one Desktop owner lease",
+        "runtime: repeated packaged start returned the same generation=1, instance_id=8ea434c9be954f6db4bd6a68159035c7 and Core pid 56875, then observed WORLD_READY with Godot pid 56940",
+        "runtime: packaged start uses Desktop --background; the process table contained one Controller and no Viewer launch",
+        "runtime: packaged stop returned success, Runtime snapshot became OFFLINE, runtime/desktop.pid was absent, and no final package Desktop/Core/Godot process remained",
+        "runtime: repeated stop after OFFLINE returned success (already stopped) without a revoked-writer error",
+        "artifact: /Users/Lendfating/.codex/worktrees/4316/ElfieNest/dist/ElfieNest-0.1.0-beta.1-internal-mac-arm64.pkg sha256=0c2dde2ce09f19bb546971557309f0c6fbc83784ad3e41a87c39ac76cfc001bc"
+      ],
+      "blockers": [],
+      "residuals": []
+    },
+    {
+      "id": "GOV-001",
+      "requirement": "Local checkpoint gates may allow only explicitly classified external-environment blockers; strict completion remains blocked until those rows are closed.",
+      "status": "complete",
+      "implementation": [
+        "scripts/check_task_closure.py",
+        "scripts/pre_submit_gate.sh",
+        ".agents/skills/task-closure/SKILL.md",
+        "docs/developer/contracts/repository-governance.md",
+        "docs/developer/decisions/0024-external-environment-checkpoints.md"
+      ],
+      "automated_tests": [
+        "test/scripts/test_check_task_closure.py",
+        "test/architecture/test_architecture_governance.py"
+      ],
+      "runtime_scenarios": [
+        "Strict closure rejects a blocked row even when its blocker is external",
+        "Explicit external-environment checkpoint accepts only classified blocked rows",
+        "Non-external blockers remain rejected by the checkpoint override"
+      ],
+      "platform_conditions": [
+        "CPython 3.9.25 on macOS; no Windows/Linux host required for rule evaluation"
+      ],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest test/scripts/test_check_task_closure.py test/architecture/test_architecture_governance.py — 34 passed",
+        "artifact: scripts/check_task_closure.py and scripts/pre_submit_gate.sh",
+        "review: blocker rows remain blocked; only explicit external_environment checkpoint override is accepted"
+      ],
+      "blockers": [],
+      "residuals": []
+    },
+    {
+      "id": "LIFE-001",
+      "requirement": "One canonical generation must own lifecycle commands, identity validation, snapshot writes and recovery for each data root.",
+      "status": "blocked",
+      "blocker_class": "external_environment",
+      "implementation": [
+        "app/orchestration/lifecycle/runtime_supervisor.py",
+        "app/orchestration/lifecycle/facade.py",
+        "app/orchestration/lifecycle/ports.py"
+      ],
+      "automated_tests": [
+        "test/app/orchestration/lifecycle/test_runtime_supervisor.py",
+        "test/infrastructure/platform/lifecycle/test_runtime_record.py",
+        "test/infrastructure/platform/lifecycle/test_recovery_lock.py"
+      ],
+      "runtime_scenarios": [
+        "Duplicate shutdown is rejected while the exact Core identity remains",
+        "A stopped Core reconciles its recorded Godot authority before OFFLINE",
+        "A failed shutdown blocks a new generation until stop is retried"
+      ],
+      "platform_conditions": ["macOS local data root", "supported Windows and POSIX installed hosts"],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest test/app/orchestration/lifecycle/test_runtime_supervisor.py test/infrastructure/platform/lifecycle/test_runtime_record.py test/infrastructure/platform/lifecycle/test_recovery_lock.py",
+        "command: .venv/bin/mypy app/orchestration/lifecycle/ports.py app/orchestration/lifecycle/facade.py app/orchestration/lifecycle/runtime_supervisor.py",
+        "artifact: app/orchestration/lifecycle/runtime_supervisor.py",
+        "review: new generations cannot bypass an explicit incomplete-stop failure"
+      ],
+      "residuals": ["Installed cross-platform process-birth identity and recovery acceptance"],
+      "blockers": ["Not tested (external): Windows and Linux installed host acceptance is unavailable in the current macOS workspace; the recorded macOS evidence is retained. This is non-blocking for a local checkpoint."]
+    },
+    {
+      "id": "LIFE-002",
+      "requirement": "Duplicate start, stop-during-start, restart and concurrent Desktop/CLI commands must converge without overlapping generations.",
+      "status": "blocked",
+      "blocker_class": "external_environment",
+      "implementation": [
+        "app/orchestration/lifecycle/runtime_supervisor.py",
+        "scripts/serve.py",
+        "app/interfaces/desktop/src/desktop_role_lifecycle.ts"
+      ],
+      "automated_tests": [
+        "test/app/orchestration/lifecycle/test_runtime_supervisor.py",
+        "test/app/interfaces/cli/test_lifecycle_commands_new_design.py",
+        "app/interfaces/desktop/src/desktop_role_lifecycle.test.ts"
+      ],
+      "runtime_scenarios": [
+        "Repeated start attaches to one generation",
+        "Second stop returns a typed busy result while the first stop owns Core",
+        "Desktop Viewer close leaves the Server lease unchanged"
+      ],
+      "platform_conditions": ["macOS local data root", "installed Desktop and CLI on supported hosts"],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest test/app/orchestration/lifecycle/test_runtime_supervisor.py test/app/interfaces/cli/test_lifecycle_commands_new_design.py",
+        "command: pnpm test (app/interfaces/desktop)",
+        "command: .venv/bin/python scripts/release.py --target darwin-arm64 --native-package-output /private/tmp/elfienest-cli-validation.SzzS54/native-package-v7.txt — native package built; install smoke returned release-install-smoke-unavailable",
+        "artifact: /Users/Lendfating/.codex/worktrees/4316/ElfieNest/dist/ElfieNest-0.1.0-beta.1-internal-mac-arm64.pkg sha256=0c2dde2ce09f19bb546971557309f0c6fbc83784ad3e41a87c39ac76cfc001bc",
+        "runtime: final packaged CLI first and repeated starts shared one generation and Controller; stop reached OFFLINE with no Desktop receipt or package process",
+        "artifact: app/orchestration/lifecycle/runtime_supervisor.py",
+        "review: startup and shutdown commands share the canonical generation lease"
+      ],
+      "residuals": [
+        "Full installed-entrypoint race matrix"
+      ],
+      "blockers": [
+        "Not tested (external): Windows and Linux installed Desktop/CLI acceptance is unavailable in the current workspace; the recorded macOS entrypoint evidence is retained. This is non-blocking for a local checkpoint."
+      ]
+    },
+    {
+      "id": "LIFE-003",
+      "requirement": "Godot is managed by the current Core generation with authenticated liveness, bounded kill-tree cleanup and Core-safe failure recovery.",
+      "status": "blocked",
+      "blocker_class": "external_environment",
+      "implementation": [
+        "app/orchestration/lifecycle/world_worker.py",
+        "app/orchestration/lifecycle/runtime_supervisor.py",
+        "scripts/serve.py",
+        "infrastructure/godot/lifecycle/authority.py",
+        "infrastructure/godot/lifecycle/launcher.py"
+      ],
+      "automated_tests": [
+        "test/app/orchestration/lifecycle/test_world_worker.py",
+        "test/app/orchestration/lifecycle/test_runtime_supervisor.py",
+        "test/infrastructure/godot/lifecycle/test_authority.py",
+        "test/infrastructure/godot/lifecycle/test_launcher.py"
+      ],
+      "runtime_scenarios": [
+        "World cleanup publishes CORE_READY only after the authority is released",
+        "Authority stop failure remains WORLD_STOP_INCOMPLETE and is not hidden as OFFLINE",
+        "Parent recovery stops the exact recorded authority after Core disappearance",
+        "A real packaged authority SIGKILL preserves the Core generation, watchdog restores WORLD_READY, and final stop reaches OFFLINE"
+      ],
+      "platform_conditions": ["macOS POSIX process group", "Windows Job Object", "Linux POSIX process group"],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest test/app/orchestration/lifecycle/test_world_worker.py test/app/orchestration/lifecycle/test_runtime_supervisor.py test/infrastructure/godot/lifecycle/test_authority.py test/infrastructure/godot/lifecycle/test_launcher.py",
+        "command: .venv/bin/ruff check app/orchestration/lifecycle/world_worker.py app/orchestration/lifecycle/runtime_supervisor.py infrastructure/godot/lifecycle/authority.py infrastructure/godot/lifecycle/launcher.py",
+        "runtime: packaged macOS validation on /private/tmp/elfienest-first-batch-godot-crash-v1 reached WORLD_READY with generation=1/Core pid 61180/authority pid 61243; SIGKILL of the exact authority was recovered by the Core watchdog as authority pid 61319 with the same generation and WORLD_READY; final stop reached OFFLINE with no receipt or package process",
+        "artifact: app/orchestration/lifecycle/world_worker.py",
+        "review: authority ownership is retained by the Core-resident worker with a parent recovery adapter"
+      ],
+      "residuals": ["Windows Job Object and Linux process-group watchdog/kill-tree acceptance"],
+      "blockers": ["Not tested (external): Windows Job Object and Linux dedicated-runtime host acceptance are unavailable; the recorded macOS POSIX crash/recovery evidence is retained. This is non-blocking for a local checkpoint."]
+    },
+    {
+      "id": "LIFE-005",
+      "requirement": "Ollama ownership is limited to EXTERNAL or ELFIENEST_OWNED, shared leases are safe across instances, and only the final valid owner stops the managed service.",
+      "status": "blocked",
+      "blocker_class": "external_environment",
+      "implementation": [
+        "infrastructure/models/ollama/ollama_platform.py",
+        "infrastructure/models/ollama/lifecycle_ollama.py",
+        "app/orchestration/lifecycle/facade.py",
+        "app/orchestration/lifecycle/ports.py"
+      ],
+      "automated_tests": [
+        "test/infrastructure/models/ollama/test_ollama_platform.py",
+        "test/infrastructure/models/ollama/test_lifecycle_ollama.py",
+        "test/app/orchestration/lifecycle/test_facade_ports.py"
+      ],
+      "runtime_scenarios": [
+        "Two Runtime roots reuse one owned Ollama until the final lease releases",
+        "A crashed holder is pruned and the next Runtime reuses the healthy owned process",
+        "Doctor stops only an exact owned orphan and preserves reused/external PIDs",
+        "A pre-existing Darwin Ollama.app is not claimed as an ElfieNest-owned process",
+        "An initially stopped Darwin Ollama.app is started, becomes healthy, and is cleaned up by exact identity"
+      ],
+      "platform_conditions": ["macOS local Ollama", "multiple CLI data roots", "crash/orphan/process-reuse host scenarios"],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest test/infrastructure/models/ollama/test_ollama_platform.py test/infrastructure/models/ollama/test_lifecycle_ollama.py test/infrastructure/models/ollama/test_provider_ollama.py — 16 passed",
+        "runtime: real macOS Ollama binary on isolated loopback port 11435 — sole holder crash reused the same server pid; two holders shared one process; SIGKILL of the real server recovered a new pid; final release stopped it",
+        "runtime: after the Darwin handoff fix, an already healthy /Applications/Ollama.app returned no owned identity and 127.0.0.1:11434 stayed healthy before and after; the existing app/server remained external",
+        "runtime: real macOS initially-stopped /Applications/Ollama.app returned the actual main-process identity (pid 65366), reached healthy version 0.32.11 after two probes, and exact-identity cleanup left no app process with the endpoint stopped",
+        "safety: existing external Ollama on 127.0.0.1:11434 remained healthy and was not touched",
+        "artifact: infrastructure/models/ollama/lifecycle_ollama.py",
+        "review: /usr/bin/open is treated only as an activation helper; ownership is assigned only to one newly discovered Ollama.app main process, and stop requires that identity to be its process-group leader",
+        "review: only EXTERNAL and ELFIENEST_OWNED origins exist; no third persistent ownership mode was added"
+      ],
+      "residuals": [
+        "Windows/Linux platform acceptance"
+      ],
+      "blockers": [
+        "Not tested (external): the Darwin helper-vs-owner regression and initially-stopped live handoff are fixed and verified; only Windows/Linux acceptance remains. This is non-blocking for a local checkpoint."
+      ]
+    },
+    {
+      "id": "LIFE-006",
+      "requirement": "Desktop Viewer is presentation-only; installed CLI and duplicate Desktop copies activate the same authenticated per-user Controller.",
+      "status": "blocked",
+      "blocker_class": "external_environment",
+      "implementation": [
+        "app/interfaces/desktop/src/controller_ipc.ts",
+        "app/interfaces/desktop/src/desktop_role_lifecycle.ts",
+        "app/interfaces/desktop/src/lifecycle_client.ts",
+        "app/interfaces/desktop/src/main.ts",
+        "infrastructure/platform/lifecycle/controller_ipc.py"
+      ],
+      "automated_tests": [
+        "pnpm test (app/interfaces/desktop)",
+        "test/infrastructure/platform/lifecycle/test_controller_ipc.py",
+        "test/app/orchestration/lifecycle/test_desktop.py"
+      ],
+      "runtime_scenarios": [
+        "Viewer close leaves the CLI-owned Runtime running",
+        "Second Desktop instance reuses the existing management window",
+        "Controller IPC rejects unauthenticated or absent peers"
+      ],
+      "platform_conditions": ["macOS installed Desktop/CLI", "Windows installed Desktop/CLI", "Linux installed Desktop/CLI where packaged"],
+      "evidence": [
+        "command: pnpm test (app/interfaces/desktop) — 44 passed in authorized host environment",
+        "command: .venv/bin/python3 -m pytest test/infrastructure/platform/lifecycle/test_controller_ipc.py test/app/orchestration/lifecycle/test_desktop.py",
+        "runtime: final packaged Desktop Controller reached WORLD_READY; repeated packaged CLI start reused the same generation and Controller without a second Core",
+        "artifact: app/interfaces/desktop/src/desktop_role_lifecycle.ts",
+        "review: Viewer is not a lifecycle authority and does not own Server shutdown"
+      ],
+      "residuals": [
+        "Clean-machine installed handoff and Windows transport acceptance"
+      ],
+      "blockers": [
+        "Not tested (external): Windows/Linux installed Desktop/CLI acceptance is unavailable in the current workspace; the recorded macOS handoff evidence is retained. This is non-blocking for a local checkpoint."
+      ]
+    },
+    {
+      "id": "LIFE-008",
+      "requirement": "Shutdown is one bounded, authenticated, reverse-order executor that reports residuals and never terminates another generation or third-party process.",
+      "status": "blocked",
+      "blocker_class": "external_environment",
+      "implementation": [
+        "app/orchestration/lifecycle/runtime_supervisor.py",
+        "app/orchestration/lifecycle/world_worker.py",
+        "scripts/serve.py",
+        "infrastructure/platform/lifecycle/process.py",
+        "infrastructure/platform/lifecycle/windows_job.py"
+      ],
+      "automated_tests": [
+        "test/app/orchestration/lifecycle/test_runtime_supervisor.py",
+        "test/app/orchestration/lifecycle/test_world_worker.py",
+        "test/app/orchestration/lifecycle/test_service_start.py",
+        "test/infrastructure/platform/lifecycle/test_process.py"
+      ],
+      "runtime_scenarios": [
+        "Startup exceptions release World, model lease, Runtime channel and owned receipt exactly once",
+        "Shutdown publishes reverse-order phases and preserves residual failure evidence",
+        "Unrelated port/process occupants are not terminated by lifecycle cleanup"
+      ],
+      "platform_conditions": ["macOS local data root", "supported Windows and POSIX installed hosts"],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest test/app/orchestration/lifecycle/test_runtime_supervisor.py test/app/orchestration/lifecycle/test_world_worker.py test/app/orchestration/lifecycle/test_service_start.py test/infrastructure/platform/lifecycle/test_process.py test/scripts/test_serve_seed.py",
+        "command: .venv/bin/mypy app/orchestration/lifecycle/runtime_supervisor.py app/orchestration/lifecycle/world_worker.py scripts/serve.py",
+        "runtime: final packaged Controller stop reached an OFFLINE snapshot with no Core/Godot processes and no Desktop PID receipt",
+        "artifact: scripts/serve.py",
+        "review: cleanup is idempotent and managed Core receipts remain owned by the parent Supervisor"
+      ],
+      "residuals": [
+        "Full orphan/process-tree/timeout and force-escalation matrix"
+      ],
+      "blockers": [
+        "Not tested (external): Windows/Linux process-tree acceptance is unavailable in the current workspace; the recorded macOS bounded-stop evidence is retained. This is non-blocking for a local checkpoint."
+      ]
+    }
+  ]
+}
