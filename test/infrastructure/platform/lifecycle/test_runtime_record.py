@@ -97,6 +97,22 @@ def test_runtime_record_does_not_treat_stale_runtime_artifacts_as_fresh(
         adapter.initialize_if_fresh()
 
 
+def test_runtime_record_initializes_after_lifecycle_prepares_existing_root(
+    tmp_path: Path,
+) -> None:
+    # Given: the data preparation step has already validated the existing root.
+    (tmp_path / "nest.db").write_bytes(b"prepared")
+    adapter = FileRuntimeRecordAdapter(tmp_path)
+
+    # When: Runtime receives the explicit prepared-root handoff.
+    snapshot = adapter.initialize_if_fresh(allow_existing_root=True)
+
+    # Then: the authoritative initial state is the existing OFFLINE state.
+    assert snapshot.instance_id != "uninitialized"
+    assert snapshot.tier is BackendTier.OFFLINE
+    assert snapshot.phase is RuntimePhase.OFFLINE
+
+
 def test_runtime_record_rejects_invalid_shape(tmp_path: Path) -> None:
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()

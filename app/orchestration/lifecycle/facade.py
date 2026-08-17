@@ -61,6 +61,7 @@ from app.orchestration.lifecycle.types import (
     DataHomeRecoveryError,
     InvalidPidFileError,
     ServiceLifecycleResult,
+    SnapshotRecoveryRequiredError,
 )
 from app.orchestration.lifecycle.world_worker import RuntimeWorldWorker
 
@@ -237,6 +238,18 @@ class LifecycleFacade:
         )
         return self._data_home.inspect(selected)
 
+    def prepare_data_home(self, selected_home: Path) -> DataHomeInspection:
+        """Prepare the selected root before Runtime snapshot initialization."""
+        if self._data_home is None:
+            raise RuntimeError("Lifecycle data-home adapter is unavailable")
+        try:
+            inspection = self._data_home.prepare(selected_home)
+        except (OSError, RuntimeError, ValueError) as error:
+            raise SnapshotRecoveryRequiredError(selected_home, str(error)) from error
+        if inspection.state.value != "ready":
+            raise SnapshotRecoveryRequiredError(selected_home, inspection.detail)
+        return inspection
+
     def recover_data_home(
         self,
         explicit_home: Optional[str],
@@ -285,7 +298,7 @@ class LifecycleFacade:
             use_remembered=False,
         )
         inspection = self._data_home.inspect(selected)
-        if inspection.state.value in {"fresh", "ready"}:
+        if inspection.state.value in {"fresh", "partial", "ready"}:
             self._data_home.remember(
                 selected,
                 project_root=project_root,
@@ -426,6 +439,7 @@ class LifecycleFacade:
         environment = dict(child_environment or {})
         return RuntimeSupervisor(
             runtime_record=self._runtime_record_factory(elfie_home),
+            prepare_data_home=lambda: self.prepare_data_home(elfie_home),
             health_probe=health_probe,
             start_core=lambda healthy: self.start_service(
                 elfie_home,

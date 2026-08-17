@@ -25,7 +25,7 @@ from infrastructure.persistence.layout.data_home import (
 )
 from infrastructure.persistence.layout.data_layout import ensure_final_root_layout
 from infrastructure.persistence.nest_db.final_schema import create_final_nest_database
-from infrastructure.persistence.nest_db.store import inspect_data_home
+from infrastructure.persistence.nest_db.store import inspect_data_home, repair_data_home
 
 _RECEIPT_NAME: Final = "selected-data-home"
 
@@ -96,6 +96,9 @@ class LifecycleDataHomeAdapter:
 
     def inspect(self, selected_home: Path) -> DataHomeInspection:
         return inspect_data_home(selected_home)
+
+    def prepare(self, selected_home: Path) -> DataHomeInspection:
+        return repair_data_home(selected_home)
 
     def recover(self, selected_home: Path) -> DataHomeRecoveryResult:
         inspection = self.inspect(selected_home)

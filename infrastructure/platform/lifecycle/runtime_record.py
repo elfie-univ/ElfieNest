@@ -34,9 +34,9 @@ RUNTIME_RECORD_FILENAME: Final = "runtime.json"
 class FileRuntimeRecordAdapter:
     """Read and atomically write one strict lifecycle snapshot.
 
-    A missing snapshot is not silently treated as stopped.  Only an actually
-    empty data root can be explicitly initialized; an existing root with a
-    missing or malformed snapshot is surfaced as recovery-required.
+    A missing snapshot is not silently treated as stopped. Only an actually
+    empty or explicitly prepared data root can be initialized; an unprepared
+    existing root with a missing or malformed snapshot is recovery-required.
     """
 
     def __init__(
@@ -89,7 +89,9 @@ class FileRuntimeRecordAdapter:
         except (KeyError, TypeError, ValueError) as error:
             return self._recovery_snapshot("SNAPSHOT_INVALID", str(error))
 
-    def initialize_if_fresh(self) -> RuntimeSnapshotV1:
+    def initialize_if_fresh(
+        self, *, allow_existing_root: bool = False
+    ) -> RuntimeSnapshotV1:
         existing = self._record_path()
         if existing.exists():
             snapshot = self.read()
@@ -101,7 +103,7 @@ class FileRuntimeRecordAdapter:
                     else "Invalid Runtime snapshot",
                 )
             return snapshot
-        if not self._root_is_fresh():
+        if not allow_existing_root and not self._root_is_fresh():
             raise SnapshotRecoveryRequiredError(
                 self._elfie_home,
                 "Existing data root has no authoritative Runtime snapshot",

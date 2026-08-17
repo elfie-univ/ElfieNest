@@ -348,7 +348,11 @@ def _data_home_launch_error(
         runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
         use_remembered=use_remembered_home,
     )
-    if inspection.state in {DataHomeState.FRESH, DataHomeState.READY}:
+    if inspection.state in {
+        DataHomeState.FRESH,
+        DataHomeState.PARTIAL,
+        DataHomeState.READY,
+    }:
         return None
     guidance = (
         "；请先备份后重建。不会自动迁移或删除。" if inspection.recoverable else ""

@@ -62,7 +62,11 @@ export class DesktopRoleController {
     }
     const pending = (async (): Promise<RuntimeAttachment> => {
       const inspection = await this.lifecycleClient.inspectDataHome();
-      if (inspection.state !== "fresh" && inspection.state !== "ready") {
+      if (
+        inspection.state !== "fresh"
+        && inspection.state !== "partial"
+        && inspection.state !== "ready"
+      ) {
         return {
           kind: "failed",
           reason: inspection.detail,
@@ -105,7 +109,11 @@ export class DesktopRoleController {
   ): Promise<DesktopRoleState> {
     try {
       const inspection = await this.lifecycleClient.activateDataHome(explicitHome);
-      if (inspection.state !== "fresh" && inspection.state !== "ready") {
+      if (
+        inspection.state !== "fresh"
+        && inspection.state !== "partial"
+        && inspection.state !== "ready"
+      ) {
         this.currentState = {
           kind: "failed",
           reason: inspection.detail,

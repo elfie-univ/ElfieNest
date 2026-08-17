@@ -50,6 +50,7 @@ ProgressCallback = Callable[[RuntimeProgressPhase], None]
 CommandLeaseFactory = Callable[[], LifecycleLease]
 ModelProjectionProbe = Callable[[], ModelHealthProjection]
 CancellationProbe = Callable[[], bool]
+DataHomePreparation = Callable[[], None]
 
 
 class RuntimeSupervisor:
@@ -78,8 +79,10 @@ class RuntimeSupervisor:
         command_lease_factory: Optional[CommandLeaseFactory] = None,
         model_projection_probe: Optional[ModelProjectionProbe] = None,
         child_environment: Optional[MutableMapping[str, str]] = None,
+        prepare_data_home: Optional[DataHomePreparation] = None,
     ) -> None:
         self._runtime_record = runtime_record
+        self._prepare_data_home = prepare_data_home
         self._health_probe = health_probe
         self._start_core = start_core
         self._stop_core = stop_core
@@ -622,8 +625,13 @@ class RuntimeSupervisor:
 
     def _initialize_and_read(self) -> RuntimeSnapshotV1:
         with self._command_lock():
+            prepared = self._prepare_data_home is not None
+            if self._prepare_data_home is not None:
+                self._prepare_data_home()
             initializer = getattr(self._runtime_record, "initialize_if_fresh", None)
             if callable(initializer):
+                if prepared:
+                    return initializer(allow_existing_root=True)
                 return initializer()
             return self._runtime_record.read()
 

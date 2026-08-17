@@ -54,11 +54,13 @@ class MemoryRecord:
     def __init__(self) -> None:
         self.value = RuntimeSnapshotV1(instance_id="memory-instance")
         self.history: list[RuntimeSnapshotV1] = []
+        self.prepared = False
 
     def read(self) -> RuntimeSnapshotV1:
         return self.value
 
-    def initialize_if_fresh(self) -> RuntimeSnapshotV1:
+    def initialize_if_fresh(self, *, allow_existing_root: bool = False) -> RuntimeSnapshotV1:
+        self.prepared = allow_existing_root
         return self.value
 
     def write(self, snapshot: RuntimeSnapshotV1) -> None:
@@ -154,6 +156,21 @@ def test_start_persists_core_then_world_as_one_generation() -> None:
         RuntimeProgressPhase.AUTHORITY_STARTING,
     ]
     assert phases[-1] is RuntimeProgressPhase.WORLD_READY
+
+
+def test_start_prepares_data_home_before_initializing_runtime_record() -> None:
+    record = MemoryRecord()
+    calls: list[str] = []
+    supervisor = _supervisor(
+        record=record,
+        prepare_data_home=lambda: calls.append("prepare"),
+    )
+
+    result = supervisor.start(owner_id="cli")
+
+    assert result.status == "started"
+    assert calls == ["prepare"]
+    assert record.prepared is True
 
 
 def test_core_wait_target_does_not_start_world() -> None:

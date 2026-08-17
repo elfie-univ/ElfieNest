@@ -92,6 +92,7 @@ class DataHomeState(str, Enum):
     """Read-only classification of the selected product data root."""
 
     FRESH = "fresh"
+    PARTIAL = "partial"
     READY = "ready"
     LEGACY = "legacy"
     CORRUPT = "corrupt"
@@ -242,6 +243,8 @@ class LifecycleDataHomePort(Protocol):
 
     def inspect(self, selected_home: Path) -> DataHomeInspection: ...
 
+    def prepare(self, selected_home: Path) -> DataHomeInspection: ...
+
     def recover(self, selected_home: Path) -> DataHomeRecoveryResult: ...
 
 
@@ -390,8 +393,10 @@ class RuntimeRecordPort(Protocol):
     def read(self) -> RuntimeSnapshotV1:
         """Read a validated snapshot without repairing or creating state."""
 
-    def initialize_if_fresh(self) -> RuntimeSnapshotV1:
-        """Create the first snapshot only after proving the root is fresh."""
+    def initialize_if_fresh(
+        self, *, allow_existing_root: bool = False
+    ) -> RuntimeSnapshotV1:
+        """Create the first snapshot after the root is fresh or prepared."""
 
     def write(self, snapshot: RuntimeSnapshotV1) -> None:
         """Atomically persist one complete snapshot; OFFLINE is retained."""

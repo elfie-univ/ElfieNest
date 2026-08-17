@@ -143,6 +143,133 @@ FINAL_TABLE_COLUMNS: Final[dict[str, frozenset[str]]] = {
     ),
 }
 
+# Only column additions that SQLite can apply in place without rebuilding a
+# table are admitted here. A new required column without a constant default,
+# a key, or a uniqueness constraint remains an explicit incompatibility.
+_ADDITIVE_COLUMN_DEFINITIONS: Final[dict[str, str]] = {
+    "users.display_name": (
+        "TEXT CHECK(display_name IS NULL OR (display_name=trim(display_name) "
+        "AND length(display_name) BETWEEN 1 AND 64))"
+    ),
+    "users.avatar_color": "INTEGER NOT NULL DEFAULT 0",
+    "users.avatar_kind": (
+        "TEXT NOT NULL DEFAULT 'initials' CHECK(avatar_kind IN ('initials','emoji'))"
+    ),
+    "users.avatar_path": (
+        "TEXT CHECK(avatar_path IS NULL OR (length(avatar_path)>0 "
+        "AND substr(avatar_path,1,1)<>'/' AND instr(avatar_path,char(92))=0 "
+        "AND instr(avatar_path,':')=0 AND avatar_path<>'..' "
+        "AND avatar_path NOT LIKE '../%' AND avatar_path NOT LIKE '%/../%' "
+        "AND avatar_path NOT LIKE '%/..'))"
+    ),
+    "users.gender": "TEXT NOT NULL DEFAULT 'male' CHECK(gender IN ('male','female'))",
+    "users.birth_date": "TEXT",
+    "users.presence": (
+        "TEXT NOT NULL DEFAULT 'offline' "
+        "CHECK(presence IN ('online','away','offline'))"
+    ),
+    "users.last_seen_at": "TEXT",
+    "users.elfie_limit": (
+        "INTEGER CHECK(elfie_limit IS NULL OR elfie_limit BETWEEN 0 AND 32)"
+    ),
+    "users.default_landing_page": (
+        "TEXT NOT NULL DEFAULT 'manage' CHECK(default_landing_page IN ('chat','manage'))"
+    ),
+    "users.theme_key": (
+        "TEXT NOT NULL DEFAULT 'warm-paper' "
+        "CHECK(theme_key IN ('warm-paper','harbor-blue','orchid-archive','moss-green'))"
+    ),
+    "users.language": (
+        "TEXT NOT NULL DEFAULT 'zh-CN' CHECK(language IN ('zh-CN','en-US','ja-JP'))"
+    ),
+    "sessions.revoked_at": "TEXT",
+    "local_installations.owner_user_id": "INTEGER REFERENCES users(id)",
+    "local_installations.device_name": "TEXT",
+    "local_installations.platform": "TEXT",
+    "local_installations.machine_id_hash": (
+        "TEXT CHECK(machine_id_hash IS NULL OR (length(machine_id_hash)=64 "
+        "AND machine_id_hash NOT GLOB '*[^0-9a-f]*'))"
+    ),
+    "local_installations.status": (
+        "TEXT NOT NULL DEFAULT 'not_started' "
+        "CHECK(status IN ('not_started','in_progress','completed'))"
+    ),
+    "local_installations.install_step": (
+        "INTEGER CHECK(install_step IS NULL OR install_step BETWEEN 1 AND 5)"
+    ),
+    "local_installations.install_action": "TEXT",
+    "local_installations.task_status": (
+        "TEXT NOT NULL DEFAULT 'idle' "
+        "CHECK(task_status IN ('idle','running','failed','completed','cancelled'))"
+    ),
+    "local_installations.task_progress": (
+        "INTEGER NOT NULL DEFAULT 0 CHECK(task_progress BETWEEN 0 AND 100)"
+    ),
+    "local_installations.last_error": "TEXT",
+    "local_installations.setup_draft_json": (
+        "TEXT CHECK(setup_draft_json IS NULL OR "
+        "(json_valid(setup_draft_json) AND json_type(setup_draft_json) = 'object'))"
+    ),
+    "local_installations.setup_completed_at": "TEXT",
+    "nest_settings.max_elfies": "INTEGER CHECK(max_elfies IS NULL OR max_elfies>=0)",
+    "nest_settings.applied_world_revision": (
+        "INTEGER CHECK(applied_world_revision IS NULL OR applied_world_revision>=0)"
+    ),
+    "nest_settings.world_catalog_json": (
+        "TEXT CHECK(world_catalog_json IS NULL OR "
+        "(json_valid(world_catalog_json) AND json_type(world_catalog_json)='object'))"
+    ),
+    "nest_settings.clock_anchor_seconds": (
+        "REAL NOT NULL DEFAULT 0 CHECK(clock_anchor_seconds>=0)"
+    ),
+    "nest_settings.clock_paused": "INTEGER NOT NULL DEFAULT 0 CHECK(clock_paused IN (0,1))",
+    "nest_settings.time_scale": "REAL NOT NULL DEFAULT 1 CHECK(time_scale>0)",
+    "nest_settings.environment_desired_json": (
+        "TEXT NOT NULL DEFAULT '{\"object_id\":\"nest/environment\",\"lights_on\":true,\"quiet_mode\":false}' "
+        "CHECK(json_valid(environment_desired_json) AND json_type(environment_desired_json)='object')"
+    ),
+    "nest_settings.environment_rules_json": (
+        "TEXT NOT NULL DEFAULT '[]' "
+        "CHECK(json_valid(environment_rules_json) AND json_type(environment_rules_json)='array')"
+    ),
+    "elfies.original_name": (
+        "TEXT NOT NULL DEFAULT '' CHECK(length(trim(original_name))>=0)"
+    ),
+    "elfies.gender": "TEXT",
+    "elfies.birth_date": "TEXT",
+    "elfies.home_anchor_id": (
+        "TEXT CHECK(home_anchor_id IS NULL OR "
+        "(home_anchor_id=trim(home_anchor_id) AND length(home_anchor_id)>0))"
+    ),
+    "elfies.summary": "TEXT",
+    "elfies.main_food_id": (
+        "TEXT CHECK(main_food_id IS NULL OR length(trim(main_food_id)) > 0)"
+    ),
+    "food_packages.system_role": (
+        "TEXT CHECK(system_role IS NULL OR system_role IN ('common','emergency'))"
+    ),
+    "food_packages.primary_model_ref": "TEXT",
+    "food_packages.reasoning_model_ref": "TEXT",
+    "food_packages.vision_model_ref": "TEXT",
+    "food_packages.tool_model_ref": "TEXT",
+    "food_packages.fallback_model_ref": "TEXT",
+    "food_packages.required_roles_json": (
+        "TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(required_roles_json) "
+        "AND json_type(required_roles_json)='array')"
+    ),
+    "food_packages.visible_user_ids_json": "TEXT NOT NULL DEFAULT '[]'",
+    "food_packages.enabled": "INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1))",
+    "food_packages.archived": "INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1))",
+    "external_bodies.last_heartbeat_at": "TEXT",
+    "external_bodies.revoked_at": "TEXT",
+    "device_audit_events.detail_json": (
+        "TEXT NOT NULL DEFAULT '{}' "
+        "CHECK(json_valid(detail_json) AND json_type(detail_json)='object')"
+    ),
+    "embodiment_sessions.body_id": "TEXT REFERENCES external_bodies(body_id)",
+    "embodiment_sessions.lease_expires_at": "TEXT",
+}
+
 
 class FinalNestDatabasePathError(RuntimeError):
     """Raised when the final builder receives a non-final or unsafe path."""
@@ -156,6 +283,22 @@ class FinalNestDatabasePathError(RuntimeError):
 
     def __str__(self) -> str:
         return f"invalid final Nest database path {self.path}: {self.reason}"
+
+
+class FinalNestSchemaRepairError(RuntimeError):
+    """Raised when a missing column is outside the narrow additive contract."""
+
+    __slots__ = ("missing_columns",)
+
+    def __init__(self, missing_columns: tuple[str, ...]) -> None:
+        self.missing_columns = missing_columns
+        super().__init__(str(self))
+
+    def __str__(self) -> str:
+        return (
+            "数据库结构与当前版本不兼容：缺少不可安全补齐的字段 "
+            + ", ".join(self.missing_columns)
+        )
 
 
 def create_final_nest_database(db_path: str | Path) -> Path:
@@ -174,8 +317,60 @@ def create_final_nest_database(db_path: str | Path) -> Path:
 
 def initialize_final_schema(connection: sqlite3.Connection) -> None:
     """Create every final root table, index, and cross-row invariant."""
+    _initialize_final_tables(connection)
+    _initialize_final_objects(connection)
+
+
+def repair_final_nest_database(db_path: str | Path) -> Path:
+    """Apply only safe additive fixes to an existing current root database."""
+    path = Path(db_path)
+    if path.name != FINAL_NEST_DATABASE_NAME:
+        raise FinalNestDatabasePathError(path, "filename must be nest.db")
+    try:
+        with app_sqlite_connection(path) as connection:
+            # Tables must exist before missing columns can be classified. Do
+            # not create indexes or triggers until those columns are present.
+            _initialize_final_tables(connection)
+            add_missing_final_schema_columns(connection)
+            _initialize_final_objects(connection)
+            connection.commit()
+    except UnsafeSQLitePathError as error:
+        raise FinalNestDatabasePathError(path, error.reason) from error
+    return path
+
+
+def add_missing_final_schema_columns(connection: sqlite3.Connection) -> tuple[str, ...]:
+    """Add only allow-listed nullable/default current-contract columns."""
+    missing = missing_final_schema_columns(connection)
+    unsupported = unsupported_final_schema_columns(missing)
+    if unsupported:
+        raise FinalNestSchemaRepairError(unsupported)
+    for qualified_name in missing:
+        table_name, column_name = qualified_name.split(".", 1)
+        connection.execute(
+            f'ALTER TABLE "{table_name}" ADD COLUMN "{column_name}" '
+            f"{_ADDITIVE_COLUMN_DEFINITIONS[qualified_name]}"
+        )
+    return missing
+
+
+def unsupported_final_schema_columns(
+    missing_columns: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Return missing columns that cannot be added by the narrow repair."""
+    return tuple(
+        column_name
+        for column_name in missing_columns
+        if column_name not in _ADDITIVE_COLUMN_DEFINITIONS
+    )
+
+
+def _initialize_final_tables(connection: sqlite3.Connection) -> None:
     for statement in _TABLE_STATEMENTS:
         connection.execute(statement)
+
+
+def _initialize_final_objects(connection: sqlite3.Connection) -> None:
     for statement in _INDEX_STATEMENTS:
         connection.execute(statement)
     for statement in _TRIGGER_STATEMENTS:

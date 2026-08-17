@@ -18,6 +18,8 @@ from infrastructure.persistence.layout.data_layout import ensure_final_root_layo
 from infrastructure.persistence.nest_db.final_schema import (
     create_final_nest_database,
     missing_final_schema_columns,
+    repair_final_nest_database,
+    unsupported_final_schema_columns,
 )
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
 
@@ -76,24 +78,65 @@ class IncompatibleDatabaseError(LegacyDataRootError):
 
 
 def init_db(db_path: Optional[str] = None) -> str:
-    """Activate the final-contract database at an explicit fresh root."""
+    """Activate or minimally repair the final-contract database."""
     if db_path is None:
         db_path = str(_get_db_path())
     data_home_from_db_path(db_path)
     resolved = Path(db_path).expanduser().absolute()
-    _reject_legacy_root(resolved)
+    inspection = _reject_legacy_root(resolved)
     ensure_final_root_layout(resolved.parent)
-    create_final_nest_database(resolved)
+    if inspection.state is DataHomeState.PARTIAL:
+        repair_final_nest_database(resolved)
+    else:
+        create_final_nest_database(resolved)
     logger.info("Database initialized at %s", resolved)
     return str(resolved)
 
 
-def _reject_legacy_root(database_path: Path) -> None:
+def _reject_legacy_root(database_path: Path) -> DataHomeInspection:
     inspection = inspect_data_home(database_path.parent)
-    if inspection.state not in {DataHomeState.FRESH, DataHomeState.READY}:
+    if inspection.state not in {
+        DataHomeState.FRESH,
+        DataHomeState.PARTIAL,
+        DataHomeState.READY,
+    }:
         if inspection.detail.startswith("数据库结构与当前版本不兼容"):
             raise IncompatibleDatabaseError(inspection.detail)
         raise LegacyDataRootError
+    return inspection
+
+
+def repair_data_home(data_home: Path) -> DataHomeInspection:
+    """Repair only a fresh/partial/current root in place, without preserving copies."""
+    inspection = inspect_data_home(data_home)
+    if inspection.state not in {
+        DataHomeState.FRESH,
+        DataHomeState.PARTIAL,
+        DataHomeState.READY,
+    }:
+        if inspection.detail.startswith("数据库结构与当前版本不兼容"):
+            raise IncompatibleDatabaseError(inspection.detail)
+        raise LegacyDataRootError
+
+    if inspection.state is DataHomeState.READY:
+        return inspection
+
+    home = inspection.home
+    ensure_final_root_layout(home)
+    try:
+        repair_final_nest_database(home / "nest.db")
+    except (sqlite3.DatabaseError, RuntimeError) as error:
+        detail = str(error)
+        if not detail.startswith("数据库结构与当前版本不兼容"):
+            detail = "数据库结构与当前版本不兼容：最小修复失败"
+        raise IncompatibleDatabaseError(detail) from error
+
+    repaired = inspect_data_home(home)
+    if repaired.state is not DataHomeState.READY:
+        if repaired.detail.startswith("数据库结构与当前版本不兼容"):
+            raise IncompatibleDatabaseError(repaired.detail)
+        raise LegacyDataRootError
+    return repaired
 
 
 def inspect_data_home(data_home: Path) -> DataHomeInspection:
@@ -122,16 +165,30 @@ def inspect_data_home(data_home: Path) -> DataHomeInspection:
             recoverable=True,
         )
     database_path = home / "nest.db"
+    if database_path.is_symlink():
+        return DataHomeInspection(
+            state=DataHomeState.PERMISSION,
+            home=home,
+            detail="nest.db 不能是符号链接",
+            recoverable=False,
+        )
     try:
         if not database_path.exists() or database_path.stat().st_size == 0:
+            has_residual_entries = any(home.iterdir())
             return DataHomeInspection(
-                state=DataHomeState.FRESH,
+                state=(
+                    DataHomeState.PARTIAL
+                    if has_residual_entries
+                    else DataHomeState.FRESH
+                ),
                 home=home,
-                detail="数据目录为空，可以创建新环境",
+                detail=(
+                    "检测到未完成的数据初始化，启动时可以补齐"
+                    if has_residual_entries
+                    else "尚未创建数据目录"
+                ),
                 recoverable=False,
             )
-        if database_path.is_symlink():
-            raise sqlite3.DatabaseError("nest.db 不能是符号链接")
         uri = f"{database_path.as_uri()}?mode=ro&immutable=1"
         with sqlite3.connect(uri, uri=True) as connection:
             tables = {
@@ -143,6 +200,51 @@ def inspect_data_home(data_home: Path) -> DataHomeInspection:
             users_sql_row = connection.execute(
                 "SELECT sql FROM sqlite_master WHERE type='table' AND name='users'"
             ).fetchone()
+            if not tables.issubset(_FINAL_TABLES):
+                return DataHomeInspection(
+                    state=DataHomeState.LEGACY,
+                    home=home,
+                    detail="数据库结构与当前版本不兼容：数据表集合不是当前版本契约",
+                    recoverable=True,
+                )
+            if tables != _FINAL_TABLES:
+                missing_tables = ", ".join(sorted(_FINAL_TABLES - tables))
+                return DataHomeInspection(
+                    state=DataHomeState.PARTIAL,
+                    home=home,
+                    detail="启动时可以补齐缺少的当前数据表：" + missing_tables,
+                    recoverable=False,
+                )
+            users_sql = "" if users_sql_row is None else str(users_sql_row[0] or "")
+            if "roleIN('owner','user')" in "".join(users_sql.split()):
+                return DataHomeInspection(
+                    state=DataHomeState.LEGACY,
+                    home=home,
+                    detail="数据库结构与当前版本不兼容：users.role 仍是旧版账号约束",
+                    recoverable=True,
+                )
+            missing_columns = missing_final_schema_columns(connection)
+            if missing_columns:
+                unsupported_columns = unsupported_final_schema_columns(missing_columns)
+                if unsupported_columns:
+                    return DataHomeInspection(
+                        state=DataHomeState.LEGACY,
+                        home=home,
+                        detail=(
+                            "数据库结构与当前版本不兼容：缺少不可安全补齐的字段 "
+                            + ", ".join(unsupported_columns)
+                        ),
+                        recoverable=True,
+                    )
+                return DataHomeInspection(
+                    state=DataHomeState.PARTIAL,
+                    home=home,
+                    detail=(
+                        "启动时可以补齐缺少的当前字段 "
+                        + ", ".join(missing_columns)
+                    ),
+                    recoverable=False,
+                )
     except PermissionError:
         return DataHomeInspection(
             state=DataHomeState.PERMISSION,
@@ -155,31 +257,6 @@ def inspect_data_home(data_home: Path) -> DataHomeInspection:
             state=DataHomeState.CORRUPT,
             home=home,
             detail="数据库无法安全读取，无法确认是否兼容；建议先备份后创建新环境",
-            recoverable=True,
-        )
-    if tables != _FINAL_TABLES:
-        return DataHomeInspection(
-            state=DataHomeState.LEGACY,
-            home=home,
-            detail="数据库结构与当前版本不兼容：数据表集合不是当前版本契约",
-            recoverable=True,
-        )
-    missing_columns = missing_final_schema_columns(connection)
-    if missing_columns:
-        return DataHomeInspection(
-            state=DataHomeState.LEGACY,
-            home=home,
-            detail=(
-                "数据库结构与当前版本不兼容：缺少字段 " + ", ".join(missing_columns)
-            ),
-            recoverable=True,
-        )
-    users_sql = "" if users_sql_row is None else str(users_sql_row[0] or "")
-    if "roleIN('owner','user')" in "".join(users_sql.split()):
-        return DataHomeInspection(
-            state=DataHomeState.LEGACY,
-            home=home,
-            detail="数据库结构与当前版本不兼容：users.role 仍是旧版账号约束",
             recoverable=True,
         )
     return DataHomeInspection(

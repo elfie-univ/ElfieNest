@@ -23,7 +23,7 @@ type RuntimeFailure = Readonly<{
   readonly detail: string;
 }>;
 
-export type DataHomeState = "fresh" | "ready" | "legacy" | "corrupt" | "permission";
+export type DataHomeState = "fresh" | "partial" | "ready" | "legacy" | "corrupt" | "permission";
 
 export type DataHomeInspection = Readonly<{
   readonly state: DataHomeState;
@@ -527,6 +527,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
 
   private isDataHomeState(value: unknown): value is DataHomeState {
     return value === "fresh"
+      || value === "partial"
       || value === "ready"
       || value === "legacy"
       || value === "corrupt"

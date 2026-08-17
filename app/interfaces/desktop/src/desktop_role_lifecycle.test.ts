@@ -69,6 +69,21 @@ test("desktop UI attaches to a CLI-owned runtime and closing its window does not
   assert.equal(controller.state.kind, "attached");
 });
 
+test("desktop UI lets the shared lifecycle repair a partial data root", async () => {
+  const client = lifecycleClient({ kind: "attached", generation: 7 });
+  client.inspectDataHome = async (): Promise<DataHomeInspection> => ({
+    state: "partial",
+    home: "/tmp/elfienest",
+    detail: "启动时可以补齐缺少的当前数据表",
+    recoverable: false,
+  });
+  const controller = new DesktopRoleController(client);
+
+  const state = await controller.start();
+
+  assert.deepEqual(state, { kind: "attached", generation: 7 });
+});
+
 test("desktop-owned explicit exit requests an ordered stop only for its own lease", async () => {
   // Given: the UI acquired an explicit owner lease from the public lifecycle service.
   const client = lifecycleClient({ kind: "owned", generation: 8, ownerLease: "desktop-8" });

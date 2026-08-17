@@ -86,6 +86,23 @@ test("managed lifecycle client inspects the selected data root before startup", 
   ]);
 });
 
+test("managed lifecycle client accepts a partial data-root inspection", async () => {
+  const runner = commandRunner([
+    JSON.stringify({
+      state: "partial",
+      home: "/Users/test/.elfienest",
+      detail: "启动时可以补齐缺少的当前数据表",
+      recoverable: false,
+    }),
+  ]);
+  const client = new ManagedRuntimeLifecycleClient("desktop-partial", runner);
+
+  const inspection = await client.inspectDataHome();
+
+  assert.equal(inspection.state, "partial");
+  assert.equal(inspection.recoverable, false);
+});
+
 test("managed lifecycle client recovers a data root through the public CLI", async () => {
   const runner = commandRunner([
     JSON.stringify({
