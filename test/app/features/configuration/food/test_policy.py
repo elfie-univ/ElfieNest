@@ -16,6 +16,8 @@ def _evidence(
     local: bool = False,
     age: int = 0,
     capabilities: tuple[str, ...] = ("text",),
+    auto_selection_priority: int = 100,
+    quality_tier: int = 0,
 ) -> StoredModelEvidence:
     return StoredModelEvidence(
         reference=reference,
@@ -23,6 +25,8 @@ def _evidence(
         capabilities=frozenset(capabilities),
         verified=True,
         local=local,
+        auto_selection_priority=auto_selection_priority,
+        quality_tier=quality_tier,
         tool_test_passed="tools" in capabilities,
         observed_at=(datetime.now(timezone.utc) - timedelta(hours=age)).isoformat(),
     )
@@ -70,6 +74,78 @@ def test_planner_does_not_use_manual_capability_hint_as_serving_role() -> None:
 
     assert proposal.package.primary_model == "cloud/vision-hint"
     assert proposal.package.vision_model is None
+
+
+def test_planner_prefers_curated_quality_model_over_unknown_discovery() -> None:
+    proposal = FoodPlanner().propose_package(
+        StoredFoodPackage(food_id="food_common", display_name="Common"),
+        (
+            _evidence(
+                "provider/unknown",
+                auto_selection_priority=0,
+                quality_tier=0,
+            ),
+            _evidence(
+                "deepseek/flash",
+                auto_selection_priority=10,
+                quality_tier=2,
+            ),
+        ),
+        connection_ids=("provider", "deepseek"),
+    )
+
+    assert proposal.package.primary_model == "deepseek/flash"
+
+
+def test_emergency_planner_keeps_usable_local_model_before_curated_remote() -> None:
+    proposal = FoodPlanner().propose_package(
+        StoredFoodPackage(
+            food_id="food_emergency",
+            display_name="Emergency",
+            system_role="emergency",
+        ),
+        (
+            _evidence(
+                "ollama/local",
+                local=True,
+                auto_selection_priority=20,
+                quality_tier=1,
+            ),
+            _evidence(
+                "deepseek/flash",
+                auto_selection_priority=10,
+                quality_tier=2,
+            ),
+        ),
+        connection_ids=("ollama", "deepseek"),
+        local_first=True,
+    )
+
+    assert proposal.package.primary_model == "ollama/local"
+    assert proposal.package.fallback_model == "deepseek/flash"
+
+
+def test_planner_uses_unknown_model_for_a_missing_special_capability() -> None:
+    proposal = FoodPlanner().propose_package(
+        StoredFoodPackage(food_id="food_common", display_name="Common"),
+        (
+            _evidence("deepseek/flash", quality_tier=2, auto_selection_priority=10),
+            StoredModelEvidence(
+                reference="provider/vision-tools",
+                display_name="Vision tools",
+                capabilities=frozenset({"text", "vision", "tools"}),
+                verified=True,
+                capability_states={"vision": "supported", "tools": "supported"},
+                tool_test_passed=True,
+                observed_at=datetime.now(timezone.utc).isoformat(),
+            ),
+        ),
+        connection_ids=("deepseek", "provider"),
+    )
+
+    assert proposal.package.primary_model == "deepseek/flash"
+    assert proposal.package.vision_model == "provider/vision-tools"
+    assert proposal.package.tool_model == "provider/vision-tools"
 
 
 def test_health_uses_primary_and_same_food_fallback_evidence() -> None:

@@ -16,6 +16,9 @@ vi.mock("../api/http", async (importOriginal) => {
 type MonitorFixture = {
   readonly healthStatus: string
   readonly runtimeStatus: string
+  readonly noCoreModel?: boolean
+  readonly noFoods?: boolean
+  readonly emergencyDegraded?: boolean
   readonly unassignedElfie?: boolean
 }
 
@@ -58,7 +61,7 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     mockSnapshot(healthyFixture)
     fireEvent.click(lastButton("Refresh status"))
 
-    expect(await screen.findByText("Healthy")).toBeInTheDocument()
+    expect((await screen.findAllByText("Healthy")).length).toBeGreaterThan(0)
     expect(await screen.findByText("Runtime status recovered.")).toBeInTheDocument()
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
@@ -88,6 +91,7 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     renderPanel()
 
     expect(await screen.findByText("Services healthy")).toBeInTheDocument()
+    expect(await screen.findByText("1 subscriptions · 1 available models · 2 available Foods")).toBeInTheDocument()
     api.ownerRead.mockImplementation(async (path: string) => {
       if (path === "/api/v1/admin/nest/rooms") throw new Error("rooms unavailable")
       return monitorPayload(path, healthyFixture)
@@ -97,7 +101,61 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Some status data is temporarily unavailable.")
     expect(screen.getByText("Users")).toBeInTheDocument()
     expect(screen.getByText("2 online")).toBeInTheDocument()
-    expect(screen.getByText("Model service details")).toBeInTheDocument()
+    expect(screen.getByText("AI service details")).toBeInTheDocument()
+  })
+
+  it("does not call a configured service unconfigured when no model core flag is present", async () => {
+    mockSnapshot({ ...healthyFixture, noCoreModel: true, noFoods: true })
+    renderPanel()
+
+    expect(await screen.findByText("Connected, no Food enabled")).toBeInTheDocument()
+    expect(screen.queryByText("No AI service configured")).not.toBeInTheDocument()
+    expect(screen.getByText("Ollama")).toBeInTheDocument()
+  })
+
+  it("keeps a Provider account pass separate from pending model evidence", async () => {
+    api.ownerRead.mockImplementation(async (path: string) => {
+      const payload = monitorPayload(path, healthyFixture)
+      if (path === "/api/v1/admin/model-providers/connections") return { items: [{
+        catalog_id: "openai",
+        alias: "OpenAI",
+        enabled: true,
+        archived: false,
+        verification: { status: "passed" },
+        model_counts: { total: 1, enabled: 1, in_use: 0, available: 0, degraded: 0, pending: 1, unavailable: 0 },
+        models: [{ available: false, hidden: false, retired: false, verification: { availability_status: "unknown" } }],
+      }] }
+      return payload
+    })
+    renderPanel()
+
+    expect(await screen.findByText("0/1 models available")).toBeInTheDocument()
+    expect(screen.getByText("Partially available")).toBeInTheDocument()
+    expect(screen.queryByText("1/1 models available")).not.toBeInTheDocument()
+  })
+
+  it("shows supported local models and Food status without exposing unrelated Ollama installs", async () => {
+    mockSnapshot(healthyFixture)
+    renderPanel()
+
+    expect(await screen.findByText("1/1 models available")).toBeInTheDocument()
+    expect(screen.queryByText("1/2 models available")).not.toBeInTheDocument()
+    const foodRegion = screen.getByRole("region", { name: "Food" })
+    expect(withinFood(foodRegion, "Common")).toHaveTextContent("Healthy")
+    expect(withinFood(foodRegion, "Emergency")).toHaveTextContent("Healthy")
+    const systemEvents = screen.getByText("System events").closest("section")
+    const aiService = screen.getByText("AI service details").closest("section")
+    expect(systemEvents).not.toBeNull()
+    expect(aiService).not.toBeNull()
+    expect(systemEvents?.compareDocumentPosition(aiService as Node) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it("shows only abnormal Food details when the AI service needs attention", async () => {
+    mockSnapshot({ ...healthyFixture, emergencyDegraded: true })
+    renderPanel()
+
+    expect(await screen.findByText("Emergency Food Fallback")).toBeInTheDocument()
+    expect(screen.queryByText("1 subscription · 1 available model · 2 available Foods")).not.toBeInTheDocument()
   })
 
   it("keeps bed assignment notices out of system health", async () => {
@@ -147,10 +205,60 @@ function monitorPayload(path: string, fixture: MonitorFixture): unknown {
         enabled: true,
         archived: false,
         verification: { status: "passed" },
-        models: [{ available: true, hidden: false, retired: false }],
+        model_counts: { total: 1, enabled: 1, in_use: fixture.noCoreModel ? 0 : 1, available: 1, degraded: 0, pending: 0, unavailable: 0 },
+        models: [{ available: true, hidden: false, retired: false, ...(fixture.noCoreModel ? {} : { verification: { is_core: true } }) }],
       }] }
     case "/api/v1/admin/model-providers/ollama":
-      return { state: "healthy", recommended_model: "qwen2.5:0.5b", installed_model_count: 1 }
+      return {
+        state: "healthy",
+        recommended_model: "qwen2.5:0.5b",
+        installed_model_count: 2,
+        model_counts: { installed: 2, available: 1, degraded: 0, pending: 1, unavailable: 0 },
+        models: [
+          { id: "qwen2.5:0.5b", installed: true, available: true, availability_status: "available" },
+          { id: "custom-local:latest", installed: true, available: false, availability_status: "unknown" },
+        ],
+      }
+    case "/api/v1/setup/models":
+      return { items: [
+        { model_id: "qwen2.5:0.5b", label: "qwen2.5:0.5b", approx_download_mb: 398, recommended: true },
+        { model_id: "qwen3.5:0.8b", label: "qwen3.5:0.8b", approx_download_mb: 1024, recommended: false },
+      ] }
+    case "/api/v1/admin/food-packages":
+      return {
+        version: 2,
+        global_default_food_id: "food_common",
+        global_emergency_food_id: "food_emergency",
+        packages: fixture.noFoods ? [] : [
+          {
+            key: "food_common",
+            display_name: "Common",
+            system_role: "common",
+            enabled: true,
+            archived: false,
+            visibility_mode: "global",
+            visible_user_ids: [],
+            roles: { primary: null, reasoning: null, vision: null, tool: null, fallback: null },
+            health: "healthy",
+            locality: "remote",
+            latest_evidence_at: "2026-08-16T00:00:00Z",
+          },
+          {
+            key: "food_emergency",
+            display_name: "Emergency",
+            system_role: "emergency",
+            enabled: true,
+            archived: false,
+            visibility_mode: "global",
+            visible_user_ids: [],
+            roles: { primary: null, reasoning: null, vision: null, tool: null, fallback: null },
+            health: fixture.emergencyDegraded ? "degraded" : "healthy",
+            locality: "local",
+            latest_evidence_at: "2026-08-16T00:00:00Z",
+          },
+        ],
+        eligible_models: [],
+      }
     default:
       return { endpoint: "https://raw.example/v1" }
   }
@@ -174,4 +282,10 @@ function lastButton(name: string): HTMLElement {
   const button = buttons.at(-1)
   if (!button) throw new Error(`Missing button: ${name}`)
   return button
+}
+
+function withinFood(region: HTMLElement, name: string): HTMLElement {
+  const label = Array.from(region.querySelectorAll("strong")).find((item) => item.textContent === name)
+  if (!label?.parentElement) throw new Error(`Missing Food: ${name}`)
+  return label.parentElement
 }

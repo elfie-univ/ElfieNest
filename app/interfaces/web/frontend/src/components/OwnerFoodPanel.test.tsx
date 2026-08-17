@@ -60,6 +60,20 @@ const food = {
   latest_evidence_at: "2026-07-30T00:00:00Z",
 } satisfies FoodPackage
 
+const emergencyFood = {
+  ...food,
+  key: "emergency",
+  display_name: "紧急备用粮",
+  system_role: "emergency" as const,
+  roles: {
+    primary: { model: "conn-local/qwen" },
+    reasoning: null,
+    vision: null,
+    tool: null,
+    fallback: { model: "conn-remote/gpt" },
+  },
+} satisfies FoodPackage
+
 const catalog = {
   version: 2,
   global_default_food_id: "standard",
@@ -69,10 +83,11 @@ const catalog = {
     { reference: "conn-local/qwen", display_name: "Qwen", local: true, capabilities: ["text", "tools"] },
     { reference: "conn-local/deepseek", display_name: "DeepSeek", local: true, capabilities: ["text", "reasoning"] },
     { reference: "conn-remote/gpt", display_name: "GPT", local: false, capabilities: ["text"] },
+    { reference: "conn-third/gpt", display_name: "GPT", local: false, capabilities: ["text"] },
   ],
 } satisfies FoodCatalog
 
-const connection = {
+const connection: ProviderConnection = {
   connection_id: "conn-local",
   catalog_id: "ollama",
   alias: "Local Ollama",
@@ -83,16 +98,38 @@ const connection = {
   enabled: true,
   archived: false,
   usage_scope: "local",
+  model_counts: { total: 2, enabled: 2, in_use: 0, available: 2, degraded: 0, pending: 0, unavailable: 0 },
   verification: { status: "passed", checked_at: "2026-07-30T00:00:00Z", latency_ms: 10, error: null },
   models: [
     { id: "qwen", display_name: "Qwen 0.5B", canonical_model_id: null, source: "manual", context_window_tokens: 8192, max_output_tokens: 2048, supports_tools: true, supports_vision: false, supports_reasoning: false, hidden: false, retired: false, available: true, verification: { status: "passed", checked_at: "2026-07-30T00:00:00Z", latency_ms: 120, error: null } },
     { id: "deepseek", display_name: "DeepSeek", canonical_model_id: null, source: "manual", context_window_tokens: 8192, max_output_tokens: 2048, supports_tools: false, supports_vision: false, supports_reasoning: true, hidden: false, retired: false, available: true, verification: { status: "passed", checked_at: "2026-07-30T00:00:00Z", latency_ms: 180, error: null } },
   ],
   model_refresh: null,
-} satisfies ProviderConnection
+}
 
-const secondConnection = { ...connection, connection_id: "conn-remote", alias: "Remote Gateway" }
-const thirdConnection = { ...connection, connection_id: "conn-third", alias: "Third Gateway" }
+const remoteModel: ProviderConnection["models"][number] = {
+  ...connection.models[0]!,
+  id: "gpt",
+  display_name: "GPT",
+}
+
+const secondConnection: ProviderConnection = {
+  ...connection,
+  connection_id: "conn-remote",
+  catalog_id: "openai",
+  alias: "Remote Gateway",
+  api_base: "https://api.example/v1",
+  api_mode: "chat_completions",
+  auth_type: "bearer",
+  has_api_key: true,
+  usage_scope: "remote",
+  models: [remoteModel],
+}
+const thirdConnection: ProviderConnection = {
+  ...secondConnection,
+  connection_id: "conn-third",
+  alias: "Third Gateway",
+}
 const members = [
   { user_id: 2, account_id: "alice", display_name: "张三", role: "user", presence: "offline" },
   { user_id: 3, account_id: "bob", display_name: "李四", role: "user", presence: "offline" },
@@ -116,6 +153,7 @@ const healthyOllama = {
   memory_gb: 8,
   recommended_model: null,
   installed_model_count: 2,
+  model_counts: { installed: 2, available: 2, degraded: 0, pending: 0, unavailable: 0 },
   models: [
     { id: "qwen", display_name: "Qwen 0.5B", installed: true, recommended: false },
     { id: "deepseek", display_name: "DeepSeek", installed: true, recommended: false },
@@ -133,7 +171,7 @@ describe("OwnerFoodPanel final list behavior", () => {
 
   beforeEach(() => {
     vi.mocked(ownerFoods).mockResolvedValue(catalog)
-    vi.mocked(ownerProviderConnections).mockResolvedValue([connection])
+    vi.mocked(ownerProviderConnections).mockResolvedValue([connection, secondConnection])
     vi.mocked(ownerUsers).mockResolvedValue([])
     vi.mocked(ownerOllamaStatus).mockResolvedValue(healthyOllama)
     vi.mocked(editFood).mockResolvedValue({ food, warnings: [] })
@@ -144,12 +182,12 @@ describe("OwnerFoodPanel final list behavior", () => {
     vi.mocked(previewNewFood).mockResolvedValue({ food_id: null, candidate: { display_name: "新粮食", enabled: true, roles: { ...food.roles, primary: { model: "conn-local/qwen" } } }, changes: [{ role: "primary", old_model: null, new_model: "conn-local/qwen" }], warnings: [], has_changes: true })
   })
 
-  it("renders exactly the flat nine-column list and human-readable model cells", async () => {
+  it("renders the compact list and keeps lifecycle status beside the food name", async () => {
     renderPanel()
     const table = await screen.findByRole("table", { name: "粮食套餐" })
-    expect(within(table).getAllByRole("columnheader")).toHaveLength(9)
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(8)
     expect(within(table).getAllByText(/Qwen 0\.5B/).length).toBeGreaterThan(0)
-    expect(within(table).getByText("运行中")).toBeInTheDocument()
+    expect(within(table).getByText("正常")).toBeInTheDocument()
     expect(screen.queryByRole("table", { name: "标准粮角色配置" })).not.toBeInTheDocument()
   })
 
@@ -185,6 +223,56 @@ describe("OwnerFoodPanel final list behavior", () => {
     expect(editFood).not.toHaveBeenCalled()
     await user.click(within(dialog).getByRole("button", { name: "应用更新" }))
     expect(editFood).toHaveBeenCalledWith("standard", expect.objectContaining({ display_name: "标准粮", visibility_mode: "global", visible_user_ids: [] }), "csrf")
+  })
+
+  it("defaults Emergency Food to usable Ollama and sends local-first without remote fallback", async () => {
+    const user = userEvent.setup()
+    vi.mocked(ownerFoods).mockResolvedValue({ ...catalog, packages: [emergencyFood] })
+    renderPanel()
+
+    await user.click(await screen.findByRole("button", { name: "操作" }))
+    await user.click(screen.getByRole("menuitem", { name: "自动更新" }))
+    const dialog = screen.getByRole("dialog", { name: "自动更新 紧急备用粮" })
+    expect(within(dialog).getByRole("button", { name: "生成来源" })).toHaveTextContent("Local Ollama")
+    await user.click(within(dialog).getByRole("button", { name: "生成预览" }))
+
+    expect(previewFoodUpdate).toHaveBeenCalledWith("emergency", ["conn-local"], true, false, "global", [], "csrf")
+  })
+
+  it("keeps remote Emergency Food selectable when Ollama is not usable", async () => {
+    const user = userEvent.setup()
+    vi.mocked(ownerFoods).mockResolvedValue({ ...catalog, packages: [emergencyFood] })
+    vi.mocked(ownerOllamaStatus).mockResolvedValue({ ...healthyOllama, state: "stopped" })
+    renderPanel()
+
+    await user.click(await screen.findByRole("button", { name: "操作" }))
+    await user.click(screen.getByRole("menuitem", { name: "自动更新" }))
+    const dialog = screen.getByRole("dialog", { name: "自动更新 紧急备用粮" })
+    expect(within(dialog).getByRole("button", { name: "生成来源" })).toHaveTextContent("未选择生成来源")
+    await user.click(within(dialog).getByRole("button", { name: "生成来源" }))
+    const sourcePopover = screen.getByRole("dialog", { name: "生成来源" })
+    const sourceChecks = within(sourcePopover).getAllByRole("checkbox")
+    await user.click(sourceChecks[2]!)
+    await user.click(within(dialog).getByRole("button", { name: "生成预览" }))
+
+    expect(previewFoodUpdate).toHaveBeenCalledWith("emergency", ["conn-remote"], false, true, "global", [], "csrf")
+  })
+
+  it("makes the enable decision explicit when updating a disabled Food", async () => {
+    const user = userEvent.setup()
+    const disabledFood = { ...food, enabled: false, health: "unavailable" } satisfies FoodPackage
+    vi.mocked(ownerFoods).mockResolvedValue({ ...catalog, packages: [disabledFood] })
+    renderPanel()
+
+    await user.click(await screen.findByRole("button", { name: "操作" }))
+    await user.click(screen.getByRole("menuitem", { name: "自动更新" }))
+    const dialog = screen.getByRole("dialog", { name: "自动更新 标准粮" })
+    await user.click(within(dialog).getByRole("button", { name: "生成预览" }))
+    expect(await within(dialog).findByRole("button", { name: "应用并启用" })).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "仅保存，保持停用" })).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole("button", { name: "应用并启用" }))
+    expect(editFood).toHaveBeenCalledWith("standard", expect.objectContaining({ enabled: true }), "csrf")
   })
 
   it("allows a custom food name to be edited during an update", async () => {
@@ -224,12 +312,12 @@ describe("OwnerFoodPanel final list behavior", () => {
     await user.click(await screen.findByRole("button", { name: "添加粮食" }))
     const dialog = screen.getByRole("dialog", { name: "添加粮食" })
 
-    expect(within(dialog).getByRole("button", { name: "生成来源" })).toHaveTextContent("全部可用订阅（3）")
+    expect(within(dialog).getByRole("button", { name: "生成来源" })).toHaveTextContent("Remote Gateway、Third Gateway")
     await user.click(within(dialog).getByRole("button", { name: "生成来源" }))
     const sourcePopover = screen.getByRole("dialog", { name: "生成来源" })
     const sourceChecks = within(sourcePopover).getAllByRole("checkbox")
     await user.click(sourceChecks[1]!)
-    expect(within(dialog).getByRole("button", { name: "生成来源" })).toHaveTextContent("Remote Gateway、Third Gateway")
+    expect(within(dialog).getByRole("button", { name: "生成来源" })).toHaveTextContent("全部可用订阅（3）")
     await user.click(within(sourcePopover).getAllByRole("checkbox")[0]!)
     expect(within(dialog).getByRole("button", { name: "生成来源" })).toHaveTextContent("未选择生成来源")
     expect(within(dialog).getByRole("button", { name: "生成预览" })).toBeDisabled()

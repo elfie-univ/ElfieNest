@@ -57,7 +57,7 @@ export function CustomProviderDialog({ onOpenChange, onSave, open, preset = "ope
         api_key: apiKey,
         api_mode: apiMode,
         auth_type: authType,
-        refresh_models: true,
+        refresh_models: false,
         verify: false,
       })
     } catch (reason: unknown) {

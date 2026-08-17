@@ -4,6 +4,8 @@ import {
   ownerOllamaStatus,
   pullOllamaModels,
   startOllama,
+  supportedOllamaModelCounts,
+  verifyOllamaModels,
 } from "./owner-ollama"
 import { ownerRead, ownerWrite } from "./http"
 
@@ -16,11 +18,14 @@ const status = {
   memory_gb: 8,
   recommended_model: "qwen2.5:0.5b",
   installed_model_count: 1,
+  model_counts: { installed: 1, available: 1, degraded: 0, pending: 0, unavailable: 0 },
   models: [{
     id: "qwen2.5:0.5b",
     display_name: "qwen2.5:0.5b",
     installed: true,
     recommended: true,
+    available: true,
+    availability_status: "available" as const,
   }],
   task: null,
 }
@@ -56,5 +61,30 @@ describe("versioned Ollama Provider client", () => {
       "csrf",
       { model_ids: ["qwen2.5:0.5b"], confirmed: true },
     )
+  })
+
+  it("validates only through the local Provider resource", async () => {
+    vi.mocked(ownerWrite).mockResolvedValue(status)
+
+    await verifyOllamaModels("csrf")
+
+    expect(ownerWrite).toHaveBeenCalledWith(
+      "/api/v1/admin/model-providers/ollama/verify",
+      "POST",
+      "csrf",
+      undefined,
+      { timeout: false },
+    )
+  })
+
+  it("counts only installed models from the supported product list", () => {
+    const counts = supportedOllamaModelCounts({
+      models: [
+        ...status.models,
+        { id: "custom:latest", display_name: "custom:latest", installed: true, recommended: false, available: false, availability_status: "unknown" },
+      ],
+    }, ["qwen2.5:0.5b", "qwen3.5:0.8b"])
+
+    expect(counts).toEqual({ installed: 1, available: 1, degraded: 0, pending: 0, unavailable: 0 })
   })
 })

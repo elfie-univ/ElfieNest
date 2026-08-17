@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 from typing import TypeVar
 
@@ -34,6 +35,7 @@ from .models import (
     ListObsoleteProviderModelsQuery,
     ListProviderConnectionsQuery,
     ListProviderProductsQuery,
+    LocalModelCounts,
     LocalProviderModelResult,
     LocalProviderStatusResult,
     ProbeProviderModelCapabilitiesCommand,
@@ -48,6 +50,7 @@ from .models import (
     ProviderMatrixConnectionResult,
     ProviderMatrixModelResult,
     ProviderMatrixSnapshotResult,
+    ProviderModelCounts,
     ProviderModelDeletedResult,
     ProviderModelInput,
     ProviderModelMatrixResult,
@@ -298,6 +301,23 @@ class ProvidersService:
             installed_model_count=sum(item.installed for item in models),
             models=models,
             task=task,
+            model_counts=LocalModelCounts(
+                installed=sum(item.installed for item in models),
+                available=sum(
+                    item.availability_status == "available" for item in models
+                ),
+                degraded=sum(
+                    item.availability_status == "degraded" for item in models
+                ),
+                pending=sum(
+                    item.installed and item.availability_status == "unknown"
+                    for item in models
+                ),
+                unavailable=sum(
+                    item.installed and item.availability_status == "unavailable"
+                    for item in models
+                ),
+            ),
         )
 
     def _local_model_result(
@@ -748,6 +768,47 @@ class ProvidersService:
             connection_id=connection.connection_id,
             verification=self._verification_result(verification),
         )
+
+    async def verify_local_models(
+        self,
+        principal: AccountPrincipal,
+    ) -> LocalProviderStatusResult:
+        """Verify only supported, installed Ollama models awaiting evidence."""
+        self._require_manager(principal)
+        current = self.inspect_local_provider(principal, InspectLocalProviderQuery())
+        if current.state != "healthy":
+            return current
+
+        supported_ids = {
+            item.model_id for item in self._local_technology.candidate_models()
+        }
+        references: list[str] = []
+        for model in current.models:
+            if (
+                not model.installed
+                or model.model_id not in supported_ids
+                or model.availability_status != "unknown"
+            ):
+                continue
+            reference = self._local_state.local_model_reference(model.model_id)
+            if reference is not None:
+                references.append(reference)
+
+        probe = getattr(self._technology, "probe_model", None)
+        if not callable(probe) or not references:
+            return current
+
+        semaphore = asyncio.Semaphore(2)
+
+        async def verify_one(reference: str) -> None:
+            async with semaphore:
+                await probe(reference)
+
+        try:
+            await asyncio.gather(*(verify_one(reference) for reference in references))
+        except (ProviderPortError, ValueError, OSError) as error:
+            raise ProvidersUnavailable("Local Provider validation unavailable") from error
+        return self.inspect_local_provider(principal, InspectLocalProviderQuery())
 
     async def refresh_models(
         self,
@@ -1396,6 +1457,10 @@ class ProvidersService:
             current_verification = (
                 verification or self._technology.summarize_connection(connection)
             )
+            model_results = tuple(
+                self._model_result(connection.connection_id, item)
+                for item in connection.models
+            )
             return ProviderConnectionResult(
                 connection_id=connection.connection_id,
                 catalog_id=connection.catalog_id,
@@ -1414,10 +1479,8 @@ class ProvidersService:
                 archived=connection.archived,
                 usage_scope=product.usage_scope,
                 verification=self._verification_result(current_verification),
-                models=tuple(
-                    self._model_result(connection.connection_id, item)
-                    for item in connection.models
-                ),
+                models=model_results,
+                model_counts=self._model_counts(model_results),
                 model_refresh=(
                     None
                     if refresh is None
@@ -1441,6 +1504,13 @@ class ProvidersService:
             raise ProvidersUnavailable(
                 "Provider model projection unavailable"
             ) from error
+        return self._model_result_from_verification(model, verification)
+
+    @staticmethod
+    def _model_result_from_verification(
+        model: StoredProviderModel,
+        verification: StoredModelVerification,
+    ) -> ProviderModelResult:
         return ProviderModelResult(
             model_id=model.model_id,
             display_name=model.display_name,
@@ -1457,12 +1527,8 @@ class ProvidersService:
             capability_evidence=model.capability_evidence,
             hidden=model.hidden,
             retired=model.retired,
-            available=(
-                not model.hidden
-                and not model.retired
-                and model.discovery_state == "present"
-            ),
-            verification=self._model_verification_result(verification),
+            available=verification.availability_status == "available",
+            verification=ProvidersService._model_verification_result(verification),
             discovery_state=model.discovery_state,
             consecutive_missing=model.consecutive_missing,
             last_seen_at=model.last_seen_at,
@@ -1479,36 +1545,12 @@ class ProvidersService:
                 checked_at=refresh.checked_at,
                 message=refresh.message,
                 models=tuple(
-                    ProviderModelResult(
-                        model_id=item.model_id,
-                        display_name=item.display_name,
-                        canonical_model_id=item.canonical_model_id,
-                        source=item.source,
-                        request_profile_id=item.request_profile_id,
-                        request_profile_version=item.request_profile_version,
-                        context_window_tokens=item.context_window_tokens,
-                        max_output_tokens=item.max_output_tokens,
-                        supports_tools=item.supports_tools,
-                        supports_vision=item.supports_vision,
-                        supports_reasoning=item.supports_reasoning,
-                        supports_structured_output=item.supports_structured_output,
-                        capability_evidence=item.capability_evidence,
-                        hidden=item.hidden,
-                        retired=item.retired,
-                        available=(
-                            not item.hidden
-                            and not item.retired
-                            and item.discovery_state == "present"
+                    self._model_result_from_verification(
+                        item,
+                        self._technology.summarize_model(
+                            connection_id,
+                            item.model_id,
                         ),
-                        verification=self._model_verification_result(
-                            self._technology.summarize_model(
-                                connection_id,
-                                item.model_id,
-                            )
-                        ),
-                        discovery_state=item.discovery_state,
-                        consecutive_missing=item.consecutive_missing,
-                        last_seen_at=item.last_seen_at,
                     )
                     for item in refresh.models
                 ),
@@ -1517,6 +1559,27 @@ class ProvidersService:
             raise ProvidersUnavailable(
                 "Provider model projection unavailable"
             ) from error
+
+    @staticmethod
+    def _model_counts(
+        models: tuple[ProviderModelResult, ...],
+    ) -> ProviderModelCounts:
+        inventory = tuple(
+            model
+            for model in models
+            if model.discovery_state == "present" and not model.retired
+        )
+        enabled = tuple(model for model in inventory if not model.hidden)
+        statuses = tuple(model.verification.availability_status for model in enabled)
+        return ProviderModelCounts(
+            total=len(inventory),
+            enabled=len(enabled),
+            in_use=sum(model.verification.is_core for model in enabled),
+            available=sum(status == "available" for status in statuses),
+            degraded=sum(status == "degraded" for status in statuses),
+            pending=sum(status == "unknown" for status in statuses),
+            unavailable=sum(status == "unavailable" for status in statuses),
+        )
 
     @staticmethod
     def _product_result(product: StoredProviderProduct) -> ProviderProductResult:

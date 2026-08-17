@@ -99,6 +99,27 @@ def test_authority_change_hides_old_inventory_but_preserves_serving_endpoint() -
     assert manual.discovery_state == "present"
 
 
+def test_bundled_refresh_repairs_legacy_hidden_core_models_without_reenabling_user_choices() -> None:
+    merged = merge_refreshed_models(
+        (
+            ProviderModelRecord("legacy-core", source="official", hidden=True),
+            ProviderModelRecord("current-core", source="bundled_catalog", hidden=True),
+            ProviderModelRecord("manual-model", source="manual", hidden=True),
+        ),
+        (
+            ProviderModelRecord("legacy-core", source="bundled_catalog"),
+            ProviderModelRecord("current-core", source="bundled_catalog"),
+            ProviderModelRecord("manual-model", source="manual"),
+        ),
+        reset_hidden_for_refreshed=True,
+    )
+
+    by_id = {item.endpoint_model_id: item for item in merged}
+    assert by_id["legacy-core"].hidden is False
+    assert by_id["current-core"].hidden is True
+    assert by_id["manual-model"].hidden is True
+
+
 def test_live_refresh_retains_broad_inventory_as_hidden_other_models(tmp_path) -> None:
     adapter = provider_models_adapter(
         tmp_path / "providers.yaml",
@@ -406,7 +427,7 @@ def test_bundled_endpoint_metadata_is_not_shared_across_providers() -> None:
     assert custom.supports_vision is None
 
 
-def test_volcengine_refresh_uses_restricted_models_and_keeps_other_ids_hidden(
+def test_volcengine_refresh_uses_only_core_models_and_reclassifies_old_inventory(
     tmp_path,
 ) -> None:
     adapter = provider_models_adapter(
@@ -430,6 +451,12 @@ def test_volcengine_refresh_uses_restricted_models_and_keeps_other_ids_hidden(
                     "Wrong model",
                     source="official",
                 ),
+                StoredProviderModel(
+                    "deepseek-v4-pro",
+                    "DeepSeek V4 Pro",
+                    source="official",
+                    hidden=True,
+                ),
             ),
         ),
         None,
@@ -441,16 +468,11 @@ def test_volcengine_refresh_uses_restricted_models_and_keeps_other_ids_hidden(
             DiscoveredModel(
                 connection.connection_id,
                 "deepseek-v4-pro",
-                source="provider_models",
+                source="bundled_catalog",
                 curated=True,
             ),
-            DiscoveredModel(
-                connection.connection_id,
-                "live-extra-model",
-                source="provider_models",
-            ),
         ),
-        source="provider_models",
+        source="bundled_catalog",
         complete=True,
         authoritative=True,
     )
@@ -463,18 +485,16 @@ def test_volcengine_refresh_uses_restricted_models_and_keeps_other_ids_hidden(
             if item.model_id == "wrong-model-from-generic-models-endpoint"
         )
         assert stale_after_authority_change.discovery_state == "source_missing"
+        restored_core = next(
+            item for item in first.persisted_models if item.model_id == "deepseek-v4-pro"
+        )
+        assert restored_core.hidden is False
         refreshed = asyncio.run(
             adapter.refresh_models(replace(connection, models=first.persisted_models))
         )
 
     assert refreshed.status == "updated"
-    assert [model.model_id for model in refreshed.models if not model.hidden] == [
-        "deepseek-v4-pro"
-    ]
-    extra = next(
-        model for model in refreshed.models if model.model_id == "live-extra-model"
-    )
-    assert extra.hidden is True
+    assert [model.model_id for model in refreshed.models] == ["deepseek-v4-pro"]
     assert refreshed.persisted_models is not None
     stale = next(
         item
@@ -482,6 +502,55 @@ def test_volcengine_refresh_uses_restricted_models_and_keeps_other_ids_hidden(
         if item.model_id == "wrong-model-from-generic-models-endpoint"
     )
     assert stale.discovery_state == "source_missing"
+
+
+@pytest.mark.parametrize("failure_mode", ("returned_error", "raised_error"))
+def test_volcengine_fallback_never_uses_broad_remote_catalog(tmp_path, failure_mode) -> None:
+    adapter = provider_models_adapter(
+        tmp_path / "providers.yaml",
+        tmp_path / "auth.env",
+    )
+    product = adapter.get_product("volcengine_coding_plan")
+    assert product is not None
+    connection = adapter.create_connection(
+        StoredProviderConnection(
+            connection_id="",
+            catalog_id=product.catalog_id,
+            alias=product.name,
+            api_base=product.api_base,
+            api_mode=product.api_mode,
+            auth_type=product.auth_type,
+            credential_ref="",
+            models=(),
+        ),
+        None,
+    )
+    discovery = ModelDiscoveryResult(
+        provider=connection.connection_id,
+        models=(),
+        source="bundled_catalog",
+        complete=False,
+        authoritative=False,
+        error="adapter unavailable",
+    )
+    discovery_patch = patch.object(
+        type(adapter),
+        "_discover_with_slot",
+        side_effect=RuntimeError("adapter unavailable"),
+    ) if failure_mode == "raised_error" else patch.object(
+        type(adapter),
+        "_discover_with_slot",
+        return_value=discovery,
+    )
+    with discovery_patch, patch(
+        "infrastructure.models.provider_administration.remote_catalog_models",
+        side_effect=AssertionError("Volcengine must not use the broad remote catalog"),
+    ):
+        result = asyncio.run(adapter.refresh_models(connection))
+
+    assert result.status == "bundled_catalog"
+    core_model_ids = load_provider_catalog().products[product.catalog_id].bundled_models
+    assert [model.model_id for model in result.models] == core_model_ids
 
 
 def test_provider_adapter_keeps_secret_out_of_connection_fact(tmp_path) -> None:

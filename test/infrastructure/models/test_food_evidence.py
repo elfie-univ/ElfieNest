@@ -164,6 +164,36 @@ def test_projection_uses_inventory_identity(tmp_path) -> None:
     assert evidence["ollama_0001/odd-id"].display_name == "GLM-5"
 
 
+def test_projection_attaches_catalog_food_generation_preference(tmp_path) -> None:
+    provider_store = ProviderConnectionStore(tmp_path / "providers.yaml")
+    repository = ReportRepository(tmp_path / "reports.db")
+    provider_store.replace(
+        ProviderConnection(
+            connection_id="ollama_0001",
+            catalog_id="ollama",
+            alias="Ollama",
+            models=(ProviderModelRecord("qwen2.5:0.5b"),),
+        )
+    )
+    now = datetime.now(timezone.utc)
+    record_model_evidence(
+        (_evidence("ollama_0001/qwen2.5:0.5b", True, now.isoformat()),),
+        repository=repository,
+        scope="test",
+        trigger="benchmark",
+    )
+
+    evidence = query_model_evidence(
+        provider_catalog=PROVIDER_CATALOG,
+        repository=repository,
+        connection_store=provider_store,
+        now=now,
+    )["ollama_0001/qwen2.5:0.5b"]
+
+    assert evidence.auto_selection_priority == 20
+    assert evidence.quality_tier == 1
+
+
 def test_capability_observations_overlay_model_health_without_replacing_it(
     tmp_path,
 ) -> None:

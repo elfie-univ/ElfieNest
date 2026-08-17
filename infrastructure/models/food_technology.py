@@ -180,6 +180,8 @@ def _project_model(
     now: datetime,
     capability_observations: Sequence[ValidationObservation] = (),
     provider_block: object | None = None,
+    auto_selection_priority: int = 100,
+    quality_tier: int = 0,
 ) -> StoredModelEvidence:
     state = _validation_state(model, observation, now)
     if getattr(provider_block, "status", None) == "unavailable":
@@ -239,6 +241,8 @@ def _project_model(
         capabilities=frozenset(capabilities or {"text"}),
         verified=state == "verified",
         cost_grade=_int_value(details, "cost_grade", 2),
+        auto_selection_priority=auto_selection_priority,
+        quality_tier=quality_tier,
         latency_ms=observation.latency_ms if observation else None,
         tool_test_passed=bool(details.get("tool_test_passed", False))
         or capability_states.get("tools") == "supported",

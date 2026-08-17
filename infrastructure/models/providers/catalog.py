@@ -42,6 +42,7 @@ _CATALOG_FIELDS = frozenset(
         "brands",
         "products",
         "endpoint_model_hints",
+        "food_generation_preferences",
     }
 )
 _BRAND_FIELDS = frozenset({"name", "logo_asset"})
@@ -65,6 +66,9 @@ _PRODUCT_FIELDS = frozenset(
 )
 _RECOMMENDATION_FIELDS = frozenset({"id", "recommended"})
 _HINT_FIELDS = frozenset({"api_base_contains", "models"})
+_FOOD_PREFERENCE_FIELDS = frozenset(
+    {"catalog_id", "model_id", "priority", "quality_tier"}
+)
 
 
 class ProviderCatalogError(RuntimeError):
@@ -110,6 +114,14 @@ class EndpointModelHint:
 
 
 @dataclass(frozen=True)
+class FoodGenerationPreference:
+    catalog_id: str
+    model_id: str
+    priority: int
+    quality_tier: int
+
+
+@dataclass(frozen=True)
 class OllamaModelRecommendation:
     """One local Ollama model and whether Setup should emphasize it."""
 
@@ -125,6 +137,7 @@ class ProviderCatalog:
     endpoint_model_hints: tuple[EndpointModelHint, ...]
     ollama_recommended_models: tuple[OllamaModelRecommendation, ...]
     source: Path
+    food_generation_preferences: tuple[FoodGenerationPreference, ...] = ()
 
     @property
     def profiles(self) -> Dict[str, ProviderProfile]:
@@ -139,6 +152,20 @@ class ProviderCatalog:
             if hint.api_base_contains in normalized:
                 return list(hint.models)
         return []
+
+    def food_generation_preference(
+        self,
+        catalog_id: str,
+        model_id: str,
+    ) -> FoodGenerationPreference | None:
+        return next(
+            (
+                item
+                for item in self.food_generation_preferences
+                if item.catalog_id == catalog_id and item.model_id == model_id
+            ),
+            None,
+        )
 
 
 def parse_provider_catalog(
@@ -231,6 +258,11 @@ def parse_provider_catalog(
     if not isinstance(raw_hints, list):
         raise ProviderCatalogError(f"endpoint_model_hints must be a list: {source}")
     hints = tuple(_parse_hint(item, source) for item in raw_hints)
+    preferences = _parse_food_generation_preferences(
+        document.get("food_generation_preferences", ()),
+        products,
+        source,
+    )
     return ProviderCatalog(
         version=PROVIDER_CATALOG_VERSION,
         brands=brands,
@@ -238,6 +270,7 @@ def parse_provider_catalog(
         endpoint_model_hints=hints,
         ollama_recommended_models=ollama_recommended_models,
         source=source,
+        food_generation_preferences=preferences,
     )
 
 
@@ -421,6 +454,68 @@ def _parse_hint(raw: Any, source: Path) -> EndpointModelHint:
     if not normalized_models:
         raise ProviderCatalogError(f"Endpoint model hint has no models: {source}")
     return EndpointModelHint(contains, normalized_models)
+
+
+def _parse_food_generation_preferences(
+    raw: Any,
+    products: Mapping[str, ProviderProfile],
+    source: Path,
+) -> tuple[FoodGenerationPreference, ...]:
+    if raw in (None, ()):
+        return ()
+    if not isinstance(raw, list):
+        raise ProviderCatalogError(
+            f"food_generation_preferences must be a list: {source}"
+        )
+    preferences: list[FoodGenerationPreference] = []
+    seen: set[tuple[str, str]] = set()
+    for item in raw:
+        if not isinstance(item, Mapping):
+            raise ProviderCatalogError(
+                f"Food generation preference must be an object: {source}"
+            )
+        _reject_unknown(
+            item,
+            _FOOD_PREFERENCE_FIELDS,
+            "Food generation preference",
+            source,
+        )
+        catalog_id = _required_text(
+            item.get("catalog_id"), "catalog_id", "food", source
+        )
+        model_id = _required_text(item.get("model_id"), "model_id", catalog_id, source)
+        priority = item.get("priority")
+        quality_tier = item.get("quality_tier")
+        if (
+            catalog_id not in products
+            or model_id not in products[catalog_id].bundled_models
+            or not isinstance(priority, int)
+            or isinstance(priority, bool)
+            or priority < 0
+            or priority > 1000
+            or not isinstance(quality_tier, int)
+            or isinstance(quality_tier, bool)
+            or quality_tier < 0
+            or quality_tier > 3
+        ):
+            raise ProviderCatalogError(
+                f"Invalid Food generation preference: {catalog_id}/{model_id}: {source}"
+            )
+        key = (catalog_id, model_id)
+        if key in seen:
+            raise ProviderCatalogError(
+                f"Duplicate Food generation preference: {catalog_id}/{model_id}: {source}"
+            )
+        seen.add(key)
+        preferences.append(
+            FoodGenerationPreference(
+                catalog_id=catalog_id,
+                model_id=model_id,
+                priority=priority,
+                quality_tier=quality_tier,
+            )
+        )
+    return tuple(preferences)
 
 
 def _required_string(

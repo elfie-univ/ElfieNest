@@ -63,6 +63,7 @@ from .models import (
     ErrorDetails,
     ErrorItem,
     ErrorResponse,
+    LocalModelCountsResponse,
     LocalProviderInstallRequest,
     LocalProviderModelResponse,
     LocalProviderPullRequest,
@@ -168,6 +169,18 @@ def start_local_provider(
             principal,
             StartLocalProviderCommand(),
         )
+    except _PROVIDER_ERRORS as error:
+        return _error_response(error)
+    return _local_provider_response(result)
+
+
+@router.post("/ollama/verify", response_model=LocalProviderStatusResponse)
+async def verify_local_provider_models(
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: ProvidersService = ProvidersDependency,
+) -> RouteResult:
+    try:
+        result = await service.verify_local_models(principal)
     except _PROVIDER_ERRORS as error:
         return _error_response(error)
     return _local_provider_response(result)
@@ -794,6 +807,7 @@ def _local_provider_response(
         memory_gb=result.memory_gb,
         recommended_model=result.recommended_model,
         installed_model_count=result.installed_model_count,
+        model_counts=LocalModelCountsResponse.from_result(result.model_counts),
         models=tuple(
             LocalProviderModelResponse(
                 id=item.model_id,

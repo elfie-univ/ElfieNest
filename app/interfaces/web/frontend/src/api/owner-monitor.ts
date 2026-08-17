@@ -1,8 +1,11 @@
 import { z } from "zod"
 
 import { adminElfies } from "./admin/elfies"
+import { ownerFoods, type FoodCatalog } from "./admin/food-packages"
 import { embodimentSessions } from "./admin/embodiment-sessions"
 import { ApiError, ownerRead } from "./http"
+import { supportedOllamaModelCounts, type SupportedOllamaModelCounts } from "./owner-ollama"
+import { setupModelCatalog } from "./setup"
 
 const HealthSchema = z.object({
   status: z.string(),
@@ -67,6 +70,16 @@ const ElfieSummarySchema = z.object({
   }).strict(),
 }).strict()
 
+const ProviderModelCountsSchema = z.object({
+  total: z.number().int().min(0),
+  enabled: z.number().int().min(0),
+  in_use: z.number().int().min(0),
+  available: z.number().int().min(0),
+  degraded: z.number().int().min(0),
+  pending: z.number().int().min(0),
+  unavailable: z.number().int().min(0),
+}).strict()
+
 const RoomSummarySchema = z.object({
   beds: z.array(z.object({ occupant_id: z.string().nullable() }).passthrough()),
 }).passthrough()
@@ -77,7 +90,11 @@ const ProviderSummarySchema = z.object({
   alias: z.string(),
   enabled: z.boolean(),
   archived: z.boolean(),
-  verification: z.object({ status: z.enum(["never", "passed", "failed"]) }).passthrough(),
+  verification: z.object({
+    status: z.enum(["never", "passed", "failed"]),
+    availability_status: z.enum(["available", "degraded", "unavailable", "unknown"]).optional(),
+  }).passthrough(),
+  model_counts: ProviderModelCountsSchema,
   models: z.array(z.object({
     available: z.boolean(),
     hidden: z.boolean(),
@@ -95,11 +112,19 @@ const OllamaStatusSchema = z.object({
   state: z.enum(["absent", "healthy", "stopped", "deleted", "installing", "failed", "cancelled", "repair_required"]),
   recommended_model: z.string().nullable(),
   installed_model_count: z.number().int().min(0),
+  model_counts: z.object({
+    installed: z.number().int().min(0),
+    available: z.number().int().min(0),
+    degraded: z.number().int().min(0),
+    pending: z.number().int().min(0),
+    unavailable: z.number().int().min(0),
+  }).strict(),
   models: z.array(z.object({
+    id: z.string(),
     installed: z.boolean(),
     available: z.boolean().optional(),
     availability_status: z.enum(["available", "degraded", "unavailable", "unknown"]).optional(),
-  }).passthrough()).optional(),
+  }).passthrough()),
 }).passthrough()
 
 export type MonitorHealth = z.infer<typeof HealthSchema>
@@ -108,9 +133,13 @@ export type MonitorUser = z.infer<typeof UserSummarySchema>
 export type MonitorElfie = z.infer<typeof ElfieSummarySchema>
 export type MonitorRoom = z.infer<typeof RoomSummarySchema>
 export type MonitorProvider = z.infer<typeof ProviderSummarySchema>
-export type MonitorOllama = z.infer<typeof OllamaStatusSchema>
+type MonitorOllamaStatus = z.infer<typeof OllamaStatusSchema>
+export type MonitorOllama = MonitorOllamaStatus & {
+  readonly supported_model_counts: SupportedOllamaModelCounts | null
+}
+export type MonitorFood = FoodCatalog["packages"][number]
 
-export const MONITOR_SOURCE_KEYS = ["health", "runtime", "users", "elfies", "rooms", "providers", "ollama"] as const
+export const MONITOR_SOURCE_KEYS = ["health", "runtime", "users", "elfies", "rooms", "providers", "ollama", "foods"] as const
 export type MonitorSourceKey = (typeof MONITOR_SOURCE_KEYS)[number]
 
 export type MonitorSnapshot = {
@@ -121,6 +150,7 @@ export type MonitorSnapshot = {
   readonly rooms: readonly MonitorRoom[] | null
   readonly providers: readonly MonitorProvider[] | null
   readonly ollama: MonitorOllama | null
+  readonly foods: readonly MonitorFood[] | null
   readonly failedSources: readonly MonitorSourceKey[]
   readonly authRequired: boolean
 }
@@ -160,9 +190,18 @@ export async function loadMonitorSnapshot(): Promise<MonitorSnapshot> {
     }).then((items) => z.array(ElfieSummarySchema).parse(items)),
     readSchema("/api/v1/admin/nest/rooms", RoomListSchema),
     readSchema("/api/v1/admin/model-providers/connections", ProviderListSchema),
-    readSchema("/api/v1/admin/model-providers/ollama", OllamaStatusSchema),
+    Promise.all([
+      readSchema("/api/v1/admin/model-providers/ollama", OllamaStatusSchema),
+      setupModelCatalog().then((models) => models.map((model) => model.model_id)).catch(() => null),
+    ]).then(([status, supportedModelIds]): MonitorOllama => ({
+      ...status,
+      supported_model_counts: supportedModelIds === null
+        ? null
+        : supportedOllamaModelCounts(status, supportedModelIds),
+    })),
+    ownerFoods().then(({ packages }) => packages),
   ] as const)
-  const [health, runtime, users, elfies, rooms, providers, ollama] = results
+  const [health, runtime, users, elfies, rooms, providers, ollama, foods] = results
   const failedSources: MonitorSourceKey[] = []
   if (sourceFailed(health)) failedSources.push("health")
   if (sourceFailed(runtime)) failedSources.push("runtime")
@@ -171,6 +210,7 @@ export async function loadMonitorSnapshot(): Promise<MonitorSnapshot> {
   if (sourceFailed(rooms)) failedSources.push("rooms")
   if (sourceFailed(providers)) failedSources.push("providers")
   if (sourceFailed(ollama)) failedSources.push("ollama")
+  if (sourceFailed(foods)) failedSources.push("foods")
   const authRequired = results.some(sourceRequiresAuth)
   return {
     health: sourceValue(health),
@@ -180,6 +220,7 @@ export async function loadMonitorSnapshot(): Promise<MonitorSnapshot> {
     rooms: sourceValue(rooms),
     providers: sourceValue(providers),
     ollama: sourceValue(ollama),
+    foods: sourceValue(foods),
     failedSources,
     authRequired,
   }

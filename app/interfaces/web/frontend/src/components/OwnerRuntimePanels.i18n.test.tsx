@@ -29,7 +29,7 @@ describe("runtime panel behavior", () => {
   it("renders the monitor in English while preserving technical values", async () => {
     renderWithLocale(<ToastProvider><ManageMonitorPanel /></ToastProvider>, "en-US")
 
-    expect(await screen.findByText("Model service details")).toBeInTheDocument()
+    expect(await screen.findByText("AI service details")).toBeInTheDocument()
     expect(screen.getByText("Users")).toBeInTheDocument()
     expect(screen.getByText("Elfies")).toBeInTheDocument()
     expect(screen.getByText("Ollama")).toBeInTheDocument()
@@ -86,7 +86,7 @@ describe("runtime panel behavior", () => {
     expect(await screen.findByText("部分状态数据暂时无法读取。")).toBeInTheDocument()
     expect(screen.getByText("用户")).toBeInTheDocument()
     expect(screen.getAllByText("2")).toHaveLength(2)
-    expect(screen.getByText("模型服务明细")).toBeInTheDocument()
+    expect(screen.getByText("AI 服务明细")).toBeInTheDocument()
   })
 
   it.each([401, 403])("shows an authentication notice for protected read status %i", async (status) => {
@@ -138,10 +138,54 @@ function monitorPayload(path: string, lastEvent: ModelExecutionEventFixture | nu
         enabled: true,
         archived: false,
         verification: { status: "passed" },
+        model_counts: { total: 1, enabled: 1, in_use: 1, available: 1, degraded: 0, pending: 0, unavailable: 0 },
         models: [{ available: true, hidden: false, retired: false, verification: { is_core: true } }],
       }] }
     case "/api/v1/admin/model-providers/ollama":
-      return { state: "healthy", recommended_model: "qwen2.5:0.5b", installed_model_count: 1 }
+      return {
+        state: "healthy",
+        recommended_model: "qwen2.5:0.5b",
+        installed_model_count: 1,
+        model_counts: { installed: 1, available: 1, degraded: 0, pending: 0, unavailable: 0 },
+        models: [{ id: "qwen2.5:0.5b", installed: true, available: true, availability_status: "available" }],
+      }
+    case "/api/v1/setup/models":
+      return { items: [{ model_id: "qwen2.5:0.5b", label: "qwen2.5:0.5b", approx_download_mb: 398, recommended: true }] }
+    case "/api/v1/admin/food-packages":
+      return {
+        version: 2,
+        global_default_food_id: "food_common",
+        global_emergency_food_id: "food_emergency",
+        packages: [
+          {
+            key: "food_common",
+            display_name: "Common Food",
+            system_role: "common",
+            enabled: true,
+            archived: false,
+            visibility_mode: "global",
+            visible_user_ids: [],
+            roles: { primary: null, reasoning: null, vision: null, tool: null, fallback: null },
+            health: "healthy",
+            locality: "remote",
+            latest_evidence_at: "2026-08-17T00:00:00Z",
+          },
+          {
+            key: "food_emergency",
+            display_name: "Emergency Food",
+            system_role: "emergency",
+            enabled: true,
+            archived: false,
+            visibility_mode: "global",
+            visible_user_ids: [],
+            roles: { primary: null, reasoning: null, vision: null, tool: null, fallback: null },
+            health: "healthy",
+            locality: "local",
+            latest_evidence_at: "2026-08-17T00:00:00Z",
+          },
+        ],
+        eligible_models: [],
+      }
     default:
       return { endpoint: "https://raw.example/v1", protocol_field: "raw_value" }
   }

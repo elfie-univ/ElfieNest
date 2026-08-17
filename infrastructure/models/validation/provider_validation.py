@@ -146,8 +146,6 @@ def discover_provider_models_result(
                 provider_id,
                 provider,
                 profile,
-                timeout=timeout,
-                allow_configured_fallback=allow_configured_fallback,
                 max_models=max_models,
             )
         configured = _configured_models(provider, config.provider_catalog)
@@ -292,39 +290,60 @@ def _discover_volcengine_coding_plan_models(
     provider: Mapping[str, Any],
     profile: Any,
     *,
-    timeout: float,
-    allow_configured_fallback: bool,
     max_models: int,
 ) -> ModelDiscoveryResult:
-    """Read the account-scoped Coding Plan inventory, not the platform catalog.
+    """Return the Coding Plan product allowlist without calling ``/models``.
 
-    The Coding Plan gateway has a distinct ``/api/coding`` path.  Refuse to
-    reinterpret a caller-provided general Ark endpoint as a subscription
-    inventory; a failed product-specific discovery may use labelled curated
-    fallback data, but it must not claim account entitlement.
+    The Coding Plan endpoint exposes a broad platform inventory containing
+    models that are not part of this product and generally cannot be used by
+    the subscription.  The Provider-specific adapter therefore treats the
+    versioned ``bundled_models`` list as its only model source.
     """
     api_base = str(provider.get("api_base", "")).rstrip("/")
-    api_key = str(provider.get("api_key", ""))
     parsed_path = urlparse(api_base).path.rstrip("/")
     if "/api/coding/" not in f"{parsed_path}/":
-        return _configured_discovery_fallback(
+        return ModelDiscoveryResult(
             provider_id,
-            provider,
-            None,
+            (),
+            "bundled_catalog",
+            complete=False,
+            authoritative=False,
             error="火山引擎 Coding Plan 的 API Base 必须位于 /api/coding 网关",
-            allow_configured_fallback=allow_configured_fallback,
         )
-    return _discover_models_endpoint(
+    bundled = _bundled_model_names(provider, profile)
+    if not bundled:
+        return ModelDiscoveryResult(
+            provider_id,
+            (),
+            "bundled_catalog",
+            complete=False,
+            authoritative=False,
+            error="火山引擎 Coding Plan 缺少核心 bundled_models 清单",
+        )
+    if len(bundled) > max_models:
+        return ModelDiscoveryResult(
+            provider_id,
+            (),
+            "bundled_catalog",
+            complete=False,
+            authoritative=False,
+            error=f"核心模型清单超过上限 {max_models}",
+        )
+    return ModelDiscoveryResult(
         provider_id,
-        provider,
-        profile,
-        api_base=api_base,
-        api_key=api_key,
-        api_mode=str(provider.get("api_mode", "")) or detect_api_mode_for_url(api_base),
-        timeout=timeout,
-        allow_configured_fallback=allow_configured_fallback,
-        max_models=max_models,
-        source_error_prefix="火山引擎 Coding Plan 模型清单",
+        tuple(
+            DiscoveredModel(
+                provider_id,
+                name,
+                source="bundled_catalog",
+                display_name=name,
+                curated=True,
+            )
+            for name in bundled
+        ),
+        "bundled_catalog",
+        complete=True,
+        authoritative=True,
     )
 
 

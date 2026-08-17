@@ -1,13 +1,16 @@
 import { Button } from "@/components/ui/button"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import {
   installOllama,
   ownerOllamaStatus,
+  supportedOllamaModelCounts,
   startOllama,
+  verifyOllamaModels,
   type OllamaStatus,
 } from "../api/owner-ollama"
+import { setupModelCatalog } from "../api/setup"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
 import { currentLocale } from "../i18n/format"
 import { Notice } from "./Notice"
@@ -18,14 +21,18 @@ type Props = {
 }
 
 type OllamaState = OllamaStatus["state"]
+type OllamaDisplayState = OllamaState | "loading" | "no_models"
 
 export function OwnerOllamaPanel({ csrfToken }: Props) {
   const { i18n, t } = useTranslation("manage")
   const locale = currentLocale(i18n)
   const [status, setStatus] = useState<OllamaStatus | null>(null)
+  const [supportedModelIds, setSupportedModelIds] = useState<readonly string[] | null>(null)
+  const [supportedModelsLoaded, setSupportedModelsLoaded] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [pending, setPending] = useState<"install" | "start" | null>(null)
   const [error, setError] = useState<LocalizedErrorState>(null)
+  const autoVerificationRef = useRef<string | null>(null)
 
   const refresh = async (): Promise<void> => {
     try {
@@ -39,10 +46,48 @@ export function OwnerOllamaPanel({ csrfToken }: Props) {
   useEffect(() => { void refresh() }, [])
 
   useEffect(() => {
+    void setupModelCatalog()
+      .then((models) => setSupportedModelIds(models.map((model) => model.model_id)))
+      .catch(() => setSupportedModelIds(null))
+      .finally(() => setSupportedModelsLoaded(true))
+  }, [])
+
+  useEffect(() => {
     if (status?.task?.state !== "running") return
     const timer = window.setInterval(() => { void refresh() }, 1000)
     return () => window.clearInterval(timer)
   }, [status?.task?.state])
+
+  const supportedCounts = status === null || supportedModelIds === null
+    ? status?.model_counts ?? null
+    : supportedOllamaModelCounts(status, supportedModelIds)
+  const pendingModelKey = status === null || supportedModelIds === null
+    ? ""
+    : status.models
+      .filter((model) => model.installed && supportedModelIds.includes(model.id) && model.availability_status === "unknown")
+      .map((model) => model.id)
+      .sort()
+      .join("|")
+
+  useEffect(() => {
+    if (
+      status?.state !== "healthy"
+      || supportedModelIds === null
+      || supportedCounts === null
+      || supportedCounts.pending === 0
+      || pendingModelKey === ""
+      || autoVerificationRef.current === pendingModelKey
+    ) return
+    autoVerificationRef.current = pendingModelKey
+    void (async () => {
+      try {
+        setStatus(await verifyOllamaModels(csrfToken))
+        setError(null)
+      } catch (reason: unknown) {
+        setError(describeApiError(reason, "manage.save"))
+      }
+    })()
+  }, [csrfToken, pendingModelKey, status?.state, supportedModelIds, supportedCounts?.pending])
 
   const runAction = async (action: "install" | "start"): Promise<void> => {
     setPending(action)
@@ -65,7 +110,17 @@ export function OwnerOllamaPanel({ csrfToken }: Props) {
   const needsRepair = state === "repair_required"
   const action = "start"
   const canUseModels = status !== null && !["absent", "deleted", "failed", "cancelled", "repair_required"].includes(state) && !installing
-  const localDisplayState = state === "healthy" && status !== null && status.installed_model_count === 0 ? "no_models" : state
+  const displayedStatus = status === null || supportedModelIds === null || supportedCounts === null
+    ? status
+    : {
+        ...status,
+        installed_model_count: supportedCounts.installed,
+        model_counts: supportedCounts,
+        models: status.models.filter((model) => supportedModelIds.includes(model.id)),
+      }
+  const localDisplayState: OllamaDisplayState = status === null || !supportedModelsLoaded
+    ? "loading"
+    : state === "healthy" && supportedCounts?.installed === 0 ? "no_models" : state
   const buttonLabel = state === "stopped"
     ? t("providerConnections.ollama.actions.start")
     : t("providerConnections.ollama.actions.restart")
@@ -76,7 +131,7 @@ export function OwnerOllamaPanel({ csrfToken }: Props) {
     <div className="provider-grid provider-grid--local">
       <article className={`provider-card provider-card--ollama provider-card--ollama-${localDisplayState}`}>
         <div className="provider-card__title"><h4>{t("providerConnections.ollama.name")}</h4><span className={`status-badge status-badge--${localDisplayState}`}>{ollamaStatusLabel(state, t, localDisplayState)}</span></div>
-        <p>{status ? t("providerConnections.ollama.card.availableModels", { count: status.installed_model_count }) : t("providerConnections.ollama.card.loading")}</p>
+        <p aria-live="polite">{status && supportedModelsLoaded && supportedCounts ? t("providerConnections.ollama.card.modelStats", { available: supportedCounts.available, total: supportedCounts.installed }) : t("providerConnections.ollama.card.loading")}</p>
         <div className="manage-actions">
           {installing ? <Button disabled type="button" variant="outline">{t("providerConnections.ollama.actions.installing", { progress: task.progress })}</Button> : null}
           {!installing && status !== null && needsRepair ? <Button disabled type="button" variant="outline">{t("providerConnections.ollama.actions.repairRequired")}</Button> : null}
@@ -86,11 +141,12 @@ export function OwnerOllamaPanel({ csrfToken }: Props) {
         </div>
       </article>
     </div>
-    <OllamaModelsDialog csrfToken={csrfToken} onChanged={refresh} onOpenChange={setDialogOpen} open={dialogOpen} status={status} />
+    <OllamaModelsDialog csrfToken={csrfToken} onChanged={refresh} onOpenChange={setDialogOpen} open={dialogOpen} status={displayedStatus} />
   </section>
 }
 
-function ollamaStatusLabel(state: OllamaState, t: (key: string) => string, displayState: OllamaState | "no_models" = state): string {
+function ollamaStatusLabel(state: OllamaState, t: (key: string) => string, displayState: OllamaDisplayState = state): string {
+  if (displayState === "loading") return t("providerConnections.ollama.status.loading")
   if (displayState === "no_models") return t("providerConnections.ollama.status.noModels")
   switch (state) {
     case "absent": return t("providerConnections.ollama.status.absent")

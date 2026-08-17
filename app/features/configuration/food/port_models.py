@@ -74,6 +74,12 @@ class StoredModelEvidence:
     capabilities: frozenset[str]
     verified: bool
     cost_grade: int = 2
+    # Product-maintained recommendation metadata is projected onto the
+    # exact Provider/model evidence row.  It is deliberately separate from
+    # validation facts and remains harmless when a model is unknown to the
+    # catalog.
+    auto_selection_priority: int = 100
+    quality_tier: int = 0
     latency_ms: float | None = None
     tool_test_passed: bool = False
     local: bool = False

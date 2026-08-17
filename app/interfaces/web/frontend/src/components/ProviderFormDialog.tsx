@@ -10,6 +10,7 @@ import type {
 } from "../api/owner-providers"
 import { describeApiError, resolveLocalizedError } from "../i18n/errors"
 import { currentLocale } from "../i18n/format"
+import { Icon } from "./Icon"
 import { ManageDialog } from "./ManageDialog"
 import { Notice } from "./Notice"
 import { SelectField } from "./SelectField"
@@ -29,8 +30,6 @@ type ProviderFormDialogProps = {
   readonly products: readonly ProviderProduct[]
 }
 
-type FormStep = "choose" | "configure"
-
 export function ProviderFormDialog({
   connection,
   onOpenChange,
@@ -43,7 +42,6 @@ export function ProviderFormDialog({
   const [alias, setAlias] = useState("")
   const [apiKey, setApiKey] = useState("")
   const [selectedCatalogId, setSelectedCatalogId] = useState("")
-  const [step, setStep] = useState<FormStep>("choose")
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [oauthStart, setOauthStart] = useState<ProviderOAuthLoginStart | null>(null)
@@ -56,8 +54,7 @@ export function ProviderFormDialog({
     authorizationController.current = null
     setAlias(connection?.alias ?? "")
     setApiKey("")
-    setSelectedCatalogId(products[0]?.catalog_id ?? "")
-    setStep(connection ? "configure" : "choose")
+    setSelectedCatalogId(connection?.catalog_id ?? products[0]?.catalog_id ?? "")
     setPending(false)
     setError(null)
     setOauthStart(null)
@@ -104,13 +101,6 @@ export function ProviderFormDialog({
     }
   }
 
-  const cancelAuthorization = (): void => {
-    authorizationController.current?.abort()
-    authorizationController.current = null
-    authorizationAttempt.current += 1
-    setPending(false)
-  }
-
   const copyAuthorizationCode = async (): Promise<void> => {
     if (!oauthStart) return
     await navigator.clipboard.writeText(oauthStart.user_code)
@@ -118,10 +108,6 @@ export function ProviderFormDialog({
 
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault()
-    if (step === "choose") {
-      setStep("configure")
-      return
-    }
     if (method === "oauth" && !connection) {
       await beginAuthorization()
       return
@@ -132,7 +118,7 @@ export function ProviderFormDialog({
       await onSave(product.catalog_id, {
         ...(alias.trim() ? { alias: alias.trim() } : {}),
         ...(!connection || apiKey ? { api_key: apiKey } : {}),
-        ...(!connection ? { refresh_models: true, verify: false } : {}),
+        ...(!connection ? { refresh_models: false, verify: false } : {}),
       })
     } catch (reason: unknown) {
       setError(resolveLocalizedError(describeApiError(reason, "manage.save"), currentLocale(i18n)) ?? t("providerConnections.errors.save"))
@@ -149,46 +135,27 @@ export function ProviderFormDialog({
   return <ManageDialog contentClassName="provider-form-dialog" onOpenChange={(nextOpen) => { if (!nextOpen) close() }} open={open} title={title}>
     {error ? <Notice kind="error" message={error} /> : null}
     <form className="provider-form" onSubmit={(event) => { void submit(event) }}>
-      {step === "choose" ? <>
-        <TextField label={t("providerConnections.form.alias")} onChange={setAlias} placeholder={brandName} value={alias} />
-        {product.brand.brand_id !== "openai" && methodOptions.length === 1
-          ? <TextField disabled label={t("providerConnections.form.method")} onChange={() => undefined} value={methodOptions[0]?.label ?? ""} />
-          : <SelectField label={t("providerConnections.form.method")} onValueChange={setSelectedCatalogId} options={methodOptions} value={product.catalog_id} />}
-        <div className="manage-actions">
-          <Button type="submit">{t("providerConnections.actions.choose")}</Button>
-          <Button onClick={close} type="button" variant="outline">{t("providerConnections.actions.cancel")}</Button>
-        </div>
-      </> : <>
-        <TextField label={t("providerConnections.form.alias")} onChange={setAlias} placeholder={product.name} value={alias} />
-        {method === "api_key" ? <TextField autoComplete="new-password" autoFocus label={t("providerConnections.form.apiKey")} onChange={setApiKey} required={!connection} type="password" value={apiKey} /> : null}
-        {method === "oauth" && !connection ? <>
-          <p className="provider-form__unavailable" role="status">
-            {product.oauth_available ? t("providerConnections.form.oauthAvailable") : t("providerConnections.form.oauthUnavailable")}
-          </p>
-          {product.discovery_strategy === "catalog_only" ? <Notice message={t("providerConnections.form.oauthCatalogNotice")} /> : null}
-        </> : null}
-        {oauthStart ? <div className="provider-form__oauth" role="status">
-          <p>{t("providerConnections.form.oauthCodeLabel")}</p>
+      <TextField label={t("providerConnections.form.alias")} onChange={setAlias} placeholder={product.name || brandName} value={alias} />
+      {product.brand.brand_id !== "openai" && methodOptions.length === 1
+        ? <TextField disabled label={t("providerConnections.form.method")} onChange={() => undefined} value={methodOptions[0]?.label ?? ""} />
+        : <SelectField label={t("providerConnections.form.method")} onValueChange={setSelectedCatalogId} options={methodOptions} value={product.catalog_id} />}
+      {method === "api_key" ? <TextField autoComplete="new-password" autoFocus label={t("providerConnections.form.apiKey")} onChange={setApiKey} required={!connection} type="password" value={apiKey} /> : null}
+      {method === "oauth" && !connection && oauthStart ? <div className="provider-form__oauth" role="status">
+        <p>{t("providerConnections.form.oauthCodeLabel")}</p>
+        <div className="provider-form__oauth-code-row">
           <strong className="provider-form__oauth-code">{oauthStart.user_code}</strong>
-          <div className="manage-actions">
-            <Button onClick={() => { void copyAuthorizationCode() }} type="button" variant="outline">{t("providerConnections.actions.copyCode")}</Button>
-            <Button asChild variant="outline"><a href={oauthStart.authorization_url} rel="noreferrer" target="_blank">{t("providerConnections.form.oauthOpen")}</a></Button>
-          </div>
-          <p>{pending ? t("providerConnections.form.oauthWaiting") : t("providerConnections.form.oauthCancelled")}</p>
-        </div> : null}
-        <div className="manage-actions">
-          {method === "oauth" && !connection
-            ? oauthStart
-              ? <>
-                <Button onClick={() => { void beginAuthorization() }} type="button">{t("providerConnections.actions.regenerateCode")}</Button>
-                {pending ? <Button onClick={cancelAuthorization} type="button" variant="outline">{t("providerConnections.actions.cancelWaiting")}</Button> : null}
-              </>
-              : <Button disabled={pending || !product.oauth_available} type="submit">{pending ? t("providerConnections.actions.authorizing") : t("providerConnections.actions.authorize")}</Button>
-            : <Button disabled={pending} type="submit">{pending ? t("providerConnections.actions.saving") : t("providerConnections.actions.save")}</Button>}
-          {!connection ? <Button disabled={pending} onClick={() => { cancelAuthorization(); setStep("choose") }} type="button" variant="outline">{t("providerConnections.actions.back")}</Button> : null}
-          <Button onClick={close} type="button" variant="outline">{t("providerConnections.actions.cancel")}</Button>
+          <Button aria-label={t("providerConnections.actions.copyCode")} onClick={() => { void copyAuthorizationCode() }} size="icon-sm" title={t("providerConnections.actions.copyCode")} type="button" variant="outline"><Icon name="copy" size={16} /></Button>
         </div>
-      </>}
+        <Button asChild className="provider-form__oauth-open" variant="outline"><a href={oauthStart.authorization_url} rel="noreferrer" target="_blank">{t("providerConnections.form.oauthOpen")}</a></Button>
+        <p>{pending ? t("providerConnections.form.oauthWaiting") : t("providerConnections.form.oauthCancelled")}</p>
+      </div> : null}
+      <div className="manage-actions">
+        {method === "oauth" && !connection
+          ? oauthStart
+            ? <Button disabled={pending} onClick={() => { void beginAuthorization() }} type="button">{t("providerConnections.actions.regenerateCode")}</Button>
+            : <Button disabled={pending || !product.oauth_available} type="submit">{pending ? t("providerConnections.actions.authorizing") : t("providerConnections.actions.authorize")}</Button>
+          : <Button disabled={pending} type="submit">{pending ? t("providerConnections.actions.saving") : t("providerConnections.actions.save")}</Button>}
+      </div>
     </form>
   </ManageDialog>
 }

@@ -1,4 +1,24 @@
 version: 2
+food_generation_preferences:
+  # Lower priority wins after exact model evidence is fresh.  Tier 2 is the
+  # minimum quality tier for normal automatic Food generation; local Ollama
+  # remains eligible for Emergency Food even when its tier is lower.
+  - catalog_id: ollama
+    model_id: qwen2.5:0.5b
+    priority: 20
+    quality_tier: 1
+  - catalog_id: openai_api
+    model_id: gpt-4o-mini
+    priority: 30
+    quality_tier: 2
+  - catalog_id: deepseek_api
+    model_id: deepseek-chat
+    priority: 20
+    quality_tier: 2
+  - catalog_id: volcengine_coding_plan
+    model_id: deepseek-v4-flash
+    priority: 10
+    quality_tier: 2
 ollama_recommended_models:
   - id: qwen2.5:0.5b
     recommended: true
@@ -318,21 +338,19 @@ products:
     api_key_env_var: ARK_API_KEY
     connection_method: api_key
     usage_scope: coding_only
-    # Coding Plan exposes a subscription-scoped /models inventory below the
-    # coding gateway. bundled_models is only the product-maintained core list
-    # and fallback recommendation set, never the account entitlement source.
+    # Coding Plan uses the Provider-specific adapter and this product-owned
+    # core allowlist. Never discover the broad platform /models inventory.
     discovery_strategy: provider_adapter
     oauth_available: false
     test_model: deepseek-v4-pro
     bundled_models:
-      - doubao-seed-2.0-lite
-      - glm-5.2
-      - kimi-k2.7-code
-      - deepseek-v4-pro
-      - minimax-m3
       - doubao-seed-2.1-turbo
-      - deepseek-v4-flash
+      - doubao-seed-2.0-lite
+      - minimax-m3
       - glm-5.3
+      - deepseek-v4-flash
+      - deepseek-v4-pro
+      - kimi-k2.7-code
 endpoint_model_hints:
   - api_base_contains: maas-coding-api.cn-huabei-1.xf-yun.com
     models:

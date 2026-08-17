@@ -569,6 +569,7 @@ def _validate_provider_catalog_shape(
             "brands",
             "products",
             "endpoint_model_hints",
+            "food_generation_preferences",
         },
         label,
     )
@@ -580,6 +581,9 @@ def _validate_provider_catalog_shape(
     hints = document.get("endpoint_model_hints", [])
     if not isinstance(hints, list):
         raise ConfigSchemaError(f"{label}.endpoint_model_hints 必须是数组")
+    preferences = document.get("food_generation_preferences", [])
+    if not isinstance(preferences, list):
+        raise ConfigSchemaError(f"{label}.food_generation_preferences 必须是数组")
 
 
 def _validate_provider_connections_shape(

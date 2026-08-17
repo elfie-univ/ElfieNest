@@ -1,11 +1,9 @@
-import { render, screen, within } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
-  cleanupObsoleteProviderModels,
-  listObsoleteProviderModels,
   saveProviderModels,
   updateProviderModel,
   type ProviderConnection,
@@ -19,8 +17,6 @@ vi.mock("../api/owner-providers", async (loadOriginal) => {
   return {
     ...original,
     addProviderModel: vi.fn(),
-    cleanupObsoleteProviderModels: vi.fn(),
-    listObsoleteProviderModels: vi.fn(),
     probeProviderModelCapabilities: vi.fn(),
     refreshProviderModels: vi.fn(),
     saveProviderModels: vi.fn(),
@@ -39,6 +35,7 @@ const connection = {
   enabled: true,
   archived: false,
   usage_scope: "remote",
+  model_counts: { total: 1, enabled: 1, in_use: 0, available: 1, degraded: 0, pending: 0, unavailable: 0 },
   verification: { status: "passed", checked_at: "2026-07-30T00:00:00Z", latency_ms: 42, error: null },
   models: [
     {
@@ -89,8 +86,6 @@ describe("ProviderModelsDialog", () => {
   beforeEach(() => {
     vi.mocked(saveProviderModels).mockResolvedValue(connection)
     vi.mocked(updateProviderModel).mockResolvedValue(connection.models[0]!)
-    vi.mocked(listObsoleteProviderModels).mockResolvedValue([])
-    vi.mocked(cleanupObsoleteProviderModels).mockResolvedValue(connection)
   })
 
   it("keeps every model toolbar action visibly filled", () => {
@@ -104,6 +99,27 @@ describe("ProviderModelsDialog", () => {
     for (const label of ["重新读取模型", "手工添加模型", "编辑全部"]) {
       expect(within(toolbar).getByRole("button", { name: label })).toHaveAttribute("data-variant", "default")
     }
+    expect(within(dialog).queryByRole("textbox", { name: "搜索模型" })).not.toBeInTheDocument()
+    expect(toolbar.querySelector(".provider-models-toolbar__left")).toBeNull()
+    expect(within(toolbar).queryByRole("button", { name: "查看过期模型" })).not.toBeInTheDocument()
+  })
+
+  it("guides the first loaded model list to one verification action", async () => {
+    const onVerify = vi.fn(async () => undefined)
+    const user = userEvent.setup()
+    renderDialog(connection, { initialLoad: true, onVerify })
+
+    const dialog = screen.getByRole("dialog", { name: "OpenAI Main 的模型" })
+    expect(within(dialog).getByText("1/1 个模型可用 · 被 2 个粮食使用")).toBeInTheDocument()
+    await user.click(within(dialog).getByRole("button", { name: "验证模型" }))
+    await waitFor(() => expect(onVerify).toHaveBeenCalledTimes(1))
+  })
+
+  it("keeps the first model list in a neutral loading state", () => {
+    renderDialog(connection, { initialLoad: true, initializing: true })
+
+    expect(screen.getByRole("status")).toHaveTextContent("正在读取模型清单…")
+    expect(screen.queryByRole("table")).not.toBeInTheDocument()
   })
 
   it("keeps capability symbols compact in read and edit states", async () => {
@@ -196,21 +212,7 @@ describe("ProviderModelsDialog", () => {
     expect(within(dialog).getByDisplayValue("Unsaved name")).toBeInTheDocument()
   }, 10_000)
 
-  it("keeps obsolete models out of the main list and cleans only eligible selections", async () => {
-    const user = userEvent.setup()
-    vi.mocked(listObsoleteProviderModels).mockResolvedValueOnce([{
-      model: {
-        ...connection.models[0]!,
-        id: "retired-model",
-        display_name: "Retired model",
-        discovery_state: "source_missing",
-        consecutive_missing: 4,
-        last_seen_at: "2026-01-01T00:00:00Z",
-      },
-      eligible: true,
-      reason: "可清理：来源缺失超过 30 天且无近期生产使用",
-      last_production_at: null,
-    }])
+  it("keeps obsolete models out of the main list without exposing a cleanup entry", () => {
     renderDialog({
       ...connection,
       models: [...connection.models, {
@@ -223,18 +225,8 @@ describe("ProviderModelsDialog", () => {
 
     const dialog = screen.getByRole("dialog", { name: "OpenAI Main 的模型" })
     expect(within(dialog).queryByText("Retired model")).not.toBeInTheDocument()
-    await user.click(within(dialog).getByRole("button", { name: "查看过期模型" }))
-    expect(await within(dialog).findByText("Retired model")).toBeInTheDocument()
-    const checkbox = within(dialog).getByRole("checkbox")
-    await user.click(checkbox)
-    await user.click(within(dialog).getByRole("button", { name: "清理选中模型" }))
-
-    expect(cleanupObsoleteProviderModels).toHaveBeenCalledWith(
-      "conn-openai",
-      ["retired-model"],
-      "csrf",
-    )
-  }, 10_000)
+    expect(within(dialog).queryByRole("button", { name: "查看过期模型" })).not.toBeInTheDocument()
+  })
 
   it("offers discovered non-core models without asking the user to retype them", async () => {
     const user = userEvent.setup()
@@ -264,12 +256,12 @@ describe("ProviderModelsDialog", () => {
   }, 10_000)
 })
 
-function renderDialog(target: ProviderConnection = connection): void {
+function renderDialog(target: ProviderConnection = connection, options: { readonly initialLoad?: boolean; readonly initializing?: boolean; readonly onVerify?: () => Promise<void> } = {}): void {
   const i18n = createI18n()
   document.documentElement.lang = "zh-CN"
   render(
     <I18nextProvider i18n={i18n}>
-      <ToastProvider><ProviderModelsDialog connection={target} csrfToken="csrf" onChanged={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></ToastProvider>
+      <ToastProvider><ProviderModelsDialog connection={target} csrfToken="csrf" foodReferenceCount={2} initialLoad={options.initialLoad} initializing={options.initializing} onChanged={vi.fn(async () => undefined)} onOpenChange={vi.fn()} onVerify={options.onVerify} open /></ToastProvider>
     </I18nextProvider>,
   )
 }

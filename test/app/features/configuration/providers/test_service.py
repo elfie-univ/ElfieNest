@@ -162,6 +162,8 @@ class FakeTechnology:
 
     def __init__(self) -> None:
         self.reachability_calls: list[str] = []
+        self.probed_model_references: list[str] = []
+        self.model_verifications: dict[str, StoredModelVerification] = {}
 
     def prepare_manual_model(self, model: ProviderModelInput) -> StoredProviderModel:
         return StoredProviderModel(model.model_id, model.display_name or model.model_id)
@@ -178,8 +180,8 @@ class FakeTechnology:
         connection_id: str,
         model_id: str,
     ) -> StoredModelVerification:
-        _ = connection_id, model_id
-        return StoredModelVerification()
+        _ = connection_id
+        return self.model_verifications.get(model_id, StoredModelVerification())
 
     async def verify_connection(
         self,
@@ -192,6 +194,14 @@ class FakeTechnology:
 
     async def probe_reachability(self, connection_id: str) -> None:
         self.reachability_calls.append(connection_id)
+
+    async def probe_model(self, reference: str) -> None:
+        self.probed_model_references.append(reference)
+        self.model_verifications[reference.rsplit("/", 1)[-1]] = StoredModelVerification(
+            status="passed",
+            validation_mode="full",
+            availability_status="available",
+        )
 
     async def refresh_models(
         self,
@@ -263,6 +273,12 @@ class FakeInstalledLocalTechnology(FakeLocalTechnology):
     def list_models(self, binding: StoredLocalProviderBinding) -> tuple[str, ...]:
         _ = binding
         return ("custom-installed",)
+
+
+class FakeSupportedInstalledLocalTechnology(FakeInstalledLocalTechnology):
+    def list_models(self, binding: StoredLocalProviderBinding) -> tuple[str, ...]:
+        _ = binding
+        return ("recommended", "custom-installed")
 
 
 class FakeOAuth:
@@ -464,6 +480,18 @@ def test_local_inspection_keeps_installed_models_outside_recommendation_catalog(
     assert port.local_model_ids == ["custom-installed"]
 
 
+def test_local_verification_only_probes_supported_installed_models() -> None:
+    service, _, _ = _service()
+    service._local_technology = FakeSupportedInstalledLocalTechnology()
+
+    result = asyncio.run(service.verify_local_models(_principal()))
+
+    technology = service._technology
+    assert isinstance(technology, FakeTechnology)
+    assert technology.probed_model_references == ["ollama_0001/recommended"]
+    assert result.model_counts.available == 1
+
+
 def test_member_cannot_read_provider_administration() -> None:
     service, _, _ = _service()
 
@@ -476,6 +504,62 @@ def test_list_connections_is_read_only() -> None:
 
     assert service.list_connections(_principal(), ListProviderConnectionsQuery()) == ()
     assert port.ensure_local_calls == 0
+
+
+def test_provider_projection_separates_inventory_from_model_evidence() -> None:
+    service, port, _ = _service()
+    connection = StoredProviderConnection(
+        connection_id="openai_api_0001",
+        catalog_id="openai_api",
+        alias="OpenAI",
+        api_base="https://api.openai.com/v1",
+        api_mode="chat_completions",
+        auth_type="bearer",
+        credential_ref="OPENAI_KEY",
+        models=(
+            StoredProviderModel("available", "Available"),
+            StoredProviderModel("pending", "Pending"),
+            StoredProviderModel("unavailable", "Unavailable"),
+            StoredProviderModel("hidden", "Hidden", hidden=True),
+            StoredProviderModel(
+                "missing",
+                "Missing",
+                discovery_state="source_missing",
+            ),
+        ),
+    )
+    port.items[connection.connection_id] = connection
+    technology = service._technology
+    assert isinstance(technology, FakeTechnology)
+    technology.model_verifications = {
+        "available": StoredModelVerification(
+            status="passed",
+            availability_status="available",
+            is_core=True,
+        ),
+        "unavailable": StoredModelVerification(
+            status="failed",
+            availability_status="unavailable",
+        ),
+        "hidden": StoredModelVerification(
+            status="passed",
+            availability_status="available",
+        ),
+    }
+
+    result = service.list_connections(
+        _principal(), ListProviderConnectionsQuery()
+    )[0]
+    assert result.model_counts.total == 4
+    assert result.model_counts.enabled == 3
+    assert result.model_counts.in_use == 1
+    assert result.model_counts.available == 1
+    assert result.model_counts.pending == 1
+    assert result.model_counts.unavailable == 1
+    projected = {item.model_id: item for item in result.models}
+    assert projected["available"].available is True
+    assert projected["pending"].available is False
+    assert projected["unavailable"].available is False
 
 
 def test_delete_preserves_food_reference_protection() -> None:

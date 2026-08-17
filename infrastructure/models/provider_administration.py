@@ -1179,6 +1179,7 @@ class ProviderModelsAdapter:
                 preserve_model_ids=self._serving_model_ids(
                     provider_connection.connection_id
                 ),
+                reset_hidden_for_refreshed=True,
             )
             return StoredModelRefresh(
                 status="bundled_catalog",
@@ -1200,23 +1201,7 @@ class ProviderModelsAdapter:
                 timeout=_DISCOVERY_TIMEOUT_SECONDS,
             )
         except Exception as error:
-            catalog_models: tuple[ProviderModelRecord, ...] = ()
-            if connection.catalog_id != "custom_openai":
-                try:
-                    catalog_models = remote_catalog_models(
-                        connection.catalog_id,
-                        fetcher=fetch_remote_models,
-                        provider_id=profile.legacy_provider_id,
-                        identity_catalog=self._identity_catalog,
-                    )
-                except RemoteCatalogUnavailable:
-                    catalog_models = ()
-                if not catalog_models:
-                    catalog_models = bundled_catalog_models(
-                        profile.bundled_models,
-                        provider_id=profile.legacy_provider_id,
-                        identity_catalog=self._identity_catalog,
-                    )
+            catalog_models = self._fallback_catalog_models(connection, profile)
             catalog_models = tuple(
                 _with_request_profile(item, provider_connection.api_mode)
                 for item in catalog_models
@@ -1227,6 +1212,12 @@ class ProviderModelsAdapter:
                     catalog_models,
                     complete=False,
                     observed_at=checked_at,
+                    reset_hidden_for_refreshed=(
+                        connection.catalog_id == "volcengine_coding_plan"
+                        and any(
+                            item.source == "bundled_catalog" for item in catalog_models
+                        )
+                    ),
                 )
                 return StoredModelRefresh(
                     status=catalog_models[0].source,
@@ -1276,11 +1267,10 @@ class ProviderModelsAdapter:
             _with_request_profile(
                 replace(
                     self._discovered_model(item, profile),
-                    # The live endpoint is the source of truth for IDs.  The
-                    # product-maintained list only controls the default
-                    # inventory: non-core IDs remain persisted as hidden
-                    # "other discovered" models and can be enabled with one
-                    # click instead of being deleted or retyped.
+                    # The Provider discovery adapter is the source of truth
+                    # for IDs.  Volcengine's adapter returns only its product
+                    # core allowlist; other adapters may return a broader
+                    # inventory and use curated IDs for default visibility.
                     hidden=(
                         False
                         if item.name
@@ -1334,6 +1324,11 @@ class ProviderModelsAdapter:
             preserve_model_ids=self._serving_model_ids(
                 provider_connection.connection_id
             ),
+            reset_hidden_for_refreshed=(
+                discovery_complete
+                and connection.catalog_id == "volcengine_coding_plan"
+                and any(item.source == "bundled_catalog" for item in models)
+            ),
         )
         return StoredModelRefresh(
             status="updated",
@@ -1376,7 +1371,7 @@ class ProviderModelsAdapter:
         )[0]
         return replace(
             declared,
-            source="official",
+            source=("bundled_catalog" if item.source == "bundled_catalog" else "official"),
             display_name=item.display_name or declared.display_name or item.name,
         )
 
@@ -1390,22 +1385,7 @@ class ProviderModelsAdapter:
         """Use labelled curated data only after an official refresh failed."""
         if connection.catalog_id == "custom_openai":
             return None
-        catalog_models: tuple[ProviderModelRecord, ...] = ()
-        try:
-            catalog_models = remote_catalog_models(
-                connection.catalog_id,
-                fetcher=fetch_remote_models,
-                provider_id=profile.legacy_provider_id,
-                identity_catalog=self._identity_catalog,
-            )
-        except RemoteCatalogUnavailable:
-            pass
-        if not catalog_models:
-            catalog_models = bundled_catalog_models(
-                profile.bundled_models,
-                provider_id=profile.legacy_provider_id,
-                identity_catalog=self._identity_catalog,
-            )
+        catalog_models = self._fallback_catalog_models(connection, profile)
         if not catalog_models:
             return None
         catalog_models = tuple(
@@ -1416,6 +1396,10 @@ class ProviderModelsAdapter:
             catalog_models,
             complete=False,
             observed_at=checked_at,
+            reset_hidden_for_refreshed=(
+                connection.catalog_id == "volcengine_coding_plan"
+                and any(item.source == "bundled_catalog" for item in catalog_models)
+            ),
         )
         return StoredModelRefresh(
             status=catalog_models[0].source,
@@ -1427,6 +1411,35 @@ class ProviderModelsAdapter:
                 if item.discovery_state == "present"
             ),
             persisted_models=tuple(self._model(item) for item in merged),
+        )
+
+    def _fallback_catalog_models(
+        self,
+        connection: ProviderConnection,
+        profile: Any,
+    ) -> tuple[ProviderModelRecord, ...]:
+        """Choose a product-safe fallback after authoritative discovery fails."""
+        if connection.catalog_id == "volcengine_coding_plan":
+            return bundled_catalog_models(
+                profile.bundled_models,
+                provider_id=profile.legacy_provider_id,
+                identity_catalog=self._identity_catalog,
+            )
+        if connection.catalog_id == "custom_openai":
+            return ()
+        try:
+            catalog_models = remote_catalog_models(
+                connection.catalog_id,
+                fetcher=fetch_remote_models,
+                provider_id=profile.legacy_provider_id,
+                identity_catalog=self._identity_catalog,
+            )
+        except RemoteCatalogUnavailable:
+            catalog_models = ()
+        return catalog_models or bundled_catalog_models(
+            profile.bundled_models,
+            provider_id=profile.legacy_provider_id,
+            identity_catalog=self._identity_catalog,
         )
 
     def _serving_model_ids(self, connection_id: str) -> tuple[str, ...]:

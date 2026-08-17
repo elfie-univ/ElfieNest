@@ -13,6 +13,7 @@ import {
   type FoodPreview,
 } from "../api/admin/food-packages"
 import type { ProviderConnection } from "../api/owner-providers"
+import type { OllamaStatus } from "../api/owner-ollama"
 import type { OwnerUser } from "../api/owner-users"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
 import { currentLocale } from "../i18n/format"
@@ -34,13 +35,14 @@ type FoodGenerationDialogProps = {
   readonly food: FoodPackage | null
   readonly mode: "create" | "update"
   readonly modelOptions: readonly SelectFieldOption[]
+  readonly ollamaStatus: OllamaStatus | null
   readonly onCreated: (food: FoodPackage) => Promise<void>
   readonly onOpenChange: (open: boolean) => void
   readonly onUpdated: (food: FoodPackage) => Promise<void>
   readonly users: readonly OwnerUser[]
 }
 
-export function FoodGenerationDialog({ availableConnections, connectionsLoading, csrfToken, food, mode, modelOptions, onCreated, onOpenChange, onUpdated, users }: FoodGenerationDialogProps) {
+export function FoodGenerationDialog({ availableConnections, connectionsLoading, csrfToken, food, mode, modelOptions, ollamaStatus, onCreated, onOpenChange, onUpdated, users }: FoodGenerationDialogProps) {
   const { i18n, t } = useTranslation("manage")
   const locale = currentLocale(i18n)
   const [displayName, setDisplayName] = useState(food?.display_name ?? "")
@@ -52,17 +54,23 @@ export function FoodGenerationDialog({ availableConnections, connectionsLoading,
   const [openScope, setOpenScope] = useState<ScopePopover>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<LocalizedErrorState>(null)
+  const localConnectionIds = useMemo(
+    () => new Set(availableConnections.filter((connection) => connection.catalog_id === "ollama").map((connection) => connection.connection_id)),
+    [availableConnections],
+  )
+  const usableLocal = ollamaStatus?.state === "healthy"
+    && (ollamaStatus.models.length === 0 || ollamaStatus.models.some((model) => model.installed && model.available !== false))
 
   useEffect(() => {
     setDisplayName(food?.display_name ?? "")
-    setScope(new Set(availableConnections.map((item) => item.connection_id)))
+    setScope(defaultScope(availableConnections, food, mode, localConnectionIds, usableLocal))
     setVisibilityMode(food && !food.system_role ? food.visibility_mode : "global")
     setSelectedUsers(new Set(food && !food.system_role ? food.visible_user_ids : []))
     setPreview(null)
     setDraftRoles(food?.roles ?? emptyRoles())
     setOpenScope(null)
     setError(null)
-  }, [availableConnections, food, mode])
+  }, [availableConnections, food, localConnectionIds, mode, usableLocal])
 
   const sourceOptions = useMemo(
     () => availableConnections.map((connection) => ({ value: connection.connection_id, label: connection.alias })),
@@ -84,8 +92,10 @@ export function FoodGenerationDialog({ availableConnections, connectionsLoading,
     if (!displayName.trim() || scope.size === 0 || (visibilityMode === "users" && selectedUsers.size === 0)) return
     setPending(true)
     try {
-      const allowRemote = food?.system_role !== "emergency"
-      const localFirst = food?.system_role === "emergency"
+      const hasLocal = [...scope].some((connectionId) => localConnectionIds.has(connectionId))
+      const hasRemote = [...scope].some((connectionId) => !localConnectionIds.has(connectionId))
+      const allowRemote = hasRemote
+      const localFirst = hasLocal && (food?.system_role === "emergency" || !hasRemote)
       const result = mode === "create"
         ? await previewNewFood(displayName.trim(), [...scope], localFirst, allowRemote, visibilityMode, [...selectedUsers], csrfToken)
         : await previewFoodUpdate(food?.key ?? "", [...scope], localFirst, allowRemote, visibilityMode, [...selectedUsers], csrfToken)
@@ -99,13 +109,13 @@ export function FoodGenerationDialog({ availableConnections, connectionsLoading,
     }
   }
 
-  const save = async (): Promise<void> => {
+  const save = async (enable: boolean = food?.enabled ?? true): Promise<void> => {
     if (!preview || !displayName.trim() || !draftRoles.primary || (visibilityMode === "users" && selectedUsers.size === 0)) return
     setPending(true)
     try {
       const draft = {
         display_name: mode === "create" || !food?.system_role ? displayName.trim() : food.display_name,
-        enabled: food?.enabled ?? true,
+        enabled: enable,
         roles: draftRoles,
         visibility_mode: food?.system_role ? "global" as const : visibilityMode,
         visible_user_ids: food?.system_role ? [] : [...selectedUsers],
@@ -198,7 +208,12 @@ export function FoodGenerationDialog({ availableConnections, connectionsLoading,
     <div className="manage-actions">
       {!preview
         ? <Button disabled={pending || connectionsLoading || !displayName.trim() || scope.size === 0 || (visibilityMode === "users" && selectedUsers.size === 0)} onClick={() => { void generate() }} type="button">{pending ? t("foodPackages.actions.generating") : t("foodPackages.actions.generatePreview")}</Button>
-        : <Button disabled={pending || !draftRoles.primary || (visibilityMode === "users" && selectedUsers.size === 0)} onClick={() => { void save() }} type="button">{pending ? t("foodPackages.actions.saving") : t(mode === "create" ? "foodPackages.actions.saveCreate" : "foodPackages.actions.applyUpdate")}</Button>}
+        : mode === "update" && food && !food.enabled
+          ? <>
+            <Button disabled={pending || !draftRoles.primary || (visibilityMode === "users" && selectedUsers.size === 0)} onClick={() => { void save(true) }} type="button">{pending ? t("foodPackages.actions.saving") : t("foodPackages.actions.applyAndEnable")}</Button>
+            <Button disabled={pending || !draftRoles.primary || (visibilityMode === "users" && selectedUsers.size === 0)} onClick={() => { void save(false) }} type="button" variant="outline">{t("foodPackages.actions.saveKeepDisabled")}</Button>
+          </>
+          : <Button disabled={pending || !draftRoles.primary || (visibilityMode === "users" && selectedUsers.size === 0)} onClick={() => { void save() }} type="button">{pending ? t("foodPackages.actions.saving") : t(mode === "create" ? "foodPackages.actions.saveCreate" : "foodPackages.actions.applyUpdate")}</Button>}
       <Button disabled={pending} onClick={() => onOpenChange(false)} type="button" variant="outline">{t("foodPackages.actions.cancel")}</Button>
     </div>
   </ManageDialog>
@@ -206,6 +221,29 @@ export function FoodGenerationDialog({ availableConnections, connectionsLoading,
 
 function emptyRoles(): FoodPackage["roles"] {
   return { primary: null, reasoning: null, vision: null, tool: null, fallback: null }
+}
+
+function defaultScope(
+  connections: readonly ProviderConnection[],
+  food: FoodPackage | null,
+  mode: "create" | "update",
+  localConnectionIds: ReadonlySet<string>,
+  usableLocal: boolean,
+): Set<string> {
+  const connectionIds = connections.map((connection) => connection.connection_id)
+  if (food?.system_role === "emergency") {
+    return usableLocal
+      ? new Set(connectionIds.filter((connectionId) => localConnectionIds.has(connectionId)))
+      : new Set()
+  }
+  if (mode === "update" && food?.system_role === null) {
+    const currentIds = new Set(
+      Object.values(food.roles).flatMap((assignment) => assignment ? [assignment.model.split("/", 1)[0]] : []),
+    )
+    const currentAvailable = connectionIds.filter((connectionId) => currentIds.has(connectionId))
+    if (currentAvailable.length > 0) return new Set(currentAvailable)
+  }
+  return new Set(connectionIds.filter((connectionId) => !localConnectionIds.has(connectionId)))
 }
 
 function displayModel(reference: string | null | undefined, options: readonly SelectFieldOption[], none: string): string {

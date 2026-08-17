@@ -64,6 +64,7 @@ def merge_refreshed_models(
     observed_at: str | None = None,
     authority_changed: bool = False,
     preserve_model_ids: Iterable[str] = (),
+    reset_hidden_for_refreshed: bool = False,
 ) -> tuple[ProviderModelRecord, ...]:
     """Merge one discovery result without deleting on a partial refresh.
 
@@ -139,7 +140,15 @@ def merge_refreshed_models(
                     **refreshed.capability_evidence,
                     **existing.capability_evidence,
                 },
-                hidden=existing.hidden,
+                hidden=(
+                    False
+                    if (
+                        reset_hidden_for_refreshed
+                        and refreshed.source == "bundled_catalog"
+                        and existing.source not in {"manual", "bundled_catalog"}
+                    )
+                    else existing.hidden
+                ),
                 retired=existing.retired,
                 available=True,
                 discovery_state="present",

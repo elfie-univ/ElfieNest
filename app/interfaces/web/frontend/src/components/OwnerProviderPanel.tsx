@@ -9,6 +9,7 @@ import {
   deleteProviderConnection,
   ownerProviderCatalog,
   ownerProviderConnections,
+  refreshProviderModels,
   startProviderOAuthLogin,
   updateProviderConnection,
   validateAllProviderModels,
@@ -18,6 +19,7 @@ import {
   type ProviderConnectionUpdate,
   type ProviderProduct,
 } from "../api/owner-providers"
+import { ownerFoods, type FoodPackage } from "../api/admin/food-packages"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
 import { compareLocalizedText, currentLocale } from "../i18n/format"
 import { ConfirmDialog } from "./ConfirmDialog"
@@ -69,8 +71,12 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
   const locale = currentLocale(i18n)
   const [catalog, setCatalog] = useState<readonly ProviderProduct[]>([])
   const [connections, setConnections] = useState<readonly ProviderConnection[]>([])
+  const [foodPackages, setFoodPackages] = useState<readonly FoodPackage[] | null>(null)
   const [editing, setEditing] = useState<EditTarget | null>(null)
   const [viewingModels, setViewingModels] = useState<ProviderConnection | null>(null)
+  const [initializingModels, setInitializingModels] = useState<string | null>(null)
+  const [initialModelSetup, setInitialModelSetup] = useState<string | null>(null)
+  const [initialModelError, setInitialModelError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<ProviderConnection | null>(null)
   const [creatingCustom, setCreatingCustom] = useState(false)
   const [customPreset, setCustomPreset] = useState<CustomProviderPreset>("openai")
@@ -82,20 +88,57 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
   const [notice, setNotice] = useState<string | null>(null)
   const { show } = useToast()
 
-  const load = async (): Promise<void> => {
+  const load = async (): Promise<readonly ProviderConnection[]> => {
+    const catalogPromise = ownerProviderCatalog()
+    const connectionsPromise = ownerProviderConnections()
+    const foodPromise = ownerFoods()
+      .then((result) => result.packages)
+      .catch(() => null)
     try {
-      const [nextCatalog, nextConnections] = await Promise.all([ownerProviderCatalog(), ownerProviderConnections()])
+      const [nextCatalog, nextConnections] = await Promise.all([
+        catalogPromise,
+        connectionsPromise,
+      ])
       setCatalog(nextCatalog)
       setConnections(nextConnections)
       setViewingModels((current) => current
         ? nextConnections.find((item) => item.connection_id === current.connection_id) ?? null
         : null)
       setError(null)
+      void foodPromise.then(setFoodPackages)
+      return nextConnections
     } catch (reason: unknown) {
       setError(describeApiError(reason, "manage.load"))
+      return []
     }
   }
   useEffect(() => { void load() }, [])
+
+  const beginInitialModelSetup = (connection: ProviderConnection): void => {
+    const connectionId = connection.connection_id
+    setInitialModelSetup(connectionId)
+    setInitialModelError(null)
+    setViewingModels(connection)
+    setInitializingModels(connectionId)
+    void (async () => {
+      try {
+        const result = await refreshProviderModels(connectionId, csrfToken)
+        if (result?.status === "failed") {
+          setInitialModelError(result.message ?? t("providerConnections.notices.modelLoadFailed"))
+        } else {
+          setInitialModelError(null)
+        }
+        const nextConnections = await load()
+        const refreshed = nextConnections.find((item) => item.connection_id === connectionId)
+        if (refreshed) setViewingModels(refreshed)
+      } catch (reason: unknown) {
+        setInitialModelError(resolveLocalizedError(describeApiError(reason, "manage.load"), locale) ?? t("providerConnections.notices.modelLoadFailed"))
+        await load()
+      } finally {
+        setInitializingModels((current) => current === connectionId ? null : current)
+      }
+    })()
+  }
 
   const productsById = useMemo(() => new Map(catalog.map((product) => [product.catalog_id, product])), [catalog])
   const configured = connections
@@ -112,26 +155,30 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     { kind: "interface" as const, label: t("providerConnections.other.anthropicInterface"), preset: "anthropic" as const, value: ANTHROPIC_INTERFACE_OPTION },
     ...otherBrands.map((group) => ({ group, kind: "catalog" as const, label: group.brand.name, value: group.brand.brand_id })),
   ], [otherBrands, t])
-
   const save = async (catalogId: string, draft: ProviderConnectionUpdate): Promise<void> => {
     if (!editing) return
+    const isNewConnection = editing.connection === null
     try {
       const result = editing.connection
         ? await updateProviderConnection(editing.connection.connection_id, draft, csrfToken)
         : await createProviderConnection({ catalog_id: catalogId, ...draft }, csrfToken)
       show({ kind: "success", message: result.model_refresh?.message ?? t("providerConnections.notices.saved", { name: result.alias }) })
       setEditing(null)
-      await load()
+      const nextConnections = await load()
+      if (isNewConnection) {
+        beginInitialModelSetup(nextConnections.find((item) => item.connection_id === result.connection_id) ?? result)
+      }
     } catch (reason: unknown) {
       throw reason
     }
   }
 
   const saveCustom = async (draft: ProviderConnectionDraft): Promise<void> => {
-    const result = await createProviderConnection(draft, csrfToken)
+    const result = await createProviderConnection({ ...draft, refresh_models: false }, csrfToken)
     show({ kind: "success", message: result.model_refresh?.message ?? t("providerConnections.notices.added", { name: result.alias }) })
     setCreatingCustom(false)
-    await load()
+    const nextConnections = await load()
+    beginInitialModelSetup(nextConnections.find((item) => item.connection_id === result.connection_id) ?? result)
   }
 
   const authorize = async (
@@ -156,7 +203,10 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
         message: t("providerConnections.notices.authorized", { name: connection?.alias ?? product?.name ?? editing.products[0]?.brand.name ?? catalogId }),
       })
       setEditing(null)
-      await load()
+      const nextConnections = await load()
+      if (connection) {
+        beginInitialModelSetup(nextConnections.find((item) => item.connection_id === connection.connection_id) ?? connection)
+      }
       return
     }
   }
@@ -260,6 +310,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
         onLifecycle={(action) => { void lifecycle(connection, action) }}
         onVerify={() => { void verify(connection) }}
         onForceFull={() => { void forceFullVerify(connection) }}
+        foodPackages={foodPackages}
       />)}</div>}
     </section>
     <section aria-labelledby="available-provider-title" className="provider-section provider-section--available"><div className="provider-section__heading"><div><h3 id="available-provider-title">{t("providerConnections.available.title")}</h3></div></div><div className="provider-grid">
@@ -268,7 +319,25 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     </div></section>
     <ProviderFormDialog connection={editing?.connection ?? null} onAuthorize={authorize} onOpenChange={(open) => { if (!open) setEditing(null) }} onSave={save} open={editing !== null} products={editing?.products ?? []} />
     <CustomProviderDialog onOpenChange={setCreatingCustom} onSave={saveCustom} open={creatingCustom} preset={customPreset} />
-    <ProviderModelsDialog connection={viewingModels} csrfToken={csrfToken} onChanged={load} onOpenChange={(open) => { if (!open) setViewingModels(null) }} open={viewingModels !== null} />
+    <ProviderModelsDialog
+      connection={viewingModels}
+      csrfToken={csrfToken}
+      initialError={initialModelError}
+      initialLoad={initialModelSetup === viewingModels?.connection_id}
+      initializing={initializingModels === viewingModels?.connection_id}
+      onChanged={async () => { await load() }}
+      onOpenChange={(open) => {
+        if (!open) {
+          setViewingModels(null)
+          setInitializingModels(null)
+          setInitialModelSetup(null)
+          setInitialModelError(null)
+        }
+      }}
+      onVerify={viewingModels ? async () => { await verify(viewingModels) } : undefined}
+      foodReferenceCount={viewingModels ? countFoodReferences(viewingModels.connection_id, foodPackages) : null}
+      open={viewingModels !== null}
+    />
     <ModelMatrixDialog csrfToken={csrfToken} onOpenChange={setMatrixOpen} open={matrixOpen} />
     <ManageDialog onOpenChange={setOtherOpen} open={otherOpen} title={t("providerConnections.other.title")}><SelectField label={t("providerConnections.other.product")} onValueChange={setOtherProductId} options={[{ label: t("providerConnections.other.placeholder"), value: NO_PRODUCT }, ...otherOptions.map(({ label, value }) => ({ label, value }))]} value={otherProductId} /><div className="manage-actions"><Button disabled={otherProductId === NO_PRODUCT} onClick={chooseOther} type="button">{t("providerConnections.actions.choose")}</Button><Button onClick={() => setOtherOpen(false)} type="button" variant="outline">{t("providerConnections.actions.cancel")}</Button></div></ManageDialog>
     <ConfirmDialog confirmLabel={t("providerConnections.delete.confirm")} danger description={deleting ? t("providerConnections.delete.description", { name: deleting.alias }) : t("providerConnections.delete.descriptionGeneric")} onConfirm={() => { void remove() }} onOpenChange={(open) => { if (!open && pending === null) setDeleting(null) }} open={deleting !== null} pending={pending?.startsWith("delete:") ?? false} title={t("providerConnections.delete.title")} />
@@ -309,9 +378,10 @@ function waitForOAuthPoll(delayMs: number, signal: AbortSignal): Promise<void> {
   })
 }
 
-function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onForceFull, onLifecycle, onModels, onVerify }: {
+function ConfiguredConnectionCard({ busy, connection, foodPackages, onDelete, onEdit, onForceFull, onLifecycle, onModels, onVerify }: {
   readonly busy: boolean
   readonly connection: ProviderConnection
+  readonly foodPackages: readonly FoodPackage[] | null
   readonly onDelete: () => void
   readonly onEdit: () => void
   readonly onForceFull: () => void
@@ -320,77 +390,47 @@ function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onForceF
   readonly onVerify: () => void
 }) {
   const { t } = useTranslation("manage")
-  const activeModels = connection.models.filter((model) => !model.hidden && !model.retired && model.discovery_state !== "source_missing")
-  const otherDiscoveredCount = connection.models.filter((model) => model.hidden && !model.retired && model.discovery_state !== "source_missing").length
-  const enabledCount = activeModels.length
-  const verifiedCount = activeModels.filter((model) => model.verification.status === "passed").length
-  const failedCount = activeModels.filter((model) => model.verification.status === "failed").length
-  const hasAvailability = activeModels.some((model) => model.verification.availability_status !== undefined)
-  const availableCount = activeModels.filter((model) => {
-    const status = model.verification.availability_status
-    return status === "available"
-  }).length
-  const coreModels = activeModels.filter((model) => model.verification.is_core === true)
-  const coreAvailableCount = coreModels.filter((model) => {
-    const status = model.verification.availability_status
-    return status === "available"
-  }).length
-  const health = hasAvailability
-    ? availabilityCardHealth(connection, activeModels)
-    : enabledCount === 0
-      ? "never"
-      : verifiedCount === enabledCount
-        ? "passed"
-        : verifiedCount > 0
-          ? "partial"
-          : failedCount > 0 ? "failed" : "never"
-  const status = hasAvailability
-    ? availabilityCardLabel(health, t)
-    : health === "passed"
-      ? t("providerConnections.status.passed")
-      : health === "partial"
-        ? t("providerConnections.status.partial")
-        : health === "failed"
-          ? t("providerConnections.status.failed")
-          : t("providerConnections.status.never")
-  const modelStats = hasAvailability
-    ? t("providerConnections.card.availabilityStats", {
-      total: enabledCount,
-      available: availableCount,
-      core: coreAvailableCount,
-      coreTotal: coreModels.length,
-    })
-    : t("providerConnections.card.modelStats", { total: enabledCount, enabled: enabledCount, verified: verifiedCount })
-  const validationHint = connection.verification.needs_full_validation
-    ? t("providerConnections.card.needsFullValidation")
-    : connection.verification.needs_heartbeat
-      ? t("providerConnections.card.needsHeartbeat")
-      : connection.verification.validation_mode === "cached"
-        ? t("providerConnections.card.cached")
-        : null
-  return <article className={`provider-card provider-card--${health}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${health}`}>{status}</span></div><p className="provider-card__model-stats">{modelStats}</p>{otherDiscoveredCount > 0 ? <small className="provider-card__discovered-hint">{t("providerConnections.card.otherDiscovered", { count: otherDiscoveredCount })}</small> : null}{validationHint ? <small className="provider-card__validation-hint">{validationHint}</small> : null}<div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><ProviderLifecycleMenu archived={connection.archived} busy={busy} enabled={connection.enabled} onDelete={onDelete} onForceFull={onForceFull} onLifecycle={onLifecycle} /></div></article>
+  const counts = connection.model_counts
+  const foodReferenceCount = countFoodReferences(connection.connection_id, foodPackages)
+  const health = availabilityCardHealth(connection)
+  const status = availabilityCardLabel(health, t, counts)
+  const modelStats = t(foodReferenceCount === null
+    ? "providerConnections.card.modelStats"
+    : foodReferenceCount === 0
+      ? "providerConnections.card.modelStatsUnused"
+      : "providerConnections.card.modelStatsWithFoods", {
+    total: counts.enabled,
+    available: counts.available,
+    foods: foodReferenceCount ?? 0,
+  })
+  return <article className={`provider-card provider-card--${health}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${health}`}>{status}</span></div><p className="provider-card__model-stats">{modelStats}</p><div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><ProviderLifecycleMenu archived={connection.archived} busy={busy} enabled={connection.enabled} onDelete={onDelete} onForceFull={onForceFull} onLifecycle={onLifecycle} /></div></article>
 }
 
-type AvailabilityModel = ProviderConnection["models"][number]
+function countFoodReferences(connectionId: string, foodPackages: readonly FoodPackage[] | null): number | null {
+  if (foodPackages === null) return null
+  return foodPackages.filter((food) => Object.values(food.roles).some((assignment) => assignment?.model.startsWith(`${connectionId}/`))).length
+}
 
 function availabilityCardHealth(
   connection: ProviderConnection,
-  models: readonly AvailabilityModel[],
 ): "passed" | "partial" | "failed" | "never" {
-  if (!connection.enabled || connection.archived || models.length === 0) return "never"
-  const statuses = models.map((model) => model.verification.availability_status)
-  if (statuses.every((status) => status === "available")) return "passed"
-  if (statuses.some((status) => status === "available" || status === "degraded")) return "partial"
-  return statuses.some((status) => status === "unavailable") ? "failed" : "never"
+  const counts = connection.model_counts
+  if (!connection.enabled || connection.archived || counts.enabled === 0) return "never"
+  if (connection.verification.status === "failed" || connection.verification.availability_status === "unavailable") return "failed"
+  if (counts.available === counts.enabled) return "passed"
+  if (counts.unavailable === counts.enabled) return "failed"
+  if (counts.available > 0 || counts.degraded > 0 || counts.pending > 0) return "partial"
+  return "never"
 }
 
 function availabilityCardLabel(
   health: "passed" | "partial" | "failed" | "never",
   t: (key: string) => string,
+  counts: ProviderConnection["model_counts"],
 ): string {
   switch (health) {
     case "passed": return t("providerConnections.status.available")
-    case "partial": return t("providerConnections.status.degraded")
+    case "partial": return counts.pending > 0 && counts.available === 0 && counts.degraded === 0 ? t("providerConnections.status.pending") : t("providerConnections.status.degraded")
     case "failed": return t("providerConnections.status.unavailable")
     case "never": return t("providerConnections.status.unknown")
   }

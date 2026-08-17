@@ -80,16 +80,19 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
   }, [])
 
   const availableConnections = useMemo(
-    () => connections.filter((connection) => connection.enabled && !connection.archived),
-    [connections],
+    () => {
+      const eligibleConnectionIds = new Set((catalog?.eligible_models ?? []).map((model) => model.reference.split("/", 1)[0]))
+      return connections.filter((connection) => connection.enabled && !connection.archived && eligibleConnectionIds.has(connection.connection_id))
+    },
+    [catalog, connections],
   )
   const modelOptions = useMemo<readonly SelectFieldOption[]>(() => catalog?.eligible_models.map((model) => ({
     label: modelOptionLabel(model.reference, model.display_name, model.local, connections, t("foodPackages.labels.localSuffix")),
     value: model.reference,
   })) ?? [], [catalog, connections, t])
   const localConnectionIds = useMemo(
-    () => connections.filter((connection) => connection.catalog_id === "ollama").map((connection) => connection.connection_id),
-    [connections],
+    () => availableConnections.filter((connection) => connection.catalog_id === "ollama").map((connection) => connection.connection_id),
+    [availableConnections],
   )
 
   const manualSave = async (food: FoodPackage): Promise<void> => {
@@ -159,7 +162,6 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
           <TableHead>{t("foodPackages.columns.tool")}</TableHead>
           <TableHead>{t("foodPackages.columns.fallback")}</TableHead>
           <TableHead>{t("foodPackages.columns.visibility")}</TableHead>
-          <TableHead>{t("foodPackages.columns.status")}</TableHead>
           <TableHead className="food-col--last">{t("foodPackages.columns.actions")}</TableHead>
         </TableRow>
       </TableHeader>
@@ -172,13 +174,11 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
               <div className="food-badges">
                 {food.system_role ? <small className="food-system-badge">{t("foodPackages.labels.system")}</small> : null}
                 {projection.isLocal ? <small className="food-local-badge">{t("foodPackages.labels.local")}</small> : null}
+                <span className={`status-badge status-badge--${foodStatusClass(food)}`}>{foodStatusLabel(food, t)}</span>
               </div>
             </TableCell>
             {FOOD_ROLES.map((role) => <TableCell key={role}><FoodModelCellView archived={food.archived} cell={projection.models[role]} t={t} /></TableCell>)}
             <TableCell>{visibilityLabel(projection.visibility, t)}</TableCell>
-            <TableCell>{food.archived
-              ? <span className="status-badge status-badge--archived">{t("foodPackages.values.archived")}</span>
-              : <span className={`status-badge status-badge--${food.enabled ? "active" : "disabled"}`}>{t(food.enabled ? "foodPackages.values.running" : "foodPackages.values.stopped")}</span>}</TableCell>
             <TableCell className="food-col--last">
               <FoodOperationMenu
                 archived={food.archived}
@@ -202,9 +202,10 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
       food={generation.food}
       mode={generation.mode}
       modelOptions={modelOptions}
+      ollamaStatus={ollamaStatus}
       onCreated={async (food) => { show({ kind: "success", message: t("foodPackages.notices.created", { name: food.display_name }) }); await load() }}
       onOpenChange={(open) => { if (!open) setGeneration(null) }}
-      onUpdated={async (food) => { show({ kind: "success", message: t("foodPackages.notices.updated", { name: food.display_name }) }); await load() }}
+      onUpdated={async (food) => { show({ kind: "success", message: t(food.enabled ? "foodPackages.notices.updatedEnabled" : "foodPackages.notices.updatedDisabled", { name: food.display_name }) }); await load() }}
       users={users}
     /> : null}
     {editing ? <ManageDialog
@@ -239,6 +240,24 @@ function FoodModelCellView({ archived, cell, t }: { readonly archived: boolean; 
     <span className="food-model-cell__label">{cell.label}</span>
     <small>{t(cell.local && cell.status === "available" ? "foodPackages.modelStatus.localAvailable" : `foodPackages.modelStatus.${cell.status}`)}{cell.latencyLabel ? ` · ${cell.latencyLabel}` : ""}</small>
   </div>
+}
+
+function foodStatusClass(food: FoodPackage): "disabled" | "archived" | "passed" | "warning" | "failed" | "unverified" {
+  if (food.archived) return "archived"
+  if (!food.enabled) return "disabled"
+  if (food.health === "healthy") return "passed"
+  if (food.health === "degraded") return "warning"
+  if (food.health === "unavailable") return "failed"
+  return "unverified"
+}
+
+function foodStatusLabel(food: FoodPackage, t: TFunction<"manage">): string {
+  if (food.archived) return t("foodPackages.values.archived")
+  if (!food.enabled) return t("foodPackages.values.stopped")
+  if (food.health === "healthy") return t("foodPackages.values.healthy")
+  if (food.health === "degraded") return t("foodPackages.values.degraded")
+  if (food.health === "unavailable") return t("foodPackages.values.unavailable")
+  return t("foodPackages.values.pending")
 }
 
 function visibilityLabel(

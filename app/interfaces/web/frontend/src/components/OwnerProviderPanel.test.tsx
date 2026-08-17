@@ -9,6 +9,7 @@ import {
   createProviderConnection,
   ownerProviderCatalog,
   ownerProviderConnections,
+  refreshProviderModels,
   startProviderOAuthLogin,
   updateProviderConnection,
   validateAllProviderModels,
@@ -16,13 +17,16 @@ import {
   type ProviderConnection,
   type ProviderProduct,
 } from "../api/owner-providers"
+import { ownerFoods, type FoodCatalog } from "../api/admin/food-packages"
 import {
   installOllama,
   ownerOllamaStatus,
   pullOllamaModels,
   startOllama,
+  verifyOllamaModels,
   type OllamaStatus,
 } from "../api/owner-ollama"
+import { setupModelCatalog } from "../api/setup"
 import { ApiError } from "../api/http"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
@@ -38,11 +42,17 @@ vi.mock("../api/owner-providers", async (loadOriginal) => {
     createProviderConnection: vi.fn(),
     ownerProviderCatalog: vi.fn(),
     ownerProviderConnections: vi.fn(),
+    refreshProviderModels: vi.fn(),
     startProviderOAuthLogin: vi.fn(),
     updateProviderConnection: vi.fn(),
     validateAllProviderModels: vi.fn(),
     verifyProviderConnection: vi.fn(),
   }
+})
+
+vi.mock("../api/admin/food-packages", async (loadOriginal) => {
+  const original = await loadOriginal<typeof import("../api/admin/food-packages")>()
+  return { ...original, ownerFoods: vi.fn() }
 })
 
 vi.mock("../api/owner-ollama", async (loadOriginal) => {
@@ -53,7 +63,13 @@ vi.mock("../api/owner-ollama", async (loadOriginal) => {
     ownerOllamaStatus: vi.fn(),
     pullOllamaModels: vi.fn(),
     startOllama: vi.fn(),
+    verifyOllamaModels: vi.fn(),
   }
+})
+
+vi.mock("../api/setup", async (loadOriginal) => {
+  const original = await loadOriginal<typeof import("../api/setup")>()
+  return { ...original, setupModelCatalog: vi.fn() }
 })
 
 const product = {
@@ -121,6 +137,7 @@ const connection = {
   enabled: true,
   archived: false,
   usage_scope: "remote",
+  model_counts: { total: 1, enabled: 1, in_use: 0, available: 1, degraded: 0, pending: 0, unavailable: 0 },
   verification: { status: "passed", checked_at: "2026-07-30T00:00:00Z", latency_ms: 42, error: null },
   models: [model],
   model_refresh: null,
@@ -145,6 +162,7 @@ const absentOllama = {
   memory_gb: 16,
   recommended_model: "qwen2.5:0.5b",
   installed_model_count: 0,
+  model_counts: { installed: 0, available: 0, degraded: 0, pending: 0, unavailable: 0 },
   models: [],
   task: null,
 } satisfies OllamaStatus
@@ -155,6 +173,7 @@ const stoppedOllama = {
   endpoint: "http://127.0.0.1:11434",
   models: [{ id: "qwen2.5:0.5b", display_name: "qwen2.5:0.5b", installed: true, recommended: true }],
   installed_model_count: 1,
+  model_counts: { installed: 1, available: 0, degraded: 0, pending: 0, unavailable: 1 },
 } satisfies OllamaStatus
 
 const healthyOllama = {
@@ -162,11 +181,22 @@ const healthyOllama = {
   state: "healthy",
   version: "0.12.0",
   models: [
-    { id: "qwen2.5:0.5b", display_name: "qwen2.5:0.5b", installed: true, recommended: true },
+    { id: "qwen2.5:0.5b", display_name: "qwen2.5:0.5b", installed: true, recommended: true, available: true, availability_status: "available" },
     { id: "qwen3.5:0.8b", display_name: "qwen3.5:0.8b", installed: false, recommended: false },
     { id: "gemma3:270m", display_name: "gemma3:270m", installed: false, recommended: false },
+    { id: "custom-local:latest", display_name: "custom-local:latest", installed: true, recommended: false, available: false, availability_status: "unknown" },
   ],
+  installed_model_count: 2,
+  model_counts: { installed: 2, available: 1, degraded: 0, pending: 1, unavailable: 0 },
 } satisfies OllamaStatus
+
+const emptyFoodCatalog = {
+  version: 2,
+  global_default_food_id: "food_common",
+  global_emergency_food_id: "food_emergency",
+  packages: [],
+  eligible_models: [],
+} satisfies FoodCatalog
 
 describe("OwnerProviderPanel v2 behavior", () => {
   beforeEach(() => {
@@ -180,13 +210,21 @@ describe("OwnerProviderPanel v2 behavior", () => {
     })
     vi.mocked(ownerProviderCatalog).mockResolvedValue([product])
     vi.mocked(ownerProviderConnections).mockResolvedValue([connection])
+    vi.mocked(ownerFoods).mockResolvedValue(emptyFoodCatalog)
     vi.mocked(createProviderConnection).mockResolvedValue(connection)
     vi.mocked(updateProviderConnection).mockResolvedValue(connection)
+    vi.mocked(refreshProviderModels).mockResolvedValue(null)
     vi.mocked(changeProviderConnectionLifecycle).mockResolvedValue(connection)
     vi.mocked(ownerOllamaStatus).mockResolvedValue(absentOllama)
+    vi.mocked(setupModelCatalog).mockResolvedValue([
+      { model_id: "qwen2.5:0.5b", label: "qwen2.5:0.5b（推荐）", approx_download_mb: 398, recommended: true },
+      { model_id: "qwen3.5:0.8b", label: "qwen3.5:0.8b", approx_download_mb: 1024, recommended: false },
+      { model_id: "gemma3:270m", label: "gemma3:270m", approx_download_mb: 292, recommended: false },
+    ])
     vi.mocked(installOllama).mockResolvedValue(absentOllama)
     vi.mocked(startOllama).mockResolvedValue(stoppedOllama)
     vi.mocked(pullOllamaModels).mockResolvedValue(healthyOllama)
+    vi.mocked(verifyOllamaModels).mockResolvedValue(healthyOllama)
     vi.mocked(validateAllProviderModels).mockResolvedValue({
       run_id: "validation-run",
       status: "passed",
@@ -228,15 +266,15 @@ describe("OwnerProviderPanel v2 behavior", () => {
     })
     renderPanel()
     await user.click(await screen.findByRole("button", { name: "配置 OpenAI" }))
-    const chooseDialog = screen.getByRole("dialog", { name: "配置 OpenAI" })
-    await user.click(within(chooseDialog).getByRole("combobox", { name: "连接方式" }))
+    const dialog = screen.getByRole("dialog", { name: "配置 OpenAI" })
+    await user.click(within(dialog).getByRole("combobox", { name: "连接方式" }))
     await user.click(screen.getByRole("option", { name: "ChatGPT 账号授权（订阅）" }))
-    await user.click(within(chooseDialog).getByRole("button", { name: "继续" }))
-    await user.click(screen.getByRole("button", { name: "使用 OpenAI 账号登录" }))
+    await user.click(within(dialog).getByRole("button", { name: "使用 OpenAI 账号登录" }))
 
     await waitFor(() => expect(completeProviderOAuthLogin).toHaveBeenCalled())
     expect(startProviderOAuthLogin).toHaveBeenCalledWith("openai_chatgpt", "csrf")
-    expect(await screen.findByRole("heading", { name: "My ChatGPT" })).toBeInTheDocument()
+    expect(await screen.findByRole("dialog", { name: "My ChatGPT 的模型" })).toBeInTheDocument()
+    expect(refreshProviderModels).toHaveBeenCalledWith("openai_chatgpt_0001", "csrf")
   })
 
   it("shows and copies the device code before the user opens authorization", async () => {
@@ -263,17 +301,15 @@ describe("OwnerProviderPanel v2 behavior", () => {
     const dialog = screen.getByRole("dialog", { name: "配置 OpenAI" })
     await user.click(within(dialog).getByRole("combobox", { name: "连接方式" }))
     await user.click(screen.getByRole("option", { name: "ChatGPT 账号授权（订阅）" }))
-    await user.click(within(dialog).getByRole("button", { name: "继续" }))
     await user.click(within(dialog).getByRole("button", { name: "使用 OpenAI 账号登录" }))
 
     expect(await within(dialog).findByText("ABCD-1234")).toBeInTheDocument()
-    expect(within(dialog).getByText("实验性候选目录：模型不是从账号实时读取，将按账号逐个验证。")).toBeInTheDocument()
+    expect(within(dialog).getByText("第 1 步：复制授权码")).toBeInTheDocument()
+    expect(within(dialog).getByRole("link", { name: "第 2 步：打开 OpenAI 授权页" })).toBeInTheDocument()
     expect(open).not.toHaveBeenCalled()
     await user.click(within(dialog).getByRole("button", { name: "复制授权码" }))
     expect(writeText).toHaveBeenCalledWith("ABCD-1234")
-    await user.click(within(dialog).getByRole("link", { name: "打开 OpenAI 授权页" }))
-    await user.click(within(dialog).getByRole("button", { name: "取消等待" }))
-    expect(within(dialog).getByRole("button", { name: "重新生成授权码" })).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "重新生成授权码" })).toBeDisabled()
   })
 
   it("renders catalog and configured connections as separate actionable regions", async () => {
@@ -282,7 +318,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     const configured = await screen.findByRole("region", { name: "已配置的远程订阅" })
     const card = within(configured).getByRole("article")
     expect(within(card).getByRole("heading", { name: "OpenAI Main" })).toBeInTheDocument()
-    expect(within(card).getByText("共 1 个模型（已启用 1 个 · 验证通过 1 个）")).toBeInTheDocument()
+    expect(within(card).getByText("1/1 个模型可用 · 未被粮食使用")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "同模型对比" })).toBeInTheDocument()
 
     const available = screen.getByRole("region", { name: "添加新的远程订阅" })
@@ -304,6 +340,29 @@ describe("OwnerProviderPanel v2 behavior", () => {
     expect(within(available).queryByRole("button", { name: "配置 OpenAI (ChatGPT)" })).not.toBeInTheDocument()
   })
 
+  it("shows how many Foods use a configured subscription", async () => {
+    vi.mocked(ownerFoods).mockResolvedValue({
+      ...emptyFoodCatalog,
+      packages: [{
+        key: "food_common",
+        display_name: "常用粮",
+        system_role: "common",
+        enabled: true,
+        archived: false,
+        visibility_mode: "global",
+        visible_user_ids: [],
+        roles: { primary: { model: "conn-openai/gpt-test" }, reasoning: null, vision: null, tool: null, fallback: null },
+        health: "healthy",
+        locality: "remote",
+        latest_evidence_at: "2026-08-17T00:00:00Z",
+      }],
+    })
+    renderPanel()
+
+    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    expect(within(card).getByText("1/1 个模型可用 · 被 1 个粮食使用")).toBeInTheDocument()
+  })
+
   it("does not repeat the configured Ollama in the add-subscription grid", async () => {
     vi.mocked(ownerProviderCatalog).mockResolvedValue([ollamaProduct, product])
     vi.mocked(ownerProviderConnections).mockResolvedValue([ollamaConnection, connection])
@@ -311,6 +370,44 @@ describe("OwnerProviderPanel v2 behavior", () => {
 
     const available = await screen.findByRole("region", { name: "添加新的远程订阅" })
     expect(within(available).queryByRole("button", { name: "配置 Ollama" })).not.toBeInTheDocument()
+  })
+
+  it("automatically validates pending local models after the first status load", async () => {
+    const pendingConnection = {
+      ...ollamaConnection,
+      model_counts: { total: 1, enabled: 1, in_use: 0, available: 0, degraded: 0, pending: 1, unavailable: 0 },
+      models: [{ ...model, available: false, verification: { status: "never" as const, checked_at: null, latency_ms: null, error: null } }],
+      verification: { status: "never" as const, checked_at: null, latency_ms: null, error: null },
+    } satisfies ProviderConnection
+    const pendingStatus = {
+      ...healthyOllama,
+      models: healthyOllama.models.map((item) => item.id === "qwen2.5:0.5b"
+        ? { ...item, available: false, availability_status: "unknown" as const }
+        : item),
+      model_counts: { installed: 2, available: 0, degraded: 0, pending: 2, unavailable: 0 },
+    } satisfies OllamaStatus
+    vi.mocked(ownerProviderCatalog).mockResolvedValue([ollamaProduct, product])
+    vi.mocked(ownerProviderConnections).mockResolvedValue([pendingConnection])
+    vi.mocked(ownerOllamaStatus).mockResolvedValue(pendingStatus)
+
+    renderPanel()
+
+    await waitFor(() => expect(verifyOllamaModels).toHaveBeenCalledWith("csrf"))
+  })
+
+  it("renders provider cards before the slower Food reference read finishes", async () => {
+    let resolveFood!: (catalog: FoodCatalog) => void
+    vi.mocked(ownerFoods).mockImplementation(() => new Promise((resolve) => {
+      resolveFood = resolve
+    }))
+    vi.mocked(ownerProviderCatalog).mockResolvedValue([product])
+    vi.mocked(ownerProviderConnections).mockResolvedValue([connection])
+
+    renderPanel()
+
+    const configured = await screen.findByRole("region", { name: "已配置的远程订阅" })
+    expect(within(configured).getByText("1/1 个模型可用")).toBeInTheDocument()
+    resolveFood(emptyFoodCatalog)
   })
 
   it("shows the eight priority brands and one add-other entry", async () => {
@@ -427,6 +524,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     expect(within(methodField).queryByRole("combobox")).not.toBeInTheDocument()
     expect(within(methodField).getByRole("textbox")).toBeDisabled()
     expect(within(methodField).getByRole("textbox")).toHaveValue("API Key")
+    expect(within(dialog).getByLabelText("API 密钥", { selector: "input" })).toBeInTheDocument()
   })
 
   it("turns the connection green as soon as refreshed validation state arrives", async () => {
@@ -441,11 +539,13 @@ describe("OwnerProviderPanel v2 behavior", () => {
       ...connection,
       verification: { ...connection.verification, status: "failed" as const },
       models: [model, failedModel],
+      model_counts: { total: 2, enabled: 2, in_use: 0, available: 1, degraded: 0, pending: 0, unavailable: 1 },
     }
     const refreshedConnection = {
       ...staleConnection,
       verification: { ...connection.verification, status: "passed" as const },
       models: [model, { ...failedModel, verification: { ...failedModel.verification, status: "passed" as const, error: null } }],
+      model_counts: { total: 2, enabled: 2, in_use: 0, available: 2, degraded: 0, pending: 0, unavailable: 0 },
     }
     vi.mocked(ownerProviderConnections)
       .mockResolvedValueOnce([staleConnection])
@@ -453,12 +553,24 @@ describe("OwnerProviderPanel v2 behavior", () => {
 
     renderPanel()
     const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
-    expect(within(card).getByText("部分可用")).toBeInTheDocument()
+    expect(within(card).getByText("不可用")).toBeInTheDocument()
 
     await user.click(within(card).getByRole("button", { name: "验证" }))
 
-    expect(await within(card).findByText("验证通过")).toBeInTheDocument()
-    expect(within(card).getByText("共 2 个模型（已启用 2 个 · 验证通过 2 个）")).toBeInTheDocument()
+    expect(await within(card).findByText("可用")).toBeInTheDocument()
+    expect(within(card).getByText("2/2 个模型可用 · 未被粮食使用")).toBeInTheDocument()
+  })
+
+  it("keeps a failed Provider account red despite cached model evidence", async () => {
+    vi.mocked(ownerProviderConnections).mockResolvedValue([{
+      ...connection,
+      verification: { ...connection.verification, status: "failed" as const, error: "账号不可用" },
+    }])
+    renderPanel()
+
+    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    expect(card).toHaveClass("provider-card--failed")
+    expect(within(card).getByText("不可用")).toBeInTheDocument()
   })
 
   it("creates a catalog connection through the product-specific form", async () => {
@@ -468,17 +580,18 @@ describe("OwnerProviderPanel v2 behavior", () => {
     await user.click(await screen.findByRole("button", { name: "配置 OpenAI" }))
     const dialog = screen.getByRole("dialog", { name: "配置 OpenAI" })
     expect(within(dialog).getByRole("combobox", { name: "连接方式" })).toHaveTextContent("OpenAI API Key（按量计费）")
-    await user.click(within(dialog).getByRole("button", { name: "继续" }))
     await user.type(within(dialog).getByLabelText("API 密钥", { selector: "input" }), "secret")
     await user.click(within(dialog).getByRole("button", { name: "保存配置" }))
 
     await waitFor(() => expect(createProviderConnection).toHaveBeenCalledWith(
-      expect.objectContaining({ api_key: "secret", catalog_id: "openai", refresh_models: true }),
+      expect.objectContaining({ api_key: "secret", catalog_id: "openai", refresh_models: false }),
       "csrf",
     ))
     expect(vi.mocked(createProviderConnection).mock.calls[0]?.[0]).toHaveProperty("verify", false)
     expect(screen.queryByRole("dialog", { name: "配置 OpenAI" })).not.toBeInTheDocument()
     expect(await screen.findByText("OpenAI Main 已保存。")).toBeInTheDocument()
+    await waitFor(() => expect(refreshProviderModels).toHaveBeenCalledWith("conn-openai", "csrf"))
+    expect(await screen.findByRole("dialog", { name: "OpenAI Main 的模型" })).toBeInTheDocument()
     expect(vi.mocked(ownerProviderConnections).mock.calls.length).toBeGreaterThanOrEqual(2)
   }, 10_000)
 
@@ -489,7 +602,6 @@ describe("OwnerProviderPanel v2 behavior", () => {
 
     await user.click(await screen.findByRole("button", { name: "配置 OpenAI" }))
     const dialog = screen.getByRole("dialog", { name: "配置 OpenAI" })
-    await user.click(within(dialog).getByRole("button", { name: "继续" }))
     await user.type(within(dialog).getByLabelText("API 密钥", { selector: "input" }), "secret")
     await user.click(within(dialog).getByRole("button", { name: "保存配置" }))
 
@@ -503,6 +615,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
       ...connection,
       verification: { ...connection.verification, status: "never" as const, checked_at: null, latency_ms: null },
       models: [{ ...model, verification: { ...model.verification, status: "never" as const, checked_at: null, latency_ms: null } }],
+      model_counts: { total: 1, enabled: 1, in_use: 0, available: 0, degraded: 0, pending: 1, unavailable: 0 },
     }
     vi.mocked(ownerProviderConnections)
       .mockResolvedValueOnce([staleConnection])
@@ -510,12 +623,12 @@ describe("OwnerProviderPanel v2 behavior", () => {
     renderPanel()
 
     const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
-    expect(within(card).getByText("未验证")).toBeInTheDocument()
+    expect(within(card).getByText("暂不可用")).toBeInTheDocument()
     await user.click(await screen.findByRole("button", { name: "批量验证" }))
 
     expect(await screen.findByRole("status")).toHaveTextContent("批量验证完成：1 项通过，报告 validation-run。")
-    expect(within(card).getByText("验证通过")).toBeInTheDocument()
-    expect(within(card).getByText("共 1 个模型（已启用 1 个 · 验证通过 1 个）")).toBeInTheDocument()
+    expect(within(card).getByText("可用")).toBeInTheDocument()
+    expect(within(card).getByText("1/1 个模型可用 · 未被粮食使用")).toBeInTheDocument()
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 
@@ -547,16 +660,17 @@ describe("OwnerProviderPanel v2 behavior", () => {
       ...connection,
       verification: { status: "never", checked_at: null, latency_ms: null, error: null },
       models: [{ ...model, verification: { status: "never", checked_at: null, latency_ms: null, error: null } }],
+      model_counts: { total: 1, enabled: 1, in_use: 0, available: 0, degraded: 0, pending: 1, unavailable: 0 },
     }])
     renderPanel()
 
     const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
-    expect(card).toHaveClass("provider-card--never")
-    expect(within(card).getByText("未验证")).toBeInTheDocument()
+    expect(card).toHaveClass("provider-card--partial")
+    expect(within(card).getByText("暂不可用")).toBeInTheDocument()
     expect(within(card).queryByText("验证失败")).not.toBeInTheDocument()
   })
 
-  it("keeps all-passed models green while showing a stale-validation hint", async () => {
+  it("keeps cached all-passed models green without exposing maintenance hints", async () => {
     vi.mocked(ownerProviderConnections).mockResolvedValue([{
       ...connection,
       verification: { ...connection.verification, needs_full_validation: true },
@@ -566,8 +680,8 @@ describe("OwnerProviderPanel v2 behavior", () => {
     const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
     expect(card).toHaveClass("provider-card--passed")
     expect(card).not.toHaveClass("provider-card--partial")
-    expect(within(card).getByText("验证通过")).toBeInTheDocument()
-    expect(within(card).getByText("需要重新进行全量验证")).toBeInTheDocument()
+    expect(within(card).getByText("可用")).toBeInTheDocument()
+    expect(within(card).queryByText("需要重新进行全量验证")).not.toBeInTheDocument()
   })
 
   it("archives an existing connection from the anchored lifecycle menu", async () => {
@@ -589,12 +703,23 @@ describe("OwnerProviderPanel v2 behavior", () => {
     const card = within(local).getByRole("article")
 
     expect(within(card).getByRole("heading", { name: "Ollama" })).toBeInTheDocument()
-    expect(within(card).getByText("0 个可用模型")).toBeInTheDocument()
+    expect(within(card).getByText("0/0 个模型可用")).toBeInTheDocument()
     expect(within(card).getByRole("button", { name: "安装" })).toBeInTheDocument()
     expect(within(card).queryByRole("button", { name: "模型" })).not.toBeInTheDocument()
     expect(within(card).queryByRole("button", { name: "启动" })).not.toBeInTheDocument()
     expect(within(card).queryByRole("button", { name: "重启" })).not.toBeInTheDocument()
     expect(within(await screen.findByRole("region", { name: "已配置的远程订阅" })).queryByText("Ollama")).not.toBeInTheDocument()
+  })
+
+  it("shows a neutral reading state before Ollama status is known", async () => {
+    vi.mocked(ownerOllamaStatus).mockReturnValue(new Promise<OllamaStatus>(() => undefined))
+    renderPanel()
+
+    const card = within(await screen.findByRole("region", { name: "本地模型服务" })).getByRole("article")
+    expect(card).toHaveClass("provider-card--ollama-loading")
+    expect(within(card).getByText("读取中…")).toBeInTheDocument()
+    expect(within(card).getByText("正在读取本地模型…")).toBeInTheDocument()
+    expect(within(card).queryByText("未安装")).not.toBeInTheDocument()
   })
 
   it("switches the local card from start to restart when Ollama is healthy", async () => {
@@ -603,7 +728,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     renderPanel()
 
     const card = within(await screen.findByRole("region", { name: "本地模型服务" })).getByRole("article")
-    expect(within(card).getByText("1 个可用模型")).toBeInTheDocument()
+    expect(within(card).getByText("1/1 个模型可用")).toBeInTheDocument()
     expect(within(card).getByRole("button", { name: "模型" })).toBeInTheDocument()
     expect(within(card).getByRole("button", { name: "重启" })).toBeInTheDocument()
     expect(within(card).queryByRole("button", { name: "启动" })).not.toBeInTheDocument()
@@ -624,6 +749,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     expect(within(dialog).getAllByText("qwen2.5:0.5b")).not.toHaveLength(0)
     expect(within(dialog).getByText("qwen3.5:0.8b")).toBeInTheDocument()
     expect(within(dialog).getByText("gemma3:270m")).toBeInTheDocument()
+    expect(within(dialog).queryByText("custom-local:latest")).not.toBeInTheDocument()
     expect(within(dialog).getByText("已下载")).toBeInTheDocument()
     await user.click(within(dialog).getAllByRole("button", { name: "下载安装" })[0]!)
 

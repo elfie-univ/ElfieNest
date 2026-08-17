@@ -18,6 +18,7 @@ from .port_models import (
 )
 
 EVIDENCE_MAX_AGE = timedelta(hours=24)
+AUTO_SELECTION_QUALITY_FLOOR = 2
 
 
 def is_model_evidence_fresh(
@@ -60,6 +61,8 @@ class FoodPlanner:
         eligible.sort(
             key=lambda item: (
                 0 if local_first and item.local else 1,
+                0 if item.quality_tier >= AUTO_SELECTION_QUALITY_FLOOR else 1,
+                item.auto_selection_priority,
                 item.cost_grade,
                 item.latency_ms if item.latency_ms is not None else float("inf"),
                 item.reference,
@@ -70,14 +73,7 @@ class FoodPlanner:
         reasoning = _choose(eligible, "reasoning")
         vision = _choose(eligible, "vision")
         tool = _choose(eligible, "tools", require_tool_test=True)
-        fallback = next(
-            (
-                item.reference
-                for item in eligible
-                if primary is not None and item.reference != primary
-            ),
-            None,
-        )
+        fallback = _choose_fallback(primary, eligible)
         if primary is None:
             warnings.append("没有符合范围且最近验证通过的主模型")
         if (
@@ -107,6 +103,24 @@ class FoodPlanner:
             )
         )
         return StoredFoodProposal(proposed, changes, tuple(warnings))
+
+
+def _choose_fallback(
+    primary: str | None,
+    evidence: Sequence[StoredModelEvidence],
+) -> str | None:
+    if primary is None:
+        return None
+    primary_provider = primary.split("/", 1)[0]
+    candidates = [item for item in evidence if item.reference != primary]
+    return next(
+        (
+            item.reference
+            for item in candidates
+            if item.reference.split("/", 1)[0] != primary_provider
+        ),
+        next((item.reference for item in candidates), None),
+    )
 
 
 def project_food_health(

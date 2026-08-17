@@ -227,7 +227,7 @@ def test_catalog_only_discovery_never_calls_generic_models_endpoint(
     assert result.authoritative is True
 
 
-def test_volcengine_coding_plan_reads_restricted_models_inventory(
+def test_volcengine_coding_plan_uses_bundled_core_list_without_network(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
@@ -235,22 +235,18 @@ def test_volcengine_coding_plan_reads_restricted_models_inventory(
     config.providers["volc_connection"] = {
         "catalog_id": "volcengine_coding_plan",
         "discovery_strategy": "provider_adapter",
-        "bundled_models": ["core-model"],
+        "bundled_models": ["core-model", "second-core-model"],
         "api_base": "https://ark.example/api/coding/v3",
         "api_mode": "chat_completions",
         "api_key": "coding-secret",
     }
-    captured = []
 
-    def fake_urlopen(request, timeout):
-        captured.append((request, timeout))
-        return FakeResponse(
-            {"data": [{"id": "core-model"}, {"id": "live-extra-model"}]}
-        )
+    def must_not_request(*_args, **_kwargs):
+        raise AssertionError("Coding Plan core discovery must not request /models")
 
     monkeypatch.setattr(
         "infrastructure.models.validation.provider_validation.open_provider_request",
-        fake_urlopen,
+        must_not_request,
     )
 
     result = discover_provider_models_result(
@@ -259,14 +255,12 @@ def test_volcengine_coding_plan_reads_restricted_models_inventory(
 
     assert [item.name for item in result.models] == [
         "core-model",
-        "live-extra-model",
+        "second-core-model",
     ]
-    assert [item.curated for item in result.models] == [True, False]
-    assert result.source == "provider_models"
+    assert all(item.curated for item in result.models)
+    assert result.source == "bundled_catalog"
     assert result.complete is True
     assert result.authoritative is True
-    assert captured[0][0].full_url == "https://ark.example/api/coding/v3/models"
-    assert captured[0][0].headers["Authorization"] == "Bearer coding-secret"
 
 
 def test_volcengine_coding_plan_does_not_treat_general_ark_models_as_entitlement(

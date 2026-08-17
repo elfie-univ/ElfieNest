@@ -324,6 +324,34 @@ class ProviderModelResult:
 
 
 @dataclass(frozen=True)
+class ProviderModelCounts:
+    """One authoritative inventory/evidence summary for a Provider connection.
+
+    ``total`` includes present, non-retired inventory (including hidden
+    discovered models). ``enabled`` is the visible serving inventory. The
+    availability buckets only count enabled models and come from model-level
+    evidence, never from Provider/account verification.
+    """
+
+    total: int
+    enabled: int
+    in_use: int
+    available: int
+    degraded: int
+    pending: int
+    unavailable: int
+
+
+@dataclass(frozen=True)
+class LocalModelCounts:
+    installed: int
+    available: int
+    degraded: int
+    pending: int
+    unavailable: int
+
+
+@dataclass(frozen=True)
 class ProviderModelRefreshResult:
     status: str
     checked_at: str
@@ -359,6 +387,9 @@ class ProviderConnectionResult:
     usage_scope: str
     verification: ProviderVerificationResult
     models: tuple[ProviderModelResult, ...]
+    model_counts: ProviderModelCounts = field(
+        default_factory=lambda: ProviderModelCounts(0, 0, 0, 0, 0, 0, 0)
+    )
     model_refresh: ProviderModelRefreshResult | None = None
     has_credential: bool = False
 
@@ -413,6 +444,9 @@ class LocalProviderStatusResult:
     installed_model_count: int
     models: tuple[LocalProviderModelResult, ...]
     task: LocalProviderTaskResult | None
+    model_counts: LocalModelCounts = field(
+        default_factory=lambda: LocalModelCounts(0, 0, 0, 0, 0)
+    )
 
 
 @dataclass(frozen=True)

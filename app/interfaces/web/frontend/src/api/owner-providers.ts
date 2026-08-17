@@ -52,6 +52,16 @@ const ProviderModelSchema = z.object({
   verification: VerificationSchema,
 })
 
+const ProviderModelCountsSchema = z.object({
+  total: z.number().int().min(0),
+  enabled: z.number().int().min(0),
+  in_use: z.number().int().min(0),
+  available: z.number().int().min(0),
+  degraded: z.number().int().min(0),
+  pending: z.number().int().min(0),
+  unavailable: z.number().int().min(0),
+})
+
 const CapabilityProbeResultSchema = z.object({
   capability: z.enum(["tools", "vision", "reasoning", "structured_output"]),
   state: z.enum(["supported", "unsupported", "unknown"]),
@@ -116,6 +126,7 @@ const ProviderConnectionSchema = z.object({
   usage_scope: z.string(),
   verification: VerificationSchema,
   models: z.array(ProviderModelSchema),
+  model_counts: ProviderModelCountsSchema,
   model_refresh: ModelRefreshSchema,
 })
 

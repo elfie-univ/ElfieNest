@@ -85,6 +85,14 @@ def _override_document() -> dict:
                 "models": ["gateway-model"],
             }
         ],
+        "food_generation_preferences": [
+            {
+                "catalog_id": "example_api",
+                "model_id": "example-model",
+                "priority": 7,
+                "quality_tier": 2,
+            }
+        ],
     }
 
 
@@ -108,14 +116,13 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
         "provider_adapter"
     )
     assert catalog.products["volcengine_coding_plan"].bundled_models == [
-        "doubao-seed-2.0-lite",
-        "glm-5.2",
-        "kimi-k2.7-code",
-        "deepseek-v4-pro",
-        "minimax-m3",
         "doubao-seed-2.1-turbo",
-        "deepseek-v4-flash",
+        "doubao-seed-2.0-lite",
+        "minimax-m3",
         "glm-5.3",
+        "deepseek-v4-flash",
+        "deepseek-v4-pro",
+        "kimi-k2.7-code",
     ]
     assert catalog.products["glm_api"].brand_id == "zhipu"
     assert catalog.products["kimi_api"].brand_id == "moonshot"
@@ -152,6 +159,33 @@ def test_local_provider_catalog_can_add_supported_provider(tmp_path) -> None:
     assert catalog.products["example_api"].api_base == ("https://gateway.example/v1")
     assert catalog.profiles["new_gateway"].catalog_id == "example_api"
     assert catalog.suggested_models("https://gateway.example/v1") == ["gateway-model"]
+    preference = catalog.food_generation_preference("example_api", "example-model")
+    assert preference is not None
+    assert preference.priority == 7
+    assert preference.quality_tier == 2
+
+
+def test_provider_catalog_rejects_food_preference_for_unbundled_model() -> None:
+    document = _override_document()
+    document["food_generation_preferences"][0]["model_id"] = "not-bundled"
+
+    with pytest.raises(
+        ProviderCatalogError, match="Invalid Food generation preference"
+    ):
+        parse_provider_catalog(document, Path("provider-catalog.yaml"))
+
+
+def test_builtin_catalog_has_exact_food_generation_preferences() -> None:
+    catalog = load_provider_catalog()
+
+    preference = catalog.food_generation_preference(
+        "volcengine_coding_plan",
+        "deepseek-v4-flash",
+    )
+
+    assert preference is not None
+    assert preference.priority == 10
+    assert preference.quality_tier == 2
 
 
 def test_invalid_local_provider_catalog_falls_back_to_bundled(

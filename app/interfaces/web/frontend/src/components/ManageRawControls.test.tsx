@@ -157,7 +157,7 @@ describe("Manage shared controls", () => {
     )
 
     const foodTable = await screen.findByRole("table", { name: "粮食套餐" })
-    expect(within(foodTable).getAllByRole("columnheader")).toHaveLength(9)
+    expect(within(foodTable).getAllByRole("columnheader")).toHaveLength(8)
     expect(screen.queryByRole("table", { name: "标准粮角色配置" })).not.toBeInTheDocument()
   })
 })

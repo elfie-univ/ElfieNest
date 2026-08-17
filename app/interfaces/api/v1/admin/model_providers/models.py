@@ -8,9 +8,11 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.features.configuration import (
+    LocalModelCounts,
     ProviderBenchmarkRunResult,
     ProviderConnectionResult,
     ProviderConnectionVerificationResult,
+    ProviderModelCounts,
     ProviderModelMatrixResult,
     ProviderModelRefreshResult,
     ProviderModelResult,
@@ -358,6 +360,22 @@ class ProviderModelResponse(BaseModel):
         )
 
 
+class ProviderModelCountsResponse(BaseModel):
+    model_config = StrictModel
+
+    total: int = Field(ge=0)
+    enabled: int = Field(ge=0)
+    in_use: int = Field(ge=0)
+    available: int = Field(ge=0)
+    degraded: int = Field(ge=0)
+    pending: int = Field(ge=0)
+    unavailable: int = Field(ge=0)
+
+    @classmethod
+    def from_result(cls, item: ProviderModelCounts) -> ProviderModelCountsResponse:
+        return cls(**vars(item))
+
+
 class ProviderCapabilityProbeRequest(BaseModel):
     model_config = StrictModel
 
@@ -531,6 +549,7 @@ class ProviderConnectionResponse(BaseModel):
     usage_scope: str
     verification: ProviderVerificationResponse
     models: tuple[ProviderModelResponse, ...]
+    model_counts: ProviderModelCountsResponse
     model_refresh: Optional[ModelRefreshResponse]
 
     @classmethod
@@ -554,6 +573,7 @@ class ProviderConnectionResponse(BaseModel):
             models=tuple(
                 ProviderModelResponse.from_result(model) for model in item.models
             ),
+            model_counts=ProviderModelCountsResponse.from_result(item.model_counts),
             model_refresh=(
                 None
                 if item.model_refresh is None
@@ -632,6 +652,20 @@ class LocalProviderModelResponse(BaseModel):
     available: bool = False
 
 
+class LocalModelCountsResponse(BaseModel):
+    model_config = StrictModel
+
+    installed: int = Field(ge=0)
+    available: int = Field(ge=0)
+    degraded: int = Field(ge=0)
+    pending: int = Field(ge=0)
+    unavailable: int = Field(ge=0)
+
+    @classmethod
+    def from_result(cls, item: LocalModelCounts) -> LocalModelCountsResponse:
+        return cls(**vars(item))
+
+
 class LocalProviderStatusResponse(BaseModel):
     model_config = StrictModel
 
@@ -650,6 +684,7 @@ class LocalProviderStatusResponse(BaseModel):
     memory_gb: int = Field(ge=0)
     recommended_model: Optional[str]
     installed_model_count: int = Field(ge=0)
+    model_counts: LocalModelCountsResponse
     models: tuple[LocalProviderModelResponse, ...]
     task: Optional[LocalProviderTaskResponse]
 

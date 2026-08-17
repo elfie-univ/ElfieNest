@@ -91,6 +91,10 @@ def query_model_evidence(
         )
         for model in connection.models:
             subject_id = f"{connection.connection_id}/{model.endpoint_model_id}"
+            preference = provider_catalog.food_generation_preference(
+                connection.catalog_id,
+                model.endpoint_model_id,
+            )
             if explicit_observations is not None:
                 subject_observations = tuple(
                     item
@@ -136,6 +140,10 @@ def query_model_evidence(
                 now=current,
                 capability_observations=capability_observations,
                 provider_block=provider_block,
+                auto_selection_priority=(
+                    preference.priority if preference is not None else 100
+                ),
+                quality_tier=preference.quality_tier if preference is not None else 0,
             )
     return result
 

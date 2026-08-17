@@ -5,15 +5,12 @@ import { useTranslation } from "react-i18next"
 
 import {
   addProviderModel,
-  cleanupObsoleteProviderModels,
-  listObsoleteProviderModels,
   probeProviderModelCapabilities,
   refreshProviderModels,
   saveProviderModels,
   updateProviderModel,
   type ProviderConnection,
   type ProviderModel,
-  type ProviderObsoleteModel,
 } from "../api/owner-providers"
 import { ApiError } from "../api/http"
 import { ManageDialog } from "./ManageDialog"
@@ -43,16 +40,26 @@ import { useToast } from "./ui/toast"
 type Props = {
   readonly connection: ProviderConnection | null
   readonly csrfToken: string
+  readonly foodReferenceCount?: number | null | undefined
+  readonly initialError?: string | null | undefined
+  readonly initialLoad?: boolean | undefined
+  readonly initializing?: boolean | undefined
   readonly onChanged: () => Promise<void>
   readonly onOpenChange: (open: boolean) => void
+  readonly onVerify?: (() => Promise<void>) | undefined
   readonly open: boolean
 }
 
 export function ProviderModelsDialog({
   connection,
   csrfToken,
+  foodReferenceCount = null,
+  initialError = null,
+  initialLoad = false,
+  initializing = false,
   onChanged,
   onOpenChange,
+  onVerify,
   open,
 }: Props) {
   const { t } = useTranslation("manage")
@@ -64,9 +71,7 @@ export function ProviderModelsDialog({
   const [manualContext, setManualContext] = useState("")
   const [manualOutput, setManualOutput] = useState("")
   const [pending, setPending] = useState(false)
-  const [obsoleteModels, setObsoleteModels] = useState<readonly ProviderObsoleteModel[]>([])
-  const [showObsolete, setShowObsolete] = useState(false)
-  const [selectedObsolete, setSelectedObsolete] = useState<readonly string[]>([])
+  const [verifying, setVerifying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const { show } = useToast()
@@ -83,9 +88,7 @@ export function ProviderModelsDialog({
     setManualOutput("")
     setError(null)
     setNotice(connection.model_refresh?.message ?? null)
-    setObsoleteModels([])
-    setShowObsolete(false)
-    setSelectedObsolete([])
+    setVerifying(false)
   }, [connection, open])
 
   if (!connection) return null
@@ -93,6 +96,7 @@ export function ProviderModelsDialog({
   const visibleModels = connection.models.filter((model) => model.discovery_state !== "source_missing")
   const normalModels = visibleModels.filter((model) => !model.hidden)
   const otherModels = visibleModels.filter((model) => model.hidden)
+  const availableCount = connection.model_counts.available
 
   const refresh = async (): Promise<void> => {
     setPending(true)
@@ -183,39 +187,18 @@ export function ProviderModelsDialog({
     }
   }
 
+  const verifyInitial = async (): Promise<void> => {
+    if (!onVerify) return
+    setVerifying(true)
+    try {
+      await onVerify()
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   const updateDraft = (modelId: string, changes: Partial<EditableModel>): void => {
     setDrafts((current) => current.map((draft) => draft.original_id === modelId ? { ...draft, ...changes } : draft))
-  }
-
-  const loadObsolete = async (): Promise<void> => {
-    setPending(true)
-    try {
-      setObsoleteModels(await listObsoleteProviderModels(connection.connection_id))
-      setSelectedObsolete([])
-      setShowObsolete(true)
-      setError(null)
-    } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : t("providerModels.errors.load"))
-    } finally {
-      setPending(false)
-    }
-  }
-
-  const cleanupObsolete = async (): Promise<void> => {
-    if (selectedObsolete.length === 0) return
-    setPending(true)
-    try {
-      await cleanupObsoleteProviderModels(connection.connection_id, selectedObsolete, csrfToken)
-      show({ kind: "success", message: t("providerModels.notices.cleaned") })
-      setSelectedObsolete([])
-      setShowObsolete(false)
-      setError(null)
-      await onChanged()
-    } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : t("providerModels.errors.cleanup"))
-    } finally {
-      setPending(false)
-    }
   }
 
   const probeCapabilities = async (model: ProviderModel): Promise<void> => {
@@ -244,18 +227,25 @@ export function ProviderModelsDialog({
     title={t("providerModels.labels.title", { name: connection.alias })}
   >
     {error ? <Notice kind="error" message={error} /> : null}
-    {notice ? <Notice message={notice} /> : null}
-    <div className="provider-models-toolbar manage-actions">
-      <RefreshButton disabled={pending} label={t("providerModels.actions.refresh")} onClick={() => { void refresh() }} />
-      <Button disabled={pending} onClick={() => { void loadObsolete() }} type="button" variant="outline">{t("providerModels.actions.obsolete")}</Button>
-      <Button disabled={pending} onClick={() => { setAddingManual((value) => !value); setEditing(false) }} type="button">{t("providerModels.actions.addManual")}</Button>
-      {editing
-        ? <>
-          <Button disabled={pending} onClick={() => { void saveAll() }} type="button">{t("providerModels.actions.saveAll")}</Button>
-          <Button disabled={pending} onClick={cancelEditing} type="button">{t("providerModels.actions.cancel")}</Button>
-        </>
-        : <Button disabled={pending} onClick={beginEditing} type="button">{t("providerModels.actions.editAll")}</Button>}
-    </div>
+    {initialError ? <Notice kind="error" message={initialError} /> : null}
+    {initializing ? <div className="provider-models-loading" role="status">{t("providerModels.notices.initialLoading")}</div> : <>
+      {notice ? <Notice message={notice} /> : null}
+      <div className="provider-models-summary">
+        <strong>{t(foodReferenceCount === null ? "providerModels.summary" : foodReferenceCount === 0 ? "providerModels.summaryUnused" : "providerModels.summaryWithFoods", { available: availableCount, total: connection.model_counts.enabled, foods: foodReferenceCount ?? 0 })}</strong>
+        {initialLoad && onVerify ? <Button disabled={pending || verifying || normalModels.length === 0} onClick={() => { void verifyInitial() }} type="button">{verifying ? t("providerModels.actions.verifying") : t("providerModels.actions.verify")}</Button> : null}
+      </div>
+      <div className="provider-models-toolbar">
+        <div className="provider-models-toolbar__right">
+          <RefreshButton disabled={pending} label={t("providerModels.actions.refresh")} onClick={() => { void refresh() }} />
+          <Button disabled={pending} onClick={() => { setAddingManual((value) => !value); setEditing(false) }} type="button">{t("providerModels.actions.addManual")}</Button>
+          {editing
+            ? <>
+              <Button disabled={pending} onClick={() => { void saveAll() }} type="button">{t("providerModels.actions.saveAll")}</Button>
+              <Button disabled={pending} onClick={cancelEditing} type="button">{t("providerModels.actions.cancel")}</Button>
+            </>
+            : <Button disabled={pending} onClick={beginEditing} type="button">{t("providerModels.actions.editAll")}</Button>}
+        </div>
+      </div>
     {addingManual ? <form className="provider-models-add-form" onSubmit={(event) => { void saveManual(event) }}>
       <Input aria-label={t("providerModels.fields.modelId")} onChange={(event) => setManualId(event.target.value)} placeholder={t("providerModels.fields.modelIdPlaceholder")} required value={manualId} />
       <Input aria-label={t("providerModels.fields.displayName")} onChange={(event) => setManualName(event.target.value)} placeholder={t("providerModels.fields.displayNamePlaceholder")} value={manualName} />
@@ -263,26 +253,6 @@ export function ProviderModelsDialog({
       <Input aria-label={t("providerModels.fields.maxOutput")} min={1} onChange={(event) => setManualOutput(event.target.value)} placeholder={t("providerModels.fields.maxOutput")} type="number" value={manualOutput} />
       <Button disabled={pending} type="submit">{t("providerModels.actions.add")}</Button>
     </form> : null}
-    {showObsolete ? <section aria-label={t("providerModels.labels.obsolete")} className="provider-obsolete-models">
-      <div className="provider-obsolete-models-header">
-        <strong>{t("providerModels.labels.obsolete")}</strong>
-        <Button disabled={pending || selectedObsolete.length === 0} onClick={() => { void cleanupObsolete() }} type="button" variant="outline">{t("providerModels.actions.cleanup")}</Button>
-      </div>
-      {obsoleteModels.length === 0 ? <p className="empty-state">{t("providerModels.emptyObsolete")}</p> : <div className="provider-obsolete-model-list">
-        {obsoleteModels.map((item) => <label className="provider-obsolete-model" key={item.model.id}>
-          <input
-            checked={selectedObsolete.includes(item.model.id)}
-            disabled={!item.eligible || pending}
-            onChange={(event) => setSelectedObsolete((current) => event.target.checked
-              ? [...current, item.model.id]
-              : current.filter((modelId) => modelId !== item.model.id))}
-            type="checkbox"
-          />
-          <span><strong>{item.model.display_name}</strong> <code>{item.model.id}</code></span>
-          <span>{item.reason}</span>
-        </label>)}
-      </div>}
-    </section> : null}
     {otherModels.length > 0 ? <details className="provider-other-models">
       <summary>{t("providerModels.labels.otherDiscovered", { count: otherModels.length })}</summary>
       <div className="provider-other-model-list">
@@ -293,7 +263,7 @@ export function ProviderModelsDialog({
         </div>)}
       </div>
     </details> : null}
-    {normalModels.length === 0 ? <p className="empty-state">{otherModels.length > 0 ? t("providerModels.emptyEnabled") : t("providerModels.empty")}</p> : <div className="provider-model-table-wrap">
+      {normalModels.length === 0 ? <p className="empty-state">{otherModels.length > 0 ? t("providerModels.emptyEnabled") : t("providerModels.empty")}</p> : <div className="provider-model-table-wrap">
       <Table aria-label={t("providerModels.labels.list", { name: connection.alias })} className="provider-model-table">
         <TableHeader><TableRow>
           <TableHead>{t("providerModels.columns.displayName")}</TableHead>
@@ -329,6 +299,7 @@ export function ProviderModelsDialog({
           </TableRow>
         })}</TableBody>
       </Table>
-    </div>}
+      </div>}
+    </>}
   </ManageDialog>
 }
