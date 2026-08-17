@@ -45,22 +45,26 @@ test/
 uv sync --locked --extra dev
 ```
 
-先运行改动直接对应的测试，再运行架构契约：
+需要复用的受影响测试通过受控验证运行器执行。selector 精确命中已注册顶层测试包时，
+会产生本地 G3 使用的同一份带覆盖率证据：
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/elfie/brain/
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/architecture/
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --selectors test/elfie/brain/
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+  --bundle architecture
 ```
+
+直接运行 `pytest` 只用于诊断，例如重跑一个失败 node；它不产生可复用的提交证据。修复后，
+再通过受控运行器把所属 selector 或测试包运行一次即可。
 
 完整测试：
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync python scripts/check_quality_environment.py
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/
+.venv/bin/python3 scripts/architecture/validation_test_bundles.py --all
 ```
 
 先运行预检。退出码 `2` 表示当前沙箱无法绑定网关测试使用的回环端口；应在允许绑定的

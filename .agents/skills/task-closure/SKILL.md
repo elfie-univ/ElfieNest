@@ -64,9 +64,15 @@ an implemented “main path” from being reported as final completion.
    explicitly classified external-environment gaps. The default gate remains
    strict for final delivery and protected branches.
 
-   The main stage is the complete CI-aligned backstop. It may reuse only a
-   successful exact-candidate result from `build/validation-cache/`; a changed
-   candidate, base, lockfile or toolchain invalidates that result.
+   The main stage is the complete CI-aligned backstop. Deterministic test checks are
+   keyed independently from the delivery stage, so an unchanged focused check
+   may be reused from G1 by G2. A complete registered test bundle is reusable
+   by G3 only when both its scoped-input pass record and coverage fragment are
+   present. A narrower node or file does not prove a larger bundle. Run tests
+   through `scripts/architecture/validation_test_bundles.py` when reusable
+   evidence is intended; raw `pytest` remains diagnostic only. Changed inputs,
+   command, base where applicable, or toolchain invalidate the evidence, and
+   latest-commit CI still runs independently.
 
 6. Report `complete`, `blocked`, and remaining items separately. If a required
    check is blocked, stop with the exact environment and next check; do not turn

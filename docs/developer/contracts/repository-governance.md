@@ -1,6 +1,6 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.10
+**Contract version:** 1.13
 **Adopted:** 2026-08-12
 **Revised:** 2026-08-17
 **Enforced scope:** Repository-wide change classification and architecture boundaries
@@ -38,14 +38,14 @@ Architecture quality is maintained by one connected system:
 | Conformance registers | Name each temporary gap and its deletion gate | Temporary |
 | CI base-branch comparison and maintainer review | Prevent a change from weakening the rule that judges itself | Permanent |
 | Runtime health and Observer projections | Report operational health; separate from source architecture checks | Permanent |
-| Tiered validation and exact-snapshot reuse | Match local effort to changed risk without weakening the final backstop | Permanent |
+| Tiered validation and check-scoped reuse | Match local effort to changed risk without repeating proven expensive checks | Permanent |
 
 No one mechanism replaces another. Contracts state the target, `AGENTS.md`
 guides execution, machine gates reject detectable violations, conformance and
 baselines record only legacy debt, and human review covers semantic rules that
 cannot be proven mechanically.
 
-## Tiered validation and exact-snapshot reuse
+## Tiered validation and check-scoped reuse
 
 Validation is selected from the changed-path impact, and a higher-risk result
 may always escalate but never downgrade:
@@ -54,21 +54,60 @@ may always escalate but never downgrade:
 | --- | --- | --- |
 | G1 commit | ordinary local change | staged secret scan, diff check, changed-file quality, affected tests and closure `progress` |
 | G2 push | feature-branch push or an affected integration path | G1 plus quality baseline and the affected API, persistence, architecture or documentation integration checks |
-| G3 main | main-branch merge/release, governance/toolchain change or unknown impact | the complete existing pre-submit gate and closure `complete` |
+| G3 main | main-branch merge/release, governance/toolchain change or unknown impact | current-candidate checks, closure `complete` and one required expensive backstop |
 
 The candidate classifier owns the escalation decision. Unknown executable paths,
 governance, toolchain, lockfile and delivery changes go to G3. A normal commit
 does not wait for G3 unless its own impact requires that escalation; G3 remains
 the protected-branch backstop.
 
-Only a successful deterministic check may be reused. Its cache key includes the
-check/rule version, stage, immutable base SHA, changed candidate content,
-lockfiles, toolchain fingerprint and selection rules. Failed, blocked, timed-out
-or live-provider results are never stored as passes. The worktree fingerprint is
-checked again after the command; if it changed, the result is discarded. Cache
-records live only under ignored `build/validation-cache/` and contain no source,
-credentials or user data. GitHub status checks still have to pass on the latest
-commit SHA; a cached local result cannot replace CI for a new SHA.
+Only a successful deterministic test check may be reused at check scope. A
+delivery tier is a set of required checks, not part of a test check's identity:
+the evidence key covers the check/rule version, exact command, declared input
+contents and file modes, local tool fingerprint and immutable base when the
+selection depends on that base. Therefore an unchanged focused test run by G1
+is reused by G2 instead of being started again.
+
+The local G3 pytest backstop is partitioned into registered top-level bundles.
+Each bundle starts with conservative source, test, configuration and
+shared-fixture inputs, then adds the transitive local Python import closure of
+its tests and `conftest.py` files; dynamic or non-Python entry points remain
+explicit inputs. An unknown executable input invalidates every bundle. A bundle
+pass is reusable only when its pass record, coverage fragment, artifact digest,
+coverage/pytest versions and readable coverage data all agree. Running a
+complete registered bundle earlier through the controlled runner creates that
+same evidence, so G3 skips it. A narrower node, file or arbitrary selector
+cannot prove the larger bundle. One invocation shares a repository content
+snapshot across bundles and rechecks input signatures before accepting a cache
+hit. G3 combines all current bundle fragments and enforces the repository
+coverage threshold once after combination; a failed combine invalidates the
+involved fragments. Raw `pytest` commands remain useful for diagnosis but do
+not enter this evidence store.
+
+Exact-candidate evidence may still reuse a whole tier. G3 also records a
+separate expensive-backstop fingerprint covering every changed source, test,
+dependency, toolchain, documentation and validation-rule input. The only
+omitted paths are root `task-closure*.json` acceptance matrices: after one of
+those changes, diff format, changed-file secret scanning and closure `complete`
+are rerun while unchanged check and bundle evidence remains reusable. Any other
+unclassified path is fail-closed.
+
+Failed, blocked, timed-out or live-provider results are never stored as passes;
+a forced rerun that fails also removes an older pass for the same key. The
+internal `--direct-main` path runs the complete backstop while retaining valid
+bundle evidence; `--no-cache` is reserved for an intentional clean replay and
+is propagated into the bundle runner. When one G3 bundle fails, earlier
+successful bundle records remain valid; the next run skips those records and
+resumes with the failed or still-missing bundle.
+During a repair loop, rerun the exact failed node first, then its owning test
+file or module, then affected integration checks; run the required G3 backstop
+once for the final executable candidate instead of restarting it after every
+edit. Each expansion needs a new dependency or risk reason. The worktree
+fingerprint is checked again after every reused or executed gate; a change
+discards the result. Cache records live only under ignored
+`build/validation-cache/` and contain no source, credentials or user data.
+GitHub status checks still have to pass on the latest commit SHA; local evidence
+cannot replace CI for a new SHA.
 
 An architecture dependency is defined by the effective target, not only by an
 `import` statement. A repository module reached through `python -m`, a script

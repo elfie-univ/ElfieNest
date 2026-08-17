@@ -1,427 +1,176 @@
 {
   "schema_version": 1,
-  "task": "repair incomplete current data roots and align runtime-derived access URLs; ground Observer Elfie visuals; repair the five confirmed Python quality baseline failures",
+  "task": "make local validation layered, non-repetitive, and evidence-reusing",
   "contract_refs": [
-    "docs/developer/contracts/service-lifecycle.md"
+    "docs/developer/contracts/repository-governance.md"
   ],
   "scope": [
-    "app/bootstrap/api.py",
-    "app/bootstrap/app_wiring/*.py",
-    "app/bootstrap/container.py",
-    "app/features/configuration/food/*.py",
-    "app/features/configuration/providers/*.py",
-    "app/interfaces/api/v1/admin/food_packages/*.py",
-    "app/interfaces/api/v1/admin/model_providers/*.py",
-    "app/interfaces/cli/lifecycle_commands.py",
-    "app/interfaces/cli/mobile_commands.py",
-    "app/interfaces/desktop/src/desktop_role_lifecycle.test.ts",
-    "app/interfaces/desktop/src/desktop_role_lifecycle.ts",
-    "app/interfaces/desktop/src/lifecycle_client.test.ts",
-    "app/interfaces/desktop/src/lifecycle_client.ts",
-    "app/interfaces/desktop/src/main.ts",
-    "app/interfaces/desktop/src/windows/window_options.test.ts",
-    "app/interfaces/desktop/src/windows/window_options.ts",
-    "app/interfaces/web/frontend/src/api/admin/food-packages.ts",
-    "app/interfaces/web/frontend/src/api/admin/runtime.test.ts",
-    "app/interfaces/web/frontend/src/api/client.test.ts",
-    "app/interfaces/web/frontend/src/api/owner-providers.ts",
-    "app/interfaces/web/frontend/src/components/FoodRecipeEditor.tsx",
-    "app/interfaces/web/frontend/src/components/MobileAccessDialog.test.tsx",
-    "app/interfaces/web/frontend/src/components/OwnerProviderPanel.tsx",
-    "app/interfaces/web/frontend/src/components/ProviderModelsDialog.test.tsx",
-    "app/interfaces/web/frontend/src/components/ProviderModelsDialog.tsx",
-    "app/interfaces/web/frontend/src/i18n/locales/en-US/manage.ts",
-    "app/interfaces/web/frontend/src/i18n/locales/zh-CN/manage.ts",
-    "app/interfaces/web/frontend/src/styles.css",
-    "app/orchestration/lifecycle/facade.py",
-    "app/orchestration/lifecycle/ports.py",
-    "app/orchestration/lifecycle/runtime_supervisor.py",
-    "app/orchestration/nest_session/residents.py",
-    "config/models/provider-catalog.yaml",
-    "docs/developer/conformance/provider-model-availability.md",
-    "docs/developer/designs/provider-model-availability.md",
-    "docs/developer/engineering/tooling.md",
-    "docs/zh/developer/conformance/provider-model-availability.md",
-    "docs/zh/developer/engineering/tooling.md",
-    "elfienest.sh",
-    "godot_project/characters/dog/dog.tscn",
-    "godot_project/characters/fox/fox.tscn",
-    "godot_project/characters/shared/elfie_actor.gd",
-    "godot_project/runtime/actor/actor_appearance.gd",
-    "godot_project/runtime/observer/observer_presentation.gd",
-    "godot_project/scripts/test/test_actor_appearance_material.gd",
-    "godot_project/scripts/test/test_dog_scale_calibration.gd",
-    "godot_project/scripts/test/test_fox_scale_calibration.gd",
-    "godot_project/scripts/test/test_observer_catalog.gd",
-    "infrastructure/models/catalog.py",
-    "infrastructure/models/food_technology.py",
-    "infrastructure/models/inference/llm_api.py",
-    "infrastructure/models/model_execution_observations.py",
-    "infrastructure/models/model_execution_overview.py",
-    "infrastructure/models/provider_administration.py",
-    "infrastructure/models/providers/discovery.py",
-    "infrastructure/models/providers/dispatch.py",
-    "infrastructure/models/providers/http.py",
-    "infrastructure/models/report_records.py",
-    "infrastructure/models/setup_food.py",
-    "infrastructure/models/validation/*.py",
-    "infrastructure/persistence/food.py",
-    "infrastructure/persistence/food_evidence.py",
-    "infrastructure/persistence/layout/lifecycle_data_home.py",
-    "infrastructure/persistence/model_health_projection.py",
-    "infrastructure/persistence/nest_db/final_schema.py",
-    "infrastructure/persistence/nest_db/store.py",
-    "infrastructure/persistence/provider_availability.py",
-    "infrastructure/persistence/report_storage.py",
-    "infrastructure/persistence/reports/*.py",
-    "infrastructure/platform/lifecycle/runtime_record.py",
-    "scripts/elfienest.py",
-    "task-closure.json",
-    "test/app/features/configuration/food/*.py",
-    "test/app/features/configuration/providers/*.py",
-    "test/app/interfaces/api/v1/admin/food_packages/*.py",
-    "test/app/interfaces/api/v1/admin/model_providers/*.py",
-    "test/app/interfaces/api/v1/admin/runtime/test_routes.py",
-    "test/app/interfaces/cli/test_cli_design_new.py",
-    "test/app/interfaces/cli/test_lifecycle_commands_new_design.py",
-    "test/app/interfaces/cli/test_mobile_commands.py",
-    "test/app/interfaces/cli/test_owner_entrypoints.py",
-    "test/app/orchestration/lifecycle/test_runtime_supervisor.py",
-    "test/app/orchestration/nest_session/test_residents.py",
-    "test/infrastructure/models/providers/*.py",
-    "test/infrastructure/models/test_food_evidence.py",
-    "test/infrastructure/models/test_openai_chatgpt.py",
-    "test/infrastructure/models/test_provider_administration.py",
-    "test/infrastructure/models/test_provider_catalog.py",
-    "test/infrastructure/models/validation/*.py",
-    "test/infrastructure/persistence/layout/test_lifecycle_data_home_recovery.py",
-    "test/infrastructure/persistence/reports/*.py",
-    "test/infrastructure/persistence/test_final_bootstrap.py",
-    "test/infrastructure/persistence/test_provider_availability.py",
-    "test/infrastructure/platform/lifecycle/test_runtime_record.py",
-    "test/support/provider.py"
+    ".agents/skills/task-closure/SKILL.md",
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "CONTRIBUTING_zh.md",
+    "docs/developer/contracts/repository-governance.md",
+    "docs/zh/developer/contracts/repository-governance.md",
+    "docs/developer/decisions/0023-tiered-validation-and-reuse.md",
+    "docs/zh/developer/decisions/0023-tiered-validation-and-reuse.md",
+    "docs/developer/decisions/index.md",
+    "docs/zh/developer/decisions/index.md",
+    "docs/developer/engineering/testing.md",
+    "docs/zh/developer/engineering/testing.md",
+    "scripts/architecture/contract_registry.py",
+    "scripts/architecture/validation_cache.py",
+    "scripts/architecture/validation_gate.py",
+    "scripts/architecture/validation_test_bundles.py",
+    "scripts/pre_submit_gate.sh",
+    "test/README.md",
+    "test/README_zh.md",
+    "test/architecture/test_architecture_governance.py",
+    "test/architecture/test_validation_gate.py",
+    "test/architecture/test_validation_test_bundles.py",
+    "task-closure.json"
   ],
   "conformance": {
     "rows": [],
-    "reason": "The existing lifecycle authority and stable Runtime states remain unchanged; this delivery repairs current data roots, formats runtime-published access URLs, and preserves the separately recorded visual and quality baseline closures without adding broad migration or a new lifecycle state."
+    "reason": "This governance-only change refines the existing tiered validation contract without changing product behavior or architecture ownership."
   },
   "rows": [
     {
       "id": "REQ-001",
-      "requirement": "A partial current data root can be repaired in place by creating missing standard directories, missing current tables, and explicitly safe additive columns; the operation is idempotent and creates no backup or schema-version record.",
+      "requirement": "The repository defines a strict test ladder: run directly affected checks first, retry only the exact failure during repair, expand one level at a time, and run a required full backstop only once for the final executable candidate.",
       "status": "complete",
       "implementation": [
-        "Final root inspection and in-place additive database preparation"
+        "Repository agent guidance and bilingual testing policy"
       ],
       "automated_tests": [
-        "Partial-root, missing-table, safe-column, idempotence, and incompatible-schema tests"
+        "Validation planner tests keep focused G1/G2 selection and explicit G3 escalation"
       ],
       "runtime_scenarios": [
-        "Start with an empty nest.db and leftover runtime control files"
+        "A single failed test is retried without immediately restarting the complete suite"
       ],
       "platform_conditions": [
-        "CPython 3.9.25 repository environment and isolated SQLite data roots"
+        "Local repository validation on CPython 3.9.25"
       ],
       "evidence": [
-        "command: ./.venv/bin/ruff check <all changed Python files> -> passed",
-        "command: ./.venv/bin/python3 -m pytest -q <affected lifecycle, persistence, and Runtime tests> -> 114 passed",
-        "scenario: test_partial_root_with_empty_database_is_repaired_without_deleting_residuals -> residual runtime files preserved and no data-backups created",
-        "scenario: test_partial_current_table_contract_is_repaired_in_place and test_missing_current_table_is_created_in_place -> safe current fields/tables restored in place",
-        "scenario: test_ready_root_skips_repair_work -> ready roots do not repeat additive repair",
-        "scenario: test_unsupported_missing_column_stays_blocked -> unsupported schema remains blocked",
-        "review: final diff contains only the declared lifecycle, storage, and focused test paths"
+        "policy: AGENTS.md and bilingual testing guidance define the four-level failure repair ladder",
+        "command: pytest test/architecture/test_validation_gate.py test/architecture/test_validation_test_bundles.py -q -> 36 passed in 1.02s",
+        "command: exact failure repair nodes -> 12 passed in 23.47s; socket-restricted infrastructure nodes -> 7 passed in 0.56s with loopback permission",
+        "command: final fresh nine-bundle G3 after origin/main sync -> architecture 187, Godot 20, Nest 26, Scripts 98, DevTools 113, Elfie 748 passed and 2 skipped, App 657, Infrastructure 841, E2E 5 passed; coverage 79.29%",
+        "artifact: build/coverage.xml and build/validation-cache/ -> final combined G3 evidence",
+        "execution review: each newly exposed behavior was repaired by rerunning only its exact failed node before the owning file"
       ],
       "residuals": [],
       "blockers": []
     },
     {
       "id": "REQ-002",
-      "requirement": "Desktop, installed CLI controller calls, source CLI start, and source CLI serve use the same lifecycle-owned preparation before Runtime snapshot initialization; existing OFFLINE/PREFLIGHT/FAILED behavior remains unchanged.",
+      "requirement": "A successful expensive G3 backstop is reusable after task-closure-only edits, while current candidate scope, secret, diff, and complete-closure checks are rerun.",
       "status": "complete",
       "implementation": [
-        "Lifecycle data-home preparation callback at the existing RuntimeSupervisor start boundary"
+        "Separate exact-candidate and executable-backstop fingerprints"
       ],
       "automated_tests": [
-        "Runtime record and Desktop data-home state parsing/start tests"
+        "Backstop fingerprint and main-stage reuse behavior tests"
       ],
       "runtime_scenarios": [
-        "A repaired root receives its initial authoritative OFFLINE Runtime snapshot and can continue startup"
+        "Changing only task-closure.json reuses prior full pytest and documentation evidence"
       ],
       "platform_conditions": [
-        "Desktop packaged CLI and source CLI share the injected lifecycle facade"
+        "Ignored local build/validation-cache records"
       ],
       "evidence": [
-        "command: ./.venv/bin/python3 -m pytest -q <affected lifecycle, persistence, and Runtime tests> -> 114 passed",
-        "command: pnpm --dir app/interfaces/desktop build -> passed",
-        "command: node --test build/components/desktop-interface/desktop_role_lifecycle.test.js build/components/desktop-interface/lifecycle_client.test.js -> 28 passed",
-        "scenario: test_start_prepares_data_home_before_initializing_runtime_record -> preparation callback precedes authoritative OFFLINE initialization",
-        "scenario: desktop UI lets the shared lifecycle repair a partial data root -> Desktop accepts the shared partial state",
-        "review: existing RuntimePhase and BackendTier definitions were not changed"
+        "test: task-closure content changes leave the expensive backstop fingerprint unchanged",
+        "test: main-stage reuse reruns diff, changed-file secret scan, and closure complete without invoking the full gate",
+        "cache: reused exact-candidate records retain the source backstop key as provenance",
+        "command: pytest test/architecture/test_validation_gate.py test/architecture/test_validation_test_bundles.py -q -> 36 passed in 1.02s",
+        "command: final fresh nine-bundle G3 after origin/main sync seeded reusable scoped pass records and coverage fragments; final combined coverage 79.29%",
+        "artifact: build/validation-cache/ -> atomic pass records and readable coverage fragments",
+        "runtime: immediate --bundle godot replay returned reused record 0618beba16ff401810ce8fbc81b251bfbcdecf723300e6d2eca6ae6e23f98e58 without pytest collection"
       ],
       "residuals": [],
       "blockers": []
     },
     {
       "id": "REQ-003",
-      "requirement": "Unexpected tables, incompatible constraints, unreadable databases, unsafe column additions, malformed Runtime snapshots, and unrelated legacy roots still stop with an explicit error without automatic backup, deletion, or broad migration.",
+      "requirement": "Any source, test, dependency, toolchain, documentation, or validation-rule change invalidates the expensive backstop evidence and cannot be hidden by metadata reuse.",
       "status": "complete",
       "implementation": [
-        "Existing legacy/corrupt rejection paths retained; only the narrow additive repair state is admitted"
+        "Fail-closed backstop input classification and cache provenance"
       ],
       "automated_tests": [
-        "Existing legacy recovery and Runtime snapshot safety tests plus new negative cases"
+        "Executable-content and rule-version invalidation tests"
       ],
       "runtime_scenarios": [
-        "An unsupported schema remains blocked and the old explicit recovery action remains user-triggered"
+        "A production or gate file change selects the complete main backstop"
       ],
       "platform_conditions": [
-        "No external service or model validation is required for the data preparation step"
+        "Tool versions and immutable base SHA are part of the fingerprint"
       ],
       "evidence": [
-        "command: ./.venv/bin/python3 -m pytest -q <affected lifecycle, persistence, and Runtime tests> -> 114 passed",
-        "scenario: test_unsupported_missing_column_stays_blocked -> incompatible current schema returns an explicit error",
-        "scenario: existing lifecycle data-home recovery tests -> explicit user-triggered recovery path remains unchanged",
-        "scope check: no schema-version record, automatic backup, deletion, or broad migration was added",
-        "review: unsafe schema cases remain outside the additive allowlist and stop before startup"
-      ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "QUALITY-BASELINE-001",
-      "requirement": "主线质量门禁中的四个 Ruff 格式基线问题和一个 MyPy 回调类型问题必须修复，且不改变数据准备的运行语义。",
-      "status": "complete",
-      "implementation": [
-        "infrastructure/persistence/nest_db/final_schema.py: Ruff format 修复",
-        "infrastructure/persistence/nest_db/store.py: Ruff format 修复",
-        "test/app/orchestration/lifecycle/test_runtime_supervisor.py: Ruff format 修复",
-        "test/infrastructure/persistence/test_final_bootstrap.py: Ruff format 修复",
-        "app/orchestration/lifecycle/facade.py::runtime_supervisor 使用显式 None 返回的准备回调承接 DataHomeInspection 结果"
-      ],
-      "automated_tests": [
-        "Ruff format --check on the four formatting paths",
-        "Ruff check on the five changed Python paths",
-        "MyPy over app elfie nest infrastructure devtools scripts",
-        "34 focused lifecycle and persistence tests"
-      ],
-      "runtime_scenarios": [
-        "Existing RuntimeSupervisor start path still prepares the selected data home before snapshot initialization"
-      ],
-      "platform_conditions": [
-        "macOS; CPython 3.9.25; locked Ruff 0.15.21 and MyPy 1.19.1"
-      ],
-      "evidence": [
-        "command: UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync ruff format --check <four paths> -> 4 files already formatted",
-        "command: UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync ruff check <five paths> -> All checks passed",
-        "command: UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync mypy -O json app elfie nest infrastructure devtools scripts -> no diagnostics",
-        "command: UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest -q test/app/orchestration/lifecycle/test_runtime_supervisor.py test/infrastructure/persistence/test_final_bootstrap.py -> 34 passed",
-        "review: all five paths were unchanged relative to origin/main before this approved repair; the quality failures were pre-existing baseline failures"
-      ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "ELFIE-GROUND-001",
-      "requirement": "Observer 多精灵展示必须将每个精灵的视觉脚底基准对齐到其语义地面锚点，同时保留 CharacterBody3D 根节点、碰撞体和真实运行时移动位置不变。",
-      "status": "complete",
-      "implementation": [
-        "godot_project/runtime/actor/actor_appearance.gd::ground_visual_to_plane selects the lowest toe/foot bone baseline, with a mesh-AABB fallback, and adjusts only VisualRoot.",
-        "godot_project/characters/shared/elfie_actor.gd::ground_visual_to_floor exposes the visual-only grounding entry without changing CharacterBody3D position or collision shape.",
-        "godot_project/runtime/observer/observer_presentation.gd::_create_actor applies the semantic anchor y to the visual-only grounding call.",
-        "godot_project/runtime/actor/actor_appearance.gd::ground_visual_to_plane keeps the room lighting unchanged while correcting only VisualRoot height; _apply_material_parameters skips absent optional appearance values to avoid a Godot runtime error."
-      ],
-      "automated_tests": [
-        "godot_project/scripts/test/test_observer_catalog.gd: synthetic mesh grounding, single-actor anchor preservation, and fox/dog multi-actor grounding assertions",
-        "godot_project/scripts/test/test_runtime_navigation.gd: runtime movement, cancellation, blocking, and multi-actor avoidance",
-        "godot_project/scripts/test/test_runtime_interaction.gd: contact, obstruction, visibility, and obstacle collision",
-        "godot_project/scripts/test/test_species_catalog.gd: dog/fox package discovery and appearance application"
-      ],
-      "runtime_scenarios": [
-        "正式生命周期启动临时实例并达到 WORLD_READY；实际 /monitor 页面连接 local-nest，显示当前可见 2 位精灵，切换到 01 宿舍后保存 TSCN 基准缩放后的最终 Viewport 画面。"
-      ],
-      "platform_conditions": [
-        "macOS; Godot 4.7.1 stable; GL Compatibility/OpenGL3; godot_project source scene"
-      ],
-      "evidence": [
-        "command: .venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_observer_catalog.gd",
-        "command: .venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_runtime_navigation.gd",
-        "command: .venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_runtime_interaction.gd",
-        "command: .venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_species_catalog.gd",
-        "artifact: runtime.json reached phase=world_ready; /api/health returned godot_runtime_ready=true; actual /monitor DOM reported 已连接至 local-nest and 当前可见 2 位精灵。",
-        "artifact: /Users/zhenli/.codex/visualizations/2026/08/16/01a00b2e-2a82-7640-8b62-79fd64fa9be2/monitor-dorm-current.png is the rebuilt formal /monitor 01 宿舍 viewport with two actors, original room lighting, restored imported materials, and current TSCN baseline scales.",
-        "measurement: dorm floor and semantic bed anchors are y=0; observer foot baselines were approximately 0.010-0.012m before the visual-only correction, while CharacterBody3D roots stayed at their anchors.",
-        "artifact: build/components/godot-web/build-manifest.json was regenerated from the current source and ./developer.sh build-godot-web --ensure subsequently reported the runtime up-to-date."
-      ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "ELFIE-SCALE-001",
-      "requirement": "Fox/Dog 的物种场景基准缩放必须直接写在 fox.tscn/dog.tscn 中为 0.7；VisualRoot 与 CollisionShape3D 使用同一基准，原始 fox.glb/dog.glb 不得修改。",
-      "status": "complete",
-      "implementation": [
-        "godot_project/characters/fox/fox.tscn::VisualRoot and ::CollisionShape3D author the Fox 0.7 scale and floor-contact position.",
-        "godot_project/characters/dog/dog.tscn::VisualRoot and ::CollisionShape3D author the Dog 0.7 scale and floor-contact position.",
-        "godot_project/runtime/actor/actor_appearance.gd::apply preserves each scene-authored baseline and only multiplies existing individual appearance variation; the collider uses the same authored baseline.",
-        "godot_project/scripts/test/test_fox_scale_calibration.gd verifies the Fox TSCN visual/collision scale together without editing fox.glb.",
-        "godot_project/scripts/test/test_dog_scale_calibration.gd verifies the Dog TSCN visual/collision scale together without editing dog.glb.",
-        "godot_project/runtime/actor/actor_appearance.gd::_apply_material_parameters preserves imported emission textures when applying appearance tint and pattern."
-      ],
-      "automated_tests": [
-        "godot_project/scripts/test/test_fox_scale_calibration.gd",
-        "godot_project/scripts/test/test_dog_scale_calibration.gd",
-        "godot_project/scripts/test/test_actor_appearance_material.gd"
-      ],
-      "runtime_scenarios": [
-        "Rebuild the Godot web runtime, start the formal lifecycle, open /monitor, select 01 宿舍, and save the actual viewport after both Fox and Dog calibrations are loaded."
-      ],
-      "platform_conditions": [
-        "macOS; Godot 4.7.1 stable; GL Compatibility/OpenGL3; CPython 3.9.25"
-      ],
-      "evidence": [
-        "command: ./.venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_fox_scale_calibration.gd; output FOX_TSCN_SCALE: visual=(0.7, 0.7, 0.7) collision_scale=(0.7, 0.7, 0.7) collision_position=(0.0, 0.602, 0.0)",
-        "command: ./.venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_dog_scale_calibration.gd; output DOG_TSCN_SCALE: visual=(0.7, 0.7, 0.7) collision_scale=(0.7, 0.7, 0.7) collision_position=(0.0, 0.602, 0.0)",
-        "command: ./.venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_actor_appearance_material.gd; output ACTOR_MATERIAL_PRESERVATION: shaders=1 emission_textures=1",
-        "command: ./.venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_observer_catalog.gd; output PASS: observer catalog ids, revisions, selection, reset, pause gating, and command parsing",
-        "command: ./.venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_species_catalog.gd; output Complete species catalog contract passed: dog, fox",
-        "command: ./developer.sh build-godot-web --ensure; output Godot Web Runtime generated under build/components/godot-web",
-        "runtime: formal local service reached world_ready; actual http://127.0.0.1:14419/monitor DOM reported 已连接至 local-nest and 当前可见 2 位精灵",
-        "measurement: Fox/Dog scene-authored VisualRoot and CollisionShape3D scales are 0.7; the original GLB assets remain unchanged.",
-        "artifact: prior fox-scale-monitor-dorm-1280x720.jpg is superseded; a fresh live viewport is required after the TSCN source migration.",
-        "artifact: /Users/zhenli/.codex/visualizations/2026/08/16/01a00b2e-2a82-7640-8b62-79fd64fa9be2/monitor-dorm-current.png is the live monitor page captured after the TSCN source migration; the page reported 已连接至 local-nest and 当前可见 2 位精灵."
-      ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "ELFIE-OBSERVER-CATALOG-001",
-      "requirement": "真实 Elfie 的 profile 必须投影为 Observer/Runtime actor catalog 的物种与外观参数，不能静默回退为默认 fox 外观。",
-      "status": "complete",
-      "implementation": [
-        "app/orchestration/nest_session/residents.py::actor_catalog reads the public Elfie.profile property before resolving the appearance payload."
-      ],
-      "automated_tests": [
-        "test/app/orchestration/nest_session/test_residents.py::test_actor_catalog_resolves_real_elfie_profiles_for_each_species"
-      ],
-      "runtime_scenarios": [
-        "Rebuild the Godot Web runtime, reload the formal lifecycle, open /monitor, select 01 宿舍, and capture the actual viewport after the corrected actor catalog is sent."
-      ],
-      "platform_conditions": [
-        "macOS; Godot 4.7.1 stable; GL Compatibility/OpenGL3; CPython 3.9.25"
-      ],
-      "evidence": [
-        "command: UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest -q test/app/orchestration/nest_session/test_residents.py test/app/orchestration/test_observer_projection.py; output 4 passed",
-        "command: ./.venv/bin/python3 direct actor_catalog assertion; output REAL_ACTOR_CATALOG with dog species=dog and fox species=fox plus non-empty height/build scales",
-        "runtime: formal ./elfienest.sh start on a fresh temporary data root reached tier=world_ready, phase=world_ready, godot_authority state=ready, and loaded 2 Elfie(s)",
-        "artifact: /Users/zhenli/.codex/visualizations/2026/08/16/01a00b2e-2a82-7640-8b62-79fd64fa9be2/monitor-evidence/monitor-dorm-restored-material.jpg is the actual /monitor 01 宿舍 viewport after profile projection and material preservation; the page reported 当前可见 2 位精灵",
-        "command: curl http://127.0.0.1:14419/api/health; output status=ok, engine_ready=true, godot_web_ready=true, godot_runtime_ready=true"
+        "test: source and ordinary-document content changes invalidate the expensive-backstop fingerprint",
+        "test: a backstop miss invokes the complete main gate and stores both backstop and exact-candidate evidence",
+        "command: repository-governance architecture tests -> included in final architecture 187 passed",
+        "command: quality baseline -> mypy new=0, Ruff new=0, format new=0",
+        "command: pre-commit all-files and hardcoded-secret scan -> Passed",
+        "command: final fresh nine-bundle G3 after origin/main sync and all source and gate changes -> all bundles passed; combined coverage 79.29%",
+        "artifact: docs/.vitepress/dist/ -> VitePress build output"
       ],
       "residuals": [],
       "blockers": []
     },
     {
       "id": "REQ-004",
-      "requirement": "Human source and installed CLI start success output includes a loopback Web console URL using the actual published HTTP endpoint; structured JSON output remains machine-readable.",
+      "requirement": "Focused test evidence is keyed by the exact candidate and command rather than by G1, G2, or G3, so an unchanged candidate reuses the same passed check across stages.",
       "status": "complete",
       "implementation": [
-        "Lifecycle start result formatting and packaged Controller start output"
+        "Stage-independent focused-test evidence runner in scripts/architecture/validation_test_bundles.py",
+        "G1 affected tests are dispatched through the controlled runner"
       ],
       "automated_tests": [
-        "Source and packaged start URL tests in test_lifecycle_commands_new_design.py"
+        "Cross-stage focused-test fingerprint and cache reuse tests"
       ],
       "runtime_scenarios": [
-        "Start with a non-default HTTP port and read the printed Web console URL"
+        "A focused package run during implementation is not repeated by an unchanged commit or push gate"
       ],
       "platform_conditions": [
-        "CPython 3.9.25 source CLI and installed Controller CLI formatting paths"
+        "Repository CPython environment and local ignored validation cache"
       ],
       "evidence": [
-        "command: ./.venv/bin/python3 -m pytest -q test/app/interfaces/cli/test_lifecycle_commands_new_design.py -> passed including source and packaged URL cases",
-        "scenario: test_start_prints_the_published_web_console_url -> non-default port 15212 is printed as http://127.0.0.1:15212/",
-        "scenario: test_packaged_start_prints_the_published_web_console_url -> installed Controller projection is formatted with its published HTTP port",
-        "review: JSON start output path remains separate from human URL formatting"
+        "test: an unchanged focused-test pass is reused without invoking subprocess pytest",
+        "test: task-closure edits do not invalidate focused tests while source edits do",
+        "runtime: final --bundle godot replay reused record 0618beba16ff401810ce8fbc81b251bfbcdecf723300e6d2eca6ae6e23f98e58 without pytest collection",
+        "command: final fresh nine-bundle G3 -> all registered bundles passed and produced reusable coverage evidence",
+        "artifact: build/validation-cache/ -> exact-candidate scoped evidence"
       ],
       "residuals": [],
       "blockers": []
     },
     {
       "id": "REQ-005",
-      "requirement": "The source-development CLI does not register or advertise desktop, while the installed packaged CLI registers and advertises desktop for the packaged Controller.",
+      "requirement": "The local G3 test backstop runs stable top-level test bundles, reuses only bundles whose declared inputs and coverage artifact are unchanged, and combines every bundle artifact into the final coverage report.",
       "status": "complete",
       "implementation": [
-        "Runtime-mode conditional argparse registration and source shell help/dispatch"
+        "Nine conservative top-level test bundles with import-closure inputs, shared snapshots, atomic pass records, and coverage fragments",
+        "Coverage reuse requires artifact digest, package versions, and readable coverage data; combine failure invalidates involved fragments",
+        "The local main gate runs missing bundles and combines their coverage before enforcing the repository threshold"
       ],
       "automated_tests": [
-        "Source and packaged CLI help tests plus interactive source help test"
+        "Bundle inventory, invalidation, reuse, failure, and coverage-combine tests"
       ],
       "runtime_scenarios": [
-        "Run source --help and packaged-surface --help and compare the desktop command"
+        "A late bundle failure preserves earlier passed bundles; the next G3 runs only failed or missing bundles"
       ],
       "platform_conditions": [
-        "Source checkout and packaged-runtime environment marker"
+        "Coverage.py and pytest-cov from the pinned CPython 3.9.25 environment"
       ],
       "evidence": [
-        "command: ./.venv/bin/python3 scripts/elfienest.py --help -> source command set omits desktop",
-        "command: ELFIENEST_DESKTOP_BIN=/Applications/ElfieNest.app/Contents/MacOS/ElfieNest ./.venv/bin/python3 scripts/elfienest.py --help -> packaged command set includes desktop",
-        "scenario: test_cli_help_uses_owner_and_doctor_without_old_homepage_duplicates and test_packaged_cli_help_exposes_desktop_command -> mode-specific help is verified",
-        "scenario: test_interactive_help_exposes_owner_account_management -> source shell help omits desktop",
-        "review: the source shell and Python parser both use the source-development surface; only packaged runtime registration exposes desktop"
-      ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "REQ-006",
-      "requirement": "The web and mobile CLI commands keep service assurance and display Step 1 for the current Wi-Fi network and Step 2 with a QR code for the actual Runtime-published LAN Web URL; the mobile projection uses the same two-step format.",
-      "status": "complete",
-      "implementation": [
-        "CLI mobile access formatter with explicit published-port support",
-        "Runtime snapshot lookup for the standalone mobile command"
-      ],
-      "automated_tests": [
-        "Mobile QR formatter, missing-default-port, and web-to-mobile published-port forwarding tests"
-      ],
-      "runtime_scenarios": [
-        "Run web against a service published on a non-default port and scan the printed URL"
-      ],
-      "platform_conditions": [
-        "CPython 3.9.25 CLI with the locked qrcode dependency"
-      ],
-      "evidence": [
-        "command: ./.venv/bin/python3 -m pytest -q test/app/interfaces/cli -> 184 passed",
-        "scenario: test_web_command_passes_the_web_port_to_mobile_access -> web forwards the published HTTP port without clearing the terminal",
-        "scenario: test_mobile_command_uses_explicit_port_and_prints_qr_steps -> Step 1 network, Step 2 QR, and LAN URL are printed",
-        "review: locked qrcode dependency is reused; no new dependency or network adapter was added"
-      ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "REQ-007",
-      "requirement": "Installed Desktop and Web frontend mobile access never substitute 8000 for a Runtime-selected port; the /chat, /manage, and /monitor QR entry points preserve the authoritative host and port while changing only the target path.",
-      "status": "complete",
-      "implementation": [
-        "Desktop loads the Runtime-published HTTP URL and fails explicitly when no endpoint is published",
-        "Three frontend QR entry points continue to share the dynamic MobileAccessDialog projection"
-      ],
-      "automated_tests": [
-        "Desktop TypeScript build and non-default frontend MobileAccessDialog/API tests",
-        "Runtime mobile-access API tests with HTTP port 15212"
-      ],
-      "runtime_scenarios": [
-        "A Runtime snapshot publishing HTTP port 18234 is opened by Web and passed to mobile access",
-        "The three QR target paths generate QR payloads using the same non-default port 15212"
-      ],
-      "platform_conditions": [
-        "macOS Desktop TypeScript build, CPython 3.9.25 CLI/API tests, and frontend Vitest environment"
-      ],
-      "evidence": [
-        "command: pnpm build (cwd app/interfaces/desktop) -> passed",
-        "command: pnpm exec vitest run src/components/MobileAccessDialog.test.tsx src/api/admin/runtime.test.ts src/api/client.test.ts -> 8 passed",
-        "command: ./.venv/bin/python3 -m pytest -q test/app/interfaces/cli/test_mobile_commands.py test/app/interfaces/cli/test_lifecycle_commands_new_design.py test/app/interfaces/cli/test_lifecycle_external_service.py test/app/interfaces/api/v1/admin/runtime/test_routes.py -> 57 passed",
-        "scenario: test_web_uses_the_published_port_for_an_automatic_running_service and test_web_after_packaged_start_uses_the_published_http_endpoint -> 18234 is used instead of the command/default 8000",
-        "scenario: MobileAccessDialog parameterized /chat, /manage, and /monitor cases -> QR payloads and displayed URLs retain 15212",
-        "review: remaining 8000 literals are test/default fixtures or unrelated timeout/model values; no user-facing access URL fallback remains"
+        "command: pytest test/architecture/test_validation_gate.py test/architecture/test_validation_test_bundles.py -q -> 36 passed in 1.28s",
+        "runtime: final fresh nine-bundle G3 after origin/main sync -> architecture 187, Godot 20, Nest 26, Scripts 98, DevTools 113, Elfie 748 passed and 2 skipped, App 657, Infrastructure 841, E2E 5 passed",
+        "artifact: build/coverage.xml -> combined coverage 79.29%",
+        "test: a failed forced rerun removes older same-key pass and coverage evidence",
+        "test: arbitrary or corrupted coverage bytes and failed combine invalidate bundle evidence",
+        "test: combined coverage applies the configured repository threshold only after all fragments are combined",
+        "test: runtime fingerprint ignores ephemeral Codex PATH entries while preserving meaningful PATH changes",
+        "command: uv lock --check, Node/pnpm manifest check, quality environment preflight, CLI version smoke, and VitePress build -> passed"
       ],
       "residuals": [],
       "blockers": []

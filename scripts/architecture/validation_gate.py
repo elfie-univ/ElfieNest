@@ -17,6 +17,7 @@ if __package__ is None:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.architecture.validation_cache import (
+    backstop_fingerprint,
     cache_hit,
     cache_lock,
     cache_store,
@@ -33,7 +34,11 @@ def _command(label: str, command: Sequence[str], env: Dict[str, str]) -> int:
 
 
 def _commands(
-    plan: Dict[str, object], base_sha: str, closure_file: str
+    plan: Dict[str, object],
+    base_sha: str,
+    closure_file: str,
+    *,
+    no_cache: bool = False,
 ) -> List[Tuple[str, List[str]]]:
     uv = shutil.which("uv") or "uv"
     commands: List[Tuple[str, List[str]]] = [
@@ -76,7 +81,17 @@ def _commands(
     plan_tests = cast(Sequence[object], plan["tests"])
     tests = [path for path in plan_tests if isinstance(path, str)]
     if tests:
-        commands.append(("affected tests", [uv, "run", "--no-sync", "pytest", *tests]))
+        affected_command = [
+            sys.executable,
+            "scripts/architecture/validation_test_bundles.py",
+            "--base-sha",
+            base_sha,
+            "--selectors",
+            *tests,
+        ]
+        if no_cache:
+            affected_command.append("--no-cache")
+        commands.append(("affected tests", affected_command))
     if int(cast(int, plan["effective_tier"])) >= 2:
         commands.append(
             (
@@ -102,6 +117,51 @@ def _commands(
     return commands
 
 
+def _main_revalidation_commands(
+    paths: Sequence[str],
+    base_sha: str,
+    closure_file: str,
+    allow_external_environment_blockers: bool,
+) -> List[Tuple[str, List[str]]]:
+    """Checks that remain candidate-specific after a G3 backstop is reused."""
+
+    uv = shutil.which("uv") or "uv"
+    commands: List[Tuple[str, List[str]]] = [
+        ("diff format", ["git", "diff", "--check", base_sha, "--"]),
+    ]
+    gitleaks_paths = [path for path in paths if (PROJECT_ROOT / path).is_file()]
+    if gitleaks_paths:
+        commands.append(
+            (
+                "changed-file secret scan",
+                [
+                    uv,
+                    "run",
+                    "--no-sync",
+                    "pre-commit",
+                    "run",
+                    "gitleaks",
+                    "--files",
+                    *gitleaks_paths,
+                ],
+            )
+        )
+    closure_command = [
+        sys.executable,
+        "scripts/check_task_closure.py",
+        "--file",
+        closure_file,
+        "--base-sha",
+        base_sha,
+        "--mode",
+        "complete",
+    ]
+    if allow_external_environment_blockers:
+        closure_command.append("--allow-external-environment-blockers")
+    commands.append(("task closure complete", closure_command))
+    return commands
+
+
 def run_stage(
     stage: str,
     base_sha: str,
@@ -124,27 +184,76 @@ def run_stage(
                 allow_external_environment_blockers,
             )
         key = candidate_fingerprint(base_sha, "main", paths)
-        lock = cache_root / f"{key}.lock"
+        backstop_key = backstop_fingerprint(base_sha, paths)
+        lock = cache_root / f"{backstop_key}.lock"
         with cache_lock(lock):
+            if not no_cache:
+                current_paths = changed_paths(base_sha)
+                current_key = candidate_fingerprint(base_sha, "main", current_paths)
+                if current_key != key:
+                    paths = current_paths
+                    key = current_key
+                    backstop_key = backstop_fingerprint(base_sha, paths)
             if not no_cache and cache_hit(cache_root, key):
                 print(f"✅ reused exact passed main gate: {key}")
+                return 0
+            if not no_cache and cache_hit(cache_root, backstop_key):
+                print(
+                    "✅ reusing passed expensive main backstop; "
+                    "rechecking current candidate metadata"
+                )
+                env = os.environ.copy()
+                env.setdefault("UV_CACHE_DIR", "/tmp/elfienest-uv-cache")
+                env.setdefault("PRE_COMMIT_HOME", "/tmp/elfienest-precommit")
+                for label, command in _main_revalidation_commands(
+                    paths,
+                    base_sha,
+                    closure_file,
+                    allow_external_environment_blockers,
+                ):
+                    if _command(label, command, env) != 0:
+                        return 1
+                after = candidate_fingerprint(base_sha, "main", changed_paths(base_sha))
+                if after != key:
+                    print(
+                        "❌ worktree changed during metadata revalidation; "
+                        "result was discarded",
+                        file=sys.stderr,
+                    )
+                    return 1
+                cache_store(
+                    cache_root,
+                    key,
+                    "main",
+                    base_sha,
+                    reused_from=backstop_key,
+                )
+                print(
+                    "✅ main validation passed without repeating full pytest, "
+                    "dependency installs, or documentation build"
+                )
                 return 0
             main_command = [
                 "bash",
                 "scripts/pre_submit_gate.sh",
                 "--stage",
                 "main",
-                "--no-cache",
+                "--direct-main",
                 "--base-sha",
                 base_sha,
                 "--closure-file",
                 closure_file,
             ]
+            if no_cache:
+                main_command.append("--no-cache")
             if allow_external_environment_blockers:
                 main_command.append("--allow-external-environment-blockers")
+            main_env = os.environ.copy()
+            main_env["ELFIENEST_VALIDATION_CACHE_ROOT"] = str(cache_root)
             result = subprocess.run(
                 main_command,
                 cwd=PROJECT_ROOT,
+                env=main_env,
                 check=False,
             ).returncode
             after = candidate_fingerprint(base_sha, "main", changed_paths(base_sha))
@@ -155,11 +264,18 @@ def run_stage(
                 )
                 return 1
             if result == 0 and not no_cache:
+                cache_store(cache_root, backstop_key, "main-backstop", base_sha)
                 cache_store(cache_root, key, "main", base_sha)
             return result
     key = candidate_fingerprint(base_sha, stage, paths)
     lock = cache_root / f"{key}.lock"
     with cache_lock(lock):
+        if not no_cache:
+            current_paths = changed_paths(base_sha)
+            current_key = candidate_fingerprint(base_sha, stage, current_paths)
+            if current_key != key:
+                paths = current_paths
+                key = current_key
         if not no_cache and cache_hit(cache_root, key):
             print(f"✅ reused exact passed {stage} validation: {key}")
             return 0
@@ -168,7 +284,7 @@ def run_stage(
         env.setdefault("UV_CACHE_DIR", "/tmp/elfienest-uv-cache")
         env.setdefault("PRE_COMMIT_HOME", "/tmp/elfienest-precommit")
         gitleaks_paths = [path for path in paths if (PROJECT_ROOT / path).is_file()]
-        commands = _commands(plan, base_sha, closure_file)
+        commands = _commands(plan, base_sha, closure_file, no_cache=no_cache)
         if gitleaks_paths:
             commands.insert(
                 1,
