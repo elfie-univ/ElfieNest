@@ -17,13 +17,13 @@ describe("administrator Runtime API boundary", () => {
     vi.mocked(requestJson).mockResolvedValue({
       available: true,
       network_name: "Elfie Home",
-      urls: ["http://192.168.1.8:8000/"],
+      urls: ["http://192.168.1.8:15212/"],
     })
 
     await expect(mobileAccess()).resolves.toEqual({
       available: true,
       network_name: "Elfie Home",
-      urls: ["http://192.168.1.8:8000/"],
+      urls: ["http://192.168.1.8:15212/"],
     })
     expect(requestJson).toHaveBeenCalledWith(
       "/api/v1/admin/runtime/mobile-access",
@@ -35,7 +35,7 @@ describe("administrator Runtime API boundary", () => {
       MobileAccessSchema.safeParse({
         available: true,
         network_name: null,
-        urls: ["http://192.168.1.8:8000/"],
+      urls: ["http://192.168.1.8:15212/"],
         ws_port: 8766,
       }).success,
     ).toBe(false)

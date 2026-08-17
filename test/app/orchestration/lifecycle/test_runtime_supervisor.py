@@ -175,6 +175,57 @@ def test_start_prepares_data_home_before_initializing_runtime_record() -> None:
     assert record.prepared is True
 
 
+def test_stop_without_runtime_snapshot_continues_when_no_core_is_running() -> None:
+    record = MemoryRecord()
+    record.value = RuntimeSnapshotV1(
+        instance_id="recovery-instance",
+        phase=RuntimePhase.RECOVERY_REQUIRED,
+        failures=(
+            FailureSnapshot(
+                "SNAPSHOT_MISSING",
+                "Runtime snapshot is missing",
+                "runtime",
+            ),
+        ),
+    )
+    stop_calls: list[str] = []
+    supervisor = _supervisor(
+        record=record,
+        owns_pid_record=lambda: False,
+        stop_core=lambda: (
+            stop_calls.append("stop") or ServiceLifecycleResult(status="stopped")
+        ),
+    )
+
+    result = supervisor.stop()
+
+    assert result.status == "already_stopped"
+    assert result.error is None
+    assert stop_calls == []
+
+
+def test_stop_without_runtime_snapshot_stays_blocked_when_core_is_running() -> None:
+    record = MemoryRecord()
+    record.value = RuntimeSnapshotV1(
+        instance_id="recovery-instance",
+        phase=RuntimePhase.RECOVERY_REQUIRED,
+        failures=(
+            FailureSnapshot(
+                "SNAPSHOT_MISSING",
+                "Runtime snapshot is missing",
+                "runtime",
+            ),
+        ),
+    )
+    supervisor = _supervisor(record=record, owns_pid_record=lambda: True)
+
+    result = supervisor.stop()
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert "Runtime snapshot is missing" in str(result.error)
+
+
 def test_core_wait_target_does_not_start_world() -> None:
     calls: list[str] = []
     host = AuthorityHost(process=Process(7105), calls=calls)

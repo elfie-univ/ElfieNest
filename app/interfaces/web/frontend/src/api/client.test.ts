@@ -7,11 +7,11 @@ describe("client schemas", () => {
     expect(MobileAccessSchema.parse({
       available: true,
       network_name: "Elfie Home",
-      urls: ["http://192.168.1.8:8000/"]
+      urls: ["http://192.168.1.8:15212/"]
     })).toEqual({
       available: true,
       network_name: "Elfie Home",
-      urls: ["http://192.168.1.8:8000/"]
+      urls: ["http://192.168.1.8:15212/"]
     })
   })
 

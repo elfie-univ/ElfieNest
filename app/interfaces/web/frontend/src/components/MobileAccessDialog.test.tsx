@@ -25,7 +25,7 @@ describe("MobileAccessDialog", () => {
     mobileAccessMock.mockResolvedValue({
       available: true,
       network_name: "Elfie Home",
-      urls: ["http://192.168.1.8:8000/"],
+      urls: ["http://192.168.1.8:15212/"],
     })
     const instance = createI18n()
 
@@ -45,14 +45,18 @@ describe("MobileAccessDialog", () => {
     expect(secondStep.compareDocumentPosition(qr) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(network.compareDocumentPosition(qr) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByText("用手机打开 ElfieNest")).not.toBeInTheDocument()
-    expect(screen.getByText(`http://192.168.1.8:8000${expectedPath}`)).toBeInTheDocument()
+    expect(screen.getByText(`http://192.168.1.8:15212${expectedPath}`)).toBeInTheDocument()
+    expect(toDataURLMock).toHaveBeenCalledWith(
+      `http://192.168.1.8:15212${expectedPath}`,
+      expect.any(Object),
+    )
   })
 
   it("tells the phone to use the same Wi-Fi when the name cannot be read", async () => {
     mobileAccessMock.mockResolvedValue({
       available: true,
       network_name: null,
-      urls: ["http://192.168.1.8:8000/"],
+      urls: ["http://192.168.1.8:15212/"],
     })
 
     render(

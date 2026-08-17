@@ -1,7 +1,6 @@
 import type { BrowserWindowConstructorOptions } from "electron";
 
 const DEFAULT_BACKGROUND_COLOR = "#fffaf1";
-export const DEFAULT_MANAGEMENT_UI_URL = "http://127.0.0.1:8000/";
 export const MACOS_CONTENT_INSET_CSS = `
 @media (min-width: 641px) {
   .manage-sidebar,

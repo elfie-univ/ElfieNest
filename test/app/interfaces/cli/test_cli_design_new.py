@@ -16,6 +16,8 @@ from test.support.paths import PROJECT_ROOT
 
 def test_cli_help_uses_owner_and_doctor_without_old_homepage_duplicates() -> None:
     # Given / When
+    environment = os.environ.copy()
+    environment.pop("ELFIENEST_DESKTOP_BIN", None)
     result = subprocess.run(
         [
             str(PROJECT_ROOT / ".venv" / "bin" / "python3"),
@@ -23,6 +25,7 @@ def test_cli_help_uses_owner_and_doctor_without_old_homepage_duplicates() -> Non
             "--help",
         ],
         cwd=PROJECT_ROOT,
+        env=environment,
         capture_output=True,
         text=True,
         check=False,
@@ -34,6 +37,30 @@ def test_cli_help_uses_owner_and_doctor_without_old_homepage_duplicates() -> Non
     assert "doctor" in result.stdout
     assert "session" not in result.stdout
     assert "stats" not in result.stdout
+    assert "desktop" not in result.stdout
+
+
+def test_packaged_cli_help_exposes_desktop_command() -> None:
+    environment = os.environ.copy()
+    environment["ELFIENEST_DESKTOP_BIN"] = (
+        "/Applications/ElfieNest.app/Contents/MacOS/ElfieNest"
+    )
+
+    result = subprocess.run(
+        [
+            str(PROJECT_ROOT / ".venv" / "bin" / "python3"),
+            "scripts/elfienest.py",
+            "--help",
+        ],
+        cwd=PROJECT_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "desktop" in result.stdout
 
 
 def test_cli_rejects_owner_secret_without_echoing_the_secret() -> None:

@@ -25,6 +25,11 @@ Native installers also expose the packaged management CLI as the global
 `elfienest` command; it reuses the installed Desktop Controller and production
 data root without opening the Viewer.
 
+The two CLI surfaces are intentional: the source-development `./elfienest.sh`
+does not register the `desktop` command, while the installed management CLI
+does because it can activate the packaged Desktop Controller. `serve` remains
+the source-development foreground entry point.
+
 Python `3.9.25` is the common pinned runtime for both the product and the
 development tools. Unless the maintainer explicitly approves a full-repo
 upgrade, you must not switch to system `python` / `python3`, another virtual
@@ -68,7 +73,7 @@ should pass an explicit subcommand:
 | `status` | Show registered services and port status |
 | `stop` | Stop the services registered by the current project |
 | `restart` | Stop and restart the current service |
-| `web` | Ensure the service is up and open the web management console |
+| `web` | Ensure the service is up, open the web management console, and print a phone QR code |
 | `config` | Open the arrow-key configuration center |
 | `setup` | Run the first-time setup wizard |
 | `doctor` | Check the local environment and configuration |
@@ -89,6 +94,10 @@ Foreground and background services support code-validated parameters:
 ./elfienest.sh serve --port 8001 --godot-ws-port 8768
 ./elfienest.sh start
 ```
+
+After a successful background `start`, the CLI prints the loopback Web console
+URL. `web` additionally prints the current Wi-Fi network as Step 1 and a QR
+code for the LAN URL as Step 2.
 
 The service uses the configured model food and provider. Setup keeps public Ollama
 optional and binds exactly one chosen endpoint; a model provider must be configured
