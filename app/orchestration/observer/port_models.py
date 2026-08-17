@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import JsonValue
 
+from app.orchestration.nest_session.models import RuntimeMockMotion
+
 
 @dataclass(frozen=True)
 class ObserverEntityRecord:
@@ -19,6 +21,7 @@ class ObserverEntityRecord:
     species_id: str | None
     appearance: tuple[tuple[str, JsonValue], ...]
     home_anchor_id: str | None
+    mock_motion: RuntimeMockMotion | None = None
 
 
 @dataclass(frozen=True)

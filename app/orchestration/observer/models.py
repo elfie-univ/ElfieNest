@@ -79,6 +79,7 @@ class ObserverEntityChangeResult:
         "species_id",
         "appearance",
         "home_anchor_id",
+        "mock_motion",
     ]
     value: JsonValue
 
@@ -111,6 +112,7 @@ ObserverEntityField: TypeAlias = Literal[
     "species_id",
     "appearance",
     "home_anchor_id",
+    "mock_motion",
 ]
 
 

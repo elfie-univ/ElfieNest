@@ -20,7 +20,7 @@ from .models import (
     SubmitObserverIntentCommand,
     UpdateObserverInterestCommand,
 )
-from .port_models import ObserverEntityRecord, ObserverWorldIntent
+from .port_models import ObserverEntityRecord, ObserverWorldIntent, RuntimeMockMotion
 from .ports import (
     ObserverCapabilityIssuerPort,
     ObserverClockPort,
@@ -49,6 +49,7 @@ __all__ = (
     "ObserverSubscription",
     "ObserverUnavailable",
     "ObserverWorldIntent",
+    "RuntimeMockMotion",
     "ObserverWorldPort",
     "OpenObserverSessionCommand",
     "OpenObserverSessionResult",

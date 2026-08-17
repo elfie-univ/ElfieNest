@@ -196,6 +196,7 @@ func run() -> void:
 				"species_id": "fox",
 				"home_anchor_id": "dorm-01/bed-01",
 				"appearance": {},
+				"mock_motion": null,
 			},
 		},
 		"entity_revisions": {"fox-1": 1},
@@ -254,6 +255,30 @@ func run() -> void:
 		"Observer presentation did not place the Elfie at its semantic home anchor"
 	):
 		return
+	var motion_snapshot := valid_semantic_snapshot.duplicate(true)
+	(motion_snapshot["entities"]["fox-1"] as Dictionary)["mock_motion"] = {
+		"waypoint": 1,
+		"sequence": 1,
+	}
+	if not _require(nest.bake_navigation(), "Observer could not prepare its local replay NavMesh"):
+		return
+	for _frame in range(4):
+		await physics_frame
+	if not _require(
+		not (observer_bridge.call("_parse_semantic_snapshot", motion_snapshot) as Dictionary).is_empty(),
+		"Observer semantic snapshot rejected the temporary waypoint state",
+	):
+		return
+	presentation.apply_snapshot(motion_snapshot)
+	for _frame in range(4):
+		await physics_frame
+	if not _require(
+		grounded_actor.active_command_id.begins_with("observer-mock-wander-"),
+		"Observer did not replay the authority waypoint as local navigation",
+	):
+		return
+	presentation.apply_snapshot(valid_semantic_snapshot)
+	await _wait_frames(1)
 	var multi_snapshot := valid_semantic_snapshot.duplicate(true)
 	var dog_entity := (multi_snapshot["entities"]["fox-1"] as Dictionary).duplicate(true)
 	dog_entity["species_id"] = "dog"

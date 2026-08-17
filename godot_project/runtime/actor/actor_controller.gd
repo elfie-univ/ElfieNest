@@ -2,6 +2,7 @@ class_name NestActorRuntimeController
 extends Node
 
 const ACTOR_CATALOG := preload("res://runtime/actor/actor_catalog.gd")
+const MOCK_WANDER_CONTROLLER := preload("res://runtime/actor/mock_wander_controller.gd")
 
 signal runtime_event(
 	event_name: String,
@@ -18,6 +19,8 @@ var _command_actor_ids: Dictionary = {}
 var _command_metadata: Dictionary = {}
 var _terminal_commands: Dictionary = {}
 var _install_actor_animations := true
+var _mock_command_actor_ids: Dictionary = {}
+var _mock_wander
 
 
 func setup(
@@ -25,11 +28,16 @@ func setup(
 	characters: Node3D,
 	actor_scenes: Dictionary,
 	install_actor_animations: bool = true,
+	enable_mock_wander: bool = false,
 ) -> void:
 	_nest = nest
 	_characters = characters
 	_actor_scenes = actor_scenes
 	_install_actor_animations = install_actor_animations
+	_mock_wander = MOCK_WANDER_CONTROLLER.new()
+	add_child(_mock_wander)
+	_mock_wander.setup(self, _nest, enable_mock_wander)
+	_mock_wander.motion_changed.connect(_on_mock_motion_changed)
 
 
 func sync_actors(raw_actors: Variant) -> Dictionary:
@@ -73,7 +81,14 @@ func sync_actors(raw_actors: Variant) -> Dictionary:
 
 
 func world_snapshot() -> Dictionary:
-	return ACTOR_CATALOG.snapshot(_nest, _actors, _actor_catalog)
+	var snapshot := ACTOR_CATALOG.snapshot(_nest, _actors, _actor_catalog)
+	if _mock_wander == null:
+		return snapshot
+	for actor_data: Dictionary in snapshot["actors"] as Array:
+		var motion: Variant = _mock_wander.motion_for(String(actor_data["actor_id"]))
+		if not motion.is_empty():
+			actor_data["mock_motion"] = motion
+	return snapshot
 
 
 func actor(actor_id: String) -> ElfieActor:
@@ -103,6 +118,8 @@ func execute_intent(command: Dictionary) -> void:
 	if actor_instance == null:
 		_emit_terminal(command_id, actor_id, "failed", "actor_not_found")
 		return
+	if _mock_wander != null:
+		_mock_wander.cancel_for_real_intent(actor_id)
 	if String(command.get("intent", "")) != "move_to_anchor":
 		_execute_non_movement_intent(command, actor_instance)
 		return
@@ -123,6 +140,39 @@ func execute_intent(command: Dictionary) -> void:
 		_emit_terminal(command_id, actor_id, "failed", "actor_busy")
 		return
 	_emit_command_event("intent_started", command_id, actor_id)
+
+
+func start_mock_move(
+	actor_id: String,
+	command_id: String,
+	target_position: Vector3,
+	deadline_seconds: float,
+) -> bool:
+	if (
+		_mock_wander == null
+		or not MOCK_WANDER_CONTROLLER._is_mock_command(command_id)
+		or command_id.is_empty()
+		or _mock_command_actor_ids.has(command_id)
+	):
+		return false
+	var actor_instance := actor(actor_id)
+	if actor_instance == null:
+		return false
+	_mock_command_actor_ids[command_id] = actor_id
+	if not actor_instance.move_to(command_id, target_position, deadline_seconds):
+		_mock_command_actor_ids.erase(command_id)
+		return false
+	return true
+
+
+func cancel_mock_move(actor_id: String, reason: String) -> bool:
+	var actor_instance := actor(actor_id)
+	if actor_instance == null:
+		return false
+	var command_id := actor_instance.active_command_id
+	if not MOCK_WANDER_CONTROLLER._is_mock_command(command_id):
+		return false
+	return actor_instance.cancel_navigation(reason)
 
 
 func cancel_intent(command: Dictionary) -> void:
@@ -160,6 +210,10 @@ func _create_actor(actor_data: Dictionary) -> ElfieActor:
 	actor.navigation_terminal.connect(
 		_on_actor_navigation_terminal.bind(String(actor_data["actor_id"]))
 	)
+	if _mock_wander != null:
+		actor.navigation_terminal.connect(
+			_mock_wander.handle_navigation_terminal.bind(String(actor_data["actor_id"]))
+		)
 	actor.movement_blocked.connect(
 		_on_actor_movement_blocked.bind(String(actor_data["actor_id"]))
 	)
@@ -174,8 +228,9 @@ func _remove_actor(actor_id: String) -> void:
 	if existing != null:
 		if not existing.active_command_id.is_empty():
 			var command_id := existing.active_command_id
+			var is_mock_command := MOCK_WANDER_CONTROLLER._is_mock_command(command_id)
 			existing.cancel_navigation("actor_removed")
-			if not _terminal_commands.has(command_id):
+			if not is_mock_command and not _terminal_commands.has(command_id):
 				_emit_terminal(
 					command_id,
 					actor_id,
@@ -194,10 +249,15 @@ func _on_actor_navigation_terminal(
 	reason: String,
 	actor_id: String,
 ) -> void:
+	if _mock_command_actor_ids.has(command_id):
+		_mock_command_actor_ids.erase(command_id)
+		return
 	_emit_terminal(command_id, actor_id, status, reason)
 
 
 func _on_actor_movement_blocked(command_id: String, actor_id: String) -> void:
+	if _mock_command_actor_ids.has(command_id):
+		return
 	var payload := {"command_id": command_id, "actor_id": actor_id}
 	payload.merge(_command_metadata.get(command_id, {}))
 	runtime_event.emit(
@@ -215,6 +275,10 @@ func _on_actor_tactile_contact(contact: Dictionary, actor_id: String) -> void:
 		contact.merged({"actor_id": actor_id}),
 		cause_id,
 	)
+
+
+func _on_mock_motion_changed() -> void:
+	runtime_event.emit("world_snapshot", world_snapshot(), "mock-wander")
 
 
 func _execute_non_movement_intent(

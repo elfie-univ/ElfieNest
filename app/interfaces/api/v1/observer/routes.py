@@ -251,6 +251,7 @@ def _entity_response(entity: ObserverEntityRecord) -> ObserverEntityResponse:
         species_id=entity.species_id,
         appearance=dict(entity.appearance),
         home_anchor_id=entity.home_anchor_id,
+        mock_motion=entity.mock_motion,
     )
 
 

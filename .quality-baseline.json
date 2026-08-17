@@ -1,6 +1,8 @@
 {
   "schema_version": 1,
   "ruff_check": {},
-  "ruff_format": {},
+  "ruff_format": {
+    "test/architecture/test_validation_gate.py:format:50de8e102829ddf01548c6c5ee718d438062e9edf398468cbf2800fed0e9decb": 1
+  },
   "mypy": {}
 }

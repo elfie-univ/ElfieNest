@@ -53,7 +53,9 @@ func process_frame() -> void:
 			if parsed_message is Dictionary:
 				var world_config := _parse_world_config(parsed_message as Dictionary)
 				if not world_config.is_empty():
-					_nest.apply_observer_world_config(world_config)
+					if _nest.apply_observer_world_config(world_config):
+						# Observer replay needs only a local NavMesh; it remains presentation state.
+						_nest.bake_navigation()
 					continue
 				var semantic_snapshot := _parse_semantic_snapshot(parsed_message as Dictionary)
 				if not semantic_snapshot.is_empty():
@@ -181,6 +183,7 @@ func _semantic_entity_is_valid(entity: Variant) -> bool:
 			"species_id",
 			"appearance",
 			"home_anchor_id",
+			"mock_motion",
 		],
 	):
 		return false
@@ -193,6 +196,22 @@ func _semantic_entity_is_valid(entity: Variant) -> bool:
 		and _text_or_null_is_valid(entity_map.get("species_id"))
 		and entity_map.get("appearance") is Dictionary
 		and _text_or_null_is_valid(entity_map.get("home_anchor_id"))
+		and _mock_motion_is_valid(entity_map.get("mock_motion"))
+	)
+
+
+func _mock_motion_is_valid(value: Variant) -> bool:
+	if value == null:
+		return true
+	if not value is Dictionary:
+		return false
+	var motion := value as Dictionary
+	if not _has_exact_keys(motion, ["waypoint", "sequence"]):
+		return false
+	return (
+		_parse_revision(motion.get("waypoint")) >= 0
+		and _parse_revision(motion.get("waypoint")) <= 5
+		and _parse_revision(motion.get("sequence")) >= 1
 	)
 
 

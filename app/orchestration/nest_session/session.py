@@ -18,6 +18,7 @@ from app.orchestration.nest_session.errors import NestSessionLifecycleError
 from app.orchestration.nest_session.models import (
     ActorDescriptor,
     ObserverSemanticEntity,
+    RuntimeMockMotion,
     WorldEvent,
 )
 from app.orchestration.nest_session.ports import (
@@ -443,6 +444,14 @@ class NestSession:
                 active=resident.active,
                 active_command_id=(
                     mirror.active_command_id if mirror is not None else None
+                ),
+                mock_motion=(
+                    RuntimeMockMotion(
+                        waypoint=mirror.mock_motion.waypoint,
+                        sequence=mirror.mock_motion.sequence,
+                    )
+                    if mirror is not None and mirror.mock_motion is not None
+                    else None
                 ),
                 species_id=descriptor.species if descriptor is not None else None,
                 appearance=(

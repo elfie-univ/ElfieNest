@@ -59,6 +59,10 @@ const observerSemanticScopeSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("room"), room_id: semanticStringSchema }).strict(),
   z.object({ kind: z.literal("elfie"), elfie_id: semanticStringSchema }).strict(),
 ])
+const observerMockMotionSchema = z.object({
+  waypoint: z.number().int().min(0).max(5),
+  sequence: z.number().int().positive(),
+}).strict()
 const observerSemanticEntitySchema = z.object({
   room_id: semanticStringSchema,
   zone_id: semanticStringSchema.nullable(),
@@ -68,6 +72,7 @@ const observerSemanticEntitySchema = z.object({
   species_id: semanticStringSchema.nullable(),
   appearance: z.record(z.string(), z.unknown()),
   home_anchor_id: semanticStringSchema.nullable(),
+  mock_motion: observerMockMotionSchema.nullable().default(null),
 }).strict()
 const observerSemanticSnapshotSchema = z.object({
   channel: z.literal(OBSERVER_CHANNEL),

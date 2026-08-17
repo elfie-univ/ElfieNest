@@ -107,11 +107,17 @@ class _SceneManifestPayload(_Payload):
     facilities: List[_ManifestFacilityPayload] = Field(default_factory=list)
 
 
+class _MockMotionPayload(_Payload):
+    waypoint: int = Field(ge=0, le=5)
+    sequence: int = Field(ge=1)
+
+
 class _SnapshotActorPayload(_Payload):
     actor_id: str
     zone_id: Optional[str]
     posture: str
     active_command_id: Optional[str]
+    mock_motion: Optional[_MockMotionPayload] = None
 
 
 class _WorldSnapshotPayload(_Payload):

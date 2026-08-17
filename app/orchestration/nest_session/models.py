@@ -13,6 +13,15 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 Appearance = Mapping[str, JsonValue]
 
 
+class RuntimeMockMotion(BaseModel):
+    """Transient App projection of the removable visual Mock motion."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    waypoint: int = Field(ge=0, le=5)
+    sequence: int = Field(ge=1)
+
+
 class ObserverSemanticEntity(BaseModel):
     """Geometry-free Nest facts exposed to the Observer adapter."""
 
@@ -26,6 +35,7 @@ class ObserverSemanticEntity(BaseModel):
     species_id: Optional[str] = None
     appearance: dict[str, JsonValue] = Field(default_factory=dict)
     home_anchor_id: Optional[str] = None
+    mock_motion: Optional[RuntimeMockMotion] = None
 
 
 @dataclass(frozen=True)
@@ -119,6 +129,7 @@ class ResidentMirror:
     current_zone_id: str | None
     posture: str
     active_command_id: str | None = None
+    mock_motion: RuntimeMockMotion | None = None
 
 
 @dataclass(frozen=True)
@@ -190,6 +201,7 @@ __all__ = (
     "RuntimeActor",
     "RuntimeConnection",
     "RuntimeFailure",
+    "RuntimeMockMotion",
     "ResidentMirror",
     "SceneManifest",
     "SemanticWorldCatalog",

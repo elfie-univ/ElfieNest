@@ -273,8 +273,7 @@ def test_packaged_start_prints_the_published_web_console_url(
     assert "Web console: http://127.0.0.1:15212/" in capsys.readouterr().out
 
 
-def test_web_command_passes_the_web_port_to_mobile_access(monkeypatch) -> None:
-    accesses: list[tuple[int, bool]] = []
+def test_web_command_does_not_show_mobile_access(monkeypatch) -> None:
     monkeypatch.setattr(
         elfienest,
         "open_web_console",
@@ -282,20 +281,14 @@ def test_web_command_passes_the_web_port_to_mobile_access(monkeypatch) -> None:
             status="already_running", command=("--port", "15212")
         ),
     )
-    monkeypatch.setattr(elfienest, "build_operations_facade", lambda _path: object())
-    monkeypatch.setattr(elfienest, "get_db_path", lambda: "/tmp/nest.db")
     monkeypatch.setattr(
         elfienest,
         "show_mobile_access",
-        lambda _lifecycle, _operations, *, http_port, clear_terminal: (
-            accesses.append((http_port, clear_terminal)) or 0
-        ),
+        lambda *_args, **_kwargs: pytest.fail("web must not show mobile access"),
     )
     monkeypatch.setattr(elfienest, "_exit_on_lifecycle_failure", lambda _result: None)
 
     elfienest._dispatch_command(Namespace(command="web"), LIFECYCLE)
-
-    assert accesses == [(15212, False)]
 
 
 def test_web_after_packaged_start_uses_the_published_http_endpoint(

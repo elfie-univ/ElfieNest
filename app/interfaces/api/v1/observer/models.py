@@ -6,6 +6,8 @@ from typing import Annotated, Dict, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
+from app.orchestration.observer import RuntimeMockMotion
+
 _STRICT = ConfigDict(extra="forbid", frozen=True)
 
 
@@ -92,6 +94,7 @@ class ObserverEntityResponse(BaseModel):
     species_id: Optional[str]
     appearance: Dict[str, JsonValue]
     home_anchor_id: Optional[str]
+    mock_motion: Optional[RuntimeMockMotion] = None
 
 
 class ObserverEntityPatchResponse(BaseModel):
@@ -105,6 +108,7 @@ class ObserverEntityPatchResponse(BaseModel):
     species_id: Optional[str] = None
     appearance: Optional[Dict[str, JsonValue]] = None
     home_anchor_id: Optional[str] = None
+    mock_motion: Optional[RuntimeMockMotion] = None
 
     @model_validator(mode="after")
     def require_changed_field(self) -> ObserverEntityPatchResponse:

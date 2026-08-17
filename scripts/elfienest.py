@@ -63,7 +63,6 @@ from app.interfaces.cli.uninstall_commands import run_uninstall_menu
 from app.orchestration.lifecycle import (
     LifecycleFacade,
     ServiceLifecycleResult,
-    http_port_from_command,
 )
 
 if getattr(sys, "frozen", False):
@@ -178,7 +177,7 @@ def main() -> None:
     )
     subparsers.add_parser(
         "web",
-        help="Ensure service, open Web console, and show mobile QR code",
+        help="Ensure service and open Web console",
     )
     if _is_packaged_cli_runtime():
         subparsers.add_parser("desktop", help="Launch packaged ElfieNest Desktop")
@@ -265,22 +264,6 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
         show_service_status(lifecycle, json_output=getattr(args, "json", False))
     elif args.command == "web":
         result = open_web_console(lifecycle)
-        if result.status in {"started", "already_running"}:
-            http_port = (
-                http_port_from_command(result.command)
-                if result.command is not None
-                else published_http_port_for_home(
-                    lifecycle, selected_runtime_data_home(lifecycle)
-                )
-            )
-            mobile_exit_code = show_mobile_access(
-                lifecycle,
-                build_operations_facade(str(get_db_path())),
-                http_port=http_port,
-                clear_terminal=False,
-            )
-            if mobile_exit_code != 0:
-                raise SystemExit(mobile_exit_code)
         _exit_on_lifecycle_failure(result)
     elif args.command == "desktop":
         _exit_on_lifecycle_failure(start_desktop_application(lifecycle))

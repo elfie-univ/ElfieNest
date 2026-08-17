@@ -1201,7 +1201,7 @@ class ProviderModelsAdapter:
                 timeout=_DISCOVERY_TIMEOUT_SECONDS,
             )
         except Exception as error:
-            catalog_models = self._fallback_catalog_models(connection, profile)
+            catalog_models = self._fallback_catalog_models(provider_connection, profile)
             catalog_models = tuple(
                 _with_request_profile(item, provider_connection.api_mode)
                 for item in catalog_models
@@ -1371,7 +1371,9 @@ class ProviderModelsAdapter:
         )[0]
         return replace(
             declared,
-            source=("bundled_catalog" if item.source == "bundled_catalog" else "official"),
+            source=(
+                "bundled_catalog" if item.source == "bundled_catalog" else "official"
+            ),
             display_name=item.display_name or declared.display_name or item.name,
         )
 

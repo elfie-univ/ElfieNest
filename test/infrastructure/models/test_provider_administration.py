@@ -99,7 +99,9 @@ def test_authority_change_hides_old_inventory_but_preserves_serving_endpoint() -
     assert manual.discovery_state == "present"
 
 
-def test_bundled_refresh_repairs_legacy_hidden_core_models_without_reenabling_user_choices() -> None:
+def test_bundled_refresh_repairs_legacy_hidden_core_models_without_reenabling_user_choices() -> (
+    None
+):
     merged = merge_refreshed_models(
         (
             ProviderModelRecord("legacy-core", source="official", hidden=True),
@@ -486,7 +488,9 @@ def test_volcengine_refresh_uses_only_core_models_and_reclassifies_old_inventory
         )
         assert stale_after_authority_change.discovery_state == "source_missing"
         restored_core = next(
-            item for item in first.persisted_models if item.model_id == "deepseek-v4-pro"
+            item
+            for item in first.persisted_models
+            if item.model_id == "deepseek-v4-pro"
         )
         assert restored_core.hidden is False
         refreshed = asyncio.run(
@@ -505,7 +509,9 @@ def test_volcengine_refresh_uses_only_core_models_and_reclassifies_old_inventory
 
 
 @pytest.mark.parametrize("failure_mode", ("returned_error", "raised_error"))
-def test_volcengine_fallback_never_uses_broad_remote_catalog(tmp_path, failure_mode) -> None:
+def test_volcengine_fallback_never_uses_broad_remote_catalog(
+    tmp_path, failure_mode
+) -> None:
     adapter = provider_models_adapter(
         tmp_path / "providers.yaml",
         tmp_path / "auth.env",
@@ -533,18 +539,27 @@ def test_volcengine_fallback_never_uses_broad_remote_catalog(tmp_path, failure_m
         authoritative=False,
         error="adapter unavailable",
     )
-    discovery_patch = patch.object(
-        type(adapter),
-        "_discover_with_slot",
-        side_effect=RuntimeError("adapter unavailable"),
-    ) if failure_mode == "raised_error" else patch.object(
-        type(adapter),
-        "_discover_with_slot",
-        return_value=discovery,
+    discovery_patch = (
+        patch.object(
+            type(adapter),
+            "_discover_with_slot",
+            side_effect=RuntimeError("adapter unavailable"),
+        )
+        if failure_mode == "raised_error"
+        else patch.object(
+            type(adapter),
+            "_discover_with_slot",
+            return_value=discovery,
+        )
     )
-    with discovery_patch, patch(
-        "infrastructure.models.provider_administration.remote_catalog_models",
-        side_effect=AssertionError("Volcengine must not use the broad remote catalog"),
+    with (
+        discovery_patch,
+        patch(
+            "infrastructure.models.provider_administration.remote_catalog_models",
+            side_effect=AssertionError(
+                "Volcengine must not use the broad remote catalog"
+            ),
+        ),
     ):
         result = asyncio.run(adapter.refresh_models(connection))
 

@@ -138,6 +138,7 @@ describe("observer camera protocol", () => {
           species_id: "fox",
           home_anchor_id: "dorm-01/bed-01",
           appearance: {},
+          mock_motion: { waypoint: 1, sequence: 1 },
         },
       },
       entity_revisions: { "fox-1": 1 },
@@ -147,6 +148,10 @@ describe("observer camera protocol", () => {
       kind: "semantic_snapshot",
       generation: 1,
       sequence: 2,
+    })
+    expect(parseObserverSemanticSnapshot(snapshot)?.entities["fox-1"]?.mock_motion).toEqual({
+      waypoint: 1,
+      sequence: 1,
     })
     expect(parseObserverSemanticSnapshot({ ...snapshot, position: { x: 1, y: 2, z: 3 } })).toBeNull()
     expect(parseObserverSemanticSnapshot({

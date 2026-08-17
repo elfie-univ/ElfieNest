@@ -197,10 +197,12 @@ class FakeTechnology:
 
     async def probe_model(self, reference: str) -> None:
         self.probed_model_references.append(reference)
-        self.model_verifications[reference.rsplit("/", 1)[-1]] = StoredModelVerification(
-            status="passed",
-            validation_mode="full",
-            availability_status="available",
+        self.model_verifications[reference.rsplit("/", 1)[-1]] = (
+            StoredModelVerification(
+                status="passed",
+                validation_mode="full",
+                availability_status="available",
+            )
         )
 
     async def refresh_models(
@@ -547,9 +549,7 @@ def test_provider_projection_separates_inventory_from_model_evidence() -> None:
         ),
     }
 
-    result = service.list_connections(
-        _principal(), ListProviderConnectionsQuery()
-    )[0]
+    result = service.list_connections(_principal(), ListProviderConnectionsQuery())[0]
     assert result.model_counts.total == 4
     assert result.model_counts.enabled == 3
     assert result.model_counts.in_use == 1

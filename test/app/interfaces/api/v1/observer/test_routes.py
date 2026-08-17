@@ -121,6 +121,7 @@ def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() 
                 "species_id": "fox",
                 "appearance": {},
                 "home_anchor_id": None,
+                "mock_motion": None,
             }
         },
         "entity_revisions": {"fox-1": 1},

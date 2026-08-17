@@ -90,8 +90,11 @@ The product Observer may also receive a strict semantic entity snapshot for
 view-only presentation. Each entity carries identity, species, appearance,
 room/zone state and a semantic `home_anchor_id`; it never carries coordinates,
 transforms, navigation or collision facts. Godot resolves that anchor locally
-and owns actor placement and rendering. The React bridge accepts and forwards
-only same-origin, validated snapshots to the current Observer iframe.
+and owns actor placement and rendering. As a temporary removable behavior, the
+authority may additionally publish `mock_motion: {waypoint, sequence}`. The
+waypoint is resolved locally against the room NavMesh; Observer clients replay
+it and never choose random targets. The React bridge accepts and forwards only
+same-origin, validated snapshots to the current Observer iframe.
 
 `/monitor` is an Owner/Admin full observation page. The Owner/Admin Nest-management
 dialog embeds the same `ObservationMonitor` surface and bridge rather than a

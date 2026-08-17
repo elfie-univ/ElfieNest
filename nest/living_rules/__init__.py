@@ -12,6 +12,7 @@ from nest.living_rules.models import (
     PersistentResidentState,
     ResidentPresence,
     ResidentState,
+    RuntimeMockMotion,
     RuntimeResidentMirror,
 )
 
@@ -24,6 +25,7 @@ __all__ = (
     "ReconciliationRequiredError",
     "ResidentPresence",
     "ResidentState",
+    "RuntimeMockMotion",
     "RuntimeResidentMirror",
     "UnknownResidentError",
 )

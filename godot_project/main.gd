@@ -21,6 +21,8 @@ const AUTHORITY_ENDPOINT := preload("res://runtime/endpoint/authority_endpoint.g
 const OBSERVER_BRIDGE := preload("res://runtime/observer/observer_bridge.gd")
 const OBSERVER_MODE_PARAMETER := "observer"
 const OBSERVER_MODE_VALUE := "product"
+## Temporary authority-side visual behavior; remove when real action control lands.
+const MOCK_WANDER_ENABLED := true
 
 @onready var nest: ModularNest = $Nest
 @onready var characters: Node3D = $Characters
@@ -126,7 +128,13 @@ func _start_authority_runtime() -> void:
 	_world_controller.runtime_event.connect(_on_runtime_event)
 	_actor_controller = ACTOR_RUNTIME_CONTROLLER.new()
 	add_child(_actor_controller)
-	_actor_controller.setup(nest, characters, _actor_scenes)
+	_actor_controller.setup(
+		nest,
+		characters,
+		_actor_scenes,
+		true,
+		MOCK_WANDER_ENABLED,
+	)
 	_actor_controller.runtime_event.connect(_on_runtime_event)
 	_environment_controller = ENVIRONMENT_RUNTIME_CONTROLLER.new()
 	add_child(_environment_controller)

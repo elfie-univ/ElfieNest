@@ -68,6 +68,13 @@ class HomeAssignment(_StrictSemanticModel):
         return self
 
 
+class RuntimeMockMotion(_StrictSemanticModel):
+    """Transient semantic waypoint state for the removable visual Mock."""
+
+    waypoint: int = Field(ge=0, le=5)
+    sequence: int = Field(ge=1)
+
+
 class RuntimeResidentMirror(_StrictSemanticModel):
     """Short-lived Runtime projection of a registered resident."""
 
@@ -75,6 +82,7 @@ class RuntimeResidentMirror(_StrictSemanticModel):
     current_zone_id: Optional[ZoneId] = None
     posture: str = "standing"
     active_command_id: Optional[str] = None
+    mock_motion: Optional[RuntimeMockMotion] = None
     runtime_id: str
     runtime_generation: int = Field(ge=1)
     world_revision: WorldRevision = Field(ge=1)
@@ -100,5 +108,6 @@ __all__ = (
     "PersistentResidentState",
     "ResidentPresence",
     "ResidentState",
+    "RuntimeMockMotion",
     "RuntimeResidentMirror",
 )

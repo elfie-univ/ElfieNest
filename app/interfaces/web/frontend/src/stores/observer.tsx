@@ -115,6 +115,9 @@ function mergeFrame(
       home_anchor_id: patch.home_anchor_id === undefined
         ? entity.home_anchor_id
         : patch.home_anchor_id,
+      mock_motion: patch.mock_motion === undefined
+        ? entity.mock_motion
+        : patch.mock_motion,
     },
   }
 }

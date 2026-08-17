@@ -306,9 +306,7 @@ class ProvidersService:
                 available=sum(
                     item.availability_status == "available" for item in models
                 ),
-                degraded=sum(
-                    item.availability_status == "degraded" for item in models
-                ),
+                degraded=sum(item.availability_status == "degraded" for item in models),
                 pending=sum(
                     item.installed and item.availability_status == "unknown"
                     for item in models
@@ -807,7 +805,9 @@ class ProvidersService:
         try:
             await asyncio.gather(*(verify_one(reference) for reference in references))
         except (ProviderPortError, ValueError, OSError) as error:
-            raise ProvidersUnavailable("Local Provider validation unavailable") from error
+            raise ProvidersUnavailable(
+                "Local Provider validation unavailable"
+            ) from error
         return self.inspect_local_provider(principal, InspectLocalProviderQuery())
 
     async def refresh_models(

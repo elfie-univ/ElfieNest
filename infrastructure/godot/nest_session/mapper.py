@@ -11,6 +11,7 @@ from app.orchestration.nest_session import (
     ResidentMirror,
     RuntimeConnection,
     RuntimeFailure,
+    RuntimeMockMotion,
     SceneManifest,
     SemanticWorldCatalog,
     SpeechReach,
@@ -72,6 +73,13 @@ class _SceneManifest(BaseModel):
     facilities: tuple[_ManifestFacility, ...] = ()
 
 
+class _SnapshotMockMotion(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    waypoint: int = Field(ge=0, le=5)
+    sequence: int = Field(ge=1)
+
+
 class _SnapshotActor(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -79,6 +87,7 @@ class _SnapshotActor(BaseModel):
     zone_id: Optional[str]
     posture: str
     active_command_id: Optional[str]
+    mock_motion: Optional[_SnapshotMockMotion] = None
 
 
 class _WorldSnapshot(BaseModel):
@@ -191,6 +200,14 @@ def parse_world_snapshot(
                 current_zone_id=actor.zone_id,
                 posture=actor.posture,
                 active_command_id=actor.active_command_id,
+                mock_motion=(
+                    RuntimeMockMotion(
+                        waypoint=actor.mock_motion.waypoint,
+                        sequence=actor.mock_motion.sequence,
+                    )
+                    if actor.mock_motion is not None
+                    else None
+                ),
             )
             for actor in snapshot.actors
         ),

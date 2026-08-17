@@ -35,6 +35,9 @@ from nest.public import (
     WorldCatalog,
     ZoneDescriptor,
 )
+from nest.public import (
+    RuntimeMockMotion as NestRuntimeMockMotion,
+)
 
 ActorCatalogProvider = Callable[[], tuple[ActorDescriptor, ...]]
 
@@ -270,6 +273,14 @@ def _nest_mirror(
         current_zone_id=mirror.current_zone_id,
         posture=mirror.posture,
         active_command_id=mirror.active_command_id,
+        mock_motion=(
+            NestRuntimeMockMotion(
+                waypoint=mirror.mock_motion.waypoint,
+                sequence=mirror.mock_motion.sequence,
+            )
+            if mirror.mock_motion is not None
+            else None
+        ),
         runtime_id=runtime_id,
         runtime_generation=runtime_generation,
         world_revision=world_revision,

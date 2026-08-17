@@ -11,6 +11,7 @@ from app.orchestration.observer import (
     ObserverEntityRecord,
     ObserverPortError,
     ObserverWorldIntent,
+    RuntimeMockMotion,
 )
 
 
@@ -39,6 +40,9 @@ class _SemanticEntity(Protocol):
     @property
     def home_anchor_id(self) -> str | None: ...
 
+    @property
+    def mock_motion(self) -> RuntimeMockMotion | None: ...
+
 
 class GodotObserverWorldAdapter:
     """Read semantic Nest facts and deliver only existing high-level intents."""
@@ -66,6 +70,7 @@ class GodotObserverWorldAdapter:
                     species_id=entity.species_id,
                     appearance=tuple(sorted(entity.appearance.items())),
                     home_anchor_id=entity.home_anchor_id,
+                    mock_motion=entity.mock_motion,
                 )
                 for entity_id, entity in sorted(projected.items())
             )
