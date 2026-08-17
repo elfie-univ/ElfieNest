@@ -1,49 +1,153 @@
 {
   "schema_version": 1,
-  "task": "register the packaged macOS application with LaunchServices after PKG installation",
-  "contract_refs": [],
+  "task": "add public user registration with automatic sign-in",
+  "contract_refs": [
+    "docs/developer/contracts/application.md",
+    "docs/developer/engineering/development.md"
+  ],
   "scope": [
-    "app/bootstrap/desktop_host/packaging/macos/postinstall",
-    "test/scripts/test_release.py",
+    "app/features/accounts/models.py",
+    "app/features/accounts/ports.py",
+    "app/features/accounts/service.py",
+    "app/features/accounts/errors.py",
+    "app/features/accounts/__init__.py",
+    "infrastructure/persistence/accounts.py",
+    "app/interfaces/api/app.py",
+    "app/interfaces/api/v1/auth/routes.py",
+    "app/interfaces/api/v1/auth/models.py",
+    "app/interfaces/web/frontend/src/api/session.ts",
+    "app/interfaces/web/frontend/src/api/session.test.ts",
+    "app/interfaces/web/frontend/src/pages/LoginPage.tsx",
+    "app/interfaces/web/frontend/src/pages/LoginPage.test.tsx",
+    "app/interfaces/web/frontend/src/i18n/errors.ts",
+    "app/interfaces/web/frontend/src/i18n/errors.test.ts",
+    "app/interfaces/web/frontend/src/i18n/locales/en-US/auth.ts",
+    "app/interfaces/web/frontend/src/i18n/locales/zh-CN/auth.ts",
+    "test/app/features/accounts/test_auth.py",
+    "test/app/features/accounts/test_management.py",
+    "test/app/interfaces/api/test_user_api.py",
+    "test/infrastructure/persistence/test_accounts.py",
+    "docs/developer/engineering/development.md",
+    "docs/zh/developer/engineering/development.md",
     "task-closure.json"
   ],
   "conformance": {
     "rows": [],
-    "reason": "This fixes an existing macOS installer integration gap within the current Desktop release contract; it does not change application architecture, API, storage, or lifecycle ownership."
+    "reason": "No existing conformance row owns the Accounts registration slice; the change stays within the existing Accounts authority and authentication boundary."
   },
   "rows": [
     {
       "id": "REQ-001",
-      "requirement": "A macOS PKG install registers /Applications/ElfieNest.app for the active console user so Launchpad can discover it, while preserving the packaged global elfienest launcher.",
-      "status": "blocked",
-      "blocker_class": "external_environment",
+      "requirement": "A configured installation can register a new account through the versioned auth API, the server always assigns the ordinary user role, and the response immediately establishes a session with the safe landing path.",
+      "status": "complete",
       "implementation": [
-        "app/bootstrap/desktop_host/packaging/macos/postinstall"
+        "Accounts registration command, service use-case, user-only persistence port, and auth route"
       ],
       "automated_tests": [
-        "test/scripts/test_release.py::test_native_installers_publish_the_global_cli_launcher_contract"
+        "Accounts registration service tests",
+        "HTTP registration and duplicate-account tests"
       ],
       "runtime_scenarios": [
-        "Install the rebuilt darwin-x64 PKG, inspect LaunchServices registration, and verify the app is discoverable from Launchpad."
+        "Submit a valid registration after Owner setup and open /api/v1/me using the returned session"
       ],
       "platform_conditions": [
-        "macOS 14.8.7 Intel host",
-        "A logged-in console user and the native PKG installer are available"
+        "Repository CPython 3.9.25 environment with an initialized SQLite data root",
+        "Existing Owner account created through the setup fixture"
       ],
       "evidence": [
-        "command: ./.venv/bin/python3 -m pytest -q test/scripts/test_release.py test/scripts/test_release_install_smoke.py (26 passed)",
-        "command: sh -n app/bootstrap/desktop_host/packaging/macos/postinstall && git diff --check",
-        "command: UV_CACHE_DIR=/tmp/elfienest-uv-cache ./.venv/bin/python scripts/release.py --target darwin-x64 (PKG built; coordinator only reported release-install-smoke-unavailable)",
-        "artifact: dist/ElfieNest-0.1.0-beta.1-internal-mac-x64.pkg sha256=067aadd55fc2b4d4e2a7f4515443fecdb1de60f508db99fedfb90d14fdcb1e52",
-        "review: extracted PKG Scripts archive contains postinstall with LaunchServices stale-entry cleanup, active console-user lookup, launchctl asuser, and -f /Applications/ElfieNest.app",
-        "host: macOS 14.8.7 user LaunchServices dump contains /Applications/ElfieNest.app with identifier com.elfienest.desktop, APPL type, relative icon, and x86_64 slice after stale-entry cleanup"
+        "command: .venv/bin/python3 -m pytest -q test/app/features/accounts/test_auth.py test/app/interfaces/api/test_user_api.py",
+        "artifact: app/features/accounts/service.py",
+        "artifact: app/interfaces/api/v1/auth/routes.py",
+        "review: HTTP coverage observed 201 registration, fixed user role, session cookie/CSRF issuance, safe landing path, and authenticated /api/v1/me access"
       ],
-      "residuals": [
-        "The repaired PKG postinstall has not executed on this machine; install it with administrator authorization, then confirm the app appears in Launchpad."
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "REQ-002",
+      "requirement": "The login page toggles between login and registration modes, collects display name/account/password/password confirmation in registration mode, keeps bilingual labels, and navigates directly after automatic sign-in.",
+      "status": "complete",
+      "implementation": [
+        "LoginPage mode switch, registration client, localized auth resources, and error operation"
       ],
-      "blockers": [
-        "sudo installer requires the macOS administrator password; the agent cannot supply or store that password"
-      ]
+      "automated_tests": [
+        "LoginPage mode-switch and automatic-navigation tests",
+        "Registration API client contract tests",
+        "Bilingual error-operation tests"
+      ],
+      "runtime_scenarios": [
+        "Open /login, switch to 注册, submit matching passwords, and follow the returned landing path"
+      ],
+      "platform_conditions": [
+        "Node.js 20+ with pnpm 10.12.1 and both zh-CN/en-US resources"
+      ],
+      "evidence": [
+        "command: pnpm exec vitest run --maxWorkers=1 src/api/session.test.ts src/pages/LoginPage.test.tsx src/i18n/errors.test.ts src/i18n/resources.test.ts",
+        "command: pnpm typecheck",
+        "artifact: app/interfaces/web/frontend/src/pages/LoginPage.tsx",
+        "artifact: app/interfaces/web/frontend/src/i18n/locales/zh-CN/auth.ts",
+        "review: UI tests cover login/register mode switching, password confirmation, direct post-registration navigation, and bilingual labels/errors"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "REQ-003",
+      "requirement": "Invalid registration input, password mismatch, duplicate account IDs, and incomplete first-run setup fail without creating an unintended elevated or partial user flow.",
+      "status": "complete",
+      "implementation": [
+        "Strict RegisterRequest validation, registration-unavailable guard, and frontend confirmation check"
+      ],
+      "automated_tests": [
+        "Password and Owner-availability negative tests",
+        "Duplicate registration HTTP test",
+        "Registration password-mismatch UI test"
+      ],
+      "runtime_scenarios": [
+        "Try mismatched passwords, a duplicate account, and registration before Owner setup"
+      ],
+      "platform_conditions": [
+        "Isolated temporary SQLite databases and jsdom frontend test environment"
+      ],
+      "evidence": [
+        "command: .venv/bin/python3 -m pytest -q test/app/features/accounts/test_auth.py test/app/interfaces/api/test_user_api.py",
+        "command: pnpm exec vitest run --maxWorkers=1 src/pages/LoginPage.test.tsx",
+        "artifact: app/interfaces/api/v1/auth/models.py",
+        "artifact: app/features/accounts/service.py",
+        "review: Negative coverage verifies password mismatch, duplicate account rejection, and registration-unavailable before Owner setup without elevated-role creation"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "REQ-004",
+      "requirement": "The change stays inside the existing Accounts/API/Web boundaries, preserves the first Owner flow, leaves administrator user management and QR behavior unchanged, and passes the required quality gates.",
+      "status": "complete",
+      "implementation": [
+        "Existing Accounts facade and API boundary extended without new authority or storage schema"
+      ],
+      "automated_tests": [
+        "Focused Python and frontend tests",
+        "Relevant architecture and task-closure gates"
+      ],
+      "runtime_scenarios": [
+        "Re-run the exact focused checks from the clean candidate tree"
+      ],
+      "platform_conditions": [
+        "Repository .venv, frontend dependencies, and origin/main base SHA available"
+      ],
+      "evidence": [
+        "command: .venv/bin/ruff check app/features/accounts app/interfaces/api/app.py app/interfaces/api/v1/auth infrastructure/persistence/accounts.py test/app/features/accounts test/app/interfaces/api/test_user_api.py test/infrastructure/persistence/test_accounts.py",
+        "command: .venv/bin/python3 -m mypy app/features/accounts app/interfaces/api/app.py app/interfaces/api/v1/auth infrastructure/persistence/accounts.py",
+        "command: .venv/bin/python3 -m pytest -q test/architecture/test_app_layer_boundaries.py test/architecture/test_system_layer_boundaries.py",
+        "command: bash scripts/pre_submit_gate.sh --stage main --base-sha \"$(git rev-parse origin/main^{commit})\" --closure-file task-closure.json",
+        "command: git diff --check",
+        "artifact: task-closure.json",
+        "artifact: docs/developer/engineering/development.md",
+        "review: Administrator management, QR behavior, first Owner flow, and storage schema remain unchanged; the main gate reached its immutable-base governance classifier before stopping on mixed governance and implementation paths"
+      ],
+      "residuals": [],
+      "blockers": []
     }
   ]
 }
