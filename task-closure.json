@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "task": "repair only incomplete current data roots before Desktop and CLI startup",
+  "task": "repair only incomplete current data roots before Desktop and CLI startup; ground Observer Elfie visuals; repair the five confirmed Python quality baseline failures",
   "contract_refs": [
     "docs/developer/contracts/service-lifecycle.md"
   ],
@@ -14,6 +14,7 @@
     "infrastructure/persistence/layout/lifecycle_data_home.py",
     "infrastructure/persistence/nest_db/final_schema.py",
     "infrastructure/persistence/nest_db/store.py",
+    "infrastructure/persistence/nest_db/store.py",
     "infrastructure/platform/lifecycle/runtime_record.py",
     "test/app/orchestration/lifecycle/test_runtime_supervisor.py",
     "test/infrastructure/persistence/test_final_bootstrap.py",
@@ -21,6 +22,69 @@
     "test/infrastructure/platform/lifecycle/test_runtime_record.py",
     "app/interfaces/desktop/src/desktop_role_lifecycle.test.ts",
     "app/interfaces/desktop/src/lifecycle_client.test.ts",
+    "app/bootstrap/api.py",
+    "app/bootstrap/container.py",
+    "app/bootstrap/app_wiring/*.py",
+    "app/features/configuration/food/*.py",
+    "app/features/configuration/providers/*.py",
+    "app/interfaces/api/v1/admin/food_packages/*.py",
+    "app/interfaces/api/v1/admin/model_providers/*.py",
+    "app/interfaces/web/frontend/src/api/admin/food-packages.ts",
+    "app/interfaces/web/frontend/src/api/owner-providers.ts",
+    "app/interfaces/web/frontend/src/components/FoodRecipeEditor.tsx",
+    "app/interfaces/web/frontend/src/components/OwnerProviderPanel.tsx",
+    "app/interfaces/web/frontend/src/components/ProviderModelsDialog.test.tsx",
+    "app/interfaces/web/frontend/src/components/ProviderModelsDialog.tsx",
+    "app/interfaces/web/frontend/src/i18n/locales/en-US/manage.ts",
+    "app/interfaces/web/frontend/src/i18n/locales/zh-CN/manage.ts",
+    "app/interfaces/web/frontend/src/styles.css",
+    "config/models/provider-catalog.yaml",
+    "app/orchestration/nest_session/residents.py",
+    "docs/developer/conformance/provider-model-availability.md",
+    "docs/developer/designs/provider-model-availability.md",
+    "docs/zh/developer/conformance/provider-model-availability.md",
+    "infrastructure/models/catalog.py",
+    "infrastructure/models/food_technology.py",
+    "infrastructure/models/inference/llm_api.py",
+    "infrastructure/models/model_execution_observations.py",
+    "infrastructure/models/model_execution_overview.py",
+    "infrastructure/models/provider_administration.py",
+    "infrastructure/models/providers/discovery.py",
+    "infrastructure/models/providers/dispatch.py",
+    "infrastructure/models/providers/http.py",
+    "infrastructure/models/report_records.py",
+    "infrastructure/models/setup_food.py",
+    "infrastructure/models/validation/*.py",
+    "infrastructure/persistence/food.py",
+    "infrastructure/persistence/food_evidence.py",
+    "infrastructure/persistence/model_health_projection.py",
+    "infrastructure/persistence/nest_db/final_schema.py",
+    "infrastructure/persistence/provider_availability.py",
+    "infrastructure/persistence/report_storage.py",
+    "infrastructure/persistence/reports/*.py",
+    "test/app/features/configuration/food/*.py",
+    "test/app/features/configuration/providers/*.py",
+    "test/app/interfaces/api/v1/admin/food_packages/*.py",
+    "test/app/interfaces/api/v1/admin/model_providers/*.py",
+    "test/infrastructure/models/providers/*.py",
+    "test/infrastructure/models/test_food_evidence.py",
+    "test/infrastructure/models/test_openai_chatgpt.py",
+    "test/infrastructure/models/test_provider_administration.py",
+    "test/infrastructure/models/test_provider_catalog.py",
+    "test/infrastructure/models/validation/*.py",
+    "test/infrastructure/persistence/reports/*.py",
+    "test/infrastructure/persistence/test_provider_availability.py",
+    "test/support/provider.py",
+    "godot_project/characters/fox/fox.tscn",
+    "godot_project/characters/dog/dog.tscn",
+    "godot_project/characters/shared/elfie_actor.gd",
+    "godot_project/runtime/actor/actor_appearance.gd",
+    "godot_project/runtime/observer/observer_presentation.gd",
+    "godot_project/scripts/test/test_actor_appearance_material.gd",
+    "godot_project/scripts/test/test_dog_scale_calibration.gd",
+    "godot_project/scripts/test/test_fox_scale_calibration.gd",
+    "godot_project/scripts/test/test_observer_catalog.gd",
+    "test/app/orchestration/nest_session/test_residents.py",
     "task-closure.json"
   ],
   "conformance": {
@@ -105,6 +169,138 @@
         "scenario: existing lifecycle data-home recovery tests -> explicit user-triggered recovery path remains unchanged",
         "scope check: no schema-version record, automatic backup, deletion, or broad migration was added",
         "review: unsafe schema cases remain outside the additive allowlist and stop before startup"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "QUALITY-BASELINE-001",
+      "requirement": "主线质量门禁中的四个 Ruff 格式基线问题和一个 MyPy 回调类型问题必须修复，且不改变数据准备的运行语义。",
+      "status": "complete",
+      "implementation": [
+        "infrastructure/persistence/nest_db/final_schema.py: Ruff format 修复",
+        "infrastructure/persistence/nest_db/store.py: Ruff format 修复",
+        "test/app/orchestration/lifecycle/test_runtime_supervisor.py: Ruff format 修复",
+        "test/infrastructure/persistence/test_final_bootstrap.py: Ruff format 修复",
+        "app/orchestration/lifecycle/facade.py::runtime_supervisor 使用显式 None 返回的准备回调承接 DataHomeInspection 结果"
+      ],
+      "automated_tests": [
+        "Ruff format --check on the four formatting paths",
+        "Ruff check on the five changed Python paths",
+        "MyPy over app elfie nest infrastructure devtools scripts",
+        "34 focused lifecycle and persistence tests"
+      ],
+      "runtime_scenarios": [
+        "Existing RuntimeSupervisor start path still prepares the selected data home before snapshot initialization"
+      ],
+      "platform_conditions": [
+        "macOS; CPython 3.9.25; locked Ruff 0.15.21 and MyPy 1.19.1"
+      ],
+      "evidence": [
+        "command: UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync ruff format --check <four paths> -> 4 files already formatted",
+        "command: UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync ruff check <five paths> -> All checks passed",
+        "command: UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync mypy -O json app elfie nest infrastructure devtools scripts -> no diagnostics",
+        "command: UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest -q test/app/orchestration/lifecycle/test_runtime_supervisor.py test/infrastructure/persistence/test_final_bootstrap.py -> 34 passed",
+        "review: all five paths were unchanged relative to origin/main before this approved repair; the quality failures were pre-existing baseline failures"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "ELFIE-GROUND-001",
+      "requirement": "Observer 多精灵展示必须将每个精灵的视觉脚底基准对齐到其语义地面锚点，同时保留 CharacterBody3D 根节点、碰撞体和真实运行时移动位置不变。",
+      "status": "complete",
+      "implementation": [
+        "godot_project/runtime/actor/actor_appearance.gd::ground_visual_to_plane selects the lowest toe/foot bone baseline, with a mesh-AABB fallback, and adjusts only VisualRoot.",
+        "godot_project/characters/shared/elfie_actor.gd::ground_visual_to_floor exposes the visual-only grounding entry without changing CharacterBody3D position or collision shape.",
+        "godot_project/runtime/observer/observer_presentation.gd::_create_actor applies the semantic anchor y to the visual-only grounding call.",
+        "godot_project/runtime/actor/actor_appearance.gd::ground_visual_to_plane keeps the room lighting unchanged while correcting only VisualRoot height; _apply_material_parameters skips absent optional appearance values to avoid a Godot runtime error."
+      ],
+      "automated_tests": [
+        "godot_project/scripts/test/test_observer_catalog.gd: synthetic mesh grounding, single-actor anchor preservation, and fox/dog multi-actor grounding assertions",
+        "godot_project/scripts/test/test_runtime_navigation.gd: runtime movement, cancellation, blocking, and multi-actor avoidance",
+        "godot_project/scripts/test/test_runtime_interaction.gd: contact, obstruction, visibility, and obstacle collision",
+        "godot_project/scripts/test/test_species_catalog.gd: dog/fox package discovery and appearance application"
+      ],
+      "runtime_scenarios": [
+        "正式生命周期启动临时实例并达到 WORLD_READY；实际 /monitor 页面连接 local-nest，显示当前可见 2 位精灵，切换到 01 宿舍后保存 TSCN 基准缩放后的最终 Viewport 画面。"
+      ],
+      "platform_conditions": [
+        "macOS; Godot 4.7.1 stable; GL Compatibility/OpenGL3; godot_project source scene"
+      ],
+      "evidence": [
+        "command: .venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_observer_catalog.gd",
+        "command: .venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_runtime_navigation.gd",
+        "command: .venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_runtime_interaction.gd",
+        "command: .venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_species_catalog.gd",
+        "artifact: runtime.json reached phase=world_ready; /api/health returned godot_runtime_ready=true; actual /monitor DOM reported 已连接至 local-nest and 当前可见 2 位精灵。",
+        "artifact: /Users/zhenli/.codex/visualizations/2026/08/16/01a00b2e-2a82-7640-8b62-79fd64fa9be2/monitor-dorm-current.png is the rebuilt formal /monitor 01 宿舍 viewport with two actors, original room lighting, restored imported materials, and current TSCN baseline scales.",
+        "measurement: dorm floor and semantic bed anchors are y=0; observer foot baselines were approximately 0.010-0.012m before the visual-only correction, while CharacterBody3D roots stayed at their anchors.",
+        "artifact: build/components/godot-web/build-manifest.json was regenerated from the current source and ./developer.sh build-godot-web --ensure subsequently reported the runtime up-to-date."
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "ELFIE-SCALE-001",
+      "requirement": "Fox/Dog 的物种场景基准缩放必须直接写在 fox.tscn/dog.tscn 中为 0.7；VisualRoot 与 CollisionShape3D 使用同一基准，原始 fox.glb/dog.glb 不得修改。",
+      "status": "complete",
+      "implementation": [
+        "godot_project/characters/fox/fox.tscn::VisualRoot and ::CollisionShape3D author the Fox 0.7 scale and floor-contact position.",
+        "godot_project/characters/dog/dog.tscn::VisualRoot and ::CollisionShape3D author the Dog 0.7 scale and floor-contact position.",
+        "godot_project/runtime/actor/actor_appearance.gd::apply preserves each scene-authored baseline and only multiplies existing individual appearance variation; the collider uses the same authored baseline.",
+        "godot_project/scripts/test/test_fox_scale_calibration.gd verifies the Fox TSCN visual/collision scale together without editing fox.glb.",
+        "godot_project/scripts/test/test_dog_scale_calibration.gd verifies the Dog TSCN visual/collision scale together without editing dog.glb.",
+        "godot_project/runtime/actor/actor_appearance.gd::_apply_material_parameters preserves imported emission textures when applying appearance tint and pattern."
+      ],
+      "automated_tests": [
+        "godot_project/scripts/test/test_fox_scale_calibration.gd",
+        "godot_project/scripts/test/test_dog_scale_calibration.gd",
+        "godot_project/scripts/test/test_actor_appearance_material.gd"
+      ],
+      "runtime_scenarios": [
+        "Rebuild the Godot web runtime, start the formal lifecycle, open /monitor, select 01 宿舍, and save the actual viewport after both Fox and Dog calibrations are loaded."
+      ],
+      "platform_conditions": [
+        "macOS; Godot 4.7.1 stable; GL Compatibility/OpenGL3; CPython 3.9.25"
+      ],
+      "evidence": [
+        "command: ./.venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_fox_scale_calibration.gd; output FOX_TSCN_SCALE: visual=(0.7, 0.7, 0.7) collision_scale=(0.7, 0.7, 0.7) collision_position=(0.0, 0.602, 0.0)",
+        "command: ./.venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_dog_scale_calibration.gd; output DOG_TSCN_SCALE: visual=(0.7, 0.7, 0.7) collision_scale=(0.7, 0.7, 0.7) collision_position=(0.0, 0.602, 0.0)",
+        "command: ./.venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_actor_appearance_material.gd; output ACTOR_MATERIAL_PRESERVATION: shaders=1 emission_textures=1",
+        "command: ./.venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_observer_catalog.gd; output PASS: observer catalog ids, revisions, selection, reset, pause gating, and command parsing",
+        "command: ./.venv/bin/python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --project godot_project validate --script res://scripts/test/test_species_catalog.gd; output Complete species catalog contract passed: dog, fox",
+        "command: ./developer.sh build-godot-web --ensure; output Godot Web Runtime generated under build/components/godot-web",
+        "runtime: formal local service reached world_ready; actual http://127.0.0.1:14419/monitor DOM reported 已连接至 local-nest and 当前可见 2 位精灵",
+        "measurement: Fox/Dog scene-authored VisualRoot and CollisionShape3D scales are 0.7; the original GLB assets remain unchanged.",
+        "artifact: prior fox-scale-monitor-dorm-1280x720.jpg is superseded; a fresh live viewport is required after the TSCN source migration.",
+        "artifact: /Users/zhenli/.codex/visualizations/2026/08/16/01a00b2e-2a82-7640-8b62-79fd64fa9be2/monitor-dorm-current.png is the live monitor page captured after the TSCN source migration; the page reported 已连接至 local-nest and 当前可见 2 位精灵."
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "ELFIE-OBSERVER-CATALOG-001",
+      "requirement": "真实 Elfie 的 profile 必须投影为 Observer/Runtime actor catalog 的物种与外观参数，不能静默回退为默认 fox 外观。",
+      "status": "complete",
+      "implementation": [
+        "app/orchestration/nest_session/residents.py::actor_catalog reads the public Elfie.profile property before resolving the appearance payload."
+      ],
+      "automated_tests": [
+        "test/app/orchestration/nest_session/test_residents.py::test_actor_catalog_resolves_real_elfie_profiles_for_each_species"
+      ],
+      "runtime_scenarios": [
+        "Rebuild the Godot Web runtime, reload the formal lifecycle, open /monitor, select 01 宿舍, and capture the actual viewport after the corrected actor catalog is sent."
+      ],
+      "platform_conditions": [
+        "macOS; Godot 4.7.1 stable; GL Compatibility/OpenGL3; CPython 3.9.25"
+      ],
+      "evidence": [
+        "command: UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest -q test/app/orchestration/nest_session/test_residents.py test/app/orchestration/test_observer_projection.py; output 4 passed",
+        "command: ./.venv/bin/python3 direct actor_catalog assertion; output REAL_ACTOR_CATALOG with dog species=dog and fox species=fox plus non-empty height/build scales",
+        "runtime: formal ./elfienest.sh start on a fresh temporary data root reached tier=world_ready, phase=world_ready, godot_authority state=ready, and loaded 2 Elfie(s)",
+        "artifact: /Users/zhenli/.codex/visualizations/2026/08/16/01a00b2e-2a82-7640-8b62-79fd64fa9be2/monitor-evidence/monitor-dorm-restored-material.jpg is the actual /monitor 01 宿舍 viewport after profile projection and material preservation; the page reported 当前可见 2 位精灵",
+        "command: curl http://127.0.0.1:14419/api/health; output status=ok, engine_ready=true, godot_web_ready=true, godot_runtime_ready=true"
       ],
       "residuals": [],
       "blockers": []
