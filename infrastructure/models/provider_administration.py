@@ -948,6 +948,9 @@ class ProviderModelsAdapter:
                     "model", f"{connection_id}/{model.endpoint_model_id}"
                 )
             )
+            production_at = (
+                None if production is None else _parse_timestamp(production.observed_at)
+            )
             if model.source == "manual":
                 eligible = False
                 reason = "手工模型不能按来源清理"
@@ -957,7 +960,9 @@ class ProviderModelsAdapter:
             elif now - last_seen < _OBSOLETE_RETENTION:
                 eligible = False
                 reason = "连续缺失未满 30 天"
-            elif production is not None and now - production < _OBSOLETE_RETENTION:
+            elif production is not None and (
+                production_at is None or now - production_at < _OBSOLETE_RETENTION
+            ):
                 eligible = False
                 reason = "近 30 天仍有生产使用"
             else:

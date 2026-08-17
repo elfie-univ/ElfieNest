@@ -8,6 +8,7 @@ from app.orchestration.lifecycle.runtime_snapshot import (
     BackendTier,
     ComponentSnapshot,
     ComponentState,
+    FailureSnapshot,
     ModelHealthProjection,
     ModelOverallState,
     OwnerLease,
@@ -21,6 +22,7 @@ from app.orchestration.lifecycle.runtime_snapshot import (
 from app.orchestration.lifecycle.runtime_supervisor import RuntimeSupervisor
 from app.orchestration.lifecycle.types import (
     AuthorityHostError,
+    LifecycleBusyError,
     LifecycleCancelledError,
     ServiceLifecycleResult,
 )
@@ -571,6 +573,201 @@ def test_stop_retains_offline_snapshot_and_generation() -> None:
     assert after.tier is BackendTier.OFFLINE
     assert after.generation == before.generation
     assert after.revision > before.revision
+
+
+def test_stop_is_idempotent_after_writer_handoff_was_revoked() -> None:
+    record = MemoryRecord()
+    record.value = replace(
+        record.value,
+        tier=BackendTier.OFFLINE,
+        phase=RuntimePhase.OFFLINE,
+        writer_credential_digest=None,
+    )
+    supervisor = _supervisor(record=record)
+
+    result = supervisor.stop()
+
+    assert result.status == "already_stopped"
+    assert record.history == []
+
+
+def test_stop_rejects_a_second_shutdown_while_core_is_still_present() -> None:
+    record = MemoryRecord()
+    record.value = replace(
+        record.value,
+        generation=3,
+        tier=BackendTier.CORE_READY,
+        phase=RuntimePhase.CORE_STOPPING,
+        owner_lease=OwnerLease("cli", 3),
+        components=(
+            ComponentSnapshot(RuntimeComponent.CORE, ComponentState.READY, pid=7101),
+        ),
+    )
+    calls: list[str] = []
+    supervisor = _supervisor(
+        record=record,
+        owns_pid_record=lambda: True,
+        stop_core=lambda: (
+            calls.append("stop-core") or ServiceLifecycleResult(status="stopped")
+        ),
+    )
+
+    result = supervisor.stop()
+
+    assert result.status == "failed"
+    assert isinstance(result.error, LifecycleBusyError)
+    assert calls == []
+    assert record.read().phase is RuntimePhase.CORE_STOPPING
+
+
+def test_stop_recovers_recorded_world_with_a_parent_recovery_host() -> None:
+    record = MemoryRecord()
+    record.value = replace(
+        record.value,
+        generation=4,
+        tier=BackendTier.WORLD_READY,
+        phase=RuntimePhase.WORLD_READY,
+        desired_target=RuntimeTarget.NORMAL,
+        reached_target=RuntimeTarget.WORLD,
+        owner_lease=OwnerLease("cli", 4),
+        components=(
+            ComponentSnapshot(RuntimeComponent.CORE, ComponentState.READY, pid=7101),
+            ComponentSnapshot(RuntimeComponent.GATEWAY, ComponentState.READY, pid=7101),
+            ComponentSnapshot(
+                RuntimeComponent.GODOT_AUTHORITY,
+                ComponentState.READY,
+                pid=7105,
+            ),
+        ),
+    )
+    recovery_host = AuthorityHost(process=Process(7105))
+    supervisor = _supervisor(
+        record=record,
+        authority_recovery_host=recovery_host,
+        owns_pid_record=lambda: True,
+    )
+
+    result = supervisor.stop()
+
+    assert result.status == "stopped"
+    assert recovery_host.calls == ["stop-authority:7105"]
+    assert supervisor.status().tier is BackendTier.OFFLINE
+
+
+def test_interrupted_stop_reconciles_after_core_disappears() -> None:
+    record = MemoryRecord()
+    record.value = replace(
+        record.value,
+        generation=5,
+        tier=BackendTier.WORLD_READY,
+        phase=RuntimePhase.CORE_STOPPING,
+        owner_lease=OwnerLease("cli", 5),
+        components=(
+            ComponentSnapshot(RuntimeComponent.CORE, ComponentState.READY, pid=7101),
+            ComponentSnapshot(
+                RuntimeComponent.GODOT_AUTHORITY,
+                ComponentState.READY,
+                pid=7105,
+            ),
+        ),
+    )
+    calls: list[str] = []
+    recovery_host = AuthorityHost(process=Process(7105), calls=calls)
+    supervisor = _supervisor(
+        record=record,
+        authority_recovery_host=recovery_host,
+        owns_pid_record=lambda: False,
+        stop_core=lambda: (
+            calls.append("stop-core")
+            or ServiceLifecycleResult(status="already_stopped")
+        ),
+    )
+
+    result = supervisor.stop()
+
+    assert result.status == "already_stopped"
+    assert calls == ["stop-authority:7105", "stop-core"]
+    assert supervisor.status().tier is BackendTier.OFFLINE
+
+
+def test_stop_does_not_hide_a_world_cleanup_failure() -> None:
+    record = MemoryRecord()
+    record.value = replace(
+        record.value,
+        generation=6,
+        tier=BackendTier.WORLD_READY,
+        phase=RuntimePhase.WORLD_READY,
+        owner_lease=OwnerLease("cli", 6),
+        components=(
+            ComponentSnapshot(RuntimeComponent.CORE, ComponentState.READY, pid=7101),
+            ComponentSnapshot(
+                RuntimeComponent.GODOT_AUTHORITY,
+                ComponentState.FAILED,
+                detail="Godot process ignored stop",
+                pid=7105,
+            ),
+        ),
+        failures=(
+            FailureSnapshot(
+                "WORLD_STOP_INCOMPLETE",
+                "Godot process ignored stop",
+                "world_stop",
+            ),
+        ),
+    )
+    supervisor = _supervisor(
+        record=record,
+        authority_recovery_host=AuthorityHost(process=Process(7105)),
+        owns_pid_record=lambda: True,
+    )
+
+    result = supervisor.stop()
+
+    assert result.status == "failed"
+    assert "World cleanup incomplete" in str(result.error)
+    assert record.read().phase is RuntimePhase.FAILED
+
+
+def test_start_refuses_a_new_generation_after_incomplete_shutdown() -> None:
+    record = MemoryRecord()
+    record.value = replace(
+        record.value,
+        generation=7,
+        tier=BackendTier.WORLD_READY,
+        phase=RuntimePhase.FAILED,
+        owner_lease=OwnerLease("cli", 7),
+        components=(
+            ComponentSnapshot(RuntimeComponent.CORE, ComponentState.READY, pid=7101),
+            ComponentSnapshot(
+                RuntimeComponent.GODOT_AUTHORITY,
+                ComponentState.FAILED,
+                detail="Godot process ignored stop",
+                pid=7105,
+            ),
+        ),
+        failures=(
+            FailureSnapshot(
+                "STOP_INCOMPLETE",
+                "Godot process ignored stop",
+                "stop",
+            ),
+        ),
+    )
+    calls: list[str] = []
+    supervisor = _supervisor(
+        record=record,
+        owns_pid_record=lambda: False,
+        start_core=lambda _healthy: (
+            calls.append("start-core") or ServiceLifecycleResult(status="started")
+        ),
+    )
+
+    result = supervisor.start(owner_id="next")
+
+    assert result.status == "failed"
+    assert "retry stop" in str(result.error)
+    assert calls == []
+    assert record.read().generation == 7
 
 
 def test_status_projects_latest_model_evidence_without_rewriting_snapshot() -> None:

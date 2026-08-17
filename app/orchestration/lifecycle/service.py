@@ -184,7 +184,7 @@ def stop_service(
             break
         sleeper(poll_interval_seconds)
     try:
-        target_ports = service_ports_from_command(actual_command)
+        target_ports = observed_ports or service_ports_from_command(actual_command)
     except ValueError as error:
         return ServiceLifecycleResult(
             status="failed",
@@ -249,6 +249,10 @@ def start_service(
             str((resolved_root / "scripts" / "serve.py").resolve()),
         )
     )
+    automatic_ports = (
+        child_environment is not None
+        and child_environment.get("ELFIENEST_PORT_MODE") == "automatic"
+    )
     try:
         startup_lease = recovery_lock.acquire_start_lease(elfie_home)
     except (OSError, RecoveryInProgressError) as error:
@@ -268,7 +272,7 @@ def start_service(
             existing_pid, existing_command = existing
             requested_ports = service_ports_from_command(launch_command)
             existing_ports = service_ports_from_command(existing_command)
-            if requested_ports != existing_ports:
+            if not automatic_ports and requested_ports != existing_ports:
                 return ServiceLifecycleResult(
                     status="failed",
                     pid=existing_pid,
@@ -296,7 +300,7 @@ def start_service(
             )
 
         requested_ports = service_ports_from_command(launch_command)
-        if process_port.ports_in_use(requested_ports):
+        if not automatic_ports and process_port.ports_in_use(requested_ports):
             return ServiceLifecycleResult(
                 status="failed",
                 error=ServicePortsActiveError(

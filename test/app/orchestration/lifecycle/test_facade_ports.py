@@ -1,8 +1,15 @@
 """Lifecycle owns user-visible service-port observations."""
 
+from pathlib import Path
 from unittest.mock import Mock, call
 
 from app.orchestration.lifecycle import LifecycleFacade
+from app.orchestration.lifecycle.ports import DoctorRepairResult
+from app.orchestration.lifecycle.runtime_snapshot import (
+    EndpointSnapshot,
+    RuntimePhase,
+    RuntimeSnapshotV1,
+)
 
 
 def test_service_port_statuses_use_injected_process_port() -> None:
@@ -91,3 +98,62 @@ def test_frontend_preparation_stays_behind_lifecycle_facade() -> None:
     frontend.prepare.assert_called_once_with("development")
     assert lifecycle.prepare_godot_web("release", is_frozen=True) is True
     godot_web.prepare.assert_called_once_with("release", is_frozen=True)
+
+
+def test_core_endpoint_publication_updates_the_authoritative_starting_snapshot() -> (
+    None
+):
+    record = Mock()
+    record.read.return_value = RuntimeSnapshotV1(
+        instance_id="instance",
+        phase=RuntimePhase.CORE_STARTING,
+        revision=4,
+    )
+    lifecycle = LifecycleFacade(
+        service_launch_command=("/managed/core",),
+        process_port=Mock(),
+        recovery_lock=Mock(),
+        desktop_host=Mock(),
+        http_probe=Mock(),
+        runtime_record_factory=lambda _home: record,
+        authority_host_factory=Mock(),
+    )
+    endpoints = (
+        EndpointSnapshot("http", "http", "127.0.0.1", 12421),
+        EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 12422),
+    )
+
+    lifecycle.publish_core_endpoints(Path("/tmp/elfienest"), endpoints)
+
+    published = record.write.call_args.args[0]
+    assert published.revision == 5
+    assert published.phase is RuntimePhase.CORE_STARTING
+    assert published.endpoints == endpoints
+
+
+def test_doctor_repair_reconciles_shared_optional_orphans() -> None:
+    doctor = Mock()
+    doctor.repair_local_state.return_value = DoctorRepairResult(("receipt",))
+    optional_component = Mock()
+    optional_component.reconcile_orphaned_services.return_value = ("ollama",)
+    data_home = Mock()
+    data_home.home.return_value = Path("/selected")
+    lifecycle = LifecycleFacade(
+        service_launch_command=("/managed/core",),
+        process_port=Mock(),
+        recovery_lock=Mock(),
+        desktop_host=Mock(),
+        http_probe=Mock(),
+        runtime_record_factory=Mock(),
+        authority_host_factory=Mock(),
+        optional_component=optional_component,
+        doctor=doctor,
+        data_home=data_home,
+    )
+
+    result = lifecycle.repair_local_state()
+
+    assert result == DoctorRepairResult(("receipt", "ollama"))
+    optional_component.reconcile_orphaned_services.assert_called_once_with(
+        elfie_home=Path("/selected")
+    )

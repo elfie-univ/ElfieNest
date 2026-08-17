@@ -45,9 +45,11 @@ from app.orchestration.lifecycle.ports import (
     UninstallState,
 )
 from app.orchestration.lifecycle.runtime_snapshot import (
+    EndpointSnapshot,
     ModelHealthProjection,
     ModelOverallState,
     RuntimeObservation,
+    RuntimePhase,
     RuntimeProgressPhase,
     RuntimeProjectionV1,
     RuntimeSnapshotV1,
@@ -152,7 +154,18 @@ class LifecycleFacade:
     def repair_local_state(self) -> DoctorRepairResult:
         if self._doctor is None:
             raise RuntimeError("Doctor adapter is unavailable")
-        return self._doctor.repair_local_state()
+        base = self._doctor.repair_local_state()
+        optional_component = self._optional_component
+        if optional_component is None or self._data_home is None:
+            return base
+        return DoctorRepairResult(
+            repaired=(
+                *base.repaired,
+                *optional_component.reconcile_orphaned_services(
+                    elfie_home=self._data_home.home()
+                ),
+            )
+        )
 
     def run_offline_validation(self) -> DoctorValidationResult:
         if self._doctor is None:
@@ -318,6 +331,32 @@ class LifecycleFacade:
         """Read the authoritative snapshot for a Core-resident handoff."""
         return self._runtime_record_factory(elfie_home).read()
 
+    def publish_core_endpoints(
+        self,
+        elfie_home: Path,
+        endpoints: Sequence[EndpointSnapshot],
+    ) -> None:
+        """Publish Core-owned endpoints before the readiness probe runs.
+
+        The managed Core receives the generation writer credential from the
+        Supervisor. This small handoff lets automatic sockets be selected and
+        reserved inside Core while keeping the durable Runtime snapshot as the
+        only endpoint authority visible to clients.
+        """
+        record = self._runtime_record_factory(elfie_home)
+        current = record.read()
+        if current.phase is not RuntimePhase.CORE_STARTING:
+            raise RuntimeError(
+                "Core endpoints may only be published during CORE_STARTING"
+            )
+        record.write(
+            replace(
+                current,
+                revision=current.revision + 1,
+                endpoints=tuple(endpoints),
+            )
+        )
+
     def runtime_projection(self, elfie_home: Path) -> RuntimeProjectionV1:
         """Return the read-only snapshot plus the current Food model projection.
 
@@ -410,6 +449,7 @@ class LifecycleFacade:
             # may wait for its published WORLD_READY snapshot but must not
             # start a second authority process itself.
             authority_host=None,
+            authority_recovery_host=self._authority_host_factory(authority_config),
             authority_timeout_seconds=authority_timeout_seconds,
             progress_callback=progress_callback,
             command_lease_factory=lambda: self._recovery_lock.acquire_start_lease(
@@ -480,6 +520,7 @@ class LifecycleFacade:
         health_checker: Callable[[], bool],
         command: Optional[Sequence[str]] = None,
         background: bool = False,
+        timeout_seconds: float = 30.0,
     ) -> ServiceLifecycleResult:
         return desktop.start_desktop_application(
             elfie_home,
@@ -488,6 +529,7 @@ class LifecycleFacade:
             health_checker=health_checker,
             command=command,
             background=background,
+            timeout_seconds=timeout_seconds,
         )
 
     def stop_desktop(self, elfie_home: Path) -> ServiceLifecycleResult:

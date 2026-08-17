@@ -99,9 +99,11 @@ iframe 的快照。
 
 ## 生产目录契约
 
-正式安装默认使用 `~/.elfienest`；源码与 worktree 运行默认使用
-`<当前worktree>/.elfienest.local`。`--data-home PATH` 与 `ELFIE_HOME` 可以覆盖
-默认值，全部生命周期收据与产品数据都跟随唯一所选数据根。
+正式安装使用已选择的生产数据根，未选择时默认使用 `~/.elfienest`；安装版
+`elfienest start` 拒绝 `--data-home`，如需切换生产数据根应执行
+`elfienest data-home activate --data-home PATH`。源码与 worktree 运行默认使用
+`<当前worktree>/.elfienest.local`，可以使用 `--data-home PATH` 或 `ELFIE_HOME`。
+全部生命周期收据与产品数据都跟随唯一所选数据根。
 
 一台电脑只有一个生产 Nest 根 `${ELFIE_HOME:-~/.elfienest}`。`nest.db` 只包含最终
 8 张 Nest 级表：用户、会话、本机安装/Setup、Nest 设置、精灵、外部身体、身体审计

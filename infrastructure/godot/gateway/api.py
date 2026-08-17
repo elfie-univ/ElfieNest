@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import secrets
+import socket
 import threading
 from threading import RLock
 from typing import Any, Protocol, cast
@@ -46,9 +47,15 @@ class GodotAPIServer:
         http_port: int = 8000,
         handshake_nonce: str | None = None,
         allowed_origins: set[str] | None = None,
+        prebound_socket: socket.socket | None = None,
     ) -> None:
         self.host = host
-        self.port = port
+        self._prebound_socket = prebound_socket
+        self.port = (
+            int(prebound_socket.getsockname()[1])
+            if prebound_socket is not None
+            else port
+        )
         self.http_port = http_port
         self.handshake_nonce = (
             handshake_nonce
@@ -124,6 +131,13 @@ class GodotAPIServer:
         asyncio.set_event_loop(self._loop)
 
         async def start_server() -> Any:
+            if self._prebound_socket is not None:
+                return await websockets.serve(
+                    self._handle_client,
+                    sock=self._prebound_socket,
+                    max_size=1024 * 1024,
+                    max_queue=32,
+                )
             return await websockets.serve(
                 self._handle_client,
                 self.host,

@@ -110,6 +110,20 @@ G1（`commit`）检查改动文件、受影响测试和 closure `progress`；G2�
 必需检查失败，或 G3 的回环端口预检被阻断时，不得提交、推送或合并。聚焦测试是 G1/G2 的
 正常路径；当影响分类器要求 G3 时不能替代完整门禁。
 
+完成检查会拒绝未归属的改动、证据不完整的矩阵行，以及仍未关闭的 Conformance 行。如果某一
+行仅因为当前机器缺少所需操作系统或已安装主机而阻塞，应标记
+`blocker_class: "external_environment"`，并在本地 checkpoint 明确使用以下参数：
+
+```bash
+bash scripts/pre_submit_gate.sh \
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --closure-file task-closure.json \
+  --allow-external-environment-blockers
+```
+
+该参数不会关闭这条记录，不允许代码或工具失败通过，也不能用于最终受保护分支交付；仍必须
+由 CI 或匹配主机完成缺失的验收。聚焦测试不能替代任一门禁。
+
 修改完成技能或门禁本身时分两个检查点：先提交治理-only 的分类注册，再提交受保护的
 检查器和集成；不得为了合并这两步而绕过不可变基础分支门禁。
 

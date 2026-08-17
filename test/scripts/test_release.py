@@ -105,6 +105,8 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in source
     assert "gh release create" in source
     assert "release_args+=(--prerelease)" in source
+    assert "--run-install-smoke" in source
+    assert "*-install-smoke.json" in source
 
 
 def test_release_session_dispatches_all_targets_and_requires_artifact_hash_and_smoke(
@@ -242,6 +244,49 @@ def test_native_package_output_writes_the_current_native_package(
     # Then: it receives the package while release status remains incomplete.
     assert result == 3
     assert output.read_text(encoding="utf-8") == f"{artifact.resolve()}\n"
+
+
+def test_release_cli_can_close_a_native_target_with_install_smoke_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "ElfieNest.pkg"
+    artifact.write_bytes(b"installer")
+    evidence = tmp_path / "smoke.json"
+    monkeypatch.setattr(
+        release.package_python_core, "host_target", lambda: "darwin-arm64"
+    )
+    monkeypatch.setattr(release, "uses_project_python", lambda: True)
+    monkeypatch.setattr(release, "ensure_release_environment", lambda: True)
+    monkeypatch.setattr(release, "release_version", lambda: "0.1.0")
+    monkeypatch.setattr(release, "source_commit", lambda: "a" * 40)
+    monkeypatch.setattr(release, "release_input_manifest", lambda: "b" * 64)
+    monkeypatch.setattr(release_pipeline, "default_release_steps", lambda: "steps")
+    monkeypatch.setattr(
+        release_pipeline,
+        "run_native_release",
+        lambda **_kwargs: artifact,
+    )
+    monkeypatch.setattr(
+        release,
+        "execute_install_smoke",
+        lambda _target, _artifact, output, **_kwargs: output.write_text(
+            '{"result":"passed"}\n', encoding="utf-8"
+        ),
+    )
+
+    result = release.main(
+        [
+            "--target",
+            "darwin-arm64",
+            "--run-install-smoke",
+            "--smoke-evidence-output",
+            str(evidence),
+        ]
+    )
+
+    assert result == 0
+    assert evidence.read_text(encoding="utf-8") == '{"result":"passed"}\n'
 
 
 def test_native_pipeline_passes_the_exact_target_to_the_packager(tmp_path) -> None:

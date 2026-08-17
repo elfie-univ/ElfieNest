@@ -52,9 +52,22 @@ The native targets are macOS `PKG`, Windows `NSIS`, and Linux `DEB`. Their
 installer hooks expose the packaged management CLI as the global `elfienest`
 command and remove only the launcher owned by that installation.
 
+The native runner invokes `scripts/release_install_smoke.py` through
+`scripts/release.py --run-install-smoke`. Each bounded cycle installs the
+package, starts through the global launcher, waits for `CORE_READY`/`WORLD_READY`,
+stops to `OFFLINE`, reinstalls the same package as the upgrade check, and then
+uninstalls it while proving the selected `ELFIE_HOME` remains. The resulting JSON
+contains typed install/start/health/stop/upgrade/uninstall durations and budgets;
+the workflow uploads it beside the installer. A local build without
+`--run-install-smoke` does not mutate the host installation.
+
 ```bash
 # Build the current native target locally; this does not upload or publish.
 .venv/bin/python scripts/release.py --target darwin-x64
+
+# Only on a disposable native release runner; also runs install/upgrade/smoke/uninstall.
+.venv/bin/python scripts/release.py --target darwin-x64 --run-install-smoke \
+  --smoke-evidence-output dist/ElfieNest-darwin-x64-install-smoke.json
 
 # Ask the coordinator for all targets. Unavailable runners remain incomplete.
 .venv/bin/python scripts/release.py
@@ -65,8 +78,9 @@ pipeline. It uses native GitHub-hosted runners for macOS arm64, macOS Intel,
 Windows x64, and Linux x64. A `workflow_dispatch` run builds all four installers
 and keeps them as Actions artifacts. Pushing a tag matching the project version,
 for example `v0.1.0-beta.1`, runs the same matrix, validates the native installer
-contents, and publishes the four installers, `SHA256SUMS`, and a release
-`manifest.json` to GitHub Releases. Pre-release tags are published with GitHub's
+contents, publishes each typed install-smoke JSON beside its installer, and
+publishes the four installers, `SHA256SUMS`, and a release `manifest.json` to
+GitHub Releases. Pre-release tags are published with GitHub's
 pre-release flag; a manual run only creates a Release when
 `publish_release` is enabled and `release_tag` is set to the matching tag.
 

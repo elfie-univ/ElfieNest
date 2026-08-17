@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -26,6 +27,8 @@ from infrastructure.models.validation.provider_validation import (
 )
 from infrastructure.persistence.model_catalog import load_model_identities
 from infrastructure.persistence.provider_catalog import load_provider_catalog
+from infrastructure.persistence.report_storage import ReportStorageAdapter
+from infrastructure.persistence.reports.report_repository import ReportRepository
 from test.support.provider import provider_models_adapter
 
 
@@ -332,6 +335,59 @@ def test_source_missing_model_is_listed_as_cleanup_candidate_after_retention(
     refreshed = adapter.get_connection(connection.connection_id)
     assert refreshed is not None
     assert refreshed.models == ()
+
+
+def test_recent_production_use_blocks_source_missing_model_cleanup(tmp_path) -> None:
+    report_repository = ReportRepository(tmp_path / "reports.sqlite")
+    adapter = provider_models_adapter(
+        tmp_path / "providers.yaml",
+        tmp_path / "auth.env",
+        reports=ReportStorageAdapter(report_repository),
+    )
+    connection = adapter.create_connection(
+        StoredProviderConnection(
+            connection_id="",
+            catalog_id="custom_openai",
+            alias="Gateway",
+            api_base="https://gateway.example/v1",
+            api_mode="chat_completions",
+            auth_type="bearer",
+            credential_ref="",
+            models=(
+                StoredProviderModel(
+                    "retired-model",
+                    "Retired model",
+                    source="remote_catalog",
+                    discovery_state="source_missing",
+                    consecutive_missing=2,
+                    last_seen_at="2025-01-01T00:00:00+00:00",
+                ),
+            ),
+        ),
+        None,
+    )
+    run_id = report_repository.start_run(scope="model", trigger="production")
+    report_repository.append_observation(
+        run_id=run_id,
+        subject_kind="model",
+        subject_id=f"{connection.connection_id}/retired-model",
+        observed_at=datetime.now(timezone.utc).isoformat(),
+        status="passed",
+        details={"workload_kind": "production"},
+    )
+    report_repository.finish_run(run_id, status="complete")
+
+    candidates = adapter.list_obsolete_models(connection.connection_id)
+
+    assert len(candidates) == 1
+    assert candidates[0].eligible is False
+    assert candidates[0].reason == "近 30 天仍有生产使用"
+    with pytest.raises(ProviderPortError, match="安全清理条件"):
+        adapter.delete_obsolete_model(connection.connection_id, "retired-model")
+
+    retained = adapter.get_connection(connection.connection_id)
+    assert retained is not None
+    assert [item.model_id for item in retained.models] == ["retired-model"]
 
 
 def test_bundled_endpoint_metadata_is_not_shared_across_providers() -> None:

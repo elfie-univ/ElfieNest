@@ -5,11 +5,12 @@ ElfieNest 把“精灵的长期生活数据”和“源码、构建物、公开�
 
 ## 产品数据根
 
-- 正式安装运行按 `--data-home PATH`、`ELFIE_HOME`、`~/.elfienest` 的顺序解析
-  数据根。
+- 正式安装 Runtime 使用 `ELFIE_HOME`、已记忆的生产数据根或
+  `~/.elfienest`。安装版 `elfienest start` 明确拒绝 `--data-home`；如需选择生产
+  数据根，先执行 `elfienest data-home activate --data-home PATH`。
 - 源码与 worktree 运行按 `--data-home PATH`、`ELFIE_HOME`、
   `<当前worktree>/.elfienest.local` 的顺序解析数据根。
-- `serve` 和 `start` 支持 `--data-home PATH`。生命周期命令会记住该选择，让
+- 源码 `serve` 和 `start` 支持 `--data-home PATH`。生命周期命令会记住该选择，让
   `status`、`stop`、`restart` 使用同一数据根；产品 PID/锁、`runtime.json`、
   日志、CLI history 和数据库都跟随该根。checkout 本地可以保留一个只记录所选
   路径的 `selected-data-home` 控制回执，让后续无参数生命周期命令找到该根；它不

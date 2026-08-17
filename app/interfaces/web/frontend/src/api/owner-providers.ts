@@ -247,7 +247,7 @@ export async function ownerProviderCatalog(): Promise<readonly ProviderProduct[]
 
 export async function ownerProviderConnections(): Promise<readonly ProviderConnection[]> {
   return z.object({ items: z.array(ProviderConnectionSchema) }).parse(
-    await ownerRead("/api/v1/admin/model-providers/connections"),
+    await ownerRead("/api/v1/admin/model-providers/connections", { timeout: false }),
   ).items
 }
 

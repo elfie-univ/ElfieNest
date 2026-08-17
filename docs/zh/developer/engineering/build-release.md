@@ -47,9 +47,20 @@ ARM64、macOS x64、Windows x64、Linux x64。安装包不包含 Ollama 引擎�
 原生 target 使用 macOS `PKG`、Windows `NSIS` 和 Linux `DEB`。各安装器钩子会把包内管理
 CLI 暴露为全局 `elfienest` 命令，并且只移除当前安装所拥有的 launcher。
 
+原生 runner 会通过 `scripts/release.py --run-install-smoke` 调用
+`scripts/release_install_smoke.py`。每个有界循环都会安装安装包、通过全局 launcher
+启动、等待 `CORE_READY`/`WORLD_READY`、停止到 `OFFLINE`、再次安装同一个包验证升级，
+最后卸载并证明所选 `ELFIE_HOME` 仍然保留。输出 JSON 包含带类型的安装/启动/健康/停止/
+升级/卸载耗时和预算，Workflow 会把它和安装包一起上传。不带
+`--run-install-smoke` 的本地构建不会修改主机安装环境。
+
 ```bash
 # 构建当前原生 target；只在本地 build/dist 生成，不上传或发布
 .venv/bin/python scripts/release.py --target darwin-x64
+
+# 只在一次性原生发布 runner 上运行；同时执行安装/升级/烟测/卸载。
+.venv/bin/python scripts/release.py --target darwin-x64 --run-install-smoke \
+  --smoke-evidence-output dist/ElfieNest-darwin-x64-install-smoke.json
 
 # 请求完整矩阵；不可用 runner 保持 incomplete
 .venv/bin/python scripts/release.py
@@ -59,7 +70,8 @@ CLI 暴露为全局 `elfienest` 命令，并且只移除当前安装所拥有的
 macOS arm64、macOS Intel、Windows x64 和 Linux x64 的原生 GitHub runner。手动运行
 `workflow_dispatch` 会构建四个安装包并保存为 Actions artifacts；推送与项目版本一致
 的 tag（例如 `v0.1.0-beta.1`）会运行同一套矩阵，校验各平台安装包内容，并把四个安装包、
-`SHA256SUMS` 和 Release `manifest.json` 发布到 GitHub Releases。带预发布后缀的 tag
+每个平台的 typed install-smoke JSON、`SHA256SUMS` 和 Release `manifest.json` 发布到
+GitHub Releases。带预发布后缀的 tag
 会被标记为 GitHub Pre-release；手动运行只有在开启
 `publish_release` 且填写匹配的 `release_tag` 时才会创建 Release。
 

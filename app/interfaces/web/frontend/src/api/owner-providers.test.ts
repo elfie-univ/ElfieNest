@@ -5,6 +5,7 @@ import {
   completeProviderOAuthLogin,
   ownerModelMatrix,
   ownerProviderCatalog,
+  ownerProviderConnections,
   startProviderOAuthLogin,
   validateAllProviderModels,
   verifyProviderConnection,
@@ -49,6 +50,17 @@ describe("versioned model Provider client", () => {
 
     expect(result[0]?.catalog_id).toBe("openai_api")
     expect(ownerRead).toHaveBeenCalledWith("/api/v1/admin/model-providers/catalog")
+  })
+
+  it("does not time out while projecting a large Provider inventory", async () => {
+    vi.mocked(ownerRead).mockResolvedValue({ items: [] })
+
+    await ownerProviderConnections()
+
+    expect(ownerRead).toHaveBeenCalledWith(
+      "/api/v1/admin/model-providers/connections",
+      { timeout: false },
+    )
   })
 
   it("writes lifecycle actions only through the versioned resource", async () => {

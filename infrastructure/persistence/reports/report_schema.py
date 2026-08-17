@@ -7,7 +7,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def connect_report_database(path: Path) -> sqlite3.Connection:
@@ -27,8 +27,11 @@ def initialize_report_database(path: Path) -> None:
         current = connection.execute(
             "SELECT MAX(version) FROM schema_migrations"
         ).fetchone()[0]
-        if current == 1:
+        current_version = int(current or 0)
+        if current_version == 1:
             _migrate_subject_kinds(connection)
+        if current_version < 5:
+            _migrate_rollup_latency_samples(connection)
         # Reinstall this trigger so databases created before the retention
         # policy get the same guarded maintenance path as fresh databases.
         connection.execute("DROP TRIGGER IF EXISTS validation_observations_no_delete")
@@ -94,6 +97,7 @@ CREATE TABLE IF NOT EXISTS validation_rollups (
     failed_count INTEGER NOT NULL CHECK(failed_count >= 0),
     warning_count INTEGER NOT NULL CHECK(warning_count >= 0),
     skipped_count INTEGER NOT NULL CHECK(skipped_count >= 0),
+    latency_sample_count INTEGER NOT NULL DEFAULT 0 CHECK(latency_sample_count >= 0),
     average_latency_ms REAL,
     min_latency_ms REAL,
     max_latency_ms REAL,
@@ -183,6 +187,37 @@ def _migrate_subject_kinds(connection: sqlite3.Connection) -> None:
         );
         CREATE INDEX idx_validation_run
         ON validation_observations (run_id, observation_id);
+        """
+    )
+
+
+def _migrate_rollup_latency_samples(connection: sqlite3.Connection) -> None:
+    """Add the state needed to merge late daily observations exactly.
+
+    Older rollups only retained the average, not the number of observations
+    contributing to that average.  Existing rows therefore use their total
+    observation count as the best compatible sample-count estimate; all new
+    rollups retain the exact non-null latency sample count.
+    """
+    columns = {
+        str(row[1])
+        for row in connection.execute("PRAGMA table_info(validation_rollups)")
+    }
+    if "latency_sample_count" in columns:
+        return
+    connection.execute(
+        """
+        ALTER TABLE validation_rollups
+        ADD COLUMN latency_sample_count INTEGER NOT NULL DEFAULT 0
+        """
+    )
+    connection.execute(
+        """
+        UPDATE validation_rollups
+        SET latency_sample_count = CASE
+            WHEN average_latency_ms IS NULL THEN 0
+            ELSE observation_count
+        END
         """
     )
 

@@ -35,6 +35,8 @@ OllamaState = Literal[
     "repair_required",
 ]
 DEFAULT_OLLAMA_ENDPOINT: Final[str] = "http://127.0.0.1:11434"
+DARWIN_APP_DISCOVERY_TIMEOUT_SECONDS: Final[float] = 10.0
+DARWIN_APP_DISCOVERY_POLL_SECONDS: Final[float] = 0.1
 OFFICIAL_INSTALL_URLS: Final[dict[PlatformName, str]] = {
     "darwin": "https://ollama.com/install.sh",
     "linux": "https://ollama.com/install.sh",
@@ -301,6 +303,8 @@ class OllamaPlatformAdapter:
     ) -> OllamaProcessIdentity | None:
         """Start exactly the recorded public installation without blocking the caller."""
         self.verify_recorded_installation(binding)
+        if binding.platform == "darwin":
+            return self._start_darwin_application(binding)
         command = launch_command(
             binding.platform,
             binding.install_kind,
@@ -323,6 +327,78 @@ class OllamaPlatformAdapter:
             time.sleep(0.05)
         return None
 
+    def _start_darwin_application(
+        self, binding: OllamaBinding
+    ) -> OllamaProcessIdentity | None:
+        """Launch Ollama.app but return the app process, never ``open`` itself.
+
+        ``open -a`` is an activation helper. Its PID is short-lived and has no
+        ownership relationship with the Ollama app or its ``ollama serve``
+        child. If an app process already exists, fail closed so a caller asking
+        for an owned lease cannot accidentally claim an external installation.
+        """
+        before = self._darwin_app_processes(binding.launch_target)
+        self._process_launcher(
+            launch_command(
+                binding.platform,
+                binding.install_kind,
+                binding.launch_target,
+            ),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        if before:
+            return None
+
+        deadline = time.monotonic() + DARWIN_APP_DISCOVERY_TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            current = self._darwin_app_processes(binding.launch_target)
+            new_processes = {
+                pid: identity for pid, identity in current.items() if pid not in before
+            }
+            if len(new_processes) == 1:
+                return next(iter(new_processes.values()))
+            if len(new_processes) > 1:
+                return None
+            time.sleep(DARWIN_APP_DISCOVERY_POLL_SECONDS)
+        return None
+
+    def _darwin_app_processes(
+        self, launch_target: str
+    ) -> dict[int, OllamaProcessIdentity]:
+        executable = _darwin_app_executable(launch_target)
+        try:
+            result = self._command_runner(
+                ("/bin/ps", "-axo", "pid=,command="),
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return {}
+        if result.returncode != 0:
+            return {}
+
+        expected = os.path.realpath(executable)
+        identities: dict[int, OllamaProcessIdentity] = {}
+        for line in result.stdout.splitlines():
+            fields = line.strip().split(maxsplit=1)
+            if len(fields) != 2:
+                continue
+            try:
+                pid = int(fields[0])
+            except ValueError:
+                continue
+            command = fields[1].split(maxsplit=1)[0]
+            if os.path.realpath(command) != expected:
+                continue
+            identity = process_identity(pid)
+            if identity is not None:
+                identities[pid] = identity
+        return identities
+
     def stop_started_process(
         self,
         identity: OllamaProcessIdentity,
@@ -338,7 +414,10 @@ class OllamaPlatformAdapter:
             os.kill(identity.pid, signal.SIGTERM)
         else:
             try:
-                os.killpg(identity.pid, signal.SIGKILL if force else signal.SIGTERM)
+                process_group = os.getpgid(identity.pid)
+                if process_group != identity.pid:
+                    raise RuntimeError("拒绝停止非进程组组长的 Ollama 进程身份")
+                os.killpg(process_group, signal.SIGKILL if force else signal.SIGTERM)
             except ProcessLookupError:
                 return
         deadline = time.monotonic() + max(0.0, timeout_seconds)
@@ -439,3 +518,9 @@ def process_identity(pid: int) -> OllamaProcessIdentity | None:
     if not birth or not executable:
         return None
     return OllamaProcessIdentity(pid, executable, birth)
+
+
+def _darwin_app_executable(launch_target: str) -> str:
+    """Resolve the main executable inside a recorded macOS application bundle."""
+    application = Path(launch_target)
+    return str(application / "Contents" / "MacOS" / application.stem)

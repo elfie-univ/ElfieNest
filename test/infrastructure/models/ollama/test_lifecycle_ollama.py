@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -292,3 +293,51 @@ def test_unconfigured_data_root_does_not_start_default_ollama(
 
     assert lease is None
     technology.start_owned.assert_not_called()
+
+
+def test_doctor_reclaims_an_exact_owned_ollama_orphan(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    identity = OllamaProcessIdentity(900, "/usr/local/bin/ollama", "owned")
+    monkeypatch.setattr(
+        "infrastructure.models.ollama.lifecycle_ollama.process_identity",
+        lambda pid: identity if pid == identity.pid else None,
+    )
+    technology = Mock()
+    root = tmp_path / "shared"
+    root.mkdir(parents=True)
+    (root / "services.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "services": {
+                    "ollama:http://127.0.0.1:11416": {
+                        "origin": "ELFIENEST_OWNED",
+                        "endpoint": "http://127.0.0.1:11416",
+                        "platform": "linux",
+                        "install_kind": "binary",
+                        "launch_target": "/usr/local/bin/ollama",
+                        "process": {
+                            "pid": identity.pid,
+                            "executable": identity.executable,
+                            "birth_identity": identity.birth_identity,
+                        },
+                        "holders": {},
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    repaired = OllamaLifecycleAdapter(
+        technology, runtime_root=root
+    ).reconcile_orphaned_services()
+
+    assert repaired == ("stopped orphaned owned Ollama ollama:http://127.0.0.1:11416",)
+    technology.stop_owned.assert_called_once_with(identity)
+    assert (
+        json.loads((root / "services.json").read_text(encoding="utf-8"))["services"]
+        == {}
+    )

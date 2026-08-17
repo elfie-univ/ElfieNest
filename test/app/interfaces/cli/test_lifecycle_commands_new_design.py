@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from argparse import Namespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -132,6 +133,44 @@ def test_start_when_stably_running_skips_frontend_preflight(monkeypatch) -> None
     assert events == ["status", "start"]
 
 
+def test_health_probe_uses_core_published_ports_instead_of_command_defaults() -> None:
+    calls: list[str] = []
+
+    class Lifecycle:
+        def runtime_snapshot(self, _home: Path) -> RuntimeSnapshotV1:
+            return RuntimeSnapshotV1(
+                instance_id="instance",
+                endpoints=(
+                    EndpointSnapshot("http", "http", "127.0.0.1", 12431),
+                    EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 12432),
+                ),
+            )
+
+        def http_get(self, url: str, *, timeout_seconds: float):
+            calls.append(url)
+            return SimpleNamespace(
+                status=200,
+                body=b'{"status":"ok","engine_ready":true,"godot_runtime_ready":true}',
+            )
+
+        def optional_component_ready(self) -> bool:
+            return False
+
+    observation = lifecycle_commands._full_runtime_health(
+        Lifecycle(),
+        8000,
+        8765,
+        model_projection=None,
+        data_home=Path("/tmp/elfienest"),
+    )
+
+    assert calls == ["http://127.0.0.1:12431/api/health"]
+    assert [(item.name, item.port) for item in observation.endpoints] == [
+        ("http", 12431),
+        ("godot_ws", 12432),
+    ]
+
+
 def test_start_when_stopped_prepares_frontend_before_launch(monkeypatch) -> None:
     events: list[str] = []
     supervisor = _LaunchSupervisor(_stopped_health(), events)
@@ -157,11 +196,13 @@ def test_packaged_start_uses_background_controller_without_starting_a_second_cor
 ) -> None:
     # Given: the installed CLI is not being called by the Controller itself.
     calls: list[bool] = []
+    timeouts: list[float] = []
     monkeypatch.setenv("ELFIENEST_DESKTOP_BIN", "/Applications/ElfieNest")
     monkeypatch.delenv("ELFIENEST_CONTROLLER_CLIENT", raising=False)
 
     def start_desktop(*_args, **kwargs):
         calls.append(kwargs["background"])
+        timeouts.append(kwargs["timeout_seconds"])
         return ServiceLifecycleResult(status="started", pid=99)
 
     monkeypatch.setattr(LIFECYCLE, "start_desktop", start_desktop)
@@ -173,6 +214,41 @@ def test_packaged_start_uses_background_controller_without_starting_a_second_cor
     # Core is started once by the Controller's internal lifecycle client.
     assert result.status == "started"
     assert calls == [True]
+    assert timeouts == [lifecycle_commands.BACKGROUND_START_TIMEOUT_SECONDS]
+
+
+def test_packaged_start_rejects_data_home_before_controller_or_desktop_launch(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("ELFIENEST_DESKTOP_BIN", "/Applications/ElfieNest")
+    monkeypatch.delenv("ELFIENEST_CONTROLLER_CLIENT", raising=False)
+    calls: list[str] = []
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "controller_request",
+        lambda *_args, **_kwargs: (
+            calls.append("controller")
+            or pytest.fail("invalid packaged data-home must fail before IPC")
+        ),
+    )
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "start_desktop",
+        lambda *_args, **_kwargs: pytest.fail(
+            "invalid packaged data-home must not launch Desktop"
+        ),
+    )
+
+    result = lifecycle_commands.start_background_service(
+        LIFECYCLE,
+        ("python", "scripts/serve.py", "--data-home", "/tmp/other"),
+    )
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert "does not support --data-home" in str(result.error)
+    assert calls == []
+    assert "does not support --data-home" in capsys.readouterr().out
 
 
 def test_packaged_start_surfaces_controller_failure(monkeypatch, capsys) -> None:
@@ -209,6 +285,15 @@ def test_packaged_stop_waits_for_confirmed_offline_state(monkeypatch) -> None:
         "runtime_snapshot",
         lambda *_args, **_kwargs: next(snapshots),
     )
+    stopped_desktop: list[Path] = []
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "stop_desktop",
+        lambda home: (
+            stopped_desktop.append(home)
+            or ServiceLifecycleResult(status="stopped", pid=99)
+        ),
+    )
     monkeypatch.setattr(
         LIFECYCLE,
         "runtime_supervisor",
@@ -218,6 +303,7 @@ def test_packaged_stop_waits_for_confirmed_offline_state(monkeypatch) -> None:
     result = lifecycle_commands.stop_background_service(LIFECYCLE)
 
     assert result.status == "stopped"
+    assert stopped_desktop
 
 
 def test_start_reports_incompatible_database_before_launch(monkeypatch, capsys) -> None:

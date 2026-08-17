@@ -60,6 +60,7 @@ def _supervisor_for(
     http_port: int,
     *,
     use_remembered_home: bool = False,
+    automatic_ports: bool = False,
     progress_callback: Optional[Callable[[RuntimeProgressPhase], None]] = None,
 ) -> RuntimeLifecycle:
     """Build the one Runtime Supervisor used by source and installed CLI commands."""
@@ -72,6 +73,12 @@ def _supervisor_for(
     _, godot_ws_port = service_ports_from_command(launch_command)
     generation_nonce = secrets.token_urlsafe(32)
     project_root = _runtime_project_root()
+    child_environment = {
+        "ELFIE_HOME": str(selected_home),
+        "ELFIENEST_GODOT_NONCE": generation_nonce,
+    }
+    if automatic_ports:
+        child_environment["ELFIENEST_PORT_MODE"] = "automatic"
     return lifecycle.runtime_supervisor(
         elfie_home=selected_home,
         project_root=project_root,
@@ -88,13 +95,11 @@ def _supervisor_for(
             http_port,
             godot_ws_port,
             lambda: lifecycle.model_health_projection(selected_home),
+            data_home=selected_home,
         ),
         authority_timeout_seconds=AUTHORITY_START_TIMEOUT_SECONDS,
         core_timeout_seconds=BACKGROUND_START_TIMEOUT_SECONDS,
-        child_environment={
-            "ELFIE_HOME": str(selected_home),
-            "ELFIENEST_GODOT_NONCE": generation_nonce,
-        },
+        child_environment=child_environment,
         progress_callback=progress_callback,
     )
 
@@ -106,12 +111,20 @@ def _full_runtime_health(
     model_projection: ModelHealthProjection
     | Callable[[], ModelHealthProjection]
     | None = None,
+    *,
+    data_home: Path | None = None,
 ) -> RuntimeObservation:
     """Map bounded endpoint evidence into a lifecycle observation.
 
     Core/Gateway readiness deliberately does not depend on Godot or model
     readiness; those are separate convergence axes.
     """
+    port, godot_ws_port = _published_runtime_ports(
+        lifecycle,
+        data_home,
+        fallback_http=port,
+        fallback_websocket=godot_ws_port,
+    )
     failed = ComponentState.FAILED
     core = failed
     gateway = failed
@@ -197,6 +210,31 @@ def _full_runtime_health(
         model_common_state=projection.common_state,
         model_emergency_state=projection.emergency_state,
         model_revision=projection.revision,
+    )
+
+
+def _published_runtime_ports(
+    lifecycle: LifecycleFacade,
+    data_home: Path | None,
+    *,
+    fallback_http: int,
+    fallback_websocket: int,
+) -> tuple[int, int]:
+    """Read Core's atomically bound endpoint pair from the durable snapshot."""
+    if data_home is None:
+        return fallback_http, fallback_websocket
+    try:
+        snapshot = lifecycle.runtime_snapshot(data_home)
+    except (AttributeError, OSError, RuntimeError, ValueError):
+        return fallback_http, fallback_websocket
+    endpoints = {
+        endpoint.name: endpoint.port
+        for endpoint in snapshot.endpoints
+        if endpoint.port > 0
+    }
+    return (
+        endpoints.get("http", fallback_http),
+        endpoints.get("godot_ws", fallback_websocket),
     )
 
 
@@ -411,7 +449,11 @@ def start_background_service(
 ) -> ServiceLifecycleResult:
     """Start the service once; a verified running process is left untouched."""
     if _should_start_packaged_controller():
-        return _start_packaged_controller(lifecycle, json_output=json_output)
+        return _start_packaged_controller(
+            lifecycle,
+            command=command,
+            json_output=json_output,
+        )
     progress = (
         None if json_output or progress_json else ProgressIndicator("Starting service")
     )
@@ -444,6 +486,7 @@ def start_background_service(
         launch_command,
         http_port,
         use_remembered_home=True,
+        automatic_ports=implicit_ports,
         progress_callback=progress_callback,
     )
     try:
@@ -479,6 +522,7 @@ def start_background_service(
                     launch_command,
                     http_port,
                     use_remembered_home=True,
+                    automatic_ports=implicit_ports,
                     progress_callback=progress_callback,
                 )
             _prepare_frontend_for_launch(lifecycle)
@@ -522,6 +566,7 @@ def start_background_service(
             launch_command,
             http_port,
             use_remembered_home=True,
+            automatic_ports=implicit_ports,
             progress_callback=progress_callback,
         )
         result = supervisor.start(owner_id=owner_id)
@@ -587,8 +632,12 @@ def stop_background_service(
                 )
                 print(f"  ❌ Failed to stop service: {result.error}")
                 return result
+            desktop_result = lifecycle.stop_desktop(selected_home)
+            if desktop_result.status == "failed":
+                print(f"  ❌ Failed to stop service: {desktop_result.error}")
+                return desktop_result
             print("  ✅ Service stopped")
-            return ServiceLifecycleResult(status="stopped")
+            return ServiceLifecycleResult(status="stopped", pid=desktop_result.pid)
 
     supervisor = _supervisor_for(
         lifecycle,
@@ -708,7 +757,15 @@ def restart_background_service(lifecycle: LifecycleFacade) -> ServiceLifecycleRe
         print(f"  ❌ Service restart failed: {result.error}")
         return result
     launch_command = tuple(argument for argument in command if argument != "--force")
-    result = _supervisor_for(lifecycle, launch_command, http_port).start(owner_id="cli")
+    automatic_ports = not _has_port_option(
+        launch_command, "--port"
+    ) and not _has_port_option(launch_command, "--godot-ws-port")
+    result = _supervisor_for(
+        lifecycle,
+        launch_command,
+        http_port,
+        automatic_ports=automatic_ports,
+    ).start(owner_id="cli")
     succeeded = result.status in {"started", "already_running"}
     if succeeded:
         try:
@@ -813,7 +870,8 @@ def show_service_status(
     else:
         if running is not None:
             _, command = running
-            ports = service_ports_from_command(command)
+            published_ports = _published_service_ports(health)
+            ports = published_ports or service_ports_from_command(command)
             port_statuses = lifecycle.service_port_statuses(ports[0], ports[1])
         elif published_ports is not None:
             port_statuses = lifecycle.service_port_statuses(*published_ports)
@@ -972,9 +1030,26 @@ def _should_start_packaged_controller() -> bool:
 def _start_packaged_controller(
     lifecycle: LifecycleFacade,
     *,
+    command: Optional[Sequence[str]] = None,
     json_output: bool,
 ) -> ServiceLifecycleResult:
     """Ensure the installed Controller without opening its Viewer."""
+    if command is not None and _option_value(command, "--data-home") is not None:
+        result = ServiceLifecycleResult(
+            status="failed",
+            command=tuple(command),
+            error=LaunchFailedError(
+                "Installed elfienest start does not support --data-home; "
+                "use 'elfienest data-home activate --data-home PATH' to choose "
+                "the production data root, or './elfienest.sh start --data-home PATH' "
+                "for an isolated development instance"
+            ),
+        )
+        if json_output:
+            _print_start_result_or_json(lifecycle, result, json_output=True)
+        else:
+            print(f"  ❌ Controller failed to start: {result.error}")
+        return result
     try:
         controller_result = lifecycle.controller_request("ENSURE_SERVER")
     except RuntimeError as error:
@@ -1017,6 +1092,7 @@ def _start_packaged_controller(
         _runtime_project_root(),
         health_checker=lambda: _controller_runtime_ready(lifecycle, selected_home),
         background=True,
+        timeout_seconds=BACKGROUND_START_TIMEOUT_SECONDS,
     )
     if json_output:
         if result.status in {"started", "already_running"}:

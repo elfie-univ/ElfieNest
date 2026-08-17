@@ -25,6 +25,7 @@ CLI tools:
 from __future__ import annotations
 
 import argparse
+import atexit
 import hashlib
 import logging
 import os
@@ -32,7 +33,7 @@ import secrets
 import sys
 import threading
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -133,6 +134,7 @@ from app.bootstrap.system_wiring.lifecycle import (
     runtime_projection_payload,
 )
 from app.bootstrap.system_wiring.nest_session import (
+    bind_service_endpoints,
     build_nest_session_services,
     load_emotion_expression_config,
     restore_registered_elfies,
@@ -145,12 +147,100 @@ from app.orchestration.lifecycle import (
     DEFAULT_HTTP_PORT,
     MANAGED_START_ENV,
     AuthorityHostConfig,
+    EndpointSnapshot,
     FrontendPreparationError,
     RecoveryInProgressError,
     validate_service_ports,
 )
 
 WORLD_CONVERGENCE_TIMEOUT_SECONDS = 120.0
+
+
+class RuntimeStartupCleanup:
+    """Own every resource acquired after a Core receipt is published.
+
+    The foreground Core can fail before Uvicorn enters its normal ``finally``
+    block.  Registering this guard immediately after receipt registration
+    makes those failures converge through the same reverse-order cleanup as a
+    normal stop.  Managed starts leave the PID receipt to their parent
+    Supervisor; foreground starts remove only their own receipt.
+    """
+
+    def __init__(self, lifecycle, elfie_home: Path, *, managed_start: bool) -> None:
+        self.lifecycle = lifecycle
+        self.elfie_home = elfie_home
+        self.receipt_owned = not managed_start
+        self.receipt_registered = False
+        self.world_worker: Any = None
+        self.world_runtime: Any = None
+        self.optional_lease: Any = None
+        self.optional_lease_thread: threading.Thread | None = None
+        self.optional_lease_stop = threading.Event()
+        self.engine_thread: threading.Thread | None = None
+        self.godot_build_thread: threading.Thread | None = None
+        self.endpoint_sockets: Any = None
+        self._cleaned = False
+
+    def cleanup(self) -> None:
+        """Release World, model lease, Runtime channel and owned receipt once."""
+        if self._cleaned:
+            return
+        self._cleaned = True
+        self.optional_lease_stop.set()
+
+        if self.world_worker is not None:
+            try:
+                detail = self.world_worker.stop()
+                if detail:
+                    print(f"  ⚠️ World cleanup incomplete: {detail}")
+            except (OSError, RuntimeError, ValueError) as error:
+                print(f"  ⚠️ World cleanup failed: {error}")
+
+        if self.optional_lease_thread is not None:
+            self._join_thread(self.optional_lease_thread)
+        lease = self.optional_lease
+        self.optional_lease = None
+        if lease is not None:
+            try:
+                lease.release()
+            except (OSError, RuntimeError, ValueError) as error:
+                print(f"  ⚠️ Local Ollama release incomplete: {error}")
+
+        if self.world_runtime is not None:
+            try:
+                self.lifecycle.stop_runtime_channel(self.world_runtime)
+            except (OSError, RuntimeError, ValueError) as error:
+                print(f"  ⚠️ Runtime channel cleanup failed: {error}")
+
+        if (
+            self.engine_thread is not None
+            and self.engine_thread is not threading.current_thread()
+        ):
+            self._join_thread(self.engine_thread)
+        if (
+            self.godot_build_thread is not None
+            and self.godot_build_thread is not threading.current_thread()
+        ):
+            self._join_thread(self.godot_build_thread)
+
+        if self.endpoint_sockets is not None:
+            self.endpoint_sockets.close()
+            self.endpoint_sockets = None
+
+        if self.receipt_registered and self.receipt_owned:
+            try:
+                self.lifecycle.clear_receipt(self.elfie_home)
+            except (OSError, RuntimeError, ValueError) as error:
+                print(f"  ⚠️ Service receipt cleanup failed: {error}")
+
+    @staticmethod
+    def _join_thread(thread: threading.Thread) -> None:
+        try:
+            thread.join(timeout=1.0)
+        except RuntimeError:
+            # ``Thread.start`` may fail after the cleanup guard has claimed
+            # the object; an unstarted thread has no resource to wait for.
+            return
 
 
 def remaining_occupied_ports(
@@ -319,32 +409,13 @@ def main():
             "  💡 Run after modifying Godot assets or before release: ./elfienest.sh build-godot-web"
         )
 
-    ports_to_check = [
-        (args.port, "HTTP"),
-        (args.godot_ws_port, "Godot WebSocket"),
-    ]
-
-    occupied = []
-    for port, name in ports_to_check:
-        if lifecycle.ports_in_use((port,)):
-            occupied.append((port, name))
-
-    if occupied:
-        print("\n" + "=" * 56)
-        print("  ⚠️  Port conflict, cannot start service")
-        print("=" * 56)
-        for port, name in occupied:
-            print(f"  ❌ Port {port} ({name}) already in use")
-        print("\n  💡 Solutions:")
-        print("     1. Stop the owning ElfieNest instance from its own data root")
-        print("     2. Use different ports:")
-        print("        ./elfienest.sh --port 8001 --godot-ws-port 8866")
-        if args.force:
-            print("     --force is compatibility-only; no process was terminated")
-        print("=" * 56 + "\n")
-        start_lease.release()
-        sys.exit(1)
-
+    startup_cleanup = RuntimeStartupCleanup(
+        lifecycle,
+        get_elfie_home(),
+        managed_start=managed_start,
+    )
+    startup_cleanup.receipt_registered = not managed_start
+    atexit.register(startup_cleanup.cleanup)
     try:
         register_service_process_for_start(
             lifecycle,
@@ -353,10 +424,36 @@ def main():
         )
         _remember_lifecycle_data_home(lifecycle, get_elfie_home())
     except OSError as error:
+        startup_cleanup.cleanup()
         start_lease.release()
         print(f"  ❌ Cannot register service process: {error}")
         raise SystemExit(1) from None
     start_lease.release()
+
+    automatic_ports = explicit_http_port is None and explicit_godot_ws_port is None
+    try:
+        bound_endpoints = bind_service_endpoints(
+            args.port,
+            args.godot_ws_port,
+            automatic=automatic_ports,
+            host=service_host(args.lan),
+        )
+        startup_cleanup.endpoint_sockets = bound_endpoints
+        args.port = bound_endpoints.http_port
+        args.godot_ws_port = bound_endpoints.websocket_port
+        lifecycle.publish_core_endpoints(
+            get_elfie_home(),
+            (
+                EndpointSnapshot("http", "http", service_host(args.lan), args.port),
+                EndpointSnapshot(
+                    "godot_ws", "ws", service_host(args.lan), args.godot_ws_port
+                ),
+            ),
+        )
+    except (OSError, RuntimeError, ValueError) as error:
+        startup_cleanup.cleanup()
+        print(f"  ❌ Cannot reserve Runtime endpoints: {error}")
+        raise SystemExit(1) from None
     db_path = str(get_db_path())
 
     # 1. Initialize the final database and invoke the explicit Owner seed use-case.
@@ -379,8 +476,10 @@ def main():
                 godot_ws_port=args.godot_ws_port,
                 http_port=args.port,
                 tick_interval_sec=model_execution_services.tick_interval_sec,
+                godot_socket=bound_endpoints.websocket,
                 main_food_loader=model_execution_services.main_food_loader,
             )
+            startup_cleanup.world_runtime = nest_session.world_runtime
             lifecycle.start_runtime_channel(nest_session.world_runtime)
             engine = nest_session.engine
             engine_holder["engine"] = engine
@@ -395,6 +494,7 @@ def main():
             engine_ready.set()
 
     engine_thread = threading.Thread(target=engine_worker, daemon=True)
+    startup_cleanup.engine_thread = engine_thread
     engine_thread.start()
 
     engine_ready.wait(timeout=5.0)
@@ -439,6 +539,7 @@ def main():
         world_ready_probe=lambda: bool(engine.session.runtime_world_ready),
         authority_timeout_seconds=WORLD_CONVERGENCE_TIMEOUT_SECONDS,
     )
+    startup_cleanup.world_worker = world_worker
     world_worker.start()
 
     godot_build_thread: threading.Thread | None = None
@@ -465,10 +566,10 @@ def main():
             name="ElfieNest-Godot-Web-Preparation",
             daemon=True,
         )
+        startup_cleanup.godot_build_thread = godot_build_thread
         godot_build_thread.start()
 
-    optional_lease_holder: dict = {}
-    optional_lease_stop = threading.Event()
+    optional_lease_stop = startup_cleanup.optional_lease_stop
 
     def acquire_optional_lease() -> None:
         try:
@@ -484,7 +585,7 @@ def main():
             if optional_lease_stop.is_set():
                 lease.release()
                 return
-            optional_lease_holder["lease"] = lease
+            startup_cleanup.optional_lease = lease
         except (OSError, RuntimeError, ValueError) as error:
             print(f"  ⚠️ Local Ollama did not converge: {error}")
 
@@ -493,6 +594,7 @@ def main():
         name="ElfieNest-Ollama-Lease",
         daemon=True,
     )
+    startup_cleanup.optional_lease_thread = optional_lease_thread
     optional_lease_thread.start()
 
     # 5. Print startup information.
@@ -531,28 +633,19 @@ def main():
     import uvicorn  # noqa: PLC0415
 
     try:
-        uvicorn.run(
+        config = uvicorn.Config(
             app,
             host=service_host(args.lan),
             limit_concurrency=100,
             port=args.port,
             log_level="warning",
         )
+        server = uvicorn.Server(config)
+        server.run(sockets=[bound_endpoints.http])
     except KeyboardInterrupt:
         print("\nShutting down service...")
     finally:
-        optional_lease_stop.set()
-        optional_lease_thread.join(timeout=1.0)
-        optional_lease = optional_lease_holder.pop("lease", None)
-        if optional_lease is not None:
-            try:
-                optional_lease.release()
-            except (OSError, RuntimeError, ValueError) as error:
-                print(f"  ⚠️ Local Ollama release incomplete: {error}")
-        world_worker.stop()
-        lifecycle.stop_runtime_channel(engine_holder["world_runtime"])
-        if godot_build_thread is not None:
-            godot_build_thread.join(timeout=1.0)
+        startup_cleanup.cleanup()
         print("Service stopped.")
 
 

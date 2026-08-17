@@ -119,7 +119,15 @@ def main() -> None:
     serve_parser.add_argument("--force", action="store_true")
     serve_parser.add_argument("--port", type=int, default=None)
     serve_parser.add_argument("--godot-ws-port", type=int, default=None)
-    serve_parser.add_argument("--data-home", default=None)
+    serve_parser.add_argument(
+        "--data-home",
+        default=None,
+        help=(
+            argparse.SUPPRESS
+            if _is_packaged_cli_runtime()
+            else "Use an isolated source/development data root"
+        ),
+    )
     serve_parser.add_argument("--lan", action="store_true")
     serve_parser.add_argument(
         "--runtime-mode",
@@ -130,7 +138,15 @@ def main() -> None:
     start_parser = subparsers.add_parser("start", help="Start background service")
     start_parser.add_argument("--port", type=int, default=None)
     start_parser.add_argument("--godot-ws-port", type=int, default=None)
-    start_parser.add_argument("--data-home", default=None)
+    start_parser.add_argument(
+        "--data-home",
+        default=None,
+        help=(
+            argparse.SUPPRESS
+            if _is_packaged_cli_runtime()
+            else "Use an isolated source/development data root"
+        ),
+    )
     start_parser.add_argument("--owner-id", default="cli", help=argparse.SUPPRESS)
     start_parser.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     start_parser.add_argument(
@@ -359,6 +375,12 @@ def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
     if args.godot_ws_port is not None:
         options.extend(("--godot-ws-port", str(args.godot_ws_port)))
     if getattr(args, "data_home", None) is not None:
+        if _is_packaged_cli_runtime():
+            raise DataHomeSelectionError(
+                "安装版 elfienest start 不支持 --data-home；请先使用 "
+                "'elfienest data-home activate --data-home PATH' 选择生产数据根，"
+                "或使用源码 './elfienest.sh start --data-home PATH' 启动开发实例"
+            )
         selected_home = resolve_elfie_home(
             args.data_home,
             invoking_cwd=Path.cwd(),
@@ -371,6 +393,14 @@ def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
     if getattr(args, "runtime_mode", None) is not None:
         options.extend(("--runtime-mode", args.runtime_mode))
     return tuple(options)
+
+
+def _is_packaged_cli_runtime() -> bool:
+    """Return whether this process is the installed management CLI."""
+    return bool(
+        getattr(sys, "frozen", False)
+        or os.environ.get("ELFIENEST_DESKTOP_BIN", "").strip()
+    )
 
 
 def _exit_on_lifecycle_failure(result: ServiceLifecycleResult) -> None:

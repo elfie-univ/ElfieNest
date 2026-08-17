@@ -273,30 +273,30 @@ class ReportRepository:
             connection.execute(
                 "UPDATE report_maintenance SET retention_enabled = 1 WHERE id = 1"
             )
-            connection.execute(
+            grouped = connection.execute(
                 """
-                INSERT OR IGNORE INTO validation_rollups (
-                    subject_kind, subject_id, bucket_start, observation_count,
-                    passed_count, failed_count, warning_count, skipped_count,
-                    average_latency_ms, min_latency_ms, max_latency_ms,
-                    first_observed_at, last_observed_at, created_at
-                )
                 SELECT
                     observation.subject_kind,
                     observation.subject_id,
                     substr(observation.observed_at, 1, 10)
-                        || 'T00:00:00+00:00',
-                    COUNT(*),
-                    SUM(CASE WHEN observation.status = 'passed' THEN 1 ELSE 0 END),
-                    SUM(CASE WHEN observation.status = 'failed' THEN 1 ELSE 0 END),
-                    SUM(CASE WHEN observation.status = 'warning' THEN 1 ELSE 0 END),
-                    SUM(CASE WHEN observation.status = 'skipped' THEN 1 ELSE 0 END),
-                    AVG(observation.latency_ms),
-                    MIN(observation.latency_ms),
-                    MAX(observation.latency_ms),
-                    MIN(observation.observed_at),
-                    MAX(observation.observed_at),
-                    ?
+                        || 'T00:00:00+00:00' AS bucket_start,
+                    COUNT(*) AS observation_count,
+                    SUM(CASE WHEN observation.status = 'passed' THEN 1 ELSE 0 END)
+                        AS passed_count,
+                    SUM(CASE WHEN observation.status = 'failed' THEN 1 ELSE 0 END)
+                        AS failed_count,
+                    SUM(CASE WHEN observation.status = 'warning' THEN 1 ELSE 0 END)
+                        AS warning_count,
+                    SUM(CASE WHEN observation.status = 'skipped' THEN 1 ELSE 0 END)
+                        AS skipped_count,
+                    SUM(
+                        CASE WHEN observation.latency_ms IS NOT NULL THEN 1 ELSE 0 END
+                    ) AS latency_sample_count,
+                    AVG(observation.latency_ms) AS average_latency_ms,
+                    MIN(observation.latency_ms) AS min_latency_ms,
+                    MAX(observation.latency_ms) AS max_latency_ms,
+                    MIN(observation.observed_at) AS first_observed_at,
+                    MAX(observation.observed_at) AS last_observed_at
                 FROM validation_observations AS observation
                 JOIN report_runs AS run ON run.run_id = observation.run_id
                 WHERE observation.observed_at < ?
@@ -304,8 +304,103 @@ class ReportRepository:
                 GROUP BY observation.subject_kind, observation.subject_id,
                          substr(observation.observed_at, 1, 10)
                 """,
-                (_timestamp(None), cutoff),
-            )
+                (cutoff,),
+            ).fetchall()
+            for row in grouped:
+                existing = connection.execute(
+                    """
+                    SELECT observation_count, passed_count, failed_count,
+                           warning_count, skipped_count, latency_sample_count,
+                           average_latency_ms, min_latency_ms, max_latency_ms,
+                           first_observed_at, last_observed_at, created_at
+                    FROM validation_rollups
+                    WHERE subject_kind = ? AND subject_id = ? AND bucket_start = ?
+                    """,
+                    (row["subject_kind"], row["subject_id"], row["bucket_start"]),
+                ).fetchone()
+                if existing is None:
+                    connection.execute(
+                        """
+                        INSERT INTO validation_rollups (
+                            subject_kind, subject_id, bucket_start,
+                            observation_count, passed_count, failed_count,
+                            warning_count, skipped_count, latency_sample_count,
+                            average_latency_ms, min_latency_ms, max_latency_ms,
+                            first_observed_at, last_observed_at, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            row["subject_kind"],
+                            row["subject_id"],
+                            row["bucket_start"],
+                            int(row["observation_count"]),
+                            int(row["passed_count"]),
+                            int(row["failed_count"]),
+                            int(row["warning_count"]),
+                            int(row["skipped_count"]),
+                            int(row["latency_sample_count"]),
+                            row["average_latency_ms"],
+                            row["min_latency_ms"],
+                            row["max_latency_ms"],
+                            row["first_observed_at"],
+                            row["last_observed_at"],
+                            _timestamp(None),
+                        ),
+                    )
+                    continue
+
+                existing_latency_count = int(existing["latency_sample_count"])
+                incoming_latency_count = int(row["latency_sample_count"])
+                total_latency_count = existing_latency_count + incoming_latency_count
+                if total_latency_count == 0:
+                    average_latency = None
+                elif existing_latency_count == 0:
+                    average_latency = row["average_latency_ms"]
+                elif incoming_latency_count == 0:
+                    average_latency = existing["average_latency_ms"]
+                else:
+                    average_latency = (
+                        float(existing["average_latency_ms"]) * existing_latency_count
+                        + float(row["average_latency_ms"]) * incoming_latency_count
+                    ) / total_latency_count
+                connection.execute(
+                    """
+                    UPDATE validation_rollups
+                    SET observation_count = ?,
+                        passed_count = ?,
+                        failed_count = ?,
+                        warning_count = ?,
+                        skipped_count = ?,
+                        latency_sample_count = ?,
+                        average_latency_ms = ?,
+                        min_latency_ms = ?,
+                        max_latency_ms = ?,
+                        first_observed_at = ?,
+                        last_observed_at = ?
+                    WHERE subject_kind = ? AND subject_id = ? AND bucket_start = ?
+                    """,
+                    (
+                        int(existing["observation_count"])
+                        + int(row["observation_count"]),
+                        int(existing["passed_count"]) + int(row["passed_count"]),
+                        int(existing["failed_count"]) + int(row["failed_count"]),
+                        int(existing["warning_count"]) + int(row["warning_count"]),
+                        int(existing["skipped_count"]) + int(row["skipped_count"]),
+                        total_latency_count,
+                        average_latency,
+                        _min_optional(
+                            existing["min_latency_ms"], row["min_latency_ms"]
+                        ),
+                        _max_optional(
+                            existing["max_latency_ms"], row["max_latency_ms"]
+                        ),
+                        min(existing["first_observed_at"], row["first_observed_at"]),
+                        max(existing["last_observed_at"], row["last_observed_at"]),
+                        row["subject_kind"],
+                        row["subject_id"],
+                        row["bucket_start"],
+                    ),
+                )
             removed = connection.execute(
                 """
                 DELETE FROM validation_observations
@@ -417,6 +512,22 @@ class ReportRepository:
 
     def _connect(self) -> sqlite3.Connection:
         return connect_report_database(self.path)
+
+
+def _min_optional(left: object, right: object) -> float | None:
+    values = [_as_float(value) for value in (left, right) if value is not None]
+    return None if not values else min(values)
+
+
+def _max_optional(left: object, right: object) -> float | None:
+    values = [_as_float(value) for value in (left, right) if value is not None]
+    return None if not values else max(values)
+
+
+def _as_float(value: object) -> float:
+    if isinstance(value, (int, float, str)):
+        return float(value)
+    raise TypeError(f"expected numeric value, got {type(value).__name__}")
 
 
 def run_from_row(row: sqlite3.Row) -> ReportRun:

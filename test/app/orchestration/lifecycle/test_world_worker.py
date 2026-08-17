@@ -35,10 +35,13 @@ class Process:
 
 
 class AuthorityHost:
-    def __init__(self, process: Process) -> None:
+    def __init__(
+        self, process: Process, stop_failure: RuntimeError | None = None
+    ) -> None:
         self.process = process
         self.started = 0
         self.stopped: list[int] = []
+        self.stop_failure = stop_failure
 
     def start(self) -> Process:
         self.started += 1
@@ -46,6 +49,8 @@ class AuthorityHost:
 
     def stop(self, process: Process) -> None:
         self.stopped.append(process.pid)
+        if self.stop_failure is not None:
+            raise self.stop_failure
 
 
 class CrashingProcess(Process):
@@ -172,3 +177,53 @@ def test_worker_watchdog_demotes_world_after_authority_crash() -> None:
     assert record.read().tier is BackendTier.CORE_READY
     assert record.read().phase is RuntimePhase.FAILED
     assert record.read().failures[0].code == "AUTHORITY_EXITED"
+
+
+def test_worker_stop_publishes_core_ready_after_releasing_world() -> None:
+    snapshot = _core_snapshot()
+    record = MemoryRecord(snapshot)
+    host = AuthorityHost(Process(9005))
+    worker = RuntimeWorldWorker(
+        runtime_record=record,
+        authority_host=host,
+        world_ready_probe=lambda: True,
+        sleeper=lambda _seconds: None,
+    )
+
+    worker._converge(snapshot)
+    detail = worker.stop()
+
+    assert detail is None
+    assert host.stopped == [9005]
+    assert record.read().tier is BackendTier.CORE_READY
+    assert record.read().phase is RuntimePhase.CORE_READY
+    authority = record.read().component(RuntimeComponent.GODOT_AUTHORITY)
+    assert authority.state is ComponentState.ABSENT
+    assert authority.pid is None
+
+
+def test_worker_stop_keeps_explicit_residual_evidence_when_authority_rejects_stop() -> (
+    None
+):
+    snapshot = _core_snapshot()
+    record = MemoryRecord(snapshot)
+    host = AuthorityHost(
+        Process(9006), stop_failure=RuntimeError("authority is unresponsive")
+    )
+    worker = RuntimeWorldWorker(
+        runtime_record=record,
+        authority_host=host,
+        world_ready_probe=lambda: True,
+        sleeper=lambda _seconds: None,
+    )
+
+    worker._converge(snapshot)
+    detail = worker.stop()
+
+    assert detail == "authority is unresponsive"
+    assert record.read().tier is BackendTier.OFFLINE
+    assert record.read().phase is RuntimePhase.FAILED
+    assert record.read().failures[0].code == "WORLD_STOP_INCOMPLETE"
+    authority = record.read().component(RuntimeComponent.GODOT_AUTHORITY)
+    assert authority.state is ComponentState.FAILED
+    assert authority.pid == 9006

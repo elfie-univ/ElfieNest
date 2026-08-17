@@ -83,8 +83,8 @@ export function csrfHeaders(csrfToken: string, json = false): HeadersInit {
     : { "X-CSRF-Token": csrfToken }
 }
 
-export async function ownerRead(path: string): Promise<unknown> {
-  return requestJson(path, { cache: "no-store" })
+export async function ownerRead(path: string, options?: RequestJsonOptions): Promise<unknown> {
+  return requestJson(path, { cache: "no-store" }, options)
 }
 
 export async function ownerWrite(

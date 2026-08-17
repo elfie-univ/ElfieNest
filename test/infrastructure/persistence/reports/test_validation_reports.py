@@ -299,6 +299,60 @@ def test_retention_rolls_up_then_removes_only_finished_old_observations(
     )
 
 
+def test_daily_rollup_merges_late_observation_after_repository_restart(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "late-rollup.sqlite"
+    repository = ReportRepository(database)
+    first_run = repository.start_run(scope="model", trigger="scheduled")
+    repository.append_observation(
+        run_id=first_run,
+        subject_kind="model",
+        subject_id="cloud/main",
+        observed_at="2026-08-01T01:00:00+00:00",
+        status="passed",
+        latency_ms=10.0,
+    )
+    repository.finish_run(first_run, status="complete")
+
+    assert repository.compact_observations("2026-08-02T00:00:00+00:00") == 1
+
+    restarted = ReportRepository(database)
+    late_run = restarted.start_run(scope="model", trigger="scheduled")
+    restarted.append_observation(
+        run_id=late_run,
+        subject_kind="model",
+        subject_id="cloud/main",
+        observed_at="2026-08-01T23:00:00+00:00",
+        status="failed",
+        latency_ms=30.0,
+    )
+    restarted.finish_run(late_run, status="partial")
+
+    assert restarted.compact_observations("2026-08-02T00:00:00+00:00") == 1
+    rollup = restarted.validation_rollups(subject_id="cloud/main")[0]
+    assert rollup.observation_count == 2
+    assert rollup.passed_count == 1
+    assert rollup.failed_count == 1
+    assert rollup.average_latency_ms == pytest.approx(20.0)
+    assert rollup.min_latency_ms == pytest.approx(10.0)
+    assert rollup.max_latency_ms == pytest.approx(30.0)
+    assert rollup.first_observed_at == "2026-08-01T01:00:00+00:00"
+    assert rollup.last_observed_at == "2026-08-01T23:00:00+00:00"
+
+    running_run = restarted.start_run(scope="model", trigger="scheduled")
+    restarted.append_observation(
+        run_id=running_run,
+        subject_kind="model",
+        subject_id="cloud/main",
+        observed_at="2026-08-01T12:00:00+00:00",
+        status="warning",
+        latency_ms=50.0,
+    )
+    assert restarted.compact_observations("2026-08-02T00:00:00+00:00") == 0
+    assert len(restarted.observations_for_run(running_run)) == 1
+
+
 def test_validation_lease_is_exclusive_and_expires(tmp_path: Path) -> None:
     repository = ReportRepository(tmp_path / "leases.sqlite")
 

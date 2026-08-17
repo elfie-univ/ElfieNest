@@ -51,6 +51,28 @@ def test_core_setup_permit_is_bound_to_the_current_snapshot_revision() -> None:
     assert not permit.valid_for(replace(projection, revision=10))
 
 
+@pytest.mark.parametrize(
+    "operation", ["setup", "sign_in", "configuration", "status", "repair"]
+)
+def test_core_operation_matrix_is_available_at_core_ready(operation: str) -> None:
+    permit = DEFAULT_CAPABILITY_REQUIREMENTS.issue(operation, _projection())
+
+    assert permit.operation == operation
+
+
+def test_world_operation_matrix_requires_world_ready() -> None:
+    with pytest.raises(CapabilityDeniedError) as error:
+        DEFAULT_CAPABILITY_REQUIREMENTS.issue("world", _projection())
+
+    assert error.value.code == "BACKEND_NOT_READY"
+    assert (
+        DEFAULT_CAPABILITY_REQUIREMENTS.issue(
+            "world", _projection(tier=BackendTier.WORLD_READY)
+        ).operation
+        == "world"
+    )
+
+
 def test_chat_accepts_an_executable_degraded_common_route() -> None:
     projection = _projection(
         model=ModelOverallState.DEGRADED,
@@ -80,6 +102,21 @@ def test_adoption_requires_world_and_fully_ready_models() -> None:
         DEFAULT_CAPABILITY_REQUIREMENTS.issue(
             "adoption",
             _projection(tier=BackendTier.WORLD_READY, model=ModelOverallState.DEGRADED),
+        )
+
+    assert error.value.code == "MODEL_SERVICE_NOT_READY"
+
+
+def test_adoption_matrix_rejects_missing_emergency_reserve() -> None:
+    with pytest.raises(CapabilityDeniedError) as error:
+        DEFAULT_CAPABILITY_REQUIREMENTS.issue(
+            "adoption",
+            _projection(
+                tier=BackendTier.WORLD_READY,
+                model=ModelOverallState.DEGRADED,
+                common=ModelOverallState.READY,
+                emergency=ModelOverallState.UNAVAILABLE,
+            ),
         )
 
     assert error.value.code == "MODEL_SERVICE_NOT_READY"

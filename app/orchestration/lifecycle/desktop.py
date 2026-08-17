@@ -87,7 +87,6 @@ def start_desktop_application(
         )
     try:
         process = host.launch(launch_command, project_root)
-        host.write_receipt(elfie_home, process.pid)
     except OSError as error:
         return ServiceLifecycleResult(
             status="failed", error=LaunchFailedError(str(error))
@@ -101,6 +100,23 @@ def start_desktop_application(
         monotonic=monotonic,
         sleeper=sleeper,
     ):
+        if process.poll() is not None:
+            return ServiceLifecycleResult(
+                status="already_running",
+                command=launch_command,
+            )
+        try:
+            host.write_receipt(elfie_home, process.pid)
+        except OSError as error:
+            _terminate(host, process)
+            return ServiceLifecycleResult(
+                status="failed",
+                pid=process.pid,
+                command=launch_command,
+                error=LaunchFailedError(
+                    f"Desktop Runtime started but its PID receipt could not be recorded: {error}"
+                ),
+            )
         return ServiceLifecycleResult(
             status="started", pid=process.pid, command=launch_command
         )
@@ -111,7 +127,7 @@ def start_desktop_application(
         pid=process.pid,
         command=launch_command,
         error=LaunchFailedError(
-            "Desktop did not pass the Web health check after startup"
+            "Desktop Controller did not publish a ready Runtime after startup"
         ),
     )
 
@@ -162,10 +178,16 @@ def _wait_until_healthy(
     monotonic: Callable[[], float],
     sleeper: Callable[[float], None],
 ) -> bool:
+    """Wait for the authoritative Runtime snapshot to become healthy.
+
+    On macOS, launching a second packaged copy can make that process exit
+    after handing activation to the per-user single Controller.  The process
+    handle therefore is not itself the readiness authority; the Runtime
+    snapshot is.  Keep polling the snapshot for the bounded timeout even when
+    the launcher process has already exited.
+    """
     deadline = monotonic() + timeout_seconds
     while monotonic() < deadline:
-        if process.poll() is not None:
-            return False
         if checker():
             return True
         sleeper(poll_interval_seconds)

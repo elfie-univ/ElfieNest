@@ -82,13 +82,21 @@ class RuntimeWorldWorker:
         )
         self._thread.start()
 
-    def stop(self, *, timeout_seconds: float = 2.0) -> None:
-        """Request cancellation and stop only the authority owned by this worker."""
+    def stop(self, *, timeout_seconds: float = 2.0) -> Optional[str]:
+        """Request cancellation and publish whether the World child was released."""
         self._stop_event.set()
         thread = self._thread
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=max(0.0, timeout_seconds))
-        self._stop_authority()
+        worker_error = (
+            "World convergence worker did not stop within its shutdown budget"
+            if thread is not None and thread.is_alive()
+            else None
+        )
+        authority_error = self._stop_authority()
+        detail = worker_error or authority_error
+        self._publish_stop_result(detail)
+        return detail
 
     def _run(self) -> None:
         attempts = 0
@@ -348,17 +356,91 @@ class RuntimeWorldWorker:
                 )
             )
 
-    def _stop_authority(self) -> None:
+    def _stop_authority(self) -> Optional[str]:
         with self._authority_lock:
             authority = self._authority_process
             self._authority_process = None
         if authority is not None:
             try:
                 self._authority_host.stop(authority)
-            except (OSError, RuntimeError, ValueError):
+            except (OSError, RuntimeError, ValueError) as error:
                 # The Core is still usable; the next exact-identity recovery
                 # pass can reconcile a child that ignored this stop request.
+                return str(error)
+        return None
+
+    def _publish_stop_result(self, detail: Optional[str]) -> None:
+        """Persist World cleanup evidence before the Core process exits."""
+        with self._command_lock():
+            current = self._runtime_record.read()
+            if current.phase is RuntimePhase.RECOVERY_REQUIRED:
                 return
+            if detail:
+                self._runtime_record.write(
+                    replace(
+                        current,
+                        revision=current.revision + 1,
+                        tier=BackendTier.OFFLINE,
+                        phase=RuntimePhase.FAILED,
+                        subphase="world_stop_failed",
+                        reached_target=None,
+                        components=self._set_authority_component(
+                            current.components,
+                            ComponentState.FAILED,
+                            detail=detail,
+                        ),
+                        failures=(
+                            FailureSnapshot(
+                                "WORLD_STOP_INCOMPLETE",
+                                detail,
+                                "world_stop",
+                            ),
+                        ),
+                    )
+                )
+                return
+            self._runtime_record.write(
+                replace(
+                    current,
+                    revision=current.revision + 1,
+                    tier=(
+                        BackendTier.CORE_READY
+                        if current.tier is BackendTier.WORLD_READY
+                        else current.tier
+                    ),
+                    phase=(
+                        RuntimePhase.CORE_READY
+                        if current.phase
+                        in {
+                            RuntimePhase.WORLD_STARTING,
+                            RuntimePhase.WORLD_READY,
+                            RuntimePhase.WORLD_STOPPING,
+                        }
+                        else current.phase
+                    ),
+                    subphase=(
+                        ""
+                        if current.phase
+                        in {
+                            RuntimePhase.WORLD_STARTING,
+                            RuntimePhase.WORLD_READY,
+                            RuntimePhase.WORLD_STOPPING,
+                        }
+                        else current.subphase
+                    ),
+                    reached_target=(
+                        RuntimeTarget.CORE
+                        if current.tier is BackendTier.WORLD_READY
+                        else current.reached_target
+                    ),
+                    components=self._set_authority_component(
+                        current.components,
+                        ComponentState.ABSENT,
+                        clear_pid=True,
+                    ),
+                    failures=(),
+                )
+            )
 
     @staticmethod
     def _claim_is_current(

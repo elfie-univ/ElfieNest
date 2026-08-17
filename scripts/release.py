@@ -14,10 +14,12 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import package_python_core
+from scripts.release_install_smoke import run_install_smoke as execute_install_smoke
 from scripts.release_planning import (
     ReleasePlanError,
     ReleaseRequest,
     RunnerResult,
+    completed_runner_result,
     coordinate_release,
     plan_release,
     release_requests,
@@ -45,6 +47,22 @@ def parse_args(arguments: Optional[Sequence[str]] = None) -> argparse.Namespace:
         "--native-package-output",
         type=Path,
         help="write one current-host native package path before post-install smoke",
+    )
+    parser.add_argument(
+        "--run-install-smoke",
+        action="store_true",
+        help="run the native install/upgrade/start/stop/uninstall gate",
+    )
+    parser.add_argument(
+        "--smoke-evidence-output",
+        type=Path,
+        help="write the typed native install smoke evidence JSON",
+    )
+    parser.add_argument(
+        "--smoke-cycles",
+        type=int,
+        default=1,
+        help="number of install/start/stop/upgrade smoke cycles",
     )
     return parser.parse_args(arguments)
 
@@ -85,7 +103,11 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         if plan.native_targets:
             steps = release_pipeline.default_release_steps()
             adapters[package_python_core.host_target()] = _local_runner_adapter(
-                release_pipeline, steps
+                release_pipeline,
+                steps,
+                run_install_smoke=args.run_install_smoke,
+                smoke_evidence_output=args.smoke_evidence_output,
+                smoke_cycles=args.smoke_cycles,
             )
         session = coordinate_release(requests, adapters)
     except (
@@ -129,8 +151,15 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     return 0 if session.status == "complete" else 3
 
 
-def _local_runner_adapter(release_pipeline_module, steps):
-    """Return the current-host native builder; install smoke remains a required later gate."""
+def _local_runner_adapter(
+    release_pipeline_module,
+    steps,
+    *,
+    run_install_smoke: bool = False,
+    smoke_evidence_output: Optional[Path] = None,
+    smoke_cycles: int = 1,
+):
+    """Return the current-host native builder and optional real install gate."""
     host_target = package_python_core.host_target()
 
     def run(request: ReleaseRequest) -> RunnerResult:
@@ -140,6 +169,21 @@ def _local_runner_adapter(release_pipeline_module, steps):
             steps=steps,
         )
         payload = artifact.read_bytes()
+        if run_install_smoke:
+            evidence = smoke_evidence_output or (
+                PROJECT_ROOT / "build" / "release-smoke" / f"{request.target}.json"
+            )
+            execute_install_smoke(
+                request.target,
+                artifact,
+                evidence,
+                cycles=smoke_cycles,
+            )
+            return completed_runner_result(
+                request,
+                artifact,
+                str(evidence),
+            )
         return RunnerResult(
             target=request.target,
             status="incomplete",

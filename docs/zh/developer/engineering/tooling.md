@@ -93,10 +93,11 @@ Web 客户端。发现服务已被验证为正在运行时，`start` 不会重�
 
 ## 数据与高风险命令
 
-正式安装的产品数据默认位于 `~/.elfienest`；源码与 worktree 运行默认使用
-`<当前worktree>/.elfienest.local`。两种模式都按 `--data-home PATH`、
-`ELFIE_HOME`、模式默认值的顺序解析。测试、文档核验和实验必须设置临时
-`ELFIE_HOME`，避免污染日常数据。
+正式安装的产品数据使用已选择的生产数据根，未选择时默认位于
+`~/.elfienest`；安装版 `elfienest start` 不接受 `--data-home`。如需选择其他生产
+数据根，执行 `elfienest data-home activate --data-home PATH`。源码与 worktree 运行
+默认使用 `<当前worktree>/.elfienest.local`，并支持优先于 `ELFIE_HOME` 的
+`--data-home PATH`。测试、文档核验和实验必须设置临时 `ELFIE_HOME`，避免污染日常数据。
 
 Owner 恢复只在本机终端提供；密码通过隐藏输入填写，不应放进命令参数、环境变量
 或 shell 历史。服务密钥从环境变量或被 Git 忽略的本地配置读取，示例文档只能

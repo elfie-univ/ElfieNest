@@ -88,6 +88,47 @@ def test_stop_verified_process_and_remove_receipt(tmp_path: Path) -> None:
     assert not (home / "elfienest.pid").exists()
 
 
+def test_stop_checks_published_endpoints_after_dynamic_process_exit(
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "home"
+    write_pid(home, 4110)
+
+    class DynamicPort(FakeProcessPort):
+        def __init__(self) -> None:
+            super().__init__(
+                cwd=tmp_path.resolve(),
+                command=serve_command(tmp_path),
+                existence=(True, True, False),
+            )
+            self.checked: list[tuple[int, ...]] = []
+
+        def ports_in_use(self, ports) -> bool:
+            self.checked.append(tuple(ports))
+            return False
+
+    class Record:
+        def read(self) -> RuntimeSnapshotV1:
+            return RuntimeSnapshotV1(
+                instance_id="instance",
+                endpoints=(
+                    EndpointSnapshot("http", "http", "127.0.0.1", 12411),
+                    EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 12412),
+                ),
+            )
+
+    port = DynamicPort()
+    result = stop_service(
+        home,
+        tmp_path,
+        process_port=port,
+        runtime_record=Record(),
+    )
+
+    assert result.status == "stopped"
+    assert port.checked == [(12411, 12412)]
+
+
 def test_stop_accepts_the_injected_frozen_core_command(tmp_path: Path) -> None:
     home = tmp_path / "home"
     core = (

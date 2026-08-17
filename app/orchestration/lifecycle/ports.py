@@ -221,6 +221,8 @@ class RecoveryLockPort(Protocol):
 class LifecycleDataHomePort(Protocol):
     """Resolve and remember the selected production data root."""
 
+    def home(self) -> Path: ...
+
     def select(
         self,
         explicit_home: Optional[str],
@@ -357,6 +359,11 @@ class OptionalRuntimeComponentPort(Protocol):
         elfie_home: Optional[Path] = None,
     ) -> Optional[LifecycleLease]:
         """Acquire a shared local component lease for one Runtime generation."""
+
+    def reconcile_orphaned_services(
+        self, *, elfie_home: Optional[Path] = None
+    ) -> tuple[str, ...]:
+        """Repair only exact owned services whose Runtime holders disappeared."""
 
 
 class ModelHealthProjectionPort(Protocol):

@@ -79,7 +79,12 @@ class FoodModelHealthProjectionAdapter:
 
 
 def _state(value: ModelHealthStatus) -> ModelOverallState:
-    return ModelOverallState(value)
+    return {
+        "healthy": ModelOverallState.READY,
+        "degraded": ModelOverallState.DEGRADED,
+        "unconfigured": ModelOverallState.UNCONFIGURED,
+        "unavailable": ModelOverallState.UNAVAILABLE,
+    }[value]
 
 
 def _unconfigured_projection() -> ModelHealthProjection:

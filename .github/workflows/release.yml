@@ -109,12 +109,14 @@ jobs:
           ELFIE_DEV_HOME="$ELFIE_DEV_HOME" \
             "$python_bin" scripts/release.py \
               --target "$RELEASE_TARGET" \
-              --native-package-output "$ARTIFACT_PATH_FILE"
+              --native-package-output "$ARTIFACT_PATH_FILE" \
+              --run-install-smoke \
+              --smoke-evidence-output "dist/ElfieNest-${RELEASE_TARGET}-install-smoke.json"
           status=$?
           set -e
-          # release.py deliberately reports 3 until post-build install evidence is attached.
-          [[ "$status" == "0" || "$status" == "3" ]]
+          [[ "$status" == "0" ]]
           [[ -s "$RUNNER_TEMP/elfienest-artifact-path" ]]
+          [[ -s "dist/ElfieNest-${RELEASE_TARGET}-install-smoke.json" ]]
           artifact="$(cat "$RUNNER_TEMP/elfienest-artifact-path")"
           if command -v cygpath >/dev/null 2>&1; then
             artifact_for_shell="$(cygpath --unix "$artifact")"
@@ -286,5 +288,6 @@ jobs:
             release-artifacts/*.pkg \
             release-artifacts/*.exe \
             release-artifacts/*.deb \
+            release-artifacts/*-install-smoke.json \
             release-artifacts/SHA256SUMS \
             release-artifacts/manifest.json

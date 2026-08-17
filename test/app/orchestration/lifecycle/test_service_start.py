@@ -168,3 +168,20 @@ def test_start_rejects_port_collision_before_launch(tmp_path: Path) -> None:
     )
     assert isinstance(result.error, ServicePortsActiveError)
     assert port.launches == []
+
+
+def test_automatic_port_start_defers_collision_to_core_binding(
+    tmp_path: Path,
+) -> None:
+    port = FakeProcessPort(cwd=tmp_path, ports_active=True)
+    result = start_service(
+        tmp_path / "home",
+        tmp_path,
+        process_port=port,
+        recovery_lock=FakeRecoveryLock(),
+        health_checker=lambda: True,
+        child_environment={"ELFIENEST_PORT_MODE": "automatic"},
+    )
+
+    assert result.status == "started"
+    assert port.launches[0][2]["ELFIENEST_PORT_MODE"] == "automatic"

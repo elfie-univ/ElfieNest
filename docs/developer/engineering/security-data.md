@@ -6,16 +6,18 @@ data is written, who owns it, and how it is cleaned up.
 
 ## Product data roots
 
-- Installed runs resolve the data root in this order: `--data-home PATH`,
-  `ELFIE_HOME`, then `~/.elfienest`.
-- Source and worktree runs resolve it in this order: `--data-home PATH`,
-  `ELFIE_HOME`, then `<current-worktree>/.elfienest.local`.
-- `serve` and `start` accept `--data-home PATH`. Lifecycle commands remember
-  that selection so `status`, `stop`, and `restart` use the same root. Product
-  PID/lock state, `runtime.json`, logs, CLI history, and databases all follow
-  the selected root. A checkout-local `selected-data-home` control receipt may
-  contain only the selected path so a later no-argument lifecycle command can
-  find that root; it is not product data.
+- Installed Runtime uses `ELFIE_HOME`, the remembered production selection, or
+  `~/.elfienest`. Installed `elfienest start` deliberately rejects
+  `--data-home`; use `elfienest data-home activate --data-home PATH` to select
+  the production root before starting it.
+- Source and worktree runs resolve the data root in this order:
+  `--data-home PATH`, `ELFIE_HOME`, then `<current-worktree>/.elfienest.local`.
+- Source `serve` and `start` accept `--data-home PATH`. Lifecycle commands
+  remember that selection so `status`, `stop`, and `restart` use the same root.
+  Product PID/lock state, `runtime.json`, logs, CLI history, and databases all
+  follow the selected root. A checkout-local `selected-data-home` control
+  receipt may contain only the selected path so a later no-argument lifecycle
+  command can find that root; it is not product data.
 - Tests, workbenches and doc acceptance must use an isolated `ELFIE_HOME` or a
   temporary directory.
 - `build/` stores only intermediate artifacts, `dist/` only final release

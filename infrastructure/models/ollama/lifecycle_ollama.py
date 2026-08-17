@@ -100,6 +100,72 @@ class OllamaLifecycleAdapter:
         except ProviderPortError:
             return
 
+    def reconcile_orphaned_services(
+        self, *, elfie_home: Optional[Path] = None
+    ) -> tuple[str, ...]:
+        """Converge owned services whose Runtime holders all disappeared.
+
+        This is deliberately a Doctor-only repair surface.  External Ollama
+        processes are never stopped, and an owned receipt with a changed PID
+        birth identity is demoted or discarded rather than signalled.
+        """
+        if self._binding_loader is not None:
+            if elfie_home is None:
+                return ()
+            try:
+                if self._binding_loader(elfie_home) is None:
+                    return ()
+            except (OSError, ProviderPortError, RuntimeError, ValueError) as error:
+                raise OllamaLeaseError(f"无法读取本地 Ollama 配置: {error}") from error
+        repaired: list[str] = []
+        dirty = False
+        with self._locked_state() as (state_path, services):
+            for service_key, raw_state in tuple(services.items()):
+                if raw_state.get("origin") != "ELFIENEST_OWNED":
+                    continue
+                state = _prune_holders(raw_state)
+                if state.get("holders"):
+                    if state != raw_state:
+                        services[service_key] = state
+                        dirty = True
+                    continue
+
+                identity = _state_process_identity(state)
+                if identity is None or not _identity_is_current(identity):
+                    if self._probe_state(state) == "healthy":
+                        services[service_key] = _external_state(state)
+                        repaired.append(
+                            f"preserved external Ollama at {state.get('endpoint', service_key)}"
+                        )
+                    else:
+                        services.pop(service_key, None)
+                        repaired.append(f"removed stale Ollama ownership {service_key}")
+                    dirty = True
+                    continue
+
+                stopper = getattr(self._technology, "stop_owned", None)
+                if not callable(stopper):
+                    raise OllamaLeaseError(
+                        "当前 Ollama Adapter 无法安全回收 orphaned owned 进程"
+                    )
+                try:
+                    stopper(identity)
+                except (
+                    ProviderPortError,
+                    OSError,
+                    RuntimeError,
+                    TimeoutError,
+                    ValueError,
+                ) as error:
+                    raise OllamaLeaseError(str(error)) from error
+                services.pop(service_key, None)
+                repaired.append(f"stopped orphaned owned Ollama {service_key}")
+                dirty = True
+
+            if dirty:
+                _write_services(state_path, services)
+        return tuple(repaired)
+
     def acquire(
         self,
         *,
@@ -292,7 +358,18 @@ class OllamaLifecycleAdapter:
         root = self._state_root()
         root.mkdir(mode=0o700, parents=True, exist_ok=True)
         if os.name != "nt":
-            root.chmod(0o700)
+            try:
+                root.chmod(0o700)
+            except PermissionError:
+                # Some macOS sandboxes deny chmod on an already private
+                # directory.  Preserve the security invariant: continue only
+                # when the existing mode is already private to this user.
+                try:
+                    mode = root.stat().st_mode & 0o777
+                except OSError:
+                    raise
+                if mode & 0o077:
+                    raise
         lock_path = root / _LOCK_FILENAME
         descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
         try:

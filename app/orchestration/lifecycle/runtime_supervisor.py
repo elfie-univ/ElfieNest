@@ -69,6 +69,7 @@ class RuntimeSupervisor:
         stop_core: StopCore,
         owns_pid_record: OwnedRecord = lambda: True,
         authority_host: Optional[AuthorityHostPort] = None,
+        authority_recovery_host: Optional[AuthorityHostPort] = None,
         authority_timeout_seconds: float = 10.0,
         model_timeout_seconds: float = 60.0,
         monotonic: Callable[[], float] = time.monotonic,
@@ -84,6 +85,10 @@ class RuntimeSupervisor:
         self._stop_core = stop_core
         self._owns_pid_record = owns_pid_record
         self._authority_host = authority_host
+        # Core-resident World convergence normally owns the live Godot handle.
+        # A separate recovery host lets the parent clean an exact recorded
+        # authority after Core has crashed, without ever starting a second one.
+        self._authority_recovery_host = authority_recovery_host
         self._authority_timeout_seconds = authority_timeout_seconds
         self._model_timeout_seconds = model_timeout_seconds
         self._monotonic = monotonic
@@ -169,6 +174,25 @@ class RuntimeSupervisor:
                 record_before_start.owner_lease is not None
                 and record_before_start.tier is not BackendTier.OFFLINE
             ):
+                incomplete_stop = next(
+                    (
+                        failure
+                        for failure in record_before_start.failures
+                        if failure.code in {"STOP_INCOMPLETE", "WORLD_STOP_INCOMPLETE"}
+                    ),
+                    None,
+                )
+                if incomplete_stop is not None:
+                    return self._operation_result(
+                        ServiceLifecycleResult(
+                            status="failed",
+                            error=LaunchFailedError(
+                                "Previous Runtime shutdown is incomplete; "
+                                f"retry stop before starting a new generation: {incomplete_stop.detail}"
+                            ),
+                        ),
+                        operation_id,
+                    )
                 if self._owns_pid_record():
                     existing_attachment = (
                         record_before_start.owner_lease.owner_id,
@@ -394,6 +418,7 @@ class RuntimeSupervisor:
     def stop(self, *, correlation_id: Optional[str] = None) -> ServiceLifecycleResult:
         """Quiesce, release the owned authority and retain an OFFLINE snapshot."""
         operation_id = correlation_id or uuid.uuid4().hex
+        interrupted_stop: Optional[RuntimeSnapshotV1] = None
         with self._command_lock():
             record = self._runtime_record.read()
             if record.phase is RuntimePhase.RECOVERY_REQUIRED:
@@ -404,7 +429,36 @@ class RuntimeSupervisor:
                     ),
                     operation_id,
                 )
-            if record.owner_lease is not None or record.startup_owner_id is not None:
+            if (
+                record.phase is RuntimePhase.OFFLINE
+                and record.tier is BackendTier.OFFLINE
+                and record.owner_lease is None
+                and record.startup_owner_id is None
+            ):
+                return self._operation_result(
+                    ServiceLifecycleResult(status="already_stopped"),
+                    operation_id,
+                )
+            if record.phase in {
+                RuntimePhase.QUIESCING,
+                RuntimePhase.WORLD_STOPPING,
+                RuntimePhase.MODEL_LEASE_RELEASING,
+                RuntimePhase.CORE_STOPPING,
+            }:
+                if self._core_identity_present():
+                    return self._operation_result(
+                        ServiceLifecycleResult(
+                            status="failed",
+                            error=LifecycleBusyError(
+                                "Runtime shutdown is already in progress; wait for OFFLINE"
+                            ),
+                        ),
+                        operation_id,
+                    )
+                interrupted_stop = record
+            if interrupted_stop is None and (
+                record.owner_lease is not None or record.startup_owner_id is not None
+            ):
                 self._runtime_record.write(
                     replace(
                         record,
@@ -413,16 +467,30 @@ class RuntimeSupervisor:
                         subphase="stop_requested",
                     )
                 )
+        if interrupted_stop is not None:
+            return self._recover_interrupted_stop(interrupted_stop, operation_id)
         self._emit_progress(RuntimeProgressPhase.STOPPING)
         stop_started_at = self._monotonic()
         self._transition_stop_phase(RuntimePhase.WORLD_STOPPING, "world")
         authority = self._authority_process or self._recorded_authority_process()
+        authority_host = (
+            self._authority_host
+            if self._authority_process is not None
+            else self._authority_recovery_host
+        )
         authority_error: Optional[Exception] = None
-        if authority is not None and self._authority_host is not None:
-            try:
-                self._authority_host.stop(authority)
-            except Exception as error:  # noqa: BLE001 - preserve Core shutdown
-                authority_error = error
+        authority_stopped = False
+        if authority is not None:
+            if authority_host is None:
+                authority_error = RuntimeError(
+                    "Recorded Godot authority cannot be stopped without an authority host"
+                )
+            else:
+                try:
+                    authority_host.stop(authority)
+                    authority_stopped = True
+                except Exception as error:  # noqa: BLE001 - preserve Core shutdown
+                    authority_error = error
         self._authority_process = None
         self._transition_stop_phase(RuntimePhase.MODEL_LEASE_RELEASING, "model")
         self._transition_stop_phase(RuntimePhase.CORE_STOPPING, "core")
@@ -433,7 +501,14 @@ class RuntimeSupervisor:
                 status="failed",
                 error=LaunchFailedError(f"Core shutdown failed: {error}"),
             )
-        if result.status in {"stopped", "already_stopped"} and authority_error is None:
+        if authority_stopped and authority is not None:
+            self._clear_recorded_authority(authority.pid)
+        world_cleanup_error = self._world_cleanup_failure()
+        if (
+            result.status in {"stopped", "already_stopped"}
+            and authority_error is None
+            and world_cleanup_error is None
+        ):
             with self._command_lock():
                 current = self._runtime_record.read()
                 self._runtime_record.write(
@@ -465,6 +540,8 @@ class RuntimeSupervisor:
         detail_parts = []
         if authority_error is not None:
             detail_parts.append(f"Godot authority shutdown failed: {authority_error}")
+        if world_cleanup_error is not None:
+            detail_parts.append(f"World cleanup incomplete: {world_cleanup_error}")
         if result.status == "failed":
             detail_parts.append(str(result.error or "Core shutdown failed"))
         else:
@@ -836,6 +913,132 @@ class RuntimeSupervisor:
         component = record.component(RuntimeComponent.GODOT_AUTHORITY)
         return RecordedAuthorityProcess(component.pid) if component.pid else None
 
+    def _core_identity_present(self) -> bool:
+        """Fail closed when deciding whether an interrupted stop may be retried."""
+        try:
+            return self._owns_pid_record()
+        except (OSError, RuntimeError, ValueError):
+            return True
+
+    def _clear_recorded_authority(self, pid: int) -> None:
+        """Remove a recorded authority only after its owner confirms stop."""
+        with self._command_lock():
+            current = self._runtime_record.read()
+            component = current.component(RuntimeComponent.GODOT_AUTHORITY)
+            if component.pid != pid:
+                return
+            components = tuple(
+                replace(
+                    item,
+                    state=ComponentState.ABSENT,
+                    detail="",
+                    pid=None,
+                )
+                if item.component is RuntimeComponent.GODOT_AUTHORITY
+                else item
+                for item in current.components
+            )
+            self._runtime_record.write(
+                replace(current, revision=current.revision + 1, components=components)
+            )
+
+    def _world_cleanup_failure(self) -> Optional[str]:
+        """Return explicit World cleanup evidence instead of hiding it at OFFLINE."""
+        try:
+            current = self._runtime_record.read()
+        except (OSError, RuntimeError, ValueError) as error:
+            return f"unable to verify World cleanup: {error}"
+        for failure in current.failures:
+            if failure.code == "WORLD_STOP_INCOMPLETE":
+                return failure.detail
+        return None
+
+    def _recover_interrupted_stop(
+        self,
+        record: RuntimeSnapshotV1,
+        operation_id: str,
+    ) -> ServiceLifecycleResult:
+        """Reconcile a stopped Core before allowing a new generation.
+
+        A crashed stop command may leave the durable phase in a stopping state.
+        Only after the exact Core is absent do we recover the recorded Godot
+        authority and ask the normal Core stop path to prove its endpoints are
+        gone.  Unknown port occupants remain untouched and keep the operation
+        failed rather than being mistaken for a clean OFFLINE result.
+        """
+        authority = self._recorded_authority_process()
+        authority_error: Optional[Exception] = None
+        if authority is not None:
+            authority_host = self._authority_recovery_host or self._authority_host
+            if authority_host is None:
+                authority_error = RuntimeError(
+                    "Recorded Godot authority cannot be recovered without an authority host"
+                )
+            else:
+                try:
+                    authority_host.stop(authority)
+                except Exception as error:  # noqa: BLE001 - preserve residual evidence
+                    authority_error = error
+        try:
+            core_result = self._stop_core()
+        except Exception as error:  # noqa: BLE001 - convert adapter failure
+            core_result = ServiceLifecycleResult(
+                status="failed",
+                error=LaunchFailedError(f"Core shutdown failed: {error}"),
+            )
+        if authority_error is None and core_result.status in {
+            "stopped",
+            "already_stopped",
+        }:
+            with self._command_lock():
+                current = self._runtime_record.read()
+                self._runtime_record.write(
+                    replace(
+                        current,
+                        revision=current.revision + 1,
+                        tier=BackendTier.OFFLINE,
+                        phase=RuntimePhase.OFFLINE,
+                        subphase="",
+                        reached_target=None,
+                        components=(),
+                        endpoints=(),
+                        owner_lease=None,
+                        startup_owner_id=None,
+                        writer_credential_digest=None,
+                        failures=(),
+                    )
+                )
+                revoke = getattr(self._runtime_record, "revoke_writer_handoff", None)
+                if callable(revoke):
+                    revoke()
+            return self._operation_result(
+                ServiceLifecycleResult(
+                    status="already_stopped",
+                    pid=core_result.pid,
+                    command=core_result.command,
+                ),
+                operation_id,
+            )
+
+        detail_parts = []
+        if authority_error is not None:
+            detail_parts.append(f"Godot authority recovery failed: {authority_error}")
+        if core_result.status == "failed":
+            detail_parts.append(str(core_result.error or "Core shutdown failed"))
+        else:
+            detail_parts.append("Core shutdown was not confirmed")
+        detail = "; ".join(detail_parts)
+        self._record_stop_failure(detail)
+        return self._operation_result(
+            ServiceLifecycleResult(
+                status="failed",
+                pid=core_result.pid,
+                command=core_result.command,
+                error=LaunchFailedError(detail),
+            ),
+            operation_id,
+        )
+
     def _fail_start(
         self,
         owner_id: str,
@@ -988,9 +1191,30 @@ class RuntimeSupervisor:
 
     def _stop_owned_resources(self) -> Optional[str]:
         errors = []
+        live_authority = self._authority_process
         authority_error = self._stop_authority_only()
         if authority_error:
-            errors.append(f"Godot authority shutdown failed: {authority_error}")
+            recovery_host = self._authority_recovery_host
+            if live_authority is not None and recovery_host is not None:
+                try:
+                    recovery_host.stop(RecordedAuthorityProcess(live_authority.pid))
+                    authority_error = None
+                except Exception as error:  # noqa: BLE001 - retain residual evidence
+                    authority_error = f"{authority_error}; recovery failed: {error}"
+            if authority_error:
+                errors.append(f"Godot authority shutdown failed: {authority_error}")
+        elif live_authority is None:
+            recorded = self._recorded_authority_process()
+            recovery_host = self._authority_recovery_host
+            if recorded is not None and recovery_host is not None:
+                try:
+                    recovery_host.stop(recorded)
+                except Exception as error:  # noqa: BLE001 - preserve typed start failure
+                    errors.append(f"Godot authority recovery failed: {error}")
+            elif recorded is not None:
+                errors.append(
+                    "Recorded Godot authority cannot be recovered without an authority host"
+                )
         try:
             core_result = self._stop_core()
             if core_result.status not in {"stopped", "already_stopped"}:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import socket
 from types import SimpleNamespace
 
 import anyio
@@ -130,6 +131,27 @@ def test_gateway_restarts_fifty_times_without_leaking_thread_or_clients() -> Non
         assert server._thread is not None
         assert not server._thread.is_alive()
         assert server.clients == set()
+
+
+def test_gateway_can_take_over_a_core_reserved_socket() -> None:
+    reserved = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    reserved.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    reserved.bind(("127.0.0.1", 0))
+    reserved.listen(128)
+    port = int(reserved.getsockname()[1])
+    server = GodotAPIServer(
+        port=port,
+        handshake_nonce="nonce-1",
+        prebound_socket=reserved,
+    )
+
+    server.start()
+    try:
+        assert server.port == port
+        assert server._thread is not None
+        assert server._thread.is_alive()
+    finally:
+        server.stop()
 
 
 def _hello(*, protocol: int, nonce: str) -> str:

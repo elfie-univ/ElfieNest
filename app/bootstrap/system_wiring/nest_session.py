@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import socket
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping, Optional, Union, cast
+from typing import TYPE_CHECKING, Callable, Mapping, Optional, Union, cast
 
 from app.orchestration.nest_session import (
     ElfieNestEngine,
@@ -49,6 +50,11 @@ from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from nest.public import NestConfig
 
+if TYPE_CHECKING:
+    from infrastructure.platform.lifecycle.endpoint_binding import (
+        BoundServiceEndpoints,
+    )
+
 MainFoodLoader = Callable[[str], Optional[Union[str, MainFoodSelection]]]
 
 
@@ -85,6 +91,26 @@ def load_emotion_expression_config():
     return load_emotion_expression_defaults()
 
 
+def bind_service_endpoints(
+    http_port: int,
+    websocket_port: int,
+    *,
+    automatic: bool = False,
+    host: str = "127.0.0.1",
+) -> BoundServiceEndpoints:
+    """Resolve the concrete endpoint binder at the system composition root."""
+    from infrastructure.platform.lifecycle.endpoint_binding import (
+        bind_service_endpoints as bind,
+    )
+
+    return bind(
+        http_port,
+        websocket_port,
+        automatic=automatic,
+        host=host,
+    )
+
+
 def build_nest_session_services(
     db_path: str,
     *,
@@ -92,6 +118,7 @@ def build_nest_session_services(
     godot_ws_port: int,
     http_port: int,
     tick_interval_sec: float,
+    godot_socket: socket.socket | None = None,
     main_food_loader: MainFoodLoader | None = None,
     nest_config: NestConfig | None = None,
 ) -> NestSessionServices:
@@ -101,6 +128,7 @@ def build_nest_session_services(
         host="127.0.0.1",
         port=godot_ws_port,
         http_port=http_port,
+        prebound_socket=godot_socket,
     )
     world_runtime = GodotNestSessionAdapter(
         gateway=gateway,

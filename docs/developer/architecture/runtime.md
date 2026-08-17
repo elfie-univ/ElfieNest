@@ -125,10 +125,12 @@ particular installer has been built or installed.
 
 ## Production directory contract
 
-Installed runs default to `~/.elfienest`; source and worktree runs default to
-`<current-worktree>/.elfienest.local`. `--data-home PATH` and `ELFIE_HOME` may
-override those defaults, and all lifecycle receipts and product data follow the
-one selected root.
+Installed runs use the selected production root and otherwise default to
+`~/.elfienest`; installed `elfienest start` rejects `--data-home`, while
+`elfienest data-home activate --data-home PATH` changes the selected root.
+Source and worktree runs default to `<current-worktree>/.elfienest.local` and
+may use `--data-home PATH` or `ELFIE_HOME`. All lifecycle receipts and product
+data follow the one selected root.
 
 A single computer has one production Nest root:
 `${ELFIE_HOME:-~/.elfienest}`. `nest.db` contains exactly the eight final

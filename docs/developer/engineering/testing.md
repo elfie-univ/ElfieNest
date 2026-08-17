@@ -129,6 +129,24 @@ If a required check fails or the G3 loopback preflight is blocked, do not commit
 push or merge. Focused tests are the normal G1/G2 path; they do not replace G3
 when the impact classifier requires it.
 
+The closure check rejects unclassified changes, incomplete evidence rows, and
+listed Conformance rows that are not closed. If a row is blocked only because
+the current machine lacks a required OS or installed host, classify it as
+`blocker_class: "external_environment"` and use the explicit local checkpoint
+flag:
+
+```bash
+bash scripts/pre_submit_gate.sh \
+  --base-sha "$(git rev-parse origin/main^{commit})" \
+  --closure-file task-closure.json \
+  --allow-external-environment-blockers
+```
+
+This exception does not close the row, does not allow code or tool failures,
+and must not be used for final protected-branch delivery; CI or a matching host
+still has to run the missing acceptance. Focused tests cannot replace either
+gate.
+
 Changes to the closure skill or gate itself use two checkpoints: land the
 governance-only classifier registration first, then land the protected checker
 and integration. The immutable-base guard must not be bypassed to combine them.
