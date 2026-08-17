@@ -45,6 +45,29 @@ def test_inspector_and_rest_client_use_bot_identity_without_returning_secret() -
     assert client.send_message("1701", "你好").message_id == "17"
 
 
+def test_set_profile_avatar_uses_modify_current_user_with_a_data_uri() -> None:
+    requests: list[tuple[str, dict[str, object]]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content.decode())
+        requests.append((request.method, payload))
+        return httpx.Response(
+            200,
+            json={"id": "991", "username": "elfienest_star", "bot": True},
+        )
+
+    client = DiscordBotApiClient(
+        "discord-super-secret", transport=httpx.MockTransport(handler)
+    )
+
+    client.set_profile_avatar(b"avatar-bytes", "image/png")
+
+    assert requests[0][0] == "PATCH"
+    payload = requests[0][1]
+    assert isinstance(payload["avatar"], str)
+    assert payload["avatar"].startswith("data:image/png;base64,")
+
+
 def test_mapper_separates_private_dms_from_guild_messages_and_bots() -> None:
     private = map_message_create(
         {

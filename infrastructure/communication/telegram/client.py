@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from io import BytesIO
 from typing import Callable, Mapping, Optional, Tuple
 
 import httpx
+from PIL import Image
 
 from app.features.communication.telegram_port_models import TelegramBotInspection
 from app.features.communication.telegram_ports import (
@@ -80,6 +83,44 @@ class TelegramBotApiClient:
             raise TelegramBotTransportError("Telegram returned an invalid response")
         return TelegramSentMessage(message_id=message_id)
 
+    def set_profile_photo(self, content: bytes, media_type: str) -> None:
+        """Set the bot's static profile photo from the current Elfie headshot."""
+        if not content:
+            raise ValueError("Telegram profile photo cannot be empty")
+        if not media_type.startswith("image/"):
+            raise ValueError("Telegram profile photo must be an image")
+        jpeg = _as_jpeg(content)
+        try:
+            response = self._client.post(
+                "setMyProfilePhoto",
+                data={
+                    "photo": json.dumps(
+                        {"type": "static", "photo": "attach://profile_photo"}
+                    )
+                },
+                files={"profile_photo": ("elfie-avatar.jpg", jpeg, "image/jpeg")},
+                timeout=httpx.Timeout(
+                    connect=5.0,
+                    read=15.0,
+                    write=10.0,
+                    pool=5.0,
+                ),
+            )
+            document = response.json()
+        except (httpx.HTTPError, ValueError):
+            raise TelegramBotTransportError("Telegram request failed") from None
+        if not isinstance(document, dict):
+            raise TelegramBotTransportError("Telegram returned an invalid response")
+        if document.get("ok") is not True:
+            code = document.get("error_code")
+            if response.status_code in {401, 404} or code in {401, 404}:
+                raise TelegramBotTokenRejected(
+                    "Telegram rejected the bot credential"
+                ) from None
+            raise TelegramBotTransportError("Telegram request failed") from None
+        if document.get("result") is not True:
+            raise TelegramBotTransportError("Telegram returned an invalid response")
+
     def _call(
         self,
         method: str,
@@ -148,8 +189,43 @@ class TelegramBotInspector:
         )
 
 
+class TelegramBotAvatarUpdater:
+    """One-shot profile update adapter used during account configuration."""
+
+    def __init__(
+        self,
+        client_factory: Optional[Callable[[str], TelegramBotApiClient]] = None,
+    ) -> None:
+        self._client_factory = client_factory or TelegramBotApiClient
+
+    def sync_avatar(self, bot_token: str, content: bytes, media_type: str) -> None:
+        client = self._client_factory(bot_token)
+        try:
+            client.set_profile_photo(content, media_type)
+        finally:
+            client.close()
+
+
+def _as_jpeg(content: bytes) -> bytes:
+    try:
+        with Image.open(BytesIO(content)) as source:
+            source.load()
+            if source.mode in {"RGBA", "LA", "P"} or "transparency" in source.info:
+                rgba = source.convert("RGBA")
+                image = Image.new("RGB", rgba.size, (255, 255, 255))
+                image.paste(rgba, mask=rgba.getchannel("A"))
+            else:
+                image = source.convert("RGB")
+            output = BytesIO()
+            image.save(output, format="JPEG", quality=90, optimize=True)
+            return output.getvalue()
+    except (OSError, ValueError):
+        raise TelegramBotTransportError("Telegram profile photo is invalid") from None
+
+
 __all__ = (
     "TelegramBotApiClient",
+    "TelegramBotAvatarUpdater",
     "TelegramBotInspector",
     "TelegramSentMessage",
 )

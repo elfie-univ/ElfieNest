@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import random
@@ -96,6 +97,21 @@ class DiscordBotApiClient:
             raise DiscordBotTransportError("Discord returned an invalid message")
         return DiscordSentMessage(message_id=message_id)
 
+    def set_profile_avatar(self, content: bytes, media_type: str) -> None:
+        """Set the bot's global profile avatar from the current Elfie headshot."""
+        if not content:
+            raise ValueError("Discord profile avatar cannot be empty")
+        if not media_type.startswith("image/"):
+            raise ValueError("Discord profile avatar must be an image")
+        encoded = base64.b64encode(content).decode("ascii")
+        result = self._call(
+            "PATCH",
+            "/users/@me",
+            payload={"avatar": f"data:{media_type};base64,{encoded}"},
+        )
+        if not isinstance(result, dict):
+            raise DiscordBotTransportError("Discord returned an invalid profile")
+
     def _call(
         self,
         method: str,
@@ -161,6 +177,23 @@ class DiscordBotInspector:
             username=username,
             display_name=display_name,
         )
+
+
+class DiscordBotAvatarUpdater:
+    """One-shot profile update adapter used during account configuration."""
+
+    def __init__(
+        self,
+        client_factory: Optional[Callable[[str], DiscordBotApiClient]] = None,
+    ) -> None:
+        self._client_factory = client_factory or DiscordBotApiClient
+
+    def sync_avatar(self, bot_token: str, content: bytes, media_type: str) -> None:
+        client = self._client_factory(bot_token)
+        try:
+            client.set_profile_avatar(content, media_type)
+        finally:
+            client.close()
 
 
 class DiscordGatewayClient:
@@ -406,6 +439,7 @@ def _heartbeat_interval(raw: object) -> float:
 
 __all__ = (
     "DiscordBotApiClient",
+    "DiscordBotAvatarUpdater",
     "DiscordBotInspector",
     "DiscordGatewayClient",
     "DiscordSentMessage",

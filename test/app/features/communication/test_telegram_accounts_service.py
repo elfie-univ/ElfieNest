@@ -121,6 +121,27 @@ class Inspector:
         )
 
 
+class Portraits:
+    def __init__(self, content: bytes = b"elfie-headshot") -> None:
+        self.content = content
+        self.calls: list[tuple[str, str]] = []
+
+    def load_portrait(self, elfie_id: str, *, kind: str = "headshot"):
+        self.calls.append((elfie_id, kind))
+        return self.content
+
+
+class AvatarSync:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.calls: list[tuple[str, bytes, str]] = []
+
+    def sync_avatar(self, bot_token: str, content: bytes, media_type: str) -> None:
+        self.calls.append((bot_token, content, media_type))
+        if self.fail:
+            raise RuntimeError("avatar endpoint unavailable")
+
+
 class Principals:
     def __init__(self) -> None:
         self.current = _principal()
@@ -133,6 +154,8 @@ def _service(
     store: Store | None = None,
     tokens: Tokens | None = None,
     inspector: Inspector | None = None,
+    portrait_source=None,
+    avatar_sync=None,
 ) -> tuple[TelegramAccountsService, Store, Tokens, Inspector, Principals]:
     selected_store = store or Store()
     selected_tokens = tokens or Tokens()
@@ -145,6 +168,8 @@ def _service(
         principals,
         now=lambda: NOW,
         pairing_token=lambda: "p" * 43,
+        portrait_source=portrait_source,
+        avatar_sync=avatar_sync,
     )
     return service, selected_store, selected_tokens, selected_inspector, principals
 
@@ -210,6 +235,45 @@ def test_valid_token_is_verified_then_saved_without_ever_returning_plaintext() -
     assert result.state == "waiting_pairing"
     assert result.bot_username == "elfienest_star_bot"
     assert "secret" not in repr(result).lower()
+
+
+def test_valid_token_syncs_the_current_elfie_headshot_after_saving() -> None:
+    portraits = Portraits(b"current-headshot")
+    avatar = AvatarSync()
+    service, store, tokens, _, _ = _service(
+        portrait_source=portraits,
+        avatar_sync=avatar,
+    )
+
+    service.configure_account(
+        _principal(),
+        ConfigureTelegramAccountCommand("00000001", "991:secret-token-value"),
+    )
+
+    assert portraits.calls == [("00000001", "headshot")]
+    assert avatar.calls == [
+        ("991:secret-token-value", b"current-headshot", "image/png")
+    ]
+    assert store.account is not None
+    assert tokens.values["ELFIE_TELEGRAM_00000001_BOT_TOKEN"] == (
+        "991:secret-token-value"
+    )
+
+
+def test_avatar_sync_failure_does_not_reject_a_saved_telegram_account() -> None:
+    service, store, _, _, _ = _service(
+        portrait_source=Portraits(),
+        avatar_sync=AvatarSync(fail=True),
+    )
+
+    result = service.configure_account(
+        _principal(),
+        ConfigureTelegramAccountCommand("00000001", "991:secret-token-value"),
+    )
+
+    assert result.state == "waiting_pairing"
+    assert store.account is not None
+    assert store.account.status == "active"
 
 
 def test_existing_webhook_is_rejected_without_touching_secret_or_store() -> None:

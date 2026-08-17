@@ -78,6 +78,10 @@ class TelegramBotInspectionPort(Protocol):
     def inspect_bot(self, bot_token: str) -> TelegramBotInspection: ...
 
 
+class TelegramBotAvatarPort(Protocol):
+    def sync_avatar(self, bot_token: str, content: bytes, media_type: str) -> None: ...
+
+
 class AccountPrincipalLookupPort(Protocol):
     def find_principal(self, user_id: int) -> Optional[AccountPrincipal]: ...
 
@@ -91,5 +95,6 @@ __all__ = (
     "TelegramBotInspectionError",
     "TelegramBotTokenRejected",
     "TelegramBotTransportError",
+    "TelegramBotAvatarPort",
     "TelegramTokenPort",
 )

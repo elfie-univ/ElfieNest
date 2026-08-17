@@ -21,9 +21,15 @@ from infrastructure.communication import (
     OwnerMessageSession,
     SameOriginMessagePublisher,
 )
-from infrastructure.communication.discord.client import DiscordBotInspector
+from infrastructure.communication.discord.client import (
+    DiscordBotAvatarUpdater,
+    DiscordBotInspector,
+)
 from infrastructure.communication.discord.runner import DiscordGatewayRuntime
-from infrastructure.communication.telegram.client import TelegramBotInspector
+from infrastructure.communication.telegram.client import (
+    TelegramBotAvatarUpdater,
+    TelegramBotInspector,
+)
 from infrastructure.communication.telegram.runner import TelegramLongPollingRuntime
 from infrastructure.persistence.configuration.discord_tokens import DiscordTokenAdapter
 from infrastructure.persistence.configuration.telegram_tokens import (
@@ -34,6 +40,9 @@ from infrastructure.persistence.elfie_workspace.communication import (
 )
 from infrastructure.persistence.elfie_workspace.discord_accounts import (
     SQLiteDiscordAccountStore,
+)
+from infrastructure.persistence.elfie_workspace.elfies import (
+    SQLiteElfiesProjectionAdapter,
 )
 from infrastructure.persistence.elfie_workspace.telegram_accounts import (
     SQLiteTelegramAccountStore,
@@ -74,6 +83,7 @@ def build_communication_services(
         realtime,
     )
     telegram_store = SQLiteTelegramAccountStore(db_path)
+    portrait_source = SQLiteElfiesProjectionAdapter(db_path)
     telegram_tokens = TelegramTokenAdapter(
         None
         if db_path == ":memory:"
@@ -84,6 +94,8 @@ def build_communication_services(
         telegram_tokens,
         TelegramBotInspector(),
         accounts,
+        portrait_source=portrait_source,
+        avatar_sync=TelegramBotAvatarUpdater(),
     )
     telegram_handler = TelegramUpdateHandler(
         telegram_accounts,
@@ -107,6 +119,8 @@ def build_communication_services(
         discord_tokens,
         DiscordBotInspector(),
         accounts,
+        portrait_source=portrait_source,
+        avatar_sync=DiscordBotAvatarUpdater(),
     )
     discord_handler = DiscordUpdateHandler(
         discord_accounts,

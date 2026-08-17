@@ -96,12 +96,33 @@ class Inspector:
         return DiscordBotInspection("991", "elfienest_star", "星星机器人")
 
 
+class Portraits:
+    def __init__(self, content: bytes = b"elfie-headshot") -> None:
+        self.content = content
+        self.calls: list[tuple[str, str]] = []
+
+    def load_portrait(self, elfie_id: str, *, kind: str = "headshot"):
+        self.calls.append((elfie_id, kind))
+        return self.content
+
+
+class AvatarSync:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.calls: list[tuple[str, bytes, str]] = []
+
+    def sync_avatar(self, bot_token: str, content: bytes, media_type: str) -> None:
+        self.calls.append((bot_token, content, media_type))
+        if self.fail:
+            raise RuntimeError("avatar endpoint unavailable")
+
+
 class Principals:
     def find_principal(self, user_id: int):
         return _principal() if user_id == 7 else None
 
 
-def _service(now=lambda: NOW):
+def _service(now=lambda: NOW, portrait_source=None, avatar_sync=None):
     store = Store()
     tokens = Tokens()
     service = DiscordAccountsService(
@@ -111,6 +132,8 @@ def _service(now=lambda: NOW):
         Principals(),
         now=now,
         pairing_token=lambda: "pairing-code",
+        portrait_source=portrait_source,
+        avatar_sync=avatar_sync,
     )
     return service, store, tokens
 
@@ -164,6 +187,39 @@ def test_valid_token_is_inspected_then_saved_without_returning_plaintext() -> No
     assert store.saved[0].bot_id == "991"
     assert "discord-secret-token" not in repr(result)
     assert tokens.values["ELFIE_DISCORD_00000001_BOT_TOKEN"] == "discord-secret-token"
+
+
+def test_valid_token_syncs_the_current_elfie_headshot_after_saving() -> None:
+    portraits = Portraits(b"current-headshot")
+    avatar = AvatarSync()
+    service, store, tokens = _service(
+        portrait_source=portraits,
+        avatar_sync=avatar,
+    )
+
+    service.configure_account(
+        _principal(), ConfigureDiscordAccountCommand("00000001", "discord-secret-token")
+    )
+
+    assert portraits.calls == [("00000001", "headshot")]
+    assert avatar.calls == [("discord-secret-token", b"current-headshot", "image/png")]
+    assert store.account is not None
+    assert tokens.values["ELFIE_DISCORD_00000001_BOT_TOKEN"] == ("discord-secret-token")
+
+
+def test_avatar_sync_failure_does_not_reject_a_saved_discord_account() -> None:
+    service, store, _ = _service(
+        portrait_source=Portraits(),
+        avatar_sync=AvatarSync(fail=True),
+    )
+
+    result = service.configure_account(
+        _principal(), ConfigureDiscordAccountCommand("00000001", "discord-secret-token")
+    )
+
+    assert result.state == "waiting_pairing"
+    assert store.account is not None
+    assert store.account.status == "active"
 
 
 def test_pairing_binds_one_private_human_and_replay_fails() -> None:

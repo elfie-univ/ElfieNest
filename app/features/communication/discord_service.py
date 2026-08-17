@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -12,6 +13,7 @@ from urllib.parse import quote
 
 from app.features.accounts import AccountPrincipal
 
+from .avatar_ports import ElfiePortraitPort
 from .discord_errors import (
     DiscordAccountConflict,
     DiscordAccountInvalid,
@@ -40,6 +42,7 @@ from .discord_ports import (
     DiscordAccountPrincipalLookupPort,
     DiscordAccountStoreConflict,
     DiscordAccountStorePort,
+    DiscordBotAvatarPort,
     DiscordBotInspectionPort,
     DiscordBotTokenRejected,
     DiscordBotTransportError,
@@ -48,6 +51,7 @@ from .discord_ports import (
 
 _PAIRING_TTL = timedelta(minutes=10)
 _TOKEN_MAX_LENGTH = 512
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -71,6 +75,8 @@ class DiscordAccountsService:
         *,
         now: Optional[Callable[[], datetime]] = None,
         pairing_token: Optional[Callable[[], str]] = None,
+        portrait_source: Optional[ElfiePortraitPort] = None,
+        avatar_sync: Optional[DiscordBotAvatarPort] = None,
     ) -> None:
         self._store = store
         self._tokens = tokens
@@ -78,6 +84,8 @@ class DiscordAccountsService:
         self._principals = principals
         self._now = now or (lambda: datetime.now(timezone.utc))
         self._pairing_token = pairing_token or (lambda: secrets.token_urlsafe(32))
+        self._portrait_source = portrait_source
+        self._avatar_sync = avatar_sync
         self._pairing_sessions: dict[str, _PairingSession] = {}
         self._pairing_lock = RLock()
 
@@ -138,6 +146,7 @@ class DiscordAccountsService:
                 "Discord account could not be saved"
             ) from error
         self._invalidate_pairing_sessions(elfie_id)
+        self._sync_avatar(elfie_id, token)
         binding = self._store.get_binding(elfie_id)
         return self._result(elfie_id, account, binding, principal.user_id)
 
@@ -394,6 +403,20 @@ class DiscordAccountsService:
                 self._tokens.delete(elfie_id)
         except (OSError, ValueError):
             pass
+
+    def _sync_avatar(self, elfie_id: str, bot_token: str) -> None:
+        source = self._portrait_source
+        sync = self._avatar_sync
+        if source is None or sync is None:
+            return
+        try:
+            content = source.load_portrait(elfie_id, kind="headshot")
+            if not content:
+                return
+            sync.sync_avatar(bot_token, content, "image/png")
+        except Exception:
+            # Profile polish must never turn a valid connection into a failed setup.
+            _logger.warning("Discord avatar sync skipped for Elfie %s", elfie_id)
 
     def _safe_mark_attention(self, elfie_id: str, checked_at: str, issue: str) -> None:
         try:

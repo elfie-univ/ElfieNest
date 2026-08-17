@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 
 import httpx
 import pytest
+from PIL import Image
 
 from app.features.communication.telegram_ports import TelegramBotTokenRejected
 from infrastructure.communication.telegram.client import (
@@ -22,6 +24,12 @@ def _transport(responses: dict[str, dict[str, object]]) -> httpx.MockTransport:
         return httpx.Response(200, json=responses[method])
 
     return httpx.MockTransport(handler)
+
+
+def _png() -> bytes:
+    output = BytesIO()
+    Image.new("RGBA", (2, 2), (120, 80, 220, 255)).save(output, format="PNG")
+    return output.getvalue()
 
 
 def test_inspector_validates_bot_and_detects_webhook_without_exposing_token() -> None:
@@ -100,6 +108,29 @@ def test_get_updates_uses_positive_long_poll_and_send_message_returns_id() -> No
         ("sendMessage", {"chat_id": "1701", "text": "你好"}),
     ]
     assert sent.message_id == 17
+
+
+def test_set_profile_photo_uploads_a_static_jpeg_profile_photo() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"ok": True, "result": True})
+
+    client = TelegramBotApiClient(
+        "991:super-secret", transport=httpx.MockTransport(handler)
+    )
+
+    client.set_profile_photo(_png(), "image/png")
+
+    assert len(requests) == 1
+    request = requests[0]
+    assert request.method == "POST"
+    assert request.url.path.endswith("/setMyProfilePhoto")
+    assert request.headers["content-type"].startswith("multipart/form-data;")
+    assert b'"type": "static"' in request.content
+    assert b"attach://profile_photo" in request.content
+    assert b"image/jpeg" in request.content
 
 
 def test_mapper_accepts_only_typed_message_shape_and_extracts_start_code() -> None:

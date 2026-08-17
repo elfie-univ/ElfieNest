@@ -1,5 +1,6 @@
 """Public facade for product conversations and user-visible message history."""
 
+from .avatar_ports import ElfiePortraitPort
 from .discord_errors import (
     DiscordAccountConflict,
     DiscordAccountError,
@@ -25,6 +26,7 @@ from .discord_port_models import (
     StoredDiscordAccount,
     StoredDiscordBinding,
 )
+from .discord_ports import DiscordBotAvatarPort
 from .discord_service import DiscordAccountsService
 from .errors import (
     CommunicationError,
@@ -75,6 +77,7 @@ from .telegram_port_models import (
     TelegramPrivateUpdate,
     TelegramRuntimeAccount,
 )
+from .telegram_ports import TelegramBotAvatarPort
 from .telegram_service import TelegramAccountsService
 
 __all__ = (
@@ -115,6 +118,7 @@ __all__ = (
     "TelegramAccountState",
     "TelegramAccountUnavailable",
     "TelegramAccountsService",
+    "TelegramBotAvatarPort",
     "TelegramBotInspection",
     "TelegramPairingCompletion",
     "TelegramPairingSessionResult",
@@ -132,11 +136,13 @@ __all__ = (
     "DiscordAccountState",
     "DiscordAccountUnavailable",
     "DiscordAccountsService",
+    "DiscordBotAvatarPort",
     "DiscordBotInspection",
     "DiscordPairingCompletion",
     "DiscordPairingSessionResult",
     "DiscordPrivateUpdate",
     "DiscordRuntimeAccount",
+    "ElfiePortraitPort",
     "GetDiscordAccountQuery",
     "StoredDiscordAccount",
     "StoredDiscordBinding",
