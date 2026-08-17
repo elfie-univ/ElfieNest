@@ -1,151 +1,89 @@
 {
   "schema_version": 1,
-  "task": "add public user registration with automatic sign-in",
+  "task": "repair only incomplete current data roots before Desktop and CLI startup",
   "contract_refs": [
-    "docs/developer/contracts/application.md",
-    "docs/developer/engineering/development.md"
+    "docs/developer/contracts/service-lifecycle.md"
   ],
   "scope": [
-    "app/features/accounts/models.py",
-    "app/features/accounts/ports.py",
-    "app/features/accounts/service.py",
-    "app/features/accounts/errors.py",
-    "app/features/accounts/__init__.py",
-    "infrastructure/persistence/accounts.py",
-    "app/interfaces/api/app.py",
-    "app/interfaces/api/v1/auth/routes.py",
-    "app/interfaces/api/v1/auth/models.py",
-    "app/interfaces/web/frontend/src/api/session.ts",
-    "app/interfaces/web/frontend/src/api/session.test.ts",
-    "app/interfaces/web/frontend/src/pages/LoginPage.tsx",
-    "app/interfaces/web/frontend/src/pages/LoginPage.test.tsx",
-    "app/interfaces/web/frontend/src/i18n/errors.ts",
-    "app/interfaces/web/frontend/src/i18n/errors.test.ts",
-    "app/interfaces/web/frontend/src/i18n/locales/en-US/auth.ts",
-    "app/interfaces/web/frontend/src/i18n/locales/zh-CN/auth.ts",
-    "test/app/features/accounts/test_auth.py",
-    "test/app/features/accounts/test_management.py",
-    "test/app/interfaces/api/test_user_api.py",
-    "test/infrastructure/persistence/test_accounts.py",
-    "docs/developer/engineering/development.md",
-    "docs/zh/developer/engineering/development.md",
+    "app/orchestration/lifecycle/ports.py",
+    "app/orchestration/lifecycle/facade.py",
+    "app/orchestration/lifecycle/runtime_supervisor.py",
+    "app/interfaces/cli/lifecycle_commands.py",
+    "app/interfaces/desktop/src/desktop_role_lifecycle.ts",
+    "app/interfaces/desktop/src/lifecycle_client.ts",
+    "infrastructure/persistence/layout/lifecycle_data_home.py",
+    "infrastructure/persistence/nest_db/final_schema.py",
+    "infrastructure/persistence/nest_db/store.py",
+    "infrastructure/platform/lifecycle/runtime_record.py",
+    "test/infrastructure/persistence/test_final_bootstrap.py",
+    "test/infrastructure/persistence/layout/test_lifecycle_data_home_recovery.py",
+    "test/infrastructure/platform/lifecycle/test_runtime_record.py",
+    "app/interfaces/desktop/src/desktop_role_lifecycle.test.ts",
+    "app/interfaces/desktop/src/lifecycle_client.test.ts",
     "task-closure.json"
   ],
   "conformance": {
     "rows": [],
-    "reason": "No existing conformance row owns the Accounts registration slice; the change stays within the existing Accounts authority and authentication boundary."
+    "reason": "The existing lifecycle authority and stable Runtime states remain unchanged; this only repairs the current data root before the existing start path continues."
   },
   "rows": [
     {
       "id": "REQ-001",
-      "requirement": "A configured installation can register a new account through the versioned auth API, the server always assigns the ordinary user role, and the response immediately establishes a session with the safe landing path.",
-      "status": "complete",
+      "requirement": "A partial current data root can be repaired in place by creating missing standard directories, missing current tables, and explicitly safe additive columns; the operation is idempotent and creates no backup or schema-version record.",
+      "status": "implementing",
       "implementation": [
-        "Accounts registration command, service use-case, user-only persistence port, and auth route"
+        "Final root inspection and in-place additive database preparation"
       ],
       "automated_tests": [
-        "Accounts registration service tests",
-        "HTTP registration and duplicate-account tests"
+        "Partial-root, missing-table, safe-column, idempotence, and incompatible-schema tests"
       ],
       "runtime_scenarios": [
-        "Submit a valid registration after Owner setup and open /api/v1/me using the returned session"
+        "Start with an empty nest.db and leftover runtime control files"
       ],
       "platform_conditions": [
-        "Repository CPython 3.9.25 environment with an initialized SQLite data root",
-        "Existing Owner account created through the setup fixture"
+        "CPython 3.9.25 repository environment and isolated SQLite data roots"
       ],
-      "evidence": [
-        "command: .venv/bin/python3 -m pytest -q test/app/features/accounts/test_auth.py test/app/interfaces/api/test_user_api.py",
-        "artifact: app/features/accounts/service.py",
-        "artifact: app/interfaces/api/v1/auth/routes.py",
-        "review: HTTP coverage observed 201 registration, fixed user role, session cookie/CSRF issuance, safe landing path, and authenticated /api/v1/me access"
-      ],
+      "evidence": [],
       "residuals": [],
       "blockers": []
     },
     {
       "id": "REQ-002",
-      "requirement": "The login page toggles between login and registration modes, collects display name/account/password/password confirmation in registration mode, keeps bilingual labels, and navigates directly after automatic sign-in.",
-      "status": "complete",
+      "requirement": "Desktop, installed CLI controller calls, source CLI start, and source CLI serve use the same lifecycle-owned preparation before Runtime snapshot initialization; existing OFFLINE/PREFLIGHT/FAILED behavior remains unchanged.",
+      "status": "implementing",
       "implementation": [
-        "LoginPage mode switch, registration client, localized auth resources, and error operation"
+        "Lifecycle data-home preparation callback at the existing RuntimeSupervisor start boundary"
       ],
       "automated_tests": [
-        "LoginPage mode-switch and automatic-navigation tests",
-        "Registration API client contract tests",
-        "Bilingual error-operation tests"
+        "Runtime record and Desktop data-home state parsing/start tests"
       ],
       "runtime_scenarios": [
-        "Open /login, switch to 注册, submit matching passwords, and follow the returned landing path"
+        "A repaired root receives its initial authoritative OFFLINE Runtime snapshot and can continue startup"
       ],
       "platform_conditions": [
-        "Node.js 20+ with pnpm 10.12.1 and both zh-CN/en-US resources"
+        "Desktop packaged CLI and source CLI share the injected lifecycle facade"
       ],
-      "evidence": [
-        "command: pnpm exec vitest run --maxWorkers=1 src/api/session.test.ts src/pages/LoginPage.test.tsx src/i18n/errors.test.ts src/i18n/resources.test.ts",
-        "command: pnpm typecheck",
-        "artifact: app/interfaces/web/frontend/src/pages/LoginPage.tsx",
-        "artifact: app/interfaces/web/frontend/src/i18n/locales/zh-CN/auth.ts",
-        "review: UI tests cover login/register mode switching, password confirmation, direct post-registration navigation, and bilingual labels/errors"
-      ],
+      "evidence": [],
       "residuals": [],
       "blockers": []
     },
     {
       "id": "REQ-003",
-      "requirement": "Invalid registration input, password mismatch, duplicate account IDs, and incomplete first-run setup fail without creating an unintended elevated or partial user flow.",
-      "status": "complete",
+      "requirement": "Unexpected tables, incompatible constraints, unreadable databases, unsafe column additions, malformed Runtime snapshots, and unrelated legacy roots still stop with an explicit error without automatic backup, deletion, or broad migration.",
+      "status": "implementing",
       "implementation": [
-        "Strict RegisterRequest validation, registration-unavailable guard, and frontend confirmation check"
+        "Existing legacy/corrupt rejection paths retained; only the narrow additive repair state is admitted"
       ],
       "automated_tests": [
-        "Password and Owner-availability negative tests",
-        "Duplicate registration HTTP test",
-        "Registration password-mismatch UI test"
+        "Existing legacy recovery and Runtime snapshot safety tests plus new negative cases"
       ],
       "runtime_scenarios": [
-        "Try mismatched passwords, a duplicate account, and registration before Owner setup"
+        "An unsupported schema remains blocked and the old explicit recovery action remains user-triggered"
       ],
       "platform_conditions": [
-        "Isolated temporary SQLite databases and jsdom frontend test environment"
+        "No external service or model validation is required for the data preparation step"
       ],
-      "evidence": [
-        "command: .venv/bin/python3 -m pytest -q test/app/features/accounts/test_auth.py test/app/interfaces/api/test_user_api.py",
-        "command: pnpm exec vitest run --maxWorkers=1 src/pages/LoginPage.test.tsx",
-        "artifact: app/interfaces/api/v1/auth/models.py",
-        "artifact: app/features/accounts/service.py",
-        "review: Negative coverage verifies password mismatch, duplicate account rejection, and registration-unavailable before Owner setup without elevated-role creation"
-      ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "REQ-004",
-      "requirement": "The change stays inside the existing Accounts/API/Web boundaries, preserves the first Owner flow, leaves administrator user management and QR behavior unchanged, and passes the required quality gates.",
-      "status": "complete",
-      "implementation": [
-        "Existing Accounts facade and API boundary extended without new authority or storage schema"
-      ],
-      "automated_tests": [
-        "Focused Python and frontend tests",
-        "Relevant architecture and task-closure gates"
-      ],
-      "runtime_scenarios": [
-        "Re-run the exact focused checks from the clean candidate tree"
-      ],
-      "platform_conditions": [
-        "Repository .venv, frontend dependencies, and origin/main base SHA available"
-      ],
-      "evidence": [
-        "command: .venv/bin/ruff check app/features/accounts app/interfaces/api/app.py app/interfaces/api/v1/auth infrastructure/persistence/accounts.py test/app/features/accounts test/app/interfaces/api/test_user_api.py test/infrastructure/persistence/test_accounts.py",
-        "command: .venv/bin/python3 -m mypy app/features/accounts app/interfaces/api/app.py app/interfaces/api/v1/auth infrastructure/persistence/accounts.py",
-        "command: .venv/bin/python3 -m pytest -q test/architecture/test_app_layer_boundaries.py test/architecture/test_system_layer_boundaries.py",
-        "command: bash scripts/pre_submit_gate.sh --stage main --base-sha \"$(git rev-parse origin/main^{commit})\" --closure-file task-closure.json",
-        "command: git diff --check",
-        "artifact: task-closure.json",
-        "artifact: docs/developer/engineering/development.md",
-        "review: Administrator management, QR behavior, first Owner flow, and storage schema remain unchanged; the main gate reached its immutable-base governance classifier before stopping on mixed governance and implementation paths"
-      ],
+      "evidence": [],
       "residuals": [],
       "blockers": []
     }
