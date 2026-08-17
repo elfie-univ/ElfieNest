@@ -46,9 +46,10 @@
       ],
       "evidence": [
         "command: ./.venv/bin/ruff check <all changed Python files> -> passed",
-        "command: ./.venv/bin/python3 -m pytest -q <affected lifecycle, persistence, and Runtime tests> -> 113 passed",
+        "command: ./.venv/bin/python3 -m pytest -q <affected lifecycle, persistence, and Runtime tests> -> 114 passed",
         "scenario: test_partial_root_with_empty_database_is_repaired_without_deleting_residuals -> residual runtime files preserved and no data-backups created",
         "scenario: test_partial_current_table_contract_is_repaired_in_place and test_missing_current_table_is_created_in_place -> safe current fields/tables restored in place",
+        "scenario: test_ready_root_skips_repair_work -> ready roots do not repeat additive repair",
         "scenario: test_unsupported_missing_column_stays_blocked -> unsupported schema remains blocked",
         "review: final diff contains only the declared lifecycle, storage, and focused test paths"
       ],
@@ -72,7 +73,7 @@
         "Desktop packaged CLI and source CLI share the injected lifecycle facade"
       ],
       "evidence": [
-        "command: ./.venv/bin/python3 -m pytest -q <affected lifecycle, persistence, and Runtime tests> -> 113 passed",
+        "command: ./.venv/bin/python3 -m pytest -q <affected lifecycle, persistence, and Runtime tests> -> 114 passed",
         "command: pnpm --dir app/interfaces/desktop build -> passed",
         "command: node --test build/components/desktop-interface/desktop_role_lifecycle.test.js build/components/desktop-interface/lifecycle_client.test.js -> 28 passed",
         "scenario: test_start_prepares_data_home_before_initializing_runtime_record -> preparation callback precedes authoritative OFFLINE initialization",
@@ -99,7 +100,7 @@
         "No external service or model validation is required for the data preparation step"
       ],
       "evidence": [
-        "command: ./.venv/bin/python3 -m pytest -q <affected lifecycle, persistence, and Runtime tests> -> 113 passed",
+        "command: ./.venv/bin/python3 -m pytest -q <affected lifecycle, persistence, and Runtime tests> -> 114 passed",
         "scenario: test_unsupported_missing_column_stays_blocked -> incompatible current schema returns an explicit error",
         "scenario: existing lifecycle data-home recovery tests -> explicit user-triggered recovery path remains unchanged",
         "scope check: no schema-version record, automatic backup, deletion, or broad migration was added",
