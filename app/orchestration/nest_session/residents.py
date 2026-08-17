@@ -13,7 +13,7 @@ from nest.public import Nest, NestSnapshot
 def actor_catalog(elfies: Mapping[str, Elfie]) -> tuple[ActorDescriptor, ...]:
     descriptors: list[ActorDescriptor] = []
     for elfie_id, elfie in sorted(elfies.items()):
-        profile = getattr(elfie, "character_profile", None)
+        profile = getattr(elfie, "profile", None)
         if isinstance(profile, ElfieProfile):
             resolved = AppearanceResolver().resolve(profile)
             descriptors.append(

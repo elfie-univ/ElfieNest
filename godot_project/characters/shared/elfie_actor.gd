@@ -238,6 +238,10 @@ func visual_bounds() -> AABB:
 	return ACTOR_APPEARANCE.visual_bounds(_visual_root)
 
 
+func ground_visual_to_floor(ground_y: float) -> float:
+	return ACTOR_APPEARANCE.ground_visual_to_plane(_visual_root, ground_y)
+
+
 func preview_focus_point(target: String) -> Vector3:
 	return ACTOR_APPEARANCE.preview_focus_point(_visual_root, target)
 

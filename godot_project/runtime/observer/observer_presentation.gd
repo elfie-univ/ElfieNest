@@ -80,6 +80,7 @@ func _create_actor(actor_id: String, entity: Dictionary) -> ElfieActor:
 		return null
 	actor.species_id = species
 	actor.configure(actor_id, anchor.global_position, entity["appearance"] as Dictionary)
+	actor.ground_visual_to_floor(anchor.global_position.y)
 	actor.set_meta("observer_presentation", true)
 	actor.set_meta("species", species)
 	actor.set_meta("home_anchor_id", String(entity["home_anchor_id"]))

@@ -9,6 +9,9 @@ render_mode diffuse_burley;
 
 uniform sampler2D base_texture : source_color;
 uniform bool use_base_texture = false;
+uniform sampler2D emission_texture : source_color;
+uniform bool use_emission_texture = false;
+uniform vec4 emission_color : source_color = vec4(1.0);
 uniform vec4 base_color : source_color = vec4(1.0);
 uniform vec4 appearance_tint : source_color = vec4(1.0);
 uniform int appearance_pattern = 0;
@@ -19,6 +22,10 @@ void fragment() {
         base *= texture(base_texture, UV);
     }
     vec3 color = base.rgb * appearance_tint.rgb;
+    vec3 emission = vec3(0.0);
+    if (use_emission_texture) {
+        emission = texture(emission_texture, UV).rgb * emission_color.rgb * appearance_tint.rgb;
+    }
     float accent = 0.0;
     if (appearance_pattern == 1) {
         accent = step(0.5, fract(UV.x * 7.0));
@@ -28,7 +35,9 @@ void fragment() {
         accent = step(0.55, abs(fract(UV.x * 3.0) - 0.5));
     }
     color = mix(color, color * vec3(0.48, 0.64, 0.82), accent * 0.42);
+    emission = mix(emission, emission * vec3(0.48, 0.64, 0.82), accent * 0.42);
     ALBEDO = color;
+    EMISSION = emission;
     ALPHA = base.a;
 }
 """
@@ -50,16 +59,27 @@ static func apply(
 	)
 	height_scale = clampf(height_scale, 0.85, 1.15)
 	build_scale = clampf(build_scale, 0.85, 1.15)
-	visual_root.scale = Vector3(build_scale, height_scale, build_scale)
-
-	var capsule := collision_shape.shape.duplicate() as CapsuleShape3D
-	capsule.radius = BASE_COLLISION_RADIUS * build_scale
-	capsule.height = maxf(
-		BASE_COLLISION_HEIGHT * height_scale,
-		capsule.radius * 2.0,
+	var authored_visual_scale := _authored_scale(visual_root, &"actor_authored_scale")
+	visual_root.scale = Vector3(
+		authored_visual_scale.x * build_scale,
+		authored_visual_scale.y * height_scale,
+		authored_visual_scale.z * build_scale,
 	)
-	collision_shape.shape = capsule
-	collision_shape.position.y = capsule.height * 0.5
+	var authored_collision_scale := _authored_scale(
+		collision_shape,
+		&"actor_authored_scale",
+	)
+	collision_shape.scale = Vector3(
+		authored_collision_scale.x * build_scale,
+		authored_collision_scale.y * height_scale,
+		authored_collision_scale.z * build_scale,
+	)
+	collision_shape.position.y = (
+		BASE_COLLISION_HEIGHT
+		* authored_collision_scale.y
+		* height_scale
+		* 0.5
+	)
 	var bindings := SpeciesCatalog.appearance_bindings(species_id)
 	_apply_bone_scales(
 		visual_root,
@@ -76,6 +96,69 @@ static func apply(
 		appearance.get("material_parameters", {}),
 		bindings.get("material_parameters", {}),
 	)
+
+
+static func ground_visual_to_plane(visual_root: Node3D, ground_y: float) -> float:
+	var lowest_y := _foot_contact_y(visual_root)
+	if lowest_y == INF:
+		lowest_y = _mesh_bottom_y(visual_root)
+	if lowest_y == INF:
+		return 0.0
+	var offset := ground_y - lowest_y
+	visual_root.global_position.y += offset
+	return offset
+
+
+static func _authored_scale(node: Node3D, metadata_key: StringName) -> Vector3:
+	if node.has_meta(metadata_key):
+		var stored: Variant = node.get_meta(metadata_key)
+		if stored is Vector3:
+			return stored
+	var authored := node.scale
+	node.set_meta(metadata_key, authored)
+	return authored
+
+
+static func _foot_contact_y(visual_root: Node3D) -> float:
+	var lowest_y := INF
+	for node in visual_root.find_children("*", "Skeleton3D", true, false):
+		var skeleton := node as Skeleton3D
+		if skeleton == null:
+			continue
+		for bone_index in range(skeleton.get_bone_count()):
+			var bone_name := skeleton.get_bone_name(bone_index).to_lower()
+			if not (
+				bone_name.contains("toe_end")
+					or bone_name.contains("toeend")
+					or bone_name.contains("toe_base")
+					or bone_name.contains("toebase")
+					or bone_name.ends_with("foot")
+			):
+				continue
+			var foot_point := skeleton.to_global(
+				skeleton.get_bone_global_pose(bone_index).origin
+			)
+			lowest_y = minf(lowest_y, foot_point.y)
+	return lowest_y
+
+
+static func _mesh_bottom_y(visual_root: Node3D) -> float:
+	var lowest_y := INF
+	for node in visual_root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance == null or mesh_instance.mesh == null:
+			continue
+		var bounds := mesh_instance.get_aabb()
+		for x_position in [bounds.position.x, bounds.end.x]:
+			for y_position in [bounds.position.y, bounds.end.y]:
+				for z_position in [bounds.position.z, bounds.end.z]:
+					lowest_y = minf(
+						lowest_y,
+						mesh_instance.to_global(
+							Vector3(x_position, y_position, z_position)
+						).y,
+					)
+	return lowest_y
 
 
 static func visual_bounds(visual_root: Node3D) -> AABB:
@@ -230,6 +313,8 @@ static func _apply_material_parameters(
 		if not binding is Dictionary:
 			continue
 		var value: Variant = (raw_values as Dictionary).get(semantic_name)
+		if value == null:
+			continue
 		var values: Variant = (binding as Dictionary).get("values", {})
 		if not values is Dictionary:
 			continue
@@ -260,10 +345,15 @@ static func _apply_material_parameters(
 			material.set_shader_parameter("appearance_tint", tint)
 			material.set_shader_parameter("appearance_pattern", pattern_id)
 			if source_material is BaseMaterial3D:
-				material.set_shader_parameter("base_color", source_material.albedo_color)
-				if source_material.albedo_texture != null:
-					material.set_shader_parameter("base_texture", source_material.albedo_texture)
+				var base_material := source_material as BaseMaterial3D
+				material.set_shader_parameter("base_color", base_material.albedo_color)
+				if base_material.albedo_texture != null:
+					material.set_shader_parameter("base_texture", base_material.albedo_texture)
 					material.set_shader_parameter("use_base_texture", true)
+				if base_material.emission_enabled and base_material.emission_texture != null:
+					material.set_shader_parameter("emission_texture", base_material.emission_texture)
+					material.set_shader_parameter("emission_color", base_material.emission)
+					material.set_shader_parameter("use_emission_texture", true)
 			mesh_instance.set_surface_override_material(surface_index, material)
 
 
