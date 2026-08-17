@@ -15,6 +15,7 @@
     "infrastructure/persistence/nest_db/final_schema.py",
     "infrastructure/persistence/nest_db/store.py",
     "infrastructure/platform/lifecycle/runtime_record.py",
+    "test/app/orchestration/lifecycle/test_runtime_supervisor.py",
     "test/infrastructure/persistence/test_final_bootstrap.py",
     "test/infrastructure/persistence/layout/test_lifecycle_data_home_recovery.py",
     "test/infrastructure/platform/lifecycle/test_runtime_record.py",
