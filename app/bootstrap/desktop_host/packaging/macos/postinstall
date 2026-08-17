@@ -3,7 +3,14 @@
 set -eu
 
 target_root="${3:-/}"
-cli="${target_root%/}/Applications/ElfieNest.app/Contents/Resources/management-cli/ElfieNestCli"
+app="${target_root%/}/Applications/ElfieNest.app"
+cli="$app/Contents/Resources/management-cli/ElfieNestCli"
+lsregister="${target_root%/}/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+
+if [ ! -d "$app" ]; then
+    echo "ElfieNest application bundle is missing after installation: $app" >&2
+    exit 1
+fi
 if [ ! -x "$cli" ]; then
     echo "ElfieNest management CLI is missing after installation: $cli" >&2
     exit 1
@@ -12,3 +19,18 @@ fi
 mkdir -p /usr/local/bin
 ln -sfn "$cli" /usr/local/bin/elfienest
 chmod 755 /usr/local/bin/elfienest
+
+if [ ! -x "$lsregister" ]; then
+    echo "macOS LaunchServices registrar is missing: $lsregister" >&2
+    exit 1
+fi
+
+console_user="$(/usr/bin/stat -f '%Su' /dev/console)"
+if [ -z "$console_user" ] || [ "$console_user" = "root" ]; then
+    echo "ElfieNest requires a logged-in console user to register with Launchpad" >&2
+    exit 1
+fi
+
+console_uid="$(/usr/bin/id -u "$console_user")"
+/bin/launchctl asuser "$console_uid" "$lsregister" -gc
+/bin/launchctl asuser "$console_uid" "$lsregister" -f "$app"

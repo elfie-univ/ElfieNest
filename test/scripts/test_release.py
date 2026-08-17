@@ -426,10 +426,13 @@ def test_native_installers_publish_the_global_cli_launcher_contract() -> None:
     # Then: each installer creates/removes only the packaged management CLI launcher.
     assert "/usr/local/bin/elfienest" in mac
     assert 'target_root="${3:-/}"' in mac
-    assert (
-        "Applications/ElfieNest.app/Contents/Resources/management-cli/ElfieNestCli"
-        in mac
-    )
+    assert 'app="${target_root%/}/Applications/ElfieNest.app"' in mac
+    assert 'cli="$app/Contents/Resources/management-cli/ElfieNestCli"' in mac
+    assert "LaunchServices.framework/Support/lsregister" in mac
+    assert "stat -f '%Su' /dev/console" in mac
+    assert "launchctl asuser" in mac
+    assert "-gc" in mac
+    assert '-f "$app"' in mac
     assert "/usr/local/bin/elfienest" in linux_install
     assert "resources/management-cli/ElfieNestCli" in linux_install
     assert "resources/management-cli/ElfieNestCli" in linux_remove
