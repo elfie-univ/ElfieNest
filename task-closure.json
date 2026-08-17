@@ -1,187 +1,49 @@
 {
   "schema_version": 1,
-  "task": "add owner-configured Telegram and Discord communication with Elfie avatar sync",
-  "contract_refs": [
-    "docs/developer/contracts/application.md",
-    "docs/developer/contracts/elfie.md",
-    "docs/developer/contracts/system.md",
-    "docs/developer/contracts/service-lifecycle.md"
-  ],
+  "task": "register the packaged macOS application with LaunchServices after PKG installation",
+  "contract_refs": [],
   "scope": [
-    "app/bootstrap/app_wiring/communication.py",
-    "app/bootstrap/api.py",
-    "app/bootstrap/container.py",
-    "app/features/communication/__init__.py",
-    "app/features/communication/avatar_ports.py",
-    "app/features/communication/discord_*.py",
-    "app/features/communication/telegram_*.py",
-    "app/interfaces/api/app.py",
-    "app/interfaces/api/v1/elfies/communication_accounts/__init__.py",
-    "app/interfaces/api/v1/elfies/communication_accounts/discord_*.py",
-    "app/interfaces/web/frontend/src/api/client.ts",
-    "app/interfaces/web/frontend/src/api/elfies/communication-accounts.ts",
-    "app/interfaces/web/frontend/src/components/ElfieProfilePanel.tsx",
-    "app/interfaces/web/frontend/src/components/elfie-profile/ProfileDiscordAccount.tsx",
-    "app/interfaces/web/frontend/src/components/elfie-profile/ProfileDiscordAccount.test.tsx",
-    "app/interfaces/web/frontend/src/components/elfie-profile/ProfilePrivateModules.tsx",
-    "app/interfaces/web/frontend/src/components/elfie-profile/ProfilePrivateModules.test.tsx",
-    "app/interfaces/web/frontend/src/components/elfie-profile/mock-data.test.ts",
-    "app/interfaces/web/frontend/src/components/ElfieProfilePanel.test.tsx",
-    "app/interfaces/web/frontend/src/i18n/locales/en-US/chat.ts",
-    "app/interfaces/web/frontend/src/i18n/locales/zh-CN/chat.ts",
-    "app/interfaces/web/frontend/src/pages/ChatPage.tsx",
-    "app/interfaces/web/frontend/src/pages/ChatPage.profile.test.tsx",
-    "app/interfaces/web/frontend/src/shared/chat-profile.css",
-    "app/orchestration/message_delivery/__init__.py",
-    "app/orchestration/message_delivery/discord.py",
-    "app/orchestration/message_delivery/discord_runtime_ports.py",
-    "infrastructure/communication/__init__.py",
-    "infrastructure/communication/channels/__init__.py",
-    "infrastructure/communication/discord/*.py",
-    "infrastructure/communication/telegram/*.py",
-    "infrastructure/persistence/configuration/discord_tokens.py",
-    "infrastructure/persistence/elfie_workspace/discord_accounts.py",
-    "test/app/features/communication/test_discord_accounts_service.py",
-    "test/app/features/communication/test_telegram_accounts_service.py",
-    "test/app/interfaces/api/v1/elfies/communication_accounts/test_discord_routes.py",
-    "test/app/orchestration/message_delivery/test_discord_update_handler.py",
-    "test/infrastructure/communication/discord/*.py",
-    "test/infrastructure/communication/telegram/*.py",
-    "test/infrastructure/persistence/elfie_workspace/test_discord_accounts.py",
-    "app/interfaces/web/frontend/src/api/elfies/communication-accounts.test.ts",
-    "app/interfaces/web/frontend/src/components/elfie-profile/ProfileDiscordAccount.test.tsx",
-    "app/interfaces/web/frontend/src/components/elfie-profile/ProfilePrivateModules.test.tsx",
-    "app/interfaces/web/frontend/src/pages/ChatPage.profile.test.tsx",
-    "app/interfaces/web/frontend/src/test/fixtures/elfie-profile.ts",
-    "docs/developer/architecture/communication.md",
-    "docs/zh/developer/architecture/communication.md",
-    "docs/developer/index.md",
-    "docs/zh/developer/index.md",
-    "docs/developer/architecture/index.md",
-    "docs/zh/developer/architecture/index.md",
-    "docs/.vitepress/config.mts",
+    "app/bootstrap/desktop_host/packaging/macos/postinstall",
+    "test/scripts/test_release.py",
     "task-closure.json"
   ],
   "conformance": {
-    "rows": ["ELF-007", "ELF-009"],
-    "reason": ""
+    "rows": [],
+    "reason": "This fixes an existing macOS installer integration gap within the current Desktop release contract; it does not change application architecture, API, storage, or lifecycle ownership."
   },
   "rows": [
     {
       "id": "REQ-001",
-      "requirement": "An owner can configure one Discord Bot Token per Elfie, the token is validated and stored only through the secret boundary, and the API never returns it.",
-      "status": "complete",
-      "implementation": ["Discord account Feature, credential Adapter, persistence Adapter, and versioned owner routes"],
-      "automated_tests": ["Discord account service tests", "Discord route contract tests"],
-      "runtime_scenarios": ["Owner configures a valid Bot Token and reloads the account projection"],
-      "platform_conditions": ["Local ElfieNest process with an owner session", "Discord Bot Token available for live replay"],
-      "evidence": [
-        "command:.venv/bin/python3 -m pytest -q test/app/features/communication/test_discord_accounts_service.py test/app/interfaces/api/v1/elfies/communication_accounts/test_discord_routes.py",
-        "artifact:app/features/communication/discord_service.py",
-        "artifact:infrastructure/persistence/configuration/discord_tokens.py",
-        "review:owner-scoped routes and response DTOs never expose bot_token or credential_ref"
+      "requirement": "A macOS PKG install registers /Applications/ElfieNest.app for the active console user so Launchpad can discover it, while preserving the packaged global elfienest launcher.",
+      "status": "blocked",
+      "blocker_class": "external_environment",
+      "implementation": [
+        "app/bootstrap/desktop_host/packaging/macos/postinstall"
       ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "REQ-002",
-      "requirement": "A one-time private Discord pairing code binds the external user and DM conversation to the owning Elfie; unknown users and non-DM messages are terminally rejected before canonical message delivery.",
-      "status": "complete",
-      "implementation": ["Discord pairing service, strict Gateway mapper, and Discord message-delivery handler"],
-      "automated_tests": ["Pairing success/expiry/replay tests", "Unknown sender and non-DM rejection tests", "Canonical delivery identity/idempotency tests"],
-      "runtime_scenarios": ["Owner generates a code, the bound user sends a DM, and an unbound user is ignored without a reply"],
-      "platform_conditions": ["Bot is installed in a server that the test Discord user can access", "DM-only P0; no public-channel intent"],
-      "evidence": [
-        "command:.venv/bin/python3 -m pytest -q test/app/features/communication/test_discord_accounts_service.py test/app/orchestration/message_delivery/test_discord_update_handler.py test/infrastructure/communication/discord/test_client_and_mapper.py",
-        "artifact:app/orchestration/message_delivery/discord.py",
-        "artifact:infrastructure/communication/discord/mapper.py",
-        "review:single-use pairing and exact user/channel/DM authorization terminate before SubmitUserMessageCommand"
+      "automated_tests": [
+        "test/scripts/test_release.py::test_native_installers_publish_the_global_cli_launcher_contract"
       ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "REQ-003",
-      "requirement": "Discord receives DM events through a lifecycle-owned Gateway worker, sends text replies through REST, handles heartbeat/reconnect/resume boundaries, and attaches the existing Elfie communication channel only after pairing.",
-      "status": "complete",
-      "implementation": ["Discord REST client, Gateway client, mapper, channel, worker, supervisor, and lifecycle wiring"],
-      "automated_tests": ["REST/mapper tests", "Gateway payload and worker tests", "Channel receipt/history tests", "Runtime attach/detach and retry tests"],
-      "runtime_scenarios": ["Configured account connects, pairs, exchanges text, and stops cleanly"],
-      "platform_conditions": ["Outbound network access to Discord API/Gateway", "Gateway session can reconnect without leaking worker threads"],
-      "evidence": [
-        "command:.venv/bin/python3 -m pytest -q test/infrastructure/communication/discord test/infrastructure/persistence/elfie_workspace/test_discord_accounts.py",
-        "artifact:infrastructure/communication/discord/client.py",
-        "artifact:infrastructure/communication/discord/runner.py",
-        "artifact:app/bootstrap/container.py",
-        "review:Gateway heartbeat/reconnect/resume, REST replies, bounded worker cleanup and lifecycle wiring are covered"
+      "runtime_scenarios": [
+        "Install the rebuilt darwin-x64 PKG, inspect LaunchServices registration, and verify the app is discoverable from Launchpad."
       ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "REQ-004",
-      "requirement": "The owner-facing UI exposes a novice-friendly Discord wizard with strict API schemas, copy/open actions, pairing status polling, reconnect/disconnect states, and Chinese/English text without direct component HTTP calls.",
-      "status": "complete",
-      "implementation": ["Discord API client, Profile Discord account module, profile wiring, localization, and shared visual treatment"],
-      "automated_tests": ["API client contract tests", "Discord account component tests", "Profile module/page regression tests"],
-      "runtime_scenarios": ["Owner opens the profile, completes the wizard, sees waiting/active states, and can disconnect"],
-      "platform_conditions": ["Node.js 20+ and pnpm 10.12.1", "Both zh-CN and en-US locales"],
-      "evidence": [
-        "command:pnpm exec vitest run --maxWorkers=1 src/api/elfies/communication-accounts.test.ts src/components/elfie-profile/ProfileDiscordAccount.test.tsx src/components/elfie-profile/ProfilePrivateModules.test.tsx src/components/ElfieProfilePanel.test.tsx src/pages/ChatPage.profile.test.tsx",
-        "command:pnpm exec tsc --noEmit -p tsconfig.json",
-        "artifact:app/interfaces/web/frontend/src/components/elfie-profile/ProfileDiscordAccount.tsx",
-        "artifact:app/interfaces/web/frontend/src/api/elfies/communication-accounts.ts",
-        "artifact:app/interfaces/web/frontend/src/shared/chat-profile.css",
-        "review:three-step owner wizard, copy/open actions, polling, disconnect and bilingual strings use the shared private-channel UI",
-        "review:Discord is mounted in the adopter-only manage accordion beside Telegram; default-collapsed and expanded parent states were replayed in the browser preview",
-        "artifact:/Users/Lendfating/.codex/visualizations/2026/08/16/01a00a57-bea7-76b2-920e-be80f6c2b15c/discord-flow/13-final-parent-collapsed.png",
-        "artifact:/Users/Lendfating/.codex/visualizations/2026/08/16/01a00a57-bea7-76b2-920e-be80f6c2b15c/discord-flow/14-final-parent-discord-expanded.png"
+      "platform_conditions": [
+        "macOS 14.8.7 Intel host",
+        "A logged-in console user and the native PKG installer are available"
       ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "REQ-005",
-      "requirement": "The change preserves communication authority, typed boundaries, owner authorization, idempotent external message IDs, and the repository architecture/quality gates.",
-      "status": "complete",
-      "implementation": ["App/Infrastructure dependency direction, focused tests, and closure matrix"],
-      "automated_tests": ["Focused Python tests", "Focused frontend tests/typecheck", "Architecture scanners", "Task closure and pre-submit gates"],
-      "runtime_scenarios": ["Re-run the exact focused commands and the final gate from a clean candidate tree"],
-      "platform_conditions": ["Repository .venv and frontend dependencies available", "origin/main resolves to the immutable base"],
       "evidence": [
-        "command:.venv/bin/python3 -m pytest -q test/architecture/test_app_layer_boundaries.py test/architecture/test_system_layer_boundaries.py test/architecture/test_gateway_runtime_boundaries.py test/architecture/test_bootstrap_wiring_boundaries.py test/architecture/test_storage_boundaries.py test/architecture/test_runtime_import_boundaries.py test/architecture/test_effective_dependency_boundaries.py test/architecture/test_project_structure.py",
-        "command:.venv/bin/ruff check app/features/communication/discord_*.py infrastructure/communication/discord infrastructure/persistence/configuration/discord_tokens.py infrastructure/persistence/elfie_workspace/discord_accounts.py",
-        "command:git diff --check",
-        "command:.venv/bin/mypy -O json app elfie nest infrastructure devtools scripts",
-        "command:UV_CACHE_DIR=/private/tmp/elfienest-uv-cache uv run --no-sync python scripts/check_quality_baseline.py",
-        "command:isolated two-phase bash scripts/pre_submit_gate.sh --base-sha 20a7ac9cb60ae5e3000c215a35d78c7bc97f716c --closure-file task-closure.json (2526 passed, 3 skipped; documentation build passed)",
-        "artifact:docs/developer/architecture/communication.md",
-        "artifact:task-closure.json",
-        "review:App/Feature/Infrastructure ownership, secret boundary, idempotent external IDs and Telegram regression coverage were inspected",
-        "review:the frozen-base official gate classified task-closure.json as governance and requires a separate governance change; the isolated two-phase candidate gate passed"
+        "command: ./.venv/bin/python3 -m pytest -q test/scripts/test_release.py test/scripts/test_release_install_smoke.py (26 passed)",
+        "command: sh -n app/bootstrap/desktop_host/packaging/macos/postinstall && git diff --check",
+        "command: UV_CACHE_DIR=/tmp/elfienest-uv-cache ./.venv/bin/python scripts/release.py --target darwin-x64 (PKG built; coordinator only reported release-install-smoke-unavailable)",
+        "artifact: dist/ElfieNest-0.1.0-beta.1-internal-mac-x64.pkg sha256=067aadd55fc2b4d4e2a7f4515443fecdb1de60f508db99fedfb90d14fdcb1e52",
+        "review: extracted PKG Scripts archive contains postinstall with LaunchServices stale-entry cleanup, active console-user lookup, launchctl asuser, and -f /Applications/ElfieNest.app",
+        "host: macOS 14.8.7 user LaunchServices dump contains /Applications/ElfieNest.app with identifier com.elfienest.desktop, APPL type, relative icon, and x86_64 slice after stale-entry cleanup"
       ],
-      "residuals": [],
-      "blockers": []
-    },
-    {
-      "id": "REQ-006",
-      "requirement": "After a valid owner configuration, Telegram and Discord receive the current Elfie headshot as the bot profile image; portrait or platform upload failures are isolated and do not invalidate the saved account.",
-      "status": "complete",
-      "implementation": ["Communication-owned portrait Port, Telegram JPEG multipart uploader, Discord image-data uploader, and post-save configuration wiring"],
-      "automated_tests": ["Telegram and Discord service sync/failure-isolation tests", "Telegram multipart profile-photo and Discord Modify Current User client tests"],
-      "runtime_scenarios": ["Configure a valid account with a stored headshot and verify the platform updater is called after account persistence"],
-      "platform_conditions": ["Telegram Bot API supports setMyProfilePhoto with a static JPG upload", "Discord Bot API supports Modify Current User avatar image data", "Live platform credentials are required only for an external smoke replay"],
-      "evidence": [
-        "command:.venv/bin/python3 -m pytest -q test/app/features/communication/test_telegram_accounts_service.py test/app/features/communication/test_discord_accounts_service.py test/infrastructure/communication/telegram/test_client_and_mapper.py test/infrastructure/communication/discord/test_client_and_mapper.py",
-        "command:.venv/bin/ruff check app/features/communication/avatar_ports.py app/features/communication/telegram_ports.py app/features/communication/telegram_service.py app/features/communication/discord_ports.py app/features/communication/discord_service.py infrastructure/communication/telegram/client.py infrastructure/communication/discord/client.py app/bootstrap/app_wiring/communication.py",
-        "artifact:app/features/communication/avatar_ports.py",
-        "artifact:infrastructure/communication/telegram/client.py",
-        "artifact:infrastructure/communication/discord/client.py",
-        "review:account persistence completes before avatar sync; all sync exceptions are isolated from the owner-facing configuration result"
+      "residuals": [
+        "The repaired PKG postinstall has not executed on this machine; install it with administrator authorization, then confirm the app appears in Launchpad."
       ],
-      "residuals": [],
-      "blockers": []
+      "blockers": [
+        "sudo installer requires the macOS administrator password; the agent cannot supply or store that password"
+      ]
     }
   ]
 }
