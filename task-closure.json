@@ -1,48 +1,58 @@
 {
   "schema_version": 1,
-  "task": "repair only incomplete current data roots before Desktop and CLI startup; ground Observer Elfie visuals; repair the five confirmed Python quality baseline failures",
+  "task": "repair incomplete current data roots and align runtime-derived access URLs; ground Observer Elfie visuals; repair the five confirmed Python quality baseline failures",
   "contract_refs": [
     "docs/developer/contracts/service-lifecycle.md"
   ],
   "scope": [
-    "app/orchestration/lifecycle/ports.py",
-    "app/orchestration/lifecycle/facade.py",
-    "app/orchestration/lifecycle/runtime_supervisor.py",
-    "app/interfaces/cli/lifecycle_commands.py",
-    "app/interfaces/desktop/src/desktop_role_lifecycle.ts",
-    "app/interfaces/desktop/src/lifecycle_client.ts",
-    "infrastructure/persistence/layout/lifecycle_data_home.py",
-    "infrastructure/persistence/nest_db/final_schema.py",
-    "infrastructure/persistence/nest_db/store.py",
-    "infrastructure/persistence/nest_db/store.py",
-    "infrastructure/platform/lifecycle/runtime_record.py",
-    "test/app/orchestration/lifecycle/test_runtime_supervisor.py",
-    "test/infrastructure/persistence/test_final_bootstrap.py",
-    "test/infrastructure/persistence/layout/test_lifecycle_data_home_recovery.py",
-    "test/infrastructure/platform/lifecycle/test_runtime_record.py",
-    "app/interfaces/desktop/src/desktop_role_lifecycle.test.ts",
-    "app/interfaces/desktop/src/lifecycle_client.test.ts",
     "app/bootstrap/api.py",
-    "app/bootstrap/container.py",
     "app/bootstrap/app_wiring/*.py",
+    "app/bootstrap/container.py",
     "app/features/configuration/food/*.py",
     "app/features/configuration/providers/*.py",
     "app/interfaces/api/v1/admin/food_packages/*.py",
     "app/interfaces/api/v1/admin/model_providers/*.py",
+    "app/interfaces/cli/lifecycle_commands.py",
+    "app/interfaces/cli/mobile_commands.py",
+    "app/interfaces/desktop/src/desktop_role_lifecycle.test.ts",
+    "app/interfaces/desktop/src/desktop_role_lifecycle.ts",
+    "app/interfaces/desktop/src/lifecycle_client.test.ts",
+    "app/interfaces/desktop/src/lifecycle_client.ts",
+    "app/interfaces/desktop/src/main.ts",
+    "app/interfaces/desktop/src/windows/window_options.test.ts",
+    "app/interfaces/desktop/src/windows/window_options.ts",
     "app/interfaces/web/frontend/src/api/admin/food-packages.ts",
+    "app/interfaces/web/frontend/src/api/admin/runtime.test.ts",
+    "app/interfaces/web/frontend/src/api/client.test.ts",
     "app/interfaces/web/frontend/src/api/owner-providers.ts",
     "app/interfaces/web/frontend/src/components/FoodRecipeEditor.tsx",
+    "app/interfaces/web/frontend/src/components/MobileAccessDialog.test.tsx",
     "app/interfaces/web/frontend/src/components/OwnerProviderPanel.tsx",
     "app/interfaces/web/frontend/src/components/ProviderModelsDialog.test.tsx",
     "app/interfaces/web/frontend/src/components/ProviderModelsDialog.tsx",
     "app/interfaces/web/frontend/src/i18n/locales/en-US/manage.ts",
     "app/interfaces/web/frontend/src/i18n/locales/zh-CN/manage.ts",
     "app/interfaces/web/frontend/src/styles.css",
-    "config/models/provider-catalog.yaml",
+    "app/orchestration/lifecycle/facade.py",
+    "app/orchestration/lifecycle/ports.py",
+    "app/orchestration/lifecycle/runtime_supervisor.py",
     "app/orchestration/nest_session/residents.py",
+    "config/models/provider-catalog.yaml",
     "docs/developer/conformance/provider-model-availability.md",
     "docs/developer/designs/provider-model-availability.md",
+    "docs/developer/engineering/tooling.md",
     "docs/zh/developer/conformance/provider-model-availability.md",
+    "docs/zh/developer/engineering/tooling.md",
+    "elfienest.sh",
+    "godot_project/characters/dog/dog.tscn",
+    "godot_project/characters/fox/fox.tscn",
+    "godot_project/characters/shared/elfie_actor.gd",
+    "godot_project/runtime/actor/actor_appearance.gd",
+    "godot_project/runtime/observer/observer_presentation.gd",
+    "godot_project/scripts/test/test_actor_appearance_material.gd",
+    "godot_project/scripts/test/test_dog_scale_calibration.gd",
+    "godot_project/scripts/test/test_fox_scale_calibration.gd",
+    "godot_project/scripts/test/test_observer_catalog.gd",
     "infrastructure/models/catalog.py",
     "infrastructure/models/food_technology.py",
     "infrastructure/models/inference/llm_api.py",
@@ -57,39 +67,43 @@
     "infrastructure/models/validation/*.py",
     "infrastructure/persistence/food.py",
     "infrastructure/persistence/food_evidence.py",
+    "infrastructure/persistence/layout/lifecycle_data_home.py",
     "infrastructure/persistence/model_health_projection.py",
     "infrastructure/persistence/nest_db/final_schema.py",
+    "infrastructure/persistence/nest_db/store.py",
     "infrastructure/persistence/provider_availability.py",
     "infrastructure/persistence/report_storage.py",
     "infrastructure/persistence/reports/*.py",
+    "infrastructure/platform/lifecycle/runtime_record.py",
+    "scripts/elfienest.py",
+    "task-closure.json",
     "test/app/features/configuration/food/*.py",
     "test/app/features/configuration/providers/*.py",
     "test/app/interfaces/api/v1/admin/food_packages/*.py",
     "test/app/interfaces/api/v1/admin/model_providers/*.py",
+    "test/app/interfaces/api/v1/admin/runtime/test_routes.py",
+    "test/app/interfaces/cli/test_cli_design_new.py",
+    "test/app/interfaces/cli/test_lifecycle_commands_new_design.py",
+    "test/app/interfaces/cli/test_mobile_commands.py",
+    "test/app/interfaces/cli/test_owner_entrypoints.py",
+    "test/app/orchestration/lifecycle/test_runtime_supervisor.py",
+    "test/app/orchestration/nest_session/test_residents.py",
     "test/infrastructure/models/providers/*.py",
     "test/infrastructure/models/test_food_evidence.py",
     "test/infrastructure/models/test_openai_chatgpt.py",
     "test/infrastructure/models/test_provider_administration.py",
     "test/infrastructure/models/test_provider_catalog.py",
     "test/infrastructure/models/validation/*.py",
+    "test/infrastructure/persistence/layout/test_lifecycle_data_home_recovery.py",
     "test/infrastructure/persistence/reports/*.py",
+    "test/infrastructure/persistence/test_final_bootstrap.py",
     "test/infrastructure/persistence/test_provider_availability.py",
-    "test/support/provider.py",
-    "godot_project/characters/fox/fox.tscn",
-    "godot_project/characters/dog/dog.tscn",
-    "godot_project/characters/shared/elfie_actor.gd",
-    "godot_project/runtime/actor/actor_appearance.gd",
-    "godot_project/runtime/observer/observer_presentation.gd",
-    "godot_project/scripts/test/test_actor_appearance_material.gd",
-    "godot_project/scripts/test/test_dog_scale_calibration.gd",
-    "godot_project/scripts/test/test_fox_scale_calibration.gd",
-    "godot_project/scripts/test/test_observer_catalog.gd",
-    "test/app/orchestration/nest_session/test_residents.py",
-    "task-closure.json"
+    "test/infrastructure/platform/lifecycle/test_runtime_record.py",
+    "test/support/provider.py"
   ],
   "conformance": {
     "rows": [],
-    "reason": "The existing lifecycle authority and stable Runtime states remain unchanged; this only repairs the current data root before the existing start path continues."
+    "reason": "The existing lifecycle authority and stable Runtime states remain unchanged; this delivery repairs current data roots, formats runtime-published access URLs, and preserves the separately recorded visual and quality baseline closures without adding broad migration or a new lifecycle state."
   },
   "rows": [
     {
@@ -301,6 +315,113 @@
         "runtime: formal ./elfienest.sh start on a fresh temporary data root reached tier=world_ready, phase=world_ready, godot_authority state=ready, and loaded 2 Elfie(s)",
         "artifact: /Users/zhenli/.codex/visualizations/2026/08/16/01a00b2e-2a82-7640-8b62-79fd64fa9be2/monitor-evidence/monitor-dorm-restored-material.jpg is the actual /monitor 01 宿舍 viewport after profile projection and material preservation; the page reported 当前可见 2 位精灵",
         "command: curl http://127.0.0.1:14419/api/health; output status=ok, engine_ready=true, godot_web_ready=true, godot_runtime_ready=true"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "REQ-004",
+      "requirement": "Human source and installed CLI start success output includes a loopback Web console URL using the actual published HTTP endpoint; structured JSON output remains machine-readable.",
+      "status": "complete",
+      "implementation": [
+        "Lifecycle start result formatting and packaged Controller start output"
+      ],
+      "automated_tests": [
+        "Source and packaged start URL tests in test_lifecycle_commands_new_design.py"
+      ],
+      "runtime_scenarios": [
+        "Start with a non-default HTTP port and read the printed Web console URL"
+      ],
+      "platform_conditions": [
+        "CPython 3.9.25 source CLI and installed Controller CLI formatting paths"
+      ],
+      "evidence": [
+        "command: ./.venv/bin/python3 -m pytest -q test/app/interfaces/cli/test_lifecycle_commands_new_design.py -> passed including source and packaged URL cases",
+        "scenario: test_start_prints_the_published_web_console_url -> non-default port 15212 is printed as http://127.0.0.1:15212/",
+        "scenario: test_packaged_start_prints_the_published_web_console_url -> installed Controller projection is formatted with its published HTTP port",
+        "review: JSON start output path remains separate from human URL formatting"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "REQ-005",
+      "requirement": "The source-development CLI does not register or advertise desktop, while the installed packaged CLI registers and advertises desktop for the packaged Controller.",
+      "status": "complete",
+      "implementation": [
+        "Runtime-mode conditional argparse registration and source shell help/dispatch"
+      ],
+      "automated_tests": [
+        "Source and packaged CLI help tests plus interactive source help test"
+      ],
+      "runtime_scenarios": [
+        "Run source --help and packaged-surface --help and compare the desktop command"
+      ],
+      "platform_conditions": [
+        "Source checkout and packaged-runtime environment marker"
+      ],
+      "evidence": [
+        "command: ./.venv/bin/python3 scripts/elfienest.py --help -> source command set omits desktop",
+        "command: ELFIENEST_DESKTOP_BIN=/Applications/ElfieNest.app/Contents/MacOS/ElfieNest ./.venv/bin/python3 scripts/elfienest.py --help -> packaged command set includes desktop",
+        "scenario: test_cli_help_uses_owner_and_doctor_without_old_homepage_duplicates and test_packaged_cli_help_exposes_desktop_command -> mode-specific help is verified",
+        "scenario: test_interactive_help_exposes_owner_account_management -> source shell help omits desktop",
+        "review: the source shell and Python parser both use the source-development surface; only packaged runtime registration exposes desktop"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "REQ-006",
+      "requirement": "The web and mobile CLI commands keep service assurance and display Step 1 for the current Wi-Fi network and Step 2 with a QR code for the actual Runtime-published LAN Web URL; the mobile projection uses the same two-step format.",
+      "status": "complete",
+      "implementation": [
+        "CLI mobile access formatter with explicit published-port support",
+        "Runtime snapshot lookup for the standalone mobile command"
+      ],
+      "automated_tests": [
+        "Mobile QR formatter, missing-default-port, and web-to-mobile published-port forwarding tests"
+      ],
+      "runtime_scenarios": [
+        "Run web against a service published on a non-default port and scan the printed URL"
+      ],
+      "platform_conditions": [
+        "CPython 3.9.25 CLI with the locked qrcode dependency"
+      ],
+      "evidence": [
+        "command: ./.venv/bin/python3 -m pytest -q test/app/interfaces/cli -> 184 passed",
+        "scenario: test_web_command_passes_the_web_port_to_mobile_access -> web forwards the published HTTP port without clearing the terminal",
+        "scenario: test_mobile_command_uses_explicit_port_and_prints_qr_steps -> Step 1 network, Step 2 QR, and LAN URL are printed",
+        "review: locked qrcode dependency is reused; no new dependency or network adapter was added"
+      ],
+      "residuals": [],
+      "blockers": []
+    },
+    {
+      "id": "REQ-007",
+      "requirement": "Installed Desktop and Web frontend mobile access never substitute 8000 for a Runtime-selected port; the /chat, /manage, and /monitor QR entry points preserve the authoritative host and port while changing only the target path.",
+      "status": "complete",
+      "implementation": [
+        "Desktop loads the Runtime-published HTTP URL and fails explicitly when no endpoint is published",
+        "Three frontend QR entry points continue to share the dynamic MobileAccessDialog projection"
+      ],
+      "automated_tests": [
+        "Desktop TypeScript build and non-default frontend MobileAccessDialog/API tests",
+        "Runtime mobile-access API tests with HTTP port 15212"
+      ],
+      "runtime_scenarios": [
+        "A Runtime snapshot publishing HTTP port 18234 is opened by Web and passed to mobile access",
+        "The three QR target paths generate QR payloads using the same non-default port 15212"
+      ],
+      "platform_conditions": [
+        "macOS Desktop TypeScript build, CPython 3.9.25 CLI/API tests, and frontend Vitest environment"
+      ],
+      "evidence": [
+        "command: pnpm build (cwd app/interfaces/desktop) -> passed",
+        "command: pnpm exec vitest run src/components/MobileAccessDialog.test.tsx src/api/admin/runtime.test.ts src/api/client.test.ts -> 8 passed",
+        "command: ./.venv/bin/python3 -m pytest -q test/app/interfaces/cli/test_mobile_commands.py test/app/interfaces/cli/test_lifecycle_commands_new_design.py test/app/interfaces/cli/test_lifecycle_external_service.py test/app/interfaces/api/v1/admin/runtime/test_routes.py -> 57 passed",
+        "scenario: test_web_uses_the_published_port_for_an_automatic_running_service and test_web_after_packaged_start_uses_the_published_http_endpoint -> 18234 is used instead of the command/default 8000",
+        "scenario: MobileAccessDialog parameterized /chat, /manage, and /monitor cases -> QR payloads and displayed URLs retain 15212",
+        "review: remaining 8000 literals are test/default fixtures or unrelated timeout/model values; no user-facing access URL fallback remains"
       ],
       "residuals": [],
       "blockers": []
