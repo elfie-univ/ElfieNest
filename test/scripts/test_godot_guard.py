@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 GUARD_SCRIPT = (
     Path(__file__).resolve().parents[2]
     / ".agents"
@@ -55,41 +57,59 @@ def test_only_same_project_or_unknown_processes_block(tmp_path: Path) -> None:
     ]
 
 
-def test_launch_allows_a_known_different_project(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
-    target = tmp_path / "target" / "godot_project"
-    other = _process(11, tmp_path / "other" / "godot_project")
-    calls = []
-
-    def fake_popen(command, **kwargs):
-        calls.append((command, kwargs))
-        return SimpleNamespace(pid=1234)
-
-    monkeypatch.setattr(godot_guard.subprocess, "Popen", fake_popen)
-
-    assert godot_guard.launch(Path("/godot"), target, True, [other]) == 0
-    assert calls[0][0] == ["/godot", "--editor", "--path", str(target.resolve())]
-    assert "Do not launch another instance for this project" in capsys.readouterr().out
-
-
 def test_validate_allows_a_known_different_project(tmp_path: Path, monkeypatch) -> None:
     target = tmp_path / "target" / "godot_project"
     other = _process(11, tmp_path / "other" / "godot_project")
     calls = []
 
-    def fake_run(command, **kwargs):
-        calls.append((command, kwargs))
-        return SimpleNamespace(returncode=0)
+    def fake_run_headless(binary, project, args, **kwargs):
+        calls.append((binary, project, args, kwargs))
+        return SimpleNamespace(exit_code=0, godot_version="4.7")
 
-    monkeypatch.setattr(godot_guard.subprocess, "run", fake_run)
+    def fail_version_probe(binary):
+        pytest.fail("validate must not launch a separate --version probe")
 
-    assert godot_guard.validate(Path("/godot"), target, "check.gd", [other]) == 0
-    assert calls[0][0] == [
-        "/godot",
-        "--headless",
-        "--path",
-        str(target.resolve()),
-        "--script",
-        "check.gd",
-    ]
+    monkeypatch.setattr(godot_guard.godot_runner, "run_headless", fake_run_headless)
+    monkeypatch.setattr(godot_guard.godot_runner, "forward_output", lambda result: None)
+    monkeypatch.setattr(godot_guard, "installed_version", fail_version_probe)
+
+    assert (
+        godot_guard.validate(
+            Path("/godot"),
+            target,
+            "check.gd",
+            [other],
+            expected_version="4.7",
+            allow_version_mismatch=False,
+        )
+        == 0
+    )
+    assert calls[0][0] == Path("/godot")
+    assert calls[0][1] == target.resolve()
+    assert calls[0][2] == ("--script", "check.gd")
+    assert calls[0][3]["godot_version"] is None
+
+
+def test_validate_returns_crash_without_retrying(tmp_path: Path, monkeypatch) -> None:
+    target = tmp_path / "target" / "godot_project"
+    calls = []
+
+    def fake_run_headless(binary, project, args, **kwargs):
+        calls.append((binary, project, args, kwargs))
+        return SimpleNamespace(exit_code=1, godot_version=None)
+
+    monkeypatch.setattr(godot_guard.godot_runner, "run_headless", fake_run_headless)
+    monkeypatch.setattr(godot_guard.godot_runner, "forward_output", lambda result: None)
+
+    assert (
+        godot_guard.validate(
+            Path("/godot"),
+            target,
+            "check.gd",
+            [],
+            expected_version="4.7",
+            allow_version_mismatch=False,
+        )
+        == 1
+    )
+    assert len(calls) == 1
