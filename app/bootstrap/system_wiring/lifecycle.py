@@ -187,7 +187,6 @@ def create_lifecycle_facade() -> LifecycleFacade:
     from infrastructure.godot.lifecycle.authority import GodotAuthorityHostAdapter
     from infrastructure.models.ollama.lifecycle_ollama import OllamaLifecycleAdapter
     from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
-    from infrastructure.persistence.layout.data_home import get_db_path
     from infrastructure.persistence.layout.lifecycle_data_home import (
         LifecycleDataHomeAdapter,
     )
@@ -210,12 +209,11 @@ def create_lifecycle_facade() -> LifecycleFacade:
     from infrastructure.platform.lifecycle.runtime_record import (
         FileRuntimeRecordAdapter,
     )
+    from infrastructure.platform.source_cli_state import SourceCliState
     from infrastructure.platform.uninstall import LocalUninstallAdapter
     from scripts.godot_species_validation import run_godot_species_validation
 
     inspector = DefaultProcessInspector()
-    db_path = str(get_db_path())
-    provider_catalog = load_provider_catalog()
     local_data = LifecycleDataHomeAdapter()
     project_root = Path(
         os.environ.get("ELFIENEST_PROJECT_ROOT", Path(__file__).resolve().parents[3])
@@ -233,6 +231,18 @@ def create_lifecycle_facade() -> LifecycleFacade:
             writer_token=os.environ.get("ELFIENEST_RUNTIME_WRITER_TOKEN"),
         )
 
+    def validate_current_root() -> bool:
+        """Read the target only when Doctor is actually invoked.
+
+        Facade construction is deliberately root-neutral.  The CLI resolves a
+        target first and publishes it to the short-lived command scope before
+        any Doctor/configuration operation calls this closure.
+        """
+
+        from infrastructure.persistence.layout.data_home import get_db_path
+
+        return _build_offline_validator(str(get_db_path()))()
+
     return LifecycleFacade(
         service_launch_command=service_launch_command,
         process_port=LocalServiceProcessAdapter(),
@@ -246,7 +256,7 @@ def create_lifecycle_facade() -> LifecycleFacade:
         ),
         controller_ipc=LocalControllerIpcAdapter(),
         optional_component=OllamaLifecycleAdapter(
-            PublicOllamaProviderAdapter(catalog=provider_catalog),
+            PublicOllamaProviderAdapter(catalog_loader=load_provider_catalog),
             binding_loader=_load_configured_ollama_binding,
         ),
         model_projection_factory=FoodModelHealthProjectionAdapter,
@@ -257,7 +267,8 @@ def create_lifecycle_facade() -> LifecycleFacade:
         data_home=local_data,
         doctor=LocalDoctorAdapter(
             local_data=local_data,
-            offline_validator=_build_offline_validator(db_path),
+            offline_validator=validate_current_root,
         ),
         uninstall=LocalUninstallAdapter(local_data=local_data),
+        source_cli_state_factory=SourceCliState,
     )

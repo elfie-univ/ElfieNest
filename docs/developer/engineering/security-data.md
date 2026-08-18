@@ -19,8 +19,8 @@ data is written, who owns it, and how it is cleaned up.
   owner-only `<source-root>/.elfienest-cli.local/` control directory, outside
   product data roots. That catalog may list roots but cannot store the active
   root, PID, endpoint, credential or process authority.
-- The current remembered-root behavior is an open implementation deviation in
-  [LFC-010](../conformance/service-lifecycle), not an allowed fallback.
+- There is no persisted remembered-root authority or activation fallback. Legacy
+  `selected-data-home` files are inert and are never read as the active root.
 - Tests, workbenches and doc acceptance must use an isolated `ELFIE_HOME` or a
   temporary directory.
 - `build/` stores only intermediate artifacts, `dist/` only final release

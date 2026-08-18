@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import replace
+from typing import Callable
 
 from app.features.configuration import (
     ProviderPortError,
@@ -29,11 +30,15 @@ class PublicOllamaProviderAdapter:
         platform: OllamaPlatformAdapter | None = None,
         *,
         catalog: ProviderCatalog | None = None,
+        catalog_loader: Callable[[], ProviderCatalog] | None = None,
     ) -> None:
-        if catalog is None:
-            raise ValueError("PublicOllamaProviderAdapter requires an injected catalog")
+        if catalog is None and catalog_loader is None:
+            raise ValueError(
+                "PublicOllamaProviderAdapter requires an injected catalog or loader"
+            )
         self._platform = platform or OllamaPlatformAdapter()
         self._catalog = catalog
+        self._catalog_loader = catalog_loader
 
     def default_binding(self) -> StoredLocalProviderBinding:
         try:
@@ -79,13 +84,20 @@ class PublicOllamaProviderAdapter:
         return max(0, pages * page_size // (1024**3))
 
     def candidate_models(self) -> tuple[StoredLocalProviderCandidate, ...]:
+        catalog = self._catalog
+        if catalog is None:
+            loader = self._catalog_loader
+            if loader is None:
+                raise ProviderPortError("Provider catalog loader is unavailable")
+            catalog = loader()
+            self._catalog = catalog
         return tuple(
             StoredLocalProviderCandidate(
                 model_id=item.model_id,
                 display_name=item.model_id,
                 recommended=item.recommended,
             )
-            for item in self._catalog.ollama_recommended_models
+            for item in catalog.ollama_recommended_models
         )
 
     def list_models(self, binding: StoredLocalProviderBinding) -> tuple[str, ...]:

@@ -14,8 +14,8 @@ ElfieNest 把“精灵的长期生活数据”和“源码、构建物、公开�
   及候选目录位于产品数据根之外、仅所有者可访问的
   `<source-root>/.elfienest-cli.local/` 控制目录；候选目录可以列出数据根，但不能保存
   活动根、PID、endpoint、凭据或进程控制权。
-- 当前 remembered-root 行为是 [LFC-010](../conformance/service-lifecycle)记录的开放实现
-  偏差，不是允许的 fallback。
+- 不存在持久化 remembered-root authority 或激活 fallback。旧的
+  `selected-data-home` 文件保持惰性，绝不作为当前数据根读取。
 - 测试、实验台和文档验收必须使用独立的 `ELFIE_HOME` 或临时目录。
 - `build/` 只存中间产物，`dist/` 只存最终发行物；两者都不属于源码文档。
 

@@ -57,6 +57,7 @@ dist/
 
 # 5. 运行时数据（DB、精灵配置等）
 /.elfienest.local/
+/.elfienest-cli.local/
 
 # 6. 本地过程材料与代理知识（只供本机整理，不提交、不参与 Docs 构建）
 /.omo/

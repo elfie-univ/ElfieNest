@@ -26,22 +26,6 @@ original path. The old account, Elfie and history data is not migrated
 automatically. Do not delete the old backup unless you have confirmed that you
 no longer need it.
 
-If you prefer to inspect the result from a terminal, run:
-
-```bash
-elfienest data-home inspect --json
-```
-
-The recovery operation is also available as `elfienest data-home recover`; it
-backs up the old folder before rebuilding the active folder and never performs
-an in-place migration.
-
-On current pre-LFC-010 builds, an existing fresh folder can still be selected
-with `elfienest data-home activate --data-home PATH`. This is a temporary
-compatibility command. The accepted lifecycle target removes it: installed
-entrypoints select through `ELFIE_HOME`, while source lifecycle commands use
-`--data-home` or context.
-
 ## First setup failed
 
 Return to the locked setup page and choose **Retry from the failed stage**. The

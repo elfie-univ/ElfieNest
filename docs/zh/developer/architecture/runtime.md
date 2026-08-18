@@ -107,8 +107,9 @@ React 消费该目录后，只能发出封闭的语义命令 `overview`、`selec
 `<当前worktree>/.elfienest.local` 或经验证候选选择。全部生命周期收据与产品数据只跟随
 唯一解析结果。
 
-当前 remembered-root/`data-home activate` 实现是
-[LFC-010](../conformance/service-lifecycle)记录的临时偏差，不是另一份契约。
+不存在持久化 remembered root 或 `data-home` 命令。源码交互 shell 只在本次
+shell 生命周期内把目标保存在内存中；源码单次命令使用默认目录或重新校验后的候选目录。
+`uninstall` 只由安装版 CLI 提供。
 
 一台电脑只有一个生产 Nest 根 `${ELFIE_HOME:-~/.elfienest}`。`nest.db` 只包含最终
 8 张 Nest 级表：用户、会话、本机安装/Setup、Nest 设置、精灵、外部身体、身体审计

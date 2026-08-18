@@ -137,9 +137,10 @@ session context, an eligible `<current-worktree>/.elfienest.local`, or validated
 candidate selection. All lifecycle receipts and product data follow the one
 resolved root.
 
-The current remembered-root/`data-home activate` implementation is a temporary
-deviation tracked by [LFC-010](../conformance/service-lifecycle), not an
-alternative contract.
+There is no persisted remembered root or `data-home` command. The source shell
+keeps its target only in memory for the lifetime of that shell; one-shot source
+commands use the default or a revalidated candidate. `uninstall` is exposed
+only by the installed CLI.
 
 A single computer has one production Nest root:
 `${ELFIE_HOME:-~/.elfienest}`. `nest.db` contains exactly the eight final

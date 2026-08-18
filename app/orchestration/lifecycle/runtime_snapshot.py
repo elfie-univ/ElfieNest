@@ -111,6 +111,7 @@ class ComponentSnapshot:
     pid: Optional[int] = None
     executable: Optional[str] = None
     birth_identity: Optional[str] = None
+    cwd: Optional[str] = None
 
 
 @dataclass(frozen=True)

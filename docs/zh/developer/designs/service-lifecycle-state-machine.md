@@ -141,9 +141,9 @@ GATEWAY_BINDING -> AUTHORITY_SPAWNING -> AUTHENTICATING
 | `restart` | 是 | 已识别的生命周期任务 |
 | `stop` | 是 | 经验证的运行中/收敛中 generation |
 | `status` | 否 | 已识别快照，包括 `OFFLINE` |
-| `web` | 否 | 已识别/可启动任务；只确保该任务，再使用其快照 endpoint |
+| `web` | 否 | 有经验证运行中 generation 且 endpoint 健康；只打开其快照 endpoint |
 | `mobile` | 否 | 当前快照已发布所需 endpoint |
-| 配置、Setup、Doctor、Owner、DB、`data-home inspect/recover` | 否 | 数据根适合该操作；Runtime 无需运行 |
+| 配置、Setup、Doctor、Owner、DB | 否 | 数据根适合该操作；Runtime 无需运行 |
 
 源码交互 Shell 在内存中持有一个 `session_data_home`。每个成功解析的交互目标（显式、
 可用默认根或用户明确确认的候选）都在命令执行前替换它；后续命令沿用，直到下一目标解析
@@ -165,8 +165,7 @@ GATEWAY_BINDING -> AUTHORITY_SPAWNING -> AUTHENTICATING
 - 单次 `stop` 不能因为默认根空闲就直接失败；它应列出经验证的运行中 A/B。没有候选时
   报告“没有运行中服务”。显式目标或会话目标空闲时，只报告该准确事实，不能改选。
 
-`data-home activate` 必须删除，因为它会形成第二份持久“当前数据根” authority；
-`data-home inspect` 和 `recover` 保留，但只通过上下文解析目标。
+不存在 `data-home` 命令。`uninstall` 只属于安装版 CLI，不属于源码命令面。
 
 ## 5. 入口行为
 
@@ -175,6 +174,7 @@ GATEWAY_BINDING -> AUTHORITY_SPAWNING -> AUTHENTICATING
 | Desktop | 先取得用户级产品锁；第二个 App 只激活现有 Controller |
 | Viewer 关闭 | 只关闭显示，Server、Godot 和模型租约不变 |
 | 安装版 `elfienest start` | 启动或激活同一 Controller，确保托盘与生产 Server 存在，但不打开 Viewer |
+| 安装版 `elfienest restart` | 通过 Controller 停止准确的生产 Server，再启动或激活同一 Controller 和 Server，不打开 Viewer |
 | 托盘 Stop Server / 安装版 `elfienest stop` | 先隐藏 Viewer，再有界关闭准确的生产 Server 和 Controller |
 | 源码 `./elfienest.sh` | 仅作开发入口；同数据根附着，不同数据根可并行，`serve` 信号只停止自己拥有的 generation |
 | 安装/更新 | 原生安装器提供全局 `elfienest`；经确认停止生产 Server 并等待 `OFFLINE`，否则拒绝覆盖 |

@@ -159,9 +159,9 @@ children after resolution. The command surface is:
 | `restart` | Yes | A recognized lifecycle task |
 | `stop` | Yes | A verified active/converging generation |
 | `status` | No | A recognized snapshot, including `OFFLINE` |
-| `web` | No | A recognized/startable task; ensure only it, then use its snapshot endpoint |
+| `web` | No | A verified running task with a healthy endpoint; open only its snapshot endpoint |
 | `mobile` | No | Current snapshot publishes the required endpoint |
-| Config, Setup, Doctor, Owner, DB, `data-home inspect/recover` | No | Root is usable for that operation; Runtime need not be running |
+| Config, Setup, Doctor, Owner, DB | No | Root is usable for that operation; Runtime need not be running |
 
 An interactive source shell owns one in-memory `session_data_home`. Every
 successfully resolved interactive target (explicit, eligible default or
@@ -192,9 +192,8 @@ Two examples fix the main ambiguity:
   service”. An explicit or session target that is idle reports that exact fact
   and never switches targets.
 
-`data-home activate` is removed because it creates a second, durable selected-
-root authority. `data-home inspect` and `recover` remain context-resolved
-operations.
+There is no `data-home` command. `uninstall` remains an installed-CLI-only
+operation and is not part of the source command surface.
 
 ## 5. Entrypoint behavior
 
@@ -203,6 +202,7 @@ operations.
 | Desktop | Acquire the per-user product lock first; a second App activates the existing Controller |
 | Viewer close | Close presentation only; Server, Godot and model leases remain unchanged |
 | Installed `elfienest start` | Start or activate the same Controller and ensure the tray and production Server exist without opening Viewer |
+| Installed `elfienest restart` | Stop the exact production Server through the Controller, then start or activate the same Controller and Server without opening Viewer |
 | Tray Stop Server / installed `elfienest stop` | Hide Viewer, then stop the exact production Server and Controller within bounds |
 | Source `./elfienest.sh` | Development only: attach for one data root, allow distinct roots concurrently, and let `serve` signals stop only the exact owned generation |
 | Install/update | The native installer provides global `elfienest`; with consent, stop production Server and await `OFFLINE`, otherwise refuse replacement |
@@ -219,10 +219,10 @@ user-requested Ollama model download is not a product build.
 
 Ports are endpoints only. Automatic mode atomically binds OS-selected ports and
 publishes them in the selected root's snapshot; an occupied explicit CLI port
-fails. Restart may receive a different automatic pair. `web` may ensure only
-the already resolved target, and `web`, `mobile` and `status` consume only its
-snapshot. No entrypoint may infer identity, attach or termination authority
-from a port.
+fails. Restart may receive a different automatic pair. `web`, `mobile` and
+`status` consume only the already resolved target's snapshot; `web` and
+`mobile` never start or repair a Runtime. No entrypoint may infer identity,
+attach or termination authority from a port.
 
 ## 6. Identity and ownership
 

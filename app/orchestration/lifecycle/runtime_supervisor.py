@@ -12,6 +12,7 @@ from app.orchestration.lifecycle.ports import (
     AuthorityHostPort,
     AuthorityProcess,
     LifecycleLease,
+    ProcessSnapshot,
     RecordedAuthorityProcess,
     RuntimeRecordPort,
 )
@@ -37,6 +38,7 @@ from app.orchestration.lifecycle.types import (
     LaunchFailedError,
     LifecycleBusyError,
     LifecycleCancelledError,
+    RuntimeIdentityUnavailableError,
     ServiceLifecycleError,
     ServiceLifecycleResult,
     SnapshotRecoveryRequiredError,
@@ -46,6 +48,7 @@ ObservationProbe = Callable[[], RuntimeObservation]
 StartCore = Callable[[Callable[[], bool]], ServiceLifecycleResult]
 StopCore = Callable[[], ServiceLifecycleResult]
 OwnedRecord = Callable[[], bool]
+CoreProcessPresence = Callable[[int], bool]
 ProgressCallback = Callable[[RuntimeProgressPhase], None]
 CommandLeaseFactory = Callable[[], LifecycleLease]
 ModelProjectionProbe = Callable[[], ModelHealthProjection]
@@ -80,6 +83,8 @@ class RuntimeSupervisor:
         model_projection_probe: Optional[ModelProjectionProbe] = None,
         child_environment: Optional[MutableMapping[str, str]] = None,
         prepare_data_home: Optional[DataHomePreparation] = None,
+        core_process_identity: Optional[Callable[[int], ProcessSnapshot]] = None,
+        core_process_exists: Optional[CoreProcessPresence] = None,
     ) -> None:
         self._runtime_record = runtime_record
         self._prepare_data_home = prepare_data_home
@@ -100,6 +105,8 @@ class RuntimeSupervisor:
         self._command_lease_factory = command_lease_factory
         self._model_projection_probe = model_projection_probe
         self._child_environment = child_environment
+        self._core_process_identity = core_process_identity
+        self._core_process_exists = core_process_exists
         self._authority_process: Optional[AuthorityProcess] = None
         self._start_started_at: Optional[float] = None
         self._world_started_at: Optional[float] = None
@@ -126,6 +133,7 @@ class RuntimeSupervisor:
             )
 
         existing_attachment: Optional[tuple[str, Optional[int]]] = None
+        writer_recovery_required = False
         with self._command_lock():
             record_before_start = self._runtime_record.read()
             if record_before_start.phase is RuntimePhase.RECOVERY_REQUIRED:
@@ -213,12 +221,41 @@ class RuntimeSupervisor:
                     )
                     self._runtime_record.write(updated)
                 else:
+                    if not self._recorded_core_is_absent(record_before_start):
+                        return self._operation_result(
+                            ServiceLifecycleResult(
+                                status="failed",
+                                error=LaunchFailedError(
+                                    "Recorded Core process is still present or cannot be verified; "
+                                    "refusing to replace its Runtime generation"
+                                ),
+                            ),
+                            operation_id,
+                        )
                     record_before_start = self._offline_snapshot(
                         record_before_start,
                         phase=RuntimePhase.PREFLIGHT,
                         detail="stale generation reconciled before restart",
                     )
-                    self._runtime_record.write(record_before_start)
+                    writer_recovery_required = True
+
+            if (
+                record_before_start.writer_credential_digest is not None
+                and record_before_start.owner_lease is None
+                and record_before_start.startup_owner_id is None
+            ):
+                if not self._recorded_core_is_absent(record_before_start):
+                    return self._operation_result(
+                        ServiceLifecycleResult(
+                            status="failed",
+                            error=LaunchFailedError(
+                                "Runtime has a stale writer credential while its recorded Core "
+                                "process is still present or cannot be verified"
+                            ),
+                        ),
+                        operation_id,
+                    )
+                writer_recovery_required = True
 
             # An attached caller waits after releasing this command lease so
             # the existing Core can publish World readiness in parallel.
@@ -227,6 +264,7 @@ class RuntimeSupervisor:
                 writer_handoff = self._begin_writer_handoff(
                     generation=generation,
                     owner_id=owner_id,
+                    recover_stale=writer_recovery_required,
                 )
                 if writer_handoff is not None and self._child_environment is not None:
                     self._child_environment["ELFIENEST_RUNTIME_WRITER_TOKEN"] = (
@@ -311,7 +349,11 @@ class RuntimeSupervisor:
             return self._fail_start(
                 owner_id, "Core did not publish CORE_READY", operation_id
             )
-        if not self._promote_core_ready(owner_id, observation, pid=result.pid):
+        try:
+            promoted = self._promote_core_ready(owner_id, observation, pid=result.pid)
+        except RuntimeIdentityUnavailableError as error:
+            return self._fail_start(owner_id, str(error), operation_id)
+        if not promoted:
             return self._cancel_start(
                 owner_id,
                 "Runtime startup was cancelled before CORE_READY",
@@ -643,11 +685,32 @@ class RuntimeSupervisor:
                 return initializer()
             return self._runtime_record.read()
 
-    def _begin_writer_handoff(self, *, generation: int, owner_id: str):
+    def _begin_writer_handoff(
+        self, *, generation: int, owner_id: str, recover_stale: bool = False
+    ):
         begin = getattr(self._runtime_record, "begin_writer_handoff", None)
         if not callable(begin):
             return None
-        return begin(generation=generation, owner_id=owner_id)
+        return begin(
+            generation=generation,
+            owner_id=owner_id,
+            recover_stale=recover_stale,
+        )
+
+    def _recorded_core_is_absent(self, record: RuntimeSnapshotV1) -> bool:
+        """Return true only when replacing the recorded Core is safe."""
+        pid = record.component(RuntimeComponent.CORE).pid
+        if pid is None:
+            return True
+        if self._core_process_exists is not None:
+            try:
+                return not self._core_process_exists(pid)
+            except (OSError, RuntimeError, ValueError):
+                return False
+        try:
+            return not self._owns_pid_record()
+        except (OSError, RuntimeError, ValueError):
+            return False
 
     @contextmanager
     def _command_lock(self) -> Iterator[None]:
@@ -668,6 +731,29 @@ class RuntimeSupervisor:
         *,
         pid: Optional[int] = None,
     ) -> bool:
+        if pid is None:
+            raise RuntimeIdentityUnavailableError(
+                "Core startup returned no PID"
+            )
+        if self._core_process_identity is None:
+            raise RuntimeIdentityUnavailableError(
+                "the process inspector did not provide a birth-identity reader"
+            )
+        try:
+            identity = self._core_process_identity(pid)
+        except (OSError, RuntimeError, ValueError) as error:
+            raise RuntimeIdentityUnavailableError(
+                f"unable to inspect Core PID {pid}: {error}"
+            ) from error
+        if (
+            identity.pid != pid
+            or not identity.birth_identity
+            or not identity.command
+            or identity.cwd is None
+        ):
+            raise RuntimeIdentityUnavailableError(
+                f"Core PID {pid} returned incomplete process identity"
+            )
         with self._command_lock():
             current = self._runtime_record.read()
             if current.startup_owner_id != owner_id:
@@ -675,10 +761,22 @@ class RuntimeSupervisor:
             if current.phase is not RuntimePhase.CORE_STARTING:
                 return False
             components = tuple(
-                replace(item, pid=pid if pid is not None else item.pid)
+                replace(item, pid=pid)
                 if item.component in {RuntimeComponent.CORE, RuntimeComponent.GATEWAY}
                 else item
                 for item in observation.components
+            )
+            components = tuple(
+                replace(
+                    item,
+                    executable=identity.command[0],
+                    birth_identity=identity.birth_identity,
+                    cwd=str(identity.cwd.resolve()),
+                )
+                if item.component
+                in {RuntimeComponent.CORE, RuntimeComponent.GATEWAY}
+                else item
+                for item in components
             )
             self._runtime_record.write(
                 replace(

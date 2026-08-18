@@ -26,7 +26,6 @@ def inspect_data_home_command(
         explicit_home,
         project_root=_runtime_project_root(),
         runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-        use_remembered=True,
     )
     payload = _inspection_payload(inspection)
     if json_output:
@@ -50,7 +49,6 @@ def recover_data_home_command(
             explicit_home,
             project_root=_runtime_project_root(),
             runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-            use_remembered=True,
         )
     except DataHomeRecoveryError as error:
         payload = {
@@ -75,28 +73,6 @@ def recover_data_home_command(
     return 0
 
 
-def activate_data_home_command(
-    lifecycle: LifecycleFacade,
-    explicit_home: str,
-    *,
-    json_output: bool = False,
-) -> int:
-    """Validate and remember another fresh or ready data root."""
-    inspection = lifecycle.activate_data_home(
-        explicit_home,
-        project_root=_runtime_project_root(),
-        runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-    )
-    payload = _inspection_payload(inspection)
-    if json_output:
-        print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
-    else:
-        print(f"数据目录: {payload['home']}")
-        print(f"状态: {payload['state']}")
-        print(f"说明: {payload['detail']}")
-    return 0
-
-
 def _runtime_project_root() -> Path:
     configured = os.environ.get("ELFIENEST_PROJECT_ROOT")
     return Path(configured).resolve() if configured else PROJECT_ROOT
@@ -112,7 +88,6 @@ def _inspection_payload(inspection: DataHomeInspection) -> dict[str, object]:
 
 
 __all__ = (
-    "activate_data_home_command",
     "inspect_data_home_command",
     "recover_data_home_command",
 )

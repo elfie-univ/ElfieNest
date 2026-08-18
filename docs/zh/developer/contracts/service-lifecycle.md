@@ -1,6 +1,6 @@
 # 服务生命周期契约
 
-**契约版本：** 1.1
+**契约版本：** 1.2
 **采用日期：** 2026-08-15
 **修订日期：** 2026-08-18
 **适用范围：** 安装版与源码 Runtime 生命周期、就绪判定和进程所有权
@@ -58,8 +58,8 @@ checkout 对比，也不能把代码位置变成任务身份。后续本地 CLI 
 
 设置 `ELFIE_HOME` 后，安装版全部读写只进入该根，默认根保持不读不写。相对路径仍然
 允许，但必须由共享安装版解析器相对一个稳定的用户级基准解析，不能随入口工作目录变化。
-不存在“已记忆的生产数据根”、`selected-data-home` 活动指针或 `data-home activate`
-命令。每个 OS 用户仍然最多一个已打包 Controller 和生产 Runtime。若运行中 Controller
+不存在“已记忆的生产数据根”、`selected-data-home` 活动指针或 `data-home` 命令。
+每个 OS 用户仍然最多一个已打包 Controller 和生产 Runtime。若运行中 Controller
 报告的数据根与当前安装版
 解析结果不同，调用方必须返回类型化配置不一致；不得切换 Controller、附着无关 Runtime
 或启动第二份安装版服务。错误必须同时标明两个数据根，并提示用户通过现有托盘停止，或先
@@ -68,8 +68,9 @@ checkout 对比，也不能把代码位置变成任务身份。后续本地 CLI 
 源码 `./elfienest.sh` 使用独立解析器，选择目标时必须忽略调用方 `ELFIE_HOME`。只有
 `start`、`serve`、`restart` 和 `stop` 接受 `--data-home`。选定后，launcher 才把规范化
 结果作为子进程内部 `ELFIE_HOME` 发布；这不代表调用方环境变量参与源码目标选择。其他
-源码命令，包括 `status`、`web`、`mobile`、配置、Setup、Doctor、Owner、数据库以及
-`data-home inspect/recover`，都通过上下文解析，且不接受 `--data-home`。
+源码命令，包括 `status`、`web`、`mobile`、配置、Setup、Doctor、Owner 和数据库命令，
+都通过上下文解析，且不接受 `--data-home`。`uninstall` 只在安装版 CLI 中提供；
+不存在 `data-home` 命令。
 
 源码目标优先级固定如下：
 
@@ -89,9 +90,9 @@ checkout 对比，也不能把代码位置变成任务身份。后续本地 CLI 
 
 默认根是否可用必须按命令判断，并在执行命令前完成。`start`、`serve` 可以创建或使用
 默认根；`stop` 必须找到经验证的当前 generation，因此空闲默认根不能阻止选择器列出其他
-运行中数据根；`restart` 要求已识别的生命周期任务。`web` 只允许确保已解析的准确目标，
-随后必须打开该目标当前快照发布的 endpoint；`mobile` 要求当前已发布 endpoint；`status`
-可以查看已识别但离线的任务。数据与配置命令只要求数据根适合其声明的操作，不要求 Runtime
+运行中数据根；`restart` 要求已识别的生命周期任务。`web`、`mobile` 和 CLI `desktop`
+只允许打开已经运行的目标，绝不启动或修复 Runtime；找不到目标、没有健康 endpoint 或没有
+现成 Viewer 时必须报错。`status` 可以查看已识别但离线的任务。数据与配置命令只要求数据根适合其声明的操作，不要求 Runtime
 正在运行。若没有任何可停止候选，明确报告没有服务在运行。
 
 源码 Shell history 和 checkout 级候选目录只能位于产品数据根之外、仅所有者可访问的
@@ -164,6 +165,8 @@ OFFLINE -> PREFLIGHT -> CORE_STARTING -> CORE_READY
 | 已打包 Desktop | 取得全局产品锁，启动/附着生产 Server，创建托盘并打开 Viewer |
 | Viewer 关闭或展示层退出 | 只关闭展示；Server、Godot 和模型租约不变 |
 | 安装版 `elfienest start` | 启动/激活同一 Controller、托盘和生产 Server，不打开 Viewer；默认 `desired=NORMAL`、`wait=CORE` |
+| 安装版 `elfienest restart` | 通过 Controller 生命周期停止准确的生产 Server，再启动/激活同一 Controller 和 Server，不打开 Viewer；发布新 generation 的实际端口 |
+| 安装版 `elfienest web` / `mobile` / `desktop` | 只打开已经运行的目标；绝不启动或修复 Server、Controller 或 Runtime；找不到目标或没有健康 endpoint 时直接报错 |
 | 托盘 Stop Server / 安装版 `elfienest stop` | 先隐藏 Viewer，再有界关闭准确的生产 Server 和 Controller |
 | 源码 `./elfienest.sh` | 只用于开发；同数据根附着，不同显式数据根可并行，`serve` 保持前台所有权 |
 | 安装或升级 | 检测经验证的运行中 Controller，提示用户停止并有界等待 `OFFLINE`；无法收敛时拒绝覆盖 |

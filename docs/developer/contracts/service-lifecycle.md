@@ -1,6 +1,6 @@
 # Service lifecycle contract
 
-**Contract version:** 1.1
+**Contract version:** 1.2
 **Adopted:** 2026-08-15
 **Revised:** 2026-08-18
 **Scope:** installed and source Runtime lifecycle, readiness and process ownership
@@ -69,7 +69,7 @@ and the default root is untouched. Relative values remain supported but must be
 resolved by the shared installed resolver against one stable per-user base,
 never against an entrypoint's working directory. There is no remembered
 production selection, no `selected-data-home` active pointer and no
-`data-home activate` command. One OS user still has at most one packaged
+`data-home` command. One OS user still has at most one packaged
 Controller and production Runtime. If the running
 Controller reports a different data root from the current installed resolver,
 the caller returns a typed configuration mismatch; it does not switch the
@@ -83,8 +83,9 @@ Source `./elfienest.sh` uses a separate resolver and must ignore caller
 canonical result to child processes as their internal `ELFIE_HOME`; this does
 not make the caller's environment a source-selection input. All other source
 commands, including `status`, `web`, `mobile`, configuration, Setup, Doctor,
-Owner, database and `data-home inspect/recover`, resolve through context and do
-not accept `--data-home`.
+Owner and database commands, resolve through context and do not accept
+`--data-home`. `uninstall` is available only in the installed CLI; there is no
+`data-home` command.
 
 Source target precedence is deterministic:
 
@@ -110,9 +111,10 @@ Default-root eligibility is command-specific and is evaluated before command
 execution. `start` and `serve` may create/use the default root. `stop` requires
 a verified current generation; therefore an idle default must not prevent the
 selector from listing other running roots. `restart` requires a recognized
-lifecycle task. `web` may ensure only its resolved target, then must open the
-endpoint published by that target's current snapshot; `mobile` requires a
-current published endpoint, and `status` may inspect a recognized offline task.
+lifecycle task. `web`, `mobile`, and the CLI `desktop` command only open an
+already running target and never start or repair a Runtime; they must fail when
+the target has no current healthy endpoint or Viewer. `status` may inspect a
+recognized offline task.
 Data/configuration commands require a root usable for their declared operation,
 not a running Runtime. If no eligible `stop` candidate exists, report that no
 service is running.
@@ -198,6 +200,8 @@ and committing workflows revalidate before their irreversible boundary.
 | Packaged Desktop | Acquire the global product lock, start/attach the production Server, create the tray and open Viewer |
 | Viewer close or presentation quit | Close presentation only; Server, Godot and model leases remain unchanged |
 | Installed `elfienest start` | Start/activate the same Controller, tray and production Server without opening Viewer; default to `desired=NORMAL`, `wait=CORE` |
+| Installed `elfienest restart` | Stop the exact production Server through the Controller lifecycle, then start/activate that same Controller and Server without opening Viewer; publish the new generation's actual endpoints |
+| Installed `elfienest web` / `mobile` / `desktop` | Open only an already running target; never start or repair Server, Controller or Runtime, and fail when the target cannot be found or has no healthy endpoint |
 | Tray Stop Server / installed `elfienest stop` | Hide Viewer, then stop the exact production Server and Controller within bounds |
 | Source `./elfienest.sh` | Development only; attach for the same data root, allow distinct explicit roots concurrently, and keep `serve` foreground-owned |
 | Install or update | Detect the validated running Controller, ask the user to stop it, and wait boundedly for `OFFLINE`; refuse overwrite if it cannot converge |
