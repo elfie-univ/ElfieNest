@@ -122,10 +122,11 @@ export const manage = {
     readingStatus: "正在读取运行状态…",
     notices: { recovered: "运行状态已恢复正常。" },
     refresh: "刷新状态",
+    blockers: { noRemoteSubscription: "缺少有效远程模型订阅" },
     interstellar: { reading: "正在读取", title: "星际穿越能力", unavailableDetail: "请提供至少一个有效模型订阅", status: { enabled: "已开启", unavailable: "未开启" } },
     foodStates: { degraded: "备用中", healthy: "正常", unavailable: "不可用", unconfigured: "未配置", unknown: "暂不可用" },
     foods: { disabled: "未启用", empty: "尚未配置粮食。", title: "粮食" },
-    services: { availableModels: "{{count}} 个可用模型", connectionFailed: "连接失败", connectionHealthy: "连接正常", connectionPending: "连接待验证", empty: "尚未配置 AI 服务。", localRunning: "本地 Ollama 运行中", localStopped: "本地 Ollama 未运行", localUnknown: "本地 Ollama 状态未知", modelStats: "{{available}}/{{total}} 个模型可用", pendingSuffix: " · {{count}} 个待验证", status: { attention: "部分可用", disabled: "已停用", healthy: "正常", unavailable: "不可用", unknown: "暂不可用", unverified: "暂不可用" } },
+    services: { availableModels: "{{count}} 个可用模型", configureSeparator: "，", configureSubscription: "去配置订阅", connectionFailed: "连接失败", connectionHealthy: "连接正常", connectionPending: "连接待验证", empty: "尚未配置 AI 服务。", localRunning: "本地 Ollama 运行中", localStopped: "本地 Ollama 未运行", localUnknown: "本地 Ollama 状态未知", modelStats: "{{available}}/{{total}} 个模型可用", pendingSuffix: " · {{count}} 个待验证", remoteModels: "模型订阅", status: { attention: "部分可用", disabled: "已停用", healthy: "正常", unavailable: "不可用", unknown: "暂不可用", unverified: "暂不可用" } },
   },
   systemSettings: {
     actions: { collapseAdvanced: "收起高级设置", expandAdvanced: "展开高级设置", refresh: "重新读取", saveAdvanced: "保存高级设置", saveQuota: "保存默认额度" },
