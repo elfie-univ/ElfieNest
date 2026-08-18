@@ -72,12 +72,8 @@ def test_command_selection_keeps_g1_focused_and_adds_g2_quality() -> None:
         ["infrastructure/models/providers/request_profiles.py"], "commit"
     )
 
-    commit_labels = {
-        label for label, _command in _commands(commit_plan, "base")
-    }
-    push_labels = {
-        label for label, _command in _commands(push_plan, "base")
-    }
+    commit_labels = {label for label, _command in _commands(commit_plan, "base")}
+    push_labels = {label for label, _command in _commands(push_plan, "base")}
     assert "affected tests" in commit_labels
     assert "quality baseline" not in commit_labels
     assert "affected tests" in push_labels
@@ -182,9 +178,7 @@ def test_backstop_fingerprint_includes_every_changed_path(
 def test_main_reuses_backstop_but_rechecks_current_candidate(
     tmp_path: Path, monkeypatch
 ) -> None:
-    monkeypatch.setattr(
-        validation_gate, "changed_paths", lambda _base: ["source.py"]
-    )
+    monkeypatch.setattr(validation_gate, "changed_paths", lambda _base: ["source.py"])
     monkeypatch.setattr(
         validation_gate,
         "candidate_fingerprint",
@@ -222,9 +216,7 @@ def test_main_reuses_backstop_but_rechecks_current_candidate(
         ),
     )
 
-    result = validation_gate.run_stage(
-        "main", "base", tmp_path, False
-    )
+    result = validation_gate.run_stage("main", "base", tmp_path, False)
 
     assert result == 0
     assert labels == ["diff format"]
@@ -270,9 +262,7 @@ def test_main_runs_and_records_full_backstop_when_execution_input_changes(
         ),
     )
 
-    result = validation_gate.run_stage(
-        "main", "base", tmp_path, False
-    )
+    result = validation_gate.run_stage("main", "base", tmp_path, False)
 
     assert result == 0
     assert calls[0][:4] == [
@@ -308,9 +298,7 @@ def test_main_no_cache_reaches_direct_backstop_without_reusing_bundles(
         ),
     )
 
-    result = validation_gate.run_stage(
-        "main", "base", tmp_path, True
-    )
+    result = validation_gate.run_stage("main", "base", tmp_path, True)
 
     assert result == 0
     assert "--direct-main" in calls[0]
@@ -346,9 +334,7 @@ def test_exact_main_cache_hit_rechecks_current_candidate_before_reuse(
         ),
     )
 
-    result = validation_gate.run_stage(
-        "main", "base", tmp_path, False
-    )
+    result = validation_gate.run_stage("main", "base", tmp_path, False)
 
     assert result == 1
     assert calls
