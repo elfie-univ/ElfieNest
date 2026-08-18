@@ -1,6 +1,8 @@
 class_name ActorAppearance
 extends RefCounted
 
+const SPECIES_CATALOG := preload("res://runtime/species_catalog.gd")
+
 const BASE_COLLISION_RADIUS := 0.34
 const BASE_COLLISION_HEIGHT := 1.72
 const APPEARANCE_SHADER_CODE := """
@@ -80,7 +82,7 @@ static func apply(
 		* height_scale
 		* 0.5
 	)
-	var bindings := SpeciesCatalog.appearance_bindings(species_id)
+	var bindings: Dictionary = SPECIES_CATALOG.appearance_bindings(species_id)
 	_apply_bone_scales(
 		visual_root,
 		appearance.get("bone_scales", {}),

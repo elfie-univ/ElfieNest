@@ -27,6 +27,7 @@ from infrastructure.persistence.configuration.species import load_species_catalo
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 GODOT_PROJECT = PROJECT_ROOT / "godot_project"
 DEFAULT_OUTPUT = PROJECT_ROOT / "build" / "components" / "godot-web"
+GODOT_WEB_DIAGNOSTIC_LOG = PROJECT_ROOT / "build" / "logs" / "godot-web-build.log"
 PRESET_NAME = "Web"
 ENTRY_NAME = "elfienest.html"
 REQUIRED_SUFFIXES = (".html", ".js", ".wasm", ".pck")
@@ -141,6 +142,7 @@ def _export_runtime(
         )
     except SpeciesPackageValidationError as error:
         print(f"❌ Species package validation failed: {error}")
+        _report_species_validation_failure(error, binary)
         return 1
 
     with _build_lock(output):
@@ -229,6 +231,38 @@ def _print_bundle_check(output: Path) -> int:
         return 1
     print(f"✅ Godot Web Runtime is available: {output / ENTRY_NAME}")
     return 0
+
+
+def _report_species_validation_failure(
+    error: SpeciesPackageValidationError,
+    godot_binary: Path,
+) -> None:
+    """Expose and persist the Godot process output instead of reducing it to an exit code."""
+    timestamp = datetime.now(timezone.utc).isoformat()
+    diagnostic = (
+        f"=== ElfieNest Godot Web diagnostic {timestamp} ===\n"
+        f"phase={error.phase}\n"
+        f"godot_binary={godot_binary}\n"
+        f"godot_project={GODOT_PROJECT}\n"
+        "validation_script=scripts/test/test_species_catalog.gd\n"
+        f"failure={error}\n"
+        "stdout:\n"
+        f"{error.stdout.rstrip() or '(empty)'}\n"
+        "stderr:\n"
+        f"{error.stderr.rstrip() or '(empty)'}\n"
+    )
+    print("   ┌─ Godot validation output ─────────────────────────────")
+    print(diagnostic.rstrip())
+    print("   └──────────────────────────────────────────────────────")
+    try:
+        GODOT_WEB_DIAGNOSTIC_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with GODOT_WEB_DIAGNOSTIC_LOG.open("a", encoding="utf-8") as stream:
+            stream.write(diagnostic)
+            stream.write("\n")
+    except OSError as log_error:
+        print(f"   ⚠️ Could not write diagnostic log: {log_error}")
+    else:
+        print(f"   📄 Full diagnostic log: {GODOT_WEB_DIAGNOSTIC_LOG}")
 
 
 def _missing_artifacts(directory: Path) -> List[str]:

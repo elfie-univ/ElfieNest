@@ -49,6 +49,36 @@ def test_source_species_gate_rejects_a_different_godot_catalog() -> None:
         )
 
 
+def test_source_species_gate_preserves_godot_process_output_on_failure() -> None:
+    def failing_runner(
+        *,
+        godot_binary: Path,
+        godot_project: Path,
+        timeout_seconds: float,
+    ) -> species_package_validation.GodotSpeciesValidationResult:
+        del godot_binary, godot_project, timeout_seconds
+        return species_package_validation.GodotSpeciesValidationResult(
+            1,
+            "Godot stdout detail\n",
+            "Godot stderr detail\n",
+            phase="project-import",
+        )
+
+    with pytest.raises(
+        species_package_validation.SpeciesPackageValidationError
+    ) as raised:
+        species_package_validation.validate_source_species_packages(
+            config_root=Path("config"),
+            godot_project=Path("godot_project"),
+            godot_runner=failing_runner,
+            godot_binary=Path("/bin/true"),
+        )
+
+    assert raised.value.stdout == "Godot stdout detail\n"
+    assert raised.value.stderr == "Godot stderr detail\n"
+    assert raised.value.phase == "project-import"
+
+
 def test_runtime_catalog_accepts_only_a_matching_validated_export_manifest(
     tmp_path: Path,
 ) -> None:

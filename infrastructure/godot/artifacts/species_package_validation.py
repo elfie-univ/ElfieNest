@@ -15,6 +15,19 @@ from infrastructure.persistence.configuration.species import load_species_catalo
 class SpeciesPackageValidationError(RuntimeError):
     """The configuration and Godot species packages cannot be shipped together."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        stdout: str = "",
+        stderr: str = "",
+        phase: str = "species-validation",
+    ) -> None:
+        super().__init__(message)
+        self.stdout = stdout
+        self.stderr = stderr
+        self.phase = phase
+
 
 @dataclass(frozen=True)
 class GodotSpeciesValidationResult:
@@ -23,6 +36,7 @@ class GodotSpeciesValidationResult:
     returncode: int
     stdout: str
     stderr: str
+    phase: str = "species-validation"
 
 
 class GodotSpeciesValidationRunner(Protocol):
@@ -131,25 +145,44 @@ def validate_source_species_packages(
     output = f"{result.stdout}\n{result.stderr}"
     if result.returncode != 0:
         raise SpeciesPackageValidationError(
-            f"godot-species-validation-failed exit={result.returncode}"
+            f"godot-species-validation-failed exit={result.returncode}",
+            stdout=result.stdout,
+            stderr=result.stderr,
+            phase=result.phase,
         )
     match = _CATALOG_MARKER.search(output)
     if match is None:
-        raise SpeciesPackageValidationError("godot-species-validation-marker-missing")
+        raise SpeciesPackageValidationError(
+            "godot-species-validation-marker-missing",
+            stdout=result.stdout,
+            stderr=result.stderr,
+            phase=result.phase,
+        )
     try:
         discovered = json.loads(match.group(1))
     except json.JSONDecodeError as error:
         raise SpeciesPackageValidationError(
-            "godot-species-validation-marker-invalid"
+            "godot-species-validation-marker-invalid",
+            stdout=result.stdout,
+            stderr=result.stderr,
+            phase=result.phase,
         ) from error
     if not isinstance(discovered, list) or any(
         not isinstance(item, str) for item in discovered
     ):
-        raise SpeciesPackageValidationError("godot-species-validation-ids-invalid")
+        raise SpeciesPackageValidationError(
+            "godot-species-validation-ids-invalid",
+            stdout=result.stdout,
+            stderr=result.stderr,
+            phase=result.phase,
+        )
     if set(discovered) != manifest_packages:
         raise SpeciesPackageValidationError(
             "godot-species-discovery-set-mismatch "
-            f"expected={sorted(manifest_packages)} actual={sorted(discovered)}"
+            f"expected={sorted(manifest_packages)} actual={sorted(discovered)}",
+            stdout=result.stdout,
+            stderr=result.stderr,
+            phase=result.phase,
         )
     return tuple(sorted(manifest_packages))
 

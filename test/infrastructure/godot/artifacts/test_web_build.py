@@ -4,6 +4,9 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
+from infrastructure.godot.artifacts import species_package_validation, web_build
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
 from infrastructure.godot.artifacts.web_build import (
     current_source_fingerprint,
@@ -103,3 +106,42 @@ def test_patch_web_entry_for_lan_http_adds_scoped_godot_compatibility(
 
     patch_web_entry_for_lan_http(entry)
     assert entry.read_text(encoding="utf-8") == patched
+
+
+def test_web_build_prints_and_persists_species_validation_diagnostics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    diagnostic_log = tmp_path / "build" / "logs" / "godot-web-build.log"
+    monkeypatch.setattr(web_build, "GODOT_WEB_DIAGNOSTIC_LOG", diagnostic_log)
+
+    def failing_runner(
+        *,
+        godot_binary: Path,
+        godot_project: Path,
+        timeout_seconds: float,
+    ) -> species_package_validation.GodotSpeciesValidationResult:
+        del godot_binary, godot_project, timeout_seconds
+        return species_package_validation.GodotSpeciesValidationResult(
+            1,
+            "Godot stdout detail\n",
+            "Godot stderr detail\n",
+        )
+
+    result = web_build._export_runtime(
+        tmp_path / "runtime",
+        Path("/bin/true"),
+        False,
+        godot_runner=failing_runner,
+    )
+
+    assert result == 1
+    console = capsys.readouterr().out
+    assert "Godot stdout detail" in console
+    assert "Godot stderr detail" in console
+    assert str(diagnostic_log) in console
+    log = diagnostic_log.read_text(encoding="utf-8")
+    assert "phase=species-validation" in log
+    assert "Godot stdout detail" in log
+    assert "Godot stderr detail" in log
