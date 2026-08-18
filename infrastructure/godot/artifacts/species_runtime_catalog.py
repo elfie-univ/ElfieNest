@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import json
 import os
-import platform
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from elfie.profile import SpeciesCatalog
 
+from ..runner import find_godot
 from .species_package_validation import (
     GodotSpeciesValidationRunner,
     SpeciesPackageValidationError,
@@ -131,27 +130,7 @@ def _matching_manifest_ids(
 
 
 def _find_godot_binary() -> Path | None:
-    configured = os.environ.get("GODOT_BIN", "").strip()
-    candidates = [Path(configured).expanduser()] if configured else []
-    for name in ("godot4", "godot", "Godot"):
-        found = shutil.which(name)
-        if found:
-            candidates.append(Path(found))
-    if platform.system() == "Darwin":
-        candidates.extend(
-            (
-                Path("/Applications/Godot.app/Contents/MacOS/Godot"),
-                Path.home() / "Applications/Godot.app/Contents/MacOS/Godot",
-            )
-        )
-    for candidate in candidates:
-        try:
-            resolved = candidate.resolve()
-        except OSError:
-            continue
-        if resolved.is_file() and os.access(resolved, os.X_OK):
-            return resolved
-    return None
+    return find_godot()
 
 
 __all__ = (

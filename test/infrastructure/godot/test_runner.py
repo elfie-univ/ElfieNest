@@ -1,0 +1,144 @@
+from __future__ import annotations
+
+import json
+import os
+import stat
+from pathlib import Path
+
+import pytest
+
+from infrastructure.godot.runner import godot_version, run_headless
+
+_FAKE_GODOT = """#!/bin/sh
+if [ \"${1:-}\" = \"--version\" ]; then
+    printf '%s\\n' '4.7.1.stable'
+    exit 0
+fi
+if [ -n \"${FAKE_GODOT_COUNT:-}\" ]; then
+    printf '%s\\n' invoked >> \"$FAKE_GODOT_COUNT\"
+fi
+if [ \"${FAKE_GODOT_MODE:-}\" = crash ]; then
+    kill -ABRT $$
+fi
+if [ \"${FAKE_GODOT_MODE:-}\" = timeout ]; then
+    exec sleep 2
+fi
+printf 'fake godot arguments: %s\\n' \"$*\"
+exit 0
+"""
+
+
+def _fake_godot(tmp_path: Path) -> Path:
+    binary = tmp_path / "fake-godot"
+    binary.write_text(_FAKE_GODOT, encoding="utf-8")
+    binary.chmod(binary.stat().st_mode | stat.S_IXUSR)
+    return binary
+
+
+def _invocation_records(stderr: str) -> list[dict[str, object]]:
+    prefix = "GODOT_INVOCATION "
+    return [
+        json.loads(line[len(prefix) :])
+        for line in stderr.splitlines()
+        if line.startswith(prefix)
+    ]
+
+
+def test_version_and_headless_validation_use_one_observable_process_boundary(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    binary = _fake_godot(tmp_path)
+    project = tmp_path / "godot_project"
+    project.mkdir()
+
+    assert godot_version(binary) == "4.7"
+    result = run_headless(
+        binary,
+        project,
+        ("--script", "res://check.gd", "--token", "do-not-log"),
+        godot_version="4.7",
+        purpose="test-validation",
+    )
+
+    assert result.exit_code == 0
+    assert result.crashed is False
+    assert result.timed_out is False
+    assert result.command[:4] == (
+        str(binary),
+        "--headless",
+        "--path",
+        str(project.resolve()),
+    )
+    records = _invocation_records(capsys.readouterr().err)
+    assert records[-1]["status"] == "exited"
+    assert records[-1]["godot_version"] == "4.7"
+    assert records[-1]["parent_pid"] == os.getpid()
+    assert "do-not-log" not in json.dumps(records[-1])
+    assert records[-1]["command"][-2:] == ["<redacted>", "<redacted>"]
+
+
+def test_crash_is_failed_once_and_is_not_retried(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    binary = _fake_godot(tmp_path)
+    project = tmp_path / "godot_project"
+    project.mkdir()
+    count_file = tmp_path / "invocations.txt"
+    environment = dict(os.environ)
+    environment.update(
+        {"FAKE_GODOT_MODE": "crash", "FAKE_GODOT_COUNT": str(count_file)}
+    )
+
+    result = run_headless(
+        binary,
+        project,
+        ("--script", "res://check.gd"),
+        timeout_seconds=5,
+        purpose="test-crash",
+        env=environment,
+    )
+
+    assert result.exit_code == 1
+    assert result.crashed is True
+    assert result.timed_out is False
+    assert count_file.read_text(encoding="utf-8").splitlines() == ["invoked"]
+    stderr = capsys.readouterr().err
+    assert "GODOT_CRASH: one invocation failed; no retry was attempted." in stderr
+    assert _invocation_records(stderr)[-1]["status"] == "crashed"
+
+
+def test_timeout_is_failed_without_a_second_process(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    binary = _fake_godot(tmp_path)
+    project = tmp_path / "godot_project"
+    project.mkdir()
+    count_file = tmp_path / "invocations.txt"
+    environment = dict(os.environ)
+    environment.update(
+        {"FAKE_GODOT_MODE": "timeout", "FAKE_GODOT_COUNT": str(count_file)}
+    )
+
+    result = run_headless(
+        binary,
+        project,
+        ("--script", "res://check.gd"),
+        timeout_seconds=0.5,
+        purpose="test-timeout",
+        env=environment,
+    )
+
+    assert result.exit_code == 124
+    assert result.crashed is False
+    assert result.timed_out is True
+    assert count_file.read_text(encoding="utf-8").splitlines() == ["invoked"]
+    assert _invocation_records(capsys.readouterr().err)[-1]["status"] == "timed_out"
+
+
+def test_headless_runner_rejects_editor_mode(tmp_path: Path) -> None:
+    binary = _fake_godot(tmp_path)
+    project = tmp_path / "godot_project"
+    project.mkdir()
+
+    with pytest.raises(ValueError, match="only permits headless"):
+        run_headless(binary, project, ("--editor",))
