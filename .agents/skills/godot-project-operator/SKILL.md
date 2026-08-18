@@ -1,22 +1,35 @@
 ---
 name: godot-project-operator
-description: 安全操作仓库内的 Godot 项目，控制单实例启动、编辑器与游戏运行、引擎版本检查、场景资源验证、渲染验收和进程清理。Codex 在打开 Godot、运行或调试场景、检查最终渲染、处理导入缓存、排查 Godot 启动错误或关闭 Godot 进程时必须使用此技能。
+description: 安全检查仓库内的 Godot 项目，执行单次 headless 验证、引擎版本检查和进程状态检查。Codex 在排查 Godot 启动错误、执行 Godot 专项门禁或检查 Godot 进程时必须使用此技能。
 ---
 
 # Godot 项目操作
 
 使用受控流程操作 Godot，避免重复实例、版本升级污染和误关用户进程。执行前读取 [references/elfienest.md](references/elfienest.md) 获取本项目路径和场景信息。
 
+## 执行环境
+
+本技能不能自行提升权限。Codex 的默认命令在沙箱中运行；真实 Godot 只能在用户授权的
+本机主机环境运行。在 Codex 中，这对应执行器的
+`sandbox_permissions=require_escalated` 授权模式。沙箱只允许做静态检查和无启动的诊断；
+如果 `status` 无法读取进程表，必须停止并通过执行器请求一次主机授权，不得继续调用
+`validate`。
+
+授权后的本机验证使用仓库入口 `scripts/godot_host_validate.sh`。Codex 应以主机授权方式
+调用它；用户不需要手工复制命令到 Terminal。若执行器无法提供授权执行，再把同一个入口
+交给用户在普通 Terminal 中运行。
+
 ## 强制规则
 
-1. 先运行 `godot_guard.py status` 和 `git status --short`，再决定是否启动。
-2. 同一项目路径只保留一个 Godot 图形实例。不同项目路径可以并行，但禁止使用 `open -n`，也禁止为同一项目看日志、截图或重建缓存并行启动编辑器和游戏。
-3. 检测到同一项目或无法识别归属的 Godot 进程时停止自动启动。已确认属于其他项目的进程不阻塞当前项目；无法确认窗口归属时仍不得批量终止进程。
+1. 先运行 `godot_guard.py status` 和 `git status --short`，再决定是否启动；如果当前环境
+   无法执行 `status`，不得启动任何 Godot 子进程。
+2. Godot 专项门禁只允许单次、同步、headless 验证。禁止使用 `open -n`、启动编辑器、启动游戏或为看日志、截图、重建缓存并行启动实例。
+3. 检测到当前项目或归属不明的 Godot 进程时停止自动启动。已确认属于其他项目的进程不阻塞当前项目；无法确认窗口归属时先询问用户，不得批量终止进程。
 4. 遵循 `project.godot` 声明的引擎主次版本。版本不一致时不得直接打开可编辑项目；只有用户明确同意后才能传入 `--allow-version-mismatch`。
 5. 启动前记录工作区状态，结束后再次检查。Godot 自动修改的 `project.godot`、`*.import` 或场景文件不得直接保留或提交；先展示差异并说明来源。
-6. 仅在没有当前项目图形实例时运行 headless 验证，并等待该进程完全退出。其他项目的图形实例不阻塞验证；不得把临时验证进程留在后台。
-7. 视觉验收优先复用当前游戏窗口，只截取 Godot 窗口或 Viewport。禁止截取整个桌面，禁止在已有实例旁再启动截图实例。
-8. 用户要求保留页面时保留唯一的目标窗口；其余由本次操作创建的临时进程必须退出。结束前再次运行 `status`。
+6. 仅在没有当前项目或归属不明的 Godot 进程时运行一次 headless 验证，并等待该进程完全退出。其他项目的进程不阻塞验证；不得后台启动、自动重试或把临时验证进程留在后台。
+7. Godot 发生崩溃时立即失败并保留统一入口输出的命令、项目、版本、父进程和退出码证据；不得再次拉起。
+8. 结束前再次运行 `status`，确认没有遗留的验证进程。
 
 ## 标准流程
 
@@ -25,28 +38,34 @@ description: 安全操作仓库内的 Godot 项目，控制单实例启动、编
 从仓库根目录运行：
 
 ```bash
-python3 .agents/skills/godot-project-operator/scripts/godot_guard.py doctor
 python3 .agents/skills/godot-project-operator/scripts/godot_guard.py status
 git status --short
 ```
 
-若 `doctor` 报告版本不匹配，优先寻找匹配版本。不要通过打开项目让 Godot 自动升级元数据。
+这里不把 `doctor` 放在真实验证前面：当前 `doctor` 会通过 `Godot --version` 启动额外
+进程。真实验证直接从一次 headless 运行的输出中读取版本；`doctor` 只作为主机环境中的
+独立诊断命令，不得与 `validate` 组合成一次验证流程。
 
 ### 2. 选择一种运行方式
 
-- 打开编辑器：仅在没有当前项目或归属不明的 Godot 进程时运行 `godot_guard.py editor`。
-- 查看最终场景：已有当前项目编辑器时在该编辑器内运行主场景；没有当前项目或归属不明的 Godot 进程时运行 `godot_guard.py run`。
-- 验证资源：关闭当前项目的图形实例后运行 `godot_guard.py validate`；其他项目的实例不阻塞验证。
-- 查看已有窗口：聚焦现有 Godot 应用，不创建新实例；macOS 使用 `open -a Godot`，不得添加 `-n`。
+- 验证资源：确认没有 Godot 进程后运行 `godot_guard.py validate`。该命令只启动一次同步 headless 进程。
+  - 当前项目或归属不明的 Godot 进程存在时拒绝启动；已确认属于其他项目的进程不阻塞验证。
 
-`editor` 和 `run` 只负责启动一个实例。不要立即再执行另一种启动命令。
+在 Codex 中执行真实验证时，使用主机授权调用：
+
+```bash
+bash scripts/godot_host_validate.sh \
+  res://scripts/test/test_scene_resource_contract.gd
+```
+
+该入口先检查主机进程表，再调用一次 `validate`；沙箱中检查失败时不会启动 Godot。
+
+`doctor` 和 `status` 只检查环境与进程，不启动项目；`validate` 是唯一的 Godot 专项启动入口。
 
 ### 3. 验收与清理
 
-1. 从现有窗口检查场景是否可见、相机是否正确、是否出现黑屏或资源缺失。
-2. 读取同一实例的 Godot 输出；不要为了日志另开进程。
-3. 仅关闭本次明确创建且不再需要的进程。用户要求保留的窗口不要关闭。
-4. 运行：
+1. 读取统一入口输出，确认 headless 进程已退出且没有崩溃或超时。
+2. 运行：
 
 ```bash
 python3 .agents/skills/godot-project-operator/scripts/godot_guard.py status
@@ -54,7 +73,7 @@ git status --short
 git diff -- godot_project/project.godot 'godot_project/**/*.import'
 ```
 
-5. 报告保留了哪个窗口、关闭了哪些临时进程、验证结果以及是否产生源码变更。
+3. 报告验证结果、崩溃证据（如有）以及是否产生源码变更。
 
 ## 受控启动脚本
 
@@ -64,4 +83,4 @@ git diff -- godot_project/project.godot 'godot_project/**/*.import'
 python3 .agents/skills/godot-project-operator/scripts/godot_guard.py --help
 ```
 
-通过 `GODOT_BIN` 指定 Godot 可执行文件。只有用户明确接受版本差异时才使用 `--allow-version-mismatch`。脚本拒绝在同一项目或归属不明的 Godot 进程存在时继续启动；已确认属于其他项目的实例不会阻塞当前项目。
+通过 `GODOT_BIN` 指定 Godot 可执行文件。只有用户明确接受版本差异时才使用 `--allow-version-mismatch`。脚本拒绝在当前项目或归属不明的 Godot 进程存在时继续验证；已确认属于其他项目的实例不会阻塞当前项目。
