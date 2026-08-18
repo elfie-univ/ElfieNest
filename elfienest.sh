@@ -34,6 +34,10 @@ case "$MODE" in
     source_development)
         export ELFIENEST_RUNTIME_MODE="development"
         export ELFIENEST_SOURCE_ROOT="$SCRIPT_DIR"
+        # Source target selection is independent from the installed product
+        # namespace.  The Python dispatcher resolves the source task first;
+        # only its short-lived child scope receives ELFIE_HOME.
+        unset ELFIE_HOME
         # Development mode: silent dependency check, only show install when missing.
         # Help is a shell-owned command and piped command streams should not trigger
         # a dependency installation before they can report their requested output.
@@ -99,31 +103,18 @@ show_help() {
     echo ""
     echo "    serve*         Run service in foreground (dev mode)"
     echo "    start*         Start background service"
-    echo "    stop           Stop current service"
-    echo "    restart        Force restart current service"
-    echo "    status         Show service and port status"
-    echo "    web            Ensure service, open Web console, and show mobile QR code"
+    echo "    restart*       Force restart service"
+    echo "    stop*          Stop current service"
+    echo "    status*        Show service and port status"
+    echo "    web            Open Web console for an already running service"
     echo "    mobile         Show mobile access URL and QR code"
     echo "    config         Provider, model, Food and tool configuration (interactive menu)"
     echo "    owner          Owner account menu"
     echo "    doctor         Run local diagnostics and auto-repair"
-    echo "    uninstall      Uninstall and data cleanup"
-    echo "    setup          First-time setup wizard"
+    echo "    db*            Database tools"
     echo "    version        Show version info"
     echo "    help           Show this help"
     echo "    exit           Exit interactive mode"
-    echo ""
-    echo "  ┌─────────────────────────────────────────────────────────┐"
-    echo "  │  Commands with * support additional arguments          │"
-    echo "  └─────────────────────────────────────────────────────────┘"
-    echo ""
-    echo "    serve --force          Force takeover conflicting ports"
-    echo "    serve --port <PORT>    Specify HTTP port"
-    echo "    serve --godot-ws-port <PORT> Specify Godot WebSocket port"
-    echo "    serve --data-home PATH  Use an explicit data root"
-    echo "    start --port <PORT>    Specify HTTP port for background start"
-    echo "    start --godot-ws-port <PORT> Specify Godot WebSocket port"
-    echo "    start --data-home PATH  Use an explicit data root"
     echo ""
     echo "  ┌─────────────────────────────────────────────────────────┐"
     echo "  │  Examples                                               │"
@@ -135,92 +126,7 @@ show_help() {
 }
 
 interactive_mode() {
-    local history_file
-    local history_temp
-    local input_line
-    local cmd
-    local -a argv args
-
-    # Keep the interactive prompt owned by Readline so editing cannot erase it.
-    HISTFILE="${ELFIE_HOME:-$SCRIPT_DIR/.elfienest.local}/.cli_history"
-    history_file="$HISTFILE"
-    if [ -L "$history_file" ]; then
-        history_file=""
-    else
-        # Start with a fresh, bounded history; never replay legacy or symlinked entries.
-        mkdir -p "$(dirname "$history_file")"
-        history_temp="$(mktemp "${history_file}.tmp.XXXXXX" 2>/dev/null || true)"
-        if [[ -n "$history_temp" ]]; then
-            chmod 600 "$history_temp" 2>/dev/null || true
-            if ! mv -f "$history_temp" "$history_file" 2>/dev/null; then
-                rm -f "$history_temp"
-                history_file=""
-            fi
-        else
-            history_file=""
-        fi
-    fi
-    HISTFILE="$history_file"
-    HISTSIZE=10
-    HISTFILESIZE=10
-    HISTCONTROL=ignoredups
-    set -o history
-    
-    show_logo
-    show_help
-    while true; do
-        argv=()
-        if ! IFS= read -e -r -p "elfienest> " input_line; then
-            echo ""
-            return 0
-        fi
-        [[ -z "$input_line" ]] && continue
-        read -r -a argv <<< "$input_line"
-        cmd="${argv[0]}"
-        if [[ "$cmd" != "owner" \
-            && "$input_line" != *"--api-key"* \
-            && "$input_line" != *"--password"* \
-            && "$input_line" != *"--secret"* \
-            && "$input_line" != *"--token"* \
-            && -n "$history_file" ]]; then
-            history -s "$input_line"
-            history_temp="$(mktemp "${history_file}.tmp.XXXXXX" 2>/dev/null || true)"
-            if [[ -n "$history_temp" ]]; then
-                if history -w "$history_temp" 2>/dev/null; then
-                    chmod 600 "$history_temp" 2>/dev/null || true
-                    if ! mv -f "$history_temp" "$history_file" 2>/dev/null; then
-                        rm -f "$history_temp"
-                    fi
-                else
-                    rm -f "$history_temp"
-                fi
-            fi
-        fi
-        args=("${argv[@]:1}")
-        case "$cmd" in
-            "" ) continue ;;
-            exit|quit|q)
-                # The command was already persisted above. Prevent Bash from
-                # writing the same history entry again during shell shutdown.
-                unset HISTFILE
-                echo ""
-                echo "  Goodbye! 🦊"
-                echo ""
-                exit 0
-                ;;
-            help|h|\?) show_help ;;
-            serve) ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py serve "${args[@]}" ;;
-            v) ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py version "${args[@]}" ;;
-            config|owner|doctor|status|web|mobile|stop|restart|start|version|setup|uninstall)
-                ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py "$cmd" "${args[@]}" ;;
-            *)
-                echo ""
-                echo "  ❌ Unknown command: $cmd"
-                echo "  💡 Type 'help' to see available commands"
-                echo ""
-                ;;
-        esac
-    done
+    exec "$PYTHON_BIN" scripts/elfienest.py --interactive
 }
 
 if [ $# -eq 0 ]; then
@@ -229,7 +135,7 @@ else
     command="$1"
     case "$command" in
     restart)
-        ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py "$@"
+        "$PYTHON_BIN" scripts/elfienest.py "$@"
         ;;
     serve)
         shift

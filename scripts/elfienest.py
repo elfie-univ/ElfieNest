@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import argparse
 import os
+import readline
+import shlex
 import sys
+from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
-from typing import NoReturn
+from typing import Iterator, NoReturn, Optional, Sequence
 
 PINNED_CPYTHON_VERSION = (3, 9, 25)
 
@@ -32,21 +35,17 @@ from app.bootstrap.system_wiring.entrypoints import (
     resolve_elfie_home,
 )
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
-from app.interfaces.cli.data_home_commands import (
-    activate_data_home_command,
-    inspect_data_home_command,
-    recover_data_home_command,
-)
 from app.interfaces.cli.doctor_commands import run_doctor
 from app.interfaces.cli.foreground_runtime import run_foreground_service
 from app.interfaces.cli.lifecycle_commands import (
+    display_data_home,
     open_web_console,
     published_http_port_for_home,
     restart_background_service,
     selected_runtime_data_home,
     show_service_status,
     start_background_service,
-    start_desktop_application,
+    open_desktop_application,
     stop_background_service,
 )
 from app.interfaces.cli.mobile_commands import show_mobile_access
@@ -57,12 +56,22 @@ from app.interfaces.cli.packaged_runtime import (
 )
 from app.interfaces.cli.provider_commands import login_provider
 from app.interfaces.cli.runtime_commands import dispatch_db, show_version
+from app.interfaces.cli.target_context import (
+    CliSession,
+    prompt_for_candidate,
+    resolve_cli_target,
+    source_root_for_cli,
+)
 from app.interfaces.cli.tui.common import print_banner
 from app.interfaces.cli.tui.config_app import run_config_tui
 from app.interfaces.cli.uninstall_commands import run_uninstall_menu
 from app.orchestration.lifecycle import (
     LifecycleFacade,
     ServiceLifecycleResult,
+)
+from app.orchestration.lifecycle.target_resolution import (
+    EntrypointMode,
+    TargetResolutionError,
 )
 
 if getattr(sys, "frozen", False):
@@ -95,12 +104,14 @@ class SecretSafeArgumentParser(argparse.ArgumentParser):
         super().error(message)
 
 
-def main() -> None:
+def build_parser() -> SecretSafeArgumentParser:
+    """Build the mode-specific parser shared by one-shot and interactive CLI."""
     parser = SecretSafeArgumentParser(
         prog="elfienest",
         description="ElfieNest CLI - Embodied AI Creature System",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    packaged = _is_packaged_cli_runtime()
 
     subparsers = parser.add_subparsers(
         dest="command",
@@ -108,50 +119,33 @@ def main() -> None:
         parser_class=SecretSafeArgumentParser,
     )
 
-    config_parser = subparsers.add_parser(
-        "config", help="Config center (interactive menu)"
-    )
-    config_parser.add_argument(
-        "config_path",
-        nargs="?",
-        choices=["provider", "providers", "agent", "tools", "food", "foods"],
-        help=argparse.SUPPRESS,
-    )
-
-    serve_parser = subparsers.add_parser(
-        "serve", help="Run service in foreground (dev mode)"
-    )
-    serve_parser.add_argument("--force", action="store_true")
-    serve_parser.add_argument("--port", type=int, default=None)
-    serve_parser.add_argument("--godot-ws-port", type=int, default=None)
-    serve_parser.add_argument(
-        "--data-home",
-        default=None,
-        help=(
-            argparse.SUPPRESS
-            if _is_packaged_cli_runtime()
-            else "Use an isolated source/development data root"
-        ),
-    )
-    serve_parser.add_argument("--lan", action="store_true")
-    serve_parser.add_argument(
-        "--runtime-mode",
-        choices=("development", "release"),
-        default=None,
-    )
+    if not packaged:
+        serve_parser = subparsers.add_parser(
+            "serve", help="Run service in foreground (dev mode)"
+        )
+        serve_parser.add_argument("--port", type=int, default=None)
+        serve_parser.add_argument("--godot-ws-port", type=int, default=None)
+        serve_parser.add_argument(
+            "--data-home",
+            default=None,
+            help="Use an isolated source/development data root",
+        )
+        serve_parser.add_argument("--lan", action="store_true")
+        serve_parser.add_argument(
+            "--runtime-mode",
+            choices=("development", "release"),
+            default=None,
+        )
 
     start_parser = subparsers.add_parser("start", help="Start background service")
-    start_parser.add_argument("--port", type=int, default=None)
-    start_parser.add_argument("--godot-ws-port", type=int, default=None)
-    start_parser.add_argument(
-        "--data-home",
-        default=None,
-        help=(
-            argparse.SUPPRESS
-            if _is_packaged_cli_runtime()
-            else "Use an isolated source/development data root"
-        ),
-    )
+    if not packaged:
+        start_parser.add_argument("--port", type=int, default=None)
+        start_parser.add_argument("--godot-ws-port", type=int, default=None)
+        start_parser.add_argument(
+            "--data-home",
+            default=None,
+            help="Use an isolated source/development data root",
+        )
     start_parser.add_argument("--owner-id", default="cli", help=argparse.SUPPRESS)
     start_parser.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     start_parser.add_argument(
@@ -163,74 +157,264 @@ def main() -> None:
         dest="lan",
         action="store_true",
         default=True,
-        help="Allow LAN access (default for background start)",
+        help=(
+            "Allow LAN access (default for background start)"
+            if not packaged
+            else argparse.SUPPRESS
+        ),
     )
     start_network_group.add_argument(
         "--loopback",
         dest="lan",
         action="store_false",
-        help="Bind to loopback only",
+        help=(
+            "Bind to loopback only" if not packaged else argparse.SUPPRESS
+        ),
     )
+
+    restart_parser = subparsers.add_parser("restart", help="Force restart service")
+    if not packaged:
+        restart_parser.add_argument("--port", type=int, default=None)
+        restart_parser.add_argument("--godot-ws-port", type=int, default=None)
+        restart_parser.add_argument(
+            "--data-home",
+            default=None,
+            help="Use an isolated source/development data root",
+        )
+
+    stop_parser = subparsers.add_parser("stop", help="Stop service")
+    stop_parser.add_argument("--owner-id", default="cli", help=argparse.SUPPRESS)
+    if not packaged:
+        stop_parser.add_argument(
+            "--data-home",
+            default=None,
+            help="Use an isolated source/development data root",
+        )
+
     status_parser = subparsers.add_parser("status", help="Show service status")
     status_parser.add_argument(
         "--json", action="store_true", help="Output component health JSON"
     )
     subparsers.add_parser(
         "web",
-        help="Ensure service and open Web console",
+        help="Open Web console for an already running service",
     )
-    if _is_packaged_cli_runtime():
-        subparsers.add_parser("desktop", help="Launch packaged ElfieNest Desktop")
     subparsers.add_parser("mobile", help="Show mobile access URL and QR code")
-    stop_parser = subparsers.add_parser("stop", help="Stop service")
-    stop_parser.add_argument("--owner-id", default="cli", help=argparse.SUPPRESS)
-    subparsers.add_parser("restart", help="Force restart service")
+    if packaged:
+        subparsers.add_parser(
+            "desktop",
+            help="Open the existing Desktop Viewer without starting service",
+        )
+
+    config_parser = subparsers.add_parser(
+        "config", help="Config center (interactive menu)"
+    )
+    config_parser.add_argument(
+        "config_path",
+        nargs="?",
+        choices=["provider", "providers", "agent", "tools", "food", "foods"],
+        help=argparse.SUPPRESS,
+    )
     subparsers.add_parser("owner", help="Owner account menu")
-    doctor_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "doctor", help="Run local diagnostics and config check"
     )
-    doctor_parser.add_argument(
-        "--fix-ports",
-        action="store_true",
-        help="Diagnose occupied service ports without terminating processes",
-    )
-    doctor_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Compatibility flag; Doctor never terminates port occupants",
-    )
-    subparsers.add_parser("uninstall", help="Uninstall and data cleanup")
-    subparsers.add_parser("version", help="Show version")
-    subparsers.add_parser("setup", help="First-time setup wizard")
-    data_home_parser = subparsers.add_parser(
-        "data-home", help="Inspect or recover the selected product data root"
-    )
-    data_home_parser.add_argument(
-        "data_home_command",
-        choices=["inspect", "recover", "activate"],
-        help="Read-only inspection or backup-and-rebuild recovery",
-    )
-    data_home_parser.add_argument(
-        "--json", action="store_true", help="Output structured JSON"
-    )
-    data_home_parser.add_argument("--data-home", default=None)
     db_parser = subparsers.add_parser("db", help="Database tools")
     db_parser.add_argument(
         "db_command", nargs="?", choices=["backup", "reset"], help="Database command"
     )
+    if packaged:
+        subparsers.add_parser("uninstall", help="Uninstall and data cleanup")
+    subparsers.add_parser("version", help="Show version")
 
-    args = parser.parse_args()
-    dispatch_command(args, create_lifecycle_facade())
+    parser.add_argument("--interactive", action="store_true", help=argparse.SUPPRESS)
+    return parser
+
+
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    parser = build_parser()
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if _is_packaged_cli_runtime() and (
+        not arguments or any(argument in {"-h", "--help"} for argument in arguments)
+    ):
+        print_banner()
+    args = parser.parse_args(arguments)
+    if getattr(args, "interactive", False):
+        run_interactive_shell()
+        return
+    if args.command is None:
+        parser.print_help()
+        return
+    dispatch_command(args)
+
+
+def run_interactive_shell() -> None:
+    """Run a persistent source shell with in-memory target context."""
+    session = CliSession()
+    source_root = source_root_for_cli()
+    state = create_lifecycle_facade().source_cli_state(source_root)
+    try:
+        for line in state.load_history():
+            readline.add_history(line)
+    except OSError as error:
+        print(f"⚠️ 源码 CLI history 不可用: {error}")
+    readline.set_history_length(50)
+    print_banner()
+    print_cli_help()
+    while True:
+        try:
+            input_line = input("elfienest> ")
+        except EOFError:
+            print()
+            return
+        if not input_line.strip():
+            continue
+        try:
+            argv = shlex.split(input_line)
+        except ValueError as error:
+            print(f"❌ 命令解析失败: {error}")
+            continue
+        command = argv[0]
+        if command in {"exit", "quit", "q"}:
+            print("\n  Goodbye! 🦊\n")
+            return
+        if command in {"help", "h", "?"}:
+            print_cli_help()
+            continue
+        if command == "v":
+            argv = ["version", *argv[1:]]
+        if _safe_interactive_history(input_line):
+            try:
+                state.record_history(input_line)
+            except OSError as error:
+                print(f"⚠️ 源码 CLI history 不可写，已继续执行: {error}")
+        try:
+            args = build_parser().parse_args(argv)
+            dispatch_command(args, session=session, interactive=True)
+        except SystemExit as error:
+            if error.code not in (0, None):
+                print(f"❌ 命令失败，退出码: {error.code}")
+        except (TargetResolutionError, DataHomeSelectionError) as error:
+            print(f"❌ {error}")
+            if isinstance(error, TargetResolutionError):
+                print("  ℹ️ 尚未确定数据目录，本次错误没有可写入的数据根日志。")
+
+
+def print_cli_help() -> None:
+    """Print the compact command list used by the interactive shell."""
+    packaged = _is_packaged_cli_runtime()
+    commands = []
+    if not packaged:
+        commands.append(("serve*", "Run service in foreground (dev mode)"))
+    commands.extend(
+        [
+            ("start*" if not packaged else "start", "Start background service"),
+            ("restart*" if not packaged else "restart", "Force restart service"),
+            ("stop*" if not packaged else "stop", "Stop current service"),
+            ("status*", "Show service and port status"),
+            ("web", "Open Web console for an already running service"),
+            ("mobile", "Show mobile access URL and QR code"),
+        ]
+    )
+    if packaged:
+        commands.append(("desktop", "Open the existing Desktop Viewer"))
+    commands.extend(
+        [
+            ("config", "Provider, model, Food and tool configuration (interactive menu)"),
+            ("owner", "Owner account menu"),
+            ("doctor", "Run local diagnostics and auto-repair"),
+            ("db*", "Database tools"),
+        ]
+    )
+    if packaged:
+        commands.append(("uninstall", "Uninstall and data cleanup"))
+    commands.append(("version", "Show version info"))
+    if not packaged:
+        commands.extend(
+            [
+                ("help", "Show this help"),
+                ("exit", "Exit interactive mode"),
+            ]
+        )
+
+    print("  ┌─────────────────────────────────────────────────────────┐")
+    print("  │  Commands                                               │")
+    print("  └─────────────────────────────────────────────────────────┘")
+    print()
+    for command, description in commands:
+        print(f"    {command:<15} {description}")
+    print()
+    print("  ┌─────────────────────────────────────────────────────────┐")
+    print("  │  Examples                                               │")
+    print("  └─────────────────────────────────────────────────────────┘")
+    print()
+    if not packaged:
+        print("    elfienest> serve              # Start with the configured model")
+        print("    elfienest> exit               # Exit")
+    print()
+
+
+def _safe_interactive_history(command_line: str) -> bool:
+    try:
+        arguments = shlex.split(command_line)
+    except ValueError:
+        return False
+    if not arguments or arguments[0] in {"owner", "config"}:
+        return False
+    sensitive = {"--api-key", "--password", "--secret", "--token"}
+    return not any(argument.split("=", 1)[0] in sensitive for argument in arguments)
 
 
 def dispatch_command(
-    args: argparse.Namespace, lifecycle: LifecycleFacade | None = None
+    args: argparse.Namespace,
+    lifecycle: LifecycleFacade | None = None,
+    *,
+    session: CliSession | None = None,
+    interactive: bool = False,
 ) -> None:
+    if getattr(args, "command", None) == "version":
+        show_version()
+        return
     lifecycle_client = lifecycle or create_lifecycle_facade()
     try:
-        _dispatch_command(args, lifecycle_client)
+        target = None
+        if _command_requires_target(args):
+            target = resolve_cli_target(
+                lifecycle_client,
+                command=args.command,
+                mode=(
+                    EntrypointMode.INSTALLED
+                    if _is_packaged_cli_runtime()
+                    else EntrypointMode.SOURCE
+                ),
+                source_root=source_root_for_cli(),
+                invoking_cwd=Path.cwd(),
+                explicit_home=getattr(args, "data_home", None),
+                session=session,
+                installed_environment=dict(os.environ),
+                prompt=(
+                    prompt_for_candidate
+                    if interactive or sys.stdin.isatty()
+                    else None
+                ),
+            )
+        with _target_environment(
+            target.home if target is not None else None,
+            target.display_home if target is not None else None,
+        ):
+            _dispatch_command(
+                args,
+                lifecycle_client,
+                display_home=target.display_home if target is not None else None,
+            )
     except DataHomeSelectionError as error:
         sys.stderr.write(f"elfienest: {error}\n")
+        raise SystemExit(2) from error
+    except TargetResolutionError as error:
+        sys.stderr.write(
+            f"elfienest: {error}; target data root is unresolved, "
+            "so no data-root log was available\n"
+        )
         raise SystemExit(2) from error
     except KeyboardInterrupt as error:
         print()
@@ -238,7 +422,38 @@ def dispatch_command(
         raise SystemExit(130) from error
 
 
-def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> None:
+def _command_requires_target(args: argparse.Namespace) -> bool:
+    return getattr(args, "command", None) not in {None, "version"}
+
+
+@contextmanager
+def _target_environment(
+    home: Path | None, display_home: str | None = None
+) -> Iterator[None]:
+    """Publish one resolved root to target-bound code and child processes only."""
+    if home is None:
+        with display_data_home(None):
+            yield
+        return
+    had_value = "ELFIE_HOME" in os.environ
+    previous = os.environ.get("ELFIE_HOME")
+    os.environ["ELFIE_HOME"] = str(home)
+    try:
+        with display_data_home(display_home):
+            yield
+    finally:
+        if had_value and previous is not None:
+            os.environ["ELFIE_HOME"] = previous
+        else:
+            os.environ.pop("ELFIE_HOME", None)
+
+
+def _dispatch_command(
+    args: argparse.Namespace,
+    lifecycle: LifecycleFacade,
+    *,
+    display_home: str | None = None,
+) -> None:
     if args.command == "config":
         configuration = build_cli_configuration(str(get_db_path()))
         run_config_tui(
@@ -257,8 +472,6 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
         )
     elif args.command == "serve":
         options = _service_options_from_args(args)
-        if args.force:
-            options += ("--force",)
         _exit_on_lifecycle_failure(run_foreground_service(lifecycle, options))
     elif args.command == "status":
         show_service_status(lifecycle, json_output=getattr(args, "json", False))
@@ -266,7 +479,7 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
         result = open_web_console(lifecycle)
         _exit_on_lifecycle_failure(result)
     elif args.command == "desktop":
-        _exit_on_lifecycle_failure(start_desktop_application(lifecycle))
+        _exit_on_lifecycle_failure(open_desktop_application(lifecycle))
     elif args.command == "mobile":
         selected_home = selected_runtime_data_home(lifecycle)
         raise SystemExit(
@@ -274,7 +487,9 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
                 lifecycle,
                 build_operations_facade(str(get_db_path())),
                 http_port=published_http_port_for_home(lifecycle, selected_home),
-                clear_terminal=True,
+                data_home=selected_home,
+                display_home=display_home,
+                clear_terminal=False,
             )
         )
     elif args.command == "start":
@@ -307,7 +522,9 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
         )
         _exit_on_lifecycle_failure(result)
     elif args.command == "restart":
-        _exit_on_lifecycle_failure(restart_background_service(lifecycle))
+        _exit_on_lifecycle_failure(
+            restart_background_service(lifecycle, _service_options_from_args(args))
+        )
     elif args.command == "owner":
         owner_db_path = str(get_db_path())
         raise SystemExit(
@@ -319,53 +536,11 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
             )
         )
     elif args.command == "doctor":
-        fix_ports = getattr(args, "fix_ports", False)
-        force = getattr(args, "force", False)
-        if fix_ports:
-            from app.interfaces.cli.doctor_commands import run_doctor_with_port_fix
-
-            raise SystemExit(
-                run_doctor_with_port_fix(lifecycle, fix_ports=True, force=force)
-            )
-        else:
-            raise SystemExit(run_doctor(lifecycle))
+        raise SystemExit(run_doctor(lifecycle))
     elif args.command == "uninstall":
         raise SystemExit(run_uninstall_menu(lifecycle, build_terminal_menu()))
     elif args.command == "version":
         show_version()
-    elif args.command == "setup":
-        from app.interfaces.cli.tui.setup_app import run_setup_wizard
-
-        run_setup_wizard()
-    elif args.command == "data-home":
-        data_home_action = getattr(args, "data_home_command", None)
-        json_output = getattr(args, "json", False)
-        explicit_home = getattr(args, "data_home", None)
-        if data_home_action == "inspect":
-            raise SystemExit(
-                inspect_data_home_command(
-                    lifecycle,
-                    explicit_home=explicit_home,
-                    json_output=json_output,
-                )
-            )
-        if data_home_action == "recover":
-            raise SystemExit(
-                recover_data_home_command(
-                    lifecycle,
-                    explicit_home=explicit_home,
-                    json_output=json_output,
-                )
-            )
-        if data_home_action == "activate" and explicit_home is not None:
-            raise SystemExit(
-                activate_data_home_command(
-                    lifecycle,
-                    explicit_home,
-                    json_output=json_output,
-                )
-            )
-        raise SystemExit("data-home requires inspect, recover, or activate")
     elif args.command == "db":
         dispatch_db(
             build_operations_facade(str(get_db_path())),
@@ -383,16 +558,17 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
 def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
     """Convert supported background start options to the service command."""
     options: list[str] = []
-    if args.port is not None:
-        options.extend(("--port", str(args.port)))
-    if args.godot_ws_port is not None:
-        options.extend(("--godot-ws-port", str(args.godot_ws_port)))
+    port = getattr(args, "port", None)
+    godot_ws_port = getattr(args, "godot_ws_port", None)
+    if port is not None:
+        options.extend(("--port", str(port)))
+    if godot_ws_port is not None:
+        options.extend(("--godot-ws-port", str(godot_ws_port)))
     if getattr(args, "data_home", None) is not None:
         if _is_packaged_cli_runtime():
             raise DataHomeSelectionError(
-                "安装版 elfienest start 不支持 --data-home；请先使用 "
-                "'elfienest data-home activate --data-home PATH' 选择生产数据根，"
-                "或使用源码 './elfienest.sh start --data-home PATH' 启动开发实例"
+                "安装版生命周期命令不支持 --data-home；安装版只使用 "
+                "${ELFIE_HOME:-~/.elfienest}，需要隔离数据根请使用源码 CLI"
             )
         selected_home = resolve_elfie_home(
             args.data_home,
@@ -409,11 +585,8 @@ def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
 
 
 def _is_packaged_cli_runtime() -> bool:
-    """Return whether this process is the installed management CLI."""
-    return bool(
-        getattr(sys, "frozen", False)
-        or os.environ.get("ELFIENEST_DESKTOP_BIN", "").strip()
-    )
+    """Return installed mode from executable provenance, not caller env."""
+    return bool(getattr(sys, "frozen", False))
 
 
 def _exit_on_lifecycle_failure(result: ServiceLifecycleResult) -> None:

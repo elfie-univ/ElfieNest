@@ -15,7 +15,7 @@ CONTROLLER_NAMESPACE = "elfienest.desktop-ui"
 CONTROLLER_TOKEN_FILENAME = "controller.token"
 CONTROLLER_SOCKET_FILENAME = "controller.sock"
 CONTROLLER_ENDPOINT_FILENAME = "controller.endpoint.json"
-CONTROLLER_PROTOCOL_VERSION = 1
+CONTROLLER_PROTOCOL_VERSION = 2
 CONTROLLER_TIMEOUT_SECONDS = 2.0
 _MAX_FRAME_BYTES = 64 * 1024
 
@@ -26,10 +26,6 @@ class ControllerIpcError(RuntimeError):
 
 def controller_home() -> Path:
     """Return the stable per-user Controller directory used by Electron."""
-    configured = os.environ.get("ELFIENEST_CONTROLLER_HOME", "").strip()
-    if configured:
-        return Path(configured).expanduser().resolve()
-
     if sys.platform == "darwin":
         base = Path.home() / "Library" / "Application Support"
     elif sys.platform == "win32":

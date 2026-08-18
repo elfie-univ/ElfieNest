@@ -1,7 +1,6 @@
 import {
   app,
   BrowserWindow,
-  dialog,
   Menu,
   nativeImage,
   shell,
@@ -62,7 +61,6 @@ let controllerStartPromise: Promise<DesktopRoleState> | undefined;
 
 type RecoveryAction =
   | "recover-data-home"
-  | "choose-data-home"
   | "open-data-home"
   | "continue-start"
   | "quit";
@@ -137,7 +135,6 @@ function recoveryActionFromUrl(url: string): RecoveryAction | undefined {
   const action = url.slice("elfienest://".length);
   if (
     action === "recover-data-home"
-    || action === "choose-data-home"
     || action === "open-data-home"
     || action === "continue-start"
     || action === "quit"
@@ -256,32 +253,6 @@ async function handleDataHomeRecoveryAction(action: RecoveryAction): Promise<voi
     }
     return;
   }
-  if (action === "choose-data-home") {
-    if (recoveryActionRunning) return;
-    const selection = await dialog.showOpenDialog(window, {
-      properties: ["openDirectory", "createDirectory"],
-      title: "选择 ElfieNest 数据目录",
-    });
-    const selectedHome = selection.filePaths[0];
-    if (selection.canceled || selectedHome === undefined) return;
-    recoveryActionRunning = true;
-    showStartupProgress(window, "starting");
-    try {
-      const state = await roleController.activateDataHome(selectedHome);
-      if (state.kind === "failed") {
-        if (state.recovery !== undefined) {
-          showDataHomeRecovery(window, state.recovery);
-        } else {
-          showStartupFailure(window, new Error(state.reason));
-        }
-        return;
-      }
-      await continueAfterDataHomeRecovery();
-    } finally {
-      recoveryActionRunning = false;
-    }
-    return;
-  }
   if (action === "continue-start") {
     await continueAfterDataHomeRecovery();
     return;
@@ -345,16 +316,22 @@ async function startDesktop(): Promise<void> {
   });
   controllerStartPromise = startup;
   controllerIpcServer = await startControllerIpcServer(app.getPath("userData"), {
-    ACTIVATE_VIEWER: async () => {
+    ACTIVATE_VIEWER: async (payload) => {
+      await assertControllerTarget(payload);
       showManagementWindow();
       return { accepted: true, ...controllerStatePayload() };
     },
-    ENSURE_SERVER: async () => {
+    ENSURE_SERVER: async (payload) => {
       await ensureControllerRuntime();
+      await assertControllerTarget(payload);
       return { accepted: true, ...controllerStatePayload() };
     },
-    STATUS: async () => controllerStatePayload(),
-    STOP_SERVER: async () => {
+    STATUS: async (payload) => {
+      await assertControllerTarget(payload);
+      return controllerStatePayload();
+    },
+    STOP_SERVER: async (payload) => {
+      await assertControllerTarget(payload);
       setImmediate(() => requestExplicitApplicationExit());
       return { accepted: true, state: "stopping" };
     },
@@ -442,13 +419,46 @@ function startDesktopUiRole(): void {
     });
 }
 
-function controllerStatePayload(): Readonly<{ state: string; reason?: string }> {
+function controllerStatePayload(): Readonly<{
+  state: string;
+  reason?: string;
+  data_home?: string;
+  controller_protocol: number;
+}> {
   const state = roleController?.state;
-  if (state === undefined) return { state: "starting" };
+  if (state === undefined) return { state: "starting", controller_protocol: 2 };
   if (state.kind === "failed") {
-    return { state: "failed", reason: state.reason };
+    return {
+      state: "failed",
+      reason: state.reason,
+      ...(state.recovery === undefined ? {} : { data_home: state.recovery.home }),
+      controller_protocol: 2,
+    };
   }
-  return { state: state.kind };
+  if (state.kind === "stopped") return { state: "stopped", controller_protocol: 2 };
+  return {
+    state: state.kind,
+    data_home: state.dataHome,
+    controller_protocol: 2,
+  };
+}
+
+async function assertControllerTarget(
+  payload: Readonly<Record<string, unknown>>,
+): Promise<void> {
+  if (controllerStartPromise !== undefined) {
+    await controllerStartPromise;
+  }
+  const expected = payload.expected_data_home;
+  if (typeof expected !== "string" || expected.trim() === "") {
+    throw new Error("Controller request is missing expected_data_home");
+  }
+  const actual = controllerStatePayload().data_home;
+  if (actual === undefined || resolve(actual) !== resolve(expected)) {
+    throw new Error(
+      `Controller data root mismatch: expected=${resolve(expected)} actual=${actual ?? "unknown"}`,
+    );
+  }
 }
 
 async function ensureControllerRuntime(): Promise<void> {

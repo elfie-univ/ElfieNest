@@ -36,7 +36,6 @@ function lifecycleClient(attachment: RuntimeAttachment): LifecycleClient & {
     get cancels(): number { return cancels; },
     inspectDataHome: async (): Promise<DataHomeInspection> => inspection,
     recoverDataHome: async (): Promise<DataHomeRecoveryResult> => recovery,
-    activateDataHome: async (): Promise<DataHomeInspection> => inspection,
     attachOrStart: async (): Promise<RuntimeAttachment> => attachment,
     recoverOwnedRuntime: async (ownerLease: string): Promise<RuntimeAttachment> => {
       recoveries.push(ownerLease);
@@ -57,7 +56,7 @@ test("desktop UI owns only its visible observer instance namespace", () => {
 
 test("desktop UI attaches to a CLI-owned runtime and closing its window does not stop it", async () => {
   // Given: the public lifecycle service reports a ready CLI-owned generation.
-  const client = lifecycleClient({ kind: "attached", generation: 7 });
+  const client = lifecycleClient({ kind: "attached", generation: 7, dataHome: "/tmp/elfienest" });
   const controller = new DesktopRoleController(client);
 
   // When: the UI starts and its last window closes.
@@ -70,7 +69,7 @@ test("desktop UI attaches to a CLI-owned runtime and closing its window does not
 });
 
 test("desktop UI lets the shared lifecycle repair a partial data root", async () => {
-  const client = lifecycleClient({ kind: "attached", generation: 7 });
+  const client = lifecycleClient({ kind: "attached", generation: 7, dataHome: "/tmp/elfienest" });
   client.inspectDataHome = async (): Promise<DataHomeInspection> => ({
     state: "partial",
     home: "/tmp/elfienest",
@@ -81,12 +80,12 @@ test("desktop UI lets the shared lifecycle repair a partial data root", async ()
 
   const state = await controller.start();
 
-  assert.deepEqual(state, { kind: "attached", generation: 7 });
+  assert.deepEqual(state, { kind: "attached", generation: 7, dataHome: "/tmp/elfienest" });
 });
 
 test("desktop-owned explicit exit requests an ordered stop only for its own lease", async () => {
   // Given: the UI acquired an explicit owner lease from the public lifecycle service.
-  const client = lifecycleClient({ kind: "owned", generation: 8, ownerLease: "desktop-8" });
+  const client = lifecycleClient({ kind: "owned", generation: 8, ownerLease: "desktop-8", dataHome: "/tmp/elfienest" });
   const controller = new DesktopRoleController(client);
   await controller.start();
 
@@ -99,7 +98,7 @@ test("desktop-owned explicit exit requests an ordered stop only for its own leas
 });
 
 test("explicit exit clears the owned state even when Runtime stop reports an error", async () => {
-  const client = lifecycleClient({ kind: "owned", generation: 10, ownerLease: "desktop-10" });
+  const client = lifecycleClient({ kind: "owned", generation: 10, ownerLease: "desktop-10", dataHome: "/tmp/elfienest" });
   client.stopOwnedRuntime = async (): Promise<void> => {
     throw new Error("Runtime stop failed");
   };
@@ -116,7 +115,7 @@ test("explicit exit waits for an in-flight Runtime start before stopping its lea
   const startPending = new Promise<RuntimeAttachment>((resolve) => {
     resolveStart = resolve;
   });
-  const client = lifecycleClient({ kind: "owned", generation: 11, ownerLease: "desktop-11" });
+  const client = lifecycleClient({ kind: "owned", generation: 11, ownerLease: "desktop-11", dataHome: "/tmp/elfienest" });
   client.attachOrStart = async (): Promise<RuntimeAttachment> => startPending;
   const controller = new DesktopRoleController(client);
 
@@ -125,7 +124,7 @@ test("explicit exit waits for an in-flight Runtime start before stopping its lea
   await Promise.resolve();
   assert.deepEqual(client.stops, []);
 
-  resolveStart?.({ kind: "owned", generation: 11, ownerLease: "desktop-11" });
+  resolveStart?.({ kind: "owned", generation: 11, ownerLease: "desktop-11", dataHome: "/tmp/elfienest" });
   await starting;
   await exiting;
 
@@ -155,7 +154,7 @@ test("authority failure is presented as a recoverable Supervisor failure", async
 });
 
 test("legacy data root is presented as a recoverable pre-start state", async () => {
-  const client = lifecycleClient({ kind: "attached", generation: 1 });
+  const client = lifecycleClient({ kind: "attached", generation: 1, dataHome: "/tmp/elfienest" });
   client.inspectDataHome = async (): Promise<DataHomeInspection> => ({
     state: "legacy",
     home: "/Users/test/.elfienest",
@@ -181,7 +180,7 @@ test("legacy data root is presented as a recoverable pre-start state", async () 
 });
 
 test("data-root recovery preserves the backup result before Runtime start", async () => {
-  const client = lifecycleClient({ kind: "owned", generation: 4, ownerLease: "desktop-4" });
+  const client = lifecycleClient({ kind: "owned", generation: 4, ownerLease: "desktop-4", dataHome: "/tmp/elfienest" });
   let recovered = false;
   client.inspectDataHome = async (): Promise<DataHomeInspection> => recovered
     ? {
@@ -221,6 +220,7 @@ test("background maintenance recovers only a Desktop-owned Runtime", async () =>
     kind: "owned",
     generation: 9,
     ownerLease: "desktop-9",
+    dataHome: "/tmp/elfienest",
   });
   const controller = new DesktopRoleController(client);
   await controller.start();
@@ -232,7 +232,7 @@ test("background maintenance recovers only a Desktop-owned Runtime", async () =>
 });
 
 test("background maintenance never takes over an attached external Runtime", async () => {
-  const client = lifecycleClient({ kind: "attached", generation: 3 });
+  const client = lifecycleClient({ kind: "attached", generation: 3, dataHome: "/tmp/elfienest" });
   const controller = new DesktopRoleController(client);
   await controller.start();
 

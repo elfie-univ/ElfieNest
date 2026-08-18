@@ -45,20 +45,21 @@ def resolve_elfie_home(
     """解析权威数据根但不创建目录。"""
     environment = os.environ if env is None else env
     cwd = Path.cwd() if invoking_cwd is None else invoking_cwd
+    mode = runtime_mode or environment.get(ELFIENEST_RUNTIME_MODE_ENV)
+    frozen = bool(getattr(sys, "frozen", False)) if is_frozen is None else is_frozen
+    installed_base = Path.home() if frozen or mode in {None, "release"} else cwd
 
     if explicit_home is not None:
-        selected = _resolve_user_path(explicit_home, cwd)
+        selected = _resolve_user_path(explicit_home, installed_base)
         _validate_selected_home(selected)
         return selected
 
     environment_home = environment.get("ELFIE_HOME")
     if environment_home:
-        selected = _resolve_user_path(environment_home, cwd)
+        selected = _resolve_user_path(environment_home, installed_base)
         _validate_selected_home(selected)
         return selected
 
-    frozen = bool(getattr(sys, "frozen", False)) if is_frozen is None else is_frozen
-    mode = runtime_mode or environment.get(ELFIENEST_RUNTIME_MODE_ENV)
     if frozen or mode == "release" or mode is None:
         return (Path.home() / ".elfienest").resolve(strict=False)
     if mode == "development":

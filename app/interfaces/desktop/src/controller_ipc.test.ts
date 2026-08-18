@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  CONTROLLER_IPC_PROTOCOL,
   CONTROLLER_SOCKET_FILENAME,
   CONTROLLER_TOKEN_FILENAME,
   startControllerIpcServer,
@@ -20,13 +21,13 @@ test("Controller IPC authenticates commands and removes its endpoint", async () 
 
   const response = await request(
     join(home, CONTROLLER_SOCKET_FILENAME),
-    JSON.stringify({ protocol: 1, token, command: "STATUS", payload: {} }),
+    JSON.stringify({ protocol: CONTROLLER_IPC_PROTOCOL, token, command: "STATUS", payload: {} }),
   );
   assert.deepEqual(JSON.parse(response), { ok: true, result: { state: "owned" } });
 
   const rejected = await request(
     join(home, CONTROLLER_SOCKET_FILENAME),
-    JSON.stringify({ protocol: 1, token: "wrong", command: "STATUS", payload: {} }),
+    JSON.stringify({ protocol: CONTROLLER_IPC_PROTOCOL, token: "wrong", command: "STATUS", payload: {} }),
   );
   assert.deepEqual(JSON.parse(rejected), {
     ok: false,

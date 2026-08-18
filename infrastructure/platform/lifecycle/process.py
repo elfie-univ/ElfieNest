@@ -103,6 +103,32 @@ class DefaultProcessInspector:
         )
         return tuple(shlex.split(completed.stdout.strip()))
 
+    def birth_identity(self, pid: int) -> str:
+        """Return an OS-provided start identity; never synthesize one."""
+        stat_path = self._proc_root / str(pid) / "stat"
+        try:
+            if stat_path.is_file():
+                remainder = stat_path.read_text(encoding="utf-8").rpartition(")")[2]
+                fields = remainder.split()
+                # Linux /proc stat field 22 (starttime), remainder index 19.
+                if len(fields) > 19 and fields[19]:
+                    return f"proc-start:{fields[19]}"
+        except OSError:
+            pass
+        try:
+            completed = subprocess.run(
+                ["ps", "-p", str(pid), "-o", "lstart="],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            raise OSError(f"cannot read process birth identity for PID {pid}") from error
+        value = completed.stdout.strip()
+        if not value:
+            raise OSError(f"process birth identity is unavailable for PID {pid}")
+        return f"ps-start:{value}"
+
 
 def command_runs_service(
     command: Sequence[str], process_cwd: Path, expected_script: Path
@@ -255,46 +281,19 @@ def get_port_occupant_pid(port: int) -> Optional[int]:
         return None
 
 
-def kill_port_occupant(
-    port: int, timeout_seconds: float = 5.0
-) -> Tuple[bool, Optional[str]]:
-    """
-    Kill the process occupying a port.
-
-    Returns:
-        Tuple of (success, error_message)
-    """
-    import signal
-    import time
-
-    pid = get_port_occupant_pid(port)
-    if pid is None:
-        return True, None
-
-    try:
-        os.kill(pid, signal.SIGTERM)
-    except ProcessLookupError:
-        return True, None
-    except PermissionError as error:
-        return False, f"Permission denied: {error}"
-    except OSError as error:
-        return False, str(error)
-
-    inspector = DefaultProcessInspector()
-    deadline = time.monotonic() + timeout_seconds
-    while inspector.exists(pid) and time.monotonic() < deadline:
-        time.sleep(0.1)
-
-    if inspector.exists(pid):
-        try:
-            os.kill(pid, signal.SIGKILL)
-            time.sleep(0.5)
-        except (ProcessLookupError, PermissionError, OSError):
-            pass
-
-    if inspector.exists(pid):
-        return False, f"PID {pid} did not exit"
-    return True, None
+def _open_runtime_log(environment: Mapping[str, str]):
+    """Open the selected root's append-only service log for child stdout/stderr."""
+    configured = environment.get("ELFIENEST_RUNTIME_LOG", "").strip()
+    if not configured:
+        raise OSError("ELFIENEST_RUNTIME_LOG is required for managed service output")
+    log_path = Path(configured).expanduser()
+    log_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if os.name != "nt":
+        os.chmod(log_path.parent, 0o700)
+    stream = log_path.open("ab", buffering=0)
+    if os.name != "nt":
+        os.chmod(log_path, 0o600)
+    return stream
 
 
 class LocalServiceProcessAdapter:
@@ -308,10 +307,17 @@ class LocalServiceProcessAdapter:
         return self._inspector.exists(pid)
 
     def inspect(self, pid: int) -> ProcessSnapshot:
+        birth_reader = getattr(self._inspector, "birth_identity", None)
+        birth_identity = (
+            birth_reader(pid)
+            if callable(birth_reader)
+            else None
+        )
         return ProcessSnapshot(
             pid=pid,
             cwd=self._inspector.cwd(pid),
             command=self._inspector.command(pid),
+            birth_identity=birth_identity,
         )
 
     def launch(
@@ -324,44 +330,49 @@ class LocalServiceProcessAdapter:
         child_environment = os.environ.copy()
         if environment is not None:
             child_environment.update(environment)
-        if os.name == "nt":
-            # Keep a distinct Windows process group so a console close cannot
-            # strand a frozen Core child.  Termination below still targets the
-            # complete tree rather than relying on parentage alone.
-            process = subprocess.Popen(
-                command,
-                cwd=str(cwd),
-                env=child_environment,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
-            )
-            job_name = child_environment.get("ELFIENEST_JOB_NAME")
-            if not job_name:
-                job_name = deterministic_job_name("core", str(process.pid))
-            try:
-                job = attach_process_to_job(process.pid, job_name)
-            except Exception:
-                # Popen succeeded but the ownership backstop did not.  Do not
-                # return a Core that the lifecycle cannot later clean up.
+        log_stream = _open_runtime_log(child_environment)
+        try:
+            if os.name == "nt":
+                # Keep a distinct Windows process group so a console close cannot
+                # strand a frozen Core child.  Termination below still targets the
+                # complete tree rather than relying on parentage alone.
+                process = subprocess.Popen(
+                    command,
+                    cwd=str(cwd),
+                    env=child_environment,
+                    stdout=log_stream,
+                    stderr=subprocess.STDOUT,
+                    creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+                )
+                job_name = child_environment.get("ELFIENEST_JOB_NAME")
+                if not job_name:
+                    job_name = deterministic_job_name("core", str(process.pid))
                 try:
-                    process.kill()
-                    process.wait(timeout=1.0)
-                except (OSError, subprocess.SubprocessError, TimeoutError):
-                    pass
-                raise
-            if job is not None:
-                self._windows_jobs[process.pid] = job
-        else:
-            process = subprocess.Popen(
-                command,
-                cwd=str(cwd),
-                env=child_environment,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-        return process.pid
+                    job = attach_process_to_job(process.pid, job_name)
+                except Exception:
+                    # Popen succeeded but the ownership backstop did not.  Do not
+                    # return a Core that the lifecycle cannot later clean up.
+                    try:
+                        process.kill()
+                        process.wait(timeout=1.0)
+                    except (OSError, subprocess.SubprocessError, TimeoutError):
+                        pass
+                    raise
+                if job is not None:
+                    self._windows_jobs[process.pid] = job
+            else:
+                process = subprocess.Popen(
+                    command,
+                    cwd=str(cwd),
+                    env=child_environment,
+                    stdout=log_stream,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+            return process.pid
+        finally:
+            if log_stream is not subprocess.DEVNULL:
+                log_stream.close()
 
     def terminate(self, pid: int, *, force: bool = False) -> None:
         import signal

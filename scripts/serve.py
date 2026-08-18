@@ -17,7 +17,6 @@ CLI tools:
     .venv/bin/python scripts/elfienest.py owner     Manage Owner account
     .venv/bin/python scripts/elfienest.py doctor    Run local diagnostics
     .venv/bin/python scripts/elfienest.py status    View service status
-    .venv/bin/python scripts/elfienest.py setup     First-time setup wizard
     .venv/bin/python scripts/elfienest.py restart   Restart service
     .venv/bin/python scripts/elfienest.py stop      Stop service
 """
@@ -141,7 +140,6 @@ from app.bootstrap.system_wiring.nest_session import (
 )
 from app.features.accounts import SeedInitialOwnerCommand
 from app.interfaces.api.service_access import ServiceMode
-from app.interfaces.cli.lifecycle_commands import _remember_lifecycle_data_home
 from app.orchestration.lifecycle import (
     DEFAULT_GODOT_WS_PORT,
     DEFAULT_HTTP_PORT,
@@ -422,7 +420,6 @@ def main():
             get_elfie_home(),
             managed_start=managed_start,
         )
-        _remember_lifecycle_data_home(lifecycle, get_elfie_home())
     except OSError as error:
         startup_cleanup.cleanup()
         start_lease.release()

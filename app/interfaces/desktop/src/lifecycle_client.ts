@@ -173,26 +173,24 @@ export class ProcessLifecycleCommandRunner implements LifecycleCommandRunner {
 }
 
 export class ManagedRuntimeLifecycleClient implements LifecycleClient {
+  private selectedDataHome: string | undefined;
+
   constructor(
     private readonly ownerLease: string,
     private readonly commandRunner: LifecycleCommandRunner = new ProcessLifecycleCommandRunner(),
   ) {}
 
   async inspectDataHome(explicitHome?: string): Promise<DataHomeInspection> {
-    return this.parseDataHomeInspection(
+    const inspection = this.parseDataHomeInspection(
       await this.commandRunner.run(this.dataHomeArguments("inspect", explicitHome)),
     );
+    this.selectedDataHome = inspection.home;
+    return inspection;
   }
 
   async recoverDataHome(explicitHome?: string): Promise<DataHomeRecoveryResult> {
     return this.parseDataHomeRecovery(
       await this.commandRunner.run(this.dataHomeArguments("recover", explicitHome)),
-    );
-  }
-
-  async activateDataHome(explicitHome: string): Promise<DataHomeInspection> {
-    return this.parseDataHomeInspection(
-      await this.commandRunner.run(this.dataHomeArguments("activate", explicitHome)),
     );
   }
 
@@ -210,6 +208,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
         return {
           kind: "attached",
           generation: initial.generation,
+          dataHome: this.requireSelectedDataHome(),
           ...(initial.httpUrl === null ? {} : { httpUrl: initial.httpUrl }),
         };
       }
@@ -237,6 +236,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
           kind: "owned",
           generation: started.generation,
           ownerLease: this.ownerLease,
+          dataHome: this.requireSelectedDataHome(),
           ...(started.httpUrl === null ? {} : { httpUrl: started.httpUrl }),
         };
       }
@@ -305,6 +305,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       return {
         kind: "attached",
         generation: current.generation,
+        dataHome: this.requireSelectedDataHome(),
         ...(current.httpUrl === null ? {} : { httpUrl: current.httpUrl }),
       };
     }
@@ -481,7 +482,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
   }
 
   private dataHomeArguments(
-    action: "inspect" | "recover" | "activate",
+    action: "inspect" | "recover",
     explicitHome?: string,
   ): readonly string[] {
     return [
@@ -490,6 +491,13 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       ...(explicitHome === undefined ? [] : ["--data-home", explicitHome]),
       "--json",
     ];
+  }
+
+  private requireSelectedDataHome(): string {
+    if (this.selectedDataHome === undefined) {
+      throw new LifecycleClientError("Installed data root was not resolved");
+    }
+    return this.selectedDataHome;
   }
 
   private parseJsonObject(output: string, message: string): Record<string, unknown> {
@@ -551,6 +559,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       kind: "owned",
       generation: status.generation,
       ownerLease: this.ownerLease,
+      dataHome: this.requireSelectedDataHome(),
       ...(status.httpUrl === null ? {} : { httpUrl: status.httpUrl }),
     };
   }

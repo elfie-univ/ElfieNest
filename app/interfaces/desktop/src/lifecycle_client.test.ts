@@ -31,6 +31,19 @@ function commandRunner(
   };
 }
 
+const READY_DATA_HOME = JSON.stringify({
+  state: "ready",
+  home: "/Users/test/.elfienest",
+  detail: "ready",
+  recoverable: false,
+});
+
+async function selectTestDataHome(
+  client: ManagedRuntimeLifecycleClient,
+): Promise<void> {
+  await client.inspectDataHome();
+}
+
 test("packaged Desktop invokes its embedded management CLI", () => {
   assert.equal(
     lifecycleCommandExecutable(true, "/Applications/ElfieNest.app/Contents/Resources", "darwin"),
@@ -124,46 +137,24 @@ test("managed lifecycle client recovers a data root through the public CLI", asy
   ]);
 });
 
-test("managed lifecycle client activates a user-selected data root", async () => {
-  const runner = commandRunner([
-    JSON.stringify({
-      state: "ready",
-      home: "/Users/test/other-elfienest",
-      detail: "数据目录符合当前版本契约",
-      recoverable: false,
-    }),
-  ]);
-  const client = new ManagedRuntimeLifecycleClient("desktop-activate", runner);
-
-  const inspection = await client.activateDataHome("/Users/test/other-elfienest");
-
-  assert.equal(inspection.state, "ready");
-  assert.deepEqual(runner.calls, [
-    {
-      argumentsList: [
-        "data-home",
-        "activate",
-        "--data-home",
-        "/Users/test/other-elfienest",
-        "--json",
-      ],
-    },
-  ]);
-});
-
 test("managed lifecycle client attaches to a ready CLI-owned Runtime without starting it", async () => {
   // Given: the public CLI reports a ready Runtime leased by CLI.
   const runner = commandRunner([
+    READY_DATA_HOME,
     JSON.stringify({ state: "world_ready", tier: "world_ready", phase: "world_ready", generation: 11, owner_lease: { owner_id: "cli" } }),
   ]);
   const client = new ManagedRuntimeLifecycleClient("desktop-11", runner);
 
   // When: the UI requests a Runtime attachment.
+  await selectTestDataHome(client);
   const attachment = await client.attachOrStart();
 
   // Then: it attaches and leaves the existing owner untouched.
-  assert.deepEqual(attachment, { kind: "attached", generation: 11 });
-  assert.deepEqual(runner.calls, [{ argumentsList: ["status", "--json"] }]);
+  assert.deepEqual(attachment, { kind: "attached", generation: 11, dataHome: "/Users/test/.elfienest" });
+  assert.deepEqual(runner.calls, [
+    { argumentsList: ["data-home", "inspect", "--json"] },
+    { argumentsList: ["status", "--json"] },
+  ]);
 });
 
 test("managed lifecycle client refuses an external checkout without a verified owner lease", async () => {
@@ -187,6 +178,7 @@ test("managed lifecycle client refuses an external checkout without a verified o
 test("managed lifecycle client starts a stopped Runtime with its desktop lease", async () => {
   // Given: no Runtime exists before the UI session starts.
   const runner = commandRunner([
+    READY_DATA_HOME,
     JSON.stringify({ state: "offline", tier: "offline", phase: "offline", generation: 0, owner_lease: null }),
     JSON.stringify({
       state: "world_ready",
@@ -200,6 +192,7 @@ test("managed lifecycle client starts a stopped Runtime with its desktop lease",
   const client = new ManagedRuntimeLifecycleClient("desktop-12", runner);
 
   // When: the UI attaches or starts the managed Runtime.
+  await selectTestDataHome(client);
   const attachment = await client.attachOrStart();
 
   // Then: it receives an owner lease only after the post-start status verifies it.
@@ -207,9 +200,11 @@ test("managed lifecycle client starts a stopped Runtime with its desktop lease",
     kind: "owned",
     generation: 12,
     ownerLease: "desktop-12",
+    dataHome: "/Users/test/.elfienest",
     httpUrl: "http://127.0.0.1:18234/",
   });
   assert.deepEqual(runner.calls, [
+    { argumentsList: ["data-home", "inspect", "--json"] },
     { argumentsList: ["status", "--json"] },
     { argumentsList: ["start", "--owner-id", "desktop-12", "--json"] },
   ]);
@@ -217,6 +212,7 @@ test("managed lifecycle client starts a stopped Runtime with its desktop lease",
 
 test("managed lifecycle client attaches after another owner finishes startup", async () => {
   const runner = commandRunner([
+    READY_DATA_HOME,
     JSON.stringify({
       state: "offline",
       tier: "offline",
@@ -235,10 +231,12 @@ test("managed lifecycle client attaches after another owner finishes startup", a
   ]);
   const client = new ManagedRuntimeLifecycleClient("desktop-14", runner);
 
+  await selectTestDataHome(client);
   const attachment = await client.attachOrStart();
 
-  assert.deepEqual(attachment, { kind: "attached", generation: 14 });
+  assert.deepEqual(attachment, { kind: "attached", generation: 14, dataHome: "/Users/test/.elfienest" });
   assert.deepEqual(runner.calls, [
+    { argumentsList: ["data-home", "inspect", "--json"] },
     { argumentsList: ["status", "--json"] },
     { argumentsList: ["status", "--json"] },
   ]);
@@ -297,6 +295,7 @@ test("managed lifecycle client streams Core-ready progress before full Runtime r
     return `${coreReady}\n${authorityStarting}\n${status}\n`;
   };
   const initial = commandRunner([
+    READY_DATA_HOME,
     JSON.stringify({ state: "offline", tier: "offline", phase: "offline", generation: 0, owner_lease: null }),
   ]);
   const statusCalls = initial.calls;
@@ -306,11 +305,15 @@ test("managed lifecycle client streams Core-ready progress before full Runtime r
   };
   const composedClient = new ManagedRuntimeLifecycleClient("desktop-13", composedRunner);
 
+  await selectTestDataHome(composedClient);
   const attachment = await composedClient.attachOrStart((phase) => phases.push(phase));
 
-  assert.deepEqual(attachment, { kind: "owned", generation: 13, ownerLease: "desktop-13" });
+  assert.deepEqual(attachment, { kind: "owned", generation: 13, ownerLease: "desktop-13", dataHome: "/Users/test/.elfienest" });
   assert.deepEqual(phases, ["core_ready", "authority_starting"]);
-  assert.deepEqual(statusCalls, [{ argumentsList: ["status", "--json"] }]);
+  assert.deepEqual(statusCalls, [
+    { argumentsList: ["data-home", "inspect", "--json"] },
+    { argumentsList: ["status", "--json"] },
+  ]);
   assert.deepEqual(calls, [{ argumentsList: ["start", "--owner-id", "desktop-13", "--json", "--progress-json"] }]);
 });
 
@@ -341,6 +344,7 @@ test("managed lifecycle client cancels an in-flight start through the public sto
 
 test("managed lifecycle client keeps the owned Core after authority failure", async () => {
   const runner = commandRunner([
+    READY_DATA_HOME,
     JSON.stringify({
       state: "core_ready",
       tier: "core_ready",
@@ -351,14 +355,17 @@ test("managed lifecycle client keeps the owned Core after authority failure", as
   ]);
   const client = new ManagedRuntimeLifecycleClient("desktop-14", runner);
 
+  await selectTestDataHome(client);
   const attachment = await client.recoverOwnedRuntime("desktop-14");
 
   assert.deepEqual(attachment, {
     kind: "owned",
     generation: 14,
     ownerLease: "desktop-14",
+    dataHome: "/Users/test/.elfienest",
   });
   assert.deepEqual(runner.calls, [
+    { argumentsList: ["data-home", "inspect", "--json"] },
     { argumentsList: ["status", "--json"] },
   ]);
 });

@@ -54,7 +54,9 @@ from app.orchestration.lifecycle.types import (
     FrontendPreparationError,
     LaunchFailedError,
     LifecycleCancelledError,
+    ProcessIdentityUnavailableError,
     RecoveryInProgressError,
+    RuntimeIdentityUnavailableError,
     ServiceLifecycleResult,
     ServicePortsActiveError,
 )
@@ -83,6 +85,8 @@ __all__ = [
     "FrontendPreparationError",
     "LifecycleCancelledError",
     "LaunchFailedError",
+    "ProcessIdentityUnavailableError",
+    "RuntimeIdentityUnavailableError",
     "LifecycleFacade",
     "MANAGED_START_ENV",
     "EndpointSnapshot",

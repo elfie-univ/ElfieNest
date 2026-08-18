@@ -26,6 +26,7 @@ def cleanup_failed_start(
     poll_interval_seconds: float,
     monotonic: Callable[[], float],
     sleeper: Callable[[float], None],
+    expected_birth_identity: str | None = None,
 ) -> ServiceLifecycleResult:
     """Stop a process that failed health startup, removing only receipts still owned by that PID."""
     if not process_port.exists(pid):
@@ -44,6 +45,21 @@ def cleanup_failed_start(
         return ServiceLifecycleResult(
             status="failed", pid=pid, error=CleanupFailedError(pid, str(error))
         )
+    if (
+        expected_birth_identity is not None
+        and (
+            not expected_birth_identity
+            or snapshot.birth_identity != expected_birth_identity
+        )
+    ):
+        return ServiceLifecycleResult(
+            status="failed",
+            pid=pid,
+            error=CleanupFailedError(
+                pid,
+                "PID birth identity is unavailable or no longer matches; refusing to send signal",
+            ),
+        )
     if actual_cwd != expected_cwd or not command_matches_service(
         actual_command,
         actual_cwd,
@@ -55,6 +71,36 @@ def cleanup_failed_start(
             pid=pid,
             error=CleanupFailedError(
                 pid, "PID has been reused by another process; refusing to send signal"
+            ),
+        )
+    try:
+        latest = process_port.inspect(pid)
+    except (OSError, RuntimeError, ValueError) as error:
+        return ServiceLifecycleResult(
+            status="failed", pid=pid, error=CleanupFailedError(pid, str(error))
+        )
+    if (
+        latest.cwd.resolve() != expected_cwd
+        or not command_matches_service(
+            latest.command,
+            latest.cwd.resolve(),
+            expected_script,
+            expected_command,
+        )
+        or (
+            expected_birth_identity is not None
+            and (
+                not expected_birth_identity
+                or latest.birth_identity != expected_birth_identity
+            )
+        )
+    ):
+        return ServiceLifecycleResult(
+            status="failed",
+            pid=pid,
+            error=CleanupFailedError(
+                pid,
+                "PID identity changed before cleanup signal; refusing to send signal",
             ),
         )
     try:

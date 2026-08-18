@@ -51,13 +51,32 @@ class FileRuntimeRecordAdapter:
         # create a new credential. A child may use its inherited token, but it
         # can never mint a replacement after its generation is revoked.
         self._handoff_armed = False
+        self._handoff_generation: int | None = None
 
     def begin_writer_handoff(
-        self, *, generation: int, owner_id: str
+        self, *, generation: int, owner_id: str, recover_stale: bool = False
     ) -> RuntimeWriterHandoff:
+        previous = self._read_valid_for_write()
+        if previous is not None and generation <= previous.generation:
+            raise ValueError(
+                "Runtime writer handoff generation must advance from the current generation"
+            )
+        previous_digest = (
+            None if previous is None else previous.writer_credential_digest
+        )
+        current_digest = _digest(self._writer_token) if self._writer_token else None
+        if (
+            previous_digest is not None
+            and current_digest != previous_digest
+            and not recover_stale
+        ):
+            raise PermissionError(
+                "Runtime writer credential does not own this generation"
+            )
         token = secrets.token_urlsafe(32)
         self._writer_token = token
         self._handoff_armed = True
+        self._handoff_generation = generation
         self._write_writer_token(token)
         return RuntimeWriterHandoff(
             token=token,
@@ -69,6 +88,7 @@ class FileRuntimeRecordAdapter:
     def revoke_writer_handoff(self) -> None:
         self._writer_token = None
         self._handoff_armed = False
+        self._handoff_generation = None
         try:
             self._writer_token_path().unlink()
         except FileNotFoundError:
@@ -165,9 +185,15 @@ class FileRuntimeRecordAdapter:
         requested_digest = snapshot.writer_credential_digest
 
         if previous_digest is not None and current_digest != previous_digest:
-            raise PermissionError(
-                "Runtime writer credential does not own this generation"
+            handoff_is_valid = (
+                self._handoff_armed
+                and self._handoff_generation == snapshot.generation
+                and current_digest == requested_digest
             )
+            if not handoff_is_valid:
+                raise PermissionError(
+                    "Runtime writer credential does not own this generation"
+                )
         if requested_digest is not None and current_digest != requested_digest:
             raise PermissionError("Runtime snapshot writer credential is invalid")
         if (
@@ -240,6 +266,7 @@ class FileRuntimeRecordAdapter:
                 birth_identity=_optional_string(
                     item.get("birth_identity"), "component.birth_identity"
                 ),
+                cwd=_optional_string(item.get("cwd"), "component.cwd"),
             )
             for item in _list_of_dicts(payload.get("components", []), "components")
         )
@@ -360,6 +387,7 @@ class FileRuntimeRecordAdapter:
                     "pid": item.pid,
                     "executable": item.executable,
                     "birth_identity": item.birth_identity,
+                    "cwd": item.cwd,
                 }
                 for item in snapshot.components
             ],

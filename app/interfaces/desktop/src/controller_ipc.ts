@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import { createServer, type Server, type Socket } from "node:net";
 import { join } from "node:path";
 
-export const CONTROLLER_IPC_PROTOCOL = 1;
+export const CONTROLLER_IPC_PROTOCOL = 2;
 export const CONTROLLER_NAMESPACE = "elfienest.desktop-ui";
 export const CONTROLLER_TOKEN_FILENAME = "controller.token";
 export const CONTROLLER_SOCKET_FILENAME = "controller.sock";

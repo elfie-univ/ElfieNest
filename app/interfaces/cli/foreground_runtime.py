@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import signal
 import threading
+from pathlib import Path
 from types import FrameType
 from typing import Callable, Final, Optional, Sequence
 
@@ -33,40 +34,79 @@ def run_foreground_service(
     selected_home = lifecycle_commands._data_home_for_command(
         lifecycle,
         command,
-        use_remembered_home=False,
     )
     command = lifecycle_commands._select_automatic_ports(
         lifecycle,
         command,
         selected_home,
     )
+    before_projection = lifecycle_commands._safe_runtime_projection(
+        lifecycle, selected_home
+    )
+    lifecycle_commands._print_lifecycle_intent(
+        "serve",
+        selected_home,
+        projection=before_projection,
+        command=command,
+    )
+    progress = lifecycle_commands.ProgressIndicator("Starting foreground service")
+    progress.start()
     try:
         http_port = lifecycle_commands._validated_http_port(command)
     except ValueError as error:
+        progress.stop(success=False, clear_only=True)
         result = ServiceLifecycleResult(
             status="failed",
             command=command,
             error=LaunchFailedError(f"Invalid service port arguments: {error}"),
         )
-        lifecycle_commands._print_start_result(lifecycle, result)
+        lifecycle_commands._print_start_result(
+            lifecycle,
+            result,
+            selected_home=selected_home,
+            action="serve",
+            compact=True,
+        )
         return result
 
     try:
         lifecycle_commands._prepare_frontend_for_launch(lifecycle)
     except FrontendPreparationError as error:
+        progress.stop(success=False, clear_only=True)
         result = ServiceLifecycleResult(
             status="failed",
             command=command,
             error=LaunchFailedError(f"Frontend build failed: {error}"),
         )
-        lifecycle_commands._print_start_result(lifecycle, result)
+        lifecycle_commands._print_start_result(
+            lifecycle,
+            result,
+            selected_home=selected_home,
+            action="serve",
+            compact=True,
+        )
         return result
 
     supervisor = lifecycle_commands._supervisor_for(lifecycle, command, http_port)
-    started = supervisor.start(owner_id=f"cli-serve:{os.getpid()}")
-    lifecycle_commands._print_start_result(lifecycle, started)
+    try:
+        started = supervisor.start(owner_id=f"cli-serve:{os.getpid()}")
+    finally:
+        progress.stop(
+            success="started" in locals()
+            and started.status in {"started", "already_running"},
+            clear_only=True,
+        )
+    lifecycle_commands._print_start_result(
+        lifecycle,
+        started,
+        selected_home=selected_home,
+        action="serve",
+        compact=True,
+    )
     if started.status != "started":
         return started
+
+    print("  💡 Press Ctrl+C to stop the foreground service.")
 
     shutdown_requested = threading.Event()
     wait = wait_once or (lambda event: event.wait(HEALTH_CHECK_INTERVAL_SECONDS))
@@ -80,7 +120,20 @@ def run_foreground_service(
             while True:
                 health = supervisor.status()
                 if health.tier in TERMINAL_HEALTH_STATES:
-                    supervisor.stop()
+                    lifecycle_commands._print_lifecycle_intent(
+                        "stop",
+                        selected_home,
+                        projection=health,
+                        command=started.command or command,
+                    )
+                    stop_progress = lifecycle_commands.ProgressIndicator(
+                        "Stopping foreground service"
+                    )
+                    stop_progress.start()
+                    try:
+                        supervisor.stop()
+                    finally:
+                        stop_progress.stop(clear_only=True)
                     failure = ServiceLifecycleResult(
                         status="failed",
                         pid=started.pid,
@@ -89,25 +142,82 @@ def run_foreground_service(
                             f"Foreground Runtime health changed to {health.tier.value}"
                         ),
                     )
-                    print(f"  ❌ Foreground Runtime stopped: {failure.error}")
+                    _print_stop_result(
+                        lifecycle,
+                        selected_home,
+                        failure,
+                        projection=health,
+                    )
                     return failure
                 if wait(shutdown_requested):
-                    stopped = supervisor.stop()
-                    _print_stop_result(stopped)
-                    return stopped
+                    return _stop_foreground_runtime(
+                        lifecycle,
+                        supervisor,
+                        selected_home,
+                        command=started.command or command,
+                        projection=health,
+                    )
         except KeyboardInterrupt:
-            stopped = supervisor.stop()
-            _print_stop_result(stopped)
+            _stop_foreground_runtime(
+                lifecycle,
+                supervisor,
+                selected_home,
+                command=started.command or command,
+            )
             raise
     finally:
         signal.signal(signal.SIGTERM, previous_sigterm_handler)
 
 
-def _print_stop_result(result: ServiceLifecycleResult) -> None:
-    if result.status == "stopped":
-        print("  ✅ Foreground Runtime stopped")
-        return
-    if result.status == "already_stopped":
-        print("  ⭕ Foreground Runtime already stopped")
-        return
-    print(f"  ❌ Failed to stop foreground Runtime: {result.error}")
+def _print_stop_result(
+    lifecycle: LifecycleFacade,
+    selected_home: Path,
+    result: ServiceLifecycleResult,
+    *,
+    projection=None,
+) -> None:
+    lifecycle_commands._print_lifecycle_result(
+        "stop",
+        selected_home,
+        result,
+        projection=None,
+        before_projection=projection,
+        command=result.command or (),
+    )
+
+
+def _stop_foreground_runtime(
+    lifecycle: LifecycleFacade,
+    supervisor,
+    selected_home: Path,
+    *,
+    command: Sequence[str],
+    projection=None,
+) -> ServiceLifecycleResult:
+    """Stop the foreground generation with the same compact identity panel."""
+    before_projection = projection or lifecycle_commands._safe_runtime_projection(
+        lifecycle, selected_home
+    )
+    lifecycle_commands._print_lifecycle_intent(
+        "stop",
+        selected_home,
+        projection=before_projection,
+        command=command,
+    )
+    progress = lifecycle_commands.ProgressIndicator("Stopping foreground service")
+    progress.start()
+    try:
+        stopped = supervisor.stop()
+    finally:
+        progress.stop(
+            success="stopped" in locals()
+            and stopped.status in {"stopped", "already_stopped"},
+            clear_only=True,
+        )
+    _print_stop_result(
+        lifecycle,
+        selected_home,
+        stopped,
+        projection=before_projection,
+    )
+    return stopped

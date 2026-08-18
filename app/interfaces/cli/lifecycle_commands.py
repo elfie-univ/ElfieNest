@@ -6,11 +6,14 @@ import hashlib
 import json
 import os
 import secrets
+import sys
 import threading
 import time
 import webbrowser
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
-from typing import Callable, Optional, Sequence
+from typing import Callable, Iterator, Optional, Sequence
 
 from app.orchestration.lifecycle import (
     DEFAULT_GODOT_WS_PORT,
@@ -44,6 +47,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 BACKGROUND_START_TIMEOUT_SECONDS = 60.0
 AUTHORITY_START_TIMEOUT_SECONDS = 120.0
 CONTROLLER_STOP_TIMEOUT_SECONDS = 15.0
+_DISPLAY_DATA_HOME: ContextVar[Optional[str]] = ContextVar(
+    "elfienest_display_data_home", default=None
+)
 
 
 def _runtime_project_root() -> Path:
@@ -57,7 +63,6 @@ def _supervisor_for(
     command: Sequence[str],
     http_port: int,
     *,
-    use_remembered_home: bool = False,
     automatic_ports: bool = False,
     progress_callback: Optional[Callable[[RuntimeProgressPhase], None]] = None,
 ) -> RuntimeLifecycle:
@@ -66,7 +71,6 @@ def _supervisor_for(
     selected_home = _data_home_for_command(
         lifecycle,
         launch_command,
-        use_remembered_home=use_remembered_home,
     )
     _, godot_ws_port = service_ports_from_command(launch_command)
     generation_nonce = secrets.token_urlsafe(32)
@@ -264,11 +268,15 @@ class ProgressIndicator:
         success: bool = True,
         *,
         message: Optional[str] = None,
+        clear_only: bool = False,
     ) -> None:
         """Stop the spinner and show result."""
         self.running = False
         if self.thread:
             self.thread.join(timeout=0.2)
+        if clear_only:
+            print("\r" + (" " * 96) + "\r", end="", flush=True)
+            return
         final_message = message or self.message
         print(
             f"\r  {'✅' if success else '❌'} {final_message}{' ✓' if success else ' ✗'}    ",
@@ -279,26 +287,19 @@ class ProgressIndicator:
 def _data_home_for_command(
     lifecycle: LifecycleFacade,
     command: Sequence[str],
-    *,
-    use_remembered_home: bool = False,
 ) -> Path:
-    """从服务命令与已记录生命周期选择中解析数据根。"""
+    """Resolve the root already selected by the command target context."""
     explicit_home = _option_value(command, "--data-home")
     return lifecycle.select_data_home(
         explicit_home,
         project_root=_runtime_project_root(),
         runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-        use_remembered=use_remembered_home,
     )
 
 
 def selected_runtime_data_home(lifecycle: LifecycleFacade) -> Path:
-    """Return the remembered production data root used by lifecycle commands."""
-    return _data_home_for_command(
-        lifecycle,
-        lifecycle.default_service_command(),
-        use_remembered_home=True,
-    )
+    """Return the root published by the current command scope."""
+    return _data_home_for_command(lifecycle, lifecycle.default_service_command())
 
 
 def _option_value(command: Sequence[str], option: str) -> Optional[str]:
@@ -312,17 +313,6 @@ def _option_value(command: Sequence[str], option: str) -> Optional[str]:
         if argument.startswith(prefix):
             return argument[len(prefix) :]
     return None
-
-
-def _remember_lifecycle_data_home(
-    lifecycle: LifecycleFacade, selected_home: Path
-) -> None:
-    """Ask the lifecycle boundary to persist the current checkout selection."""
-    lifecycle.remember_data_home(
-        selected_home,
-        project_root=_runtime_project_root(),
-        runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-    )
 
 
 def _prepare_frontend_for_launch(lifecycle: LifecycleFacade) -> None:
@@ -345,15 +335,12 @@ def _runtime_is_stably_running(supervisor: RuntimeLifecycle) -> bool:
 def _data_home_launch_error(
     lifecycle: LifecycleFacade,
     command: Sequence[str],
-    *,
-    use_remembered_home: bool,
 ) -> Optional[LaunchFailedError]:
     """Explain an unusable data root before the child process is spawned."""
     inspection = lifecycle.inspect_data_home(
         _option_value(command, "--data-home"),
         project_root=_runtime_project_root(),
         runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-        use_remembered=use_remembered_home,
     )
     if inspection.state in {
         DataHomeState.FRESH,
@@ -465,29 +452,35 @@ def start_background_service(
             command=command,
             json_output=json_output,
         )
-    progress = (
-        None if json_output or progress_json else ProgressIndicator("Starting service")
-    )
-    if progress is not None:
-        progress.start()
-
     launch_command = (
         tuple(command)
         if command is not None
         else lifecycle.default_service_command(("--lan",))
     )
+    selected_home = _data_home_for_command(lifecycle, launch_command)
     implicit_ports = not _has_port_option(
         launch_command, "--port"
     ) and not _has_port_option(launch_command, "--godot-ws-port")
     try:
         http_port = _validated_http_port(launch_command)
     except ValueError as error:
-        if progress is not None:
-            progress.stop(success=False)
         result = ServiceLifecycleResult(
             status="failed", error=LaunchFailedError(f"Invalid service port: {error}")
         )
-        _print_start_result_or_json(lifecycle, result, json_output=json_output)
+        if not (json_output or progress_json):
+            _print_lifecycle_intent(
+                "start",
+                selected_home,
+                command=launch_command,
+            )
+        _print_start_result_or_json(
+            lifecycle,
+            result,
+            json_output=json_output,
+            selected_home=selected_home,
+            action="start",
+            compact=not (json_output or progress_json),
+        )
         return result
     progress_callback = (
         (lambda phase: _print_runtime_progress_json(phase)) if progress_json else None
@@ -496,30 +489,17 @@ def start_background_service(
         lifecycle,
         launch_command,
         http_port,
-        use_remembered_home=True,
         automatic_ports=implicit_ports,
         progress_callback=progress_callback,
     )
-    try:
-        if not _runtime_is_stably_running(supervisor):
-            data_home_error = _data_home_launch_error(
-                lifecycle,
-                launch_command,
-                use_remembered_home=True,
-            )
-            if data_home_error is not None:
-                if progress is not None:
-                    progress.stop(success=False)
-                result = ServiceLifecycleResult(
-                    status="failed", command=launch_command, error=data_home_error
-                )
-                _print_start_result_or_json(lifecycle, result, json_output=json_output)
-                return result
-            selected_home = _data_home_for_command(
-                lifecycle,
-                launch_command,
-                use_remembered_home=True,
-            )
+    running_before_start = _runtime_is_stably_running(supervisor)
+    data_home_error = None
+    if not running_before_start:
+        data_home_error = _data_home_launch_error(
+            lifecycle,
+            launch_command,
+        )
+        if data_home_error is None:
             selected_command = _select_automatic_ports(
                 lifecycle,
                 launch_command,
@@ -532,20 +512,59 @@ def start_background_service(
                     lifecycle,
                     launch_command,
                     http_port,
-                    use_remembered_home=True,
                     automatic_ports=implicit_ports,
                     progress_callback=progress_callback,
                 )
+    progress = (
+        None if json_output or progress_json else ProgressIndicator("Starting service")
+    )
+    if progress is not None and not (json_output or progress_json):
+        _print_lifecycle_intent(
+            "start",
+            selected_home,
+            projection=_safe_runtime_projection(lifecycle, selected_home),
+            command=launch_command,
+        )
+        progress.start()
+
+    if data_home_error is not None:
+        if progress is not None:
+            progress.stop(success=False, clear_only=True)
+        result = ServiceLifecycleResult(
+            status="failed",
+            command=launch_command,
+            error=data_home_error,
+        )
+        _print_start_result_or_json(
+            lifecycle,
+            result,
+            json_output=json_output,
+            selected_home=selected_home,
+            action="start",
+            compact=not (json_output or progress_json),
+        )
+        return result
+
+    try:
+        if not running_before_start:
             _prepare_frontend_for_launch(lifecycle)
     except FrontendPreparationError as error:
         if progress is not None:
-            progress.stop(success=False)
+            progress.stop(success=False, clear_only=True)
         result = ServiceLifecycleResult(
             status="failed",
             command=launch_command,
             error=LaunchFailedError(f"Frontend build failed: {error}"),
         )
-        _print_start_result_or_json(lifecycle, result, json_output=json_output)
+        selected_home = _data_home_for_command(lifecycle, launch_command)
+        _print_start_result_or_json(
+            lifecycle,
+            result,
+            json_output=json_output,
+            selected_home=selected_home,
+            action="start",
+            compact=not (json_output or progress_json),
+        )
         return result
     attempted_ports: list[tuple[int, int]] = []
     result = supervisor.start(owner_id=owner_id)
@@ -560,7 +579,6 @@ def start_background_service(
         selected_home = _data_home_for_command(
             lifecycle,
             retry_base,
-            use_remembered_home=True,
         )
         retry_command = _select_automatic_ports(
             lifecycle,
@@ -576,35 +594,23 @@ def start_background_service(
             lifecycle,
             launch_command,
             http_port,
-            use_remembered_home=True,
             automatic_ports=implicit_ports,
             progress_callback=progress_callback,
         )
         result = supervisor.start(owner_id=owner_id)
-    if result.status in {"started", "already_running"}:
-        try:
-            _remember_lifecycle_data_home(
-                lifecycle,
-                _data_home_for_command(
-                    lifecycle,
-                    launch_command,
-                    use_remembered_home=True,
-                ),
-            )
-        except OSError as error:
-            result = ServiceLifecycleResult(
-                status="failed",
-                pid=result.pid,
-                command=result.command,
-                error=LaunchFailedError(f"Cannot record selected data home: {error}"),
-            )
     if progress is not None:
-        progress.stop(success=result.status in {"started", "already_running"})
+        progress.stop(
+            success=result.status in {"started", "already_running"},
+            clear_only=True,
+        )
     _print_start_result_or_json(
         lifecycle,
         result,
         supervisor=supervisor,
         json_output=json_output,
+        selected_home=selected_home,
+        action="start",
+        compact=not (json_output or progress_json),
     )
     return result
 
@@ -616,11 +622,23 @@ def stop_background_service(
     selected_home = _data_home_for_command(
         lifecycle,
         lifecycle.default_service_command(),
-        use_remembered_home=True,
     )
-    if owner_id == "cli" and _should_start_packaged_controller():
+    before_projection = _safe_runtime_projection(lifecycle, selected_home)
+    packaged = _should_start_packaged_controller()
+    progress = None if packaged else ProgressIndicator("Stopping service")
+    if progress is not None:
+        _print_lifecycle_intent(
+            "stop",
+            selected_home,
+            projection=before_projection,
+            command=lifecycle.default_service_command(),
+        )
+        progress.start()
+    if owner_id == "cli" and packaged:
         try:
-            controller_result = lifecycle.controller_request("STOP_SERVER")
+            controller_result = lifecycle.controller_request(
+                "STOP_SERVER", expected_data_home=selected_home
+            )
         except RuntimeError as error:
             result = ServiceLifecycleResult(
                 status="failed",
@@ -654,7 +672,6 @@ def stop_background_service(
         lifecycle,
         lifecycle.default_service_command(),
         DEFAULT_HTTP_PORT,
-        use_remembered_home=True,
     )
     if owner_id != "cli":
         health = supervisor.status()
@@ -671,7 +688,18 @@ def stop_background_service(
                     "Runtime owner lease does not allow this client to stop the service"
                 ),
             )
-            print(f"  ❌ Failed to stop service: {result.error}")
+            if progress is not None:
+                progress.stop(success=False, clear_only=True)
+                _print_lifecycle_result(
+                    "stop",
+                    selected_home,
+                    result,
+                    projection=_safe_runtime_projection(lifecycle, selected_home),
+                    before_projection=before_projection,
+                    command=lifecycle.default_service_command(),
+                )
+            else:
+                print(f"  ❌ Failed to stop service: {result.error}")
             return result
     result = supervisor.stop()
     if (
@@ -681,7 +709,17 @@ def stop_background_service(
         desktop_result = lifecycle.stop_desktop(selected_home)
         if desktop_result.status == "failed":
             result = desktop_result
-    if result.status == "stopped":
+    if progress is not None:
+        progress.stop(success=result.status != "failed", clear_only=True)
+        _print_lifecycle_result(
+            "stop",
+            selected_home,
+            result,
+            projection=_safe_runtime_projection(lifecycle, selected_home),
+            before_projection=before_projection,
+            command=lifecycle.default_service_command(),
+        )
+    elif result.status == "stopped":
         print("  ✅ Service stopped")
     elif result.status == "already_stopped":
         print("  ⭕ Service not running")
@@ -690,44 +728,103 @@ def stop_background_service(
     return result
 
 
-def restart_background_service(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
-    """Stop the current process and start it again with its existing arguments."""
+def restart_background_service(
+    lifecycle: LifecycleFacade,
+    options: Sequence[str] = (),
+) -> ServiceLifecycleResult:
+    """Stop the selected process and start it again with the requested options."""
     progress = ProgressIndicator("Restarting service")
+    default_command = lifecycle.default_service_command(options)
+    selected_home = _data_home_for_command(lifecycle, default_command)
+    before_projection = _safe_runtime_projection(lifecycle, selected_home)
+
+    if not _should_start_packaged_controller():
+        _print_lifecycle_intent(
+            "restart",
+            selected_home,
+            projection=before_projection,
+            command=default_command,
+        )
     progress.start()
 
-    default_command = lifecycle.default_service_command()
+    if _should_start_packaged_controller():
+        stopped = stop_background_service(lifecycle)
+        if stopped.status not in {"stopped", "already_stopped"}:
+            progress.stop(success=False, message="Service restart failed")
+            print(f"  ❌ Cannot restart service: {stopped.error}")
+            return stopped
+        restarted = _start_packaged_controller(
+            lifecycle,
+            command=None,
+            json_output=False,
+        )
+        succeeded = restarted.status in {"started", "already_running"}
+        progress.stop(
+            success=succeeded,
+            message="Service restarted" if succeeded else "Service restart failed",
+        )
+        _print_operation_context(
+            lifecycle,
+            selected_home,
+            action="restart",
+            result=restarted,
+            projection=_safe_runtime_projection(lifecycle, selected_home),
+        )
+        if not succeeded:
+            print(f"  ❌ Service restart failed: {restarted.error}")
+        return restarted
+
     data_home_error = _data_home_launch_error(
         lifecycle,
         default_command,
-        use_remembered_home=True,
     )
     if data_home_error is not None:
-        progress.stop(success=False, message="Service restart failed")
+        progress.stop(success=False, clear_only=True)
         result = ServiceLifecycleResult(status="failed", error=data_home_error)
-        print(f"  ❌ Service restart failed: {result.error}")
+        _print_lifecycle_result(
+            "restart",
+            selected_home,
+            result,
+            projection=_safe_runtime_projection(lifecycle, selected_home),
+            before_projection=before_projection,
+            command=default_command,
+        )
         return result
 
     stop_supervisor = _supervisor_for(
         lifecycle,
         lifecycle.default_service_command(),
         DEFAULT_HTTP_PORT,
-        use_remembered_home=True,
     )
     try:
         _prepare_frontend_for_launch(lifecycle)
     except FrontendPreparationError as error:
-        progress.stop(success=False, message="Service restart failed")
+        progress.stop(success=False, clear_only=True)
         result = ServiceLifecycleResult(
             status="failed",
             error=LaunchFailedError(f"Frontend build failed: {error}"),
         )
-        print(f"  ❌ Service restart failed: {result.error}")
+        _print_lifecycle_result(
+            "restart",
+            selected_home,
+            result,
+            projection=_safe_runtime_projection(lifecycle, selected_home),
+            before_projection=before_projection,
+            command=default_command,
+        )
         return result
 
     stopped = stop_supervisor.stop()
     if stopped.status == "failed":
-        progress.stop(success=False, message="Service restart failed")
-        print(f"  ❌ Cannot restart service: {stopped.error}")
+        progress.stop(success=False, clear_only=True)
+        _print_lifecycle_result(
+            "restart",
+            selected_home,
+            stopped,
+            projection=_safe_runtime_projection(lifecycle, selected_home),
+            before_projection=before_projection,
+            command=default_command,
+        )
 
         # Enhanced error message for port occupation
         if isinstance(stopped.error, ServicePortsActiveError):
@@ -753,82 +850,124 @@ def restart_background_service(lifecycle: LifecycleFacade) -> ServiceLifecycleRe
                         print(f"    Working directory: {cwd_str}")
                     print()
                 print(
-                    "  💡 Run 'elfienest doctor --fix-ports' to inspect the occupant, then choose an unused port"
+                    "  💡 Stop the exact task owning these ports, or start with an unused explicit port pair"
                 )
 
         return stopped
     command = stopped.command or lifecycle.default_service_command(("--lan",))
+    explicit_ports = _has_port_option(default_command, "--port") or _has_port_option(
+        default_command, "--godot-ws-port"
+    )
     try:
-        http_port = _validated_http_port(command)
+        if explicit_ports:
+            launch_base = tuple(
+                argument for argument in default_command if argument != "--force"
+            )
+            automatic_ports = False
+        else:
+            launch_base = _without_port_options(
+                tuple(argument for argument in command if argument != "--force")
+            )
+            automatic_ports = True
+        selected_home = _data_home_for_command(lifecycle, launch_base)
+        # A restart without explicit ports reselects a deterministic pair
+        # when the default endpoints are occupied by another task.
+        launch_command = (
+            _select_automatic_ports(lifecycle, launch_base, selected_home)
+            if automatic_ports
+            else launch_base
+        )
+        http_port = _validated_http_port(launch_command)
     except ValueError as error:
-        progress.stop(success=False, message="Service restart failed")
+        progress.stop(success=False, clear_only=True)
         result = ServiceLifecycleResult(
             status="failed", error=LaunchFailedError(f"Invalid service port: {error}")
         )
-        print(f"  ❌ Service restart failed: {result.error}")
+        fallback_ports = None
+        try:
+            fallback_ports = service_ports_from_command(command)
+        except ValueError:
+            pass
+        _print_lifecycle_result(
+            "restart",
+            selected_home,
+            result,
+            projection=_safe_runtime_projection(lifecycle, selected_home),
+            before_projection=before_projection,
+            command=command,
+            fallback_ports=fallback_ports,
+        )
         return result
-    launch_command = tuple(argument for argument in command if argument != "--force")
-    automatic_ports = not _has_port_option(
-        launch_command, "--port"
-    ) and not _has_port_option(launch_command, "--godot-ws-port")
-    result = _supervisor_for(
+    attempted_ports: list[tuple[int, int]] = []
+    supervisor = _supervisor_for(
         lifecycle,
         launch_command,
         http_port,
         automatic_ports=automatic_ports,
-    ).start(owner_id="cli")
-    succeeded = result.status in {"started", "already_running"}
-    if succeeded:
-        try:
-            _remember_lifecycle_data_home(
-                lifecycle,
-                _data_home_for_command(
-                    lifecycle,
-                    launch_command,
-                    use_remembered_home=True,
-                ),
-            )
-        except OSError as error:
-            result = ServiceLifecycleResult(
-                status="failed",
-                pid=result.pid,
-                command=result.command,
-                error=LaunchFailedError(f"Cannot record selected data home: {error}"),
-            )
-            succeeded = False
-    progress.stop(
-        success=succeeded,
-        message="Service restarted" if succeeded else "Service restart failed",
     )
-    if not succeeded:
-        print(f"  ❌ Service restart failed: {result.error}")
+    result = supervisor.start(owner_id="cli")
+    while (
+        result.status == "failed"
+        and automatic_ports
+        and _is_automatic_port_conflict(result)
+        and len(attempted_ports) < 2
+    ):
+        attempted_ports.append(service_ports_from_command(launch_command))
+        retry_command = _select_automatic_ports(
+            lifecycle,
+            launch_base,
+            selected_home,
+            avoid_pairs=attempted_ports,
+        )
+        if retry_command == launch_base:
+            break
+        launch_command = retry_command
+        http_port = _validated_http_port(launch_command)
+        supervisor = _supervisor_for(
+            lifecycle,
+            launch_command,
+            http_port,
+            automatic_ports=automatic_ports,
+        )
+        result = supervisor.start(owner_id="cli")
+    succeeded = result.status in {"started", "already_running"}
+    progress.stop(success=succeeded, clear_only=True)
+    _print_lifecycle_result(
+        "restart",
+        selected_home,
+        result,
+        projection=_safe_runtime_projection(lifecycle, selected_home),
+        before_projection=before_projection,
+        command=launch_command,
+        fallback_ports=service_ports_from_command(launch_command),
+    )
 
-        # Enhanced error message for port occupation
-        if isinstance(result.error, ServicePortsActiveError):
+    # Enhanced error message for port occupation
+    if not succeeded and isinstance(result.error, ServicePortsActiveError):
+        print()
+        from app.interfaces.cli.doctor_commands import diagnose_ports
+
+        occupied = diagnose_ports(lifecycle=lifecycle)
+        if occupied:
+            print("  ⚠️  Port occupation detected:")
             print()
-            from app.interfaces.cli.doctor_commands import diagnose_ports
-
-            occupied = diagnose_ports(lifecycle=lifecycle)
-            if occupied:
-                print("  ⚠️  Port occupation detected:")
+            for port, proc_info in occupied.items():
+                print(f"  - Port {port}:")
+                print(f"    PID: {proc_info.pid}")
+                if proc_info.command:
+                    cmd_str = " ".join(proc_info.command)
+                    if len(cmd_str) > 80:
+                        cmd_str = cmd_str[:77] + "..."
+                    print(f"    Command: {cmd_str}")
+                if proc_info.cwd:
+                    cwd_str = str(proc_info.cwd)
+                    if len(cwd_str) > 80:
+                        cwd_str = cwd_str[:77] + "..."
+                    print(f"    Working directory: {cwd_str}")
                 print()
-                for port, proc_info in occupied.items():
-                    print(f"  - Port {port}:")
-                    print(f"    PID: {proc_info.pid}")
-                    if proc_info.command:
-                        cmd_str = " ".join(proc_info.command)
-                        if len(cmd_str) > 80:
-                            cmd_str = cmd_str[:77] + "..."
-                        print(f"    Command: {cmd_str}")
-                    if proc_info.cwd:
-                        cwd_str = str(proc_info.cwd)
-                        if len(cwd_str) > 80:
-                            cwd_str = cwd_str[:77] + "..."
-                        print(f"    Working directory: {cwd_str}")
-                    print()
-                print(
-                    "  💡 Run 'elfienest doctor --fix-ports' to inspect the occupant, then choose an unused port"
-                )
+            print(
+                "  💡 Stop the exact task owning these ports, or start with an unused explicit port pair"
+            )
 
     return result
 
@@ -836,80 +975,39 @@ def restart_background_service(lifecycle: LifecycleFacade) -> ServiceLifecycleRe
 def show_service_status(
     lifecycle: LifecycleFacade, *, json_output: bool = False
 ) -> None:
-    """Print lifecycle state without duplicating usage/session statistics."""
-    elfie_home = _data_home_for_command(
-        lifecycle,
-        lifecycle.default_service_command(),
-        use_remembered_home=True,
-    )
-    running = lifecycle.existing_service_command(elfie_home, _runtime_project_root())
-    status_command = (
-        running[1] if running is not None else lifecycle.default_service_command()
-    )
-    status_port = http_port_from_command(status_command)
-    health = _supervisor_for(
-        lifecycle,
-        status_command,
-        status_port,
-        use_remembered_home=running is None,
-    ).status()
+    """Print only the selected root's authoritative Runtime snapshot."""
+    elfie_home = _data_home_for_command(lifecycle, lifecycle.default_service_command())
+    health = lifecycle.runtime_projection(elfie_home)
     if json_output:
-        _print_runtime_health_json(health)
+        _print_runtime_health_json(health, data_root=elfie_home)
         return
     print("  📊 Service Status")
     print("  " + "=" * 45)
     print()
+    print(f"  Data root: {elfie_home}")
+    print(f"  Instance: {health.instance_id}")
+    print(f"  Runtime: {health.tier.value} ({health.phase.value})")
+    print(f"  Generation: {health.generation}")
     published_ports = _published_service_ports(health)
-    verified_current_runtime = running is not None or (
-        health.tier is not BackendTier.OFFLINE and health.owner_lease is not None
+    port_statuses = (
+        lifecycle.service_port_statuses(*published_ports)
+        if published_ports is not None
+        else ()
     )
-    if not verified_current_runtime:
-        port_statuses = (
-            lifecycle.service_port_statuses(*published_ports)
-            if published_ports is not None
-            else lifecycle.default_port_statuses()
-        )
-        external = _external_recorded_service(lifecycle, elfie_home)
-        if external is not None:
-            pid, cwd, _ = external
-            print(f"  ⚠️  Registered PID {pid} from another ElfieNest checkout: {cwd}")
-        elif any(port_status.running for port_status in port_statuses):
-            print(
-                "  ⚠️  Default service ports occupied by external process from another ElfieNest checkout; "
-                "no verified service for current project."
-            )
-    else:
-        if running is not None:
-            _, command = running
-            published_ports = _published_service_ports(health)
-            ports = published_ports or service_ports_from_command(command)
-            port_statuses = lifecycle.service_port_statuses(ports[0], ports[1])
-        elif published_ports is not None:
-            port_statuses = lifecycle.service_port_statuses(*published_ports)
-        else:
-            port_statuses = lifecycle.default_port_statuses()
     for port_status in port_statuses:
-        is_current_project = verified_current_runtime
-        state = (
-            "running"
-            if is_current_project and port_status.running
-            else "occupied by external process"
-            if port_status.running
-            else "not running"
-        )
-        icon = (
-            "✅"
-            if is_current_project and port_status.running
-            else "⚠️"
-            if port_status.running
-            else "⭕"
-        )
+        state = "running" if port_status.running else "not running"
+        icon = "✅" if port_status.running else "⭕"
         print(f"  {icon} {port_status.name}: {state} (port {port_status.port})")
+    for endpoint in health.endpoints:
+        print(f"  {_endpoint_label(endpoint)} address: {_endpoint_address(endpoint)}")
+    if not port_statuses:
+        print("  ⭕ No endpoint is published by this Runtime snapshot")
     if health.components:
         print()
-        print(f"  Runtime: {health.tier.value} (generation {health.generation})")
         for component in health.components:
             print(f"  - {component.component.value}: {component.state.value}")
+            if component.pid is not None:
+                print(f"    PID: {component.pid}")
         print(
             "  Model: "
             f"{health.model_state.value} "
@@ -920,145 +1018,167 @@ def show_service_status(
 
 
 def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
-    """Ensure a healthy service and open the Web management console."""
-    default_home = selected_runtime_data_home(lifecycle)
-    running = lifecycle.existing_service_command(default_home, _runtime_project_root())
-    if running is not None:
-        _, running_command = running
-        port = published_http_port_for_home(lifecycle, default_home)
-        if port is None and _has_port_option(running_command, "--port"):
-            port = http_port_from_command(running_command)
-        if port is None:
-            result = ServiceLifecycleResult(
-                status="failed",
-                error=LaunchFailedError(
-                    "Registered service did not publish an HTTP endpoint"
-                ),
-            )
-            print(f"  ❌ Cannot open Web console: {result.error}")
-            return result
-        if not _web_is_healthy(lifecycle, port):
-            result = ServiceLifecycleResult(
-                status="failed",
-                error=LaunchFailedError(
-                    f"Registered service but Web port {port} failed health check"
-                ),
-            )
-            print(f"  ❌ Cannot open Web console: {result.error}")
-            return result
-    else:
-        published_ports = _published_service_ports(
-            _supervisor_for(
-                lifecycle,
-                lifecycle.default_service_command(),
-                DEFAULT_HTTP_PORT,
-                use_remembered_home=True,
-            ).status()
+    """Open the selected task's published endpoint without starting Runtime."""
+    selected_home = selected_runtime_data_home(lifecycle)
+    snapshot = lifecycle.runtime_snapshot(selected_home)
+    if snapshot.tier is BackendTier.OFFLINE:
+        result = ServiceLifecycleResult(
+            status="failed",
+            error=LaunchFailedError(
+                "Selected Runtime is offline; web only opens an existing service "
+                f"(data_root={selected_home}). Run start first."
+            ),
         )
-        published_http_port = (
-            published_ports[0] if published_ports is not None else None
+        _print_operation_context(
+            lifecycle,
+            selected_home,
+            action="web",
+            result=result,
+            projection=snapshot.projection(),
         )
-        probe_port = published_http_port or DEFAULT_HTTP_PORT
-        if _web_is_healthy(lifecycle, probe_port):
-            web_url = f"http://127.0.0.1:{probe_port}/"
-            webbrowser.open(web_url)
-            print(f"  🌐 Opened running Web console: {web_url}")
-            print(
-                "  ⚠️  Service not verified by current project PID receipt; start/restart won't take over."
-            )
-            return ServiceLifecycleResult(
-                status="already_running",
-                command=("--port", str(probe_port)),
-            )
-        if any(
-            port_status.running for port_status in lifecycle.default_port_statuses()
-        ):
-            result = ServiceLifecycleResult(
-                status="failed",
-                error=LaunchFailedError(
-                    "Default service ports occupied by external process and Web health check failed; "
-                    "manage it from the owning checkout, or start current project with custom ports"
-                ),
-            )
-            print(f"  ❌ Cannot open Web console: {result.error}")
-            return result
-        result = start_background_service(lifecycle)
-        if result.status not in {"started", "already_running"}:
-            return result
-        port = published_http_port_for_home(lifecycle, default_home)
-        if (
-            port is None
-            and result.command is not None
-            and _has_port_option(result.command, "--port")
-        ):
-            port = http_port_from_command(result.command)
-        if port is None:
-            result = ServiceLifecycleResult(
-                status="failed",
-                error=LaunchFailedError(
-                    "Service started but Runtime did not publish an HTTP endpoint"
-                ),
-            )
-            print(f"  ❌ Cannot open Web console: {result.error}")
-            return result
-        if not _web_is_healthy(lifecycle, port):
-            result = ServiceLifecycleResult(
-                status="failed",
-                error=LaunchFailedError(
-                    f"Service started but Web port {port} failed health check"
-                ),
-            )
-            print(f"  ❌ Cannot open Web console: {result.error}")
-            return result
+        print(f"  ❌ Cannot open Web console: {result.error}")
+        return result
+    port = published_http_port_for_home(lifecycle, selected_home)
+    if port is None:
+        result = ServiceLifecycleResult(
+            status="failed",
+            error=LaunchFailedError(
+                "Selected Runtime did not publish an HTTP endpoint "
+                f"(data_root={selected_home}, generation={snapshot.generation})"
+            ),
+        )
+        _print_operation_context(
+            lifecycle,
+            selected_home,
+            action="web",
+            result=result,
+            projection=snapshot.projection(),
+        )
+        print(f"  ❌ Cannot open Web console: {result.error}")
+        return result
+    if not _web_is_healthy(lifecycle, port):
+        result = ServiceLifecycleResult(
+            status="failed",
+            error=LaunchFailedError(
+                f"Selected Runtime endpoint failed health check: {selected_home}:{port}"
+            ),
+        )
+        _print_operation_context(
+            lifecycle,
+            selected_home,
+            action="web",
+            result=result,
+            projection=snapshot.projection(),
+            fallback_ports=(port, DEFAULT_GODOT_WS_PORT),
+        )
+        print(f"  ❌ Cannot open Web console: {result.error}")
+        return result
     web_url = f"http://127.0.0.1:{port}/"
+    result = ServiceLifecycleResult(status="already_running", command=("--port", str(port)))
+    _print_operation_context(
+        lifecycle,
+        selected_home,
+        action="web",
+        result=result,
+        projection=snapshot.projection(),
+    )
     webbrowser.open(web_url)
     print(f"  🌐 Opened Web console: {web_url}")
-    return ServiceLifecycleResult(
-        status="already_running", command=("--port", str(port))
-    )
-
-
-def start_desktop_application(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
-    """Explicitly start the packaged Electron Desktop supervisor."""
-    if _should_start_packaged_controller():
-        try:
-            controller_result = lifecycle.controller_request("ACTIVATE_VIEWER")
-        except RuntimeError as error:
-            result = ServiceLifecycleResult(
-                status="failed",
-                error=LaunchFailedError(f"Controller activation rejected: {error}"),
-            )
-            print(f"  ❌ Desktop failed to start: {result.error}")
-            return result
-        if controller_result is not None:
-            failure = _controller_failure_result(controller_result, "activate Viewer")
-            if failure is not None:
-                print(f"  ❌ Desktop failed to start: {failure.error}")
-                return failure
-            print("  ✅ Desktop Viewer activated")
-            return ServiceLifecycleResult(status="already_running")
-
-    selected_home = lifecycle.select_data_home(
-        None,
-        project_root=_runtime_project_root(),
-        runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-    )
-    result = lifecycle.start_desktop(
-        selected_home,
-        _runtime_project_root(),
-        health_checker=lambda: _controller_runtime_ready(lifecycle, selected_home),
-    )
-    if result.status in {"started", "already_running"}:
-        print(f"  ✅ Desktop started (PID {result.pid})")
-    else:
-        print(f"  ❌ Desktop failed to start: {result.error}")
     return result
+
+
+def open_desktop_application(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
+    """Activate an existing Desktop Viewer without starting Controller/Runtime."""
+    selected_home = _data_home_for_command(
+        lifecycle,
+        lifecycle.default_service_command(),
+    )
+    snapshot = _safe_runtime_projection(lifecycle, selected_home)
+    http_port = published_http_port_for_home(lifecycle, selected_home)
+    if (
+        snapshot is None
+        or snapshot.tier is BackendTier.OFFLINE
+        or http_port is None
+        or not _web_is_healthy(lifecycle, http_port)
+    ):
+        result = ServiceLifecycleResult(
+            status="failed",
+            error=LaunchFailedError(
+                "Selected Runtime is not running with a healthy HTTP endpoint; "
+                "desktop only opens an existing Viewer and never starts the service "
+                f"(data_root={selected_home})."
+            ),
+        )
+        _print_operation_context(
+            lifecycle,
+            selected_home,
+            action="desktop",
+            result=result,
+            projection=snapshot,
+        )
+        print(f"  ❌ Cannot open Desktop Viewer: {result.error}")
+        return result
+    try:
+        controller_result = lifecycle.controller_request(
+            "ACTIVATE_VIEWER", expected_data_home=selected_home
+        )
+    except RuntimeError as error:
+        result = ServiceLifecycleResult(
+            status="failed",
+            error=LaunchFailedError(f"Controller activation rejected: {error}"),
+        )
+        _print_operation_context(
+            lifecycle,
+            selected_home,
+            action="desktop",
+            result=result,
+            projection=snapshot,
+        )
+        print(f"  ❌ Cannot open Desktop Viewer: {result.error}")
+        return result
+    if controller_result is None:
+        result = ServiceLifecycleResult(
+            status="failed",
+            error=LaunchFailedError(
+                "Desktop Controller is not running; desktop only opens an existing "
+                "Viewer and will not start the service."
+            ),
+        )
+        _print_operation_context(
+            lifecycle,
+            selected_home,
+            action="desktop",
+            result=result,
+            projection=snapshot,
+        )
+        print(f"  ❌ Cannot open Desktop Viewer: {result.error}")
+        return result
+    failure = _controller_failure_result(controller_result, "activate Viewer")
+    if failure is not None:
+        _print_operation_context(
+            lifecycle,
+            selected_home,
+            action="desktop",
+            result=failure,
+            projection=snapshot,
+        )
+        print(f"  ❌ Cannot open Desktop Viewer: {failure.error}")
+        return failure
+    _print_operation_context(
+        lifecycle,
+        selected_home,
+        action="desktop",
+        result=ServiceLifecycleResult(status="already_running"),
+        projection=snapshot,
+    )
+    print("  ✅ Desktop Viewer activated")
+    return ServiceLifecycleResult(status="already_running")
 
 
 def _should_start_packaged_controller() -> bool:
     """Installed CLI owns a tray Controller; its internal calls do not."""
     return (
-        bool(os.environ.get("ELFIENEST_DESKTOP_BIN"))
+        bool(getattr(sys, "frozen", False))
         and os.environ.get("ELFIENEST_CONTROLLER_CLIENT") != "1"
     )
 
@@ -1070,60 +1190,103 @@ def _start_packaged_controller(
     json_output: bool,
 ) -> ServiceLifecycleResult:
     """Ensure the installed Controller without opening its Viewer."""
+    selected_home = _data_home_for_command(
+        lifecycle,
+        lifecycle.default_service_command(("--lan",)),
+    )
     if command is not None and _option_value(command, "--data-home") is not None:
         result = ServiceLifecycleResult(
             status="failed",
             command=tuple(command),
             error=LaunchFailedError(
                 "Installed elfienest start does not support --data-home; "
-                "use 'elfienest data-home activate --data-home PATH' to choose "
-                "the production data root, or './elfienest.sh start --data-home PATH' "
-                "for an isolated development instance"
+                "use ${ELFIE_HOME:-~/.elfienest}, or use the source CLI for "
+                "an isolated development instance"
             ),
         )
         if json_output:
-            _print_start_result_or_json(lifecycle, result, json_output=True)
+            _print_start_result_or_json(
+                lifecycle,
+                result,
+                json_output=True,
+                selected_home=selected_home,
+                action="start",
+            )
         else:
+            _print_operation_context(
+                lifecycle,
+                selected_home,
+                action="start",
+                result=result,
+                projection=_safe_runtime_projection(lifecycle, selected_home),
+            )
             print(f"  ❌ Controller failed to start: {result.error}")
         return result
     try:
-        controller_result = lifecycle.controller_request("ENSURE_SERVER")
+        controller_result = lifecycle.controller_request(
+            "ENSURE_SERVER", expected_data_home=selected_home
+        )
     except RuntimeError as error:
         result = ServiceLifecycleResult(
             status="failed",
             error=LaunchFailedError(f"Controller start rejected: {error}"),
         )
         if json_output:
-            _print_start_result_or_json(lifecycle, result, json_output=True)
+            _print_start_result_or_json(
+                lifecycle,
+                result,
+                json_output=True,
+                selected_home=selected_home,
+                action="start",
+            )
         else:
+            _print_operation_context(
+                lifecycle,
+                selected_home,
+                action="start",
+                result=result,
+                projection=_safe_runtime_projection(lifecycle, selected_home),
+            )
             print(f"  ❌ Controller failed to start: {result.error}")
         return result
     if controller_result is not None:
         failure = _controller_failure_result(controller_result, "start")
         if failure is not None:
             if json_output:
-                _print_start_result_or_json(lifecycle, failure, json_output=True)
+                _print_start_result_or_json(
+                    lifecycle,
+                    failure,
+                    json_output=True,
+                    selected_home=selected_home,
+                    action="start",
+                )
             else:
+                _print_operation_context(
+                    lifecycle,
+                    selected_home,
+                    action="start",
+                    result=failure,
+                    projection=_safe_runtime_projection(lifecycle, selected_home),
+                )
                 print(f"  ❌ Controller failed to start: {failure.error}")
             return failure
-        selected_home = _data_home_for_command(
-            lifecycle,
-            lifecycle.default_service_command(("--lan",)),
-            use_remembered_home=True,
-        )
         if json_output:
-            _print_runtime_health_json(lifecycle.runtime_projection(selected_home))
+            _print_runtime_health_json(
+                lifecycle.runtime_projection(selected_home),
+                data_root=selected_home,
+            )
         else:
+            _print_operation_context(
+                lifecycle,
+                selected_home,
+                action="start",
+                result=ServiceLifecycleResult(status="already_running"),
+                projection=_safe_runtime_projection(lifecycle, selected_home),
+            )
             print("  ⭕ Controller already running; Viewer remains closed")
             _print_web_console_link_for_home(lifecycle, selected_home)
         return ServiceLifecycleResult(status="already_running")
 
-    launch_command = lifecycle.default_service_command(("--lan",))
-    selected_home = _data_home_for_command(
-        lifecycle,
-        launch_command,
-        use_remembered_home=True,
-    )
     result = lifecycle.start_desktop(
         selected_home,
         _runtime_project_root(),
@@ -1134,17 +1297,45 @@ def _start_packaged_controller(
     if json_output:
         if result.status in {"started", "already_running"}:
             _print_runtime_health_json(
-                lifecycle.runtime_snapshot(selected_home).projection()
+                lifecycle.runtime_snapshot(selected_home).projection(),
+                data_root=selected_home,
             )
         else:
-            _print_start_result_or_json(lifecycle, result, json_output=True)
+            _print_start_result_or_json(
+                lifecycle,
+                result,
+                json_output=True,
+                selected_home=selected_home,
+                action="start",
+            )
     elif result.status == "started":
+        _print_operation_context(
+            lifecycle,
+            selected_home,
+            action="start",
+            result=result,
+            projection=_safe_runtime_projection(lifecycle, selected_home),
+        )
         print(f"  ✅ Controller started (PID {result.pid}); Viewer remains closed")
         _print_web_console_link_for_home(lifecycle, selected_home)
     elif result.status == "already_running":
+        _print_operation_context(
+            lifecycle,
+            selected_home,
+            action="start",
+            result=result,
+            projection=_safe_runtime_projection(lifecycle, selected_home),
+        )
         print(f"  ⭕ Controller already running (PID {result.pid})")
         _print_web_console_link_for_home(lifecycle, selected_home)
     else:
+        _print_operation_context(
+            lifecycle,
+            selected_home,
+            action="start",
+            result=result,
+            projection=_safe_runtime_projection(lifecycle, selected_home),
+        )
         print(f"  ❌ Controller failed to start: {result.error}")
     return result
 
@@ -1231,35 +1422,16 @@ def published_http_port_for_home(
 ) -> int | None:
     """Read the current HTTP endpoint from the lifecycle-owned snapshot."""
     try:
-        projection = lifecycle.runtime_snapshot(selected_home).projection()
+        snapshot = lifecycle.runtime_snapshot(selected_home)
     except (OSError, RuntimeError, ValueError):
         return None
+    if snapshot.tier is BackendTier.OFFLINE:
+        return None
+    projection = snapshot.projection()
     for endpoint in projection.endpoints:
         if endpoint.name == "http" and 1 <= endpoint.port <= 65535:
             return endpoint.port
     return None
-
-
-def _external_recorded_service(
-    lifecycle: LifecycleFacade,
-    elfie_home: Path,
-) -> tuple[int, Path, tuple[str, ...]] | None:
-    """Return a live recorded service that belongs to another checkout."""
-    try:
-        pid_result = lifecycle.recorded_pid(elfie_home)
-    except OSError:
-        return None
-    if not isinstance(pid_result, int) or not lifecycle.process_exists(pid_result):
-        return None
-    try:
-        snapshot = lifecycle.inspect_process(pid_result)
-        cwd = snapshot.cwd.resolve()
-        command = snapshot.command
-    except (OSError, RuntimeError, ValueError):
-        return None
-    if cwd == _runtime_project_root().resolve():
-        return None
-    return pid_result, cwd, tuple(command)
 
 
 def _validated_http_port(command: Sequence[str]) -> int:
@@ -1294,6 +1466,224 @@ def _web_console_url(
     return f"http://127.0.0.1:{port}/"
 
 
+def _safe_runtime_projection(
+    lifecycle: LifecycleFacade, selected_home: Path
+) -> RuntimeProjectionV1 | None:
+    """Read the selected root's projection without hiding command failures."""
+    try:
+        projection = lifecycle.runtime_projection(selected_home)
+        if isinstance(projection, RuntimeProjectionV1):
+            return projection
+        return None
+    except (AttributeError, OSError, RuntimeError, ValueError):
+        # Diagnostics must not consume a one-shot runtime observation or turn
+        # a command's authoritative stop/wait sequence into a second read.
+        return None
+
+
+def _endpoint_label(endpoint: EndpointSnapshot) -> str:
+    if endpoint.name == "http":
+        return "HTTP"
+    if endpoint.name == "godot_ws":
+        return "Godot WebSocket"
+    return endpoint.name
+
+
+def _endpoint_address(endpoint: EndpointSnapshot) -> str:
+    host = endpoint.host
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    suffix = "/" if endpoint.scheme in {"http", "https"} else ""
+    return f"{endpoint.scheme}://{host}:{endpoint.port}{suffix}"
+
+
+@contextmanager
+def display_data_home(value: Optional[str]) -> Iterator[None]:
+    """Scope the non-authoritative spelling used by compact CLI output."""
+    token = _DISPLAY_DATA_HOME.set(value)
+    try:
+        yield
+    finally:
+        _DISPLAY_DATA_HOME.reset(token)
+
+
+def _display_data_home(selected_home: Path) -> str:
+    """Use the user's selected spelling without changing the canonical target."""
+    selected = _DISPLAY_DATA_HOME.get()
+    if selected:
+        return selected
+    canonical = selected_home.resolve(strict=False)
+    for base, prefix in (
+        (Path.cwd().resolve(), ""),
+        (Path.home().resolve(), "~/"),
+    ):
+        try:
+            relative = canonical.relative_to(base)
+        except ValueError:
+            continue
+        relative_text = str(relative)
+        return f"{prefix}{relative_text}" if relative_text != "." else (prefix or ".")
+    return str(canonical)
+
+
+def _lifecycle_identity_text(
+    selected_home: Path,
+    *,
+    result: ServiceLifecycleResult | None = None,
+    projection: RuntimeProjectionV1 | None = None,
+    command: Sequence[str] = (),
+    fallback_ports: tuple[int, int] | None = None,
+) -> str:
+    """Render the compact identity used before and after a source lifecycle call."""
+    generation = (
+        projection.generation
+        if projection is not None and projection.generation > 0
+        else result.generation
+        if result is not None and result.generation is not None
+        else None
+    )
+    core_pid = (
+        result.pid
+        if result is not None and result.pid is not None
+        else projection.component(RuntimeComponent.CORE).pid
+        if projection is not None
+        else None
+    )
+    ports = _published_service_ports(projection) if projection is not None else None
+    if ports is None:
+        ports = fallback_ports
+    if ports is None and command:
+        try:
+            ports = service_ports_from_command(command)
+        except ValueError:
+            ports = None
+
+    parts = [f"data: {_display_data_home(selected_home)}"]
+    if generation is not None and generation > 0:
+        parts.append(f"generation: {generation}")
+    parts.append(f"PID: {core_pid if core_pid is not None else 'pending'}")
+    if ports is None:
+        parts.extend(("HTTP: pending", "WS: pending"))
+    else:
+        parts.extend((f"HTTP: {ports[0]}", f"WS: {ports[1]}"))
+    return " · ".join(parts)
+
+
+def _print_lifecycle_intent(
+    action: str,
+    selected_home: Path,
+    *,
+    projection: RuntimeProjectionV1 | None = None,
+    command: Sequence[str] = (),
+    fallback_ports: tuple[int, int] | None = None,
+) -> None:
+    """Print one compact target line before a source lifecycle operation."""
+    labels = {
+        "start": "Starting service",
+        "serve": "Starting foreground service",
+        "restart": "Restarting service",
+        "stop": "Stopping service",
+    }
+    label = labels.get(action, f"Running {action}")
+    print(
+        f"  ⏳ {label} ("
+        f"{_lifecycle_identity_text(selected_home, projection=projection, command=command, fallback_ports=fallback_ports)}"
+        ")"
+    )
+
+
+def _print_lifecycle_result(
+    action: str,
+    selected_home: Path,
+    result: ServiceLifecycleResult,
+    *,
+    projection: RuntimeProjectionV1 | None = None,
+    before_projection: RuntimeProjectionV1 | None = None,
+    command: Sequence[str] = (),
+    fallback_ports: tuple[int, int] | None = None,
+) -> None:
+    """Print one compact final line for a source lifecycle operation."""
+    identity_projection = (
+        before_projection
+        if action == "stop" and before_projection is not None
+        else projection
+    )
+    identity = _lifecycle_identity_text(
+        selected_home,
+        result=result,
+        projection=identity_projection,
+        command=command,
+        fallback_ports=fallback_ports,
+    )
+    if result.status == "started":
+        if action == "serve":
+            label = "Foreground service started"
+        elif action == "restart":
+            label = "Service restarted"
+        else:
+            label = "Service started"
+        print(f"  ✅ {label} ({identity})")
+    elif result.status == "already_running":
+        print(f"  ⭕ Service already running ({identity})")
+    elif result.status == "stopped":
+        print(f"  ✅ Service stopped ({identity})")
+    elif result.status == "already_stopped":
+        print(f"  ⭕ Service already stopped ({identity})")
+    else:
+        labels = {
+            "start": "Service start failed",
+            "serve": "Foreground service start failed",
+            "restart": "Service restart failed",
+            "stop": "Service stop failed",
+        }
+        label = labels.get(action, f"{action} failed")
+        print(f"  ❌ {label} ({identity}): {result.error}")
+        return
+
+    if action in {"start", "serve", "restart"} and result.status in {
+        "started",
+        "already_running",
+    }:
+        web_url = _web_console_url(result, projection=identity_projection)
+        if web_url is not None:
+            print(f"  🌐 Web console: {web_url}")
+
+
+def _print_operation_context(
+    lifecycle: LifecycleFacade,
+    selected_home: Path,
+    *,
+    action: str,
+    result: ServiceLifecycleResult | None = None,
+    projection: RuntimeProjectionV1 | None = None,
+    fallback_ports: tuple[int, int] | None = None,
+) -> None:
+    """Print only the target, component PIDs and published endpoint pair."""
+    print(f"  🔧 {action} (data: {_display_data_home(selected_home)})")
+
+    component_pids = []
+    if projection is not None:
+        labels = {
+            RuntimeComponent.CORE: "core",
+            RuntimeComponent.GATEWAY: "gateway",
+            RuntimeComponent.GODOT_AUTHORITY: "godot",
+        }
+        for component, label in labels.items():
+            pid = projection.component(component).pid
+            if pid is not None:
+                component_pids.append(f"{label}={pid}")
+    if not component_pids and result is not None and result.pid is not None:
+        component_pids.append(f"core={result.pid}")
+    if component_pids:
+        print(f"  PID: {' · '.join(component_pids)}")
+
+    ports = _published_service_ports(projection) if projection is not None else None
+    if ports is None:
+        ports = fallback_ports
+    if ports is not None:
+        print(f"  Ports: HTTP={ports[0]} · WS={ports[1]}")
+
+
 def _print_web_console_link_for_home(
     lifecycle: LifecycleFacade, selected_home: Path
 ) -> None:
@@ -1313,19 +1703,70 @@ def _print_start_result(
     result: ServiceLifecycleResult,
     *,
     supervisor: RuntimeLifecycle | None = None,
+    selected_home: Path | None = None,
+    action: str = "start",
+    compact: bool = False,
 ) -> None:
+    selected_home = selected_home or _data_home_for_command(
+        lifecycle,
+        result.command or lifecycle.default_service_command(),
+    )
+    projection = None
+    if supervisor is not None:
+        try:
+            projection = supervisor.status()
+        except (OSError, RuntimeError, ValueError):
+            projection = None
+    if projection is None:
+        projection = _safe_runtime_projection(lifecycle, selected_home)
+
+    published_ports = _published_service_ports(projection) if projection else None
+    if published_ports is None and result.command is not None:
+        try:
+            published_ports = service_ports_from_command(result.command)
+        except ValueError:
+            published_ports = None
+
+    if compact:
+        _print_lifecycle_result(
+            action,
+            selected_home,
+            result,
+            projection=projection,
+            command=result.command or (),
+            fallback_ports=published_ports,
+        )
+        return
+
+    _print_operation_context(
+        lifecycle,
+        selected_home,
+        action=action,
+        result=result,
+        projection=projection,
+        fallback_ports=published_ports,
+    )
+
     if result.status == "started":
-        print(f"  ✅ Service started (PID {result.pid})")
-        if supervisor is not None:
-            web_url = _web_console_url(result, supervisor)
-            if web_url is not None:
-                print(f"  🌐 Web console: {web_url}")
+        pid = result.pid or (
+            projection.component(RuntimeComponent.CORE).pid
+            if projection is not None
+            else None
+        )
+        print(f"  ✅ Service started (PID {pid})")
+        web_url = _web_console_url(result, projection=projection)
+        if web_url is not None:
+            print(f"  🌐 Web console: {web_url}")
     elif result.status == "already_running":
-        print(f"  ⭕ Service already running (PID {result.pid})")
-        if supervisor is not None:
-            web_url = _web_console_url(result, supervisor)
-            if web_url is not None:
-                print(f"  🌐 Web console: {web_url}")
+        pid = result.pid or (
+            projection.component(RuntimeComponent.CORE).pid
+            if projection is not None
+            else None
+        )
+        print(f"  ⭕ Service already running (PID {pid})")
+        web_url = _web_console_url(result, projection=projection)
+        if web_url is not None:
+            print(f"  🌐 Web console: {web_url}")
     else:
         print(f"  ❌ Service failed to start: {result.error}")
 
@@ -1353,7 +1794,7 @@ def _print_start_result(
                         print(f"    Working directory: {cwd_str}")
                     print()
                 print(
-                    "  💡 Run 'elfienest doctor --fix-ports' to inspect the occupant, then choose an unused port"
+                    "  💡 Stop the exact task owning these ports, or start with an unused explicit port pair"
                 )
             else:
                 print(
@@ -1362,9 +1803,13 @@ def _print_start_result(
                 print("     This might indicate a race condition or transient issue.")
 
 
-def _runtime_health_payload(health: RuntimeProjectionV1) -> dict[str, object]:
+def _runtime_health_payload(
+    health: RuntimeProjectionV1,
+    *,
+    data_root: Path | None = None,
+) -> dict[str, object]:
     """Serialize the one lifecycle projection for machine clients."""
-    return {
+    payload: dict[str, object] = {
         "schema_version": health.schema_version,
         "instance_id": health.instance_id,
         "state": health.tier.value,
@@ -1420,15 +1865,29 @@ def _runtime_health_payload(health: RuntimeProjectionV1) -> dict[str, object]:
                 "state": component.state.value,
                 "detail": component.detail,
                 "pid": component.pid,
+                "executable": component.executable,
+                "birth_identity": component.birth_identity,
+                "cwd": component.cwd,
             }
             for component in health.components
         ],
     }
+    if data_root is not None:
+        payload["data_root"] = str(data_root)
+    return payload
 
 
-def _print_runtime_health_json(health: RuntimeProjectionV1) -> None:
+def _print_runtime_health_json(
+    health: RuntimeProjectionV1,
+    *,
+    data_root: Path | None = None,
+) -> None:
     print(
-        json.dumps(_runtime_health_payload(health), ensure_ascii=False, sort_keys=True)
+        json.dumps(
+            _runtime_health_payload(health, data_root=data_root),
+            ensure_ascii=False,
+            sort_keys=True,
+        )
     )
 
 
@@ -1449,13 +1908,30 @@ def _print_start_result_or_json(
     *,
     supervisor: RuntimeLifecycle | None = None,
     json_output: bool,
+    selected_home: Path | None = None,
+    action: str = "start",
+    compact: bool = False,
 ) -> None:
-    """Keep the human CLI unchanged while exposing one machine-readable start result."""
+    """Render either the selected human panel or one machine-readable result."""
+    selected_home = selected_home or _data_home_for_command(
+        lifecycle,
+        result.command or lifecycle.default_service_command(),
+    )
     if not json_output:
-        _print_start_result(lifecycle, result, supervisor=supervisor)
+        _print_start_result(
+            lifecycle,
+            result,
+            supervisor=supervisor,
+            selected_home=selected_home,
+            action=action,
+            compact=compact,
+        )
         return
     if result.status in {"started", "already_running"} and supervisor is not None:
-        _print_runtime_health_json(supervisor.status())
+        _print_runtime_health_json(
+            supervisor.status(),
+            data_root=selected_home,
+        )
         return
     print(
         json.dumps(
@@ -1482,6 +1958,7 @@ def _print_start_result_or_json(
                 else "start failed",
                 "operation_id": result.operation_id,
                 "generation": result.generation,
+                "data_root": str(selected_home),
             },
             ensure_ascii=False,
             sort_keys=True,

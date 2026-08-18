@@ -30,6 +30,7 @@ class ProcessSnapshot:
     pid: int
     cwd: Path
     command: Tuple[str, ...]
+    birth_identity: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -118,6 +119,14 @@ class DataHomeRecoveryResult:
 
 
 @dataclass(frozen=True)
+class SourceCliCandidate:
+    """One non-authoritative source checkout candidate for interactive selection."""
+
+    home: Path
+    detail: str = ""
+
+
+@dataclass(frozen=True)
 class RecordedAuthorityProcess:
     """Authority identity recovered from one durable Runtime receipt."""
 
@@ -143,6 +152,9 @@ class ProcessInspectorPort(Protocol):
 
     def command(self, pid: int) -> Tuple[str, ...]:
         """Return the process command and arguments."""
+
+    def birth_identity(self, pid: int) -> str:
+        """Return the OS-provided process start identity."""
 
 
 class ServiceProcessPort(Protocol):
@@ -220,7 +232,7 @@ class RecoveryLockPort(Protocol):
 
 
 class LifecycleDataHomePort(Protocol):
-    """Resolve and remember the selected production data root."""
+    """Resolve the production data root for the current command scope."""
 
     def home(self) -> Path: ...
 
@@ -230,22 +242,25 @@ class LifecycleDataHomePort(Protocol):
         *,
         project_root: Path,
         runtime_mode: str,
-        use_remembered: bool,
     ) -> Path: ...
-
-    def remember(
-        self,
-        selected_home: Path,
-        *,
-        project_root: Path,
-        runtime_mode: str,
-    ) -> None: ...
 
     def inspect(self, selected_home: Path) -> DataHomeInspection: ...
 
     def prepare(self, selected_home: Path) -> DataHomeInspection: ...
 
     def recover(self, selected_home: Path) -> DataHomeRecoveryResult: ...
+
+
+class SourceCliStatePort(Protocol):
+    """Non-authoritative checkout-scoped history and candidate catalog."""
+
+    def load_history(self) -> Tuple[str, ...]: ...
+
+    def record_history(self, command_line: str) -> bool: ...
+
+    def load_candidates(self) -> Tuple[SourceCliCandidate, ...]: ...
+
+    def record_candidate(self, home: Path, *, detail: str = "") -> None: ...
 
 
 class LifecycleLocalDataPort(Protocol):
@@ -402,9 +417,14 @@ class RuntimeRecordPort(Protocol):
         """Atomically persist one complete snapshot; OFFLINE is retained."""
 
     def begin_writer_handoff(
-        self, *, generation: int, owner_id: str
+        self, *, generation: int, owner_id: str, recover_stale: bool = False
     ) -> RuntimeWriterHandoff:
-        """Issue a generation-scoped credential for the next Core writer."""
+        """Issue a generation-scoped credential for the next Core writer.
+
+        ``recover_stale`` is only for a caller that has already proved that
+        the recorded Core is absent.  It permits replacing a credential left
+        by a crashed generation without weakening normal writer handoff.
+        """
 
     def revoke_writer_handoff(self) -> None:
         """Invalidate the current writer credential after clean shutdown."""

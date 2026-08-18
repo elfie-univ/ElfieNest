@@ -10,12 +10,14 @@ export type RuntimeAttachment =
   | Readonly<{
       readonly kind: "attached";
       readonly generation: number;
+      readonly dataHome: string;
       readonly httpUrl?: string;
     }>
   | Readonly<{
       readonly kind: "owned";
       readonly generation: number;
       readonly ownerLease: string;
+      readonly dataHome: string;
       readonly httpUrl?: string;
     }>
   | Readonly<{
@@ -30,7 +32,6 @@ export type DesktopRoleState = RuntimeAttachment | Readonly<{ readonly kind: "st
 export interface LifecycleClient {
   inspectDataHome(explicitHome?: string): Promise<DataHomeInspection>;
   recoverDataHome(explicitHome?: string): Promise<DataHomeRecoveryResult>;
-  activateDataHome(explicitHome: string): Promise<DataHomeInspection>;
   attachOrStart(onProgress?: (phase: RuntimeStartupPhase) => void): Promise<RuntimeAttachment>;
   recoverOwnedRuntime(ownerLease: string): Promise<RuntimeAttachment>;
   stopOwnedRuntime(ownerLease: string): Promise<void>;
@@ -41,6 +42,7 @@ export class DesktopRoleController {
   private currentState: DesktopRoleState = { kind: "stopped" };
   private startPromise: Promise<RuntimeAttachment> | undefined;
   private lastRecoveryResult: DataHomeRecoveryResult | undefined;
+  private exitRequested = false;
 
   constructor(private readonly lifecycleClient: LifecycleClient) {}
 
@@ -55,6 +57,9 @@ export class DesktopRoleController {
   async start(
     onProgress?: (phase: RuntimeStartupPhase) => void,
   ): Promise<DesktopRoleState> {
+    if (this.exitRequested) {
+      return { kind: "stopped" };
+    }
     const existingStart = this.startPromise;
     if (existingStart !== undefined) {
       this.currentState = await existingStart;
@@ -78,7 +83,17 @@ export class DesktopRoleController {
     })();
     this.startPromise = pending;
     try {
-      this.currentState = await pending;
+      const state = await pending;
+      if (this.exitRequested) {
+        this.currentState = { kind: "stopped" };
+        return this.currentState;
+      }
+      if (state.kind !== "failed") {
+        const inspection = await this.lifecycleClient.inspectDataHome();
+        this.currentState = { ...state, dataHome: inspection.home };
+      } else {
+        this.currentState = state;
+      }
       return this.currentState;
     } finally {
       if (this.startPromise === pending) {
@@ -96,36 +111,6 @@ export class DesktopRoleController {
       this.currentState = {
         kind: "failed",
         reason: error instanceof Error ? error.message : "Data-root recovery failed",
-        recoverable: true,
-      };
-      return this.currentState;
-    }
-    return this.start(onProgress);
-  }
-
-  async activateDataHome(
-    explicitHome: string,
-    onProgress?: (phase: RuntimeStartupPhase) => void,
-  ): Promise<DesktopRoleState> {
-    try {
-      const inspection = await this.lifecycleClient.activateDataHome(explicitHome);
-      if (
-        inspection.state !== "fresh"
-        && inspection.state !== "partial"
-        && inspection.state !== "ready"
-      ) {
-        this.currentState = {
-          kind: "failed",
-          reason: inspection.detail,
-          recoverable: inspection.recoverable,
-          ...(inspection.recoverable ? { recovery: inspection } : {}),
-        };
-        return this.currentState;
-      }
-    } catch (error: unknown) {
-      this.currentState = {
-        kind: "failed",
-        reason: error instanceof Error ? error.message : "Data-root selection failed",
         recoverable: true,
       };
       return this.currentState;
@@ -157,13 +142,16 @@ export class DesktopRoleController {
       this.currentState.ownerLease,
     );
     if (recovered.kind === "owned") {
-      this.currentState = recovered;
+      const inspection = await this.lifecycleClient.inspectDataHome();
+      this.currentState = { ...recovered, dataHome: inspection.home };
     }
-    return recovered;
+    return this.currentState;
   }
 
   async exitApplication(): Promise<void> {
     let cleanupError: unknown;
+    let pendingState: RuntimeAttachment | undefined;
+    this.exitRequested = true;
     try {
       if (this.startPromise !== undefined) {
         try {
@@ -172,13 +160,19 @@ export class DesktopRoleController {
           cleanupError = error;
         }
         try {
-          await this.startPromise;
+          pendingState = await this.startPromise;
         } catch (error: unknown) {
           cleanupError ??= error;
         }
       }
-      if (this.currentState.kind === "owned") {
-        await this.lifecycleClient.stopOwnedRuntime(this.currentState.ownerLease);
+      const ownedState =
+        this.currentState.kind === "owned"
+          ? this.currentState
+          : pendingState?.kind === "owned"
+            ? pendingState
+            : undefined;
+      if (ownedState !== undefined) {
+        await this.lifecycleClient.stopOwnedRuntime(ownedState.ownerLease);
       }
     } finally {
       // The Desktop process is leaving regardless of whether the public stop

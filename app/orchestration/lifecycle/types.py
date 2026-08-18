@@ -107,6 +107,27 @@ class ProcessInspectionError(ServiceLifecycleError):
 
 
 @dataclass(frozen=True)
+class ProcessIdentityUnavailableError(ServiceLifecycleError):
+    """The current generation lacks enough evidence for safe process control."""
+
+    pid: int
+    detail: str
+
+    def __str__(self) -> str:
+        return f"Cannot safely control PID {self.pid}: {self.detail}"
+
+
+@dataclass(frozen=True)
+class RuntimeIdentityUnavailableError(ServiceLifecycleError):
+    """Core readiness was observed without enough evidence to publish a generation."""
+
+    detail: str
+
+    def __str__(self) -> str:
+        return f"Cannot publish Runtime generation safely: {self.detail}"
+
+
+@dataclass(frozen=True)
 class StopTimeoutError(ServiceLifecycleError):
     pid: int
     timeout_seconds: float
@@ -136,9 +157,20 @@ class LaunchFailedError(ServiceLifecycleError):
 class HealthCheckFailedError(ServiceLifecycleError):
     pid: int
     timeout_seconds: float
+    log_path: Optional[Path] = None
+    detail: Optional[str] = None
 
     def __str__(self) -> str:
-        return f"PID {self.pid} did not pass health check within {self.timeout_seconds:g} seconds"
+        log_detail = (
+            f"; inspect service log: {self.log_path}"
+            if self.log_path is not None
+            else ""
+        )
+        cause_detail = f"; cause: {self.detail}" if self.detail else ""
+        return (
+            f"PID {self.pid} did not pass health check within "
+            f"{self.timeout_seconds:g} seconds{log_detail}{cause_detail}"
+        )
 
 
 @dataclass(frozen=True)
