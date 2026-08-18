@@ -10,16 +10,16 @@
 - 场景资源契约：`res://scripts/test/test_scene_resource_contract.gd`
 - Godot 生成缓存：`godot_project/.godot/`，已被 Git 忽略
 
-主场景包含 `Nest` 和空的 `Characters` 容器。仅查看最终渲染时直接运行主场景，不需要同时启动编辑器、独立游戏进程和截图进程。
+主场景包含 `Nest` 和空的 `Characters` 容器。Godot 专项门禁只执行单次同步 headless 验证，不启动编辑器、独立游戏进程或截图进程。
 
 ## 安全诊断顺序
 
 1. 运行 `godot_guard.py doctor`，核对可执行文件和项目版本。
 2. 运行 `godot_guard.py status`，确认没有已有 Godot 实例。
 3. 使用 `godot_guard.py validate` 做资源契约检查。
-4. 只选择 `editor` 或 `run` 之一启动。
-5. 在同一个窗口完成日志观察和渲染检查。
-6. 退出后检查 `git status` 和 `git diff`。
+4. 只在无 Godot 进程时运行一次 `validate`。
+5. 读取统一入口输出，确认进程已退出且没有崩溃或超时。
+6. 结束后检查 `git status` 和 `git diff`。
 
 ## 常见问题
 
@@ -31,9 +31,9 @@
 
 Godot 主次版本与 `project.godot` 声明不一致时，可能改写 `config/features`，并给 `*.import` 增加新字段。默认拒绝版本不匹配的可编辑启动。若用户同意测试其他版本，操作后展示差异，不要擅自提交升级。
 
-### 需要截图验收
+### 需要视觉验收
 
-优先截取现有 Godot 游戏窗口。系统无法按窗口截图时，直接说明限制并让用户查看当前窗口；不要默认再开一个 Godot 实例。只有用户明确要求生成 Viewport 图片、且当前没有 Godot 进程时，才能运行一次会自动退出的捕获流程。
+视觉验收不属于 Godot 专项门禁。不要为了截图启动编辑器或第二个 Godot 实例；使用已经存在的用户窗口或独立的浏览器/UI 验收流程。
 
 ### 需要关闭进程
 

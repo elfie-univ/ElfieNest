@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
-"""Inspect and launch one Godot instance without silently duplicating it."""
+"""Inspect and validate one Godot project without silently duplicating it."""
 
 from __future__ import annotations
 
 import argparse
 import csv
 import os
-import platform
-import re
 import shlex
-import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-DEFAULT_PROJECT = REPO_ROOT / "godot"
+sys.path.insert(0, str(REPO_ROOT))
+
+from infrastructure.godot import runner as godot_runner  # noqa: E402
+
+DEFAULT_PROJECT = REPO_ROOT / "godot_project"
 DEFAULT_VALIDATION_SCRIPT = "res://scripts/test/test_scene_resource_contract.gd"
 
 
@@ -33,11 +34,9 @@ class ProcessInspectionError(RuntimeError):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Safely inspect, validate, or launch one Godot project instance."
+        description="Safely inspect or validate one Godot project instance."
     )
-    parser.add_argument(
-        "command", choices=("doctor", "status", "editor", "run", "validate")
-    )
+    parser.add_argument("command", choices=("doctor", "status", "validate"))
     parser.add_argument(
         "--project", type=Path, default=DEFAULT_PROJECT, help="Godot project directory"
     )
@@ -45,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--allow-version-mismatch",
         action="store_true",
-        help="Allow launch with a different Godot major.minor version",
+        help="Allow validation with a different Godot major.minor version",
     )
     parser.add_argument(
         "--script", default=DEFAULT_VALIDATION_SCRIPT, help="Validation GDScript"
@@ -54,54 +53,15 @@ def parse_args() -> argparse.Namespace:
 
 
 def find_godot(explicit: Path | None) -> Path | None:
-    candidates: list[Path] = []
-    if explicit:
-        candidates.append(explicit.expanduser())
-    if os.environ.get("GODOT_BIN"):
-        candidates.append(Path(os.environ["GODOT_BIN"]).expanduser())
-
-    for name in ("godot4", "godot", "Godot", "godot4.exe", "godot.exe"):
-        found = shutil.which(name)
-        if found:
-            candidates.append(Path(found))
-
-    if platform.system() == "Darwin":
-        candidates.extend(
-            [
-                Path("/Applications/Godot.app/Contents/MacOS/Godot"),
-                Path.home() / "Applications/Godot.app/Contents/MacOS/Godot",
-                Path.home() / "Downloads/Godot.app/Contents/MacOS/Godot",
-            ]
-        )
-
-    for candidate in candidates:
-        resolved = candidate.resolve()
-        if resolved.is_file() and os.access(resolved, os.X_OK):
-            return resolved
-    return None
+    return godot_runner.find_godot(explicit)
 
 
 def project_version(project: Path) -> str | None:
-    project_file = project / "project.godot"
-    if not project_file.is_file():
-        return None
-    match = re.search(
-        r'config/features=PackedStringArray\("(\d+\.\d+)"',
-        project_file.read_text(encoding="utf-8"),
-    )
-    return match.group(1) if match else None
+    return godot_runner.project_version(project)
 
 
 def installed_version(binary: Path) -> str | None:
-    result = subprocess.run(
-        [str(binary), "--version"],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=15,
-    )
-    match = re.search(r"(\d+\.\d+)", result.stdout + result.stderr)
-    return match.group(1) if match else None
+    return godot_runner.godot_version(binary)
 
 
 def godot_processes() -> list[GodotProcess]:
@@ -197,44 +157,12 @@ def check_environment(
     return True, expected, actual
 
 
-def launch(
-    binary: Path, project: Path, editor: bool, processes: list[GodotProcess]
-) -> int:
-    if processes:
-        print_processes(processes, project)
-        print(
-            "REFUSED: reuse the existing Godot window; no duplicate instance was started.",
-            file=sys.stderr,
-        )
-        return 3
-
-    command = [str(binary)]
-    if editor:
-        command.append("--editor")
-    command.extend(["--path", str(project)])
-
-    popen_options: dict[str, object] = {
-        "cwd": str(project),
-        "stdin": subprocess.DEVNULL,
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
-    }
-    if os.name == "nt":
-        popen_options["creationflags"] = (
-            subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-        )
-    else:
-        popen_options["start_new_session"] = True
-
-    process = subprocess.Popen(command, **popen_options)
-    mode = "editor" if editor else "game"
-    print(f"Started one Godot {mode} instance (PID {process.pid}).")
-    print("Do not run another launch command while this process exists.")
-    return 0
-
-
 def validate(
-    binary: Path, project: Path, script: str, processes: list[GodotProcess]
+    binary: Path,
+    project: Path,
+    script: str,
+    processes: list[GodotProcess],
+    godot_version: str | None,
 ) -> int:
     if processes:
         print_processes(processes, project)
@@ -244,18 +172,17 @@ def validate(
         )
         return 3
 
-    command = [
-        str(binary),
-        "--headless",
-        "--path",
-        str(project),
-        "--script",
-        script,
-    ]
     print("Running one synchronous headless validation process...")
-    result = subprocess.run(command, cwd=project, check=False)
+    result = godot_runner.run_headless(
+        binary,
+        project,
+        ("--script", script),
+        godot_version=godot_version,
+        purpose="guard-validation",
+    )
+    godot_runner.forward_output(result)
     print("Headless validation process exited.")
-    return result.returncode
+    return result.exit_code
 
 
 def main() -> int:
@@ -285,11 +212,13 @@ def main() -> int:
         return 0 if ok else 2
     if not ok or binary is None:
         return 2
-    if args.command == "editor":
-        return launch(binary, project, editor=True, processes=processes)
-    if args.command == "run":
-        return launch(binary, project, editor=False, processes=processes)
-    return validate(binary, project, args.script, processes=processes)
+    return validate(
+        binary,
+        project,
+        args.script,
+        processes=processes,
+        godot_version=actual,
+    )
 
 
 if __name__ == "__main__":
