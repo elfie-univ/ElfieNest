@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -52,7 +53,20 @@ def show_mobile_access(
         except (AttributeError, OSError, TimeoutError, RuntimeError, ValueError):
             http_port = None
         else:
-            if health.status != 200:
+            identity_matches = False
+            if health.status == 200:
+                try:
+                    payload = json.loads(health.body.decode("utf-8"))
+                except (UnicodeDecodeError, ValueError):
+                    payload = None
+                identity_matches = (
+                    projection is not None
+                    and isinstance(payload, dict)
+                    and payload.get("status") == "ok"
+                    and payload.get("instance_id") == projection.instance_id
+                    and payload.get("generation") == projection.generation
+                )
+            if not identity_matches:
                 http_port = None
     if (
         projection is not None

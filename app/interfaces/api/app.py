@@ -280,11 +280,27 @@ def create_http_application(
     @app.get("/api/health", response_model=HealthResponse)
     async def health() -> HealthResponse:
         """健康检查"""
+        try:
+            identity = runtime_projection() if runtime_projection is not None else {}
+        except (OSError, RuntimeError, ValueError):
+            identity = {}
+        instance_id = identity.get("instance_id")
+        generation = identity.get("generation")
         return HealthResponse(
             status="ok",
             engine_ready=engine_ready,
             godot_web_ready=godot_web_ready(),
             godot_runtime_ready=godot_runtime_ready(),
+            instance_id=(
+                instance_id
+                if isinstance(instance_id, str) and instance_id
+                else "unavailable"
+            ),
+            generation=(
+                generation
+                if isinstance(generation, int) and not isinstance(generation, bool)
+                else 0
+            ),
         )
 
     # -------------------------------------------------------------------

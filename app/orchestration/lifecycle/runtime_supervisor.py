@@ -732,9 +732,7 @@ class RuntimeSupervisor:
         pid: Optional[int] = None,
     ) -> bool:
         if pid is None:
-            raise RuntimeIdentityUnavailableError(
-                "Core startup returned no PID"
-            )
+            raise RuntimeIdentityUnavailableError("Core startup returned no PID")
         if self._core_process_identity is None:
             raise RuntimeIdentityUnavailableError(
                 "the process inspector did not provide a birth-identity reader"
@@ -773,8 +771,7 @@ class RuntimeSupervisor:
                     birth_identity=identity.birth_identity,
                     cwd=str(identity.cwd.resolve()),
                 )
-                if item.component
-                in {RuntimeComponent.CORE, RuntimeComponent.GATEWAY}
+                if item.component in {RuntimeComponent.CORE, RuntimeComponent.GATEWAY}
                 else item
                 for item in components
             )

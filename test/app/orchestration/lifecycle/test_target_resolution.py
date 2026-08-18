@@ -33,23 +33,31 @@ def _request(tmp_path: Path, **changes) -> TargetResolutionRequest:
 def test_installed_root_is_exactly_env_or_default_and_ignores_cwd() -> None:
     user_home = Path("/Users/tester").resolve()
 
-    assert resolve_installed_data_home(
-        {"ELFIE_HOME": "relative-prod"}, user_home=user_home
-    ) == (user_home / "relative-prod").resolve()
-    assert resolve_installed_data_home({}, user_home=user_home) == (
-        user_home / ".elfienest"
-    ).resolve()
-    assert resolve_installed_data_home(
-        {"ELFIE_HOME": ""}, user_home=user_home
-    ) == (user_home / ".elfienest").resolve()
+    assert (
+        resolve_installed_data_home(
+            {"ELFIE_HOME": "relative-prod"}, user_home=user_home
+        )
+        == (user_home / "relative-prod").resolve()
+    )
+    assert (
+        resolve_installed_data_home({}, user_home=user_home)
+        == (user_home / ".elfienest").resolve()
+    )
+    assert (
+        resolve_installed_data_home({"ELFIE_HOME": ""}, user_home=user_home)
+        == (user_home / ".elfienest").resolve()
+    )
 
 
-def test_source_default_never_reads_caller_elfie_home(tmp_path: Path, monkeypatch) -> None:
+def test_source_default_never_reads_caller_elfie_home(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "unrelated-installed-root"))
 
-    assert resolve_source_default(tmp_path / "checkout") == (
-        tmp_path / "checkout" / ".elfienest.local"
-    ).resolve()
+    assert (
+        resolve_source_default(tmp_path / "checkout")
+        == (tmp_path / "checkout" / ".elfienest.local").resolve()
+    )
 
 
 def test_explicit_source_target_wins_and_is_relative_to_invoking_cwd(
@@ -92,7 +100,10 @@ def test_session_target_is_authoritative_even_when_default_is_idle(
 def test_idle_default_does_not_suppress_running_candidate_selection(
     tmp_path: Path,
 ) -> None:
-    candidates = (TargetCandidate(tmp_path / "task-A"), TargetCandidate(tmp_path / "task-B"))
+    candidates = (
+        TargetCandidate(tmp_path / "task-A"),
+        TargetCandidate(tmp_path / "task-B"),
+    )
 
     with pytest.raises(TargetSelectionRequired) as error:
         resolve_target(

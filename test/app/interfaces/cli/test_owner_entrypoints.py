@@ -42,9 +42,10 @@ def test_interactive_help_exposes_owner_account_management() -> None:
     assert result.returncode == 0
     assert "owner" in result.stdout
     assert "Owner account menu" in result.stdout
-    assert "serve --godot-ws-port <PORT>" in result.stdout
-    assert "start --godot-ws-port <PORT>" in result.stdout
-    assert "serve --ws-port" not in result.stdout
+    assert "serve*" in result.stdout
+    assert "start*" in result.stdout
+    assert "status*" in result.stdout
+    assert "db*" in result.stdout
     assert "desktop" not in result.stdout
 
 
@@ -61,7 +62,8 @@ def test_direct_help_alias_uses_shell_help() -> None:
         timeout=10,
     )
     assert result.returncode == 0
-    assert "Commands with * support additional arguments" in result.stdout
+    assert "Commands" in result.stdout
+    assert "serve*" in result.stdout
     assert "invalid choice" not in result.stderr
 
 
@@ -84,8 +86,11 @@ def test_owner_menu_reports_current_owner_without_secrets(
     result = subprocess.run(
         [
             str(PROJECT_ROOT / ".venv" / "bin" / "python3"),
-            str(PROJECT_ROOT / "scripts" / "elfienest.py"),
-            "owner",
+            "-c",
+            (
+                "import sys; from scripts import elfienest; "
+                "sys.frozen = True; elfienest.main(['owner'])"
+            ),
         ],
         cwd=PROJECT_ROOT,
         env=env,
@@ -200,7 +205,7 @@ def test_service_entrypoint_rejects_owner_recovery_bypass(tmp_path: Path) -> Non
     assert "unrecognized arguments" in result.stderr
 
 
-def test_interactive_shell_forwards_owner_command(tmp_path: Path) -> None:
+def test_interactive_shell_delegates_to_python_cli(tmp_path: Path) -> None:
     project_root = tmp_path / "ElfieNest"
     project_root.mkdir()
     shutil.copy2(PROJECT_ROOT / "elfienest.sh", project_root / "elfienest.sh")
@@ -233,7 +238,6 @@ printf '%s\n' "$*" > "$ENTRYPOINT_LOG"
         [str(project_root / "elfienest.sh")],
         cwd=project_root,
         env=env,
-        input="owner\nexit\n",
         capture_output=True,
         text=True,
         check=False,
@@ -241,5 +245,5 @@ printf '%s\n' "$*" > "$ENTRYPOINT_LOG"
     )
     assert result.returncode == 0
     assert invocation_log.read_text(encoding="utf-8").strip() == (
-        "scripts/elfienest.py owner"
+        "scripts/elfienest.py --interactive"
     )

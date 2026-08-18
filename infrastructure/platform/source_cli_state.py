@@ -157,9 +157,7 @@ class SourceCliState:
                 f"无法创建源码 CLI 控制目录: {self.control_dir}: {error}"
             ) from error
         if not self.control_dir.is_dir():
-            raise SourceCliStateError(
-                f"源码 CLI 控制路径不是目录: {self.control_dir}"
-            )
+            raise SourceCliStateError(f"源码 CLI 控制路径不是目录: {self.control_dir}")
         if os.name != "nt":
             os.chmod(self.control_dir, 0o700)
 

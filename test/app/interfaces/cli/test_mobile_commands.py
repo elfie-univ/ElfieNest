@@ -32,7 +32,6 @@ def test_mobile_command_formats_feature_projection(
     capsys,
 ) -> None:
     monkeypatch.setattr(mobile_commands, "clear_screen", lambda: None)
-    monkeypatch.setattr(mobile_commands, "print_banner", lambda: None)
     monkeypatch.setattr(mobile_commands, "QRCODE_AVAILABLE", False)
 
     exit_code = mobile_commands.show_mobile_access(
@@ -56,7 +55,6 @@ def test_mobile_command_reports_unavailable_network_from_feature(
             return MobileAccessResult(urls=(), network_name=None)
 
     monkeypatch.setattr(mobile_commands, "clear_screen", lambda: None)
-    monkeypatch.setattr(mobile_commands, "print_banner", lambda: None)
 
     exit_code = mobile_commands.show_mobile_access(
         FakeLifecycle(), UnavailableOperations(), http_port=15212
@@ -71,7 +69,6 @@ def test_mobile_command_does_not_fall_back_to_the_default_port(
     capsys,
 ) -> None:
     monkeypatch.setattr(mobile_commands, "clear_screen", lambda: None)
-    monkeypatch.setattr(mobile_commands, "print_banner", lambda: None)
 
     exit_code = mobile_commands.show_mobile_access(
         FakeLifecycle(), FakeOperations(), http_port=None
@@ -95,7 +92,6 @@ def test_mobile_command_uses_explicit_port_and_prints_qr_steps(
                 network_name="Elfie Home",
             )
 
-    monkeypatch.setattr(mobile_commands, "print_banner", lambda: None)
     monkeypatch.setattr(mobile_commands, "QRCODE_AVAILABLE", True)
 
     exit_code = mobile_commands.show_mobile_access(

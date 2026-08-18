@@ -11,13 +11,11 @@ from pathlib import Path
 from typing import Callable, Iterable, Optional, Tuple
 
 from app.orchestration.lifecycle import (
+    EntrypointMode,
     LifecycleFacade,
+    ResolvedTaskTarget,
     RuntimeComponent,
     RuntimePhase,
-)
-from app.orchestration.lifecycle.target_resolution import (
-    EntrypointMode,
-    ResolvedTaskTarget,
     TargetCandidate,
     TargetNotFound,
     TargetResolutionRequest,
@@ -103,6 +101,18 @@ def resolve_cli_target(
         source_state,
         policy.default_policy.value,
     )
+    session_eligible = True
+    if session is not None and session.data_home is not None:
+        session_observation = _observe(
+            lifecycle,
+            session.data_home,
+            source_root,
+            verify_running=policy.default_policy.value == "running",
+        )
+        session_eligible = _eligible(
+            session_observation,
+            policy.default_policy.value,
+        )
     request = TargetResolutionRequest(
         mode=mode,
         command=command,
@@ -114,6 +124,7 @@ def resolve_cli_target(
         session_display_home=(
             session.display_data_home if session is not None else None
         ),
+        session_eligible=session_eligible,
         default_home=default_home,
         default_eligible=default_eligible,
         candidates=candidates,

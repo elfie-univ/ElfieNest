@@ -37,10 +37,9 @@ from infrastructure.persistence.provider_references import (
 )
 from infrastructure.persistence.provider_storage import ProviderStorageAdapter
 from infrastructure.persistence.report_storage import ReportStorageAdapter
-from infrastructure.persistence.reports.report_repository import ReportRepository
 
 from .capabilities import build_capability_adapters
-from .food import build_food_service
+from .food import build_food_service, build_report_repository
 
 
 @dataclass(frozen=True)
@@ -54,23 +53,34 @@ class CliConfigurationContainer:
 
 
 def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
-    config_path = get_config_path()
-    secret_path = None
-    provider_catalog_path = get_provider_catalog_path()
-    if db_path != ":memory:":
-        provider_catalog_path = final_root_layout(
-            data_home_from_db_path(db_path)
-        ).provider_catalog_config
+    layout = (
+        None
+        if db_path == ":memory:"
+        else final_root_layout(data_home_from_db_path(db_path))
+    )
+    config_path = get_config_path() if layout is None else layout.runtime_config
+    secret_path = None if layout is None else layout.auth_env
+    provider_catalog_path = (
+        get_provider_catalog_path()
+        if layout is None
+        else layout.provider_catalog_config
+    )
     provider_catalog = load_provider_catalog(provider_catalog_path)
     identity_catalog = load_model_identities()
     model_catalog = load_model_catalog()
     system_defaults = load_system_defaults()
-    provider_reports = ReportStorageAdapter(ReportRepository())
-    provider_store = ProviderConnectionStore()
-    provider_storage = ProviderStorageAdapter(provider_store)
+    report_repository = build_report_repository(db_path)
+    provider_reports = ReportStorageAdapter(report_repository)
+    provider_store = ProviderConnectionStore(
+        None if layout is None else layout.providers_config
+    )
+    provider_storage = ProviderStorageAdapter(
+        provider_store,
+        secret_path=secret_path,
+    )
     provider_evidence = SQLiteFoodEvidenceAdapter(
         provider_store,
-        ReportRepository(),
+        report_repository,
         provider_catalog,
         secret_resolver=provider_storage.resolve_secret,
     )
@@ -82,29 +92,6 @@ def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
         identity_catalog=identity_catalog,
         system_defaults=system_defaults,
     )
-    if db_path != ":memory:":
-        layout = final_root_layout(data_home_from_db_path(db_path))
-        config_path = layout.runtime_config
-        secret_path = layout.auth_env
-        provider_store = ProviderConnectionStore(layout.providers_config)
-        provider_storage = ProviderStorageAdapter(
-            provider_store,
-            secret_path=layout.auth_env,
-        )
-        provider_evidence = SQLiteFoodEvidenceAdapter(
-            provider_store,
-            ReportRepository(),
-            provider_catalog,
-            secret_resolver=provider_storage.resolve_secret,
-        )
-        provider_models = ProviderModelsAdapter(
-            provider_storage,
-            provider_reports,
-            provider_evidence,
-            catalog=provider_catalog,
-            identity_catalog=identity_catalog,
-            system_defaults=system_defaults,
-        )
     providers = ProvidersService(
         catalog=provider_models,
         connections=provider_models,
@@ -119,7 +106,11 @@ def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
         )
 
     capability_config, capability_secrets, capability_validation = (
-        build_capability_adapters(config_path, secret_path)
+        build_capability_adapters(
+            config_path,
+            secret_path,
+            data_home=None if layout is None else layout.data_home,
+        )
     )
     return CliConfigurationContainer(
         providers=providers,

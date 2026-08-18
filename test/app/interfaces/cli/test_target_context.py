@@ -15,6 +15,9 @@ class _Lifecycle:
     def __init__(self, snapshots: dict[Path, RuntimeSnapshotV1]) -> None:
         self.snapshots = snapshots
 
+    def source_cli_state(self, source_root: Path) -> SourceCliState:
+        return SourceCliState(source_root)
+
     def inspect_data_home(self, explicit_home, **_kwargs):
         from infrastructure.persistence.nest_db.store import inspect_data_home
 
@@ -25,6 +28,11 @@ class _Lifecycle:
             Path(home).resolve(),
             RuntimeSnapshotV1(),
         )
+
+    def existing_service_command(self, home, _project_root):
+        if Path(home).resolve() in self.snapshots:
+            return (1234, ("python", "scripts/serve.py"))
+        return None
 
 
 def _running(instance: str) -> RuntimeSnapshotV1:
@@ -41,7 +49,9 @@ def test_source_context_switches_from_explicit_a_to_explicit_b(tmp_path: Path) -
     source.mkdir()
     task_a = tmp_path / "A"
     task_b = tmp_path / "B"
-    lifecycle = _Lifecycle({task_a.resolve(): _running("a"), task_b.resolve(): _running("b")})
+    lifecycle = _Lifecycle(
+        {task_a.resolve(): _running("a"), task_b.resolve(): _running("b")}
+    )
     session = CliSession()
 
     first = resolve_cli_target(

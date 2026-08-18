@@ -108,6 +108,7 @@ class LifecycleDataHomeAdapter:
             source_root=project_root,
         )
 
+
 __all__ = ("LifecycleDataHomeAdapter",)
 
 

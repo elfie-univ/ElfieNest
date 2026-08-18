@@ -53,9 +53,15 @@ class LocalModelExecutionConfigSource:
         oauth_credentials: OAuthCredentialAdapter | None = None,
         *,
         provider_catalog: ProviderCatalog | None = None,
+        config_home: Path | None = None,
     ) -> None:
         self.oauth_credentials = oauth_credentials or OAuthCredentialAdapter()
         self.provider_catalog = provider_catalog or load_provider_catalog()
+        self.config_home = (
+            None
+            if config_home is None
+            else config_home.expanduser().resolve(strict=False)
+        )
 
     def load_env(self, config_home: Optional[Path]) -> Mapping[str, str]:
         path = (
@@ -99,7 +105,11 @@ class LocalModelExecutionConfigSource:
             return {}
 
     def load_connections(self) -> Mapping[str, Mapping[str, JsonValue]]:
-        path = get_provider_config_path()
+        path = (
+            final_root_layout(self.config_home).providers_config
+            if self.config_home is not None
+            else get_provider_config_path()
+        )
         if not path.exists():
             return {}
         document = ProviderConnectionStore(path).load()
@@ -126,7 +136,11 @@ class LocalModelExecutionConfigSource:
 
                 secret_resolver = resolve_oauth_secret
             else:
-                secret_resolver = resolve_secret
+
+                def resolve_local_secret(_name: str) -> str:
+                    return self.resolve_secret(_name, self.config_home)
+
+                secret_resolver = resolve_local_secret
             providers[connection_id] = {
                 "catalog_id": connection.catalog_id,
                 "display_name": connection.alias,
@@ -136,7 +150,7 @@ class LocalModelExecutionConfigSource:
                 "api_key_env": secret_name,
                 "api_key": oauth.access_token
                 if oauth is not None
-                else resolve_secret(secret_name),
+                else self.resolve_secret(secret_name, self.config_home),
                 "credential_ref": secret_name,
                 "request_profile_id": default_request_profile_id(
                     connection.api_mode or profile.api_mode
@@ -191,22 +205,31 @@ class LocalModelExecutionConfigSource:
 
 
 def load_model_execution_config(config_home: str | None = None) -> ModelExecutionConfig:
-    provider_catalog = load_provider_catalog()
-    oauth_credentials = OAuthCredentialAdapter(
+    selected_home = (
         None
         if config_home is None
-        else OAuthCredentialStore(
-            final_root_layout(Path(config_home)).oauth_credentials
-        )
+        else Path(config_home).expanduser().resolve(strict=False)
+    )
+    provider_catalog = load_provider_catalog(
+        None
+        if selected_home is None
+        else final_root_layout(selected_home).provider_catalog_config
+    )
+    oauth_credentials = OAuthCredentialAdapter(
+        None
+        if selected_home is None
+        else OAuthCredentialStore(final_root_layout(selected_home).oauth_credentials)
+    )
+    source = LocalModelExecutionConfigSource(
+        oauth_credentials,
+        provider_catalog=provider_catalog,
+        config_home=selected_home,
     )
     return ModelExecutionConfig(
-        config_home=config_home,
+        config_home=None if selected_home is None else str(selected_home),
         provider_catalog=provider_catalog,
         system_defaults=load_system_defaults(),
-        source=LocalModelExecutionConfigSource(
-            oauth_credentials,
-            provider_catalog=provider_catalog,
-        ),
+        source=source,
         oauth_credentials=oauth_credentials,
     )
 

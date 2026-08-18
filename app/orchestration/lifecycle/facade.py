@@ -136,8 +136,7 @@ class LifecycleFacade:
         self, extra_args: Sequence[str] = ()
     ) -> tuple[str, ...]:
         """Build the managed Core command from the Bootstrap-injected target."""
-        filtered = tuple(argument for argument in extra_args if argument != "--force")
-        return (*self._service_launch_command, *filtered)
+        return (*self._service_launch_command, *extra_args)
 
     def is_managed_service_command(self, command: Sequence[str]) -> bool:
         """Return whether a process command starts with the injected Core target."""
@@ -157,10 +156,12 @@ class LifecycleFacade:
             is_frozen=is_frozen,
         )
 
-    def repair_local_state(self) -> DoctorRepairResult:
+    def repair_local_state(
+        self, elfie_home: Optional[Path] = None
+    ) -> DoctorRepairResult:
         if self._doctor is None:
             raise RuntimeError("Doctor adapter is unavailable")
-        base = self._doctor.repair_local_state()
+        base = self._doctor.repair_local_state(elfie_home)
         optional_component = self._optional_component
         if optional_component is None or self._data_home is None:
             return base
@@ -168,30 +169,32 @@ class LifecycleFacade:
             repaired=(
                 *base.repaired,
                 *optional_component.reconcile_orphaned_services(
-                    elfie_home=self._data_home.home()
+                    elfie_home=elfie_home or self._data_home.home()
                 ),
             )
         )
 
-    def run_offline_validation(self) -> DoctorValidationResult:
+    def run_offline_validation(
+        self, elfie_home: Optional[Path] = None
+    ) -> DoctorValidationResult:
         if self._doctor is None:
             raise RuntimeError("Doctor adapter is unavailable")
-        return self._doctor.run_offline_validation()
+        return self._doctor.run_offline_validation(elfie_home)
 
-    def uninstall_state(self) -> UninstallState:
+    def uninstall_state(self, elfie_home: Optional[Path] = None) -> UninstallState:
         if self._uninstall is None:
             raise RuntimeError("Uninstall adapter is unavailable")
-        return self._uninstall.state()
+        return self._uninstall.state(elfie_home)
 
-    def delete_local_config(self) -> bool:
+    def delete_local_config(self, elfie_home: Optional[Path] = None) -> bool:
         if self._uninstall is None:
             raise RuntimeError("Uninstall adapter is unavailable")
-        return self._uninstall.delete_config()
+        return self._uninstall.delete_config(elfie_home)
 
-    def delete_all_local_data(self) -> None:
+    def delete_all_local_data(self, elfie_home: Optional[Path] = None) -> None:
         if self._uninstall is None:
             raise RuntimeError("Uninstall adapter is unavailable")
-        self._uninstall.delete_all()
+        self._uninstall.delete_all(elfie_home)
 
     def select_data_home(
         self,
@@ -266,6 +269,7 @@ class LifecycleFacade:
 
     def _assert_data_home_stopped(self, selected: Path) -> None:
         """Refuse destructive root replacement when lifecycle evidence is live."""
+        snapshot_error: OSError | RuntimeError | ValueError | None
         try:
             snapshot = self._runtime_record_factory(selected).read()
         except (OSError, RuntimeError, ValueError) as error:

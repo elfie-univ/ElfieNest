@@ -12,6 +12,8 @@ from app.orchestration.lifecycle import LifecycleFacade
 def run_uninstall_menu(
     lifecycle: LifecycleFacade,
     menu: TerminalMenuPort,
+    *,
+    selected_home: Path | None = None,
 ) -> int:
     """Interactive uninstall menu, returns exit code."""
     clear_screen()
@@ -21,7 +23,11 @@ def run_uninstall_menu(
         "Choose what to clean up; reinstall and run Setup after uninstall",
     )
 
-    state = lifecycle.uninstall_state()
+    state = (
+        lifecycle.uninstall_state()
+        if selected_home is None
+        else lifecycle.uninstall_state(selected_home)
+    )
     elfie_home = state.data_home
 
     choice = menu.choose(
@@ -61,10 +67,15 @@ def run_uninstall_menu(
         return 0
 
     if choice == "2":
-        return _delete_config(lifecycle, elfie_home)
+        return _delete_config(lifecycle, elfie_home, selected_home=selected_home)
 
     if choice == "3":
-        return _delete_all(lifecycle, elfie_home, state.home_exists)
+        return _delete_all(
+            lifecycle,
+            elfie_home,
+            state.home_exists,
+            selected_home=selected_home,
+        )
 
     return 2
 
@@ -84,7 +95,12 @@ def _status_hint(exists_checks: list[bool | None], names: list[str]) -> str:
     return f"Will delete: {', '.join(items)}"
 
 
-def _delete_config(lifecycle: LifecycleFacade, elfie_home: Path) -> int:
+def _delete_config(
+    lifecycle: LifecycleFacade,
+    elfie_home: Path,
+    *,
+    selected_home: Path | None = None,
+) -> int:
     print("\n⚠️  Will delete Runtime config and API Keys, keep database and elfie data.")
     print(f"   Config directory: {elfie_home}")
     print()
@@ -96,7 +112,12 @@ def _delete_config(lifecycle: LifecycleFacade, elfie_home: Path) -> int:
 
     deleted = []
     try:
-        if lifecycle.delete_local_config():
+        deleted_config = (
+            lifecycle.delete_local_config()
+            if selected_home is None
+            else lifecycle.delete_local_config(selected_home)
+        )
+        if deleted_config:
             deleted.append("configs/")
     except OSError as error:
         print(f"\n❌ Failed to delete config directory: {error}")
@@ -115,6 +136,8 @@ def _delete_all(
     lifecycle: LifecycleFacade,
     elfie_home: Path,
     home_exists: bool,
+    *,
+    selected_home: Path | None = None,
 ) -> int:
     print("\n⚠️  Will delete all data, including:")
     print("   - Config files (configs/runtime.yaml, configs/auth.env)")
@@ -135,7 +158,10 @@ def _delete_all(
         return 0
 
     try:
-        lifecycle.delete_all_local_data()
+        if selected_home is None:
+            lifecycle.delete_all_local_data()
+        else:
+            lifecycle.delete_all_local_data(selected_home)
     except OSError as error:
         print(f"\n❌ Delete failed: {error}")
         return 1

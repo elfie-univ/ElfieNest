@@ -50,7 +50,7 @@ describe("runtime panel behavior", () => {
 
   it("names the unavailable system service in the health card", async () => {
     vi.mocked(ownerRead).mockImplementation(async (path) => {
-      if (path === "/api/health") return { status: "ok", engine_ready: true, godot_web_ready: true, godot_runtime_ready: false }
+      if (path === "/api/health") return { status: "ok", engine_ready: true, godot_web_ready: true, godot_runtime_ready: false, instance_id: "test", generation: 1 }
       if (path === "/api/v1/admin/nest/rooms") return { items: [{ beds: [{ occupant_id: "00000001" }, { occupant_id: "00000002" }] }] }
       return monitorPayload(path)
     })
@@ -114,7 +114,7 @@ function renderWithLocale(node: React.ReactNode, locale: SupportedLocale): Retur
 function monitorPayload(path: string, lastEvent: ModelExecutionEventFixture | null = null): unknown {
   switch (path) {
     case "/api/health":
-      return { status: "ok", engine_ready: true, godot_web_ready: true, godot_runtime_ready: true }
+      return { status: "ok", engine_ready: true, godot_web_ready: true, godot_runtime_ready: true, instance_id: "test", generation: 1 }
     case "/api/v1/admin/runtime/status":
       return {
         status: "ok",

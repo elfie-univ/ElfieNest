@@ -95,7 +95,7 @@ test("managed lifecycle client inspects the selected data root before startup", 
     recoverable: true,
   });
   assert.deepEqual(runner.calls, [
-    { argumentsList: ["data-home", "inspect", "--json"] },
+    { argumentsList: ["--__controller-action", "inspect-data-home"] },
   ]);
 });
 
@@ -116,7 +116,7 @@ test("managed lifecycle client accepts a partial data-root inspection", async ()
   assert.equal(inspection.recoverable, false);
 });
 
-test("managed lifecycle client recovers a data root through the public CLI", async () => {
+test("managed lifecycle client recovers a data root through the internal Controller API", async () => {
   const runner = commandRunner([
     JSON.stringify({
       state: "recovered",
@@ -133,7 +133,7 @@ test("managed lifecycle client recovers a data root through the public CLI", asy
     backupHome: "/Users/test/.elfienest-backups/legacy",
   });
   assert.deepEqual(runner.calls, [
-    { argumentsList: ["data-home", "recover", "--json"] },
+    { argumentsList: ["--__controller-action", "recover-data-home"] },
   ]);
 });
 
@@ -152,7 +152,7 @@ test("managed lifecycle client attaches to a ready CLI-owned Runtime without sta
   // Then: it attaches and leaves the existing owner untouched.
   assert.deepEqual(attachment, { kind: "attached", generation: 11, dataHome: "/Users/test/.elfienest" });
   assert.deepEqual(runner.calls, [
-    { argumentsList: ["data-home", "inspect", "--json"] },
+    { argumentsList: ["--__controller-action", "inspect-data-home"] },
     { argumentsList: ["status", "--json"] },
   ]);
 });
@@ -204,7 +204,7 @@ test("managed lifecycle client starts a stopped Runtime with its desktop lease",
     httpUrl: "http://127.0.0.1:18234/",
   });
   assert.deepEqual(runner.calls, [
-    { argumentsList: ["data-home", "inspect", "--json"] },
+    { argumentsList: ["--__controller-action", "inspect-data-home"] },
     { argumentsList: ["status", "--json"] },
     { argumentsList: ["start", "--owner-id", "desktop-12", "--json"] },
   ]);
@@ -236,7 +236,7 @@ test("managed lifecycle client attaches after another owner finishes startup", a
 
   assert.deepEqual(attachment, { kind: "attached", generation: 14, dataHome: "/Users/test/.elfienest" });
   assert.deepEqual(runner.calls, [
-    { argumentsList: ["data-home", "inspect", "--json"] },
+    { argumentsList: ["--__controller-action", "inspect-data-home"] },
     { argumentsList: ["status", "--json"] },
     { argumentsList: ["status", "--json"] },
   ]);
@@ -311,7 +311,7 @@ test("managed lifecycle client streams Core-ready progress before full Runtime r
   assert.deepEqual(attachment, { kind: "owned", generation: 13, ownerLease: "desktop-13", dataHome: "/Users/test/.elfienest" });
   assert.deepEqual(phases, ["core_ready", "authority_starting"]);
   assert.deepEqual(statusCalls, [
-    { argumentsList: ["data-home", "inspect", "--json"] },
+    { argumentsList: ["--__controller-action", "inspect-data-home"] },
     { argumentsList: ["status", "--json"] },
   ]);
   assert.deepEqual(calls, [{ argumentsList: ["start", "--owner-id", "desktop-13", "--json", "--progress-json"] }]);
@@ -365,7 +365,7 @@ test("managed lifecycle client keeps the owned Core after authority failure", as
     dataHome: "/Users/test/.elfienest",
   });
   assert.deepEqual(runner.calls, [
-    { argumentsList: ["data-home", "inspect", "--json"] },
+    { argumentsList: ["--__controller-action", "inspect-data-home"] },
     { argumentsList: ["status", "--json"] },
   ]);
 });

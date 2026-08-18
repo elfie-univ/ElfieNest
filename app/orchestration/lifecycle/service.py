@@ -98,7 +98,8 @@ def _stop_snapshot_bound_service(
         snapshot = runtime_record.read()
     except (OSError, RuntimeError, ValueError) as error:
         return ServiceLifecycleResult(
-            status="failed", error=LaunchFailedError(f"Runtime snapshot unavailable: {error}")
+            status="failed",
+            error=LaunchFailedError(f"Runtime snapshot unavailable: {error}"),
         )
 
     endpoint_ports = _runtime_ports(runtime_record)
@@ -230,7 +231,9 @@ def _stop_snapshot_bound_service(
                 recheck = process_port.inspect(pid)
             except (OSError, RuntimeError, ValueError) as error:
                 return ServiceLifecycleResult(
-                    status="failed", pid=pid, error=ProcessInspectionError(pid, str(error))
+                    status="failed",
+                    pid=pid,
+                    error=ProcessInspectionError(pid, str(error)),
                 )
             mismatch = _snapshot_identity_mismatch(
                 recheck,
@@ -301,7 +304,11 @@ def _snapshot_identity_mismatch(
             observed.pid,
             Path(component.cwd),
             observed.cwd.resolve(),
-            (Path(component.executable) if component.executable else project_root / "scripts" / "serve.py"),
+            (
+                Path(component.executable)
+                if component.executable
+                else project_root / "scripts" / "serve.py"
+            ),
             observed.command,
         )
     if observed.cwd.resolve() != Path(component.cwd).resolve():
@@ -518,9 +525,7 @@ def start_service(
         environment = {
             MANAGED_START_ENV: "1",
             "ELFIENEST_SUPERVISED": "1",
-            "ELFIENEST_RUNTIME_LOG": str(
-                log_path
-            ),
+            "ELFIENEST_RUNTIME_LOG": str(log_path),
             "ELFIENEST_JOB_NAME": (
                 "Local\\ElfieNest.core."
                 + hashlib.sha256(str(elfie_home.resolve()).encode("utf-8")).hexdigest()[
