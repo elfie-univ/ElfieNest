@@ -36,9 +36,11 @@ The recovery operation is also available as `elfienest data-home recover`; it
 backs up the old folder before rebuilding the active folder and never performs
 an in-place migration.
 
-If you already have another fresh data folder, use
-`elfienest data-home activate --data-home PATH` to select it instead of
-recovering the old folder.
+On current pre-LFC-010 builds, an existing fresh folder can still be selected
+with `elfienest data-home activate --data-home PATH`. This is a temporary
+compatibility command. The accepted lifecycle target removes it: installed
+entrypoints select through `ELFIE_HOME`, while source lifecycle commands use
+`--data-home` or context.
 
 ## First setup failed
 

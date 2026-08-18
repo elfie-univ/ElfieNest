@@ -24,8 +24,9 @@ elfienest data-home inspect --json
 
 也可以运行 `elfienest data-home recover` 执行同一恢复操作。它会先备份旧目录，再重建当前目录，不会在旧数据库上原地迁移。
 
-如果你已经有另一个新的数据目录，也可以运行
-`elfienest data-home activate --data-home PATH` 选择它，不必恢复旧目录。
+在尚未完成 LFC-010 的当前版本中，已有新数据目录仍可临时通过
+`elfienest data-home activate --data-home PATH` 选择。该兼容命令会被删除；已确认目标中，
+安装版通过 `ELFIE_HOME` 选择，源码生命周期命令通过 `--data-home` 或上下文选择。
 
 ## 首次配置失败
 

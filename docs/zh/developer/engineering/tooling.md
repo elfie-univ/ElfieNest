@@ -70,7 +70,7 @@ bash scripts/check_node_toolchain.sh
 | `doctor` | 检查本地环境和配置 |
 | `data-home inspect` | 只读诊断当前数据根，不修改数据 |
 | `data-home recover` | 备份旧版/损坏数据根并创建新环境 |
-| `data-home activate --data-home PATH` | 选择另一个新的或可用的数据根供下次启动使用 |
+| `data-home activate --data-home PATH` | 当前临时兼容命令；LFC-010 跟踪其删除 |
 | `owner` | 在本机终端打开 Owner 账户菜单 |
 | `db` | 查看数据库信息，或执行 `backup`、`reset` |
 | `version` | 显示版本 |
@@ -100,11 +100,12 @@ Web 客户端。发现服务已被验证为正在运行时，`start` 不会重�
 
 ## 数据与高风险命令
 
-正式安装的产品数据使用已选择的生产数据根，未选择时默认位于
-`~/.elfienest`；安装版 `elfienest start` 不接受 `--data-home`。如需选择其他生产
-数据根，执行 `elfienest data-home activate --data-home PATH`。源码与 worktree 运行
-默认使用 `<当前worktree>/.elfienest.local`，并支持优先于 `ELFIE_HOME` 的
-`--data-home PATH`。测试、文档核验和实验必须设置临时 `ELFIE_HOME`，避免污染日常数据。
+当前 CLI 仍暴露 remembered-root/`data-home activate`，这是
+[LFC-010](../conformance/service-lifecycle)记录的临时偏差。已确认目标要求安装版入口只使用
+`${ELFIE_HOME:-~/.elfienest}`，源码 CLI 选择目标时忽略调用方 `ELFIE_HOME`，并只允许源码
+`start`、`serve`、`restart`、`stop` 使用 `--data-home`；其余源码命令通过会话上下文、
+可用于当前命令的 `<当前worktree>/.elfienest.local` 或经验证候选选择。测试、文档核验和
+实验仍须使用隔离环境/数据根，避免污染日常数据。
 
 Owner 恢复只在本机终端提供；密码通过隐藏输入填写，不应放进命令参数、环境变量
 或 shell 历史。服务密钥从环境变量或被 Git 忽略的本地配置读取，示例文档只能

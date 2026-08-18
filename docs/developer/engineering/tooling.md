@@ -79,7 +79,7 @@ should pass an explicit subcommand:
 | `doctor` | Check the local environment and configuration |
 | `data-home inspect` | Diagnose the selected data root without changing it |
 | `data-home recover` | Back up a legacy/corrupt data root and create a fresh one |
-| `data-home activate --data-home PATH` | Select another fresh/ready data root for the next launch |
+| `data-home activate --data-home PATH` | Temporary current compatibility command; removal is tracked by LFC-010 |
 | `owner` | Open the Owner account menu in the local terminal |
 | `db` | Show database info, or run `backup` / `reset` |
 | `version` | Show the version |
@@ -114,12 +114,14 @@ the frontend while the service is running. Installed release mode is unchanged.
 
 ## Data and high-risk commands
 
-Installed product data uses the selected production root, falling back to
-`~/.elfienest`; installed `elfienest start` does not accept `--data-home`.
-Select another production root with `elfienest data-home activate --data-home
-PATH`. Source and worktree runs default to `<current-worktree>/.elfienest.local`
-and support `--data-home PATH` before `ELFIE_HOME`. Tests, doc verification and
-experiments must set a temporary `ELFIE_HOME` to avoid polluting day-to-day data.
+The current CLI still exposes remembered-root/`data-home activate` behavior.
+That is a temporary [LFC-010](../conformance/service-lifecycle) deviation. The
+accepted target uses exactly `${ELFIE_HOME:-~/.elfienest}` for installed entry
+points, ignores caller `ELFIE_HOME` in source CLI selection, and limits
+`--data-home` to source `start`, `serve`, `restart` and `stop`. Source commands
+otherwise use session context, an eligible `<current-worktree>/.elfienest.local`
+or validated candidate selection. Tests, doc verification and experiments must
+still set an isolated environment/data root to avoid day-to-day data.
 
 Owner recovery is offered only in the local terminal; the password is entered
 via hidden input and must never go into command arguments, environment

@@ -2,6 +2,7 @@
 
 > Status: accepted design
 > Confirmed: 2026-08-15
+> Revised: 2026-08-18
 > Scope: service state, Desktop/CLI entrypoints, process ownership, failure convergence and startup observation
 
 ## 1. System resources
@@ -123,7 +124,79 @@ Desktop displays the real UI at `CORE_READY` and converges to `NORMAL` in the
 background. Installed `elfienest start` likewise targets `NORMAL` in the
 background and returns at `CORE` by default.
 
-## 4. Entrypoint behavior
+## 4. Task context and target selection
+
+One task is identified by one canonical data root. Code checkout, PID and ports
+are attributes or evidence; none selects the task. Every entrypoint follows one
+pipeline:
+
+```text
+classify installed/source mode -> resolve one data root -> check command eligibility
+-> execute against that exact root -> report that root and its current generation
+```
+
+The recorded launch executable/cwd helps verify a generation; it is compared to
+the observed process, not to the checkout issuing a later command. Different
+worktrees may manage distinct roots concurrently, and an explicitly selected
+root remains the task identity across CLI processes.
+
+Installed mode has no task selector. Desktop, tray and global CLI all resolve
+`${ELFIE_HOME:-~/.elfienest}` through the same per-user resolver and are guarded
+by the same product lock. A configured `ELFIE_HOME` completely replaces the
+default; no fallback read, dual write or durable “active root” exists. Relative
+values resolve against the user-home base so Desktop and a CLI launched from a
+different working directory still agree. A live Controller/root mismatch is an
+error, not permission to create another installed instance. Recovery uses the
+existing tray, or restores the old global setting before CLI stop; the new
+resolver never crosses roots to terminate the old task.
+
+Source mode ignores caller `ELFIE_HOME`; selected roots are published only to
+children after resolution. The command surface is:
+
+| Source command group | Accepts `--data-home` | Default-root eligibility |
+| --- | --- | --- |
+| `start`, `serve` | Yes | Always; may initialize the default root |
+| `restart` | Yes | A recognized lifecycle task |
+| `stop` | Yes | A verified active/converging generation |
+| `status` | No | A recognized snapshot, including `OFFLINE` |
+| `web` | No | A recognized/startable task; ensure only it, then use its snapshot endpoint |
+| `mobile` | No | Current snapshot publishes the required endpoint |
+| Config, Setup, Doctor, Owner, DB, `data-home inspect/recover` | No | Root is usable for that operation; Runtime need not be running |
+
+An interactive source shell owns one in-memory `session_data_home`. Every
+successfully resolved interactive target (explicit, eligible default or
+explicitly confirmed candidate) replaces it before command execution;
+subsequent commands use it until another target resolves or the shell exits. A
+command failure after resolution does not fall through or erase that context.
+A one-shot process has no session context. In both cases the source default is
+tried only when it is eligible for the requested command. Otherwise a TTY
+presents revalidated candidates, even when only one candidate remains; a non-
+TTY prints the same candidates and fails selection-required.
+
+The owner-only `<source-root>/.elfienest-cli.local/` control directory stores
+source-shell history and a candidate catalog outside every product data root.
+The catalog contains only known canonical roots and harmless display metadata,
+not an active pointer, PID, endpoint or credential. Explicit/default roots may
+refresh it after validation. Selection rechecks root shape, snapshot identity,
+generation and command eligibility, removes duplicates and never probes a port
+to discover identity. Control-state loss or write failure only loses history or
+convenience; it cannot change or stop a Runtime, and merely entering the source
+shell cannot initialize `<source-root>/.elfienest.local`.
+
+Two examples fix the main ambiguity:
+
+- `start --data-home A`, followed by `web`, targets A. Later
+  `restart --data-home B` changes the session to B; A keeps running.
+- A one-shot `stop` does not fail merely because the default root is idle. It
+  lists verified running A/B candidates; with none, it reports “no running
+  service”. An explicit or session target that is idle reports that exact fact
+  and never switches targets.
+
+`data-home activate` is removed because it creates a second, durable selected-
+root authority. `data-home inspect` and `recover` remain context-resolved
+operations.
+
+## 5. Entrypoint behavior
 
 | Entrypoint | Final semantics |
 | --- | --- |
@@ -135,9 +208,9 @@ background and returns at `CORE` by default.
 | Install/update | The native installer provides global `elfienest`; with consent, stop production Server and await `OFFLINE`, otherwise refuse replacement |
 | Doctor | Invoke restricted repair through the same Lifecycle authority |
 
-The Desktop product lock is independent of App path, version and port. The
-installed App and global CLI manage the same production data root; source CLI
-manages isolated development roots.
+The Desktop product lock is independent of App path, version, data root and
+port. The installed App and global CLI use the same production-root resolver;
+source CLI manages isolated development roots.
 
 An installed package contains every executable and static resource required at
 startup. Startup never installs dependencies, exports Godot or builds product
@@ -145,10 +218,13 @@ assets; missing resources fail preflight with a repairable error. An explicit
 user-requested Ollama model download is not a product build.
 
 Ports are endpoints only. Automatic mode atomically binds OS-selected ports and
-publishes them; an occupied explicit CLI port fails. No entrypoint may infer
-identity or termination authority from a port.
+publishes them in the selected root's snapshot; an occupied explicit CLI port
+fails. Restart may receive a different automatic pair. `web` may ensure only
+the already resolved target, and `web`, `mobile` and `status` consume only its
+snapshot. No entrypoint may infer identity, attach or termination authority
+from a port.
 
-## 5. Identity and ownership
+## 6. Identity and ownership
 
 Identity resolves in this order:
 
@@ -177,7 +253,7 @@ service. Setup download work also holds a lease. There is no
 `PERSISTENT_MANAGED` or `SESSION_OWNED` third state. If every holder crashes,
 the next startup or Doctor precisely reuses or converges that orphan first.
 
-## 6. Failure convergence
+## 7. Failure convergence
 
 | Failure class | Convergence rule |
 | --- | --- |
@@ -191,23 +267,36 @@ the next startup or Doctor precisely reuses or converges that orphan first.
 | Invalid data root or packaged resources | Fail before creating a partial generation |
 | Damaged data | Explicit repair only, after stop, confirmation and backup |
 
+Stop validates the selected snapshot's generation, PID birth identity,
+executable/cwd identity and local control credential before signalling. It then
+releases only that generation's owned resources in reverse order. A reused PID
+or port is external evidence and remains untouched; the OS releases sockets
+when the validated owner exits.
+
 `start/restart --force` performs only safe Runtime and endpoint repair; it never
 deletes data. When Core is unavailable, a local Desktop recovery shell provides
 the repair surface.
 
-## 7. Observation and acceptance
+## 8. Observation and acceptance
 
 Each entrypoint call has a correlation ID; each Server start has a generation.
 Monotonic milestones cover locks, preflight, Core, Viewer, every model/Godot
 subphase, requested readiness and shutdown.
 
 Status reports the stable tier, phase/subphase, component state, actual
-endpoints, phase duration, typed failure and next safe repair action.
+endpoints, phase duration, typed failure and next safe repair action. Every
+lifecycle result also identifies the resolved canonical data root; start,
+restart and status include the generation, component PIDs and actual endpoints.
+Success is emitted only after the same snapshot confirms the requested state;
+typed causes remain in the data-root log and result instead of being swallowed.
 
 The design guarantees:
 
 - two App copies cannot create two production Servers;
 - one data root cannot have two writers, while distinct roots may run together;
+- installed `ELFIE_HOME` and the default production root are mutually exclusive;
+- source caller `ELFIE_HOME` cannot redirect a development command;
+- a default-root miss cannot suppress candidate selection for `stop`;
 - old and new generations never overlap;
 - PID, port and process name never grant stop authority;
 - Core remains configurable and repairable when Godot or models fail;
