@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inspect and launch one Godot instance without silently duplicating it."""
+"""Inspect and launch one Godot instance per project without duplicating it."""
 
 from __future__ import annotations
 
@@ -153,20 +153,65 @@ def godot_processes() -> list[GodotProcess]:
     return processes
 
 
+def process_project_path(command: str) -> Path | None:
+    """Extract an absolute project path from a Godot command line."""
+    try:
+        arguments = shlex.split(command)
+    except ValueError:
+        return None
+    for index, argument in enumerate(arguments):
+        if argument == "--path":
+            if index + 1 >= len(arguments):
+                return None
+            raw_path = arguments[index + 1]
+        elif argument.startswith("--path="):
+            raw_path = argument.split("=", maxsplit=1)[1]
+        else:
+            continue
+        project_path = Path(raw_path).expanduser()
+        if not project_path.is_absolute():
+            return None
+        return project_path.resolve()
+    return None
+
+
+def blocking_processes(
+    processes: list[GodotProcess], project: Path
+) -> list[GodotProcess]:
+    """Return same-project or unidentifiable Godot processes.
+
+    A known different project has an independent import cache and does not
+    prevent this project's editor or headless validation from starting. An
+    unidentifiable command remains blocking so the guard never guesses that
+    two processes are isolated when it cannot prove it.
+    """
+    target = project.resolve()
+    blocking: list[GodotProcess] = []
+    for process in processes:
+        process_project = process_project_path(process.command)
+        if process_project is None or process_project == target:
+            blocking.append(process)
+    return blocking
+
+
 def print_processes(processes: list[GodotProcess], project: Path) -> None:
     if not processes:
         print("Godot processes: none")
         return
 
-    project_text = str(project.resolve())
+    target = project.resolve()
     print(f"Godot processes: {len(processes)}")
     for process in processes:
         memory = "unknown"
         if process.rss_kib is not None:
             memory = f"{process.rss_kib / 1024:.1f} MiB RSS"
-        ownership = (
-            "this project" if project_text in process.command else "unknown project"
-        )
+        process_project = process_project_path(process.command)
+        if process_project == target:
+            ownership = "this project"
+        elif process_project is None:
+            ownership = "unknown project"
+        else:
+            ownership = "other project"
         print(f"  PID {process.pid}: {memory}, {ownership}")
         print(f"    {process.command}")
 
@@ -200,10 +245,11 @@ def check_environment(
 def launch(
     binary: Path, project: Path, editor: bool, processes: list[GodotProcess]
 ) -> int:
-    if processes:
-        print_processes(processes, project)
+    conflicts = blocking_processes(processes, project)
+    if conflicts:
+        print_processes(conflicts, project)
         print(
-            "REFUSED: reuse the existing Godot window; no duplicate instance was started.",
+            "REFUSED: reuse the existing instance for this project or identify the unknown process; no duplicate instance was started.",
             file=sys.stderr,
         )
         return 3
@@ -229,17 +275,18 @@ def launch(
     process = subprocess.Popen(command, **popen_options)
     mode = "editor" if editor else "game"
     print(f"Started one Godot {mode} instance (PID {process.pid}).")
-    print("Do not run another launch command while this process exists.")
+    print("Do not launch another instance for this project while this process exists.")
     return 0
 
 
 def validate(
     binary: Path, project: Path, script: str, processes: list[GodotProcess]
 ) -> int:
-    if processes:
-        print_processes(processes, project)
+    conflicts = blocking_processes(processes, project)
+    if conflicts:
+        print_processes(conflicts, project)
         print(
-            "REFUSED: close or reuse the existing Godot instance before headless validation.",
+            "REFUSED: close or reuse the existing instance for this project, or identify the unknown process, before headless validation.",
             file=sys.stderr,
         )
         return 3
