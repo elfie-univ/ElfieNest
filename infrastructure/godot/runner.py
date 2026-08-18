@@ -6,6 +6,7 @@ The running Godot authority remains owned by ``infrastructure.godot.lifecycle``.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import platform
@@ -20,7 +21,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Optional, Sequence, Tuple
 
-_VERSION_PATTERN = re.compile(r"(\d+\.\d+)")
+_ENGINE_VERSION_PATTERN = re.compile(r"(?i)\bgodot(?: engine)?\s+v(\d+\.\d+)")
+_VERSION_LINE_PATTERN = re.compile(r"^v?\d+\.\d+(?:\.\d+)?(?:[._-][A-Za-z0-9]+)*$")
 _SENSITIVE_ARGUMENT_PATTERN = re.compile(
     r"(?i)(api[_-]?key|token|secret|password|authorization)"
 )
@@ -28,6 +30,18 @@ _CRASH_EXIT_CODES = frozenset(
     128 + value
     for value in (signal.SIGABRT, signal.SIGBUS, signal.SIGILL, signal.SIGSEGV)
 )
+
+
+def _extract_version(output: str) -> Optional[str]:
+    for line in output.splitlines():
+        engine_match = _ENGINE_VERSION_PATTERN.search(line)
+        if engine_match:
+            return engine_match.group(1)
+        if _VERSION_LINE_PATTERN.fullmatch(line.strip()):
+            version_match = re.match(r"v?(\d+\.\d+)", line.strip())
+            if version_match:
+                return version_match.group(1)
+    return None
 
 
 @dataclass(frozen=True)
@@ -118,8 +132,7 @@ def godot_version(
     )
     if result.exit_code != 0:
         return None
-    match = _VERSION_PATTERN.search(result.stdout + result.stderr)
-    return match.group(1) if match else None
+    return _extract_version(result.stdout + result.stderr)
 
 
 def run_headless(
@@ -210,10 +223,7 @@ def _run_once(
         stderr = str(error)
 
     crashed = not timed_out and (returncode < 0 or returncode in _CRASH_EXIT_CODES)
-    recorded_version = godot_version
-    if purpose == "version-probe":
-        match = _VERSION_PATTERN.search(stdout + stderr)
-        recorded_version = match.group(1) if match else None
+    recorded_version = godot_version or _extract_version(stdout + stderr)
     result = GodotExecutionResult(
         returncode=returncode,
         stdout=stdout,
@@ -294,11 +304,31 @@ def _decode_output(value: object) -> str:
     return str(value)
 
 
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """Expose the shared version probe to shell toolchain callers."""
+
+    parser = argparse.ArgumentParser(description="Run a controlled Godot probe.")
+    parser.add_argument("command", choices=("version",))
+    parser.add_argument("--binary", required=True, type=Path)
+    args = parser.parse_args(argv)
+
+    version = godot_version(args.binary)
+    if version is None:
+        return 1
+    print(version)
+    return 0
+
+
 __all__ = (
     "GodotExecutionResult",
     "find_godot",
     "forward_output",
     "godot_version",
+    "main",
     "project_version",
     "run_headless",
 )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

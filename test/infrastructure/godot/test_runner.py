@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from infrastructure.godot import runner
 from infrastructure.godot.runner import godot_version, run_headless
 
 _FAKE_GODOT = """#!/bin/sh
@@ -23,6 +24,7 @@ fi
 if [ \"${FAKE_GODOT_MODE:-}\" = timeout ]; then
     exec sleep 2
 fi
+printf 'Godot Engine v4.7.1.stable\\n'
 printf 'fake godot arguments: %s\\n' \"$*\"
 exit 0
 """
@@ -63,6 +65,7 @@ def test_version_and_headless_validation_use_one_observable_process_boundary(
     assert result.exit_code == 0
     assert result.crashed is False
     assert result.timed_out is False
+    assert result.godot_version == "4.7"
     assert result.command[:4] == (
         str(binary),
         "--headless",
@@ -142,3 +145,10 @@ def test_headless_runner_rejects_editor_mode(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="only permits headless"):
         run_headless(binary, project, ("--editor",))
+
+
+def test_version_cli_uses_the_shared_runner(tmp_path: Path, capsys) -> None:
+    binary = _fake_godot(tmp_path)
+
+    assert runner.main(["version", "--binary", str(binary)]) == 0
+    assert capsys.readouterr().out.strip() == "4.7"

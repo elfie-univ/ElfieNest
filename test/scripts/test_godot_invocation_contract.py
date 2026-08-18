@@ -29,3 +29,12 @@ def test_toolchain_callers_delegate_project_execution_to_shared_runner() -> None
         assert "run_headless" in text, path
         assert "subprocess.Popen" not in text, path
         assert '[str(binary), "--headless"' not in text, path
+
+
+def test_bootstrap_delegates_version_probes_to_shared_runner() -> None:
+    bootstrap = (
+        PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh"
+    ).read_text(encoding="utf-8")
+
+    assert "infrastructure.godot.runner" in bootstrap
+    assert '"$binary" --version' not in bootstrap

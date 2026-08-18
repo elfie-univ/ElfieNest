@@ -116,22 +116,34 @@ godot_download_url() {
         "$GODOT_DOWNLOAD_ENDPOINT" "$platform" "$slug" "$GODOT_DEFAULT_DOWNLOAD_VERSION"
 }
 
+godot_runner_version() {
+    local binary="$1"
+    local python_bin
+
+    python_bin="$(project_python 2>/dev/null || true)"
+    if [[ -z "$python_bin" ]]; then
+        echo "❌ Repository Python environment is unavailable for the Godot runner." >&2
+        return 1
+    fi
+
+    PYTHONPATH="$PROJECT_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
+        "$python_bin" -m infrastructure.godot.runner version --binary "$binary"
+}
+
 godot_binary_has_required_version() {
     local binary="$1"
     local version
 
     [[ -x "$binary" ]] || return 1
-    version="$("$binary" --version 2>/dev/null || true)"
+    version="$(godot_runner_version "$binary")" || return 1
     # Accept any 4.7.x version (major.minor match)
     [[ "$version" == "$GODOT_PROJECT_VERSION."* ]]
 }
 
 godot_extract_version() {
     local binary="$1"
-    local version
 
-    version="$("$binary" --version 2>/dev/null || true)"
-    printf '%s\n' "$version"
+    godot_runner_version "$binary"
 }
 
 godot_templates_match_editor() {

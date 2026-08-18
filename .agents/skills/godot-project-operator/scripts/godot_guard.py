@@ -177,7 +177,11 @@ def print_processes(processes: list[GodotProcess], project: Path) -> None:
 
 
 def check_environment(
-    project: Path, binary: Path | None, allow_mismatch: bool
+    project: Path,
+    binary: Path | None,
+    allow_mismatch: bool,
+    *,
+    probe_version: bool = True,
 ) -> tuple[bool, str | None, str | None]:
     project_file = project / "project.godot"
     if not project_file.is_file():
@@ -191,7 +195,10 @@ def check_environment(
         return False, None, None
 
     expected = project_version(project)
-    actual = installed_version(binary)
+    # ``validate`` must have exactly one Godot process.  It gets the actual
+    # version from that headless process's startup output instead of probing
+    # ``--version`` first.  ``doctor`` still performs the standalone probe.
+    actual = installed_version(binary) if probe_version else None
     if expected and actual and expected != actual and not allow_mismatch:
         print(
             f"ERROR: project requires Godot {expected}, but executable is {actual}. "
@@ -207,7 +214,8 @@ def validate(
     project: Path,
     script: str,
     processes: list[GodotProcess],
-    godot_version: str | None,
+    expected_version: str | None,
+    allow_version_mismatch: bool,
 ) -> int:
     conflicts = blocking_processes(processes, project)
     if conflicts:
@@ -223,10 +231,32 @@ def validate(
         binary,
         project,
         ("--script", script),
-        godot_version=godot_version,
+        godot_version=None,
         purpose="guard-validation",
     )
     godot_runner.forward_output(result)
+    if result.exit_code != 0:
+        print(
+            f"Headless validation process failed with exit code {result.exit_code}.",
+            file=sys.stderr,
+        )
+        return result.exit_code
+
+    actual_version = result.godot_version
+    if (
+        expected_version
+        and actual_version
+        and expected_version != actual_version
+        and not allow_version_mismatch
+    ):
+        print(
+            f"ERROR: project requires Godot {expected_version}, but executable is "
+            f"{actual_version}. Use a matching engine. Pass "
+            "--allow-version-mismatch only after user approval.",
+            file=sys.stderr,
+        )
+        return 2
+
     print("Headless validation process exited.")
     return result.exit_code
 
@@ -247,7 +277,10 @@ def main() -> int:
         return 0
 
     ok, expected, actual = check_environment(
-        project, binary, args.allow_version_mismatch
+        project,
+        binary,
+        args.allow_version_mismatch,
+        probe_version=args.command == "doctor",
     )
     if args.command == "doctor":
         print(f"Project: {project}")
@@ -263,7 +296,8 @@ def main() -> int:
         project,
         args.script,
         processes=processes,
-        godot_version=actual,
+        expected_version=expected,
+        allow_version_mismatch=args.allow_version_mismatch,
     )
 
 
