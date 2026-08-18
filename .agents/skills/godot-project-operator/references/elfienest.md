@@ -15,9 +15,9 @@
 ## 安全诊断顺序
 
 1. 运行 `godot_guard.py doctor`，核对可执行文件和项目版本。
-2. 运行 `godot_guard.py status`，确认没有已有 Godot 实例。
+2. 运行 `godot_guard.py status`，确认没有当前项目或归属不明的 Godot 实例。
 3. 使用 `godot_guard.py validate` 做资源契约检查。
-4. 只选择 `editor` 或 `run` 之一启动。
+4. 只选择 `editor` 或 `run` 之一启动；其他 worktree 的 Godot 实例不阻塞当前项目。
 5. 在同一个窗口完成日志观察和渲染检查。
 6. 退出后检查 `git status` 和 `git diff`。
 
