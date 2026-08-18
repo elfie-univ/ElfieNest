@@ -15,6 +15,23 @@ def make_executable(path: Path, content: str = "#!/bin/sh\nexit 0\n") -> None:
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
+def make_project_python(project_root: Path) -> None:
+    content = """#!/bin/sh
+if [ "${1:-}" = "-m" ] && [ "${2:-}" = "infrastructure.godot.runner" ] && [ "${3:-}" = "version" ]; then
+    binary=""
+    while [ "$#" -gt 0 ]; do
+        if [ "$1" = "--binary" ]; then binary="$2"; break; fi
+        shift
+    done
+    "$binary" --version
+    exit $?
+fi
+exit 0
+"""
+    for relative_path in (".venv/bin/python3", ".venv/bin/python"):
+        make_executable(project_root / relative_path, content)
+
+
 def copy_bootstrap(project_root: Path) -> Path:
     scripts_dir = project_root / "scripts"
     scripts_dir.mkdir(parents=True)
@@ -38,8 +55,7 @@ def prepare_build_runtime(project_root: Path, *, godot_web: bool = True) -> None
             )
             runtime_file.parent.mkdir(parents=True, exist_ok=True)
             runtime_file.write_text("runtime\n", encoding="utf-8")
-    make_executable(project_root / ".venv/bin/python3")
-    make_executable(project_root / ".venv/bin/python")
+    make_project_python(project_root)
     make_executable(
         project_root / ".fake-bin/godot4",
         "#!/bin/sh\necho '4.7.1.stable'\n",

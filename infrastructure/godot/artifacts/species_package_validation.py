@@ -7,7 +7,7 @@ import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Optional, Protocol
 
 from infrastructure.persistence.configuration.species import load_species_catalog
 
@@ -34,6 +34,7 @@ class GodotSpeciesValidationRunner(Protocol):
         godot_binary: Path,
         godot_project: Path,
         timeout_seconds: float,
+        godot_version: Optional[str] = None,
     ) -> GodotSpeciesValidationResult: ...
 
 
@@ -48,6 +49,7 @@ def validate_source_species_packages(
     godot_runner: GodotSpeciesValidationRunner,
     godot_binary: Path | None = None,
     timeout_seconds: float = 120.0,
+    godot_version: Optional[str] = None,
 ) -> tuple[str, ...]:
     """Validate package links through an injected Godot process boundary."""
 
@@ -123,11 +125,19 @@ def validate_source_species_packages(
     binary = godot_binary or _find_godot_binary()
     if binary is None:
         raise SpeciesPackageValidationError("godot-binary-missing")
-    result = godot_runner(
-        godot_binary=binary,
-        godot_project=godot_project,
-        timeout_seconds=timeout_seconds,
-    )
+    if godot_version is None:
+        result = godot_runner(
+            godot_binary=binary,
+            godot_project=godot_project,
+            timeout_seconds=timeout_seconds,
+        )
+    else:
+        result = godot_runner(
+            godot_binary=binary,
+            godot_project=godot_project,
+            timeout_seconds=timeout_seconds,
+            godot_version=godot_version,
+        )
     output = f"{result.stdout}\n{result.stderr}"
     if result.returncode != 0:
         raise SpeciesPackageValidationError(

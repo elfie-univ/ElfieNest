@@ -8,7 +8,6 @@ import hashlib
 import json
 import os
 import shutil
-import subprocess
 import sys
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -23,13 +22,17 @@ from infrastructure.godot.artifacts.species_package_validation import (
     validate_source_species_packages,
 )
 from infrastructure.godot.artifacts.web_build import (
-    _find_godot as find_godot_helper,
-)
-from infrastructure.godot.artifacts.web_build import (
-    _godot_version as godot_version_helper,
-)
-from infrastructure.godot.artifacts.web_build import (
     _project_version as project_version_helper,
+)
+from infrastructure.godot.runner import (
+    find_godot as find_godot_helper,
+)
+from infrastructure.godot.runner import (
+    forward_output,
+    run_headless,
+)
+from infrastructure.godot.runner import (
+    godot_version as godot_version_helper,
 )
 from infrastructure.persistence.configuration.species import load_species_catalog
 from scripts.godot_species_validation import run_godot_species_validation
@@ -100,6 +103,7 @@ def _export_runtime(output: Path, binary: Path, godot_version: str) -> int:
             godot_project=GODOT_PROJECT,
             godot_runner=run_godot_species_validation,
             godot_binary=binary,
+            godot_version=godot_version,
         )
     except SpeciesPackageValidationError as error:
         print(f"❌ Species package validation failed: {error}")
@@ -109,23 +113,26 @@ def _export_runtime(output: Path, binary: Path, godot_version: str) -> int:
     shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True, exist_ok=True)
     entry = staging / ENTRY_NAME
-    command = [
-        str(binary),
-        "--headless",
-        "--path",
-        str(GODOT_PROJECT),
-        "--export-release",
-        PRESET_NAME,
-        str(entry),
-    ]
     print(f"🔨 Building Linux Dedicated Runtime with Godot {godot_version}...")
-    result = subprocess.run(command, cwd=GODOT_PROJECT, check=False)
-    if result.returncode != 0:
+    result = run_headless(
+        binary,
+        GODOT_PROJECT,
+        ("--export-release", PRESET_NAME, str(entry)),
+        timeout_seconds=600.0,
+        godot_version=godot_version,
+        purpose="dedicated-runtime-export",
+    )
+    forward_output(result)
+    if result.exit_code != 0:
         shutil.rmtree(staging, ignore_errors=True)
+        if result.crashed:
+            print(
+                "❌ Godot crashed during Dedicated Runtime export; no retry was attempted."
+            )
         print(
             "❌ Linux Dedicated export failed. Confirm that Linux x64 Export Templates are installed."
         )
-        return result.returncode or 1
+        return result.exit_code
     missing = _missing_artifacts(staging)
     if missing:
         shutil.rmtree(staging, ignore_errors=True)
