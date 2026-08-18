@@ -28,12 +28,15 @@ def run_foreground_service(
     options: Sequence[str],
     *,
     wait_once: Optional[WaitOnce] = None,
+    selected_home: Path | None = None,
 ) -> ServiceLifecycleResult:
     """Run one foreground-owned Runtime generation until shutdown."""
     command = lifecycle.default_service_command(options)
+    target_was_explicit = selected_home is not None
     selected_home = lifecycle_commands._data_home_for_command(
         lifecycle,
         command,
+        selected_home=selected_home,
     )
     command = lifecycle_commands._select_automatic_ports(
         lifecycle,
@@ -87,7 +90,19 @@ def run_foreground_service(
         )
         return result
 
-    supervisor = lifecycle_commands._supervisor_for(lifecycle, command, http_port)
+    if target_was_explicit:
+        supervisor = lifecycle_commands._supervisor_for(
+            lifecycle,
+            command,
+            http_port,
+            selected_home=selected_home,
+        )
+    else:
+        supervisor = lifecycle_commands._supervisor_for(
+            lifecycle,
+            command,
+            http_port,
+        )
     try:
         started = supervisor.start(owner_id=f"cli-serve:{os.getpid()}")
     finally:

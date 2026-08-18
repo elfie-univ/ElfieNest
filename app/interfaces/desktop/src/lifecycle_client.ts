@@ -182,7 +182,9 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
 
   async inspectDataHome(explicitHome?: string): Promise<DataHomeInspection> {
     const inspection = this.parseDataHomeInspection(
-      await this.commandRunner.run(this.dataHomeArguments("inspect", explicitHome)),
+      await this.commandRunner.run(
+        this.controllerDataHomeArguments("inspect", explicitHome),
+      ),
     );
     this.selectedDataHome = inspection.home;
     return inspection;
@@ -190,7 +192,9 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
 
   async recoverDataHome(explicitHome?: string): Promise<DataHomeRecoveryResult> {
     return this.parseDataHomeRecovery(
-      await this.commandRunner.run(this.dataHomeArguments("recover", explicitHome)),
+      await this.commandRunner.run(
+        this.controllerDataHomeArguments("recover", explicitHome),
+      ),
     );
   }
 
@@ -481,15 +485,16 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     return { home, backupHome };
   }
 
-  private dataHomeArguments(
+  private controllerDataHomeArguments(
     action: "inspect" | "recover",
     explicitHome?: string,
   ): readonly string[] {
     return [
-      "data-home",
-      action,
-      ...(explicitHome === undefined ? [] : ["--data-home", explicitHome]),
-      "--json",
+      "--__controller-action",
+      action === "inspect" ? "inspect-data-home" : "recover-data-home",
+      ...(explicitHome === undefined
+        ? []
+        : ["--__controller-data-home", explicitHome]),
     ];
   }
 

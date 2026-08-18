@@ -32,20 +32,25 @@ from app.bootstrap.app_wiring.operations import build_operations_facade
 from app.bootstrap.system_wiring.entrypoints import (
     DataHomeSelectionError,
     get_db_path,
+    get_db_path_for_home,
     resolve_elfie_home,
 )
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
+from app.interfaces.cli.data_home_commands import (
+    inspect_data_home_command,
+    recover_data_home_command,
+)
 from app.interfaces.cli.doctor_commands import run_doctor
 from app.interfaces.cli.foreground_runtime import run_foreground_service
 from app.interfaces.cli.lifecycle_commands import (
     display_data_home,
+    open_desktop_application,
     open_web_console,
     published_http_port_for_home,
     restart_background_service,
     selected_runtime_data_home,
     show_service_status,
     start_background_service,
-    open_desktop_application,
     stop_background_service,
 )
 from app.interfaces.cli.mobile_commands import show_mobile_access
@@ -66,8 +71,10 @@ from app.interfaces.cli.tui.common import print_banner
 from app.interfaces.cli.tui.config_app import run_config_tui
 from app.interfaces.cli.uninstall_commands import run_uninstall_menu
 from app.orchestration.lifecycle import (
+    EntrypointMode,
     LifecycleFacade,
     ServiceLifecycleResult,
+    TargetResolutionError,
 )
 from app.orchestration.lifecycle.target_resolution import (
     EntrypointMode,
@@ -167,9 +174,7 @@ def build_parser() -> SecretSafeArgumentParser:
         "--loopback",
         dest="lan",
         action="store_false",
-        help=(
-            "Bind to loopback only" if not packaged else argparse.SUPPRESS
-        ),
+        help=("Bind to loopback only" if not packaged else argparse.SUPPRESS),
     )
 
     restart_parser = subparsers.add_parser("restart", help="Force restart service")
@@ -192,9 +197,7 @@ def build_parser() -> SecretSafeArgumentParser:
         )
 
     status_parser = subparsers.add_parser("status", help="Show service status")
-    status_parser.add_argument(
-        "--json", action="store_true", help="Output component health JSON"
-    )
+    status_parser.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     subparsers.add_parser(
         "web",
         help="Open Web console for an already running service",
@@ -216,9 +219,7 @@ def build_parser() -> SecretSafeArgumentParser:
         help=argparse.SUPPRESS,
     )
     subparsers.add_parser("owner", help="Owner account menu")
-    subparsers.add_parser(
-        "doctor", help="Run local diagnostics and config check"
-    )
+    subparsers.add_parser("doctor", help="Run local diagnostics and config check")
     db_parser = subparsers.add_parser("db", help="Database tools")
     db_parser.add_argument(
         "db_command", nargs="?", choices=["backup", "reset"], help="Database command"
@@ -228,6 +229,17 @@ def build_parser() -> SecretSafeArgumentParser:
     subparsers.add_parser("version", help="Show version")
 
     parser.add_argument("--interactive", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--__controller-action",
+        choices=("inspect-data-home", "recover-data-home"),
+        dest="internal_controller_action",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--__controller-data-home",
+        dest="internal_controller_data_home",
+        help=argparse.SUPPRESS,
+    )
     return parser
 
 
@@ -239,6 +251,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     ):
         print_banner()
     args = parser.parse_args(arguments)
+    if getattr(args, "internal_controller_action", None) is not None:
+        _dispatch_internal_controller_command(args)
+        return
     if getattr(args, "interactive", False):
         run_interactive_shell()
         return
@@ -320,7 +335,10 @@ def print_cli_help() -> None:
         commands.append(("desktop", "Open the existing Desktop Viewer"))
     commands.extend(
         [
-            ("config", "Provider, model, Food and tool configuration (interactive menu)"),
+            (
+                "config",
+                "Provider, model, Food and tool configuration (interactive menu)",
+            ),
             ("owner", "Owner account menu"),
             ("doctor", "Run local diagnostics and auto-repair"),
             ("db*", "Database tools"),
@@ -393,10 +411,19 @@ def dispatch_command(
                 session=session,
                 installed_environment=dict(os.environ),
                 prompt=(
-                    prompt_for_candidate
-                    if interactive or sys.stdin.isatty()
-                    else None
+                    prompt_for_candidate if interactive or sys.stdin.isatty() else None
                 ),
+            )
+        if (
+            target is not None
+            and _is_packaged_cli_runtime()
+            and args.command in {"status", "web", "mobile", "desktop"}
+        ):
+            _verify_installed_controller_target(
+                lifecycle_client,
+                target.home,
+                command=args.command,
+                require_controller=args.command != "status",
             )
         with _target_environment(
             target.home if target is not None else None,
@@ -405,6 +432,7 @@ def dispatch_command(
             _dispatch_command(
                 args,
                 lifecycle_client,
+                selected_home=target.home if target is not None else None,
                 display_home=target.display_home if target is not None else None,
             )
     except DataHomeSelectionError as error:
@@ -426,36 +454,52 @@ def _command_requires_target(args: argparse.Namespace) -> bool:
     return getattr(args, "command", None) not in {None, "version"}
 
 
+def _dispatch_internal_controller_command(args: argparse.Namespace) -> None:
+    """Handle Desktop-only data-root maintenance without a public CLI command."""
+    if os.environ.get("ELFIENEST_CONTROLLER_CLIENT") != "1":
+        raise DataHomeSelectionError(
+            "内部 Controller 数据目录接口只能由 Desktop Controller 调用"
+        )
+    action = args.internal_controller_action
+    explicit_home = args.internal_controller_data_home
+    if action == "inspect-data-home":
+        raise SystemExit(
+            inspect_data_home_command(
+                create_lifecycle_facade(),
+                explicit_home=explicit_home,
+                json_output=True,
+            )
+        )
+    if action == "recover-data-home":
+        raise SystemExit(
+            recover_data_home_command(
+                create_lifecycle_facade(),
+                explicit_home=explicit_home,
+                json_output=True,
+            )
+        )
+    raise DataHomeSelectionError(f"未知内部 Controller 操作: {action}")
+
+
 @contextmanager
 def _target_environment(
     home: Path | None, display_home: str | None = None
 ) -> Iterator[None]:
-    """Publish one resolved root to target-bound code and child processes only."""
-    if home is None:
-        with display_data_home(None):
-            yield
-        return
-    had_value = "ELFIE_HOME" in os.environ
-    previous = os.environ.get("ELFIE_HOME")
-    os.environ["ELFIE_HOME"] = str(home)
-    try:
-        with display_data_home(display_home):
-            yield
-    finally:
-        if had_value and previous is not None:
-            os.environ["ELFIE_HOME"] = previous
-        else:
-            os.environ.pop("ELFIE_HOME", None)
+    """Expose only the display label; data roots are passed explicitly."""
+    del home
+    with display_data_home(display_home):
+        yield
 
 
 def _dispatch_command(
     args: argparse.Namespace,
     lifecycle: LifecycleFacade,
     *,
+    selected_home: Path | None = None,
     display_home: str | None = None,
 ) -> None:
     if args.command == "config":
-        configuration = build_cli_configuration(str(get_db_path()))
+        configuration = build_cli_configuration(_db_path_for_command(selected_home))
         run_config_tui(
             configuration.providers,
             configuration.food,
@@ -471,21 +515,51 @@ def _dispatch_command(
             getattr(args, "config_path", None),
         )
     elif args.command == "serve":
-        options = _service_options_from_args(args)
-        _exit_on_lifecycle_failure(run_foreground_service(lifecycle, options))
+        options = _service_options_from_args(args, selected_home=selected_home)
+        if selected_home is None:
+            result = run_foreground_service(lifecycle, options)
+        else:
+            result = run_foreground_service(
+                lifecycle,
+                options,
+                selected_home=selected_home,
+            )
+        _exit_on_lifecycle_failure(result)
     elif args.command == "status":
-        show_service_status(lifecycle, json_output=getattr(args, "json", False))
+        if selected_home is None:
+            show_service_status(lifecycle, json_output=getattr(args, "json", False))
+        else:
+            show_service_status(
+                lifecycle,
+                json_output=getattr(args, "json", False),
+                selected_home=selected_home,
+            )
     elif args.command == "web":
-        result = open_web_console(lifecycle)
+        result = (
+            open_web_console(lifecycle)
+            if selected_home is None
+            else open_web_console(lifecycle, selected_home=selected_home)
+        )
         _exit_on_lifecycle_failure(result)
     elif args.command == "desktop":
-        _exit_on_lifecycle_failure(open_desktop_application(lifecycle))
+        result = (
+            open_desktop_application(lifecycle)
+            if selected_home is None
+            else open_desktop_application(lifecycle, selected_home=selected_home)
+        )
+        _exit_on_lifecycle_failure(result)
     elif args.command == "mobile":
-        selected_home = selected_runtime_data_home(lifecycle)
+        if selected_home is None:
+            selected_home = selected_runtime_data_home(lifecycle)
+        else:
+            selected_home = selected_runtime_data_home(
+                lifecycle,
+                selected_home=selected_home,
+            )
         raise SystemExit(
             show_mobile_access(
                 lifecycle,
-                build_operations_facade(str(get_db_path())),
+                build_operations_facade(_db_path_for_command(selected_home)),
                 http_port=published_http_port_for_home(lifecycle, selected_home),
                 data_home=selected_home,
                 display_home=display_home,
@@ -493,40 +567,52 @@ def _dispatch_command(
             )
         )
     elif args.command == "start":
-        command = lifecycle.default_service_command(_service_options_from_args(args))
+        command = lifecycle.default_service_command(
+            _service_options_from_args(args, selected_home=selected_home)
+        )
         owner_id = getattr(args, "owner_id", None)
-        _exit_on_lifecycle_failure(
-            start_background_service(
+        if selected_home is None:
+            result = start_background_service(
                 lifecycle,
                 command,
-                **(
-                    {
-                        "owner_id": owner_id,
-                        "json_output": getattr(args, "json", False),
-                        "progress_json": getattr(args, "progress_json", False),
-                    }
-                    if owner_id is not None
-                    else {
-                        "json_output": getattr(args, "json", False),
-                        "progress_json": getattr(args, "progress_json", False),
-                    }
-                ),
+                owner_id=owner_id or "cli",
+                json_output=getattr(args, "json", False),
+                progress_json=getattr(args, "progress_json", False),
             )
-        )
+        else:
+            result = start_background_service(
+                lifecycle,
+                command,
+                owner_id=owner_id or "cli",
+                json_output=getattr(args, "json", False),
+                progress_json=getattr(args, "progress_json", False),
+                selected_home=selected_home,
+            )
+        _exit_on_lifecycle_failure(result)
     elif args.command == "stop":
         owner_id = getattr(args, "owner_id", None)
-        result = (
-            stop_background_service(lifecycle, owner_id=owner_id)
-            if owner_id is not None
-            else stop_background_service(lifecycle)
-        )
+        if selected_home is None:
+            result = stop_background_service(lifecycle, owner_id=owner_id or "cli")
+        else:
+            result = stop_background_service(
+                lifecycle,
+                owner_id=owner_id or "cli",
+                selected_home=selected_home,
+            )
         _exit_on_lifecycle_failure(result)
     elif args.command == "restart":
-        _exit_on_lifecycle_failure(
-            restart_background_service(lifecycle, _service_options_from_args(args))
-        )
+        restart_options = _service_options_from_args(args, selected_home=selected_home)
+        if selected_home is None:
+            result = restart_background_service(lifecycle, restart_options)
+        else:
+            result = restart_background_service(
+                lifecycle,
+                restart_options,
+                selected_home=selected_home,
+            )
+        _exit_on_lifecycle_failure(result)
     elif args.command == "owner":
-        owner_db_path = str(get_db_path())
+        owner_db_path = _db_path_for_command(selected_home)
         raise SystemExit(
             run_owner_menu(
                 lifecycle,
@@ -536,26 +622,42 @@ def _dispatch_command(
             )
         )
     elif args.command == "doctor":
-        raise SystemExit(run_doctor(lifecycle))
+        raise SystemExit(run_doctor(lifecycle, selected_home=selected_home))
     elif args.command == "uninstall":
-        raise SystemExit(run_uninstall_menu(lifecycle, build_terminal_menu()))
+        raise SystemExit(
+            run_uninstall_menu(
+                lifecycle,
+                build_terminal_menu(),
+                selected_home=selected_home,
+            )
+        )
     elif args.command == "version":
         show_version()
     elif args.command == "db":
         dispatch_db(
-            build_operations_facade(str(get_db_path())),
+            build_operations_facade(_db_path_for_command(selected_home)),
             getattr(args, "db_command", None),
         )
     else:
         print_banner()
         print("  Starting service...")
         print()
-        _exit_on_lifecycle_failure(
-            run_foreground_service(lifecycle, tuple(sys.argv[1:]))
-        )
+        if selected_home is None:
+            result = run_foreground_service(lifecycle, tuple(sys.argv[1:]))
+        else:
+            result = run_foreground_service(
+                lifecycle,
+                tuple(sys.argv[1:]),
+                selected_home=selected_home,
+            )
+        _exit_on_lifecycle_failure(result)
 
 
-def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
+def _service_options_from_args(
+    args: argparse.Namespace,
+    *,
+    selected_home: Path | None = None,
+) -> tuple[str, ...]:
     """Convert supported background start options to the service command."""
     options: list[str] = []
     port = getattr(args, "port", None)
@@ -570,13 +672,13 @@ def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
                 "安装版生命周期命令不支持 --data-home；安装版只使用 "
                 "${ELFIE_HOME:-~/.elfienest}，需要隔离数据根请使用源码 CLI"
             )
-        selected_home = resolve_elfie_home(
+        resolved_home = selected_home or resolve_elfie_home(
             args.data_home,
             invoking_cwd=Path.cwd(),
             runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
             source_root=Path(__file__).resolve().parent.parent,
         )
-        options.extend(("--data-home", str(selected_home)))
+        options.extend(("--data-home", str(resolved_home)))
     if getattr(args, "lan", False):
         options.append("--lan")
     if getattr(args, "runtime_mode", None) is not None:
@@ -587,6 +689,36 @@ def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
 def _is_packaged_cli_runtime() -> bool:
     """Return installed mode from executable provenance, not caller env."""
     return bool(getattr(sys, "frozen", False))
+
+
+def _db_path_for_command(selected_home: Path | None) -> str:
+    """Return the database below the already resolved command target."""
+    if selected_home is None:
+        return str(get_db_path())
+    return str(get_db_path_for_home(selected_home))
+
+
+def _verify_installed_controller_target(
+    lifecycle: LifecycleFacade,
+    selected_home: Path,
+    *,
+    command: str,
+    require_controller: bool,
+) -> None:
+    """Reject installed commands that would observe a different Controller root."""
+    try:
+        result = lifecycle.controller_request(
+            "STATUS",
+            expected_data_home=selected_home,
+        )
+    except RuntimeError as error:
+        raise DataHomeSelectionError(
+            f"安装版 {command} 被拒绝：Controller 数据根校验失败: {error}"
+        ) from error
+    if require_controller and result is None:
+        raise DataHomeSelectionError(
+            f"安装版 {command} 需要当前 ELFIE_HOME 对应的 Controller 正在运行"
+        )
 
 
 def _exit_on_lifecycle_failure(result: ServiceLifecycleResult) -> None:

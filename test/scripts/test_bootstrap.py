@@ -9,6 +9,7 @@ from pathlib import Path
 from test.scripts.bootstrap_test_support import (
     copy_bootstrap,
     make_executable,
+    make_project_python,
     prepare_build_runtime,
     run_bootstrap,
 )
@@ -324,9 +325,16 @@ def test_bootstrap_reuses_a_matching_managed_godot_toolchain(tmp_path: Path) -> 
     # Given: a previously installed managed Godot editor in the developer-only root.
     project_root = tmp_path / "project"
     scripts_dir = copy_bootstrap(project_root)
+    make_project_python(project_root)
     developer_home = tmp_path / "elfienest-dev"
+    version_log = tmp_path / "godot-version.log"
     managed_godot = developer_home / "toolchains" / "godot" / "4.7" / "Godot"
-    make_executable(managed_godot, "#!/bin/bash\necho '4.7.1.stable'\n")
+    make_executable(
+        managed_godot,
+        "#!/bin/bash\n"
+        'printf \'%s\\n\' "$*" >> "$GODOT_VERSION_LOG"\n'
+        "echo '4.7.1.stable'\n",
+    )
 
     # When: the bootstrap helper resolves its Godot toolchain a second time.
     result = subprocess.run(
@@ -341,6 +349,7 @@ def test_bootstrap_reuses_a_matching_managed_godot_toolchain(tmp_path: Path) -> 
         env={
             **os.environ,
             "ELFIE_DEV_HOME": str(developer_home),
+            "GODOT_VERSION_LOG": str(version_log),
             "HOME": str(tmp_path / "home"),
             "PATH": "/usr/bin:/bin",
         },
@@ -354,6 +363,7 @@ def test_bootstrap_reuses_a_matching_managed_godot_toolchain(tmp_path: Path) -> 
     assert result.stdout.strip() == (
         f"{managed_godot}|{developer_home / 'godot-user-home'}"
     )
+    assert version_log.read_text(encoding="utf-8").splitlines() == ["--version"]
 
 
 def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
@@ -362,6 +372,7 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
     # Given: controlled official-download stand-ins and an empty developer toolchain.
     project_root = tmp_path / "project"
     scripts_dir = copy_bootstrap(project_root)
+    make_project_python(project_root)
     fake_bin = tmp_path / "fake-bin"
     make_executable(
         fake_bin / "curl",

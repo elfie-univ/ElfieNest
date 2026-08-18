@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 from app.orchestration.lifecycle import DoctorRepairResult, DoctorValidationResult
 from app.orchestration.lifecycle.ports import LifecycleLocalDataPort
+from infrastructure.persistence.layout.data_layout import final_root_layout
 
 
 class LocalDoctorAdapter:
@@ -13,34 +15,52 @@ class LocalDoctorAdapter:
         self,
         *,
         local_data: LifecycleLocalDataPort,
-        offline_validator: Callable[[], bool] | None = None,
+        offline_validator: Callable[[Path | None], bool] | None = None,
     ) -> None:
         self._local_data = local_data
         self._offline_validator = offline_validator
 
-    def repair_local_state(self) -> DoctorRepairResult:
-        home = self._local_data.home()
+    def repair_local_state(self, elfie_home: Path | None = None) -> DoctorRepairResult:
+        if elfie_home is None:
+            home = self._local_data.home()
+            logs_dir = self._local_data.logs_dir()
+            model_validation_dir = self._local_data.model_validation_dir()
+            runtime_validation_dir = self._local_data.runtime_validation_dir()
+            runtime_locks_dir = self._local_data.runtime_locks_dir()
+        else:
+            layout = final_root_layout(elfie_home.expanduser().resolve(strict=False))
+            home = layout.data_home
+            logs_dir = home / "logs"
+            model_validation_dir = layout.model_validations
+            runtime_validation_dir = layout.runtime_validations
+            runtime_locks_dir = layout.runtime_locks
         expected_dirs = (
             home,
             home / "assets",
             home / "assets" / "users",
             home / "configs",
             home / "elfies",
-            self._local_data.logs_dir(),
-            self._local_data.model_validation_dir(),
-            self._local_data.runtime_validation_dir(),
-            self._local_data.runtime_locks_dir(),
+            logs_dir,
+            model_validation_dir,
+            runtime_validation_dir,
+            runtime_locks_dir,
         )
         missing = any(not path.exists() for path in expected_dirs)
-        self._local_data.ensure_home()
+        if elfie_home is None:
+            self._local_data.ensure_home()
+        else:
+            for path in expected_dirs:
+                path.mkdir(mode=0o700, parents=True, exist_ok=True)
         return DoctorRepairResult(
             ("Created missing ~/.elfienest data directories",) if missing else ()
         )
 
-    def run_offline_validation(self) -> DoctorValidationResult:
+    def run_offline_validation(
+        self, elfie_home: Path | None = None
+    ) -> DoctorValidationResult:
         if self._offline_validator is None:
             return DoctorValidationResult(passed=False)
-        return DoctorValidationResult(passed=self._offline_validator())
+        return DoctorValidationResult(passed=self._offline_validator(elfie_home))
 
 
 __all__ = ("LocalDoctorAdapter",)

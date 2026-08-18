@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, StrictBool
+from pydantic import BaseModel, ConfigDict, StrictBool, StrictInt, StrictStr
 
 
 class HealthResponse(BaseModel):
@@ -14,6 +14,8 @@ class HealthResponse(BaseModel):
     engine_ready: StrictBool
     godot_web_ready: StrictBool
     godot_runtime_ready: StrictBool
+    instance_id: StrictStr = "unavailable"
+    generation: StrictInt = 0
 
 
 __all__ = ("HealthResponse",)

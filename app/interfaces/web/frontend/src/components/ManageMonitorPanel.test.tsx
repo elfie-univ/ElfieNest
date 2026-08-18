@@ -93,7 +93,7 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     renderPanel()
 
     expect(await screen.findByText("Services healthy")).toBeInTheDocument()
-    expect(await screen.findByText("1 subscriptions · 1 available models · 2 available Foods")).toBeInTheDocument()
+    expect(await screen.findByText("AI service details")).toBeInTheDocument()
     api.ownerRead.mockImplementation(async (path: string) => {
       if (path === "/api/v1/admin/nest/rooms") throw new Error("rooms unavailable")
       return monitorPayload(path, healthyFixture)
@@ -110,7 +110,7 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     mockSnapshot({ ...healthyFixture, noCoreModel: true, noFoods: true })
     renderPanel()
 
-    expect(await screen.findByText("Connected, no Food enabled")).toBeInTheDocument()
+    expect(await screen.findByText("Needs attention")).toBeInTheDocument()
     expect(screen.queryByText("No AI service configured")).not.toBeInTheDocument()
     expect(screen.getByText("Ollama")).toBeInTheDocument()
   })
@@ -132,7 +132,7 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     renderPanel()
 
     expect(await screen.findByText("0/1 models available")).toBeInTheDocument()
-    expect(screen.getByText("Partially available")).toBeInTheDocument()
+    expect(screen.getByText("AI service").closest("article")).toHaveTextContent("Needs attention")
     expect(screen.queryByText("1/1 models available")).not.toBeInTheDocument()
   })
 
@@ -150,6 +150,18 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     expect(systemEvents).not.toBeNull()
     expect(aiService).not.toBeNull()
     expect(systemEvents?.compareDocumentPosition(aiService as Node) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it("keeps Ollama first in the AI service details", async () => {
+    mockSnapshot({ ...healthyFixture, remoteSubscription: true })
+    renderPanel()
+
+    await screen.findByText("Volcengine Coding Plan")
+    const services = document.querySelector(".monitor-service-list")
+    expect(services).not.toBeNull()
+    const rows = [...(services as HTMLElement).querySelectorAll("li")]
+    expect(rows[0]).toHaveTextContent("Ollama")
+    expect(rows[1]).toHaveTextContent("Volcengine Coding Plan")
   })
 
   it("shows interstellar travel as enabled when the common Food has a usable remote subscription", async () => {
@@ -174,8 +186,9 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     mockSnapshot({ ...healthyFixture, emergencyDegraded: true })
     renderPanel()
 
-    expect(await screen.findByText("Emergency Food Fallback")).toBeInTheDocument()
-    expect(screen.queryByText("1 subscription · 1 available model · 2 available Foods")).not.toBeInTheDocument()
+    const foodRegion = await screen.findByRole("region", { name: "Food" })
+    expect(withinFood(foodRegion, "Emergency")).toHaveTextContent("Fallback")
+    expect(screen.getByText("AI service").closest("article")).toHaveTextContent("Needs attention")
   })
 
   it("keeps bed assignment notices out of system health", async () => {
@@ -201,7 +214,7 @@ function mockSnapshot(fixture: MonitorFixture): void {
 function monitorPayload(path: string, fixture: MonitorFixture): unknown {
   switch (path) {
     case "/api/health":
-      return { status: fixture.healthStatus, engine_ready: true, godot_web_ready: true, godot_runtime_ready: true }
+      return { status: fixture.healthStatus, engine_ready: true, godot_web_ready: true, godot_runtime_ready: true, instance_id: "test", generation: 1 }
     case "/api/v1/admin/runtime/status":
       return {
         status: fixture.runtimeStatus,

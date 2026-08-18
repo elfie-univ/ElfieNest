@@ -8,6 +8,7 @@ import {
 } from "electron";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 import {
@@ -322,6 +323,7 @@ async function startDesktop(): Promise<void> {
       return { accepted: true, ...controllerStatePayload() };
     },
     ENSURE_SERVER: async (payload) => {
+      assertConfiguredControllerTarget(payload);
       await ensureControllerRuntime();
       await assertControllerTarget(payload);
       return { accepted: true, ...controllerStatePayload() };
@@ -446,6 +448,7 @@ function controllerStatePayload(): Readonly<{
 async function assertControllerTarget(
   payload: Readonly<Record<string, unknown>>,
 ): Promise<void> {
+  assertConfiguredControllerTarget(payload);
   if (controllerStartPromise !== undefined) {
     await controllerStartPromise;
   }
@@ -453,12 +456,46 @@ async function assertControllerTarget(
   if (typeof expected !== "string" || expected.trim() === "") {
     throw new Error("Controller request is missing expected_data_home");
   }
+  const expectedPath = resolveControllerDataHome(expected);
   const actual = controllerStatePayload().data_home;
-  if (actual === undefined || resolve(actual) !== resolve(expected)) {
+  if (actual === undefined || resolveControllerDataHome(actual) !== expectedPath) {
     throw new Error(
-      `Controller data root mismatch: expected=${resolve(expected)} actual=${actual ?? "unknown"}`,
+      `Controller data root mismatch: expected=${expectedPath} actual=${actual ?? "unknown"}`,
     );
   }
+}
+
+function assertConfiguredControllerTarget(
+  payload: Readonly<Record<string, unknown>>,
+): void {
+  const expected = payload.expected_data_home;
+  if (typeof expected !== "string" || expected.trim() === "") {
+    throw new Error("Controller request is missing expected_data_home");
+  }
+  const configured = configuredControllerDataHome();
+  const expectedPath = resolveControllerDataHome(expected);
+  if (expectedPath !== configured) {
+    throw new Error(
+      `Controller configured data root mismatch: expected=${expectedPath} configured=${configured}`,
+    );
+  }
+}
+
+function configuredControllerDataHome(): string {
+  const configured = process.env["ELFIE_HOME"]?.trim();
+  const raw = configured === undefined || configured === ""
+    ? join(homedir(), ".elfienest")
+    : configured;
+  return resolveControllerDataHome(raw);
+}
+
+function resolveControllerDataHome(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed === "~") return homedir();
+  if (trimmed.startsWith("~/")) {
+    return resolve(homedir(), trimmed.slice(2));
+  }
+  return resolve(homedir(), trimmed);
 }
 
 async function ensureControllerRuntime(): Promise<void> {

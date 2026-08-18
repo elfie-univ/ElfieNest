@@ -13,13 +13,17 @@ from app.orchestration.lifecycle import (
 )
 
 
-def run_doctor(lifecycle: LifecycleFacade) -> int:
+def run_doctor(
+    lifecycle: LifecycleFacade,
+    *,
+    selected_home: Path | None = None,
+) -> int:
     """Run safe local repairs first, then offline runtime and config checks."""
     print("  🩺 Doctor diagnostics and auto-repair")
     print("  " + "=" * 45)
     print()
     try:
-        repairs = repair_local_runtime_state(lifecycle)
+        repairs = repair_local_runtime_state(lifecycle, selected_home=selected_home)
         if repairs.repaired:
             print("  🔧 Auto-repaired:")
             for item in repairs.repaired:
@@ -28,7 +32,11 @@ def run_doctor(lifecycle: LifecycleFacade) -> int:
         else:
             print("  ✅ Local structure needs no repair")
             print()
-        report = lifecycle.run_offline_validation()
+        report = (
+            lifecycle.run_offline_validation()
+            if selected_home is None
+            else lifecycle.run_offline_validation(selected_home)
+        )
     except (OSError, RuntimeError, ValueError) as error:
         print(f"  ❌ Doctor failed: {error}")
         return 1
@@ -40,9 +48,17 @@ def run_doctor(lifecycle: LifecycleFacade) -> int:
     return 0 if report.passed else 1
 
 
-def repair_local_runtime_state(lifecycle: LifecycleFacade) -> DoctorRepairResult:
+def repair_local_runtime_state(
+    lifecycle: LifecycleFacade,
+    *,
+    selected_home: Path | None = None,
+) -> DoctorRepairResult:
     """Repair local state that needs no network, keys, or user data deletion."""
-    return lifecycle.repair_local_state()
+    return (
+        lifecycle.repair_local_state()
+        if selected_home is None
+        else lifecycle.repair_local_state(selected_home)
+    )
 
 
 @dataclass(frozen=True)

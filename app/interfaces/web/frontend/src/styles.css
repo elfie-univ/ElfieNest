@@ -217,6 +217,11 @@
 .provider-card { display: grid; align-content: start; gap: 13px; min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); }
 .monitor-service--attention { border-left-color: #b67a3e; }
 .monitor-service--unavailable { border-left-color: var(--error-text); }
+.monitor-service--healthy { background: color-mix(in srgb, #dfefdf 72%, var(--surface-raised)); }
+.monitor-service--attention { background: color-mix(in srgb, #f7e7cc 72%, var(--surface-raised)); }
+.monitor-service--unavailable { background: color-mix(in srgb, #f6dddd 72%, var(--surface-raised)); }
+.monitor-service__status { white-space: nowrap; }
+.monitor-service__configure { color: var(--accent-hover); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
 .monitor-food-status { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
 .monitor-food-status h4 { margin: 0 0 9px; font-size: 14px; color: var(--text-muted); }
 .monitor-food-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }

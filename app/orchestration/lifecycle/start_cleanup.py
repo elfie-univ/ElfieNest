@@ -45,12 +45,9 @@ def cleanup_failed_start(
         return ServiceLifecycleResult(
             status="failed", pid=pid, error=CleanupFailedError(pid, str(error))
         )
-    if (
-        expected_birth_identity is not None
-        and (
-            not expected_birth_identity
-            or snapshot.birth_identity != expected_birth_identity
-        )
+    if expected_birth_identity is not None and (
+        not expected_birth_identity
+        or snapshot.birth_identity != expected_birth_identity
     ):
         return ServiceLifecycleResult(
             status="failed",

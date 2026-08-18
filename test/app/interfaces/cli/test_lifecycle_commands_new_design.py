@@ -45,11 +45,6 @@ def isolate_lifecycle_home(monkeypatch, tmp_path: Path) -> None:
         ),
     )
     monkeypatch.setattr(
-        LIFECYCLE,
-        "remember_data_home",
-        lambda *_args, **_kwargs: None,
-    )
-    monkeypatch.setattr(
         lifecycle_commands,
         "_prepare_frontend_for_launch",
         lambda *_args: None,
@@ -227,6 +222,9 @@ def test_packaged_start_uses_background_controller_without_starting_a_second_cor
     timeouts: list[float] = []
     monkeypatch.setenv("ELFIENEST_DESKTOP_BIN", "/Applications/ElfieNest")
     monkeypatch.delenv("ELFIENEST_CONTROLLER_CLIENT", raising=False)
+    monkeypatch.setattr(
+        lifecycle_commands, "_should_start_packaged_controller", lambda: True
+    )
 
     def start_desktop(*_args, **kwargs):
         calls.append(kwargs["background"])
@@ -250,6 +248,9 @@ def test_packaged_start_prints_the_published_web_console_url(
 ) -> None:
     monkeypatch.setenv("ELFIENEST_DESKTOP_BIN", "/Applications/ElfieNest")
     monkeypatch.delenv("ELFIENEST_CONTROLLER_CLIENT", raising=False)
+    monkeypatch.setattr(
+        lifecycle_commands, "_should_start_packaged_controller", lambda: True
+    )
     monkeypatch.setattr(
         LIFECYCLE,
         "start_desktop",
@@ -277,7 +278,7 @@ def test_web_command_does_not_show_mobile_access(monkeypatch) -> None:
     monkeypatch.setattr(
         elfienest,
         "open_web_console",
-        lambda _lifecycle: ServiceLifecycleResult(
+        lambda _lifecycle, **_kwargs: ServiceLifecycleResult(
             status="already_running", command=("--port", "15212")
         ),
     )
@@ -326,7 +327,7 @@ def test_web_after_packaged_start_uses_the_published_http_endpoint(
     monkeypatch.setattr(
         lifecycle_commands,
         "_web_is_healthy",
-        lambda _lifecycle, port: port == 18234,
+        lambda _lifecycle, port, **_kwargs: port == 18234,
     )
     monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
 
@@ -354,7 +355,7 @@ def test_mobile_command_uses_the_published_http_endpoint(monkeypatch) -> None:
     monkeypatch.setattr(
         elfienest,
         "show_mobile_access",
-        lambda _lifecycle, _operations, *, http_port, clear_terminal: (
+        lambda _lifecycle, _operations, *, http_port, clear_terminal, **_kwargs: (
             accesses.append((http_port, clear_terminal)) or 0
         ),
     )
@@ -363,7 +364,7 @@ def test_mobile_command_uses_the_published_http_endpoint(monkeypatch) -> None:
         elfienest._dispatch_command(Namespace(command="mobile"), LIFECYCLE)
 
     assert exit_signal.value.code == 0
-    assert accesses == [(18234, True)]
+    assert accesses == [(18234, False)]
 
 
 def test_packaged_start_rejects_data_home_before_controller_or_desktop_launch(
@@ -371,6 +372,9 @@ def test_packaged_start_rejects_data_home_before_controller_or_desktop_launch(
 ) -> None:
     monkeypatch.setenv("ELFIENEST_DESKTOP_BIN", "/Applications/ElfieNest")
     monkeypatch.delenv("ELFIENEST_CONTROLLER_CLIENT", raising=False)
+    monkeypatch.setattr(
+        lifecycle_commands, "_should_start_packaged_controller", lambda: True
+    )
     calls: list[str] = []
     monkeypatch.setattr(
         LIFECYCLE,
@@ -404,6 +408,9 @@ def test_packaged_start_surfaces_controller_failure(monkeypatch, capsys) -> None
     monkeypatch.setenv("ELFIENEST_DESKTOP_BIN", "/Applications/ElfieNest")
     monkeypatch.delenv("ELFIENEST_CONTROLLER_CLIENT", raising=False)
     monkeypatch.setattr(
+        lifecycle_commands, "_should_start_packaged_controller", lambda: True
+    )
+    monkeypatch.setattr(
         LIFECYCLE,
         "controller_request",
         lambda *_args, **_kwargs: {
@@ -423,6 +430,9 @@ def test_packaged_start_surfaces_controller_failure(monkeypatch, capsys) -> None
 def test_packaged_stop_waits_for_confirmed_offline_state(monkeypatch) -> None:
     monkeypatch.setenv("ELFIENEST_DESKTOP_BIN", "/Applications/ElfieNest")
     monkeypatch.delenv("ELFIENEST_CONTROLLER_CLIENT", raising=False)
+    monkeypatch.setattr(
+        lifecycle_commands, "_should_start_packaged_controller", lambda: True
+    )
     snapshots = iter((_stable_health(), _stopped_health()))
     monkeypatch.setattr(
         LIFECYCLE,
@@ -891,18 +901,34 @@ def test_dispatch_propagates_lifecycle_failure(monkeypatch) -> None:
     monkeypatch.setattr(
         elfienest,
         "stop_background_service",
-        lambda _lifecycle: ServiceLifecycleResult(status="failed"),
+        lambda _lifecycle, **_kwargs: ServiceLifecycleResult(status="failed"),
     )
 
     # When / Then
     with pytest.raises(SystemExit) as error:
-        elfienest.dispatch_command(Namespace(command="stop"))
+        elfienest._dispatch_command(
+            Namespace(command="stop"),
+            LIFECYCLE,
+            selected_home=Path("/tmp/selected"),
+        )
     assert error.value.code == 1
 
 
 def test_web_opens_the_tracked_service_port(monkeypatch) -> None:
     # Given
     opened: list[str] = []
+    runtime = RuntimeSnapshotV1(
+        instance_id="tracked",
+        generation=3,
+        tier=BackendTier.CORE_READY,
+        phase=RuntimePhase.CORE_READY,
+        desired_target=RuntimeTarget.NORMAL,
+        endpoints=(
+            EndpointSnapshot("http", "http", "127.0.0.1", 8100),
+            EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 8768),
+        ),
+    )
+    monkeypatch.setattr(LIFECYCLE, "runtime_snapshot", lambda *_args: runtime)
     monkeypatch.setattr(
         LIFECYCLE,
         "existing_service_command",
@@ -911,7 +937,7 @@ def test_web_opens_the_tracked_service_port(monkeypatch) -> None:
     monkeypatch.setattr(
         lifecycle_commands,
         "_web_is_healthy",
-        lambda _lifecycle, port=8000: port == 8100,
+        lambda _lifecycle, port=8000, **_kwargs: port == 8100,
     )
     monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
 
@@ -947,7 +973,7 @@ def test_web_uses_the_published_port_for_an_automatic_running_service(
     monkeypatch.setattr(
         lifecycle_commands,
         "_web_is_healthy",
-        lambda _lifecycle, port: port == 18234,
+        lambda _lifecycle, port, **_kwargs: port == 18234,
     )
     monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
 
@@ -956,41 +982,6 @@ def test_web_uses_the_published_port_for_an_automatic_running_service(
     assert result.status == "already_running"
     assert result.command == ("--port", "18234")
     assert opened == ["http://127.0.0.1:18234/"]
-
-
-def test_web_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
-    # Given
-    opened: list[str] = []
-    monkeypatch.setattr(
-        LIFECYCLE,
-        "start_desktop",
-        lambda *_args, **_kwargs: pytest.fail("web must not launch Desktop"),
-    )
-    monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
-    # The behavior under test is the Core launch path, not the host's real
-    # loopback occupants; keep this fixture independent of another checkout.
-    monkeypatch.setattr(LIFECYCLE, "default_port_statuses", lambda: ())
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "start_background_service",
-        lambda _lifecycle: ServiceLifecycleResult(
-            status="started",
-            command=("python", "scripts/serve.py", "--port", "8100"),
-        ),
-    )
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "_web_is_healthy",
-        lambda _lifecycle, port=8000: port == 8100,
-    )
-    monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
-
-    # When
-    result = lifecycle_commands.open_web_console(LIFECYCLE)
-
-    # Then
-    assert result.status == "already_running"
-    assert opened == ["http://127.0.0.1:8100/"]
 
 
 def test_stop_uses_core_when_desktop_pid_is_present(monkeypatch) -> None:
@@ -1040,25 +1031,6 @@ def test_status_does_not_report_desktop_lifecycle(monkeypatch, capsys) -> None:
     assert "Service Status" in capsys.readouterr().out
 
 
-def test_explicit_desktop_command_starts_desktop(monkeypatch) -> None:
-    # Given
-    calls: list[str] = []
-    monkeypatch.setattr(
-        LIFECYCLE,
-        "start_desktop",
-        lambda *args, **kwargs: (
-            calls.append("desktop") or ServiceLifecycleResult(status="started", pid=44)
-        ),
-    )
-
-    # When
-    result = lifecycle_commands.start_desktop_application(LIFECYCLE)
-
-    # Then
-    assert result.status == "started"
-    assert calls == ["desktop"]
-
-
 def test_product_start_options_enable_lan_by_default_and_allow_loopback() -> None:
     # Given
     default_start = Namespace(
@@ -1084,6 +1056,18 @@ def test_product_start_options_enable_lan_by_default_and_allow_loopback() -> Non
 def test_status_reports_the_tracked_service_ports(monkeypatch, capsys) -> None:
     # Given
     checked: list[tuple[int, str]] = []
+    health = RuntimeSnapshotV1(
+        instance_id="tracked",
+        generation=3,
+        tier=BackendTier.CORE_READY,
+        phase=RuntimePhase.CORE_READY,
+        desired_target=RuntimeTarget.NORMAL,
+        endpoints=(
+            EndpointSnapshot("http", "http", "127.0.0.1", 8100),
+            EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 8768),
+        ),
+    ).projection()
+    monkeypatch.setattr(LIFECYCLE, "runtime_projection", lambda *_args: health)
     monkeypatch.setattr(
         LIFECYCLE,
         "existing_service_command",
@@ -1113,12 +1097,6 @@ def test_status_reports_the_tracked_service_ports(monkeypatch, capsys) -> None:
         )
 
     monkeypatch.setattr(LIFECYCLE, "service_port_statuses", fake_statuses)
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "_supervisor_for",
-        lambda *_args, **_kwargs: _LaunchSupervisor(_stopped_health(), []),
-    )
-
     # When
     lifecycle_commands.show_service_status(LIFECYCLE)
 
@@ -1148,6 +1126,7 @@ def test_status_uses_published_ports_when_pid_receipt_is_missing(
     ).projection()
     checked: list[tuple[int, int]] = []
     monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
+    monkeypatch.setattr(LIFECYCLE, "runtime_projection", lambda *_args: health)
     monkeypatch.setattr(
         LIFECYCLE,
         "default_port_statuses",
@@ -1164,12 +1143,6 @@ def test_status_uses_published_ports_when_pid_receipt_is_missing(
             )
         ),
     )
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "_supervisor_for",
-        lambda *_args, **_kwargs: _LaunchSupervisor(health, []),
-    )
-
     # When
     lifecycle_commands.show_service_status(LIFECYCLE)
 
@@ -1183,7 +1156,7 @@ def test_status_uses_published_ports_when_pid_receipt_is_missing(
 
 def test_web_uses_published_http_endpoint_without_pid_receipt(monkeypatch) -> None:
     # Given: a healthy Runtime published a non-default HTTP endpoint.
-    health = RuntimeSnapshotV1(
+    runtime = RuntimeSnapshotV1(
         instance_id="published",
         generation=2,
         tier=BackendTier.CORE_READY,
@@ -1193,10 +1166,12 @@ def test_web_uses_published_http_endpoint_without_pid_receipt(monkeypatch) -> No
             EndpointSnapshot("http", "http", "127.0.0.1", 18234),
             EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 18235),
         ),
-    ).projection()
+    )
+    health = runtime.projection()
     opened: list[str] = []
     checked: list[int] = []
     monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
+    monkeypatch.setattr(LIFECYCLE, "runtime_snapshot", lambda *_args: runtime)
     monkeypatch.setattr(
         lifecycle_commands,
         "_supervisor_for",
@@ -1205,7 +1180,7 @@ def test_web_uses_published_http_endpoint_without_pid_receipt(monkeypatch) -> No
     monkeypatch.setattr(
         lifecycle_commands,
         "_web_is_healthy",
-        lambda _lifecycle, port=8000: checked.append(port) or port == 18234,
+        lambda _lifecycle, port=8000, **_kwargs: checked.append(port) or port == 18234,
     )
     monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
     monkeypatch.setattr(

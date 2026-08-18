@@ -125,10 +125,11 @@ export const manage = {
     readingStatus: "Loading runtime status...",
     notices: { recovered: "Runtime status recovered." },
     refresh: "Refresh status",
+    blockers: { noRemoteSubscription: "No valid remote model subscription" },
     interstellar: { reading: "Loading", title: "Interstellar travel", unavailableDetail: "Please provide at least one valid model subscription", status: { enabled: "Enabled", unavailable: "Not enabled" } },
     foodStates: { degraded: "Fallback", healthy: "Healthy", unavailable: "Unavailable", unconfigured: "Not configured", unknown: "Temporarily unavailable" },
     foods: { disabled: "Disabled", empty: "No Food is configured.", title: "Food" },
-    services: { availableModels: "{{count}} available models", connectionFailed: "Connection failed", connectionHealthy: "Connection healthy", connectionPending: "Connection pending", empty: "No AI service is configured.", localRunning: "Local Ollama is running", localStopped: "Local Ollama is not running", localUnknown: "Local Ollama status is unavailable", modelStats: "{{available}}/{{total}} models available", pendingSuffix: " · {{count}} pending", status: { attention: "Partially available", disabled: "Disabled", healthy: "Healthy", unavailable: "Unavailable", unknown: "Temporarily unavailable", unverified: "Temporarily unavailable" } },
+    services: { availableModels: "{{count}} available models", configureSeparator: ", ", configureSubscription: "Configure subscription", connectionFailed: "Connection failed", connectionHealthy: "Connection healthy", connectionPending: "Connection pending", empty: "No AI service is configured.", localRunning: "Local Ollama is running", localStopped: "Local Ollama is not running", localUnknown: "Local Ollama status is unavailable", modelStats: "{{available}}/{{total}} models available", pendingSuffix: " · {{count}} pending", remoteModels: "Model subscriptions", status: { attention: "Partially available", disabled: "Disabled", healthy: "Healthy", unavailable: "Unavailable", unknown: "Temporarily unavailable", unverified: "Temporarily unavailable" } },
   },
   systemSettings: {
     actions: { collapseAdvanced: "Collapse advanced settings", expandAdvanced: "Expand advanced settings", refresh: "Reload", saveAdvanced: "Save advanced settings", saveQuota: "Save default quota" },

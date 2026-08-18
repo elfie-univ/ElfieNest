@@ -1,47 +1,30 @@
 #!/bin/bash
 
-# Arguments
-SCRIPT_TO_RUN=$1
+set -euo pipefail
 
-if [ -n "$SCRIPT_TO_RUN" ]; then
-    echo "Running Godot script: $SCRIPT_TO_RUN"
-    # Assuming Godot project is in the assets folder or we run it from the script's directory
-    # Godot requires running from the project root or specifying it.
-    # Let's search upward from the script for project.godot
-    SCRIPT_DIR=$(dirname "$SCRIPT_TO_RUN")
-    PROJECT_DIR=$SCRIPT_DIR
-    while [ "$PROJECT_DIR" != "/" ]; do
-        if [ -f "$PROJECT_DIR/project.godot" ]; then
-            break
-        fi
-        PROJECT_DIR=$(dirname "$PROJECT_DIR")
-    done
-
-    if [ "$PROJECT_DIR" == "/" ]; then
-        echo "Could not find project.godot automatically. Attempting to run from ElfieNest/godot directory."
-        PROJECT_DIR="/Users/zhenli/git-code/ElfieNest/godot"
-    fi
-
-    cd "$PROJECT_DIR" || exit 1
-    echo "Executing in project directory: $PROJECT_DIR"
-    godot --headless -s "$SCRIPT_TO_RUN"
-
-    if [ $? -ne 0 ]; then
-        echo "Error: Godot script execution failed!"
-        exit 1
-    fi
-    echo "Godot script execution finished."
+SCRIPT_TO_RUN="${1:-}"
+if [ -z "$SCRIPT_TO_RUN" ]; then
+    echo "Usage: $0 <validation-script>" >&2
+    exit 2
 fi
 
-echo "Activating Godot Editor..."
-osascript -e 'tell application "Godot" to activate'
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/../../../.." && pwd)
+PROJECT_DIR="$REPO_ROOT/godot_project"
+PYTHON_BIN="$REPO_ROOT/.venv/bin/python3"
 
-# Give the editor a moment to come to the foreground and potentially show the reload popup
-sleep 2
+if [ ! -x "$PYTHON_BIN" ]; then
+    echo "Controlled ElfieNest Python toolchain not found: $PYTHON_BIN" >&2
+    exit 2
+fi
+if [ ! -f "$PROJECT_DIR/project.godot" ]; then
+    echo "Godot project not found: $PROJECT_DIR" >&2
+    exit 2
+fi
 
-SCREENSHOT_PATH="/tmp/godot_preview.png"
-echo "Taking screenshot..."
-screencapture -x "$SCREENSHOT_PATH"
-
-echo "Screenshot successfully saved to $SCREENSHOT_PATH."
-echo "You can now use the 'view_file' tool to inspect it!"
+echo "Running one synchronous headless Godot validation: $SCRIPT_TO_RUN"
+exec "$PYTHON_BIN" \
+    "$REPO_ROOT/.agents/skills/godot-project-operator/scripts/godot_guard.py" \
+    validate \
+    --project "$PROJECT_DIR" \
+    --script "$SCRIPT_TO_RUN"

@@ -7,10 +7,7 @@ import argparse
 import hashlib
 import json
 import os
-import platform
-import re
 import shutil
-import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +18,13 @@ from infrastructure.godot.artifacts.species_package_validation import (
     GodotSpeciesValidationRunner,
     SpeciesPackageValidationError,
     validate_source_species_packages,
+)
+from infrastructure.godot.runner import (
+    find_godot,
+    forward_output,
+    godot_version,
+    project_version,
+    run_headless,
 )
 from infrastructure.persistence.configuration.species import load_species_catalog
 
@@ -139,6 +143,7 @@ def _export_runtime(
             godot_project=GODOT_PROJECT,
             godot_runner=godot_runner,
             godot_binary=binary,
+            godot_version=actual_version,
         )
     except SpeciesPackageValidationError as error:
         print(f"❌ Species package validation failed: {error}")
@@ -173,24 +178,25 @@ def _export_runtime_locked(
     shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True, exist_ok=True)
     entry = staging / ENTRY_NAME
-    command = [
-        str(binary),
-        "--headless",
-        "--path",
-        str(GODOT_PROJECT),
-        "--export-release",
-        PRESET_NAME,
-        str(entry),
-    ]
     print(f"🔨 Building Web Runtime with Godot {actual_version or 'unknown'}...")
-    result = subprocess.run(command, cwd=GODOT_PROJECT, check=False)
-    if result.returncode != 0:
+    result = run_headless(
+        binary,
+        GODOT_PROJECT,
+        ("--export-release", PRESET_NAME, str(entry)),
+        timeout_seconds=600.0,
+        godot_version=actual_version,
+        purpose="web-runtime-export",
+    )
+    forward_output(result)
+    if result.exit_code != 0:
         shutil.rmtree(staging, ignore_errors=True)
+        if result.crashed:
+            print("❌ Godot crashed during Web Runtime export; no retry was attempted.")
         print(
             "❌ Godot Web export failed. Confirm that matching Web Export Templates are installed."
         )
         _print_template_hint(required_version or actual_version or "matching")
-        return result.returncode or 1
+        return result.exit_code
 
     patch_web_entry_for_lan_http(entry)
 
@@ -437,47 +443,15 @@ class _build_lock:
 
 
 def _find_godot(explicit: Optional[Path]) -> Optional[Path]:
-    candidates: List[Path] = []
-    if explicit is not None:
-        candidates.append(explicit.expanduser())
-    environment_binary = os.environ.get("GODOT_BIN", "").strip()
-    if environment_binary:
-        candidates.append(Path(environment_binary).expanduser())
-    for name in ("godot4", "godot", "Godot", "godot4.exe", "godot.exe"):
-        found = shutil.which(name)
-        if found:
-            candidates.append(Path(found))
-    if platform.system() == "Darwin":
-        candidates.extend(
-            [
-                Path("/Applications/Godot.app/Contents/MacOS/Godot"),
-                Path.home() / "Applications/Godot.app/Contents/MacOS/Godot",
-                Path.home() / "Downloads/Godot.app/Contents/MacOS/Godot",
-            ]
-        )
-    for candidate in candidates:
-        resolved = candidate.resolve()
-        if resolved.is_file() and os.access(resolved, os.X_OK):
-            return resolved
-    return None
+    return find_godot(explicit)
 
 
 def _project_version() -> Optional[str]:
-    text = (GODOT_PROJECT / "project.godot").read_text(encoding="utf-8")
-    match = re.search(r'config/features=PackedStringArray\("(\d+\.\d+)"', text)
-    return match.group(1) if match else None
+    return project_version(GODOT_PROJECT)
 
 
 def _godot_version(binary: Path) -> Optional[str]:
-    result = subprocess.run(
-        [str(binary), "--version"],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=15,
-    )
-    match = re.search(r"(\d+\.\d+)", result.stdout + result.stderr)
-    return match.group(1) if match else None
+    return godot_version(binary)
 
 
 def _print_template_hint(version: str) -> None:

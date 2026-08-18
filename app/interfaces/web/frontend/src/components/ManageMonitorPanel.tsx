@@ -61,6 +61,7 @@ export function ManageMonitorPanel() {
   const health = resolveHealth(snapshot, systemIssues)
   const modelSummary = summarizeModels(snapshot)
   const aiService = summarizeAiService(snapshot, modelSummary)
+  const aiCardState = aiService === null ? null : aiServiceDisplayState(aiService, snapshot)
   const unassignedCount = countUnassignedElfies(snapshot)
   const authRequired = snapshot?.authRequired === true
   const allSourcesFailed = !authRequired && snapshot?.failedSources.length === MONITOR_SOURCE_KEYS.length
@@ -75,7 +76,7 @@ export function ManageMonitorPanel() {
     {issueAttention && <PersistentStatus kind="warning" message={t("runtimeMonitor.health.pending")} />}
     <div className="monitor-metrics">
       <Metric label={t("runtimeMonitor.cards.health")} value={t(`runtimeMonitor.health.${health}`)} detail={healthDetail(health, systemIssues, snapshot, t)} state={healthMetricState(health)} />
-      <Metric label={t("runtimeMonitor.cards.aiService")} value={aiService === null ? "—" : t(`runtimeMonitor.aiService.${aiService.state}`)} detail={aiService === null ? t("runtimeMonitor.cards.reading") : aiServiceDetail(aiService, t)} state={aiService === null ? "neutral" : aiServiceMetricState(aiService.state)} />
+      <Metric label={t("runtimeMonitor.cards.aiService")} value={aiCardState === null ? "—" : t(`runtimeMonitor.aiService.${aiCardState}`)} detail={aiService === null ? t("runtimeMonitor.cards.reading") : aiServiceCardDetail(aiService, snapshot, t)} state={aiCardState === null ? "neutral" : aiServiceMetricState(aiCardState)} />
       <Metric label={t("runtimeMonitor.cards.users")} value={snapshot?.users === null || snapshot === null ? "—" : String(snapshot.users.length)} detail={snapshot?.users === null || snapshot === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.usersDetail", { count: onlineUsers(snapshot.users) })} state="neutral" />
       <Metric label={t("runtimeMonitor.cards.elfies")} value={snapshot?.elfies === null || snapshot === null ? "—" : String(snapshot.elfies.length)} detail={snapshot?.elfies === null || snapshot === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.elfiesDetail", { online: onlineElfies(snapshot.elfies), unassigned: unassignedCount ?? "—" })} state="neutral" />
     </div>
@@ -90,7 +91,10 @@ export function ManageMonitorPanel() {
       </section>
       <section className="monitor-module">
         <h3>{t("runtimeMonitor.modules.services")}</h3>
-        {snapshot?.providers === null || snapshot === null ? <p className="empty">{t("runtimeMonitor.moduleUnavailable")}</p> : operationalProviders(snapshot.providers).length === 0 ? <p className="empty">{t("runtimeMonitor.services.empty")}</p> : <ul className="monitor-service-list">{operationalProviders(snapshot.providers).map((provider) => <ServiceRow key={`${provider.catalog_id}-${provider.alias}`} provider={provider} ollama={snapshot.ollama} t={t} />)}</ul>}
+        {snapshot?.providers === null || snapshot === null ? <p className="empty">{t("runtimeMonitor.moduleUnavailable")}</p> : <ul className="monitor-service-list">
+          {operationalProviders(snapshot.providers).map((provider) => <ServiceRow key={`${provider.catalog_id}-${provider.alias}`} provider={provider} ollama={snapshot.ollama} t={t} />)}
+          {!operationalProviders(snapshot.providers).some((provider) => provider.catalog_id !== "ollama") ? <RemoteModelsUnavailableRow t={t} /> : null}
+        </ul>}
         <FoodStatusGrid foods={snapshot?.foods ?? null} locale={currentLocale(i18n)} t={t} />
         <InterstellarStatus snapshot={snapshot} t={t} />
       </section>
@@ -262,7 +266,22 @@ function aiServiceDetail(summary: AiServiceSummary, t: TFunction<"manage">): str
   } else if (summary.pendingFoods > 0) {
     issues.push(t("runtimeMonitor.cards.aiServiceIssuePendingFoods", { count: summary.pendingFoods }))
   }
-  return t("runtimeMonitor.cards.aiServiceDetail", { issues: issues.join(" · ") || t(`runtimeMonitor.aiService.${summary.state}`) })
+  return t("runtimeMonitor.cards.aiServiceDetail", { issues: issues[0] || t(`runtimeMonitor.aiService.${summary.state}`) })
+}
+
+function aiServiceCardDetail(summary: AiServiceSummary, snapshot: MonitorSnapshot | null, t: TFunction<"manage">): string {
+  if (summary.state === "unknown") return t("runtimeMonitor.cards.reading")
+  if (!hasRemoteSubscription(snapshot)) return t("runtimeMonitor.blockers.noRemoteSubscription")
+  return aiServiceDetail(summary, t)
+}
+
+function aiServiceDisplayState(summary: AiServiceSummary, snapshot: MonitorSnapshot | null): AiServiceState {
+  if (summary.state === "unknown") return "unknown"
+  return hasRemoteSubscription(snapshot) ? summary.state : "attention"
+}
+
+function hasRemoteSubscription(snapshot: MonitorSnapshot | null): boolean {
+  return snapshot?.providers?.some((provider) => provider.enabled && !provider.archived && provider.catalog_id !== "ollama") === true
 }
 
 function foodStateLabel(state: FoodState, t: TFunction<"manage">): string {
@@ -393,6 +412,12 @@ function ServiceRow({ ollama, provider, t }: { readonly ollama: MonitorOllama | 
   </li>
 }
 
+function RemoteModelsUnavailableRow({ t }: { readonly t: TFunction<"manage"> }) {
+  return <li className="monitor-service monitor-service--unavailable">
+    <div className="monitor-service__heading"><strong>{t("runtimeMonitor.services.remoteModels")}</strong><span className="monitor-service__status">{t("runtimeMonitor.services.status.unavailable")}{t("runtimeMonitor.services.configureSeparator")}<a className="monitor-service__configure" href="/manage?section=providers" onClick={(event) => { event.preventDefault(); window.location.assign("/manage?section=providers") }}>{t("runtimeMonitor.services.configureSubscription")}</a></span></div>
+  </li>
+}
+
 function FoodStatusGrid({ foods, locale, t }: { readonly foods: readonly MonitorFood[] | null; readonly locale: ReturnType<typeof currentLocale>; readonly t: TFunction<"manage"> }) {
   const visible = visibleMonitorFoods(foods, locale)
   return <section aria-label={t("runtimeMonitor.foods.title")} className="monitor-food-status">
@@ -436,7 +461,9 @@ function visibleMonitorFoods(foods: readonly MonitorFood[] | null, locale: Retur
 }
 
 function operationalProviders(providers: readonly MonitorProvider[]): readonly MonitorProvider[] {
-  return providers.filter((provider) => provider.enabled && !provider.archived)
+  return providers
+    .filter((provider) => provider.enabled && !provider.archived)
+    .sort((left, right) => Number(right.catalog_id === "ollama") - Number(left.catalog_id === "ollama"))
 }
 
 function modelCountsForProvider(provider: MonitorProvider, ollama: MonitorOllama | null): UnifiedModelCounts {

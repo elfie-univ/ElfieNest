@@ -7,6 +7,7 @@ secret stores.
 
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 
 from infrastructure.persistence.configuration.bundled_defaults import load_tool_defaults
@@ -35,6 +36,8 @@ from infrastructure.tools.web_search.search import WebSearchPlugin
 def build_capability_adapters(
     config_path: Path,
     secret_path: Path | None,
+    *,
+    data_home: Path | None = None,
 ) -> tuple[
     RuntimeCapabilitiesAdapter,
     ToolCapabilitySecretAdapter,
@@ -47,6 +50,12 @@ def build_capability_adapters(
     )
     tool_defaults = load_tool_defaults()
 
+    config_loader = (
+        load_model_execution_config
+        if data_home is None
+        else partial(load_model_execution_config, str(data_home))
+    )
+
     return (
         RuntimeCapabilitiesAdapter(
             tool_path,
@@ -58,13 +67,13 @@ def build_capability_adapters(
             write=set_tool_secret,
         ),
         DirectCapabilityValidationAdapter(
-            config_loader=load_model_execution_config,
+            config_loader=config_loader,
             runner_factory=lambda config: DirectToolValidationRunner(
                 config,
                 search_plugin=WebSearchPlugin.from_model_execution_policy(
                     config.runtime_policy,
                     defaults=tool_defaults,
-                    secret_resolver=resolve_secret,
+                    secret_resolver=(lambda name: resolve_secret(name, secret_path)),
                 ),
             ),
         ),

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import subprocess
-import time
 from pathlib import Path
+from typing import Optional
 
 from infrastructure.godot.artifacts.species_package_validation import (
     GodotSpeciesValidationResult,
 )
+from infrastructure.godot.runner import run_headless
 
 _SPECIES_VALIDATION_SCRIPT = "scripts/test/test_species_catalog.gd"
 _PROJECT_IMPORT_PHASE = "project-import"
@@ -26,33 +26,20 @@ def _run_godot_phase(
     command: tuple[str, ...],
     godot_project: Path,
     timeout_seconds: float,
-    phase: str,
+    godot_version: Optional[str] = None,
 ) -> GodotSpeciesValidationResult:
-    try:
-        result = subprocess.run(
-            command,
-            cwd=godot_project,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout_seconds,
-        )
-    except subprocess.TimeoutExpired as error:
-        return GodotSpeciesValidationResult(
-            1,
-            _text_output(error.stdout),
-            _text_output(error.stderr) or str(error),
-            phase=phase,
-        )
-    except OSError as error:
-        return GodotSpeciesValidationResult(
-            1,
-            "",
-            str(error),
-            phase=phase,
-        )
+    """Run the Godot source-project contract through the script-owned boundary."""
+
+    result = run_headless(
+        godot_binary,
+        godot_project,
+        ("--script", _SPECIES_VALIDATION_SCRIPT),
+        timeout_seconds=timeout_seconds,
+        godot_version=godot_version,
+        purpose="species-package-validation",
+    )
     return GodotSpeciesValidationResult(
-        result.returncode,
+        result.exit_code,
         result.stdout,
         result.stderr,
         phase=phase,

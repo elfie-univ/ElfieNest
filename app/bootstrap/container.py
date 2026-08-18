@@ -366,6 +366,7 @@ def build_application_container(
         build_capability_adapters(
             config_path,
             None if data_home is None else final_root_layout(data_home).auth_env,
+            data_home=data_home,
         )
     )
     return ApplicationContainer(

@@ -204,7 +204,7 @@ exit 1
     assert "interpreter version error" not in result.stderr
 
 
-def test_existing_cli_help_keeps_setup_and_migration_commands() -> None:
+def test_source_cli_help_matches_current_command_surface() -> None:
     # Given
     python_cli = PROJECT_ROOT / "scripts" / "elfienest.py"
 
@@ -219,6 +219,16 @@ def test_existing_cli_help_keeps_setup_and_migration_commands() -> None:
 
     # Then
     assert result.returncode == 0
-    assert "setup" in result.stdout
+    assert "serve" in result.stdout
+    assert "start" in result.stdout
+    assert "restart" in result.stdout
+    assert "stop" in result.stdout
+    assert "config" in result.stdout
+    assert "owner" in result.stdout
+    assert "doctor" in result.stdout
+    assert "db" in result.stdout
+    assert "version" in result.stdout
     assert "mobile" in result.stdout
-    assert "uninstall" in result.stdout
+    assert "setup" not in result.stdout
+    assert "uninstall" not in result.stdout
+    assert "desktop" not in result.stdout

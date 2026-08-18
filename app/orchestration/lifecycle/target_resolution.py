@@ -74,6 +74,7 @@ class TargetResolutionRequest:
     explicit_home: Optional[str] = None
     session_home: Optional[Path] = None
     session_display_home: Optional[str] = None
+    session_eligible: bool = True
     default_home: Optional[Path] = None
     default_eligible: bool = False
     candidates: Tuple[TargetCandidate, ...] = ()
@@ -115,9 +116,8 @@ class TargetSelectionRequired(TargetResolutionError):
     code = "selection_required"
 
     def __str__(self) -> str:
-        return (
-            f"{self.command} 需要选择数据目录；可选任务: "
-            + ", ".join(str(candidate.home) for candidate in self.candidates)
+        return f"{self.command} 需要选择数据目录；可选任务: " + ", ".join(
+            str(candidate.home) for candidate in self.candidates
         )
 
 
@@ -172,7 +172,6 @@ def command_target_policy(command: str) -> CommandTargetPolicy:
         return CommandTargetPolicy(False, DefaultTargetPolicy.RUNNING)
     if command in {
         "config",
-        "setup",
         "owner",
         "db",
     }:
@@ -203,9 +202,9 @@ def resolve_installed_data_home(
 def resolve_source_default(source_root: Path) -> Path:
     """Resolve the checkout-local source default without ambient env input."""
 
-    return (source_root.expanduser().resolve(strict=False) / ".elfienest.local").resolve(
-        strict=False
-    )
+    return (
+        source_root.expanduser().resolve(strict=False) / ".elfienest.local"
+    ).resolve(strict=False)
 
 
 def resolve_source_explicit_home(value: str, *, invoking_cwd: Path) -> Path:
@@ -215,7 +214,7 @@ def resolve_source_explicit_home(value: str, *, invoking_cwd: Path) -> Path:
 
 
 def resolve_target(request: TargetResolutionRequest) -> ResolvedTaskTarget:
-    """Select exactly one task target from already-collected facts."""
+    """Select exactly one task target using the collected facts."""
 
     policy = request.policy
     if request.mode is EntrypointMode.INSTALLED:
@@ -244,7 +243,7 @@ def resolve_target(request: TargetResolutionRequest) -> ResolvedTaskTarget:
             request.explicit_home,
         )
 
-    if request.session_home is not None:
+    if request.session_home is not None and request.session_eligible:
         return ResolvedTaskTarget(
             request.session_home.resolve(strict=False),
             request.mode,

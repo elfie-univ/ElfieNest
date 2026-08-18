@@ -12,6 +12,8 @@ const HealthSchema = z.object({
   engine_ready: z.boolean(),
   godot_web_ready: z.boolean(),
   godot_runtime_ready: z.boolean(),
+  instance_id: z.string(),
+  generation: z.number().int(),
 }).strict()
 
 const ModelExecutionEventSchema = z.object({

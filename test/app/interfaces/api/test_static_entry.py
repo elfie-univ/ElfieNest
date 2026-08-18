@@ -76,5 +76,7 @@ def test_health_does_not_run_full_godot_bundle_integrity_check(
         "engine_ready": False,
         "godot_web_ready": False,
         "godot_runtime_ready": False,
+        "instance_id": "unavailable",
+        "generation": 0,
     }
     inspect_bundle.assert_not_called()

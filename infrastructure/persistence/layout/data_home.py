@@ -205,6 +205,11 @@ def get_db_path() -> Path:
     return get_final_root_layout().nest_database
 
 
+def get_db_path_for_home(data_home: Path) -> Path:
+    """Return the Nest database below an already selected data root."""
+    return final_root_layout(data_home.expanduser().resolve(strict=False)).nest_database
+
+
 def data_home_from_db_path(db_path: Union[str, Path]) -> Path:
     """Resolve the selected product root associated with one Nest database."""
     if str(db_path) == ":memory:":

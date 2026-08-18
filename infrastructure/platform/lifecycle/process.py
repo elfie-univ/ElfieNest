@@ -123,7 +123,9 @@ class DefaultProcessInspector:
                 text=True,
             )
         except (OSError, subprocess.SubprocessError) as error:
-            raise OSError(f"cannot read process birth identity for PID {pid}") from error
+            raise OSError(
+                f"cannot read process birth identity for PID {pid}"
+            ) from error
         value = completed.stdout.strip()
         if not value:
             raise OSError(f"process birth identity is unavailable for PID {pid}")
@@ -308,11 +310,7 @@ class LocalServiceProcessAdapter:
 
     def inspect(self, pid: int) -> ProcessSnapshot:
         birth_reader = getattr(self._inspector, "birth_identity", None)
-        birth_identity = (
-            birth_reader(pid)
-            if callable(birth_reader)
-            else None
-        )
+        birth_identity = birth_reader(pid) if callable(birth_reader) else None
         return ProcessSnapshot(
             pid=pid,
             cwd=self._inspector.cwd(pid),
