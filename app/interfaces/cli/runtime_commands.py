@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import sys
 from importlib import metadata
 from pathlib import Path
@@ -8,7 +7,6 @@ from pathlib import Path
 from app.features.operations import (
     BackupDatabasesCommand,
     GetUsageStatsQuery,
-    ListActiveSessionsQuery,
     ListTableCountsQuery,
     OperationsError,
     OperationsFacade,
@@ -38,89 +36,6 @@ def show_status(operations: OperationsFacade, lifecycle: LifecycleFacade) -> Non
     except OperationsError:
         print("  ❌ Database not initialized")
 
-    print()
-
-
-def show_stats(operations: OperationsFacade) -> None:
-    print("  📈 Usage Statistics")
-    print("  " + "=" * 45)
-    print()
-
-    try:
-        stats = operations.get_usage_stats(GetUsageStatsQuery())
-    except OperationsError as e:
-        print(f"  ❌ Cannot read statistics: {e}")
-        print()
-        return
-
-    print("  【User Statistics】")
-    print(f"    Total users: {stats.user_count}")
-    print(f"    Owners: {stats.owner_count}")
-    print(f"    Regular users: {stats.user_count - stats.owner_count}")
-    print()
-
-    print("  【Elfie Statistics】")
-    print(f"    Total elfies: {stats.elfie_count}")
-    for row in stats.species_stats:
-        print(f"    {row.species_id}: {row.count}")
-    print()
-
-    print("  【Session Statistics】")
-    print(f"    Active sessions: {stats.session_count}")
-    print()
-
-
-def show_sessions(operations: OperationsFacade) -> None:
-    print("  👥 Session Management")
-    print("  " + "=" * 45)
-    print()
-
-    try:
-        sessions = operations.list_active_sessions(ListActiveSessionsQuery()).items
-    except OperationsError as e:
-        print(f"  ❌ Cannot read sessions: {e}")
-        print()
-        return
-
-    if sessions:
-        print("  【Online Accounts】")
-        for session in sessions:
-            token_short = session.token_hash[:8] + "..."
-            print(
-                f"    • {session.account_id} "
-                f"(token: {token_short}, expires: {session.expires_at})"
-            )
-    else:
-        print("  No active sessions")
-
-    print()
-
-
-def show_logs() -> None:
-    print("  📝 Log Viewer")
-    print("  " + "=" * 45)
-    print()
-
-    log_files = [
-        "/tmp/serve.log",
-        "/tmp/serve_full.log",
-        "/tmp/final_serve.log",
-    ]
-
-    for log_file in log_files:
-        if os.path.exists(log_file):
-            print(f"  【{log_file}】")
-            try:
-                with open(log_file) as file:
-                    lines = file.readlines()[-20:]
-            except OSError:
-                print("    Cannot read")
-            else:
-                for line in lines:
-                    print(f"    {line.rstrip()}")
-            print()
-
-    print("  💡 View full logs: tail -100 /tmp/serve.log")
     print()
 
 

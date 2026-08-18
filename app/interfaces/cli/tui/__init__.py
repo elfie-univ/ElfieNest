@@ -1,6 +1,6 @@
 """TUI entry points loaded lazily to keep command modules acyclic."""
 
-__all__ = ["run_config_tui", "run_setup_wizard"]
+__all__ = ["run_config_tui"]
 
 
 def __getattr__(name: str) -> object:
@@ -8,8 +8,4 @@ def __getattr__(name: str) -> object:
         from .config_app import run_config_tui
 
         return run_config_tui
-    if name == "run_setup_wizard":
-        from .setup_app import run_setup_wizard
-
-        return run_setup_wizard
     raise AttributeError(name)
