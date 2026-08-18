@@ -46,6 +46,13 @@ def _invocation_records(stderr: str) -> list[dict[str, object]]:
     ]
 
 
+@pytest.fixture(autouse=True)
+def _allow_fake_godot_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep fake-process tests independent from the enclosing test sandbox."""
+
+    monkeypatch.setattr(runner, "_ensure_host_execution_available", lambda: None)
+
+
 def test_version_and_headless_validation_use_one_observable_process_boundary(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -108,6 +115,38 @@ def test_crash_is_failed_once_and_is_not_retried(
     stderr = capsys.readouterr().err
     assert "GODOT_CRASH: one invocation failed; no retry was attempted." in stderr
     assert _invocation_records(stderr)[-1]["status"] == "crashed"
+
+
+def test_unavailable_host_does_not_start_godot(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    binary = _fake_godot(tmp_path)
+    project = tmp_path / "godot_project"
+    project.mkdir()
+    count_file = tmp_path / "invocations.txt"
+    environment = dict(os.environ)
+    environment["FAKE_GODOT_COUNT"] = str(count_file)
+    monkeypatch.setattr(
+        runner,
+        "_ensure_host_execution_available",
+        lambda: "ps: Operation not permitted",
+    )
+
+    result = run_headless(
+        binary,
+        project,
+        ("--script", "res://check.gd"),
+        purpose="test-host-blocked",
+        env=environment,
+    )
+
+    assert result.exit_code == 126
+    assert result.host_blocked is True
+    assert not count_file.exists()
+    stderr = capsys.readouterr().err
+    assert "GODOT_HOST_UNAVAILABLE" in stderr
+    assert _invocation_records(stderr)[-1]["status"] == "blocked"
+    assert _invocation_records(stderr)[-1]["started"] is False
 
 
 def test_timeout_is_failed_without_a_second_process(

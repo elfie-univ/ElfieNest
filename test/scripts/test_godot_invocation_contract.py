@@ -11,6 +11,19 @@ def test_normal_submit_gate_has_no_godot_startup_entrypoint() -> None:
     assert "build_godot" not in gate
 
 
+def test_host_validation_entrypoint_is_explicit_and_single_shot() -> None:
+    entrypoint = (PROJECT_ROOT / "scripts" / "godot_host_validate.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "godot_guard.py" in entrypoint
+    assert "status" in entrypoint
+    assert "validate" in entrypoint
+    assert "doctor" not in entrypoint
+    assert "open -n" not in entrypoint
+    assert "retry" not in entrypoint.lower()
+
+
 def test_toolchain_callers_delegate_project_execution_to_shared_runner() -> None:
     source_paths = (
         PROJECT_ROOT / "scripts" / "godot_species_validation.py",

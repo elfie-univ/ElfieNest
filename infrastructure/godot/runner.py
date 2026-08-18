@@ -30,6 +30,7 @@ _CRASH_EXIT_CODES = frozenset(
     128 + value
     for value in (signal.SIGABRT, signal.SIGBUS, signal.SIGILL, signal.SIGSEGV)
 )
+_HOST_UNAVAILABLE_EXIT_CODE = 126
 
 
 def _extract_version(output: str) -> Optional[str]:
@@ -59,11 +60,14 @@ class GodotExecutionResult:
     duration_ms: int
     crashed: bool
     timed_out: bool
+    host_blocked: bool = False
 
     @property
     def exit_code(self) -> int:
         """Return a stable positive process code for callers and shell gates."""
 
+        if self.host_blocked:
+            return _HOST_UNAVAILABLE_EXIT_CODE
         if self.crashed:
             return 1
         if self.timed_out:
@@ -183,6 +187,34 @@ def forward_output(result: GodotExecutionResult) -> None:
         sys.stderr.flush()
 
 
+def _ensure_host_execution_available() -> Optional[str]:
+    """Refuse to launch Godot when the host cannot inspect its processes.
+
+    Codex's restricted sandbox can resolve the Godot binary but cannot inspect
+    the process table.  A direct build/bootstrap caller must fail closed too;
+    otherwise it could bypass ``godot_guard`` and launch the native engine in
+    the sandbox.  This probe never starts Godot.
+    """
+
+    if os.name == "nt":
+        command = ("tasklist", "/fo", "csv", "/nh")
+    else:
+        command = ("ps", "-axo", "pid=,rss=,command=")
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as error:
+        return f"cannot inspect the host process table: {error}"
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        return detail or "cannot inspect the host process table"
+    return None
+
+
 def _run_once(
     command: Tuple[str, ...],
     *,
@@ -195,6 +227,31 @@ def _run_once(
     parent_pid = os.getpid()
     parent_command = _parent_command()
     started = time.monotonic()
+
+    host_error = _ensure_host_execution_available()
+    if host_error is not None:
+        result = GodotExecutionResult(
+            returncode=_HOST_UNAVAILABLE_EXIT_CODE,
+            stdout="",
+            stderr=host_error,
+            command=command,
+            project=project,
+            godot_version=godot_version,
+            parent_pid=parent_pid,
+            parent_command=parent_command,
+            duration_ms=int((time.monotonic() - started) * 1000),
+            crashed=False,
+            timed_out=False,
+            host_blocked=True,
+        )
+        _emit_evidence(result, purpose=purpose)
+        print(
+            "GODOT_HOST_UNAVAILABLE: no Godot process was started; "
+            f"run this validation from an authorized host Terminal ({host_error}).",
+            file=sys.stderr,
+        )
+        return result
+
     stdout = ""
     stderr = ""
     timed_out = False
@@ -242,6 +299,14 @@ def _run_once(
 
 
 def _emit_evidence(result: GodotExecutionResult, *, purpose: str) -> None:
+    if result.host_blocked:
+        status = "blocked"
+    elif result.crashed:
+        status = "crashed"
+    elif result.timed_out:
+        status = "timed_out"
+    else:
+        status = "exited"
     payload = {
         "event": "godot_invocation",
         "purpose": purpose,
@@ -251,11 +316,8 @@ def _emit_evidence(result: GodotExecutionResult, *, purpose: str) -> None:
         "parent_pid": result.parent_pid,
         "parent_command": result.parent_command,
         "exit_code": result.returncode,
-        "status": "crashed"
-        if result.crashed
-        else "timed_out"
-        if result.timed_out
-        else "exited",
+        "status": status,
+        "started": not result.host_blocked,
         "duration_ms": result.duration_ms,
     }
     print(

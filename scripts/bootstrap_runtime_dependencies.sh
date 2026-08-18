@@ -137,7 +137,8 @@ godot_binary_has_required_version() {
     [[ -x "$binary" ]] || return 1
     version="$(godot_runner_version "$binary")" || return 1
     # Accept any 4.7.x version (major.minor match)
-    [[ "$version" == "$GODOT_PROJECT_VERSION."* ]]
+    [[ "$version" == "$GODOT_PROJECT_VERSION."* ]] || return 1
+    printf '%s\n' "$version"
 }
 
 godot_extract_version() {
@@ -165,8 +166,7 @@ find_existing_godot_binary() {
     local version
 
     if [[ -n "${GODOT_BIN:-}" ]]; then
-        if godot_binary_has_required_version "$GODOT_BIN"; then
-            version="$(godot_extract_version "$GODOT_BIN")"
+        if version="$(godot_binary_has_required_version "$GODOT_BIN")"; then
             printf '%s\n' "$GODOT_BIN"
             GODOT_RESOLVED_VERSION="$version"
             return 0
@@ -175,8 +175,7 @@ find_existing_godot_binary() {
     fi
     for command_name in godot4 godot Godot; do
         candidate="$(command -v "$command_name" 2>/dev/null || true)"
-        if [[ -n "$candidate" ]] && godot_binary_has_required_version "$candidate"; then
-            version="$(godot_extract_version "$candidate")"
+        if [[ -n "$candidate" ]] && version="$(godot_binary_has_required_version "$candidate")"; then
             printf '%s\n' "$candidate"
             GODOT_RESOLVED_VERSION="$version"
             return 0
@@ -185,8 +184,7 @@ find_existing_godot_binary() {
     for candidate in \
         "/Applications/Godot.app/Contents/MacOS/Godot" \
         "$HOME/Applications/Godot.app/Contents/MacOS/Godot"; do
-        if godot_binary_has_required_version "$candidate"; then
-            version="$(godot_extract_version "$candidate")"
+        if version="$(godot_binary_has_required_version "$candidate")"; then
             printf '%s\n' "$candidate"
             GODOT_RESOLVED_VERSION="$version"
             return 0
@@ -202,8 +200,7 @@ check_godot_toolchain() {
 
     managed_root="$(godot_toolchain_root)"
     managed_binary="$(find "$managed_root" -type f \( -name Godot -o -name 'Godot*.x86_64' -o -name 'Godot*.exe' \) -perm -u=x 2>/dev/null | head -n 1)"
-    if [[ -n "$managed_binary" ]] && godot_binary_has_required_version "$managed_binary"; then
-        version="$(godot_extract_version "$managed_binary")"
+    if [[ -n "$managed_binary" ]] && version="$(godot_binary_has_required_version "$managed_binary")"; then
         GODOT_RESOLVED_VERSION="$version"
         return 0
     fi
@@ -223,6 +220,7 @@ install_official_godot_toolchain() {
     local editor_slug
     local editor_binary
     local managed_root
+    local version
 
     root="$(godot_toolchain_root)"
     user_home="$(godot_user_home)"
@@ -292,7 +290,7 @@ install_official_godot_toolchain() {
     cp -R "$editor_staging"/* "$root/"
     cp -R "$template_staging"/* "$user_home/export_templates/$GODOT_DEFAULT_DOWNLOAD_VERSION.stable/"
     editor_binary="$(find "$root" -type f \( -name Godot -o -name 'Godot*.x86_64' -o -name 'Godot*.exe' \) -perm -u+x | head -n 1)"
-    if [[ -z "$editor_binary" ]] || ! godot_binary_has_required_version "$editor_binary"; then
+    if [[ -z "$editor_binary" ]] || ! version="$(godot_binary_has_required_version "$editor_binary")"; then
         echo "${RED}  ❌ Godot editor post-install version verification failed.${RESET}" >&2
         rm -f -- "$editor_archive" "$template_archive"
         rm -rf -- "$editor_staging" "$template_staging"
@@ -312,13 +310,12 @@ ensure_godot_toolchain() {
     local managed_root
     local managed_binary
     local managed_user_home
+    local version
 
     managed_root="$(godot_toolchain_root)"
     managed_user_home="$(godot_user_home)"
     managed_binary="$(find "$managed_root" -type f \( -name Godot -o -name 'Godot*.x86_64' -o -name 'Godot*.exe' \) -perm -u+x 2>/dev/null | head -n 1)"
-    if [[ -n "$managed_binary" ]] && godot_binary_has_required_version "$managed_binary"; then
-        local version
-        version="$(godot_extract_version "$managed_binary")"
+    if [[ -n "$managed_binary" ]] && version="$(godot_binary_has_required_version "$managed_binary")"; then
         GODOT_RESOLVED_BIN="$managed_binary"
         GODOT_RESOLVED_USER_HOME="$managed_user_home"
         GODOT_RESOLVED_VERSION="$version"
@@ -344,9 +341,7 @@ ensure_godot_toolchain() {
             return 1
             ;;
         *)
-            if godot_binary_has_required_version "$choice"; then
-                local version
-                version="$(godot_extract_version "$choice")"
+            if version="$(godot_binary_has_required_version "$choice")"; then
                 GODOT_RESOLVED_BIN="$choice"
                 GODOT_RESOLVED_VERSION="$version"
                 return 0
