@@ -11,6 +11,22 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Mapping
 
+APPEARANCE_REGION_IDS = (
+    "head_tuft",
+    "forehead_mark_zone",
+    "ear_pair",
+    "ear_tip_pair",
+    "cheek_fluff",
+    "chest_tuft",
+    "belly_center",
+    "forearm_paw_pair",
+    "elbow_cuff_pair",
+    "lower_leg_foot_pair",
+    "knee_cuff_pair",
+    "tail_tip",
+    "tail_underside",
+)
+
 
 @dataclass(frozen=True)
 class ScaleRange:
@@ -38,6 +54,41 @@ class Distribution:
 
 
 @dataclass(frozen=True)
+class AppearanceRegionRule:
+    """One semantic region and the operations it permits."""
+
+    mode: str
+    allowed_colors: tuple[str, ...] = ()
+    allowed_grades: tuple[str, ...] = ()
+    source_mid_luma: float = 0.5
+    default_intensity: float = 0.8
+
+
+@dataclass(frozen=True)
+class RegionAccentSpec:
+    """One accent in a product-reviewed region recipe."""
+
+    region_id: str
+    color_id: str
+    grade_id: str = "L1"
+    intensity: float = 0.8
+
+
+@dataclass(frozen=True)
+class AppearanceRegionRecipe:
+    recipe_id: str
+    accents: tuple[RegionAccentSpec, ...] = ()
+
+
+@dataclass(frozen=True)
+class AppearanceMarkingRule:
+    """Allowed placements and colors for one local symbol."""
+
+    placements: tuple[str, ...]
+    allowed_colors: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class SpeciesAppearanceProfile:
     """Semantic appearance controls and per-species generation ranges."""
 
@@ -50,6 +101,10 @@ class SpeciesAppearanceProfile:
     patterns: tuple[str, ...]
     eye_colors: tuple[str, ...]
     nose_colors: tuple[str, ...]
+    pattern_color_slots: Mapping[str, int] = field(default_factory=dict)
+    pattern_layouts: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    markings: tuple[str, ...] = ("none",)
+    marking_placements: tuple[str, ...] = ("none",)
     supported_controls: tuple[str, ...] = ()
     control_options: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
     control_ranges: Mapping[str, ScaleRange] = field(default_factory=dict)
@@ -57,6 +112,16 @@ class SpeciesAppearanceProfile:
     shape_correlations: Mapping[str, CorrelationWeights] = field(default_factory=dict)
     distributions: Mapping[str, Distribution] = field(default_factory=dict)
     species_traits: tuple[str, ...] = ()
+    region_rules: Mapping[str, AppearanceRegionRule] = field(default_factory=dict)
+    region_recipes: Mapping[str, AppearanceRegionRecipe] = field(default_factory=dict)
+    region_recipe_order: tuple[str, ...] = ()
+    marking_rules: Mapping[str, AppearanceMarkingRule] = field(default_factory=dict)
+    batch_palette_order: tuple[str, ...] = ()
+    batch_recipe_order: tuple[str, ...] = ()
+    batch_marking_order: tuple[str, ...] = ()
+    max_region_accents: int = 2
+    max_marks: int = 1
+    max_forehead_marks: int = 1
 
 
 def get_species_profile(species_id: str) -> SpeciesAppearanceProfile:
@@ -73,8 +138,13 @@ def get_species_profile(species_id: str) -> SpeciesAppearanceProfile:
 
 
 __all__ = (
+    "APPEARANCE_REGION_IDS",
+    "AppearanceMarkingRule",
+    "AppearanceRegionRecipe",
+    "AppearanceRegionRule",
     "CorrelationWeights",
     "Distribution",
+    "RegionAccentSpec",
     "ScaleRange",
     "SpeciesAppearanceProfile",
     "get_species_profile",

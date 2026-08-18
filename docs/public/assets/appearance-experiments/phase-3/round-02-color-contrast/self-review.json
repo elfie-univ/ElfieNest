@@ -1,0 +1,56 @@
+{
+  "schema": "appearance-region-self-review.v1",
+  "round": 2,
+  "reviewer": "Codex direct visual review",
+  "basis": "Original Godot material remains visible under 13 high-contrast debug-color overlays; each species is shown from front, three-quarter and side views.",
+  "metric_note": "Precision/recall/F1 are strict visual estimates for boundary triage, not pixel-ground-truth measurements. Precision asks whether colored pixels belong to the defined target; recall asks whether the visible target is covered; F1 is the harmonic mean.",
+  "palette_change": {
+    "purpose": "Separate diagnostic readability from geometry accuracy.",
+    "result": "Successful: all 13 regions are distinguishable in the three-view plates. This changes no region boundary and earns no geometry score by itself."
+  },
+  "dog": {
+    "aggregate": {"precision": 37, "recall": 71, "f1": 46},
+    "regions": [
+      {"id": 0, "key": "head_tuft", "precision": 55, "recall": 75, "f1": 63, "status": "repair", "reason": "The cyan cap is visible, but the front view is wider than the single central upward tuft and the side view loses a clean tuft boundary.", "next_action": "Narrow x and y to the protruding tuft silhouette; exclude the crown instead of relying on a broad height band."},
+      {"id": 1, "key": "forehead_mark_zone", "precision": 22, "recall": 88, "f1": 35, "status": "reject", "reason": "The orange rectangle crosses both brows and the upper eye area, violating the definition that the zone is only between the brows and above the eyes.", "next_action": "Shrink the x radius and tighten the y/depth window; use the brow gap as the center, not a full forehead strip."},
+      {"id": 2, "key": "ear_pair", "precision": 76, "recall": 88, "f1": 82, "status": "repair", "reason": "The yellow dog ear flap is mostly the intended outer ear body, but it reaches the lower/outer edge and overlaps the tip candidate.", "next_action": "Keep the main flap, subtract the tip band, and trim the lower cheek-facing edge."},
+      {"id": 3, "key": "ear_tip_pair", "precision": 55, "recall": 72, "f1": 62, "status": "repair", "reason": "The lime color reads as a long outer-ear rim rather than only the uppermost/outermost tip.", "next_action": "Reduce the vertical span and make the tip threshold species/ear-shape aware."},
+      {"id": 4, "key": "cheek_fluff", "precision": 42, "recall": 84, "f1": 56, "status": "reject", "reason": "The green blocks reach around the eyes and down toward the mouth corners; the defined cheek fluff is the side muzzle fur below the eyes and beside the nose, excluding those identity features.", "next_action": "Use a narrower side contour and subtract eye, nose and mouth protection zones."},
+      {"id": 5, "key": "chest_tuft", "precision": 18, "recall": 92, "f1": 30, "status": "reject", "reason": "The magenta region is a large neck bib: it covers the neck, shoulders and much more than the user-circled upper heart-shaped tuft. A 70 score is not defensible.", "next_action": "Remove the broad lower band; keep only the upper heart lobes and short center point inside the circled tuft."},
+      {"id": 6, "key": "belly_center", "precision": 38, "recall": 92, "f1": 54, "status": "reject", "reason": "The blue area is a rectangular full belly/hip block and reaches the leg-root area, while the definition excludes chest, leg roots and tail.", "next_action": "Replace the rectangle with a tapered central belly contour and stop above the leg split."},
+      {"id": 7, "key": "forearm_paw_pair", "precision": 32, "recall": 80, "f1": 46, "status": "reject", "reason": "The violet area sits mainly on the upper arm/shoulder; it does not represent the full forearm and paw, and it conflicts with the elbow band.", "next_action": "Anchor the region between the elbow and paw, then subtract the elbow cuff rather than using one broad y band."},
+      {"id": 8, "key": "elbow_cuff_pair", "precision": 42, "recall": 74, "f1": 54, "status": "repair", "reason": "The red stripe is readable but looks like an artificial horizontal stripe and is not consistently centered on the anatomical elbow in all views.", "next_action": "Move the band to the actual elbow bend and reduce its height/side spill."},
+      {"id": 9, "key": "lower_leg_foot_pair", "precision": 57, "recall": 76, "f1": 65, "status": "repair", "reason": "The pink lower-leg area is broadly in the right place, but it stops/bleeds inconsistently around the foot and knee transition.", "next_action": "Separate the foot silhouette from the knee cuff and follow the lower-leg/foot surface rather than a rectangular height band."},
+      {"id": 10, "key": "knee_cuff_pair", "precision": 22, "recall": 35, "f1": 27, "status": "reject", "reason": "The cyan knee ring is not visually localized as a knee ring in the front or side plate; it is mostly hidden by other broad regions.", "next_action": "Temporarily disable this candidate until a joint-centered mask is defined from the leg bend, then render it alone for approval."},
+      {"id": 11, "key": "tail_tip", "precision": 0, "recall": 0, "f1": 0, "status": "reject", "reason": "The dog side view has no readable lime tail-tip region; the current threshold misses the visible dog tail end.", "next_action": "Use a dog-specific tail axis/endpoint mask; do not reuse the fox tail depth thresholds."},
+      {"id": 12, "key": "tail_underside", "precision": 18, "recall": 65, "f1": 29, "status": "reject", "reason": "The slate area becomes a distal tail block/tip instead of the lower-side surface and is not separated cleanly from the tail end.", "next_action": "Define the underside relative to the dog tail's local vertical direction and exclude the endpoint."
+      }
+    ]
+  },
+  "fox": {
+    "aggregate": {"precision": 43, "recall": 71, "f1": 52},
+    "regions": [
+      {"id": 0, "key": "head_tuft", "precision": 15, "recall": 10, "f1": 12, "status": "reject", "reason": "The cyan head-tuft region is not readable in any of the three fox views; the current dog-derived threshold does not isolate the fox's tiny central tuft.", "next_action": "Create a fox-specific tuft locator and use a contrasting diagnostic color; do not infer correctness from the absence of color."},
+      {"id": 1, "key": "forehead_mark_zone", "precision": 32, "recall": 78, "f1": 45, "status": "reject", "reason": "The orange band is too wide and reaches the brow/eye neighborhood instead of staying in the central forehead gap.", "next_action": "Narrow the center and tighten the depth/height window above the eyes."},
+      {"id": 2, "key": "ear_pair", "precision": 82, "recall": 86, "f1": 84, "status": "repair", "reason": "The yellow overlay mostly follows the fox outer/back ear and the inner white fur remains protected, which matches the definition; the lower/outer edge still overlaps the tip candidate.", "next_action": "Keep the source-texture white-ear guard and subtract a smaller, explicit tip region."},
+      {"id": 3, "key": "ear_tip_pair", "precision": 68, "recall": 78, "f1": 73, "status": "repair", "reason": "The lime overlay is visible at the ear ends but extends down the outer rim instead of remaining only at the top/outermost tip.", "next_action": "Shorten the tip band along the ear axis and exclude the main outer-ear body."},
+      {"id": 4, "key": "cheek_fluff", "precision": 42, "recall": 82, "f1": 56, "status": "reject", "reason": "The green region covers a broad mask beside and partly around the eyes, not only the cheek/muzzle fluff; it also cuts into the white transition.", "next_action": "Follow the cheek silhouette below the eye and subtract eye, nose, mouth and white-muzzle protection areas."},
+      {"id": 5, "key": "chest_tuft", "precision": 15, "recall": 92, "f1": 25, "status": "reject", "reason": "The magenta region is a neck-to-chest bib and includes the neck/shoulder transition, far beyond the circled upper heart-shaped chest tuft.", "next_action": "Remove the long lower component and keep only the small upper heart tuft."},
+      {"id": 6, "key": "belly_center", "precision": 42, "recall": 90, "f1": 57, "status": "reject", "reason": "The blue region is a broad rectangular belly panel extending toward the hips/leg roots, not a central belly surface bounded below the chest.", "next_action": "Use a tapered belly contour and stop before the leg split and tail junction."},
+      {"id": 7, "key": "forearm_paw_pair", "precision": 30, "recall": 78, "f1": 44, "status": "reject", "reason": "The violet region captures the upper arm more than the forearm/paw and overlaps the elbow transition.", "next_action": "Anchor it to the lower arm/paw surface and subtract the elbow cuff."},
+      {"id": 8, "key": "elbow_cuff_pair", "precision": 42, "recall": 72, "f1": 53, "status": "repair", "reason": "The red bands are visible, but they read as arbitrary stripes rather than a joint-centered transition ring in every view.", "next_action": "Use the elbow bend and local limb axis; reduce the band width."},
+      {"id": 9, "key": "lower_leg_foot_pair", "precision": 55, "recall": 75, "f1": 63, "status": "repair", "reason": "The pink lower-leg candidate is broadly located, but the foot boundary and knee transition are not clean.", "next_action": "Separate foot/lower-leg coverage from the knee cuff and follow the actual limb silhouette."},
+      {"id": 10, "key": "knee_cuff_pair", "precision": 20, "recall": 35, "f1": 26, "status": "reject", "reason": "The cyan knee region is not a clear knee ring in the three views and is largely swallowed by the broad leg/belly candidates.", "next_action": "Redefine from the joint bend and validate as a single-region render before restoring it to the plate."},
+      {"id": 11, "key": "tail_tip", "precision": 78, "recall": 90, "f1": 84, "status": "good_candidate", "reason": "The lime fox tail tip is clearly visible in the three-quarter and side views and stays at the actual endpoint; it is the strongest current local-region candidate.", "next_action": "Keep as a candidate, then inspect the soft edge and ensure the tip does not include the upper tail plane."},
+      {"id": 12, "key": "tail_underside", "precision": 38, "recall": 60, "f1": 47, "status": "reject", "reason": "The slate overlay forms a block on the distal tail rather than a coherent lower-side strip and is too close to the tip.", "next_action": "Define the underside in the fox tail's local frame and subtract the tip before judging it again."
+      }
+    ]
+  },
+  "round_findings": [
+    "High-contrast colors make all 13 candidates readable; this is a diagnostic success only, not a boundary success.",
+    "The previous chest_tuft scores were invalid because visibility/recall was mistaken for precision. Both species must reject the current chest mask.",
+    "The next geometry patch must prioritize chest_tuft, forehead_mark_zone, cheek_fluff and belly_center; only after those are narrowed should arm/leg joint bands be revisited.",
+    "Fox ear_pair and fox tail_tip are the only current local candidates close to approval; fox head_tuft is not validated because it is not visible.",
+    "Dog tail regions require species-specific coordinates; reusing fox-like depth thresholds is not acceptable."
+  ]
+}

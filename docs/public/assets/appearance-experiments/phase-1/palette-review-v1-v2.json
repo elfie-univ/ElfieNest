@@ -1,0 +1,112 @@
+{
+  "schema": "appearance-palette-review.v1",
+  "status": "godot-rendered-experiment",
+  "date": "2026-08-17",
+  "render_method": {
+    "engine": "Godot 4.7.stable",
+    "renderer": "macOS OpenGL / GL Compatibility",
+    "source": "dog.glb and fox.glb",
+    "shader": "godot_project/runtime/actor/actor_appearance.gd",
+    "mode": "solid base-coat color with source fur luminance/detail transfer",
+    "white_region_protection_evaluated": false,
+    "production_config_changed": false,
+    "glb_changed": false
+  },
+  "pass_1": {
+    "output": "10-color-palette",
+    "finding": "The proposed names are not equally suitable. Very dark targets reduce eye/nose separation; adjacent brown targets are too close for the same candidate batch.",
+    "dog": {
+      "colors": [
+        {"id": "snow_white", "hex": "#efe8dc", "verdict": "usable"},
+        {"id": "ivory", "hex": "#e3cda7", "verdict": "usable"},
+        {"id": "cream", "hex": "#d8ad76", "verdict": "usable"},
+        {"id": "honey_gold", "hex": "#c9884b", "verdict": "usable"},
+        {"id": "apricot", "hex": "#d77b4d", "verdict": "usable"},
+        {"id": "russet", "hex": "#9d4e32", "verdict": "usable"},
+        {"id": "chestnut", "hex": "#7b432f", "verdict": "usable-but-close"},
+        {"id": "chocolate", "hex": "#542e25", "verdict": "too-close-and-dark"},
+        {"id": "silver_gray", "hex": "#7a8288", "verdict": "usable"},
+        {"id": "charcoal_black", "hex": "#2e3034", "verdict": "too-dark"}
+      ]
+    },
+    "fox": {
+      "colors": [
+        {"id": "ivory", "hex": "#e2d3bd", "verdict": "usable"},
+        {"id": "cream", "hex": "#d7ae7d", "verdict": "usable-but-close"},
+        {"id": "champagne", "hex": "#d8b778", "verdict": "usable-but-close"},
+        {"id": "golden", "hex": "#c98542", "verdict": "usable"},
+        {"id": "orange_red", "hex": "#c95a2d", "verdict": "usable"},
+        {"id": "fox_red", "hex": "#a8442b", "verdict": "usable"},
+        {"id": "chestnut", "hex": "#713828", "verdict": "usable-but-close"},
+        {"id": "deep_sable", "hex": "#4b2c27", "verdict": "dark-reserve"},
+        {"id": "silver_gray", "hex": "#7a8288", "verdict": "usable"},
+        {"id": "melanistic_black", "hex": "#27272b", "verdict": "too-dark"}
+      ]
+    }
+  },
+  "pass_2": {
+    "output": "10-color-palette-v2",
+    "finding": "Light and midtone colors retain fur texture and species identity. Smoke-dark colors are improved but remain controlled/rare choices because facial identity contrast is lower than the midtones.",
+    "dog": {
+      "first_batch_candidates": [
+        "snow_white",
+        "ivory",
+        "cream",
+        "honey_gold",
+        "apricot",
+        "russet",
+        "chestnut",
+        "silver_gray"
+      ],
+      "controlled_candidates": [
+        "chocolate",
+        "smoky_charcoal"
+      ],
+      "colors": [
+        {"id": "snow_white", "hex": "#efe8dc"},
+        {"id": "ivory", "hex": "#e3cda7"},
+        {"id": "cream", "hex": "#d8ad76"},
+        {"id": "honey_gold", "hex": "#c9884b"},
+        {"id": "apricot", "hex": "#d77b4d"},
+        {"id": "russet", "hex": "#9d4e32"},
+        {"id": "chestnut", "hex": "#814b34"},
+        {"id": "chocolate", "hex": "#653b2c"},
+        {"id": "silver_gray", "hex": "#7a8288"},
+        {"id": "smoky_charcoal", "hex": "#4a4d52"}
+      ]
+    },
+    "fox": {
+      "first_batch_candidates": [
+        "ivory",
+        "cream",
+        "champagne",
+        "golden",
+        "orange_red",
+        "fox_red",
+        "chestnut",
+        "silver_gray"
+      ],
+      "controlled_candidates": [
+        "sable_brown",
+        "smoky_black"
+      ],
+      "colors": [
+        {"id": "ivory", "hex": "#e2d3bd"},
+        {"id": "cream", "hex": "#d7ae7d"},
+        {"id": "champagne", "hex": "#d8b778"},
+        {"id": "golden", "hex": "#c98542"},
+        {"id": "orange_red", "hex": "#c95a2d"},
+        {"id": "fox_red", "hex": "#a8442b"},
+        {"id": "chestnut", "hex": "#713828"},
+        {"id": "sable_brown", "hex": "#664233"},
+        {"id": "silver_gray", "hex": "#7a8288"},
+        {"id": "smoky_black", "hex": "#45474c"}
+      ]
+    }
+  },
+  "product_decision": [
+    "10 个颜色可以作为颜色库，但不应把 10 个都同时放进同一批 5 个候选；相近浅色和相近深棕需要分批采样。",
+    "纯黑/深黑不作为默认首批颜色；使用烟炭黑/烟黑，并保留为低概率或受控候选。",
+    "白色区域、花纹区域和局部标记仍需单独验证，本色板不能证明它们的遮罩边界。"
+  ]
+}

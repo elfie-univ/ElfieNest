@@ -14,9 +14,14 @@ from pathlib import Path
 from typing import Any, Mapping, cast
 
 from elfie.profile import (
+    APPEARANCE_REGION_IDS,
     SPECIES_CANON_VERSION,
+    AppearanceMarkingRule,
+    AppearanceRegionRecipe,
+    AppearanceRegionRule,
     CorrelationWeights,
     Distribution,
+    RegionAccentSpec,
     ScaleRange,
     SpeciesAppearanceProfile,
     SpeciesCanon,
@@ -256,16 +261,38 @@ def _appearance_profile(
     species_id: str,
     document: Mapping[str, Any],
 ) -> SpeciesAppearanceProfile:
+    palettes = _string_tuple(document, "palettes")
+    patterns = _string_tuple(document, "patterns")
+    markings = _string_tuple_or_default(document.get("markings"), ("none",), "markings")
+    marking_placements = _string_tuple_or_default(
+        document.get("marking_placements"), ("none",), "marking_placements"
+    )
+    region_rules = _region_rules(document.get("region_rules"), palettes)
+    region_recipes = _region_recipes(
+        document.get("region_recipes"),
+        region_rules=region_rules,
+        palettes=palettes,
+    )
     profile = SpeciesAppearanceProfile(
         species_id=species_id,
         profile_version=_positive_int(document, "profile_version"),
         stature_scale=_scale(document, "stature_scale"),
         build_scale=_scale(document, "build_scale"),
         build_weights=_weights(document, "build_weights"),
-        palettes=_string_tuple(document, "palettes"),
-        patterns=_string_tuple(document, "patterns"),
+        palettes=palettes,
+        patterns=patterns,
         eye_colors=_string_tuple(document, "eye_colors"),
         nose_colors=_string_tuple(document, "nose_colors"),
+        pattern_color_slots=_pattern_color_slots(
+            document.get("pattern_color_slots"),
+            patterns,
+        ),
+        pattern_layouts=_pattern_layouts(
+            document.get("pattern_layouts"),
+            patterns,
+        ),
+        markings=markings,
+        marking_placements=marking_placements,
         supported_controls=_string_tuple(document, "supported_controls"),
         control_options=_control_options(document.get("control_options")),
         control_ranges=_ranges(document.get("control_ranges"), "control_ranges"),
@@ -277,6 +304,39 @@ def _appearance_profile(
         ),
         distributions=_distributions(document.get("distributions")),
         species_traits=_string_tuple(document, "species_traits"),
+        region_rules=region_rules,
+        region_recipes=region_recipes,
+        region_recipe_order=_ordered_subset(
+            document.get("region_recipe_order"),
+            region_recipes,
+            "region_recipe_order",
+        ),
+        marking_rules=_marking_rules(
+            document.get("marking_rules"),
+            markings=markings,
+            marking_placements=marking_placements,
+            palettes=palettes,
+        ),
+        batch_palette_order=_ordered_subset(
+            document.get("batch_palette_order"), palettes, "batch_palette_order"
+        ),
+        batch_recipe_order=_ordered_subset(
+            document.get("batch_recipe_order"),
+            tuple(region_recipes),
+            "batch_recipe_order",
+        ),
+        batch_marking_order=_ordered_sequence(
+            document.get("batch_marking_order"),
+            markings,
+            "batch_marking_order",
+        ),
+        max_region_accents=_bounded_count(
+            document.get("max_region_accents", 2), "max_region_accents", 0, 3
+        ),
+        max_marks=_bounded_count(document.get("max_marks", 1), "max_marks", 0, 1),
+        max_forehead_marks=_bounded_count(
+            document.get("max_forehead_marks", 1), "max_forehead_marks", 0, 1
+        ),
     )
     missing_proportions = set(_REQUIRED_PROPORTION_SCALES).difference(
         profile.proportion_scales
@@ -325,6 +385,173 @@ def _control_options(value: Any) -> dict[str, tuple[str, ...]]:
             raise ValueError(f"control_options.{control_id} 必须是非空且不重复的数组")
         result[control_id] = options
     return result
+
+
+def _region_rules(
+    value: Any,
+    palettes: tuple[str, ...],
+) -> Mapping[str, AppearanceRegionRule]:
+    mapping = _object(value, "region_rules")
+    unknown = set(mapping) - set(APPEARANCE_REGION_IDS)
+    if unknown:
+        raise ValueError("region_rules 包含未知区域: " + ", ".join(sorted(unknown)))
+    result: dict[str, AppearanceRegionRule] = {}
+    valid_modes = {"color-only", "color-or-mark", "mark-only", "disabled"}
+    for region_id in APPEARANCE_REGION_IDS:
+        item = _object(mapping.get(region_id), f"region_rules.{region_id}")
+        mode = _string(item, "mode")
+        if mode not in valid_modes:
+            raise ValueError(f"region_rules.{region_id}.mode 无效: {mode}")
+        colors = _string_tuple_maybe_empty(
+            item.get("allowed_colors", ()), f"region_rules.{region_id}.allowed_colors"
+        )
+        grades = _string_tuple_maybe_empty(
+            item.get("allowed_grades", ()), f"region_rules.{region_id}.allowed_grades"
+        )
+        if mode in ("color-only", "color-or-mark") and not colors:
+            raise ValueError(f"region_rules.{region_id} 必须声明 allowed_colors")
+        if mode in ("color-only", "color-or-mark") and not grades:
+            raise ValueError(f"region_rules.{region_id} 必须声明 allowed_grades")
+        if set(colors) - set(palettes):
+            raise ValueError(f"region_rules.{region_id} 使用了未声明的颜色")
+        source_mid_luma = _number(
+            item.get("source_mid_luma"), f"region_rules.{region_id}.source_mid_luma"
+        )
+        default_intensity = _number(
+            item.get("default_intensity", 0.8),
+            f"region_rules.{region_id}.default_intensity",
+        )
+        if not 0.05 <= source_mid_luma <= 1.0:
+            raise ValueError(f"region_rules.{region_id}.source_mid_luma 超出范围")
+        if not 0.0 <= default_intensity <= 1.0:
+            raise ValueError(f"region_rules.{region_id}.default_intensity 超出范围")
+        result[region_id] = AppearanceRegionRule(
+            mode=mode,
+            allowed_colors=colors,
+            allowed_grades=grades,
+            source_mid_luma=source_mid_luma,
+            default_intensity=default_intensity,
+        )
+    return result
+
+
+def _region_recipes(
+    value: Any,
+    *,
+    region_rules: Mapping[str, AppearanceRegionRule],
+    palettes: tuple[str, ...],
+) -> Mapping[str, AppearanceRegionRecipe]:
+    mapping = _object(value, "region_recipes")
+    if "base" not in mapping:
+        raise ValueError("region_recipes 必须包含 base 配方")
+    result: dict[str, AppearanceRegionRecipe] = {}
+    for recipe_id, raw in mapping.items():
+        if not isinstance(recipe_id, str) or not recipe_id.strip():
+            raise ValueError("region_recipes 的键必须是非空字符串")
+        item = _object(raw, f"region_recipes.{recipe_id}")
+        raw_accents = item.get("accents", ())
+        if not isinstance(raw_accents, (list, tuple)) or len(raw_accents) > 2:
+            raise ValueError(f"region_recipes.{recipe_id}.accents 最多允许两个区域")
+        accents: list[RegionAccentSpec] = []
+        seen: set[str] = set()
+        for index, raw_accent in enumerate(raw_accents):
+            accent = _object(raw_accent, f"region_recipes.{recipe_id}.accents[{index}]")
+            region_id = _string(accent, "region_id")
+            color_id = _string(accent, "color_id")
+            grade_id = _string(accent, "grade_id")
+            intensity = _number(
+                accent.get("intensity", 0.8),
+                f"region_recipes.{recipe_id}.accents[{index}].intensity",
+            )
+            rule = region_rules.get(region_id)
+            if rule is None or rule.mode not in ("color-only", "color-or-mark"):
+                raise ValueError(f"区域 {region_id!r} 不允许进入颜色配方")
+            if region_id in seen:
+                raise ValueError(f"region_recipes.{recipe_id} 重复区域 {region_id}")
+            if color_id not in palettes or color_id not in rule.allowed_colors:
+                raise ValueError(
+                    f"region_recipes.{recipe_id} 的颜色 {color_id!r} 不在区域白名单"
+                )
+            if grade_id not in rule.allowed_grades:
+                raise ValueError(
+                    f"region_recipes.{recipe_id} 的色阶 {grade_id!r} 不在区域白名单"
+                )
+            if not 0.0 <= intensity <= 1.0:
+                raise ValueError(f"region_recipes.{recipe_id} 的强度超出范围")
+            seen.add(region_id)
+            accents.append(RegionAccentSpec(region_id, color_id, grade_id, intensity))
+        result[recipe_id] = AppearanceRegionRecipe(recipe_id, tuple(accents))
+    return result
+
+
+def _marking_rules(
+    value: Any,
+    *,
+    markings: tuple[str, ...],
+    marking_placements: tuple[str, ...],
+    palettes: tuple[str, ...],
+) -> Mapping[str, AppearanceMarkingRule]:
+    mapping = _object(value, "marking_rules")
+    unknown = set(mapping) - set(markings)
+    missing = set(markings) - set(mapping)
+    if unknown or missing:
+        raise ValueError(
+            "marking_rules 必须与 markings 一一对应; "
+            f"unknown={sorted(unknown)} missing={sorted(missing)}"
+        )
+    result: dict[str, AppearanceMarkingRule] = {}
+    for marking_id in markings:
+        item = _object(mapping.get(marking_id), f"marking_rules.{marking_id}")
+        placements = _string_tuple_maybe_empty(
+            item.get("placements", ()), f"marking_rules.{marking_id}.placements"
+        )
+        colors = _string_tuple_maybe_empty(
+            item.get("allowed_colors", ()),
+            f"marking_rules.{marking_id}.allowed_colors",
+        )
+        if marking_id == "none":
+            placements = ("none",)
+            colors = palettes
+        if not placements:
+            raise ValueError(f"marking_rules.{marking_id} 必须至少允许一个位置")
+        if set(placements) - set(marking_placements):
+            raise ValueError(f"marking_rules.{marking_id} 使用了未声明的位置")
+        if set(colors) - set(palettes):
+            raise ValueError(f"marking_rules.{marking_id} 使用了未声明的颜色")
+        result[marking_id] = AppearanceMarkingRule(placements, colors)
+    return result
+
+
+def _ordered_subset(value: Any, allowed: Any, label: str) -> tuple[str, ...]:
+    allowed_values = (
+        tuple(allowed) if not isinstance(allowed, Mapping) else tuple(allowed)
+    )
+    selected = allowed_values if value is None else _tuple_value(value, label)
+    if len(set(selected)) != len(selected):
+        raise ValueError(f"{label} 不得重复")
+    unknown = set(selected) - set(allowed_values)
+    if unknown:
+        raise ValueError(f"{label} 包含未声明 ID: " + ", ".join(sorted(unknown)))
+    return selected
+
+
+def _ordered_sequence(value: Any, allowed: Any, label: str) -> tuple[str, ...]:
+    allowed_values = (
+        tuple(allowed) if not isinstance(allowed, Mapping) else tuple(allowed)
+    )
+    selected = allowed_values if value is None else _tuple_value(value, label)
+    unknown = set(selected) - set(allowed_values)
+    if unknown:
+        raise ValueError(f"{label} 包含未声明 ID: " + ", ".join(sorted(unknown)))
+    return selected
+
+
+def _bounded_count(value: Any, label: str, minimum: int, maximum: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{label} 必须是整数")
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{label} 必须在 [{minimum}, {maximum}] 内")
+    return value
 
 
 def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
@@ -507,6 +734,68 @@ def _string_tuple(mapping: Mapping[str, Any], key: str) -> tuple[str, ...]:
     return _tuple_value(mapping.get(key), key)
 
 
+def _string_tuple_or_default(
+    value: Any,
+    default: tuple[str, ...],
+    label: str,
+) -> tuple[str, ...]:
+    return default if value is None else _tuple_value(value, label)
+
+
+def _pattern_color_slots(
+    value: Any,
+    patterns: tuple[str, ...],
+) -> Mapping[str, int]:
+    defaults = {
+        pattern: {
+            "solid": 1,
+            "classic": 1,
+            "bicolor": 2,
+            "tricolor": 3,
+            "face_mask": 2,
+            "cross": 2,
+        }.get(pattern, 1)
+        for pattern in patterns
+    }
+    if value is None:
+        return defaults
+    mapping = _object(value, "pattern_color_slots")
+    result: dict[str, int] = {}
+    for pattern in patterns:
+        raw = mapping.get(pattern, defaults[pattern])
+        if isinstance(raw, bool) or not isinstance(raw, int) or not 1 <= raw <= 4:
+            raise ValueError(f"pattern_color_slots.{pattern} 必须是 1 到 4 的整数")
+        result[pattern] = raw
+    unknown = set(mapping) - set(patterns)
+    if unknown:
+        raise ValueError(
+            "pattern_color_slots 包含未声明的花纹: " + ", ".join(sorted(unknown))
+        )
+    return result
+
+
+def _pattern_layouts(
+    value: Any,
+    patterns: tuple[str, ...],
+) -> Mapping[str, tuple[str, ...]]:
+    if value is None:
+        return {pattern: (pattern,) for pattern in patterns}
+    mapping = _object(value, "pattern_layouts")
+    result: dict[str, tuple[str, ...]] = {}
+    for pattern in patterns:
+        raw = mapping.get(pattern, (pattern,))
+        layouts = _tuple_value(raw, f"pattern_layouts.{pattern}")
+        if len(set(layouts)) != len(layouts):
+            raise ValueError(f"pattern_layouts.{pattern} 不得重复")
+        result[pattern] = layouts
+    unknown = set(mapping) - set(patterns)
+    if unknown:
+        raise ValueError(
+            "pattern_layouts 包含未声明的花纹: " + ", ".join(sorted(unknown))
+        )
+    return result
+
+
 def _tuple_value(value: Any, label: str) -> tuple[str, ...]:
     if not isinstance(value, (list, tuple)) or not value:
         raise ValueError(f"{label} 必须是非空字符串数组")
@@ -515,6 +804,19 @@ def _tuple_value(value: Any, label: str) -> tuple[str, ...]:
     )
     if len(result) != len(value):
         raise ValueError(f"{label} 必须是非空字符串数组")
+    return result
+
+
+def _string_tuple_maybe_empty(value: Any, label: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{label} 必须是字符串数组")
+    result = tuple(
+        item.strip() for item in value if isinstance(item, str) and item.strip()
+    )
+    if len(result) != len(value) or len(set(result)) != len(result):
+        raise ValueError(f"{label} 必须是无重复字符串数组")
     return result
 
 

@@ -19,12 +19,18 @@ from .models import (
     ElfieProfile,
     EmbodimentProfile,
     ProfileProvenance,
+    RegionAccent,
 )
 from .port import ProfileStorePort
 from .resolver import AppearanceResolver, ResolvedAppearance
 from .species import (
+    APPEARANCE_REGION_IDS,
+    AppearanceMarkingRule,
+    AppearanceRegionRecipe,
+    AppearanceRegionRule,
     CorrelationWeights,
     Distribution,
+    RegionAccentSpec,
     ScaleRange,
     SpeciesAppearanceProfile,
     get_species_profile,
@@ -47,6 +53,7 @@ from .species_registry import (
 __all__ = [
     "AppearanceGenerator",
     "AppearanceGenome",
+    "RegionAccent",
     "AppearanceResolver",
     "ELFARIA_CANON",
     "ElfieOrigin",
@@ -60,6 +67,11 @@ __all__ = [
     "SUPPORTED_SPECIES",
     "CorrelationWeights",
     "Distribution",
+    "APPEARANCE_REGION_IDS",
+    "AppearanceMarkingRule",
+    "AppearanceRegionRecipe",
+    "AppearanceRegionRule",
+    "RegionAccentSpec",
     "ScaleRange",
     "SPECIES_CANON_VERSION",
     "WORLD_CANON_VERSION",

@@ -21,11 +21,12 @@ from .models import (
     FaceAppearance,
     FurAppearance,
     ProfileProvenance,
+    RegionAccent,
 )
 from .species import get_species_profile
 from .species_registry import SpeciesCatalog, current_species_catalog
 
-GENERATOR_VERSION = "appearance-v1"
+GENERATOR_VERSION = "appearance-v2"
 VALID_HEIGHT_DIRECTIONS = ("short", "standard", "tall")
 VALID_BUILD_DIRECTIONS = ("slim", "standard", "plump")
 
@@ -44,6 +45,7 @@ class AppearanceGenerator:
         height_direction: str = "standard",
         build_direction: str = "standard",
         overrides: Mapping[str, Any] | None = None,
+        variant_index: int | None = None,
     ) -> AppearanceGenome:
         species = (
             self.catalog.definition(species_id, adoptable_only=True).appearance
@@ -69,8 +71,61 @@ class AppearanceGenerator:
             return _truncated_normal(rng, mean, sigma, 0.0, 1.0)
 
         ear_distribution = species.distributions["ear_droop"]
+        pattern_id = species.patterns[0]
+        pattern_layout_id = rng.choice(
+            species.pattern_layouts.get(pattern_id, (pattern_id,))
+        )
+        palette_order = species.batch_palette_order or species.palettes
+        slot = (
+            variant_index % len(palette_order)
+            if variant_index is not None
+            else rng.randrange(len(palette_order))
+        )
+        primary_color_id = palette_order[slot]
+        secondary_color_id = primary_color_id
+        accent_color_id = primary_color_id
+        region_order = species.batch_recipe_order or species.region_recipe_order
+        recipe_id = (
+            region_order[slot % len(region_order)]
+            if variant_index is not None and region_order
+            else rng.choice(tuple(region_order))
+            if region_order
+            else "base"
+        )
+        recipe = species.region_recipes.get(recipe_id)
+        region_accents = tuple(
+            RegionAccent(
+                region_id=accent.region_id,
+                color_id=accent.color_id,
+                grade_id=accent.grade_id,
+                intensity=accent.intensity,
+            )
+            for accent in (recipe.accents if recipe is not None else ())
+        )
+        marking_order = species.batch_marking_order or ("none",)
+        requested_marking = (
+            marking_order[slot % len(marking_order)]
+            if variant_index is not None
+            else rng.choice(marking_order)
+        )
+        marking_id, marking_placement = _compatible_marking(
+            requested_marking, species, rng
+        )
+        marking_rule = species.marking_rules.get(marking_id)
+        marking_color_id = (
+            next(
+                (
+                    color
+                    for color in (marking_rule.allowed_colors if marking_rule else ())
+                    if color != primary_color_id
+                ),
+                (marking_rule.allowed_colors[0] if marking_rule else primary_color_id),
+            )
+            if marking_rule is not None
+            else primary_color_id
+        )
         genome = AppearanceGenome(
-            genome_version=1,
+            genome_version=2,
             species_profile_version=species.profile_version,
             seed=self.seed,
             macro=AppearanceMacro(
@@ -152,8 +207,18 @@ class AppearanceGenerator:
                 tail_fluff_bias=local(),
             ),
             coat=CoatAppearance(
-                palette_id=rng.choice(species.palettes),
-                pattern_id=rng.choice(species.patterns),
+                palette_id=primary_color_id,
+                pattern_id=pattern_id,
+                pattern_layout_id=pattern_layout_id,
+                primary_color_id=primary_color_id,
+                secondary_color_id=secondary_color_id,
+                accent_color_id=accent_color_id,
+                face_mask_color_id=secondary_color_id,
+                marking_color_id=marking_color_id,
+                marking_id=marking_id,
+                marking_placement=marking_placement,
+                marking_scale=round(rng.uniform(0.78, 1.0), 6),
+                marking_intensity=round(rng.uniform(0.78, 1.0), 6),
                 primary_hue_shift=local(0.16),
                 primary_saturation_bias=local(0.20),
                 primary_value_bias=local(0.20),
@@ -162,16 +227,19 @@ class AppearanceGenerator:
                 nose_color_id=rng.choice(species.nose_colors),
                 pattern_coverage_bias=local(),
                 pattern_scale_bias=local(),
-                pattern_contrast_bias=local(),
+                pattern_contrast_bias=0.0,
                 pattern_symmetry=unit(0.78, 0.14),
                 face_mask_coverage_bias=local(),
                 chest_patch_coverage_bias=local(),
                 paw_patch_coverage_bias=local(),
                 tail_tip_coverage_bias=local(),
+                region_recipe_id=recipe_id,
+                region_accents=region_accents,
             ),
             species_traits={name: local() for name in species.species_traits},
         )
         genome = _apply_appearance_overrides(genome, overrides)
+        genome = _normalize_coat(genome, species)
         _validate_generated_appearance(genome, species_id)
         return genome
 
@@ -185,18 +253,20 @@ def create_visual_profile(
     height_direction: str = "standard",
     build_direction: str = "standard",
     appearance_overrides: Mapping[str, Any] | None = None,
+    appearance: AppearanceGenome | None = None,
     origin: ElfieOrigin | None = None,
     catalog: SpeciesCatalog | None = None,
 ) -> ElfieProfile:
     """创建当前阶段可直接持久化的视觉个体档案。"""
     catalog = catalog or current_species_catalog()
     species_definition = catalog.definition(species_id, adoptable_only=True)
-    appearance = AppearanceGenerator(seed, catalog=catalog).generate(
-        species_id=species_id,
-        height_direction=height_direction,
-        build_direction=build_direction,
-        overrides=appearance_overrides,
-    )
+    if appearance is None:
+        appearance = AppearanceGenerator(seed, catalog=catalog).generate(
+            species_id=species_id,
+            height_direction=height_direction,
+            build_direction=build_direction,
+            overrides=appearance_overrides,
+        )
     profile = ElfieProfile(
         schema_version=PROFILE_SCHEMA_VERSION,
         identity=ElfieIdentity(
@@ -267,9 +337,16 @@ def _apply_appearance_overrides(
                 f"appearance_overrides.{group_name} 包含未知字段: "
                 + ", ".join(unknown_fields)
             )
+        group_updates = dict(raw_group)
+        if (
+            group_name == "coat"
+            and "palette_id" in group_updates
+            and "primary_color_id" not in group_updates
+        ):
+            group_updates["primary_color_id"] = group_updates["palette_id"]
         updates[group_name] = replace(
             getattr(genome, group_name),
-            **dict(raw_group),
+            **group_updates,
         )
 
     if "species_traits" in overrides:
@@ -309,6 +386,112 @@ def _validate_generated_appearance(
         ),
     )
     validation_profile.validate()
+
+
+def _distinct_colors(
+    palettes: tuple[str, ...],
+    count: int,
+    rng: random.Random,
+) -> tuple[str, ...]:
+    if count < 1:
+        raise ValueError("花纹至少需要一个颜色槽")
+    if count <= len(palettes):
+        return tuple(rng.sample(palettes, count))
+    return tuple(rng.choice(palettes) for _ in range(count))
+
+
+def _normalize_coat(
+    genome: AppearanceGenome,
+    species: Any,
+) -> AppearanceGenome:
+    coat = genome.coat
+    layouts = species.pattern_layouts.get(coat.pattern_id, (coat.pattern_id,))
+    required = species.pattern_color_slots.get(coat.pattern_id, 1)
+    primary = coat.primary_color_id or coat.palette_id
+    used = [primary]
+
+    def next_color(current: str) -> str:
+        if current and current not in used:
+            used.append(current)
+            return current
+        candidate = next(
+            (item for item in species.palettes if item not in used), primary
+        )
+        used.append(candidate)
+        return candidate
+
+    secondary = next_color(coat.secondary_color_id) if required >= 2 else primary
+    accent = next_color(coat.accent_color_id) if required >= 3 else secondary
+    face_mask = coat.face_mask_color_id or secondary
+    marking_rule = species.marking_rules.get(coat.marking_id)
+    marking_id = coat.marking_id if marking_rule is not None else "none"
+    placement = coat.marking_placement
+    if marking_rule is None or placement not in marking_rule.placements:
+        marking_id = "none"
+        placement = "none"
+        marking_rule = species.marking_rules.get("none")
+    allowed_marking_colors = (
+        marking_rule.allowed_colors if marking_rule is not None else species.palettes
+    )
+    marking_color = (
+        coat.marking_color_id
+        if coat.marking_color_id in allowed_marking_colors
+        else next(
+            (item for item in allowed_marking_colors if item not in used),
+            secondary,
+        )
+    )
+    recipe_id = (
+        coat.region_recipe_id
+        if coat.region_recipe_id in species.region_recipes
+        else "base"
+    )
+    recipe = species.region_recipes[recipe_id]
+    region_accents = tuple(
+        RegionAccent(
+            region_id=accent.region_id,
+            color_id=accent.color_id,
+            grade_id=accent.grade_id,
+            intensity=round(float(accent.intensity), 6),
+        )
+        for accent in recipe.accents
+    )
+    return replace(
+        genome,
+        coat=replace(
+            coat,
+            palette_id=primary,
+            pattern_layout_id=(
+                coat.pattern_layout_id
+                if coat.pattern_layout_id in layouts
+                else layouts[0]
+            ),
+            primary_color_id=primary,
+            secondary_color_id=secondary,
+            accent_color_id=accent,
+            face_mask_color_id=face_mask,
+            marking_color_id=marking_color,
+            marking_id=marking_id,
+            marking_placement=placement,
+            region_recipe_id=recipe_id,
+            region_accents=region_accents,
+        ),
+    )
+
+
+def _compatible_marking(
+    requested: str,
+    species: Any,
+    rng: random.Random,
+) -> tuple[str, str]:
+    rule = species.marking_rules.get(requested)
+    if rule is None or requested not in species.markings:
+        requested = "none"
+        rule = species.marking_rules[requested]
+    placements = tuple(item for item in rule.placements if item != "none")
+    if not placements:
+        return "none", "none"
+    return requested, placements[rng.randrange(len(placements))]
 
 
 def _validate_direction(name: str, value: str, allowed: tuple[str, ...]) -> None:

@@ -79,7 +79,7 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
     assert result.neuroticism == 0.2
     assert result.appearance is not None
     assert result.appearance.species_id == "fox"
-    assert result.appearance.profile_version == 1
+    assert result.appearance.profile_version == 2
 
 
 def test_portrait_reader_returns_only_the_saved_png_view(tmp_path: Path) -> None:

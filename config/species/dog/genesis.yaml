@@ -7,6 +7,6 @@ stage_ranges:
   mature: [72, 167]
   elder: [168, 240]
 appearance_preferences:
-  warm: [golden, cream, red_brown]
-  marked: [face_mask, tricolor, bicolor]
+  warm: [ivory, honey_gold, apricot, russet]
+  marked: [crescent, s_glyph, heart]
   ears: [dog]

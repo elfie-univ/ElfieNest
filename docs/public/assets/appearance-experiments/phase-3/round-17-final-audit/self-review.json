@@ -1,0 +1,170 @@
+{
+	"schema": "appearance-region-review.v2",
+	"round": "round-17-final-audit",
+	"date": "2026-08-17",
+	"purpose": "记录第 17 轮 Godot 四视角区域边界复核；不代表生产遮罩已批准。",
+	"comparison_basis": {
+		"baseline": "round-14-final-audit/self-review.json",
+		"note": "delta_f1 只与最近一次完整审计 round-14 比较；分数是产品人工复核估计，不是逐像素真值。"
+	},
+	"evidence": {
+		"dog_overlay": "dog-region-overlay-debug.png",
+		"fox_overlay": "fox-region-overlay-debug.png",
+		"dog_color_preview": "dog-region-color-preview.png",
+		"fox_color_preview": "fox-region-color-preview.png",
+		"dog_head_selected": "../round-17-selected-00-head_tuft/dog-region-overlay-debug-selected-00-head_tuft.png",
+		"fox_head_selected": "../round-17-selected-00-head_tuft/fox-region-overlay-debug-selected-00-head_tuft.png",
+		"dog_ear_tip_selected": "../round-17-selected-03-ear_tip_pair/dog-region-overlay-debug-selected-03-ear_tip_pair.png",
+		"fox_ear_tip_selected": "../round-17-selected-03-ear_tip_pair/fox-region-overlay-debug-selected-03-ear_tip_pair.png"
+	},
+	"method": {
+		"views": ["front", "three_quarter", "side", "top"],
+		"order": "先判解剖位置，再判范围；位置错时不得凭可见面积加分。",
+		"precision": "区域是否越界到排除部位。",
+		"recall": "目标部位在四个视角中是否连续可见；最低视角表现控制结论。",
+		"f1": "2 * precision * recall / (precision + recall)，四舍五入到 1 位。",
+		"zero_rule": "区域不可见、位置错误或没有稳定候选时记 0；不从相邻颜色推断。",
+		"reviewer": "Godot 原始材质叠加图的产品人工审查；本轮没有调用外部视觉模型。"
+	},
+	"aggregate_macro_average": {
+		"dog": {"precision": 61.2, "recall": 71.2, "f1": 65.7, "delta_vs_round_14_f1": 5.2},
+		"fox": {"precision": 66.4, "recall": 74.8, "f1": 70.0, "delta_vs_round_14_f1": 10.8}
+	},
+	"regions": [
+		{
+			"id": 0,
+			"key": "head_tuft",
+			"label": "头顶毛",
+			"color": "#00E5FF 青色",
+			"definition": "头顶正中向上突出的单撮毛；不取周围头顶毛帽。",
+			"dog": {"precision": 76, "recall": 82, "f1": 78.8, "delta_f1": 15.8, "status": "improved", "reason": "正面/三分之四能看到顶部小撮，俯视已补到后半且收成椭圆；仍比真实毛束略规则。"},
+			"fox": {"precision": 68, "recall": 78, "f1": 72.7, "delta_f1": 24.0, "status": "improved", "reason": "俯视有完整小块，正面仍偏小，尚不能证明覆盖所有真实突起毛束。"},
+			"next": "若要生产级，使用头顶实际顶点/UV 分区；当前椭圆阈值只作为实验候选。"
+		},
+		{
+			"id": 1,
+			"key": "forehead_mark_zone",
+			"label": "额头标记安全区",
+			"color": "#D500F9 紫色",
+			"definition": "两眉之间、眼睛上方的额头中心；不能落到鼻子、眼睛或头顶毛。",
+			"dog": {"precision": 62, "recall": 75, "f1": 67.9, "delta_f1": -1.7, "status": "repair", "reason": "狗正面位置基本对，但仍有明显矩形感，不能直接作为符号贴图区。"},
+			"fox": {"precision": 0, "recall": 0, "f1": 0, "delta_f1": 0, "status": "unscorable", "reason": "四视角没有稳定可读的狐狸额头中心候选；不能把头顶小撮误判成额头安全区。"},
+			"next": "狐狸额头区单独建立可见表面分区；完成前不进入符号实验。"
+		},
+		{
+			"id": 2,
+			"key": "ear_pair",
+			"label": "耳朵主体外侧/背侧",
+			"color": "#FFE600 黄色",
+			"definition": "狗取下垂耳瓣外侧/背侧，狐狸取立耳外侧/背侧；狐狸耳内白毛保护。",
+			"dog": {"precision": 75, "recall": 85, "f1": 79.7, "delta_f1": 0.0, "status": "candidate", "reason": "主要覆盖垂耳外侧，未明显吞掉眼睛、脸颊和耳内身份细节。"},
+			"fox": {"precision": 82, "recall": 87, "f1": 84.4, "delta_f1": 2.0, "status": "candidate", "reason": "外耳四视角稳定，耳内白毛仍可识别。"},
+			"next": "与耳尖区做不重叠检查，保留狗/狐狸物种专用规则。"
+		},
+		{
+			"id": 3,
+			"key": "ear_tip_pair",
+			"label": "耳尖",
+			"color": "#76FF03 荧光绿",
+			"definition": "狗是下垂耳瓣最下端；狐狸是立耳最上端/最外端的小尖。",
+			"dog": {"precision": 86, "recall": 88, "f1": 87.0, "delta_f1": 4.6, "status": "improved", "reason": "重点图中荧光绿只在两侧下垂耳瓣底部，纠正了上一轮把耳根当耳尖的问题。"},
+			"fox": {"precision": 90, "recall": 92, "f1": 91.0, "delta_f1": 68.8, "status": "improved", "reason": "重点图中荧光绿位于两只立耳最上端，没有沿用狗的低位规则。"},
+			"next": "暂可作为实验候选；生产前仍需做背面和遮挡状态复核。"
+		},
+		{
+			"id": 4,
+			"key": "cheek_fluff",
+			"label": "脸颊/嘴边毛",
+			"color": "#00C853 绿色",
+			"definition": "眼睛下方、鼻子两侧的脸颊蓬毛；不含眼睛、鼻子、嘴巴。",
+			"dog": {"precision": 62, "recall": 75, "f1": 67.9, "delta_f1": 2.4, "status": "repair", "reason": "位置大体在脸颊，但正面仍偏块状，靠近眼下和嘴角的边界不够自然。"},
+			"fox": {"precision": 66, "recall": 80, "f1": 72.0, "delta_f1": 5.3, "status": "repair", "reason": "覆盖到蓬毛外轮廓，仍需按毛束边界收紧，不能当成脸部横条。"},
+			"next": "改用脸颊毛束实际表面边界，禁止继续放大 x/y 带。"
+		},
+		{
+			"id": 5,
+			"key": "chest_tuft",
+			"label": "胸口心形毛",
+			"color": "#FF00AA 品红",
+			"definition": "用户圈出的上胸心形毛束；下尖不能进入长条腹毛、上缘不能吞肩颈。",
+			"dog": {"precision": 82, "recall": 86, "f1": 84.0, "delta_f1": 3.1, "status": "candidate", "reason": "品红区在上胸形成心形，未上移到嘴巴，也未覆盖整条腹部。"},
+			"fox": {"precision": 82, "recall": 88, "f1": 84.8, "delta_f1": 5.6, "status": "improved", "reason": "心形相对上一轮已上移到用户圈出的胸口位置，边界仍有少量过渡需要收。"},
+			"next": "锁定中心位置，只微调心形边缘；不再改变整体 y 位置。"
+		},
+		{
+			"id": 6,
+			"key": "belly_center",
+			"label": "腹部中心",
+			"color": "#2962FF 电蓝",
+			"definition": "胸口心形下方的腹部中央毛面；不含胸口、腿根和尾巴根。",
+			"dog": {"precision": 82, "recall": 82, "f1": 82.0, "delta_f1": 1.0, "status": "candidate", "reason": "腹部中央保持圆润轮廓，当前没有明显蓝色串到狗尾根。"},
+			"fox": {"precision": 84, "recall": 80, "f1": 81.9, "delta_f1": 1.0, "status": "candidate", "reason": "正面和三分之四可读，侧面边界仍需和尾根继续隔离。"},
+			"next": "保持圆润轮廓；不使用矩形面板，也不与胸口心形合并。"
+		},
+		{
+			"id": 7,
+			"key": "forearm_paw_pair",
+			"label": "前臂/手",
+			"color": "#7C4DFF 紫罗兰",
+			"definition": "左右前臂到手掌、手指末端；不含肩部、上臂主体和肘部过渡环。",
+			"dog": {"precision": 70, "recall": 82, "f1": 75.7, "delta_f1": 18.6, "status": "improved", "reason": "已延伸到手掌/手指，四视角未再看到上一轮明显的紫色髋部漏选；肩部仍需更严。"},
+			"fox": {"precision": 75, "recall": 84, "f1": 79.2, "delta_f1": 4.5, "status": "candidate", "reason": "前臂到手指连续可见，三分之四和侧面没有同等程度的身体串色。"},
+			"next": "狗若要生产使用，应改为前臂真实拓扑/UV 分区，而不是继续猜 x/y 带。"
+		},
+		{
+			"id": 8,
+			"key": "elbow_cuff_pair",
+			"label": "肘部环",
+			"color": "#FF1744 红色",
+			"definition": "前臂靠近肘部的一圈过渡毛；不延伸成整条手臂。",
+			"dog": {"precision": 55, "recall": 70, "f1": 61.1, "delta_f1": 4.6, "status": "repair", "reason": "位置在肘部附近，但视觉上仍是横向绑带，尚未形成绕关节的真实环。"},
+			"fox": {"precision": 55, "recall": 70, "f1": 61.1, "delta_f1": 4.6, "status": "repair", "reason": "正面可见但侧面完整性不足，仍不能证明环绕关节。"},
+			"next": "降级为实验区；若要使用，改用肢体局部坐标或顶点组。"
+		},
+		{
+			"id": 9,
+			"key": "lower_leg_foot_pair",
+			"label": "小腿/脚",
+			"color": "#FF4081 粉色",
+			"definition": "左右小腿到脚掌、脚趾末端；不含大腿主体和膝部环。",
+			"dog": {"precision": 70, "recall": 85, "f1": 76.9, "delta_f1": 6.0, "status": "improved", "reason": "粉色已覆盖小腿至脚掌，前面不再是整片大腿外侧；脚趾的严丝合缝仍未证明。"},
+			"fox": {"precision": 70, "recall": 85, "f1": 76.9, "delta_f1": 6.0, "status": "improved", "reason": "位置比上一轮更正确，四视角没有明显进入尾根，但侧面绕腿边界仍需拓扑验证。"},
+			"next": "继续以侧面/俯视检查绕腿一周，不再扩大高度范围。"
+		},
+		{
+			"id": 10,
+			"key": "knee_cuff_pair",
+			"label": "膝部环",
+			"color": "#00B8D4 青色",
+			"definition": "左右膝部附近的一圈过渡毛；不扩展到整条大腿。",
+			"dog": {"precision": 55, "recall": 70, "f1": 61.1, "delta_f1": 9.7, "status": "repair", "reason": "已从整片外侧缩到膝部附近，但仍像横向绑带，不是完整膝部环。"},
+			"fox": {"precision": 55, "recall": 70, "f1": 61.1, "delta_f1": 9.7, "status": "repair", "reason": "位置基本对，侧面仍无法证明环绕完整且不串大腿。"},
+			"next": "不进入颜色组合；先解决腿部局部拓扑。"
+		},
+		{
+			"id": 11,
+			"key": "tail_tip",
+			"label": "尾尖",
+			"color": "#C6FF00 黄绿色",
+			"definition": "尾巴最末端尖部毛发；不把整条尾巴染色。",
+			"dog": {"precision": 0, "recall": 0, "f1": 0, "delta_f1": 0, "status": "unscorable", "reason": "四视角仍没有稳定、可读的狗尾尖候选；继续反转深度会染整条狗尾，因此不硬算分。"},
+			"fox": {"precision": 86, "recall": 90, "f1": 87.9, "delta_f1": 5.5, "status": "candidate", "reason": "侧面和俯视都能看到黄绿色尾尖，范围基本落在实际末端。"},
+			"next": "狗尾尖独立做物种规则；不能复用狐狸的深度阈值。"
+		},
+		{
+			"id": 12,
+			"key": "tail_underside",
+			"label": "尾巴下侧",
+			"color": "#37474F 深灰",
+			"definition": "尾巴下缘/下侧的毛面；不含尾尖，也不串到身体。",
+			"dog": {"precision": 25, "recall": 45, "f1": 32.1, "delta_f1": 3.5, "status": "repair", "reason": "能见到零散候选，但还不能证明只覆盖狗尾下缘，仍有身体邻接风险。"},
+			"fox": {"precision": 50, "recall": 68, "f1": 57.6, "delta_f1": 4.4, "status": "repair", "reason": "狐狸侧面有下缘候选，但偏长，必须与尾尖明确切开。"},
+			"next": "保留实验状态，不进入下一阶段组合。"
+		}
+	],
+	"round_conclusion": {
+		"improved": ["dog/fox head_tuft footprint", "dog ear_tip_pair anatomical position", "fox ear_tip_pair anatomical position", "fox chest_tuft vertical position", "dog forearm hip-leakage", "dog/fox lower_leg_foot_pair coverage"],
+		"still_zero_or_blocking": ["fox forehead_mark_zone", "dog tail_tip", "dog/fox elbow_cuff_pair full-wrap topology", "dog/fox knee_cuff_pair full-wrap topology", "dog/fox tail_underside", "cheek boundary precision"],
+		"production_decision": "第 17 轮证明头顶毛和耳尖的方向可继续，狐狸胸口定位已改善；13 区域整体仍未达到生产遮罩批准线，不进入最终颜色组合或符号生成。"
+	}
+}

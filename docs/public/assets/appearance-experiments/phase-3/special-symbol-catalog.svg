@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1440" viewBox="0 0 1440 1440" role="img" aria-labelledby="title desc">
+  <title id="title">特殊符号候选目录</title>
+  <desc id="desc">额头标记候选以及脸颊晕染和尾环两个部位专用候选。仅用于视觉评审，不是运行时贴图。</desc>
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffdf8"/>
+      <stop offset="1" stop-color="#f7f1e8"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5146d8"/>
+      <stop offset="1" stop-color="#d44b9b"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+    <style>
+      .page { fill: url(#paper); }
+      .card { fill: #ffffff; stroke: #e2d9cc; stroke-width: 2; }
+      .icon-disc { fill: #f0f4ff; }
+      .label { font: 600 24px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; fill: #24243a; }
+      .id { font: 15px -apple-system, BlinkMacSystemFont, "SFMono-Regular", monospace; fill: #858091; }
+      .tag { font: 15px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; fill: #5f5b70; }
+      .line { fill: none; stroke: url(#ink); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; }
+      .thin { fill: none; stroke: #5146d8; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+      .dot { fill: #d44b9b; }
+    </style>
+  </defs>
+  <rect class="page" width="1440" height="1440" rx="30"/>
+  <text x="60" y="68" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif" font-size="38" font-weight="700" fill="#25243a">特殊符号候选</text>
+  <text x="60" y="104" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif" font-size="18" fill="#777184">基于 forehead_mark_zone 的视觉候选 · 先看形状和适用部位，不接入运行时</text>
+  <rect x="1110" y="52" width="260" height="42" rx="21" fill="#efeaff"/>
+  <text x="1240" y="80" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif" font-size="16" fill="#5146d8">15 个候选 / 2 个部位专用</text>
+
+  <!-- row 1 -->
+  <g transform="translate(40 150)">
+    <rect class="card" width="260" height="250" rx="22"/>
+    <text class="label" x="20" y="38">月牙</text><text class="id" x="20" y="62">crescent</text>
+    <circle class="icon-disc" cx="130" cy="139" r="72"/>
+    <path d="M 148 84 A 56 56 0 1 0 148 194 A 40 40 0 1 1 148 84 Z" fill="url(#ink)"/>
+    <text class="tag" x="20" y="226">额头：中心 / 左 / 右</text>
+  </g>
+  <g transform="translate(340 150)">
+    <rect class="card" width="260" height="250" rx="22"/>
+    <text class="label" x="20" y="38">S 符</text><text class="id" x="20" y="62">s_glyph</text>
+    <circle class="icon-disc" cx="130" cy="139" r="72"/>
+    <path class="line" d="M 174 92 C 116 65 72 91 89 126 C 101 151 163 133 169 164 C 176 198 125 214 77 185"/>
+    <text class="tag" x="20" y="226">额头：中心 / 左 / 右</text>
+  </g>
+  <g transform="translate(640 150)">
+    <rect class="card" width="260" height="250" rx="22"/>
+    <text class="label" x="20" y="38">双螺旋</text><text class="id" x="20" y="62">double_spiral</text>
+    <circle class="icon-disc" cx="130" cy="139" r="72"/>
+    <path class="thin" d="M 130 88 C 85 92 87 129 130 139 C 173 149 175 186 130 190"/>
+    <path class="line" d="M 130 88 C 175 92 173 129 130 139 C 87 149 85 186 130 190"/>
+    <text class="tag" x="20" y="226">额头：中心</text>
+  </g>
+  <g transform="translate(940 150)">
+    <rect class="card" width="260" height="250" rx="22"/>
+    <text class="label" x="20" y="38">星点簇</text><text class="id" x="20" y="62">constellation</text>
+    <circle class="icon-disc" cx="130" cy="139" r="72"/>
+    <path class="thin" d="M 88 159 L 116 113 L 151 151 L 179 100 L 197 174 L 145 177 Z"/>
+    <circle class="dot" cx="88" cy="159" r="8"/><circle class="dot" cx="116" cy="113" r="8"/><circle class="dot" cx="151" cy="151" r="8"/><circle class="dot" cx="179" cy="100" r="8"/><circle class="dot" cx="197" cy="174" r="8"/><circle class="dot" cx="145" cy="177" r="8"/>
+    <text class="tag" x="20" y="226">额头：中心 / 左 / 右</text>
+  </g>
+  <g transform="translate(1240 150)">
+    <rect class="card" width="160" height="250" rx="22"/>
+    <text class="label" x="20" y="38">彗星</text><text class="id" x="20" y="62">comet</text>
+    <circle class="icon-disc" cx="80" cy="139" r="58"/>
+    <path class="line" d="M 53 179 C 64 147 81 122 111 102"/>
+    <circle class="dot" cx="117" cy="95" r="18"/>
+    <text class="tag" x="20" y="226">额头：左 / 右</text>
+  </g>
+
+  <!-- row 2 -->
+  <g transform="translate(40 420)">
+    <rect class="card" width="260" height="250" rx="22"/>
+    <text class="label" x="20" y="38">外星符文</text><text class="id" x="20" y="62">alien_rune</text>
+    <circle class="icon-disc" cx="130" cy="139" r="72"/>
+    <path class="line" d="M 130 82 L 172 112 L 160 174 L 130 194 L 100 174 L 88 112 Z"/>
+    <path class="thin" d="M 130 101 L 130 175 M 106 126 L 154 126 M 111 156 L 149 156"/>
+    <text class="tag" x="20" y="226">额头：中心</text>
+  </g>
+  <g transform="translate(340 420)">
+    <rect class="card" width="260" height="250" rx="22"/>
+    <text class="label" x="20" y="38">菱形</text><text class="id" x="20" y="62">diamond</text>
+    <circle class="icon-disc" cx="130" cy="139" r="72"/>
+    <polygon points="130,84 176,139 130,194 84,139" class="line"/>
+    <polygon points="130,110 153,139 130,168 107,139" fill="#d44b9b" opacity=".75"/>
+    <text class="tag" x="20" y="226">额头：中心 / 左 / 右</text>
+  </g>
+  <g transform="translate(640 420)">
+    <rect class="card" width="260" height="250" rx="22"/>
+    <text class="label" x="20" y="38">星芒</text><text class="id" x="20" y="62">star</text>
+    <circle class="icon-disc" cx="130" cy="139" r="72"/>
+    <path d="M 130 77 L 146 119 L 192 139 L 146 159 L 130 201 L 114 159 L 68 139 L 114 119 Z" fill="url(#ink)"/>
+    <circle cx="130" cy="139" r="10" fill="#fff"/>
+    <text class="tag" x="20" y="226">额头：中心</text>
+  </g>
+  <g transform="translate(940 420)">
+    <rect class="card" width="260" height="250" rx="22"/>
+    <text class="label" x="20" y="38">闪电</text><text class="id" x="20" y="62">lightning</text>
+    <circle class="icon-disc" cx="130" cy="139" r="72"/>
+    <polygon points="148,78 91,148 125,148 111,201 170,126 136,126" fill="url(#ink)"/>
+    <text class="tag" x="20" y="226">额头：左 / 右</text>
+  </g>
+  <g transform="translate(1240 420)">
+    <rect class="card" width="160" height="250" rx="22"/>
+    <text class="label" x="20" y="38">波纹</text><text class="id" x="20" y="62">wave</text>
+    <circle class="icon-disc" cx="80" cy="139" r="58"/>
+    <path class="thin" d="M 42 118 C 57 99 71 99 86 118 C 101 137 115 137 130 118"/>
+    <path class="thin" d="M 42 141 C 57 122 71 122 86 141 C 101 160 115 160 130 141"/>
+    <path class="thin" d="M 42 164 C 57 145 71 145 86 164 C 101 183 115 183 130 164"/>
+    <text class="tag" x="20" y="226">额头：中心</text>
+  </g>
+
+  <!-- row 3 -->
+  <g transform="translate(40 690)">
+    <rect class="card" width="260" height="250" rx="22"/>
+    <text class="label" x="20" y="38">光环</text><text class="id" x="20" y="62">halo</text>
+    <circle class="icon-disc" cx="130" cy="139" r="72"/>
+    <ellipse cx="130" cy="139" rx="59" ry="43" class="line"/>
+    <circle cx="130" cy="139" r="13" fill="#d44b9b"/>
+    <text class="tag" x="20" y="226">额头：中心</text>
+  </g>
+  <g transform="translate(340 690)">
+    <rect class="card" width="260" height="250" rx="22"/>
+    <text class="label" x="20" y="38">脸颊晕染</text><text class="id" x="20" y="62">blush</text>
+    <circle class="icon-disc" cx="130" cy="139" r="72"/>
+    <ellipse cx="104" cy="143" rx="32" ry="22" fill="#e9879e" opacity=".72" filter="url(#soft)"/>
+    <ellipse cx="156" cy="143" rx="32" ry="22" fill="#e9879e" opacity=".72" filter="url(#soft)"/>
+    <ellipse cx="104" cy="143" rx="24" ry="17" fill="#e9879e" opacity=".64"/>
+    <ellipse cx="156" cy="143" rx="24" ry="17" fill="#e9879e" opacity=".64"/>
+    <text class="tag" x="20" y="226">脸颊专用，不放额头</text>
+  </g>
+  <g transform="translate(640 690)">
+    <rect class="card" width="260" height="250" rx="22"/>
+    <text class="label" x="20" y="38">星点雀斑</text><text class="id" x="20" y="62">freckles</text>
+    <circle class="icon-disc" cx="130" cy="139" r="72"/>
+    <circle class="dot" cx="87" cy="116" r="7"/><circle class="dot" cx="114" cy="101" r="5"/><circle class="dot" cx="148" cy="112" r="6"/><circle class="dot" cx="177" cy="128" r="7"/><circle class="dot" cx="103" cy="151" r="6"/><circle class="dot" cx="139" cy="153" r="5"/><circle class="dot" cx="166" cy="169" r="6"/><circle class="dot" cx="119" cy="181" r="7"/>
+    <text class="tag" x="20" y="226">额头侧 / 脸颊</text>
+  </g>
+  <g transform="translate(940 690)">
+    <rect class="card" width="260" height="250" rx="22"/>
+    <text class="label" x="20" y="38">心形</text><text class="id" x="20" y="62">heart</text>
+    <circle class="icon-disc" cx="130" cy="139" r="72"/>
+    <path d="M 130 192 C 118 179 82 154 82 121 C 82 94 116 88 130 113 C 144 88 178 94 178 121 C 178 154 142 179 130 192 Z" fill="none" stroke="url(#ink)" stroke-width="9" stroke-linejoin="round"/>
+    <text class="tag" x="20" y="226">额头中心 / 胸口</text>
+  </g>
+  <g transform="translate(1240 690)">
+    <rect class="card" width="160" height="250" rx="22"/>
+    <text class="label" x="20" y="38">尾环</text><text class="id" x="20" y="62">tail_ring</text>
+    <circle class="icon-disc" cx="80" cy="139" r="58"/>
+    <ellipse cx="80" cy="139" rx="40" ry="58" class="line"/>
+    <path class="line" d="M 42 118 C 59 130 101 130 118 118"/>
+    <text class="tag" x="20" y="226">尾巴专用，不放额头</text>
+  </g>
+
+  <rect x="60" y="986" width="1320" height="82" rx="20" fill="#eeeaff"/>
+  <text x="84" y="1022" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif" font-size="17" font-weight="600" fill="#5146d8">使用规则</text>
+  <text x="190" y="1022" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif" font-size="16" fill="#5f5b70">额头符号只从安全区生成；眼睛、眉毛、鼻子、嘴巴和头顶毛不进入允许区。</text>
+  <text x="190" y="1048" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif" font-size="16" fill="#5f5b70">脸颊晕染、尾环是部位型标记，先独立评审，不强行画在额头。</text>
+</svg>

@@ -1,0 +1,54 @@
+{
+  "schema": "appearance-region-self-review.v1",
+  "round": 3,
+  "iteration_label": "second_boundary_iteration",
+  "reviewer": "Codex direct visual review",
+  "basis": "Same high-contrast diagnostic palette and same front/three-quarter/side Godot views as round 2; only the region geometry was changed for head tuft, forehead, cheek, chest and belly.",
+  "metric_note": "Precision/recall/F1 are strict visual estimates for boundary triage, not pixel-ground-truth measurements. The comparison baseline is round-02-color-contrast, where dog F1 was 46 and fox F1 was 52.",
+  "dog": {
+    "aggregate": {"precision": 49, "recall": 69, "f1": 56},
+    "delta_from_round_2": {"precision": 12, "recall": -2, "f1": 10},
+    "regions": [
+      {"id": 0, "key": "head_tuft", "precision": 75, "recall": 82, "f1": 78, "status": "repair", "reason": "The cyan region is now limited to the central protruding tuft and no longer reads as a crown cap, but the side silhouette is still slightly wider than the tuft.", "next_action": "Trim the lateral feathering by a small amount and verify the side view."},
+      {"id": 1, "key": "forehead_mark_zone", "precision": 70, "recall": 78, "f1": 74, "status": "repair", "reason": "The orange zone is now a narrow central forehead patch above the eyes; it no longer crosses both eyes, though the lower edge is still close to the brow line.", "next_action": "Raise the lower boundary slightly and keep the brow/eye exclusion margin."},
+      {"id": 2, "key": "ear_pair", "precision": 76, "recall": 88, "f1": 82, "status": "repair", "reason": "The dog ear flap remains mostly correct, with residual overlap into the ear-tip candidate.", "next_action": "Subtract the explicit tip band and trim the lower cheek-facing edge."},
+      {"id": 3, "key": "ear_tip_pair", "precision": 62, "recall": 76, "f1": 68, "status": "repair", "reason": "The lime tip is shorter and more readable, but still follows part of the outer rim rather than only the endpoint.", "next_action": "Shorten the tip along the local ear axis."},
+      {"id": 4, "key": "cheek_fluff", "precision": 65, "recall": 82, "f1": 72, "status": "repair", "reason": "The green mask is now confined to side muzzle patches below the eyes and is less likely to cover the identity features; its outer contour is still somewhat rectangular.", "next_action": "Shape the outer edge along the actual cheek fluff and keep the nose/mouth exclusion."},
+      {"id": 5, "key": "chest_tuft", "precision": 55, "recall": 82, "f1": 65, "status": "repair", "reason": "The magenta region is no longer a full neck bib or shoulder block; it now reads as a small heart-like tuft. A little collar-like coverage remains at the upper edge.", "next_action": "Lower the heart slightly and subtract the neck rim while retaining the pointed lower tip."},
+      {"id": 6, "key": "belly_center", "precision": 58, "recall": 82, "f1": 68, "status": "repair", "reason": "The blue region is narrower and stops above the leg split, but it still has a panel-like rectangular top and bottom.", "next_action": "Taper both ends along the belly fur mass rather than using a constant vertical panel."},
+      {"id": 7, "key": "forearm_paw_pair", "precision": 32, "recall": 80, "f1": 46, "status": "reject", "reason": "Unchanged: violet still occupies too much upper arm/shoulder and does not cleanly represent forearm plus paw.", "next_action": "Re-anchor between elbow and paw after the torso regions stabilize."},
+      {"id": 8, "key": "elbow_cuff_pair", "precision": 42, "recall": 74, "f1": 54, "status": "repair", "reason": "Unchanged: the red bands remain visibly artificial and are not centered on the elbow in every view.", "next_action": "Define from the joint bend and local limb axis."},
+      {"id": 9, "key": "lower_leg_foot_pair", "precision": 57, "recall": 76, "f1": 65, "status": "repair", "reason": "Unchanged: lower-leg placement is broadly correct, but foot and knee transitions remain mixed.", "next_action": "Separate foot/lower-leg surfaces from the knee candidate."},
+      {"id": 10, "key": "knee_cuff_pair", "precision": 22, "recall": 35, "f1": 27, "status": "reject", "reason": "Unchanged: no clear knee ring is visible in the three views.", "next_action": "Rebuild as a joint-centered candidate instead of a broad y-band."},
+      {"id": 11, "key": "tail_tip", "precision": 0, "recall": 0, "f1": 0, "status": "reject", "reason": "Unchanged: the dog side view still has no readable tail-tip overlay.", "next_action": "Use a dog-specific tail axis and endpoint."},
+      {"id": 12, "key": "tail_underside", "precision": 18, "recall": 65, "f1": 29, "status": "reject", "reason": "Unchanged: the slate overlay is a distal block rather than the lower-side tail surface.", "next_action": "Define the underside in the dog's local tail frame and exclude the endpoint."
+      }
+    ]
+  },
+  "fox": {
+    "aggregate": {"precision": 55, "recall": 74, "f1": 62},
+    "delta_from_round_2": {"precision": 12, "recall": 3, "f1": 10},
+    "regions": [
+      {"id": 0, "key": "head_tuft", "precision": 70, "recall": 65, "f1": 67, "status": "repair", "reason": "The cyan tuft is now visible in all three views and is localized near the fox crown; it is small, but the lower edge needs separation from the forehead zone.", "next_action": "Keep the fox-specific lower y-band and add a small gap from the forehead candidate."},
+      {"id": 1, "key": "forehead_mark_zone", "precision": 60, "recall": 72, "f1": 65, "status": "repair", "reason": "The forehead patch is substantially narrower and no longer behaves as a full facial band, but its orange debug color has low contrast against fox fur in the front view.", "next_action": "Keep the geometry and switch this diagnostic color to a cooler contrasting color before the next review."},
+      {"id": 2, "key": "ear_pair", "precision": 82, "recall": 86, "f1": 84, "status": "repair", "reason": "The yellow overlay follows the outer/back ear and leaves the inner white fur protected; only the tip/lower-edge overlap remains.", "next_action": "Subtract the explicit tip band and preserve the inner-white guard."},
+      {"id": 3, "key": "ear_tip_pair", "precision": 70, "recall": 78, "f1": 74, "status": "repair", "reason": "The lime overlay is now concentrated near the ear ends, though it still extends down the outer rim.", "next_action": "Shorten it along the ear axis."},
+      {"id": 4, "key": "cheek_fluff", "precision": 62, "recall": 80, "f1": 70, "status": "repair", "reason": "The green cheek mask is smaller and stays farther from the eyes/nose/mouth, but it still cuts into the white muzzle transition on the outer edge.", "next_action": "Follow the cheek-fluff silhouette and subtract the white muzzle boundary."},
+      {"id": 5, "key": "chest_tuft", "precision": 50, "recall": 82, "f1": 62, "status": "repair", "reason": "The magenta region has been reduced to a small upper heart-like tuft, but a collar-shaped strip remains around the neck transition.", "next_action": "Lower and narrow the heart; explicitly subtract the neck surface."},
+      {"id": 6, "key": "belly_center", "precision": 58, "recall": 82, "f1": 68, "status": "repair", "reason": "The blue area is narrower and avoids the leg-root extremes better, though its straight panel edges are still not a natural belly contour.", "next_action": "Taper the upper and lower ends along the fox belly fur mass."},
+      {"id": 7, "key": "forearm_paw_pair", "precision": 30, "recall": 78, "f1": 44, "status": "reject", "reason": "Unchanged: violet is still concentrated on the upper arm rather than the defined forearm/paw region.", "next_action": "Re-anchor between elbow and paw after torso boundaries stabilize."},
+      {"id": 8, "key": "elbow_cuff_pair", "precision": 42, "recall": 72, "f1": 53, "status": "repair", "reason": "Unchanged: red bands still read as artificial stripes instead of joint-centered transitions.", "next_action": "Use the elbow bend and local limb axis."},
+      {"id": 9, "key": "lower_leg_foot_pair", "precision": 55, "recall": 75, "f1": 63, "status": "repair", "reason": "Unchanged: lower-leg location is broadly plausible, but the foot/knee boundaries are mixed.", "next_action": "Separate foot/lower-leg surfaces from the knee candidate."},
+      {"id": 10, "key": "knee_cuff_pair", "precision": 20, "recall": 35, "f1": 26, "status": "reject", "reason": "Unchanged: the cyan knee candidate is not a clear ring in the three views.", "next_action": "Rebuild from the fox leg joint bend."},
+      {"id": 11, "key": "tail_tip", "precision": 78, "recall": 90, "f1": 84, "status": "good_candidate", "reason": "The lime fox tail tip remains clearly localized at the true endpoint in the side and three-quarter views.", "next_action": "Keep as the current approved candidate, then check only its soft edge."},
+      {"id": 12, "key": "tail_underside", "precision": 38, "recall": 60, "f1": 47, "status": "reject", "reason": "Unchanged: slate still forms a distal block instead of a coherent lower-side tail strip.", "next_action": "Define the underside in the fox tail's local frame and subtract the tip."
+      }
+    ]
+  },
+  "round_findings": [
+    "Compared with round-02-color-contrast, dog F1 rises from 46 to 56 and fox F1 rises from 52 to 62.",
+    "The improvement is real rather than recall-only: mean precision rises by 12 points for both species; recall changes are small.",
+    "The chest mask is materially smaller, but still needs a neck subtraction before approval.",
+    "The next highest-value fixes are the fox forehead diagnostic color, chest neck subtraction, belly taper, and species-specific tail/limb masks."
+  ]
+}

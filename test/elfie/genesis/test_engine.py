@@ -38,12 +38,13 @@ def test_species_and_stage_are_small_priors_not_global_multipliers() -> None:
     assert max(abs(value) for value in dog.latent) < 0.2
 
 
-def test_batch_covers_five_roles_and_is_repeatable() -> None:
+@pytest.mark.parametrize("species_id", ("dog", "fox"))
+def test_batch_covers_five_roles_and_is_repeatable(species_id: str) -> None:
     engine = GenesisEngine()
     kwargs = {
         "master_seed": 12345,
         "batch_number": 1,
-        "species_id": "fox",
+        "species_id": species_id,
         "life_stage": "any",
         "gender": "any",
         "appearance": intent(),
@@ -62,7 +63,50 @@ def test_batch_covers_five_roles_and_is_repeatable() -> None:
     assert {candidate.role for candidate in first.candidates} == set(CANDIDATE_ROLES)
     assert len({candidate.candidate_id for candidate in first.candidates}) == 5
     assert len({candidate.signature for candidate in first.candidates}) == 5
+    assert len({candidate.signature.visual_key for candidate in first.candidates}) == 5
+    assert (
+        len(
+            {
+                candidate.appearance.coat.primary_color_id
+                for candidate in first.candidates
+            }
+        )
+        == 5
+    )
+    assert (
+        len(
+            {
+                candidate.appearance.coat.region_recipe_id
+                for candidate in first.candidates
+            }
+        )
+        == 5
+    )
+    assert all(
+        len(candidate.appearance.coat.region_accents) <= 2
+        for candidate in first.candidates
+    )
     assert all(candidate.personality.candidate.labels for candidate in first.candidates)
+
+
+@pytest.mark.parametrize("species_id", ("dog", "fox"))
+def test_batch_keeps_five_visible_variants_across_seed_sample(species_id: str) -> None:
+    engine = GenesisEngine()
+    for master_seed in range(10):
+        batch = engine.generate_batch(
+            master_seed=master_seed,
+            batch_number=1,
+            species_id=species_id,
+            life_stage="young_adult",
+            gender="female",
+            appearance=intent(),
+            answers=("quiet", "research", "plan", "discuss", "steady"),
+        )
+
+        assert len(batch.candidates) == 5
+        assert (
+            len({candidate.signature.visual_key for candidate in batch.candidates}) == 5
+        )
 
 
 def test_previous_batch_signatures_are_respected() -> None:
@@ -92,6 +136,9 @@ def test_previous_batch_signatures_are_respected() -> None:
 
     assert not {candidate.candidate_id for candidate in first.candidates} & {
         candidate.candidate_id for candidate in second.candidates
+    }
+    assert not {candidate.signature.visual_key for candidate in first.candidates} & {
+        candidate.signature.visual_key for candidate in second.candidates
     }
 
 

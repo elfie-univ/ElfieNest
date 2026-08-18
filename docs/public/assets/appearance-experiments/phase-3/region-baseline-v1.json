@@ -1,0 +1,125 @@
+{
+  "schema": "appearance-region-baseline.v1",
+  "status": "saved-experimental-baseline",
+  "saved_at": "2026-08-17",
+  "baseline_round": "round-27-disjoint-head-regions",
+  "source_script": "godot_project/scripts/test/render_appearance_region_debug.gd",
+  "render_contract": {
+    "engine": "Godot 4.7.stable",
+    "renderer": "GL Compatibility / macOS OpenGL",
+    "views": [
+      "front",
+      "three_quarter",
+      "side",
+      "top"
+    ],
+    "source_assets": [
+      "godot_project/characters/dog/dog.glb",
+      "godot_project/characters/fox/fox.glb"
+    ]
+  },
+  "scope": {
+    "species": [
+      "dog",
+      "fox"
+    ],
+    "region_count": 13,
+    "production_runtime_bound": false,
+    "glb_changed": false,
+    "blendshape_changed": false,
+    "runtime_color_path_changed": false
+  },
+  "future_rule": "后续区域实验一律从本基线分支；边界调整必须新建 round，不覆盖本目录。",
+  "catalog": "round-27-disjoint-head-regions/region-grid-catalog.json",
+  "evidence": {
+    "dog_grid": "round-27-disjoint-head-regions/dog-region-grid-4views.png",
+    "fox_grid": "round-27-disjoint-head-regions/fox-region-grid-4views.png",
+    "dog_rows": "round-27-disjoint-head-regions/dog-region-*-4views.png",
+    "fox_rows": "round-27-disjoint-head-regions/fox-region-*-4views.png"
+  },
+  "regions": [
+    {
+      "id": 0,
+      "key": "head_tuft",
+      "label": "头顶毛",
+      "definition": "头顶正中向上突出的单撮毛；只取可见突起，不取周围头顶毛帽。"
+    },
+    {
+      "id": 1,
+      "key": "forehead_mark_zone",
+      "label": "额头标记安全区",
+      "definition": "两眉之间、眼睛上方的额头中心区；只供后续符号使用。"
+    },
+    {
+      "id": 2,
+      "key": "ear_pair",
+      "label": "耳朵主体",
+      "definition": "狗取下垂耳瓣外侧/背侧；狐狸取立耳外侧/背侧，狐狸耳内白毛保持保护。"
+    },
+    {
+      "id": 3,
+      "key": "ear_tip_pair",
+      "label": "耳尖",
+      "definition": "狗取下垂耳瓣最下端；狐狸取立耳最上方最外端小尖，不取整只耳朵。"
+    },
+    {
+      "id": 4,
+      "key": "cheek_fluff",
+      "label": "脸颊蓬毛",
+      "definition": "眼睛下方、鼻子两侧的脸颊毛束；眼睛、鼻子、嘴巴不进入区域。"
+    },
+    {
+      "id": 5,
+      "key": "chest_tuft",
+      "label": "胸口心形毛",
+      "definition": "胸口上方心形毛束；只到心形下尖，不吞进长条腹毛。"
+    },
+    {
+      "id": 6,
+      "key": "belly_center",
+      "label": "腹部中央",
+      "definition": "胸口心形毛下方的腹部中心毛面；不含胸口、腿根和尾巴。"
+    },
+    {
+      "id": 7,
+      "key": "forearm_paw_pair",
+      "label": "前臂/手",
+      "definition": "左右前臂到手掌和手指末端；不含肩部、上臂主体和肘部过渡环。"
+    },
+    {
+      "id": 8,
+      "key": "elbow_cuff_pair",
+      "label": "肘部环",
+      "definition": "左右前臂靠近肘部的一圈过渡毛；不延伸成整条手臂。"
+    },
+    {
+      "id": 9,
+      "key": "lower_leg_foot_pair",
+      "label": "小腿/脚",
+      "definition": "左右小腿到脚掌和脚趾末端；不含大腿主体和膝部过渡环。"
+    },
+    {
+      "id": 10,
+      "key": "knee_cuff_pair",
+      "label": "膝部环",
+      "definition": "左右膝部附近一圈过渡毛；不扩展到整条大腿。"
+    },
+    {
+      "id": 11,
+      "key": "tail_tip",
+      "label": "尾尖",
+      "definition": "尾巴最末端的尖部毛发；不把整条尾巴染色。"
+    },
+    {
+      "id": 12,
+      "key": "tail_underside",
+      "label": "尾巴下侧",
+      "definition": "尾巴下缘/下侧毛面；不含尾尖、尾巴上缘和身体。"
+    }
+  ],
+  "known_limits": [
+    "这是一份 Godot 真实渲染的语义候选基线，不是生产 UV/拓扑遮罩批准。",
+    "肘部环、膝部环和尾巴下侧仍是软边界实验项。",
+    "耳朵、脸颊和内部空洞需要产品复核后，才能进入颜色排列组合。"
+  ]
+}

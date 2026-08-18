@@ -99,9 +99,29 @@ class FurAppearance:
 
 
 @dataclass(frozen=True)
+class RegionAccent:
+    """One explicit local color accent carried by the immutable genome."""
+
+    region_id: str
+    color_id: str
+    grade_id: str = "L1"
+    intensity: float = 0.8
+
+
+@dataclass(frozen=True)
 class CoatAppearance:
     palette_id: str = "default"
     pattern_id: str = "solid"
+    pattern_layout_id: str = ""
+    primary_color_id: str = ""
+    secondary_color_id: str = ""
+    accent_color_id: str = ""
+    face_mask_color_id: str = ""
+    marking_color_id: str = ""
+    marking_id: str = "none"
+    marking_placement: str = "none"
+    marking_scale: float = 0.9
+    marking_intensity: float = 0.9
     primary_hue_shift: float = 0.0
     primary_saturation_bias: float = 0.0
     primary_value_bias: float = 0.0
@@ -116,6 +136,8 @@ class CoatAppearance:
     chest_patch_coverage_bias: float = 0.0
     paw_patch_coverage_bias: float = 0.0
     tail_tip_coverage_bias: float = 0.0
+    region_recipe_id: str = "base"
+    region_accents: tuple[RegionAccent, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -208,8 +230,8 @@ class ElfieProfile:
                 raise ValueError(f"origin.{field_name} 不能为空")
         if origin.home_world_id != "elfaria":
             raise ValueError("当前 Profile 只支持 Elfaria 作为原生世界")
-        if self.appearance.genome_version != 1:
-            raise ValueError("当前只支持 appearance genome_version=1")
+        if self.appearance.genome_version not in (1, 2):
+            raise ValueError("当前只支持 appearance genome_version=1/2")
         if self.embodiment.primary_morphology not in SUPPORTED_MORPHOLOGIES:
             raise ValueError(
                 f"primary_morphology 必须是 {', '.join(SUPPORTED_MORPHOLOGIES)}"
@@ -243,6 +265,102 @@ class ElfieProfile:
                 raise ValueError(
                     f"{field_name}={value!r} 不属于物种 {species.species_id} 的合法集合"
                 )
+        pattern_layouts = species.pattern_layouts.get(coat.pattern_id, ())
+        if coat.pattern_layout_id and (
+            not pattern_layouts or coat.pattern_layout_id not in pattern_layouts
+        ):
+            raise ValueError(
+                f"pattern_layout_id={coat.pattern_layout_id!r} 不属于物种 "
+                f"{species.species_id} 的花纹布局"
+            )
+        if coat.marking_id not in species.markings:
+            raise ValueError(
+                f"marking_id={coat.marking_id!r} 不属于物种 "
+                f"{species.species_id} 的合法标记"
+            )
+        if coat.marking_placement not in species.marking_placements:
+            raise ValueError(
+                f"marking_placement={coat.marking_placement!r} 不属于物种 "
+                f"{species.species_id} 的合法标记位置"
+            )
+        if coat.region_recipe_id not in species.region_recipes:
+            raise ValueError(
+                f"region_recipe_id={coat.region_recipe_id!r} 不属于物种 "
+                f"{species.species_id} 的合法区域配方"
+            )
+        if len(coat.region_accents) > species.max_region_accents:
+            raise ValueError(
+                f"区域特异色最多允许 {species.max_region_accents} 个，"
+                f"实际为 {len(coat.region_accents)} 个"
+            )
+        accent_regions = [accent.region_id for accent in coat.region_accents]
+        if len(accent_regions) != len(set(accent_regions)):
+            raise ValueError("区域特异色不能重复使用同一个区域")
+        recipe = species.region_recipes[coat.region_recipe_id]
+        expected_accents = tuple(
+            (
+                accent.region_id,
+                accent.color_id,
+                accent.grade_id,
+                round(float(accent.intensity), 6),
+            )
+            for accent in recipe.accents
+        )
+        actual_accents = tuple(
+            (
+                accent.region_id,
+                accent.color_id,
+                accent.grade_id,
+                round(float(accent.intensity), 6),
+            )
+            for accent in coat.region_accents
+        )
+        if actual_accents != expected_accents:
+            raise ValueError("region_accents 必须与物种配置中的区域配方完全一致")
+        for accent in coat.region_accents:
+            rule = species.region_rules.get(accent.region_id)
+            if rule is None or rule.mode not in ("color-only", "color-or-mark"):
+                raise ValueError(f"区域 {accent.region_id!r} 不允许配色")
+            if accent.color_id not in rule.allowed_colors:
+                raise ValueError(
+                    f"区域 {accent.region_id!r} 不允许颜色 {accent.color_id!r}"
+                )
+            if accent.grade_id not in rule.allowed_grades:
+                raise ValueError(
+                    f"区域 {accent.region_id!r} 不允许色阶 {accent.grade_id!r}"
+                )
+            if not 0.0 <= float(accent.intensity) <= 1.0:
+                raise ValueError(f"区域 {accent.region_id!r} 的强度必须在 [0, 1] 内")
+        marking_rule = species.marking_rules.get(coat.marking_id)
+        if marking_rule is None:
+            raise ValueError(f"缺少标记 {coat.marking_id!r} 的兼容规则")
+        if coat.marking_placement not in marking_rule.placements:
+            raise ValueError(
+                f"标记 {coat.marking_id!r} 不允许放在 {coat.marking_placement!r}"
+            )
+        if coat.marking_id != "none" and coat.marking_placement == "none":
+            raise ValueError("启用局部标记时必须提供非 none 的位置")
+        if coat.marking_id == "none" and coat.marking_placement != "none":
+            raise ValueError("没有局部标记时位置必须为 none")
+        if (
+            coat.marking_id != "none"
+            and coat.marking_color_id not in marking_rule.allowed_colors
+        ):
+            raise ValueError(
+                f"标记 {coat.marking_id!r} 不允许颜色 {coat.marking_color_id!r}"
+            )
+        color_ids = (
+            coat.primary_color_id,
+            coat.secondary_color_id,
+            coat.accent_color_id,
+            coat.face_mask_color_id,
+            coat.marking_color_id,
+        )
+        for color_id in color_ids:
+            if color_id and color_id not in species.palettes:
+                raise ValueError(
+                    f"外观颜色槽 {color_id!r} 不属于物种 {species.species_id} 的颜色集合"
+                )
         _validate_numeric_dataclass(self.appearance.macro, -2.0, 2.0)
         _validate_numeric_dataclass(self.appearance.proportions, -1.0, 1.0)
         _validate_numeric_dataclass(self.appearance.body_bias, -1.0, 1.0)
@@ -267,8 +385,18 @@ class ElfieProfile:
             ignored_fields={
                 "palette_id",
                 "pattern_id",
+                "pattern_layout_id",
+                "primary_color_id",
+                "secondary_color_id",
+                "accent_color_id",
+                "face_mask_color_id",
+                "marking_color_id",
+                "marking_id",
+                "marking_placement",
                 "eye_color_id",
                 "nose_color_id",
+                "region_recipe_id",
+                "region_accents",
             },
         )
         for name, current in self.appearance.species_traits.items():
@@ -327,7 +455,7 @@ class ElfieProfile:
                     _mapping(appearance_raw.get("appendages")),
                 ),
                 fur=_construct(FurAppearance, _mapping(appearance_raw.get("fur"))),
-                coat=_construct(CoatAppearance, _mapping(appearance_raw.get("coat"))),
+                coat=_coat_from_dict(_mapping(appearance_raw.get("coat"))),
                 species_traits={
                     str(key): float(value)
                     for key, value in _mapping(
@@ -352,6 +480,18 @@ def _mapping(value: Any) -> Dict[str, Any]:
 def _construct(model: Type[T], raw: Dict[str, Any]) -> T:
     allowed = {item.name for item in fields(cast(Any, model))}
     return model(**{key: value for key, value in raw.items() if key in allowed})
+
+
+def _coat_from_dict(raw: Dict[str, Any]) -> CoatAppearance:
+    values = dict(raw)
+    accents = values.get("region_accents", ())
+    if isinstance(accents, (list, tuple)):
+        values["region_accents"] = tuple(
+            _construct(RegionAccent, item) for item in accents if isinstance(item, dict)
+        )
+    else:
+        values["region_accents"] = ()
+    return _construct(CoatAppearance, values)
 
 
 def _validate_numeric_dataclass(

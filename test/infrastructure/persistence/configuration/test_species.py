@@ -19,7 +19,7 @@ def test_bundled_catalog_loads_only_complete_adoptable_species() -> None:
     catalog = load_species_catalog()
 
     assert catalog.supported_species == ("fox", "dog")
-    assert [item.species_id for item in catalog.definitions] == ["fox", "dog", "cat"]
+    assert [item.species_id for item in catalog.definitions] == ["fox", "dog"]
     assert catalog.definition("fox").presentation_images is not None
     assert catalog.definition("dog").genesis is not None
     assert len(catalog.digest) == 64

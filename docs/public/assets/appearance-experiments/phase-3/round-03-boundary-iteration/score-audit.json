@@ -1,0 +1,63 @@
+{
+  "schema": "appearance-region-score-audit.v1",
+  "status": "round_03_first_pass_invalidated",
+  "source": "round-03-boundary-iteration/self-review.json",
+  "audit_basis": "Direct visual recheck of the same front, three-quarter and side overlay plates against the frozen region definitions.",
+  "hard_rules": [
+    "Location is checked before shape: if the overlay is on the wrong anatomical structure, recall is 0 and F1 is 0, even if the colored shape looks heart-like or compact.",
+    "Any overlay on an excluded identity feature (eyes, nose, mouth, face) is a precision failure; it cannot be compensated by high coverage elsewhere.",
+    "The final view score uses the weakest of the three views for boundary triage; an average cannot hide a side-view or three-quarter-view failure.",
+    "If a diagnostic color cannot be distinguished from the source fur, the region is unscorable and treated as failed for the product gate, not awarded an inferred score.",
+    "F1 = 2 * precision * recall / (precision + recall); when either is 0, F1 is 0."
+  ],
+  "critical_correction": {
+    "key": "chest_tuft",
+    "definition": "用户圈定的躯干上部/腹部心形胸毛；必须位于嘴巴和下巴以下的身体区域，不能覆盖脸部、嘴边或脖子。",
+    "observed": "本轮洋红色区域实际落在嘴巴、下巴和脸下方，未覆盖目标腹部心形区域。",
+    "hard_fail": true,
+    "corrected_score": {"dog": {"precision": 0, "recall": 0, "f1": 0}, "fox": {"precision": 0, "recall": 0, "f1": 0}},
+    "reason_previous_score_was_wrong": "上一轮只看了形状变小，没有先验证它是否位于定义的解剖位置；把‘小心形’误当成‘正确胸口区域’。",
+    "next_fix": "把心形 mask 从当前面部坐标带移到躯干心形毛束，先用单独洋红色渲染验证位置，再恢复全区域叠色。"
+  },
+  "dog": {
+    "aggregate_corrected": {"precision": 41, "recall": 57, "f1": 47},
+    "regions": [
+      {"id": 0, "key": "head_tuft", "precision": 70, "recall": 80, "f1": 75, "status": "repair", "reason": "中心突起基本命中，但三视图中仍略宽。"},
+      {"id": 1, "key": "forehead_mark_zone", "precision": 65, "recall": 72, "f1": 68, "status": "repair", "reason": "比上一轮窄，但下缘仍接近眉线。"},
+      {"id": 2, "key": "ear_pair", "precision": 75, "recall": 85, "f1": 80, "status": "repair", "reason": "主体耳瓣大致正确，但和耳尖有重叠。"},
+      {"id": 3, "key": "ear_tip_pair", "precision": 60, "recall": 70, "f1": 65, "status": "repair", "reason": "耳尖仍像外缘长带，不是小尖端。"},
+      {"id": 4, "key": "cheek_fluff", "precision": 60, "recall": 75, "f1": 67, "status": "repair", "reason": "脸颊缩小了，但仍需沿真实脸颊毛束修边。"},
+      {"id": 5, "key": "chest_tuft", "precision": 0, "recall": 0, "f1": 0, "status": "hard_fail", "reason": "洋红区域在嘴/下巴，不在目标腹部心形胸毛。"},
+      {"id": 6, "key": "belly_center", "precision": 55, "recall": 80, "f1": 65, "status": "repair", "reason": "腹部大致命中，但仍有面板状直边。"},
+      {"id": 7, "key": "forearm_paw_pair", "precision": 30, "recall": 70, "f1": 42, "status": "reject", "reason": "主要覆盖上臂，不是前臂/手。"},
+      {"id": 8, "key": "elbow_cuff_pair", "precision": 35, "recall": 60, "f1": 44, "status": "repair", "reason": "像横条，未稳定对准肘部。"},
+      {"id": 9, "key": "lower_leg_foot_pair", "precision": 50, "recall": 70, "f1": 58, "status": "repair", "reason": "小腿命中但脚掌和膝部边界混合。"},
+      {"id": 10, "key": "knee_cuff_pair", "precision": 15, "recall": 25, "f1": 19, "status": "reject", "reason": "三视图没有清晰膝部环。"},
+      {"id": 11, "key": "tail_tip", "precision": 0, "recall": 0, "f1": 0, "status": "reject", "reason": "狗尾尖仍未命中。"},
+      {"id": 12, "key": "tail_underside", "precision": 15, "recall": 55, "f1": 24, "status": "reject", "reason": "染成尾端色块，不是尾巴下侧。"}
+    ]
+  },
+  "fox": {
+    "aggregate_corrected": {"precision": 42, "recall": 57, "f1": 48},
+    "regions": [
+      {"id": 0, "key": "head_tuft", "precision": 65, "recall": 60, "f1": 62, "status": "repair", "reason": "三视图能看到小撮，但需和额头区拉开间隔。"},
+      {"id": 1, "key": "forehead_mark_zone", "precision": 0, "recall": 0, "f1": 0, "status": "unscorable", "reason": "橙色与狐狸原毛色接近，当前图无法可靠判断边界，不能凭推测给分。"},
+      {"id": 2, "key": "ear_pair", "precision": 80, "recall": 85, "f1": 82, "status": "repair", "reason": "外侧/背侧耳毛基本正确，耳内白毛保护有效。"},
+      {"id": 3, "key": "ear_tip_pair", "precision": 65, "recall": 75, "f1": 70, "status": "repair", "reason": "耳尖可见，但仍沿外缘向下扩展。"},
+      {"id": 4, "key": "cheek_fluff", "precision": 55, "recall": 75, "f1": 63, "status": "repair", "reason": "脸颊仍切入白色嘴边过渡。"},
+      {"id": 5, "key": "chest_tuft", "precision": 0, "recall": 0, "f1": 0, "status": "hard_fail", "reason": "洋红区域在嘴/下巴，不在目标腹部心形胸毛。"},
+      {"id": 6, "key": "belly_center", "precision": 55, "recall": 80, "f1": 65, "status": "repair", "reason": "腹部中心大致命中，但边缘仍像矩形面板。"},
+      {"id": 7, "key": "forearm_paw_pair", "precision": 25, "recall": 70, "f1": 37, "status": "reject", "reason": "主要落在上臂，不是前臂/手。"},
+      {"id": 8, "key": "elbow_cuff_pair", "precision": 35, "recall": 60, "f1": 44, "status": "repair", "reason": "仍是人为横条，不是肘部过渡环。"},
+      {"id": 9, "key": "lower_leg_foot_pair", "precision": 50, "recall": 70, "f1": 58, "status": "repair", "reason": "大致覆盖小腿，但脚和膝部边界混合。"},
+      {"id": 10, "key": "knee_cuff_pair", "precision": 15, "recall": 25, "f1": 19, "status": "reject", "reason": "没有形成清晰膝部环。"},
+      {"id": 11, "key": "tail_tip", "precision": 75, "recall": 85, "f1": 80, "status": "candidate", "reason": "尾尖在侧视图和三分之四视图中命中。"},
+      {"id": 12, "key": "tail_underside", "precision": 30, "recall": 55, "f1": 39, "status": "reject", "reason": "仍是尾端块面，不是尾巴下侧。"}
+    ]
+  },
+  "decision": {
+    "previous_round_improvement_claim": "revoked",
+    "reason": "关键胸口区域发生解剖位置错误，且第一遍评分没有位置硬门槛。",
+    "next_iteration_gate": "胸口区域必须先在单独渲染中位于嘴巴/下巴以下的躯干心形毛束，并且三视图均不得触及脸部；否则整体迭代不得宣称分数提升。"
+  }
+}

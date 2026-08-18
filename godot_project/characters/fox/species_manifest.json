@@ -32,12 +32,16 @@
       "palette_id": {
         "mode": "albedo_tint",
         "values": {
-          "red": [1.0, 0.55, 0.34, 1.0],
-          "golden": [1.0, 0.78, 0.34, 1.0],
-          "cross": [0.78, 0.45, 0.25, 1.0],
-          "silver": [0.75, 0.82, 0.90, 1.0],
-          "melanistic": [0.35, 0.35, 0.40, 1.0],
-          "pale": [1.0, 0.90, 0.72, 1.0]
+          "ivory": [0.96, 0.89, 0.74, 1.0],
+          "cream": [0.86, 0.71, 0.50, 1.0],
+          "champagne": [0.92, 0.76, 0.50, 1.0],
+          "golden": [0.78, 0.48, 0.18, 1.0],
+          "orange_red": [0.74, 0.25, 0.08, 1.0],
+          "fox_red": [0.52, 0.13, 0.04, 1.0],
+          "chestnut": [0.32, 0.08, 0.03, 1.0],
+          "sable_brown": [0.16, 0.04, 0.02, 1.0],
+          "silver_gray": [0.45, 0.49, 0.55, 1.0],
+          "smoky_black": [0.11, 0.12, 0.14, 1.0]
         }
       },
       "pattern_id": {
@@ -48,7 +52,127 @@
           "cross": 2,
           "face_mask": 3
         }
+      },
+      "pattern_layout_id": {
+        "mode": "pattern_layout_id",
+        "values": {
+          "classic": 0,
+          "back_underside": 1,
+          "face_chest": 2,
+          "saddle": 3,
+          "split": 4,
+          "cross_back": 5,
+          "cross_face": 6,
+          "shoulder_cross": 7,
+          "constellation": 8,
+          "central_mask": 9,
+          "side_mask": 10,
+          "blaze": 11,
+          "cheek_mask": 12
+        }
+      },
+      "marking_id": {
+        "mode": "marking_id",
+        "values": {
+          "none": 0,
+          "crescent": 1,
+          "s_glyph": 2,
+          "double_spiral": 3,
+          "constellation": 4,
+          "comet": 5,
+          "alien_rune": 6,
+          "diamond": 7,
+          "star": 8,
+          "lightning": 9,
+          "wave": 10,
+          "halo": 11,
+          "blush": 12,
+          "freckles": 13,
+          "heart": 14,
+          "mole": 15
+        }
+      },
+      "marking_placement": {
+        "mode": "marking_placement",
+        "values": {
+          "none": 0,
+          "forehead_center": 1,
+          "forehead_left": 2,
+          "forehead_right": 3,
+          "cheek_pair": 4,
+          "chest": 5,
+          "belly_center": 6
+        }
+      },
+      "region_0_id": {
+        "mode": "region_id",
+        "slot": 0,
+        "values": {
+          "none": -1,
+          "head_tuft": 0,
+          "forehead_mark_zone": 1,
+          "ear_pair": 2,
+          "ear_tip_pair": 3,
+          "cheek_fluff": 4,
+          "chest_tuft": 5,
+          "belly_center": 6,
+          "forearm_paw_pair": 7,
+          "elbow_cuff_pair": 8,
+          "lower_leg_foot_pair": 9,
+          "knee_cuff_pair": 10,
+          "tail_tip": 11,
+          "tail_underside": 12
+        }
+      },
+      "region_1_id": {
+        "mode": "region_id",
+        "slot": 1,
+        "values": {
+          "none": -1,
+          "head_tuft": 0,
+          "forehead_mark_zone": 1,
+          "ear_pair": 2,
+          "ear_tip_pair": 3,
+          "cheek_fluff": 4,
+          "chest_tuft": 5,
+          "belly_center": 6,
+          "forearm_paw_pair": 7,
+          "elbow_cuff_pair": 8,
+          "lower_leg_foot_pair": 9,
+          "knee_cuff_pair": 10,
+          "tail_tip": 11,
+          "tail_underside": 12
+        }
+      },
+      "region_2_id": {
+        "mode": "region_id",
+        "slot": 2,
+        "values": {
+          "none": -1,
+          "head_tuft": 0,
+          "forehead_mark_zone": 1,
+          "ear_pair": 2,
+          "ear_tip_pair": 3,
+          "cheek_fluff": 4,
+          "chest_tuft": 5,
+          "belly_center": 6,
+          "forearm_paw_pair": 7,
+          "elbow_cuff_pair": 8,
+          "lower_leg_foot_pair": 9,
+          "knee_cuff_pair": 10,
+          "tail_tip": 11,
+          "tail_underside": 12
+        }
       }
+    },
+    "marking_zones": {
+      "none": [0.0, 0.0, 0.0, 0.0],
+      "forehead_center": [0.0, 1.68, 0.44, 0.14],
+      "forehead_left": [-0.12, 1.64, 0.44, 0.13],
+      "forehead_right": [0.12, 1.64, 0.44, 0.13],
+      "cheek_pair": [0.0, 1.34, 0.30, 0.18],
+      "chest": [0.0, 1.04, 0.20, 0.18],
+      "belly_center": [0.0, 0.70, 0.20, 0.18]
     }
   },
   "required_animations": [

@@ -1,0 +1,54 @@
+{
+  "schema": "appearance-region-self-review.v1",
+  "round": 5,
+  "iteration_label": "belly_contour_iteration",
+  "reviewer": "Codex direct visual review",
+  "basis": "Same audited P/R/F1 rules and same Godot front/three-quarter/side views. Only belly_center geometry changed in this round.",
+  "score_note": "Per-region scores are P/R/F1. Delta is against round-04-chest-location-fix. Unchanged regions retain their previous scores; no score was raised merely because the total was expected to improve.",
+  "dog": {
+    "aggregate": {"precision": 48.3, "recall": 64.2, "f1": 54.2},
+    "previous_aggregate": {"precision": 47.1, "recall": 63.8, "f1": 53.3},
+    "delta": {"precision": 1.2, "recall": 0.4, "f1": 0.9},
+    "regions": [
+      {"id": 0, "key": "head_tuft", "score": {"precision": 70, "recall": 80, "f1": 75}, "delta_f1": 0, "status": "repair"},
+      {"id": 1, "key": "forehead_mark_zone", "score": {"precision": 70, "recall": 75, "f1": 72}, "delta_f1": 0, "status": "repair"},
+      {"id": 2, "key": "ear_pair", "score": {"precision": 75, "recall": 85, "f1": 80}, "delta_f1": 0, "status": "repair"},
+      {"id": 3, "key": "ear_tip_pair", "score": {"precision": 60, "recall": 70, "f1": 65}, "delta_f1": 0, "status": "repair"},
+      {"id": 4, "key": "cheek_fluff", "score": {"precision": 60, "recall": 75, "f1": 67}, "delta_f1": 0, "status": "repair"},
+      {"id": 5, "key": "chest_tuft", "score": {"precision": 70, "recall": 85, "f1": 77}, "delta_f1": 0, "status": "repair"},
+      {"id": 6, "key": "belly_center", "score": {"precision": 78, "recall": 84, "f1": 81}, "delta_f1": 11, "status": "improved", "reason": "从矩形面板改为圆润的椭圆/梨形轮廓；正面、3/4、侧面都没有明显直角，且底部更少进入腿根。", "next_action": "保持圆润轮廓，下一轮只检查与胸口心形的间隔。"},
+      {"id": 7, "key": "forearm_paw_pair", "score": {"precision": 30, "recall": 70, "f1": 42}, "delta_f1": 0, "status": "reject"},
+      {"id": 8, "key": "elbow_cuff_pair", "score": {"precision": 35, "recall": 60, "f1": 44}, "delta_f1": 0, "status": "repair"},
+      {"id": 9, "key": "lower_leg_foot_pair", "score": {"precision": 50, "recall": 70, "f1": 58}, "delta_f1": 0, "status": "repair"},
+      {"id": 10, "key": "knee_cuff_pair", "score": {"precision": 15, "recall": 25, "f1": 19}, "delta_f1": 0, "status": "reject"},
+      {"id": 11, "key": "tail_tip", "score": {"precision": 0, "recall": 0, "f1": 0}, "delta_f1": 0, "status": "reject"},
+      {"id": 12, "key": "tail_underside", "score": {"precision": 15, "recall": 55, "f1": 24}, "delta_f1": 0, "status": "reject"}
+    ]
+  },
+  "fox": {
+    "aggregate": {"precision": 49.1, "recall": 64.2, "f1": 54.5},
+    "previous_aggregate": {"precision": 47.8, "recall": 63.8, "f1": 53.6},
+    "delta": {"precision": 1.3, "recall": 0.4, "f1": 0.9},
+    "regions": [
+      {"id": 0, "key": "head_tuft", "score": {"precision": 65, "recall": 60, "f1": 62}, "delta_f1": 0, "status": "repair"},
+      {"id": 1, "key": "forehead_mark_zone", "score": {"precision": 0, "recall": 0, "f1": 0}, "delta_f1": 0, "status": "unscorable"},
+      {"id": 2, "key": "ear_pair", "score": {"precision": 80, "recall": 85, "f1": 82}, "delta_f1": 0, "status": "repair"},
+      {"id": 3, "key": "ear_tip_pair", "score": {"precision": 65, "recall": 75, "f1": 70}, "delta_f1": 0, "status": "repair"},
+      {"id": 4, "key": "cheek_fluff", "score": {"precision": 55, "recall": 75, "f1": 63}, "delta_f1": 0, "status": "repair"},
+      {"id": 5, "key": "chest_tuft", "score": {"precision": 65, "recall": 85, "f1": 73}, "delta_f1": 0, "status": "repair"},
+      {"id": 6, "key": "belly_center", "score": {"precision": 78, "recall": 84, "f1": 81}, "delta_f1": 11, "status": "improved", "reason": "从矩形面板改为圆润的椭圆/梨形轮廓；没有吞进腿根，边缘比上一轮自然。", "next_action": "保持轮廓，下一轮检查与胸口心形的间隔。"},
+      {"id": 7, "key": "forearm_paw_pair", "score": {"precision": 25, "recall": 70, "f1": 37}, "delta_f1": 0, "status": "reject"},
+      {"id": 8, "key": "elbow_cuff_pair", "score": {"precision": 35, "recall": 60, "f1": 44}, "delta_f1": 0, "status": "repair"},
+      {"id": 9, "key": "lower_leg_foot_pair", "score": {"precision": 50, "recall": 70, "f1": 58}, "delta_f1": 0, "status": "repair"},
+      {"id": 10, "key": "knee_cuff_pair", "score": {"precision": 15, "recall": 25, "f1": 19}, "delta_f1": 0, "status": "reject"},
+      {"id": 11, "key": "tail_tip", "score": {"precision": 75, "recall": 85, "f1": 80}, "delta_f1": 0, "status": "candidate"},
+      {"id": 12, "key": "tail_underside", "score": {"precision": 30, "recall": 55, "f1": 39}, "delta_f1": 0, "status": "reject"}
+    ]
+  },
+  "post_score_check": {
+    "belly_shape_gate": "passed_candidate",
+    "rectangle_artifact": "removed_in_front_and_three_quarter_views; side_view_is_narrow_because_of_body_profile",
+    "only_changed_region_with_score_increase": "belly_center",
+    "overall_improvement_is_valid": true
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "schema": "appearance-region-self-review.v1",
+  "round": 4,
+  "iteration_label": "next_boundary_iteration_after_score_audit",
+  "reviewer": "Codex direct visual review",
+  "basis": "Godot front/three-quarter/side overlay plates using the audited hard rules: location first, exclusion violations fail, weakest view controls, unreadable diagnostic colors receive no inferred score.",
+  "baseline": {
+    "source": "round-03-boundary-iteration/score-audit.json",
+    "dog": {"precision": 41, "recall": 57, "f1": 47},
+    "fox": {"precision": 42, "recall": 57, "f1": 48}
+  },
+  "dog": {
+    "aggregate": {"precision": 47, "recall": 64, "f1": 53},
+    "delta_from_audited_baseline": {"precision": 6, "recall": 7, "f1": 6},
+    "regions": [
+      {"id": 0, "key": "head_tuft", "precision": 70, "recall": 80, "f1": 75, "status": "repair", "reason": "中心突起基本命中，仍略宽。", "next_action": "沿侧视图收窄横向羽边。"},
+      {"id": 1, "key": "forehead_mark_zone", "precision": 70, "recall": 75, "f1": 72, "status": "repair", "reason": "紫色区域位于两眉上方的中央额头，不再横跨眼睛；下缘仍需留出眉线安全距离。", "next_action": "略微上移下边界。"},
+      {"id": 2, "key": "ear_pair", "precision": 75, "recall": 85, "f1": 80, "status": "repair", "reason": "主体耳瓣大致正确，但和耳尖仍有重叠。", "next_action": "扣除耳尖带。"},
+      {"id": 3, "key": "ear_tip_pair", "precision": 60, "recall": 70, "f1": 65, "status": "repair", "reason": "耳尖仍略像外缘长带。", "next_action": "沿耳朵局部轴继续缩短。"},
+      {"id": 4, "key": "cheek_fluff", "precision": 60, "recall": 75, "f1": 67, "status": "repair", "reason": "脸颊大致位于眼下和鼻侧，但外缘还不够贴合真实毛束。", "next_action": "继续扣除白色嘴边过渡。"},
+      {"id": 5, "key": "chest_tuft", "precision": 70, "recall": 85, "f1": 77, "status": "repair", "reason": "洋红心形已经位于嘴巴/下巴以下的躯干上方，正面、3/4、侧面均未覆盖脸部；下尖与腹部区域有少量接触。", "next_action": "保留位置，缩短下尖并与 belly_center 分离。"},
+      {"id": 6, "key": "belly_center", "precision": 62, "recall": 80, "f1": 70, "status": "repair", "reason": "蓝色腹部变窄且上下有收尖，不再是完整矩形，但底部仍接近腿根。", "next_action": "继续上移底部边界。"},
+      {"id": 7, "key": "forearm_paw_pair", "precision": 30, "recall": 70, "f1": 42, "status": "reject", "reason": "仍主要覆盖上臂，不是前臂/手。", "next_action": "按肘部到手掌的局部轴重建。"},
+      {"id": 8, "key": "elbow_cuff_pair", "precision": 35, "recall": 60, "f1": 44, "status": "repair", "reason": "仍像横条，未稳定对准肘部。", "next_action": "改为关节中心环。"},
+      {"id": 9, "key": "lower_leg_foot_pair", "precision": 50, "recall": 70, "f1": 58, "status": "repair", "reason": "小腿命中，但脚掌和膝部边界混合。", "next_action": "拆出脚掌轮廓。"},
+      {"id": 10, "key": "knee_cuff_pair", "precision": 15, "recall": 25, "f1": 19, "status": "reject", "reason": "三视图没有清晰膝部环。", "next_action": "暂不进入组合，重建关节候选。"},
+      {"id": 11, "key": "tail_tip", "precision": 0, "recall": 0, "f1": 0, "status": "reject", "reason": "狗尾尖仍未命中。", "next_action": "使用狗专用尾巴轴和端点。"},
+      {"id": 12, "key": "tail_underside", "precision": 15, "recall": 55, "f1": 24, "status": "reject", "reason": "仍是尾端色块，不是尾巴下侧。", "next_action": "使用狗尾巴局部坐标并排除尾尖。"}
+    ]
+  },
+  "fox": {
+    "aggregate": {"precision": 48, "recall": 64, "f1": 54},
+    "delta_from_audited_baseline": {"precision": 6, "recall": 7, "f1": 6},
+    "regions": [
+      {"id": 0, "key": "head_tuft", "precision": 65, "recall": 60, "f1": 62, "status": "repair", "reason": "小撮可见，但需要和额头区留出间隔。", "next_action": "保持狐狸专用高度并缩小下缘。"},
+      {"id": 1, "key": "forehead_mark_zone", "precision": 0, "recall": 0, "f1": 0, "status": "unscorable", "reason": "紫色诊断色在狐狸正面仍无法稳定辨认边界，不能凭推测给分。", "next_action": "改用更亮的冷色或单独渲染该区域后再评分。"},
+      {"id": 2, "key": "ear_pair", "precision": 80, "recall": 85, "f1": 82, "status": "repair", "reason": "外侧/背侧耳毛正确，耳内白毛保护有效。", "next_action": "继续分离耳尖。"},
+      {"id": 3, "key": "ear_tip_pair", "precision": 65, "recall": 75, "f1": 70, "status": "repair", "reason": "耳尖可见，但沿外缘向下扩展。", "next_action": "缩短耳尖局部轴范围。"},
+      {"id": 4, "key": "cheek_fluff", "precision": 55, "recall": 75, "f1": 63, "status": "repair", "reason": "脸颊大致命中，但仍切入白色嘴边过渡。", "next_action": "扣除白色过渡并贴合脸颊毛束。"},
+      {"id": 5, "key": "chest_tuft", "precision": 65, "recall": 85, "f1": 73, "status": "repair", "reason": "洋红心形已从嘴/下巴移到躯干上方，三个视角均未覆盖脸部；下尖仍接近腹部。", "next_action": "缩短下尖并与 belly_center 分离。"},
+      {"id": 6, "key": "belly_center", "precision": 62, "recall": 80, "f1": 70, "status": "repair", "reason": "腹部面板变窄且有收尖，但仍需避开腿根。", "next_action": "继续上移底部边界。"},
+      {"id": 7, "key": "forearm_paw_pair", "precision": 25, "recall": 70, "f1": 37, "status": "reject", "reason": "仍主要落在上臂，不是前臂/手。", "next_action": "按前臂局部轴重建。"},
+      {"id": 8, "key": "elbow_cuff_pair", "precision": 35, "recall": 60, "f1": 44, "status": "repair", "reason": "仍像横条，不是肘部过渡环。", "next_action": "改为关节中心环。"},
+      {"id": 9, "key": "lower_leg_foot_pair", "precision": 50, "recall": 70, "f1": 58, "status": "repair", "reason": "小腿大致命中，但脚/膝边界混合。", "next_action": "拆出脚掌轮廓。"},
+      {"id": 10, "key": "knee_cuff_pair", "precision": 15, "recall": 25, "f1": 19, "status": "reject", "reason": "没有形成清晰膝部环。", "next_action": "重建狐狸关节候选。"},
+      {"id": 11, "key": "tail_tip", "precision": 75, "recall": 85, "f1": 80, "status": "candidate", "reason": "尾尖在侧视图和3/4视图中命中。", "next_action": "保持并检查软边。"},
+      {"id": 12, "key": "tail_underside", "precision": 30, "recall": 55, "f1": 39, "status": "reject", "reason": "仍是尾端块面，不是尾巴下侧。", "next_action": "使用狐狸尾巴局部坐标并排除尾尖。"}
+    ]
+  },
+  "post_score_check": {
+    "chest_location_gate": "passed_for_this_round",
+    "face_exclusion_gate": "passed_for_chest_in_all_three_views",
+    "weakest_view_rule_applied": true,
+    "unreadable_region_not_awarded": "fox_forehead_mark_zone",
+    "improvement_is_valid_against_audited_baseline": true,
+    "remaining_blockers": ["fox forehead visibility", "dog tail tip", "both limb joint bands", "chest/belly lower-edge separation"]
+  }
+}

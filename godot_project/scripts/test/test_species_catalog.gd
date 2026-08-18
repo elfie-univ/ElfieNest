@@ -56,7 +56,7 @@ func _appearance_application_changes_runtime(species_id: String, validation: Dic
 		instance.free()
 		return false
 	var before_head := skeleton.get_bone_pose_scale(head_index)
-	var palette := "red" if species_id == "fox" else "black"
+	var palette := "orange_red" if species_id == "fox" else "honey_gold"
 	ACTOR_APPEARANCE.apply(
 		visual_root,
 		collision_shape,
@@ -64,7 +64,20 @@ func _appearance_application_changes_runtime(species_id: String, validation: Dic
 			"height_scale": 1.08,
 			"build_scale": 1.08,
 			"bone_scales": {"HeadScale": 1.08, "NeckLength": 1.06},
-			"material_parameters": {"palette_id": palette, "pattern_id": "bicolor"},
+			"material_parameters": {
+				"palette_id": palette,
+				"pattern_id": "classic" if species_id == "fox" else "solid",
+				"pattern_layout_id": "classic" if species_id == "fox" else "solid",
+				"primary_color_id": palette,
+				"secondary_color_id": "snow_white" if species_id == "dog" else "ivory",
+				"accent_color_id": "apricot" if species_id == "dog" else "silver_gray",
+				"face_mask_color_id": "snow_white" if species_id == "dog" else "ivory",
+				"marking_color_id": "smoky_charcoal" if species_id == "dog" else "smoky_black",
+				"marking_id": "s_glyph",
+				"marking_placement": "forehead_center",
+				"marking_scale": 0.9,
+				"marking_intensity": 1.0,
+			},
 		},
 		species_id,
 	)
@@ -72,10 +85,27 @@ func _appearance_application_changes_runtime(species_id: String, validation: Dic
 	var material_changed := false
 	for node in visual_root.find_children("*", "MeshInstance3D", true, false):
 		var mesh_instance := node as MeshInstance3D
-		if mesh_instance != null and mesh_instance.get_surface_override_material(0) is ShaderMaterial:
-			var material := mesh_instance.get_surface_override_material(0) as ShaderMaterial
-			material_changed = int(material.get_shader_parameter("appearance_pattern")) == 1
+		if mesh_instance == null or mesh_instance.mesh == null:
+			continue
+		for surface_index in range(mesh_instance.mesh.get_surface_count()):
+			var candidate_material: Material = mesh_instance.get_surface_override_material(surface_index)
+			if not candidate_material is ShaderMaterial:
+				continue
+			var material := candidate_material as ShaderMaterial
+			if material.shader == null:
+				continue
+			material_changed = (
+				int(material.get_shader_parameter("appearance_pattern")) == 0
+				and material.get_shader_parameter("use_color_slots") == true
+				and int(material.get_shader_parameter("appearance_marking")) == 2
+				and material.get_shader_parameter("use_source_fur_texture") == true
+				and material.get_shader_parameter("source_fur_texture") != null
+				and material.shader.code.contains("region_0_id")
+				and material.shader.code.contains("EMISSION =")
+			)
 			if material_changed:
 				break
+		if material_changed:
+			break
 	instance.free()
 	return before_head != after_head and material_changed

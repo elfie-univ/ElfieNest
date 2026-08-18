@@ -1,0 +1,121 @@
+{
+  "schema": "appearance-special-symbol-catalog.v1",
+  "status": "visual-candidates-only",
+  "saved_at": "2026-08-17",
+  "source_region": "forehead_mark_zone",
+  "safe_zone_rule": "符号只允许落在额头标记安全区；眼睛、眉毛、鼻子、嘴巴和头顶毛不参与。",
+  "catalog_asset": "special-symbol-catalog.svg",
+  "runtime_integrated": false,
+  "candidates": [
+    {
+      "id": "crescent",
+      "label_zh": "月牙",
+      "recommended_placement": ["forehead_center", "forehead_left", "forehead_right"],
+      "style": "single curved glyph",
+      "status": "candidate"
+    },
+    {
+      "id": "s_glyph",
+      "label_zh": "S 符",
+      "recommended_placement": ["forehead_center", "forehead_left", "forehead_right"],
+      "style": "single flowing glyph",
+      "status": "candidate"
+    },
+    {
+      "id": "double_spiral",
+      "label_zh": "双螺旋",
+      "recommended_placement": ["forehead_center"],
+      "style": "paired spiral glyph",
+      "status": "candidate"
+    },
+    {
+      "id": "constellation",
+      "label_zh": "星点簇",
+      "recommended_placement": ["forehead_center", "forehead_left", "forehead_right"],
+      "style": "small connected dots",
+      "status": "candidate"
+    },
+    {
+      "id": "comet",
+      "label_zh": "彗星",
+      "recommended_placement": ["forehead_left", "forehead_right"],
+      "style": "dot with curved tail",
+      "status": "candidate"
+    },
+    {
+      "id": "alien_rune",
+      "label_zh": "外星符文",
+      "recommended_placement": ["forehead_center"],
+      "style": "rounded geometric rune",
+      "status": "candidate"
+    },
+    {
+      "id": "diamond",
+      "label_zh": "菱形",
+      "recommended_placement": ["forehead_center", "forehead_left", "forehead_right"],
+      "style": "outlined geometric glyph",
+      "status": "candidate"
+    },
+    {
+      "id": "star",
+      "label_zh": "星芒",
+      "recommended_placement": ["forehead_center"],
+      "style": "eight-point star",
+      "status": "candidate"
+    },
+    {
+      "id": "lightning",
+      "label_zh": "闪电",
+      "recommended_placement": ["forehead_left", "forehead_right"],
+      "style": "angular glyph",
+      "status": "candidate"
+    },
+    {
+      "id": "wave",
+      "label_zh": "波纹",
+      "recommended_placement": ["forehead_center", "forehead_left", "forehead_right"],
+      "style": "three-line wave",
+      "status": "candidate"
+    },
+    {
+      "id": "halo",
+      "label_zh": "光环",
+      "recommended_placement": ["forehead_center"],
+      "style": "ring with center dot",
+      "status": "candidate"
+    },
+    {
+      "id": "blush",
+      "label_zh": "脸颊晕染",
+      "recommended_placement": ["cheek_left", "cheek_right"],
+      "style": "soft local color patch",
+      "status": "site-specific-not-forehead"
+    },
+    {
+      "id": "freckles",
+      "label_zh": "星点雀斑",
+      "recommended_placement": ["forehead_left", "forehead_right", "cheek_left", "cheek_right"],
+      "style": "separate small dots",
+      "status": "candidate"
+    },
+    {
+      "id": "heart",
+      "label_zh": "心形",
+      "recommended_placement": ["forehead_center", "chest"],
+      "style": "rounded glyph",
+      "status": "candidate"
+    },
+    {
+      "id": "tail_ring",
+      "label_zh": "尾环",
+      "recommended_placement": ["tail"],
+      "style": "circumference band",
+      "status": "site-specific-not-forehead"
+    }
+  ],
+  "review_notes": [
+    "优先让用户从月牙、S 符、双螺旋、星点簇、彗星和外星符文中选第一批。",
+    "脸颊晕染和尾环是部位型标记，不应强行画在额头。",
+    "本目录只验证符号轮廓和位置语义，不验证贴图边缘、毛流融合或运行时渲染。"
+  ]
+}

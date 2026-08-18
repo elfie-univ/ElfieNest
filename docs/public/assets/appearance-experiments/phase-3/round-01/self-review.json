@@ -1,0 +1,50 @@
+{
+  "schema": "appearance-region-self-review.v1",
+  "round": 1,
+  "reviewer": "Codex direct visual review",
+  "basis": "Original Godot material remains visible under 13 distinct debug-color overlays; three views are front, three-quarter and side.",
+  "metric_note": "Precision/recall/F1 are visual estimates for boundary triage, not pixel-level ground truth.",
+  "dog": {
+    "aggregate": {"precision": 61, "recall": 78, "f1": 68},
+    "regions": [
+      {"id": 0, "key": "head_tuft", "precision": 88, "recall": 82, "f1": 85, "status": "good_candidate"},
+      {"id": 1, "key": "forehead_mark_zone", "precision": 38, "recall": 90, "f1": 54, "status": "reject"},
+      {"id": 2, "key": "ear_pair", "precision": 78, "recall": 86, "f1": 82, "status": "repair"},
+      {"id": 3, "key": "ear_tip_pair", "precision": 76, "recall": 70, "f1": 73, "status": "repair"},
+      {"id": 4, "key": "cheek_fluff", "precision": 55, "recall": 85, "f1": 67, "status": "reject"},
+      {"id": 5, "key": "chest_tuft", "precision": 70, "recall": 84, "f1": 76, "status": "repair"},
+      {"id": 6, "key": "belly_center", "precision": 55, "recall": 90, "f1": 68, "status": "reject"},
+      {"id": 7, "key": "forearm_paw_pair", "precision": 78, "recall": 90, "f1": 84, "status": "repair"},
+      {"id": 8, "key": "elbow_cuff_pair", "precision": 60, "recall": 85, "f1": 70, "status": "repair"},
+      {"id": 9, "key": "lower_leg_foot_pair", "precision": 70, "recall": 85, "f1": 77, "status": "repair"},
+      {"id": 10, "key": "knee_cuff_pair", "precision": 60, "recall": 80, "f1": 68, "status": "repair"},
+      {"id": 11, "key": "tail_tip", "precision": 40, "recall": 45, "f1": 42, "status": "reject"},
+      {"id": 12, "key": "tail_underside", "precision": 35, "recall": 50, "f1": 41, "status": "reject"}
+    ]
+  },
+  "fox": {
+    "aggregate": {"precision": 71, "recall": 82, "f1": 76},
+    "regions": [
+      {"id": 0, "key": "head_tuft", "precision": 88, "recall": 80, "f1": 84, "status": "good_candidate"},
+      {"id": 1, "key": "forehead_mark_zone", "precision": 50, "recall": 85, "f1": 63, "status": "repair"},
+      {"id": 2, "key": "ear_pair", "precision": 84, "recall": 78, "f1": 81, "status": "good_candidate"},
+      {"id": 3, "key": "ear_tip_pair", "precision": 78, "recall": 80, "f1": 79, "status": "repair"},
+      {"id": 4, "key": "cheek_fluff", "precision": 72, "recall": 84, "f1": 77, "status": "repair"},
+      {"id": 5, "key": "chest_tuft", "precision": 72, "recall": 85, "f1": 78, "status": "repair"},
+      {"id": 6, "key": "belly_center", "precision": 62, "recall": 88, "f1": 73, "status": "repair"},
+      {"id": 7, "key": "forearm_paw_pair", "precision": 80, "recall": 86, "f1": 83, "status": "good_candidate"},
+      {"id": 8, "key": "elbow_cuff_pair", "precision": 60, "recall": 80, "f1": 69, "status": "repair"},
+      {"id": 9, "key": "lower_leg_foot_pair", "precision": 68, "recall": 82, "f1": 74, "status": "repair"},
+      {"id": 10, "key": "knee_cuff_pair", "precision": 60, "recall": 78, "f1": 68, "status": "repair"},
+      {"id": 11, "key": "tail_tip", "precision": 90, "recall": 88, "f1": 89, "status": "good_candidate"},
+      {"id": 12, "key": "tail_underside", "precision": 55, "recall": 75, "f1": 63, "status": "reject"}
+    ]
+  },
+  "blocking_findings": [
+    "Dog forehead_mark_zone is a wide rectangular band and reaches identity features; shrink to the central forehead between brows.",
+    "Dog cheek_fluff and belly_center are too broad; follow the visible fur masses rather than rectangular coordinate bands.",
+    "Dog tail_tip and tail_underside are not reliable in the current side projection.",
+    "Both species elbow/knee candidates read as stripes and need narrower anatomical boundaries.",
+    "Fox ear_pair is directionally corrected: outer/back ear is colored while inner white fur remains visible; inspect the small inner-edge residue next round."
+  ]
+}

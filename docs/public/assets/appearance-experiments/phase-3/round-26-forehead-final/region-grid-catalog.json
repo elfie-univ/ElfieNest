@@ -1,0 +1,106 @@
+{
+	"color_source": "REGION_COLORS",
+	"columns": [
+		"front",
+		"three_quarter",
+		"side",
+		"top"
+	],
+	"dog_grid": "dog-region-grid-4views.png",
+	"fox_grid": "fox-region-grid-4views.png",
+	"purpose": "每个区域单独使用诊断色渲染四个视角；每一行对应一个区域，便于人工逐区检查串色和漏色。",
+	"rows": [
+		{
+			"color": "#00e5ff",
+			"id": 0,
+			"key": "head_tuft",
+			"label_zh": "头顶毛",
+			"row": 1
+		},
+		{
+			"color": "#d500f9",
+			"id": 1,
+			"key": "forehead_mark_zone",
+			"label_zh": "额头标记安全区",
+			"row": 2
+		},
+		{
+			"color": "#ffe600",
+			"id": 2,
+			"key": "ear_pair",
+			"label_zh": "耳朵主体的外侧/背侧毛面；狗取耳瓣，狐狸取耳朵外侧与背侧，狐狸耳内白毛保持保护。",
+			"row": 3
+		},
+		{
+			"color": "#76ff03",
+			"id": 3,
+			"key": "ear_tip_pair",
+			"label_zh": "耳尖（狗：下垂耳瓣最下端；狐狸：立耳最上端）",
+			"row": 4
+		},
+		{
+			"color": "#00c853",
+			"id": 4,
+			"key": "cheek_fluff",
+			"label_zh": "脸颊/嘴边毛",
+			"row": 5
+		},
+		{
+			"color": "#ff00aa",
+			"id": 5,
+			"key": "chest_tuft",
+			"label_zh": "胸口毛",
+			"row": 6
+		},
+		{
+			"color": "#2962ff",
+			"id": 6,
+			"key": "belly_center",
+			"label_zh": "腹部中心",
+			"row": 7
+		},
+		{
+			"color": "#7c4dff",
+			"id": 7,
+			"key": "forearm_paw_pair",
+			"label_zh": "前臂/手",
+			"row": 8
+		},
+		{
+			"color": "#ff1744",
+			"id": 8,
+			"key": "elbow_cuff_pair",
+			"label_zh": "肘部环",
+			"row": 9
+		},
+		{
+			"color": "#ff4081",
+			"id": 9,
+			"key": "lower_leg_foot_pair",
+			"label_zh": "小腿/脚",
+			"row": 10
+		},
+		{
+			"color": "#00b8d4",
+			"id": 10,
+			"key": "knee_cuff_pair",
+			"label_zh": "膝部环",
+			"row": 11
+		},
+		{
+			"color": "#c6ff00",
+			"id": 11,
+			"key": "tail_tip",
+			"label_zh": "尾尖",
+			"row": 12
+		},
+		{
+			"color": "#37474f",
+			"id": 12,
+			"key": "tail_underside",
+			"label_zh": "尾巴下侧",
+			"row": 13
+		}
+	],
+	"schema": "appearance-region-grid.v1"
+}

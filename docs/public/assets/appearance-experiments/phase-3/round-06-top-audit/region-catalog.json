@@ -1,0 +1,116 @@
+{
+	"purpose": "给视觉模型逐区检查实际 Godot 分色渲染；不是预先给出的答案遮罩。",
+	"regions": [
+		{
+			"color": "#00e5ff",
+			"exclude": "周围头顶、额头、眉毛、眼睛",
+			"id": 0,
+			"key": "head_tuft",
+			"label_zh": "头顶毛",
+			"target": "头顶正中向上突出的单撮毛；只取这撮可见突起，不取周围头顶毛帽。"
+		},
+		{
+			"color": "#d500f9",
+			"exclude": "眼睛、眉毛、鼻子、嘴巴和头顶小撮",
+			"id": 1,
+			"key": "forehead_mark_zone",
+			"label_zh": "额头标记安全区",
+			"target": "两眉之间、眼睛上方的额头中心安全区；仅供后续局部符号使用。"
+		},
+		{
+			"color": "#ffe600",
+			"exclude": "耳尖、狐狸耳内白毛、眼睛和脸颊",
+			"id": 2,
+			"key": "ear_pair",
+			"label_zh": "耳朵主体的外侧/背侧毛面；狗取耳瓣，狐狸取耳朵外侧与背侧，狐狸耳内白毛保持保护。",
+			"target": "耳朵主体的外侧/背侧毛面；狗取耳瓣，狐狸取耳朵外侧与背侧，狐狸耳内白毛保持保护。"
+		},
+		{
+			"color": "#76ff03",
+			"exclude": "耳朵主体、眼睛和背景",
+			"id": 3,
+			"key": "ear_tip_pair",
+			"label_zh": "耳尖",
+			"target": "左右耳朵最上方或最外端的耳尖小区，不包含整只耳朵。"
+		},
+		{
+			"color": "#00c853",
+			"exclude": "眼睛、鼻子、嘴巴和额头",
+			"id": 4,
+			"key": "cheek_fluff",
+			"label_zh": "脸颊/嘴边毛",
+			"target": "眼睛下方、鼻子两侧的脸颊蓬毛；沿原始脸颊毛束边界。"
+		},
+		{
+			"color": "#ff00aa",
+			"exclude": "下腹、肚脐、前臂和脸部",
+			"id": 5,
+			"key": "chest_tuft",
+			"label_zh": "胸口毛",
+			"target": "你圈出的上胸心形毛束；只到心形下尖，不能吞进长条腹毛。"
+		},
+		{
+			"color": "#2962ff",
+			"exclude": "胸口心形区、腿根和尾巴",
+			"id": 6,
+			"key": "belly_center",
+			"label_zh": "腹部中心",
+			"target": "胸口心形毛束下方的腹部中央毛面；不包含胸口和腿根。"
+		},
+		{
+			"color": "#7c4dff",
+			"exclude": "肘部环、身体和背景",
+			"id": 7,
+			"key": "forearm_paw_pair",
+			"label_zh": "前臂/手",
+			"target": "左右前臂及手掌末端的毛发；不包含肘部过渡环。"
+		},
+		{
+			"color": "#ff1744",
+			"exclude": "手掌、肩部和身体",
+			"id": 8,
+			"key": "elbow_cuff_pair",
+			"label_zh": "肘部环",
+			"target": "左右前臂靠近肘部的一圈过渡毛；不延伸到整条手臂。"
+		},
+		{
+			"color": "#ff4081",
+			"exclude": "膝部环、大腿和背景",
+			"id": 9,
+			"key": "lower_leg_foot_pair",
+			"label_zh": "小腿/脚",
+			"target": "左右小腿和脚掌末端的毛发；不包含膝部过渡环。"
+		},
+		{
+			"color": "#00b8d4",
+			"exclude": "小腿、脚掌和大腿主体",
+			"id": 10,
+			"key": "knee_cuff_pair",
+			"label_zh": "膝部环",
+			"target": "左右膝部附近的一圈过渡毛；不扩展到整条大腿。"
+		},
+		{
+			"color": "#c6ff00",
+			"exclude": "尾巴主体、尾巴下侧和身体",
+			"id": 11,
+			"key": "tail_tip",
+			"label_zh": "尾尖",
+			"target": "尾巴最末端的尖部毛发；沿尾巴实际末端，不把整条尾巴染色。"
+		},
+		{
+			"color": "#37474f",
+			"exclude": "尾尖、尾巴上缘和身体",
+			"id": 12,
+			"key": "tail_underside",
+			"label_zh": "尾巴下侧",
+			"target": "尾巴下缘或下侧的毛面；不包含尾尖，也不串到身体。"
+		}
+	],
+	"schema": "appearance-region-review.v1",
+	"views": [
+		"front",
+		"three_quarter",
+		"side",
+		"top"
+	]
+}
