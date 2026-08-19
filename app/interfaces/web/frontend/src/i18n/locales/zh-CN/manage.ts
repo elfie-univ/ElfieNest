@@ -40,7 +40,7 @@ export const manage = {
     actions: { cancel: "取消", editBedFor: "编辑{{name}}的床位", openPreview: "打开预览", save: "保存", saveLayout: "保存布局", saving: "保存中…" },
     assignment: { bedFor: "{{name}} 床位", empty: "暂无精灵床位分配", freeSuffix: " · 空闲", listLabel: "床位分配", occupiedSuffix: " · {{name}}", title: "床位分配", unassigned: "未分配" },
     bedCount: { confirmDescription: "确认将房间床位数调整为 {{count}} 个吗？", confirmTitle: "确认调整床位", formLabel: "床位数量设置", label: "床位数", title: "房间床位数", validation: "床位数必须是 4 到 32 的整数。" },
-    camera: { availableOnDemand: "按需打开", dialogTitle: "实时房间摄像头", title: "摄像头" },
+    camera: { dialogTitle: "实时房间摄像头", title: "摄像头" },
     events: { empty: "暂无床位占用事件", occupied: "{{bed}}：{{name}} 已在位", title: "房间事件" },
     floorplan: {
       ariaBed: "床位 {{number}} · {{occupant}}", ariaPlan: "{{roomName}} 建筑平面图", ariaTerminal: "虫洞终端", bedDesk: "下桌", bedUpper: "上铺", building: "主建筑体", corridor: "主干道", diningDetail: "开放厨房 + 长餐桌", diningTitle: "聚餐区", floorplanTitle: "{{roomName}} · 房间布局", gymDetail: "器械 + 自由力量区", gymTitle: "健身房", innerCorridor: "内部通道", isolation: "隔离边界", mediaDetail: "大沙发 + 大电视", mediaTitle: "影音室", roomEntry: "{{number}}号房间入口", socialDetail: "圆桌聊天 + 交友", socialTitle: "休闲区", terminal: "虫洞终端", terminalDetail: "星际穿越", vacant: "空闲",

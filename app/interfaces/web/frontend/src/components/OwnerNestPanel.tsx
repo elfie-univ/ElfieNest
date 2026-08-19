@@ -99,7 +99,7 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
     {!loading && room ? <div className="nest-console__layout">
       <ClassicNestFloorPlan beds={beds} desiredBedCount={room.desired_bed_count ?? bedCount} roomName={room.name} />
       <aside className="nest-console__side">
-        <section className="nest-side-card nest-camera-launch"><div className="nest-side-card__title"><h3>{t("nest.camera.title")}</h3><span className="status-indicator status-indicator--inactive"><i />{t("nest.camera.availableOnDemand")}</span></div><Button onClick={() => setShowObserver(true)} type="button"><Icon name="camera" size={16} />{t("nest.actions.openPreview")}</Button></section>
+        <section className="nest-side-card nest-camera-launch"><div className="nest-side-card__title"><h3>{t("nest.camera.title")}</h3></div><Button onClick={() => setShowObserver(true)} type="button"><Icon name="camera" size={16} />{t("nest.actions.openPreview")}</Button></section>
         <form aria-label={t("nest.bedCount.formLabel")} className="nest-side-card nest-bed-count-form" onSubmit={requestBedUpdate}><h3>{t("nest.bedCount.title")}</h3><NumberField label={t("nest.bedCount.label")} max={32} min={4} onChange={setBedCount} value={bedCount} /><Button type="submit">{t("nest.actions.saveLayout")}</Button></form>
         <BedDistribution elfies={loadedElfies} onAssign={assignBed} rooms={loadedRooms} />
         <section className="nest-side-card"><h3>{t("nest.events.title")}</h3><ul className="nest-events">{beds.flatMap((bed) => bed.occupant_name ? [<li key={bed.anchor_id}>{t("nest.events.occupied", { bed: bed.name, name: bed.occupant_name })}</li>] : [])}{beds.every((bed) => !bed.occupant_name) ? <li>{t("nest.events.empty")}</li> : null}</ul></section>
