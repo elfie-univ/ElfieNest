@@ -1,7 +1,8 @@
 # Service lifecycle contract
 
-**Contract version:** 1.0
+**Contract version:** 1.3
 **Adopted:** 2026-08-15
+**Revised:** 2026-08-19
 **Scope:** installed and source Runtime lifecycle, readiness and process ownership
 
 > **Normative target.** This contract fixes the service-state authority and the
@@ -24,7 +25,7 @@ generation. One atomic, schema-versioned snapshot contains at least:
 
 - canonical instance ID and monotonic generation;
 - stable Backend tier plus current phase/subphase;
-- component identity, state and typed failure;
+- component PID, process-birth/executable/cwd identity, state and typed failure;
 - actual bound endpoints and protocol/resource versions;
 - desired target, reached target and remaining convergence;
 - correlation ID and monotonic phase timings.
@@ -43,6 +44,65 @@ also validates generation, executable identity, process birth identity and an
 authenticated local control credential. A reconnecting client attaches by
 instance, generation and protocol version; an incompatible client reports the
 running version and does not start another authority.
+
+Executable, cwd and birth checks validate the process against the selected
+snapshot generation, never against the invoking checkout. A later CLI controls
+that task only through a compatible protocol and the data root's credential.
+
+## Data-root target resolution
+
+The canonical data root is the task identity. Every command resolves exactly
+one target before execution and stays on it; it must never re-resolve, attach by
+port, or treat a PID, endpoint or candidate entry as identity.
+
+The packaged App, tray and installed global CLI share one production resolver:
+
+```text
+production data root = ${ELFIE_HOME:-~/.elfienest}
+```
+
+`ELFIE_HOME` is exclusive: installed reads and writes use it when set, and
+otherwise use the default. There is no remembered production selection,
+`selected-data-home` pointer or `data-home` command. One OS user has at most
+one packaged Controller and Runtime. If the running Controller reports another
+root, return a typed mismatch; do not switch, attach elsewhere or start a
+second Controller.
+
+Source `./elfienest.sh` uses a separate resolver and ignores caller
+`ELFIE_HOME`. Only `start`, `serve`, `restart` and `stop` accept
+`--data-home`; the selected root is passed internally to child processes.
+All other source commands resolve through context/default/candidates and do
+not accept `--data-home`. `uninstall` is installed-only, and there is no public
+`data-home` command.
+
+Source target precedence is deterministic:
+
+| Invocation | Resolution order |
+| --- | --- |
+| Interactive shell | Explicit lifecycle root -> session context -> eligible `<source-root>/.elfienest.local` -> confirmed candidate selection |
+| One-shot command | Explicit lifecycle root -> eligible default -> confirmed TTY selection |
+| Non-interactive with no unique target | Print validated candidates and fail; never guess or prompt |
+
+TTY selection always requires explicit confirmation; one candidate is not durable
+session context.
+
+An explicit root or existing session context is authoritative. Failure there
+does not fall through to another task. Each successfully resolved interactive
+target becomes the memory-only session context; failure or invalid resolution
+does not replace it.
+
+Eligibility is command-specific: `start`/`serve` may create the default root;
+`stop` requires a verified generation and an idle default must not hide other
+running candidates; `restart` requires a recognized task. `web`, `mobile` and
+`desktop` only open an existing healthy target and never start or repair it.
+`status`, data and configuration commands only require a usable root. If no
+`stop` candidate exists, report that no service is running.
+
+Source-shell history and candidate discovery use only the optional owner-only
+`<source-root>/.elfienest.local/runtime/cli/` subtree. Explicit roots need not
+contain it. Its absence never invalidates a data root; its presence never grants
+authority or selects a task. Candidates are revalidated before display, old
+state locations are not read, and selection is separate from execution.
 
 ## Stable state and model health
 
@@ -115,14 +175,15 @@ and committing workflows revalidate before their irreversible boundary.
 | Packaged Desktop | Acquire the global product lock, start/attach the production Server, create the tray and open Viewer |
 | Viewer close or presentation quit | Close presentation only; Server, Godot and model leases remain unchanged |
 | Installed `elfienest start` | Start/activate the same Controller, tray and production Server without opening Viewer; default to `desired=NORMAL`, `wait=CORE` |
+| Installed `elfienest restart` | Stop the exact production Server through the Controller lifecycle, then start/activate that same Controller and Server without opening Viewer; publish the new generation's actual endpoints |
+| Installed `elfienest web` / `mobile` / `desktop` | Open only an already running target; never start or repair Server, Controller or Runtime, and fail when the target cannot be found or has no healthy endpoint |
 | Tray Stop Server / installed `elfienest stop` | Hide Viewer, then stop the exact production Server and Controller within bounds |
 | Source `./elfienest.sh` | Development only; attach for the same data root, allow distinct explicit roots concurrently, and keep `serve` foreground-owned |
 | Install or update | Detect the validated running Controller, ask the user to stop it, and wait boundedly for `OFFLINE`; refuse overwrite if it cannot converge |
 
-The product lock is independent of App path, version and port. A second App copy
-activates the existing Controller and never starts another production Server.
-The installed App and global CLI address the same production data root; source
-development roots remain isolated.
+The product lock is independent of App path, version, data root and port. A
+second App copy activates the existing Controller; installed and source
+resolvers remain isolated.
 
 Every native installer provides the global `elfienest` launcher. There is no
 source-install path. Installed startup uses only packaged executables and
@@ -131,10 +192,9 @@ builds product assets. Missing or incompatible resources fail preflight with a
 typed repair/reinstall action. An explicit user-requested Ollama model download
 is not a product build.
 
-Ports are published endpoints, never instance identity. Automatic mode binds
-OS-selected available ports atomically and records the result. An occupied
-explicit development port returns a typed conflict. No entrypoint kills or
-attaches to a process merely because it occupies a port.
+Ports are endpoints, never identity or cleanup targets. Automatic restart may
+publish different ports; old ports never select a task. An occupied explicit
+port returns a typed conflict. No entrypoint kills or attaches by port.
 
 ## Managed-process ownership
 
@@ -163,16 +223,19 @@ any running state -> QUIESCING -> WORLD_STOPPING
 -> MODEL_LEASE_RELEASING -> CORE_STOPPING -> OFFLINE
 ```
 
-`QUIESCING` rejects new mutations. Cleanup follows reverse ownership order and
-skips resources not acquired by the generation. Stale evidence is demoted only
-after identity checks; only an exact old-generation process tree may be
-reconciled. Third-party and other-instance processes are never terminated.
+`QUIESCING` rejects new mutations. Cleanup is reverse-order and generation
+scoped. A dead/reused PID or a port owned by another process is reported and
+left untouched; ports are never killed, and third-party processes are never
+terminated.
 
-Every entrypoint emits one correlation ID and every Server start one generation.
-Monotonic timings cover product/data-root locks, preflight, Core, Viewer, model,
-Godot, requested target and each shutdown phase. Status exposes the stable tier,
-phase, component facts, model aggregate, endpoints, durations, typed failure and
-one safe next action.
+Every entrypoint emits a correlation ID and every Server start a generation.
+Status and lifecycle logs use the resolved data root and include identity,
+endpoints, timings, typed failure and one safe next action.
+
+Start, restart and stop report success only after the selected snapshot confirms
+the promised state. Failures retain their typed cause in the snapshot/log and
+return to the CLI with the target and correlation ID; no generic success or
+silent reattachment is allowed.
 
 Permanent tests must protect the authority paths and document invariants here;
 behavior tests must cover duplicate App/CLI starts, command races, stale

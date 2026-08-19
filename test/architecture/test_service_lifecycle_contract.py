@@ -15,8 +15,8 @@ def test_service_lifecycle_contract_freezes_the_authoritative_state_model() -> N
     english = _source("docs/developer/contracts/service-lifecycle.md")
     chinese = _source("docs/zh/developer/contracts/service-lifecycle.md")
 
-    assert "**Contract version:** 1.0" in english
-    assert "**契约版本：** 1.0" in chinese
+    assert "**Contract version:** 1.3" in english
+    assert "**契约版本：** 1.3" in chinese
     for token in ("`OFFLINE`", "`CORE_READY`", "`WORLD_READY`"):
         assert token in english
         assert token in chinese
@@ -51,6 +51,49 @@ def test_service_lifecycle_contract_freezes_entrypoint_and_process_ownership() -
     assert "PID、端口、进程名" in chinese
 
 
+def test_service_lifecycle_contract_freezes_data_root_task_context() -> None:
+    english = _source("docs/developer/contracts/service-lifecycle.md")
+    chinese = _source("docs/zh/developer/contracts/service-lifecycle.md")
+    compact_english = " ".join(english.split())
+    compact_chinese = " ".join(chinese.split()).replace("、 ", "、")
+
+    required_pairs = (
+        ("${ELFIE_HOME:-~/.elfienest}", "${ELFIE_HOME:-~/.elfienest}"),
+        ("`selected-data-home`", "`selected-data-home`"),
+        (
+            "Only `start`, `serve`, `restart` and `stop` accept `--data-home`",
+            "只有 `start`、`serve`、`restart`、`stop` 接受 `--data-home`",
+        ),
+        ("ignores caller `ELFIE_HOME`", "忽略调用方 `ELFIE_HOME`"),
+        ("there is no public `data-home` command", "不存在公开 `data-home` 命令"),
+        (
+            "TTY selection always requires explicit confirmation",
+            "TTY 选择始终需要显式确认",
+        ),
+        ("Failure there does not fall through", "在该目标失败时不能 fallback"),
+        (
+            "`<source-root>/.elfienest.local/runtime/cli/`",
+            "`<source-root>/.elfienest.local/runtime/cli/`",
+        ),
+        ("its presence never grants authority", "存在它也不能授予权限"),
+        (
+            "`web`, `mobile` and `desktop` only open an existing healthy target",
+            "`web`、`mobile`、`desktop` 只打开已有健康目标",
+        ),
+        (
+            "Ports are endpoints, never identity or cleanup targets",
+            "端口只是 endpoint，不是身份或清理目标",
+        ),
+        (
+            "report success only after the selected snapshot confirms",
+            "只有在所选快照确认承诺状态后才能报告成功",
+        ),
+    )
+    for english_token, chinese_token in required_pairs:
+        assert english_token in compact_english
+        assert chinese_token in compact_chinese
+
+
 def test_service_lifecycle_governance_artifacts_remain_linked() -> None:
     required = {
         "docs/developer/decisions/0021-authoritative-service-lifecycle.md",
@@ -72,3 +115,5 @@ def test_service_lifecycle_governance_artifacts_remain_linked() -> None:
     assert "ADR-0014 继续作为" in chinese_adr
     assert "LFC-001" in _source("docs/developer/conformance/service-lifecycle.md")
     assert "LFC-009" in _source("docs/zh/developer/conformance/service-lifecycle.md")
+    assert "LFC-010" in _source("docs/developer/conformance/service-lifecycle.md")
+    assert "LFC-010" in _source("docs/zh/developer/conformance/service-lifecycle.md")

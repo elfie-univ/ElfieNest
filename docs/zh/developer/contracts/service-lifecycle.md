@@ -1,7 +1,8 @@
 # 服务生命周期契约
 
-**契约版本：** 1.0
+**契约版本：** 1.3
 **采用日期：** 2026-08-15
+**修订日期：** 2026-08-19
 **适用范围：** 安装版与源码 Runtime 生命周期、就绪判定和进程所有权
 
 > **规范性目标。** 本契约固定 Desktop、CLI、Doctor、安装器和状态页面共享的服务状态
@@ -22,7 +23,7 @@ Infrastructure Adapter 只能作为客户端、构造者或证据提供者，不
 
 - 规范化 instance ID 与单调 generation；
 - Backend 稳定层级及当前 phase/subphase；
-- 组件身份、状态与类型化失败；
+- 组件 PID、进程出生/可执行文件/cwd 身份、状态与类型化失败；
 - 实际绑定 endpoint 及协议/资源版本；
 - 期望目标、已达目标和剩余收敛项；
 - correlation ID 与各 phase 单调计时。
@@ -38,6 +39,53 @@ Desktop product lock -> canonical data-root instance -> Runtime generation
 PID、端口、进程名、receipt 或锁文件都只是证据。进程控制还必须验证 generation、可执行
 文件、进程出生身份和已认证本地控制凭据。客户端按 instance、generation 和协议版本重新
 附着；版本不兼容时报告正在运行的版本，不得再启动一套 authority。
+
+可执行文件、cwd 与出生身份必须和所选快照 generation 对比，不能和发起命令的 checkout
+对比。后续 CLI 只能通过兼容协议和该数据根的凭据控制该任务。
+
+## 数据根与任务上下文
+
+规范化数据根就是任务身份。每条命令必须先解析且只解析一个目标，之后不得重新解析、按端口
+附着，或把 PID、endpoint、候选目录项当成身份。
+
+已打包 App、托盘和安装版全局 CLI 共用唯一生产解析器：
+
+```text
+生产数据根 = ${ELFIE_HOME:-~/.elfienest}
+```
+
+`ELFIE_HOME` 二选一：设置后安装版只使用该根，否则只使用默认根。不存在“已记忆的生产
+数据根”、`selected-data-home` 指针或 `data-home` 命令。每个 OS 用户最多一个打包
+Controller 和 Runtime。运行中的 Controller 报告其他数据根时，返回类型化不一致；不得
+切换、附着其他任务或启动第二个 Controller。
+
+源码 `./elfienest.sh` 使用独立解析器并忽略调用方 `ELFIE_HOME`。只有 `start`、`serve`、
+`restart`、`stop` 接受 `--data-home`；选定根只作为子进程内部 `ELFIE_HOME` 发布。其他
+源码命令通过上下文、默认根或候选解析，不接受 `--data-home`。`uninstall` 只在安装版
+CLI 提供；不存在公开 `data-home` 命令。
+
+源码目标优先级固定如下：
+
+| 调用方式 | 解析顺序 |
+| --- | --- |
+| 交互 Shell | 显式生命周期根 -> 会话上下文 -> 可用 `<source-root>/.elfienest.local` -> 确认候选 |
+| 单次命令 | 显式生命周期根 -> 可用默认根 -> TTY 确认候选 |
+| 无唯一目标的非交互命令 | 打印候选并失败；不得猜测或等待输入 |
+
+TTY 选择始终需要显式确认；唯一候选不等于持久会话上下文。
+
+显式目标或已有会话上下文具有决定权；在该目标失败时不能 fallback 到其他任务。每个成功
+解析的交互目标成为仅存在内存中的会话上下文；失败或无效解析不能替换它。
+
+可用性按命令判断：`start`/`serve` 可创建默认根；`stop` 要求已验证 generation，空闲默认
+根不能阻止选择其他运行候选；`restart` 要求已识别任务。`web`、`mobile`、`desktop` 只打开已有健康目标，绝不启动或修复。
+`status`、数据和配置命令只要求可用数据根；没有可停
+止候选时明确报告没有服务运行。
+
+Shell history 和候选发现只使用可选的 owner-only 子目录
+`<source-root>/.elfienest.local/runtime/cli/`。显式数据根不要求存在它；缺少它不影响
+数据根，存在它也不能授予权限或选择任务。候选每次显示前重新验证；不读取旧状态位置，
+目标选择和命令执行分开。
 
 ## 稳定状态与模型健康
 
@@ -102,20 +150,22 @@ OFFLINE -> PREFLIGHT -> CORE_STARTING -> CORE_READY
 | 已打包 Desktop | 取得全局产品锁，启动/附着生产 Server，创建托盘并打开 Viewer |
 | Viewer 关闭或展示层退出 | 只关闭展示；Server、Godot 和模型租约不变 |
 | 安装版 `elfienest start` | 启动/激活同一 Controller、托盘和生产 Server，不打开 Viewer；默认 `desired=NORMAL`、`wait=CORE` |
+| 安装版 `elfienest restart` | 通过 Controller 生命周期停止准确的生产 Server，再启动/激活同一 Controller 和 Server，不打开 Viewer；发布新 generation 的实际端口 |
+| 安装版 `elfienest web` / `mobile` / `desktop` | 只打开已经运行的目标；绝不启动或修复 Server、Controller 或 Runtime；找不到目标或没有健康 endpoint 时直接报错 |
 | 托盘 Stop Server / 安装版 `elfienest stop` | 先隐藏 Viewer，再有界关闭准确的生产 Server 和 Controller |
 | 源码 `./elfienest.sh` | 只用于开发；同数据根附着，不同显式数据根可并行，`serve` 保持前台所有权 |
 | 安装或升级 | 检测经验证的运行中 Controller，提示用户停止并有界等待 `OFFLINE`；无法收敛时拒绝覆盖 |
 
-产品锁与 App 路径、版本和端口无关。第二个 App 副本只激活现有 Controller，不能再启动
-生产 Server。安装版 App 与全局 CLI 指向同一生产数据根；源码开发数据根保持隔离。
+产品锁与 App 路径、版本、数据根和端口无关。第二个 App 副本只激活现有 Controller；安装版
+与源码解析器保持隔离。
 
 各平台原生安装器必须提供全局 `elfienest` launcher，不存在源码安装路径。正式启动只
 使用已打包的可执行文件和静态资源，不得安装 Python/Node 依赖、导出 Godot 或构建产品
 资源。资源缺失或不兼容时，preflight 返回类型化修复/重装动作。用户明确发起的 Ollama
 模型下载不属于产品构建。
 
-端口只是已发布 endpoint，不是实例身份。自动模式原子绑定 OS 选择的可用端口并记录
-结果；显式开发端口被占用时返回类型化冲突。任何入口都不能仅凭端口占用杀死进程或附着。
+端口只是 endpoint，不是身份或清理目标。自动 restart 可以发布新端口；旧端口永远不能选择
+任务。显式端口冲突返回类型化错误；任何入口都不能按端口杀进程或附着。
 
 ## 受管进程所有权
 
@@ -141,14 +191,14 @@ Ollama 只有两种来源：
 -> MODEL_LEASE_RELEASING -> CORE_STOPPING -> OFFLINE
 ```
 
-`QUIESCING` 拒绝新写操作。清理按所有权逆序执行，跳过本 generation 未取得的资源。
-stale 证据只有在身份校验后才能降级；只能收束准确旧 generation 的进程树，永不终止
-第三方或其他实例进程。
+`QUIESCING` 拒绝新写操作；清理按逆序且限定 generation。PID 已死亡/复用或端口属于其他
+进程时只报告并保持不变；端口不能被“杀死”，也不能终止第三方进程。
 
-每次入口调用产生一个 correlation ID，每次 Server 启动产生一个 generation。单调计时
-覆盖产品/数据根锁、preflight、Core、Viewer、模型、Godot、请求目标和各关闭 phase。
-状态输出稳定层级、phase、组件事实、模型总览、endpoint、耗时、类型化失败和一条安全
-下一步动作。
+每次入口调用产生 correlation ID，每次 Server 启动产生 generation。状态和生命周期日志
+写入已解析数据根，包含身份、endpoint、耗时、类型化失败和一条安全下一步动作。
+
+start、restart、stop 只有在所选快照确认承诺状态后才能报告成功。失败必须保留在快照和
+日志中，并连同目标根与 correlation ID 返回 CLI；不得泛化成功或静默附着其他任务。
 
 永久测试必须保护本契约中的 authority 路径和文档不变量；一致性台账关闭前，行为测试
 必须覆盖 App/CLI 重复启动、命令竞争、stale receipt、endpoint 冲突、部分失败、重新附着、

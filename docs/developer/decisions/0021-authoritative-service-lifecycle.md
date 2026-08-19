@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-15
+- **Revised:** 2026-08-19
 - **Scope:** service state, entrypoints, managed-process ownership and readiness
 
 ## Context
@@ -36,6 +37,13 @@ development entrypoints.
   data root, generation and validated process identity—not ports, PIDs or names
   alone. Installed startup uses only packaged resources and never builds or
   installs product dependencies.
+- The data root is task identity. Installed mode uses
+  `${ELFIE_HOME:-~/.elfienest}` without a remembered selection or `data-home`
+  command; source mode ignores caller `ELFIE_HOME`, permits `--data-home` only
+  for `start`, `serve`, `restart` and `stop`, and keeps context in memory.
+- `web`, `mobile` and `desktop` only open an existing healthy target. Ports are
+  evidence, not identity or cleanup targets; typed failures remain in the
+  generation snapshot and resolved data-root log.
 
 ADR-0014 remains historical evidence for immediate startup presentation and
 bounded cleanup. This decision supersedes its single terminal `ready` model and

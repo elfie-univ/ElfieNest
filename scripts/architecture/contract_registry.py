@@ -141,7 +141,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="service-lifecycle",
-        version="1.0",
+        version="1.3",
         english_path="docs/developer/contracts/service-lifecycle.md",
         chinese_path="docs/zh/developer/contracts/service-lifecycle.md",
         decision_paths=(
