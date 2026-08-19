@@ -1,8 +1,8 @@
-"""Non-authoritative state for a source checkout's interactive CLI.
+"""Non-authoritative state for a source checkout's CLI.
 
-The files in ``.elfienest-cli.local`` are convenience state only.  They never
-select a task by themselves and contain no PID, port, endpoint, credential or
-active-root pointer.
+The optional files in ``.elfienest.local/runtime/cli`` are convenience state
+only. They never select a task by themselves and contain no PID, port,
+endpoint, credential or active-root pointer.
 """
 
 from __future__ import annotations
@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Iterator, List, Tuple
 
 from app.orchestration.lifecycle.ports import SourceCliCandidate
+from infrastructure.persistence.layout.data_home import SOURCE_DATA_HOME_NAME
+from infrastructure.persistence.layout.data_layout import final_root_layout
 
 try:  # pragma: no cover - the fallback is exercised on Windows only.
     import fcntl
@@ -23,7 +25,6 @@ except ImportError:  # pragma: no cover
     fcntl = None  # type: ignore[assignment]
 
 
-CONTROL_DIR_NAME = ".elfienest-cli.local"
 HISTORY_FILE_NAME = "history"
 CANDIDATE_FILE_NAME = "data-homes.json"
 MAX_HISTORY_ENTRIES = 50
@@ -39,7 +40,10 @@ class SourceCliState:
 
     def __init__(self, source_root: Path) -> None:
         self.source_root = source_root.expanduser().resolve(strict=False)
-        self.control_dir = self.source_root / CONTROL_DIR_NAME
+        layout = final_root_layout(self.source_root / SOURCE_DATA_HOME_NAME)
+        self.data_home = layout.data_home
+        self.runtime_dir = layout.runtime_state.parent
+        self.control_dir = layout.source_cli_state
         self.history_path = self.control_dir / HISTORY_FILE_NAME
         self.candidate_path = self.control_dir / CANDIDATE_FILE_NAME
         self.lock_path = self.control_dir / ".lock"
@@ -146,23 +150,32 @@ class SourceCliState:
                 lock.close()
 
     def _ensure_control_dir(self) -> None:
-        if self.control_dir.is_symlink():
-            raise SourceCliStateError(
-                f"源码 CLI 控制目录是符号链接，拒绝使用: {self.control_dir}"
-            )
-        try:
-            self.control_dir.mkdir(mode=0o700, parents=False, exist_ok=True)
-        except OSError as error:
-            raise SourceCliStateError(
-                f"无法创建源码 CLI 控制目录: {self.control_dir}: {error}"
-            ) from error
-        if not self.control_dir.is_dir():
-            raise SourceCliStateError(f"源码 CLI 控制路径不是目录: {self.control_dir}")
+        self._validate_control_path()
+        for directory in (self.data_home, self.runtime_dir, self.control_dir):
+            try:
+                directory.mkdir(mode=0o700, parents=False, exist_ok=True)
+            except OSError as error:
+                raise SourceCliStateError(
+                    f"无法创建源码 CLI 控制目录: {directory}: {error}"
+                ) from error
+            if directory.is_symlink() or not directory.is_dir():
+                raise SourceCliStateError(
+                    f"源码 CLI 控制路径必须是真实目录: {directory}"
+                )
         if os.name != "nt":
             os.chmod(self.control_dir, 0o700)
 
-    @staticmethod
-    def _safe_existing_file(path: Path) -> bool:
+    def _validate_control_path(self) -> None:
+        for directory in (self.data_home, self.runtime_dir, self.control_dir):
+            if directory.is_symlink():
+                raise SourceCliStateError(
+                    f"源码 CLI 控制路径是符号链接，拒绝使用: {directory}"
+                )
+            if directory.exists() and not directory.is_dir():
+                raise SourceCliStateError(f"源码 CLI 控制路径不是目录: {directory}")
+
+    def _safe_existing_file(self, path: Path) -> bool:
+        self._validate_control_path()
         if path.is_symlink():
             raise SourceCliStateError(f"源码 CLI 状态文件是符号链接，拒绝读取: {path}")
         return path.exists() and path.is_file()
@@ -204,7 +217,6 @@ def _safe_history_command(command_line: str) -> bool:
 
 __all__ = (
     "CANDIDATE_FILE_NAME",
-    "CONTROL_DIR_NAME",
     "HISTORY_FILE_NAME",
     "SourceCliCandidate",
     "SourceCliState",

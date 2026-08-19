@@ -1,3 +1,4 @@
+import os
 from dataclasses import replace
 from pathlib import Path
 
@@ -91,6 +92,75 @@ def test_runtime_record_does_not_treat_stale_runtime_artifacts_as_fresh(
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()
     (runtime_dir / "stale.log").write_text("leftover", encoding="utf-8")
+    adapter = FileRuntimeRecordAdapter(tmp_path)
+
+    with pytest.raises(SnapshotRecoveryRequiredError):
+        adapter.initialize_if_fresh()
+
+
+def test_runtime_record_ignores_optional_source_cli_state_when_checking_freshness(
+    tmp_path: Path,
+) -> None:
+    cli_dir = tmp_path / "runtime" / "cli"
+    cli_dir.mkdir(parents=True)
+    (cli_dir / "data-homes.json").write_text(
+        '{"version": 1, "homes": []}\n', encoding="utf-8"
+    )
+    adapter = FileRuntimeRecordAdapter(tmp_path)
+
+    snapshot = adapter.initialize_if_fresh()
+
+    assert snapshot.tier is BackendTier.OFFLINE
+    assert (tmp_path / "runtime" / "runtime.json").is_file()
+    assert (cli_dir / "data-homes.json").is_file()
+
+
+def test_runtime_record_does_not_depend_on_source_cli_state_after_initialization(
+    tmp_path: Path,
+) -> None:
+    cli_dir = tmp_path / "runtime" / "cli"
+    cli_dir.mkdir(parents=True)
+    history = cli_dir / "history"
+    history.write_text("status\n", encoding="utf-8")
+    adapter = FileRuntimeRecordAdapter(tmp_path)
+    snapshot = adapter.initialize_if_fresh()
+
+    history.unlink()
+    cli_dir.rmdir()
+
+    assert adapter.read() == snapshot
+
+
+def test_runtime_record_rejects_non_directory_source_cli_state(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    (runtime_dir / "cli").write_text("not a directory", encoding="utf-8")
+    adapter = FileRuntimeRecordAdapter(tmp_path)
+
+    with pytest.raises(SnapshotRecoveryRequiredError):
+        adapter.initialize_if_fresh()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlink creation needs privileges")
+def test_runtime_record_rejects_symlinked_source_cli_state(tmp_path: Path) -> None:
+    runtime_dir = tmp_path / "runtime"
+    outside = tmp_path / "outside"
+    runtime_dir.mkdir()
+    outside.mkdir()
+    (runtime_dir / "cli").symlink_to(outside, target_is_directory=True)
+    adapter = FileRuntimeRecordAdapter(tmp_path)
+
+    with pytest.raises(SnapshotRecoveryRequiredError):
+        adapter.initialize_if_fresh()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlink creation needs privileges")
+def test_runtime_record_rejects_symlinked_runtime_directory(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (tmp_path / "runtime").symlink_to(outside, target_is_directory=True)
     adapter = FileRuntimeRecordAdapter(tmp_path)
 
     with pytest.raises(SnapshotRecoveryRequiredError):

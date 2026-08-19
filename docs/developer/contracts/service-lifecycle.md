@@ -1,8 +1,8 @@
 # Service lifecycle contract
 
-**Contract version:** 1.2
+**Contract version:** 1.3
 **Adopted:** 2026-08-15
-**Revised:** 2026-08-18
+**Revised:** 2026-08-19
 **Scope:** installed and source Runtime lifecycle, readiness and process ownership
 
 > **Normative target.** This contract fixes the service-state authority and the
@@ -120,14 +120,18 @@ not a running Runtime. If no eligible `stop` candidate exists, report that no
 service is running.
 
 Source-shell history and the checkout-scoped candidate catalog live only in the
-owner-only control directory `<source-root>/.elfienest-cli.local/`, outside
-every product data root. The catalog may retain canonical source roots and
-last-observed metadata solely for candidate discovery. It is not a current-
-selection record, cannot make a root eligible, cannot grant process authority
-and must be deduplicated and revalidated before every display. Control-state
-loss or write failure may remove history/convenience but cannot create, select,
-change or stop a Runtime. The default root is an eligible candidate, not a
-terminal failure; target selection and command execution are separate phases.
+optional owner-only subtree `<source-root>/.elfienest.local/runtime/cli/` of
+that checkout's default source root. Explicitly selected roots need not contain
+this subtree. Product-data inspection and Runtime freshness ignore this
+subtree: its absence cannot make a root incomplete, and its presence cannot
+make a root recognized or eligible. The catalog may retain canonical source
+roots and last-observed metadata solely for candidate discovery. It is not a
+current-selection record, cannot grant process authority, and must be
+deduplicated and revalidated before every display. Control-state loss or write
+failure may remove history/convenience but cannot create, select, change or
+stop a Runtime. No former CLI-state location is read or migrated. The default
+root is an eligible candidate, not a terminal failure; target selection and
+command execution are separate phases.
 
 ## Stable state and model health
 

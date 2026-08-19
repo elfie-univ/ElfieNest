@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -117,6 +118,45 @@ def test_ready_root_skips_repair_work(
 
     # Then: the existing ready root proceeds without repair work.
     assert repaired.state is DataHomeState.READY
+
+
+def test_source_cli_state_alone_does_not_initialize_product_data(
+    tmp_path: Path,
+) -> None:
+    # Given: only checkout-scoped CLI convenience state exists in the default root.
+    cli_dir = tmp_path / "runtime" / "cli"
+    cli_dir.mkdir(parents=True)
+    (cli_dir / "history").write_text("status\n", encoding="utf-8")
+
+    # Then: product-data inspection still classifies the root as fresh.
+    inspection = inspect_data_home(tmp_path)
+    assert inspection.state is DataHomeState.FRESH
+    assert inspection.detail == "尚未创建数据目录"
+
+
+@pytest.mark.parametrize("entry_name", ["stale.log", "cli"])
+def test_invalid_runtime_entry_still_marks_uninitialized_root_partial(
+    tmp_path: Path,
+    entry_name: str,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    (runtime_dir / entry_name).write_text("unexpected", encoding="utf-8")
+
+    assert inspect_data_home(tmp_path).state is DataHomeState.PARTIAL
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlink creation needs privileges")
+def test_symlinked_source_cli_state_marks_uninitialized_root_partial(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    outside = tmp_path / "outside"
+    runtime_dir.mkdir()
+    outside.mkdir()
+    (runtime_dir / "cli").symlink_to(outside, target_is_directory=True)
+
+    assert inspect_data_home(tmp_path).state is DataHomeState.PARTIAL
 
 
 def test_partial_root_with_empty_database_is_repaired_without_deleting_residuals(

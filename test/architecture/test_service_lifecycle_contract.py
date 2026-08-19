@@ -15,8 +15,8 @@ def test_service_lifecycle_contract_freezes_the_authoritative_state_model() -> N
     english = _source("docs/developer/contracts/service-lifecycle.md")
     chinese = _source("docs/zh/developer/contracts/service-lifecycle.md")
 
-    assert "**Contract version:** 1.1" in english
-    assert "**契约版本：** 1.1" in chinese
+    assert "**Contract version:** 1.3" in english
+    assert "**契约版本：** 1.3" in chinese
     for token in ("`OFFLINE`", "`CORE_READY`", "`WORLD_READY`"):
         assert token in english
         assert token in chinese
@@ -59,7 +59,6 @@ def test_service_lifecycle_contract_freezes_data_root_task_context() -> None:
 
     for token in (
         "${ELFIE_HOME:-~/.elfienest}",
-        "`data-home activate`",
         "`selected-data-home`",
     ):
         assert token in english
@@ -76,24 +75,24 @@ def test_service_lifecycle_contract_freezes_data_root_task_context() -> None:
     assert "必须忽略调用方 `ELFIE_HOME`" in compact_chinese
     assert "the default root is untouched" in compact_english
     assert "默认根保持不读不写" in compact_chinese
-    assert "no `data-home activate` command" in compact_english
-    assert "或 `data-home activate` 命令" in compact_chinese
+    assert "there is no `data-home` command" in compact_english
+    assert "不存在 `data-home` 命令" in compact_chinese
     assert "an idle default must not prevent the selector" in compact_english
     assert "空闲默认根不能阻止选择器" in compact_chinese
     assert "execution are separate phases" in compact_english
     assert "目标选择与命令执行必须是两个阶段" in compact_chinese
-    assert "`<source-root>/.elfienest-cli.local/`" in english
-    assert "`<source-root>/.elfienest-cli.local/`" in chinese
-    assert "outside every product data root" in compact_english
-    assert "产品数据根之外" in compact_chinese
+    assert "`<source-root>/.elfienest.local/runtime/cli/`" in english
+    assert "`<source-root>/.elfienest.local/runtime/cli/`" in chinese
+    assert "Product-data inspection and Runtime freshness ignore" in compact_english
+    assert "产品数据检查与 Runtime 新鲜度判断必须忽略" in compact_chinese
+    assert "No former CLI-state location is read or migrated" in compact_english
+    assert "不得读取或迁移任何旧 CLI 状态位置" in compact_chinese
     assert "Every successfully resolved interactive target" in compact_english
     assert "每个成功解析的目标" in compact_chinese
     assert "do not compare it to the invoking checkout" in compact_english
     assert "不能与发起命令的 checkout 对比" in compact_chinese
     assert "report success only after the selected snapshot confirms" in compact_english
-    assert (
-        "只有在所选快照确认其承诺状态后才能报告成功" in compact_chinese
-    )
+    assert "只有在所选快照确认其承诺状态后才能报告成功" in compact_chinese
     assert "Ports are never killed" in english
     assert "端口不能被“杀死”" in chinese
 

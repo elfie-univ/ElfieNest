@@ -173,15 +173,16 @@ tried only when it is eligible for the requested command. Otherwise a TTY
 presents revalidated candidates, even when only one candidate remains; a non-
 TTY prints the same candidates and fails selection-required.
 
-The owner-only `<source-root>/.elfienest-cli.local/` control directory stores
-source-shell history and a candidate catalog outside every product data root.
-The catalog contains only known canonical roots and harmless display metadata,
-not an active pointer, PID, endpoint or credential. Explicit/default roots may
-refresh it after validation. Selection rechecks root shape, snapshot identity,
-generation and command eligibility, removes duplicates and never probes a port
-to discover identity. Control-state loss or write failure only loses history or
-convenience; it cannot change or stop a Runtime, and merely entering the source
-shell cannot initialize `<source-root>/.elfienest.local`.
+The optional owner-only `<source-root>/.elfienest.local/runtime/cli/` subtree
+stores source-shell history and a candidate catalog for that checkout. It does
+not participate in product-data completeness or Runtime identity, and explicit
+roots do not need it. The catalog contains only known canonical roots and
+harmless display metadata, not an active pointer, PID, endpoint or credential.
+Explicit/default roots may refresh it after validation. Selection rechecks root
+shape, snapshot identity, generation and command eligibility, removes
+duplicates and never probes a port to discover identity. Control-state loss or
+write failure only loses history or convenience; it cannot change or stop a
+Runtime, and merely entering the source shell does not create the subtree.
 
 Two examples fix the main ambiguity:
 

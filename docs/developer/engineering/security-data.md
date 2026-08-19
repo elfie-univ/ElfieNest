@@ -16,9 +16,10 @@ data is written, who owns it, and how it is cleaned up.
   or validated candidate selection.
 - Product PID/lock state, `runtime/runtime.json`, logs and databases follow the
   one resolved root. Source CLI history and its candidate catalog live in the
-  owner-only `<source-root>/.elfienest-cli.local/` control directory, outside
-  product data roots. That catalog may list roots but cannot store the active
-  root, PID, endpoint, credential or process authority.
+  optional owner-only `<source-root>/.elfienest.local/runtime/cli/` subtree.
+  Product-data completeness and Runtime identity ignore this subtree. Its
+  catalog may list roots but cannot store the active root, PID, endpoint,
+  credential or process authority.
 - There is no persisted remembered-root authority or activation fallback. Legacy
   `selected-data-home` files are inert and are never read as the active root.
 - Tests, workbenches and doc acceptance must use an isolated `ELFIE_HOME` or a

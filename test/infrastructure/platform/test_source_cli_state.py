@@ -11,18 +11,22 @@ from infrastructure.platform.source_cli_state import (
 )
 
 
-def test_source_state_is_outside_product_root_and_is_lazy(tmp_path: Path) -> None:
+def test_source_state_is_optional_under_default_product_runtime_and_lazy(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "checkout"
     source.mkdir()
     product = source / ".elfienest.local"
     state = SourceCliState(source)
 
     assert not state.control_dir.exists()
+    assert state.load_history() == ()
+    assert state.load_candidates() == ()
+    assert not product.exists()
+
     state.record_candidate(product, detail="default")
 
-    assert state.control_dir.parent == source
-    assert state.control_dir != product
-    assert not product.exists()
+    assert state.control_dir == product / "runtime" / "cli"
     assert state.load_candidates()[0].home == product.resolve()
 
 
@@ -66,10 +70,45 @@ def test_symlinked_control_state_fails_closed(tmp_path: Path) -> None:
     target = tmp_path / "elsewhere"
     target.mkdir()
     source.mkdir()
-    (source / ".elfienest-cli.local").symlink_to(target, target_is_directory=True)
+    runtime = source / ".elfienest.local" / "runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "cli").symlink_to(target, target_is_directory=True)
 
     with pytest.raises(SourceCliStateError):
+        SourceCliState(source).load_candidates()
+    with pytest.raises(SourceCliStateError):
         SourceCliState(source).record_candidate(tmp_path / "task")
+
+
+def test_non_directory_control_state_fails_closed(tmp_path: Path) -> None:
+    source = tmp_path / "checkout"
+    control_path = source / ".elfienest.local" / "runtime" / "cli"
+    control_path.parent.mkdir(parents=True)
+    control_path.write_text("not a directory", encoding="utf-8")
+
+    with pytest.raises(SourceCliStateError):
+        SourceCliState(source).load_candidates()
+    with pytest.raises(SourceCliStateError):
+        SourceCliState(source).record_candidate(tmp_path / "task")
+
+
+def test_legacy_top_level_control_state_is_not_read_or_migrated(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "checkout"
+    legacy = source / ".elfienest-cli.local"
+    legacy.mkdir(parents=True)
+    (legacy / "history").write_text("status\n", encoding="utf-8")
+    (legacy / "data-homes.json").write_text(
+        '{"version": 1, "homes": [{"home": "/legacy", "detail": "old"}]}\n',
+        encoding="utf-8",
+    )
+    state = SourceCliState(source)
+
+    assert state.load_history() == ()
+    assert state.load_candidates() == ()
+    assert not state.control_dir.exists()
+    assert (legacy / "history").read_text(encoding="utf-8") == "status\n"
 
 
 def test_candidate_catalog_has_no_runtime_authority_fields(tmp_path: Path) -> None:

@@ -9,7 +9,7 @@ import secrets
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any, Final, Mapping
+from typing import Any, Mapping
 
 from app.orchestration.lifecycle.ports import RuntimeWriterHandoff
 from app.orchestration.lifecycle.runtime_snapshot import (
@@ -27,8 +27,7 @@ from app.orchestration.lifecycle.runtime_snapshot import (
     TimingSnapshot,
 )
 from app.orchestration.lifecycle.types import SnapshotRecoveryRequiredError
-
-RUNTIME_RECORD_FILENAME: Final = "runtime.json"
+from infrastructure.persistence.layout.data_layout import final_root_layout
 
 
 class FileRuntimeRecordAdapter:
@@ -232,21 +231,26 @@ class FileRuntimeRecordAdapter:
                 return True
             if any(child.name != "runtime" for child in children):
                 return False
-            runtime_dir = self._elfie_home / "runtime"
-            if not runtime_dir.is_dir():
+            layout = final_root_layout(self._elfie_home)
+            runtime_dir = layout.runtime_state.parent
+            if runtime_dir.is_symlink() or not runtime_dir.is_dir():
+                return False
+            cli_dir = layout.source_cli_state
+            if cli_dir.is_symlink() or (cli_dir.exists() and not cli_dir.is_dir()):
                 return False
             allowed = {Path("locks"), Path("locks") / "owner-recovery.lock"}
             for child in runtime_dir.rglob("*"):
-                if child.is_dir():
+                relative = child.relative_to(runtime_dir)
+                if relative.parts[0] == "cli" or child.is_dir():
                     continue
-                if child.relative_to(runtime_dir) not in allowed:
+                if relative not in allowed:
                     return False
             return True
         except OSError as error:
             raise SnapshotRecoveryRequiredError(self._elfie_home, str(error)) from error
 
     def _record_path(self) -> Path:
-        return self._elfie_home / "runtime" / RUNTIME_RECORD_FILENAME
+        return final_root_layout(self._elfie_home).runtime_state
 
     @staticmethod
     def _parse(payload: Any) -> RuntimeSnapshotV1:

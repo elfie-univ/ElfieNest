@@ -11,9 +11,9 @@ ElfieNest 把“精灵的长期生活数据”和“源码、构建物、公开�
   `stop` 接受 `--data-home`；其余命令使用纯内存会话上下文、对当前命令可用的
   `<当前worktree>/.elfienest.local` 或经验证候选选择。
 - 产品 PID/锁、`runtime/runtime.json`、日志和数据库只跟随唯一解析根。源码 CLI history
-  及候选目录位于产品数据根之外、仅所有者可访问的
-  `<source-root>/.elfienest-cli.local/` 控制目录；候选目录可以列出数据根，但不能保存
-  活动根、PID、endpoint、凭据或进程控制权。
+  及候选目录位于仅所有者可访问的可选子目录
+  `<source-root>/.elfienest.local/runtime/cli/`；产品数据完整性和 Runtime 身份判断忽略
+  该子目录。候选目录可以列出数据根，但不能保存活动根、PID、endpoint、凭据或进程控制权。
 - 不存在持久化 remembered-root authority 或激活 fallback。旧的
   `selected-data-home` 文件保持惰性，绝不作为当前数据根读取。
 - 测试、实验台和文档验收必须使用独立的 `ELFIE_HOME` 或临时目录。

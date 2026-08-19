@@ -151,12 +151,12 @@ GATEWAY_BINDING -> AUTHORITY_SPAWNING -> AUTHENTICATING
 会话上下文。两种方式都只在源码默认根适合当前命令时选择它，否则有 TTY 时展示重新验证
 后的候选，即使只剩一个候选也要求确认；无 TTY 时打印相同候选并以“需要选择”失败。
 
-仅所有者可访问的 `<source-root>/.elfienest-cli.local/` 控制目录位于所有产品数据根之外，
-用于保存源码 Shell history 和候选目录。候选目录只保存已知规范化数据根及无害展示元数据，
-不保存活动指针、PID、endpoint 或凭据。显式或默认根验证后可以刷新目录；选择前重新检查
-目录形态、快照身份、generation 和命令适用性，并去重，绝不按端口探测身份。控制目录
-丢失或写入失败只影响 history/便利性，不能改变或停止 Runtime；仅进入源码 Shell 也不能
-初始化 `<source-root>/.elfienest.local`。
+仅所有者可访问的可选子目录 `<source-root>/.elfienest.local/runtime/cli/` 保存当前 checkout
+的源码 Shell history 和候选目录。它不参与产品数据完整性或 Runtime 身份判定，显式数据根
+也不要求包含它。候选目录只保存已知规范化数据根及无害展示元数据，不保存活动指针、PID、
+endpoint 或凭据。显式或默认根验证后可以刷新目录；选择前重新检查目录形态、快照身份、
+generation 和命令适用性，并去重，绝不按端口探测身份。控制目录丢失或写入失败只影响
+history/便利性，不能改变或停止 Runtime；仅进入源码 Shell 也不会创建这个子目录。
 
 两个例子固定最容易出错的边界：
 

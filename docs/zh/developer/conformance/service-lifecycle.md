@@ -21,7 +21,7 @@
 | 源码 CLI | 忽略调用方 `ELFIE_HOME`；只有 `start`、`serve`、`restart`、`stop` 接受 `--data-home` |
 | 交互上下文 | 只有一份内存目标；没有持久活动指针；解析成功后、执行命令前更新上下文 |
 | Runtime 控制 | 快照 `(instance_id, generation)` 与准确进程身份授权控制；端口只是在快照发布的 endpoint |
-| 非权威 CLI 状态 | `<source-root>/.elfienest-cli.local/` 只保存受保护的 history 与重新验证的候选目录，位于产品根之外 |
+| 非权威 CLI 状态 | 可选的 `<source-root>/.elfienest.local/runtime/cli/` 保存受保护的 history 与重新验证的候选目录，但不影响产品完整性或 Runtime 身份 |
 
 ### 工作包与门禁
 
@@ -32,7 +32,7 @@
 | --- | --- | --- | --- |
 | WP0 — 冻结测试与清单 | 已完成基线与 authority 清单；在实现前分类 remembered-root、调用方环境、端口 fallback 和端口杀进程路径。 | 现有 CLI/lifecycle/Desktop/process 测试及目标/状态聚焦测试。 | 本地基线已分类；外部主机证据留在 WP6。 |
 | WP1 — 唯一强类型目标解析器 | 已实现 App 层入口模式、命令策略、目标请求/结果、类型化选择错误以及安装版/源码规范化。 | `app/orchestration/lifecycle/target_resolution.py`、目标上下文解析器和 lifecycle 导出。 | 纯解析器与源码上下文测试通过；解析器不含 UI、subprocess 或数据相关服务构造。 |
-| WP2 — 源码 Shell 与 checkout 控制状态 | `elfienest.sh` 只做 bootstrap；持久 Python Shell 管理内存上下文、共用 parser/help、TTY 选择和 scoped 目标环境。受保护 history/候选目录位于被忽略的 `.elfienest-cli.local/`，并重新校验。 | `elfienest.sh`、`scripts/elfienest.py`、`app/interfaces/cli/target_context.py`、`infrastructure/platform/source_cli_state.py`、`.gitignore`。 | Shell、parser、源码状态和 no-fallback 聚焦测试通过；进入 Shell 不创建产品数据。 |
+| WP2 — 源码 Shell 与 checkout 控制状态 | `elfienest.sh` 只做 bootstrap；持久 Python Shell 管理内存上下文、共用 parser/help、TTY 选择和 scoped 目标环境。受保护 history/候选目录惰性位于可选的 `.elfienest.local/runtime/cli/`，并重新校验。 | `elfienest.sh`、`scripts/elfienest.py`、`app/interfaces/cli/target_context.py`、`infrastructure/platform/source_cli_state.py`、`.gitignore`。 | Shell、parser、源码状态和 no-fallback 聚焦测试通过；进入 Shell 不创建 CLI 状态，只有 CLI 状态也不会初始化产品数据。 |
 | WP3 — 安装 App/全局 CLI 收敛 | 安装版解析固定为 `${ELFIE_HOME:-~/.elfienest}`；Controller IPC protocol 2 携带期望规范化根并返回 Controller 根。不一致时拒绝附着/停止/切换；Desktop 数据根选择与激活路径已删除。 | 安装版 CLI、Controller IPC、Desktop lifecycle client/role 和 main handlers。 | Desktop/CLI 聚焦测试通过；干净安装主机交接留给外部验收。 |
 | WP4 — 命令原子切换 | 只有四个源码生命周期命令解析 `--data-home`；其他命令使用会话/默认/候选解析。scoped 目标环境在命令结束后恢复；旧活动根收据和 activation alias 惰性失效。Provider catalog 与 DB 读取延后到目标绑定执行之后；web/mobile/status 只消费所选快照 endpoint。 | `scripts/elfienest.py`、lifecycle commands/facade、Bootstrap、data-home adapter、parser 与 lifecycle 测试。 | resolver/CLI 聚焦测试通过；已实现路径中不再存在可达活动根 authority 或任意端口附着。 |
 | WP5 — 准确 generation 关闭与观测 | 已实现进程出生身份记录、绑定快照的 PID/可执行文件/cwd 校验、发信号前即时复核、类型化 start/stop 错误及每根数据目录的 service log。端口只作发布证据，不向端口占用者发信号。 | Lifecycle snapshot/supervisor/service/start-cleanup、process/record/endpoint adapter 和 CLI 输出。 | PID/端口复用、身份不可读、部分启动、日志和关闭聚焦测试通过；支持主机竞争/恢复证据留在 WP6。 |
@@ -74,7 +74,7 @@
 | A12 | 重复 start、启动中 stop、restart、关闭中 start | 每根只有一个 generation；按契约附着/提升、安全取消、先 `OFFLINE` 或返回 `BUSY_STOPPING`。 |
 | A13 | 两个 worktree 分别运行根 A/B、独立 Godot，并共享 Ollama | 两套 Runtime/Godot 并存；停止 A 不影响 B；只释放 A 自己的 Ollama holder lease。 |
 | A14 | 选择或 start/restart/stop 在启动前、部分启动或有界关闭中失败 | 非零类型化结果保留已脱敏原因和 correlation ID；解析后含准确目标/phase 及可写时的日志路径，否则明确没有可用数据根日志；没有假成功或静默丢异常。 |
-| A15 | 存在旧 `selected-data-home`，且 `.elfienest-cli.local` 被删除、只读或设为符号链接 | 旧收据无影响；显式/默认操作仍安全；控制状态失败可见且不能影响 Runtime/产品数据。 |
+| A15 | 存在旧 `selected-data-home`，且 `.elfienest.local/runtime/cli` 不存在、只读、是文件或符号链接 | 旧收据无影响；显式/默认操作仍安全；控制状态失败可见且不能影响 Runtime 或产品数据完整性。 |
 | A16 | 通过 TTY 选择 recovery/uninstall | 展示规范化目标与状态，选择后重新验证，再单独确认破坏操作；只允许改动该根。 |
 
 ### 切换、回滚与完成条件
@@ -113,7 +113,7 @@ authority 语义未定。
 | LFC-007 | P1 | in progress | Core 原子预留并发布实际 HTTP/Godot 端口对，绝不终止端口占用者。CLI start 现在打印所选 HTTP 与 Godot WebSocket 端口；web/mobile/status 只消费所选快照 endpoint。 | 在每个支持系统的干净主机执行原生安装/升级/卸载烟测。 | target=endpoint 与打包；inventory=Core endpoint binder、生命周期快照、CLI 交接、release pipeline、原生 launcher hook；references=契约 Entrypoints；verification=loopback/Gateway、端口冲突、lifecycle command 和 launcher-hook 测试；residuals=干净主机打包证据仍缺。 |
 | LFC-008 | P0 | in progress | stop 解析所选数据根，校验快照 PID/出生身份/可执行文件/cwd，并在每次发信号前重新校验；PID/端口占用者不作为 authority。 | 在支持主机完成完整孤儿/进程树、PID 复用、端口复用和超时矩阵。 | target=关闭/恢复；inventory=`runtime_supervisor.py`、`service.py`、CLI 目标解析器和进程 adapter；references=契约 Shutdown；verification=supervisor/service/process/target-resolution 测试；residuals=主机级和完整竞争矩阵仍缺。 |
 | LFC-009 | P1 | in progress | 版本化生命周期/模型投影与 phase 计时已暴露；start 输出准确运行端口，失败输出保留类型化原因/日志路径。 | 完成原生 runner 矩阵，并随发行产物保留安装态计时证据。 | target=观测/release 门禁；inventory=Runtime projection DTO、前端 Schema/panel、CLI JSON 和 release smoke；references=契约 Observation；verification=API/前端/Desktop、生命周期压力、CLI 和 smoke-runner 测试；residuals=安装态跨平台计时证据仍缺。 |
-| LFC-010 | P0 | in progress | 安装版唯一根为 `${ELFIE_HOME:-~/.elfienest}`；源码上下文仅在内存中，源码忽略调用方 `ELFIE_HOME`，只有四个生命周期命令接受 `--data-home`，候选目录隔离在 `.elfienest-cli.local/`。旧选中根/激活文件惰性失效。 | 完成支持主机 App/全局 CLI 交接和最终 A/B PTY/非 TTY 烟测。 | target=数据根任务上下文；inventory=`scripts/elfienest.py`、`elfienest.sh`、target resolver/context、source state、lifecycle data-home adapter 和 Controller IPC；references=契约“数据根与任务上下文”和设计 §4；verification=target-resolution/source-state/CLI/Desktop 测试；residuals=安装主机与 PTY 烟测证据仍缺。 |
+| LFC-010 | P0 | in progress | 安装版唯一根为 `${ELFIE_HOME:-~/.elfienest}`；源码上下文仅在内存中，源码忽略调用方 `ELFIE_HOME`，只有四个生命周期命令接受 `--data-home`，候选目录隔离在不能使任务合格的可选 `.elfienest.local/runtime/cli/` 状态中。旧选中根/激活文件惰性失效。 | 完成支持主机 App/全局 CLI 交接和最终 A/B PTY/非 TTY 烟测。 | target=数据根任务上下文；inventory=`scripts/elfienest.py`、`elfienest.sh`、target resolver/context、source state、lifecycle data-home adapter 和 Controller IPC；references=契约“数据根与任务上下文”和设计 §4；verification=target-resolution/source-state/CLI/Desktop 测试；residuals=安装主机与 PTY 烟测证据仍缺。 |
 
 任何条目都不能只凭测试关闭。每行都记录 target、inventory、references、verification 和
 residuals。外部 residual 是最终发布验收缺口，不阻塞本地 checkpoint；严格发布收口仍须
