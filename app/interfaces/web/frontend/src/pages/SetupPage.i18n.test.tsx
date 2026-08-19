@@ -114,6 +114,18 @@ describe("localized setup wizard", () => {
     expect(screen.queryByText("Create Owner account")).not.toBeInTheDocument()
   })
 
+  it("finishes the welcome copy at seven seconds with no locale-dependent action gap", async () => {
+    renderSetup("en-US", statusFor(1))
+
+    const title = await screen.findByRole("heading", { level: 1 })
+    const characters = title.querySelectorAll(".setup-welcome__title-char")
+    const action = screen.getByRole("button", { name: "Begin" }) as HTMLButtonElement
+
+    expect((characters[0] as HTMLElement).style.animationDelay).toBe("6s")
+    expect((characters[characters.length - 1] as HTMLElement).style.animationDelay).toBe("6.72s")
+    expect(action.style.animationDelay).toBe("7s")
+  })
+
   it("keeps the owner form hidden while the initial setup status is loading", async () => {
     let resolveStatus: (status: SetupStatus) => void = () => undefined
     vi.spyOn(client, "setupStatus").mockReturnValue(new Promise((resolve) => {

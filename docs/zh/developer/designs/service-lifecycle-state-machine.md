@@ -2,6 +2,7 @@
 
 > 状态：已确认设计
 > 确认日期：2026-08-15
+> 修订日期：2026-08-18
 > 范围：服务状态、Desktop/CLI 入口、进程所有权、故障收敛与启动观测
 
 ## 1. 系统资源
@@ -111,29 +112,87 @@ GATEWAY_BINDING -> AUTHORITY_SPAWNING -> AUTHENTICATING
 `CORE`；普通 Desktop 在 `CORE_READY` 显示真实界面并后台收敛 `NORMAL`。安装版
 `elfienest start` 同样以 `NORMAL` 为后台目标、以 `CORE` 为默认返回目标。
 
-## 4. 入口行为
+## 4. 任务上下文与目标选择
+
+一个任务由一个规范化数据根标识。代码 checkout、PID 和端口都只是属性或证据，不能选择
+任务。所有入口共用同一条处理线：
+
+```text
+判定安装版/源码模式 -> 解析唯一数据根 -> 检查当前命令是否可用
+-> 只在该根执行 -> 输出该根及其当前 generation
+```
+
+记录的启动 executable/cwd 用于验证 generation，比较对象是被观测进程，不是后来发起
+命令的 checkout。不同 worktree 可以并行管理不同数据根；跨 CLI 进程显式选择同一数据根
+时，任务身份仍是该数据根。
+
+安装版没有任务选择器。Desktop、托盘和全局 CLI 都通过同一用户级解析器解析
+`${ELFIE_HOME:-~/.elfienest}`，并共用产品锁。配置 `ELFIE_HOME` 后，它完全替代默认根；
+不得 fallback 读取、双写或保存持久“当前根”。相对值统一以用户主目录为基准，因此从不同
+工作目录启动的 Desktop 与 CLI 仍得到同一结果。运行中 Controller 与当前解析根不一致时
+必须报错，不能借此创建第二份安装版实例。恢复时通过现有托盘停止，或先恢复旧全局设置再
+执行 CLI stop；新解析器不能跨根终止旧任务。
+
+源码模式忽略调用方 `ELFIE_HOME`，只在目标选定后把结果发布给子进程。命令面如下：
+
+| 源码命令组 | 接受 `--data-home` | 默认根可用条件 |
+| --- | --- | --- |
+| `start`、`serve` | 是 | 始终可用，可以初始化默认根 |
+| `restart` | 是 | 已识别的生命周期任务 |
+| `stop` | 是 | 经验证的运行中/收敛中 generation |
+| `status` | 否 | 已识别快照，包括 `OFFLINE` |
+| `web` | 否 | 有经验证运行中 generation 且 endpoint 健康；只打开其快照 endpoint |
+| `mobile` | 否 | 当前快照已发布所需 endpoint |
+| 配置、Setup、Doctor、Owner、DB | 否 | 数据根适合该操作；Runtime 无需运行 |
+
+源码交互 Shell 在内存中持有一个 `session_data_home`。每个成功解析的交互目标（显式、
+可用默认根或用户明确确认的候选）都在命令执行前替换它；后续命令沿用，直到下一目标解析
+成功或 Shell 退出。解析后的命令失败不能 fallback，也不能清空该上下文。单次进程没有
+会话上下文。两种方式都只在源码默认根适合当前命令时选择它，否则有 TTY 时展示重新验证
+后的候选，即使只剩一个候选也要求确认；无 TTY 时打印相同候选并以“需要选择”失败。
+
+仅所有者可访问的可选子目录 `<source-root>/.elfienest.local/runtime/cli/` 保存当前 checkout
+的源码 Shell history 和候选目录。它不参与产品数据完整性或 Runtime 身份判定，显式数据根
+也不要求包含它。候选目录只保存已知规范化数据根及无害展示元数据，不保存活动指针、PID、
+endpoint 或凭据。显式或默认根验证后可以刷新目录；选择前重新检查目录形态、快照身份、
+generation 和命令适用性，并去重，绝不按端口探测身份。控制目录丢失或写入失败只影响
+history/便利性，不能改变或停止 Runtime；仅进入源码 Shell 也不会创建这个子目录。
+
+两个例子固定最容易出错的边界：
+
+- `start --data-home A` 后执行 `web`，目标是 A；随后
+  `restart --data-home B` 会把会话切到 B，A 继续运行。
+- 单次 `stop` 不能因为默认根空闲就直接失败；它应列出经验证的运行中 A/B。没有候选时
+  报告“没有运行中服务”。显式目标或会话目标空闲时，只报告该准确事实，不能改选。
+
+不存在 `data-home` 命令。`uninstall` 只属于安装版 CLI，不属于源码命令面。
+
+## 5. 入口行为
 
 | 入口 | 最终语义 |
 | --- | --- |
 | Desktop | 先取得用户级产品锁；第二个 App 只激活现有 Controller |
 | Viewer 关闭 | 只关闭显示，Server、Godot 和模型租约不变 |
 | 安装版 `elfienest start` | 启动或激活同一 Controller，确保托盘与生产 Server 存在，但不打开 Viewer |
+| 安装版 `elfienest restart` | 通过 Controller 停止准确的生产 Server，再启动或激活同一 Controller 和 Server，不打开 Viewer |
 | 托盘 Stop Server / 安装版 `elfienest stop` | 先隐藏 Viewer，再有界关闭准确的生产 Server 和 Controller |
 | 源码 `./elfienest.sh` | 仅作开发入口；同数据根附着，不同数据根可并行，`serve` 信号只停止自己拥有的 generation |
 | 安装/更新 | 原生安装器提供全局 `elfienest`；经确认停止生产 Server 并等待 `OFFLINE`，否则拒绝覆盖 |
 | Doctor | 通过同一 Lifecycle 执行受限修复，不建立第二套启停逻辑 |
 
-Desktop Controller 的全局锁与 App 路径、版本和端口无关。安装版 App 与全局 CLI 只管理
-同一个生产数据根；源码 CLI 管理隔离的开发数据根。
+Desktop Controller 的全局锁与 App 路径、版本、数据根和端口无关。安装版 App 与全局
+CLI 使用同一个生产根解析器；源码 CLI 管理隔离的开发数据根。
 
 正式安装包必须包含启动所需的可执行文件和静态资源；启动时不得安装依赖、导出 Godot
 或构建产品资源。缺失时在 preflight 返回可修复错误。用户明确发起的 Ollama 模型下载
 不属于产品构建。
 
-端口只是 endpoint。自动模式由服务原子 bind OS 可用端口并发布结果；显式 CLI 端口被
-占用时失败。任何入口都不得按端口推断实例或杀死占用者。
+端口只是 endpoint。自动模式由服务原子 bind OS 可用端口，并发布到所选数据根快照；
+显式 CLI 端口被占用时失败，restart 可以得到不同的自动端口对。`web` 只允许确保已经
+解析的目标，`web`、`mobile`、`status` 只能消费该目标快照。任何入口都不得按端口推断
+实例、附着或杀死占用者。
 
-## 5. 身份与所有权
+## 6. 身份与所有权
 
 实例身份按以下层次确定：
 
@@ -160,7 +219,7 @@ Ollama 只有两种来源：
 `PERSISTENT_MANAGED` 或 `SESSION_OWNED` 第三状态；所有持有者同时崩溃时，下一次启动
 或 Doctor 必须先精确复用或收束该 orphan。
 
-## 6. 故障收敛
+## 7. 故障收敛
 
 | 故障类别 | 收敛规则 |
 | --- | --- |
@@ -174,21 +233,31 @@ Ollama 只有两种来源：
 | 数据根或打包资源异常 | 在创建局部 generation 前失败 |
 | 数据损坏 | 仅显式数据修复；先停止、确认和备份 |
 
+停止前必须验证所选快照的 generation、PID 出生身份、可执行文件/工作目录身份和本地控制
+凭据，再按逆序释放该 generation 自有资源。复用 PID 或被重新占用的端口属于外部证据，
+必须保持不动；只有经验证的拥有进程退出后，socket 才由 OS 释放。
+
 `start/restart --force` 只执行安全 Runtime 与 endpoint 修复，不删除数据。Core 完全
 不可用时由 Desktop 本地恢复 shell 提供修复入口。
 
-## 7. 观测与验收
+## 8. 观测与验收
 
 每次入口调用使用 correlation ID，每次 Server 启动使用 generation，并以单调时钟记录：
 锁、preflight、Core、Viewer、模型、Godot 各子阶段、目标 ready 和关闭各阶段。
 
 状态输出必须同时给出稳定层级、当前 phase/subphase、组件状态、实际 endpoint、阶段耗时、
-类型化失败和下一条安全修复动作。
+类型化失败和下一条安全修复动作。每个生命周期结果还必须标明已解析的规范化数据根；
+start、restart 与 status 同时输出 generation、组件 PID 和实际 endpoint。
+只有同一快照确认请求状态后才能输出成功；类型化原因必须保留在数据根日志和结果中，不能
+被吞掉。
 
 设计必须保证：
 
 - 两个 App 副本不能产生两个生产 Server；
 - 同数据根不能产生两个 writer，不同数据根可以并行；
+- 安装版 `ELFIE_HOME` 与默认生产根严格二选一；
+- 调用方 `ELFIE_HOME` 不能重定向源码开发命令；
+- 默认根未命中不能阻止 `stop` 出现候选选择；
 - 新旧 generation 永不重叠；
 - PID、端口和进程名不能授予停止权；
 - Godot 或模型失败时 Core 仍可配置和修复；

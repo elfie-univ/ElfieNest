@@ -11,7 +11,7 @@ generation 的唯一生命周期所有者。源码与已安装 CLI 的生命周�
 endpoint 作为第四组件被探测：其不可用会使 Runtime 处于 `degraded`，不会替代权威，
 也不会创建私有模型 sidecar。`status --json` 会报告封闭组件集（`core`、`gateway`、
 `godot_authority`、`ollama`）和生命周期状态。Supervisor 将当前收据写入
-`<所选数据根>/runtime.json`。
+`<所选数据根>/runtime/runtime.json`。
 
 权威宿主由 `infrastructure/godot/lifecycle/` 选择，不携带 Nest 状态、场景数据或协议
 凭据；已导出产物元数据与校验位于 `infrastructure/godot/artifacts/`：
@@ -100,11 +100,16 @@ React 消费该目录后，只能发出封闭的语义命令 `overview`、`selec
 
 ## 生产目录契约
 
-正式安装使用已选择的生产数据根，未选择时默认使用 `~/.elfienest`；安装版
-`elfienest start` 拒绝 `--data-home`，如需切换生产数据根应执行
-`elfienest data-home activate --data-home PATH`。源码与 worktree 运行默认使用
-`<当前worktree>/.elfienest.local`，可以使用 `--data-home PATH` 或 `ELFIE_HOME`。
-全部生命周期收据与产品数据都跟随唯一所选数据根。
+规范性目标由[服务生命周期契约](../contracts/service-lifecycle)唯一规定：安装版 App、
+托盘与全局 CLI 只解析 `${ELFIE_HOME:-~/.elfienest}`，不存在第三个 remembered root；
+源码 CLI 忽略调用方 `ELFIE_HOME`，只有 `start`、`serve`、`restart`、`stop` 接受
+`--data-home`，其余命令使用会话上下文、对当前命令可用的
+`<当前worktree>/.elfienest.local` 或经验证候选选择。全部生命周期收据与产品数据只跟随
+唯一解析结果。
+
+不存在持久化 remembered root 或 `data-home` 命令。源码交互 shell 只在本次
+shell 生命周期内把目标保存在内存中；源码单次命令使用默认目录或重新校验后的候选目录。
+`uninstall` 只由安装版 CLI 提供。
 
 一台电脑只有一个生产 Nest 根 `${ELFIE_HOME:-~/.elfienest}`。`nest.db` 只包含最终
 8 张 Nest 级表：用户、会话、本机安装/Setup、Nest 设置、精灵、外部身体、身体审计

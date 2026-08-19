@@ -6,18 +6,22 @@ data is written, who owns it, and how it is cleaned up.
 
 ## Product data roots
 
-- Installed Runtime uses `ELFIE_HOME`, the remembered production selection, or
-  `~/.elfienest`. Installed `elfienest start` deliberately rejects
-  `--data-home`; use `elfienest data-home activate --data-home PATH` to select
-  the production root before starting it.
-- Source and worktree runs resolve the data root in this order:
-  `--data-home PATH`, `ELFIE_HOME`, then `<current-worktree>/.elfienest.local`.
-- Source `serve` and `start` accept `--data-home PATH`. Lifecycle commands
-  remember that selection so `status`, `stop`, and `restart` use the same root.
-  Product PID/lock state, `runtime.json`, logs, CLI history, and databases all
-  follow the selected root. A checkout-local `selected-data-home` control
-  receipt may contain only the selected path so a later no-argument lifecycle
-  command can find that root; it is not product data.
+- Installed App, tray and global CLI use exactly
+  `${ELFIE_HOME:-~/.elfienest}`. When `ELFIE_HOME` is configured, the default
+  root is not read or written; no remembered third root or activation command
+  is permitted.
+- Source and worktree CLI ignore caller `ELFIE_HOME`. Only `start`, `serve`,
+  `restart` and `stop` accept `--data-home`; all other commands use memory-only
+  session context, the command-eligible `<current-worktree>/.elfienest.local`,
+  or validated candidate selection.
+- Product PID/lock state, `runtime/runtime.json`, logs and databases follow the
+  one resolved root. Source CLI history and its candidate catalog live in the
+  optional owner-only `<source-root>/.elfienest.local/runtime/cli/` subtree.
+  Product-data completeness and Runtime identity ignore this subtree. Its
+  catalog may list roots but cannot store the active root, PID, endpoint,
+  credential or process authority.
+- There is no persisted remembered-root authority or activation fallback. Legacy
+  `selected-data-home` files are inert and are never read as the active root.
 - Tests, workbenches and doc acceptance must use an isolated `ELFIE_HOME` or a
   temporary directory.
 - `build/` stores only intermediate artifacts, `dist/` only final release

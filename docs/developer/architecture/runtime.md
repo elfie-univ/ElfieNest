@@ -14,7 +14,7 @@ absence makes the Runtime `degraded`, not an excuse to replace the authority
 or to create a private model sidecar. `status --json` reports the closed
 component set (`core`, `gateway`, `godot_authority`, `ollama`) and the lifecycle
 state. The Supervisor writes the current receipt to
-`<selected-data-home>/runtime.json`.
+`<selected-data-home>/runtime/runtime.json`.
 
 The authority host is selected by `infrastructure/godot/lifecycle/` without
 Nest state, scene data or protocol credentials. Exported artifact metadata and
@@ -128,12 +128,19 @@ particular installer has been built or installed.
 
 ## Production directory contract
 
-Installed runs use the selected production root and otherwise default to
-`~/.elfienest`; installed `elfienest start` rejects `--data-home`, while
-`elfienest data-home activate --data-home PATH` changes the selected root.
-Source and worktree runs default to `<current-worktree>/.elfienest.local` and
-may use `--data-home PATH` or `ELFIE_HOME`. All lifecycle receipts and product
-data follow the one selected root.
+The normative target is the
+[service-lifecycle contract](../contracts/service-lifecycle): installed App,
+tray and global CLI resolve exactly `${ELFIE_HOME:-~/.elfienest}`, with no
+remembered third root. Source CLI ignores caller `ELFIE_HOME`; only `start`,
+`serve`, `restart` and `stop` accept `--data-home`, while other commands use
+session context, an eligible `<current-worktree>/.elfienest.local`, or validated
+candidate selection. All lifecycle receipts and product data follow the one
+resolved root.
+
+There is no persisted remembered root or `data-home` command. The source shell
+keeps its target only in memory for the lifetime of that shell; one-shot source
+commands use the default or a revalidated candidate. `uninstall` is exposed
+only by the installed CLI.
 
 A single computer has one production Nest root:
 `${ELFIE_HOME:-~/.elfienest}`. `nest.db` contains exactly the eight final

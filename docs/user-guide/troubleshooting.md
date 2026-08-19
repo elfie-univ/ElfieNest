@@ -26,20 +26,6 @@ original path. The old account, Elfie and history data is not migrated
 automatically. Do not delete the old backup unless you have confirmed that you
 no longer need it.
 
-If you prefer to inspect the result from a terminal, run:
-
-```bash
-elfienest data-home inspect --json
-```
-
-The recovery operation is also available as `elfienest data-home recover`; it
-backs up the old folder before rebuilding the active folder and never performs
-an in-place migration.
-
-If you already have another fresh data folder, use
-`elfienest data-home activate --data-home PATH` to select it instead of
-recovering the old folder.
-
 ## First setup failed
 
 Return to the locked setup page and choose **Retry from the failed stage**. The

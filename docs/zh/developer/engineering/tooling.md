@@ -64,13 +64,10 @@ bash scripts/check_node_toolchain.sh
 | `status` | 查看登记服务与端口状态 |
 | `stop` | 停止当前项目登记的服务 |
 | `restart` | 停止并重新启动当前服务 |
-| `web` | 确保服务可用、打开 Web 管理台，并打印手机二维码 |
+| `web` | 为已经运行的服务打开 Web 管理台 |
+| `mobile` | 显示当前无线网络和移动端二维码访问信息 |
 | `config` | 打开方向键配置中心 |
-| `setup` | 运行首次设置向导 |
 | `doctor` | 检查本地环境和配置 |
-| `data-home inspect` | 只读诊断当前数据根，不修改数据 |
-| `data-home recover` | 备份旧版/损坏数据根并创建新环境 |
-| `data-home activate --data-home PATH` | 选择另一个新的或可用的数据根供下次启动使用 |
 | `owner` | 在本机终端打开 Owner 账户菜单 |
 | `db` | 查看数据库信息，或执行 `backup`、`reset` |
 | `version` | 显示版本 |
@@ -86,12 +83,19 @@ bash scripts/check_node_toolchain.sh
 ./elfienest.sh start
 ```
 
-后台 `start` 成功后，CLI 会打印本机 Web 管理台地址。`web` 还会按两步显示：第一步
-是当前无线网络，第二步是指向局域网地址的二维码。
+安装后的全局 CLI 刻意不提供 `serve`；它的 `start`、`restart`、`stop` 只操作唯一的
+安装版 Controller 和固定产品数据根，也不接受源码 CLI 的 `--data-home`、`--port`、
+`--godot-ws-port` 参数。
+
+后台 `start` 成功后，CLI 会打印本机 Web 管理台地址。`web` 只打开已经运行的 Web
+管理台；`mobile` 才会按两步显示：第一步是当前无线网络，第二步是指向局域网地址的二维码。
 
 服务使用已配置的粮食与模型 Provider。Setup 中的公共 Ollama 是可选项，选择后固定为
-唯一 endpoint；在聊天或领养验收前必须先配置可用的模型 Provider。`serve --force` 只尝试终止由
-当前项目登记、且确认属于该服务的冲突进程；它不是任意端口清理工具。
+唯一 endpoint；在聊天或领养验收前必须先配置可用的模型 Provider。
+
+源码生命周期参数保持最小范围：`serve`、`start`、`restart` 支持
+`--data-home`、`--port`、`--godot-ws-port`；`stop` 只支持 `--data-home`。安装版使用
+Controller 自动分配端口，不提供这些源码专用参数。
 
 在源码开发模式下，`serve`、发现服务已停止时执行的 `start`，以及明确执行的
 `restart`，只在启动这一刻检查前端源码指纹；发现过期时使用固定版本的 pnpm 重新构建
@@ -100,11 +104,11 @@ Web 客户端。发现服务已被验证为正在运行时，`start` 不会重�
 
 ## 数据与高风险命令
 
-正式安装的产品数据使用已选择的生产数据根，未选择时默认位于
-`~/.elfienest`；安装版 `elfienest start` 不接受 `--data-home`。如需选择其他生产
-数据根，执行 `elfienest data-home activate --data-home PATH`。源码与 worktree 运行
-默认使用 `<当前worktree>/.elfienest.local`，并支持优先于 `ELFIE_HOME` 的
-`--data-home PATH`。测试、文档核验和实验必须设置临时 `ELFIE_HOME`，避免污染日常数据。
+安装版入口只使用 `${ELFIE_HOME:-~/.elfienest}`。源码 CLI 选择任务时忽略调用方
+`ELFIE_HOME`，且只有源码 `start`、`serve`、`restart`、`stop` 接受 `--data-home`；
+其余源码命令使用内存中的交互会话目标、当前 worktree 下可用于该命令的
+`.elfienest.local`，或重新校验后的候选选择。不存在持久化的活动数据目录命令。测试、
+文档核验和实验仍须使用隔离环境/数据根，避免污染日常数据。
 
 Owner 恢复只在本机终端提供；密码通过隐藏输入填写，不应放进命令参数、环境变量
 或 shell 历史。服务密钥从环境变量或被 Git 忽略的本地配置读取，示例文档只能
@@ -114,10 +118,7 @@ Owner 恢复只在本机终端提供；密码通过隐藏输入填写，不应�
 ./elfienest.sh owner
 ./elfienest.sh db
 ./elfienest.sh db backup
-./elfienest.sh data-home inspect --json
 ```
-
-`data-home recover` 会先把旧版或损坏的数据根保留到带时间戳的旁侧备份目录，再创建符合当前契约的新数据根。它不会删除旧数据，也不会自动迁移旧数据。
 
 `db reset` 会重置本地数据库，执行前必须确认 `ELFIE_HOME` 指向的精确数据目录并
 保留备份。命令行不提供旧数据迁移入口；新配置与聊天只使用当前目录契约。

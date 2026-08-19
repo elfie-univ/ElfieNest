@@ -39,6 +39,7 @@ def test_final_root_layout_exposes_only_final_paths(tmp_path: Path) -> None:
     assert layout.runtime_config == root / "configs" / "runtime.yaml"
     assert layout.model_validations == root / "reports" / "model-validations"
     assert layout.runtime_state == root / "runtime" / "runtime.json"
+    assert layout.source_cli_state == root / "runtime" / "cli"
     assert layout.token_usage_log == root / "logs" / "token_usage.jsonl"
     assert not root.exists()
 

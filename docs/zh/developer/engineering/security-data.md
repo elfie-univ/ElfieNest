@@ -5,16 +5,17 @@ ElfieNest 把“精灵的长期生活数据”和“源码、构建物、公开�
 
 ## 产品数据根
 
-- 正式安装 Runtime 使用 `ELFIE_HOME`、已记忆的生产数据根或
-  `~/.elfienest`。安装版 `elfienest start` 明确拒绝 `--data-home`；如需选择生产
-  数据根，先执行 `elfienest data-home activate --data-home PATH`。
-- 源码与 worktree 运行按 `--data-home PATH`、`ELFIE_HOME`、
-  `<当前worktree>/.elfienest.local` 的顺序解析数据根。
-- 源码 `serve` 和 `start` 支持 `--data-home PATH`。生命周期命令会记住该选择，让
-  `status`、`stop`、`restart` 使用同一数据根；产品 PID/锁、`runtime.json`、
-  日志、CLI history 和数据库都跟随该根。checkout 本地可以保留一个只记录所选
-  路径的 `selected-data-home` 控制回执，让后续无参数生命周期命令找到该根；它不
-  属于产品数据。
+- 安装版 App、托盘和全局 CLI 只使用 `${ELFIE_HOME:-~/.elfienest}`。配置
+  `ELFIE_HOME` 后，默认根不读不写；禁止 remembered 第三根或激活命令。
+- 源码与 worktree CLI 忽略调用方 `ELFIE_HOME`。只有 `start`、`serve`、`restart`、
+  `stop` 接受 `--data-home`；其余命令使用纯内存会话上下文、对当前命令可用的
+  `<当前worktree>/.elfienest.local` 或经验证候选选择。
+- 产品 PID/锁、`runtime/runtime.json`、日志和数据库只跟随唯一解析根。源码 CLI history
+  及候选目录位于仅所有者可访问的可选子目录
+  `<source-root>/.elfienest.local/runtime/cli/`；产品数据完整性和 Runtime 身份判断忽略
+  该子目录。候选目录可以列出数据根，但不能保存活动根、PID、endpoint、凭据或进程控制权。
+- 不存在持久化 remembered-root authority 或激活 fallback。旧的
+  `selected-data-home` 文件保持惰性，绝不作为当前数据根读取。
 - 测试、实验台和文档验收必须使用独立的 `ELFIE_HOME` 或临时目录。
 - `build/` 只存中间产物，`dist/` 只存最终发行物；两者都不属于源码文档。
 

@@ -1,5 +1,3 @@
-import { useEffect, useRef } from "react"
-
 import { Button } from "@/components/ui/button"
 import houseSvgSource from "../assets/elfienest-house.svg?raw"
 
@@ -109,26 +107,18 @@ function parseHouseAsset(source: string): HouseAsset {
 const houseAsset = parseHouseAsset(houseSvgSource)
 const radarCenter = { x: 208.4, y: 37.4 }
 const groundSignalCenter = { x: 137.8, y: 220.5 }
-const welcomeTitleStart = 16.1
-const welcomeTitleCharacterDelay = 0.035
+const welcomeTitleStart = 6
+const welcomeTitleDuration = 1
+const welcomeTitleCharacterDuration = 0.28
+const welcomeActionStart = welcomeTitleStart + welcomeTitleDuration
 const houseInteriorPath = "M 137.84378 37.262325 L 214.45306 101.49406 L 214.19261 231.39053 L 61.365247 231.12956 L 61.365247 100.97265 Z"
 
 export function SetupWelcome({ action, disabled = false, onContinue, title }: SetupWelcomeProps) {
-  const copyReadyRef = useRef(false)
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      copyReadyRef.current = true
-    }, welcomeTitleStart * 1000)
-    return () => window.clearTimeout(timer)
-  }, [])
-
-  const titleDelay = (index: number): number => copyReadyRef.current
-    ? index * welcomeTitleCharacterDelay
-    : welcomeTitleStart + index * welcomeTitleCharacterDelay
-  const actionDelay = copyReadyRef.current
-    ? title.length * welcomeTitleCharacterDelay + 0.55
-    : welcomeTitleStart + title.length * welcomeTitleCharacterDelay + 0.55
+  const titleCharacters = Array.from(title)
+  const titleCharacterDelay = titleCharacters.length > 1
+    ? (welcomeTitleDuration - welcomeTitleCharacterDuration) / (titleCharacters.length - 1)
+    : 0
+  const titleDelay = (index: number): number => welcomeTitleStart + index * titleCharacterDelay
 
   return (
     <section aria-labelledby="setup-welcome-title" className="setup-welcome">
@@ -240,7 +230,7 @@ export function SetupWelcome({ action, disabled = false, onContinue, title }: Se
       </div>
       <div className="setup-welcome__copy">
         <h1 aria-label={title} className="setup-welcome__title" id="setup-welcome-title">
-          {Array.from(title).map((character, index) => (
+          {titleCharacters.map((character, index) => (
             <span aria-hidden="true" className="setup-welcome__title-char" key={`${character}-${index}`} style={{ animationDelay: `${titleDelay(index)}s` }}>
               {character === " " ? "\u00a0" : character}
             </span>
@@ -251,7 +241,7 @@ export function SetupWelcome({ action, disabled = false, onContinue, title }: Se
           disabled={disabled}
           onClick={onContinue}
           size="lg"
-          style={{ animationDelay: `${actionDelay}s` }}
+          style={{ animationDelay: `${welcomeActionStart}s` }}
           type="button"
         >
           {action}

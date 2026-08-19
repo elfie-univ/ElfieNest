@@ -73,13 +73,10 @@ should pass an explicit subcommand:
 | `status` | Show registered services and port status |
 | `stop` | Stop the services registered by the current project |
 | `restart` | Stop and restart the current service |
-| `web` | Ensure the service is up, open the web management console, and print a phone QR code |
+| `web` | Open the web management console for an already running service |
+| `mobile` | Show the current Wi-Fi and mobile QR-code access information |
 | `config` | Open the arrow-key configuration center |
-| `setup` | Run the first-time setup wizard |
 | `doctor` | Check the local environment and configuration |
-| `data-home inspect` | Diagnose the selected data root without changing it |
-| `data-home recover` | Back up a legacy/corrupt data root and create a fresh one |
-| `data-home activate --data-home PATH` | Select another fresh/ready data root for the next launch |
 | `owner` | Open the Owner account menu in the local terminal |
 | `db` | Show database info, or run `backup` / `reset` |
 | `version` | Show the version |
@@ -95,16 +92,21 @@ Foreground and background services support code-validated parameters:
 ./elfienest.sh start
 ```
 
+The installed global CLI intentionally does not expose `serve`; its `start`, `restart`
+and `stop` commands operate the one installed Controller and its fixed product data root.
+It does not accept the source CLI's `--data-home`, `--port` or `--godot-ws-port` options.
+
 After a successful background `start`, the CLI prints the loopback Web console
-URL. `web` additionally prints the current Wi-Fi network as Step 1 and a QR
-code for the LAN URL as Step 2.
+URL. `web` only opens that already-running Web console; `mobile` prints the
+current Wi-Fi network as Step 1 and a QR code for the LAN URL as Step 2.
 
 The service uses the configured model food and provider. Setup keeps public Ollama
 optional and binds exactly one chosen endpoint; a model provider must be configured
 before chat or adoption can be verified.
-`serve --force` only tries to stop conflict processes registered by the current
-project and confirmed to belong to that service; it is not a generic port
-cleanup tool.
+The source lifecycle parameter surface is intentionally small: `serve`, `start` and
+`restart` accept `--data-home`, `--port` and `--godot-ws-port`; `stop` accepts only
+`--data-home`. The installed CLI uses the Controller's automatic endpoint allocation
+instead of these source-only options.
 
 In source development, `serve`, a `start` that finds the service stopped, and an
 explicit `restart` check the frontend source fingerprint at that launch moment
@@ -114,12 +116,14 @@ the frontend while the service is running. Installed release mode is unchanged.
 
 ## Data and high-risk commands
 
-Installed product data uses the selected production root, falling back to
-`~/.elfienest`; installed `elfienest start` does not accept `--data-home`.
-Select another production root with `elfienest data-home activate --data-home
-PATH`. Source and worktree runs default to `<current-worktree>/.elfienest.local`
-and support `--data-home PATH` before `ELFIE_HOME`. Tests, doc verification and
-experiments must set a temporary `ELFIE_HOME` to avoid polluting day-to-day data.
+Installed entrypoints use exactly `${ELFIE_HOME:-~/.elfienest}`. The source CLI
+ignores caller `ELFIE_HOME` while selecting a task and accepts `--data-home` only
+for `start`, `serve`, `restart` and `stop`. Other source commands use the
+in-memory interactive-session target, an eligible
+`<current-worktree>/.elfienest.local`, or a revalidated candidate selection.
+There is no persisted active-data-home command. Tests, doc verification and
+experiments must still set an isolated environment/data root to avoid
+day-to-day data.
 
 Owner recovery is offered only in the local terminal; the password is entered
 via hidden input and must never go into command arguments, environment
@@ -130,12 +134,7 @@ Git-ignored local configuration; example docs may only use placeholders.
 ./elfienest.sh owner
 ./elfienest.sh db
 ./elfienest.sh db backup
-./elfienest.sh data-home inspect --json
 ```
-
-`data-home recover` preserves a legacy or corrupt root in a timestamped sibling
-backup before creating a fresh final-contract root. It does not delete or
-automatically migrate the old data.
 
 `db reset` resets the local database; before running it you must confirm the
 exact data directory `ELFIE_HOME` points at and keep a backup. The CLI does not

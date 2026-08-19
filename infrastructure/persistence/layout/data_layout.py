@@ -190,6 +190,11 @@ class FinalRootLayout:
         return self.data_home / "runtime" / "locks"
 
     @property
+    def source_cli_state(self) -> Path:
+        """Optional checkout CLI convenience state; never product authority."""
+        return self.data_home / "runtime" / "cli"
+
+    @property
     def token_usage_log(self) -> Path:
         return self.data_home / "logs" / "token_usage.jsonl"
 

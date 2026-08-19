@@ -14,7 +14,10 @@ from app.features.accounts import verify_password as verify_password
 from app.orchestration.lifecycle.ports import DataHomeInspection, DataHomeState
 from infrastructure.persistence.layout.data_home import data_home_from_db_path
 from infrastructure.persistence.layout.data_home import get_db_path as _get_db_path
-from infrastructure.persistence.layout.data_layout import ensure_final_root_layout
+from infrastructure.persistence.layout.data_layout import (
+    ensure_final_root_layout,
+    final_root_layout,
+)
 from infrastructure.persistence.nest_db.final_schema import (
     create_final_nest_database,
     missing_final_schema_columns,
@@ -139,6 +142,23 @@ def repair_data_home(data_home: Path) -> DataHomeInspection:
     return repaired
 
 
+def _has_product_entries(home: Path) -> bool:
+    """Ignore only the optional source CLI subtree during root inspection."""
+    layout = final_root_layout(home)
+    runtime_dir = layout.runtime_state.parent
+    for entry in home.iterdir():
+        if entry != runtime_dir:
+            return True
+        if entry.is_symlink() or not entry.is_dir():
+            return True
+        for runtime_entry in entry.iterdir():
+            if runtime_entry != layout.source_cli_state:
+                return True
+            if runtime_entry.is_symlink() or not runtime_entry.is_dir():
+                return True
+    return False
+
+
 def inspect_data_home(data_home: Path) -> DataHomeInspection:
     """Classify a selected root without creating, migrating, or deleting files."""
     raw_home = data_home.expanduser()
@@ -174,7 +194,7 @@ def inspect_data_home(data_home: Path) -> DataHomeInspection:
         )
     try:
         if not database_path.exists() or database_path.stat().st_size == 0:
-            has_residual_entries = any(home.iterdir())
+            has_residual_entries = _has_product_entries(home)
             return DataHomeInspection(
                 state=(
                     DataHomeState.PARTIAL

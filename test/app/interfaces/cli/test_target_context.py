@@ -76,6 +76,11 @@ def test_source_context_switches_from_explicit_a_to_explicit_b(tmp_path: Path) -
     assert first.home == task_a.resolve()
     assert second.home == task_b.resolve()
     assert session.data_home == task_b.resolve()
+    assert (
+        source / ".elfienest.local" / "runtime" / "cli" / "data-homes.json"
+    ).is_file()
+    assert not (task_a / "runtime" / "cli").exists()
+    assert not (task_b / "runtime" / "cli").exists()
 
 
 def test_stop_candidate_catalog_survives_idle_default(tmp_path: Path) -> None:
