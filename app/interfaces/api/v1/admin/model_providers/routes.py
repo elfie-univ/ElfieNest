@@ -128,6 +128,7 @@ RouteResult = Union[
 
 @router.get("/ollama", response_model=LocalProviderStatusResponse)
 def inspect_local_provider(
+    background_tasks: BackgroundTasks,
     principal: AccountPrincipal = CurrentPrincipal,
     service: ProvidersService = ProvidersDependency,
 ) -> RouteResult:
@@ -135,6 +136,7 @@ def inspect_local_provider(
         result = service.inspect_local_provider(
             principal,
             InspectLocalProviderQuery(),
+            background_tasks,
         )
     except _PROVIDER_ERRORS as error:
         return _error_response(error)
@@ -802,6 +804,7 @@ def _local_provider_response(
 ) -> LocalProviderStatusResponse:
     return LocalProviderStatusResponse(
         state=result.state,
+        checked_at=result.checked_at,
         endpoint=result.endpoint,
         version=result.version,
         memory_gb=result.memory_gb,

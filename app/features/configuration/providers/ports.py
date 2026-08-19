@@ -14,6 +14,7 @@ from .port_models import (
     StoredLocalProviderBinding,
     StoredLocalProviderCandidate,
     StoredLocalProviderProbe,
+    StoredLocalProviderStatus,
     StoredModelAvailability,
     StoredModelMatrix,
     StoredModelRefresh,
@@ -89,6 +90,21 @@ class ProviderLocalStatePort(Protocol):
     def local_model_reference(self, model_id: str) -> str | None: ...
 
     def replace_local_models(self, model_ids: tuple[str, ...]) -> None: ...
+
+
+class ProviderLocalStatusCachePort(Protocol):
+    def load(self) -> StoredLocalProviderStatus | None: ...
+
+    def save(self, status: StoredLocalProviderStatus) -> None: ...
+
+    def try_acquire_refresh_lease(
+        self,
+        owner_id: str,
+        *,
+        lease_seconds: int,
+    ) -> bool: ...
+
+    def release_refresh_lease(self, owner_id: str) -> bool: ...
 
 
 class ProviderLocalTechnologyPort(Protocol):

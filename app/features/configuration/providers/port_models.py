@@ -26,6 +26,7 @@ CapabilityEvidence = Literal[
 CapabilityName = Literal["tools", "vision", "reasoning", "structured_output"]
 LatencyClass = Literal["fast", "normal", "slow"]
 LocalProviderState = Literal[
+    "unknown",
     "absent",
     "healthy",
     "stopped",
@@ -133,6 +134,40 @@ class StoredLocalProviderProbe:
     endpoint: str
     version: str | None = None
     detail: str | None = None
+
+
+@dataclass(frozen=True)
+class StoredLocalProviderModelStatus:
+    model_id: str
+    display_name: str
+    installed: bool
+    recommended: bool
+    availability_status: Literal["available", "degraded", "unavailable", "unknown"] = (
+        "unknown"
+    )
+    available: bool = False
+
+
+@dataclass(frozen=True)
+class StoredLocalModelCounts:
+    installed: int
+    available: int
+    degraded: int
+    pending: int
+    unavailable: int
+
+
+@dataclass(frozen=True)
+class StoredLocalProviderStatus:
+    state: LocalProviderState
+    endpoint: str | None
+    version: str | None
+    memory_gb: int
+    recommended_model: str | None
+    installed_model_count: int
+    models: tuple[StoredLocalProviderModelStatus, ...]
+    model_counts: StoredLocalModelCounts
+    checked_at: str
 
 
 @dataclass(frozen=True)

@@ -4,7 +4,7 @@ import type { ProviderConnection, ProviderModel } from "../api/owner-providers"
 
 export const FOOD_MODEL_ROLES = ["primary", "reasoning", "vision", "tool", "fallback"] as const
 export type FoodModelRole = (typeof FOOD_MODEL_ROLES)[number]
-export type FoodModelStatus = "available" | "unavailable" | "unverified" | "unconfigured"
+export type FoodModelStatus = "available" | "degraded" | "unavailable" | "unverified" | "unconfigured"
 export type FoodLocalRuntime = Pick<OllamaStatus, "state" | "models">
 
 type FoodModelSource = Pick<ProviderModel, "id" | "display_name" | "available" | "hidden" | "retired" | "verification">
@@ -93,16 +93,21 @@ function parseReference(reference: string | null): { readonly connectionId: stri
 
 function modelStatus(model: FoodModelSource | undefined, local: boolean, localRuntime: FoodLocalRuntime | null): FoodModelStatus {
   if (local) {
-    const installed = localRuntime?.models.some((runtimeModel) => runtimeModel.id === model?.id && runtimeModel.installed) ?? false
-    return localRuntime?.state === "healthy" && model !== undefined && !model.hidden && !model.retired && installed
-      ? "available"
-      : "unavailable"
+    if (!model || model.hidden || model.retired) return "unavailable"
+    if (localRuntime === null || localRuntime.state === "unknown") return "unverified"
+    if (localRuntime.state !== "healthy") return "unavailable"
+    const runtimeModel = localRuntime.models.find((item) => item.id === model.id)
+    if (runtimeModel === undefined) return "unverified"
+    if (!runtimeModel.installed) return "unavailable"
+    if (runtimeModel.availability_status === "degraded") return "degraded"
+    if (runtimeModel.availability_status === "unavailable") return "unavailable"
+    if (runtimeModel.availability_status === "available" || (runtimeModel.availability_status === undefined && runtimeModel.available === true)) return "available"
+    return "unverified"
   }
   if (!model) return "unverified"
-  if (model.verification.status === "failed" || !model.available || model.hidden || model.retired) {
-    return "unavailable"
-  }
-  return model.verification.status === "passed" ? "available" : "unverified"
+  if (model.hidden || model.retired || model.verification.status === "failed" || model.verification.availability_status === "unavailable") return "unavailable"
+  if (model.verification.availability_status === "degraded") return "degraded"
+  return model.available && model.verification.status === "passed" ? "available" : "unverified"
 }
 
 export function formatLatency(latencyMs: number | null): string | null {

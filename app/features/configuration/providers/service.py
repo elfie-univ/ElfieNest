@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 from typing import TypeVar
+from uuid import uuid4
 
 from app.features.accounts import AccountPrincipal, is_manager
 
@@ -79,8 +81,11 @@ from .models import (
 from .port_models import (
     CapabilityEvidence,
     StoredBenchmarkCombination,
+    StoredLocalModelCounts,
     StoredLocalProviderBinding,
     StoredLocalProviderCandidate,
+    StoredLocalProviderModelStatus,
+    StoredLocalProviderStatus,
     StoredModelRefresh,
     StoredModelVerification,
     StoredProviderConnection,
@@ -94,6 +99,7 @@ from .ports import (
     ProviderCatalogPort,
     ProviderConnectionPort,
     ProviderLocalStatePort,
+    ProviderLocalStatusCachePort,
     ProviderLocalTechnologyPort,
     ProviderOAuthPort,
     ProviderPortError,
@@ -102,6 +108,9 @@ from .ports import (
 )
 
 _T = TypeVar("_T")
+
+LOCAL_STATUS_FRESHNESS = timedelta(minutes=10)
+LOCAL_STATUS_REFRESH_COOLDOWN = timedelta(minutes=5)
 
 
 class ProvidersService:
@@ -114,6 +123,7 @@ class ProvidersService:
         technology: ProviderTechnologyPort,
         local_state: ProviderLocalStatePort,
         local_technology: ProviderLocalTechnologyPort,
+        local_status_cache: ProviderLocalStatusCachePort | None = None,
         oauth: ProviderOAuthPort | None = None,
     ) -> None:
         self._catalog = catalog
@@ -122,6 +132,7 @@ class ProvidersService:
         self._technology = technology
         self._local_state = local_state
         self._local_technology = local_technology
+        self._local_status_cache = local_status_cache
         self._oauth = oauth
         self._local_jobs = LocalProviderJobManager()
 
@@ -224,9 +235,111 @@ class ProvidersService:
         self,
         principal: AccountPrincipal,
         query: InspectLocalProviderQuery,
+        refresh_scheduler: BackgroundTaskScheduler | None = None,
     ) -> LocalProviderStatusResult:
-        _ = query
         self._require_manager(principal)
+        if not query.refresh and self._local_status_cache is not None:
+            try:
+                cached = self._local_status_cache.load()
+            except Exception as error:
+                raise ProvidersUnavailable(
+                    "Local Provider status cache unavailable"
+                ) from error
+            if cached is not None:
+                if refresh_scheduler is not None and not self._is_local_status_fresh(
+                    cached
+                ):
+                    self._schedule_local_status_refresh(refresh_scheduler)
+                return replace(
+                    self._local_status_result(cached),
+                    task=self._local_jobs.current(),
+                )
+            if refresh_scheduler is not None:
+                self._schedule_local_status_refresh(refresh_scheduler)
+            return self._unknown_local_provider_status()
+        return self.refresh_local_provider_status()
+
+    @staticmethod
+    def _is_local_status_fresh(
+        status: StoredLocalProviderStatus,
+        *,
+        now: datetime | None = None,
+    ) -> bool:
+        try:
+            checked_at = datetime.fromisoformat(
+                status.checked_at.replace("Z", "+00:00")
+            )
+        except ValueError:
+            return False
+        if checked_at.tzinfo is None:
+            checked_at = checked_at.replace(tzinfo=timezone.utc)
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        return current - checked_at.astimezone(timezone.utc) <= LOCAL_STATUS_FRESHNESS
+
+    def _schedule_local_status_refresh(
+        self,
+        scheduler: BackgroundTaskScheduler,
+    ) -> None:
+        cache = self._local_status_cache
+        if cache is None:
+            return
+        owner_id = f"provider-status-request-{uuid4().hex}"
+        try:
+            claimed = cache.try_acquire_refresh_lease(
+                owner_id,
+                lease_seconds=int(LOCAL_STATUS_REFRESH_COOLDOWN.total_seconds()),
+            )
+        except Exception:
+            return
+        if not claimed:
+            return
+        try:
+            scheduler.add_task(
+                lambda: self._run_scheduled_local_status_refresh(owner_id)
+            )
+        except Exception:
+            try:
+                cache.release_refresh_lease(owner_id)
+            except Exception:
+                pass
+
+    def _run_scheduled_local_status_refresh(self, owner_id: str) -> None:
+        cache = self._local_status_cache
+        if cache is None:
+            return
+        try:
+            self.refresh_local_provider_validation()
+        except Exception:
+            # Keep the lease until its five-minute expiry after a failed
+            # attempt so repeated page loads do not hammer the local service.
+            return
+        try:
+            cache.release_refresh_lease(owner_id)
+        except Exception:
+            pass
+
+    def refresh_local_provider_status(self) -> LocalProviderStatusResult:
+        """Probe Ollama and persist the resulting status snapshot."""
+        return self._persist_local_provider_status(self._inspect_local_provider_live())
+
+    def _persist_local_provider_status(
+        self,
+        result: LocalProviderStatusResult,
+    ) -> LocalProviderStatusResult:
+        if self._local_status_cache is not None:
+            checked_at = result.checked_at or datetime.now(timezone.utc).isoformat()
+            result = replace(result, checked_at=checked_at)
+            try:
+                self._local_status_cache.save(self._stored_local_status(result))
+            except Exception as error:
+                raise ProvidersUnavailable(
+                    "Local Provider status cache unavailable"
+                ) from error
+        return result
+
+    def _inspect_local_provider_live(self) -> LocalProviderStatusResult:
         try:
             recorded = self._local_state.load_local_binding()
             binding = recorded or self._local_technology.default_binding()
@@ -316,6 +429,88 @@ class ProvidersService:
                     for item in models
                 ),
             ),
+            checked_at=datetime.now(timezone.utc).isoformat(),
+        )
+
+    def _unknown_local_provider_status(self) -> LocalProviderStatusResult:
+        return LocalProviderStatusResult(
+            state="unknown",
+            endpoint=None,
+            version=None,
+            memory_gb=0,
+            recommended_model=None,
+            installed_model_count=0,
+            models=(),
+            task=self._local_jobs.current(),
+            checked_at=None,
+        )
+
+    @staticmethod
+    def _local_status_result(
+        status: StoredLocalProviderStatus,
+    ) -> LocalProviderStatusResult:
+        return LocalProviderStatusResult(
+            state=status.state,
+            endpoint=status.endpoint,
+            version=status.version,
+            memory_gb=status.memory_gb,
+            recommended_model=status.recommended_model,
+            installed_model_count=status.installed_model_count,
+            models=tuple(
+                LocalProviderModelResult(
+                    model_id=item.model_id,
+                    display_name=item.display_name,
+                    installed=item.installed,
+                    recommended=item.recommended,
+                    availability_status=item.availability_status,
+                    available=item.available,
+                )
+                for item in status.models
+            ),
+            task=None,
+            model_counts=LocalModelCounts(
+                installed=status.model_counts.installed,
+                available=status.model_counts.available,
+                degraded=status.model_counts.degraded,
+                pending=status.model_counts.pending,
+                unavailable=status.model_counts.unavailable,
+            ),
+            checked_at=status.checked_at,
+        )
+
+    @staticmethod
+    def _stored_local_status(
+        result: LocalProviderStatusResult,
+    ) -> StoredLocalProviderStatus:
+        checked_at = result.checked_at
+        if checked_at is None:
+            raise ProvidersUnavailable("Local Provider status is missing its timestamp")
+        return StoredLocalProviderStatus(
+            state=result.state,
+            endpoint=result.endpoint,
+            version=result.version,
+            memory_gb=result.memory_gb,
+            recommended_model=result.recommended_model,
+            installed_model_count=result.installed_model_count,
+            models=tuple(
+                StoredLocalProviderModelStatus(
+                    model_id=item.model_id,
+                    display_name=item.display_name,
+                    installed=item.installed,
+                    recommended=item.recommended,
+                    availability_status=item.availability_status,
+                    available=item.available,
+                )
+                for item in result.models
+            ),
+            model_counts=StoredLocalModelCounts(
+                installed=result.model_counts.installed,
+                available=result.model_counts.available,
+                degraded=result.model_counts.degraded,
+                pending=result.model_counts.pending,
+                unavailable=result.model_counts.unavailable,
+            ),
+            checked_at=checked_at,
         )
 
     def _local_model_result(
@@ -396,7 +591,10 @@ class ProvidersService:
             ) from error
         except RuntimeError as error:
             raise ProvidersConflict(str(error)) from error
-        return self.inspect_local_provider(principal, InspectLocalProviderQuery())
+        return self.inspect_local_provider(
+            principal,
+            InspectLocalProviderQuery(refresh=True),
+        )
 
     def start_local_provider(
         self,
@@ -418,7 +616,10 @@ class ProvidersService:
         except ProviderPortError as error:
             raise ProvidersUnavailable("Local Provider startup unavailable") from error
         self._local_jobs.clear_terminal()
-        return self.inspect_local_provider(principal, InspectLocalProviderQuery())
+        return self.inspect_local_provider(
+            principal,
+            InspectLocalProviderQuery(refresh=True),
+        )
 
     def pull_local_models(
         self,
@@ -459,7 +660,10 @@ class ProvidersService:
             ) from error
         except RuntimeError as error:
             raise ProvidersConflict(str(error)) from error
-        return self.inspect_local_provider(principal, InspectLocalProviderQuery())
+        return self.inspect_local_provider(
+            principal,
+            InspectLocalProviderQuery(refresh=True),
+        )
 
     def _install_local_provider(self) -> None:
         binding = self._local_technology.install_official()
@@ -773,9 +977,16 @@ class ProvidersService:
     ) -> LocalProviderStatusResult:
         """Verify only supported, installed Ollama models awaiting evidence."""
         self._require_manager(principal)
-        current = self.inspect_local_provider(principal, InspectLocalProviderQuery())
+        return await self._verify_local_models()
+
+    def refresh_local_provider_validation(self) -> LocalProviderStatusResult:
+        """Refresh Ollama status and unknown model evidence from a worker thread."""
+        return asyncio.run(self._verify_local_models())
+
+    async def _verify_local_models(self) -> LocalProviderStatusResult:
+        current = self._inspect_local_provider_live()
         if current.state != "healthy":
-            return current
+            return self._persist_local_provider_status(current)
 
         supported_ids = {
             item.model_id for item in self._local_technology.candidate_models()
@@ -794,7 +1005,7 @@ class ProvidersService:
 
         probe = getattr(self._technology, "probe_model", None)
         if not callable(probe) or not references:
-            return current
+            return self._persist_local_provider_status(current)
 
         semaphore = asyncio.Semaphore(2)
 
@@ -802,13 +1013,25 @@ class ProvidersService:
             async with semaphore:
                 await probe(reference)
 
-        try:
-            await asyncio.gather(*(verify_one(reference) for reference in references))
-        except (ProviderPortError, ValueError, OSError) as error:
+        unexpected_error: Exception | None = None
+        latest = current
+        pending = [verify_one(reference) for reference in references]
+        for completed in asyncio.as_completed(pending):
+            try:
+                await completed
+            except (ProviderPortError, ValueError, OSError):
+                # A normal endpoint failure should be reflected by the model
+                # observation and must not prevent other local models from
+                # establishing usable evidence.
+                pass
+            except Exception as error:
+                unexpected_error = error
+            latest = self.refresh_local_provider_status()
+        if unexpected_error is not None:
             raise ProvidersUnavailable(
                 "Local Provider validation unavailable"
-            ) from error
-        return self.inspect_local_provider(principal, InspectLocalProviderQuery())
+            ) from unexpected_error
+        return latest
 
     async def refresh_models(
         self,

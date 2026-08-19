@@ -372,7 +372,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     expect(within(available).queryByRole("button", { name: "配置 Ollama" })).not.toBeInTheDocument()
   })
 
-  it("automatically validates pending local models after the first status load", async () => {
+  it("does not actively validate pending local models during status display", async () => {
     const pendingConnection = {
       ...ollamaConnection,
       model_counts: { total: 1, enabled: 1, in_use: 0, available: 0, degraded: 0, pending: 1, unavailable: 0 },
@@ -392,7 +392,9 @@ describe("OwnerProviderPanel v2 behavior", () => {
 
     renderPanel()
 
-    await waitFor(() => expect(verifyOllamaModels).toHaveBeenCalledWith("csrf"))
+    await waitFor(() => expect(ownerOllamaStatus).toHaveBeenCalled())
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(verifyOllamaModels).not.toHaveBeenCalled()
   })
 
   it("renders provider cards before the slower Food reference read finishes", async () => {
@@ -623,7 +625,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     renderPanel()
 
     const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
-    expect(within(card).getByText("暂不可用")).toBeInTheDocument()
+    expect(within(card).getByText("待确认")).toBeInTheDocument()
     await user.click(await screen.findByRole("button", { name: "批量验证" }))
 
     expect(await screen.findByRole("status")).toHaveTextContent("批量验证完成：1 项通过，报告 validation-run。")
@@ -665,9 +667,47 @@ describe("OwnerProviderPanel v2 behavior", () => {
     renderPanel()
 
     const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
-    expect(card).toHaveClass("provider-card--partial")
-    expect(within(card).getByText("暂不可用")).toBeInTheDocument()
+    expect(card).toHaveClass("provider-card--never")
+    expect(within(card).getByText("待确认")).toBeInTheDocument()
     expect(within(card).queryByText("验证失败")).not.toBeInTheDocument()
+  })
+
+  it("keeps a remote subscription green when at least one enabled model is usable", async () => {
+    vi.mocked(ownerProviderConnections).mockResolvedValue([{
+      ...connection,
+      models: [
+        model,
+        {
+          ...model,
+          id: "gpt-unavailable",
+          display_name: "GPT Unavailable",
+          available: false,
+          verification: {
+            ...model.verification,
+            status: "failed",
+            availability_status: "unavailable",
+            error: "unavailable",
+          },
+        },
+      ],
+      model_counts: { total: 2, enabled: 2, in_use: 0, available: 1, degraded: 0, pending: 0, unavailable: 1 },
+    }])
+    renderPanel()
+
+    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    expect(card).toHaveClass("provider-card--passed")
+    expect(within(card).getByText("可用")).toBeInTheDocument()
+    expect(within(card).getByText("1/2 个模型可用 · 未被粮食使用")).toBeInTheDocument()
+  })
+
+  it("shows a disabled subscription as neutral instead of green or failed", async () => {
+    vi.mocked(ownerProviderConnections).mockResolvedValue([{ ...connection, enabled: false }])
+    renderPanel()
+
+    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    expect(card).toHaveClass("provider-card--disabled")
+    expect(card).not.toHaveClass("provider-card--passed", "provider-card--failed")
+    expect(within(card).getByText("已停用")).toBeInTheDocument()
   })
 
   it("keeps cached all-passed models green without exposing maintenance hints", async () => {
@@ -737,6 +777,52 @@ describe("OwnerProviderPanel v2 behavior", () => {
     expect(startOllama).toHaveBeenCalledWith("csrf")
   })
 
+  it("does not turn a healthy Ollama process green before a model is confirmed usable", async () => {
+    vi.mocked(ownerOllamaStatus).mockResolvedValue({
+      ...healthyOllama,
+      models: healthyOllama.models.map((item) => item.id === "qwen2.5:0.5b"
+        ? { ...item, available: false, availability_status: "unknown" as const }
+        : item),
+      model_counts: { installed: 2, available: 0, degraded: 0, pending: 2, unavailable: 0 },
+    })
+    renderPanel()
+
+    const card = within(await screen.findByRole("region", { name: "本地模型服务" })).getByRole("article")
+    expect(card).toHaveClass("provider-card--ollama-pending")
+    expect(card).not.toHaveClass("provider-card--ollama-healthy")
+    expect(within(card).getByText("待确认")).toBeInTheDocument()
+  })
+
+  it("uses per-model evidence in the Ollama dialog instead of coloring every download green", async () => {
+    const mixedStatus = {
+      ...healthyOllama,
+      installed_model_count: 4,
+      model_counts: { installed: 4, available: 1, degraded: 0, pending: 2, unavailable: 1 },
+      models: healthyOllama.models.map((item) => {
+        if (item.id === "qwen3.5:0.8b") return { ...item, installed: true, available: false, availability_status: "unknown" as const }
+        if (item.id === "gemma3:270m") return { ...item, installed: true, available: false, availability_status: "unavailable" as const }
+        return item
+      }),
+    } satisfies OllamaStatus
+    vi.mocked(ownerOllamaStatus).mockResolvedValue(mixedStatus)
+    const user = userEvent.setup()
+    renderPanel()
+
+    const card = within(await screen.findByRole("region", { name: "本地模型服务" })).getByRole("article")
+    await user.click(within(card).getByRole("button", { name: "模型" }))
+    const dialog = screen.getByRole("dialog", { name: "Ollama 模型" })
+    const availableRow = within(dialog).getByText("qwen2.5:0.5b").closest(".ollama-model-row")
+    const pendingRow = within(dialog).getByText("qwen3.5:0.8b").closest(".ollama-model-row")
+    const unavailableRow = within(dialog).getByText("gemma3:270m").closest(".ollama-model-row")
+
+    expect(availableRow).toHaveClass("ollama-model-row--available")
+    expect(availableRow).toHaveTextContent("可用")
+    expect(pendingRow).toHaveClass("ollama-model-row--pending")
+    expect(pendingRow).toHaveTextContent("待确认")
+    expect(unavailableRow).toHaveClass("ollama-model-row--unavailable")
+    expect(unavailableRow).toHaveTextContent("不可用")
+  })
+
   it("opens the recommended Ollama model list and downloads one candidate directly", async () => {
     const user = userEvent.setup()
     vi.mocked(ownerOllamaStatus).mockResolvedValue(healthyOllama)
@@ -750,7 +836,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     expect(within(dialog).getByText("qwen3.5:0.8b")).toBeInTheDocument()
     expect(within(dialog).getByText("gemma3:270m")).toBeInTheDocument()
     expect(within(dialog).queryByText("custom-local:latest")).not.toBeInTheDocument()
-    expect(within(dialog).getByText("已下载")).toBeInTheDocument()
+    expect(within(dialog).getByText("可用")).toBeInTheDocument()
     await user.click(within(dialog).getAllByRole("button", { name: "下载安装" })[0]!)
 
     expect(pullOllamaModels).toHaveBeenCalledWith(["qwen3.5:0.8b"], "csrf")

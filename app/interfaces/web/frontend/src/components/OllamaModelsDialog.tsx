@@ -43,12 +43,33 @@ export function OllamaModelsDialog({ csrfToken, onChanged, onOpenChange, open, s
     {error ? <Notice kind="error" message={error} /> : null}
     <div className="ollama-models-dialog__toolbar manage-actions"><span>{t("providerConnections.ollama.models.count", { count: status.installed_model_count })}</span></div>
     <div aria-label={t("providerConnections.ollama.models.listLabel")} className="ollama-model-list">
-      {status.models.map((model) => <div className={model.installed ? "ollama-model-row ollama-model-row--installed" : "ollama-model-row"} key={model.id}>
-        <div><strong>{model.id}</strong>{model.recommended ? <small>{t("providerConnections.ollama.models.recommended")}</small> : null}</div>
-        {model.installed
-          ? <span className="status-badge status-badge--passed">{t("providerConnections.ollama.models.downloaded")}</span>
-          : <Button disabled={pendingModel !== null} onClick={() => { void downloadModel(model.id) }} type="button" variant="outline">{pendingModel === model.id ? t("providerConnections.ollama.actions.downloading") : t("providerConnections.ollama.actions.download")}</Button>}
-      </div>)}
+      {status.models.map((model) => {
+        const modelState = ollamaModelState(model)
+        return <div className={`ollama-model-row ollama-model-row--${modelState}`} key={model.id}>
+          <div><strong>{model.id}</strong>{model.recommended ? <small>{t("providerConnections.ollama.models.recommended")}</small> : null}</div>
+          {model.installed
+            ? <span className={`status-badge status-badge--${ollamaModelBadge(modelState)}`}>{t(`providerConnections.ollama.models.status.${modelState}`)}</span>
+            : <Button disabled={pendingModel !== null} onClick={() => { void downloadModel(model.id) }} type="button" variant="outline">{pendingModel === model.id ? t("providerConnections.ollama.actions.downloading") : t("providerConnections.ollama.actions.download")}</Button>}
+        </div>
+      })}
     </div>
   </ManageDialog>
+}
+
+type OllamaModelState = "available" | "degraded" | "pending" | "unavailable" | "not_installed"
+
+function ollamaModelState(model: OllamaStatus["models"][number]): OllamaModelState {
+  if (!model.installed) return "not_installed"
+  if (model.availability_status === "available") return "available"
+  if (model.availability_status === "degraded") return "degraded"
+  if (model.availability_status === "unavailable") return "unavailable"
+  if (model.available === true) return "available"
+  return "pending"
+}
+
+function ollamaModelBadge(state: OllamaModelState): "passed" | "warning" | "failed" | "muted" {
+  if (state === "available") return "passed"
+  if (state === "degraded") return "warning"
+  if (state === "unavailable") return "failed"
+  return "muted"
 }

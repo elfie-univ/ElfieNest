@@ -155,8 +155,8 @@ const healthyOllama = {
   installed_model_count: 2,
   model_counts: { installed: 2, available: 2, degraded: 0, pending: 0, unavailable: 0 },
   models: [
-    { id: "qwen", display_name: "Qwen 0.5B", installed: true, recommended: false },
-    { id: "deepseek", display_name: "DeepSeek", installed: true, recommended: false },
+    { id: "qwen", display_name: "Qwen 0.5B", installed: true, recommended: false, available: true, availability_status: "available" },
+    { id: "deepseek", display_name: "DeepSeek", installed: true, recommended: false, available: true, availability_status: "available" },
   ],
   task: null,
 } satisfies OllamaStatus

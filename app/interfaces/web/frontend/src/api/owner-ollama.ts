@@ -3,6 +3,7 @@ import { z } from "zod"
 import { ownerRead, ownerWrite } from "./http"
 
 const OllamaStateSchema = z.enum([
+  "unknown",
   "absent",
   "healthy",
   "stopped",
@@ -72,7 +73,7 @@ export function supportedOllamaModelCounts(
   const installed = status.models.filter((model) => model.installed && supported.has(model.id))
   return {
     installed: installed.length,
-    available: installed.filter((model) => model.available === true).length,
+    available: installed.filter((model) => model.availability_status === "available" || (model.availability_status === undefined && model.available === true)).length,
     degraded: installed.filter((model) => model.availability_status === "degraded").length,
     pending: installed.filter((model) => model.availability_status === "unknown").length,
     unavailable: installed.filter((model) => model.availability_status === "unavailable").length,

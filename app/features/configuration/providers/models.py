@@ -79,7 +79,7 @@ class ListProviderConnectionsQuery:
 
 @dataclass(frozen=True)
 class InspectLocalProviderQuery:
-    pass
+    refresh: bool = False
 
 
 @dataclass(frozen=True)
@@ -447,6 +447,7 @@ class LocalProviderStatusResult:
     model_counts: LocalModelCounts = field(
         default_factory=lambda: LocalModelCounts(0, 0, 0, 0, 0)
     )
+    checked_at: str | None = None
 
 
 @dataclass(frozen=True)

@@ -111,7 +111,7 @@ const ProviderSummarySchema = z.object({
 const ProviderListSchema = z.object({ items: z.array(ProviderSummarySchema) }).transform(({ items }) => items)
 
 const OllamaStatusSchema = z.object({
-  state: z.enum(["absent", "healthy", "stopped", "deleted", "installing", "failed", "cancelled", "repair_required"]),
+  state: z.enum(["unknown", "absent", "healthy", "stopped", "deleted", "installing", "failed", "cancelled", "repair_required"]),
   recommended_model: z.string().nullable(),
   installed_model_count: z.number().int().min(0),
   model_counts: z.object({
@@ -143,6 +143,7 @@ export type MonitorFood = FoodCatalog["packages"][number]
 
 export const MONITOR_SOURCE_KEYS = ["health", "runtime", "users", "elfies", "rooms", "providers", "ollama", "foods"] as const
 export type MonitorSourceKey = (typeof MONITOR_SOURCE_KEYS)[number]
+const INTERSTELLAR_PROVIDER_TIMEOUT_MS = 3000
 
 export type MonitorSnapshot = {
   readonly health: MonitorHealth | null
@@ -162,8 +163,9 @@ const UserListSchema = z.object({ items: z.array(UserSummarySchema) }).strict()
 async function readSchema<Output, Input>(
   path: string,
   schema: z.ZodType<Output, z.ZodTypeDef, Input>,
+  options?: { readonly timeout?: number | false },
 ): Promise<Output> {
-  return schema.parse(await ownerRead(path))
+  return schema.parse(await ownerRead(path, options))
 }
 
 function sourceValue<T>(result: PromiseSettledResult<T>): T | null {
@@ -178,7 +180,23 @@ function sourceRequiresAuth(result: PromiseSettledResult<unknown>): boolean {
   return result.status === "rejected" && result.reason instanceof ApiError && (result.reason.status === 401 || result.reason.status === 403)
 }
 
-export async function loadMonitorSnapshot(): Promise<MonitorSnapshot> {
+export async function loadMonitorSnapshot(
+  onProviders?: (providers: readonly MonitorProvider[] | null) => void,
+): Promise<MonitorSnapshot> {
+  const providerRequest = readSchema(
+    "/api/v1/admin/model-providers/connections",
+    ProviderListSchema,
+    { timeout: INTERSTELLAR_PROVIDER_TIMEOUT_MS },
+  ).then(
+    (providers) => {
+      onProviders?.(providers)
+      return providers
+    },
+    (error: unknown) => {
+      onProviders?.(null)
+      throw error
+    },
+  )
   const results = await Promise.allSettled([
     readSchema("/api/health", HealthSchema),
     readSchema("/api/v1/admin/runtime/status", RuntimeStatusSchema),
@@ -191,7 +209,7 @@ export async function loadMonitorSnapshot(): Promise<MonitorSnapshot> {
       }))
     }).then((items) => z.array(ElfieSummarySchema).parse(items)),
     readSchema("/api/v1/admin/nest/rooms", RoomListSchema),
-    readSchema("/api/v1/admin/model-providers/connections", ProviderListSchema),
+    providerRequest,
     Promise.all([
       readSchema("/api/v1/admin/model-providers/ollama", OllamaStatusSchema),
       setupModelCatalog().then((models) => models.map((model) => model.model_id)).catch(() => null),

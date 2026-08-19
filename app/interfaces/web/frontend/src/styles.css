@@ -200,7 +200,7 @@
 .user-id-card__identity input { height: 36px; min-width: 72px; padding: 6px 8px; }
 .nest-side-card label { display: grid; gap: 6px; color: var(--text-muted); font-size: 14px; }
 .nest-side-card input:not([data-slot="input"]) { min-width: 0; padding: 9px; border: 1px solid var(--border); border-radius: 9px; color: var(--text); background: var(--field-bg); }
-.food-table { width: 100%; min-width: 760px; border-collapse: collapse; text-align: left; }.food-table th, .food-table td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: top; }.food-table th { color: var(--text-muted); font-size: 14px; }.food-table th small, .food-table td small { display: block; margin-top: 4px; color: var(--text-muted); font-size: 14px; }.status-badge { display: inline-flex; padding: 3px 7px; border-radius: 999px; font-size: 14px; font-weight: 700; }.status-badge--passed, .status-badge--active { color: #2e6846; background: #dfefdf; }.status-badge--warning, .status-badge--unverified { color: #8b5a1f; background: #f6ead2; }.status-badge--failed { color: #963f35; background: #f6dddd; }
+.food-table { width: 100%; min-width: 760px; border-collapse: collapse; text-align: left; }.food-table th, .food-table td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: top; }.food-table th { color: var(--text-muted); font-size: 14px; }.food-table th small, .food-table td small { display: block; margin-top: 4px; color: var(--text-muted); font-size: 14px; }.status-badge { display: inline-flex; padding: 3px 7px; border-radius: 999px; font-size: 14px; font-weight: 700; }.status-badge--passed, .status-badge--active { color: #2e6846; background: #dfefdf; }.status-badge--warning { color: #8b5a1f; background: #f6ead2; }.status-badge--unverified { color: var(--text-muted); background: var(--code-bg); }.status-badge--failed { color: #963f35; background: #f6dddd; }
 .food-page { display: grid; gap: 18px; }
 .food-operation-menu { z-index: 70; min-width: 150px; overflow: hidden; padding: 5px; border: 1px solid var(--border); border-radius: 12px; color: var(--text); background: var(--surface-raised); box-shadow: var(--shadow-float); }.food-operation-menu__item { display: flex; align-items: center; width: 100%; min-height: 36px; padding: 8px 10px; border-radius: 8px; color: var(--text); font-size: 14px; text-align: left; outline: none; cursor: pointer; }.food-operation-menu__item:hover, .food-operation-menu__item[data-highlighted] { color: var(--active-ink); background: var(--surface-hover); }.food-operation-menu__item--danger { color: var(--error-text); }
 .food-recipe-dialog { width: min(1040px, calc(100vw - 32px)); }
@@ -229,7 +229,8 @@
 .monitor-food strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .monitor-food span { flex: 0 0 auto; color: var(--text-muted); font-size: 13px; }
 .monitor-food--healthy { border-color: color-mix(in srgb, #43805a 32%, var(--border)); background: color-mix(in srgb, #dfefdf 55%, var(--surface-raised)); }
-.monitor-food--degraded, .monitor-food--unknown { border-color: color-mix(in srgb, #b67a3e 32%, var(--border)); background: color-mix(in srgb, #f7e7cc 55%, var(--surface-raised)); }
+.monitor-food--degraded { border-color: color-mix(in srgb, #b67a3e 32%, var(--border)); background: color-mix(in srgb, #f7e7cc 55%, var(--surface-raised)); }
+.monitor-food--unknown { color: var(--text-muted); background: var(--code-bg); }
 .monitor-food--unavailable { border-color: color-mix(in srgb, var(--error-text) 32%, var(--border)); background: color-mix(in srgb, #f6dddd 55%, var(--surface-raised)); }
 .monitor-food--unconfigured { color: var(--text-muted); background: var(--code-bg); }
 .monitor-interstellar-status { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
@@ -241,16 +242,18 @@
 .provider-card--passed { background: #edf7ed; box-shadow: inset 3px 0 0 #43805a; }
 .provider-card--partial { background: #fbf0e2; box-shadow: inset 3px 0 0 #b67a3e; }
 .provider-card--failed { background: #f9eaea; box-shadow: inset 3px 0 0 #9d4137; }
-.provider-card--never { background: var(--surface-raised); box-shadow: inset 3px 0 0 #b08b5b; }
+.provider-card--disabled { color: var(--text-muted); background: var(--surface-raised); box-shadow: inset 3px 0 0 #8b929a; }
+.provider-card--never { background: var(--surface-raised); box-shadow: inset 3px 0 0 #8b929a; }
 .provider-card--ollama-healthy { box-shadow: inset 3px 0 0 #43805a; }
 .provider-card--ollama-healthy { background: #edf7ed; }
-.provider-card--ollama-stopped { background: #fbf0e2; box-shadow: inset 3px 0 0 #b67a3e; }
-.provider-card--ollama-absent, .provider-card--ollama-deleted { background: var(--surface-raised); box-shadow: inset 3px 0 0 #b08b5b; }
+.provider-card--ollama-stopped { background: var(--surface-raised); box-shadow: inset 3px 0 0 #8b929a; }
+.provider-card--ollama-absent, .provider-card--ollama-deleted { background: var(--surface-raised); box-shadow: inset 3px 0 0 #8b929a; }
 .provider-card--ollama-installing { box-shadow: inset 3px 0 0 #b67a3e; }
 .provider-card--ollama-installing { background: #fbf0e2; }
 .provider-card--ollama-loading { background: #f2f3f5; box-shadow: inset 3px 0 0 #8b929a; }
-.provider-card--ollama-no_models { background: #fbf0e2; box-shadow: inset 3px 0 0 #b67a3e; }
-.provider-card--ollama-failed, .provider-card--ollama-cancelled, .provider-card--ollama-repair_required { background: #f9eaea; box-shadow: inset 3px 0 0 #9d4137; }
+.provider-card--ollama-no_models, .provider-card--ollama-pending { background: var(--surface-raised); box-shadow: inset 3px 0 0 #8b929a; }
+.provider-card--ollama-partial { background: #fbf0e2; box-shadow: inset 3px 0 0 #b67a3e; }
+.provider-card--ollama-unavailable, .provider-card--ollama-failed, .provider-card--ollama-cancelled, .provider-card--ollama-repair_required { background: #f9eaea; box-shadow: inset 3px 0 0 #9d4137; }
 .provider-card--add { min-height: 0; padding-block: 12px; place-items: center; align-content: center; color: var(--text-muted); border-style: dashed; cursor: pointer; text-align: center; }
 .provider-card--add:hover { color: var(--text); border-color: var(--accent); background: var(--hover-bg); }
 .provider-card--add span { font-size: 14px; }
@@ -283,14 +286,14 @@
 .provider-lifecycle-menu__item[data-disabled] { cursor: not-allowed; opacity: .5; }
 .status-badge--configured { color: var(--accent-hover); background: var(--accent-soft); }
 .status-badge--muted { color: var(--text-muted); background: var(--code-bg); }
-.status-badge--never { color: #815b30; background: #f4e8d4; }
+.status-badge--never { color: var(--text-muted); background: var(--code-bg); }
 .status-badge--partial { color: #8b5a1f; background: #f7e7cc; }
 .status-badge--healthy { color: #2e6846; background: #dfefdf; }
-.status-badge--stopped, .status-badge--absent { color: #815b30; background: #f4e8d4; }
+.status-badge--stopped, .status-badge--absent, .status-badge--pending { color: var(--text-muted); background: var(--code-bg); }
 .status-badge--installing { color: #8b5a1f; background: #f7e7cc; }
 .status-badge--loading { color: var(--text-muted); background: var(--code-bg); }
-.status-badge--no_models { color: #8b5a1f; background: #f7e7cc; }
-.status-badge--deleted, .status-badge--failed, .status-badge--cancelled, .status-badge--repair_required { color: #963f35; background: #f6dddd; }
+.status-badge--no_models, .status-badge--deleted { color: var(--text-muted); background: var(--code-bg); }
+.status-badge--unavailable, .status-badge--failed, .status-badge--cancelled, .status-badge--repair_required { color: #963f35; background: #f6dddd; }
 .provider-form-dialog { width: min(720px, calc(100vw - 32px)); }
 .provider-form { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 0; padding: 0; border: 0; }
 .provider-form__unavailable { margin: 0; padding: 14px; border: 1px solid var(--border); border-radius: 10px; color: var(--text-muted); background: var(--code-bg); line-height: 1.6; }
@@ -335,7 +338,9 @@
 .ollama-models-dialog__toolbar > span { color: var(--text-muted); font-size: 14px; }
 .ollama-model-list { display: grid; gap: 8px; }
 .ollama-model-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); }
-.ollama-model-row--installed { border-color: color-mix(in srgb, #43805a 45%, var(--border)); }
+.ollama-model-row--available { border-color: color-mix(in srgb, #43805a 45%, var(--border)); }
+.ollama-model-row--degraded { border-color: color-mix(in srgb, #b67a3e 45%, var(--border)); }
+.ollama-model-row--unavailable { border-color: color-mix(in srgb, var(--error-text) 45%, var(--border)); }
 .ollama-model-row > div { display: grid; min-width: 0; gap: 3px; }
 .ollama-model-row code { overflow-wrap: anywhere; color: var(--text-muted); font-size: 13px; }
 .ollama-model-row small { color: var(--accent-hover); font-size: 13px; }
@@ -440,11 +445,12 @@
 .food-model-cell--plain { display: block; }
 .food-model-cell__dot { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--text-muted); }
 .food-model-cell__dot--available { background: var(--success-text); }
+.food-model-cell__dot--degraded { background: var(--warning-text); }
 .food-model-cell__dot--unavailable { background: var(--error-text); }
-.food-model-cell__dot--unverified { background: var(--warning-text); }
+.food-model-cell__dot--unverified { background: var(--text-muted); }
 .food-model-cell__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .food-model-cell small { grid-column: 2; margin-top: 4px; color: var(--text-muted); font-size: 12px; white-space: nowrap; }
-.status-badge--disabled { color: #8b5a1f; background: #f6ead2; }
+.status-badge--disabled { color: var(--text-muted); background: var(--code-bg); }
 .status-badge--archived { color: var(--text-muted); background: var(--code-bg); }
 
 .food-generation-scopes { display: grid; gap: 10px; padding: 2px 0; }

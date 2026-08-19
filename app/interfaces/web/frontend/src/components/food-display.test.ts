@@ -63,7 +63,7 @@ describe("food display projection", () => {
     expect(projection.models.primary.latencyLabel).toBe("1.3 s")
     expect(projection.models.reasoning.label).toBe("cloud/unknown")
     expect(projection.models.reasoning.status).toBe("unverified")
-    expect(projection.models.fallback.status).toBe("unavailable")
+    expect(projection.models.fallback.status).toBe("unverified")
     expect(projection.visibility).toEqual({ kind: "users", count: 2, allCurrentUsers: false })
   })
 
@@ -72,17 +72,32 @@ describe("food display projection", () => {
     expect(projectFoodDisplay({ ...food, visibility_mode: "global", visible_user_ids: [] }, connections).visibility).toEqual({ kind: "all", count: null })
   })
 
-  it("marks a local model available only when the runtime is healthy and the model is installed", () => {
-    const healthyRuntime = {
+  it("uses local model evidence instead of treating every installed model as available", () => {
+    const availableRuntime = {
       state: "healthy",
-      models: [{ id: "qwen", display_name: "Qwen 0.5B", installed: true, recommended: false }],
+      models: [{ id: "qwen", display_name: "Qwen 0.5B", installed: true, recommended: false, available: true, availability_status: "available" }],
     } satisfies FoodLocalRuntime
-    const stoppedRuntime = { ...healthyRuntime, state: "stopped" } satisfies FoodLocalRuntime
-    const missingModelRuntime = { ...healthyRuntime, models: [] } satisfies FoodLocalRuntime
+    const pendingRuntime: FoodLocalRuntime = {
+      ...availableRuntime,
+      models: [{ id: "qwen", display_name: "Qwen 0.5B", installed: true, recommended: false, available: false, availability_status: "unknown" }],
+    }
+    const degradedRuntime: FoodLocalRuntime = {
+      ...availableRuntime,
+      models: [{ id: "qwen", display_name: "Qwen 0.5B", installed: true, recommended: false, available: true, availability_status: "degraded" }],
+    }
+    const unavailableRuntime: FoodLocalRuntime = {
+      ...availableRuntime,
+      models: [{ id: "qwen", display_name: "Qwen 0.5B", installed: true, recommended: false, available: false, availability_status: "unavailable" }],
+    }
+    const stoppedRuntime = { ...availableRuntime, state: "stopped" } satisfies FoodLocalRuntime
+    const missingModelRuntime = { ...availableRuntime, models: [] } satisfies FoodLocalRuntime
 
-    expect(projectFoodDisplay(food, connections, 3, healthyRuntime, ["local"]).models.fallback.status).toBe("available")
+    expect(projectFoodDisplay(food, connections, 3, availableRuntime, ["local"]).models.fallback.status).toBe("available")
+    expect(projectFoodDisplay(food, connections, 3, pendingRuntime, ["local"]).models.fallback.status).toBe("unverified")
+    expect(projectFoodDisplay(food, connections, 3, degradedRuntime, ["local"]).models.fallback.status).toBe("degraded")
+    expect(projectFoodDisplay(food, connections, 3, unavailableRuntime, ["local"]).models.fallback.status).toBe("unavailable")
     expect(projectFoodDisplay(food, connections, 3, stoppedRuntime, ["local"]).models.fallback.status).toBe("unavailable")
-    expect(projectFoodDisplay(food, connections, 3, missingModelRuntime, ["local"]).models.fallback.status).toBe("unavailable")
+    expect(projectFoodDisplay(food, connections, 3, missingModelRuntime, ["local"]).models.fallback.status).toBe("unverified")
   })
 
   it("does not invent a latency value", () => {

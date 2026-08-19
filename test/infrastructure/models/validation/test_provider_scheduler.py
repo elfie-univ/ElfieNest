@@ -94,6 +94,8 @@ class _Availability:
 class _Leases:
     def __init__(self) -> None:
         self.keys: list[str] = []
+        self.acquisitions: list[tuple[str, int]] = []
+        self.releases: list[str] = []
 
     def try_acquire_validation_lease(
         self,
@@ -103,9 +105,11 @@ class _Leases:
         lease_seconds: int,
     ) -> bool:
         self.keys.append(lease_key)
+        self.acquisitions.append((lease_key, lease_seconds))
         return True
 
     def release_validation_lease(self, lease_key: str, owner_id: str) -> bool:
+        self.releases.append(lease_key)
         return True
 
 
@@ -184,6 +188,49 @@ def test_scheduler_can_leave_model_probes_to_core_validation_worker() -> None:
     assert result.model_checked == ()
     assert availability.reachability_calls == ["cloud"]
     assert availability.model_calls == []
+
+
+def test_scheduler_refreshes_cached_ollama_status_behind_a_lease() -> None:
+    availability = _Availability()
+    leases = _Leases()
+    refresh_calls: list[str] = []
+    scheduler = ProviderValidationScheduler(
+        availability,
+        lambda: ServingFoodIndex(generation="g1", foods=(), core_endpoints=()),
+        leases,
+        connection_ids=lambda: (),
+        owner_id="worker-a",
+        check_core_models=False,
+        local_status_refresh=lambda: refresh_calls.append("ollama"),
+    )
+
+    scheduler.run_once(now=datetime(2026, 8, 16, tzinfo=timezone.utc))
+
+    assert refresh_calls == ["ollama"]
+    assert "provider:ollama:status" in leases.keys
+    assert ("provider:ollama:status", 300) in leases.acquisitions
+
+
+def test_scheduler_keeps_ollama_refresh_lease_after_failure() -> None:
+    leases = _Leases()
+
+    def fail_refresh() -> None:
+        raise RuntimeError("ollama unavailable")
+
+    scheduler = ProviderValidationScheduler(
+        _Availability(),
+        lambda: ServingFoodIndex(generation="g1", foods=(), core_endpoints=()),
+        leases,
+        connection_ids=lambda: (),
+        owner_id="worker-a",
+        check_core_models=False,
+        local_status_refresh=fail_refresh,
+    )
+
+    scheduler.run_once(now=datetime(2026, 8, 16, tzinfo=timezone.utc))
+
+    assert ("provider:ollama:status", 300) in leases.acquisitions
+    assert "provider:ollama:status" not in leases.releases
 
 
 def test_scheduler_waits_for_retry_expiry_and_does_not_retry_account_blockers() -> None:

@@ -85,6 +85,7 @@ from infrastructure.persistence.model_catalog import load_model_identities
 from infrastructure.persistence.nest_db.nest_management import (
     SQLiteNestManagementAdapter,
 )
+from infrastructure.persistence.ollama_status import SQLiteOllamaStatusCache
 from infrastructure.persistence.provider_availability import ProviderAvailabilityQuery
 from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
@@ -156,6 +157,7 @@ def build_application_container(
     species_catalog = load_and_configure_species_catalog()
     nest_config = load_nest_config()
     report_repository = build_report_repository(db_path)
+    ollama_status_cache = SQLiteOllamaStatusCache(report_repository)
     provider_storage = ProviderStorageAdapter(provider_store)
     provider_reports = ReportStorageAdapter(report_repository)
     provider_evidence = SQLiteFoodEvidenceAdapter(
@@ -274,6 +276,20 @@ def build_application_container(
             provider_models.reachability_fingerprint(connection.connection_id)
         ),
     )
+    providers = ProvidersService(
+        catalog=provider_models,
+        connections=provider_models,
+        references=SQLiteProviderReferenceAdapter(db_path),
+        technology=provider_models,
+        local_state=provider_models,
+        local_technology=PublicOllamaProviderAdapter(catalog=provider_catalog),
+        local_status_cache=ollama_status_cache,
+        oauth=OpenAIChatGptOAuthAdapter(oauth_credentials),
+    )
+    if db_path != ":memory:":
+        providers.ensure_default_local_connection(
+            EnsureDefaultLocalProviderConnectionCommand()
+        )
     core_validation_worker: CoreValidationWorker | None = None
     if data_home is not None:
         validation_scheduler = CoreValidationScheduler(
@@ -305,6 +321,7 @@ def build_application_container(
         maintenance=lambda cutoff: report_repository.compact_observations(
             cutoff.isoformat()
         ),
+        local_status_refresh=providers.refresh_local_provider_validation,
     )
     accounts = build_accounts_service(db_path, settings=settings_adapter)
     communication = build_communication_services(
@@ -349,19 +366,6 @@ def build_application_container(
         elfies=elfies,
         nest_session=nest_session,
     )
-    providers = ProvidersService(
-        catalog=provider_models,
-        connections=provider_models,
-        references=SQLiteProviderReferenceAdapter(db_path),
-        technology=provider_models,
-        local_state=provider_models,
-        local_technology=PublicOllamaProviderAdapter(catalog=provider_catalog),
-        oauth=OpenAIChatGptOAuthAdapter(oauth_credentials),
-    )
-    if db_path != ":memory:":
-        providers.ensure_default_local_connection(
-            EnsureDefaultLocalProviderConnectionCommand()
-        )
     capability_config, capability_secrets, capability_validation = (
         build_capability_adapters(
             config_path,

@@ -670,6 +670,7 @@ class LocalProviderStatusResponse(BaseModel):
     model_config = StrictModel
 
     state: Literal[
+        "unknown",
         "absent",
         "healthy",
         "stopped",
@@ -679,6 +680,7 @@ class LocalProviderStatusResponse(BaseModel):
         "cancelled",
         "repair_required",
     ]
+    checked_at: Optional[str]
     endpoint: Optional[str]
     version: Optional[str]
     memory_gb: int = Field(ge=0)

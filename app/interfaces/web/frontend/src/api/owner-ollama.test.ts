@@ -81,10 +81,11 @@ describe("versioned Ollama Provider client", () => {
     const counts = supportedOllamaModelCounts({
       models: [
         ...status.models,
+        { id: "qwen3.5:0.8b", display_name: "qwen3.5:0.8b", installed: true, recommended: false, available: true, availability_status: "degraded" },
         { id: "custom:latest", display_name: "custom:latest", installed: true, recommended: false, available: false, availability_status: "unknown" },
       ],
     }, ["qwen2.5:0.5b", "qwen3.5:0.8b"])
 
-    expect(counts).toEqual({ installed: 1, available: 1, degraded: 0, pending: 0, unavailable: 0 })
+    expect(counts).toEqual({ installed: 2, available: 1, degraded: 1, pending: 0, unavailable: 0 })
   })
 })

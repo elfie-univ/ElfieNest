@@ -22,6 +22,7 @@ type MonitorFixture = {
   readonly unassignedElfie?: boolean
   readonly remoteSubscription?: boolean
   readonly localOnlyCommon?: boolean
+  readonly commonDisabled?: boolean
 }
 
 const healthyFixture: MonitorFixture = {
@@ -152,6 +153,50 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     expect(systemEvents?.compareDocumentPosition(aiService as Node) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
+  it("keeps the AI summary in attention without a remote subscription", async () => {
+    api.ownerRead.mockImplementation(async (path: string) => {
+      const payload = monitorPayload(path, healthyFixture)
+      if (path === "/api/v1/admin/model-providers/ollama") {
+        return {
+          state: "healthy",
+          recommended_model: "qwen2.5:0.5b",
+          installed_model_count: 3,
+          model_counts: { installed: 3, available: 1, degraded: 0, pending: 2, unavailable: 0 },
+          models: [
+            { id: "qwen2.5:0.5b", installed: true, available: true, availability_status: "available" },
+            { id: "qwen3.5:0.8b", installed: true, available: false, availability_status: "unknown" },
+            { id: "gemma3:270m", installed: true, available: false, availability_status: "unknown" },
+          ],
+        }
+      }
+      if (path === "/api/v1/setup/models") {
+        return { items: [
+          { model_id: "qwen2.5:0.5b", label: "qwen2.5:0.5b", approx_download_mb: 398, recommended: true },
+          { model_id: "qwen3.5:0.8b", label: "qwen3.5:0.8b", approx_download_mb: 1024, recommended: false },
+          { model_id: "gemma3:270m", label: "gemma3:270m", approx_download_mb: 300, recommended: false },
+        ] }
+      }
+      return payload
+    })
+    renderPanel()
+
+    expect(await screen.findByText("1/3 models available")).toBeInTheDocument()
+    expect(screen.getByText("Ollama").closest("li")).toHaveClass("monitor-service--healthy")
+    expect(screen.getByText("AI service").closest("article")).toHaveTextContent("Needs attention")
+    expect(screen.getByText("AI service").closest("article")).toHaveTextContent("No valid remote model subscription")
+  })
+
+  it("keeps the AI summary in attention when Common Food is disabled", async () => {
+    mockSnapshot({ ...healthyFixture, commonDisabled: true })
+    renderPanel()
+
+    const aiService = await screen.findByText("AI service")
+    expect(aiService.closest("article")).toHaveTextContent("Needs attention")
+    const foodRegion = screen.getByRole("region", { name: "Food" })
+    expect(withinFood(foodRegion, "Common")).toHaveTextContent("Disabled")
+    expect(withinFood(foodRegion, "Emergency")).toHaveTextContent("Healthy")
+  })
+
   it("keeps Ollama first in the AI service details", async () => {
     mockSnapshot({ ...healthyFixture, remoteSubscription: true })
     renderPanel()
@@ -164,13 +209,58 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     expect(rows[1]).toHaveTextContent("Volcengine Coding Plan")
   })
 
-  it("shows interstellar travel as enabled when the common Food has a usable remote subscription", async () => {
+  it("shows interstellar travel as enabled when one remote model is available", async () => {
     mockSnapshot({ ...healthyFixture, remoteSubscription: true })
     renderPanel()
 
     const region = await screen.findByRole("region", { name: "Interstellar travel" })
     expect(region).toHaveTextContent("Enabled")
     expect(region).not.toHaveTextContent("Please provide at least one valid model subscription")
+  })
+
+  it("shows interstellar travel before unrelated monitor sources finish", async () => {
+    let releaseRuntime: (() => void) | null = null
+    const runtimeBlocked = new Promise<void>((resolve) => { releaseRuntime = resolve })
+    api.ownerRead.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/admin/runtime/status") await runtimeBlocked
+      return monitorPayload(path, { ...healthyFixture, remoteSubscription: true })
+    })
+    renderPanel()
+
+    const region = await screen.findByRole("region", { name: "Interstellar travel" })
+    await screen.findByText("Enabled")
+    expect(region).toHaveTextContent("Enabled")
+    expect(screen.getByText("Loading runtime status...")).toBeInTheDocument()
+
+    await act(async () => { releaseRuntime?.() })
+  })
+
+  it("uses the existing unavailable state when the Provider read fails", async () => {
+    let providerOptions: unknown
+    api.ownerRead.mockImplementation(async (path: string, options?: unknown) => {
+      if (path === "/api/v1/admin/model-providers/connections") {
+        providerOptions = options
+        throw new Error("provider unavailable")
+      }
+      return monitorPayload(path, healthyFixture)
+    })
+    renderPanel()
+
+    const region = await screen.findByRole("region", { name: "Interstellar travel" })
+    await screen.findByText("Not enabled")
+    expect(region).toHaveTextContent("Not enabled")
+    expect(providerOptions).toEqual({ timeout: 3000 })
+  })
+
+  it("does not require Food or runtime state when a remote model is available", async () => {
+    api.ownerRead.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/admin/runtime/status") throw new Error("runtime unavailable")
+      return monitorPayload(path, { ...healthyFixture, noFoods: true, remoteSubscription: true })
+    })
+    renderPanel()
+
+    const region = await screen.findByRole("region", { name: "Interstellar travel" })
+    expect(region).toHaveTextContent("Enabled")
   })
 
   it("does not count a local Ollama model as a valid interstellar subscription", async () => {
@@ -275,7 +365,7 @@ function monitorPayload(path: string, fixture: MonitorFixture): unknown {
             key: "food_common",
             display_name: "Common",
             system_role: "common",
-            enabled: true,
+            enabled: !fixture.commonDisabled,
             archived: false,
             visibility_mode: "global",
             visible_user_ids: [],

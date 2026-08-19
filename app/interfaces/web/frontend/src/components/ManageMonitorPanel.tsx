@@ -36,13 +36,20 @@ type MonitorIssue =
 export function ManageMonitorPanel() {
   const { t, i18n } = useTranslation("manage")
   const [snapshot, setSnapshot] = useState<MonitorSnapshot | null>(null)
+  const [interstellarProviders, setInterstellarProviders] = useState<readonly MonitorProvider[] | null>(null)
+  const [interstellarProviderSettled, setInterstellarProviderSettled] = useState(false)
   const [loading, setLoading] = useState(true)
   const wasAttention = useRef(false)
   const { show } = useToast()
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true)
-    const nextSnapshot = await loadMonitorSnapshot()
+    setInterstellarProviders(null)
+    setInterstellarProviderSettled(false)
+    const nextSnapshot = await loadMonitorSnapshot((providers) => {
+      setInterstellarProviders(providers)
+      setInterstellarProviderSettled(true)
+    })
     const nextIssues = buildIssues(nextSnapshot)
     const nextOperationalIssues = filterOperationalIssues(nextIssues)
     const nextRequiresAttention = nextSnapshot.authRequired || nextSnapshot.failedSources.length > 0 || nextOperationalIssues.length > 0
@@ -93,10 +100,9 @@ export function ManageMonitorPanel() {
         <h3>{t("runtimeMonitor.modules.services")}</h3>
         {snapshot?.providers === null || snapshot === null ? <p className="empty">{t("runtimeMonitor.moduleUnavailable")}</p> : <ul className="monitor-service-list">
           {operationalProviders(snapshot.providers).map((provider) => <ServiceRow key={`${provider.catalog_id}-${provider.alias}`} provider={provider} ollama={snapshot.ollama} t={t} />)}
-          {!operationalProviders(snapshot.providers).some((provider) => provider.catalog_id !== "ollama") ? <RemoteModelsUnavailableRow t={t} /> : null}
         </ul>}
         <FoodStatusGrid foods={snapshot?.foods ?? null} locale={currentLocale(i18n)} t={t} />
-        <InterstellarStatus snapshot={snapshot} t={t} />
+        <InterstellarStatus providers={interstellarProviders} settled={interstellarProviderSettled} t={t} />
       </section>
     </div>
   </section>
@@ -305,16 +311,17 @@ function serviceStatus(provider: MonitorProvider, ollama: MonitorOllama | null):
   if (provider.catalog_id === "ollama") {
     if (ollama === null) return "unknown"
     const counts = modelCountsForProvider(provider, ollama)
+    if (ollama.state === "unknown") return "unknown"
     if (["absent", "deleted", "failed", "repair_required"].includes(ollama.state)) return "unavailable"
     if (ollama.state !== "healthy" || counts.enabled === 0) return "attention"
-    if (counts.available === counts.enabled) return "healthy"
+    if (counts.available > 0) return "healthy"
     if (counts.available === 0 && counts.unavailable === counts.enabled) return "unavailable"
     return "attention"
   }
   const counts = provider.model_counts
   if (provider.verification.status === "failed" || provider.verification.availability_status === "unavailable") return "unavailable"
   if (counts.enabled === 0) return "unverified"
-  if (counts.available === counts.enabled) return "healthy"
+  if (counts.available > 0) return "healthy"
   if (counts.available === 0 && counts.unavailable === counts.enabled) return "unavailable"
   if (counts.pending > 0 || counts.degraded > 0 || counts.unavailable > 0) return "attention"
   return provider.verification.status === "never" ? "unverified" : "unknown"
@@ -412,12 +419,6 @@ function ServiceRow({ ollama, provider, t }: { readonly ollama: MonitorOllama | 
   </li>
 }
 
-function RemoteModelsUnavailableRow({ t }: { readonly t: TFunction<"manage"> }) {
-  return <li className="monitor-service monitor-service--unavailable">
-    <div className="monitor-service__heading"><strong>{t("runtimeMonitor.services.remoteModels")}</strong><span className="monitor-service__status">{t("runtimeMonitor.services.status.unavailable")}{t("runtimeMonitor.services.configureSeparator")}<a className="monitor-service__configure" href="/manage?section=providers" onClick={(event) => { event.preventDefault(); window.location.assign("/manage?section=providers") }}>{t("runtimeMonitor.services.configureSubscription")}</a></span></div>
-  </li>
-}
-
 function FoodStatusGrid({ foods, locale, t }: { readonly foods: readonly MonitorFood[] | null; readonly locale: ReturnType<typeof currentLocale>; readonly t: TFunction<"manage"> }) {
   const visible = visibleMonitorFoods(foods, locale)
   return <section aria-label={t("runtimeMonitor.foods.title")} className="monitor-food-status">
@@ -431,8 +432,8 @@ function FoodStatusGrid({ foods, locale, t }: { readonly foods: readonly Monitor
   </section>
 }
 
-function InterstellarStatus({ snapshot, t }: { readonly snapshot: MonitorSnapshot | null; readonly t: TFunction<"manage"> }) {
-  const state = resolveInterstellarState(snapshot)
+function InterstellarStatus({ providers, settled, t }: { readonly providers: readonly MonitorProvider[] | null; readonly settled: boolean; readonly t: TFunction<"manage"> }) {
+  const state = resolveInterstellarState(providers, settled)
   return <section aria-label={t("runtimeMonitor.interstellar.title")} className="monitor-interstellar-status">
     <h4>{t("runtimeMonitor.interstellar.title")}</h4>
     {state === "unknown" ? <p className="empty">{t("runtimeMonitor.interstellar.reading")}</p> : <article className={`monitor-interstellar monitor-interstellar--${state}`}>
@@ -442,14 +443,13 @@ function InterstellarStatus({ snapshot, t }: { readonly snapshot: MonitorSnapsho
   </section>
 }
 
-function resolveInterstellarState(snapshot: MonitorSnapshot | null): InterstellarState {
-  if (snapshot === null || snapshot.runtime === null || snapshot.providers === null || snapshot.foods === null) return "unknown"
-  const common = snapshot.foods.find((food) => food.system_role === "common")
-  if (common === undefined || common.archived || !common.enabled || common.roles.primary === null || common.locality === "local") return "unavailable"
-  const commonState = snapshot.runtime.lifecycle?.model_common_state
-  if (commonState === "unconfigured" || commonState === "unavailable") return "unavailable"
-  const remoteModelAvailable = operationalProviders(snapshot.providers).some((provider) => provider.catalog_id !== "ollama" && provider.model_counts.available > 0)
-  return remoteModelAvailable && (commonState === undefined || commonState === "ready" || commonState === "degraded") ? "enabled" : "unavailable"
+function resolveInterstellarState(providers: readonly MonitorProvider[] | null, settled: boolean): InterstellarState {
+  if (!settled) return "unknown"
+  if (providers === null) return "unavailable"
+  const remoteModelAvailable = operationalProviders(providers).some(
+    (provider) => provider.catalog_id !== "ollama" && provider.model_counts.available > 0,
+  )
+  return remoteModelAvailable ? "enabled" : "unavailable"
 }
 
 function visibleMonitorFoods(foods: readonly MonitorFood[] | null, locale: ReturnType<typeof currentLocale>): readonly MonitorFood[] {

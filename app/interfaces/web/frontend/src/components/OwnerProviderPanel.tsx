@@ -413,18 +413,20 @@ function countFoodReferences(connectionId: string, foodPackages: readonly FoodPa
 
 function availabilityCardHealth(
   connection: ProviderConnection,
-): "passed" | "partial" | "failed" | "never" {
+): "passed" | "partial" | "failed" | "never" | "disabled" {
   const counts = connection.model_counts
-  if (!connection.enabled || connection.archived || counts.enabled === 0) return "never"
+  if (!connection.enabled || connection.archived) return "disabled"
+  if (counts.enabled === 0) return "never"
   if (connection.verification.status === "failed" || connection.verification.availability_status === "unavailable") return "failed"
-  if (counts.available === counts.enabled) return "passed"
+  if (counts.available > 0) return "passed"
   if (counts.unavailable === counts.enabled) return "failed"
-  if (counts.available > 0 || counts.degraded > 0 || counts.pending > 0) return "partial"
+  if (counts.degraded > 0) return "partial"
+  if (counts.pending > 0) return "never"
   return "never"
 }
 
 function availabilityCardLabel(
-  health: "passed" | "partial" | "failed" | "never",
+  health: "passed" | "partial" | "failed" | "never" | "disabled",
   t: (key: string) => string,
   counts: ProviderConnection["model_counts"],
 ): string {
@@ -433,5 +435,6 @@ function availabilityCardLabel(
     case "partial": return counts.pending > 0 && counts.available === 0 && counts.degraded === 0 ? t("providerConnections.status.pending") : t("providerConnections.status.degraded")
     case "failed": return t("providerConnections.status.unavailable")
     case "never": return t("providerConnections.status.unknown")
+    case "disabled": return t("providerConnections.status.disabled")
   }
 }

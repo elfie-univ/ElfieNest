@@ -20,6 +20,7 @@ REACHABILITY_INTERVAL = timedelta(minutes=5)
 RETENTION_INTERVAL = timedelta(days=1)
 RAW_RETENTION = timedelta(days=30)
 LEASE_SECONDS = 120
+LOCAL_STATUS_REFRESH_LEASE_SECONDS = 300
 
 
 class ProviderHealthQuery(Protocol):
@@ -75,6 +76,7 @@ class ProviderValidationScheduler:
         interval: timedelta = REACHABILITY_INTERVAL,
         lease_seconds: int = LEASE_SECONDS,
         maintenance: Callable[[datetime], object] | None = None,
+        local_status_refresh: Callable[[], object] | None = None,
         retention_interval: timedelta = RETENTION_INTERVAL,
         raw_retention: timedelta = RAW_RETENTION,
         check_core_models: bool = True,
@@ -87,6 +89,7 @@ class ProviderValidationScheduler:
         self._interval = interval
         self._lease_seconds = lease_seconds
         self._maintenance = maintenance
+        self._local_status_refresh = local_status_refresh
         self._retention_interval = retention_interval
         self._raw_retention = raw_retention
         # The legacy scheduler owns Provider-wide reachability.  When the
@@ -101,6 +104,7 @@ class ProviderValidationScheduler:
 
     def run_once(self, *, now: datetime | None = None) -> SchedulerRunResult:
         current = _utc(now or datetime.now(timezone.utc))
+        self._refresh_local_status()
         checked_reachability: list[str] = []
         connection_ids = self._scheduled_connection_ids()
         for connection_id in connection_ids:
@@ -178,6 +182,10 @@ class ProviderValidationScheduler:
             self._thread = None
 
     def _run(self) -> None:
+        # Populate the local last-known snapshot once in the background when
+        # the process starts. Remote reachability keeps its existing delayed
+        # first tick so startup does not create a burst of network probes.
+        self._refresh_local_status()
         while not self._stop.wait(self._interval.total_seconds()):
             try:
                 self.run_once()
@@ -186,15 +194,40 @@ class ProviderValidationScheduler:
                 # long-lived scheduler thread.
                 continue
 
-    def _try_acquire(self, lease_key: str) -> bool:
+    def _try_acquire(
+        self,
+        lease_key: str,
+        *,
+        lease_seconds: int | None = None,
+    ) -> bool:
         try:
             return self._leases.try_acquire_validation_lease(
                 lease_key,
                 self._owner_id,
-                lease_seconds=self._lease_seconds,
+                lease_seconds=(
+                    self._lease_seconds if lease_seconds is None else lease_seconds
+                ),
             )
         except Exception:
             return False
+
+    def _refresh_local_status(self) -> None:
+        if self._local_status_refresh is None:
+            return
+        lease_key = "provider:ollama:status"
+        if not self._try_acquire(
+            lease_key,
+            lease_seconds=LOCAL_STATUS_REFRESH_LEASE_SECONDS,
+        ):
+            return
+        try:
+            self._local_status_refresh()
+        except Exception:
+            # A local endpoint outage must leave the last durable snapshot
+            # readable and must not stop remote Provider checks. Keep the
+            # lease until its five-minute expiry as a retry cooldown.
+            return
+        self._release(lease_key)
 
     def _release(self, lease_key: str) -> None:
         try:

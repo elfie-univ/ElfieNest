@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -27,9 +28,12 @@ from app.features.configuration import (
     ReplaceProviderModelsCommand,
     StartProviderOAuthLoginCommand,
     StoredBenchmarkRun,
+    StoredLocalModelCounts,
     StoredLocalProviderBinding,
     StoredLocalProviderCandidate,
+    StoredLocalProviderModelStatus,
     StoredLocalProviderProbe,
+    StoredLocalProviderStatus,
     StoredModelMatrix,
     StoredModelRefresh,
     StoredModelVerification,
@@ -265,6 +269,45 @@ class FakeLocalTechnology:
         _ = binding, model_id
 
 
+class FakeLocalStatusCache:
+    def __init__(self, status: StoredLocalProviderStatus | None) -> None:
+        self.status = status
+        self.load_calls = 0
+        self.saved: list[StoredLocalProviderStatus] = []
+        self.refresh_claims: list[tuple[str, int]] = []
+        self.refresh_releases: list[str] = []
+
+    def load(self) -> StoredLocalProviderStatus | None:
+        self.load_calls += 1
+        return self.status
+
+    def save(self, status: StoredLocalProviderStatus) -> None:
+        self.saved.append(status)
+        self.status = status
+
+    def try_acquire_refresh_lease(self, owner_id: str, *, lease_seconds: int) -> bool:
+        self.refresh_claims.append((owner_id, lease_seconds))
+        return True
+
+    def release_refresh_lease(self, owner_id: str) -> bool:
+        self.refresh_releases.append(owner_id)
+        return True
+
+
+class QueueScheduler:
+    def __init__(self) -> None:
+        self.tasks: list[object] = []
+
+    def add_task(self, func) -> None:
+        self.tasks.append(func)
+
+
+class FailingLocalTechnology(FakeLocalTechnology):
+    def probe(self, binding: StoredLocalProviderBinding) -> StoredLocalProviderProbe:
+        _ = binding
+        raise AssertionError("cached local status must not probe Ollama")
+
+
 class FakeInstalledLocalTechnology(FakeLocalTechnology):
     def probe(self, binding: StoredLocalProviderBinding) -> StoredLocalProviderProbe:
         return StoredLocalProviderProbe("healthy", binding.api_base, "0.1")
@@ -482,6 +525,85 @@ def test_local_inspection_keeps_installed_models_outside_recommendation_catalog(
     assert port.local_model_ids == ["custom-installed"]
 
 
+def test_local_inspection_reads_cached_status_without_live_probe() -> None:
+    service, _, _ = _service()
+    cached = StoredLocalProviderStatus(
+        state="healthy",
+        endpoint="http://127.0.0.1:11434",
+        version="0.1",
+        memory_gb=8,
+        recommended_model="recommended",
+        installed_model_count=1,
+        models=(
+            StoredLocalProviderModelStatus(
+                model_id="recommended",
+                display_name="Recommended",
+                installed=True,
+                recommended=True,
+                availability_status="available",
+                available=True,
+            ),
+        ),
+        model_counts=StoredLocalModelCounts(1, 1, 0, 0, 0),
+        checked_at=(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
+    )
+    cache = FakeLocalStatusCache(cached)
+    service._local_status_cache = cache
+    service._local_technology = FailingLocalTechnology()
+
+    result = service.inspect_local_provider(_principal(), InspectLocalProviderQuery())
+
+    assert result.state == "healthy"
+    assert result.checked_at == cached.checked_at
+    assert result.installed_model_count == 1
+    assert cache.load_calls == 1
+
+
+def test_stale_local_status_is_returned_and_refresh_is_scheduled_once() -> None:
+    service, _, _ = _service()
+    cached = StoredLocalProviderStatus(
+        state="healthy",
+        endpoint="http://127.0.0.1:11434",
+        version="0.1",
+        memory_gb=8,
+        recommended_model=None,
+        installed_model_count=0,
+        models=(),
+        model_counts=StoredLocalModelCounts(0, 0, 0, 0, 0),
+        checked_at=(datetime.now(timezone.utc) - timedelta(minutes=11)).isoformat(),
+    )
+    cache = FakeLocalStatusCache(cached)
+    scheduler = QueueScheduler()
+    service._local_status_cache = cache
+    service._local_technology = FailingLocalTechnology()
+
+    result = service.inspect_local_provider(
+        _principal(),
+        InspectLocalProviderQuery(),
+        scheduler,
+    )
+
+    assert result.state == "healthy"
+    assert len(scheduler.tasks) == 1
+    assert cache.refresh_claims[0][1] == 300
+
+
+def test_missing_local_status_is_unknown_and_refresh_is_scheduled() -> None:
+    service, _, _ = _service()
+    cache = FakeLocalStatusCache(None)
+    scheduler = QueueScheduler()
+    service._local_status_cache = cache
+
+    result = service.inspect_local_provider(
+        _principal(),
+        InspectLocalProviderQuery(),
+        scheduler,
+    )
+
+    assert result.state == "unknown"
+    assert len(scheduler.tasks) == 1
+
+
 def test_local_verification_only_probes_supported_installed_models() -> None:
     service, _, _ = _service()
     service._local_technology = FakeSupportedInstalledLocalTechnology()
@@ -492,6 +614,21 @@ def test_local_verification_only_probes_supported_installed_models() -> None:
     assert isinstance(technology, FakeTechnology)
     assert technology.probed_model_references == ["ollama_0001/recommended"]
     assert result.model_counts.available == 1
+
+
+def test_background_local_validation_uses_the_same_supported_model_probe() -> None:
+    service, _, _ = _service()
+    service._local_technology = FakeSupportedInstalledLocalTechnology()
+    cache = FakeLocalStatusCache(None)
+    service._local_status_cache = cache
+
+    result = service.refresh_local_provider_validation()
+
+    technology = service._technology
+    assert isinstance(technology, FakeTechnology)
+    assert technology.probed_model_references == ["ollama_0001/recommended"]
+    assert result.model_counts.available == 1
+    assert [status.model_counts.available for status in cache.saved] == [1]
 
 
 def test_member_cannot_read_provider_administration() -> None:
