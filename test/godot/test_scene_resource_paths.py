@@ -154,6 +154,21 @@ def test_actor_movement_matches_the_imported_model_forward_axis() -> None:
     assert "look_at(global_position - direction, Vector3.UP)" in actor_source
 
 
+def test_actor_appearance_uses_an_explicit_species_catalog_dependency() -> None:
+    actor_appearance_source = (
+        GODOT_ROOT / "runtime" / "actor" / "actor_appearance.gd"
+    ).read_text(encoding="utf-8")
+
+    assert (
+        'const SPECIES_CATALOG := preload("res://runtime/species_catalog.gd")'
+        in actor_appearance_source
+    )
+    assert "SPECIES_CATALOG.appearance_bindings(species_id)" in actor_appearance_source
+    assert (
+        "SpeciesCatalog.appearance_bindings(species_id)" not in actor_appearance_source
+    )
+
+
 def test_world_owns_semantic_spatial_queries_not_actor_execution() -> None:
     actor_source = (GODOT_ROOT / "runtime" / "actor" / "actor_controller.gd").read_text(
         encoding="utf-8"

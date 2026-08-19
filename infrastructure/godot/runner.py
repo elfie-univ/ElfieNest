@@ -368,14 +368,22 @@ def _decode_output(value: object) -> str:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    """Expose the shared version probe to shell toolchain callers."""
+    """Expose the shared engine and project version readers to shell callers."""
 
     parser = argparse.ArgumentParser(description="Run a controlled Godot probe.")
-    parser.add_argument("command", choices=("version",))
-    parser.add_argument("--binary", required=True, type=Path)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    version_parser = subparsers.add_parser("version", help="probe one Godot executable")
+    version_parser.add_argument("--binary", required=True, type=Path)
+    project_parser = subparsers.add_parser(
+        "project-version", help="read the version declared by project.godot"
+    )
+    project_parser.add_argument("--project", required=True, type=Path)
     args = parser.parse_args(argv)
 
-    version = godot_version(args.binary)
+    if args.command == "version":
+        version = godot_version(args.binary)
+    else:
+        version = project_version(args.project)
     if version is None:
         return 1
     print(version)

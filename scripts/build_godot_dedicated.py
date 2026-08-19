@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
 from infrastructure.godot.artifacts.species_package_validation import (
     SpeciesPackageValidationError,
+    source_species_package_ids,
     validate_source_species_packages,
 )
 from infrastructure.godot.artifacts.web_build import (
@@ -98,12 +99,9 @@ def main() -> int:
 def _export_runtime(output: Path, binary: Path, godot_version: str) -> int:
     """Export into staging and atomically replace only a complete bundle."""
     try:
-        species_package_ids = validate_source_species_packages(
+        species_package_ids = source_species_package_ids(
             config_root=PROJECT_ROOT / "config",
             godot_project=GODOT_PROJECT,
-            godot_runner=run_godot_species_validation,
-            godot_binary=binary,
-            godot_version=godot_version,
         )
     except SpeciesPackageValidationError as error:
         print(f"❌ Species package validation failed: {error}")
@@ -139,6 +137,28 @@ def _export_runtime(output: Path, binary: Path, godot_version: str) -> int:
         print(
             "❌ Dedicated export command completed, but artifacts are incomplete: "
             + ", ".join(missing)
+        )
+        return 1
+    try:
+        validated_species_package_ids = validate_source_species_packages(
+            config_root=PROJECT_ROOT / "config",
+            godot_project=GODOT_PROJECT,
+            godot_runner=run_godot_species_validation,
+            godot_binary=binary,
+            godot_version=godot_version,
+        )
+    except SpeciesPackageValidationError as error:
+        shutil.rmtree(staging, ignore_errors=True)
+        print(f"❌ Species package validation failed: {error} phase={error.phase}")
+        if error.stdout.strip():
+            print(f"   Godot stdout:\n{error.stdout.rstrip()}")
+        if error.stderr.strip():
+            print(f"   Godot stderr:\n{error.stderr.rstrip()}")
+        return 1
+    if validated_species_package_ids != species_package_ids:
+        shutil.rmtree(staging, ignore_errors=True)
+        print(
+            "❌ Species package validation changed the source package set during export."
         )
         return 1
     _write_manifest(

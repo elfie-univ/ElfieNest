@@ -34,6 +34,7 @@ def run_godot_species_validation(
         result.exit_code,
         result.stdout,
         result.stderr,
+        phase="species-validation",
     )
 
 

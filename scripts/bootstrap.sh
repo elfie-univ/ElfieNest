@@ -350,20 +350,8 @@ main() {
     fi
     echo ""
 
-    # Godot source toolchain + Web runtime (hard gate for every bootstrap tier)
-    echo "📦 Godot source build toolchain"
-    if [[ "$ACTION" == "ensure" ]]; then
-        ensure_godot_toolchain || exit_code=1
-    else
-        if check_godot_toolchain; then
-            echo "${GREEN}  ✅ Godot $GODOT_PROJECT_VERSION.x editor is ready${RESET}"
-        else
-            echo "${RED}  ❌ Godot $GODOT_PROJECT_VERSION.x editor is missing or version mismatched${RESET}" >&2
-            exit_code=1
-        fi
-    fi
-    echo ""
-
+    # The exported Runtime is the product dependency. The source editor is
+    # resolved lazily by ensure_godot_web only when an export is actually missing.
     echo "📦 Godot Web Runtime"
     if [[ "$ACTION" == "ensure" ]]; then
         ensure_godot_web || exit_code=1

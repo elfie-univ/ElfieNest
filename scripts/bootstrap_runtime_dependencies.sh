@@ -2,12 +2,10 @@
 # Runtime dependency checks and preparation for the bootstrap orchestrator.
 
 PNPM_VERSION="10.12.1"
-GODOT_PROJECT_VERSION="4.7"
-GODOT_DEFAULT_DOWNLOAD_VERSION="4.7.1"
+GODOT_PROJECT_VERSION=""
 GODOT_DOWNLOAD_ENDPOINT="https://downloads.godotengine.org/"
 GODOT_RESOLVED_BIN=""
 GODOT_RESOLVED_USER_HOME=""
-GODOT_RESOLVED_VERSION=""
 
 project_python() {
     local candidate
@@ -22,6 +20,32 @@ project_python() {
         fi
     done
     return 1
+}
+
+godot_project_version() {
+    local python_bin
+
+    python_bin="$(project_python 2>/dev/null || true)"
+    if [[ -z "$python_bin" ]]; then
+        echo "❌ Repository Python environment is unavailable for reading project.godot." >&2
+        return 1
+    fi
+
+    PYTHONPATH="$PROJECT_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
+        "$python_bin" -m infrastructure.godot.runner project-version \
+        --project "$PROJECT_ROOT/godot_project"
+}
+
+load_godot_project_version() {
+    if [[ -n "$GODOT_PROJECT_VERSION" ]]; then
+        return 0
+    fi
+    GODOT_PROJECT_VERSION="$(godot_project_version)" || return 1
+    if [[ ! "$GODOT_PROJECT_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+        echo "❌ Invalid Godot compatibility version in godot_project/project.godot." >&2
+        GODOT_PROJECT_VERSION=""
+        return 1
+    fi
 }
 
 check_pnpm() {
@@ -90,6 +114,7 @@ check_godot_web() {
 }
 
 godot_toolchain_root() {
+    load_godot_project_version || return 1
     printf '%s\n' "${ELFIE_DEV_HOME:-$HOME/.elfienest-dev}/toolchains/godot/$GODOT_PROJECT_VERSION"
 }
 
@@ -100,7 +125,10 @@ godot_user_home() {
 godot_managed_root_is_safe() {
     local candidate="$1"
     local developer_home="${ELFIE_DEV_HOME:-$HOME/.elfienest-dev}"
-    local expected="$developer_home/toolchains/godot/$GODOT_PROJECT_VERSION"
+    local expected
+
+    load_godot_project_version || return 1
+    expected="$developer_home/toolchains/godot/$GODOT_PROJECT_VERSION"
 
     [[ "$candidate" == "$expected" ]] && \
     [[ "$candidate" != "/" ]] && \
@@ -112,8 +140,27 @@ godot_download_url() {
     local platform="$1"
     local slug="$2"
 
+    load_godot_project_version || return 1
     printf '%s?flavor=stable&platform=%s&slug=%s&version=%s\n' \
-        "$GODOT_DOWNLOAD_ENDPOINT" "$platform" "$slug" "$GODOT_DEFAULT_DOWNLOAD_VERSION"
+        "$GODOT_DOWNLOAD_ENDPOINT" "$platform" "$slug" "$GODOT_PROJECT_VERSION"
+}
+
+godot_template_version() {
+    local staging_root="$1"
+    local version_file
+    local version
+
+    version_file="$(find "$staging_root" -type f -name version.txt -print -quit 2>/dev/null || true)"
+    if [[ -z "$version_file" ]]; then
+        echo "❌ Godot Export Templates archive does not contain version.txt." >&2
+        return 1
+    fi
+    version="$(sed -n '1p' "$version_file" | tr -d '\r')"
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?\.[A-Za-z0-9_-]+([.][A-Za-z0-9_-]+)*$ ]]; then
+        echo "❌ Godot Export Templates version.txt is invalid: $version" >&2
+        return 1
+    fi
+    printf '%s\n' "$version"
 }
 
 godot_runner_version() {
@@ -134,59 +181,39 @@ godot_binary_has_required_version() {
     local binary="$1"
     local version
 
+    load_godot_project_version || return 1
     [[ -x "$binary" ]] || return 1
     version="$(godot_runner_version "$binary")" || return 1
-    # Accept any 4.7.x version (major.minor match)
-    [[ "$version" == "$GODOT_PROJECT_VERSION."* ]] || return 1
-    printf '%s\n' "$version"
-}
-
-godot_extract_version() {
-    local binary="$1"
-
-    godot_runner_version "$binary"
-}
-
-godot_templates_match_editor() {
-    local editor_binary="$1"
-    local editor_version
-    local templates_dir
-
-    editor_version="$(godot_extract_version "$editor_binary")"
-    [[ -z "$editor_version" ]] && return 1
-
-    templates_dir="${GODOT_USER_HOME:-${ELFIE_DEV_HOME:-$HOME/.elfienest-dev}/godot-user-home}/export_templates"
-    [[ -d "$templates_dir/$editor_version.stable" ]] || \
-    [[ -d "$templates_dir/${editor_version%.stable}.stable" ]]
+    # The shared runner intentionally normalizes patch/suffixes to major.minor.
+    [[ "$version" == "$GODOT_PROJECT_VERSION" ]] || return 1
 }
 
 find_existing_godot_binary() {
     local candidate
     local command_name
-    local version
 
     if [[ -n "${GODOT_BIN:-}" ]]; then
-        if version="$(godot_binary_has_required_version "$GODOT_BIN")"; then
-            printf '%s\n' "$GODOT_BIN"
-            GODOT_RESOLVED_VERSION="$version"
+        if godot_binary_has_required_version "$GODOT_BIN" >/dev/null; then
+            GODOT_RESOLVED_BIN="$GODOT_BIN"
+            GODOT_RESOLVED_USER_HOME=""
             return 0
         fi
         return 1
     fi
     for command_name in godot4 godot Godot; do
         candidate="$(command -v "$command_name" 2>/dev/null || true)"
-        if [[ -n "$candidate" ]] && version="$(godot_binary_has_required_version "$candidate")"; then
-            printf '%s\n' "$candidate"
-            GODOT_RESOLVED_VERSION="$version"
+        if [[ -n "$candidate" ]] && godot_binary_has_required_version "$candidate" >/dev/null; then
+            GODOT_RESOLVED_BIN="$candidate"
+            GODOT_RESOLVED_USER_HOME=""
             return 0
         fi
     done
     for candidate in \
         "/Applications/Godot.app/Contents/MacOS/Godot" \
         "$HOME/Applications/Godot.app/Contents/MacOS/Godot"; do
-        if version="$(godot_binary_has_required_version "$candidate")"; then
-            printf '%s\n' "$candidate"
-            GODOT_RESOLVED_VERSION="$version"
+        if godot_binary_has_required_version "$candidate" >/dev/null; then
+            GODOT_RESOLVED_BIN="$candidate"
+            GODOT_RESOLVED_USER_HOME=""
             return 0
         fi
     done
@@ -196,17 +223,20 @@ find_existing_godot_binary() {
 check_godot_toolchain() {
     local managed_root
     local managed_binary
-    local version
+    local managed_user_home
 
+    load_godot_project_version || return 1
+    GODOT_RESOLVED_BIN=""
+    GODOT_RESOLVED_USER_HOME=""
     managed_root="$(godot_toolchain_root)"
+    managed_user_home="$(godot_user_home)"
     managed_binary="$(find "$managed_root" -type f \( -name Godot -o -name 'Godot*.x86_64' -o -name 'Godot*.exe' \) -perm -u=x 2>/dev/null | head -n 1)"
-    if [[ -n "$managed_binary" ]] && version="$(godot_binary_has_required_version "$managed_binary")"; then
-        GODOT_RESOLVED_VERSION="$version"
+    if [[ -n "$managed_binary" ]] && godot_binary_has_required_version "$managed_binary" >/dev/null; then
+        GODOT_RESOLVED_BIN="$managed_binary"
+        GODOT_RESOLVED_USER_HOME="$managed_user_home"
         return 0
     fi
-    local existing_binary
-    existing_binary="$(find_existing_godot_binary || true)"
-    [[ -n "$existing_binary" ]]
+    find_existing_godot_binary
 }
 
 install_official_godot_toolchain() {
@@ -220,8 +250,11 @@ install_official_godot_toolchain() {
     local editor_slug
     local editor_binary
     local managed_root
-    local version
+    local template_version_file
+    local template_version
+    local template_contents
 
+    load_godot_project_version || return 1
     root="$(godot_toolchain_root)"
     user_home="$(godot_user_home)"
     case "$(uname -s):$(uname -m)" in
@@ -251,7 +284,7 @@ install_official_godot_toolchain() {
     editor_staging="$(mktemp -d "${TMPDIR:-/tmp}/elfienest-godot-editor.XXXXXX")"
     template_staging="$(mktemp -d "${TMPDIR:-/tmp}/elfienest-godot-templates.XXXXXX")"
 
-    echo "${CYAN}  📥 Downloading official Godot $GODOT_DEFAULT_DOWNLOAD_VERSION editor...${RESET}"
+    echo "${CYAN}  📥 Downloading official Godot $GODOT_PROJECT_VERSION editor...${RESET}"
     if ! curl --fail --location --retry 3 --output "$editor_archive" "$(godot_download_url "$editor_platform" "$editor_slug")"; then
         echo "${RED}  ❌ Godot editor download failed.${RESET}" >&2
         rm -f -- "$editor_archive" "$template_archive"
@@ -277,6 +310,22 @@ install_official_godot_toolchain() {
         rm -rf -- "$editor_staging" "$template_staging"
         return 1
     fi
+    template_version_file="$(find "$template_staging" -type f -name version.txt -print -quit 2>/dev/null || true)"
+    if ! template_version="$(godot_template_version "$template_staging")"; then
+        rm -f -- "$editor_archive" "$template_archive"
+        rm -rf -- "$editor_staging" "$template_staging"
+        return 1
+    fi
+    case "$template_version" in
+        "$GODOT_PROJECT_VERSION".*) ;;
+        *)
+            echo "${RED}  ❌ Godot Export Templates $template_version are outside compatibility line $GODOT_PROJECT_VERSION.${RESET}" >&2
+            rm -f -- "$editor_archive" "$template_archive"
+            rm -rf -- "$editor_staging" "$template_staging"
+            return 1
+            ;;
+    esac
+    template_contents="$(dirname "$template_version_file")"
 
     if ! godot_managed_root_is_safe "$root"; then
         echo "${RED}  ❌ Refusing to clean non-managed Godot directory: $root${RESET}" >&2
@@ -286,11 +335,11 @@ install_official_godot_toolchain() {
     fi
     managed_root="$root"
     rm -rf -- "$managed_root"
-    mkdir -p -- "$root" "$user_home/export_templates/$GODOT_DEFAULT_DOWNLOAD_VERSION.stable"
+    mkdir -p -- "$root" "$user_home/export_templates/$template_version"
     cp -R "$editor_staging"/* "$root/"
-    cp -R "$template_staging"/* "$user_home/export_templates/$GODOT_DEFAULT_DOWNLOAD_VERSION.stable/"
+    cp -R "$template_contents"/. "$user_home/export_templates/$template_version/"
     editor_binary="$(find "$root" -type f \( -name Godot -o -name 'Godot*.x86_64' -o -name 'Godot*.exe' \) -perm -u+x | head -n 1)"
-    if [[ -z "$editor_binary" ]] || ! version="$(godot_binary_has_required_version "$editor_binary")"; then
+    if [[ -z "$editor_binary" ]] || ! godot_binary_has_required_version "$editor_binary" >/dev/null; then
         echo "${RED}  ❌ Godot editor post-install version verification failed.${RESET}" >&2
         rm -f -- "$editor_archive" "$template_archive"
         rm -rf -- "$editor_staging" "$template_staging"
@@ -298,55 +347,39 @@ install_official_godot_toolchain() {
     fi
     GODOT_RESOLVED_BIN="$editor_binary"
     GODOT_RESOLVED_USER_HOME="$user_home"
-    GODOT_RESOLVED_VERSION="$GODOT_DEFAULT_DOWNLOAD_VERSION"
     rm -f -- "$editor_archive" "$template_archive"
     rm -rf -- "$editor_staging" "$template_staging"
-    echo "${GREEN}  ✅ Godot $GODOT_DEFAULT_DOWNLOAD_VERSION and Web Export Templates ready${RESET}"
+    echo "${GREEN}  ✅ Godot $GODOT_PROJECT_VERSION compatibility line and Web Export Templates $template_version ready${RESET}"
 }
 
 ensure_godot_toolchain() {
-    local existing_binary
     local choice
-    local managed_root
-    local managed_binary
-    local managed_user_home
-    local version
 
-    managed_root="$(godot_toolchain_root)"
-    managed_user_home="$(godot_user_home)"
-    managed_binary="$(find "$managed_root" -type f \( -name Godot -o -name 'Godot*.x86_64' -o -name 'Godot*.exe' \) -perm -u+x 2>/dev/null | head -n 1)"
-    if [[ -n "$managed_binary" ]] && version="$(godot_binary_has_required_version "$managed_binary")"; then
-        GODOT_RESOLVED_BIN="$managed_binary"
-        GODOT_RESOLVED_USER_HOME="$managed_user_home"
-        GODOT_RESOLVED_VERSION="$version"
+    load_godot_project_version || return 1
+    if check_godot_toolchain; then
         return 0
     fi
-    existing_binary="$(find_existing_godot_binary || true)"
-    if [[ -n "$existing_binary" ]]; then
-        GODOT_RESOLVED_BIN="$existing_binary"
-        return 0
-    fi
-    echo "${YELLOW}  ⚠️ Source development/compilation requires Godot $GODOT_PROJECT_VERSION.x and matching Web Export Templates.${RESET}" >&2
+    echo "${YELLOW}  ⚠️ Source development/compilation requires the Godot $GODOT_PROJECT_VERSION compatibility line and matching Web Export Templates.${RESET}" >&2
     echo "     They are only used to export Godot Web Runtime from source, will not be included in official ElfieNest packages." >&2
     if [[ ! -t 0 ]]; then
         echo "${RED}  ❌ Non-interactive environment cannot confirm Godot installation; please install first or set GODOT_BIN.${RESET}" >&2
         return 1
     fi
-    printf '     Install from official Godot source now? [Y/n/path] ' >&2
+    printf '     Install from official Godot source now? [y/N/path] ' >&2
     read -r choice
-    case "${choice:-Y}" in
+    case "$choice" in
         Y|y|yes|YES) install_official_godot_toolchain ;;
-        n|N|no|NO)
+        ""|n|N|no|NO)
             echo "${RED}  ❌ Godot is required for source development/compilation, cancelled.${RESET}" >&2
             return 1
             ;;
         *)
-            if version="$(godot_binary_has_required_version "$choice")"; then
+            if godot_binary_has_required_version "$choice" >/dev/null; then
                 GODOT_RESOLVED_BIN="$choice"
-                GODOT_RESOLVED_VERSION="$version"
+                GODOT_RESOLVED_USER_HOME=""
                 return 0
             fi
-            echo "${RED}  ❌ Specified Godot path unavailable or not $GODOT_PROJECT_VERSION.x.${RESET}" >&2
+            echo "${RED}  ❌ Specified Godot path is unavailable or outside compatibility line $GODOT_PROJECT_VERSION.${RESET}" >&2
             return 1
             ;;
     esac
@@ -370,7 +403,7 @@ ensure_godot_web() {
         }
         if ! GODOT_BIN="$GODOT_RESOLVED_BIN" GODOT_USER_HOME="$GODOT_RESOLVED_USER_HOME" \
             "$python_bin" "$PROJECT_ROOT/scripts/build_godot_web.py" --ensure; then
-            echo "${RED}  ❌ Godot $GODOT_PROJECT_VERSION.x or matching Web Export Templates cannot export Web Runtime.${RESET}" >&2
+            echo "${RED}  ❌ Godot compatibility line $GODOT_PROJECT_VERSION or matching Web Export Templates cannot export Web Runtime.${RESET}" >&2
             return 1
         fi
     else
@@ -381,7 +414,7 @@ ensure_godot_web() {
         }
         if ! GODOT_BIN="$GODOT_RESOLVED_BIN" \
             "$python_bin" "$PROJECT_ROOT/scripts/build_godot_web.py" --ensure; then
-            echo "${RED}  ❌ Godot $GODOT_PROJECT_VERSION.x or matching Web Export Templates cannot export Web Runtime.${RESET}" >&2
+            echo "${RED}  ❌ Godot compatibility line $GODOT_PROJECT_VERSION or matching Web Export Templates cannot export Web Runtime.${RESET}" >&2
             return 1
         fi
     fi

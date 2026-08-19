@@ -7,10 +7,12 @@ import subprocess
 from pathlib import Path
 
 from test.scripts.bootstrap_test_support import (
+    compatible_godot_version_output,
     copy_bootstrap,
     make_executable,
     make_project_python,
     prepare_build_runtime,
+    required_godot_version,
     run_bootstrap,
 )
 from test.support.paths import PROJECT_ROOT
@@ -57,7 +59,7 @@ def test_bootstrap_report_completes_in_isolated_home(tmp_path: Path) -> None:
     assert result.stdout
 
 
-def test_bootstrap_report_marks_missing_godot_as_required_failure(
+def test_bootstrap_report_marks_missing_godot_web_as_required_failure(
     tmp_path: Path,
 ) -> None:
     project_root = tmp_path / "project"
@@ -164,16 +166,16 @@ def test_bootstrap_ensure_dev_builds_electron_authority_host(tmp_path: Path) -> 
     assert "Electron authority host is ready" in result.stdout
 
 
-def test_bootstrap_report_requires_the_godot_editor_even_when_web_output_exists(
+def test_bootstrap_report_treats_the_editor_as_optional_when_web_output_exists(
     tmp_path: Path,
 ) -> None:
-    # Given: stale pre-exported Web files without the required source toolchain.
+    # Given: an exported Web Runtime without a source editor on the machine.
     project_root = tmp_path / "project"
     scripts_dir = copy_bootstrap(project_root)
     prepare_build_runtime(project_root)
     elfie_home = tmp_path / "elfie-home"
     elfie_home.mkdir()
-    # When: source development checks dependencies from a PATH without Godot.
+    # When: dependency status is reported from a PATH without Godot.
     result = run_bootstrap(
         scripts_dir,
         project_root,
@@ -182,12 +184,37 @@ def test_bootstrap_report_requires_the_godot_editor_even_when_web_output_exists(
         godot_bin=str(tmp_path / "missing-godot"),
     )
 
-    # Then: it refuses to enter the source workflow as though the build tool existed.
-    assert result.returncode == 1, result.stderr
+    # Then: the exported Runtime remains the hard dependency and the editor is
+    # only an observable source-build capability.
+    assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["components"]["godot_toolchain"] == {
-        "required": True,
+        "required": False,
         "state": "missing",
     }
+
+
+def test_bootstrap_check_does_not_require_godot_when_web_output_exists(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    scripts_dir = copy_bootstrap(project_root)
+    prepare_build_runtime(project_root)
+
+    result = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "check", "--tier=build"],
+        cwd=project_root,
+        env={
+            **os.environ,
+            "HOME": str(tmp_path / "home"),
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Godot source build toolchain" not in result.stdout
 
 
 def test_bootstrap_report_marks_absent_ollama_as_optional_missing(
@@ -234,7 +261,7 @@ def test_bootstrap_report_marks_healthy_path_ollama_as_external(tmp_path: Path) 
     make_executable(fake_bin / "ollama")
     make_executable(
         fake_bin / "godot4",
-        "#!/bin/sh\necho '4.7.1.stable'\n",
+        f"#!/bin/sh\necho '{compatible_godot_version_output(project_root)}'\n",
     )
     elfie_home = tmp_path / "elfie-home"
     elfie_home.mkdir()
@@ -295,15 +322,14 @@ def test_bootstrap_accepts_only_dev_and_build_tiers(tmp_path: Path) -> None:
     assert "dev or build" in result.stderr
 
 
-def test_bootstrap_pins_the_official_godot_toolchain_for_source_builds() -> None:
+def test_bootstrap_derives_the_official_godot_toolchain_for_source_builds() -> None:
     # Given: the source-build bootstrap dependency contract.
     runtime_source = (
         PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh"
     ).read_text(encoding="utf-8")
 
     # When: Godot prerequisites are inspected before a Web runtime export.
-    accepts_any_47x = 'GODOT_PROJECT_VERSION="4.7"' in runtime_source
-    default_download = 'GODOT_DEFAULT_DOWNLOAD_VERSION="4.7.1"' in runtime_source
+    reads_project_version = "project-version" in runtime_source
     uses_official_download = "https://downloads.godotengine.org/" in runtime_source
     requires_templates = "Web Export Templates" in runtime_source
     refuses_noninteractive_download = (
@@ -311,12 +337,17 @@ def test_bootstrap_pins_the_official_godot_toolchain_for_source_builds() -> None
         in runtime_source
     )
 
-    # Then: only an explicit developer confirmation can initiate the fixed toolchain.
-    assert accepts_any_47x
-    assert default_download
+    # Then: project.godot is the only maintained version input and only an
+    # explicit developer confirmation can initiate the derived toolchain install.
+    assert reads_project_version
+    assert 'GODOT_PROJECT_VERSION=""' in runtime_source
+    assert 'GODOT_PROJECT_VERSION="4.' not in runtime_source
+    assert "GODOT_DEFAULT_DOWNLOAD_VERSION" not in runtime_source
     assert uses_official_download
     assert requires_templates
     assert refuses_noninteractive_download
+    assert "[y/N/path]" in runtime_source
+    assert "${choice:-Y}" not in runtime_source
     assert 'rm -rf -- "$root"' not in runtime_source
     assert "godot_managed_root_is_safe" in runtime_source
 
@@ -327,13 +358,14 @@ def test_bootstrap_reuses_a_matching_managed_godot_toolchain(tmp_path: Path) -> 
     scripts_dir = copy_bootstrap(project_root)
     make_project_python(project_root)
     developer_home = tmp_path / "elfienest-dev"
+    required_version = required_godot_version(project_root)
     version_log = tmp_path / "godot-version.log"
-    managed_godot = developer_home / "toolchains" / "godot" / "4.7" / "Godot"
+    managed_godot = developer_home / "toolchains" / "godot" / required_version / "Godot"
     make_executable(
         managed_godot,
         "#!/bin/bash\n"
         'printf \'%s\\n\' "$*" >> "$GODOT_VERSION_LOG"\n'
-        "echo '4.7.1.stable'\n",
+        f"echo '{compatible_godot_version_output(project_root)}'\n",
     )
 
     # When: the bootstrap helper resolves its Godot toolchain a second time.
@@ -358,12 +390,88 @@ def test_bootstrap_reuses_a_matching_managed_godot_toolchain(tmp_path: Path) -> 
         check=False,
     )
 
-    # Then: it reuses the fixed toolchain and its matching template root.
+    # Then: it reuses the derived toolchain and its matching template root.
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == (
         f"{managed_godot}|{developer_home / 'godot-user-home'}"
     )
     assert version_log.read_text(encoding="utf-8").splitlines() == ["--version"]
+
+
+def test_bootstrap_reuses_a_matching_system_godot_binary(tmp_path: Path) -> None:
+    # Given: a matching patch release from the declared compatibility line on PATH.
+    project_root = tmp_path / "project"
+    scripts_dir = copy_bootstrap(project_root)
+    make_project_python(project_root)
+    fake_bin = tmp_path / "fake-bin"
+    system_godot = fake_bin / "godot4"
+    make_executable(
+        system_godot,
+        f"#!/bin/sh\necho '{compatible_godot_version_output(project_root)}'\n",
+    )
+
+    # When: the bootstrap helper resolves the source-build toolchain.
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'PROJECT_ROOT="$1"; source "$2"; ensure_godot_toolchain; printf "%s|%s\\n" "$GODOT_RESOLVED_BIN" "$GODOT_RESOLVED_USER_HOME"',
+            "bootstrap-godot",
+            str(project_root),
+            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+        ],
+        env={
+            **os.environ,
+            "GODOT_BIN": "",
+            "HOME": str(tmp_path / "home"),
+            "PATH": f"{fake_bin}:/usr/bin:/bin",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    # Then: the existing binary is reused and the installer is never entered.
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == f"{system_godot}|"
+    assert "Install from official Godot source now?" not in result.stderr
+
+
+def test_bootstrap_rejects_a_different_godot_compatibility_line(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    scripts_dir = copy_bootstrap(project_root)
+    make_project_python(project_root)
+    major, minor = required_godot_version(project_root).split(".", maxsplit=1)
+    incompatible_output = f"{major}.{int(minor) + 1}.stable"
+    fake_bin = tmp_path / "fake-bin"
+    make_executable(fake_bin / "godot4", f"#!/bin/sh\necho '{incompatible_output}'\n")
+
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'PROJECT_ROOT="$1"; source "$2"; ensure_godot_toolchain',
+            "bootstrap-godot",
+            str(project_root),
+            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+        ],
+        env={
+            **os.environ,
+            "GODOT_BIN": str(fake_bin / "godot4"),
+            "HOME": str(tmp_path / "home"),
+            "PATH": f"{fake_bin}:/usr/bin:/bin",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "Non-interactive environment cannot confirm Godot installation" in (
+        result.stderr
+    )
 
 
 def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
@@ -373,6 +481,8 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
     project_root = tmp_path / "project"
     scripts_dir = copy_bootstrap(project_root)
     make_project_python(project_root)
+    required_version = required_godot_version(project_root)
+    downloaded_version = compatible_godot_version_output(project_root)
     fake_bin = tmp_path / "fake-bin"
     make_executable(
         fake_bin / "curl",
@@ -384,6 +494,7 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
         '  if [ "$1" = "--output" ]; then output="$2"; shift 2; continue; fi\n'
         '  url="$1"; shift\n'
         "done\n"
+        'printf "%s\\n" "$url" >> "$FAKE_GODOT_URL_LOG"\n'
         'printf "%s\\n" "$url" > "$output"\n',
     )
     make_executable(
@@ -393,14 +504,16 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
         'destination="$4"\n'
         'if grep -q "platform=templates" "$archive"; then\n'
         '  mkdir -p "$destination/templates"\n'
+        f'  printf "%s\\n" "{downloaded_version}" > "$destination/templates/version.txt"\n'
         '  printf template > "$destination/templates/web_release.zip"\n'
         "else\n"
         '  mkdir -p "$destination/Godot.app/Contents/MacOS"\n'
-        '  printf "#!/bin/sh\\necho 4.7.1.stable\\n" > "$destination/Godot.app/Contents/MacOS/Godot"\n'
+        f'  printf "#!/bin/sh\\necho {downloaded_version}\\n" > "$destination/Godot.app/Contents/MacOS/Godot"\n'
         '  chmod +x "$destination/Godot.app/Contents/MacOS/Godot"\n'
         "fi\n",
     )
     developer_home = tmp_path / "elfienest-dev"
+    url_log = tmp_path / "godot-download-urls.log"
     command = (
         'PROJECT_ROOT="$1"; source "$2"; install_official_godot_toolchain; '
         'printf "%s|%s\\n" "$GODOT_RESOLVED_BIN" "$GODOT_RESOLVED_USER_HOME"'
@@ -408,6 +521,7 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
     environment = {
         **os.environ,
         "ELFIE_DEV_HOME": str(developer_home),
+        "FAKE_GODOT_URL_LOG": str(url_log),
         "HOME": str(tmp_path / "home"),
         "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
     }
@@ -428,7 +542,7 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
         check=False,
     )
     # Then: no partial managed directory survives the first failed transfer.
-    managed_root = developer_home / "toolchains" / "godot" / "4.7"
+    managed_root = developer_home / "toolchains" / "godot" / required_version
     assert failed.returncode == 1
     assert not managed_root.exists()
 
@@ -451,5 +565,51 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
     assert "Godot.app/Contents/MacOS/Godot" in succeeded.stdout
     assert (
         developer_home
-        / "godot-user-home/export_templates/4.7.1.stable/templates/web_release.zip"
+        / f"godot-user-home/export_templates/{downloaded_version}/web_release.zip"
     ).is_file()
+    download_urls = url_log.read_text(encoding="utf-8").splitlines()
+    assert len(download_urls) == 2
+    assert all(url.endswith(f"version={required_version}") for url in download_urls)
+
+
+def test_godot_toolchain_paths_and_downloads_follow_project_godot(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    scripts_dir = copy_bootstrap(project_root)
+    make_project_python(project_root)
+    declared_version = "9.8"
+    (project_root / "godot_project/project.godot").write_text(
+        '[application]\nconfig/features=PackedStringArray("9.8", "GL Compatibility")\n',
+        encoding="utf-8",
+    )
+    developer_home = tmp_path / "elfienest-dev"
+
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'PROJECT_ROOT="$1"; source "$2"; load_godot_project_version; '
+            'printf "%s|%s\\n" "$(godot_toolchain_root)" '
+            '"$(godot_download_url templates export_templates.tpz)"',
+            "bootstrap-godot",
+            str(project_root),
+            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+        ],
+        env={
+            **os.environ,
+            "ELFIE_DEV_HOME": str(developer_home),
+            "HOME": str(tmp_path / "home"),
+            "PATH": "/usr/bin:/bin",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    managed_root, download_url = result.stdout.strip().split("|", maxsplit=1)
+    assert managed_root == str(
+        developer_home / "toolchains" / "godot" / declared_version
+    )
+    assert download_url.endswith(f"version={declared_version}")

@@ -17,6 +17,7 @@ from infrastructure.godot.artifacts.export_boundary import export_boundary_manif
 from infrastructure.godot.artifacts.species_package_validation import (
     GodotSpeciesValidationRunner,
     SpeciesPackageValidationError,
+    source_species_package_ids,
     validate_source_species_packages,
 )
 from infrastructure.godot.runner import (
@@ -137,15 +138,16 @@ def _export_runtime(
         print("❌ Godot Web build requires an injected species validation runner.")
         return 1
     try:
-        species_package_ids = validate_source_species_packages(
+        species_package_ids = source_species_package_ids(
             config_root=PROJECT_ROOT / "config",
             godot_project=GODOT_PROJECT,
-            godot_runner=godot_runner,
-            godot_binary=binary,
-            godot_version=actual_version,
         )
     except SpeciesPackageValidationError as error:
-        print(f"❌ Species package validation failed: {error}")
+        print(f"❌ Species package validation failed: {error} phase={error.phase}")
+        if error.stdout.strip():
+            print(f"   Godot stdout:\n{error.stdout.rstrip()}")
+        if error.stderr.strip():
+            print(f"   Godot stderr:\n{error.stderr.rstrip()}")
         return 1
 
     with _build_lock(output):
@@ -160,6 +162,7 @@ def _export_runtime(
             actual_version,
             required_version,
             species_package_ids,
+            godot_runner,
         )
 
 
@@ -169,8 +172,9 @@ def _export_runtime_locked(
     actual_version: Optional[str],
     required_version: Optional[str],
     species_package_ids: tuple[str, ...],
+    godot_runner: GodotSpeciesValidationRunner,
 ) -> int:
-    """Run one real Godot export while holding the exclusive lock."""
+    """Export, then validate the imported source before publishing the bundle."""
     staging = output.parent / f".{output.name}.staging"
     previous = output.parent / f".{output.name}.previous"
     shutil.rmtree(staging, ignore_errors=True)
@@ -204,6 +208,29 @@ def _export_runtime_locked(
         print(
             "❌ Export command completed, but artifacts are incomplete: "
             + ", ".join(missing)
+        )
+        return 1
+
+    try:
+        validated_species_package_ids = validate_source_species_packages(
+            config_root=PROJECT_ROOT / "config",
+            godot_project=GODOT_PROJECT,
+            godot_runner=godot_runner,
+            godot_binary=binary,
+            godot_version=actual_version,
+        )
+    except SpeciesPackageValidationError as error:
+        shutil.rmtree(staging, ignore_errors=True)
+        print(f"❌ Species package validation failed: {error} phase={error.phase}")
+        if error.stdout.strip():
+            print(f"   Godot stdout:\n{error.stdout.rstrip()}")
+        if error.stderr.strip():
+            print(f"   Godot stderr:\n{error.stderr.rstrip()}")
+        return 1
+    if validated_species_package_ids != species_package_ids:
+        shutil.rmtree(staging, ignore_errors=True)
+        print(
+            "❌ Species package validation changed the source package set during export."
         )
         return 1
 

@@ -6,6 +6,7 @@ import stat
 import subprocess
 from pathlib import Path
 
+from infrastructure.godot.runner import project_version as read_godot_project_version
 from test.support.paths import PROJECT_ROOT
 
 
@@ -17,13 +18,33 @@ def make_executable(path: Path, content: str = "#!/bin/sh\nexit 0\n") -> None:
 
 def make_project_python(project_root: Path) -> None:
     content = """#!/bin/sh
-if [ "${1:-}" = "-m" ] && [ "${2:-}" = "infrastructure.godot.runner" ] && [ "${3:-}" = "version" ]; then
-    binary=""
-    while [ "$#" -gt 0 ]; do
-        if [ "$1" = "--binary" ]; then binary="$2"; break; fi
-        shift
-    done
-    "$binary" --version
+if [ "${1:-}" = "-m" ] && [ "${2:-}" = "infrastructure.godot.runner" ]; then
+    command="${3:-}"
+    shift 3
+    case "$command" in
+        version)
+            binary=""
+            while [ "$#" -gt 0 ]; do
+                if [ "$1" = "--binary" ]; then binary="$2"; break; fi
+                shift
+            done
+            raw_version="$("$binary" --version)" || exit $?
+            version="$(printf '%s\n' "$raw_version" | awk 'match($0, /[0-9]+\\.[0-9]+/) { print substr($0, RSTART, RLENGTH); exit }')"
+            [ -n "$version" ] || exit 1
+            printf '%s\n' "$version"
+            ;;
+        project-version)
+            project=""
+            while [ "$#" -gt 0 ]; do
+                if [ "$1" = "--project" ]; then project="$2"; break; fi
+                shift
+            done
+            version="$(awk -F'"' '/^config\\/features=PackedStringArray/ { print $2; exit }' "$project/project.godot")" || exit $?
+            [ -n "$version" ] || exit 1
+            printf '%s\n' "$version"
+            ;;
+        *) exit 1 ;;
+    esac
     exit $?
 fi
 exit 0
@@ -41,7 +62,24 @@ def copy_bootstrap(project_root: Path) -> Path:
         "bootstrap_runtime_dependencies.sh",
     ):
         shutil.copy2(PROJECT_ROOT / "scripts" / filename, scripts_dir / filename)
+    godot_project = project_root / "godot_project"
+    godot_project.mkdir(parents=True)
+    shutil.copy2(
+        PROJECT_ROOT / "godot_project" / "project.godot",
+        godot_project / "project.godot",
+    )
     return scripts_dir
+
+
+def required_godot_version(project_root: Path) -> str:
+    version = read_godot_project_version(project_root / "godot_project")
+    if version is None:
+        raise AssertionError("test project must declare a Godot compatibility version")
+    return version
+
+
+def compatible_godot_version_output(project_root: Path, *, patch: int = 99) -> str:
+    return f"{required_godot_version(project_root)}.{patch}.stable"
 
 
 def prepare_build_runtime(project_root: Path, *, godot_web: bool = True) -> None:
@@ -56,10 +94,6 @@ def prepare_build_runtime(project_root: Path, *, godot_web: bool = True) -> None
             runtime_file.parent.mkdir(parents=True, exist_ok=True)
             runtime_file.write_text("runtime\n", encoding="utf-8")
     make_project_python(project_root)
-    make_executable(
-        project_root / ".fake-bin/godot4",
-        "#!/bin/sh\necho '4.7.1.stable'\n",
-    )
 
 
 def run_bootstrap(

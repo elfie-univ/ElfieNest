@@ -41,7 +41,7 @@ emit_bootstrap_report() {
     node_state="$(bootstrap_component_state check_node)"
     electron_state="$(bootstrap_component_state check_electron)"
 
-    if [[ "$python_state" == "missing" || "$frontend_state" == "missing" || "$godot_toolchain_state" == "missing" || "$godot_state" == "missing" ]]; then
+    if [[ "$python_state" == "missing" || "$frontend_state" == "missing" || "$godot_state" == "missing" ]]; then
         overall_state="failed"
         exit_code=1
     fi
@@ -64,7 +64,7 @@ emit_bootstrap_report() {
     printf ',\n'
     bootstrap_report_component "frontend" true "$frontend_state"
     printf ',\n'
-    bootstrap_report_component "godot_toolchain" true "$godot_toolchain_state"
+    bootstrap_report_component "godot_toolchain" false "$godot_toolchain_state"
     printf ',\n'
     bootstrap_report_component "godot_web" true "$godot_state"
     printf ',\n'

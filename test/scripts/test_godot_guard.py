@@ -22,6 +22,8 @@ godot_guard = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = godot_guard
 SPEC.loader.exec_module(godot_guard)
 
+_TEST_GODOT_VERSION = "9.8"
+
 
 def _process(pid: int, project: Path | None):
     path_argument = "" if project is None else f" --path {shlex.quote(str(project))}"
@@ -64,7 +66,7 @@ def test_validate_allows_a_known_different_project(tmp_path: Path, monkeypatch) 
 
     def fake_run_headless(binary, project, args, **kwargs):
         calls.append((binary, project, args, kwargs))
-        return SimpleNamespace(exit_code=0, godot_version="4.7")
+        return SimpleNamespace(exit_code=0, godot_version=_TEST_GODOT_VERSION)
 
     def fail_version_probe(binary):
         pytest.fail("validate must not launch a separate --version probe")
@@ -79,7 +81,7 @@ def test_validate_allows_a_known_different_project(tmp_path: Path, monkeypatch) 
             target,
             "check.gd",
             [other],
-            expected_version="4.7",
+            expected_version=_TEST_GODOT_VERSION,
             allow_version_mismatch=False,
         )
         == 0
@@ -107,7 +109,7 @@ def test_validate_returns_crash_without_retrying(tmp_path: Path, monkeypatch) ->
             target,
             "check.gd",
             [],
-            expected_version="4.7",
+            expected_version=_TEST_GODOT_VERSION,
             allow_version_mismatch=False,
         )
         == 1

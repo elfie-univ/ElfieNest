@@ -21,6 +21,8 @@ from infrastructure.godot.artifacts.artifact_manifest import (
     write_runtime_artifact_manifest,
 )
 
+_TEST_GODOT_VERSION = "9.8"
+
 
 def _write_component_file(directory: Path, name: str, payload: bytes) -> None:
     path = directory / name
@@ -62,10 +64,10 @@ def _runtime_component_fixture(tmp_path: Path) -> Path:
     desktop.mkdir(parents=True)
     for name in ("elfienest.html", "elfienest.js", "elfienest.wasm", "elfienest.pck"):
         _write_component_file(web, name, f"web:{name}".encode())
-    _write_godot_manifest(web, "elfienest.html", "4.7")
+    _write_godot_manifest(web, "elfienest.html", _TEST_GODOT_VERSION)
     _write_component_file(dedicated, "ElfieNestRuntime", b"dedicated")
     (dedicated / "ElfieNestRuntime").chmod(0o755)
-    _write_godot_manifest(dedicated, "ElfieNestRuntime", "4.7")
+    _write_godot_manifest(dedicated, "ElfieNestRuntime", _TEST_GODOT_VERSION)
     _write_component_file(desktop, "main.js", b"observer")
     _write_component_file(desktop, "lifecycle_client.js", b"client")
     _write_component_file(desktop, "lifecycle_client.test.js", b"test-client")

@@ -10,9 +10,11 @@ import pytest
 from infrastructure.godot import runner
 from infrastructure.godot.runner import godot_version, run_headless
 
+_TEST_GODOT_VERSION = "9.8"
+_TEST_GODOT_OUTPUT = f"{_TEST_GODOT_VERSION}.7.stable"
 _FAKE_GODOT = """#!/bin/sh
 if [ \"${1:-}\" = \"--version\" ]; then
-    printf '%s\\n' '4.7.1.stable'
+    printf '%s\\n' '__TEST_GODOT_OUTPUT__'
     exit 0
 fi
 if [ -n \"${FAKE_GODOT_COUNT:-}\" ]; then
@@ -24,10 +26,10 @@ fi
 if [ \"${FAKE_GODOT_MODE:-}\" = timeout ]; then
     exec sleep 2
 fi
-printf 'Godot Engine v4.7.1.stable\\n'
+printf 'Godot Engine v__TEST_GODOT_OUTPUT__\\n'
 printf 'fake godot arguments: %s\\n' \"$*\"
 exit 0
-"""
+""".replace("__TEST_GODOT_OUTPUT__", _TEST_GODOT_OUTPUT)
 
 
 def _fake_godot(tmp_path: Path) -> Path:
@@ -60,19 +62,19 @@ def test_version_and_headless_validation_use_one_observable_process_boundary(
     project = tmp_path / "godot_project"
     project.mkdir()
 
-    assert godot_version(binary) == "4.7"
+    assert godot_version(binary) == _TEST_GODOT_VERSION
     result = run_headless(
         binary,
         project,
         ("--script", "res://check.gd", "--token", "do-not-log"),
-        godot_version="4.7",
+        godot_version=_TEST_GODOT_VERSION,
         purpose="test-validation",
     )
 
     assert result.exit_code == 0
     assert result.crashed is False
     assert result.timed_out is False
-    assert result.godot_version == "4.7"
+    assert result.godot_version == _TEST_GODOT_VERSION
     assert result.command[:4] == (
         str(binary),
         "--headless",
@@ -81,7 +83,7 @@ def test_version_and_headless_validation_use_one_observable_process_boundary(
     )
     records = _invocation_records(capsys.readouterr().err)
     assert records[-1]["status"] == "exited"
-    assert records[-1]["godot_version"] == "4.7"
+    assert records[-1]["godot_version"] == _TEST_GODOT_VERSION
     assert records[-1]["parent_pid"] == os.getpid()
     assert "do-not-log" not in json.dumps(records[-1])
     assert records[-1]["command"][-2:] == ["<redacted>", "<redacted>"]
@@ -190,4 +192,16 @@ def test_version_cli_uses_the_shared_runner(tmp_path: Path, capsys) -> None:
     binary = _fake_godot(tmp_path)
 
     assert runner.main(["version", "--binary", str(binary)]) == 0
-    assert capsys.readouterr().out.strip() == "4.7"
+    assert capsys.readouterr().out.strip() == _TEST_GODOT_VERSION
+
+
+def test_project_version_cli_reads_project_godot(tmp_path: Path, capsys) -> None:
+    project = tmp_path / "godot_project"
+    project.mkdir()
+    (project / "project.godot").write_text(
+        '[application]\nconfig/features=PackedStringArray("9.8", "GL Compatibility")\n',
+        encoding="utf-8",
+    )
+
+    assert runner.main(["project-version", "--project", str(project)]) == 0
+    assert capsys.readouterr().out.strip() == _TEST_GODOT_VERSION
