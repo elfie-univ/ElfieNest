@@ -95,12 +95,22 @@ def resolve_cli_target(
         source_state = state_factory(source_root) if callable(state_factory) else None
     except (OSError, RuntimeError, ValueError):
         source_state = None
-    candidates = _candidate_targets(
-        lifecycle,
-        source_root,
-        source_state,
-        policy.default_policy.value,
+    candidates = tuple(
+        candidate
+        for candidate in _candidate_targets(
+            lifecycle,
+            source_root,
+            source_state,
+            policy.default_policy.value,
+        )
+        if candidate.home != default_home
     )
+    if (
+        command in {"stop", "restart"}
+        and candidates
+        and not default_observation.recognized
+    ):
+        default_eligible = False
     session_eligible = True
     if session is not None and session.data_home is not None:
         session_observation = _observe(

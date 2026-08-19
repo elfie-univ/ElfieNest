@@ -162,10 +162,8 @@ def command_target_policy(command: str) -> CommandTargetPolicy:
 
     if command in {"start", "serve"}:
         return CommandTargetPolicy(True, DefaultTargetPolicy.ALWAYS)
-    if command == "restart":
-        return CommandTargetPolicy(True, DefaultTargetPolicy.RECOGNIZED)
-    if command == "stop":
-        return CommandTargetPolicy(True, DefaultTargetPolicy.RUNNING)
+    if command in {"restart", "stop"}:
+        return CommandTargetPolicy(True, DefaultTargetPolicy.ALWAYS)
     if command in {"status"}:
         return CommandTargetPolicy(False, DefaultTargetPolicy.RECOGNIZED)
     if command in {"web", "mobile", "desktop"}:

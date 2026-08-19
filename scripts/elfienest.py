@@ -307,8 +307,6 @@ def run_interactive_shell() -> None:
                 print(f"❌ 命令失败，退出码: {error.code}")
         except (TargetResolutionError, DataHomeSelectionError) as error:
             print(f"❌ {error}")
-            if isinstance(error, TargetResolutionError):
-                print("  ℹ️ 尚未确定数据目录，本次错误没有可写入的数据根日志。")
 
 
 def print_cli_help() -> None:
@@ -435,10 +433,7 @@ def dispatch_command(
         sys.stderr.write(f"elfienest: {error}\n")
         raise SystemExit(2) from error
     except TargetResolutionError as error:
-        sys.stderr.write(
-            f"elfienest: {error}; target data root is unresolved, "
-            "so no data-root log was available\n"
-        )
+        sys.stderr.write(f"elfienest: {error}\n")
         raise SystemExit(2) from error
     except KeyboardInterrupt as error:
         print()

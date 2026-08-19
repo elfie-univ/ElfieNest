@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from app.interfaces.cli.target_context import CliSession, resolve_cli_target
 from app.orchestration.lifecycle.runtime_snapshot import (
     BackendTier,
@@ -104,3 +106,22 @@ def test_stop_candidate_catalog_survives_idle_default(tmp_path: Path) -> None:
 
     assert target.home == task.resolve()
     assert session.data_home == task.resolve()
+
+
+@pytest.mark.parametrize("command", ("stop", "restart"))
+def test_source_lifecycle_commands_select_fresh_default(
+    tmp_path: Path, command: str
+) -> None:
+    source = tmp_path / "checkout"
+    source.mkdir()
+
+    target = resolve_cli_target(
+        _Lifecycle({}),
+        command=command,
+        mode=EntrypointMode.SOURCE,
+        source_root=source,
+        invoking_cwd=tmp_path,
+        session=CliSession(),
+    )
+
+    assert target.home == (source / ".elfienest.local").resolve()
