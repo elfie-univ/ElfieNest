@@ -61,6 +61,7 @@ describe("OwnerNestPanel", () => {
     render(<I18nextProvider i18n={i18n}><ToastProvider><OwnerNestPanel csrfToken="csrf" /></ToastProvider></I18nextProvider>)
 
     expect(await screen.findAllByText("Happy")).not.toHaveLength(0)
+    expect(screen.queryByText("按需打开")).not.toBeInTheDocument()
     expect(adminElfies).toHaveBeenCalledWith()
     expect(ownerRooms).toHaveBeenCalledWith()
   })

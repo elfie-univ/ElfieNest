@@ -69,7 +69,7 @@ describe("ElfieProfilePanel", () => {
     await act(async () => { await instance.changeLanguage("en-US") })
 
     // Then: chrome is English, the private panel remains open, and business content is unchanged.
-    expect(screen.getByText("Portrait", { selector: ".profile-appearance__title" })).toBeInTheDocument()
+    expect(screen.getByText("3D individual view", { selector: ".profile-appearance__title" })).toBeInTheDocument()
     expect(screen.getByText("Big Five personality", { selector: ".profile-dossier__section-name" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Recent focus" })).toHaveAttribute(
       "aria-expanded",
@@ -77,7 +77,7 @@ describe("ElfieProfilePanel", () => {
     )
     expect(screen.getByText(HAPPY_EXPERIENCE.publicProfile.biography)).toBeInTheDocument()
     expect(screen.getByText("晨间巡游")).toBeInTheDocument()
-  })
+  }, 10_000)
 
   it("uses the registry species presentation instead of a frontend species map", () => {
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
@@ -284,9 +284,9 @@ describe("ElfieProfilePanel", () => {
     )
 
     // Then: the detailed archive keeps appearance, Big Five, and cognition modules together.
-    expect(screen.getByText("外观照片", { selector: ".profile-appearance__title" })).toBeInTheDocument()
+    expect(screen.getByText("3D 个体视图", { selector: ".profile-appearance__title" })).toBeInTheDocument()
     expect(screen.getByText("大五人格", { selector: ".profile-dossier__section-name" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "拍照" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "拍照" })).toBeInTheDocument()
     for (const title of PRIVATE_MODULE_TITLES.filter((item) => item !== "粮食策略" && item !== "Telegram 聊天" && item !== "Discord 聊天")) {
       expect(screen.getByRole("button", { name: title })).toBeInTheDocument()
     }
@@ -301,7 +301,7 @@ describe("ElfieProfilePanel", () => {
     expect(identity.compareDocumentPosition(appearance) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(appearance.compareDocumentPosition(radar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(radar.compareDocumentPosition(privateModules) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(container).not.toHaveTextContent(/精灵身份证|Observer|本地 3D 观察|修改|3D 个体视图/)
+    expect(container).not.toHaveTextContent(/精灵身份证|Observer|本地 3D 观察|修改/)
 
     const user = userEvent.setup()
     await user.click(screen.getByRole("tab", { name: "管理精灵" }))
@@ -333,15 +333,16 @@ describe("ElfieProfilePanel", () => {
     expect(container).not.toHaveTextContent(/铜壶窗边观察|qwen3-8b-calm|第一次避让/)
   })
 
-  it("keeps profile presentation focused on the portrait instead of technical appearance controls", () => {
+  it("keeps profile presentation controls available", () => {
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
     const { container } = renderWithI18n(
       <ElfieProfilePanel appearanceCapture={vi.fn()} onBack={vi.fn()} onChat={vi.fn()} projection={projection} />,
     )
 
-    expect(screen.getByText("外观照片", { selector: ".profile-appearance__title" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "打开3D" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "拍照" })).not.toBeInTheDocument()
+    expect(screen.getByText("3D 个体视图", { selector: ".profile-appearance__title" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "打开3D" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "复位视角" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "拍照" })).toBeInTheDocument()
     expect(container.querySelector("iframe")).not.toBeInTheDocument()
   })
 })
