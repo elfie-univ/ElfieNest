@@ -9,7 +9,7 @@ from app.orchestration.lifecycle.runtime_snapshot import (
     RuntimeSnapshotV1,
     RuntimeTarget,
 )
-from app.orchestration.lifecycle.target_resolution import EntrypointMode
+from app.orchestration.lifecycle.target_resolution import EntrypointMode, TargetNotFound
 from infrastructure.platform.source_cli_state import SourceCliState
 
 
@@ -106,6 +106,24 @@ def test_stop_candidate_catalog_survives_idle_default(tmp_path: Path) -> None:
 
     assert target.home == task.resolve()
     assert session.data_home == task.resolve()
+
+
+def test_explicit_file_target_is_rejected_before_runtime_start(tmp_path: Path) -> None:
+    source = tmp_path / "checkout"
+    source.mkdir()
+    target = tmp_path / "not-a-directory"
+    target.write_text("x", encoding="utf-8")
+
+    with pytest.raises(TargetNotFound, match="真实目录"):
+        resolve_cli_target(
+            _Lifecycle({}),
+            command="serve",
+            mode=EntrypointMode.SOURCE,
+            source_root=source,
+            invoking_cwd=tmp_path,
+            explicit_home=str(target),
+            session=CliSession(),
+        )
 
 
 @pytest.mark.parametrize("command", ("stop", "restart"))
