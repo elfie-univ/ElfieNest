@@ -524,7 +524,6 @@ class LifecycleFacade:
         authority_config: AuthorityHostConfig,
         world_ready_probe: Callable[[], bool],
         authority_timeout_seconds: float = 120.0,
-        max_attempts: int = 120,
     ) -> RuntimeWorldWorker:
         """Build the Core-resident World convergence worker."""
         return RuntimeWorldWorker(
@@ -532,7 +531,6 @@ class LifecycleFacade:
             authority_host=self._authority_host_factory(authority_config),
             world_ready_probe=world_ready_probe,
             authority_timeout_seconds=authority_timeout_seconds,
-            max_attempts=max_attempts,
             command_lease_factory=lambda: self._recovery_lock.acquire_start_lease(
                 elfie_home
             ),
