@@ -43,6 +43,7 @@ from app.features.configuration import (
     StoredProviderOAuthLoginStart,
     StoredProviderOAuthLoginStatus,
     StoredProviderProduct,
+    StoredProviderProjection,
     StoredValidationRun,
     StoredVerification,
     VerifyProviderConnectionCommand,
@@ -168,6 +169,9 @@ class FakeTechnology:
         self.reachability_calls: list[str] = []
         self.probed_model_references: list[str] = []
         self.model_verifications: dict[str, StoredModelVerification] = {}
+        self.projection_calls: list[tuple[str, ...]] = []
+        self.connection_summary_calls = 0
+        self.model_summary_calls: list[tuple[str, str]] = []
 
     def prepare_manual_model(self, model: ProviderModelInput) -> StoredProviderModel:
         return StoredProviderModel(model.model_id, model.display_name or model.model_id)
@@ -177,14 +181,36 @@ class FakeTechnology:
         connection: StoredProviderConnection,
     ) -> StoredVerification:
         _ = connection
+        self.connection_summary_calls += 1
         return StoredVerification()
+
+    def project_connections(
+        self,
+        connections: tuple[StoredProviderConnection, ...],
+    ) -> tuple[StoredProviderProjection, ...]:
+        self.projection_calls.append(
+            tuple(connection.connection_id for connection in connections)
+        )
+        return tuple(
+            StoredProviderProjection(
+                connection_id=connection.connection_id,
+                verification=StoredVerification(),
+                model_verifications={
+                    model.model_id: self.model_verifications.get(
+                        model.model_id, StoredModelVerification()
+                    )
+                    for model in connection.models
+                },
+            )
+            for connection in connections
+        )
 
     def summarize_model(
         self,
         connection_id: str,
         model_id: str,
     ) -> StoredModelVerification:
-        _ = connection_id
+        self.model_summary_calls.append((connection_id, model_id))
         return self.model_verifications.get(model_id, StoredModelVerification())
 
     async def verify_connection(
@@ -643,6 +669,32 @@ def test_list_connections_is_read_only() -> None:
 
     assert service.list_connections(_principal(), ListProviderConnectionsQuery()) == ()
     assert port.ensure_local_calls == 0
+
+
+def test_list_connections_projects_the_whole_inventory_once() -> None:
+    service, port, _ = _service()
+    port.items = {
+        connection_id: StoredProviderConnection(
+            connection_id=connection_id,
+            catalog_id="openai_api",
+            alias=connection_id,
+            api_base="https://api.openai.com/v1",
+            api_mode="chat_completions",
+            auth_type="bearer",
+            credential_ref="",
+            models=(StoredProviderModel("model-a", "Model A"),),
+        )
+        for connection_id in ("openai_api_0001", "openai_api_0002")
+    }
+
+    result = service.list_connections(_principal(), ListProviderConnectionsQuery())
+
+    technology = service._technology
+    assert isinstance(technology, FakeTechnology)
+    assert len(result) == 2
+    assert technology.projection_calls == [("openai_api_0001", "openai_api_0002")]
+    assert technology.connection_summary_calls == 0
+    assert technology.model_summary_calls == []
 
 
 def test_provider_projection_separates_inventory_from_model_evidence() -> None:
