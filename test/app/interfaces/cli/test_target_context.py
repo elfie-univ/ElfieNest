@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.interfaces.cli.target_context import CliSession, resolve_cli_target
+from app.orchestration.lifecycle.ports import LifecycleLocalPaths
 from app.orchestration.lifecycle.runtime_snapshot import (
     BackendTier,
     RuntimePhase,
@@ -13,12 +14,27 @@ from app.orchestration.lifecycle.target_resolution import EntrypointMode, Target
 from infrastructure.platform.source_cli_state import SourceCliState
 
 
+def _source_state(source_root: Path) -> SourceCliState:
+    home = (source_root / ".elfienest.local").resolve(strict=False)
+    return SourceCliState(
+        LifecycleLocalPaths(
+            home=home,
+            logs=home / "logs",
+            model_validations=home / "reports" / "model-validations",
+            runtime_validations=home / "reports" / "runtime-validations",
+            runtime_state=home / "runtime" / "runtime.json",
+            runtime_locks=home / "runtime" / "locks",
+            source_cli_state=home / "runtime" / "cli",
+        )
+    )
+
+
 class _Lifecycle:
     def __init__(self, snapshots: dict[Path, RuntimeSnapshotV1]) -> None:
         self.snapshots = snapshots
 
     def source_cli_state(self, source_root: Path) -> SourceCliState:
-        return SourceCliState(source_root)
+        return _source_state(source_root)
 
     def inspect_data_home(self, explicit_home, **_kwargs):
         from infrastructure.persistence.nest_db.store import inspect_data_home
@@ -89,7 +105,7 @@ def test_stop_candidate_catalog_survives_idle_default(tmp_path: Path) -> None:
     source = tmp_path / "checkout"
     source.mkdir()
     task = tmp_path / "running-task"
-    state = SourceCliState(source)
+    state = _source_state(source)
     state.record_candidate(task)
     lifecycle = _Lifecycle({task.resolve(): _running("task")})
     session = CliSession()

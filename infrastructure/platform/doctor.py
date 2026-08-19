@@ -7,7 +7,6 @@ from pathlib import Path
 
 from app.orchestration.lifecycle import DoctorRepairResult, DoctorValidationResult
 from app.orchestration.lifecycle.ports import LifecycleLocalDataPort
-from infrastructure.persistence.layout.data_layout import final_root_layout
 
 
 class LocalDoctorAdapter:
@@ -28,12 +27,12 @@ class LocalDoctorAdapter:
             runtime_validation_dir = self._local_data.runtime_validation_dir()
             runtime_locks_dir = self._local_data.runtime_locks_dir()
         else:
-            layout = final_root_layout(elfie_home.expanduser().resolve(strict=False))
-            home = layout.data_home
-            logs_dir = home / "logs"
-            model_validation_dir = layout.model_validations
-            runtime_validation_dir = layout.runtime_validations
-            runtime_locks_dir = layout.runtime_locks
+            paths = self._local_data.paths(elfie_home)
+            home = paths.home
+            logs_dir = paths.logs
+            model_validation_dir = paths.model_validations
+            runtime_validation_dir = paths.runtime_validations
+            runtime_locks_dir = paths.runtime_locks
         expected_dirs = (
             home,
             home / "assets",

@@ -11,7 +11,10 @@ import uuid
 from pathlib import Path
 from typing import Any, Mapping
 
-from app.orchestration.lifecycle.ports import RuntimeWriterHandoff
+from app.orchestration.lifecycle.ports import (
+    LifecycleLocalPaths,
+    RuntimeWriterHandoff,
+)
 from app.orchestration.lifecycle.runtime_snapshot import (
     BackendTier,
     ComponentSnapshot,
@@ -27,7 +30,6 @@ from app.orchestration.lifecycle.runtime_snapshot import (
     TimingSnapshot,
 )
 from app.orchestration.lifecycle.types import SnapshotRecoveryRequiredError
-from infrastructure.persistence.layout.data_layout import final_root_layout
 
 
 class FileRuntimeRecordAdapter:
@@ -40,11 +42,12 @@ class FileRuntimeRecordAdapter:
 
     def __init__(
         self,
-        elfie_home: Path,
+        paths: LifecycleLocalPaths,
         *,
         writer_token: str | None = None,
     ) -> None:
-        self._elfie_home = elfie_home
+        self._paths = paths
+        self._elfie_home = paths.home
         self._writer_token = writer_token or self._read_writer_token()
         # Only the lifecycle parent that explicitly issued the handoff may
         # create a new credential. A child may use its inherited token, but it
@@ -231,11 +234,10 @@ class FileRuntimeRecordAdapter:
                 return True
             if any(child.name != "runtime" for child in children):
                 return False
-            layout = final_root_layout(self._elfie_home)
-            runtime_dir = layout.runtime_state.parent
+            runtime_dir = self._paths.runtime_state.parent
             if runtime_dir.is_symlink() or not runtime_dir.is_dir():
                 return False
-            cli_dir = layout.source_cli_state
+            cli_dir = self._paths.source_cli_state
             if cli_dir.is_symlink() or (cli_dir.exists() and not cli_dir.is_dir()):
                 return False
             allowed = {Path("locks"), Path("locks") / "owner-recovery.lock"}
@@ -250,7 +252,7 @@ class FileRuntimeRecordAdapter:
             raise SnapshotRecoveryRequiredError(self._elfie_home, str(error)) from error
 
     def _record_path(self) -> Path:
-        return final_root_layout(self._elfie_home).runtime_state
+        return self._paths.runtime_state
 
     @staticmethod
     def _parse(payload: Any) -> RuntimeSnapshotV1:

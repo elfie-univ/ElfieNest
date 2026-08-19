@@ -5,10 +5,26 @@ from pathlib import Path
 
 import pytest
 
+from app.orchestration.lifecycle.ports import LifecycleLocalPaths
 from infrastructure.platform.source_cli_state import (
     SourceCliState,
     SourceCliStateError,
 )
+
+
+def _source_state(source_root: Path) -> SourceCliState:
+    home = (source_root / ".elfienest.local").resolve(strict=False)
+    return SourceCliState(
+        LifecycleLocalPaths(
+            home=home,
+            logs=home / "logs",
+            model_validations=home / "reports" / "model-validations",
+            runtime_validations=home / "reports" / "runtime-validations",
+            runtime_state=home / "runtime" / "runtime.json",
+            runtime_locks=home / "runtime" / "locks",
+            source_cli_state=home / "runtime" / "cli",
+        )
+    )
 
 
 def test_source_state_is_optional_under_default_product_runtime_and_lazy(
@@ -17,7 +33,7 @@ def test_source_state_is_optional_under_default_product_runtime_and_lazy(
     source = tmp_path / "checkout"
     source.mkdir()
     product = source / ".elfienest.local"
-    state = SourceCliState(source)
+    state = _source_state(source)
 
     assert not state.control_dir.exists()
     assert state.load_history() == ()
@@ -33,7 +49,7 @@ def test_source_state_is_optional_under_default_product_runtime_and_lazy(
 @pytest.mark.skipif(os.name == "nt", reason="POSIX permission contract")
 def test_source_state_uses_owner_only_permissions(tmp_path: Path) -> None:
     (tmp_path / "checkout").mkdir()
-    state = SourceCliState(tmp_path / "checkout")
+    state = _source_state(tmp_path / "checkout")
     state.record_history("status")
     state.record_candidate(tmp_path / "task")
 
@@ -44,7 +60,7 @@ def test_source_state_uses_owner_only_permissions(tmp_path: Path) -> None:
 
 def test_sensitive_history_is_not_persisted(tmp_path: Path) -> None:
     (tmp_path / "checkout").mkdir()
-    state = SourceCliState(tmp_path / "checkout")
+    state = _source_state(tmp_path / "checkout")
 
     assert state.record_history("owner --password super-secret") is False
     assert state.record_history("start --token super-secret") is False
@@ -62,7 +78,7 @@ def test_old_selected_home_receipt_is_never_read(tmp_path: Path) -> None:
         str(tmp_path / "legacy-task"), encoding="utf-8"
     )
 
-    assert SourceCliState(source).load_candidates() == ()
+    assert _source_state(source).load_candidates() == ()
 
 
 def test_symlinked_control_state_fails_closed(tmp_path: Path) -> None:
@@ -75,9 +91,9 @@ def test_symlinked_control_state_fails_closed(tmp_path: Path) -> None:
     (runtime / "cli").symlink_to(target, target_is_directory=True)
 
     with pytest.raises(SourceCliStateError):
-        SourceCliState(source).load_candidates()
+        _source_state(source).load_candidates()
     with pytest.raises(SourceCliStateError):
-        SourceCliState(source).record_candidate(tmp_path / "task")
+        _source_state(source).record_candidate(tmp_path / "task")
 
 
 def test_non_directory_control_state_fails_closed(tmp_path: Path) -> None:
@@ -87,9 +103,9 @@ def test_non_directory_control_state_fails_closed(tmp_path: Path) -> None:
     control_path.write_text("not a directory", encoding="utf-8")
 
     with pytest.raises(SourceCliStateError):
-        SourceCliState(source).load_candidates()
+        _source_state(source).load_candidates()
     with pytest.raises(SourceCliStateError):
-        SourceCliState(source).record_candidate(tmp_path / "task")
+        _source_state(source).record_candidate(tmp_path / "task")
 
 
 def test_legacy_top_level_control_state_is_not_read_or_migrated(
@@ -103,7 +119,7 @@ def test_legacy_top_level_control_state_is_not_read_or_migrated(
         '{"version": 1, "homes": [{"home": "/legacy", "detail": "old"}]}\n',
         encoding="utf-8",
     )
-    state = SourceCliState(source)
+    state = _source_state(source)
 
     assert state.load_history() == ()
     assert state.load_candidates() == ()
@@ -113,7 +129,7 @@ def test_legacy_top_level_control_state_is_not_read_or_migrated(
 
 def test_candidate_catalog_has_no_runtime_authority_fields(tmp_path: Path) -> None:
     (tmp_path / "checkout").mkdir()
-    state = SourceCliState(tmp_path / "checkout")
+    state = _source_state(tmp_path / "checkout")
     state.record_candidate(tmp_path / "task", detail="observed")
 
     payload = json.loads(state.candidate_path.read_text(encoding="utf-8"))
