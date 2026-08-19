@@ -29,8 +29,13 @@ environment.
 
 `bootstrap.sh` is the unified dependency orchestrator and supports two tiers:
 
-- `dev`: contributor tier — Python dev + frontend + Godot editor/Web export + Electron dev deps
+- `dev`: contributor tier — Python dev + frontend + exported Godot Web Runtime + Electron dev deps
 - `build`: source/package-build tier — the release toolchain for the current native target
+
+The Godot editor is not a normal startup dependency. Bootstrap resolves it only
+when the exported Web Runtime is missing, reuses any executable from the
+major/minor line declared by `godot_project/project.godot`, and downloads the
+official build only after an explicit `y` confirmation.
 
 ```bash
 # Check dependency status

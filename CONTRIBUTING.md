@@ -23,7 +23,7 @@ belongs to.
 ElfieNest manages all dependencies through `scripts/bootstrap.sh`, in two
 tiers:
 
-- **dev (contributors)**: Python dev + frontend + Godot editor/Web export + Electron dev deps
+- **dev (contributors)**: Python dev + frontend + exported Godot Web Runtime + Electron dev deps
 - **build (source/package build)**: the release toolchain for the current native target
 
 ### Quick start
@@ -33,7 +33,10 @@ tiers:
 ```
 
 The first source-development run installs required development dependencies.
-Public Ollama remains optional and is selected explicitly in Setup.
+An existing Godot Web Runtime does not require a local Godot editor; the editor
+is resolved only when a source export is missing, and an official download
+requires an explicit `y`. Public Ollama remains optional and is selected
+explicitly in Setup.
 
 ### Manual dependency management
 

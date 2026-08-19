@@ -11,7 +11,7 @@ ElfieNest 3D 世界的唯一源码来源，负责房屋、几何、坐标、移�
 ## 当前项目
 
 - 项目文件：`project.godot`
-- 当前引擎特性版本：Godot 4.7
+- 引擎兼容版本源：`project.godot` 中 `config/features` 的第一项
 - 主场景：`main.tscn`
 - 渲染方式：GL Compatibility
 - Web 导出预设：`export_presets.cfg` 中的 `Web`
@@ -57,7 +57,7 @@ build/components/godot-web/
 在仓库根目录构建或检查：
 
 ```bash
-GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
+GODOT_BIN=/path/to/godot ./developer.sh build-godot-web
 ./developer.sh build-godot-web --check
 ```
 
@@ -76,10 +76,11 @@ Web 导出的环境准备、目录和验收细节只在
 build/components/godot-linux-dedicated/
 ```
 
-从仓库根目录使用已安装 Linux x64 Export Template 的 Godot 4.7 构建或检查：
+从仓库根目录使用与 `project.godot` 声明匹配、且已安装 Linux x64 Export Template
+的 Godot 构建或检查：
 
 ```bash
-GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-dedicated
+GODOT_BIN=/path/to/godot ./developer.sh build-godot-dedicated
 ./developer.sh build-godot-dedicated --check
 ```
 

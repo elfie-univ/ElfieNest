@@ -125,13 +125,15 @@ Owner 恢复只在本机终端提供；密码通过隐藏输入填写，不应�
 
 ## Godot Web 构建
 
-Godot 源项目当前声明 4.7。构建机必须使用同版本 Godot 和 Web Export Templates：
+Godot 源项目唯一的兼容版本声明是 `godot_project/project.godot` 中
+`config/features` 的第一项。构建机必须使用相同主次版本线的 Godot 和对应
+Web Export Templates：
 
 ```bash
-GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
+GODOT_BIN=/path/to/godot ./developer.sh build-godot-web
 ./developer.sh build-godot-web --ensure
 ./developer.sh build-godot-web --check
-GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-dedicated
+GODOT_BIN=/path/to/godot ./developer.sh build-godot-dedicated
 ./developer.sh build-godot-dedicated --check
 ```
 
@@ -144,8 +146,8 @@ Dedicated 权威导出是
 源码树中的 `./elfienest.sh serve` 与 `./developer.sh` 默认使用 development 生命周期：
 启动前会比较 Godot 源树指纹，缺失或过期时自动执行 `--ensure`；没有变更时不会重复导出。
 `ELFIENEST_RUNTIME_MODE=release` 只执行 `--check`，缺少已验证 runtime 会拒绝启动。
-导出机必须安装 Godot 4.7 与对应 Web Export Templates；若缺失，服务会明确报告 3D 预览
-离线原因，聊天与管理 API 不会伪造“预览正常”。
+导出机必须安装项目所声明兼容版本线的 Godot 与对应 Web Export Templates；若缺失，
+服务会明确报告 3D 预览离线原因，聊天与管理 API 不会伪造“预览正常”。
 
 ## Developer Tools
 

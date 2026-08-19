@@ -143,14 +143,15 @@ current directory contract.
 
 ## Godot Web build
 
-The Godot source project currently declares 4.7. The build machine must use the
-same Godot version and Web Export Templates:
+The Godot source project's sole compatibility-version declaration is the first
+entry in `godot_project/project.godot` `config/features`. The build machine must
+use that same major/minor line and matching Web Export Templates:
 
 ```bash
-GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
+GODOT_BIN=/path/to/godot ./developer.sh build-godot-web
 ./developer.sh build-godot-web --ensure
 ./developer.sh build-godot-web --check
-GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-dedicated
+GODOT_BIN=/path/to/godot ./developer.sh build-godot-dedicated
 ./developer.sh build-godot-dedicated --check
 ```
 
@@ -166,9 +167,10 @@ development lifecycle: before starting they compare the Godot source tree
 fingerprint and auto-run `--ensure` when missing or stale; they do not
 re-export when nothing has changed. `ELFIENEST_RUNTIME_MODE=release` only runs
 `--check` and refuses to start when a validated runtime is missing. The export
-machine must have Godot 4.7 and the matching Web Export Templates installed; if
-they are missing, the service clearly reports why the 3D preview is offline,
-and the chat and management APIs never fake "preview OK".
+machine must have the declared Godot compatibility line and matching Web Export
+Templates installed; if they are missing, the service clearly reports why the
+3D preview is offline, and the chat and management APIs never fake "preview
+OK".
 
 ## Developer Tools
 

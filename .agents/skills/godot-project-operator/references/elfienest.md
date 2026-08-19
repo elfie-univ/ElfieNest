@@ -4,7 +4,7 @@
 
 - 项目目录：`godot_project/`
 - 项目文件：`godot_project/project.godot`
-- 要求版本：Godot 4.7，GL Compatibility
+- 要求版本：读取 `project.godot` 的 `config/features`；渲染器为 GL Compatibility
 - 主场景：`res://main.tscn`
 - 最终巢穴场景：`res://rooms/nest.tscn`
 - 场景资源契约：`res://scripts/test/test_scene_resource_contract.gd`

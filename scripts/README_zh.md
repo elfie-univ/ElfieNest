@@ -27,8 +27,12 @@
 
 `bootstrap.sh` 是统一的依赖编排器，支持两种模式：
 
-- `dev`：贡献者模式，包含 Python dev + 前端 + Godot 编辑器/Web 导出 + Electron dev deps
+- `dev`：贡献者模式，包含 Python dev + 前端 + 已导出的 Godot Web Runtime + Electron dev deps
 - `build`：源码/安装包构建模式，包含当前原生 target 的发行工具链
+
+Godot 编辑器不是普通启动依赖。只有缺少已导出的 Web Runtime 时，Bootstrap 才会解析
+编辑器；它会复用与 `godot_project/project.godot` 所声明主次版本线匹配的任意本机
+可执行文件，并且只有明确输入 `y` 后才下载官方构建。
 
 ```bash
 # 检查依赖状态

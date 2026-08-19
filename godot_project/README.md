@@ -13,7 +13,7 @@ never copy scene layouts or spatial facts from here.
 ## Current project
 
 - Project file: `project.godot`
-- Current engine feature version: Godot 4.7
+- Engine compatibility source: the first `config/features` entry in `project.godot`
 - Main scene: `main.tscn`
 - Renderer: GL Compatibility
 - Web export preset: `Web` in `export_presets.cfg`
@@ -63,7 +63,7 @@ build/components/godot-web/
 Build or check from the repository root:
 
 ```bash
-GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
+GODOT_BIN=/path/to/godot ./developer.sh build-godot-web
 ./developer.sh build-godot-web --check
 ```
 
@@ -85,11 +85,11 @@ no browser payload and must only be written to:
 build/components/godot-linux-dedicated/
 ```
 
-Build or check it from the repository root with a Godot 4.7 installation that
-has the Linux x64 export template:
+Build or check it from the repository root with a Godot installation matching
+`project.godot` and the Linux x64 export template:
 
 ```bash
-GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-dedicated
+GODOT_BIN=/path/to/godot ./developer.sh build-godot-dedicated
 ./developer.sh build-godot-dedicated --check
 ```
 

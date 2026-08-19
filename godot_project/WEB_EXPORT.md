@@ -36,17 +36,18 @@ Godot 可能额外生成 AudioWorklet 等 JavaScript 文件，这些文件也必
 
 ## 版本要求
 
-`godot_project/project.godot` 当前声明 Godot 4.7。发布时必须同时使用：
+Godot 兼容版本只由 `godot_project/project.godot` 的 `config/features` 第一项声明。
+发布时必须同时使用：
 
-1. Godot 4.7 编辑器或命令行程序。
-2. Godot 4.7 官方 Export Templates。
+1. 与该主次版本线匹配的 Godot 编辑器或命令行程序。
+2. 与该版本匹配的官方 Export Templates。
 
 Godot 主次版本和 Templates 不一致时不得发布。构建脚本默认会拒绝这种情况。
 
 在 Godot 编辑器中安装 Templates：
 
 1. 打开 `Editor > Manage Export Templates`。
-2. 下载或选择 Godot 4.7 官方 `export_templates.tpz`。
+2. 下载或选择与项目声明版本匹配的官方 `export_templates.tpz`。
 3. 安装完成后关闭对话框。
 
 ## 标准构建命令
@@ -54,13 +55,13 @@ Godot 主次版本和 Templates 不一致时不得发布。构建脚本默认会
 在仓库根目录运行：
 
 ```bash
-GODOT_BIN=/path/to/godot4.7 ./elfienest.sh build-godot-web
+GODOT_BIN=/path/to/godot ./elfienest.sh build-godot-web
 ```
 
 也可以显式传参：
 
 ```bash
-./elfienest.sh build-godot-web --godot /path/to/godot4.7
+./elfienest.sh build-godot-web --godot /path/to/godot
 ```
 
 构建器会执行以下步骤：
@@ -82,7 +83,7 @@ GODOT_BIN=/path/to/godot4.7 ./elfienest.sh build-godot-web
 
 命令行构建是团队标准流程。需要在编辑器排查导出问题时，可以：
 
-1. 使用 Godot 4.7 打开 `godot_project/project.godot`。
+1. 使用与项目声明版本匹配的 Godot 打开 `godot_project/project.godot`。
 2. 打开 `Project > Export`。
 3. 选择仓库已有的 `Web` preset。
 4. 点击 `Export Project`。
