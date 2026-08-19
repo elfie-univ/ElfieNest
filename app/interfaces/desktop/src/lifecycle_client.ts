@@ -12,6 +12,7 @@ type RuntimeStatus = Readonly<{
   readonly state: "offline" | "core_ready" | "world_ready";
   readonly phase: string;
   readonly generation: number;
+  readonly instanceId: string | null;
   readonly ownerLease: string | null;
   readonly startupOwnerId: string | null;
   readonly httpUrl: string | null;
@@ -22,6 +23,16 @@ type RuntimeFailure = Readonly<{
   readonly code: string;
   readonly detail: string;
 }>;
+
+export type RuntimeHealthTarget = Readonly<{
+  readonly httpUrl: string;
+  readonly instanceId: string;
+  readonly generation: number;
+}>;
+
+export type RuntimeHealthProbe = (
+  target: RuntimeHealthTarget,
+) => Promise<boolean>;
 
 export type DataHomeState = "fresh" | "partial" | "ready" | "legacy" | "corrupt" | "permission";
 
@@ -100,6 +111,38 @@ export class LifecycleClientError extends Error {
 const runFile = promisify(execFile);
 const STARTUP_ATTACH_TIMEOUT_MS = 30_000;
 const STARTUP_ATTACH_POLL_MS = 250;
+const RUNTIME_HEALTH_TIMEOUT_MS = 2_000;
+
+export function runtimeHealthMatches(
+  payload: unknown,
+  target: RuntimeHealthTarget,
+): boolean {
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    return false;
+  }
+  // Desktop only verifies that the same Core generation is still alive here.
+  // RuntimeWorldWorker remains the sole owner of Godot/World recovery.
+  return Reflect.get(payload, "status") === "ok"
+    && Reflect.get(payload, "engine_ready") === true
+    && Reflect.get(payload, "instance_id") === target.instanceId
+    && Reflect.get(payload, "generation") === target.generation;
+}
+
+export async function probeRuntimeHealth(
+  target: RuntimeHealthTarget,
+): Promise<boolean> {
+  try {
+    const response = await fetch(new URL("/api/health", target.httpUrl), {
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(RUNTIME_HEALTH_TIMEOUT_MS),
+    });
+    if (!response.ok) return false;
+    return runtimeHealthMatches(await response.json(), target);
+  } catch {
+    return false;
+  }
+}
 
 export function lifecycleCommandExecutable(
   isPackaged: boolean,
@@ -174,10 +217,12 @@ export class ProcessLifecycleCommandRunner implements LifecycleCommandRunner {
 
 export class ManagedRuntimeLifecycleClient implements LifecycleClient {
   private selectedDataHome: string | undefined;
+  private ownedRuntimeHealthTarget: RuntimeHealthTarget | undefined;
 
   constructor(
     private readonly ownerLease: string,
     private readonly commandRunner: LifecycleCommandRunner = new ProcessLifecycleCommandRunner(),
+    private readonly runtimeHealthProbe: RuntimeHealthProbe = probeRuntimeHealth,
   ) {}
 
   async inspectDataHome(explicitHome?: string): Promise<DataHomeInspection> {
@@ -236,13 +281,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
         : await this.commandRunner.run(startArguments);
       const started = this.parseStatus(output);
       if (this.isReady(started) && started.ownerLease === this.ownerLease) {
-        return {
-          kind: "owned",
-          generation: started.generation,
-          ownerLease: this.ownerLease,
-          dataHome: this.requireSelectedDataHome(),
-          ...(started.httpUrl === null ? {} : { httpUrl: started.httpUrl }),
-        };
+        return this.ownedAttachment(started);
       }
       return this.failure(
         this.firstFailureDetail(started) ?? "Runtime did not grant the desktop owner lease",
@@ -268,6 +307,13 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       return this.failure("Desktop cannot recover a lease it did not create");
     }
     try {
+      const healthTarget = this.ownedRuntimeHealthTarget;
+      if (
+        healthTarget !== undefined
+        && await this.runtimeHealthProbeSafely(healthTarget)
+      ) {
+        return this.ownedAttachmentFromHealthTarget(healthTarget);
+      }
       const current = await this.status();
       if (this.isReady(current) && current.ownerLease === ownerLease) {
         return this.ownedAttachment(current);
@@ -363,6 +409,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     const generation = Reflect.get(payload, "generation");
     const ownerLease = Reflect.get(payload, "owner_lease");
     const startupOwnerId = Reflect.get(payload, "startup_owner_id");
+    const rawInstanceId = Reflect.get(payload, "instance_id");
     const failures = this.parseFailures(payload);
     if (
       !this.isLifecycleState(tier ?? state) ||
@@ -380,11 +427,20 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     ) {
       throw new LifecycleClientError("Lifecycle startup owner is invalid");
     }
+    if (
+      rawInstanceId !== undefined
+      && rawInstanceId !== null
+      && (typeof rawInstanceId !== "string" || rawInstanceId === "")
+    ) {
+      throw new LifecycleClientError("Lifecycle instance identity is invalid");
+    }
+    const instanceId = typeof rawInstanceId === "string" ? rawInstanceId : null;
     if (ownerLease === null) {
       return {
         state: (tier ?? state) as RuntimeStatus["state"],
         phase,
         generation,
+        instanceId,
         ownerLease: null,
         startupOwnerId: typeof startupOwnerId === "string" ? startupOwnerId : null,
         httpUrl: this.parseHttpUrl(payload),
@@ -404,6 +460,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       state: (tier ?? state) as RuntimeStatus["state"],
       phase,
       generation,
+      instanceId,
       ownerLease: ownerLease.owner_id,
       startupOwnerId: typeof startupOwnerId === "string" ? startupOwnerId : null,
       httpUrl: this.parseHttpUrl(payload),
@@ -560,13 +617,48 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
   }
 
   private ownedAttachment(status: RuntimeStatus): RuntimeAttachment {
-    return {
+    const attachment: RuntimeAttachment = {
       kind: "owned",
       generation: status.generation,
       ownerLease: this.ownerLease,
       dataHome: this.requireSelectedDataHome(),
       ...(status.httpUrl === null ? {} : { httpUrl: status.httpUrl }),
     };
+    this.ownedRuntimeHealthTarget = (
+      status.httpUrl !== null
+      && status.instanceId !== null
+      && status.instanceId !== "uninitialized"
+      && status.instanceId !== "unavailable"
+    )
+      ? {
+        httpUrl: status.httpUrl,
+        instanceId: status.instanceId,
+        generation: status.generation,
+      }
+      : undefined;
+    return attachment;
+  }
+
+  private ownedAttachmentFromHealthTarget(
+    target: RuntimeHealthTarget,
+  ): RuntimeAttachment {
+    return {
+      kind: "owned",
+      generation: target.generation,
+      ownerLease: this.ownerLease,
+      dataHome: this.requireSelectedDataHome(),
+      httpUrl: target.httpUrl,
+    };
+  }
+
+  private async runtimeHealthProbeSafely(
+    target: RuntimeHealthTarget,
+  ): Promise<boolean> {
+    try {
+      return await this.runtimeHealthProbe(target);
+    } catch {
+      return false;
+    }
   }
 
   private parseHttpUrl(payload: object): string | null {

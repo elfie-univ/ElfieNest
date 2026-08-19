@@ -16,10 +16,12 @@ function lifecycleClient(attachment: RuntimeAttachment): LifecycleClient & {
   readonly stops: string[];
   readonly recoveries: string[];
   readonly cancels: number;
+  readonly inspections: number;
 } {
   const stops: string[] = [];
   const recoveries: string[] = [];
   let cancels = 0;
+  let inspections = 0;
   const inspection: DataHomeInspection = {
     state: "ready",
     home: "/tmp/elfienest",
@@ -34,7 +36,11 @@ function lifecycleClient(attachment: RuntimeAttachment): LifecycleClient & {
     stops,
     recoveries,
     get cancels(): number { return cancels; },
-    inspectDataHome: async (): Promise<DataHomeInspection> => inspection,
+    get inspections(): number { return inspections; },
+    inspectDataHome: async (): Promise<DataHomeInspection> => {
+      inspections += 1;
+      return inspection;
+    },
     recoverDataHome: async (): Promise<DataHomeRecoveryResult> => recovery,
     attachOrStart: async (): Promise<RuntimeAttachment> => attachment,
     recoverOwnedRuntime: async (ownerLease: string): Promise<RuntimeAttachment> => {
@@ -81,6 +87,19 @@ test("desktop UI lets the shared lifecycle repair a partial data root", async ()
   const state = await controller.start();
 
   assert.deepEqual(state, { kind: "attached", generation: 7, dataHome: "/tmp/elfienest" });
+});
+
+test("desktop startup resolves its data root only once", async () => {
+  const client = lifecycleClient({
+    kind: "attached",
+    generation: 7,
+    dataHome: "/tmp/elfienest",
+  });
+  const controller = new DesktopRoleController(client);
+
+  await controller.start();
+
+  assert.equal(client.inspections, 1);
 });
 
 test("desktop-owned explicit exit requests an ordered stop only for its own lease", async () => {
@@ -229,6 +248,22 @@ test("background maintenance recovers only a Desktop-owned Runtime", async () =>
 
   assert.equal(result.kind, "owned");
   assert.deepEqual(client.recoveries, ["desktop-9"]);
+});
+
+test("background maintenance preserves the selected data root without inspecting it again", async () => {
+  const client = lifecycleClient({
+    kind: "owned",
+    generation: 9,
+    ownerLease: "desktop-9",
+    dataHome: "/tmp/elfienest",
+  });
+  const controller = new DesktopRoleController(client);
+  await controller.start();
+  const inspectionsAfterStartup = client.inspections;
+
+  await controller.maintainOwnedRuntime();
+
+  assert.equal(client.inspections, inspectionsAfterStartup);
 });
 
 test("background maintenance never takes over an attached external Runtime", async () => {

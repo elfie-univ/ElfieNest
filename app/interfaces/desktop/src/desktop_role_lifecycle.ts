@@ -88,12 +88,7 @@ export class DesktopRoleController {
         this.currentState = { kind: "stopped" };
         return this.currentState;
       }
-      if (state.kind !== "failed") {
-        const inspection = await this.lifecycleClient.inspectDataHome();
-        this.currentState = { ...state, dataHome: inspection.home };
-      } else {
-        this.currentState = state;
-      }
+      this.currentState = state;
       return this.currentState;
     } finally {
       if (this.startPromise === pending) {
@@ -142,8 +137,7 @@ export class DesktopRoleController {
       this.currentState.ownerLease,
     );
     if (recovered.kind === "owned") {
-      const inspection = await this.lifecycleClient.inspectDataHome();
-      this.currentState = { ...recovered, dataHome: inspection.home };
+      this.currentState = recovered;
     }
     return this.currentState;
   }
