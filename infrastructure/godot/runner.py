@@ -196,6 +196,7 @@ def _ensure_host_execution_available() -> Optional[str]:
     the sandbox.  This probe never starts Godot.
     """
 
+    command: Tuple[str, ...]
     if os.name == "nt":
         command = ("tasklist", "/fo", "csv", "/nh")
     else:
