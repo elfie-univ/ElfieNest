@@ -11,6 +11,11 @@ const MIN_CAMERA_SIZE := 1.2
 const MAX_CAMERA_SIZE := 4.0
 const BUST_HEIGHT_RATIO := 0.62
 const BUST_FRAME_MARGIN := 1.12
+const V9_CAMERA_TARGET := Vector3(0.0, 0.88, 0.0)
+const V9_CAMERA_DISTANCE := 3.85
+const V9_CAMERA_FOV := 36.0
+const V9_CAMERA_FOV_MIN := 24.0
+const V9_CAMERA_FOV_MAX := 60.0
 const SUPPORTED_ACTIONS := {
 	"configure": true,
 	"orbit": true,
@@ -37,6 +42,7 @@ var _yaw := 0.0
 var _pitch := 0.0
 var _distance := 3.4
 var _default_camera_size := 2.35
+var _use_v9_render_profile := false
 var _request_fingerprints: Dictionary = {}
 var _request_results: Dictionary = {}
 var _request_order: Array[String] = []
@@ -53,6 +59,10 @@ func setup(
 	_actor_scenes = actor_scenes
 	_actor_factory = actor_factory
 	_default_camera_size = camera.size
+	_use_v9_render_profile = (
+		camera.has_meta(&"v9_render_profile")
+		and camera.get_meta(&"v9_render_profile") == true
+	)
 
 
 func handle_message(message: Dictionary) -> Dictionary:
@@ -184,6 +194,13 @@ func _zoom(payload: Dictionary, request_id: String) -> Dictionary:
 	var delta: Variant = payload.get("delta")
 	if not _valid_number(delta, MAX_ZOOM_DELTA):
 		return _unsupported(request_id, "zoom", "invalid_delta")
+	if _use_v9_render_profile:
+		_camera.fov = clampf(
+			_camera.fov + float(delta) * 12.0,
+			V9_CAMERA_FOV_MIN,
+			V9_CAMERA_FOV_MAX,
+		)
+		return _completed(request_id, "zoom")
 	_camera.size = clampf(_camera.size + float(delta), MIN_CAMERA_SIZE, MAX_CAMERA_SIZE)
 	return _completed(request_id, "zoom")
 
@@ -257,6 +274,13 @@ func _preview_intent(payload: Dictionary, request_id: String) -> Dictionary:
 
 
 func _frame_actor() -> void:
+	if _use_v9_render_profile:
+		_focus_point = V9_CAMERA_TARGET
+		_default_focus_point = _focus_point
+		_distance = V9_CAMERA_DISTANCE
+		_camera.fov = V9_CAMERA_FOV
+		_apply_camera()
+		return
 	var bounds := _actor.call("visual_bounds") as AABB
 	_focus_point = bounds.get_center()
 	_default_focus_point = _focus_point

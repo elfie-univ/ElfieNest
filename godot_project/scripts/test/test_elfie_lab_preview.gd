@@ -146,7 +146,7 @@ func _run_real_actor_contract() -> void:
 		"elfie_id": "dog-real",
 		"species_id": "dog",
 		"spec_revision": 1,
-		"appearance": {},
+		"appearance": _real_actor_appearance(),
 	}))
 	await process_frame
 	_require(_is_completed(response), "Real dog configure did not complete")
@@ -156,6 +156,10 @@ func _run_real_actor_contract() -> void:
 	var bounds := actor.call("visual_bounds") as AABB
 	_require(not bool(actor.get("install_shared_animations")), "Preview actor eagerly installed the full animation library")
 	_require(not meshes.is_empty(), "Real dog actor has no MeshInstance3D")
+	_require(
+		_has_opaque_appearance_material(meshes),
+		"Real dog preview did not apply the formal opaque ActorAppearance material",
+	)
 	_require(not bounds.size.is_zero_approx(), "Real dog actor has empty visual bounds")
 	_require(camera.global_position.distance_to(bounds.get_center()) >= 1.0, "Preview camera is inside the real dog bounds")
 	print("INFO: real dog meshes=%d bounds=%s camera=%s size=%.3f" % [
@@ -167,6 +171,53 @@ func _run_real_actor_contract() -> void:
 	controller.queue_free()
 	characters.queue_free()
 	camera.queue_free()
+
+
+func _real_actor_appearance() -> Dictionary:
+	return {
+		"height_scale": 1.03,
+		"build_scale": 0.97,
+		"bone_scales": {"HeadScale": 1.04, "TailLength": 1.06},
+		"material_parameters": {
+			"palette_id": "silver_gray",
+			"primary_color_id": "silver_gray",
+			"marking_id": "star",
+			"marking_placement": "forehead_center",
+			"marking_color_id": "apricot",
+			"marking_scale": 0.90,
+			"marking_intensity": 0.92,
+			"region_0_id": "chest_tuft",
+			"region_0_color_id": "honey_gold",
+			"region_0_intensity": 0.86,
+			"region_1_id": "tail_underside",
+			"region_1_color_id": "chocolate",
+			"region_1_intensity": 0.90,
+			"region_2_id": "none",
+			"region_2_color_id": "silver_gray",
+			"region_2_intensity": 0.0,
+		},
+	}
+
+
+func _has_opaque_appearance_material(meshes: Array[Node]) -> bool:
+	var matched := false
+	for node in meshes:
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance == null or mesh_instance.mesh == null:
+			continue
+		for surface_index in range(mesh_instance.mesh.get_surface_count()):
+			var material := mesh_instance.get_surface_override_material(surface_index)
+			if material is ShaderMaterial:
+				var shader_material := material as ShaderMaterial
+				matched = (
+					shader_material.shader != null
+					and not shader_material.shader.code.contains("ALPHA =")
+					and shader_material.get_shader_parameter("appearance_accent_region_0") == 5
+					and shader_material.get_shader_parameter("appearance_accent_region_1") == 12
+					and shader_material.get_shader_parameter("appearance_marking_id") == 8
+				)
+			mesh_instance.set_surface_override_material(surface_index, null)
+	return matched
 
 
 func _create_actor(_species: String, _scene: PackedScene) -> Node3D:

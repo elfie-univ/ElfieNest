@@ -7,6 +7,6 @@ stage_ranges:
   mature: [60, 119]
   elder: [120, 180]
 appearance_preferences:
-  warm: [golden, red, cream]
-  marked: [face_mask, bicolor, cross]
+  warm: [golden, orange_red, fox_red, chestnut]
+  marked: [crescent, s_glyph, constellation]
   ears: [fox]

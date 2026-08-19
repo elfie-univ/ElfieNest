@@ -6,6 +6,7 @@ import pytest
 from app.features.adoption import AcceptedAdoptionReservation
 from elfie import ElfieFactory
 from elfie.factory import ElfieAssembly
+from elfie.genesis import GenesisAppearanceIntent, GenesisEngine
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
 )
@@ -120,8 +121,58 @@ def test_workspace_adapter_uses_a_species_compatible_pattern_for_marked_signatur
     profile = YamlProfileStoreAdapter(Path(workspace) / "profile").load()
 
     assert profile.identity.species_id == "dog"
-    assert profile.appearance.coat.pattern_id == "face_mask"
+    assert profile.appearance.coat.pattern_id in ("solid", "classic")
+    assert profile.appearance.coat.marking_id != "none"
+    assert profile.appearance.coat.marking_placement != "none"
     profile.validate()
+    adapter.release(reservation.elfie_id)
+
+
+@pytest.mark.parametrize("species_id", ("dog", "fox"))
+def test_workspace_adapter_persists_the_exact_accepted_candidate_appearance(
+    tmp_path: Path,
+    species_id: str,
+) -> None:
+    candidate = (
+        GenesisEngine()
+        .generate_batch(
+            master_seed=77,
+            batch_number=1,
+            species_id=species_id,
+            life_stage="young_adult",
+            gender="female",
+            appearance=GenesisAppearanceIntent(
+                stature="any",
+                build="any",
+                face="balanced",
+                signature="any",
+                priority="face",
+            ),
+            answers=("quiet", "explore", "plan", "discuss", "steady"),
+        )
+        .candidates[0]
+    )
+    reservation = AcceptedAdoptionReservation(
+        elfie_id="00000004" if species_id == "dog" else "00000005",
+        owner_user_id=7,
+        name="候选精灵",
+        species_id=species_id,
+        personality_style="Genesis",
+        height="standard",
+        build="standard",
+        appearance_seed=candidate.seed,
+        face="balanced",
+        signature="any",
+        gender="female",
+        birth_date="2001-01-01",
+        genesis_candidate=candidate,
+    )
+
+    adapter = FinalElfieWorkspaceAdapter(tmp_path)
+    workspace = Path(adapter.materialize(reservation))
+    profile = YamlProfileStoreAdapter(workspace / "profile").load()
+
+    assert profile.appearance == candidate.appearance
     adapter.release(reservation.elfie_id)
 
 

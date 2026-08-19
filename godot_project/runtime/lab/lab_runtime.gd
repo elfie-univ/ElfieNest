@@ -166,7 +166,11 @@ func _normalize_lab_message(message: Dictionary) -> Dictionary:
 
 
 func _capture_lab_portrait(request_id: String) -> void:
-	await get_tree().process_frame
+	# WebGL may compile a newly assigned ShaderMaterial asynchronously. Let the
+	# material settle before reading the viewport, otherwise the first portrait
+	# can capture the renderer's black fallback for every candidate.
+	for _frame_index in range(3):
+		await get_tree().process_frame
 	var image := get_viewport().get_texture().get_image()
 	if image == null or image.is_empty():
 		return

@@ -14,3 +14,5 @@ in [Conformance](../conformance/).
   authoritative service states, entrypoint behavior, ownership and failure convergence.
 - [Provider and endpoint-model availability](./provider-model-availability):
   curated model loading, serving-core scope, low-cost evidence and shared health projections.
+- [Virtual appearance generation](./virtual-appearance-generation): geometry inputs, four ordered
+  skin layers, semantic regions, palettes and visual acceptance gates for one immutable Elfie look.

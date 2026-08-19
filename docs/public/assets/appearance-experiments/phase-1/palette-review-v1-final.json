@@ -1,0 +1,71 @@
+{
+  "schema": "appearance-palette-review.v3",
+  "status": "historical-v9-review-production-integrated",
+  "date": "2026-08-17",
+  "algorithm": {
+    "color_core": "godot_project/runtime/actor/actor_appearance.gd::ActorAppearance.apply",
+    "render_harness": "godot_project/scripts/test/render_production_appearance_candidates.gd",
+    "region_validator": "godot_project/scripts/test/render_production_region_debug.gd",
+    "region_baseline": "docs/public/assets/appearance-experiments/phase-3/production-region-baseline-v1.json",
+    "description": "The retained plates record the V9 visual selection. Production now applies the same bounded relative-tone transfer directly to the animated 3D material through ActorAppearance.",
+    "views": ["front", "three_quarter", "side"],
+    "production_integrated": true,
+    "glb_changed": false,
+    "rejected_palette_plates": [
+      "10-color-palette-v2: direct shader isolation without the accepted light-region transfer; removed after review",
+      "10-color-palette-corrected: superseded direct shader isolation; removed after review"
+    ]
+  },
+  "dog": {
+    "recommended_first_batch": [
+      "ivory",
+      "honey_gold",
+      "apricot",
+      "russet",
+      "silver_gray"
+    ],
+    "controlled_candidates": ["chocolate", "smoky_charcoal"],
+    "colors": [
+      {"id": "snow_white", "hex": "#efe8dc", "verdict": "usable"},
+      {"id": "ivory", "hex": "#e3cda7", "verdict": "usable"},
+      {"id": "cream", "hex": "#d8ad76", "verdict": "usable-but-close-to-ivory"},
+      {"id": "honey_gold", "hex": "#c9884b", "verdict": "usable"},
+      {"id": "apricot", "hex": "#d77b4d", "verdict": "usable"},
+      {"id": "russet", "hex": "#9d4e32", "verdict": "usable"},
+      {"id": "chestnut", "hex": "#814b34", "verdict": "usable-but-close-to-chocolate"},
+      {"id": "chocolate", "hex": "#653b2c", "verdict": "controlled-dark"},
+      {"id": "silver_gray", "hex": "#7a8288", "verdict": "usable"},
+      {"id": "smoky_charcoal", "hex": "#4a4d52", "verdict": "controlled-dark"}
+    ],
+    "evidence": {"three_views": "10-color-palette-final/dog-10-color-3views.png"}
+  },
+  "fox": {
+    "recommended_first_batch": [
+      "ivory",
+      "golden",
+      "orange_red",
+      "fox_red",
+      "silver_gray"
+    ],
+    "controlled_candidates": ["sable_brown", "smoky_black"],
+    "colors": [
+      {"id": "ivory", "hex": "#e2d3bd", "verdict": "usable"},
+      {"id": "cream", "hex": "#d7ae7d", "verdict": "usable-but-close-to-ivory"},
+      {"id": "champagne", "hex": "#d8b778", "verdict": "usable-but-close-to-cream"},
+      {"id": "golden", "hex": "#c98542", "verdict": "usable"},
+      {"id": "orange_red", "hex": "#c95a2d", "verdict": "usable"},
+      {"id": "fox_red", "hex": "#a8442b", "verdict": "usable"},
+      {"id": "chestnut", "hex": "#713828", "verdict": "usable"},
+      {"id": "sable_brown", "hex": "#664233", "verdict": "controlled-dark"},
+      {"id": "silver_gray", "hex": "#7a8288", "verdict": "usable"},
+      {"id": "smoky_black", "hex": "#45474c", "verdict": "controlled-dark"}
+    ],
+    "evidence": {"three_views": "10-color-palette-final/fox-10-color-3views.png"}
+  },
+  "product_decision": [
+    "The ten colors are a library, not ten equally likely choices in one five-card batch.",
+    "Use the recommended five-color batch to keep visible distance between adjacent light and brown tones.",
+    "The final algorithm keeps the fox muzzle/chest/inner-ear/tail-tip light regions and leaves the tail in its original 3D position in the side and three-quarter views.",
+    "The frozen 13-region contract is production-integrated and is validated separately by the formal region renderer."
+  ]
+}

@@ -268,6 +268,7 @@ class GenesisPersonality:
 class CandidateSignature:
     personality: tuple[float, ...]
     appearance: tuple[float, ...]
+    visual_key: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

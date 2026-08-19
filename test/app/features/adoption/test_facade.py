@@ -184,6 +184,43 @@ def test_candidate_creation_rejects_a_species_without_a_complete_runtime_package
         service.create_candidate_set(principal(), command)
 
 
+def test_candidate_set_returns_five_distinct_v9_runtime_appearances() -> None:
+    service = AdoptionService(Policy(), Persistence())
+
+    candidate_set = service.create_candidate_set(principal(), candidate_command())
+
+    assert len(candidate_set.candidates) == 5
+    visual_keys = set()
+    for candidate in candidate_set.candidates:
+        resolved = candidate.runtime_appearance
+        assert resolved["species_id"] == "fox"
+        materials = resolved["material_parameters"]
+        visual_keys.add(
+            (
+                materials["palette_id"],
+                materials["region_recipe_id"],
+                materials["marking_id"],
+                materials["marking_placement"],
+                tuple(
+                    (
+                        materials[f"region_{index}_id"],
+                        materials[f"region_{index}_color_id"],
+                    )
+                    for index in range(3)
+                    if materials[f"region_{index}_id"] != "none"
+                ),
+            )
+        )
+        active_regions = [
+            materials[f"region_{index}_id"]
+            for index in range(3)
+            if materials[f"region_{index}_id"] != "none"
+        ]
+        assert len(active_regions) <= 2
+
+    assert len(visual_keys) == 5
+
+
 def test_adoption_uses_the_validated_runtime_species_intersection() -> None:
     service = AdoptionService(
         Policy(),

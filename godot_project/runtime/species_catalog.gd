@@ -137,7 +137,8 @@ static func validate_species_package(species_id: String) -> Dictionary:
 	var bone_bindings: Variant = (appearance_bindings as Dictionary).get("bone_scales", {})
 	var blend_bindings: Variant = (appearance_bindings as Dictionary).get("blend_shapes", {})
 	var material_bindings: Variant = (appearance_bindings as Dictionary).get("material_parameters", {})
-	if not bone_bindings is Dictionary or not blend_bindings is Dictionary or not material_bindings is Dictionary:
+	var marking_zones: Variant = (appearance_bindings as Dictionary).get("marking_zones", {})
+	if not bone_bindings is Dictionary or not blend_bindings is Dictionary or not material_bindings is Dictionary or not marking_zones is Dictionary:
 		instance.free()
 		return _invalid("invalid_appearance_binding_groups")
 	for control_name: String in ["HeadScale", "NeckLength", "ArmLength", "LegLength", "HandScale", "PawScale", "TailLength"]:
@@ -180,9 +181,21 @@ static func validate_species_package(species_id: String) -> Dictionary:
 			if material_mode == "pattern_id" and not (material_value is int or material_value is float):
 				instance.free()
 				return _invalid("invalid_appearance_material_pattern")
-		if material_mode not in ["albedo_tint", "pattern_id"]:
+			if material_mode == "region_id" and not (material_value is int or material_value is float):
+				instance.free()
+				return _invalid("invalid_appearance_material_region")
+		if material_mode not in ["albedo_tint", "pattern_id", "pattern_layout_id", "marking_id", "marking_placement", "region_id", "color_slot"]:
 			instance.free()
 			return _invalid("unsupported_appearance_material_mode")
+		if material_mode in ["pattern_id", "pattern_layout_id", "marking_id", "marking_placement", "region_id"]:
+			for material_value: Variant in (material_values as Dictionary).values():
+				if not (material_value is int or material_value is float):
+					instance.free()
+					return _invalid("invalid_appearance_material_enum")
+	for placement: String in (marking_zones as Dictionary):
+		if not _is_zone((marking_zones as Dictionary)[placement]):
+			instance.free()
+			return _invalid("invalid_appearance_marking_zone")
 	var animations := _string_array(manifest.get("required_animations", []))
 	var animation_files: Variant = manifest.get("shared_animation_files", {})
 	if not animation_files is Dictionary:
@@ -253,6 +266,15 @@ static func _is_color(value: Variant) -> bool:
 		if float(component) < 0.0 or float(component) > 1.0:
 			return false
 	return true
+
+
+static func _is_zone(value: Variant) -> bool:
+	if not value is Array or (value as Array).size() != 4:
+		return false
+	for component: Variant in value as Array:
+		if not (component is int or component is float):
+			return false
+	return float((value as Array)[3]) >= 0.0
 
 
 static func _invalid(code: String) -> Dictionary:

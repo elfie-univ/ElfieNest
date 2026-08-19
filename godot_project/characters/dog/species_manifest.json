@@ -32,13 +32,16 @@
       "palette_id": {
         "mode": "albedo_tint",
         "values": {
-          "black": [0.38, 0.38, 0.42, 1.0],
-          "white": [1.0, 1.0, 1.0, 1.0],
-          "cream": [1.0, 0.88, 0.64, 1.0],
-          "golden": [1.0, 0.72, 0.28, 1.0],
-          "red_brown": [0.72, 0.34, 0.20, 1.0],
-          "chocolate": [0.50, 0.26, 0.16, 1.0],
-          "gray": [0.72, 0.76, 0.82, 1.0]
+          "snow_white": [0.937255, 0.909804, 0.862745, 1.0],
+          "ivory": [0.890196, 0.803922, 0.654902, 1.0],
+          "cream": [0.847059, 0.678431, 0.462745, 1.0],
+          "honey_gold": [0.788235, 0.533333, 0.294118, 1.0],
+          "apricot": [0.843137, 0.482353, 0.301961, 1.0],
+          "russet": [0.615686, 0.305882, 0.196078, 1.0],
+          "chestnut": [0.505882, 0.294118, 0.203922, 1.0],
+          "chocolate": [0.396078, 0.231373, 0.172549, 1.0],
+          "silver_gray": [0.478431, 0.509804, 0.533333, 1.0],
+          "smoky_charcoal": [0.290196, 0.301961, 0.321569, 1.0]
         }
       },
       "pattern_id": {
@@ -49,7 +52,127 @@
           "tricolor": 2,
           "face_mask": 3
         }
+      },
+      "pattern_layout_id": {
+        "mode": "pattern_layout_id",
+        "values": {
+          "solid": 0,
+          "back_underside": 1,
+          "face_chest": 2,
+          "saddle": 3,
+          "split": 4,
+          "back_chest_paws": 5,
+          "face_chest_tail": 6,
+          "saddle_socks": 7,
+          "constellation": 8,
+          "central_mask": 9,
+          "side_mask": 10,
+          "blaze": 11,
+          "cheek_mask": 12
+        }
+      },
+      "marking_id": {
+        "mode": "marking_id",
+        "values": {
+          "none": 0,
+          "crescent": 1,
+          "s_glyph": 2,
+          "double_spiral": 3,
+          "constellation": 4,
+          "comet": 5,
+          "alien_rune": 6,
+          "diamond": 7,
+          "star": 8,
+          "lightning": 9,
+          "wave": 10,
+          "halo": 11,
+          "blush": 12,
+          "freckles": 13,
+          "heart": 14,
+          "mole": 15
+        }
+      },
+      "marking_placement": {
+        "mode": "marking_placement",
+        "values": {
+          "none": 0,
+          "forehead_center": 1,
+          "forehead_left": 2,
+          "forehead_right": 3,
+          "cheek_pair": 4,
+          "chest": 5,
+          "belly_center": 6
+        }
+      },
+      "region_0_id": {
+        "mode": "region_id",
+        "slot": 0,
+        "values": {
+          "none": -1,
+          "head_tuft": 0,
+          "forehead_mark_zone": 1,
+          "ear_pair": 2,
+          "ear_tip_pair": 3,
+          "cheek_fluff": 4,
+          "chest_tuft": 5,
+          "belly_center": 6,
+          "forearm_paw_pair": 7,
+          "elbow_cuff_pair": 8,
+          "lower_leg_foot_pair": 9,
+          "knee_cuff_pair": 10,
+          "tail_tip": 11,
+          "tail_underside": 12
+        }
+      },
+      "region_1_id": {
+        "mode": "region_id",
+        "slot": 1,
+        "values": {
+          "none": -1,
+          "head_tuft": 0,
+          "forehead_mark_zone": 1,
+          "ear_pair": 2,
+          "ear_tip_pair": 3,
+          "cheek_fluff": 4,
+          "chest_tuft": 5,
+          "belly_center": 6,
+          "forearm_paw_pair": 7,
+          "elbow_cuff_pair": 8,
+          "lower_leg_foot_pair": 9,
+          "knee_cuff_pair": 10,
+          "tail_tip": 11,
+          "tail_underside": 12
+        }
+      },
+      "region_2_id": {
+        "mode": "region_id",
+        "slot": 2,
+        "values": {
+          "none": -1,
+          "head_tuft": 0,
+          "forehead_mark_zone": 1,
+          "ear_pair": 2,
+          "ear_tip_pair": 3,
+          "cheek_fluff": 4,
+          "chest_tuft": 5,
+          "belly_center": 6,
+          "forearm_paw_pair": 7,
+          "elbow_cuff_pair": 8,
+          "lower_leg_foot_pair": 9,
+          "knee_cuff_pair": 10,
+          "tail_tip": 11,
+          "tail_underside": 12
+        }
       }
+    },
+    "marking_zones": {
+      "none": [0.0, 0.0, 0.0, 0.0],
+      "forehead_center": [0.0, 1.68, 0.42, 0.14],
+      "forehead_left": [-0.12, 1.64, 0.42, 0.13],
+      "forehead_right": [0.12, 1.64, 0.42, 0.13],
+      "cheek_pair": [0.0, 1.34, 0.28, 0.18],
+      "chest": [0.0, 1.04, 0.18, 0.18],
+      "belly_center": [0.0, 0.70, 0.18, 0.18]
     }
   },
   "required_animations": [

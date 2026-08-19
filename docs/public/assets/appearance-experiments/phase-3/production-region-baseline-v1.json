@@ -1,0 +1,45 @@
+{
+  "schema": "appearance-production-region-baseline.v1",
+  "status": "production-frozen",
+  "accepted_at": "2026-08-19",
+  "runtime_source": "godot_project/runtime/actor/actor_appearance.gd",
+  "render_harness": "godot_project/scripts/test/render_production_region_debug.gd",
+  "render_contract": {
+    "engine": "Godot 4.7.stable",
+    "renderer": "GL Compatibility / macOS OpenGL",
+    "views": ["front", "three_quarter", "side", "top"],
+    "source_assets": [
+      "godot_project/characters/dog/dog.glb",
+      "godot_project/characters/fox/fox.glb"
+    ]
+  },
+  "scope": {
+    "species": ["dog", "fox"],
+    "region_count": 13,
+    "maximum_color_accents": 2,
+    "production_runtime_bound": true,
+    "glb_changed": false,
+    "screenshot_postprocess": false
+  },
+  "catalog": "production-v1/formal-region-catalog.json",
+  "evidence": {
+    "dog_grid": "production-v1/dog-formal-region-grid-4views.png",
+    "fox_grid": "production-v1/fox-formal-region-grid-4views.png"
+  },
+  "regions": [
+    {"id": 0, "key": "head_tuft", "operation": "color"},
+    {"id": 1, "key": "forehead_mark_zone", "operation": "forehead-glyph-only"},
+    {"id": 2, "key": "ear_pair", "operation": "color"},
+    {"id": 3, "key": "ear_tip_pair", "operation": "color"},
+    {"id": 4, "key": "cheek_fluff", "operation": "micro-mark-only"},
+    {"id": 5, "key": "chest_tuft", "operation": "color-or-heart"},
+    {"id": 6, "key": "belly_center", "operation": "heart-only"},
+    {"id": 7, "key": "forearm_paw_pair", "operation": "color"},
+    {"id": 8, "key": "elbow_cuff_pair", "operation": "color"},
+    {"id": 9, "key": "lower_leg_foot_pair", "operation": "color"},
+    {"id": 10, "key": "knee_cuff_pair", "operation": "color"},
+    {"id": 11, "key": "tail_tip", "operation": "color"},
+    {"id": 12, "key": "tail_underside", "operation": "color"}
+  ],
+  "change_rule": "Any region-boundary change requires new dog and fox multi-angle evidence and must keep ActorAppearance as the sole runtime classifier."
+}
