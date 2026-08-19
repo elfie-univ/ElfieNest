@@ -331,12 +331,35 @@ def _option_value(command: Sequence[str], option: str) -> Optional[str]:
     return None
 
 
-def _prepare_frontend_for_launch(lifecycle: LifecycleFacade) -> None:
-    """Refresh the source Web bundle only for an explicit development launch."""
+@contextmanager
+def _frontend_build_output(*, show_output: bool) -> Iterator[None]:
+    """Scope the legacy frontend build-output switch to one CLI operation."""
+    variable = "ELFIENEST_INTERACTIVE"
+    previous = os.environ.get(variable)
+    if show_output:
+        os.environ.pop(variable, None)
+    else:
+        os.environ[variable] = "1"
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop(variable, None)
+        else:
+            os.environ[variable] = previous
+
+
+def _prepare_frontend_for_launch(
+    lifecycle: LifecycleFacade,
+    *,
+    show_output: bool = False,
+) -> None:
+    """Refresh the source Web bundle with command-appropriate output."""
     runtime_mode = os.environ.get("ELFIENEST_RUNTIME_MODE")
     if runtime_mode != "development":
         return
-    lifecycle.prepare_frontend(runtime_mode)
+    with _frontend_build_output(show_output=show_output):
+        lifecycle.prepare_frontend(runtime_mode)
 
 
 def _runtime_is_stably_running(supervisor: RuntimeLifecycle) -> bool:
@@ -838,24 +861,6 @@ def restart_background_service(
         DEFAULT_HTTP_PORT,
         selected_home=selected_home,
     )
-    try:
-        _prepare_frontend_for_launch(lifecycle)
-    except FrontendPreparationError as error:
-        progress.stop(success=False, clear_only=True)
-        result = ServiceLifecycleResult(
-            status="failed",
-            error=LaunchFailedError(f"Frontend build failed: {error}"),
-        )
-        _print_lifecycle_result(
-            "restart",
-            selected_home,
-            result,
-            projection=_safe_runtime_projection(lifecycle, selected_home),
-            before_projection=before_projection,
-            command=default_command,
-        )
-        return result
-
     stopped = stop_supervisor.stop()
     if stopped.status == "failed":
         progress.stop(success=False, clear_only=True)
@@ -899,6 +904,23 @@ def restart_background_service(
                 )
 
         return stopped
+    try:
+        _prepare_frontend_for_launch(lifecycle)
+    except FrontendPreparationError as error:
+        progress.stop(success=False, clear_only=True)
+        result = ServiceLifecycleResult(
+            status="failed",
+            error=LaunchFailedError(f"Frontend build failed: {error}"),
+        )
+        _print_lifecycle_result(
+            "restart",
+            selected_home,
+            result,
+            projection=_safe_runtime_projection(lifecycle, selected_home),
+            before_projection=before_projection,
+            command=default_command,
+        )
+        return result
     command = stopped.command or lifecycle.default_service_command(("--lan",))
     explicit_ports = _has_port_option(default_command, "--port") or _has_port_option(
         default_command, "--godot-ws-port"
