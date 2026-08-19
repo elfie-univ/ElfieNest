@@ -73,7 +73,10 @@ def run_foreground_service(
         return result
 
     try:
-        lifecycle_commands._prepare_frontend_for_launch(lifecycle)
+        lifecycle_commands._prepare_frontend_for_launch(
+            lifecycle,
+            show_output=True,
+        )
     except FrontendPreparationError as error:
         progress.stop(success=False, clear_only=True)
         result = ServiceLifecycleResult(

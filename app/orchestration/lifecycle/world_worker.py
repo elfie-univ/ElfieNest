@@ -28,7 +28,9 @@ from app.orchestration.lifecycle.runtime_snapshot import (
 
 WorldReadyProbe = Callable[[], bool]
 CommandLeaseFactory = Callable[[], LifecycleLease]
-WATCHDOG_FAILURE_POLLS = 3
+WORLD_RETRY_DELAY_SECONDS = 10.0
+WORLD_START_MAX_ATTEMPTS = 3
+WORLD_DISCONNECT_GRACE_SECONDS = 10.0
 
 
 class RuntimeWorldWorker:
@@ -48,8 +50,9 @@ class RuntimeWorldWorker:
         world_ready_probe: WorldReadyProbe,
         authority_timeout_seconds: float = 120.0,
         poll_interval_seconds: float = 0.1,
-        retry_delay_seconds: float = 1.0,
-        max_attempts: int = 3,
+        retry_delay_seconds: float = WORLD_RETRY_DELAY_SECONDS,
+        max_attempts: int = WORLD_START_MAX_ATTEMPTS,
+        world_disconnect_grace_seconds: float = WORLD_DISCONNECT_GRACE_SECONDS,
         monotonic: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
         command_lease_factory: Optional[CommandLeaseFactory] = None,
@@ -59,8 +62,9 @@ class RuntimeWorldWorker:
         self._world_ready_probe = world_ready_probe
         self._authority_timeout_seconds = authority_timeout_seconds
         self._poll_interval_seconds = poll_interval_seconds
-        self._retry_delay_seconds = retry_delay_seconds
+        self._retry_delay_seconds = max(0.0, retry_delay_seconds)
         self._max_attempts = max(1, max_attempts)
+        self._world_disconnect_grace_seconds = max(0.0, world_disconnect_grace_seconds)
         self._monotonic = monotonic
         self._sleeper = sleeper
         self._command_lease_factory = command_lease_factory
@@ -133,7 +137,8 @@ class RuntimeWorldWorker:
                 attempts += 1
                 if attempts >= self._max_attempts:
                     return
-                self._sleeper(self._retry_delay_seconds)
+                if self._stop_event.wait(self._retry_delay_seconds):
+                    return
                 continue
             self._sleeper(self._poll_interval_seconds)
 
@@ -142,7 +147,7 @@ class RuntimeWorldWorker:
         owner_lease = claimed.owner_lease
         if owner_lease is None:
             return
-        unhealthy_polls = 0
+        unhealthy_since: Optional[float] = None
         while not self._stop_event.is_set():
             current = self._runtime_record.read()
             if not self._world_claim_is_current(
@@ -165,8 +170,10 @@ class RuntimeWorldWorker:
             except (OSError, RuntimeError, ValueError):
                 ready = False
             if not ready:
-                unhealthy_polls += 1
-                if unhealthy_polls >= WATCHDOG_FAILURE_POLLS:
+                now = self._monotonic()
+                if unhealthy_since is None:
+                    unhealthy_since = now
+                if now - unhealthy_since >= self._world_disconnect_grace_seconds:
                     self._record_failure(
                         owner_lease.owner_id,
                         owner_lease.generation,
@@ -175,7 +182,7 @@ class RuntimeWorldWorker:
                     )
                     return
             else:
-                unhealthy_polls = 0
+                unhealthy_since = None
             self._sleeper(self._poll_interval_seconds)
 
     def _converge(self, claimed: RuntimeSnapshotV1) -> None:

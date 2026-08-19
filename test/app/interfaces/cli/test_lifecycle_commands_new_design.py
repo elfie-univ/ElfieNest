@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,6 +9,9 @@ import pytest
 
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import lifecycle_commands
+from app.interfaces.cli.lifecycle_commands import (
+    _prepare_frontend_for_launch as prepare_frontend_for_launch,
+)
 from app.orchestration.lifecycle import (
     BackendTier,
     DataHomeInspection,
@@ -547,7 +551,7 @@ def test_start_does_not_launch_when_frontend_preflight_fails(monkeypatch) -> Non
     assert result.error is not None
 
 
-def test_restart_prepares_frontend_before_stopping_old_service(monkeypatch) -> None:
+def test_restart_stops_old_service_before_preparing_frontend(monkeypatch) -> None:
     events: list[str] = []
     stopped = _LaunchSupervisor(
         _stable_health(),
@@ -572,10 +576,10 @@ def test_restart_prepares_frontend_before_stopping_old_service(monkeypatch) -> N
     result = lifecycle_commands.restart_background_service(LIFECYCLE)
 
     assert result.status == "started"
-    assert events == ["build", "stop", "start"]
+    assert events == ["stop", "build", "start"]
 
 
-def test_restart_build_failure_keeps_old_service_running(monkeypatch) -> None:
+def test_restart_build_failure_happens_after_old_service_stops(monkeypatch) -> None:
     events: list[str] = []
     stopped = _LaunchSupervisor(_stable_health(), events)
     monkeypatch.setattr(
@@ -593,7 +597,7 @@ def test_restart_build_failure_keeps_old_service_running(monkeypatch) -> None:
     result = lifecycle_commands.restart_background_service(LIFECYCLE)
 
     assert result.status == "failed"
-    assert events == ["build"]
+    assert events == ["stop", "build"]
 
 
 def test_stop_never_runs_frontend_preflight(monkeypatch) -> None:
@@ -624,7 +628,44 @@ def test_release_lifecycle_preflight_is_a_no_op(monkeypatch) -> None:
         lambda *_args: pytest.fail("release lifecycle must not build frontend"),
     )
 
-    lifecycle_commands._prepare_frontend_for_launch(LIFECYCLE)
+    prepare_frontend_for_launch(LIFECYCLE)
+
+
+def test_background_frontend_preflight_hides_success_output_and_restores_env(
+    monkeypatch,
+) -> None:
+    observed: list[str | None] = []
+    monkeypatch.setenv("ELFIENEST_RUNTIME_MODE", "development")
+    monkeypatch.delenv("ELFIENEST_INTERACTIVE", raising=False)
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "prepare_frontend",
+        lambda _runtime_mode: observed.append(os.environ.get("ELFIENEST_INTERACTIVE")),
+    )
+
+    prepare_frontend_for_launch(LIFECYCLE)
+
+    assert observed == ["1"]
+    assert "ELFIENEST_INTERACTIVE" not in os.environ
+
+
+def test_foreground_frontend_preflight_keeps_build_output_visible(monkeypatch) -> None:
+    observed: list[str | None] = []
+    monkeypatch.setenv("ELFIENEST_RUNTIME_MODE", "development")
+    monkeypatch.setenv("ELFIENEST_INTERACTIVE", "1")
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "prepare_frontend",
+        lambda _runtime_mode: observed.append(os.environ.get("ELFIENEST_INTERACTIVE")),
+    )
+
+    prepare_frontend_for_launch(
+        LIFECYCLE,
+        show_output=True,
+    )
+
+    assert observed == [None]
+    assert os.environ["ELFIENEST_INTERACTIVE"] == "1"
 
 
 def test_lifecycle_commands_use_repository_root_for_service_command() -> None:
