@@ -2,8 +2,11 @@
 !include "StrFunc.nsh"
 !include "WinMessages.nsh"
 
+!ifndef BUILD_UNINSTALLER
 ${StrStr}
-${StrRep}
+!else
+${UnStrRep}
+!endif
 
 !macro customInstall
   SetShellVarContext current
@@ -12,17 +15,6 @@ ${StrRep}
   FileWrite $0 "@echo off$\r$\n"
   FileWrite $0 "$\"%~dp0..\resources\management-cli\ElfieNestCli.exe$\" %*$\r$\n"
   FileClose $0
-  Call ElfieNestAddLauncherPath
-!macroend
-
-!macro customUnInstall
-  SetShellVarContext current
-  Call ElfieNestRemoveLauncherPath
-  Delete "$INSTDIR\bin\elfienest.cmd"
-  RMDir "$INSTDIR\bin"
-!macroend
-
-Function ElfieNestAddLauncherPath
   ReadRegStr $0 HKCU "Environment" "Path"
   ${If} $0 == ""
     WriteRegExpandStr HKCU "Environment" "Path" "$INSTDIR\bin"
@@ -34,15 +26,23 @@ Function ElfieNestAddLauncherPath
     ${EndIf}
   ${EndIf}
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment"
-FunctionEnd
+!macroend
 
-Function ElfieNestRemoveLauncherPath
+!macro customUnInstall
+  SetShellVarContext current
+  Call un.ElfieNestRemoveLauncherPath
+  Delete "$INSTDIR\bin\elfienest.cmd"
+  RMDir "$INSTDIR\bin"
+!macroend
+
+!ifdef BUILD_UNINSTALLER
+Function un.ElfieNestRemoveLauncherPath
   ReadRegStr $0 HKCU "Environment" "Path"
   ${If} $0 == ""
     Return
   ${EndIf}
   StrCpy $1 ";$0;"
-  ${StrRep} $2 $1 ";$INSTDIR\bin;" ";"
+  ${UnStrRep} $2 $1 ";$INSTDIR\bin;" ";"
   StrCpy $3 $2 "" 1
   StrLen $4 $3
   ${If} $4 > 0
@@ -55,3 +55,4 @@ Function ElfieNestRemoveLauncherPath
   WriteRegExpandStr HKCU "Environment" "Path" "$3"
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment"
 FunctionEnd
+!endif

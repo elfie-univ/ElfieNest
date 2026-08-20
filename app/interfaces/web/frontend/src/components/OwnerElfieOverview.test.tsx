@@ -76,6 +76,7 @@ describe("OwnerElfieOverview", () => {
     vi.mocked(ownerRooms).mockResolvedValue([{
       id: "local-nest",
       name: "Local Nest",
+      desired_bed_count: 4,
       beds: [],
     }])
     vi.mocked(ownerUsers).mockResolvedValue([{

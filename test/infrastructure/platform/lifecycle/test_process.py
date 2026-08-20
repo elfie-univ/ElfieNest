@@ -45,6 +45,34 @@ def test_process_adapter_pid_receipt_is_owned_and_private(tmp_path: Path) -> Non
     assert not pid_path.exists()
 
 
+def test_process_adapter_skips_posix_fchmod_on_windows(
+    monkeypatch, tmp_path: Path
+) -> None:
+    # Given: Windows does not provide the POSIX fchmod operation.
+    def unsupported_fchmod(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("Windows must not call POSIX-only fchmod")
+
+    real_os = process.os
+
+    class WindowsOsProxy:
+        name = "nt"
+
+        def __getattr__(self, attribute: str):
+            return getattr(real_os, attribute)
+
+        @staticmethod
+        def fchmod(*_args: object, **_kwargs: object) -> None:
+            unsupported_fchmod()
+
+    monkeypatch.setattr(process, "os", WindowsOsProxy())
+
+    # When: the managed service writes its PID receipt.
+    pid_path = LocalServiceProcessAdapter().register_receipt(tmp_path, 424242)
+
+    # Then: the receipt is still created with the platform default ACL.
+    assert pid_path.read_text(encoding="utf-8") == "424242"
+
+
 def test_process_adapter_terminates_the_managed_process_group(monkeypatch) -> None:
     signals: list[tuple[int, signal.Signals]] = []
     monkeypatch.setattr(os, "getpgid", lambda pid: pid)

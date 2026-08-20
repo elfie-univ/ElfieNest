@@ -42,17 +42,22 @@ class NestPortBedNotFound(NestPortError):
     """The requested semantic bed does not exist in the configured Nest."""
 
 
-class NestManagementPort(Protocol):
+class NestManagementQueryPort(Protocol):
     def load_snapshot(self) -> NestSnapshotRecord: ...
 
-    def update_bed_count(self, bed_count: int) -> NestSnapshotRecord: ...
+
+class NestManagementCommandPort(Protocol):
+    def initialize_bed_count(self, bed_count: int) -> None: ...
+
+    def update_bed_count(self, bed_count: int) -> None: ...
 
     def assign_home(self, elfie_id: str, home_anchor_id: str | None) -> None: ...
 
 
 __all__ = (
     "NestBedRecord",
-    "NestManagementPort",
+    "NestManagementCommandPort",
+    "NestManagementQueryPort",
     "NestPortBedNotFound",
     "NestPortConflict",
     "NestPortError",

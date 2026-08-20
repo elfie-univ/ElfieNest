@@ -1,6 +1,7 @@
 extends SceneTree
 
 const ACTOR_CONTROLLER_SCRIPT := preload("res://runtime/actor/actor_controller.gd")
+const MOCK_WANDER_CONTROLLER := preload("res://runtime/actor/mock_wander_controller.gd")
 const MOCK_WANDER_TARGET := preload("res://runtime/actor/mock_wander_target.gd")
 const WORLD_CONTROLLER_SCRIPT := preload("res://runtime/world/world_controller.gd")
 const ACTOR_SCENES := {
@@ -65,7 +66,7 @@ func run() -> void:
 		return
 	var system_hour := int(Time.get_time_dict_from_system().get("hour", 0))
 	if not _require(
-		wander._is_active_window() == (system_hour >= 8 and system_hour < 22),
+		wander._is_active_window() == MOCK_WANDER_CONTROLLER.is_active_hour(system_hour),
 		"Mock Wander active-window policy did not match its configured hours",
 	):
 		return
@@ -101,8 +102,8 @@ func run() -> void:
 	var target: Variant = MOCK_WANDER_TARGET.target_for(nest, fox, int((motion as Dictionary)["waypoint"]))
 	if not _require(
 		target is Vector3
-			and nest.nearest_zone_id(target as Vector3) == "dorm-01",
-		"Mock Wander target escaped its home zone or was not navigable",
+			and MOCK_WANDER_TARGET.is_wanderable_position(nest, target as Vector3),
+		"Mock Wander target escaped the allowed Nest area or was not navigable",
 	):
 		return
 
@@ -132,11 +133,30 @@ func run() -> void:
 		"Mock Wander did not publish a new sequence after the rest interval",
 	):
 		return
-	wander._stop_for_inactive_window(fox, Time.get_ticks_msec())
+	var own_bed := nest.resolve_anchor("dorm-01/bed-01")
+	var sleep_motion := {}
+	for _frame in range(1200):
+		wander._stop_for_inactive_window(fox, Time.get_ticks_msec())
+		await physics_frame
+		sleep_motion = wander.motion_for("fox-1")
+		if (
+			fox.active_command_id.is_empty()
+			and String(sleep_motion.get("mode", "")) == "sleep"
+		):
+			break
 	if not _require(
 		fox.active_command_id.is_empty()
-			and not _actor_snapshot(actor_controller.world_snapshot(), "fox-1").has("mock_motion"),
-		"Mock Wander inactive-window policy did not stop the temporary movement",
+			and String(sleep_motion.get("mode", "")) == "sleep"
+			and own_bed != null
+			and fox.global_position.distance_to(own_bed.global_position) <= 0.5,
+		"Mock Wander inactive-window policy did not return the Elfie to its own bed",
+	):
+		return
+	wander._wake_actor(fox, Time.get_ticks_msec())
+	if not _require(
+		wander.motion_for("fox-1").is_empty()
+			and fox.active_command_id.is_empty(),
+		"Mock Wander did not clear sleep state when the active window resumed",
 	):
 		return
 

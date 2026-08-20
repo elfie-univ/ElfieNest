@@ -99,7 +99,6 @@ class NestSession:
             nest=nest,
             world_runtime=cast(WorldSynchronizationPort, world_runtime),
             actor_catalog_provider=self._actor_catalog_snapshot,
-            desired_bed_count=snapshot.desired_bed_count,
             state_store=state_store,
         )
         self._runtime_events = NestRuntimeEventRouter(
@@ -294,7 +293,6 @@ class NestSession:
                 nest=self.nest,
                 world_runtime=cast(WorldSynchronizationPort, self.world_runtime),
                 actor_catalog_provider=self._actor_catalog_snapshot,
-                desired_bed_count=snapshot.desired_bed_count,
                 state_store=state_store,
             )
             self._runtime_events.replace_synchronizer(self._runtime_sync)
@@ -490,9 +488,64 @@ class NestSession:
 
     def persist_time_environment(self) -> None:
         """Persist the current durable Nest snapshot through the App-owned Port."""
-        if self._state_store is None:
-            return
-        self._state_store.save_snapshot(self.nest.export_snapshot())
+        with self._lifecycle_lock:
+            if self._state_store is None:
+                return
+            self._state_store.save_snapshot(self.nest.export_snapshot())
+
+    def update_bed_count(self, bed_count: int) -> NestSnapshot:
+        """Mutate and persist the one live Nest before Runtime reconfiguration."""
+        return self._persist_bed_count(bed_count, initialize=False)
+
+    def initialize_bed_count(self, bed_count: int) -> NestSnapshot:
+        """Create Setup's durable Nest fact through the live aggregate."""
+        return self._persist_bed_count(bed_count, initialize=True)
+
+    def _persist_bed_count(
+        self,
+        bed_count: int,
+        *,
+        initialize: bool,
+    ) -> NestSnapshot:
+        with self._lifecycle_lock:
+            if self._state_store is None:
+                raise NestStateStoreError("Nest state store is not attached")
+            previous = self.nest.export_snapshot()
+            changed = self.nest.set_desired_bed_count(bed_count)
+            try:
+                snapshot = self.nest.export_snapshot()
+                if initialize:
+                    self._state_store.initialize_snapshot(snapshot)
+                else:
+                    self._state_store.save_snapshot(snapshot)
+                persisted = self._state_store.load_snapshot()
+                if persisted.desired_bed_count != snapshot.desired_bed_count:
+                    raise NestStateStoreError("Nest configuration was not persisted")
+            except NestStateStoreError:
+                if changed:
+                    self.nest.restore_snapshot(previous)
+                raise
+            if changed:
+                self._runtime_sync.request_world_reconfiguration()
+            return self.nest.export_snapshot()
+
+    def assign_home(self, elfie_id: str, home_anchor_id: str | None) -> NestSnapshot:
+        """Persist one Home command through the live Nest aggregate."""
+        with self._lifecycle_lock:
+            if self._state_store is None:
+                raise NestStateStoreError("Nest state store is not attached")
+            previous = self.nest.export_snapshot()
+            if home_anchor_id is None:
+                self.nest.release_home(elfie_id)
+            else:
+                self.nest.assign_home(elfie_id, home_anchor_id)
+            try:
+                self._state_store.save_snapshot(self.nest.export_snapshot())
+            except NestStateStoreError:
+                self.nest.restore_snapshot(previous)
+                raise
+            self._runtime_sync.mark_actor_catalog_dirty()
+            return self.nest.export_snapshot()
 
     def prepare_speech(self, payload: dict[str, object]) -> bool:
         """Queue content in Nest, then ask Godot only for physical reachability."""

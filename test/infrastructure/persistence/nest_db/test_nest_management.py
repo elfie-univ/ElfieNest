@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
-from app.features.nest_management import NestPortConflict
 from infrastructure.persistence.nest_db.nest_management import (
     SQLiteNestManagementAdapter,
 )
@@ -78,51 +75,22 @@ def test_query_returns_default_projection_without_writing(tmp_path) -> None:
     assert count == 0
 
 
-def test_command_updates_single_nest_configuration(tmp_path) -> None:
-    db_path = _database(tmp_path)
-    _seed_nest(db_path)
-    adapter = SQLiteNestManagementAdapter(db_path)
-
-    snapshot = adapter.update_bed_count(6)
-
-    assert snapshot.desired_bed_count == 6
-    with get_db(db_path) as connection:
-        rows = connection.execute(
-            "SELECT nest_id, bed_count FROM nest_settings"
-        ).fetchall()
-    assert [tuple(row) for row in rows] == [("local-nest", 6)]
-
-
-def test_command_cannot_reduce_beds_below_total_resident_count(tmp_path) -> None:
-    db_path = _database(tmp_path)
-    _seed_nest(db_path)
-    adapter = SQLiteNestManagementAdapter(db_path)
-    adapter.update_bed_count(6)
-    for index in range(5):
-        _seed_elfie(db_path, f"{index + 1:08d}")
-
-    with pytest.raises(NestPortConflict):
-        adapter.update_bed_count(4)
-
-    assert adapter.load_snapshot().desired_bed_count == 6
-
-
-def test_bed_assignment_is_atomic_and_rejects_occupied_bed(tmp_path) -> None:
+def test_query_reads_authoritative_configuration_and_assignments(tmp_path) -> None:
     db_path = _database(tmp_path)
     _seed_nest(db_path)
     _seed_elfie(db_path, "00000001")
-    _seed_elfie(db_path, "00000002")
+    with get_db(db_path) as connection:
+        connection.execute(
+            "UPDATE nest_settings SET bed_count=6 WHERE nest_id='local-nest'"
+        )
+        connection.execute(
+            "UPDATE elfies SET home_anchor_id='dorm-01/bed-01' "
+            "WHERE elfie_id='00000001'"
+        )
+        connection.commit()
     adapter = SQLiteNestManagementAdapter(db_path)
 
-    adapter.assign_home("00000001", "dorm-01/bed-01")
-    with pytest.raises(NestPortConflict):
-        adapter.assign_home("00000002", "dorm-01/bed-01")
+    snapshot = adapter.load_snapshot()
 
-    with get_db(db_path) as connection:
-        assignments = connection.execute(
-            "SELECT elfie_id, home_anchor_id FROM elfies ORDER BY elfie_id"
-        ).fetchall()
-    assert [tuple(row) for row in assignments] == [
-        ("00000001", "dorm-01/bed-01"),
-        ("00000002", None),
-    ]
+    assert snapshot.desired_bed_count == 6
+    assert snapshot.beds[0].occupant_id == "00000001"

@@ -809,16 +809,17 @@ func _build_observation_views(generated: Node3D, room_count: int) -> void:
 	_build_section_observation_views(generated, room_count)
 
 	for index in range(room_count):
-		var activity := generated.get_node("ActivityRoom_%02d" % (index + 1)) as Node3D
+		var activity := generated.get_node("ActivityRoom_%02d" % (index + 1)) as ModularActivityRoom
 		var activity_label := String(
 			ACTIVITY_VIEW_LABELS[index % ACTIVITY_VIEW_LABELS.size()]
 		)
+		var activity_target := activity.to_global(activity.observation_target_local())
 		_attach_room_camera(
 			activity,
 			"ActivityObservationCamera",
 			"activity-%02d" % (index + 1),
 			"%02d %s" % [index + 1, activity_label],
-			activity.position + Vector3(0.0, 0.65, 0.0),
+			activity_target,
 			ROOM_CAMERA_FOV
 		)
 
@@ -828,7 +829,7 @@ func _build_observation_views(generated: Node3D, room_count: int) -> void:
 			"DormObservationCamera",
 			"dorm-%02d" % (index + 1),
 			"%02d 宿舍" % (index + 1),
-			dorm.position + Vector3(0.0, 0.65, 0.0),
+			dorm.position + Vector3(0.0, 0.85, 0.0),
 			ROOM_CAMERA_FOV
 		)
 

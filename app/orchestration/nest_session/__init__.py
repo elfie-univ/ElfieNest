@@ -2,6 +2,10 @@
 
 from app.orchestration.nest_session.engine import ElfieNestEngine
 from app.orchestration.nest_session.errors import NestSessionLifecycleError
+from app.orchestration.nest_session.management import (
+    LiveNestManagementCommands,
+    UnavailableNestManagementCommands,
+)
 from app.orchestration.nest_session.models import (
     ActorDescriptor,
     EnvironmentState,
@@ -47,6 +51,7 @@ __all__ = (
     "ElfieNestEngine",
     "NestSession",
     "NestSessionLifecycleError",
+    "LiveNestManagementCommands",
     "ObserverSemanticEntity",
     "ResidentMirror",
     "RuntimeActor",
@@ -69,6 +74,7 @@ __all__ = (
     "RuntimeEventPort",
     "SpeechReachPort",
     "VisualObservationPort",
+    "UnavailableNestManagementCommands",
     "WorldSynchronizationPort",
     "WorldSnapshot",
     "WorldZone",

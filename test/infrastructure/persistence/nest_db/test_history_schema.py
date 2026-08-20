@@ -5,9 +5,11 @@ from __future__ import annotations
 import sqlite3
 import stat
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from infrastructure.persistence.nest_db import history_schema
 from infrastructure.persistence.nest_db.history_schema import (
     HISTORY_FILENAME,
     InvalidHistoryPathError,
@@ -42,6 +44,28 @@ def test_creates_exact_seven_tables_when_path_is_final(tmp_path: Path) -> None:
         ).fetchall()
     assert {str(row[0]) for row in rows} == EXPECTED_TABLES
     assert stat.S_IMODE(db_path.stat().st_mode) == 0o600
+
+
+def test_history_schema_skips_unavailable_windows_chmod(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Given: Windows has no follow_symlinks implementation for os.chmod.
+    def unsupported_chmod(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("Windows must not call POSIX-only chmod options")
+
+    monkeypatch.setattr(
+        history_schema,
+        "os",
+        SimpleNamespace(name="nt", chmod=unsupported_chmod),
+    )
+
+    # When: the final history database is initialized on that platform.
+    db_path = tmp_path / "elfies" / "00000001" / "conversations" / HISTORY_FILENAME
+    create_history_schema(db_path)
+
+    # Then: schema creation reaches SQLite without the unsupported call.
+    assert db_path.is_file()
 
 
 def test_is_idempotent_when_initialized_twice(tmp_path: Path) -> None:

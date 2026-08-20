@@ -22,6 +22,27 @@ class ReconciliationRequiredError(RuntimeError):
         return "Nest home assignments require owner reconciliation"
 
 
+class BedCapacityError(RuntimeError):
+    def __init__(
+        self,
+        bed_count: int,
+        resident_count: int,
+        invalid_home_anchor_ids: tuple[str, ...] = (),
+    ) -> None:
+        super().__init__(bed_count, resident_count, invalid_home_anchor_ids)
+        self.bed_count = bed_count
+        self.resident_count = resident_count
+        self.invalid_home_anchor_ids = invalid_home_anchor_ids
+
+    def __str__(self) -> str:
+        if self.invalid_home_anchor_ids:
+            anchors = ", ".join(self.invalid_home_anchor_ids)
+            return f"bed_count {self.bed_count} would remove assigned homes: {anchors}"
+        return (
+            f"bed_count {self.bed_count} is below resident count {self.resident_count}"
+        )
+
+
 class BedConflictError(RuntimeError):
     def __init__(self, anchor_id: str, occupant_id: str) -> None:
         super().__init__(anchor_id, occupant_id)
@@ -33,6 +54,7 @@ class BedConflictError(RuntimeError):
 
 
 __all__ = (
+    "BedCapacityError",
     "BedConflictError",
     "NoHomeAvailableError",
     "ReconciliationRequiredError",

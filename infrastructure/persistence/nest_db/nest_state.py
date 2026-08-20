@@ -23,6 +23,7 @@ _STATUS_TO_PRESENCE: Final = {
     "away": ResidentPresence.AWAY,
     "offline": ResidentPresence.PENDING_RUNTIME,
 }
+DEFAULT_TICK_INTERVAL_SECONDS: Final = 1.0
 
 
 class SQLiteNestStateAdapter:
@@ -83,6 +84,13 @@ class SQLiteNestStateAdapter:
 
     def save_snapshot(self, snapshot: NestSnapshot) -> None:
         """Persist one complete durable Nest snapshot in one transaction."""
+        self._write_snapshot(snapshot, initialize=False)
+
+    def initialize_snapshot(self, snapshot: NestSnapshot) -> None:
+        """Create Setup's authoritative row, then persist the complete snapshot."""
+        self._write_snapshot(snapshot, initialize=True)
+
+    def _write_snapshot(self, snapshot: NestSnapshot, *, initialize: bool) -> None:
         nest_id = self._nest_config.nest_id
         if snapshot.catalog is not None and snapshot.catalog.nest_id != nest_id:
             raise NestStateStoreError(
@@ -91,6 +99,17 @@ class SQLiteNestStateAdapter:
         try:
             with app_sqlite_connection(self._db_path) as connection:
                 connection.execute("BEGIN IMMEDIATE")
+                if initialize:
+                    connection.execute(
+                        """INSERT OR IGNORE INTO nest_settings
+                           (nest_id, bed_count, tick_interval_sec)
+                           VALUES (?, ?, ?)""",
+                        (
+                            nest_id,
+                            snapshot.desired_bed_count,
+                            DEFAULT_TICK_INTERVAL_SECONDS,
+                        ),
+                    )
                 cursor = connection.execute(
                     """UPDATE nest_settings SET bed_count=?,
                        applied_world_revision=?, world_catalog_json=?,
@@ -125,6 +144,8 @@ class SQLiteNestStateAdapter:
                 )
                 if cursor.rowcount != 1:
                     connection.rollback()
+                    if initialize:
+                        raise NestStateStoreError("Nest configuration not found")
                     return
                 residents = {
                     resident.elfie_id: resident for resident in snapshot.residents

@@ -361,19 +361,30 @@ def test_bootstrap_reuses_a_matching_managed_godot_toolchain(tmp_path: Path) -> 
     required_version = required_godot_version(project_root)
     version_log = tmp_path / "godot-version.log"
     managed_godot = developer_home / "toolchains" / "godot" / required_version / "Godot"
+    managed_root = managed_godot.parent
+    managed_editor_data = managed_root / "editor_data"
     make_executable(
         managed_godot,
         "#!/bin/bash\n"
         'printf \'%s\\n\' "$*" >> "$GODOT_VERSION_LOG"\n'
         f"echo '{compatible_godot_version_output(project_root)}'\n",
     )
+    (managed_root / "_sc_").touch()
+    managed_template = (
+        managed_editor_data
+        / "export_templates"
+        / compatible_godot_version_output(project_root)
+        / "web_release.zip"
+    )
+    managed_template.parent.mkdir(parents=True)
+    managed_template.write_bytes(b"template")
 
     # When: the bootstrap helper resolves its Godot toolchain a second time.
     result = subprocess.run(
         [
             "bash",
             "-c",
-            'PROJECT_ROOT="$1"; source "$2"; ensure_godot_toolchain; printf "%s|%s\\n" "$GODOT_RESOLVED_BIN" "$GODOT_RESOLVED_USER_HOME"',
+            'PROJECT_ROOT="$1"; source "$2"; ensure_godot_toolchain; printf "%s|%s\\n" "$GODOT_RESOLVED_BIN" "$GODOT_RESOLVED_EDITOR_DATA"',
             "bootstrap-godot",
             str(project_root),
             str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
@@ -392,9 +403,7 @@ def test_bootstrap_reuses_a_matching_managed_godot_toolchain(tmp_path: Path) -> 
 
     # Then: it reuses the derived toolchain and its matching template root.
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == (
-        f"{managed_godot}|{developer_home / 'godot-user-home'}"
-    )
+    assert result.stdout.strip() == f"{managed_godot}|{managed_editor_data}"
     assert version_log.read_text(encoding="utf-8").splitlines() == ["--version"]
 
 
@@ -415,7 +424,7 @@ def test_bootstrap_reuses_a_matching_system_godot_binary(tmp_path: Path) -> None
         [
             "bash",
             "-c",
-            'PROJECT_ROOT="$1"; source "$2"; ensure_godot_toolchain; printf "%s|%s\\n" "$GODOT_RESOLVED_BIN" "$GODOT_RESOLVED_USER_HOME"',
+            'PROJECT_ROOT="$1"; source "$2"; ensure_godot_toolchain; printf "%s|%s\\n" "$GODOT_RESOLVED_BIN" "$GODOT_RESOLVED_EDITOR_DATA"',
             "bootstrap-godot",
             str(project_root),
             str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
@@ -487,6 +496,7 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
     make_executable(
         fake_bin / "curl",
         "#!/bin/sh\n"
+        'printf "%s\\n" "$*" >> "$FAKE_GODOT_CURL_ARGS_LOG"\n'
         'if [ "${FAKE_GODOT_DOWNLOAD_FAIL:-0}" = "1" ]; then exit 22; fi\n'
         'output=""\n'
         'url=""\n'
@@ -514,13 +524,15 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
     )
     developer_home = tmp_path / "elfienest-dev"
     url_log = tmp_path / "godot-download-urls.log"
+    curl_args_log = tmp_path / "godot-curl-args.log"
     command = (
         'PROJECT_ROOT="$1"; source "$2"; install_official_godot_toolchain; '
-        'printf "%s|%s\\n" "$GODOT_RESOLVED_BIN" "$GODOT_RESOLVED_USER_HOME"'
+        'printf "%s|%s\\n" "$GODOT_RESOLVED_BIN" "$GODOT_RESOLVED_EDITOR_DATA"'
     )
     environment = {
         **os.environ,
         "ELFIE_DEV_HOME": str(developer_home),
+        "FAKE_GODOT_CURL_ARGS_LOG": str(curl_args_log),
         "FAKE_GODOT_URL_LOG": str(url_log),
         "HOME": str(tmp_path / "home"),
         "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
@@ -563,13 +575,23 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
     )
     assert succeeded.returncode == 0, succeeded.stderr
     assert "Godot.app/Contents/MacOS/Godot" in succeeded.stdout
+    managed_root = developer_home / "toolchains" / "godot" / required_version
+    assert (managed_root / "_sc_").is_file()
     assert (
-        developer_home
-        / f"godot-user-home/export_templates/{downloaded_version}/web_release.zip"
+        managed_root
+        / f"editor_data/export_templates/{downloaded_version}/web_release.zip"
     ).is_file()
     download_urls = url_log.read_text(encoding="utf-8").splitlines()
     assert len(download_urls) == 2
     assert all(url.endswith(f"version={required_version}") for url in download_urls)
+    curl_invocations = curl_args_log.read_text(encoding="utf-8").splitlines()
+    assert len(curl_invocations) == 3
+    for invocation in curl_invocations:
+        assert "--http1.1" in invocation
+        assert "--retry 5" in invocation
+        assert "--retry-all-errors" in invocation
+        assert "--retry-delay 2" in invocation
+        assert "--continue-at -" in invocation
 
 
 def test_godot_toolchain_paths_and_downloads_follow_project_godot(

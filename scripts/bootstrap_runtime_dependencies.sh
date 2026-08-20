@@ -5,7 +5,7 @@ PNPM_VERSION="10.12.1"
 GODOT_PROJECT_VERSION=""
 GODOT_DOWNLOAD_ENDPOINT="https://downloads.godotengine.org/"
 GODOT_RESOLVED_BIN=""
-GODOT_RESOLVED_USER_HOME=""
+GODOT_RESOLVED_EDITOR_DATA=""
 
 project_python() {
     local candidate
@@ -118,8 +118,26 @@ godot_toolchain_root() {
     printf '%s\n' "${ELFIE_DEV_HOME:-$HOME/.elfienest-dev}/toolchains/godot/$GODOT_PROJECT_VERSION"
 }
 
-godot_user_home() {
-    printf '%s\n' "${ELFIE_DEV_HOME:-$HOME/.elfienest-dev}/godot-user-home"
+godot_editor_data_root() {
+    local root
+
+    root="$(godot_toolchain_root)" || return 1
+    printf '%s\n' "$root/editor_data"
+}
+
+godot_managed_toolchain_is_complete() {
+    local root="$1"
+    local candidate
+
+    load_godot_project_version || return 1
+    [[ -f "$root/_sc_" ]] || return 1
+    for candidate in \
+        "$root"/editor_data/export_templates/"$GODOT_PROJECT_VERSION".*/web_release.zip; do
+        if [[ -s "$candidate" ]]; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 godot_managed_root_is_safe() {
@@ -195,7 +213,7 @@ find_existing_godot_binary() {
     if [[ -n "${GODOT_BIN:-}" ]]; then
         if godot_binary_has_required_version "$GODOT_BIN" >/dev/null; then
             GODOT_RESOLVED_BIN="$GODOT_BIN"
-            GODOT_RESOLVED_USER_HOME=""
+            GODOT_RESOLVED_EDITOR_DATA=""
             return 0
         fi
         return 1
@@ -204,7 +222,7 @@ find_existing_godot_binary() {
         candidate="$(command -v "$command_name" 2>/dev/null || true)"
         if [[ -n "$candidate" ]] && godot_binary_has_required_version "$candidate" >/dev/null; then
             GODOT_RESOLVED_BIN="$candidate"
-            GODOT_RESOLVED_USER_HOME=""
+            GODOT_RESOLVED_EDITOR_DATA=""
             return 0
         fi
     done
@@ -213,7 +231,7 @@ find_existing_godot_binary() {
         "$HOME/Applications/Godot.app/Contents/MacOS/Godot"; do
         if godot_binary_has_required_version "$candidate" >/dev/null; then
             GODOT_RESOLVED_BIN="$candidate"
-            GODOT_RESOLVED_USER_HOME=""
+            GODOT_RESOLVED_EDITOR_DATA=""
             return 0
         fi
     done
@@ -223,17 +241,19 @@ find_existing_godot_binary() {
 check_godot_toolchain() {
     local managed_root
     local managed_binary
-    local managed_user_home
+    local managed_editor_data
 
     load_godot_project_version || return 1
     GODOT_RESOLVED_BIN=""
-    GODOT_RESOLVED_USER_HOME=""
+    GODOT_RESOLVED_EDITOR_DATA=""
     managed_root="$(godot_toolchain_root)"
-    managed_user_home="$(godot_user_home)"
+    managed_editor_data="$(godot_editor_data_root)"
     managed_binary="$(find "$managed_root" -type f \( -name Godot -o -name 'Godot*.x86_64' -o -name 'Godot*.exe' \) -perm -u=x 2>/dev/null | head -n 1)"
-    if [[ -n "$managed_binary" ]] && godot_binary_has_required_version "$managed_binary" >/dev/null; then
+    if [[ -n "$managed_binary" ]] && \
+        godot_managed_toolchain_is_complete "$managed_root" && \
+        godot_binary_has_required_version "$managed_binary" >/dev/null; then
         GODOT_RESOLVED_BIN="$managed_binary"
-        GODOT_RESOLVED_USER_HOME="$managed_user_home"
+        GODOT_RESOLVED_EDITOR_DATA="$managed_editor_data"
         return 0
     fi
     find_existing_godot_binary
@@ -241,7 +261,7 @@ check_godot_toolchain() {
 
 install_official_godot_toolchain() {
     local root
-    local user_home
+    local editor_data
     local editor_archive
     local template_archive
     local editor_staging
@@ -256,7 +276,7 @@ install_official_godot_toolchain() {
 
     load_godot_project_version || return 1
     root="$(godot_toolchain_root)"
-    user_home="$(godot_user_home)"
+    editor_data="$(godot_editor_data_root)"
     case "$(uname -s):$(uname -m)" in
         Darwin:arm64|Darwin:x86_64)
             editor_platform="macos.universal"
@@ -285,7 +305,10 @@ install_official_godot_toolchain() {
     template_staging="$(mktemp -d "${TMPDIR:-/tmp}/elfienest-godot-templates.XXXXXX")"
 
     echo "${CYAN}  📥 Downloading official Godot $GODOT_PROJECT_VERSION editor...${RESET}"
-    if ! curl --fail --location --retry 3 --output "$editor_archive" "$(godot_download_url "$editor_platform" "$editor_slug")"; then
+    if ! curl --fail --location --http1.1 \
+        --retry 5 --retry-all-errors --retry-delay 2 \
+        --continue-at - --output "$editor_archive" \
+        "$(godot_download_url "$editor_platform" "$editor_slug")"; then
         echo "${RED}  ❌ Godot editor download failed.${RESET}" >&2
         rm -f -- "$editor_archive" "$template_archive"
         rm -rf -- "$editor_staging" "$template_staging"
@@ -298,7 +321,10 @@ install_official_godot_toolchain() {
         return 1
     fi
     echo "${CYAN}  📥 Downloading official Godot Web Export Templates...${RESET}"
-    if ! curl --fail --location --retry 3 --output "$template_archive" "$(godot_download_url "templates" "export_templates.tpz")"; then
+    if ! curl --fail --location --http1.1 \
+        --retry 5 --retry-all-errors --retry-delay 2 \
+        --continue-at - --output "$template_archive" \
+        "$(godot_download_url "templates" "export_templates.tpz")"; then
         echo "${RED}  ❌ Godot Web Export Templates download failed.${RESET}" >&2
         rm -f -- "$editor_archive" "$template_archive"
         rm -rf -- "$editor_staging" "$template_staging"
@@ -335,9 +361,17 @@ install_official_godot_toolchain() {
     fi
     managed_root="$root"
     rm -rf -- "$managed_root"
-    mkdir -p -- "$root" "$user_home/export_templates/$template_version"
-    cp -R "$editor_staging"/* "$root/"
-    cp -R "$template_contents"/. "$user_home/export_templates/$template_version/"
+    mkdir -p -- "$root"
+    cp -R "$editor_staging"/. "$root/"
+    : > "$root/_sc_"
+    mkdir -p -- "$editor_data/export_templates/$template_version"
+    cp -R "$template_contents"/. "$editor_data/export_templates/$template_version/"
+    if [[ ! -s "$editor_data/export_templates/$template_version/web_release.zip" ]]; then
+        echo "${RED}  ❌ Godot Web release template is missing after installation: $editor_data/export_templates/$template_version/web_release.zip${RESET}" >&2
+        rm -f -- "$editor_archive" "$template_archive"
+        rm -rf -- "$editor_staging" "$template_staging" "$managed_root"
+        return 1
+    fi
     editor_binary="$(find "$root" -type f \( -name Godot -o -name 'Godot*.x86_64' -o -name 'Godot*.exe' \) -perm -u+x | head -n 1)"
     if [[ -z "$editor_binary" ]] || ! godot_binary_has_required_version "$editor_binary" >/dev/null; then
         echo "${RED}  ❌ Godot editor post-install version verification failed.${RESET}" >&2
@@ -346,7 +380,7 @@ install_official_godot_toolchain() {
         return 1
     fi
     GODOT_RESOLVED_BIN="$editor_binary"
-    GODOT_RESOLVED_USER_HOME="$user_home"
+    GODOT_RESOLVED_EDITOR_DATA="$editor_data"
     rm -f -- "$editor_archive" "$template_archive"
     rm -rf -- "$editor_staging" "$template_staging"
     echo "${GREEN}  ✅ Godot $GODOT_PROJECT_VERSION compatibility line and Web Export Templates $template_version ready${RESET}"
@@ -376,7 +410,7 @@ ensure_godot_toolchain() {
         *)
             if godot_binary_has_required_version "$choice" >/dev/null; then
                 GODOT_RESOLVED_BIN="$choice"
-                GODOT_RESOLVED_USER_HOME=""
+                GODOT_RESOLVED_EDITOR_DATA=""
                 return 0
             fi
             echo "${RED}  ❌ Specified Godot path is unavailable or outside compatibility line $GODOT_PROJECT_VERSION.${RESET}" >&2
@@ -395,28 +429,15 @@ ensure_godot_web() {
     if ! ensure_godot_toolchain; then
         return 1
     fi
-    if [[ -n "$GODOT_RESOLVED_USER_HOME" ]]; then
-        local python_bin
-        python_bin="$(project_python)" || {
-            echo "${RED}  ❌ Repository Python environment is unavailable.${RESET}" >&2
-            return 1
-        }
-        if ! GODOT_BIN="$GODOT_RESOLVED_BIN" GODOT_USER_HOME="$GODOT_RESOLVED_USER_HOME" \
-            "$python_bin" "$PROJECT_ROOT/scripts/build_godot_web.py" --ensure; then
-            echo "${RED}  ❌ Godot compatibility line $GODOT_PROJECT_VERSION or matching Web Export Templates cannot export Web Runtime.${RESET}" >&2
-            return 1
-        fi
-    else
-        local python_bin
-        python_bin="$(project_python)" || {
-            echo "${RED}  ❌ Repository Python environment is unavailable.${RESET}" >&2
-            return 1
-        }
-        if ! GODOT_BIN="$GODOT_RESOLVED_BIN" \
-            "$python_bin" "$PROJECT_ROOT/scripts/build_godot_web.py" --ensure; then
-            echo "${RED}  ❌ Godot compatibility line $GODOT_PROJECT_VERSION or matching Web Export Templates cannot export Web Runtime.${RESET}" >&2
-            return 1
-        fi
+    local python_bin
+    python_bin="$(project_python)" || {
+        echo "${RED}  ❌ Repository Python environment is unavailable.${RESET}" >&2
+        return 1
+    }
+    if ! GODOT_BIN="$GODOT_RESOLVED_BIN" \
+        "$python_bin" "$PROJECT_ROOT/scripts/build_godot_web.py" --ensure; then
+        echo "${RED}  ❌ Godot compatibility line $GODOT_PROJECT_VERSION or matching Web Export Templates cannot export Web Runtime.${RESET}" >&2
+        return 1
     fi
     check_godot_web
 }

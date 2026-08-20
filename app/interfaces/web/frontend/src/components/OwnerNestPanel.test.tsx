@@ -65,4 +65,51 @@ describe("OwnerNestPanel", () => {
     expect(adminElfies).toHaveBeenCalledWith()
     expect(ownerRooms).toHaveBeenCalledWith()
   })
+
+  it("distinguishes the saved capacity from the currently applied catalog", async () => {
+    vi.mocked(ownerRooms).mockResolvedValue([{
+      id: "local-nest",
+      name: "Local Nest",
+      desired_bed_count: 32,
+      applied_world_revision: 1,
+      beds: [],
+    }])
+    const i18n = createI18n()
+
+    render(<I18nextProvider i18n={i18n}><ToastProvider><OwnerNestPanel csrfToken="csrf" /></ToastProvider></I18nextProvider>)
+
+    expect(await screen.findByText("已保存 32 个床位；当前布局 0 个，后台正在同步。")).toBeInTheDocument()
+  })
+
+  it("refreshes the status when the runtime catalog converges", async () => {
+    const pendingRoom = {
+      id: "local-nest",
+      name: "Local Nest",
+      desired_bed_count: 32,
+      applied_world_revision: 1,
+      beds: [],
+    }
+    const appliedRoom = {
+      ...pendingRoom,
+      beds: Array.from({ length: 32 }, (_, index) => ({
+        id: `bed-${index + 1}`,
+        anchor_id: `bed-${index + 1}`,
+        name: `Bed ${index + 1}`,
+        occupant_id: null,
+        occupant_name: null,
+        occupant_species_id: null,
+      })),
+    }
+    vi.mocked(ownerRooms).mockClear()
+    vi.mocked(ownerRooms)
+      .mockResolvedValueOnce([pendingRoom])
+      .mockResolvedValueOnce([appliedRoom])
+    const i18n = createI18n()
+
+    render(<I18nextProvider i18n={i18n}><ToastProvider><OwnerNestPanel csrfToken="csrf" /></ToastProvider></I18nextProvider>)
+
+    expect(await screen.findByText("已保存 32 个床位；当前布局 0 个，后台正在同步。")).toBeInTheDocument()
+    expect(await screen.findByText("已应用 32 个床位。", {}, { timeout: 1500 })).toBeInTheDocument()
+    expect(ownerRooms).toHaveBeenCalledTimes(2)
+  })
 })

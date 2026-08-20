@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
+from app.features.nest_management import NestPortError
+
 from .errors import (
     SetupInstallationConflict,
     SetupInstallationForbidden,
@@ -166,7 +168,12 @@ class SetupInstallationService:
                 if draft.bed_count is None:
                     raise SetupInstallationInvalid("Setup 床位草稿缺失")
                 self._reporter(5)("nest.apply")
-                self._nest.set_bed_count(draft.bed_count)
+                try:
+                    self._nest.initialize_bed_count(draft.bed_count)
+                except NestPortError as error:
+                    raise SetupInstallationPortError(
+                        "unable to apply Nest bed count"
+                    ) from error
                 self._state.complete_phase(5)
         finally:
             if task_lease is not None:

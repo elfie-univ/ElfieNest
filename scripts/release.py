@@ -49,6 +49,11 @@ def parse_args(arguments: Optional[Sequence[str]] = None) -> argparse.Namespace:
         help="write one current-host native package path before post-install smoke",
     )
     parser.add_argument(
+        "--prebuilt-godot-web",
+        action="store_true",
+        help="reuse and validate a Godot Web Runtime built by an upstream release job",
+    )
+    parser.add_argument(
         "--run-install-smoke",
         action="store_true",
         help="run the native install/upgrade/start/stop/uninstall gate",
@@ -101,7 +106,10 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         )
         adapters = {}
         if plan.native_targets:
-            steps = release_pipeline.default_release_steps()
+            if args.prebuilt_godot_web:
+                steps = release_pipeline.default_release_steps(prebuilt_godot_web=True)
+            else:
+                steps = release_pipeline.default_release_steps()
             adapters[package_python_core.host_target()] = _local_runner_adapter(
                 release_pipeline,
                 steps,

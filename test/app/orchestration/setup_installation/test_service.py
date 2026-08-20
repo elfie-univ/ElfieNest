@@ -68,7 +68,7 @@ class FakeWorkflowPorts:
     def ensure_emergency_food(self, _reference: str) -> None:
         self.actions.append("food")
 
-    def set_bed_count(self, bed_count: int) -> None:
+    def initialize_bed_count(self, bed_count: int) -> None:
         self.actions.append(f"nest:{bed_count}")
 
     def report(self, *, phase: int, action_key: str, progress: int) -> None:

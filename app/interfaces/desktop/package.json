@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "description": "ElfieNest 跨平台桌面应用外壳",
+  "homepage": "https://github.com/elfie-univ/ElfieNest",
+  "author": {
+    "name": "ElfieNest contributors",
+    "email": "elfie-univ@users.noreply.github.com"
+  },
   "main": "main.js",
   "scripts": {
     "build": "pnpm exec tsc -p tsconfig.json",

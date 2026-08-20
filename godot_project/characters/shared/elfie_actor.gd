@@ -41,6 +41,10 @@ func _ready() -> void:
 	_navigation_agent.path_height_offset = 0.0
 	_navigation_agent.radius = ACTOR_APPEARANCE.BASE_COLLISION_RADIUS
 	_navigation_agent.height = ACTOR_APPEARANCE.BASE_COLLISION_HEIGHT
+	_navigation_agent.neighbor_distance = 3.0
+	_navigation_agent.max_neighbors = 16
+	_navigation_agent.time_horizon_agents = 2.0
+	_navigation_agent.time_horizon_obstacles = 2.0
 	_navigation_agent.velocity_computed.connect(_on_avoidance_velocity_computed)
 	add_child(_navigation_agent)
 	add_to_group(&"runtime_elfie_actors")

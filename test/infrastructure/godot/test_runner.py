@@ -119,6 +119,19 @@ def test_crash_is_failed_once_and_is_not_retried(
     assert _invocation_records(stderr)[-1]["status"] == "crashed"
 
 
+def test_crash_exit_codes_skip_signals_unavailable_on_the_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: Windows does not expose the POSIX-only SIGBUS constant.
+    monkeypatch.delattr(runner.signal, "SIGBUS", raising=False)
+
+    # When: the runner derives the set of crash exit codes for this host.
+    crash_exit_codes = runner._available_crash_exit_codes()
+
+    # Then: supported crash signals remain classified without importing SIGBUS.
+    assert 128 + int(runner.signal.SIGABRT) in crash_exit_codes
+
+
 def test_unavailable_host_does_not_start_godot(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -139,13 +139,35 @@ func _apply_motion(actor: ElfieActor, entity: Dictionary) -> void:
 			actor.cancel_navigation("mock_motion_replaced")
 		else:
 			return
-	var waypoint := int(motion.get("waypoint", -1))
-	var target: Variant = MOCK_WANDER_TARGET.target_for(_nest, actor, waypoint)
+	var mode := String(motion.get("mode", "wander"))
+	var target: Variant
+	if mode == "sleep":
+		var home_anchor := _nest.resolve_anchor(
+			String(actor.get_meta("home_anchor_id", ""))
+		)
+		if home_anchor == null or String(home_anchor.get_meta("kind", "")) != "bed":
+			_pending_motions[actor.elfie_id] = entity.duplicate(true)
+			_stop_motion(actor)
+			return
+		target = home_anchor.global_position
+	elif mode == "wander":
+		var waypoint := int(motion.get("waypoint", -1))
+		target = MOCK_WANDER_TARGET.target_for(
+			_nest,
+			actor,
+			waypoint,
+			sequence,
+		)
+	else:
+		_pending_motions.erase(actor.elfie_id)
+		_stop_motion(actor)
+		return
 	if not target is Vector3:
 		_pending_motions[actor.elfie_id] = entity.duplicate(true)
 		_stop_motion(actor)
 		return
-	var command_id := "%s%s-%d" % [MOCK_COMMAND_PREFIX, actor.elfie_id, sequence]
+	var command_suffix := "sleep-%d" % sequence if mode == "sleep" else "%d" % sequence
+	var command_id := "%s%s-%s" % [MOCK_COMMAND_PREFIX, actor.elfie_id, command_suffix]
 	if not actor.move_to(command_id, target as Vector3, 30.0):
 		_pending_motions[actor.elfie_id] = entity.duplicate(true)
 		_stop_motion(actor)

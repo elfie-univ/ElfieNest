@@ -25,14 +25,12 @@ from infrastructure.persistence.elfie_workspace.adoption_profiles import (
 )
 from infrastructure.persistence.layout.data_home import data_home_from_db_path
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
-from infrastructure.persistence.nest_db.nest_management import (
-    SQLiteNestManagementAdapter,
-)
+from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.nest_db.store import get_db, hash_password
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from infrastructure.persistence.setup import SQLiteSetupAdapter
-from infrastructure.persistence.setup_nest import SetupNestAdapter
 from infrastructure.platform import ElfieFactoryAdapter
+from nest.public import NestSnapshot
 
 
 def create_test_owner(
@@ -146,4 +144,11 @@ def complete_test_setup(db_path: str, *, bed_count: int = 8) -> None:
     repository.begin_or_resume()
     for phase in range(2, 6):
         repository.complete_phase(phase=phase)
-    SetupNestAdapter(SQLiteNestManagementAdapter(db_path)).set_bed_count(bed_count)
+    SQLiteNestStateAdapter(db_path).save_snapshot(
+        NestSnapshot(
+            desired_bed_count=bed_count,
+            elapsed_seconds=0.0,
+            catalog=None,
+            residents=(),
+        )
+    )

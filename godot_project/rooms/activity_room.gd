@@ -15,11 +15,17 @@ const ACTIVITY_SCENES := [
 	preload("res://rooms/common_area_layouts/music_layout.tscn"),
 	preload("res://rooms/common_area_layouts/bookroom_layout.tscn"),
 ]
+const ACTIVITY_CAMERA_Y: float = 1.35
+const ACTIVITY_CAMERA_TARGET_Y: float = 0.85
+const KITCHEN_SCENE_INDEX: int = 0
+const KITCHEN_CAMERA_POSITION := Vector3(1.30, 1.45, 0.70)
+const KITCHEN_CAMERA_TARGET := Vector3(0.25, 0.85, -1.10)
 @export var auto_preview: bool = true
 @export var preview_theme_color := Color("#ef8354")
 @export_range(0, 7, 1) var preview_furniture_kind: int = 0
 
 var _generated: Node3D
+var _observation_target_local := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -39,14 +45,19 @@ func build(theme_color: Color, furniture_kind: int) -> void:
 		theme_color
 	)
 	_build_furniture(furniture_kind)
+	_observation_target_local = _camera_target_for(furniture_kind)
 	_build_interior_light()
 	var camera_anchor := Marker3D.new()
 	camera_anchor.name = "CameraAnchor"
-	camera_anchor.position = Vector3(D.ACTIVITY_DEPTH / 2.0 - 0.12, 2.55, 0.0)
+	camera_anchor.position = _camera_position_for(furniture_kind)
 	_generated.add_child(camera_anchor)
 	camera_anchor.look_at(
-		_generated.to_global(Vector3(0.1, 0.55, 0.0)), Vector3.UP
+		_generated.to_global(_observation_target_local), Vector3.UP
 	)
+
+
+func observation_target_local() -> Vector3:
+	return _observation_target_local
 
 
 func _build_interior_light() -> void:
@@ -85,6 +96,22 @@ func _build_furniture(kind: int) -> void:
 	elif scene_index == 2:
 		_apply_gallery_art(source_room, ART.TV_ROOM_ART)
 	_add_source_colliders(source_room)
+
+
+func _camera_position_for(furniture_kind: int) -> Vector3:
+	if _scene_index(furniture_kind) == KITCHEN_SCENE_INDEX:
+		return KITCHEN_CAMERA_POSITION
+	return Vector3(-D.ACTIVITY_DEPTH / 2.0 + 0.18, ACTIVITY_CAMERA_Y, 0.0)
+
+
+func _camera_target_for(furniture_kind: int) -> Vector3:
+	if _scene_index(furniture_kind) == KITCHEN_SCENE_INDEX:
+		return KITCHEN_CAMERA_TARGET
+	return Vector3(0.1, ACTIVITY_CAMERA_TARGET_Y, 0.0)
+
+
+func _scene_index(furniture_kind: int) -> int:
+	return posmod(furniture_kind, ACTIVITY_SCENES.size())
 
 
 func _apply_gallery_art(source_room: Node3D, textures: Array[Texture2D]) -> void:
