@@ -514,10 +514,17 @@ def test_native_installers_publish_the_global_cli_launcher_contract() -> None:
     assert "-gc" in mac
     assert '-f "$app"' in mac
     assert "/usr/local/bin/elfienest" in linux_install
+    assert 'app_root="/opt/ElfieNest"' in linux_install
+    assert 'gui="$app_root/elfienest-gui"' in linux_install
+    assert 'ln -sfn "$gui" /usr/bin/elfienest-gui' in linux_install
     assert "resources/management-cli/ElfieNestCli" in linux_install
+    assert "/usr/bin/elfienest-gui" in linux_remove
     assert "resources/management-cli/ElfieNestCli" in linux_remove
     assert "management-cli\\ElfieNestCli.exe" in windows
     assert "customInstall" in windows
+    assert "Call ElfieNestAddLauncherPath" not in windows
+    assert "Function ElfieNestAddLauncherPath" not in windows
+    assert "!ifndef BUILD_UNINSTALLER\n${StrStr}\n!else\n${UnStrRep}\n!endif" in windows
     assert "customUnInstall" in windows
     assert "Call un.ElfieNestRemoveLauncherPath" in windows
     assert "Function un.ElfieNestRemoveLauncherPath" in windows

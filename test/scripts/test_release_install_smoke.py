@@ -122,3 +122,22 @@ def test_linux_native_install_resolves_declared_deb_dependencies(
         str(artifact),
     )
     assert adapter.package_name == "elfienest-desktop"
+
+
+def test_linux_native_verification_requires_the_gui_launcher(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "ElfieNest.deb"
+    artifact.write_bytes(b"native installer")
+    inspected: list[Path] = []
+
+    def record_exists(path: Path) -> bool:
+        inspected.append(path)
+        return True
+
+    monkeypatch.setattr(Path, "exists", record_exists)
+
+    NativePackageAdapter("linux-x64", artifact).verify_installed()
+
+    assert Path("/usr/bin/elfienest-gui") in inspected
