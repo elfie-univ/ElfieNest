@@ -150,6 +150,7 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     )
     assert "gh release create" in source
     assert "release_args+=(--prerelease)" in source
+    assert '"linux-x64": "linux-amd64"' in source
     assert "--prebuilt-godot-web" in source
     assert "--run-install-smoke" in source
     assert "*-install-smoke.json" in source

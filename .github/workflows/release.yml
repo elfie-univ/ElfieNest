@@ -292,7 +292,7 @@ jobs:
               "darwin-arm64": "mac-arm64",
               "darwin-x64": "mac-x64",
               "win32-x64": "win-x64",
-              "linux-x64": "linux-x64",
+              "linux-x64": "linux-amd64",
           }
           artifacts = []
           for name in names:
