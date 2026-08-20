@@ -750,8 +750,13 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
         "--frozen-lockfile",
     )
     assert commands[1] == ("npx", "--yes", "pnpm@10.12.1", "build")
-    assert commands[2][0] == "node"
-    assert "electron-builder/out/cli/cli.js" in commands[2][1]
+    assert commands[2][:5] == (
+        "npx",
+        "--yes",
+        "pnpm@10.12.1",
+        "exec",
+        "electron-builder",
+    )
     config_index = commands[2].index("--config")
     assert commands[2][config_index + 1].endswith(
         "app/bootstrap/desktop_host/electron-builder.yml"

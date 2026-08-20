@@ -262,16 +262,12 @@ def _package_installer(
         _stage_desktop_application(target, resources)
         target_arguments = _electron_target_arguments(target)
         _run_command(
-            (
-                "node",
-                str(
-                    DESKTOP_DIR
-                    / "node_modules"
-                    / "electron-builder"
-                    / "out"
-                    / "cli"
-                    / "cli.js"
-                ),
+            _node_command(
+                "npx",
+                "--yes",
+                "pnpm@10.12.1",
+                "exec",
+                "electron-builder",
                 "--publish",
                 "never",
                 "--config",
