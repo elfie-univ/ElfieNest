@@ -168,3 +168,40 @@ def test_linux_native_verification_requires_the_gui_launcher(
     NativePackageAdapter("linux-x64", artifact).verify_installed()
 
     assert Path("/usr/bin/elfienest-gui") in inspected
+
+
+def test_windows_native_uninstall_reports_a_missing_uninstaller(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "ElfieNest.exe"
+    artifact.write_bytes(b"native installer")
+    adapter = NativePackageAdapter("win32-x64", artifact)
+    adapter.install_root = tmp_path / "install-root"
+
+    with pytest.raises(ReleaseInstallSmokeError, match="uninstaller-missing"):
+        adapter.uninstall()
+
+
+def test_windows_native_uninstall_requires_a_successful_uninstaller(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "ElfieNest.exe"
+    artifact.write_bytes(b"native installer")
+    install_root = tmp_path / "install-root"
+    install_root.mkdir()
+    (install_root / "Uninstall ElfieNest.exe").write_bytes(b"uninstaller")
+    adapter = NativePackageAdapter("win32-x64", artifact)
+    adapter.install_root = install_root
+    commands: list[tuple[str, ...]] = []
+
+    def fake_run_checked(command, *, environment=None) -> str:
+        del environment
+        commands.append(tuple(command))
+        return ""
+
+    monkeypatch.setattr("scripts.release_install_smoke._run_checked", fake_run_checked)
+
+    adapter.uninstall()
+
+    assert commands == [(str(install_root / "Uninstall ElfieNest.exe"), "/S")]
