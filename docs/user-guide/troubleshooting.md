@@ -6,11 +6,10 @@ folder as a first step.
 ## The installer will not open
 
 Confirm that the package matches your computer and came from the official
-[Releases page](https://github.com/elfie-univ/ElfieNest/releases). Official
-macOS workflow packages must pass signing and notarization before publication;
-an unidentified-developer warning means you should stop. Windows preview
-packages may still show a publisher warning. If a warning names an unknown file
-or publisher, ask the person who provided the package.
+[Releases page](https://github.com/elfie-univ/ElfieNest/releases). Internal
+preview macOS packages are unsigned and may show Gatekeeper or verification
+warnings; Windows previews may show a publisher warning. If the warning names
+an unexpected file or publisher, ask the person who provided the package.
 
 ## The app stays on “Starting”
 

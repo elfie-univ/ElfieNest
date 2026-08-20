@@ -74,6 +74,8 @@ macOS arm64、macOS Intel、Windows x64 和 Linux x64 的原生 GitHub runner。
 GitHub Releases。带预发布后缀的 tag
 会被标记为 GitHub Pre-release；手动运行只有在开启
 `publish_release` 且填写匹配的 `release_tag` 时才会创建 Release。
+默认模式是未签名内部预览：Tag 推送不需要 Apple 凭据，macOS 产物文件名保留
+`internal`，GitHub Release 一律标记为 Pre-release，并明确提示 macOS 未签名。
 
 当前版本的正常发布命令是：
 
@@ -82,11 +84,15 @@ git tag -a v0.1.0-beta.1 -m "ElfieNest 0.1.0-beta.1"
 git push origin v0.1.0-beta.1
 ```
 
-GitHub Workflow 把每个 macOS 产物都视为正式分发包：只有 Developer ID 的两套身份和
-App Store Connect 公证凭据完整时才允许进入打包。成功后还会校验 PKG 签名、Gatekeeper
-评估、已装订的公证票据、完整 App 签名，以及包内 Python Core 和管理 CLI 的嵌套签名。
-本地执行 `scripts/release.py` 不会设置这个正式发布策略标志，因此仍可为本机测试生成
-明确属于内部用途的未签名安装包。
+上面的普通 Tag 命令发布未签名内部预览，不读取 Apple Secrets。本地执行
+`scripts/release.py` 也采用相同的内部预览策略。安装包可以正常安装测试，但 macOS
+仍可能显示 Gatekeeper 或“正在验证”提示。
+
+正式签名只能显式开启：手动运行 Workflow，打开 `formal_macos_release`，填写匹配的
+`release_tag`；需要创建 GitHub Release 时再同时打开 `publish_release`。只有这条正式
+路径才要求 Developer ID 两套身份和 App Store Connect 公证凭据；缺失时 fail-closed，
+凭据完整时校验 PKG、Gatekeeper、装订票据、完整 App、Python Core、管理 CLI 和嵌套
+Mach-O 签名。
 
 ### macOS 签名与公证凭据
 
@@ -119,7 +125,6 @@ electron-builder 的 App 与 Installer 证书入口。它会启用 Hardened Runt
 每个安装包包含 Electron、前端、Godot Web、目标原生 Python Core 和管理 CLI。
 最终用户只安装这些平台原生产物；源码 checkout 仍然只是开发环境。
 
-GitHub Workflow 产出的正式 macOS 安装包必须签名并公证；缺任何信任凭据时，job 会
-失败，不会退化为发布未签名安装包。Windows 预览包尚未纳入这套 macOS 信任链，仍可能
-显示发布者警告。交付前仍须记录“安装、启动、`/api/health` 成功、退出后子进程不存在”
-四项安装测试证据。
+GitHub 默认产物属于内部预览，macOS 包未签名且不承诺已公证；Windows 预览包也可能
+显示发布者警告。缺少 Apple 凭据只会阻断显式选择的正式 macOS 发布。交付前仍须记录
+“安装、启动、`/api/health` 成功、退出后子进程不存在”四项安装测试证据。

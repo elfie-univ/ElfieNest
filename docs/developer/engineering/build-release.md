@@ -83,6 +83,9 @@ publishes the four installers, `SHA256SUMS`, and a release `manifest.json` to
 GitHub Releases. Pre-release tags are published with GitHub's
 pre-release flag; a manual run only creates a Release when
 `publish_release` is enabled and `release_tag` is set to the matching tag.
+The default mode is an unsigned internal preview: tag pushes require no Apple
+credentials, macOS artifacts keep `internal` in their filename, and the GitHub
+Release is always marked as a Pre-release with an unsigned-macOS warning.
 
 For the current version, the normal publication command is:
 
@@ -91,13 +94,18 @@ git tag -a v0.1.0-beta.1 -m "ElfieNest 0.1.0-beta.1"
 git push origin v0.1.0-beta.1
 ```
 
-The GitHub workflow treats every macOS artifact as a distribution package. It
-fails before packaging unless both Developer ID identities and App Store
-Connect notarization credentials are present. A successful job then verifies
-the PKG signature, Gatekeeper assessment, stapled notarization ticket, complete
-app signature, and the nested Python Core and management CLI signatures. A
-local `scripts/release.py` run does not set this formal-release policy flag, so
-it may still create an explicitly internal, unsigned package for local testing.
+The normal tag command above publishes the unsigned internal preview and does
+not read Apple secrets. Local `scripts/release.py` builds use the same unsigned
+internal policy. These packages can be installed and tested, but macOS may show
+Gatekeeper or verification warnings.
+
+Formal signing is opt-in only. Start the workflow manually, enable
+`formal_macos_release`, and provide the matching `release_tag` (plus
+`publish_release` when a GitHub Release should be created). Only that explicit
+mode requires both Developer ID identities and App Store Connect notarization
+credentials; it fails closed and verifies the PKG, Gatekeeper assessment,
+stapled ticket, complete app, Python Core, management CLI, and nested Mach-O
+signatures.
 
 ### macOS signing and notarization credentials
 
@@ -136,8 +144,8 @@ Each installer contains Electron, the frontend, Godot Web, the target-native
 Python Core and the management CLI. End users install only these platform-native
 artifacts; a source checkout remains a development environment.
 
-Official macOS workflow artifacts are signed and notarized; a missing trust
-credential blocks the job instead of publishing an unsigned package. Windows
-preview installers are not yet covered by this macOS trust chain and may still
-show a publisher warning. Before handoff, installation tests must record
-install, launch, `/api/health` success, and no child process after exit.
+Default GitHub artifacts are internal previews. Their macOS packages are
+unsigned and notarization is not claimed; Windows previews may also show a
+publisher warning. Missing Apple credentials block only an explicitly selected
+formal macOS release. Before handoff, installation tests must record install,
+launch, `/api/health` success, and no child process after exit.

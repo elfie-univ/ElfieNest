@@ -109,14 +109,30 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     assert "*-install-smoke.json" in source
 
 
-def test_desktop_release_workflow_requires_signed_notarized_macos_packages() -> None:
-    # Given: a GitHub release build is the public distribution boundary.
+def test_desktop_release_workflow_defaults_to_unsigned_internal_macos_preview() -> None:
+    # Given: tag builds and ordinary manual builds must work without Apple credentials.
     source = (
         PROJECT_ROOT / ".github" / "workflows" / "release.yml"
     ).read_text(encoding="utf-8")
 
-    # Then: macOS runners receive no unsigned escape hatch and verify every layer.
+    # Then: only an explicit formal manual build enables the fail-closed trust chain.
+    assert "formal_macos_release:" in source
+    assert "ELFIENEST_FORMAL_MACOS_RELEASE" in source
     assert "ELFIENEST_REQUIRE_MACOS_SIGNING" in source
+    assert "Mark unsigned macOS internal preview" in source
+    assert "macOS unsigned internal preview" in source
+    assert "env.ELFIENEST_FORMAL_MACOS_RELEASE == '1'" in source
+    assert "env.ELFIENEST_FORMAL_MACOS_RELEASE != '1'" in source
+    assert "runner.os == 'macOS' && '1' || ''" not in source
+
+
+def test_desktop_release_workflow_keeps_formal_macos_trust_validation() -> None:
+    # Given: the explicit formal release path remains available when credentials exist.
+    source = (
+        PROJECT_ROOT / ".github" / "workflows" / "release.yml"
+    ).read_text(encoding="utf-8")
+
+    # Then: formal mode still reads both identities and verifies every trust layer.
     assert "MACOS_APPLICATION_CERTIFICATE" in source
     assert "MACOS_INSTALLER_CERTIFICATE" in source
     assert "APPLE_API_KEY_BASE64" in source
