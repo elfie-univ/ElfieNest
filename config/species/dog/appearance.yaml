@@ -1,5 +1,5 @@
 schema_version: 1
-profile_version: 1
+profile_version: 2
 supported_controls:
   - stature
   - build
@@ -11,11 +11,11 @@ control_options:
   face: [soft, balanced, defined, any]
   signature: [warm, marked, ears, any]
 control_ranges:
-  stature: {minimum: 0.90, base: 1.00, maximum: 1.10}
+  stature: {minimum: 0.82, base: 1.00, maximum: 1.18}
   build: {minimum: 0.90, base: 1.00, maximum: 1.10}
   face: {minimum: -1.00, base: 0.00, maximum: 1.00}
   signature: {minimum: -1.00, base: 0.00, maximum: 1.00}
-stature_scale: {minimum: 0.90, base: 1.00, maximum: 1.10}
+stature_scale: {minimum: 0.82, base: 1.00, maximum: 1.18}
 build_scale: {minimum: 0.90, base: 1.00, maximum: 1.10}
 build_weights: {body_fat: 0.55, frame_size: 0.30, muscularity: 0.15, local_bias: 0.00}
 proportion_scales:
@@ -42,10 +42,64 @@ shape_correlations:
   Body_PawFullness: {body_fat: 0.50, frame_size: 0.22, muscularity: 0.00, local_bias: 0.30}
   Face_CheekFullness: {body_fat: 0.68, frame_size: 0.16, muscularity: 0.00, local_bias: 0.30}
   Face_LowerFullness: {body_fat: 0.64, frame_size: 0.00, muscularity: 0.00, local_bias: 0.28}
-palettes: [black, white, cream, golden, red_brown, chocolate, gray]
-patterns: [solid, bicolor, tricolor, face_mask]
+palettes: [snow_white, ivory, cream, honey_gold, apricot, russet, chestnut, chocolate, silver_gray, smoky_charcoal]
+batch_palette_order: [ivory, honey_gold, apricot, russet, silver_gray, cream, chestnut, chocolate, snow_white, smoky_charcoal]
+patterns: [solid]
+pattern_color_slots:
+  solid: 1
+pattern_layouts:
+  solid: [solid]
+markings: [none, crescent, s_glyph, double_spiral, constellation, comet, alien_rune, diamond, star, lightning, wave, halo, blush, freckles, heart, mole]
+marking_placements: [none, forehead_center, forehead_left, forehead_right, cheek_pair, chest, belly_center]
 eye_colors: [brown, amber, blue, hazel]
 nose_colors: [black, dark_brown, charcoal]
 distributions:
   ear_droop: {mean: 0.35, standard_deviation: 0.17, minimum: 0.00, maximum: 1.00}
 species_traits: [jowl_fullness_bias, ear_fold_bias, tail_curl_bias]
+max_region_accents: 2
+max_marks: 1
+max_forehead_marks: 1
+region_rules:
+  head_tuft: {mode: color-only, allowed_colors: [snow_white, ivory, cream, honey_gold, apricot, russet, chestnut, chocolate, silver_gray, smoky_charcoal], allowed_grades: [L1, L2, D1, D2], source_mid_luma: 0.62, default_intensity: 0.82}
+  forehead_mark_zone: {mode: mark-only, allowed_colors: [], allowed_grades: [], source_mid_luma: 0.62, default_intensity: 0.0}
+  ear_pair: {mode: color-only, allowed_colors: [snow_white, ivory, cream, honey_gold, apricot, russet, chestnut, chocolate, silver_gray, smoky_charcoal], allowed_grades: [L1, L2, D1, D2], source_mid_luma: 0.62, default_intensity: 0.76}
+  ear_tip_pair: {mode: color-only, allowed_colors: [snow_white, ivory, cream, honey_gold, apricot, russet, chestnut, chocolate, silver_gray, smoky_charcoal], allowed_grades: [L1, L2, D1, D2], source_mid_luma: 0.62, default_intensity: 0.78}
+  cheek_fluff: {mode: mark-only, allowed_colors: [], allowed_grades: [], source_mid_luma: 0.62, default_intensity: 0.0}
+  chest_tuft: {mode: color-or-mark, allowed_colors: [snow_white, ivory, cream, honey_gold, apricot, russet, chestnut, chocolate, silver_gray, smoky_charcoal], allowed_grades: [L1, L2, D1, D2], source_mid_luma: 0.62, default_intensity: 0.72}
+  belly_center: {mode: mark-only, allowed_colors: [], allowed_grades: [], source_mid_luma: 0.62, default_intensity: 0.0}
+  forearm_paw_pair: {mode: color-only, allowed_colors: [snow_white, ivory, cream, honey_gold, apricot, russet, chestnut, chocolate, silver_gray, smoky_charcoal], allowed_grades: [L1, L2, D1, D2], source_mid_luma: 0.62, default_intensity: 0.76}
+  elbow_cuff_pair: {mode: color-only, allowed_colors: [snow_white, ivory, cream, honey_gold, apricot, russet, chestnut, chocolate, silver_gray, smoky_charcoal], allowed_grades: [L1, L2, D1, D2], source_mid_luma: 0.62, default_intensity: 0.76}
+  lower_leg_foot_pair: {mode: color-only, allowed_colors: [snow_white, ivory, cream, honey_gold, apricot, russet, chestnut, chocolate, silver_gray, smoky_charcoal], allowed_grades: [L1, L2, D1, D2], source_mid_luma: 0.62, default_intensity: 0.76}
+  knee_cuff_pair: {mode: color-only, allowed_colors: [snow_white, ivory, cream, honey_gold, apricot, russet, chestnut, chocolate, silver_gray, smoky_charcoal], allowed_grades: [L1, L2, D1, D2], source_mid_luma: 0.62, default_intensity: 0.76}
+  tail_tip: {mode: color-only, allowed_colors: [snow_white, ivory, cream, honey_gold, apricot, russet, chestnut, chocolate, silver_gray, smoky_charcoal], allowed_grades: [L1, L2, D1, D2], source_mid_luma: 0.62, default_intensity: 0.80}
+  tail_underside: {mode: color-only, allowed_colors: [snow_white, ivory, cream, honey_gold, apricot, russet, chestnut, chocolate, silver_gray, smoky_charcoal], allowed_grades: [L1, L2, D1, D2], source_mid_luma: 0.62, default_intensity: 0.80}
+region_recipes:
+  base: {accents: []}
+  head_tuft_honey: {accents: [{region_id: head_tuft, color_id: honey_gold, grade_id: L1, intensity: 0.82}]}
+  ear_tip_silver: {accents: [{region_id: ear_tip_pair, color_id: silver_gray, grade_id: D1, intensity: 0.78}]}
+  forearm_chocolate: {accents: [{region_id: forearm_paw_pair, color_id: chocolate, grade_id: D1, intensity: 0.76}]}
+  chest_apricot: {accents: [{region_id: chest_tuft, color_id: apricot, grade_id: L1, intensity: 0.72}]}
+  head_and_ear: {accents: [{region_id: head_tuft, color_id: ivory, grade_id: L1, intensity: 0.80}, {region_id: ear_tip_pair, color_id: russet, grade_id: D1, intensity: 0.72}]}
+  paws_and_tail: {accents: [{region_id: forearm_paw_pair, color_id: smoky_charcoal, grade_id: D2, intensity: 0.72}, {region_id: tail_tip, color_id: snow_white, grade_id: L2, intensity: 0.76}]}
+  ear_and_chest: {accents: [{region_id: ear_pair, color_id: cream, grade_id: L1, intensity: 0.74}, {region_id: chest_tuft, color_id: honey_gold, grade_id: L1, intensity: 0.70}]}
+  tuft_and_tail: {accents: [{region_id: head_tuft, color_id: apricot, grade_id: L1, intensity: 0.80}, {region_id: tail_tip, color_id: ivory, grade_id: L2, intensity: 0.74}]}
+region_recipe_order: [base, head_tuft_honey, ear_tip_silver, forearm_chocolate, chest_apricot, head_and_ear, paws_and_tail, ear_and_chest, tuft_and_tail]
+batch_recipe_order: [base, head_tuft_honey, ear_tip_silver, forearm_chocolate, chest_apricot, head_and_ear, paws_and_tail, ear_and_chest, tuft_and_tail]
+batch_marking_order: [none, crescent, none, blush, none, heart, none, freckles, none, s_glyph]
+marking_rules:
+  none: {placements: [none], allowed_colors: [snow_white, ivory, cream, honey_gold, apricot, russet, chestnut, chocolate, silver_gray, smoky_charcoal]}
+  crescent: {placements: [forehead_center, forehead_left, forehead_right], allowed_colors: [ivory, cream, honey_gold, apricot, silver_gray, smoky_charcoal]}
+  s_glyph: {placements: [forehead_center, forehead_left, forehead_right], allowed_colors: [ivory, cream, honey_gold, apricot, silver_gray, smoky_charcoal]}
+  double_spiral: {placements: [forehead_center], allowed_colors: [ivory, cream, honey_gold, apricot, silver_gray, smoky_charcoal]}
+  constellation: {placements: [forehead_center, forehead_left, forehead_right], allowed_colors: [ivory, cream, honey_gold, apricot, silver_gray, smoky_charcoal]}
+  comet: {placements: [forehead_left, forehead_right], allowed_colors: [ivory, cream, honey_gold, apricot, silver_gray, smoky_charcoal]}
+  alien_rune: {placements: [forehead_center], allowed_colors: [ivory, cream, honey_gold, apricot, silver_gray, smoky_charcoal]}
+  diamond: {placements: [forehead_center, forehead_left, forehead_right], allowed_colors: [ivory, cream, honey_gold, apricot, silver_gray, smoky_charcoal]}
+  star: {placements: [forehead_center, forehead_left, forehead_right], allowed_colors: [ivory, cream, honey_gold, apricot, silver_gray, smoky_charcoal]}
+  lightning: {placements: [forehead_left, forehead_right], allowed_colors: [ivory, cream, honey_gold, apricot, silver_gray, smoky_charcoal]}
+  wave: {placements: [forehead_center, forehead_left, forehead_right], allowed_colors: [ivory, cream, honey_gold, apricot, silver_gray, smoky_charcoal]}
+  halo: {placements: [forehead_center], allowed_colors: [ivory, cream, honey_gold, apricot, silver_gray, smoky_charcoal]}
+  blush: {placements: [cheek_pair], allowed_colors: [apricot, honey_gold, cream]}
+  freckles: {placements: [cheek_pair], allowed_colors: [chestnut, chocolate, smoky_charcoal]}
+  heart: {placements: [chest, belly_center], allowed_colors: [apricot, honey_gold, russet]}
+  mole: {placements: [cheek_pair], allowed_colors: [chestnut, chocolate, smoky_charcoal]}

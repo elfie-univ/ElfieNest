@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Optional, Tuple
 
 from app.orchestration.lifecycle import (
+    DataHomeState,
     EntrypointMode,
     LifecycleFacade,
     ResolvedTaskTarget,
@@ -154,6 +155,17 @@ def resolve_cli_target(
                 }
             )
         )
+
+    try:
+        inspection = lifecycle.inspect_data_home(
+            str(target.home),
+            project_root=source_root,
+            runtime_mode="development",
+        )
+    except (OSError, RuntimeError, ValueError) as error:
+        raise TargetNotFound(command, str(error)) from error
+    if inspection.state is DataHomeState.PERMISSION:
+        raise TargetNotFound(command, inspection.detail)
 
     if session is not None:
         session.data_home = target.home

@@ -213,6 +213,13 @@ class StoredModelVerification:
 
 
 @dataclass(frozen=True)
+class StoredProviderProjection:
+    connection_id: str
+    verification: StoredVerification
+    model_verifications: Mapping[str, StoredModelVerification]
+
+
+@dataclass(frozen=True)
 class StoredCapabilityProbeResult:
     capability: CapabilityName
     state: CapabilityState

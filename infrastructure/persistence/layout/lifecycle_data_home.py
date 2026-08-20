@@ -15,6 +15,7 @@ from app.orchestration.lifecycle.ports import (
     DataHomeInspection,
     DataHomeRecoveryResult,
     DataHomeState,
+    LifecycleLocalPaths,
 )
 from infrastructure.persistence.layout.data_home import (
     ensure_elfie_home,
@@ -25,12 +26,27 @@ from infrastructure.persistence.layout.data_home import (
     get_runtime_validation_dir,
     resolve_elfie_home,
 )
-from infrastructure.persistence.layout.data_layout import ensure_final_root_layout
+from infrastructure.persistence.layout.data_layout import (
+    ensure_final_root_layout,
+    final_root_layout,
+)
 from infrastructure.persistence.nest_db.final_schema import create_final_nest_database
 from infrastructure.persistence.nest_db.store import inspect_data_home, repair_data_home
 
 
 class LifecycleDataHomeAdapter:
+    def paths(self, selected_home: Path) -> LifecycleLocalPaths:
+        layout = final_root_layout(selected_home.expanduser().resolve(strict=False))
+        return LifecycleLocalPaths(
+            home=layout.data_home,
+            logs=layout.data_home / "logs",
+            model_validations=layout.model_validations,
+            runtime_validations=layout.runtime_validations,
+            runtime_state=layout.runtime_state,
+            runtime_locks=layout.runtime_locks,
+            source_cli_state=layout.source_cli_state,
+        )
+
     def home(self) -> Path:
         return get_elfie_home()
 

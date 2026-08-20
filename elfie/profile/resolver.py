@@ -75,7 +75,7 @@ class AppearanceResolver:
             build_label=_label(build_z, "slim", "plump"),
             bone_scales=self._resolve_bones(genome, species),
             blend_shapes=self._resolve_blend_shapes(genome, species),
-            material_parameters=self._resolve_materials(genome),
+            material_parameters=self._resolve_materials(genome, species),
             species_traits=dict(genome.species_traits),
         )
 
@@ -178,11 +178,29 @@ class AppearanceResolver:
         return resolved
 
     @staticmethod
-    def _resolve_materials(genome: AppearanceGenome) -> Dict[str, Any]:
+    def _resolve_materials(
+        genome: AppearanceGenome,
+        species: SpeciesAppearanceProfile,
+    ) -> Dict[str, Any]:
         coat = genome.coat
-        return {
+        primary_color = coat.primary_color_id or coat.palette_id
+        secondary_color = coat.secondary_color_id or primary_color
+        accent_color = coat.accent_color_id or secondary_color
+        face_mask_color = coat.face_mask_color_id or secondary_color
+        material: Dict[str, Any] = {
             "palette_id": coat.palette_id,
+            "region_recipe_id": coat.region_recipe_id,
             "pattern_id": coat.pattern_id,
+            "pattern_layout_id": coat.pattern_layout_id or coat.pattern_id,
+            "primary_color_id": primary_color,
+            "secondary_color_id": secondary_color,
+            "accent_color_id": accent_color,
+            "face_mask_color_id": face_mask_color,
+            "marking_color_id": coat.marking_color_id or secondary_color,
+            "marking_id": coat.marking_id,
+            "marking_placement": coat.marking_placement,
+            "marking_scale": coat.marking_scale,
+            "marking_intensity": coat.marking_intensity,
             "primary_hue_shift": coat.primary_hue_shift,
             "primary_saturation_bias": coat.primary_saturation_bias,
             "primary_value_bias": coat.primary_value_bias,
@@ -200,6 +218,34 @@ class AppearanceResolver:
             "iris_size_bias": genome.face.iris_size_bias,
             "pupil_size_bias": genome.face.pupil_size_bias,
         }
+        for index in range(3):
+            accent = (
+                genome.coat.region_accents[index]
+                if index < len(genome.coat.region_accents)
+                else None
+            )
+            if accent is None:
+                material.update(
+                    {
+                        f"region_{index}_id": "none",
+                        f"region_{index}_color_id": primary_color,
+                        f"region_{index}_grade_id": "L1",
+                        f"region_{index}_intensity": 0.0,
+                        f"region_{index}_source_mid_luma": 0.5,
+                    }
+                )
+                continue
+            rule = species.region_rules[accent.region_id]
+            material.update(
+                {
+                    f"region_{index}_id": accent.region_id,
+                    f"region_{index}_color_id": accent.color_id,
+                    f"region_{index}_grade_id": accent.grade_id,
+                    f"region_{index}_intensity": accent.intensity,
+                    f"region_{index}_source_mid_luma": rule.source_mid_luma,
+                }
+            )
+        return material
 
 
 def _resolve_fur(genome: AppearanceGenome) -> Dict[str, float]:

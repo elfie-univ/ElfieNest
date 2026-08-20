@@ -130,8 +130,15 @@ class FinalElfieWorkspaceAdapter:
                 seed=reservation.appearance_seed,
                 height_direction=reservation.height,
                 build_direction=reservation.build,
-                appearance_overrides=_appearance_overrides(
-                    reservation, catalog=self._catalog
+                appearance_overrides=(
+                    None
+                    if reservation.genesis_candidate is not None
+                    else _appearance_overrides(reservation, catalog=self._catalog)
+                ),
+                appearance=(
+                    reservation.genesis_candidate.appearance
+                    if reservation.genesis_candidate is not None
+                    else None
                 ),
                 origin=ElfieOrigin(birth_at=reservation.birth_date),
                 catalog=self._catalog,

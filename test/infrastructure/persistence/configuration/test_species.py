@@ -37,6 +37,19 @@ def test_bundled_catalog_loads_only_complete_adoptable_species() -> None:
     )
 
 
+@pytest.mark.parametrize("species_id", ("fox", "dog"))
+def test_reviewed_elbow_knee_and_tail_underside_regions_are_colorable(
+    species_id: str,
+) -> None:
+    appearance = load_species_catalog().definition(species_id).appearance
+
+    for region_id in ("elbow_cuff_pair", "knee_cuff_pair", "tail_underside"):
+        rule = appearance.region_rules[region_id]
+        assert rule.mode == "color-only"
+        assert rule.allowed_colors == appearance.palettes
+        assert rule.allowed_grades == ("L1", "L2", "D1", "D2")
+
+
 def test_species_assets_are_validated_inside_their_package(tmp_path: Path) -> None:
     root = tmp_path / "config"
     shutil.copytree(resolve_bundled_config_root(), root)

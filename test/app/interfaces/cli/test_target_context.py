@@ -3,14 +3,30 @@ from pathlib import Path
 import pytest
 
 from app.interfaces.cli.target_context import CliSession, resolve_cli_target
+from app.orchestration.lifecycle.ports import LifecycleLocalPaths
 from app.orchestration.lifecycle.runtime_snapshot import (
     BackendTier,
     RuntimePhase,
     RuntimeSnapshotV1,
     RuntimeTarget,
 )
-from app.orchestration.lifecycle.target_resolution import EntrypointMode
+from app.orchestration.lifecycle.target_resolution import EntrypointMode, TargetNotFound
 from infrastructure.platform.source_cli_state import SourceCliState
+
+
+def _source_state(source_root: Path) -> SourceCliState:
+    home = (source_root / ".elfienest.local").resolve(strict=False)
+    return SourceCliState(
+        LifecycleLocalPaths(
+            home=home,
+            logs=home / "logs",
+            model_validations=home / "reports" / "model-validations",
+            runtime_validations=home / "reports" / "runtime-validations",
+            runtime_state=home / "runtime" / "runtime.json",
+            runtime_locks=home / "runtime" / "locks",
+            source_cli_state=home / "runtime" / "cli",
+        )
+    )
 
 
 class _Lifecycle:
@@ -18,7 +34,7 @@ class _Lifecycle:
         self.snapshots = snapshots
 
     def source_cli_state(self, source_root: Path) -> SourceCliState:
-        return SourceCliState(source_root)
+        return _source_state(source_root)
 
     def inspect_data_home(self, explicit_home, **_kwargs):
         from infrastructure.persistence.nest_db.store import inspect_data_home
@@ -89,7 +105,7 @@ def test_stop_candidate_catalog_survives_idle_default(tmp_path: Path) -> None:
     source = tmp_path / "checkout"
     source.mkdir()
     task = tmp_path / "running-task"
-    state = SourceCliState(source)
+    state = _source_state(source)
     state.record_candidate(task)
     lifecycle = _Lifecycle({task.resolve(): _running("task")})
     session = CliSession()
@@ -106,6 +122,24 @@ def test_stop_candidate_catalog_survives_idle_default(tmp_path: Path) -> None:
 
     assert target.home == task.resolve()
     assert session.data_home == task.resolve()
+
+
+def test_explicit_file_target_is_rejected_before_runtime_start(tmp_path: Path) -> None:
+    source = tmp_path / "checkout"
+    source.mkdir()
+    target = tmp_path / "not-a-directory"
+    target.write_text("x", encoding="utf-8")
+
+    with pytest.raises(TargetNotFound, match="真实目录"):
+        resolve_cli_target(
+            _Lifecycle({}),
+            command="serve",
+            mode=EntrypointMode.SOURCE,
+            source_root=source,
+            invoking_cwd=tmp_path,
+            explicit_home=str(target),
+            session=CliSession(),
+        )
 
 
 @pytest.mark.parametrize("command", ("stop", "restart"))

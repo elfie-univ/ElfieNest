@@ -127,6 +127,19 @@ class SourceCliCandidate:
 
 
 @dataclass(frozen=True)
+class LifecycleLocalPaths:
+    """Resolved lifecycle paths supplied to platform adapters by Bootstrap."""
+
+    home: Path
+    logs: Path
+    model_validations: Path
+    runtime_validations: Path
+    runtime_state: Path
+    runtime_locks: Path
+    source_cli_state: Path
+
+
+@dataclass(frozen=True)
 class RecordedAuthorityProcess:
     """Authority identity recovered from one durable Runtime receipt."""
 
@@ -265,6 +278,8 @@ class SourceCliStatePort(Protocol):
 
 class LifecycleLocalDataPort(Protocol):
     """Resolve lifecycle-owned local directories without exposing storage code."""
+
+    def paths(self, selected_home: Path) -> LifecycleLocalPaths: ...
 
     def home(self) -> Path: ...
 

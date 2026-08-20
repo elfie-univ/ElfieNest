@@ -15,9 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, List, Tuple
 
-from app.orchestration.lifecycle.ports import SourceCliCandidate
-from infrastructure.persistence.layout.data_home import SOURCE_DATA_HOME_NAME
-from infrastructure.persistence.layout.data_layout import final_root_layout
+from app.orchestration.lifecycle.ports import LifecycleLocalPaths, SourceCliCandidate
 
 try:  # pragma: no cover - the fallback is exercised on Windows only.
     import fcntl
@@ -38,12 +36,10 @@ class SourceCliStateError(OSError):
 class SourceCliState:
     """Read and atomically update checkout-scoped convenience state."""
 
-    def __init__(self, source_root: Path) -> None:
-        self.source_root = source_root.expanduser().resolve(strict=False)
-        layout = final_root_layout(self.source_root / SOURCE_DATA_HOME_NAME)
-        self.data_home = layout.data_home
-        self.runtime_dir = layout.runtime_state.parent
-        self.control_dir = layout.source_cli_state
+    def __init__(self, paths: LifecycleLocalPaths) -> None:
+        self.data_home = paths.home
+        self.runtime_dir = paths.runtime_state.parent
+        self.control_dir = paths.source_cli_state
         self.history_path = self.control_dir / HISTORY_FILE_NAME
         self.candidate_path = self.control_dir / CANDIDATE_FILE_NAME
         self.lock_path = self.control_dir / ".lock"

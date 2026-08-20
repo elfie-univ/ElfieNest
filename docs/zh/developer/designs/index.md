@@ -11,3 +11,5 @@
   入口行为、进程所有权与故障收敛。
 - [Provider 与 Endpoint 模型可用性](./provider-model-availability)：精选模型加载、在用核心
   范围、低成本证据与统一健康投影。
+- [虚拟外貌生成最终设计](./virtual-appearance-generation)：一只 Elfie 的几何输入、四层皮肤、
+  语义区域、颜色体系和视觉验收门。

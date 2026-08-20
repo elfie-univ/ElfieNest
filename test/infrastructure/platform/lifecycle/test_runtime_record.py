@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from app.orchestration.lifecycle.ports import LifecycleLocalPaths
 from app.orchestration.lifecycle.runtime_snapshot import (
     BackendTier,
     ComponentSnapshot,
@@ -16,6 +17,23 @@ from app.orchestration.lifecycle.runtime_snapshot import (
 )
 from app.orchestration.lifecycle.types import SnapshotRecoveryRequiredError
 from infrastructure.platform.lifecycle.runtime_record import FileRuntimeRecordAdapter
+
+
+def _paths(home: Path) -> LifecycleLocalPaths:
+    home = home.resolve(strict=False)
+    return LifecycleLocalPaths(
+        home=home,
+        logs=home / "logs",
+        model_validations=home / "reports" / "model-validations",
+        runtime_validations=home / "reports" / "runtime-validations",
+        runtime_state=home / "runtime" / "runtime.json",
+        runtime_locks=home / "runtime" / "locks",
+        source_cli_state=home / "runtime" / "cli",
+    )
+
+
+def _adapter(home: Path, *, writer_token=None) -> FileRuntimeRecordAdapter:
+    return FileRuntimeRecordAdapter(_paths(home), writer_token=writer_token)
 
 
 def _snapshot() -> RuntimeSnapshotV1:
@@ -42,7 +60,7 @@ def _snapshot() -> RuntimeSnapshotV1:
 
 
 def test_runtime_record_round_trip_and_retain_offline_snapshot(tmp_path: Path) -> None:
-    adapter = FileRuntimeRecordAdapter(tmp_path)
+    adapter = _adapter(tmp_path)
     handoff = adapter.begin_writer_handoff(generation=3, owner_id="cli")
     snapshot = replace(_snapshot(), writer_credential_digest=handoff.digest)
 
@@ -65,7 +83,7 @@ def test_runtime_record_round_trip_and_retain_offline_snapshot(tmp_path: Path) -
 
 
 def test_runtime_record_initializes_only_an_empty_root(tmp_path: Path) -> None:
-    adapter = FileRuntimeRecordAdapter(tmp_path)
+    adapter = _adapter(tmp_path)
 
     snapshot = adapter.initialize_if_fresh()
 
@@ -78,7 +96,7 @@ def test_existing_root_without_snapshot_requires_explicit_recovery(
     tmp_path: Path,
 ) -> None:
     (tmp_path / "database.sqlite").write_text("existing", encoding="utf-8")
-    adapter = FileRuntimeRecordAdapter(tmp_path)
+    adapter = _adapter(tmp_path)
 
     with pytest.raises(SnapshotRecoveryRequiredError):
         adapter.initialize_if_fresh()
@@ -92,7 +110,7 @@ def test_runtime_record_does_not_treat_stale_runtime_artifacts_as_fresh(
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()
     (runtime_dir / "stale.log").write_text("leftover", encoding="utf-8")
-    adapter = FileRuntimeRecordAdapter(tmp_path)
+    adapter = _adapter(tmp_path)
 
     with pytest.raises(SnapshotRecoveryRequiredError):
         adapter.initialize_if_fresh()
@@ -106,7 +124,7 @@ def test_runtime_record_ignores_optional_source_cli_state_when_checking_freshnes
     (cli_dir / "data-homes.json").write_text(
         '{"version": 1, "homes": []}\n', encoding="utf-8"
     )
-    adapter = FileRuntimeRecordAdapter(tmp_path)
+    adapter = _adapter(tmp_path)
 
     snapshot = adapter.initialize_if_fresh()
 
@@ -122,7 +140,7 @@ def test_runtime_record_does_not_depend_on_source_cli_state_after_initialization
     cli_dir.mkdir(parents=True)
     history = cli_dir / "history"
     history.write_text("status\n", encoding="utf-8")
-    adapter = FileRuntimeRecordAdapter(tmp_path)
+    adapter = _adapter(tmp_path)
     snapshot = adapter.initialize_if_fresh()
 
     history.unlink()
@@ -137,7 +155,7 @@ def test_runtime_record_rejects_non_directory_source_cli_state(
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()
     (runtime_dir / "cli").write_text("not a directory", encoding="utf-8")
-    adapter = FileRuntimeRecordAdapter(tmp_path)
+    adapter = _adapter(tmp_path)
 
     with pytest.raises(SnapshotRecoveryRequiredError):
         adapter.initialize_if_fresh()
@@ -150,7 +168,7 @@ def test_runtime_record_rejects_symlinked_source_cli_state(tmp_path: Path) -> No
     runtime_dir.mkdir()
     outside.mkdir()
     (runtime_dir / "cli").symlink_to(outside, target_is_directory=True)
-    adapter = FileRuntimeRecordAdapter(tmp_path)
+    adapter = _adapter(tmp_path)
 
     with pytest.raises(SnapshotRecoveryRequiredError):
         adapter.initialize_if_fresh()
@@ -161,7 +179,7 @@ def test_runtime_record_rejects_symlinked_runtime_directory(tmp_path: Path) -> N
     outside = tmp_path / "outside"
     outside.mkdir()
     (tmp_path / "runtime").symlink_to(outside, target_is_directory=True)
-    adapter = FileRuntimeRecordAdapter(tmp_path)
+    adapter = _adapter(tmp_path)
 
     with pytest.raises(SnapshotRecoveryRequiredError):
         adapter.initialize_if_fresh()
@@ -172,7 +190,7 @@ def test_runtime_record_initializes_after_lifecycle_prepares_existing_root(
 ) -> None:
     # Given: the data preparation step has already validated the existing root.
     (tmp_path / "nest.db").write_bytes(b"prepared")
-    adapter = FileRuntimeRecordAdapter(tmp_path)
+    adapter = _adapter(tmp_path)
 
     # When: Runtime receives the explicit prepared-root handoff.
     snapshot = adapter.initialize_if_fresh(allow_existing_root=True)
@@ -193,7 +211,7 @@ def test_runtime_record_rejects_invalid_shape(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    record = FileRuntimeRecordAdapter(tmp_path).read()
+    record = _adapter(tmp_path).read()
 
     assert record.phase is RuntimePhase.RECOVERY_REQUIRED
     assert record.owner_lease is None
@@ -210,14 +228,14 @@ def test_runtime_record_rejects_untyped_component_fields(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    record = FileRuntimeRecordAdapter(tmp_path).read()
+    record = _adapter(tmp_path).read()
 
     assert record.phase is RuntimePhase.RECOVERY_REQUIRED
     assert record.components == ()
 
 
 def test_runtime_record_requires_generation_writer_handoff(tmp_path: Path) -> None:
-    parent = FileRuntimeRecordAdapter(tmp_path)
+    parent = _adapter(tmp_path)
     initial = parent.initialize_if_fresh()
     handoff = parent.begin_writer_handoff(generation=1, owner_id="core")
     active = replace(
@@ -229,16 +247,16 @@ def test_runtime_record_requires_generation_writer_handoff(tmp_path: Path) -> No
     )
     parent.write(active)
 
-    child = FileRuntimeRecordAdapter(tmp_path, writer_token=handoff.token)
+    child = _adapter(tmp_path, writer_token=handoff.token)
     child.write(replace(active, revision=2, phase=RuntimePhase.CORE_READY))
 
-    stale = FileRuntimeRecordAdapter(tmp_path, writer_token="stale-token")
+    stale = _adapter(tmp_path, writer_token="stale-token")
     with pytest.raises(PermissionError):
         stale.write(replace(active, revision=3, phase=RuntimePhase.FAILED))
 
 
 def test_revoked_writer_cannot_reactivate_an_offline_record(tmp_path: Path) -> None:
-    parent = FileRuntimeRecordAdapter(tmp_path)
+    parent = _adapter(tmp_path)
     initial = parent.initialize_if_fresh()
     handoff = parent.begin_writer_handoff(generation=1, owner_id="core")
     active = replace(
@@ -250,7 +268,7 @@ def test_revoked_writer_cannot_reactivate_an_offline_record(tmp_path: Path) -> N
         writer_credential_digest=handoff.digest,
     )
     parent.write(active)
-    child = FileRuntimeRecordAdapter(tmp_path, writer_token=handoff.token)
+    child = _adapter(tmp_path, writer_token=handoff.token)
     parent.write(
         replace(
             active,

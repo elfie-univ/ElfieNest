@@ -204,6 +204,7 @@ def create_lifecycle_facade() -> LifecycleFacade:
     from infrastructure.godot.lifecycle.authority import GodotAuthorityHostAdapter
     from infrastructure.models.ollama.lifecycle_ollama import OllamaLifecycleAdapter
     from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
+    from infrastructure.persistence.layout.data_home import SOURCE_DATA_HOME_NAME
     from infrastructure.persistence.layout.lifecycle_data_home import (
         LifecycleDataHomeAdapter,
     )
@@ -244,9 +245,15 @@ def create_lifecycle_facade() -> LifecycleFacade:
 
     def runtime_record_factory(home: Path):
         return FileRuntimeRecordAdapter(
-            home,
+            local_data.paths(home),
             writer_token=os.environ.get("ELFIENEST_RUNTIME_WRITER_TOKEN"),
         )
+
+    def source_cli_state_factory(source_root: Path):
+        selected_home = (
+            source_root.expanduser().resolve(strict=False) / SOURCE_DATA_HOME_NAME
+        )
+        return SourceCliState(local_data.paths(selected_home))
 
     def validate_current_root(data_home: Path | None = None) -> bool:
         """Read the target only when Doctor is actually invoked.
@@ -296,5 +303,5 @@ def create_lifecycle_facade() -> LifecycleFacade:
             offline_validator=validate_current_root,
         ),
         uninstall=LocalUninstallAdapter(local_data=local_data),
-        source_cli_state_factory=SourceCliState,
+        source_cli_state_factory=source_cli_state_factory,
     )

@@ -1,3 +1,5 @@
+import pytest
+
 from elfie.profile import (
     AppearanceGenerator,
     create_visual_profile,
@@ -38,8 +40,45 @@ def test_species_colors_are_selected_from_profile() -> None:
             genome = AppearanceGenerator(seed).generate(species_id=species_id)
             assert genome.coat.palette_id in profile.palettes
             assert genome.coat.pattern_id in profile.patterns
+            assert (
+                genome.coat.pattern_layout_id
+                in profile.pattern_layouts[genome.coat.pattern_id]
+            )
+            colors = (
+                genome.coat.primary_color_id,
+                genome.coat.secondary_color_id,
+                genome.coat.accent_color_id,
+            )
+            required = profile.pattern_color_slots[genome.coat.pattern_id]
+            assert all(color in profile.palettes for color in colors[:required])
+            assert len(set(colors[:required])) == required
+            assert genome.coat.marking_id in profile.markings
+            assert genome.coat.marking_placement in profile.marking_placements
             assert genome.coat.eye_color_id in profile.eye_colors
             assert genome.coat.nose_color_id in profile.nose_colors
+
+
+@pytest.mark.parametrize("species_id", ("dog", "fox"))
+def test_first_adoption_variants_follow_region_recipe_contract(species_id: str) -> None:
+    profile = get_species_profile(species_id)
+    variants = [
+        AppearanceGenerator(8128).generate(
+            species_id=species_id,
+            variant_index=index,
+        )
+        for index in range(5)
+    ]
+
+    assert len({item.coat.primary_color_id for item in variants}) == 5
+    assert len({item.coat.region_recipe_id for item in variants}) == 5
+    assert len({item.coat.marking_id for item in variants}) >= 2
+    for genome in variants:
+        assert len(genome.coat.region_accents) <= profile.max_region_accents
+        for accent in genome.coat.region_accents:
+            rule = profile.region_rules[accent.region_id]
+            assert rule.mode in ("color-only", "color-or-mark")
+            assert accent.color_id in rule.allowed_colors
+            assert accent.grade_id in rule.allowed_grades
 
 
 def test_generated_profile_validates_for_many_seeds() -> None:
@@ -84,7 +123,7 @@ def test_explicit_overrides_control_generated_appearance() -> None:
                 "muscularity_z": 0.3,
             },
             "face": {"skull_width_bias": -0.65, "eye_size_bias": 0.4},
-            "coat": {"palette_id": "silver", "eye_color_id": "green"},
+            "coat": {"palette_id": "silver_gray", "eye_color_id": "green"},
             "species_traits": {"tail_tip_coverage": 0.8},
         },
     )
@@ -93,7 +132,7 @@ def test_explicit_overrides_control_generated_appearance() -> None:
     assert profile.appearance.macro.body_fat_z == 1.2
     assert profile.appearance.face.skull_width_bias == -0.65
     assert profile.appearance.face.eye_size_bias == 0.4
-    assert profile.appearance.coat.palette_id == "silver"
+    assert profile.appearance.coat.palette_id == "silver_gray"
     assert profile.appearance.coat.eye_color_id == "green"
     assert profile.appearance.species_traits["tail_tip_coverage"] == 0.8
 

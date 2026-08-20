@@ -91,6 +91,7 @@ from .port_models import (
     StoredProviderConnection,
     StoredProviderModel,
     StoredProviderProduct,
+    StoredProviderProjection,
     StoredVerification,
 )
 from .ports import (
@@ -734,9 +735,23 @@ class ProvidersService:
         _ = query
         self._require_manager(principal)
         try:
+            connections = self._connections.list_connections()
+            projections = self._technology.project_connections(connections)
+            projections_by_id = {
+                projection.connection_id: projection for projection in projections
+            }
+            connection_ids = {item.connection_id for item in connections}
+            if (
+                len(projections_by_id) != len(projections)
+                or set(projections_by_id) != connection_ids
+            ):
+                raise ProviderPortError("Provider projection inventory mismatch")
             return tuple(
-                self._connection_result(item)
-                for item in self._connections.list_connections()
+                self._connection_result(
+                    item,
+                    projection=projections_by_id[item.connection_id],
+                )
+                for item in connections
             )
         except ProviderPortError as error:
             raise ProvidersUnavailable("Provider connections unavailable") from error
@@ -1674,16 +1689,32 @@ class ProvidersService:
         *,
         verification: StoredVerification | None = None,
         refresh: StoredModelRefresh | None = None,
+        projection: StoredProviderProjection | None = None,
     ) -> ProviderConnectionResult:
         try:
             product = self._product(connection.catalog_id)
-            current_verification = (
-                verification or self._technology.summarize_connection(connection)
+            current_verification = verification or (
+                projection.verification
+                if projection is not None
+                else self._technology.summarize_connection(connection)
             )
-            model_results = tuple(
-                self._model_result(connection.connection_id, item)
-                for item in connection.models
-            )
+            if projection is None:
+                model_results = tuple(
+                    self._model_result(connection.connection_id, item)
+                    for item in connection.models
+                )
+            else:
+                model_ids = {item.model_id for item in connection.models}
+                if set(projection.model_verifications) != model_ids:
+                    raise ProviderPortError("Provider model projection mismatch")
+                model_results = tuple(
+                    self._model_result_from_verification(
+                        item,
+                        projection.model_verifications[item.model_id],
+                    )
+                    for item in connection.models
+                )
+            has_credential = self._connections.has_credential(connection.credential_ref)
             return ProviderConnectionResult(
                 connection_id=connection.connection_id,
                 catalog_id=connection.catalog_id,
@@ -1691,13 +1722,8 @@ class ProvidersService:
                 api_base=connection.api_base,
                 api_mode=connection.api_mode,
                 auth_type=connection.auth_type,
-                has_api_key=(
-                    product.connection_method == "api_key"
-                    and self._connections.has_credential(connection.credential_ref)
-                ),
-                has_credential=self._connections.has_credential(
-                    connection.credential_ref
-                ),
+                has_api_key=(product.connection_method == "api_key" and has_credential),
+                has_credential=has_credential,
                 enabled=connection.enabled,
                 archived=connection.archived,
                 usage_scope=product.usage_scope,

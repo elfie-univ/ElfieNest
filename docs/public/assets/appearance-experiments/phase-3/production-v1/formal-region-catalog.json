@@ -1,0 +1,77 @@
+{
+	"regions": [
+		{
+			"color": "#00e5ff",
+			"id": 0,
+			"key": "head_tuft"
+		},
+		{
+			"color": "#d500f9",
+			"id": 1,
+			"key": "forehead_mark_zone"
+		},
+		{
+			"color": "#ffe600",
+			"id": 2,
+			"key": "ear_pair"
+		},
+		{
+			"color": "#76ff03",
+			"id": 3,
+			"key": "ear_tip_pair"
+		},
+		{
+			"color": "#00c853",
+			"id": 4,
+			"key": "cheek_fluff"
+		},
+		{
+			"color": "#ff00aa",
+			"id": 5,
+			"key": "chest_tuft"
+		},
+		{
+			"color": "#2962ff",
+			"id": 6,
+			"key": "belly_center"
+		},
+		{
+			"color": "#7c4dff",
+			"id": 7,
+			"key": "forearm_paw_pair"
+		},
+		{
+			"color": "#ff1744",
+			"id": 8,
+			"key": "elbow_cuff_pair"
+		},
+		{
+			"color": "#ff4081",
+			"id": 9,
+			"key": "lower_leg_foot_pair"
+		},
+		{
+			"color": "#00b8d4",
+			"id": 10,
+			"key": "knee_cuff_pair"
+		},
+		{
+			"color": "#c6ff00",
+			"id": 11,
+			"key": "tail_tip"
+		},
+		{
+			"color": "#37474f",
+			"id": 12,
+			"key": "tail_underside"
+		}
+	],
+	"schema": "appearance-formal-region-grid.v1",
+	"selection": "selected_region overrides classify_region; overlap priority matches phase-3 experiment",
+	"views": [
+		"front",
+		"three_quarter",
+		"side",
+		"top"
+	]
+}

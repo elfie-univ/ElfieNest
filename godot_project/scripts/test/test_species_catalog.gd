@@ -26,7 +26,7 @@ func _init() -> void:
 			push_error("Species package validation failed for %s: %s" % [species_id, validation])
 			quit(1)
 			return
-		if not _appearance_application_changes_runtime(species_id, validation):
+		if not _appearance_geometry_changes_runtime(species_id, validation):
 			push_error("Appearance application did not change runtime state for %s" % species_id)
 			quit(1)
 			return
@@ -35,7 +35,7 @@ func _init() -> void:
 	quit()
 
 
-func _appearance_application_changes_runtime(species_id: String, validation: Dictionary) -> bool:
+func _appearance_geometry_changes_runtime(species_id: String, validation: Dictionary) -> bool:
 	var scene := validation.get("scene") as PackedScene
 	if scene == null:
 		return false
@@ -56,7 +56,6 @@ func _appearance_application_changes_runtime(species_id: String, validation: Dic
 		instance.free()
 		return false
 	var before_head := skeleton.get_bone_pose_scale(head_index)
-	var palette := "red" if species_id == "fox" else "black"
 	ACTOR_APPEARANCE.apply(
 		visual_root,
 		collision_shape,
@@ -64,18 +63,60 @@ func _appearance_application_changes_runtime(species_id: String, validation: Dic
 			"height_scale": 1.08,
 			"build_scale": 1.08,
 			"bone_scales": {"HeadScale": 1.08, "NeckLength": 1.06},
-			"material_parameters": {"palette_id": palette, "pattern_id": "bicolor"},
+			"material_parameters": _material_parameters(species_id),
 		},
 		species_id,
 	)
 	var after_head := skeleton.get_bone_pose_scale(head_index)
-	var material_changed := false
+	var material_applied := false
 	for node in visual_root.find_children("*", "MeshInstance3D", true, false):
 		var mesh_instance := node as MeshInstance3D
-		if mesh_instance != null and mesh_instance.get_surface_override_material(0) is ShaderMaterial:
-			var material := mesh_instance.get_surface_override_material(0) as ShaderMaterial
-			material_changed = int(material.get_shader_parameter("appearance_pattern")) == 1
-			if material_changed:
-				break
+		if mesh_instance == null or mesh_instance.mesh == null:
+			continue
+		for surface_index in range(mesh_instance.mesh.get_surface_count()):
+			var material := mesh_instance.get_surface_override_material(surface_index)
+			if not material is ShaderMaterial:
+				continue
+			var shader_material := material as ShaderMaterial
+			if (
+				shader_material.shader != null
+				and not shader_material.shader.code.contains("ALPHA =")
+				and shader_material.get_shader_parameter(
+					"use_appearance_region_source_texture"
+				) == true
+				and shader_material.get_shader_parameter(
+					"appearance_region_source_texture"
+				) != null
+				and shader_material.get_shader_parameter("appearance_accent_region_0") == 8
+				and shader_material.get_shader_parameter("appearance_accent_region_1") == 10
+				and shader_material.get_shader_parameter("appearance_marking_id") == 14
+				and shader_material.get_shader_parameter("appearance_marking_placement") == 5
+			):
+				material_applied = true
+			mesh_instance.set_surface_override_material(surface_index, null)
 	instance.free()
-	return before_head != after_head and material_changed
+	return before_head != after_head and material_applied
+
+
+func _material_parameters(species_id: String) -> Dictionary:
+	var primary := "silver_gray"
+	var light := "ivory"
+	var warm := "golden" if species_id == "fox" else "honey_gold"
+	return {
+		"palette_id": primary,
+		"primary_color_id": primary,
+		"marking_id": "heart",
+		"marking_placement": "chest",
+		"marking_color_id": warm,
+		"marking_scale": 0.9,
+		"marking_intensity": 0.94,
+		"region_0_id": "elbow_cuff_pair",
+		"region_0_color_id": light,
+		"region_0_intensity": 0.92,
+		"region_1_id": "knee_cuff_pair",
+		"region_1_color_id": primary,
+		"region_1_intensity": 0.92,
+		"region_2_id": "none",
+		"region_2_color_id": primary,
+		"region_2_intensity": 0.0,
+	}

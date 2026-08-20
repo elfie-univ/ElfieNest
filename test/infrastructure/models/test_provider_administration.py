@@ -25,11 +25,62 @@ from infrastructure.models.validation.provider_validation import (
     DiscoveredModel,
     ModelDiscoveryResult,
 )
+from infrastructure.models.validation.serving_food import ServingFoodIndex
 from infrastructure.persistence.model_catalog import load_model_identities
 from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.report_storage import ReportStorageAdapter
 from infrastructure.persistence.reports.report_repository import ReportRepository
 from test.support.provider import provider_models_adapter
+
+
+def test_project_connections_reuses_request_level_provider_facts(tmp_path) -> None:
+    adapter = provider_models_adapter(
+        tmp_path / "providers.yaml",
+        tmp_path / "auth.env",
+    )
+    connections = tuple(
+        adapter.create_connection(
+            StoredProviderConnection(
+                connection_id="",
+                catalog_id="custom_openai",
+                alias=alias,
+                api_base="https://gateway.example/v1",
+                api_mode="chat_completions",
+                auth_type="bearer",
+                credential_ref="",
+                models=(
+                    StoredProviderModel("model-a", "Model A"),
+                    StoredProviderModel("model-b", "Model B"),
+                ),
+            ),
+            None,
+        )
+        for alias in ("First", "Second")
+    )
+    serving_index_calls = 0
+
+    def serving_index() -> ServingFoodIndex:
+        nonlocal serving_index_calls
+        serving_index_calls += 1
+        return ServingFoodIndex("test", (), ())
+
+    adapter.set_serving_index(serving_index)
+    with patch.object(
+        adapter._store,
+        "load_connections",
+        wraps=adapter._store.load_connections,
+    ) as load_connections:
+        projections = adapter.project_connections(connections)
+
+    assert load_connections.call_count == 0
+    assert serving_index_calls == 1
+    assert [item.connection_id for item in projections] == [
+        item.connection_id for item in connections
+    ]
+    assert [tuple(item.model_verifications) for item in projections] == [
+        ("model-a", "model-b"),
+        ("model-a", "model-b"),
+    ]
 
 
 def test_refresh_keeps_missing_discovered_models_until_two_complete_omissions() -> None:

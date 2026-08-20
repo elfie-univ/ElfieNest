@@ -7,7 +7,6 @@ from pathlib import Path
 
 from app.orchestration.lifecycle import UninstallState
 from app.orchestration.lifecycle.ports import LifecycleLocalDataPort
-from infrastructure.persistence.layout.data_layout import final_root_layout
 
 
 class LocalUninstallAdapter:
@@ -38,9 +37,7 @@ class LocalUninstallAdapter:
     def _home(self, elfie_home: Path | None) -> Path:
         if elfie_home is None:
             return self._local_data.home()
-        return final_root_layout(
-            elfie_home.expanduser().resolve(strict=False)
-        ).data_home
+        return self._local_data.paths(elfie_home).home
 
 
 __all__ = ("LocalUninstallAdapter",)

@@ -37,6 +37,7 @@ from app.features.configuration import (
     StoredProviderConnection,
     StoredProviderModel,
     StoredProviderProduct,
+    StoredProviderProjection,
     StoredValidationItem,
     StoredValidationRun,
     StoredVerification,
@@ -91,6 +92,7 @@ from infrastructure.models.validation.capability_probes import (
 )
 from infrastructure.models.validation.provider_availability import (
     EndpointAvailability,
+    ReachabilityAvailability,
     project_endpoint_availability,
     project_reachability,
 )
@@ -588,17 +590,70 @@ class ProviderModelsAdapter:
         except (ValueError, OSError) as error:
             raise ProviderPortError("Unable to read Provider validation") from error
 
+    def project_connections(
+        self,
+        connections: tuple[StoredProviderConnection, ...],
+    ) -> tuple[StoredProviderProjection, ...]:
+        """Project one Provider inventory while reusing request-level facts."""
+        if not connections:
+            return ()
+        try:
+            core_references = frozenset(
+                ()
+                if self._serving_index is None
+                else self._serving_index().core_references
+            )
+            projections: list[StoredProviderProjection] = []
+            for connection in connections:
+                stored_connection = self._provider_connection(connection)
+                fingerprint = connection_validation_fingerprint(
+                    stored_connection,
+                    secret_resolver=self._resolve_credential,
+                )
+                reachability_fingerprint = connection_reachability_fingerprint(
+                    stored_connection,
+                    secret_resolver=self._resolve_credential,
+                )
+                reachability = project_reachability(
+                    connection.connection_id,
+                    self._reports.observations_for_subject(
+                        "provider", connection.connection_id
+                    ),
+                    config_fingerprint=reachability_fingerprint,
+                )
+                projections.append(
+                    StoredProviderProjection(
+                        connection_id=connection.connection_id,
+                        verification=self._verification(
+                            summarize_connection_validation(
+                                stored_connection,
+                                catalog=self._catalog,
+                                reports=self._reports,
+                                secret_resolver=self._resolve_credential,
+                            )
+                        ),
+                        model_verifications={
+                            model.model_id: self._project_model_verification(
+                                connection.connection_id,
+                                model.model_id,
+                                config_fingerprint=fingerprint,
+                                reachability=reachability,
+                                core_references=core_references,
+                            )
+                            for model in connection.models
+                        },
+                    )
+                )
+            return tuple(projections)
+        except (ValueError, OSError) as error:
+            raise ProviderPortError("Unable to project Provider inventory") from error
+
     def summarize_model(
         self,
         connection_id: str,
         model_id: str,
     ) -> StoredModelVerification:
         try:
-            subject_id = f"{connection_id}/{model_id}"
-            observations = self._reports.observations_for_subject(
-                "model",
-                subject_id,
-            )
             stored_connection = self._store.load_connections().get(connection_id)
             fingerprint = (
                 None
@@ -616,11 +671,6 @@ class ProviderModelsAdapter:
                     secret_resolver=self._resolve_credential,
                 )
             )
-            availability = project_endpoint_availability(
-                subject_id,
-                observations,
-                config_fingerprint=fingerprint,
-            )
             reachability = project_reachability(
                 connection_id,
                 ()
@@ -628,41 +678,66 @@ class ProviderModelsAdapter:
                 else self._reports.observations_for_subject("provider", connection_id),
                 config_fingerprint=reachability_fingerprint,
             )
-            if (
-                reachability.status == "unavailable"
-                and availability.status != "unavailable"
-            ):
-                availability = EndpointAvailability(
-                    subject_id=subject_id,
-                    status="unavailable",
-                    reason_code=reachability.reason_code or "provider_unavailable",
-                    error_scope="connection",
-                    observed_at=reachability.observed_at,
-                    expires_at=reachability.expires_at,
-                    evidence_source=reachability.evidence_source,
-                )
-            latest = dict(
-                self._reports.read_latest_model_validation(
-                    connection_id,
-                    model_id,
-                    validation_mode="full",
-                )
+            core_references = frozenset(
+                ()
+                if self._serving_index is None
+                else self._serving_index().core_references
             )
-            latest.update(
-                {
-                    "availability_status": availability.status,
-                    "reason_code": availability.reason_code,
-                    "evidence_source": availability.evidence_source,
-                    "expires_at": availability.expires_at,
-                    "is_core": (
-                        self._serving_index is not None
-                        and subject_id in self._serving_index().core_references
-                    ),
-                }
+            return self._project_model_verification(
+                connection_id,
+                model_id,
+                config_fingerprint=fingerprint,
+                reachability=reachability,
+                core_references=core_references,
             )
-            return self._model_verification(latest)
         except (ValueError, OSError) as error:
             raise ProviderPortError("Unable to read model validation") from error
+
+    def _project_model_verification(
+        self,
+        connection_id: str,
+        model_id: str,
+        *,
+        config_fingerprint: str | None,
+        reachability: ReachabilityAvailability,
+        core_references: frozenset[str],
+    ) -> StoredModelVerification:
+        subject_id = f"{connection_id}/{model_id}"
+        availability = project_endpoint_availability(
+            subject_id,
+            self._reports.observations_for_subject("model", subject_id),
+            config_fingerprint=config_fingerprint,
+        )
+        if (
+            reachability.status == "unavailable"
+            and availability.status != "unavailable"
+        ):
+            availability = EndpointAvailability(
+                subject_id=subject_id,
+                status="unavailable",
+                reason_code=reachability.reason_code or "provider_unavailable",
+                error_scope="connection",
+                observed_at=reachability.observed_at,
+                expires_at=reachability.expires_at,
+                evidence_source=reachability.evidence_source,
+            )
+        latest = dict(
+            self._reports.read_latest_model_validation(
+                connection_id,
+                model_id,
+                validation_mode="full",
+            )
+        )
+        latest.update(
+            {
+                "availability_status": availability.status,
+                "reason_code": availability.reason_code,
+                "evidence_source": availability.evidence_source,
+                "expires_at": availability.expires_at,
+                "is_core": subject_id in core_references,
+            }
+        )
+        return self._model_verification(latest)
 
     async def verify_connection(
         self,

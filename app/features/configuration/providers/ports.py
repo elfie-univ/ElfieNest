@@ -25,6 +25,7 @@ from .port_models import (
     StoredProviderOAuthLoginStart,
     StoredProviderOAuthLoginStatus,
     StoredProviderProduct,
+    StoredProviderProjection,
     StoredValidationRun,
     StoredVerification,
 )
@@ -157,6 +158,11 @@ class ProviderTechnologyPort(Protocol):
         self,
         connection: StoredProviderConnection,
     ) -> StoredVerification: ...
+
+    def project_connections(
+        self,
+        connections: tuple[StoredProviderConnection, ...],
+    ) -> tuple[StoredProviderProjection, ...]: ...
 
     def summarize_model(
         self,

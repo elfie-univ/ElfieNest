@@ -7,7 +7,13 @@ from typing import Sequence
 
 from elfie.profile import SpeciesCatalog, get_species_definition
 
-from .appearance import appearance_fit, distance, generate_appearance, signature
+from .appearance import (
+    appearance_fit,
+    distance,
+    generate_appearance,
+    signature,
+    visible_key,
+)
 from .contracts import (
     CANDIDATE_ROLES,
     STAGE_PLASTICITY,
@@ -35,9 +41,14 @@ _GENDERS = ("male", "female")
 class GenesisEngine:
     """Build five intentionally different, deterministic candidate cores."""
 
-    proposal_count = 64
-    target_distance = 0.16
-    history_distance = 0.14
+    # Keep enough proposals for role-fit, body-shape distance and the visible
+    # appearance uniqueness gate to coexist for both dog and fox packages.
+    proposal_count = 96
+    # The visual key below is the hard uniqueness gate.  Keep the continuous
+    # latent-distance gate slightly looser so constrained intents (for example
+    # tall/round/soft/warm) can still produce all five candidates across three
+    # adoption batches without weakening visible diversity.
+    target_distance = 0.12
 
     def __init__(self, catalog: SpeciesCatalog | None = None) -> None:
         self._catalog = catalog
@@ -84,6 +95,8 @@ class GenesisEngine:
                     gender=self._choose_gender(seed, role_index, gender),
                     appearance=appearance,
                     core=core_by_stage[stage],
+                    variant_index=(batch_number - 1) * len(CANDIDATE_ROLES)
+                    + role_index,
                 )
                 proposals[role].append(candidate)
 
@@ -141,6 +154,7 @@ class GenesisEngine:
         gender: str,
         appearance: GenesisAppearanceIntent,
         core: BigFiveProfile,
+        variant_index: int,
     ) -> GenesisCandidate:
         rng = random.Random(seed)
         latent = tuple(
@@ -151,12 +165,21 @@ class GenesisEngine:
                 (rng.uniform(-0.045, 0.045) for _ in core.latent),
             )
         )
+        age_months = self._age_months(
+            species_id,
+            life_stage,
+            random.Random(derive_seed(seed, 8, 0, 0)),
+        )
         genome = generate_appearance(
             seed=seed,
             species_id=species_id,
             intent=appearance,
             role=role,
             rng=rng,
+            life_stage=life_stage,
+            age_months=age_months,
+            gender=gender,
+            variant_index=variant_index,
             catalog=self._catalog,
         )
         return GenesisCandidate(
@@ -165,13 +188,14 @@ class GenesisEngine:
             seed=seed,
             species_id=species_id,
             life_stage=life_stage,
-            age_months=self._age_months(species_id, life_stage, rng),
+            age_months=age_months,
             gender=gender,
             appearance=genome,
             personality=GenesisPersonality(core, profile(latent)),
             signature=CandidateSignature(
                 personality=tuple(value / 2.0 for value in latent),
                 appearance=signature(genome),
+                visual_key=visible_key(genome),
             ),
         )
 
@@ -206,15 +230,26 @@ class GenesisEngine:
         selected: Sequence[GenesisCandidate],
         history: Sequence[CandidateSignature],
     ) -> bool:
+        candidate_key = candidate.signature.visual_key
+        if candidate_key and any(
+            candidate_key == item.signature.visual_key for item in selected
+        ):
+            return False
+        if candidate_key and any(
+            candidate_key == item.visual_key for item in history if item.visual_key
+        ):
+            return False
         if any(
             distance(candidate.signature, item.signature) < self.target_distance
             for item in selected
         ):
             return False
-        return all(
-            distance(candidate.signature, item) >= self.history_distance
-            for item in history
-        )
+        # Across batches the exact visual key is the product-level uniqueness
+        # contract.  Requiring a second continuous-distance threshold here can
+        # reject valid combinations merely because one categorical color/recipe
+        # hash happens to sit near a previous candidate, even though the
+        # rendered region recipe is visibly different.
+        return True
 
     @staticmethod
     def _choose_stage(seed: int, batch: int, role: int, requested: str) -> str:
