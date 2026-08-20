@@ -90,9 +90,14 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     workflow_path = PROJECT_ROOT / ".github" / "workflows" / "release.yml"
     source = workflow_path.read_text(encoding="utf-8")
     workflow = yaml.safe_load(source)
-    matrix = workflow["jobs"]["build"]["strategy"]["matrix"]["include"]
+    godot_web = workflow["jobs"]["godot-web"]
+    native_build = workflow["jobs"]["build"]
+    matrix = native_build["strategy"]["matrix"]["include"]
 
-    # Then: each supported package is assigned to a native runner and publication is tag-gated.
+    # Then: one Linux job exports the platform-neutral Web runtime, each supported
+    # package consumes it on a native runner, and publication remains tag-gated.
+    assert godot_web["runs-on"] == "ubuntu-latest"
+    assert native_build["needs"] == "godot-web"
     assert {entry["target"] for entry in matrix} == set(release.SUPPORTED_TARGETS)
     assert {entry["runner"] for entry in matrix} == {
         "macos-latest",
@@ -102,7 +107,13 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     }
     assert 'tags:\n      - "v*"' in source
     assert "workflow_dispatch:" in source
+    assert source.count("install_official_godot_toolchain") == 1
+    assert "name: godot-web-runtime" in source
+    assert "GODOT_USER_HOME" not in source
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in source
+    assert (
+        "actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0" in source
+    )
     assert "gh release create" in source
     assert "release_args+=(--prerelease)" in source
     assert "--run-install-smoke" in source
