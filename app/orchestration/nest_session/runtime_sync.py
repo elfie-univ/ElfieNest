@@ -51,22 +51,56 @@ class NestRuntimeSynchronizer:
         nest: Nest,
         world_runtime: WorldSynchronizationPort,
         actor_catalog_provider: ActorCatalogProvider,
-        desired_bed_count: int = 4,
         state_store: NestStateStorePort | None = None,
     ) -> None:
         self._nest = nest
         self._world_runtime = world_runtime
         self._actor_catalog_provider = actor_catalog_provider
-        self._desired_bed_count = desired_bed_count
         self._state_store = state_store
-        self._desired_world_revision = 1
+        catalog = nest.world_catalog
+        catalog_revision = 0 if catalog is None else catalog.revision
+        catalog_matches_desired = (
+            catalog is not None and _active_bed_count(catalog) == nest.desired_bed_count
+        )
+        self._desired_world_revision = max(
+            1,
+            catalog_revision if catalog_matches_desired else catalog_revision + 1,
+        )
+        self._minimum_world_revision = self._desired_world_revision
         self._observed_connection: tuple[str, int] | None = None
         self._manifest_revision: int | None = None
         self._configured_revision: int | None = None
+        self._configuration_pending = True
+        self._bed_count_change_pending = (
+            nest.desired_bed_count != nest.config.bed_count
+            if catalog is None
+            else not catalog_matches_desired
+        )
         self._actor_catalog_dirty = True
 
     def mark_actor_catalog_dirty(self) -> None:
         self._actor_catalog_dirty = True
+
+    def request_world_reconfiguration(self) -> None:
+        """Schedule one newer world revision using the live Nest desired state."""
+        catalog = self._nest.world_catalog
+        catalog_revision = 0 if catalog is None else catalog.revision
+        self._desired_world_revision = (
+            max(
+                self._desired_world_revision,
+                self._manifest_revision or 0,
+                self._configured_revision or 0,
+                catalog_revision,
+            )
+            + 1
+        )
+        self._minimum_world_revision = self._desired_world_revision
+        self._manifest_revision = None
+        self._configured_revision = None
+        self._configuration_pending = True
+        self._bed_count_change_pending = True
+        self._actor_catalog_dirty = True
+        self._nest.invalidate_runtime_state()
 
     @property
     def configured_revision(self) -> int | None:
@@ -78,19 +112,24 @@ class NestRuntimeSynchronizer:
             self._observed_connection = None
             self._manifest_revision = None
             self._configured_revision = None
+            self._configuration_pending = True
             return
         token = (connection.runtime_id, connection.generation)
-        if token == self._observed_connection:
+        if token != self._observed_connection:
+            self._observed_connection = token
+            self._manifest_revision = None
+            self._configured_revision = None
+            self._configuration_pending = True
+            self._actor_catalog_dirty = True
+        if not self._configuration_pending:
             return
-        self._observed_connection = token
-        self._manifest_revision = None
-        self._configured_revision = None
-        self._actor_catalog_dirty = True
-        self._world_runtime.configure_world(
+        command_id = self._world_runtime.configure_world(
             nest_id=self._nest.config.nest_id,
-            bed_count=self._desired_bed_count,
+            bed_count=self._nest.desired_bed_count,
             world_revision=self._desired_world_revision,
         )
+        if command_id is not None:
+            self._configuration_pending = False
 
     def consume(self, event: WorldEvent) -> None:
         connection = self._world_runtime.runtime_connection
@@ -102,6 +141,8 @@ class NestRuntimeSynchronizer:
         ):
             return
         if event.name is WorldEventName.SCENE_MANIFEST:
+            if event.world_revision < self._minimum_world_revision:
+                return
             if (
                 self._manifest_revision is not None
                 and event.world_revision <= self._manifest_revision
@@ -111,6 +152,12 @@ class NestRuntimeSynchronizer:
                 return
             catalog = _nest_catalog(event.payload.catalog)
             if catalog.revision != event.world_revision:
+                return
+            if (
+                self._bed_count_change_pending
+                and _active_bed_count(catalog) != self._nest.desired_bed_count
+            ):
+                self._configuration_pending = True
                 return
             revision_changed = (
                 self._manifest_revision is not None
@@ -122,6 +169,15 @@ class NestRuntimeSynchronizer:
                 self._configured_revision = None
             self._nest.apply_catalog(catalog)
             self._manifest_revision = catalog.revision
+            self._desired_world_revision = max(
+                self._desired_world_revision,
+                catalog.revision,
+            )
+            self._minimum_world_revision = max(
+                self._minimum_world_revision,
+                catalog.revision,
+            )
+            self._bed_count_change_pending = False
             try:
                 self._assign_missing_homes()
             except NoHomeAvailableError:
@@ -223,6 +279,15 @@ class NestRuntimeSynchronizer:
 
 
 __all__ = ("ActorDescriptor", "NestRuntimeSynchronizer")
+
+
+def _active_bed_count(catalog: WorldCatalog) -> int:
+    return sum(
+        1
+        for zone in catalog.zones
+        for anchor in zone.anchors
+        if anchor.kind is AnchorKind.BED and anchor.active
+    )
 
 
 def _nest_catalog(catalog: SemanticWorldCatalog) -> WorldCatalog:

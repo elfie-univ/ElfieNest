@@ -11,6 +11,7 @@ from typing import Callable, Optional
 from app.features.accounts import AccountsService
 from app.features.configuration import ProviderLocalStatePort
 from app.features.configuration.providers import StoredLocalProviderBinding
+from app.features.nest_management import NestManagementCommandPort
 from app.features.setup import SetupService
 from app.orchestration.setup_installation import (
     SetupInstallationService,
@@ -32,12 +33,8 @@ from infrastructure.models.setup_ollama_technology import (
 )
 from infrastructure.models.setup_provider import SetupProviderAdapter
 from infrastructure.persistence.food import SQLiteFoodAdapter
-from infrastructure.persistence.nest_db.nest_management import (
-    SQLiteNestManagementAdapter,
-)
 from infrastructure.persistence.setup import SQLiteSetupAdapter
 from infrastructure.persistence.setup_accounts import SetupAccountsAdapter
-from infrastructure.persistence.setup_nest import SetupNestAdapter
 from infrastructure.persistence.setup_nest_choices import NestConfigSetupChoiceAdapter
 from infrastructure.platform.setup_runner import ThreadSetupInstallationRunner
 
@@ -52,7 +49,7 @@ def build_setup_services(
     db_path: str,
     *,
     accounts: AccountsService,
-    nest: SQLiteNestManagementAdapter,
+    nest: NestManagementCommandPort,
     provider_state: ProviderLocalStatePort,
     food_evidence: FoodEvidencePort | None = None,
     catalog: ProviderCatalog | None = None,
@@ -113,7 +110,7 @@ def build_setup_services(
                 technology=ModelFoodTechnologyAdapter(evidence_port),
                 evidence=evidence_port,
             ),
-            nest=SetupNestAdapter(nest),
+            nest=nest,
             runner=ThreadSetupInstallationRunner(),
             ollama_task_lease_factory=setup_task_lease_factory,
         ),

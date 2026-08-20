@@ -1,6 +1,7 @@
 """Nest-owned household living rules."""
 
 from nest.living_rules.errors import (
+    BedCapacityError,
     BedConflictError,
     NoHomeAvailableError,
     ReconciliationRequiredError,
@@ -17,6 +18,7 @@ from nest.living_rules.models import (
 )
 
 __all__ = (
+    "BedCapacityError",
     "BedConflictError",
     "HomeAssignment",
     "LivingRulesState",

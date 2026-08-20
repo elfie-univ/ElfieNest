@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
-from infrastructure.persistence.nest_db.nest_management import (
-    SQLiteNestManagementAdapter,
-)
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.nest_db.store import get_db, init_db
 from nest.living_rules.models import (
@@ -115,6 +114,30 @@ def test_query_uses_public_defaults_without_writing_configuration(tmp_path) -> N
         )
 
 
+def test_state_store_explicitly_initializes_the_authoritative_nest_row(
+    tmp_path,
+) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+    state_store = SQLiteNestStateAdapter(db_path)
+
+    state_store.initialize_snapshot(
+        NestSnapshot(
+            desired_bed_count=32,
+            elapsed_seconds=0.0,
+            catalog=None,
+            residents=(),
+        )
+    )
+
+    assert state_store.load_snapshot().desired_bed_count == 32
+    with get_db(db_path) as connection:
+        row = connection.execute(
+            "SELECT bed_count, tick_interval_sec FROM nest_settings "
+            "WHERE nest_id='local-nest'"
+        ).fetchone()
+    assert tuple(row) == (32, 1.0)
+
+
 def test_state_store_restores_clock_and_environment_rules(tmp_path) -> None:
     db_path = init_db(str(tmp_path / "nest.db"))
     _seed_elfie(db_path)
@@ -207,11 +230,24 @@ def test_state_store_exposes_persisted_bed_as_semantic_home_anchor(
 ) -> None:
     db_path = init_db(str(tmp_path / "nest.db"))
     _seed_elfie(db_path)
-    SQLiteNestManagementAdapter(db_path).assign_home("00000001", anchor_id)
+    state_store = SQLiteNestStateAdapter(db_path)
+    state_store.save_snapshot(
+        replace(
+            state_store.load_snapshot(),
+            residents=(
+                PersistentResidentState(
+                    elfie_id="00000001",
+                    presence=ResidentPresence.PENDING_RUNTIME,
+                    home_zone_id=zone_id,
+                    home_anchor_id=anchor_id,
+                ),
+            ),
+        )
+    )
 
     assignments = {
         resident.elfie_id: resident
-        for resident in SQLiteNestStateAdapter(db_path).load_snapshot().residents
+        for resident in state_store.load_snapshot().residents
         if resident.home_anchor_id is not None
     }
 

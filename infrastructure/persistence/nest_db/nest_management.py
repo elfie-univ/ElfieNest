@@ -1,26 +1,20 @@
-"""SQLite implementation of the Nest Management persistence Port."""
+"""Read-only SQLite projection for Nest Management."""
 
 from __future__ import annotations
 
 import sqlite3
-from typing import Final
 
 from app.features.nest_management import (
     NestBedRecord,
-    NestPortBedNotFound,
-    NestPortConflict,
     NestPortError,
-    NestPortResidentNotFound,
     NestSnapshotRecord,
 )
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
 from nest.public import AnchorKind, NestConfig, WorldCatalog
 
-DEFAULT_TICK_INTERVAL_SECONDS: Final = 1.0
-
 
 class SQLiteNestManagementAdapter:
-    """Persist Nest settings and stable Home anchor assignments."""
+    """Read Nest settings and stable Home assignments without mutating them."""
 
     def __init__(self, db_path: str, *, nest_config: NestConfig | None = None) -> None:
         self._db_path = db_path
@@ -33,78 +27,6 @@ class SQLiteNestManagementAdapter:
                 return self._load_snapshot(connection)
         except sqlite3.Error as error:
             raise NestPortError("unable to read Nest management state") from error
-
-    def update_bed_count(self, bed_count: int) -> NestSnapshotRecord:
-        try:
-            with app_sqlite_connection(self._db_path) as connection:
-                connection.execute("BEGIN IMMEDIATE")
-                cursor = connection.execute(
-                    """UPDATE nest_settings
-                       SET bed_count=?, updated_at=CURRENT_TIMESTAMP
-                       WHERE nest_id=?""",
-                    (bed_count, self._nest_config.nest_id),
-                )
-                if cursor.rowcount != 1:
-                    raise NestPortError("Nest configuration not found")
-                snapshot = self._load_snapshot(connection)
-                connection.commit()
-                return snapshot
-        except sqlite3.IntegrityError as error:
-            raise NestPortConflict("bed_count conflicts with assignments") from error
-        except sqlite3.Error as error:
-            raise NestPortError("unable to update Nest configuration") from error
-
-    def initialize_bed_count(self, bed_count: int) -> NestSnapshotRecord:
-        """Create Setup's one authoritative Nest row, then apply its chosen size."""
-        configured = NestConfig(bed_count=bed_count)
-        try:
-            with app_sqlite_connection(self._db_path) as connection:
-                connection.execute("BEGIN IMMEDIATE")
-                connection.execute(
-                    """INSERT OR IGNORE INTO nest_settings
-                       (nest_id,bed_count,tick_interval_sec) VALUES (?,?,?)""",
-                    (
-                        self._nest_config.nest_id,
-                        configured.bed_count,
-                        DEFAULT_TICK_INTERVAL_SECONDS,
-                    ),
-                )
-                connection.execute(
-                    """UPDATE nest_settings SET bed_count=?,updated_at=CURRENT_TIMESTAMP
-                       WHERE nest_id=?""",
-                    (configured.bed_count, self._nest_config.nest_id),
-                )
-                snapshot = self._load_snapshot(connection)
-                connection.commit()
-                return snapshot
-        except sqlite3.IntegrityError as error:
-            raise NestPortConflict("bed_count conflicts with assignments") from error
-        except sqlite3.Error as error:
-            raise NestPortError("unable to initialize Nest configuration") from error
-
-    def assign_home(self, elfie_id: str, home_anchor_id: str | None) -> None:
-        try:
-            with app_sqlite_connection(self._db_path) as connection:
-                connection.execute("BEGIN IMMEDIATE")
-                if home_anchor_id is not None:
-                    catalog = self._load_catalog(connection)
-                    if catalog is None or not _is_active_bed(catalog, home_anchor_id):
-                        raise NestPortBedNotFound("home anchor not found")
-                cursor = connection.execute(
-                    """UPDATE elfies
-                       SET home_anchor_id=?, updated_at=CURRENT_TIMESTAMP
-                       WHERE elfie_id=?""",
-                    (home_anchor_id, elfie_id),
-                )
-                if cursor.rowcount != 1:
-                    raise NestPortResidentNotFound("Elfie not found")
-                connection.commit()
-        except (NestPortBedNotFound, NestPortResidentNotFound):
-            raise
-        except sqlite3.IntegrityError as error:
-            raise NestPortConflict("bed already occupied") from error
-        except sqlite3.Error as error:
-            raise NestPortError("unable to assign Nest home") from error
 
     def _load_snapshot(self, connection: sqlite3.Connection) -> NestSnapshotRecord:
         defaults = self._nest_config
@@ -206,10 +128,4 @@ def _ordered_bed_anchors(catalog: WorldCatalog) -> tuple:
     )
 
 
-def _is_active_bed(catalog: WorldCatalog, anchor_id: str) -> bool:
-    return any(
-        anchor.anchor_id == anchor_id for anchor in _ordered_bed_anchors(catalog)
-    )
-
-
-__all__ = ("DEFAULT_TICK_INTERVAL_SECONDS", "SQLiteNestManagementAdapter")
+__all__ = ("SQLiteNestManagementAdapter",)

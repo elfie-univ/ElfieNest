@@ -2,6 +2,7 @@ import pytest
 
 from nest import Nest
 from nest.living_rules.errors import (
+    BedCapacityError,
     BedConflictError,
     NoHomeAvailableError,
     UnknownResidentError,
@@ -247,6 +248,27 @@ def test_nest_rejects_negative_tick() -> None:
     # When / Then
     with pytest.raises(InvalidTickError):
         nest.tick(-0.1)
+
+
+def test_nest_changes_desired_capacity_without_a_second_config_fact() -> None:
+    nest = Nest()
+
+    assert nest.set_desired_bed_count(32) is True
+    assert nest.set_desired_bed_count(32) is False
+    assert nest.desired_bed_count == 32
+
+
+def test_nest_rejects_capacity_that_would_remove_an_assigned_home() -> None:
+    nest = Nest()
+    nest.apply_catalog(_catalog_with_beds(8))
+    nest.register_resident("fox-1")
+    nest.assign_home("fox-1", "dorm-01/bed-08")
+
+    with pytest.raises(BedCapacityError, match="bed-08"):
+        nest.set_desired_bed_count(4)
+
+    assert nest.desired_bed_count == 4
+    assert nest.home_anchor_id("fox-1") == "dorm-01/bed-08"
 
 
 def test_nest_admits_residents_with_stable_home_assignment() -> None:

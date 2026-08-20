@@ -62,7 +62,7 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
       setEngine(loadedEngine)
       setAdoption(loadedAdoption)
       setSecurity(loadedSecurity)
-      setCapacity(room ? room.desired_bed_count ?? room.beds.length : null)
+      setCapacity(room?.desired_bed_count ?? null)
       setAdoptedCount(elfies.length)
       setError(null)
     } catch (reason: unknown) {

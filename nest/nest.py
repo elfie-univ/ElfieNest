@@ -8,7 +8,7 @@ from typing import Optional, Tuple
 from nest.config import NestConfig
 from nest.elfie_interaction.hub import NestEventBus
 from nest.events import NestEventEnvelope, SemanticActionResult, SemanticVisualScene
-from nest.living_rules.errors import BedConflictError
+from nest.living_rules.errors import BedCapacityError, BedConflictError
 from nest.living_rules.living import LivingRulesState
 from nest.living_rules.models import (
     HomeAssignment,
@@ -57,6 +57,33 @@ class Nest:
     @property
     def desired_bed_count(self) -> int:
         return self._desired_bed_count
+
+    def set_desired_bed_count(self, bed_count: int) -> bool:
+        """Change the durable desired capacity without copying Runtime geometry."""
+        configured = NestConfig(nest_id=self._config.nest_id, bed_count=bed_count)
+        ordered_beds = self._space.ordered_active_bed_anchor_ids()
+        retained_beds = frozenset(ordered_beds[: configured.bed_count])
+        invalid_homes = (
+            tuple(
+                sorted(
+                    assignment.home_anchor_id
+                    for assignment in self._living_rules.home_assignments.values()
+                    if assignment.home_anchor_id not in retained_beds
+                )
+            )
+            if ordered_beds
+            else ()
+        )
+        if len(self._living_rules.residents) > configured.bed_count or invalid_homes:
+            raise BedCapacityError(
+                configured.bed_count,
+                len(self._living_rules.residents),
+                invalid_homes,
+            )
+        if configured.bed_count == self._desired_bed_count:
+            return False
+        self._desired_bed_count = configured.bed_count
+        return True
 
     @property
     def reconciliation_required(self) -> bool:

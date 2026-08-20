@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -7,12 +9,19 @@ from app.features.accounts import AccountPrincipal, AccountRole
 from app.features.nest_management import NestManagementService
 from app.interfaces.api.v1.admin.nest.routes import router
 from app.interfaces.api.v1.auth import require_user
+from app.orchestration.nest_session import (
+    ElfieNestEngine,
+    LiveNestManagementCommands,
+)
+from elfie import Elfie
 from infrastructure.persistence.nest_db.nest_management import (
     SQLiteNestManagementAdapter,
 )
+from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.nest_db.store import get_db, init_db
 from nest import NestConfig
 from nest.public import AnchorKind, InteractionAnchor, WorldCatalog, ZoneDescriptor
+from test.app.orchestration.nest_session.fakes import FakeWorldRuntime
 
 
 def _principal(role: AccountRole = "owner") -> AccountPrincipal:
@@ -24,15 +33,31 @@ def _principal(role: AccountRole = "owner") -> AccountPrincipal:
     )
 
 
-def _client(tmp_path, role: str = "owner") -> tuple[TestClient, str]:
+def _client(
+    tmp_path,
+    role: str = "owner",
+    *,
+    elfie_ids: tuple[str, ...] = (),
+) -> tuple[TestClient, str, ElfieNestEngine]:
     db_path = init_db(str(tmp_path / "nest.db"))
+    _seed_nest(db_path)
+    for elfie_id in elfie_ids:
+        _seed_elfie(db_path, elfie_id)
+    engine = ElfieNestEngine(
+        FakeWorldRuntime(),
+        state_store=SQLiteNestStateAdapter(db_path),
+    )
+    for elfie_id in elfie_ids:
+        engine.session.register_elfie(elfie_id, MagicMock(spec=Elfie))
+    query = SQLiteNestManagementAdapter(db_path)
     application = FastAPI()
     application.state.nest_management = NestManagementService(
-        SQLiteNestManagementAdapter(db_path)
+        query,
+        LiveNestManagementCommands(engine.session),
     )
     application.dependency_overrides[require_user] = lambda: _principal(role)
     application.include_router(router)
-    return TestClient(application), db_path
+    return TestClient(application), db_path, engine
 
 
 def _seed_elfie(db_path: str, elfie_id: str) -> None:
@@ -86,9 +111,7 @@ def _seed_nest(db_path: str) -> None:
 
 
 def test_versioned_admin_nest_real_chain(tmp_path) -> None:
-    client, db_path = _client(tmp_path)
-    _seed_nest(db_path)
-    _seed_elfie(db_path, "00000001")
+    client, _, _ = _client(tmp_path, elfie_ids=("00000001",))
 
     updated = client.put(
         "/api/v1/admin/nest/rooms/default/bed-count",
@@ -103,7 +126,7 @@ def test_versioned_admin_nest_real_chain(tmp_path) -> None:
     assert updated.status_code == 200
     assert updated.json() == {
         "desired_bed_count": 6,
-        "applied_world_revision": None,
+        "applied_world_revision": 1,
     }
     assert assigned.status_code == 200
     assert assigned.json()["home_anchor_id"] == "dorm-01/bed-02"
@@ -112,10 +135,10 @@ def test_versioned_admin_nest_real_chain(tmp_path) -> None:
 
 
 def test_versioned_admin_nest_maps_conflict_to_error_envelope(tmp_path) -> None:
-    client, db_path = _client(tmp_path)
-    _seed_nest(db_path)
-    _seed_elfie(db_path, "00000001")
-    _seed_elfie(db_path, "00000002")
+    client, _, _ = _client(
+        tmp_path,
+        elfie_ids=("00000001", "00000002"),
+    )
     client.put(
         "/api/v1/admin/nest/elfies/00000001/bed",
         json={"home_anchor_id": "dorm-01/bed-01"},
@@ -137,9 +160,33 @@ def test_versioned_admin_nest_maps_conflict_to_error_envelope(tmp_path) -> None:
 
 
 def test_versioned_admin_nest_authorizes_in_feature(tmp_path) -> None:
-    client, _ = _client(tmp_path, role="user")
+    client, _, _ = _client(tmp_path, role="user")
 
     response = client.get("/api/v1/admin/nest/rooms")
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "nest_management_forbidden"
+
+
+def test_versioned_admin_bed_count_survives_ticks_and_restart(tmp_path) -> None:
+    client, db_path, engine = _client(tmp_path)
+
+    updated = client.put(
+        "/api/v1/admin/nest/rooms/default/bed-count",
+        json={"bed_count": 32},
+    )
+    for _ in range(3):
+        engine.tick_once(1.0)
+
+    rooms = client.get("/api/v1/admin/nest/rooms")
+    persisted = SQLiteNestStateAdapter(db_path).load_snapshot()
+    restarted = ElfieNestEngine(
+        FakeWorldRuntime(),
+        state_store=SQLiteNestStateAdapter(db_path),
+    )
+
+    assert updated.status_code == 200
+    assert rooms.json()["items"][0]["desired_bed_count"] == 32
+    assert persisted is not None
+    assert persisted.desired_bed_count == 32
+    assert restarted.session.nest.desired_bed_count == 32

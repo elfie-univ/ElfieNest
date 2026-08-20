@@ -39,13 +39,13 @@ export const manage = {
   nest: {
     actions: { cancel: "Cancel", editBedFor: "Edit bed for {{name}}", openPreview: "Open preview", save: "Save", saveLayout: "Save layout", saving: "Saving..." },
     assignment: { bedFor: "Bed for {{name}}", empty: "No Elfie bed assignments", freeSuffix: " · Available", listLabel: "Bed assignments", occupiedSuffix: " · {{name}}", title: "Bed assignments", unassigned: "Unassigned" },
-    bedCount: { confirmDescription: "Set the room to {{count}} beds?", confirmTitle: "Confirm bed adjustment", formLabel: "Bed count settings", label: "Bed count", title: "Room bed count", validation: "The bed count must be an integer from 4 to 32." },
+    bedCount: { applied: "{{count}} beds applied.", applying: "{{desired}} beds saved; the current layout has {{applied}} and is syncing in the background.", confirmDescription: "Set the room to {{count}} beds?", confirmTitle: "Confirm bed adjustment", formLabel: "Bed count settings", label: "Bed count", syncTimeout: "{{desired}} beds saved; the current layout is still {{applied}}. Background sync has not completed; refresh room data later.", title: "Room bed count", validation: "The bed count must be an integer from 4 to 32." },
     camera: { availableOnDemand: "Open on demand", dialogTitle: "Live room camera", title: "Camera" },
     events: { empty: "No bed occupancy events", occupied: "{{name}} is present at {{bed}}", title: "Room events" },
     floorplan: {
       ariaBed: "Bed {{number}} · {{occupant}}", ariaPlan: "Building floorplan for {{roomName}}", ariaTerminal: "Wormhole terminal", bedDesk: "Desk below", bedUpper: "Upper bunk", building: "Main building", corridor: "Main corridor", diningDetail: "Open kitchen and long table", diningTitle: "Dining area", floorplanTitle: "{{roomName}} · Room layout", gymDetail: "Equipment and free weights", gymTitle: "Gym", innerCorridor: "Inner corridor", isolation: "Isolation boundary", mediaDetail: "Large sofa and television", mediaTitle: "Media room", roomEntry: "Room {{number}} entrance", socialDetail: "Round-table chat and social space", socialTitle: "Lounge", terminal: "Wormhole terminal", terminalDetail: "Interstellar transit", vacant: "Available",
     },
-    notices: { assigned: "Bed assigned.", cleared: "Bed assignment cleared.", layoutSaved: "Room bed count saved." },
+    notices: { assigned: "Bed assigned.", cleared: "Bed assignment cleared.", layoutSaved: "Room bed count saved and applied.", layoutSavedApplying: "Room bed count saved; layout is syncing." },
     refresh: "Refresh room data",
   },
   page: {

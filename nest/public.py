@@ -11,9 +11,11 @@ from nest.events import (
     SemanticVisualScene,
 )
 from nest.living_rules.errors import (
+    BedCapacityError,
     BedConflictError,
     NoHomeAvailableError,
     ReconciliationRequiredError,
+    UnknownResidentError,
 )
 from nest.living_rules.models import (
     PersistentResidentState,
@@ -40,6 +42,7 @@ from nest.time_environment.models import (
 
 __all__ = [
     "AnchorKind",
+    "BedCapacityError",
     "BedConflictError",
     "FacilityDescriptor",
     "FacilityKind",
@@ -65,6 +68,7 @@ __all__ = [
     "RuntimeMockMotion",
     "RuntimeResidentMirror",
     "UnknownAnchorError",
+    "UnknownResidentError",
     "WorldCatalog",
     "ZoneDescriptor",
 ]

@@ -902,3 +902,6 @@ class FailingNestStateStore:
     def save_snapshot(self, snapshot: NestSnapshot) -> None:
         _ = snapshot
         raise NestStateStoreError("injected write failure")
+
+    def initialize_snapshot(self, snapshot: NestSnapshot) -> None:
+        self.save_snapshot(snapshot)

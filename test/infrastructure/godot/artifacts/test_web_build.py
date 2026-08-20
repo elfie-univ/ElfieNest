@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from infrastructure.godot.artifacts import web_build
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
@@ -157,3 +160,31 @@ def test_web_export_imports_before_species_validation_and_publishes_after_it(
     )
     assert events == ["export", "validate"]
     assert (output / "build-manifest.json").is_file()
+
+
+def test_build_lock_recovers_an_unowned_stale_receipt(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    output = tmp_path / "runtime"
+    lock_path = tmp_path / ".runtime.lock"
+    lock_path.write_text("7982", encoding="ascii")
+    ticks = iter((0.0, 121.0))
+    monkeypatch.setattr(web_build.time, "monotonic", ticks.__next__)
+
+    with web_build._build_lock(output):
+        assert lock_path.read_text(encoding="ascii") == str(os.getpid())
+
+
+def test_build_lock_still_rejects_a_concurrent_owner(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    output = tmp_path / "runtime"
+
+    with web_build._build_lock(output):
+        ticks = iter((0.0, 121.0))
+        monkeypatch.setattr(web_build.time, "monotonic", ticks.__next__)
+        with pytest.raises(RuntimeError, match="build lock timeout"):
+            with web_build._build_lock(output):
+                pass

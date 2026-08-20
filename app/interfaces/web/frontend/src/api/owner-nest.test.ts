@@ -50,4 +50,12 @@ describe("owner Nest API boundary", () => {
     }])
     expect(requestJson).toHaveBeenCalledWith("/api/v1/admin/nest/rooms")
   })
+
+  it("rejects a room payload without the authoritative desired bed count", async () => {
+    vi.mocked(requestJson).mockResolvedValue({
+      items: [{ id: "local-nest", name: "Local Nest", beds: [] }],
+    })
+
+    await expect(ownerRooms()).rejects.toThrow()
+  })
 })

@@ -38,13 +38,15 @@ class FakeNestManagementPort:
     def load_snapshot(self) -> NestSnapshotRecord:
         return self.snapshot
 
-    def update_bed_count(self, bed_count: int) -> NestSnapshotRecord:
+    def initialize_bed_count(self, bed_count: int) -> None:
+        self.update_bed_count(bed_count)
+
+    def update_bed_count(self, bed_count: int) -> None:
         self.snapshot = NestSnapshotRecord(
             desired_bed_count=bed_count,
             applied_world_revision=self.snapshot.applied_world_revision,
             beds=self.snapshot.beds,
         )
-        return self.snapshot
 
     def assign_home(self, elfie_id: str, home_anchor_id: str | None) -> None:
         self.assigned = (elfie_id, home_anchor_id)
@@ -60,7 +62,8 @@ def _principal(role: AccountRole = "owner") -> AccountPrincipal:
 
 
 def test_manager_reads_strict_semantic_nest_projection() -> None:
-    service = NestManagementService(FakeNestManagementPort())
+    persistence = FakeNestManagementPort()
+    service = NestManagementService(persistence, persistence)
 
     rooms = service.get_rooms(_principal())
 
@@ -71,14 +74,16 @@ def test_manager_reads_strict_semantic_nest_projection() -> None:
 
 
 def test_member_cannot_manage_nest() -> None:
-    service = NestManagementService(FakeNestManagementPort())
+    persistence = FakeNestManagementPort()
+    service = NestManagementService(persistence, persistence)
 
     with pytest.raises(NestManagementForbidden):
         service.get_rooms(_principal("user"))
 
 
 def test_bed_count_uses_public_nest_range() -> None:
-    service = NestManagementService(FakeNestManagementPort())
+    persistence = FakeNestManagementPort()
+    service = NestManagementService(persistence, persistence)
 
     with pytest.raises(NestConfigurationInvalid):
         service.update_bed_count(
@@ -89,7 +94,7 @@ def test_bed_count_uses_public_nest_range() -> None:
 
 def test_assign_home_returns_semantic_anchor() -> None:
     persistence = FakeNestManagementPort()
-    service = NestManagementService(persistence)
+    service = NestManagementService(persistence, persistence)
 
     result = service.assign_home(
         _principal(),

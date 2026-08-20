@@ -32,7 +32,7 @@ export function MonitorPage({ roomId = "local-nest" }: MonitorPageProps) {
         setRoomLoadFailed(true)
         return
       }
-      setBedCount(room.desired_bed_count ?? Math.max(4, room.beds.length))
+      setBedCount(room.desired_bed_count)
     }).catch(() => {
       if (active) setRoomLoadFailed(true)
     })

@@ -11,7 +11,12 @@ import shutil
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, cast
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
 from infrastructure.godot.artifacts.species_package_validation import (
@@ -403,7 +408,7 @@ def runtime_is_current(output: Path) -> bool:
 
 
 class _build_lock:
-    """File lock allowing only one Godot Web export per source tree."""
+    """OS-owned lock allowing only one Godot Web export per source tree."""
 
     def __init__(self, output: Path) -> None:
         self._path = output.parent / f".{output.name}.lock"
@@ -411,28 +416,66 @@ class _build_lock:
 
     def __enter__(self) -> _build_lock:
         self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._fd = os.open(str(self._path), os.O_CREAT | os.O_RDWR, 0o600)
+        if os.name != "nt":
+            os.fchmod(self._fd, 0o600)
+        if os.fstat(self._fd).st_size == 0:
+            os.write(self._fd, b"\0")
         deadline = time.monotonic() + 120
-        while self._fd is None:
-            try:
-                self._fd = os.open(
-                    str(self._path), os.O_CREAT | os.O_EXCL | os.O_WRONLY
-                )
-                os.write(self._fd, str(os.getpid()).encode("ascii"))
-            except FileExistsError:
-                if time.monotonic() >= deadline:
-                    raise RuntimeError(
-                        f"Godot Web Runtime build lock timeout: {self._path}"
-                    ) from None
-                time.sleep(0.2)
+        while not _try_acquire_build_lock(self._fd):
+            if time.monotonic() >= deadline:
+                os.close(self._fd)
+                self._fd = None
+                raise RuntimeError(
+                    f"Godot Web Runtime build lock timeout: {self._path}"
+                ) from None
+            time.sleep(0.2)
+        try:
+            os.ftruncate(self._fd, 0)
+            os.lseek(self._fd, 0, os.SEEK_SET)
+            os.write(self._fd, str(os.getpid()).encode("ascii"))
+        except OSError:
+            _release_build_lock(self._fd)
+            os.close(self._fd)
+            self._fd = None
+            raise
         return self
 
     def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
-        if self._fd is not None:
-            os.close(self._fd)
+        if self._fd is None:
+            return
         try:
-            self._path.unlink()
-        except FileNotFoundError:
-            pass
+            _release_build_lock(self._fd)
+        finally:
+            os.close(self._fd)
+            self._fd = None
+
+
+def _try_acquire_build_lock(descriptor: int) -> bool:
+    if os.name == "nt":
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        msvcrt_module = cast(Any, msvcrt)
+        locking = cast(Callable[[int, int, int], None], msvcrt_module.locking)
+        try:
+            locking(descriptor, int(msvcrt_module.LK_NBLCK), 1)
+        except OSError:
+            return False
+        return True
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return False
+    return True
+
+
+def _release_build_lock(descriptor: int) -> None:
+    if os.name == "nt":
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        msvcrt_module = cast(Any, msvcrt)
+        locking = cast(Callable[[int, int, int], None], msvcrt_module.locking)
+        locking(descriptor, int(msvcrt_module.LK_UNLCK), 1)
+        return
+    fcntl.flock(descriptor, fcntl.LOCK_UN)
 
 
 def _find_godot(explicit: Optional[Path]) -> Optional[Path]:

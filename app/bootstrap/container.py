@@ -33,7 +33,11 @@ from app.orchestration.message_delivery import (
     MessageDeliveryFacade,
     MessageDeliveryOwnerBroadcaster,
 )
-from app.orchestration.nest_session import NestSession
+from app.orchestration.nest_session import (
+    LiveNestManagementCommands,
+    NestSession,
+    UnavailableNestManagementCommands,
+)
 from app.orchestration.observer import ObserverFacade, SessionLogoutWorkflow
 from app.orchestration.resident_admission import ResidentAdmissionService
 from app.orchestration.setup_installation import SetupInstallationService
@@ -349,10 +353,15 @@ def build_application_container(
         species_runtime=species_runtime,
     )
     nest_adapter = SQLiteNestManagementAdapter(db_path, nest_config=nest_config)
+    nest_commands = (
+        LiveNestManagementCommands(nest_session)
+        if nest_session is not None
+        else UnavailableNestManagementCommands()
+    )
     setup = build_setup_services(
         db_path,
         accounts=accounts,
-        nest=nest_adapter,
+        nest=nest_commands,
         provider_state=provider_models,
         food_evidence=provider_evidence,
         catalog=provider_catalog,
@@ -379,7 +388,7 @@ def build_application_container(
             settings_adapter,
             security_settings_changed=accounts,
         ),
-        nest_management=NestManagementService(nest_adapter),
+        nest_management=NestManagementService(nest_adapter, nest_commands),
         elfies=elfies,
         providers=providers,
         availability=availability,

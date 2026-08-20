@@ -23,7 +23,8 @@ from .models import (
     UpdateNestBedCountCommand,
 )
 from .ports import (
-    NestManagementPort,
+    NestManagementCommandPort,
+    NestManagementQueryPort,
     NestPortBedNotFound,
     NestPortConflict,
     NestPortError,
@@ -33,13 +34,18 @@ from .ports import (
 
 
 class NestManagementService:
-    def __init__(self, persistence: NestManagementPort) -> None:
-        self._persistence = persistence
+    def __init__(
+        self,
+        query: NestManagementQueryPort,
+        commands: NestManagementCommandPort,
+    ) -> None:
+        self._query = query
+        self._commands = commands
 
     def get_rooms(self, principal: AccountPrincipal) -> tuple[NestRoom, ...]:
         self._require_manager(principal)
         try:
-            snapshot = self._persistence.load_snapshot()
+            snapshot = self._query.load_snapshot()
         except NestPortError as error:
             raise NestManagementUnavailable("Nest management unavailable") from error
         return (self._room(snapshot),)
@@ -55,7 +61,8 @@ class NestManagementService:
         except NestConfigError as error:
             raise NestConfigurationInvalid(str(error)) from error
         try:
-            snapshot = self._persistence.update_bed_count(validated.bed_count)
+            self._commands.update_bed_count(validated.bed_count)
+            snapshot = self._query.load_snapshot()
         except NestPortConflict as error:
             raise NestConfigurationConflict(
                 "bed_count is below an occupied bed"
@@ -78,7 +85,7 @@ class NestManagementService:
         if command.home_anchor_id is not None and not command.home_anchor_id.strip():
             raise NestBedNotFound("home anchor not found")
         try:
-            self._persistence.assign_home(command.elfie_id, command.home_anchor_id)
+            self._commands.assign_home(command.elfie_id, command.home_anchor_id)
         except NestPortResidentNotFound as error:
             raise NestResidentNotFound("Elfie not found") from error
         except NestPortBedNotFound as error:

@@ -19,7 +19,8 @@ from .models import (
 )
 from .ports import (
     NestBedRecord,
-    NestManagementPort,
+    NestManagementCommandPort,
+    NestManagementQueryPort,
     NestPortBedNotFound,
     NestPortConflict,
     NestPortError,
@@ -39,7 +40,8 @@ __all__ = (
     "NestConfigurationConflict",
     "NestConfigurationInvalid",
     "NestManagementForbidden",
-    "NestManagementPort",
+    "NestManagementCommandPort",
+    "NestManagementQueryPort",
     "NestManagementService",
     "NestManagementUnavailable",
     "NestPortBedNotFound",

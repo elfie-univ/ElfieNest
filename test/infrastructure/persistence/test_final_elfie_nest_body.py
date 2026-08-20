@@ -14,6 +14,10 @@ from app.features.bodies.ports import (
 from app.features.nest_management import NestPortBedNotFound
 from app.orchestration.embodiment import EmbodimentState
 from app.orchestration.embodiment.ports import EmbodimentLeaseConflict
+from app.orchestration.nest_session import (
+    ElfieNestEngine,
+    LiveNestManagementCommands,
+)
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.elfie_workspace.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.elfie_workspace.elfies import (
@@ -36,6 +40,7 @@ from infrastructure.persistence.nest_db.store import get_db
 from nest.living_rules.models import PersistentResidentState, ResidentPresence
 from nest.space_facilities.models import WorldCatalog
 from test.app.interfaces.api._helpers import adopt_test_elfie
+from test.app.orchestration.nest_session.fakes import FakeWorldRuntime
 
 FINAL_TABLES = {
     "device_audit_events",
@@ -168,8 +173,10 @@ def test_nest_repositories_store_settings_catalog_presence_and_home_anchor(
         )
     )
     nest_repository = SQLiteNestManagementAdapter(db_path)
-    with pytest.raises(NestPortBedNotFound, match="home anchor not found"):
-        nest_repository.assign_home("00000001", "dorm-01/bed-04")
+    engine = ElfieNestEngine(FakeWorldRuntime(), state_store=state_store)
+    nest_commands = LiveNestManagementCommands(engine.session)
+    with pytest.raises(NestPortBedNotFound, match="anchor"):
+        nest_commands.assign_home("00000001", "dorm-01/bed-04")
 
     # Then: reopening restores semantic state without storing a Godot catalog.
     restored = SQLiteNestStateAdapter(db_path).load_snapshot()

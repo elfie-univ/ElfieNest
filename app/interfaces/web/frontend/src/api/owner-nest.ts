@@ -29,7 +29,7 @@ export const NestBedSchema = BackendNestBedSchema.transform((bed) => ({
 export const RoomSchema = z.object({
   id: z.string(),
   name: z.string(),
-  desired_bed_count: z.number().int().nullable().optional(),
+  desired_bed_count: z.number().int().min(4).max(32),
   applied_world_revision: z.number().int().nullable().optional(),
   beds: z.array(NestBedSchema),
 }).strict()

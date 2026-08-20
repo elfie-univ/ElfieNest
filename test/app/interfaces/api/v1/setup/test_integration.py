@@ -6,10 +6,21 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.bootstrap.api import create_app
+from app.orchestration.nest_session import ElfieNestEngine
+from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
+from infrastructure.persistence.nest_db.store import init_db
+from test.app.orchestration.nest_session.fakes import FakeWorldRuntime
+
+
+def _application_with_engine(tmp_path: Path):
+    db_path = init_db(str(tmp_path / "nest.db"))
+    state_store = SQLiteNestStateAdapter(db_path)
+    engine = ElfieNestEngine(FakeWorldRuntime(), state_store=state_store)
+    return create_app(engine=engine, db_path=db_path), engine, state_store
 
 
 def test_real_setup_chain_creates_owner_session_and_nest_once(tmp_path: Path) -> None:
-    application = create_app(db_path=str(tmp_path / "nest.db"))
+    application, engine, state_store = _application_with_engine(tmp_path)
     with TestClient(application) as client:
         status = client.get("/api/v1/setup/status")
         csrf = status.headers["X-CSRF-Token"]
@@ -71,12 +82,17 @@ def test_real_setup_chain_creates_owner_session_and_nest_once(tmp_path: Path) ->
             application.state.nest_management.get_rooms(principal)[0].desired_bed_count
             == 8
         )
+        for _ in range(3):
+            engine.tick_once(1.0)
+        assert state_store.load_snapshot().desired_bed_count == 8
+        restarted = ElfieNestEngine(FakeWorldRuntime(), state_store=state_store)
+        assert restarted.nest.desired_bed_count == 8
 
 
 def test_real_setup_chain_replaces_stale_session_cookie_before_writing_owner(
     tmp_path: Path,
 ) -> None:
-    application = create_app(db_path=str(tmp_path / "nest.db"))
+    application, _, _ = _application_with_engine(tmp_path)
     with TestClient(application) as client:
         client.cookies.set("session_token", "stale-session-token")
         status = client.get("/api/v1/setup/status")

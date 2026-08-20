@@ -97,7 +97,7 @@ class SetupFoodPort(Protocol):
 
 
 class SetupNestPort(Protocol):
-    def set_bed_count(self, bed_count: int) -> None: ...
+    def initialize_bed_count(self, bed_count: int) -> None: ...
 
 
 class SetupInstallationRunnerPort(Protocol):
