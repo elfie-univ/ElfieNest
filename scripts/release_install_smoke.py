@@ -411,8 +411,20 @@ class NativePackageAdapter:
             _run_allow_failure(("sudo", "rm", "-f", "/usr/local/bin/elfienest"))
             return
         uninstaller = self.install_root / "Uninstall ElfieNest.exe"
-        if uninstaller.is_file():
-            _run_allow_failure((str(uninstaller), "/S"))
+        if not uninstaller.is_file():
+            raise ReleaseInstallSmokeError(
+                f"release-smoke-uninstaller-missing path={uninstaller}"
+            )
+        _run_checked((str(uninstaller), "/S"))
+
+        launcher = self.install_root / "bin/elfienest.cmd"
+        deadline = time.monotonic() + 10.0
+        while launcher.exists() or launcher.is_symlink():
+            if time.monotonic() >= deadline:
+                raise ReleaseInstallSmokeError(
+                    f"release-smoke-uninstall-timeout path={launcher}"
+                )
+            time.sleep(0.25)
 
     def verify_uninstalled(self) -> None:
         launcher = (

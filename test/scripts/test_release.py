@@ -561,6 +561,9 @@ def test_native_installers_publish_the_global_cli_launcher_contract() -> None:
     assert "Function ElfieNestAddLauncherPath" not in windows
     assert "!ifndef BUILD_UNINSTALLER\n${StrStr}\n!else\n${UnStrRep}\n!endif" in windows
     assert "customUnInstall" in windows
+    # Defining customRemoveFiles would bypass electron-builder's standard
+    # recursive application-file cleanup.
+    assert "customRemoveFiles" not in windows
     assert "Call un.ElfieNestRemoveLauncherPath" in windows
     assert "Function un.ElfieNestRemoveLauncherPath" in windows
     assert "${UnStrRep}" in windows
