@@ -120,6 +120,8 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     assert "--prebuilt-godot-web" in source
     assert "--run-install-smoke" in source
     assert "*-install-smoke.json" in source
+    assert 'test -x "$extract_root/opt/ElfieNest/elfienest-gui"' in source
+    assert 'test -x "$extract_root/usr/bin/elfienest-gui"' not in source
 
 
 def test_prebuilt_godot_web_step_checks_the_shared_runtime_without_exporting(
@@ -718,6 +720,30 @@ def test_packager_publishes_only_the_verified_single_native_installer(
     assert observed_environment["ELFIENEST_PROJECT_ROOT"] == str(PROJECT_ROOT)
     assert not (build_root / "package-output" / "darwin-arm64").exists()
     assert not (build_root / "desktop-host-app" / "darwin-arm64").exists()
+
+
+def test_windows_installer_discovery_ignores_builder_work_files(
+    tmp_path: Path,
+) -> None:
+    # Given: electron-builder emitted one installer alongside its transient
+    # uninstaller and executable files nested in the unpacked application.
+    installer = tmp_path / "ElfieNest-0.1.0-beta.1-internal-win-x64.exe"
+    installer.write_bytes(b"installer")
+    (
+        tmp_path / "ElfieNest-0.1.0-beta.1-internal-win-x64.__uninstaller.exe"
+    ).write_bytes(b"temporary")
+    unpacked = tmp_path / "win-unpacked"
+    unpacked.mkdir()
+    (unpacked / "ElfieNest.exe").write_bytes(b"application")
+    resources = unpacked / "resources" / "management-cli"
+    resources.mkdir(parents=True)
+    (resources / "ElfieNestCli.exe").write_bytes(b"cli")
+
+    # When: the release pipeline discovers publishable Windows artifacts.
+    artifacts = release_pipeline._installer_artifacts(tmp_path, "win32-x64")
+
+    # Then: only the top-level final installer can be promoted into dist/.
+    assert artifacts == (installer,)
 
 
 def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
