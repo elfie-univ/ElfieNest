@@ -70,8 +70,8 @@ CLI 暴露为全局 `elfienest` 命令，并且只移除当前安装所拥有的
 macOS arm64、macOS Intel、Windows x64 和 Linux x64 的原生 GitHub runner。手动运行
 `workflow_dispatch` 会构建四个安装包并保存为 Actions artifacts；推送与项目版本一致
 的 tag（例如 `v0.1.0-beta.1`）会运行同一套矩阵，校验各平台安装包内容，并把四个安装包、
-每个平台的 typed install-smoke JSON、`SHA256SUMS` 和 Release `manifest.json` 发布到
-GitHub Releases。带预发布后缀的 tag
+发布到 GitHub Releases。每个平台的 typed install-smoke JSON 只保留在 Actions 构建产物中
+作为 CI 证据，不作为 Release 下载项展示。带预发布后缀的 tag
 会被标记为 GitHub Pre-release；手动运行只有在开启
 `publish_release` 且填写匹配的 `release_tag` 时才会创建 Release。
 

@@ -9,19 +9,15 @@ from pathlib import Path
 from typing import Any
 
 from elfie.profile import SpeciesCatalog
+from infrastructure.persistence.configuration.documents import (
+    resolve_bundled_config_root,
+)
 
 from ..runner import find_godot
 from .species_package_validation import (
     GodotSpeciesValidationRunner,
     SpeciesPackageValidationError,
     validate_source_species_packages,
-)
-
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_CONFIG_ROOT = PROJECT_ROOT / "config"
-DEFAULT_GODOT_PROJECT = PROJECT_ROOT / "godot_project"
-DEFAULT_RUNTIME_MANIFEST = (
-    PROJECT_ROOT / "build" / "components" / "godot-web" / "build-manifest.json"
 )
 
 
@@ -42,8 +38,8 @@ class ValidatedSpeciesRuntimeCatalog:
 def build_species_runtime_catalog(
     catalog: SpeciesCatalog,
     *,
-    config_root: Path = DEFAULT_CONFIG_ROOT,
-    godot_project: Path = DEFAULT_GODOT_PROJECT,
+    config_root: Path | None = None,
+    godot_project: Path | None = None,
     runtime_manifest: Path | None = None,
     godot_binary: Path | None = None,
     godot_runner: GodotSpeciesValidationRunner | None = None,
@@ -74,9 +70,15 @@ def build_species_runtime_catalog(
             "build_species_runtime_catalog requires an injected Godot validation runner"
         )
     try:
+        resolved_config_root = resolve_bundled_config_root(config_root)
+        resolved_godot_project = (
+            godot_project.expanduser().resolve()
+            if godot_project is not None
+            else _default_godot_project()
+        )
         ids = validate_source_species_packages(
-            config_root=config_root,
-            godot_project=godot_project,
+            config_root=resolved_config_root,
+            godot_project=resolved_godot_project,
             godot_runner=godot_runner,
             godot_binary=binary,
         )
@@ -94,9 +96,30 @@ def _manifest_paths(explicit: Path | None) -> tuple[Path, ...]:
     paths = (
         Path(configured_dir).expanduser() / "build-manifest.json"
         if configured_dir
-        else DEFAULT_RUNTIME_MANIFEST,
+        else (
+            _source_root()
+            / "build"
+            / "components"
+            / "godot-web"
+            / "build-manifest.json"
+        ),
     )
     return tuple(path.resolve() for path in paths)
+
+
+def _default_godot_project() -> Path:
+    """Resolve the source project without binding a frozen import-time path."""
+
+    configured_root = os.environ.get("ELFIENEST_PROJECT_ROOT", "").strip()
+    if configured_root:
+        return Path(configured_root).expanduser().resolve() / "godot_project"
+    return _source_root() / "godot_project"
+
+
+def _source_root() -> Path:
+    """Return the repository-like root used only by unfrozen development code."""
+
+    return Path(__file__).resolve().parents[3]
 
 
 def _matching_manifest_ids(
