@@ -93,6 +93,33 @@ def test_smoke_runner_requires_at_least_one_cycle(tmp_path: Path) -> None:
         )
 
 
+def test_smoke_runner_includes_service_log_when_start_fails(tmp_path: Path) -> None:
+    artifact = tmp_path / "ElfieNest.deb"
+    artifact.write_bytes(b"native installer")
+    home = tmp_path / "user-data"
+
+    class FailingStartAdapter(FakeAdapter):
+        def run_cli(self, arguments, environment) -> str:
+            if arguments[0] == "start":
+                log_path = self.home / "logs" / "service.log"
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                log_path.write_text("core-start-failure\n", encoding="utf-8")
+                raise ReleaseInstallSmokeError("start-failed")
+            return super().run_cli(arguments, environment)
+
+    with pytest.raises(
+        ReleaseInstallSmokeError,
+        match="service-log-tail=core-start-failure",
+    ):
+        run_install_smoke(
+            "linux-x64",
+            artifact,
+            tmp_path / "evidence.json",
+            adapter=FailingStartAdapter(home),
+            smoke_home=home,
+        )
+
+
 def test_linux_native_install_resolves_declared_deb_dependencies(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

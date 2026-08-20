@@ -117,9 +117,7 @@ def run_install_smoke(
             phases.append(
                 _measure(
                     "start",
-                    lambda: native.run_cli(
-                        ("start", "--json", "--loopback"), environment
-                    ),
+                    lambda: _start_native_service(native, environment, home),
                     monotonic,
                 )
             )
@@ -285,6 +283,33 @@ def _measure(
             f"release-smoke-phase-failed phase={name} cause={error}"
         ) from error
     return SmokePhase(name, _duration_ms(monotonic() - started), PHASE_BUDGETS_MS[name])
+
+
+def _start_native_service(
+    native: SmokeAdapter,
+    environment: Mapping[str, str],
+    home: Path,
+) -> None:
+    """Start the installed service and preserve its diagnostic tail on failure."""
+    try:
+        native.run_cli(("start", "--json", "--loopback"), environment)
+    except Exception as error:  # noqa: BLE001 - attach native failure evidence
+        detail = _service_log_tail(home)
+        if detail:
+            raise ReleaseInstallSmokeError(
+                f"{error}; service-log-tail={detail}"
+            ) from error
+        raise
+
+
+def _service_log_tail(home: Path) -> str:
+    """Return a bounded, single-line tail of the selected smoke service log."""
+    path = home / "logs" / "service.log"
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return " ".join(content[-8192:].split())
 
 
 def _duration_ms(duration_seconds: float) -> int:
