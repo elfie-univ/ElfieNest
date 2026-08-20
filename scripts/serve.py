@@ -324,6 +324,19 @@ def register_service_process_for_start(
         lifecycle.register_current_service(elfie_home)
 
 
+def _configure_console_encoding() -> None:
+    """Keep Unicode startup diagnostics from crashing on Windows code pages."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (OSError, ValueError):
+            # A closed or non-standard stream should not prevent service startup.
+            continue
+
+
 def build_server_model_execution_services(db_path: str) -> ModelExecutionServices:
     """Build model services without issuing a startup inference request."""
     return build_model_execution_services(
@@ -334,6 +347,7 @@ def build_server_model_execution_services(db_path: str) -> ModelExecutionService
 
 
 def main():
+    _configure_console_encoding()
     parser = _build_argument_parser()
     args = parser.parse_args()
     lifecycle = create_lifecycle_facade()
