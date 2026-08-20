@@ -239,6 +239,7 @@ def build_parser() -> SecretSafeArgumentParser:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
+    _configure_console_encoding()
     parser = build_parser()
     arguments = list(sys.argv[1:] if argv is None else argv)
     if _is_packaged_cli_runtime() and (
@@ -256,6 +257,19 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         parser.print_help()
         return
     dispatch_command(args)
+
+
+def _configure_console_encoding() -> None:
+    """Keep Unicode lifecycle diagnostics from crashing on Windows code pages."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (OSError, ValueError):
+            # A closed or non-standard stream should not prevent CLI startup.
+            continue
 
 
 def run_interactive_shell() -> None:
