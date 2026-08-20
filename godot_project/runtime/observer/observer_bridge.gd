@@ -206,11 +206,18 @@ func _mock_motion_is_valid(value: Variant) -> bool:
 	if not value is Dictionary:
 		return false
 	var motion := value as Dictionary
+	var mode := String(motion.get("mode", "wander"))
+	if mode == "sleep":
+		return (
+			_has_exact_keys(motion, ["mode", "sequence"])
+			and _parse_revision(motion.get("sequence")) >= 1
+		)
+	if mode != "wander":
+		return false
 	if not _has_exact_keys(motion, ["waypoint", "sequence"]):
 		return false
 	return (
 		_parse_revision(motion.get("waypoint")) >= 0
-		and _parse_revision(motion.get("waypoint")) <= 5
 		and _parse_revision(motion.get("sequence")) >= 1
 	)
 
