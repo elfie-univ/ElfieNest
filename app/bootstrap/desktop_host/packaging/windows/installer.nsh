@@ -35,6 +35,12 @@ ${UnStrRep}
   RMDir "$INSTDIR\bin"
 !macroend
 
+!macro customRemoveFiles
+  SetShellVarContext current
+  Delete "$INSTDIR\bin\elfienest.cmd"
+  RMDir "$INSTDIR\bin"
+!macroend
+
 !ifdef BUILD_UNINSTALLER
 Function un.ElfieNestRemoveLauncherPath
   ReadRegStr $0 HKCU "Environment" "Path"
