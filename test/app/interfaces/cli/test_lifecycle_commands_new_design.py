@@ -57,6 +57,10 @@ def isolate_lifecycle_home(monkeypatch, tmp_path: Path) -> None:
     # Keep command-selection tests independent of another local ElfieNest
     # process that may own the repository's default ports.
     monkeypatch.setattr(LIFECYCLE, "ports_in_use", lambda _ports: False)
+    # The packaged-start tests model an isolated CLI.  Do not let a
+    # developer's real tray Controller (which may target the production home)
+    # change that model; IPC-specific tests replace this stub explicitly.
+    monkeypatch.setattr(LIFECYCLE, "controller_request", lambda *_args, **_kwargs: None)
 
 
 class _LaunchSupervisor:

@@ -125,6 +125,7 @@ omit = [
     "*/conftest.py",
 ]
 branch = true
+relative_files = true
 
 [tool.coverage.report]
 precision = 2
