@@ -4,6 +4,7 @@
 
 ${StrStr}
 ${StrRep}
+${UnStrRep}
 
 !macro customInstall
   SetShellVarContext current
@@ -17,7 +18,7 @@ ${StrRep}
 
 !macro customUnInstall
   SetShellVarContext current
-  Call ElfieNestRemoveLauncherPath
+  Call un.ElfieNestRemoveLauncherPath
   Delete "$INSTDIR\bin\elfienest.cmd"
   RMDir "$INSTDIR\bin"
 !macroend
@@ -36,13 +37,13 @@ Function ElfieNestAddLauncherPath
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment"
 FunctionEnd
 
-Function ElfieNestRemoveLauncherPath
+Function un.ElfieNestRemoveLauncherPath
   ReadRegStr $0 HKCU "Environment" "Path"
   ${If} $0 == ""
     Return
   ${EndIf}
   StrCpy $1 ";$0;"
-  ${StrRep} $2 $1 ";$INSTDIR\bin;" ";"
+  ${UnStrRep} $2 $1 ";$INSTDIR\bin;" ";"
   StrCpy $3 $2 "" 1
   StrLen $4 $3
   ${If} $4 > 0

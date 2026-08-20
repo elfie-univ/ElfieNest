@@ -462,6 +462,8 @@ def test_default_release_steps_use_the_current_desktop_interface_manifest() -> N
         (release_pipeline.DESKTOP_DIR / "package.json").read_text(encoding="utf-8")
     )
     assert manifest["devDependencies"]["electron"] == "37.10.3"
+    assert manifest["homepage"] == "https://github.com/elfie-univ/ElfieNest"
+    assert manifest["author"]["email"] == "elfie-univ@users.noreply.github.com"
 
 
 def test_desktop_packaging_uses_only_the_current_brand_icon() -> None:
@@ -517,6 +519,10 @@ def test_native_installers_publish_the_global_cli_launcher_contract() -> None:
     assert "management-cli\\ElfieNestCli.exe" in windows
     assert "customInstall" in windows
     assert "customUnInstall" in windows
+    assert "Call un.ElfieNestRemoveLauncherPath" in windows
+    assert "Function un.ElfieNestRemoveLauncherPath" in windows
+    assert "${UnStrRep}" in windows
+    assert "Call ElfieNestRemoveLauncherPath" not in windows
 
 
 def test_release_cli_only_reports_success_after_its_native_pipeline_finishes(
