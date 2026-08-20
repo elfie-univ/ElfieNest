@@ -150,12 +150,22 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     )
     assert "gh release create" in source
     assert "release_args+=(--prerelease)" in source
-    assert '"linux-x64": "linux-amd64"' in source
     assert "--prebuilt-godot-web" in source
     assert "--run-install-smoke" in source
-    assert "*-install-smoke.json" in source
+    assert "dist/ElfieNest-${RELEASE_TARGET}-install-smoke.json" in source
+    assert "release-artifacts/*-install-smoke.json" not in source
+    assert "SHA256SUMS" not in source
+    assert "release-artifacts/manifest.json" not in source
     assert 'test -x "$extract_root/opt/ElfieNest/elfienest-gui"' in source
     assert 'test -x "$extract_root/usr/bin/elfienest-gui"' not in source
+
+    # Public filenames must describe the platform without exposing the CI-only
+    # internal build channel.
+    artifact_config = (
+        PROJECT_ROOT / "app" / "bootstrap" / "desktop_host" / "electron-builder.yml"
+    ).read_text(encoding="utf-8")
+    assert "artifactName: ElfieNest-${version}-${os}-${arch}.${ext}" in artifact_config
+    assert "-internal-" not in artifact_config
 
 
 def test_prebuilt_godot_web_step_checks_the_shared_runtime_without_exporting(
@@ -409,7 +419,7 @@ def test_native_pipeline_passes_the_exact_target_to_the_packager(tmp_path) -> No
     core = tmp_path / "ElfieNestCore"
     cli = tmp_path / "ElfieNestCli"
     resources = tmp_path / "resources"
-    artifact = tmp_path / "ElfieNest-0.1.0-internal-mac-arm64.pkg"
+    artifact = tmp_path / "ElfieNest-0.1.0-mac-arm64.pkg"
 
     def package(target: str, received_resources, environment: dict[str, str]):
         assert received_resources == resources
@@ -577,7 +587,7 @@ def test_release_cli_only_reports_success_after_its_native_pipeline_finishes(
     tmp_path: Path,
 ) -> None:
     # Given: an otherwise native release request with a deterministic pipeline.
-    artifact = tmp_path / "ElfieNest-0.1.0-internal-mac-arm64.pkg"
+    artifact = tmp_path / "ElfieNest-0.1.0-mac-arm64.pkg"
     calls: list[str] = []
     monkeypatch.setattr(
         release.package_python_core, "host_target", lambda: "darwin-arm64"
@@ -737,7 +747,7 @@ def test_packager_publishes_only_the_verified_single_native_installer(
         )
         output = Path(output_argument.split("=", 1)[1])
         output.mkdir(parents=True)
-        (output / "ElfieNest-0.1.0-internal-mac-arm64.pkg").write_bytes(b"installer")
+        (output / "ElfieNest-0.1.0-mac-arm64.pkg").write_bytes(b"installer")
 
     monkeypatch.setattr(release_pipeline, "BUILD_DIR", build_root)
     monkeypatch.setattr(release_pipeline, "DIST_DIR", dist_root)
@@ -751,7 +761,7 @@ def test_packager_publishes_only_the_verified_single_native_installer(
     )
 
     # Then: only the final installer appears in dist and its target reaches the builder.
-    assert artifact == dist_root / "ElfieNest-0.1.0-internal-mac-arm64.pkg"
+    assert artifact == dist_root / "ElfieNest-0.1.0-mac-arm64.pkg"
     assert artifact.read_bytes() == b"installer"
     assert observed_environment["ELFIENEST_TARGET"] == "darwin-arm64"
     assert observed_environment["ELFIENEST_PROJECT_ROOT"] == str(PROJECT_ROOT)
@@ -764,11 +774,11 @@ def test_windows_installer_discovery_ignores_builder_work_files(
 ) -> None:
     # Given: electron-builder emitted one installer alongside its transient
     # uninstaller and executable files nested in the unpacked application.
-    installer = tmp_path / "ElfieNest-0.1.0-beta.1-internal-win-x64.exe"
+    installer = tmp_path / "ElfieNest-0.1.0-beta.1-win-x64.exe"
     installer.write_bytes(b"installer")
-    (
-        tmp_path / "ElfieNest-0.1.0-beta.1-internal-win-x64.__uninstaller.exe"
-    ).write_bytes(b"temporary")
+    (tmp_path / "ElfieNest-0.1.0-beta.1-win-x64.__uninstaller.exe").write_bytes(
+        b"temporary"
+    )
     unpacked = tmp_path / "win-unpacked"
     unpacked.mkdir()
     (unpacked / "ElfieNest.exe").write_bytes(b"application")
@@ -806,7 +816,7 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
         )
         output = Path(output_argument.split("=", 1)[1])
         output.mkdir(parents=True)
-        (output / "ElfieNest-0.1.0-internal-mac-arm64.pkg").write_bytes(b"installer")
+        (output / "ElfieNest-0.1.0-mac-arm64.pkg").write_bytes(b"installer")
 
     monkeypatch.setattr(release_pipeline, "BUILD_DIR", build_root)
     monkeypatch.setattr(release_pipeline, "DIST_DIR", dist_root)
@@ -857,7 +867,7 @@ def test_packager_replaces_a_previous_same_version_local_artifact(
     resources = build_root / "staging" / "darwin-arm64" / "resources"
     resources.mkdir(parents=True)
     _create_built_desktop_interface(build_root)
-    destination = dist_root / "ElfieNest-0.1.0-internal-mac-arm64.pkg"
+    destination = dist_root / "ElfieNest-0.1.0-mac-arm64.pkg"
     destination.parent.mkdir()
     destination.write_bytes(b"previous")
 

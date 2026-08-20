@@ -1,6 +1,6 @@
 appId: com.elfienest.desktop
 productName: ElfieNest
-artifactName: ElfieNest-${version}-internal-${os}-${arch}.${ext}
+artifactName: ElfieNest-${version}-${os}-${arch}.${ext}
 asar: true
 directories:
   buildResources: .
