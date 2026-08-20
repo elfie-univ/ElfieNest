@@ -139,6 +139,12 @@ def _supervisor(
         stop_core=stop_core,
         core_process_identity=core_process_identity,
         authority_host=authority_host,
+        core_process_identity=lambda pid: ProcessSnapshot(
+            pid=pid,
+            cwd=Path.cwd(),
+            command=("python", "scripts/serve.py"),
+            birth_identity=f"fake-{pid}",
+        ),
         **kwargs,
     )
 

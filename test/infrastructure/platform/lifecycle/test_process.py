@@ -184,6 +184,7 @@ def test_process_adapter_starts_a_windows_process_group(
     monkeypatch, tmp_path: Path
 ) -> None:
     calls: list[dict[str, object]] = []
+    monkeypatch.setenv("ELFIENEST_RUNTIME_LOG", str(tmp_path / "runtime.log"))
 
     class Process:
         pid = 99
@@ -237,6 +238,7 @@ def test_process_adapter_kills_child_when_windows_job_attach_fails(
     monkeypatch, tmp_path: Path
 ) -> None:
     calls: list[str] = []
+    monkeypatch.setenv("ELFIENEST_RUNTIME_LOG", str(tmp_path / "runtime.log"))
 
     class Process:
         pid = 99

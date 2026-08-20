@@ -180,7 +180,9 @@ def test_timeout_is_failed_without_a_second_process(
         binary,
         project,
         ("--script", "res://check.gd"),
-        timeout_seconds=0.5,
+        # Keep enough headroom for launching the temporary shell on slower
+        # hosts while remaining well below the fake process's two-second run.
+        timeout_seconds=1.0,
         purpose="test-timeout",
         env=environment,
     )
