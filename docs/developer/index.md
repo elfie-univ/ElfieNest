@@ -62,6 +62,8 @@ source of truth.
   the local working order.
 - [Testing & quality](./engineering/testing): test layers, quality baseline, pre-commit and
   CI.
+- [Validation efficiency review](./engineering/validation-efficiency): reusable test evidence,
+  verification snapshots and the run-history review checklist.
 - [Debugging & workbenches](./engineering/debugging): the purpose and isolation of Elfie
   Lab and Nest Lab.
 - [Command reference](./engineering/tooling): the unified CLI and the service, data and
