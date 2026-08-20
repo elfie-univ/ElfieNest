@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import readline
 import shlex
 import sys
 from contextlib import contextmanager
@@ -264,12 +263,12 @@ def run_interactive_shell() -> None:
     session = CliSession()
     source_root = source_root_for_cli()
     state = create_lifecycle_facade().source_cli_state(source_root)
+    history: Sequence[str] = ()
     try:
-        for line in state.load_history():
-            readline.add_history(line)
+        history = state.load_history()
     except OSError as error:
         print(f"⚠️ 源码 CLI history 不可用: {error}")
-    readline.set_history_length(50)
+    _configure_readline_history(history)
     print_banner()
     print_cli_help()
     while True:
@@ -307,6 +306,17 @@ def run_interactive_shell() -> None:
                 print(f"❌ 命令失败，退出码: {error.code}")
         except (TargetResolutionError, DataHomeSelectionError) as error:
             print(f"❌ {error}")
+
+
+def _configure_readline_history(history: Sequence[str]) -> None:
+    """Enable terminal history when the host provides the optional readline module."""
+    try:
+        import readline
+    except ImportError:
+        return
+    for line in history:
+        readline.add_history(line)
+    readline.set_history_length(50)
 
 
 def print_cli_help() -> None:

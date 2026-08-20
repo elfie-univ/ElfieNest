@@ -83,6 +83,39 @@ def test_release_pipeline_uses_bash_for_bootstrap_and_npx_cmd_on_windows(
     assert npx == ("npx.cmd", "--version")
 
 
+def test_packaged_cli_imports_when_windows_readline_is_unavailable() -> None:
+    # Given: Windows does not provide the POSIX readline extension imported on macOS/Linux.
+    entrypoint = PROJECT_ROOT / "scripts" / "elfienest.py"
+    probe = f"""
+import builtins
+import runpy
+
+original_import = builtins.__import__
+
+def import_without_readline(name, globals=None, locals=None, fromlist=(), level=0):
+    if name == "readline":
+        raise ModuleNotFoundError("No module named 'readline'", name="readline")
+    return original_import(name, globals, locals, fromlist, level)
+
+builtins.__import__ = import_without_readline
+namespace = runpy.run_path({str(entrypoint)!r}, run_name="elfienest_windows_probe")
+assert callable(namespace["main"])
+"""
+
+    # When: the frozen CLI entrypoint is imported in that environment.
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=PROJECT_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    # Then: optional line-editing support cannot prevent the CLI from starting.
+    assert result.returncode == 0, result.stderr
+    assert "ModuleNotFoundError" not in result.stderr
+
+
 def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate() -> (
     None
 ):
