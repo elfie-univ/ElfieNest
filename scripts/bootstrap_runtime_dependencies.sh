@@ -305,7 +305,10 @@ install_official_godot_toolchain() {
     template_staging="$(mktemp -d "${TMPDIR:-/tmp}/elfienest-godot-templates.XXXXXX")"
 
     echo "${CYAN}  📥 Downloading official Godot $GODOT_PROJECT_VERSION editor...${RESET}"
-    if ! curl --fail --location --retry 3 --output "$editor_archive" "$(godot_download_url "$editor_platform" "$editor_slug")"; then
+    if ! curl --fail --location --http1.1 \
+        --retry 5 --retry-all-errors --retry-delay 2 \
+        --continue-at - --output "$editor_archive" \
+        "$(godot_download_url "$editor_platform" "$editor_slug")"; then
         echo "${RED}  ❌ Godot editor download failed.${RESET}" >&2
         rm -f -- "$editor_archive" "$template_archive"
         rm -rf -- "$editor_staging" "$template_staging"
@@ -318,7 +321,10 @@ install_official_godot_toolchain() {
         return 1
     fi
     echo "${CYAN}  📥 Downloading official Godot Web Export Templates...${RESET}"
-    if ! curl --fail --location --retry 3 --output "$template_archive" "$(godot_download_url "templates" "export_templates.tpz")"; then
+    if ! curl --fail --location --http1.1 \
+        --retry 5 --retry-all-errors --retry-delay 2 \
+        --continue-at - --output "$template_archive" \
+        "$(godot_download_url "templates" "export_templates.tpz")"; then
         echo "${RED}  ❌ Godot Web Export Templates download failed.${RESET}" >&2
         rm -f -- "$editor_archive" "$template_archive"
         rm -rf -- "$editor_staging" "$template_staging"

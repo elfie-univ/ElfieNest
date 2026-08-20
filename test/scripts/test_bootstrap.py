@@ -496,6 +496,7 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
     make_executable(
         fake_bin / "curl",
         "#!/bin/sh\n"
+        'printf "%s\\n" "$*" >> "$FAKE_GODOT_CURL_ARGS_LOG"\n'
         'if [ "${FAKE_GODOT_DOWNLOAD_FAIL:-0}" = "1" ]; then exit 22; fi\n'
         'output=""\n'
         'url=""\n'
@@ -523,6 +524,7 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
     )
     developer_home = tmp_path / "elfienest-dev"
     url_log = tmp_path / "godot-download-urls.log"
+    curl_args_log = tmp_path / "godot-curl-args.log"
     command = (
         'PROJECT_ROOT="$1"; source "$2"; install_official_godot_toolchain; '
         'printf "%s|%s\\n" "$GODOT_RESOLVED_BIN" "$GODOT_RESOLVED_EDITOR_DATA"'
@@ -530,6 +532,7 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
     environment = {
         **os.environ,
         "ELFIE_DEV_HOME": str(developer_home),
+        "FAKE_GODOT_CURL_ARGS_LOG": str(curl_args_log),
         "FAKE_GODOT_URL_LOG": str(url_log),
         "HOME": str(tmp_path / "home"),
         "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
@@ -581,6 +584,14 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
     download_urls = url_log.read_text(encoding="utf-8").splitlines()
     assert len(download_urls) == 2
     assert all(url.endswith(f"version={required_version}") for url in download_urls)
+    curl_invocations = curl_args_log.read_text(encoding="utf-8").splitlines()
+    assert len(curl_invocations) == 3
+    for invocation in curl_invocations:
+        assert "--http1.1" in invocation
+        assert "--retry 5" in invocation
+        assert "--retry-all-errors" in invocation
+        assert "--retry-delay 2" in invocation
+        assert "--continue-at -" in invocation
 
 
 def test_godot_toolchain_paths_and_downloads_follow_project_godot(
