@@ -38,6 +38,14 @@ React bridge 只接受来自当前同源 Godot iframe、且满足严格版本化
 权威凭据或模拟控制。local presentation pause 只冻结 Observer 的本地输入/呈现状态；它
 永远不会暂停 Runtime、Gateway、Core 或后端模拟。
 
+## macOS 无线网络名称访问
+
+手机访问二维码流程不依赖无线网络名称：它始终使用当前可用的局域网 URL。在 macOS 上，
+只有二维码弹窗需要显示名称时，Desktop UI 才会按需请求当前 Wi-Fi 名称。随应用打包的前台
+小助手通过 Core Location 与 CoreWLAN 读取名称，因此 macOS 可以显示正常的“定位服务”授权
+弹窗。小助手声明了定位用途，不使用 `sudo`、LaunchDaemon 或后台服务。如果用户拒绝授权、
+系统关闭定位服务，或系统无法提供 SSID，二维码仍然可以使用，弹窗会显示前往系统设置的入口。
+
 ## 产物契约与源码检查
 
 Desktop 组件在 Runtime 产物清单中的名字是 `desktop-observer`。它恰好适用于

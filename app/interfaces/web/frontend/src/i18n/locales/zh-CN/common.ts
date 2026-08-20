@@ -26,6 +26,10 @@ export const common = {
     scanQr: "第二步　用手机扫描二维码",
     title: "用手机打开 ElfieNest",
     unavailable: "手机访问暂不可用，当前只能在这台电脑上使用。请确认电脑和手机连接在同一局域网后重试。",
+    wifiNameUnavailable: "当前系统无法提供无线网名称，但不影响扫码。",
+    wifiPermissionDenied: "没有获得读取无线网名称的权限。只要手机和电脑在同一局域网，仍可继续扫码。",
+    wifiPermissionRequesting: "正在请求 macOS 权限以显示当前无线网名称；二维码仍可正常使用。",
+    openLocationSettings: "打开定位服务设置",
   },
   status: {
     unknown: "状态未知",

@@ -1,4 +1,6 @@
 import { BrowserWindow } from "electron";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { DataHomeInspection } from "../lifecycle_client.js";
 
@@ -70,7 +72,12 @@ export function showDataHomeRecoverySuccess(
 }
 
 export function createMainWindow(platform: NodeJS.Platform): BrowserWindow {
-  const window = new BrowserWindow(mainWindowOptions(platform));
+  const preloadPath = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "preload.cjs",
+  );
+  const window = new BrowserWindow(mainWindowOptions(platform, preloadPath));
   if (platform === "darwin") {
     window.webContents.on("did-finish-load", () => {
       void window.webContents.insertCSS(MACOS_CONTENT_INSET_CSS);

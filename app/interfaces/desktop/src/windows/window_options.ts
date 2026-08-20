@@ -15,7 +15,14 @@ export const MACOS_CONTENT_INSET_CSS = `
 
 export function mainWindowOptions(
   platform: NodeJS.Platform,
+  preloadPath?: string,
 ): BrowserWindowConstructorOptions {
+  const webPreferences = {
+    contextIsolation: true,
+    nodeIntegration: false,
+    sandbox: true,
+    ...(preloadPath === undefined ? {} : { preload: preloadPath }),
+  };
   const common: BrowserWindowConstructorOptions = {
     title: "ElfieNest",
     width: 1440,
@@ -23,11 +30,7 @@ export function mainWindowOptions(
     minWidth: 1024,
     minHeight: 720,
     backgroundColor: DEFAULT_BACKGROUND_COLOR,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
+    webPreferences,
   };
   if (platform !== "darwin") {
     return common;

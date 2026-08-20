@@ -138,6 +138,7 @@
 .mobile-access-dialog__select select { min-width: 0; padding: 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--surface-muted); }
 .mobile-access-dialog__url { margin: 12px 0 0; overflow-wrap: anywhere; color: var(--accent-hover); font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center; }
 .mobile-access-dialog__hint { color: var(--ink-soft); line-height: 1.6; }
+.mobile-access-dialog__permission { display: grid; justify-items: start; gap: 2px; margin-top: 10px; }
 .mobile-access-dialog__hint code { padding: 2px 5px; border-radius: 5px; background: var(--surface-muted); color: var(--accent-hover); }
 
 @media (max-width: 860px) {
