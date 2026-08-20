@@ -318,7 +318,7 @@ class NativePackageAdapter:
             )
             return
         if self.target == "linux-x64":
-            _run_checked(("sudo", "dpkg", "--install", str(self.artifact)))
+            _run_checked(("sudo", "apt-get", "install", "--yes", str(self.artifact)))
             self.package_name = _run_checked(
                 ("dpkg-deb", "--field", str(self.artifact), "Package")
             ).strip()

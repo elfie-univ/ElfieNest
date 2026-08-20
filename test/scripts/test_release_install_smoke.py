@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from scripts.release_install_smoke import (
+    NativePackageAdapter,
     ReleaseInstallSmokeError,
     run_install_smoke,
 )
@@ -90,3 +91,34 @@ def test_smoke_runner_requires_at_least_one_cycle(tmp_path: Path) -> None:
             tmp_path / "evidence.json",
             cycles=0,
         )
+
+
+def test_linux_native_install_resolves_declared_deb_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = (tmp_path / "ElfieNest.deb").resolve()
+    artifact.write_bytes(b"native installer")
+    commands: list[tuple[str, ...]] = []
+
+    def fake_run_checked(command, *, environment=None) -> str:
+        del environment
+        normalized = tuple(command)
+        commands.append(normalized)
+        if normalized[:2] == ("dpkg-deb", "--field"):
+            return "elfienest-desktop\n"
+        return ""
+
+    monkeypatch.setattr("scripts.release_install_smoke._run_checked", fake_run_checked)
+
+    adapter = NativePackageAdapter("linux-x64", artifact)
+    adapter.install()
+
+    assert commands[0] == (
+        "sudo",
+        "apt-get",
+        "install",
+        "--yes",
+        str(artifact),
+    )
+    assert adapter.package_name == "elfienest-desktop"
