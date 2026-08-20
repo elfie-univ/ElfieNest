@@ -21,6 +21,7 @@ description: 评估已完成改动的提交时机，并完成 Git 提交和远�
    ```bash
    git fetch --prune origin main
    bash scripts/pre_submit_gate.sh --stage commit \
+     --fix-format \
      --base-sha "$(git rev-parse origin/main^{commit})"
    # feature push: replace commit with push
    # main merge/release: replace commit with main
@@ -30,12 +31,18 @@ description: 评估已完成改动的提交时机，并完成 Git 提交和远�
    CI 对齐门禁、完整 pytest 和文档构建。G3 可以复用同一精确候选快照的成功结果，但不能
    用本地缓存替代最新 commit SHA 的 CI。Conformance 台账中的未关闭条目、门禁失败或环境
    阻塞都必须在交付报告中明确，不能被本地缓存或口头结论掩盖。
+   `--fix-format` 只格式化本次候选中 dirty/untracked 的 Python 文件；遇到同一文件同时有
+   staged/unstaged 改动时停止，不能覆盖用户内容。格式快线失败后只修复并重跑快线，不启动
+   或重启更广门禁。`--no-cache` 只关闭当前级别的证据复用，不能把 G1/G2 升为 G3。
 7. 检查暂存内容，禁止提交本地密钥、Token、密码、运行时配置或被 `.gitignore` 保护的敏感文件。
 8. 禁止使用 `--no-verify` 绕过 pre-commit。钩子失败时修复问题并重新提交。
-9. 创建 commit 后立即推送当前分支。已有上游时运行 `git push`；没有上游时运行 `git push -u origin <branch>`。
-10. 推送失败不算完成。继续处理可恢复的网络、认证、非快进或分支跟踪问题；无法恢复时明确报告 commit 仅存在本地。
-11. 推送后再次运行 `git status --short --branch`，确认 ahead 计数清零，并报告 commit、分支和远端。
-12. 在 worktree 中完成并经用户确认的功能，还要遵循仓库 `AGENTS.md` 的推送和主分支同步流程。
+9. 所有远端代码操作只使用终端 `git` 命令；不得调用 `gh`、GitHub Connector/MCP、网页
+   或浏览器。普通变更只推送当前功能分支，不主动创建或合并 PR；治理变更继续遵循受保护
+   主线和 maintainer review 契约，不能直接 push/merge `main`。
+10. 创建 commit 后立即推送当前分支。已有上游时运行 `git push`；没有上游时运行 `git push -u origin <branch>`。
+11. 推送失败不算完成。继续处理可恢复的网络、认证、非快进或分支跟踪问题；无法恢复时明确报告 commit 仅存在本地。
+12. 推送后再次运行 `git status --short --branch`，确认 ahead 计数清零，并报告 commit、分支和远端。
+13. 在 worktree 中完成并经用户确认的功能，还要遵循仓库 `AGENTS.md` 的推送和主分支同步流程。
 
 ## 标准流程
 
@@ -43,11 +50,11 @@ description: 评估已完成改动的提交时机，并完成 Git 提交和远�
 
 ```bash
 git status --short --branch
-git diff --check
 git diff --stat
 
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
+  --fix-format \
   --base-sha "$(git rev-parse origin/main^{commit})"
 ```
 

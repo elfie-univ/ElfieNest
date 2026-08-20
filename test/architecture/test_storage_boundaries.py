@@ -36,6 +36,29 @@ SQL_LITERAL_PATTERN = re.compile(
 )
 
 
+def _non_docstring_string_constants(tree: ast.AST) -> list[ast.Constant]:
+    parents = {
+        child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)
+    }
+    constants: list[ast.Constant] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+            continue
+        expression = parents.get(node)
+        owner = parents.get(expression) if expression is not None else None
+        if (
+            isinstance(expression, ast.Expr)
+            and isinstance(
+                owner, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+            )
+            and owner.body
+            and owner.body[0] is expression
+        ):
+            continue
+        constants.append(node)
+    return constants
+
+
 def test_developer_tools_only_reference_production_home_for_an_explicit_guard() -> None:
     offenders: list[str] = []
     for path in (PROJECT_ROOT / "devtools").rglob("*.py"):
@@ -119,10 +142,8 @@ def test_application_layers_do_not_own_sql() -> None:
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
             has_sql = any(
-                isinstance(node, ast.Constant)
-                and isinstance(node.value, str)
-                and SQL_LITERAL_PATTERN.search(node.value) is not None
-                for node in ast.walk(tree)
+                SQL_LITERAL_PATTERN.search(node.value) is not None
+                for node in _non_docstring_string_constants(tree)
             )
             imports_sqlite = any(
                 (

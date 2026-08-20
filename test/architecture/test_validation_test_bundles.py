@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -54,6 +55,8 @@ def test_repository_paths_ignore_local_runtime_links_and_generated_roots(
                 ".venv\n"
                 ".venv/bin/python3\n"
                 "venv/bin/python\n"
+                "devtools/web/node_modules\n"
+                "docs/node_modules/.modules.yaml\n"
                 "build/coverage.xml\n"
                 "coverage.xml\n"
                 "scripts/architecture/validation_cache.py\n"
@@ -186,6 +189,21 @@ def test_unrelated_content_keeps_bundle_evidence_but_scoped_content_invalidates_
     assert after_scoped != first
 
 
+def test_repository_snapshot_rejects_same_size_same_mtime_content_changes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(validation_cache, "PROJECT_ROOT", tmp_path)
+    path = tmp_path / "candidate.py"
+    path.write_bytes(b"value = 1\n")
+    original_stat = path.stat()
+    snapshot = validation_cache.repository_snapshot(["candidate.py"])
+
+    path.write_bytes(b"value = 2\n")
+    os.utime(path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+
+    assert not validation_cache.repository_snapshot_current(snapshot, ["candidate.py"])
+
+
 def test_bundle_cache_requires_both_pass_record_and_coverage_artifact(
     tmp_path: Path,
 ) -> None:
@@ -225,6 +243,22 @@ def test_bundle_command_defers_coverage_threshold_until_combination() -> None:
     command = test_bundles.bundle_pytest_command(test_bundles.bundle_by_id("godot"))
 
     assert "--cov-fail-under=0" in command
+
+
+def test_test_fingerprint_does_not_include_worktree_local_python_path(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(validation_cache, "PROJECT_ROOT", tmp_path)
+    candidate = tmp_path / "candidate.py"
+    candidate.write_text("value = 1\n", encoding="utf-8")
+    paths = ["candidate.py"]
+
+    monkeypatch.setattr(test_bundles.sys, "executable", "/one/.venv/bin/python3")
+    first = test_bundles.focused_test_fingerprint("base", paths, paths)
+    monkeypatch.setattr(test_bundles.sys, "executable", "/two/.venv/bin/python3")
+    second = test_bundles.focused_test_fingerprint("base", paths, paths)
+
+    assert first == second
 
 
 def test_run_bundle_reuses_pass_without_starting_pytest(

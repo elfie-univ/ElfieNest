@@ -140,12 +140,14 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
+  --fix-format \
   --base-sha "$(git rev-parse origin/main^{commit})"
 # 功能分支推送：把 commit 替换成 push
 # 主线合并/发布：把 commit 替换成 main
 ```
 
-G1（`commit`）执行改动文件检查和受影响测试；G2（`push`）追加质量
+本地可选的 `--fix-format` 准备步骤只格式化选中的 dirty/untracked Python 文件；遇到同一
+文件 mixed staged/unstaged 时停止。G1（`commit`）执行改动文件检查和受影响测试；G2（`push`）追加质量
 基线和受影响集成检查；G3（`main`）运行不可变基础提交架构 ratchet、依赖和工具链检查、
 质量基线、pre-commit/Gitleaks、完整测试套件、CLI smoke 和文档构建。未知、治理或工具链
 改动自动升级到 G3。确定性测试检查按命令、作用域输入和工具记账，不按级别重复记账，因此 G2
@@ -175,7 +177,7 @@ G1（`commit`）执行改动文件检查和受影响测试；G2（`push`）追�
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/check_quality_baseline.py
-PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
+PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run gitleaks --all-files
 ```
 
 再运行与你的改动直接相关的单元、集成或端到端测试。文档改动还要运行：

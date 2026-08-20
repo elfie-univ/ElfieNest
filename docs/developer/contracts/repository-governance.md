@@ -1,8 +1,8 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.14
+**Contract version:** 1.15
 **Adopted:** 2026-08-12
-**Revised:** 2026-08-17
+**Revised:** 2026-08-20
 **Enforced scope:** Repository-wide change classification and architecture boundaries
 
 This contract defines how ElfieNest architecture rules are organized, changed
@@ -50,9 +50,17 @@ cannot be proven mechanically.
 Validation is selected from the changed-path impact, and a higher-risk result
 may always escalate but never downgrade:
 
+Every tier starts with the formatting and static-analysis fast lane. It must
+finish before any test, build, documentation build or other expensive check.
+Before a local submit candidate is frozen, preparation may run the Ruff
+formatter in write mode only on the selected dirty or untracked `.py` and
+`.pyi` files. It must refuse automatic formatting when one selected file has
+both staged and unstaged changes. Commit hooks, tests and CI are check-only and
+must never modify candidate files.
+
 | Tier | Trigger | Required checks |
 | --- | --- | --- |
-| G1 commit | ordinary local change | staged secret scan, diff check, changed-file quality and affected tests |
+| G1 commit | ordinary local change | fast-lane evidence, staged secret scan and affected tests |
 | G2 push | feature-branch push or an affected integration path | G1 plus quality baseline and the affected API, persistence, architecture or documentation integration checks |
 | G3 main | main-branch merge/release, governance/toolchain change or unknown impact | current-candidate checks and one required expensive backstop |
 
@@ -60,6 +68,16 @@ The candidate classifier owns the escalation decision. Unknown executable paths,
 governance, toolchain, lockfile and delivery changes go to G3. A normal commit
 does not wait for G3 unless its own impact requires that escalation; G3 remains
 the protected-branch backstop.
+
+Within one selected-tier invocation, the repository-wide quality baseline runs
+at most once. G1 and the commit hook do not run it; G2/G3 invoke it directly
+when required and must not invoke it again through an umbrella hook.
+
+The main backstop reuses a ready pnpm installation when the corresponding
+`node_modules/.modules.yaml` exists and its package manifest and lockfile are
+unchanged from the base. It may install dependencies only when that proof is
+absent or either input changed; a failed network install stops the gate rather
+than retrying a broader validation tier.
 
 Only a successful deterministic test check may be reused at check scope. A
 delivery tier is a set of required checks, not part of a test check's identity:
@@ -93,14 +111,18 @@ part of that fingerprint and is fail-closed when it cannot be classified.
 Failed, blocked, timed-out or live-provider results are never stored as passes;
 a forced rerun that fails also removes an older pass for the same key. The
 internal `--direct-main` path runs the complete backstop while retaining valid
-bundle evidence; `--no-cache` is reserved for an intentional clean replay and
-is propagated into the bundle runner. When one G3 bundle fails, earlier
+bundle evidence. `--no-cache` only disables reading valid evidence for checks
+already required by the selected tier; it never changes the tier or adds a
+broader check. When one G3 bundle fails, earlier
 successful bundle records remain valid; the next run skips those records and
 resumes with the failed or still-missing bundle.
-During a repair loop, rerun the exact failed node first, then its owning test
-file or module, then affected integration checks; run the required G3 backstop
-once for the final executable candidate instead of restarting it after every
-edit. Each expansion needs a new dependency or risk reason. The worktree
+The fast lane stops on failure before any test or expensive check starts.
+During a later repair loop, rerun the exact failed node first, then its owning
+test file or module, then affected integration checks. A failure must not
+automatically restart a broader gate or a previously proven check; run the
+required G3 backstop once for the final executable candidate instead of
+restarting it after every edit. Each expansion needs a new dependency or risk
+reason. The worktree
 fingerprint is checked again after every reused or executed gate; a change
 discards the result. Cache records live only under ignored
 `build/validation-cache/` and contain no source, credentials or user data.

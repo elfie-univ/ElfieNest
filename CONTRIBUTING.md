@@ -179,12 +179,15 @@ Use the smallest safe validation tier after fetching the remote base:
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
+  --fix-format \
   --base-sha "$(git rev-parse origin/main^{commit})"
 # feature-branch push: replace commit with push
 # main merge/release: replace commit with main
 ```
 
-G1 (`commit`) runs changed-file checks and affected tests.
+The optional local `--fix-format` preparation formats only selected dirty or
+untracked Python files and stops on mixed staged/unstaged content. G1
+(`commit`) runs changed-file checks and affected tests.
 G2 (`push`) adds the quality baseline and affected integration checks. G3
 (`main`) runs the immutable-base architecture ratchets, dependency and
 toolchain checks, quality baseline, pre-commit/Gitleaks, complete test suite,
@@ -223,7 +226,7 @@ The individual checks performed by the gate are:
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/check_quality_baseline.py
-PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
+PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run gitleaks --all-files
 ```
 
 Then run the unit, integration or end-to-end tests directly related to your

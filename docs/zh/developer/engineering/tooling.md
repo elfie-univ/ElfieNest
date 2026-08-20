@@ -173,7 +173,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync python scripts/check_quality_baseline.py
 PRE_COMMIT_HOME=/tmp/elfienest-precommit \
-  uv run --no-sync pre-commit run --all-files
+  uv run --no-sync pre-commit run gitleaks --all-files
 ```
 
 文档站本地构建：

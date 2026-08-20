@@ -45,22 +45,6 @@ class RepositorySnapshot:
         return self.values.get(path)
 
 
-def _path_signature(path: str) -> str:
-    candidate = PROJECT_ROOT / path
-    try:
-        metadata = candidate.lstat()
-    except FileNotFoundError:
-        return "<deleted-or-non-file>"
-    parts = [
-        f"mode:{metadata.st_mode & 0o7777:o}",
-        f"size:{metadata.st_size}",
-        f"mtime:{getattr(metadata, 'st_mtime_ns', int(metadata.st_mtime * 1_000_000_000))}",
-    ]
-    if candidate.is_symlink():
-        parts.append(f"symlink:{os.readlink(candidate)}")
-    return "\0".join(parts)
-
-
 def _path_value(path: str) -> str:
     candidate = PROJECT_ROOT / path
     digest = hashlib.sha256()
@@ -79,6 +63,12 @@ def _path_value(path: str) -> str:
     else:
         digest.update(b"<non-file>")
     return digest.hexdigest()
+
+
+def _path_signature(path: str) -> str:
+    """Return a content-based snapshot token, never only mtime and size."""
+
+    return _path_value(path)
 
 
 @functools.cache
@@ -125,10 +115,11 @@ def _runtime_fingerprint_values() -> Tuple[str, ...]:
 
 def repository_snapshot(paths: Sequence[str]) -> RepositorySnapshot:
     normalized = tuple(sorted(set(paths)))
+    values = {path: _path_value(path) for path in normalized}
     return RepositorySnapshot(
         paths=normalized,
-        signatures={path: _path_signature(path) for path in normalized},
-        values={path: _path_value(path) for path in normalized},
+        signatures=values.copy(),
+        values=values,
         runtime_values=_runtime_fingerprint_values(),
     )
 

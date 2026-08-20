@@ -59,7 +59,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync python scripts/check_quality_baseline.py
 
 PRE_COMMIT_HOME=/tmp/elfienest-precommit \
-  uv run --no-sync pre-commit run --all-files
+  uv run --no-sync pre-commit run gitleaks --all-files
 ```
 
 pre-commit 与 CI 还会运行 Gitleaks。不要用 `--no-verify` 绕过密钥检查，也不要为
@@ -184,12 +184,14 @@ Electron 登录入口和移动浏览器。
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
+  --fix-format \
   --base-sha "$(git rev-parse origin/main^{commit})"
 # 功能分支推送使用 --stage push；主线合并/发布使用 --stage main
 ```
 
 成功结果只有在候选快照完全相同时才能复用；分类器升级或向主线交付时，完整 G3 后盾仍然
-是必需的。
+是必需的。本地 `--fix-format` 准备步骤只修改选中的 dirty/untracked Python 文件；同一文件
+mixed staged/unstaged 时会在任何昂贵检查开始前拒绝处理。
 
 ```bash
 cd docs

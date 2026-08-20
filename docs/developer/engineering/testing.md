@@ -96,7 +96,7 @@ judges itself. See the
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/check_quality_baseline.py
-PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
+PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run gitleaks --all-files
 ```
 
 The quality baseline only admits already-existing diagnostics; any new Ruff,
@@ -110,12 +110,16 @@ Fetch the remote `main` base, then run the smallest safe tier:
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
+  --fix-format \
   --base-sha "$(git rev-parse origin/main^{commit})"
 # feature push: use --stage push
 # main merge or release: use --stage main
 ```
 
-G1 (`commit`) checks changed files and affected tests. G2
+The local `--fix-format` preparation modifies only selected dirty or untracked
+Python files. It refuses mixed staged/unstaged content and finishes, together
+with diff and focused Ruff checks, before any test or broad gate. G1 (`commit`)
+checks changed files and affected tests. G2
 (`push`) adds the quality baseline and affected API, persistence, architecture
 or documentation integration checks. G3 (`main`) combines current-candidate
 checks with the immutable-base ratchets, lock and toolchain checks,
@@ -152,9 +156,8 @@ reusable only as that exact focused command and cannot prove its owning bundle.
 Raw `pytest` is diagnostic and does not create submission-cache evidence.
 
 The internal `--direct-main` path runs the complete main backstop while reusing
-valid bundle evidence. `--no-cache` is an explicit clean replay: it must be
-passed through the gate and bundle runner, and it must not silently reuse a
-focused test, bundle, or backstop record.
+valid bundle evidence. `--no-cache` disables valid evidence reuse for checks
+already required by the selected tier; it never escalates G1 or G2 to G3.
 
 G3 additionally stores check-scoped evidence for its remaining expensive
 backstop. Unknown executable inputs invalidate all bundles. Cache records live under

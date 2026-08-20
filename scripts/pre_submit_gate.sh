@@ -10,6 +10,7 @@ BASE_SHA=""
 STAGE="main"
 NO_CACHE=0
 DIRECT_MAIN=0
+FIX_FORMAT=0
 CURRENT_STEP="argument validation"
 TEMP_ROOT=""
 CANDIDATE_ROOT="$PROJECT_ROOT"
@@ -17,11 +18,13 @@ CANDIDATE_ROOT="$PROJECT_ROOT"
 usage() {
     cat <<'EOF'
 Usage: scripts/pre_submit_gate.sh [--base-sha COMMIT]
-       [--stage commit|push|main]
+       [--stage commit|push|main] [--fix-format] [--no-cache]
 
 The default main stage is dispatched through the reusable tiered gate. The
 internal --direct-main flag runs the CI-aligned main backstop directly while
-still reusing valid test bundles. Add --no-cache to force every bundle.
+still reusing valid test bundles. --fix-format safely formats selected dirty
+or untracked Python files before checks. --no-cache disables evidence reuse
+without changing the selected validation tier.
 EOF
 }
 
@@ -67,6 +70,10 @@ while [[ $# -gt 0 ]]; do
             NO_CACHE=1
             shift
             ;;
+        --fix-format)
+            FIX_FORMAT=1
+            shift
+            ;;
         --direct-main)
             DIRECT_MAIN=1
             shift
@@ -86,15 +93,23 @@ case "$STAGE" in
     *) fail "--stage must be commit, push or main" ;;
 esac
 
-if [[ "$NO_CACHE" -eq 0 && "$DIRECT_MAIN" -eq 0 ]]; then
+if [[ "$DIRECT_MAIN" -eq 0 ]]; then
     PYTHON_BIN="$PROJECT_ROOT/.venv/bin/python3"
     [[ -x "$PYTHON_BIN" ]] || fail "missing repository interpreter: $PYTHON_BIN"
     VALIDATION_ARGS=(
         --stage "$STAGE" --base-sha "$BASE_SHA"
     )
+    if (( NO_CACHE )); then
+        VALIDATION_ARGS+=(--no-cache)
+    fi
+    if (( FIX_FORMAT )); then
+        VALIDATION_ARGS+=(--fix-format)
+    fi
     exec "$PYTHON_BIN" "$PROJECT_ROOT/scripts/architecture/validation_gate.py" \
         "${VALIDATION_ARGS[@]}"
 fi
+
+(( FIX_FORMAT == 0 )) || fail "--fix-format is unavailable with internal --direct-main"
 
 CURRENT_STEP="resolving the immutable base commit"
 if [[ -z "$BASE_SHA" ]]; then
@@ -138,6 +153,49 @@ run_in_dir() {
     local directory="$1"
     shift
     (cd "$directory" && "$@")
+}
+
+ensure_pnpm_dependencies() {
+    local directory="$1"
+    local relative_root="$2"
+    local modules_metadata="$directory/node_modules/.modules.yaml"
+    local reusable_modules="$PROJECT_ROOT/$relative_root/node_modules"
+
+    if [[ -f "$modules_metadata" ]] && \
+        git -C "$CANDIDATE_ROOT" diff --quiet "$BASE_SHA" -- \
+            "$relative_root/package.json" "$relative_root/pnpm-lock.yaml"; then
+        echo "✅ reusing installed pnpm dependencies: $relative_root"
+        return 0
+    fi
+
+    if [[ "$directory" != "$PROJECT_ROOT/$relative_root" ]] && \
+        [[ -f "$reusable_modules/.modules.yaml" ]] && \
+        git -C "$PROJECT_ROOT" diff --quiet "$BASE_SHA" -- \
+            "$relative_root/package.json" "$relative_root/pnpm-lock.yaml"; then
+        # Keep the candidate's node_modules root writable.  VitePress and
+        # similar tools create package links during a build; linking the whole
+        # directory would mutate another worktree (and can fail with EPERM).
+        # Reuse the immutable pnpm package store and copy only the small root
+        # link/metadata layer into the candidate.
+        mkdir -p "$directory/node_modules"
+        ln -s "$reusable_modules/.pnpm" "$directory/node_modules/.pnpm"
+        local entry name
+        for entry in "$reusable_modules"/* "$reusable_modules"/.[!.]*; do
+            name="${entry##*/}"
+            [[ "$name" == ".pnpm" ]] && continue
+            [[ -e "$entry" || -L "$entry" ]] || continue
+            if [[ -d "$entry" && ! -L "$entry" ]]; then
+                cp -R -P "$entry" "$directory/node_modules/$name"
+            else
+                cp -P "$entry" "$directory/node_modules/$name"
+            fi
+        done
+        echo "✅ reusing installed pnpm dependencies: $relative_root"
+        return 0
+    fi
+
+    run_in_dir "$directory" "$PNPM_BIN" install --frozen-lockfile \
+        --config.fetch-retries=0 --config.fetch-timeout=10000
 }
 
 copy_base_file() {
@@ -194,6 +252,10 @@ prepare_candidate_tree() {
         -c user.name="ElfieNest pre-submit gate" \
         -c user.email="pre-submit-gate@localhost" \
         commit --quiet -m "temporary pre-submit candidate"
+
+    if [[ -d "$PROJECT_ROOT/.venv" ]]; then
+        ln -s "$PROJECT_ROOT/.venv" "$CANDIDATE_ROOT/.venv"
+    fi
 }
 
 run_candidate_architecture_gate() {
@@ -316,18 +378,18 @@ CURRENT_STEP="running immutable-base architecture governance checks"
 run_candidate_architecture_gate
 
 run_step "checking the dependency lock" \
-    "$UV_BIN" lock --check
+    run_in_dir "$CANDIDATE_ROOT" "$UV_BIN" lock --check
 run_step "checking Node and pnpm manifests" \
-    bash "$PROJECT_ROOT/scripts/check_node_toolchain.sh"
+    bash "$CANDIDATE_ROOT/scripts/check_node_toolchain.sh" "$CANDIDATE_ROOT"
 run_step "checking the Python quality baseline" \
-    "$UV_BIN" run --no-sync python "$PROJECT_ROOT/scripts/check_quality_baseline.py"
-run_step "running pre-commit hooks and the secret scanner" \
-    env PRE_COMMIT_HOME="$PRE_COMMIT_HOME" \
-    "$UV_BIN" run --no-sync pre-commit run --all-files
-run_step "installing Developer Tools frontend dependencies" \
-    run_in_dir "$PROJECT_ROOT/devtools/web" "$PNPM_BIN" install --frozen-lockfile
+    run_candidate_python "$CANDIDATE_ROOT/scripts/check_quality_baseline.py"
+run_step "running the repository-wide secret scanner" \
+    run_in_dir "$CANDIDATE_ROOT" env PRE_COMMIT_HOME="$PRE_COMMIT_HOME" \
+    "$PYTHON_BIN" -m pre_commit run gitleaks --all-files
+run_step "ensuring Developer Tools frontend dependencies" \
+    ensure_pnpm_dependencies "$CANDIDATE_ROOT/devtools/web" "devtools/web"
 run_step "running the exact environment capability preflight" \
-    "$UV_BIN" run --no-sync python "$PROJECT_ROOT/scripts/check_quality_environment.py"
+    run_candidate_python "$CANDIDATE_ROOT/scripts/check_quality_environment.py"
 BUNDLE_ARGS=(
     --all --base-sha "$BASE_SHA" --cache-root "$VALIDATION_CACHE_ROOT"
 )
@@ -335,21 +397,21 @@ if (( NO_CACHE )); then
     BUNDLE_ARGS+=(--no-cache)
 fi
 run_step "running missing CI test bundles and combining coverage evidence" \
-    "$PYTHON_BIN" "$PROJECT_ROOT/scripts/architecture/validation_test_bundles.py" \
+    run_candidate_python "$CANDIDATE_ROOT/scripts/architecture/validation_test_bundles.py" \
     "${BUNDLE_ARGS[@]}"
 run_step "checking the pinned CPython runtime" \
-    "$PYTHON_BIN" -c \
+    run_candidate_python -c \
     'import platform,sys; raise SystemExit(0 if sys.implementation.name == "cpython" and platform.python_version() == "3.9.25" else 1)'
 run_step "running the CLI version smoke test" \
-    "$PYTHON_BIN" "$PROJECT_ROOT/scripts/elfienest.py" version
-run_step "installing documentation dependencies" \
-    run_in_dir "$PROJECT_ROOT/docs" "$PNPM_BIN" install --frozen-lockfile
+    run_candidate_python "$CANDIDATE_ROOT/scripts/elfienest.py" version
+run_step "ensuring documentation dependencies" \
+    ensure_pnpm_dependencies "$CANDIDATE_ROOT/docs" "docs"
 run_step "building the documentation site" \
-    run_in_dir "$PROJECT_ROOT/docs" "$PNPM_BIN" build
+    run_in_dir "$CANDIDATE_ROOT/docs" "$PNPM_BIN" build
 run_step "checking the final diff format" \
-    git -C "$PROJECT_ROOT" diff --check
+    git -C "$CANDIDATE_ROOT" diff --check "$BASE_SHA" --
 run_step "checking the final staged diff format" \
-    git -C "$PROJECT_ROOT" diff --cached --check
+    git -C "$CANDIDATE_ROOT" diff --cached --check "$BASE_SHA" --
 
 echo
 echo "✅ pre-submit gate passed for candidate against base $BASE_SHA"

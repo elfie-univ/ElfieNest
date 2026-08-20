@@ -37,6 +37,13 @@ from scripts.architecture.validation_plan import changed_paths
 TEST_BUNDLE_RULE_VERSION = "pytest-bundles-v3"
 GENERATED_PATHS = frozenset({"coverage.xml"})
 LOCAL_RUNTIME_PATHS = frozenset({".venv", "venv"})
+LOCAL_RUNTIME_PREFIXES = (
+    "node_modules",
+    "app/interfaces/desktop/node_modules",
+    "app/interfaces/web/frontend/node_modules",
+    "devtools/web/node_modules",
+    "docs/node_modules",
+)
 COMMON_EXACT_INPUTS = frozenset(
     {
         ".python-version",
@@ -187,6 +194,10 @@ def repository_paths() -> List[str]:
             and path not in LOCAL_RUNTIME_PATHS
             and not path.startswith("build/")
             and not path.startswith((".venv/", "venv/"))
+            and not any(
+                path == prefix or path.startswith(f"{prefix}/")
+                for prefix in LOCAL_RUNTIME_PREFIXES
+            )
         }
     )
 
@@ -323,7 +334,7 @@ def bundle_fingerprint(
     return scoped_fingerprint(
         f"{TEST_BUNDLE_RULE_VERSION}:{bundle.bundle_id}",
         bundle_input_paths(bundle, candidate_paths),
-        bundle_pytest_command(bundle),
+        _fingerprint_pytest_command(bundle.selectors, coverage=True),
         snapshot=snapshot,
     )
 
@@ -388,6 +399,17 @@ def bundle_pytest_command(bundle: TestBundle) -> Tuple[str, ...]:
         "--cov-report=",
         "--cov-fail-under=0",
     )
+
+
+def _fingerprint_pytest_command(
+    selectors: Sequence[str], *, coverage: bool = False
+) -> Tuple[str, ...]:
+    """Describe pytest without baking a worktree-local interpreter path into keys."""
+
+    command = ("python", "-m", "pytest", *selectors)
+    if coverage:
+        command += ("--cov", "--cov-report=", "--cov-fail-under=0")
+    return command
 
 
 def _execute_bundle(bundle: TestBundle, coverage_file: Path) -> int:
@@ -538,10 +560,14 @@ def focused_test_fingerprint(
     snapshot: Optional[RepositorySnapshot] = None,
 ) -> str:
     normalized = tuple(sorted(set(selectors)))
-    command = (sys.executable, "-m", "pytest", *normalized)
+    fingerprint_command = _fingerprint_pytest_command(normalized)
     test_inputs = list(candidate_paths)
     return check_fingerprint(
-        base_sha, "focused-pytest", test_inputs, command, snapshot=snapshot
+        base_sha,
+        "focused-pytest",
+        test_inputs,
+        fingerprint_command,
+        snapshot=snapshot,
     )
 
 
@@ -607,7 +633,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     selection.add_argument("--selectors", nargs="+")
     parser.add_argument("--base-sha", default="")
-    parser.add_argument("--cache-root", default="build/validation-cache")
+    parser.add_argument(
+        "--cache-root",
+        default=os.environ.get(
+            "ELFIENEST_VALIDATION_CACHE_ROOT", "build/validation-cache"
+        ),
+    )
     parser.add_argument("--no-cache", action="store_true")
     args = parser.parse_args(argv)
     cache_root = Path(args.cache_root)

@@ -82,7 +82,7 @@ App 和系统 Scanner 债务已经清零，两套永久 Scanner 均以 `deny-all
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/check_quality_baseline.py
-PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
+PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run gitleaks --all-files
 ```
 
 质量基线只容纳已经存在的诊断；新增 Ruff、格式或 MyPy 诊断必须修复，不通过扩大
@@ -95,11 +95,14 @@ PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-f
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
+  --fix-format \
   --base-sha "$(git rev-parse origin/main^{commit})"
 # 功能分支推送：使用 --stage push
 # 主线合并或发布：使用 --stage main
 ```
 
+本地 `--fix-format` 准备步骤只修改选中的 dirty/untracked Python 文件；同一文件 mixed
+staged/unstaged 时拒绝处理，并与 diff、聚焦 Ruff 检查一起在任何测试或宽门禁前结束。
 G1（`commit`）检查改动文件和受影响测试；G2（`push`）追加质量基线
 以及受影响的 API、持久化、架构或文档集成检查；G3（`main`）把当前候选检查与不可变基础
 提交架构 ratchet、锁文件和工具链、pre-commit/Gitleaks、完整 pytest、CLI smoke 和文档
@@ -128,9 +131,8 @@ G1（`commit`）检查改动文件和受影响测试；G2（`push`）追加质�
 更窄的 node/单文件结果只能按原聚焦命令复用，不能证明所属完整包。原始 `pytest` 只用于
 诊断，不产生提交缓存证据。
 
-内部 `--direct-main` 路径会执行完整 main 后盾，但复用有效测试包证据。`--no-cache` 是
-明确要求的干净重放：它必须从门禁继续透传到测试包运行器，不能悄悄复用聚焦测试、测试包
-或后盾记录。
+内部 `--direct-main` 路径会执行完整 main 后盾，但复用有效测试包证据。`--no-cache` 只关闭
+所选级别已经要求检查的有效证据复用，不能把 G1 或 G2 升级为 G3。
 
 G3 还为其余昂贵后盾保存按检查划分的证据。未知可执行输入会使所有测试包失效。缓存位于被忽略的
 `build/validation-cache/`，不能替代新 commit SHA 的 CI。

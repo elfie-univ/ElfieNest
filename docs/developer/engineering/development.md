@@ -76,7 +76,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync python scripts/check_quality_baseline.py
 
 PRE_COMMIT_HOME=/tmp/elfienest-precommit \
-  uv run --no-sync pre-commit run --all-files
+  uv run --no-sync pre-commit run gitleaks --all-files
 ```
 
 pre-commit and CI also run Gitleaks. Do not bypass the secret check with
@@ -235,13 +235,16 @@ escalate to G3. Confirm at least:
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
+  --fix-format \
   --base-sha "$(git rev-parse origin/main^{commit})"
 # feature push: use --stage push; main merge/release: use --stage main
 ```
 
 Successful results may be reused only for the exact same candidate snapshot;
 the complete G3 backstop remains mandatory when the classifier escalates or the
-change is delivered to main.
+change is delivered to main. Local `--fix-format` preparation modifies only
+selected dirty or untracked Python files and refuses mixed staged/unstaged
+content before any expensive check starts.
 
 ```bash
 cd docs

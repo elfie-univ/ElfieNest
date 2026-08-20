@@ -86,6 +86,22 @@ PROVIDER_TESTS = (
 )
 PYTHON_ROOTS = ("app/", "elfie/", "infrastructure/", "nest/", "scripts/")
 GENERATED_GATE_OUTPUTS = frozenset({"coverage.xml"})
+LOCAL_RUNTIME_PREFIXES = (
+    ".venv",
+    "venv",
+    "node_modules",
+    "app/interfaces/desktop/node_modules",
+    "app/interfaces/web/frontend/node_modules",
+    "devtools/web/node_modules",
+    "docs/node_modules",
+)
+
+
+def _is_local_runtime_path(path: str) -> bool:
+    return any(
+        path == prefix or path.startswith(f"{prefix}/")
+        for prefix in LOCAL_RUNTIME_PREFIXES
+    )
 
 
 def _run_lines(command: Sequence[str]) -> List[str]:
@@ -98,7 +114,13 @@ def _run_lines(command: Sequence[str]) -> List[str]:
 def changed_paths(base_sha: str) -> List[str]:
     tracked = _run_lines(["git", "diff", "--name-only", base_sha, "--"])
     untracked = _run_lines(["git", "ls-files", "--others", "--exclude-standard"])
-    return sorted(set(tracked + untracked) - GENERATED_GATE_OUTPUTS)
+    return sorted(
+        {
+            path
+            for path in set(tracked + untracked) - GENERATED_GATE_OUTPUTS
+            if not _is_local_runtime_path(path)
+        }
+    )
 
 
 def _test_path_for_source(path: str) -> Optional[str]:
