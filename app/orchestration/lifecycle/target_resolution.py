@@ -212,7 +212,7 @@ def resolve_source_explicit_home(value: str, *, invoking_cwd: Path) -> Path:
 
 
 def resolve_target(request: TargetResolutionRequest) -> ResolvedTaskTarget:
-    """Select exactly one task target using the collected facts."""
+    """Choose exactly one task target using the collected facts."""
 
     policy = request.policy
     if request.mode is EntrypointMode.INSTALLED:
