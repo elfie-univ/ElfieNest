@@ -33,6 +33,16 @@ DESKTOP_AUTHORITY_DIR: Final = (
 DESKTOP_PACKAGING_DIR: Final = (
     PROJECT_ROOT / "app" / "bootstrap" / "desktop_host" / "packaging"
 )
+MACOS_RELEASE_SIGNING_FLAG: Final = "ELFIENEST_REQUIRE_MACOS_SIGNING"
+MACOS_RELEASE_CREDENTIALS: Final = (
+    "CSC_LINK",
+    "CSC_KEY_PASSWORD",
+    "CSC_INSTALLER_LINK",
+    "CSC_INSTALLER_KEY_PASSWORD",
+    "APPLE_API_KEY",
+    "APPLE_API_KEY_ID",
+    "APPLE_API_ISSUER",
+)
 StageResult = TypeVar("StageResult")
 
 
@@ -235,6 +245,7 @@ def _package_installer(
     }
     if resources != BUILD_DIR / "staging" / target / "resources":
         raise ReleasePipelineError(f"release-resources-target-mismatch target={target}")
+    macos_release_arguments = _macos_release_builder_arguments(target, environment)
     output = BUILD_DIR / "package-output" / target
     application = BUILD_DIR / "desktop-host-app" / target
     if output.exists():
@@ -270,6 +281,7 @@ def _package_installer(
                 "--config",
                 str(DESKTOP_HOST_CONFIG),
                 f"--config.directories.output={output}",
+                *macos_release_arguments,
                 *target_arguments,
             ),
             application,
@@ -291,6 +303,37 @@ def _package_installer(
             shutil.rmtree(output)
         if application.exists():
             shutil.rmtree(application)
+
+
+def _macos_release_builder_arguments(
+    target: str, environment: Dict[str, str]
+) -> tuple[str, ...]:
+    """Fail closed for formal macOS releases while preserving local unsigned builds."""
+    if not target.startswith("darwin-"):
+        return ()
+    policy = environment.get(MACOS_RELEASE_SIGNING_FLAG)
+    if policy is None:
+        return ()
+    if policy != "1":
+        raise ReleasePipelineError(
+            "macos-release-signing-policy-invalid "
+            f"variable={MACOS_RELEASE_SIGNING_FLAG}"
+        )
+    missing = tuple(
+        name for name in MACOS_RELEASE_CREDENTIALS if not environment.get(name)
+    )
+    if missing:
+        raise ReleasePipelineError(
+            "macos-release-credentials-missing variables=" + ",".join(missing)
+        )
+    api_key = Path(environment["APPLE_API_KEY"])
+    if not api_key.is_absolute() or not api_key.is_file():
+        raise ReleasePipelineError("macos-release-api-key-file-invalid")
+    return (
+        "--config.forceCodeSigning=true",
+        "--config.mac.hardenedRuntime=true",
+        "--config.mac.notarize=true",
+    )
 
 
 def _stage_desktop_application(target: str, resources: Path) -> Path:

@@ -266,6 +266,31 @@ test("background maintenance preserves the selected data root without inspecting
   assert.equal(client.inspections, inspectionsAfterStartup);
 });
 
+test("background maintenance reports a failed recovery without discarding ownership", async () => {
+  const client = lifecycleClient({
+    kind: "owned",
+    generation: 9,
+    ownerLease: "desktop-9",
+    dataHome: "/tmp/elfienest",
+  });
+  client.recoverOwnedRuntime = async (): Promise<RuntimeAttachment> => ({
+    kind: "failed",
+    reason: "atomic recovery was refused",
+    recoverable: true,
+  });
+  const controller = new DesktopRoleController(client);
+  await controller.start();
+
+  const result = await controller.maintainOwnedRuntime();
+
+  assert.deepEqual(result, {
+    kind: "failed",
+    reason: "atomic recovery was refused",
+    recoverable: true,
+  });
+  assert.equal(controller.state.kind, "owned");
+});
+
 test("background maintenance never takes over an attached external Runtime", async () => {
   const client = lifecycleClient({ kind: "attached", generation: 3, dataHome: "/tmp/elfienest" });
   const controller = new DesktopRoleController(client);

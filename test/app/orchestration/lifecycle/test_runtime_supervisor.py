@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Callable, Optional
 
-from app.orchestration.lifecycle.ports import AuthorityProcess
+from app.orchestration.lifecycle.ports import AuthorityProcess, ProcessSnapshot
 from app.orchestration.lifecycle.runtime_snapshot import (
     BackendTier,
     ComponentSnapshot,
@@ -482,6 +483,150 @@ def test_repeated_start_attaches_and_only_raises_desired_target() -> None:
     assert calls == ["core"]
     assert supervisor.status().desired_target is RuntimeTarget.NORMAL
     assert supervisor.status().owner_lease == OwnerLease("cli", 1)
+
+
+def test_owned_recovery_revalidates_and_replaces_exact_generation_once() -> None:
+    record = MemoryRecord()
+    record.value = replace(
+        record.value,
+        generation=7,
+        revision=11,
+        tier=BackendTier.CORE_READY,
+        phase=RuntimePhase.CORE_READY,
+        owner_lease=OwnerLease("desktop-7", 7),
+        components=(
+            ComponentSnapshot(
+                RuntimeComponent.CORE,
+                ComponentState.READY,
+                pid=7101,
+                executable="/repo/.venv/bin/python3",
+                birth_identity="birth-7",
+                cwd="/repo",
+            ),
+            ComponentSnapshot(
+                RuntimeComponent.GATEWAY,
+                ComponentState.READY,
+                pid=7101,
+                executable="/repo/.venv/bin/python3",
+                birth_identity="birth-7",
+                cwd="/repo",
+            ),
+        ),
+    )
+    calls: list[str] = []
+    supervisor = _supervisor(
+        record=record,
+        stop_core=lambda: (
+            calls.append("stop") or ServiceLifecycleResult(status="stopped", pid=7101)
+        ),
+        start_core=lambda healthy: (
+            calls.append("start")
+            or (healthy() and ServiceLifecycleResult(status="started", pid=7201))
+        ),
+        core_process_identity=lambda pid: ProcessSnapshot(
+            pid=pid,
+            cwd=Path("/repo"),
+            command=("/repo/.venv/bin/python3", "/repo/scripts/serve.py"),
+            birth_identity="birth-8",
+        ),
+    )
+
+    result = supervisor.recover_owned(
+        owner_id="desktop-7",
+        expected_instance_id="memory-instance",
+        expected_generation=7,
+        expected_core_pid=7101,
+        health_check=lambda: calls.append("health") or False,
+    )
+
+    assert result.status == "started"
+    assert result.generation == 8
+    assert calls == ["health", "stop", "start"]
+    assert supervisor.status().owner_lease == OwnerLease("desktop-7", 8)
+
+
+def test_owned_recovery_stops_when_expected_identity_changed() -> None:
+    record = MemoryRecord()
+    record.value = replace(
+        record.value,
+        generation=7,
+        tier=BackendTier.CORE_READY,
+        phase=RuntimePhase.CORE_READY,
+        owner_lease=OwnerLease("desktop-7", 7),
+        components=(
+            ComponentSnapshot(
+                RuntimeComponent.CORE,
+                ComponentState.READY,
+                pid=7101,
+                executable="/repo/.venv/bin/python3",
+                birth_identity="birth-7",
+                cwd="/repo",
+            ),
+        ),
+    )
+    calls: list[str] = []
+    supervisor = _supervisor(
+        record=record,
+        stop_core=lambda: (
+            calls.append("stop") or ServiceLifecycleResult(status="stopped")
+        ),
+        start_core=lambda healthy: (
+            calls.append("start") or ServiceLifecycleResult(status="started")
+        ),
+    )
+
+    result = supervisor.recover_owned(
+        owner_id="desktop-7",
+        expected_instance_id="memory-instance",
+        expected_generation=6,
+        expected_core_pid=7101,
+        health_check=lambda: calls.append("health") or False,
+    )
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert "generation" in str(result.error)
+    assert calls == []
+
+
+def test_owned_recovery_keeps_a_generation_that_recovered_before_stop() -> None:
+    record = MemoryRecord()
+    record.value = replace(
+        record.value,
+        generation=7,
+        tier=BackendTier.CORE_READY,
+        phase=RuntimePhase.CORE_READY,
+        owner_lease=OwnerLease("desktop-7", 7),
+        components=(
+            ComponentSnapshot(
+                RuntimeComponent.CORE,
+                ComponentState.READY,
+                pid=7101,
+                executable="/repo/.venv/bin/python3",
+                birth_identity="birth-7",
+                cwd="/repo",
+            ),
+        ),
+    )
+    calls: list[str] = []
+    supervisor = _supervisor(
+        record=record,
+        stop_core=lambda: (
+            calls.append("stop") or ServiceLifecycleResult(status="stopped")
+        ),
+    )
+
+    result = supervisor.recover_owned(
+        owner_id="desktop-7",
+        expected_instance_id="memory-instance",
+        expected_generation=7,
+        expected_core_pid=7101,
+        health_check=lambda: calls.append("health") or True,
+    )
+
+    assert result.status == "already_running"
+    assert result.generation == 7
+    assert calls == ["health"]
 
 
 def test_repeated_start_waits_for_escalated_world_target() -> None:

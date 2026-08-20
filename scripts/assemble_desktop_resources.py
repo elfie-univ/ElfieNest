@@ -35,6 +35,10 @@ def _target_executable(target: str, stem: str) -> str:
     return f"{stem}.exe" if target == "win32-x64" else stem
 
 
+def _target_cli_directory(target: str) -> str:
+    return _target_executable(target, "ElfieNestCli").removesuffix(".exe")
+
+
 def _require_files(directory: Path, names: Iterable[str], component: str) -> None:
     missing = [name for name in names if not (directory / name).is_file()]
     if missing:
@@ -98,7 +102,12 @@ def assemble_resources(
             f"resource-component-missing component=python-core path={core_source}"
         )
     cli_name = _target_executable(target, "ElfieNestCli")
-    if not cli_source.is_file() or cli_source.name != cli_name:
+    cli_executable = cli_source / cli_name
+    if (
+        not cli_source.is_dir()
+        or cli_source.name != _target_cli_directory(target)
+        or not cli_executable.is_file()
+    ):
         raise ResourceAssemblyError(
             f"resource-component-missing component=management-cli path={cli_source}"
         )
@@ -128,9 +137,11 @@ def assemble_resources(
         core_destination = staging / "resources" / "python-core"
         core_destination.mkdir(parents=True, exist_ok=True)
         shutil.copy2(core_source, core_destination / core_name)
-        cli_destination = staging / "resources" / "management-cli"
-        cli_destination.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(cli_source, cli_destination / cli_name)
+        _copy_directory(
+            cli_source,
+            staging / "resources" / "management-cli",
+            "management-cli",
+        )
         _write_manifest(staging / "resources", application_version, target)
         shutil.rmtree(target_root, ignore_errors=True)
         staging.replace(target_root)
@@ -170,7 +181,7 @@ def main() -> int:
             / "build"
             / "python-cli"
             / target
-            / _target_executable(target, "ElfieNestCli")
+            / _target_cli_directory(target)
         )
         resources = assemble_resources(
             target=target,

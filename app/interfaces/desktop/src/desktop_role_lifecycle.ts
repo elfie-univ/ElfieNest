@@ -136,6 +136,9 @@ export class DesktopRoleController {
     const recovered = await this.lifecycleClient.recoverOwnedRuntime(
       this.currentState.ownerLease,
     );
+    if (recovered.kind === "failed") {
+      return recovered;
+    }
     if (recovered.kind === "owned") {
       this.currentState = recovered;
     }

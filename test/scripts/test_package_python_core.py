@@ -94,7 +94,11 @@ def test_freeze_cli_builds_a_checkout_independent_management_executable(
         command_runner=commands.append,
     )
 
-    # Then: the native executable is built from the CLI entrypoint, not a checkout wrapper.
+    # Then: the fixed onedir tree keeps the launcher name without onefile extraction.
     assert artifact == tmp_path / "ElfieNestCli"
     assert commands[0][-1] == str(PROJECT_ROOT / "scripts" / "elfienest.py")
     assert "ElfieNestCli" in commands[0]
+    assert "--onedir" in commands[0]
+    assert "--onefile" not in commands[0]
+    contents_index = commands[0].index("--contents-directory")
+    assert commands[0][contents_index + 1] == "_internal"

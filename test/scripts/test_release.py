@@ -109,6 +109,24 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     assert "*-install-smoke.json" in source
 
 
+def test_desktop_release_workflow_requires_signed_notarized_macos_packages() -> None:
+    # Given: a GitHub release build is the public distribution boundary.
+    source = (
+        PROJECT_ROOT / ".github" / "workflows" / "release.yml"
+    ).read_text(encoding="utf-8")
+
+    # Then: macOS runners receive no unsigned escape hatch and verify every layer.
+    assert "ELFIENEST_REQUIRE_MACOS_SIGNING" in source
+    assert "MACOS_APPLICATION_CERTIFICATE" in source
+    assert "MACOS_INSTALLER_CERTIFICATE" in source
+    assert "APPLE_API_KEY_BASE64" in source
+    assert 'pkgutil --check-signature "$artifact"' in source
+    assert 'pkgutil --check-signature "$artifact" >/dev/null 2>&1 || true' not in source
+    assert 'spctl --assess --type install --verbose=4 "$artifact"' in source
+    assert 'xcrun stapler validate "$artifact"' in source
+    assert 'codesign --verify --deep --strict --verbose=2 "$app_path"' in source
+
+
 def test_release_session_dispatches_all_targets_and_requires_artifact_hash_and_smoke(
     tmp_path: Path,
 ) -> None:
@@ -626,6 +644,67 @@ def test_packager_publishes_only_the_verified_single_native_installer(
     assert observed_environment["ELFIENEST_PROJECT_ROOT"] == str(PROJECT_ROOT)
     assert not (build_root / "package-output" / "darwin-arm64").exists()
     assert not (build_root / "desktop-host-app" / "darwin-arm64").exists()
+
+
+def test_local_macos_packaging_does_not_require_release_credentials() -> None:
+    # Given: a local internal build with no formal-release policy flag.
+
+    # When: the macOS builder arguments are resolved.
+    arguments = release_pipeline._macos_release_builder_arguments(
+        "darwin-arm64", {}
+    )
+
+    # Then: developers can still create an explicitly unsigned local test package.
+    assert arguments == ()
+
+
+def test_formal_macos_packaging_fails_before_build_when_credentials_are_missing(
+    tmp_path: Path,
+) -> None:
+    # Given: a formal macOS release without either signing certificate or notary key.
+    environment = {"ELFIENEST_REQUIRE_MACOS_SIGNING": "1"}
+
+    # When/Then: the package boundary fails closed and names only missing variables.
+    with pytest.raises(
+        release_pipeline.ReleasePipelineError,
+        match="macos-release-credentials-missing",
+    ) as error:
+        release_pipeline._macos_release_builder_arguments(
+            "darwin-arm64", environment
+        )
+    assert "CSC_LINK" in str(error.value)
+    assert "CSC_INSTALLER_LINK" in str(error.value)
+    assert "APPLE_API_KEY" in str(error.value)
+
+
+def test_formal_macos_packaging_forces_signing_hardened_runtime_and_notarization(
+    tmp_path: Path,
+) -> None:
+    # Given: both Developer ID certificates and one App Store Connect notary key.
+    api_key = tmp_path / "AuthKey_TEST123456.p8"
+    api_key.write_text("private-key-placeholder\n", encoding="utf-8")
+    environment = {
+        "ELFIENEST_REQUIRE_MACOS_SIGNING": "1",
+        "CSC_LINK": "application-certificate-placeholder",
+        "CSC_KEY_PASSWORD": "application-password-placeholder",
+        "CSC_INSTALLER_LINK": "installer-certificate-placeholder",
+        "CSC_INSTALLER_KEY_PASSWORD": "installer-password-placeholder",
+        "APPLE_API_KEY": str(api_key),
+        "APPLE_API_KEY_ID": "TEST123456",
+        "APPLE_API_ISSUER": "00000000-0000-0000-0000-000000000000",
+    }
+
+    # When: the formal-release builder arguments are resolved.
+    arguments = release_pipeline._macos_release_builder_arguments(
+        "darwin-x64", environment
+    )
+
+    # Then: electron-builder cannot silently skip any macOS trust stage.
+    assert arguments == (
+        "--config.forceCodeSigning=true",
+        "--config.mac.hardenedRuntime=true",
+        "--config.mac.notarize=true",
+    )
 
 
 def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(

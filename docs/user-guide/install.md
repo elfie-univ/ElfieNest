@@ -33,9 +33,11 @@ when you install a newer version.
 The first launch may take a little longer while the app prepares its local
 services. Do not open multiple copies of the app at the same time.
 
-Preview macOS and Windows packages may show a warning that the package is not
-signed or notarized. Confirm that the file came from the official Releases page;
-do not disable your computer's security settings for an unknown file.
+Official macOS workflow packages are signed and notarized. Stop if macOS says
+the package is from an unidentified developer or repeatedly verifies temporary
+copies of ElfieNest components. Windows preview packages may still show a
+publisher warning. In either case, confirm the file came from the official
+Releases page and never disable security protections for an unknown file.
 
 ## What happens when you close the window?
 

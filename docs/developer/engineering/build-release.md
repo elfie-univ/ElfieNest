@@ -91,21 +91,53 @@ git tag -a v0.1.0-beta.1 -m "ElfieNest 0.1.0-beta.1"
 git push origin v0.1.0-beta.1
 ```
 
-The workflow validates the installed resource layout for each package; it does
-not sign or notarize the internal-test artifacts. Before handing a package to a
-tester, still record the full install, launch, `/api/health`, and clean-exit
-evidence described by the release gate above.
+The GitHub workflow treats every macOS artifact as a distribution package. It
+fails before packaging unless both Developer ID identities and App Store
+Connect notarization credentials are present. A successful job then verifies
+the PKG signature, Gatekeeper assessment, stapled notarization ticket, complete
+app signature, and the nested Python Core and management CLI signatures. A
+local `scripts/release.py` run does not set this formal-release policy flag, so
+it may still create an explicitly internal, unsigned package for local testing.
+
+### macOS signing and notarization credentials
+
+An Apple Developer Program Account Holder creates one **Developer ID
+Application** certificate for the app and one **Developer ID Installer**
+certificate for the PKG. Apple documents the two distinct certificate purposes
+in [Developer ID certificates](https://developer.apple.com/help/account/certificates/create-developer-id-certificates).
+Install each certificate with its private key, export each identity as a
+separate password-protected PKCS#12 (`.p12`) file, and store only its Base64
+contents and password in GitHub Actions secrets.
+
+Create a **team** App Store Connect API key for notarization; an individual key
+cannot be used by `notarytool`. The private `.p8` key can be downloaded only
+once, so keep it outside the repository. See Apple's
+[API key instructions](https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api).
+
+Configure these repository Actions secrets:
+
+| Secret | Value |
+| --- | --- |
+| `MACOS_APPLICATION_CERTIFICATE` | Base64 of the Developer ID Application `.p12` |
+| `MACOS_APPLICATION_CERTIFICATE_PASSWORD` | Password for that `.p12` |
+| `MACOS_INSTALLER_CERTIFICATE` | Base64 of the Developer ID Installer `.p12` |
+| `MACOS_INSTALLER_CERTIFICATE_PASSWORD` | Password for that `.p12` |
+| `APPLE_API_KEY_BASE64` | Base64 of the team `AuthKey_*.p8` file |
+| `APPLE_API_KEY_ID` | App Store Connect key ID |
+| `APPLE_API_ISSUER` | App Store Connect issuer ID |
+
+The workflow decodes the `.p8` only into the runner's temporary directory. It
+maps the two `.p12` secrets to electron-builder's application and installer
+certificate inputs, signs with hardened runtime, submits both the app and PKG
+through Apple's notary service, and staples the returned tickets. Credential
+files and secret values must never be committed.
 
 Each installer contains Electron, the frontend, Godot Web, the target-native
 Python Core and the management CLI. End users install only these platform-native
 artifacts; a source checkout remains a development environment.
 
-The first internal-test macOS and Windows installers are neither signed nor
-notarized, so the system shows an origin warning. This current constraint must
-not be bypassed by disabling security mechanisms. Before handoff, installation
-tests must record install, launch, `/api/health` success, and no child process
-after exit.
-
-首次内测的 macOS、Windows 安装包没有签名或公证，系统会显示来源警告；这是当前
-内测约束，不应通过关闭安全机制来绕过。安装测试必须记录“安装、启动、`/api/health`
-成功、退出后子进程不存在”四项结果后，才可交给下一位测试者。
+Official macOS workflow artifacts are signed and notarized; a missing trust
+credential blocks the job instead of publishing an unsigned package. Windows
+preview installers are not yet covered by this macOS trust chain and may still
+show a publisher warning. Before handoff, installation tests must record
+install, launch, `/api/health` success, and no child process after exit.

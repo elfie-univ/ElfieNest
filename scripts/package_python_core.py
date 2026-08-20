@@ -99,6 +99,7 @@ def freeze_cli(
         executable=cli_executable_name(target),
         entrypoint=PROJECT_ROOT / "scripts" / "elfienest.py",
         command_runner=command_runner,
+        onefile=False,
     )
 
 
@@ -110,6 +111,7 @@ def _freeze_entrypoint(
     entrypoint: Path,
     command_runner: Callable[[Sequence[str]], None],
     hidden_imports: Sequence[str] = (),
+    onefile: bool = True,
 ) -> Path:
     """Freeze one native executable with the common PyInstaller contract."""
     if target != host_target:
@@ -120,16 +122,22 @@ def _freeze_entrypoint(
     hidden_import_arguments = tuple(
         item for module in hidden_imports for item in ("--hidden-import", module)
     )
+    layout_arguments = (
+        ("--onefile",)
+        if onefile
+        else ("--onedir", "--contents-directory", "_internal")
+    )
+    executable_stem = executable.rsplit(".", 1)[0]
     command = (
         sys.executable,
         "-m",
         "PyInstaller",
         "--noconfirm",
         "--clean",
-        "--onefile",
+        *layout_arguments,
         *hidden_import_arguments,
         "--name",
-        executable.rsplit(".", 1)[0],
+        executable_stem,
         "--distpath",
         str(output_dir),
         "--workpath",
@@ -139,7 +147,7 @@ def _freeze_entrypoint(
         str(entrypoint),
     )
     command_runner(command)
-    return output_dir / executable
+    return output_dir / (executable if onefile else executable_stem)
 
 
 def parse_args() -> argparse.Namespace:

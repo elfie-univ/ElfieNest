@@ -35,6 +35,15 @@ def _write_config_bundle(root: Path) -> None:
     )
 
 
+def test_windows_onedir_cli_keeps_exe_only_on_the_launcher() -> None:
+    assert assemble_desktop_resources._target_cli_directory("win32-x64") == (
+        "ElfieNestCli"
+    )
+    assert assemble_desktop_resources._target_executable(
+        "win32-x64", "ElfieNestCli"
+    ) == "ElfieNestCli.exe"
+
+
 def test_assemble_resources_copies_one_target_and_writes_a_manifest(
     tmp_path: Path,
 ) -> None:
@@ -48,7 +57,8 @@ def test_assemble_resources_copies_one_target_and_writes_a_manifest(
     _write_web_bundle(web)
     _write_godot_bundle(godot)
     _write_file(core, b"core")
-    _write_file(cli, b"cli")
+    _write_file(cli / "ElfieNestCli", b"cli")
+    _write_file(cli / "_internal" / "libpython.dylib", b"python-runtime")
     _write_config_bundle(config)
 
     # When: staging assembles only that target.
@@ -69,6 +79,9 @@ def test_assemble_resources_copies_one_target_and_writes_a_manifest(
     assert (resources / "godot-web" / "elfienest.wasm").read_bytes() == b"wasm"
     assert (resources / "python-core" / "ElfieNestCore").read_bytes() == b"core"
     assert (resources / "management-cli" / "ElfieNestCli").read_bytes() == b"cli"
+    assert (
+        resources / "management-cli" / "_internal" / "libpython.dylib"
+    ).read_bytes() == b"python-runtime"
     assert (resources / "config" / "app" / "system-defaults.yaml").is_file()
     assert not (resources / "ollama").exists()
     manifest = json.loads((resources / "manifest.json").read_text(encoding="utf-8"))
@@ -92,7 +105,7 @@ def test_assemble_resources_requires_the_single_product_react_shell(
     _write_file(web / "manifest.json", b"{}")
     _write_godot_bundle(godot)
     _write_file(core, b"core")
-    _write_file(cli, b"cli")
+    _write_file(cli / "ElfieNestCli", b"cli")
     _write_config_bundle(config)
 
     # When/Then: packaging refuses a server-routed SPA without its one shell.

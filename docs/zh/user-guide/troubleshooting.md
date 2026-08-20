@@ -4,8 +4,10 @@
 
 ## 安装程序打不开
 
-确认安装包与你的电脑匹配，并且来自[官方 Releases 页面](https://github.com/elfie-univ/ElfieNest/releases)。预览版 macOS 和 Windows 安装包
-可能会提示未签名。如果提示指向未知文件或未知发布者，请先停止操作，询问提供安装包的人。
+确认安装包与你的电脑匹配，并且来自[官方 Releases 页面](https://github.com/elfie-univ/ElfieNest/releases)。
+正式 macOS Workflow 安装包必须先通过签名和公证才允许发布；如果仍提示“身份不明的
+开发者”，请停止操作。Windows 预览包仍可能显示发布者警告。提示指向未知文件或未知
+发布者时，请询问提供安装包的人。
 
 ## 应用一直停在“正在启动”
 

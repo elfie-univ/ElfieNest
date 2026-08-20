@@ -70,9 +70,32 @@ jobs:
           uv python install 3.9.25
           uv sync --locked --no-dev --extra release
 
+      - name: Prepare macOS notarization key
+        if: runner.os == 'macOS'
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          set -euo pipefail
+          [[ -n "$APPLE_API_KEY_BASE64" ]]
+          [[ -n "$APPLE_API_KEY_ID" ]]
+          [[ -n "$APPLE_API_ISSUER" ]]
+          notary_key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          printf '%s' "$APPLE_API_KEY_BASE64" | /usr/bin/base64 -D > "$notary_key_path"
+          chmod 600 "$notary_key_path"
+          printf 'APPLE_API_KEY=%s\n' "$notary_key_path" >> "$GITHUB_ENV"
+
       - name: Install the pinned Godot Web toolchain
         env:
           RELEASE_TARGET: ${{ matrix.target }}
+          ELFIENEST_REQUIRE_MACOS_SIGNING: ${{ runner.os == 'macOS' && '1' || '' }}
+          CSC_LINK: ${{ runner.os == 'macOS' && secrets.MACOS_APPLICATION_CERTIFICATE || '' }}
+          CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MACOS_APPLICATION_CERTIFICATE_PASSWORD || '' }}
+          CSC_INSTALLER_LINK: ${{ runner.os == 'macOS' && secrets.MACOS_INSTALLER_CERTIFICATE || '' }}
+          CSC_INSTALLER_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MACOS_INSTALLER_CERTIFICATE_PASSWORD || '' }}
+          APPLE_API_KEY_ID: ${{ runner.os == 'macOS' && secrets.APPLE_API_KEY_ID || '' }}
+          APPLE_API_ISSUER: ${{ runner.os == 'macOS' && secrets.APPLE_API_ISSUER || '' }}
         run: |
           set -euo pipefail
           if command -v cygpath >/dev/null 2>&1; then
@@ -133,11 +156,30 @@ jobs:
         run: |
           set -euo pipefail
           artifact="$(cat "$RUNNER_TEMP/elfienest-artifact-path")"
-          pkgutil --check-signature "$artifact" >/dev/null 2>&1 || true
+          pkgutil --check-signature "$artifact"
+          spctl --assess --type install --verbose=4 "$artifact"
+          xcrun stapler validate "$artifact"
           payload_files="$(pkgutil --payload-files "$artifact")"
           grep -q './ElfieNest.app/Contents/MacOS/ElfieNest' <<< "$payload_files"
           grep -q './ElfieNest.app/Contents/Resources/management-cli/ElfieNestCli' <<< "$payload_files"
           grep -q './ElfieNest.app/Contents/Resources/manifest.json' <<< "$payload_files"
+          expanded_root="$(mktemp -d "$RUNNER_TEMP/elfienest-pkg.XXXXXX")"
+          trap 'rm -rf "$expanded_root"' EXIT
+          pkgutil --expand-full "$artifact" "$expanded_root"
+          app_path="$(find "$expanded_root" -type d -name ElfieNest.app -print -quit)"
+          [[ -n "$app_path" ]]
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          codesign --verify --strict --verbose=2 \
+            "$app_path/Contents/Resources/python-core/ElfieNestCore"
+          codesign --verify --strict --verbose=2 \
+            "$app_path/Contents/Resources/management-cli/ElfieNestCli"
+          while IFS= read -r -d '' nested_file; do
+            if file "$nested_file" | grep -q 'Mach-O'; then
+              codesign --verify --strict --verbose=2 "$nested_file"
+            fi
+          done < <(find \
+            "$app_path/Contents/Resources/management-cli/_internal" \
+            -type f -print0)
 
       - name: Validate Windows installer contents
         if: runner.os == 'Windows'

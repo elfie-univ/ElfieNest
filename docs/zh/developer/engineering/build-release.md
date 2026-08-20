@@ -82,12 +82,44 @@ git tag -a v0.1.0-beta.1 -m "ElfieNest 0.1.0-beta.1"
 git push origin v0.1.0-beta.1
 ```
 
-Workflow 会在各平台校验安装后的资源布局，但当前内测包仍未签名或公证。交给测试者
-之前，仍必须按上面的发布门记录完整的安装、启动、`/api/health` 和干净退出证据。
+GitHub Workflow 把每个 macOS 产物都视为正式分发包：只有 Developer ID 的两套身份和
+App Store Connect 公证凭据完整时才允许进入打包。成功后还会校验 PKG 签名、Gatekeeper
+评估、已装订的公证票据、完整 App 签名，以及包内 Python Core 和管理 CLI 的嵌套签名。
+本地执行 `scripts/release.py` 不会设置这个正式发布策略标志，因此仍可为本机测试生成
+明确属于内部用途的未签名安装包。
+
+### macOS 签名与公证凭据
+
+Apple Developer Program 的 Account Holder 需要分别创建一张用于 App 的
+**Developer ID Application** 证书和一张用于 PKG 的 **Developer ID Installer**
+证书；Apple 在 [Developer ID 证书说明](https://developer.apple.com/help/account/certificates/create-developer-id-certificates)
+中区分了这两种用途。把证书及其私钥安装到钥匙串后，分别导出成带密码的 PKCS#12
+（`.p12`）文件；GitHub Actions 中只保存文件的 Base64 内容和对应密码。
+
+公证使用 App Store Connect 的**团队 API Key**；个人 API Key 不能供 `notarytool`
+使用。私有 `.p8` 文件只能下载一次，必须放在仓库之外安全保存。具体入口见 Apple 的
+[API Key 创建说明](https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api)。
+
+在仓库的 Actions secrets 中配置：
+
+| Secret | 内容 |
+| --- | --- |
+| `MACOS_APPLICATION_CERTIFICATE` | Developer ID Application `.p12` 的 Base64 |
+| `MACOS_APPLICATION_CERTIFICATE_PASSWORD` | 该 `.p12` 的密码 |
+| `MACOS_INSTALLER_CERTIFICATE` | Developer ID Installer `.p12` 的 Base64 |
+| `MACOS_INSTALLER_CERTIFICATE_PASSWORD` | 该 `.p12` 的密码 |
+| `APPLE_API_KEY_BASE64` | 团队 `AuthKey_*.p8` 文件的 Base64 |
+| `APPLE_API_KEY_ID` | App Store Connect Key ID |
+| `APPLE_API_ISSUER` | App Store Connect Issuer ID |
+
+Workflow 只把 `.p8` 解码到 runner 临时目录，并把两份 `.p12` 分别映射给
+electron-builder 的 App 与 Installer 证书入口。它会启用 Hardened Runtime，向 Apple
+公证 App 和 PKG，并装订返回的票据。凭据文件和 secret 值都不得提交进仓库。
 
 每个安装包包含 Electron、前端、Godot Web、目标原生 Python Core 和管理 CLI。
 最终用户只安装这些平台原生产物；源码 checkout 仍然只是开发环境。
 
-首次内测的 macOS、Windows 安装包没有签名或公证，系统会显示来源警告；这是当前
-内测约束，不应通过关闭安全机制来绕过。安装测试必须记录“安装、启动、`/api/health`
-成功、退出后子进程不存在”四项结果后，才可交给下一位测试者。
+GitHub Workflow 产出的正式 macOS 安装包必须签名并公证；缺任何信任凭据时，job 会
+失败，不会退化为发布未签名安装包。Windows 预览包尚未纳入这套 macOS 信任链，仍可能
+显示发布者警告。交付前仍须记录“安装、启动、`/api/health` 成功、退出后子进程不存在”
+四项安装测试证据。
