@@ -204,7 +204,8 @@ def register_service_process(elfie_home: Path, pid: int) -> Path:
     )
     temporary_path = Path(temporary_name)
     try:
-        os.fchmod(descriptor, 0o600)
+        if os.name != "nt":
+            os.fchmod(descriptor, 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8") as receipt:
             receipt.write(str(pid))
         temporary_path.replace(pid_path)

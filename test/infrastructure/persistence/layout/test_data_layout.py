@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import stat
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from infrastructure.persistence.layout import data_layout
 from infrastructure.persistence.layout.data_layout import (
     InvalidAvatarExtensionError,
     InvalidFinalElfieIdError,
@@ -73,6 +75,27 @@ def test_ensure_final_root_layout_creates_exact_secure_directories(
     assert stat.S_IMODE(root.stat().st_mode) == 0o700
     assert all(stat.S_IMODE((root / path).stat().st_mode) == 0o700 for path in expected)
     assert not any(path.is_file() for path in root.rglob("*"))
+
+
+def test_ensure_final_root_layout_skips_unavailable_windows_chmod(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Given: Windows has no follow_symlinks implementation for os.chmod.
+    def unsupported_chmod(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("Windows must not call POSIX-only chmod options")
+
+    monkeypatch.setattr(
+        data_layout,
+        "os",
+        SimpleNamespace(name="nt", chmod=unsupported_chmod),
+    )
+
+    # When: the final data layout is created on that platform.
+    ensure_final_root_layout(tmp_path / "data")
+
+    # Then: directory creation remains usable without the POSIX-only call.
+    assert (tmp_path / "data" / "runtime").is_dir()
 
 
 def test_ensure_final_user_layout_uses_numeric_id_and_secure_files_dir(
