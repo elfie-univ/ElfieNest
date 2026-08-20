@@ -129,12 +129,18 @@ executable, governance, toolchain and lockfile changes escalate to G3.
 Successful deterministic test checks are keyed by command, scoped input contents and
 file modes, the required immutable base, and local tools—not by delivery tier.
 G2 therefore reuses an unchanged focused test already passed by G1. The local
-G3 pytest backstop is split into the registered top-level packages `app`,
+G3 pytest backstop is split into registered bundles: the repository packages
 `architecture`, `devtools`, `e2e`, `elfie`, `godot`, `infrastructure`, `nest`
-and `scripts`. It runs only missing or invalidated bundles. Bundle inputs include
-the transitive local Python imports of their tests and shared `conftest.py`
-fixtures; reuse additionally requires a matching pass record, coverage fragment
-digest/version and readable coverage data. One invocation shares a repository
+and `scripts`, plus App module slices for Bootstrap, each Feature and
+Configuration subdomain, API/CLI/Web Interfaces, each Orchestration subdomain,
+cross-cutting Orchestration tests and product E2E. It runs only missing or
+invalidated bundles. Bundle inputs include the transitive local Python imports
+of their tests and shared `conftest.py` fixtures; reuse additionally requires a
+matching pass record, coverage fragment digest/version, readable coverage data
+and the immutable base. Dynamic or non-Python entrypoints are explicit inputs.
+Coverage fragments use relative paths; an absolute-path fragment is rejected,
+so exact-content artifacts may be reused by an immutable candidate tree or
+another worktree without mixing source paths. One invocation shares a repository
 snapshot and rechecks signatures before accepting a hit. It then combines every
 fragment and enforces the repository coverage threshold once. If one bundle
 fails, previous successful bundle records remain; the next invocation skips them
@@ -150,10 +156,11 @@ Run reusable focused or complete-bundle checks through the controlled runner:
   --bundle godot
 ```
 
-If `--selectors` exactly names one registered bundle, it creates the same
-coverage-bearing evidence that G3 consumes. A narrower node/file result remains
-reusable only as that exact focused command and cannot prove its owning bundle.
-Raw `pytest` is diagnostic and does not create submission-cache evidence.
+If `--selectors` names one registered bundle or a selector contained by one
+module bundle, it creates the same coverage-bearing evidence that G3 consumes.
+A mixed selection or narrower node/file result remains reusable only as that
+exact focused command and cannot prove an unrelated owning bundle. Raw `pytest`
+is diagnostic and does not create submission-cache evidence.
 
 The internal `--direct-main` path runs the complete main backstop while reusing
 valid bundle evidence. `--no-cache` disables valid evidence reuse for checks

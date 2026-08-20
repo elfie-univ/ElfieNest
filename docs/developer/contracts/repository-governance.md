@@ -1,6 +1,6 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.15
+**Contract version:** 1.16
 **Adopted:** 2026-08-12
 **Revised:** 2026-08-20
 **Enforced scope:** Repository-wide change classification and architecture boundaries
@@ -86,21 +86,24 @@ contents and file modes, local tool fingerprint and immutable base when the
 selection depends on that base. Therefore an unchanged focused test run by G1
 is reused by G2 instead of being started again.
 
-The local G3 pytest backstop is partitioned into registered top-level bundles.
-Each bundle starts with conservative source, test, configuration and
-shared-fixture inputs, then adds the transitive local Python import closure of
-its tests and `conftest.py` files; dynamic or non-Python entry points remain
-explicit inputs. An unknown executable input invalidates every bundle. A bundle
-pass is reusable only when its pass record, coverage fragment, artifact digest,
-coverage/pytest versions and readable coverage data all agree. Running a
-complete registered bundle earlier through the controlled runner creates that
-same evidence, so G3 skips it. A narrower node, file or arbitrary selector
-cannot prove the larger bundle. One invocation shares a repository content
-snapshot across bundles and rechecks input signatures before accepting a cache
-hit. G3 combines all current bundle fragments and enforces the repository
-coverage threshold once after combination; a failed combine invalidates the
-involved fragments. Raw `pytest` commands remain useful for diagnosis but do
-not enter this evidence store.
+The local G3 pytest backstop is partitioned into registered bundles. The
+repository packages remain separate, while the App package is split into
+Bootstrap, Feature/Configuration, Interface, Orchestration and product-E2E
+module slices. Each bundle starts with conservative source, test,
+configuration and shared-fixture inputs, then adds the transitive local Python
+import closure of its tests and declared source roots; dynamic or non-Python
+entry points remain explicit inputs. An unknown executable input invalidates
+every bundle. A bundle pass is reusable only when its pass record, immutable
+base, coverage fragment, artifact digest, coverage/pytest versions, readable
+coverage data and portable relative paths all agree. Running a complete
+registered bundle earlier through the controlled runner creates that same
+evidence, so G3 skips it. A narrower node, file or arbitrary selector cannot
+prove the larger bundle. One invocation shares a repository content snapshot
+across bundles and rechecks input signatures before accepting a cache hit. G3
+combines all current bundle fragments and enforces the repository coverage
+threshold once after combination; a failed combine invalidates the involved
+fragments. Raw `pytest` commands remain useful for diagnosis but do not enter
+this evidence store.
 
 Exact-candidate evidence may still reuse a whole tier. G3 also records a
 separate expensive-backstop fingerprint covering every changed source, test,

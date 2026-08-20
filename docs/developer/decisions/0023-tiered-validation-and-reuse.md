@@ -44,6 +44,13 @@ the immutable-base or protected-main checks.
   repository threshold once. A prior complete-bundle run uses the same
   evidence, while a narrower node or file cannot prove a larger bundle.
   Unknown executable inputs invalidate all bundles.
+- Refine the App bundle into registered Bootstrap, Feature/Configuration,
+  Interface, Orchestration and product-E2E module slices. Each slice follows
+  declared source roots plus its static import closure and explicit dynamic or
+  resource inputs. Bind bundle evidence to the immutable base SHA, normalize
+  coverage paths to repository-relative names before storage, and reject
+  non-portable fragments so exact content can be reused by candidate trees or
+  other worktrees without mixing source paths.
 - Keep exact-candidate reuse, and give the remaining expensive G3 backstop a
   separate fingerprint. Source, tests, dependencies, toolchains, documentation
   and gate rules remain fail-closed backstop inputs; only paths explicitly

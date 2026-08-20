@@ -10,8 +10,34 @@ import scripts.architecture.validation_cache as validation_cache
 import scripts.architecture.validation_test_bundles as test_bundles
 from scripts.architecture.validation_cache import cache_store
 
-EXPECTED_BUNDLES = {
-    "app",
+EXPECTED_APP_BUNDLES = {
+    "app_bootstrap",
+    "app_features_accounts",
+    "app_features_adoption",
+    "app_features_bodies",
+    "app_features_communication",
+    "app_features_configuration_capabilities",
+    "app_features_configuration_food",
+    "app_features_configuration_providers",
+    "app_features_configuration_settings",
+    "app_features_elfies",
+    "app_features_nest_management",
+    "app_features_operations",
+    "app_features_setup",
+    "app_interfaces_api",
+    "app_interfaces_cli",
+    "app_interfaces_web",
+    "app_orchestration_embodiment",
+    "app_orchestration_lifecycle",
+    "app_orchestration_message_delivery",
+    "app_orchestration_nest_session",
+    "app_orchestration_observer",
+    "app_orchestration_resident_admission",
+    "app_orchestration_setup_installation",
+    "app_orchestration_crosscutting",
+    "app_product_e2e",
+}
+EXPECTED_BUNDLES = EXPECTED_APP_BUNDLES | {
     "architecture",
     "devtools",
     "e2e",
@@ -32,16 +58,31 @@ def _write_valid_coverage_artifact(path: Path) -> None:
 
 
 def test_bundle_inventory_covers_every_top_level_test_package() -> None:
-    discovered = {
-        path.name
-        for path in (test_bundles.PROJECT_ROOT / "test").iterdir()
-        if path.is_dir() and any(path.rglob("test_*.py"))
-    }
-
     assert {
         bundle.bundle_id for bundle in test_bundles.TEST_BUNDLES
     } == EXPECTED_BUNDLES
-    assert discovered == EXPECTED_BUNDLES
+
+    app_root = test_bundles.PROJECT_ROOT / "test" / "app"
+    app_tests = {
+        path.relative_to(test_bundles.PROJECT_ROOT).as_posix()
+        for path in app_root.rglob("test_*.py")
+    }
+
+    def owns(selector: str, path: str) -> bool:
+        selector = selector.rstrip("/")
+        return path == selector or path.startswith(f"{selector}/")
+
+    ownership = {
+        path: [
+            bundle.bundle_id
+            for bundle in test_bundles.APP_TEST_BUNDLES
+            if any(owns(selector, path) for selector in bundle.selectors)
+        ]
+        for path in sorted(app_tests)
+    }
+
+    assert all(len(owners) == 1 for owners in ownership.values()), ownership
+    assert set(ownership) == app_tests
 
 
 def test_repository_paths_ignore_local_runtime_links_and_generated_roots(
@@ -153,6 +194,86 @@ def test_bundle_inputs_follow_shared_conftest_and_local_python_imports() -> None
     assert "test/app/conftest.py" not in inputs
 
 
+def test_app_module_inputs_follow_shared_static_dependencies(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(test_bundles, "PROJECT_ROOT", tmp_path)
+    for relative, source in {
+        "app/features/bodies/service.py": (
+            "from app.features.accounts import AccountPrincipal\n"
+        ),
+        "app/features/accounts/__init__.py": "value = 1\n",
+        "app/features/adoption/__init__.py": "value = 1\n",
+        "test/app/features/bodies/test_service.py": "def test_service(): pass\n",
+        "test/conftest.py": "",
+        "pyproject.toml": "[tool.pytest.ini_options]\n",
+    }.items():
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+
+    inputs = set(
+        test_bundles.bundle_input_paths(
+            test_bundles.bundle_by_id("app_features_bodies"),
+            [
+                "app/features/bodies/service.py",
+                "app/features/accounts/__init__.py",
+                "app/features/adoption/__init__.py",
+                "test/app/features/bodies/test_service.py",
+                "test/conftest.py",
+                "pyproject.toml",
+            ],
+        )
+    )
+
+    assert "app/features/accounts/__init__.py" in inputs
+    assert "app/features/adoption/__init__.py" not in inputs
+
+
+def test_dynamic_entrypoint_inputs_are_explicit() -> None:
+    paths = [
+        "app/bootstrap/__init__.py",
+        "scripts/elfienest.py",
+        "scripts/other_entrypoint.py",
+        "test/app/bootstrap/test_cli_configuration.py",
+    ]
+
+    inputs = set(
+        test_bundles.bundle_input_paths(
+            test_bundles.bundle_by_id("app_bootstrap"), paths
+        )
+    )
+
+    assert "scripts/elfienest.py" in inputs
+    assert "scripts/other_entrypoint.py" not in inputs
+
+
+def test_bundle_fingerprint_is_bound_to_immutable_base(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(validation_cache, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(test_bundles, "PROJECT_ROOT", tmp_path)
+    for relative in (
+        "app/features/accounts/__init__.py",
+        "test/app/features/accounts/test_auth.py",
+        "pyproject.toml",
+    ):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("value = 1\n", encoding="utf-8")
+    paths = [
+        "app/features/accounts/__init__.py",
+        "test/app/features/accounts/test_auth.py",
+        "pyproject.toml",
+    ]
+    bundle = test_bundles.bundle_by_id("app_features_accounts")
+
+    first = test_bundles.bundle_fingerprint(bundle, paths, base_sha="base-a")
+    second = test_bundles.bundle_fingerprint(bundle, paths, base_sha="base-b")
+
+    assert first != second
+
+
 def test_unrelated_content_keeps_bundle_evidence_but_scoped_content_invalidates_it(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -237,6 +358,46 @@ def test_bundle_cache_rejects_legacy_record_and_arbitrary_coverage_bytes(
     cache_store(tmp_path, key, "test-bundle:elfie", "content-scoped")
 
     assert not test_bundles.bundle_cache_hit(tmp_path, key)
+
+
+def test_bundle_cache_rejects_nonportable_absolute_coverage(tmp_path: Path) -> None:
+    key = "w" * 64
+    artifact = test_bundles.coverage_artifact_path(tmp_path, key)
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    from coverage import CoverageData
+
+    data = CoverageData(basename=str(artifact))
+    data.add_lines({str(tmp_path / "foreign" / "module.py"): {1}})
+    data.write()
+    metadata = test_bundles.coverage_cache_metadata(artifact)
+    cache_store(
+        tmp_path,
+        key,
+        "test-bundle:elfie",
+        "content-scoped",
+        metadata=metadata,
+    )
+
+    assert not test_bundles.bundle_cache_hit(tmp_path, key)
+
+
+def test_new_coverage_fragment_is_normalized_to_relative_paths(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(test_bundles, "PROJECT_ROOT", tmp_path)
+    artifact = tmp_path / "coverage.data"
+    from coverage import CoverageData
+
+    source_path = tmp_path / "app" / "module.py"
+    source_path.parent.mkdir(parents=True)
+    data = CoverageData(basename=str(artifact))
+    data.add_lines({str(source_path): {1}})
+    data.write()
+
+    assert test_bundles._normalize_coverage_artifact(artifact)
+    normalized = CoverageData(basename=str(artifact))
+    normalized.read()
+    assert normalized.measured_files() == {"app/module.py"}
 
 
 def test_bundle_command_defers_coverage_threshold_until_combination() -> None:
@@ -367,7 +528,7 @@ def test_complete_bundle_selector_uses_bundle_evidence(
     monkeypatch.setattr(
         test_bundles,
         "run_bundle",
-        lambda bundle, cache_root, *, no_cache=False: (
+        lambda bundle, cache_root, *, no_cache=False, base_sha="": (
             expected
             if bundle.bundle_id == "godot" and cache_root == tmp_path and not no_cache
             else None
@@ -386,6 +547,54 @@ def test_complete_bundle_selector_uses_bundle_evidence(
     result = test_bundles.run_selected_tests(["test/godot/"], "base", tmp_path)
 
     assert result == 0
+
+
+def test_nested_app_selector_uses_owning_module_bundle(
+    tmp_path: Path, monkeypatch
+) -> None:
+    seen = []
+
+    def run_bundle(bundle, cache_root, *, no_cache=False, base_sha=""):
+        seen.append((bundle.bundle_id, base_sha))
+        return test_bundles.BundleRun(0, "k", None, False)
+
+    monkeypatch.setattr(test_bundles, "run_bundle", run_bundle)
+    monkeypatch.setattr(
+        test_bundles,
+        "run_focused_tests",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("nested module selectors must use bundle evidence")
+        ),
+    )
+
+    result = test_bundles.run_selected_tests(
+        ["test/app/interfaces/api/v1/admin"], "base-sha", tmp_path
+    )
+
+    assert result == 0
+    assert seen == [("app_interfaces_api", "base-sha")]
+
+
+def test_parent_app_selector_expands_to_all_owned_modules(
+    tmp_path: Path, monkeypatch
+) -> None:
+    seen = []
+
+    def run_bundle(bundle, cache_root, *, no_cache=False, base_sha=""):
+        seen.append(bundle.bundle_id)
+        return test_bundles.BundleRun(0, "k", None, False)
+
+    monkeypatch.setattr(test_bundles, "run_bundle", run_bundle)
+
+    assert (
+        test_bundles.run_selected_tests(["test/app/features"], "base-sha", tmp_path)
+        == 0
+    )
+    assert seen == [
+        bundle.bundle_id
+        for bundle in test_bundles.APP_TEST_BUNDLES
+        if bundle.bundle_id.startswith("app_features_")
+    ]
 
 
 def test_focused_test_fingerprint_includes_changed_source(
@@ -497,6 +706,15 @@ def test_pre_submit_uses_reusable_bundles_instead_of_monolithic_pytest() -> None
     assert "pytest --cov --cov-report=xml --cov-report=term-missing" not in source
     assert "--direct-main" in source
     assert "BUNDLE_ARGS+=(--no-cache)" in source
+
+
+def test_coverage_fragments_are_normalized_before_cache_storage() -> None:
+    source = (
+        test_bundles.PROJECT_ROOT / "scripts/architecture/validation_test_bundles.py"
+    ).read_text(encoding="utf-8")
+
+    assert "_normalize_coverage_artifact" in source
+    assert '"coverage_paths": "relative"' in source
 
 
 def test_bundle_fingerprints_can_reuse_one_repository_snapshot(

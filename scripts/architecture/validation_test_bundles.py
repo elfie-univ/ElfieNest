@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import os
 import shutil
 import subprocess
@@ -34,7 +35,7 @@ from scripts.architecture.validation_cache import (
 )
 from scripts.architecture.validation_plan import changed_paths
 
-TEST_BUNDLE_RULE_VERSION = "pytest-bundles-v3"
+TEST_BUNDLE_RULE_VERSION = "pytest-bundles-v4"
 GENERATED_PATHS = frozenset({"coverage.xml"})
 LOCAL_RUNTIME_PATHS = frozenset({".venv", "venv"})
 LOCAL_RUNTIME_PREFIXES = (
@@ -97,6 +98,196 @@ class TestBundle:
     input_prefixes: Tuple[str, ...]
     input_exact: Tuple[str, ...] = ()
     all_repository: bool = False
+    # Source roots seed the local-Python dependency closure.  Keeping these
+    # separate from input_prefixes lets a bundle declare a narrow direct
+    # scope while still following imports that leave that scope.
+    source_prefixes: Tuple[str, ...] = ()
+    # Dynamic loaders, script entrypoints and non-Python resources cannot be
+    # recovered safely from an AST.  They are explicit, conservative inputs.
+    dynamic_input_prefixes: Tuple[str, ...] = ()
+    dynamic_input_exact: Tuple[str, ...] = ()
+
+
+def _app_bundle(
+    bundle_id: str,
+    selectors: Tuple[str, ...],
+    source_prefix: str,
+    *,
+    input_prefixes: Tuple[str, ...] = (),
+    input_exact: Tuple[str, ...] = (),
+    source_prefixes: Optional[Tuple[str, ...]] = None,
+    dynamic_input_prefixes: Tuple[str, ...] = (),
+    dynamic_input_exact: Tuple[str, ...] = (),
+) -> TestBundle:
+    """Declare one App test slice and its explicit non-static inputs.
+
+    The source prefix is both a direct fingerprint input and a root for the
+    import closure.  The latter captures shared Feature/Orchestration
+    dependencies without making every App slice depend on all of ``app/``.
+    Entry-point/resource inputs stay explicit so a dynamic boundary cannot
+    silently produce a false cache hit.
+    """
+
+    return TestBundle(
+        bundle_id,
+        selectors,
+        (source_prefix, *input_prefixes),
+        input_exact,
+        source_prefixes=(source_prefix,)
+        if source_prefixes is None
+        else source_prefixes,
+        dynamic_input_prefixes=dynamic_input_prefixes,
+        dynamic_input_exact=dynamic_input_exact,
+    )
+
+
+APP_TEST_BUNDLES: Tuple[TestBundle, ...] = (
+    _app_bundle(
+        "app_bootstrap",
+        ("test/app/bootstrap",),
+        "app/bootstrap/",
+        dynamic_input_exact=(
+            "scripts/bootstrap.sh",
+            "scripts/elfienest.py",
+            "scripts/serve.py",
+        ),
+    ),
+    _app_bundle(
+        "app_features_accounts",
+        ("test/app/features/accounts",),
+        "app/features/accounts/",
+    ),
+    _app_bundle(
+        "app_features_adoption",
+        ("test/app/features/adoption",),
+        "app/features/adoption/",
+        input_prefixes=("docs/public/assets/",),
+    ),
+    _app_bundle(
+        "app_features_bodies",
+        ("test/app/features/bodies",),
+        "app/features/bodies/",
+    ),
+    _app_bundle(
+        "app_features_communication",
+        ("test/app/features/communication",),
+        "app/features/communication/",
+    ),
+    _app_bundle(
+        "app_features_configuration_capabilities",
+        ("test/app/features/configuration/capabilities",),
+        "app/features/configuration/capabilities/",
+    ),
+    _app_bundle(
+        "app_features_configuration_food",
+        ("test/app/features/configuration/food",),
+        "app/features/configuration/food/",
+    ),
+    _app_bundle(
+        "app_features_configuration_providers",
+        ("test/app/features/configuration/providers",),
+        "app/features/configuration/providers/",
+    ),
+    _app_bundle(
+        "app_features_configuration_settings",
+        ("test/app/features/configuration/settings",),
+        "app/features/configuration/settings/",
+    ),
+    _app_bundle(
+        "app_features_elfies",
+        ("test/app/features/elfies",),
+        "app/features/elfies/",
+    ),
+    _app_bundle(
+        "app_features_nest_management",
+        ("test/app/features/nest_management",),
+        "app/features/nest_management/",
+    ),
+    _app_bundle(
+        "app_features_operations",
+        ("test/app/features/operations",),
+        "app/features/operations/",
+    ),
+    _app_bundle(
+        "app_features_setup",
+        ("test/app/features/setup",),
+        "app/features/setup/",
+    ),
+    _app_bundle(
+        "app_interfaces_api",
+        ("test/app/interfaces/api",),
+        "app/interfaces/api/",
+        dynamic_input_prefixes=("resources/", "scripts/"),
+    ),
+    _app_bundle(
+        "app_interfaces_cli",
+        ("test/app/interfaces/cli",),
+        "app/interfaces/cli/",
+        input_exact=("package.json", "pnpm-lock.yaml"),
+        dynamic_input_prefixes=("resources/", "scripts/"),
+    ),
+    _app_bundle(
+        "app_interfaces_web",
+        ("test/app/interfaces/web",),
+        "app/interfaces/web/",
+        input_prefixes=("app/interfaces/web/frontend/",),
+    ),
+    _app_bundle(
+        "app_orchestration_embodiment",
+        ("test/app/orchestration/embodiment",),
+        "app/orchestration/embodiment/",
+    ),
+    _app_bundle(
+        "app_orchestration_lifecycle",
+        ("test/app/orchestration/lifecycle",),
+        "app/orchestration/lifecycle/",
+        dynamic_input_prefixes=("scripts/",),
+    ),
+    _app_bundle(
+        "app_orchestration_message_delivery",
+        ("test/app/orchestration/message_delivery",),
+        "app/orchestration/message_delivery/",
+    ),
+    _app_bundle(
+        "app_orchestration_nest_session",
+        ("test/app/orchestration/nest_session",),
+        "app/orchestration/nest_session/",
+    ),
+    _app_bundle(
+        "app_orchestration_observer",
+        ("test/app/orchestration/observer",),
+        "app/orchestration/observer/",
+    ),
+    _app_bundle(
+        "app_orchestration_resident_admission",
+        ("test/app/orchestration/resident_admission",),
+        "app/orchestration/resident_admission/",
+    ),
+    _app_bundle(
+        "app_orchestration_setup_installation",
+        ("test/app/orchestration/setup_installation",),
+        "app/orchestration/setup_installation/",
+    ),
+    _app_bundle(
+        "app_orchestration_crosscutting",
+        (
+            "test/app/orchestration/test_godot_owner_channel.py",
+            "test/app/orchestration/test_observer_projection.py",
+        ),
+        "app/orchestration/",
+        dynamic_input_prefixes=("scripts/",),
+    ),
+    _app_bundle(
+        "app_product_e2e",
+        (
+            "test/app/test_final_storage_e2e.py",
+            "test/app/test_product_chat_brain_e2e.py",
+        ),
+        "app/",
+        source_prefixes=(),
+        dynamic_input_prefixes=("resources/", "scripts/"),
+    ),
+)
 
 
 @dataclass(frozen=True)
@@ -142,21 +333,7 @@ TEST_BUNDLES: Tuple[TestBundle, ...] = (
         ),
     ),
     TestBundle("elfie", ("test/elfie",), ("elfie/", "infrastructure/", "nest/")),
-    TestBundle(
-        "app",
-        ("test/app",),
-        (
-            ".github/",
-            "app/",
-            "docs/",
-            "elfie/",
-            "infrastructure/",
-            "nest/",
-            "resources/",
-            "scripts/",
-        ),
-        ("AGENTS.md", "CONTRIBUTING.md"),
-    ),
+    *APP_TEST_BUNDLES,
     TestBundle(
         "infrastructure",
         ("test/infrastructure",),
@@ -260,6 +437,40 @@ def _imported_modules(
     return modules
 
 
+_IMPORTS_CACHE: dict[Tuple[str, str, str], Tuple[str, ...]] = {}
+
+
+def _cached_imported_modules(path: str, current_module: str) -> Tuple[str, ...]:
+    """Parse each unchanged Python file once per process.
+
+    Bundle fingerprints still hash file contents independently.  This cache
+    only avoids reparsing the same source while constructing several module
+    impact closures in one G3 invocation; the content digest in its key
+    prevents a same-path edit from reusing a stale dependency edge.
+    """
+
+    try:
+        source = (PROJECT_ROOT / path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ()
+    digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
+    cache_key = (str(PROJECT_ROOT.resolve()), path, digest)
+    cached = _IMPORTS_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return ()
+    modules = tuple(
+        imported
+        for node in ast.walk(tree)
+        for imported in _imported_modules(node, current_module, path)
+    )
+    _IMPORTS_CACHE[cache_key] = modules
+    return modules
+
+
 def _local_python_dependency_paths(
     bundle: TestBundle, candidate_paths: Sequence[str]
 ) -> set:
@@ -282,6 +493,7 @@ def _local_python_dependency_paths(
             _matches_prefix(path, test_prefixes)
             or path == "test/conftest.py"
             or _matches_prefix(path, COMMON_INPUT_PREFIXES)
+            or _matches_prefix(path, bundle.source_prefixes)
         )
     }
     discovered = set(roots)
@@ -291,16 +503,11 @@ def _local_python_dependency_paths(
         module = _module_name(path)
         if not module:
             continue
-        try:
-            tree = ast.parse((PROJECT_ROOT / path).read_text(encoding="utf-8"))
-        except (OSError, SyntaxError, UnicodeDecodeError):
-            continue
-        for node in ast.walk(tree):
-            for imported in _imported_modules(node, module, path):
-                dependency = index.get(imported)
-                if dependency and dependency not in discovered:
-                    discovered.add(dependency)
-                    pending.append(dependency)
+        for imported in _cached_imported_modules(path, module):
+            dependency = index.get(imported)
+            if dependency and dependency not in discovered:
+                discovered.add(dependency)
+                pending.append(dependency)
     return discovered
 
 
@@ -314,8 +521,10 @@ def bundle_input_paths(bundle: TestBundle, candidate_paths: Sequence[str]) -> Li
         if (
             path in COMMON_EXACT_INPUTS
             or path in bundle.input_exact
+            or path in bundle.dynamic_input_exact
             or _matches_prefix(path, COMMON_INPUT_PREFIXES)
             or _matches_prefix(path, bundle.input_prefixes)
+            or _matches_prefix(path, bundle.dynamic_input_prefixes)
             or _matches_prefix(path, test_prefixes)
             or _is_unknown_input(path)
         )
@@ -329,10 +538,18 @@ def bundle_fingerprint(
     bundle: TestBundle,
     candidate_paths: Sequence[str],
     *,
+    base_sha: str = "",
     snapshot: Optional[RepositorySnapshot] = None,
 ) -> str:
+    namespace = ":".join(
+        (
+            TEST_BUNDLE_RULE_VERSION,
+            bundle.bundle_id,
+            base_sha or "<unspecified-base>",
+        )
+    )
     return scoped_fingerprint(
-        f"{TEST_BUNDLE_RULE_VERSION}:{bundle.bundle_id}",
+        namespace,
         bundle_input_paths(bundle, candidate_paths),
         _fingerprint_pytest_command(bundle.selectors, coverage=True),
         snapshot=snapshot,
@@ -349,6 +566,7 @@ def coverage_cache_metadata(artifact: Path) -> dict:
         "coverage_version": installed_package_version("coverage"),
         "pytest_cov_version": installed_package_version("pytest-cov"),
         "pytest_version": installed_package_version("pytest"),
+        "coverage_paths": "relative",
     }
 
 
@@ -360,6 +578,71 @@ def _coverage_artifact_is_readable(artifact: Path) -> bool:
     except (OSError, coverage.CoverageException):
         return False
     return True
+
+
+def _portable_coverage_path(path: str) -> Optional[str]:
+    """Return a repository-relative coverage path, or reject it fail-closed."""
+
+    candidate = Path(path)
+    root = PROJECT_ROOT.resolve()
+    if candidate.is_absolute():
+        resolved = candidate.resolve()
+        if resolved != root and root not in resolved.parents:
+            return None
+        return resolved.relative_to(root).as_posix()
+    normalized = Path(os.path.normpath(path))
+    if normalized == Path("..") or Path("..") in normalized.parents:
+        return None
+    return normalized.as_posix()
+
+
+def _coverage_artifact_is_portable(artifact: Path) -> bool:
+    """Reject coverage fragments that embed a worktree-specific path."""
+
+    try:
+        import coverage
+
+        data = coverage.CoverageData(basename=str(artifact))
+        data.read()
+        for path in data.measured_files():
+            if _portable_coverage_path(path) is None:
+                return False
+        return True
+    except (OSError, coverage.CoverageException):
+        return False
+
+
+def _normalize_coverage_artifact(artifact: Path) -> bool:
+    """Rewrite a newly produced fragment so it is safe across candidate trees."""
+
+    try:
+        import coverage
+
+        source = coverage.CoverageData(basename=str(artifact))
+        source.read()
+        has_arcs = source.has_arcs()
+        line_data = {}
+        arc_data = {}
+        for filename in source.measured_files():
+            relative = _portable_coverage_path(filename)
+            if relative is None:
+                return False
+            if has_arcs:
+                arc_data[relative] = source.arcs(filename) or []
+            else:
+                line_data[relative] = source.lines(filename) or []
+        temporary = artifact.with_name(f".{artifact.name}.normalized.tmp")
+        temporary.unlink(missing_ok=True)
+        normalized = coverage.CoverageData(basename=str(temporary))
+        if has_arcs:
+            normalized.add_arcs(arc_data)
+        else:
+            normalized.add_lines(line_data)
+        normalized.write()
+        os.replace(temporary, artifact)
+        return _coverage_artifact_is_portable(artifact)
+    except (OSError, coverage.CoverageException):
+        return False
 
 
 def _invalidate_bundle_artifacts(cache_root: Path, key: str) -> None:
@@ -384,6 +667,9 @@ def bundle_cache_hit(cache_root: Path, key: str) -> bool:
         _invalidate_bundle_artifacts(cache_root, key)
         return False
     if not _coverage_artifact_is_readable(artifact):
+        _invalidate_bundle_artifacts(cache_root, key)
+        return False
+    if not _coverage_artifact_is_portable(artifact):
         _invalidate_bundle_artifacts(cache_root, key)
         return False
     return True
@@ -428,28 +714,40 @@ def run_bundle(
     no_cache: bool = False,
     candidate_paths: Optional[Sequence[str]] = None,
     snapshot: Optional[RepositorySnapshot] = None,
+    base_sha: str = "",
 ) -> BundleRun:
     shared_snapshot = snapshot is not None
     candidate_paths = list(candidate_paths or repository_paths())
     snapshot = snapshot or repository_snapshot(candidate_paths)
-    key = bundle_fingerprint(bundle, candidate_paths, snapshot=snapshot)
+    key = bundle_fingerprint(
+        bundle, candidate_paths, base_sha=base_sha, snapshot=snapshot
+    )
     artifact = coverage_artifact_path(cache_root, key)
     lock = cache_root / f"{key}.lock"
     with cache_lock(lock):
         if not no_cache and not shared_snapshot:
             current_paths = repository_paths()
             if current_paths != candidate_paths:
-                candidate_paths = current_paths
-                snapshot = repository_snapshot(candidate_paths)
-                key = bundle_fingerprint(bundle, candidate_paths, snapshot=snapshot)
-                artifact = coverage_artifact_path(cache_root, key)
+                return run_bundle(
+                    bundle,
+                    cache_root,
+                    no_cache=no_cache,
+                    candidate_paths=current_paths,
+                    snapshot=repository_snapshot(current_paths),
+                    base_sha=base_sha,
+                )
         elif not no_cache and not repository_snapshot_current(
             snapshot, candidate_paths
         ):
-            candidate_paths = repository_paths()
-            snapshot = repository_snapshot(candidate_paths)
-            key = bundle_fingerprint(bundle, candidate_paths, snapshot=snapshot)
-            artifact = coverage_artifact_path(cache_root, key)
+            current_paths = repository_paths()
+            return run_bundle(
+                bundle,
+                cache_root,
+                no_cache=no_cache,
+                candidate_paths=current_paths,
+                snapshot=repository_snapshot(current_paths),
+                base_sha=base_sha,
+            )
         if not no_cache and bundle_cache_hit(cache_root, key):
             print(f"✅ reused passed test bundle {bundle.bundle_id}: {key}")
             return BundleRun(0, key, artifact, True)
@@ -461,12 +759,27 @@ def run_bundle(
             temporary.unlink(missing_ok=True)
             _invalidate_bundle_artifacts(cache_root, key)
             return BundleRun(result, key, None, False)
+        if not _normalize_coverage_artifact(temporary):
+            temporary.unlink(missing_ok=True)
+            _invalidate_bundle_artifacts(cache_root, key)
+            print(
+                f"❌ test bundle {bundle.bundle_id} produced non-portable coverage",
+                file=sys.stderr,
+            )
+            return BundleRun(1, key, None, False)
         if repository_snapshot_current(snapshot, candidate_paths):
-            after = bundle_fingerprint(bundle, candidate_paths, snapshot=snapshot)
+            after = bundle_fingerprint(
+                bundle, candidate_paths, base_sha=base_sha, snapshot=snapshot
+            )
         else:
             after_paths = repository_paths()
             after_snapshot = repository_snapshot(after_paths)
-            after = bundle_fingerprint(bundle, after_paths, snapshot=after_snapshot)
+            after = bundle_fingerprint(
+                bundle,
+                after_paths,
+                base_sha=base_sha,
+                snapshot=after_snapshot,
+            )
         if after != key or not temporary.is_file():
             temporary.unlink(missing_ok=True)
             cache_invalidate(cache_root, key)
@@ -540,15 +853,96 @@ def run_selected_tests(
     *,
     no_cache: bool = False,
 ) -> int:
-    """Reuse bundle evidence when the selection is one complete stable bundle."""
+    """Reuse complete bundle evidence for exact or contained selectors.
+
+    ``validation_plan`` often returns a nested test directory for a changed
+    source file (for example ``test/app/interfaces/api/v1``).  That selector
+    is still owned by the registered API bundle, so running the complete
+    module is both safer and reusable.  A parent selector such as
+    ``test/app`` expands to all owned App modules; unrelated selectors remain
+    focused and never masquerade as a complete bundle.
+    """
 
     normalized = tuple(sorted({selector.rstrip("/") for selector in selectors}))
+    if not normalized:
+        return 0
+
+    def is_within(root: str, selector: str) -> bool:
+        root = root.rstrip("/")
+        selector = selector.rstrip("/")
+        return selector == root or selector.startswith(f"{root}/")
+
+    owned: List[TestBundle] = []
+    unresolved = set(normalized)
     for bundle in TEST_BUNDLES:
-        bundle_selectors = tuple(
-            sorted(selector.rstrip("/") for selector in bundle.selectors)
-        )
-        if normalized == bundle_selectors:
-            return run_bundle(bundle, cache_root, no_cache=no_cache).returncode
+        roots = tuple(selector.rstrip("/") for selector in bundle.selectors)
+        related = {
+            requested
+            for requested in normalized
+            if any(
+                is_within(root, requested) or is_within(requested, root)
+                for root in roots
+            )
+        }
+        if related:
+            owned.append(bundle)
+            unresolved.difference_update(related)
+
+    # A selector can be related to a broad bundle and a narrower one at the
+    # same time.  Prefer the narrowest complete owner for descendant paths,
+    # while retaining all modules for an explicit parent (e.g. test/app).
+    if not unresolved:
+        selected: List[TestBundle] = []
+        for bundle in owned:
+            roots = tuple(selector.rstrip("/") for selector in bundle.selectors)
+            include = any(
+                any(is_within(root, requested) for root in roots)
+                or any(is_within(requested, root) for root in roots)
+                for requested in normalized
+            )
+            if include:
+                selected.append(bundle)
+        if selected:
+            # A nested selector is covered by every ancestor bundle.  Choose
+            # the owner with the longest selector root; parent selectors keep
+            # all children because they explicitly request the parent scope.
+            for requested in normalized:
+                matching = [
+                    bundle
+                    for bundle in selected
+                    if any(is_within(root, requested) for root in bundle.selectors)
+                ]
+                if matching:
+                    longest = max(
+                        len(root.rstrip("/"))
+                        for bundle in matching
+                        for root in bundle.selectors
+                        if is_within(root, requested)
+                    )
+                    selected = [
+                        bundle
+                        for bundle in selected
+                        if bundle in matching
+                        and any(
+                            len(root.rstrip("/")) == longest
+                            for root in bundle.selectors
+                            if is_within(root, requested)
+                        )
+                        or bundle not in matching
+                    ]
+            # Stable declaration order prevents cache/test ordering from
+            # changing between invocations.
+            selected = [bundle for bundle in TEST_BUNDLES if bundle in selected]
+            for bundle in selected:
+                result = run_bundle(
+                    bundle,
+                    cache_root,
+                    no_cache=no_cache,
+                    base_sha=base_sha,
+                )
+                if result.returncode != 0:
+                    return result.returncode
+            return 0
     return run_focused_tests(normalized, base_sha, cache_root, no_cache=no_cache)
 
 
@@ -644,15 +1038,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     cache_root = Path(args.cache_root)
     if not cache_root.is_absolute():
         cache_root = PROJECT_ROOT / cache_root
+    base_sha = (
+        args.base_sha
+        or subprocess.check_output(
+            ["git", "rev-parse", "origin/main^{commit}"],
+            cwd=PROJECT_ROOT,
+            text=True,
+        ).strip()
+    )
     if args.selectors:
-        base_sha = (
-            args.base_sha
-            or subprocess.check_output(
-                ["git", "rev-parse", "origin/main^{commit}"],
-                cwd=PROJECT_ROOT,
-                text=True,
-            ).strip()
-        )
         return run_selected_tests(
             args.selectors, base_sha, cache_root, no_cache=args.no_cache
         )
@@ -671,6 +1065,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             no_cache=args.no_cache,
             candidate_paths=candidate_paths,
             snapshot=snapshot,
+            base_sha=base_sha,
         )
         if result.returncode != 0 or result.artifact is None:
             return result.returncode or 1

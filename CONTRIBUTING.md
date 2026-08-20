@@ -194,10 +194,13 @@ toolchain checks, quality baseline, pre-commit/Gitleaks, complete test suite,
 CLI smoke and documentation build. Unknown, governance or toolchain changes
 automatically escalate to G3. Passed deterministic test checks are keyed by command,
 scoped inputs and tools rather than by tier, so G2 reuses an unchanged focused
-test from G1. G3 runs only missing or invalidated top-level test bundles, then
+test from G1. G3 runs only missing or invalidated registered test bundles, then
 combines all bundle coverage fragments and enforces the repository threshold
-once. An earlier complete registered bundle is reusable by G3; a narrower node
-or file is not. During repair, rerun the
+once. The App bundle is partitioned into Bootstrap, Feature, Interface,
+Orchestration and product-E2E module slices; a changed module invalidates its
+static dependency closure and explicit resource/entrypoint inputs, not every
+unrelated App slice. An earlier complete registered bundle is reusable by G3;
+a narrower node or file is not. During repair, rerun the
 exact failure first, expand to its owning module and affected integration only
 as needed, then run a required G3 once for the final executable candidate. If a
 G3 bundle fails, earlier passed bundles remain reusable; the next invocation
