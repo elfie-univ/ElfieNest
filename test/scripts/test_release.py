@@ -522,6 +522,7 @@ def test_native_installers_publish_the_global_cli_launcher_contract() -> None:
     assert "Call un.ElfieNestRemoveLauncherPath" in windows
     assert "Function un.ElfieNestRemoveLauncherPath" in windows
     assert "${UnStrRep}" in windows
+    assert "\n${StrRep}\n" not in windows
     assert "Call ElfieNestRemoveLauncherPath" not in windows
 
 

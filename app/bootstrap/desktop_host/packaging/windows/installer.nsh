@@ -3,7 +3,6 @@
 !include "WinMessages.nsh"
 
 ${StrStr}
-${StrRep}
 ${UnStrRep}
 
 !macro customInstall
