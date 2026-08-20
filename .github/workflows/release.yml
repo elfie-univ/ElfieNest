@@ -23,6 +23,7 @@ permissions:
 env:
   UV_VERSION: "0.9.26"
   PNPM_VERSION: "10.12.1"
+  PYTHONUTF8: "1"
 
 jobs:
   godot-web:

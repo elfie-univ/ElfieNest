@@ -107,6 +107,7 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     }
     assert 'tags:\n      - "v*"' in source
     assert "workflow_dispatch:" in source
+    assert workflow["env"]["PYTHONUTF8"] == "1"
     assert source.count("install_official_godot_toolchain") == 1
     assert "name: godot-web-runtime" in source
     assert "GODOT_USER_HOME" not in source
@@ -750,12 +751,18 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
         "--frozen-lockfile",
     )
     assert commands[1] == ("npx", "--yes", "pnpm@10.12.1", "build")
-    assert commands[2][:5] == (
+    assert commands[2][:7] == (
         "npx",
         "--yes",
         "pnpm@10.12.1",
+        "--dir",
+        str(release_pipeline.DESKTOP_DIR),
         "exec",
         "electron-builder",
+    )
+    project_index = commands[2].index("--projectDir")
+    assert commands[2][project_index + 1] == str(
+        build_root / "desktop-host-app" / "darwin-arm64"
     )
     config_index = commands[2].index("--config")
     assert commands[2][config_index + 1].endswith(
