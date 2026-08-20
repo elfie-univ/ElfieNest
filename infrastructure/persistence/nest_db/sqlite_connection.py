@@ -67,7 +67,9 @@ def _prepare_database_file(db_path: Path) -> None:
     try:
         file_mode = db_path.lstat().st_mode
     except FileNotFoundError:
-        flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+        flags = os.O_RDWR | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
         descriptor = os.open(db_path, flags, 0o600)
         os.close(descriptor)
     else:
