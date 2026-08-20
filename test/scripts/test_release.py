@@ -116,8 +116,38 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     )
     assert "gh release create" in source
     assert "release_args+=(--prerelease)" in source
+    assert "--prebuilt-godot-web" in source
     assert "--run-install-smoke" in source
     assert "*-install-smoke.json" in source
+
+
+def test_prebuilt_godot_web_step_checks_the_shared_runtime_without_exporting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: a native release runner consuming the shared Godot Web artifact.
+    commands: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        release_pipeline.check_release_version,
+        "check_versions",
+        lambda *_args: "0.1.0-beta.1",
+    )
+    monkeypatch.setattr(
+        release_pipeline,
+        "_project_python",
+        lambda: "/managed/python",
+    )
+    monkeypatch.setattr(
+        release_pipeline,
+        "_run_command",
+        lambda command, _cwd, _environment=None: commands.append(command),
+    )
+
+    # When: concrete steps are created for a prebuilt Godot Web runtime.
+    steps = release_pipeline.default_release_steps(prebuilt_godot_web=True)
+    steps.build_godot()
+
+    # Then: the runner validates the artifact and never requests another Godot export.
+    assert commands == [("/managed/python", "scripts/build_godot_web.py", "--check")]
 
 
 def test_release_session_dispatches_all_targets_and_requires_artifact_hash_and_smoke(
@@ -298,6 +328,42 @@ def test_release_cli_can_close_a_native_target_with_install_smoke_evidence(
 
     assert result == 0
     assert evidence.read_text(encoding="utf-8") == '{"result":"passed"}\n'
+
+
+def test_release_cli_forwards_the_prebuilt_godot_web_contract(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Given: one native runner whose shared Godot Web artifact was built upstream.
+    artifact = tmp_path / "ElfieNest.pkg"
+    artifact.write_bytes(b"installer")
+    observed: dict[str, bool] = {}
+    monkeypatch.setattr(
+        release.package_python_core, "host_target", lambda: "darwin-arm64"
+    )
+    monkeypatch.setattr(release, "uses_project_python", lambda: True)
+    monkeypatch.setattr(release, "ensure_release_environment", lambda: True)
+    monkeypatch.setattr(release, "release_version", lambda: "0.1.0-beta.1")
+    monkeypatch.setattr(release, "source_commit", lambda: "a" * 40)
+    monkeypatch.setattr(release, "release_input_manifest", lambda: "b" * 64)
+
+    def default_steps(*, prebuilt_godot_web: bool = False):
+        observed["prebuilt_godot_web"] = prebuilt_godot_web
+        return "steps"
+
+    monkeypatch.setattr(release_pipeline, "default_release_steps", default_steps)
+    monkeypatch.setattr(
+        release_pipeline,
+        "run_native_release",
+        lambda **_kwargs: artifact,
+    )
+
+    # When: the release command is told to reuse that artifact.
+    result = release.main(["--target", "darwin-arm64", "--prebuilt-godot-web"])
+
+    # Then: the native pipeline receives the explicit reuse contract.
+    assert result == 3
+    assert observed == {"prebuilt_godot_web": True}
 
 
 def test_native_pipeline_passes_the_exact_target_to_the_packager(tmp_path) -> None:

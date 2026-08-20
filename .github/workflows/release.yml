@@ -151,6 +151,7 @@ jobs:
           set +e
           "$python_bin" scripts/release.py \
               --target "$RELEASE_TARGET" \
+              --prebuilt-godot-web \
               --native-package-output "$ARTIFACT_PATH_FILE" \
               --run-install-smoke \
               --smoke-evidence-output "dist/ElfieNest-${RELEASE_TARGET}-install-smoke.json"

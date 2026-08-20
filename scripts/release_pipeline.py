@@ -100,7 +100,7 @@ def _run_stage(stage: str, operation: Callable[[], StageResult]) -> StageResult:
         ) from error
 
 
-def default_release_steps() -> NativeReleaseSteps:
+def default_release_steps(*, prebuilt_godot_web: bool = False) -> NativeReleaseSteps:
     """Build concrete strict operations for one local target-native release."""
     version = check_release_version.check_versions(
         DESKTOP_DIR / "package.json",
@@ -109,7 +109,7 @@ def default_release_steps() -> NativeReleaseSteps:
     return NativeReleaseSteps(
         ensure_dependencies=_ensure_dependencies,
         build_web=_build_web,
-        build_godot=_build_godot,
+        build_godot=_check_godot if prebuilt_godot_web else _build_godot,
         freeze_core=_freeze_core,
         freeze_cli=_freeze_cli,
         assemble=lambda target, core, cli: _assemble(target, core, cli, version),
@@ -185,6 +185,13 @@ def _build_godot() -> None:
     """Export the required Godot Web runtime through the controlled project script."""
     _run_command(
         (_project_python(), "scripts/build_godot_web.py", "--ensure"), PROJECT_ROOT
+    )
+
+
+def _check_godot() -> None:
+    """Validate the shared Godot Web runtime without requiring a local Godot editor."""
+    _run_command(
+        (_project_python(), "scripts/build_godot_web.py", "--check"), PROJECT_ROOT
     )
 
 
