@@ -36,6 +36,8 @@ class DefaultProcessInspector:
         self._proc_root = proc_root or Path("/proc")
 
     def exists(self, pid: int) -> bool:
+        if os.name == "nt":
+            return _windows_process_exists(pid)
         try:
             os.kill(pid, 0)
         except ProcessLookupError:
@@ -69,6 +71,8 @@ class DefaultProcessInspector:
         return state[:1]
 
     def cwd(self, pid: int) -> Path:
+        if os.name == "nt":
+            return _windows_process_cwd(pid)
         process_dir = self._proc_root / str(pid)
         cwd_link = process_dir / "cwd"
         if process_dir.is_dir() and cwd_link.exists():
@@ -87,6 +91,8 @@ class DefaultProcessInspector:
         return Path(paths[0])
 
     def command(self, pid: int) -> Tuple[str, ...]:
+        if os.name == "nt":
+            return _windows_process_command(pid)
         process_dir = self._proc_root / str(pid)
         cmdline_path = process_dir / "cmdline"
         if cmdline_path.is_file():
@@ -105,6 +111,8 @@ class DefaultProcessInspector:
 
     def birth_identity(self, pid: int) -> str:
         """Return an OS-provided start identity; never synthesize one."""
+        if os.name == "nt":
+            return _windows_process_birth_identity(pid)
         stat_path = self._proc_root / str(pid) / "stat"
         try:
             if stat_path.is_file():
@@ -130,6 +138,161 @@ class DefaultProcessInspector:
         if not value:
             raise OSError(f"process birth identity is unavailable for PID {pid}")
         return f"ps-start:{value}"
+
+
+_WINDOWS_PROCESS_QUERY_LIMITED_INFORMATION: Final = 0x1000
+_WINDOWS_STILL_ACTIVE: Final = 259
+
+
+def _windows_kernel32():
+    """Load the small kernel32 surface needed for process identity checks."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+    kernel32.OpenProcess.argtypes = [
+        wintypes.DWORD,
+        wintypes.BOOL,
+        wintypes.DWORD,
+    ]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    return kernel32
+
+
+def _windows_open_process(pid: int):
+    import ctypes
+
+    kernel32 = _windows_kernel32()
+    handle = kernel32.OpenProcess(
+        _WINDOWS_PROCESS_QUERY_LIMITED_INFORMATION,
+        False,
+        pid,
+    )
+    if not handle:
+        raise ctypes.WinError(ctypes.get_last_error())  # type: ignore[attr-defined]
+    return kernel32, handle
+
+
+def _windows_process_exists(pid: int) -> bool:
+    """Return whether a Windows PID identifies a still-running process."""
+    import ctypes
+    from ctypes import wintypes
+
+    try:
+        kernel32, handle = _windows_open_process(pid)
+    except OSError:
+        return False
+    try:
+        exit_code = wintypes.DWORD()
+        kernel32.GetExitCodeProcess.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.DWORD),
+        ]
+        kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            raise ctypes.WinError(ctypes.get_last_error())  # type: ignore[attr-defined]
+        return exit_code.value == _WINDOWS_STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def _windows_process_birth_identity(pid: int) -> str:
+    """Read the OS-provided Windows process creation timestamp."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32, handle = _windows_open_process(pid)
+    try:
+        creation = wintypes.FILETIME()
+        exited = wintypes.FILETIME()
+        kernel = wintypes.FILETIME()
+        user = wintypes.FILETIME()
+        kernel32.GetProcessTimes.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+        ]
+        kernel32.GetProcessTimes.restype = wintypes.BOOL
+        if not kernel32.GetProcessTimes(
+            handle,
+            ctypes.byref(creation),
+            ctypes.byref(exited),
+            ctypes.byref(kernel),
+            ctypes.byref(user),
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())  # type: ignore[attr-defined]
+        value = (creation.dwHighDateTime << 32) | creation.dwLowDateTime
+        if value <= 0:
+            raise OSError(f"process creation time is unavailable for PID {pid}")
+        return f"win32-create:{value}"
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def _windows_process_command(pid: int) -> Tuple[str, ...]:
+    """Read a Windows process command line through the built-in CIM provider."""
+    query = (
+        "$process = Get-CimInstance -ClassName Win32_Process "
+        f"-Filter 'ProcessId = {pid}'; "
+        "if ($null -eq $process) { exit 1 }; "
+        "$command = $process.CommandLine; "
+        "if ([string]::IsNullOrWhiteSpace($command)) "
+        "{ $command = $process.ExecutablePath }; "
+        "[Console]::Write($command)"
+    )
+    completed = subprocess.run(
+        [
+            "powershell.exe",
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            query,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=5.0,
+    )
+    raw = completed.stdout.strip()
+    if not raw:
+        raise OSError(f"process command line is unavailable for PID {pid}")
+    try:
+        arguments = shlex.split(raw, posix=False)
+    except ValueError as error:
+        raise OSError(f"cannot parse process command line for PID {pid}") from error
+    normalized = tuple(
+        argument[1:-1]
+        if len(argument) >= 2 and argument[0] == argument[-1] == '"'
+        else argument
+        for argument in arguments
+    )
+    if not normalized:
+        raise OSError(f"process command line is unavailable for PID {pid}")
+    return normalized
+
+
+def _windows_process_cwd(pid: int) -> Path:
+    """Infer the managed application's cwd from its canonical entrypoint path."""
+    command = _windows_process_command(pid)
+    for argument in command:
+        candidate = Path(argument)
+        name = candidate.name.casefold()
+        parent = candidate.parent.name.casefold()
+        grandparent = candidate.parent.parent.name.casefold()
+        if name == "serve.py" and parent == "scripts":
+            return candidate.parent.parent.resolve()
+        if (
+            name == "elfienestcore.exe"
+            and parent == "python-core"
+            and grandparent == "resources"
+        ):
+            return candidate.parents[2].resolve()
+    raise OSError(f"managed process cwd is unavailable for PID {pid}")
 
 
 def command_runs_service(
