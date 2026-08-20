@@ -72,6 +72,7 @@ def test_default_service_command_uses_the_injected_launch_target() -> None:
     assert lifecycle.default_service_command(("--lan", "--force")) == (
         "/managed/core",
         "--lan",
+        "--force",
     )
     assert lifecycle.is_managed_service_command(("/managed/core", "--lan")) is True
     assert lifecycle.is_managed_service_command(("/other/core", "--lan")) is False

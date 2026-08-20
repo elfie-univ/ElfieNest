@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Callable, Optional
 
-from app.orchestration.lifecycle.ports import AuthorityProcess
+from app.orchestration.lifecycle.ports import AuthorityProcess, ProcessSnapshot
 from app.orchestration.lifecycle.runtime_snapshot import (
     BackendTier,
     ComponentSnapshot,
@@ -125,6 +126,12 @@ def _supervisor(
         start_core=start_core,
         stop_core=stop_core,
         authority_host=authority_host,
+        core_process_identity=lambda pid: ProcessSnapshot(
+            pid=pid,
+            cwd=Path.cwd(),
+            command=("python", "scripts/serve.py"),
+            birth_identity=f"fake-{pid}",
+        ),
         **kwargs,
     )
 

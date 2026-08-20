@@ -9,6 +9,15 @@ from app.orchestration.lifecycle.ports import (
     LocalProcessEntry,
     ProcessSnapshot,
 )
+from app.orchestration.lifecycle.runtime_snapshot import (
+    BackendTier,
+    ComponentSnapshot,
+    ComponentState,
+    EndpointSnapshot,
+    RuntimeComponent,
+    RuntimePhase,
+    RuntimeSnapshotV1,
+)
 from app.orchestration.lifecycle.types import RecoveryInProgressError
 
 
@@ -80,7 +89,12 @@ class FakeProcessPort:
         return self.last_existence
 
     def inspect(self, pid: int) -> ProcessSnapshot:
-        return ProcessSnapshot(pid=pid, cwd=self.cwd, command=self.command)
+        return ProcessSnapshot(
+            pid=pid,
+            cwd=self.cwd,
+            command=self.command,
+            birth_identity=f"fake-{pid}",
+        )
 
     def launch(
         self,
@@ -141,6 +155,63 @@ class FakeProcessPort:
 
     def register_current(self, elfie_home: Path) -> Path:
         return self.register_receipt(elfie_home, 1)
+
+
+class MemoryRuntimeRecord:
+    """Minimal authoritative snapshot used by lifecycle service tests."""
+
+    def __init__(self, snapshot: RuntimeSnapshotV1) -> None:
+        self.snapshot = snapshot
+
+    def read(self) -> RuntimeSnapshotV1:
+        return self.snapshot
+
+
+def offline_runtime_record(
+    *, endpoints: tuple[EndpointSnapshot, ...] = ()
+) -> MemoryRuntimeRecord:
+    return MemoryRuntimeRecord(
+        RuntimeSnapshotV1(instance_id="test-instance", endpoints=endpoints)
+    )
+
+
+def active_runtime_record(
+    *,
+    pid: int,
+    cwd: Path,
+    command: Sequence[str],
+    endpoints: tuple[EndpointSnapshot, ...] = (),
+    executable: Optional[str] = None,
+) -> MemoryRuntimeRecord:
+    resolved_cwd = cwd.resolve()
+    process_executable = executable or str(command[0])
+    identity = f"fake-{pid}"
+    component = ComponentSnapshot(
+        RuntimeComponent.CORE,
+        ComponentState.READY,
+        pid=pid,
+        executable=process_executable,
+        birth_identity=identity,
+        cwd=str(resolved_cwd),
+    )
+    gateway = ComponentSnapshot(
+        RuntimeComponent.GATEWAY,
+        ComponentState.READY,
+        pid=pid,
+        executable=process_executable,
+        birth_identity=identity,
+        cwd=str(resolved_cwd),
+    )
+    return MemoryRuntimeRecord(
+        RuntimeSnapshotV1(
+            instance_id="test-instance",
+            generation=1,
+            tier=BackendTier.CORE_READY,
+            phase=RuntimePhase.CORE_READY,
+            components=(component, gateway),
+            endpoints=endpoints,
+        )
+    )
 
 
 def write_pid(elfie_home: Path, pid: int) -> Path:

@@ -54,6 +54,9 @@ def isolate_lifecycle_home(monkeypatch, tmp_path: Path) -> None:
         lambda *_args: None,
         raising=False,
     )
+    # Keep command-selection tests independent of another local ElfieNest
+    # process that may own the repository's default ports.
+    monkeypatch.setattr(LIFECYCLE, "ports_in_use", lambda _ports: False)
 
 
 class _LaunchSupervisor:

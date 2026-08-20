@@ -48,7 +48,7 @@ def test_local_controller_ipc_sends_authenticated_command() -> None:
 
     assert result == {"accepted": True}
     assert received == {
-        "protocol": 1,
+        "protocol": 2,
         "token": token,
         "command": "ENSURE_SERVER",
         "payload": {"source": "test"},
