@@ -137,7 +137,6 @@ def _supervisor(
         health_probe=health_probe,
         start_core=start_core,
         stop_core=stop_core,
-        core_process_identity=core_process_identity,
         authority_host=authority_host,
         core_process_identity=lambda pid: ProcessSnapshot(
             pid=pid,
