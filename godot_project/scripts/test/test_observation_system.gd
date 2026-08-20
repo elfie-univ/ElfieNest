@@ -99,6 +99,9 @@ func run() -> void:
 
 	for index in range(ROOM_COUNT):
 		var room_number := index + 1
+		var activity_room := generated.get_node(
+			"ActivityRoom_%02d" % room_number
+		) as ModularActivityRoom
 		var activity_path := "ActivityRoom_%02d/Generated" % room_number
 		var activity := generated.get_node(activity_path) as Node3D
 		var activity_light := activity.get_node("ActivityInteriorLight") as OmniLight3D
@@ -106,15 +109,34 @@ func run() -> void:
 		var activity_camera := activity_anchor.get_node(
 			"ActivityObservationCamera"
 		) as Camera3D
+		var activity_forward := (-activity_camera.global_transform.basis.z).normalized()
+		var activity_target := activity_room.observation_target_local()
+		var activity_position_matches := false
+		var activity_direction_matches := false
+		if room_number == 1:
+			activity_position_matches = (
+				activity_anchor.position.distance_to(Vector3(1.30, 1.45, 0.70)) < 0.01
+					and activity_target.distance_to(Vector3(0.25, 0.85, -1.10)) < 0.01
+			)
+			activity_direction_matches = activity_forward.x < -0.4 and activity_forward.z < -0.7
+		else:
+			activity_position_matches = (
+				activity_anchor.position.x < -1.5
+					and activity_anchor.position.y > 1.0
+					and activity_anchor.position.y < 1.8
+					and absf(activity_anchor.position.z) < 0.01
+					and absf(activity_target.z) < 0.01
+			)
+			activity_direction_matches = activity_forward.x > 0.45
 		if not _require(
 			activity_light.light_energy >= 0.7
 				and activity_camera.projection == Camera3D.PROJECTION_PERSPECTIVE
 				and activity_camera.fov >= 90.0
-				and activity_anchor.position.x > 1.5
-				and activity_anchor.position.y < 2.8
-				and (-activity_camera.global_transform.basis.z).normalized().x < -0.45
-				and (-activity_camera.global_transform.basis.z).normalized().y < -0.35,
-			"Activity room %d lacks its observation light or camera" % room_number
+				and activity_position_matches
+				and activity_direction_matches
+				and activity_forward.y < -0.1,
+			"Activity room %d does not use the fixed kitchen or centered activity camera"
+				% room_number
 		):
 			return
 
@@ -127,11 +149,13 @@ func run() -> void:
 			dorm_light.light_energy >= 0.6
 				and dorm_camera.projection == Camera3D.PROJECTION_PERSPECTIVE
 				and dorm_camera.fov >= 90.0
-				and dorm_anchor.position.x < -1.5
-				and dorm_anchor.position.y < 2.8
-				and (-dorm_camera.global_transform.basis.z).normalized().x > 0.45
-				and (-dorm_camera.global_transform.basis.z).normalized().y < -0.35,
-			"Dorm room %d lacks its observation light or camera" % room_number
+				and dorm_anchor.position.x > 1.5
+				and dorm_anchor.position.y > 1.0
+				and dorm_anchor.position.y < 1.8
+				and absf(dorm_anchor.position.z) < 0.01
+				and (-dorm_camera.global_transform.basis.z).normalized().x < -0.45
+				and (-dorm_camera.global_transform.basis.z).normalized().y < -0.1,
+			"Dorm room %d lacks its outer-wall eye-level observation camera" % room_number
 		):
 			return
 
