@@ -32,13 +32,7 @@ ${UnStrRep}
   SetShellVarContext current
   Call un.ElfieNestRemoveLauncherPath
   Delete "$INSTDIR\bin\elfienest.cmd"
-  RMDir "$INSTDIR\bin"
-!macroend
-
-!macro customRemoveFiles
-  SetShellVarContext current
-  Delete "$INSTDIR\bin\elfienest.cmd"
-  RMDir "$INSTDIR\bin"
+  RMDir /r "$INSTDIR\bin"
 !macroend
 
 !ifdef BUILD_UNINSTALLER
