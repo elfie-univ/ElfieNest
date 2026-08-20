@@ -46,11 +46,13 @@ from app.interfaces.cli.lifecycle_commands import (
     open_desktop_application,
     open_web_console,
     published_http_port_for_home,
+    recover_owned_runtime_command,
     restart_background_service,
     selected_runtime_data_home,
     show_service_status,
     start_background_service,
     stop_background_service,
+    wait_for_runtime_command,
 )
 from app.interfaces.cli.mobile_commands import show_mobile_access
 from app.interfaces.cli.owner_commands import run_owner_menu
@@ -226,13 +228,46 @@ def build_parser() -> SecretSafeArgumentParser:
     parser.add_argument("--interactive", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--__controller-action",
-        choices=("inspect-data-home", "recover-data-home"),
+        choices=(
+            "inspect-data-home",
+            "recover-data-home",
+            "recover-owned",
+            "wait-runtime",
+        ),
         dest="internal_controller_action",
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--__controller-data-home",
         dest="internal_controller_data_home",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--__controller-owner-id",
+        dest="internal_controller_owner_id",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--__controller-instance-id",
+        dest="internal_controller_instance_id",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--__controller-generation",
+        dest="internal_controller_generation",
+        type=int,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--__controller-core-pid",
+        dest="internal_controller_core_pid",
+        type=int,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--__controller-reason",
+        choices=("process-absent", "transport-failure"),
+        dest="internal_controller_reason",
         help=argparse.SUPPRESS,
     )
     return parser
@@ -247,7 +282,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         print_banner()
     args = parser.parse_args(arguments)
     if getattr(args, "internal_controller_action", None) is not None:
-        _dispatch_internal_controller_command(args)
+        try:
+            _dispatch_internal_controller_command(args)
+        except DataHomeSelectionError as error:
+            sys.stderr.write(f"elfienest: {error}\n")
+            raise SystemExit(2) from error
         return
     if getattr(args, "interactive", False):
         run_interactive_shell()
@@ -463,10 +502,11 @@ def _dispatch_internal_controller_command(args: argparse.Namespace) -> None:
         )
     action = args.internal_controller_action
     explicit_home = args.internal_controller_data_home
+    lifecycle = create_lifecycle_facade()
     if action == "inspect-data-home":
         raise SystemExit(
             inspect_data_home_command(
-                create_lifecycle_facade(),
+                lifecycle,
                 explicit_home=explicit_home,
                 json_output=True,
             )
@@ -474,12 +514,78 @@ def _dispatch_internal_controller_command(args: argparse.Namespace) -> None:
     if action == "recover-data-home":
         raise SystemExit(
             recover_data_home_command(
-                create_lifecycle_facade(),
+                lifecycle,
                 explicit_home=explicit_home,
                 json_output=True,
             )
         )
+    selected_home = _validated_controller_runtime_home(lifecycle, explicit_home)
+    instance_id = args.internal_controller_instance_id
+    generation = args.internal_controller_generation
+    if not isinstance(instance_id, str) or not instance_id:
+        raise DataHomeSelectionError("内部 Controller Runtime instance_id 缺失")
+    if not isinstance(generation, int) or generation < 0:
+        raise DataHomeSelectionError("内部 Controller Runtime generation 无效")
+    if action == "wait-runtime":
+        raise SystemExit(
+            wait_for_runtime_command(
+                lifecycle,
+                selected_home=selected_home,
+                expected_instance_id=instance_id,
+                expected_generation=generation,
+            )
+        )
+    if action == "recover-owned":
+        owner_id = args.internal_controller_owner_id
+        core_pid = args.internal_controller_core_pid
+        reason = args.internal_controller_reason
+        if not isinstance(owner_id, str) or not owner_id:
+            raise DataHomeSelectionError("内部 Controller Runtime owner_id 缺失")
+        if core_pid is not None and core_pid <= 0:
+            raise DataHomeSelectionError("内部 Controller Runtime Core PID 无效")
+        if reason not in {"process-absent", "transport-failure"}:
+            raise DataHomeSelectionError("内部 Controller Runtime recovery reason 无效")
+        raise SystemExit(
+            recover_owned_runtime_command(
+                lifecycle,
+                selected_home=selected_home,
+                owner_id=owner_id,
+                expected_instance_id=instance_id,
+                expected_generation=generation,
+                expected_core_pid=core_pid,
+                reason=reason,
+            )
+        )
     raise DataHomeSelectionError(f"未知内部 Controller 操作: {action}")
+
+
+def _validated_controller_runtime_home(
+    lifecycle: LifecycleFacade,
+    explicit_home: Optional[str],
+) -> Path:
+    """Resolve and revalidate the exact data root named by Desktop Controller."""
+    if not isinstance(explicit_home, str) or not explicit_home:
+        raise DataHomeSelectionError("内部 Controller Runtime 数据目录缺失")
+    requested = Path(explicit_home).resolve()
+    project_root = Path(
+        os.environ.get(
+            "ELFIENEST_PROJECT_ROOT",
+            str(Path(__file__).resolve().parents[1]),
+        )
+    ).resolve()
+    inspection = lifecycle.inspect_data_home(
+        str(requested),
+        project_root=project_root,
+        runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+    )
+    selected = inspection.home.resolve()
+    if selected != requested:
+        raise DataHomeSelectionError("内部 Controller Runtime 数据目录解析不一致")
+    if inspection.state.value != "ready":
+        raise DataHomeSelectionError(
+            f"内部 Controller Runtime 数据目录状态不可用: {inspection.state.value}"
+        )
+    return selected
 
 
 @contextmanager

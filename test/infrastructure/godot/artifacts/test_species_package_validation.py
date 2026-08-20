@@ -162,6 +162,60 @@ def test_runtime_catalog_uses_the_injected_godot_runner_for_source_validation(
     assert readiness.source == "source-validation"
 
 
+def test_runtime_catalog_resolves_frozen_config_from_launcher_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: dict[str, Path] = {}
+
+    def validating_source_packages(**kwargs: object) -> tuple[str, ...]:
+        config_root = kwargs["config_root"]
+        godot_project = kwargs["godot_project"]
+        assert isinstance(config_root, Path)
+        assert isinstance(godot_project, Path)
+        observed["config_root"] = config_root
+        observed["godot_project"] = godot_project
+        return ("dog", "fox")
+
+    monkeypatch.setattr(
+        species_runtime_catalog,
+        "validate_source_species_packages",
+        validating_source_packages,
+    )
+    bundled_config = tmp_path / "Resources" / "config"
+    application_root = tmp_path / "ElfieNest.app"
+    monkeypatch.setenv("ELFIENEST_BUNDLED_CONFIG_DIR", str(bundled_config))
+    monkeypatch.setenv("ELFIENEST_PROJECT_ROOT", str(application_root))
+    catalog = type(
+        "Catalog",
+        (),
+        {
+            "digest": "digest",
+            "definitions": (
+                type(
+                    "Definition", (), {"godot_package_id": "fox", "resolvable": True}
+                )(),
+                type(
+                    "Definition", (), {"godot_package_id": "dog", "resolvable": True}
+                )(),
+            ),
+        },
+    )()
+
+    readiness = species_runtime_catalog.build_species_runtime_catalog(
+        catalog,
+        runtime_manifest=tmp_path / "missing-manifest.json",
+        godot_binary=Path("/bin/true"),
+        godot_runner=_godot_runner('SPECIES_CATALOG_IDS:["dog","fox"]\n'),
+    )
+
+    assert readiness.source == "source-validation"
+    assert observed == {
+        "config_root": bundled_config.resolve(),
+        "godot_project": (application_root / "godot_project").resolve(),
+    }
+
+
 def test_runtime_catalog_rejects_a_missing_godot_runner(
     tmp_path: Path,
 ) -> None:

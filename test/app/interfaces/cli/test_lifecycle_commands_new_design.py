@@ -85,6 +85,12 @@ class _LaunchSupervisor:
         self.events.append("stop")
         return self.stop_result
 
+    def recover_owned(self, **kwargs) -> ServiceLifecycleResult:
+        self.events.append(
+            f"recover:{kwargs['owner_id']}:{kwargs['expected_generation']}"
+        )
+        return self.start_result
+
 
 def _stable_health():
     return RuntimeSnapshotV1(
@@ -168,6 +174,124 @@ def test_health_probe_uses_core_published_ports_instead_of_command_defaults() ->
         ("http", 12431),
         ("godot_ws", 12432),
     ]
+
+
+def test_controller_recovery_uses_one_atomic_supervisor_command(
+    monkeypatch, capsys, tmp_path: Path
+) -> None:
+    events: list[str] = []
+    supervisor = _LaunchSupervisor(
+        _stable_health(),
+        events,
+        start_result=ServiceLifecycleResult(status="started", pid=43, generation=2),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands, "_supervisor_for", lambda *_args, **_kwargs: supervisor
+    )
+    recovered = RuntimeSnapshotV1(
+        instance_id="test-instance-2",
+        generation=2,
+        tier=BackendTier.CORE_READY,
+        phase=RuntimePhase.CORE_READY,
+        owner_lease=OwnerLease(owner_id="desktop-1", generation=2),
+    ).projection()
+    monkeypatch.setattr(LIFECYCLE, "runtime_projection", lambda _home: recovered)
+
+    exit_code = lifecycle_commands.recover_owned_runtime_command(
+        LIFECYCLE,
+        selected_home=tmp_path,
+        owner_id="desktop-1",
+        expected_instance_id="test-instance",
+        expected_generation=1,
+        expected_core_pid=42,
+        reason="transport-failure",
+    )
+
+    assert exit_code == 0
+    assert events == ["recover:desktop-1:1"]
+    assert '"generation": 2' in capsys.readouterr().out
+
+
+def test_controller_wait_reads_one_runtime_in_one_process(
+    capsys, tmp_path: Path
+) -> None:
+    projections = [
+        RuntimeSnapshotV1(
+            instance_id="test-instance",
+            generation=1,
+            phase=RuntimePhase.CORE_STARTING,
+            startup_owner_id="cli",
+        ).projection(),
+        RuntimeSnapshotV1(
+            instance_id="test-instance",
+            generation=1,
+            tier=BackendTier.CORE_READY,
+            phase=RuntimePhase.CORE_READY,
+            owner_lease=OwnerLease(owner_id="cli", generation=1),
+        ).projection(),
+    ]
+    calls = 0
+
+    class Lifecycle:
+        def runtime_projection(self, _home: Path):
+            nonlocal calls
+            value = projections[min(calls, len(projections) - 1)]
+            calls += 1
+            return value
+
+    exit_code = lifecycle_commands.wait_for_runtime_command(
+        Lifecycle(),
+        selected_home=tmp_path,
+        expected_instance_id="test-instance",
+        expected_generation=1,
+        timeout_seconds=30.0,
+        monotonic=lambda: 0.0,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert exit_code == 0
+    assert calls == 2
+    assert '"phase": "core_ready"' in capsys.readouterr().out
+
+
+def test_parser_accepts_exact_internal_controller_recovery_identity() -> None:
+    args = elfienest.build_parser().parse_args(
+        [
+            "--__controller-action",
+            "recover-owned",
+            "--__controller-data-home",
+            "/tmp/elfienest",
+            "--__controller-owner-id",
+            "desktop-1",
+            "--__controller-instance-id",
+            "instance-1",
+            "--__controller-generation",
+            "7",
+            "--__controller-core-pid",
+            "7001",
+            "--__controller-reason",
+            "transport-failure",
+        ]
+    )
+
+    assert args.internal_controller_action == "recover-owned"
+    assert args.internal_controller_generation == 7
+    assert args.internal_controller_core_pid == 7001
+
+
+def test_internal_controller_validation_error_exits_cleanly_without_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("ELFIENEST_CONTROLLER_CLIENT", "1")
+
+    with pytest.raises(SystemExit) as exit_signal:
+        elfienest.main(["--__controller-action", "wait-runtime"])
+
+    assert exit_signal.value.code == 2
+    error = capsys.readouterr().err
+    assert "Runtime 数据目录缺失" in error
+    assert "Traceback" not in error
 
 
 def test_start_when_stopped_prepares_frontend_before_launch(monkeypatch) -> None:

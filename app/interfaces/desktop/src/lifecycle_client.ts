@@ -12,9 +12,11 @@ type RuntimeStatus = Readonly<{
   readonly state: "offline" | "core_ready" | "world_ready";
   readonly phase: string;
   readonly generation: number;
+  readonly instanceId: string | null;
   readonly ownerLease: string | null;
   readonly startupOwnerId: string | null;
   readonly httpUrl: string | null;
+  readonly corePid: number | null;
   readonly failures: readonly RuntimeFailure[];
 }>;
 
@@ -22,6 +24,27 @@ type RuntimeFailure = Readonly<{
   readonly code: string;
   readonly detail: string;
 }>;
+
+export type RuntimeHealthTarget = Readonly<{
+  readonly httpUrl: string;
+  readonly instanceId: string;
+  readonly generation: number;
+}>;
+
+export type RuntimeHealthProbe = (
+  target: RuntimeHealthTarget,
+) => Promise<RuntimeHealthProbeResult>;
+
+export type RuntimeHealthProbeResult =
+  | Readonly<{ readonly kind: "healthy" }>
+  | Readonly<{ readonly kind: "transitioning"; readonly detail: string }>
+  | Readonly<{ readonly kind: "transport_failure"; readonly detail: string }>
+  | Readonly<{ readonly kind: "identity_mismatch"; readonly detail: string }>
+  | Readonly<{ readonly kind: "protocol_invalid"; readonly detail: string }>;
+
+type RuntimeProcessState = "alive" | "absent" | "unknown";
+type RuntimeProcessProbe = (pid: number) => RuntimeProcessState;
+type MonotonicClock = () => number;
 
 export type DataHomeState = "fresh" | "partial" | "ready" | "legacy" | "corrupt" | "permission";
 
@@ -98,8 +121,93 @@ export class LifecycleClientError extends Error {
 }
 
 const runFile = promisify(execFile);
-const STARTUP_ATTACH_TIMEOUT_MS = 30_000;
-const STARTUP_ATTACH_POLL_MS = 250;
+const RUNTIME_HEALTH_TIMEOUT_MS = 2_000;
+const RUNTIME_TRANSPORT_FAILURE_GRACE_MS = 60_000;
+
+function runtimeProcessState(pid: number): RuntimeProcessState {
+  try {
+    process.kill(pid, 0);
+    return "alive";
+  } catch (error: unknown) {
+    if (
+      typeof error === "object"
+      && error !== null
+      && Reflect.get(error, "code") === "ESRCH"
+    ) {
+      return "absent";
+    }
+    // EPERM and unknown platform errors do not prove either state.
+    return "unknown";
+  }
+}
+
+export function classifyRuntimeHealthPayload(
+  payload: unknown,
+  target: RuntimeHealthTarget,
+): RuntimeHealthProbeResult {
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    return { kind: "protocol_invalid", detail: "health payload must be an object" };
+  }
+  const status = Reflect.get(payload, "status");
+  const engineReady = Reflect.get(payload, "engine_ready");
+  const instanceId = Reflect.get(payload, "instance_id");
+  const generation = Reflect.get(payload, "generation");
+  if (
+    status !== "ok"
+    || typeof engineReady !== "boolean"
+    || typeof instanceId !== "string"
+    || instanceId === ""
+    || typeof generation !== "number"
+    || !Number.isInteger(generation)
+    || generation < 0
+  ) {
+    return { kind: "protocol_invalid", detail: "health payload schema is invalid" };
+  }
+  if (instanceId !== target.instanceId || generation !== target.generation) {
+    return {
+      kind: "identity_mismatch",
+      detail: `expected ${target.instanceId}/${target.generation}, received ${instanceId}/${generation}`,
+    };
+  }
+  if (!engineReady) {
+    return { kind: "transitioning", detail: "Core is responding but not ready" };
+  }
+  // Desktop only verifies that the same Core generation is still alive here.
+  // RuntimeWorldWorker remains the sole owner of Godot/World recovery.
+  return { kind: "healthy" };
+}
+
+export async function probeRuntimeHealth(
+  target: RuntimeHealthTarget,
+): Promise<RuntimeHealthProbeResult> {
+  let response: Response;
+  try {
+    response = await fetch(new URL("/api/health", target.httpUrl), {
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(RUNTIME_HEALTH_TIMEOUT_MS),
+    });
+  } catch (error: unknown) {
+    return {
+      kind: "transport_failure",
+      detail: error instanceof Error ? error.message : "health request failed",
+    };
+  }
+  if (!response.ok) {
+    return {
+      kind: "protocol_invalid",
+      detail: `health endpoint returned HTTP ${response.status}`,
+    };
+  }
+  try {
+    return classifyRuntimeHealthPayload(await response.json(), target);
+  } catch (error: unknown) {
+    return {
+      kind: "protocol_invalid",
+      detail: error instanceof Error ? error.message : "health response was not JSON",
+    };
+  }
+}
 
 export function lifecycleCommandExecutable(
   isPackaged: boolean,
@@ -174,10 +282,18 @@ export class ProcessLifecycleCommandRunner implements LifecycleCommandRunner {
 
 export class ManagedRuntimeLifecycleClient implements LifecycleClient {
   private selectedDataHome: string | undefined;
+  private ownedRuntimeHealthTarget: RuntimeHealthTarget | undefined;
+  private ownedRuntimeCorePid: number | undefined;
+  private ownedRuntimeAttachment: Extract<RuntimeAttachment, { readonly kind: "owned" }> | undefined;
+  private transportFailureStartedAt: number | undefined;
+  private recoveryLatchedGeneration: number | undefined;
 
   constructor(
     private readonly ownerLease: string,
     private readonly commandRunner: LifecycleCommandRunner = new ProcessLifecycleCommandRunner(),
+    private readonly runtimeHealthProbe: RuntimeHealthProbe = probeRuntimeHealth,
+    private readonly runtimeProcessProbe: RuntimeProcessProbe = runtimeProcessState,
+    private readonly monotonicNow: MonotonicClock = () => performance.now(),
   ) {}
 
   async inspectDataHome(explicitHome?: string): Promise<DataHomeInspection> {
@@ -236,13 +352,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
         : await this.commandRunner.run(startArguments);
       const started = this.parseStatus(output);
       if (this.isReady(started) && started.ownerLease === this.ownerLease) {
-        return {
-          kind: "owned",
-          generation: started.generation,
-          ownerLease: this.ownerLease,
-          dataHome: this.requireSelectedDataHome(),
-          ...(started.httpUrl === null ? {} : { httpUrl: started.httpUrl }),
-        };
+        return this.ownedAttachment(started);
       }
       return this.failure(
         this.firstFailureDetail(started) ?? "Runtime did not grant the desktop owner lease",
@@ -267,25 +377,67 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     if (ownerLease !== this.ownerLease) {
       return this.failure("Desktop cannot recover a lease it did not create");
     }
+    const attachment = this.ownedRuntimeAttachment;
+    if (attachment === undefined) {
+      return this.failure("Desktop has no owned Runtime generation to maintain");
+    }
     try {
-      const current = await this.status();
-      if (this.isReady(current) && current.ownerLease === ownerLease) {
-        return this.ownedAttachment(current);
+      const healthTarget = this.ownedRuntimeHealthTarget;
+      if (healthTarget === undefined) {
+        return attachment;
       }
-      if (current.phase === "core_starting" && current.ownerLease === ownerLease) {
-        return this.ownedAttachment(current);
+      const observation = await this.runtimeHealthProbeSafely(healthTarget);
+      if (observation.kind === "healthy") {
+        this.transportFailureStartedAt = undefined;
+        this.recoveryLatchedGeneration = undefined;
+        return attachment;
       }
-      if (current.ownerLease !== null && current.ownerLease !== ownerLease) {
-        return this.failure("Runtime owner lease changed; recovery refused");
+      if (observation.kind === "transitioning") {
+        this.transportFailureStartedAt = undefined;
+        return attachment;
       }
-      await this.commandRunner.run(["stop", "--owner-id", ownerLease]);
-      const restarted = this.parseStatus(
-        await this.commandRunner.run(["start", "--owner-id", ownerLease, "--json"]),
+      if (
+        observation.kind === "identity_mismatch"
+        || observation.kind === "protocol_invalid"
+      ) {
+        this.transportFailureStartedAt = undefined;
+        return attachment;
+      }
+
+      let recoveryReason: "process-absent" | "transport-failure";
+      const corePid = this.ownedRuntimeCorePid;
+      if (
+        corePid !== undefined
+        && this.runtimeProcessProbeSafely(corePid) === "absent"
+      ) {
+        recoveryReason = "process-absent";
+      } else {
+        const now = this.monotonicNow();
+        if (this.transportFailureStartedAt === undefined) {
+          this.transportFailureStartedAt = now;
+          return attachment;
+        }
+        if (now - this.transportFailureStartedAt < RUNTIME_TRANSPORT_FAILURE_GRACE_MS) {
+          return attachment;
+        }
+        recoveryReason = "transport-failure";
+      }
+      if (this.recoveryLatchedGeneration === healthTarget.generation) {
+        return attachment;
+      }
+      this.recoveryLatchedGeneration = healthTarget.generation;
+      const recovered = this.parseStatus(
+        await this.commandRunner.run(
+          this.recoverOwnedArguments(healthTarget, recoveryReason),
+        ),
       );
-      if (this.isReady(restarted) && restarted.ownerLease === ownerLease) {
-        return this.ownedAttachment(restarted);
+      if (this.isReady(recovered) && recovered.ownerLease === ownerLease) {
+        return this.ownedAttachment(recovered);
       }
-      return this.failure("Owned Runtime recovery did not restore full health");
+      return this.failure(
+        this.firstFailureDetail(recovered)
+        ?? "Owned Runtime recovery did not restore Core health",
+      );
     } catch (error: unknown) {
       return this.failure(this.errorMessage(error));
     }
@@ -297,14 +449,25 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
   }
 
   private async waitForStartup(initial: RuntimeStatus): Promise<RuntimeAttachment> {
-    const deadline = Date.now() + STARTUP_ATTACH_TIMEOUT_MS;
-    let current = initial;
-    while (current.phase === "core_starting" && Date.now() < deadline) {
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, STARTUP_ATTACH_POLL_MS);
-      });
-      current = await this.status();
+    if (
+      initial.instanceId === null
+      || initial.instanceId === "uninitialized"
+      || initial.instanceId === "unavailable"
+    ) {
+      return this.failure("Runtime startup identity is unavailable");
     }
+    const current = this.parseStatus(
+      await this.commandRunner.run([
+        "--__controller-action",
+        "wait-runtime",
+        "--__controller-data-home",
+        this.requireSelectedDataHome(),
+        "--__controller-instance-id",
+        initial.instanceId,
+        "--__controller-generation",
+        String(initial.generation),
+      ]),
+    );
     if (this.isReady(current) && current.ownerLease !== null) {
       return {
         kind: "attached",
@@ -363,6 +526,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     const generation = Reflect.get(payload, "generation");
     const ownerLease = Reflect.get(payload, "owner_lease");
     const startupOwnerId = Reflect.get(payload, "startup_owner_id");
+    const rawInstanceId = Reflect.get(payload, "instance_id");
     const failures = this.parseFailures(payload);
     if (
       !this.isLifecycleState(tier ?? state) ||
@@ -380,14 +544,24 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     ) {
       throw new LifecycleClientError("Lifecycle startup owner is invalid");
     }
+    if (
+      rawInstanceId !== undefined
+      && rawInstanceId !== null
+      && (typeof rawInstanceId !== "string" || rawInstanceId === "")
+    ) {
+      throw new LifecycleClientError("Lifecycle instance identity is invalid");
+    }
+    const instanceId = typeof rawInstanceId === "string" ? rawInstanceId : null;
     if (ownerLease === null) {
       return {
         state: (tier ?? state) as RuntimeStatus["state"],
         phase,
         generation,
+        instanceId,
         ownerLease: null,
         startupOwnerId: typeof startupOwnerId === "string" ? startupOwnerId : null,
         httpUrl: this.parseHttpUrl(payload),
+        corePid: this.parseCorePid(payload),
         failures,
       };
     }
@@ -404,9 +578,11 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       state: (tier ?? state) as RuntimeStatus["state"],
       phase,
       generation,
+      instanceId,
       ownerLease: ownerLease.owner_id,
       startupOwnerId: typeof startupOwnerId === "string" ? startupOwnerId : null,
       httpUrl: this.parseHttpUrl(payload),
+      corePid: this.parseCorePid(payload),
       failures,
     };
   }
@@ -560,13 +736,99 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
   }
 
   private ownedAttachment(status: RuntimeStatus): RuntimeAttachment {
-    return {
+    const attachment: Extract<RuntimeAttachment, { readonly kind: "owned" }> = {
       kind: "owned",
       generation: status.generation,
       ownerLease: this.ownerLease,
       dataHome: this.requireSelectedDataHome(),
       ...(status.httpUrl === null ? {} : { httpUrl: status.httpUrl }),
     };
+    const previousGeneration = this.ownedRuntimeHealthTarget?.generation;
+    if (previousGeneration !== status.generation) {
+      this.transportFailureStartedAt = undefined;
+      this.recoveryLatchedGeneration = undefined;
+    }
+    this.ownedRuntimeAttachment = attachment;
+    this.ownedRuntimeCorePid = status.corePid ?? undefined;
+    this.ownedRuntimeHealthTarget = (
+      status.httpUrl !== null
+      && status.instanceId !== null
+      && status.instanceId !== "uninitialized"
+      && status.instanceId !== "unavailable"
+    )
+      ? {
+        httpUrl: status.httpUrl,
+        instanceId: status.instanceId,
+        generation: status.generation,
+      }
+      : undefined;
+    return attachment;
+  }
+
+  private async runtimeHealthProbeSafely(
+    target: RuntimeHealthTarget,
+  ): Promise<RuntimeHealthProbeResult> {
+    try {
+      return await this.runtimeHealthProbe(target);
+    } catch (error: unknown) {
+      return {
+        kind: "transport_failure",
+        detail: error instanceof Error ? error.message : "health probe failed",
+      };
+    }
+  }
+
+  private runtimeProcessProbeSafely(pid: number): RuntimeProcessState {
+    try {
+      return this.runtimeProcessProbe(pid);
+    } catch {
+      return "unknown";
+    }
+  }
+
+  private recoverOwnedArguments(
+    target: RuntimeHealthTarget,
+    reason: "process-absent" | "transport-failure",
+  ): readonly string[] {
+    const corePid = this.ownedRuntimeCorePid;
+    return [
+      "--__controller-action",
+      "recover-owned",
+      "--__controller-data-home",
+      this.requireSelectedDataHome(),
+      "--__controller-owner-id",
+      this.ownerLease,
+      "--__controller-instance-id",
+      target.instanceId,
+      "--__controller-generation",
+      String(target.generation),
+      ...(corePid === undefined
+        ? []
+        : ["--__controller-core-pid", String(corePid)]),
+      "--__controller-reason",
+      reason,
+    ];
+  }
+
+  private parseCorePid(payload: object): number | null {
+    const components = Reflect.get(payload, "components");
+    if (!Array.isArray(components)) return null;
+    for (const component of components) {
+      if (typeof component !== "object" || component === null || Array.isArray(component)) {
+        continue;
+      }
+      if (
+        Reflect.get(component, "name") !== "core"
+        && Reflect.get(component, "component") !== "core"
+      ) {
+        continue;
+      }
+      const pid = Reflect.get(component, "pid");
+      if (typeof pid === "number" && Number.isInteger(pid) && pid > 0) {
+        return pid;
+      }
+    }
+    return null;
   }
 
   private parseHttpUrl(payload: object): string | null {
