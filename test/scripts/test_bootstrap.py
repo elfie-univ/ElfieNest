@@ -290,6 +290,16 @@ def test_bootstrap_pnpm_preparation_uses_repository_pinned_version() -> None:
     assert "pnpm@latest" not in bootstrap_source + runtime_source
 
 
+def test_bootstrap_dev_tier_syncs_locked_development_dependencies() -> None:
+    bootstrap_source = (PROJECT_ROOT / "scripts/bootstrap.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'sync_args="$sync_args --extra dev"' in bootstrap_source
+    assert 'sync_args="$sync_args --no-dev --extra release"' in bootstrap_source
+    assert 'UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/elfienest-uv-cache}"' in bootstrap_source
+
+
 def test_bootstrap_creates_data_home_through_root_infrastructure() -> None:
     bootstrap_source = (PROJECT_ROOT / "scripts/bootstrap.sh").read_text(
         encoding="utf-8"

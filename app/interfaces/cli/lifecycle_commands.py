@@ -244,6 +244,153 @@ def _published_runtime_ports(
     )
 
 
+def _owned_core_health_matches(
+    lifecycle: LifecycleFacade,
+    selected_home: Path,
+    *,
+    expected_instance_id: str,
+    expected_generation: int,
+) -> bool:
+    """Recheck the exact Core generation immediately before recovery."""
+    http_port, _ = _published_runtime_ports(
+        lifecycle,
+        selected_home,
+        fallback_http=DEFAULT_HTTP_PORT,
+        fallback_websocket=DEFAULT_GODOT_WS_PORT,
+    )
+    try:
+        response = lifecycle.http_get(
+            f"http://127.0.0.1:{http_port}/api/health",
+            timeout_seconds=2.0,
+        )
+        payload = json.loads(response.body.decode("utf-8"))
+    except (OSError, TimeoutError, UnicodeDecodeError, ValueError):
+        return False
+    return (
+        response.status == 200
+        and isinstance(payload, dict)
+        and payload.get("status") == "ok"
+        and payload.get("engine_ready") is True
+        and payload.get("instance_id") == expected_instance_id
+        and payload.get("generation") == expected_generation
+    )
+
+
+def recover_owned_runtime_command(
+    lifecycle: LifecycleFacade,
+    *,
+    selected_home: Path,
+    owner_id: str,
+    expected_instance_id: str,
+    expected_generation: int,
+    expected_core_pid: int | None,
+    reason: str,
+) -> int:
+    """Run one fail-closed, lease-scoped recovery for Desktop Controller."""
+    launch_command = lifecycle.default_service_command(("--lan",))
+    supervisor = _supervisor_for(
+        lifecycle,
+        launch_command,
+        _validated_http_port(launch_command),
+        selected_home=selected_home,
+        automatic_ports=True,
+    )
+    result = supervisor.recover_owned(
+        owner_id=owner_id,
+        expected_instance_id=expected_instance_id,
+        expected_generation=expected_generation,
+        expected_core_pid=expected_core_pid,
+        health_check=lambda: _owned_core_health_matches(
+            lifecycle,
+            selected_home,
+            expected_instance_id=expected_instance_id,
+            expected_generation=expected_generation,
+        ),
+    )
+    if result.status not in {"started", "already_running"}:
+        print(
+            json.dumps(
+                {
+                    "error_code": "owned_runtime_recovery_failed",
+                    "error": str(result.error or "Owned Runtime recovery failed"),
+                    "reason": reason,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        return 1
+    try:
+        projection = lifecycle.runtime_projection(selected_home)
+    except (OSError, RuntimeError, ValueError) as error:
+        print(
+            json.dumps(
+                {
+                    "error_code": "owned_runtime_projection_failed",
+                    "error": str(error),
+                    "reason": reason,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        return 1
+    _print_runtime_health_json(projection, data_root=selected_home)
+    return 0
+
+
+def wait_for_runtime_command(
+    lifecycle: LifecycleFacade,
+    *,
+    selected_home: Path,
+    expected_instance_id: str,
+    expected_generation: int,
+    timeout_seconds: float = 30.0,
+    poll_interval_seconds: float = 0.25,
+    monotonic: Callable[[], float] = time.monotonic,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> int:
+    """Wait in one CLI process for an already-starting Runtime generation."""
+    deadline = monotonic() + timeout_seconds
+    while True:
+        try:
+            projection = lifecycle.runtime_projection(selected_home)
+        except (OSError, RuntimeError, ValueError) as error:
+            print(
+                json.dumps(
+                    {
+                        "error_code": "runtime_wait_snapshot_failed",
+                        "error": str(error),
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+            return 1
+        if (
+            projection.instance_id != expected_instance_id
+            or projection.generation != expected_generation
+        ):
+            print(
+                json.dumps(
+                    {
+                        "error_code": "runtime_wait_identity_changed",
+                        "error": "Runtime identity changed while Desktop was waiting",
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+            return 1
+        if projection.phase is not RuntimePhase.CORE_STARTING:
+            _print_runtime_health_json(projection, data_root=selected_home)
+            return 0
+        if monotonic() >= deadline:
+            _print_runtime_health_json(projection, data_root=selected_home)
+            return 0
+        sleeper(poll_interval_seconds)
+
+
 class ProgressIndicator:
     """Simple progress indicator with spinner animation."""
 

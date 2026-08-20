@@ -10,6 +10,7 @@ import {
   type MonitorFood,
   type MonitorOllama,
   type MonitorProvider,
+  type MonitorRuntimeStatus,
   type MonitorSnapshot,
 } from "../api/owner-monitor"
 import { compareLocalizedText, currentLocale } from "../i18n/format"
@@ -18,13 +19,15 @@ import { RefreshButton } from "./RefreshButton"
 import { useToast } from "./ui/toast"
 
 type MetricState = "good" | "neutral" | "warning" | "error"
-type HealthLevel = "ok" | "attention" | "error" | "unknown"
+type HealthLevel = "ok" | "attention" | "error" | "starting" | "unknown"
 type ServiceStatus = "healthy" | "attention" | "unavailable" | "unverified" | "disabled" | "unknown"
 type AiServiceState = "healthy" | "attention" | "unavailable" | "unconfigured" | "configuredNoFood" | "unknown"
 type InterstellarState = "enabled" | "unavailable" | "unknown"
 const SYSTEM_SERVICE_IDS = ["core", "godotWeb", "godotRuntime"] as const
 type SystemServiceId = (typeof SYSTEM_SERVICE_IDS)[number]
-type SystemServiceStatus = { readonly id: SystemServiceId; readonly healthy: boolean }
+type SystemServiceState = "healthy" | "starting" | "error"
+type SystemServiceStatus = { readonly id: SystemServiceId; readonly state: SystemServiceState }
+const STARTING_RUNTIME_PHASES = new Set(["preflight", "core_starting", "world_starting", "model_projecting", "local_model_starting"])
 type MonitorIssue =
   | { readonly kind: "system"; readonly services: readonly SystemServiceId[] }
   | { readonly kind: "runtime" }
@@ -294,12 +297,19 @@ function foodStateLabel(state: FoodState, t: TFunction<"manage">): string {
   return t(`runtimeMonitor.foodStates.${state}`)
 }
 
-function getSystemServiceStatuses(health: MonitorHealth): readonly SystemServiceStatus[] {
+function getSystemServiceStatuses(health: MonitorHealth, runtime: MonitorRuntimeStatus | null): readonly SystemServiceStatus[] {
+  const runtimeStarting = isRuntimeStarting(runtime)
   return [
-    { id: "core", healthy: health.status === "ok" && health.engine_ready },
-    { id: "godotWeb", healthy: health.godot_web_ready },
-    { id: "godotRuntime", healthy: health.godot_runtime_ready },
+    { id: "core", state: health.status === "ok" && health.engine_ready ? "healthy" : !health.engine_ready && runtimeStarting ? "starting" : "error" },
+    { id: "godotWeb", state: health.godot_web_ready ? "healthy" : "error" },
+    { id: "godotRuntime", state: health.godot_runtime_ready ? "healthy" : runtimeStarting ? "starting" : "error" },
   ]
+}
+
+function isRuntimeStarting(runtime: MonitorRuntimeStatus | null): boolean {
+  const lifecycle = runtime?.lifecycle
+  if (lifecycle === undefined) return false
+  return STARTING_RUNTIME_PHASES.has(lifecycle.phase) || lifecycle.components.some((component) => component.component === "godot_authority" && component.state === "starting")
 }
 
 function systemServiceName(id: SystemServiceId, t: TFunction<"manage">): string {
@@ -329,13 +339,13 @@ function serviceStatus(provider: MonitorProvider, ollama: MonitorOllama | null):
 
 function buildIssues(snapshot: MonitorSnapshot): readonly MonitorIssue[] {
   const issues: MonitorIssue[] = []
-  const unhealthySystemServices = snapshot.health === null ? [] : getSystemServiceStatuses(snapshot.health).filter((service) => !service.healthy).map((service) => service.id)
+  const unhealthySystemServices = snapshot.health === null ? [] : getSystemServiceStatuses(snapshot.health, snapshot.runtime).filter((service) => service.state === "error").map((service) => service.id)
   if (unhealthySystemServices.length > 0) issues.push({ kind: "system", services: unhealthySystemServices })
   if (snapshot.runtime !== null && snapshot.runtime.status !== "ok") issues.push({ kind: "runtime" })
   const providers = snapshot.providers ? operationalProviders(snapshot.providers) : []
   if (snapshot.providers !== null && providers.length === 0) issues.push({ kind: "no-services" })
   const lifecycle = snapshot.runtime?.lifecycle
-  if (lifecycle !== undefined && (lifecycle.failures.length > 0 || lifecycle.tier === "offline")) {
+  if (lifecycle !== undefined && (lifecycle.failures.length > 0 || (lifecycle.tier === "offline" && !isRuntimeStarting(snapshot.runtime)))) {
     issues.push({ kind: "runtime" })
   }
   for (const provider of providers) {
@@ -361,8 +371,11 @@ function filterSystemIssues(issues: readonly MonitorIssue[]): readonly MonitorIs
 
 function resolveHealth(snapshot: MonitorSnapshot | null, issues: readonly MonitorIssue[]): HealthLevel {
   if (snapshot === null || snapshot.health === null) return "unknown"
+  const systemStatuses = getSystemServiceStatuses(snapshot.health, snapshot.runtime)
   if (issues.some((issue) => issue.kind === "system")) return "error"
-  if (snapshot.runtime?.lifecycle?.tier === "offline") return "error"
+  if (snapshot.runtime?.lifecycle?.failures.length) return "error"
+  if (snapshot.runtime?.lifecycle?.tier === "offline" && !isRuntimeStarting(snapshot.runtime)) return "error"
+  if (systemStatuses.some((service) => service.state === "starting")) return "starting"
   return issues.length === 0 ? "ok" : "attention"
 }
 
@@ -371,6 +384,7 @@ function healthMetricState(level: HealthLevel): MetricState {
     case "ok": return "good"
     case "attention": return "warning"
     case "error": return "error"
+    case "starting": return "neutral"
     case "unknown": return "neutral"
   }
 }
@@ -378,6 +392,13 @@ function healthMetricState(level: HealthLevel): MetricState {
 function healthDetail(level: HealthLevel, issues: readonly MonitorIssue[], snapshot: MonitorSnapshot | null, t: TFunction<"manage">): string {
   if (snapshot === null) return t("runtimeMonitor.cards.reading")
   if (level === "unknown" || snapshot.health === null) return t("runtimeMonitor.health.unknown")
+  if (level === "starting") {
+    const services = getSystemServiceStatuses(snapshot.health, snapshot.runtime)
+      .filter((service) => service.state === "starting")
+      .map((service) => systemServiceName(service.id, t))
+      .join(t("runtimeMonitor.health.serviceSeparator"))
+    return t("runtimeMonitor.health.servicesStarting", { services })
+  }
   if (issues.length === 0) return t("runtimeMonitor.health.stable")
   const systemIssue = issues.find((issue): issue is Extract<MonitorIssue, { readonly kind: "system" }> => issue.kind === "system")
   if (systemIssue !== undefined) {

@@ -86,6 +86,18 @@ class RuntimeLifecycle(Protocol):
     def status(self) -> RuntimeProjectionV1:
         """Return the latest read-only Runtime projection."""
 
+    def recover_owned(
+        self,
+        *,
+        owner_id: str,
+        expected_instance_id: str,
+        expected_generation: int,
+        expected_core_pid: Optional[int],
+        health_check: Callable[[], bool],
+        correlation_id: Optional[str] = None,
+    ) -> ServiceLifecycleResult:
+        """Recover one exact lease-scoped generation after revalidation."""
+
     def stop(self, *, correlation_id: Optional[str] = None) -> ServiceLifecycleResult:
         """Stop the currently owned Runtime generation."""
 
