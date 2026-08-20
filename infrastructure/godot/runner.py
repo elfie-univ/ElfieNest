@@ -26,10 +26,21 @@ _VERSION_LINE_PATTERN = re.compile(r"^v?\d+\.\d+(?:\.\d+)?(?:[._-][A-Za-z0-9]+)*
 _SENSITIVE_ARGUMENT_PATTERN = re.compile(
     r"(?i)(api[_-]?key|token|secret|password|authorization)"
 )
-_CRASH_EXIT_CODES = frozenset(
-    128 + value
-    for value in (signal.SIGABRT, signal.SIGBUS, signal.SIGILL, signal.SIGSEGV)
-)
+
+
+def _available_crash_exit_codes() -> frozenset[int]:
+    """Return crash exit codes only for signals exposed by the current host."""
+
+    signals = (
+        getattr(signal, "SIGABRT", None),
+        getattr(signal, "SIGBUS", None),
+        getattr(signal, "SIGILL", None),
+        getattr(signal, "SIGSEGV", None),
+    )
+    return frozenset(128 + int(value) for value in signals if value is not None)
+
+
+_CRASH_EXIT_CODES = _available_crash_exit_codes()
 _HOST_UNAVAILABLE_EXIT_CODE = 126
 
 

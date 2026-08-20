@@ -100,7 +100,7 @@ def _run_stage(stage: str, operation: Callable[[], StageResult]) -> StageResult:
         ) from error
 
 
-def default_release_steps() -> NativeReleaseSteps:
+def default_release_steps(*, prebuilt_godot_web: bool = False) -> NativeReleaseSteps:
     """Build concrete strict operations for one local target-native release."""
     version = check_release_version.check_versions(
         DESKTOP_DIR / "package.json",
@@ -109,7 +109,7 @@ def default_release_steps() -> NativeReleaseSteps:
     return NativeReleaseSteps(
         ensure_dependencies=_ensure_dependencies,
         build_web=_build_web,
-        build_godot=_build_godot,
+        build_godot=_check_godot if prebuilt_godot_web else _build_godot,
         freeze_core=_freeze_core,
         freeze_cli=_freeze_cli,
         assemble=lambda target, core, cli: _assemble(target, core, cli, version),
@@ -188,6 +188,13 @@ def _build_godot() -> None:
     )
 
 
+def _check_godot() -> None:
+    """Validate the shared Godot Web runtime without requiring a local Godot editor."""
+    _run_command(
+        (_project_python(), "scripts/build_godot_web.py", "--check"), PROJECT_ROOT
+    )
+
+
 def _freeze_core(target: str) -> Path:
     """Freeze the Core only through the active target-native Python runner."""
     return package_python_core.freeze_core(
@@ -255,16 +262,16 @@ def _package_installer(
         _stage_desktop_application(target, resources)
         target_arguments = _electron_target_arguments(target)
         _run_command(
-            (
-                "node",
-                str(
-                    DESKTOP_DIR
-                    / "node_modules"
-                    / "electron-builder"
-                    / "out"
-                    / "cli"
-                    / "cli.js"
-                ),
+            _node_command(
+                "npx",
+                "--yes",
+                "pnpm@10.12.1",
+                "--dir",
+                str(DESKTOP_DIR),
+                "exec",
+                "electron-builder",
+                "--projectDir",
+                str(application),
                 "--publish",
                 "never",
                 "--config",
