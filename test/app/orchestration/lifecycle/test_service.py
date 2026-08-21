@@ -2,7 +2,6 @@ from pathlib import Path
 
 from app.orchestration.lifecycle.runtime_snapshot import (
     EndpointSnapshot,
-    RuntimeSnapshotV1,
 )
 from app.orchestration.lifecycle.service import stop_service
 from app.orchestration.lifecycle.types import (
@@ -14,6 +13,8 @@ from app.orchestration.lifecycle.types import (
 from test.app.orchestration.lifecycle.service_fakes import (
     FakeClock,
     FakeProcessPort,
+    active_runtime_record,
+    offline_runtime_record,
     serve_command,
     write_pid,
 )
@@ -21,13 +22,25 @@ from test.app.orchestration.lifecycle.service_fakes import (
 
 def test_stop_without_receipt_is_already_stopped(tmp_path: Path) -> None:
     port = FakeProcessPort(cwd=tmp_path)
-    result = stop_service(tmp_path / "home", tmp_path, process_port=port)
+    result = stop_service(
+        tmp_path / "home",
+        tmp_path,
+        process_port=port,
+        runtime_record=offline_runtime_record(),
+    )
     assert result.status == "already_stopped"
 
 
 def test_stop_fails_closed_without_receipt_when_ports_active(tmp_path: Path) -> None:
     port = FakeProcessPort(cwd=tmp_path, ports_active=True)
-    result = stop_service(tmp_path / "home", tmp_path, process_port=port)
+    result = stop_service(
+        tmp_path / "home",
+        tmp_path,
+        process_port=port,
+        runtime_record=offline_runtime_record(
+            endpoints=(EndpointSnapshot("http", "http", "127.0.0.1", 12400),)
+        ),
+    )
     assert isinstance(result.error, ServicePortsActiveError)
 
 
@@ -41,22 +54,17 @@ def test_stop_uses_published_dynamic_endpoints_without_receipt(tmp_path: Path) -
             self.checked.append(tuple(ports))
             return True
 
-    class Record:
-        def read(self) -> RuntimeSnapshotV1:
-            return RuntimeSnapshotV1(
-                instance_id="instance",
-                endpoints=(
-                    EndpointSnapshot("http", "http", "127.0.0.1", 12401),
-                    EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 12402),
-                ),
-            )
-
     port = DynamicPort()
     result = stop_service(
         tmp_path / "home",
         tmp_path,
         process_port=port,
-        runtime_record=Record(),
+        runtime_record=offline_runtime_record(
+            endpoints=(
+                EndpointSnapshot("http", "http", "127.0.0.1", 12401),
+                EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 12402),
+            )
+        ),
     )
 
     assert isinstance(result.error, ServicePortsActiveError)
@@ -69,7 +77,16 @@ def test_stop_rejects_mismatched_process_without_signal(tmp_path: Path) -> None:
     port = FakeProcessPort(
         cwd=tmp_path / "other", command=serve_command(tmp_path), existence=(True,)
     )
-    result = stop_service(home, tmp_path, process_port=port)
+    result = stop_service(
+        home,
+        tmp_path,
+        process_port=port,
+        runtime_record=active_runtime_record(
+            pid=4101,
+            cwd=tmp_path,
+            command=serve_command(tmp_path),
+        ),
+    )
     assert isinstance(result.error, ProcessIdentityMismatchError)
     assert port.terminations == []
 
@@ -82,7 +99,16 @@ def test_stop_verified_process_and_remove_receipt(tmp_path: Path) -> None:
         command=serve_command(tmp_path),
         existence=(True, True, False),
     )
-    result = stop_service(home, tmp_path, process_port=port)
+    result = stop_service(
+        home,
+        tmp_path,
+        process_port=port,
+        runtime_record=active_runtime_record(
+            pid=4102,
+            cwd=tmp_path,
+            command=serve_command(tmp_path),
+        ),
+    )
     assert result.status == "stopped"
     assert port.terminations == [(4102, False)]
     assert not (home / "elfienest.pid").exists()
@@ -107,22 +133,20 @@ def test_stop_checks_published_endpoints_after_dynamic_process_exit(
             self.checked.append(tuple(ports))
             return False
 
-    class Record:
-        def read(self) -> RuntimeSnapshotV1:
-            return RuntimeSnapshotV1(
-                instance_id="instance",
-                endpoints=(
-                    EndpointSnapshot("http", "http", "127.0.0.1", 12411),
-                    EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 12412),
-                ),
-            )
-
     port = DynamicPort()
     result = stop_service(
         home,
         tmp_path,
         process_port=port,
-        runtime_record=Record(),
+        runtime_record=active_runtime_record(
+            pid=4110,
+            cwd=tmp_path,
+            command=serve_command(tmp_path),
+            endpoints=(
+                EndpointSnapshot("http", "http", "127.0.0.1", 12411),
+                EndpointSnapshot("godot_ws", "ws", "127.0.0.1", 12412),
+            ),
+        ),
     )
 
     assert result.status == "stopped"
@@ -152,6 +176,12 @@ def test_stop_accepts_the_injected_frozen_core_command(tmp_path: Path) -> None:
         tmp_path,
         process_port=port,
         expected_command=(str(core),),
+        runtime_record=active_runtime_record(
+            pid=4105,
+            cwd=tmp_path,
+            command=command,
+            executable=str(core),
+        ),
     )
 
     assert result.status == "stopped"
@@ -178,6 +208,12 @@ def test_stop_accepts_frozen_core_path_with_spaces_from_macos_ps(
         tmp_path,
         process_port=port,
         expected_command=(str(core),),
+        runtime_record=active_runtime_record(
+            pid=4106,
+            cwd=tmp_path,
+            command=port.command,
+            executable=str(core),
+        ),
     )
 
     assert result.status == "stopped"
@@ -198,6 +234,11 @@ def test_stop_timeout_keeps_receipt(tmp_path: Path) -> None:
         timeout_seconds=0.2,
         monotonic=clock.monotonic,
         sleeper=clock.sleep,
+        runtime_record=active_runtime_record(
+            pid=4103,
+            cwd=tmp_path,
+            command=serve_command(tmp_path),
+        ),
     )
     assert isinstance(result.error, StopTimeoutError)
     assert (home / "elfienest.pid").exists()
@@ -227,6 +268,11 @@ def test_stop_escalates_to_force_after_graceful_timeout(tmp_path: Path) -> None:
         timeout_seconds=5.0,
         monotonic=clock.monotonic,
         sleeper=clock.sleep,
+        runtime_record=active_runtime_record(
+            pid=4107,
+            cwd=tmp_path,
+            command=serve_command(tmp_path),
+        ),
     )
 
     assert result.status == "stopped"
@@ -237,11 +283,30 @@ def test_stop_invalid_or_unreadable_receipt_returns_typed_error(tmp_path: Path) 
     home = tmp_path / "home"
     write_pid(home, 4104).write_text("bad", encoding="utf-8")
     port = FakeProcessPort(cwd=tmp_path)
+    runtime_record = active_runtime_record(
+        pid=4104,
+        cwd=tmp_path,
+        command=serve_command(tmp_path),
+    )
     assert isinstance(
-        stop_service(home, tmp_path, process_port=port).error, InvalidPidFileError
+        stop_service(
+            home,
+            tmp_path,
+            process_port=port,
+            runtime_record=runtime_record,
+        ).error,
+        InvalidPidFileError,
     )
     port.read_error = PermissionError("denied")
-    assert stop_service(home, tmp_path, process_port=port).status == "failed"
+    assert (
+        stop_service(
+            home,
+            tmp_path,
+            process_port=port,
+            runtime_record=runtime_record,
+        ).status
+        == "failed"
+    )
 
 
 def test_stop_handles_receipt_disappearing_during_read(tmp_path: Path) -> None:
@@ -254,6 +319,11 @@ def test_stop_handles_receipt_disappearing_during_read(tmp_path: Path) -> None:
 
     port = DisappearingReceiptPort(cwd=tmp_path)
 
-    result = stop_service(tmp_path / "home", tmp_path, process_port=port)
+    result = stop_service(
+        tmp_path / "home",
+        tmp_path,
+        process_port=port,
+        runtime_record=offline_runtime_record(),
+    )
 
     assert result.status == "already_stopped"

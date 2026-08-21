@@ -10,6 +10,7 @@ from test.app.orchestration.lifecycle.service_fakes import (
     FakeClock,
     FakeProcessPort,
     FakeRecoveryLock,
+    active_runtime_record,
     write_pid,
 )
 
@@ -66,6 +67,11 @@ def test_start_rejects_existing_service_on_different_ports(tmp_path: Path) -> No
         recovery_lock=FakeRecoveryLock(),
         command=("python", "scripts/serve.py", "--port", "8100"),
         health_checker=lambda: True,
+        runtime_record=active_runtime_record(
+            pid=5103,
+            cwd=tmp_path,
+            command=("python", "scripts/serve.py", "--port", "8000"),
+        ),
     )
     assert result.status == "failed"
     assert "different ports" in str(result.error)
@@ -81,6 +87,11 @@ def test_start_checks_health_of_existing_service(tmp_path: Path) -> None:
         process_port=port,
         recovery_lock=FakeRecoveryLock(),
         health_checker=lambda: False,
+        runtime_record=active_runtime_record(
+            pid=5110,
+            cwd=tmp_path,
+            command=("python", "scripts/serve.py"),
+        ),
     )
     assert isinstance(result.error, HealthCheckFailedError)
     assert port.launches == []

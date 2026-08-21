@@ -1,6 +1,6 @@
 appId: com.elfienest.desktop
 productName: ElfieNest
-artifactName: ElfieNest-${version}-internal-${os}-${arch}.${ext}
+artifactName: ElfieNest-${version}-${os}-${arch}.${ext}
 asar: true
 directories:
   buildResources: .
@@ -8,6 +8,7 @@ extraMetadata:
   main: bootstrap/desktop_host.mjs
 files:
   - desktop-interface/**/*
+  - "!desktop-interface/macos/**/*"
   - bootstrap/desktop_host.mjs
   - infrastructure/godot/lifecycle/electron/**/*
   - assets/elfienest-tray-icon.png
@@ -15,8 +16,13 @@ files:
 extraResources:
   - from: packaged-resources
     to: .
+  - from: desktop-interface/macos
+    to: wifi-access-helper
 mac:
   icon: assets/elfienest-macos-app-icon.png
+  extendInfo:
+    NSLocationUsageDescription: ElfieNest 需要读取当前 Wi-Fi 名称，用于在手机扫码连接时提供网络提示；不会记录你的位置信息。
+    NSLocationWhenInUseUsageDescription: ElfieNest 需要读取当前 Wi-Fi 名称，用于在手机扫码连接时提供网络提示；不会记录你的位置信息。
   target: [pkg]
 pkg:
   installLocation: /Applications

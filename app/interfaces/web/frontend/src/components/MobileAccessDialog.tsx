@@ -14,6 +14,17 @@ type MobileAccessDialogProps = { readonly onClose: () => void; readonly targetPa
 type MobileAccessError =
   | { readonly kind: "api"; readonly reason: unknown }
   | { readonly kind: "qr" }
+type WifiLookupStatus =
+  | "idle"
+  | "checking"
+  | "available"
+  | "permission_denied"
+  | "location_services_disabled"
+  | "permission_unknown"
+  | "ssid_unavailable"
+  | "helper_unavailable"
+  | "helper_timeout"
+  | "unsupported"
 
 function withTargetPath(url: string, targetPath: "/chat" | "/manage" | "/monitor"): string {
   const target = new URL(url)
@@ -27,21 +38,47 @@ export function MobileAccessDialog({ onClose, targetPath = "/chat" }: MobileAcce
   const [selectedUrl, setSelectedUrl] = useState("")
   const [imageUrl, setImageUrl] = useState("")
   const [error, setError] = useState<MobileAccessError | null>(null)
+  const [wifiLookupStatus, setWifiLookupStatus] = useState<WifiLookupStatus>("idle")
 
   useEffect(() => {
     let cancelled = false
     void mobileAccess()
-      .then((result) => {
+      .then(async (result) => {
         if (cancelled) return
         const targetUrls = result.urls.map((url) => withTargetPath(url, targetPath))
         setAccess({ ...result, urls: targetUrls })
         setSelectedUrl(targetUrls[0] ?? "")
+        if (result.network_name !== null) {
+          setWifiLookupStatus("available")
+          return
+        }
+
+        const desktop = window.elfienestDesktop
+        if (desktop === undefined) {
+          setWifiLookupStatus("unsupported")
+          return
+        }
+        setWifiLookupStatus("checking")
+        try {
+          const nativeResult = await desktop.readCurrentWifiName()
+          if (cancelled) return
+          setWifiLookupStatus(nativeResult.status)
+          if (nativeResult.status === "available" && nativeResult.network_name !== null) {
+            setAccess((current) => current === null ? current : { ...current, network_name: nativeResult.network_name })
+          }
+        } catch {
+          if (!cancelled) setWifiLookupStatus("helper_unavailable")
+        }
       })
       .catch((reason: unknown) => {
         if (!cancelled) setError({ kind: "api", reason })
       })
     return () => { cancelled = true }
   }, [targetPath])
+
+  const openLocationSettings = (): void => {
+    void window.elfienestDesktop?.openLocationSettings()
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -73,6 +110,12 @@ export function MobileAccessDialog({ onClose, targetPath = "/chat" }: MobileAcce
       </> : null}
       {error ? <Notice kind="error" message={error.kind === "qr" ? t("mobileAccess.qrError") : localizeApiError(error.reason, "manage.load", currentLocale(i18n))} /> : null}
       {access === null && error === null ? <p>{t("mobileAccess.loading")}</p> : null}
+      {wifiLookupStatus === "checking" ? <p className="mobile-access-dialog__hint">{t("mobileAccess.wifiPermissionRequesting")}</p> : null}
+      {wifiLookupStatus === "permission_denied" || wifiLookupStatus === "location_services_disabled" ? <div className="mobile-access-dialog__permission">
+        <Notice kind="warning" message={t("mobileAccess.wifiPermissionDenied")} />
+        <Button onClick={openLocationSettings} size="sm" type="button" variant="link">{t("mobileAccess.openLocationSettings")}</Button>
+      </div> : null}
+      {wifiLookupStatus === "ssid_unavailable" || wifiLookupStatus === "permission_unknown" || wifiLookupStatus === "helper_timeout" || wifiLookupStatus === "helper_unavailable" ? <p className="mobile-access-dialog__hint">{t("mobileAccess.wifiNameUnavailable")}</p> : null}
       {unavailable ? <p className="mobile-access-dialog__hint">{t("mobileAccess.unavailable")}</p> : null}
       {access?.available && selectedUrl ? <>
         <h2 className="mobile-access-dialog__step mobile-access-dialog__step--scan">{t("mobileAccess.scanQr")}</h2>

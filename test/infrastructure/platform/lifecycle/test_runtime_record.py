@@ -16,6 +16,7 @@ from app.orchestration.lifecycle.runtime_snapshot import (
     RuntimeTarget,
 )
 from app.orchestration.lifecycle.types import SnapshotRecoveryRequiredError
+from infrastructure.platform.lifecycle import runtime_record
 from infrastructure.platform.lifecycle.runtime_record import FileRuntimeRecordAdapter
 
 
@@ -80,6 +81,40 @@ def test_runtime_record_round_trip_and_retain_offline_snapshot(tmp_path: Path) -
     )
     adapter.write(offline)
     assert adapter.read() == offline
+
+
+def test_runtime_record_skips_posix_fchmod_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Given: Windows does not provide the POSIX fchmod operation.
+    def unsupported_fchmod(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("Windows must not call POSIX-only fchmod")
+
+    real_os = runtime_record.os
+
+    class WindowsOsProxy:
+        name = "nt"
+
+        def __getattr__(self, attribute: str):
+            return getattr(real_os, attribute)
+
+        @staticmethod
+        def fchmod(*_args: object, **_kwargs: object) -> None:
+            unsupported_fchmod()
+
+    monkeypatch.setattr(runtime_record, "os", WindowsOsProxy())
+
+    # When: Runtime writes its first snapshot and writer credential.
+    adapter = _adapter(tmp_path)
+    handoff = adapter.begin_writer_handoff(generation=0, owner_id="cli")
+    snapshot = replace(
+        _snapshot(), generation=0, writer_credential_digest=handoff.digest
+    )
+    adapter.write(snapshot)
+
+    # Then: the runtime snapshot is written without the POSIX-only call.
+    assert adapter.read() == snapshot
 
 
 def test_runtime_record_initializes_only_an_empty_root(tmp_path: Path) -> None:

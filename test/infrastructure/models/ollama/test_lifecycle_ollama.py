@@ -1,13 +1,42 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 from app.features.configuration.providers import (
     StoredLocalProviderBinding,
     StoredLocalProviderProbe,
 )
+from infrastructure.models.ollama import lifecycle_ollama
 from infrastructure.models.ollama.lifecycle_ollama import OllamaLifecycleAdapter
 from infrastructure.models.ollama.ollama_platform import OllamaProcessIdentity
+
+
+def test_ollama_service_state_skips_posix_fchmod_on_windows(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    # Given: Windows does not provide the POSIX fchmod operation.
+    def unsupported_fchmod(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("Windows must not call POSIX-only fchmod")
+
+    real_os = lifecycle_ollama.os
+    monkeypatch.setattr(
+        lifecycle_ollama,
+        "os",
+        SimpleNamespace(
+            name="nt",
+            fchmod=unsupported_fchmod,
+            fdopen=real_os.fdopen,
+        ),
+    )
+
+    # When: the shared Ollama state file is written.
+    state_path = tmp_path / "runtime" / "services.json"
+    lifecycle_ollama._write_services(state_path, {})
+
+    # Then: the state file is created without the POSIX-only call.
+    assert state_path.is_file()
 
 
 def test_lifecycle_ollama_only_starts_an_unhealthy_existing_binding() -> None:

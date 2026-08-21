@@ -117,9 +117,7 @@ def run_install_smoke(
             phases.append(
                 _measure(
                     "start",
-                    lambda: native.run_cli(
-                        ("start", "--json", "--loopback"), environment
-                    ),
+                    lambda: _start_native_service(native, environment, home),
                     monotonic,
                 )
             )
@@ -287,6 +285,33 @@ def _measure(
     return SmokePhase(name, _duration_ms(monotonic() - started), PHASE_BUDGETS_MS[name])
 
 
+def _start_native_service(
+    native: SmokeAdapter,
+    environment: Mapping[str, str],
+    home: Path,
+) -> None:
+    """Start the installed service and preserve its diagnostic tail on failure."""
+    try:
+        native.run_cli(("start", "--json", "--loopback"), environment)
+    except Exception as error:  # noqa: BLE001 - attach native failure evidence
+        detail = _service_log_tail(home)
+        if detail:
+            raise ReleaseInstallSmokeError(
+                f"{error}; service-log-tail={detail}"
+            ) from error
+        raise
+
+
+def _service_log_tail(home: Path) -> str:
+    """Return a bounded, single-line tail of the selected smoke service log."""
+    path = home / "logs" / "service.log"
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return " ".join(content[-8192:].split())
+
+
 def _duration_ms(duration_seconds: float) -> int:
     return max(0, int(duration_seconds * 1000))
 
@@ -341,8 +366,10 @@ class NativePackageAdapter:
             )
         elif self.target == "linux-x64":
             required = (
+                Path("/opt/ElfieNest/elfienest-gui"),
                 Path("/opt/ElfieNest/resources/management-cli/ElfieNestCli"),
                 Path("/opt/ElfieNest/resources/manifest.json"),
+                Path("/usr/bin/elfienest-gui"),
                 Path("/usr/local/bin/elfienest"),
             )
         else:
@@ -384,8 +411,20 @@ class NativePackageAdapter:
             _run_allow_failure(("sudo", "rm", "-f", "/usr/local/bin/elfienest"))
             return
         uninstaller = self.install_root / "Uninstall ElfieNest.exe"
-        if uninstaller.is_file():
-            _run_allow_failure((str(uninstaller), "/S"))
+        if not uninstaller.is_file():
+            raise ReleaseInstallSmokeError(
+                f"release-smoke-uninstaller-missing path={uninstaller}"
+            )
+        _run_checked((str(uninstaller), "/S"))
+
+        launcher = self.install_root / "bin/elfienest.cmd"
+        deadline = time.monotonic() + 10.0
+        while launcher.exists() or launcher.is_symlink():
+            if time.monotonic() >= deadline:
+                raise ReleaseInstallSmokeError(
+                    f"release-smoke-uninstall-timeout path={launcher}"
+                )
+            time.sleep(0.25)
 
     def verify_uninstalled(self) -> None:
         launcher = (

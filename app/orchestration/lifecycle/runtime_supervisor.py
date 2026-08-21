@@ -460,12 +460,109 @@ class RuntimeSupervisor:
                 )
         return self._operation_result(result, operation_id)
 
-    def stop(self, *, correlation_id: Optional[str] = None) -> ServiceLifecycleResult:
+    def recover_owned(
+        self,
+        *,
+        owner_id: str,
+        expected_instance_id: str,
+        expected_generation: int,
+        expected_core_pid: Optional[int],
+        health_check: Callable[[], bool],
+        correlation_id: Optional[str] = None,
+    ) -> ServiceLifecycleResult:
+        """Recover one exact owned generation through a single serialized command.
+
+        The caller may request recovery only after its own bounded policy fires.
+        This authority revalidates the durable generation before the final health
+        check and again inside ``stop`` before any process signal is possible.
+        """
+        operation_id = correlation_id or uuid.uuid4().hex
+        with self._command_lock():
+            current = self._runtime_record.read()
+            rejection = self._owned_recovery_rejection(
+                current,
+                owner_id=owner_id,
+                expected_instance_id=expected_instance_id,
+                expected_generation=expected_generation,
+                expected_core_pid=expected_core_pid,
+            )
+        if rejection is not None:
+            return self._operation_result(
+                ServiceLifecycleResult(
+                    status="failed",
+                    error=LaunchFailedError(
+                        f"Owned Runtime recovery refused: {rejection}"
+                    ),
+                ),
+                operation_id,
+            )
+
+        try:
+            healthy_now = health_check()
+        except (OSError, RuntimeError, TimeoutError, ValueError):
+            healthy_now = False
+        if healthy_now:
+            return self._operation_result(
+                ServiceLifecycleResult(
+                    status="already_running",
+                    pid=current.component(RuntimeComponent.CORE).pid,
+                ),
+                operation_id,
+            )
+
+        stopped = self.stop(
+            correlation_id=operation_id,
+            expected_owner_id=owner_id,
+            expected_instance_id=expected_instance_id,
+            expected_generation=expected_generation,
+            expected_core_pid=expected_core_pid,
+        )
+        if stopped.status not in {"stopped", "already_stopped"}:
+            return stopped
+        return self.start(owner_id=owner_id, correlation_id=operation_id)
+
+    def stop(
+        self,
+        *,
+        correlation_id: Optional[str] = None,
+        expected_owner_id: Optional[str] = None,
+        expected_instance_id: Optional[str] = None,
+        expected_generation: Optional[int] = None,
+        expected_core_pid: Optional[int] = None,
+    ) -> ServiceLifecycleResult:
         """Quiesce, release the owned authority and retain an OFFLINE snapshot."""
         operation_id = correlation_id or uuid.uuid4().hex
         interrupted_stop: Optional[RuntimeSnapshotV1] = None
         with self._command_lock():
             record = self._runtime_record.read()
+            if expected_owner_id is not None:
+                if expected_instance_id is None or expected_generation is None:
+                    return self._operation_result(
+                        ServiceLifecycleResult(
+                            status="failed",
+                            error=LaunchFailedError(
+                                "Owned Runtime recovery expectation is incomplete"
+                            ),
+                        ),
+                        operation_id,
+                    )
+                rejection = self._owned_recovery_rejection(
+                    record,
+                    owner_id=expected_owner_id,
+                    expected_instance_id=expected_instance_id,
+                    expected_generation=expected_generation,
+                    expected_core_pid=expected_core_pid,
+                )
+                if rejection is not None:
+                    return self._operation_result(
+                        ServiceLifecycleResult(
+                            status="failed",
+                            error=LaunchFailedError(
+                                f"Owned Runtime recovery refused: {rejection}"
+                            ),
+                        ),
+                        operation_id,
+                    )
             if record.phase is RuntimePhase.RECOVERY_REQUIRED:
                 if not self._core_identity_present():
                     return self._operation_result(
@@ -1348,6 +1445,46 @@ class RuntimeSupervisor:
                     failures=(FailureSnapshot("STOP_INCOMPLETE", detail, "stop"),),
                 )
             )
+
+    @staticmethod
+    def _owned_recovery_rejection(
+        record: RuntimeSnapshotV1,
+        *,
+        owner_id: str,
+        expected_instance_id: str,
+        expected_generation: int,
+        expected_core_pid: Optional[int],
+    ) -> Optional[str]:
+        if record.instance_id != expected_instance_id:
+            return "Runtime instance identity changed"
+        if record.generation != expected_generation:
+            return "Runtime generation changed"
+        owner = record.owner_lease
+        if (
+            owner is None
+            or owner.owner_id != owner_id
+            or owner.generation != expected_generation
+        ):
+            return "Runtime owner lease changed"
+        if record.startup_owner_id is not None:
+            return "Runtime has an active startup owner"
+        if record.phase not in {
+            RuntimePhase.CORE_READY,
+            RuntimePhase.WORLD_STARTING,
+            RuntimePhase.WORLD_READY,
+            RuntimePhase.MODEL_PROJECTING,
+            RuntimePhase.LOCAL_MODEL_STARTING,
+            RuntimePhase.FAILED,
+        }:
+            return f"Runtime phase {record.phase.value} is not recoverable"
+        core = record.component(RuntimeComponent.CORE)
+        if core.pid is None:
+            return "Runtime generation has no Core PID"
+        if expected_core_pid is not None and core.pid != expected_core_pid:
+            return "Runtime Core PID changed"
+        if not core.birth_identity or not core.executable or not core.cwd:
+            return "Runtime Core process identity is incomplete"
+        return None
 
     def _owner_matches(self, owner_id: str) -> bool:
         record = self._runtime_record.read()

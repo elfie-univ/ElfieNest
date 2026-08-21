@@ -4,6 +4,7 @@
 
 # 1. 公开文档站源码纳入版本控制；历史草稿统一放入被忽略的 .omo/
 /docs/node_modules/
+/docs/node_modules
 /docs/.vitepress/cache/
 /docs/.vitepress/dist/
 
@@ -93,6 +94,7 @@ dist/
 
 # Developer Tools Web local dependencies
 /devtools/web/node_modules/
+/devtools/web/node_modules
 
 # ZCode CLI workspace metadata
 .zcode/

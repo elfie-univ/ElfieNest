@@ -21,8 +21,9 @@ const AUTHORITY_ENDPOINT := preload("res://runtime/endpoint/authority_endpoint.g
 const OBSERVER_BRIDGE := preload("res://runtime/observer/observer_bridge.gd")
 const OBSERVER_MODE_PARAMETER := "observer"
 const OBSERVER_MODE_VALUE := "product"
-## Temporary authority-side visual behavior; remove when real action control lands.
-const MOCK_WANDER_ENABLED := true
+## Temporary monitor-only visual behavior; remove when real action control lands.
+const MOCK_WANDER_ENABLED := false
+const OBSERVER_LOCAL_MOCK_WANDER_ENABLED := true
 
 @onready var nest: ModularNest = $Nest
 @onready var characters: Node3D = $Characters
@@ -150,7 +151,12 @@ func _start_authority_runtime() -> void:
 func _setup_observer_presentation() -> void:
 	_observer_presentation = OBSERVER_PRESENTATION_CONTROLLER.new()
 	add_child(_observer_presentation)
-	_observer_presentation.setup(nest, characters, _actor_scenes)
+	_observer_presentation.setup(
+		nest,
+		characters,
+		_actor_scenes,
+		OBSERVER_LOCAL_MOCK_WANDER_ENABLED,
+	)
 	_observer_bridge = OBSERVER_BRIDGE.new()
 	add_child(_observer_bridge)
 	_observer_bridge.setup(nest, _observer_presentation, _product_observer_mode)

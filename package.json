@@ -1,7 +1,22 @@
 {
+  "name": "elfienest-desktop",
+  "version": "0.1.0-beta.1",
   "private": true,
+  "type": "module",
+  "description": "ElfieNest 跨平台桌面应用外壳",
+  "homepage": "https://github.com/elfie-univ/ElfieNest",
+  "author": {
+    "name": "ElfieNest contributors",
+    "email": "elfie-univ@users.noreply.github.com"
+  },
+  "main": "bootstrap/desktop_host.mjs",
   "packageManager": "pnpm@10.12.1",
   "engines": {
     "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron"
+    ]
   }
 }

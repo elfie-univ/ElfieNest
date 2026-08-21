@@ -68,7 +68,8 @@ def _ensure_secure_parent(db_path: Path) -> None:
                 raise UnsafeSQLitePathError(
                     db_path, "path contains a non-directory link"
                 ) from None
-        os.chmod(directory, _DIRECTORY_MODE, follow_symlinks=False)
+        if os.name != "nt":
+            os.chmod(directory, _DIRECTORY_MODE, follow_symlinks=False)
 
 
 def _parent_chain(parent: Path) -> Iterable[Path]:

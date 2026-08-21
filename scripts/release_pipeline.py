@@ -282,9 +282,7 @@ def _package_installer(
             application,
             environment,
         )
-        artifacts = tuple(
-            path for path in output.rglob(_installer_glob(target)) if path.is_file()
-        )
+        artifacts = _installer_artifacts(output, target)
         if len(artifacts) != 1:
             raise ReleasePipelineError(
                 f"release-installer-invalid target={target} count={len(artifacts)}"
@@ -380,3 +378,14 @@ def _installer_glob(target: str) -> str:
         raise ReleasePipelineError(
             f"release-target-unsupported target={target}"
         ) from error
+
+
+def _installer_artifacts(output: Path, target: str) -> tuple[Path, ...]:
+    """Return only final top-level installers, never builder work executables."""
+    return tuple(
+        sorted(
+            path
+            for path in output.glob(_installer_glob(target))
+            if path.is_file() and not path.name.endswith(".__uninstaller.exe")
+        )
+    )

@@ -50,6 +50,10 @@ authority credentials or simulation controls. Local presentation pause freezes
 only the Observer's local input/presentation state; it never pauses the Runtime,
 Gateway, Core or backend simulation.
 
+## macOS Wi-Fi name access
+
+The mobile-access QR flow does not depend on the Wi-Fi name: it always uses the available LAN URL. On macOS, the Desktop UI makes an on-demand request for the current Wi-Fi name only when the QR dialog needs to show it. A small foreground helper uses Core Location and CoreWLAN, so macOS can present its normal Location Services authorization prompt. The helper is bundled with the Desktop app, declares the location usage description, and does not use `sudo`, a LaunchDaemon or a background service. If the user declines access, Location Services are disabled, or the OS cannot provide an SSID, the QR code remains usable and the dialog shows a settings link instead.
+
 ## Artifact contract and source checks
 
 The Desktop component is named `desktop-observer` in the Runtime artifact

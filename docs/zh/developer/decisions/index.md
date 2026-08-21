@@ -27,5 +27,6 @@
 - [ADR-0023：分级验证与按检查复用证据](./0023-tiered-validation-and-reuse)
 - [ADR-0024：缺少外部环境时使用显式本地 checkpoint（已废止）](./0024-external-environment-checkpoints)
 - [ADR-0025：保持可执行架构测试通过格式检查](./0025-formatter-clean-executable-architecture-tests)
+- [ADR-0026：SQL 边界扫描器忽略 Python docstring](./0026-ignore-docstrings-in-sql-boundary-scanner)
 - [ADR-0019：Provider 可用性按 Endpoint 定义并由在用路径驱动](./0019-provider-endpoint-availability)
 - [ADR-0020：配置驱动的物种包](./0020-configuration-driven-species-packages)

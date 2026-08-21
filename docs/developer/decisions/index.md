@@ -28,5 +28,6 @@ The current contract always states the enforceable rule.
 - [ADR-0023: Tiered validation and check-scoped evidence reuse](./0023-tiered-validation-and-reuse)
 - [ADR-0024: Explicit local checkpoints for unavailable platform acceptance (superseded)](./0024-external-environment-checkpoints)
 - [ADR-0025: Keep executable architecture tests formatter-clean](./0025-formatter-clean-executable-architecture-tests)
+- [ADR-0026: Ignore Python docstrings in the SQL boundary scanner](./0026-ignore-docstrings-in-sql-boundary-scanner)
 - [ADR-0019: Provider availability is endpoint-scoped and serving-driven](./0019-provider-endpoint-availability)
 - [ADR-0020: Configuration-driven species packages](./0020-configuration-driven-species-packages)

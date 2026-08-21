@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/elfienest-uv-cache}"
 
 # Default arguments
 TIER="dev"
@@ -113,6 +114,8 @@ ensure_python() {
     local sync_args="--locked"
     if [[ "$TIER" == "build" ]]; then
         sync_args="$sync_args --no-dev --extra release"
+    else
+        sync_args="$sync_args --extra dev"
     fi
 
     if ! UV_PROJECT_ENVIRONMENT="$PROJECT_ROOT/.venv" "$uv_bin" sync $sync_args >&2; then

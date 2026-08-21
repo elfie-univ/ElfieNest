@@ -11,3 +11,13 @@ if [ -L "$launcher" ]; then
             ;;
     esac
 fi
+
+gui_launcher="/usr/bin/elfienest-gui"
+if [ -L "$gui_launcher" ]; then
+    target="$(readlink "$gui_launcher")"
+    case "$target" in
+        /opt/ElfieNest/elfienest-gui)
+            rm -f "$gui_launcher"
+            ;;
+    esac
+fi

@@ -16,6 +16,8 @@ vi.mock("../api/http", async (importOriginal) => {
 type MonitorFixture = {
   readonly healthStatus: string
   readonly runtimeStatus: string
+  readonly runtimePhase?: "preflight" | "core_starting" | "world_starting"
+  readonly godotRuntimeReady?: boolean
   readonly noCoreModel?: boolean
   readonly noFoods?: boolean
   readonly emergencyDegraded?: boolean
@@ -87,6 +89,16 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     fireEvent.click(lastButton("Refresh status"))
     await screen.findByText("Services healthy")
     expect(screen.getAllByText("Runtime status recovered.")).toHaveLength(1)
+  })
+
+  it("shows Godot startup as pending instead of an error", async () => {
+    mockSnapshot({ ...healthyFixture, godotRuntimeReady: false, runtimePhase: "world_starting" })
+    renderPanel()
+
+    const health = await screen.findByText("Starting")
+    expect(health.closest("article")).toHaveClass("monitor-metric--neutral")
+    expect(screen.getByText("(Subservice: Godot runtime starting)")).toBeInTheDocument()
+    expect(screen.queryByText("Error")).not.toBeInTheDocument()
   })
 
   it("keeps available cards visible while a refresh source is unavailable", async () => {
@@ -304,11 +316,12 @@ function mockSnapshot(fixture: MonitorFixture): void {
 function monitorPayload(path: string, fixture: MonitorFixture): unknown {
   switch (path) {
     case "/api/health":
-      return { status: fixture.healthStatus, engine_ready: true, godot_web_ready: true, godot_runtime_ready: true, instance_id: "test", generation: 1 }
+      return { status: fixture.healthStatus, engine_ready: true, godot_web_ready: true, godot_runtime_ready: fixture.godotRuntimeReady ?? true, instance_id: "test", generation: 1 }
     case "/api/v1/admin/runtime/status":
       return {
         status: fixture.runtimeStatus,
         observer: { event_count: 1, last_event: null },
+        ...(fixture.runtimePhase === undefined ? {} : { lifecycle: lifecyclePayload(fixture.runtimePhase) }),
       }
     case "/api/v1/admin/users":
       return { items: [{ presence: "online" }, { presence: "online" }] }
@@ -392,6 +405,29 @@ function monitorPayload(path: string, fixture: MonitorFixture): unknown {
       }
     default:
       return { endpoint: "https://raw.example/v1" }
+  }
+}
+
+function lifecyclePayload(phase: NonNullable<MonitorFixture["runtimePhase"]>): unknown {
+  return {
+    schema_version: 1,
+    instance_id: "test",
+    generation: 1,
+    revision: 1,
+    tier: "core_ready",
+    phase,
+    subphase: "authority_starting",
+    desired_target: "normal",
+    reached_target: "core",
+    components: [{ component: "godot_authority", state: "starting", detail: "", pid: null, executable: null, birth_identity: null }],
+    endpoints: [],
+    model_state: "ready",
+    model_common_state: "ready",
+    model_emergency_state: "ready",
+    model_revision: 1,
+    failures: [],
+    timings: [],
+    protocol_versions: [],
   }
 }
 

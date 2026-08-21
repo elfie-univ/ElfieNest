@@ -210,7 +210,7 @@ jobs:
           dpkg-deb --extract "$artifact" "$extract_root"
           test -x "$extract_root/opt/ElfieNest/resources/management-cli/ElfieNestCli"
           test -f "$extract_root/opt/ElfieNest/resources/manifest.json"
-          test -x "$extract_root/usr/bin/elfienest-gui"
+          test -x "$extract_root/opt/ElfieNest/elfienest-gui"
 
       - name: Upload target installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -277,43 +277,6 @@ jobs:
             exit 1
           }
           printf 'release_tag=%s\nversion=%s\n' "$release_tag" "$version" >> "$GITHUB_OUTPUT"
-          (
-            cd release-artifacts
-            sha256sum *.pkg *.exe *.deb
-          ) > release-artifacts/SHA256SUMS
-          python - "$release_tag" "$version" "${packages[@]}" <<'PY'
-          import hashlib
-          import json
-          import sys
-          from pathlib import Path
-
-          tag, version, *names = sys.argv[1:]
-          targets = {
-              "darwin-arm64": "mac-arm64",
-              "darwin-x64": "mac-x64",
-              "win32-x64": "win-x64",
-              "linux-x64": "linux-x64",
-          }
-          artifacts = []
-          for name in names:
-              path = Path(name)
-              filename = path.name
-              target = next((key for key, suffix in targets.items() if suffix in filename), None)
-              if target is None:
-                  raise SystemExit(f"unrecognized installer target: {filename}")
-              artifacts.append({
-                  "target": target,
-                  "url": f"https://github.com/{__import__('os').environ['GITHUB_REPOSITORY']}/releases/download/{tag}/{filename}",
-                  "size": path.stat().st_size,
-                  "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-              })
-          if {entry["target"] for entry in artifacts} != set(targets):
-              raise SystemExit("release target set is incomplete")
-          Path("release-artifacts/manifest.json").write_text(
-              json.dumps({"schema_version": 1, "version": version, "artifacts": artifacts}, indent=2) + "\n",
-              encoding="utf-8",
-          )
-          PY
 
       - name: Create GitHub Release and upload installers
         env:
@@ -331,7 +294,4 @@ jobs:
             "${release_args[@]}" \
             release-artifacts/*.pkg \
             release-artifacts/*.exe \
-            release-artifacts/*.deb \
-            release-artifacts/*-install-smoke.json \
-            release-artifacts/SHA256SUMS \
-            release-artifacts/manifest.json
+            release-artifacts/*.deb

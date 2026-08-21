@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from infrastructure.persistence.nest_db import sqlite_connection
 from infrastructure.persistence.nest_db.sqlite_connection import (
     UnsafeSQLitePathError,
     app_sqlite_connection,
@@ -16,6 +17,32 @@ from infrastructure.persistence.nest_db.sqlite_connection import (
 
 class RollbackProbeError(Exception):
     """Sentinel exception used to verify transaction rollback."""
+
+
+def test_connection_creates_database_without_posix_o_nofollow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: Windows does not expose the POSIX-only O_NOFOLLOW flag.
+    real_os = sqlite_connection.os
+
+    class WindowsOsProxy:
+        name = "nt"
+
+        def __getattr__(self, attribute: str):
+            if attribute == "O_NOFOLLOW":
+                raise AttributeError(attribute)
+            return getattr(real_os, attribute)
+
+    monkeypatch.setattr(sqlite_connection, "os", WindowsOsProxy())
+
+    # When: a new application database is opened on that platform.
+    db_path = tmp_path / "knowledge.sqlite"
+    with sqlite_connection.app_sqlite_connection(db_path) as connection:
+        connection.execute("CREATE TABLE events (name TEXT NOT NULL)")
+
+    # Then: the database is created without the unavailable flag.
+    assert db_path.is_file()
 
 
 def test_connection_enables_rows_foreign_keys_and_private_mode(tmp_path: Path) -> None:

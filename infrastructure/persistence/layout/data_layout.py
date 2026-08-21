@@ -243,7 +243,8 @@ def _ensure_directories(paths: Iterable[Path]) -> None:
                 raise UnsafeDataLayoutPathError(candidate)
     for path in directories:
         path.mkdir(mode=_DIRECTORY_MODE, exist_ok=True)
-        os.chmod(path, _DIRECTORY_MODE, follow_symlinks=False)
+        if os.name != "nt":
+            os.chmod(path, _DIRECTORY_MODE, follow_symlinks=False)
 
 
 def ensure_final_root_layout(data_home: Path) -> FinalRootLayout:

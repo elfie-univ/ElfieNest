@@ -14,6 +14,7 @@ vi.mock("qrcode", () => ({ default: { toDataURL: toDataURLMock } }))
 describe("MobileAccessDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    delete window.elfienestDesktop
     toDataURLMock.mockResolvedValue("data:image/png;base64,qr")
   })
 
@@ -68,5 +69,57 @@ describe("MobileAccessDialog", () => {
     expect(await screen.findByRole("heading", { name: "第一步　手机连接同一无线网" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "第二步　用手机扫描二维码" })).toBeInTheDocument()
     expect(screen.queryByText("无线网名称未识别")).not.toBeInTheDocument()
+  })
+
+  it("uses the Desktop native helper when the API cannot read the Wi-Fi name", async () => {
+    const readCurrentWifiName = vi.fn().mockResolvedValue({
+      status: "available",
+      network_name: "Elfie Home",
+    })
+    window.elfienestDesktop = {
+      readCurrentWifiName,
+      openLocationSettings: vi.fn().mockResolvedValue(undefined),
+    }
+    mobileAccessMock.mockResolvedValue({
+      available: true,
+      network_name: null,
+      urls: ["http://192.168.1.8:15212/"],
+    })
+
+    render(
+      <I18nextProvider i18n={createI18n()}>
+        <MobileAccessDialog onClose={vi.fn()} />
+      </I18nextProvider>,
+    )
+
+    expect(await screen.findByText("Elfie Home")).toBeInTheDocument()
+    expect(readCurrentWifiName).toHaveBeenCalledOnce()
+    expect(screen.getByRole("heading", { name: "第一步　手机连接无线网" })).toBeInTheDocument()
+  })
+
+  it("keeps the QR flow available when the native permission is denied", async () => {
+    const openLocationSettings = vi.fn().mockResolvedValue(undefined)
+    window.elfienestDesktop = {
+      readCurrentWifiName: vi.fn().mockResolvedValue({
+        status: "permission_denied",
+        network_name: null,
+      }),
+      openLocationSettings,
+    }
+    mobileAccessMock.mockResolvedValue({
+      available: true,
+      network_name: null,
+      urls: ["http://192.168.1.8:15212/"],
+    })
+
+    render(
+      <I18nextProvider i18n={createI18n()}>
+        <MobileAccessDialog onClose={vi.fn()} />
+      </I18nextProvider>,
+    )
+
+    expect(await screen.findByText("没有获得读取无线网名称的权限。只要手机和电脑在同一局域网，仍可继续扫码。")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "打开定位服务设置" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "第二步　用手机扫描二维码" })).toBeInTheDocument()
   })
 })

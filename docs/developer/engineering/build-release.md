@@ -78,9 +78,9 @@ pipeline. It uses native GitHub-hosted runners for macOS arm64, macOS Intel,
 Windows x64, and Linux x64. A `workflow_dispatch` run builds all four installers
 and keeps them as Actions artifacts. Pushing a tag matching the project version,
 for example `v0.1.0-beta.1`, runs the same matrix, validates the native installer
-contents, publishes each typed install-smoke JSON beside its installer, and
-publishes the four installers, `SHA256SUMS`, and a release `manifest.json` to
-GitHub Releases. Pre-release tags are published with GitHub's
+contents, and publishes only the four user-downloadable installers to GitHub
+Releases. The typed install-smoke JSON remains in the Actions build artifact
+for CI evidence and is not presented as a Release download. Pre-release tags are published with GitHub's
 pre-release flag; a manual run only creates a Release when
 `publish_release` is enabled and `release_tag` is set to the matching tag.
 

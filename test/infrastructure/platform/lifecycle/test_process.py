@@ -32,6 +32,77 @@ def test_process_adapter_returns_a_strict_snapshot() -> None:
     assert snapshot.command == ("python", "scripts/serve.py")
 
 
+def test_windows_process_inspector_uses_native_birth_identity(monkeypatch) -> None:
+    real_os = process.os
+
+    class WindowsOsProxy:
+        name = "nt"
+
+        def __getattr__(self, attribute: str):
+            return getattr(real_os, attribute)
+
+    monkeypatch.setattr(process, "os", WindowsOsProxy())
+    monkeypatch.setattr(
+        process,
+        "_windows_process_birth_identity",
+        lambda pid: f"win32-create:{pid}",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        process.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("Windows birth identity must not invoke ps")
+        ),
+    )
+
+    assert process.DefaultProcessInspector().birth_identity(17) == "win32-create:17"
+
+
+def test_windows_process_inspector_uses_native_process_queries(monkeypatch) -> None:
+    real_os = process.os
+
+    class WindowsOsProxy:
+        name = "nt"
+
+        def __getattr__(self, attribute: str):
+            return getattr(real_os, attribute)
+
+    monkeypatch.setattr(process, "os", WindowsOsProxy())
+    monkeypatch.setattr(
+        process,
+        "_windows_process_exists",
+        lambda pid: pid == 17,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        process,
+        "_windows_process_command",
+        lambda pid: (
+            r"C:\Program Files\ElfieNest\resources\python-core\ElfieNestCore.exe",
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        process,
+        "_windows_process_cwd",
+        lambda pid: Path(r"C:\Program Files\ElfieNest"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        process.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("Windows process inspection must not invoke Unix tools")
+        ),
+    )
+    inspector = process.DefaultProcessInspector()
+
+    assert inspector.exists(17)
+    assert inspector.command(17)[0].endswith("ElfieNestCore.exe")
+    assert inspector.cwd(17) == Path(r"C:\Program Files\ElfieNest")
+
+
 def test_process_adapter_pid_receipt_is_owned_and_private(tmp_path: Path) -> None:
     adapter = LocalServiceProcessAdapter()
 
@@ -43,6 +114,34 @@ def test_process_adapter_pid_receipt_is_owned_and_private(tmp_path: Path) -> Non
     assert pid_path.exists()
     adapter.remove_receipt(tmp_path, 424242)
     assert not pid_path.exists()
+
+
+def test_process_adapter_skips_posix_fchmod_on_windows(
+    monkeypatch, tmp_path: Path
+) -> None:
+    # Given: Windows does not provide the POSIX fchmod operation.
+    def unsupported_fchmod(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("Windows must not call POSIX-only fchmod")
+
+    real_os = process.os
+
+    class WindowsOsProxy:
+        name = "nt"
+
+        def __getattr__(self, attribute: str):
+            return getattr(real_os, attribute)
+
+        @staticmethod
+        def fchmod(*_args: object, **_kwargs: object) -> None:
+            unsupported_fchmod()
+
+    monkeypatch.setattr(process, "os", WindowsOsProxy())
+
+    # When: the managed service writes its PID receipt.
+    pid_path = LocalServiceProcessAdapter().register_receipt(tmp_path, 424242)
+
+    # Then: the receipt is still created with the platform default ACL.
+    assert pid_path.read_text(encoding="utf-8") == "424242"
 
 
 def test_process_adapter_terminates_the_managed_process_group(monkeypatch) -> None:
@@ -85,6 +184,7 @@ def test_process_adapter_starts_a_windows_process_group(
     monkeypatch, tmp_path: Path
 ) -> None:
     calls: list[dict[str, object]] = []
+    monkeypatch.setenv("ELFIENEST_RUNTIME_LOG", str(tmp_path / "runtime.log"))
 
     class Process:
         pid = 99
@@ -138,6 +238,7 @@ def test_process_adapter_kills_child_when_windows_job_attach_fails(
     monkeypatch, tmp_path: Path
 ) -> None:
     calls: list[str] = []
+    monkeypatch.setenv("ELFIENEST_RUNTIME_LOG", str(tmp_path / "runtime.log"))
 
     class Process:
         pid = 99

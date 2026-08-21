@@ -83,6 +83,39 @@ def test_release_pipeline_uses_bash_for_bootstrap_and_npx_cmd_on_windows(
     assert npx == ("npx.cmd", "--version")
 
 
+def test_packaged_cli_imports_when_windows_readline_is_unavailable() -> None:
+    # Given: Windows does not provide the POSIX readline extension imported on macOS/Linux.
+    entrypoint = PROJECT_ROOT / "scripts" / "elfienest.py"
+    probe = f"""
+import builtins
+import runpy
+
+original_import = builtins.__import__
+
+def import_without_readline(name, globals=None, locals=None, fromlist=(), level=0):
+    if name == "readline":
+        raise ModuleNotFoundError("No module named 'readline'", name="readline")
+    return original_import(name, globals, locals, fromlist, level)
+
+builtins.__import__ = import_without_readline
+namespace = runpy.run_path({str(entrypoint)!r}, run_name="elfienest_windows_probe")
+assert callable(namespace["main"])
+"""
+
+    # When: the frozen CLI entrypoint is imported in that environment.
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=PROJECT_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    # Then: optional line-editing support cannot prevent the CLI from starting.
+    assert result.returncode == 0, result.stderr
+    assert "ModuleNotFoundError" not in result.stderr
+
+
 def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate() -> (
     None
 ):
@@ -119,7 +152,20 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     assert "release_args+=(--prerelease)" in source
     assert "--prebuilt-godot-web" in source
     assert "--run-install-smoke" in source
-    assert "*-install-smoke.json" in source
+    assert "dist/ElfieNest-${RELEASE_TARGET}-install-smoke.json" in source
+    assert "release-artifacts/*-install-smoke.json" not in source
+    assert "SHA256SUMS" not in source
+    assert "release-artifacts/manifest.json" not in source
+    assert 'test -x "$extract_root/opt/ElfieNest/elfienest-gui"' in source
+    assert 'test -x "$extract_root/usr/bin/elfienest-gui"' not in source
+
+    # Public filenames must describe the platform without exposing the CI-only
+    # internal build channel.
+    artifact_config = (
+        PROJECT_ROOT / "app" / "bootstrap" / "desktop_host" / "electron-builder.yml"
+    ).read_text(encoding="utf-8")
+    assert "artifactName: ElfieNest-${version}-${os}-${arch}.${ext}" in artifact_config
+    assert "-internal-" not in artifact_config
 
 
 def test_prebuilt_godot_web_step_checks_the_shared_runtime_without_exporting(
@@ -373,7 +419,7 @@ def test_native_pipeline_passes_the_exact_target_to_the_packager(tmp_path) -> No
     core = tmp_path / "ElfieNestCore"
     cli = tmp_path / "ElfieNestCli"
     resources = tmp_path / "resources"
-    artifact = tmp_path / "ElfieNest-0.1.0-internal-mac-arm64.pkg"
+    artifact = tmp_path / "ElfieNest-0.1.0-mac-arm64.pkg"
 
     def package(target: str, received_resources, environment: dict[str, str]):
         assert received_resources == resources
@@ -514,11 +560,21 @@ def test_native_installers_publish_the_global_cli_launcher_contract() -> None:
     assert "-gc" in mac
     assert '-f "$app"' in mac
     assert "/usr/local/bin/elfienest" in linux_install
+    assert 'app_root="/opt/ElfieNest"' in linux_install
+    assert 'gui="$app_root/elfienest-gui"' in linux_install
+    assert 'ln -sfn "$gui" /usr/bin/elfienest-gui' in linux_install
     assert "resources/management-cli/ElfieNestCli" in linux_install
+    assert "/usr/bin/elfienest-gui" in linux_remove
     assert "resources/management-cli/ElfieNestCli" in linux_remove
     assert "management-cli\\ElfieNestCli.exe" in windows
     assert "customInstall" in windows
+    assert "Call ElfieNestAddLauncherPath" not in windows
+    assert "Function ElfieNestAddLauncherPath" not in windows
+    assert "!ifndef BUILD_UNINSTALLER\n${StrStr}\n!else\n${UnStrRep}\n!endif" in windows
     assert "customUnInstall" in windows
+    # Defining customRemoveFiles would bypass electron-builder's standard
+    # recursive application-file cleanup.
+    assert "customRemoveFiles" not in windows
     assert "Call un.ElfieNestRemoveLauncherPath" in windows
     assert "Function un.ElfieNestRemoveLauncherPath" in windows
     assert "${UnStrRep}" in windows
@@ -531,7 +587,7 @@ def test_release_cli_only_reports_success_after_its_native_pipeline_finishes(
     tmp_path: Path,
 ) -> None:
     # Given: an otherwise native release request with a deterministic pipeline.
-    artifact = tmp_path / "ElfieNest-0.1.0-internal-mac-arm64.pkg"
+    artifact = tmp_path / "ElfieNest-0.1.0-mac-arm64.pkg"
     calls: list[str] = []
     monkeypatch.setattr(
         release.package_python_core, "host_target", lambda: "darwin-arm64"
@@ -691,7 +747,7 @@ def test_packager_publishes_only_the_verified_single_native_installer(
         )
         output = Path(output_argument.split("=", 1)[1])
         output.mkdir(parents=True)
-        (output / "ElfieNest-0.1.0-internal-mac-arm64.pkg").write_bytes(b"installer")
+        (output / "ElfieNest-0.1.0-mac-arm64.pkg").write_bytes(b"installer")
 
     monkeypatch.setattr(release_pipeline, "BUILD_DIR", build_root)
     monkeypatch.setattr(release_pipeline, "DIST_DIR", dist_root)
@@ -705,12 +761,36 @@ def test_packager_publishes_only_the_verified_single_native_installer(
     )
 
     # Then: only the final installer appears in dist and its target reaches the builder.
-    assert artifact == dist_root / "ElfieNest-0.1.0-internal-mac-arm64.pkg"
+    assert artifact == dist_root / "ElfieNest-0.1.0-mac-arm64.pkg"
     assert artifact.read_bytes() == b"installer"
     assert observed_environment["ELFIENEST_TARGET"] == "darwin-arm64"
     assert observed_environment["ELFIENEST_PROJECT_ROOT"] == str(PROJECT_ROOT)
     assert not (build_root / "package-output" / "darwin-arm64").exists()
     assert not (build_root / "desktop-host-app" / "darwin-arm64").exists()
+
+
+def test_windows_installer_discovery_ignores_builder_work_files(
+    tmp_path: Path,
+) -> None:
+    # Given: electron-builder emitted one installer alongside its transient
+    # uninstaller and executable files nested in the unpacked application.
+    installer = tmp_path / "ElfieNest-0.1.0-beta.1-win-x64.exe"
+    installer.write_bytes(b"installer")
+    (tmp_path / "ElfieNest-0.1.0-beta.1-win-x64.__uninstaller.exe").write_bytes(
+        b"temporary"
+    )
+    unpacked = tmp_path / "win-unpacked"
+    unpacked.mkdir()
+    (unpacked / "ElfieNest.exe").write_bytes(b"application")
+    resources = unpacked / "resources" / "management-cli"
+    resources.mkdir(parents=True)
+    (resources / "ElfieNestCli.exe").write_bytes(b"cli")
+
+    # When: the release pipeline discovers publishable Windows artifacts.
+    artifacts = release_pipeline._installer_artifacts(tmp_path, "win32-x64")
+
+    # Then: only the top-level final installer can be promoted into dist/.
+    assert artifacts == (installer,)
 
 
 def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
@@ -736,7 +816,7 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
         )
         output = Path(output_argument.split("=", 1)[1])
         output.mkdir(parents=True)
-        (output / "ElfieNest-0.1.0-internal-mac-arm64.pkg").write_bytes(b"installer")
+        (output / "ElfieNest-0.1.0-mac-arm64.pkg").write_bytes(b"installer")
 
     monkeypatch.setattr(release_pipeline, "BUILD_DIR", build_root)
     monkeypatch.setattr(release_pipeline, "DIST_DIR", dist_root)
@@ -787,7 +867,7 @@ def test_packager_replaces_a_previous_same_version_local_artifact(
     resources = build_root / "staging" / "darwin-arm64" / "resources"
     resources.mkdir(parents=True)
     _create_built_desktop_interface(build_root)
-    destination = dist_root / "ElfieNest-0.1.0-internal-mac-arm64.pkg"
+    destination = dist_root / "ElfieNest-0.1.0-mac-arm64.pkg"
     destination.parent.mkdir()
     destination.write_bytes(b"previous")
 

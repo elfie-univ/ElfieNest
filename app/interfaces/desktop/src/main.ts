@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  ipcMain,
   Menu,
   nativeImage,
   shell,
@@ -30,6 +31,10 @@ import {
   ManagedRuntimeLifecycleClient,
   ProcessLifecycleCommandRunner,
 } from "./lifecycle_client.js";
+import {
+  LOCATION_SERVICES_SETTINGS_URL,
+  readCurrentWifiName,
+} from "./mobile_network_access.js";
 import { loadAndValidateResourceManifest } from "./resources/resource_manifest.js";
 import {
   createMainWindow,
@@ -519,6 +524,19 @@ async function ensureControllerRuntime(): Promise<void> {
 }
 
 startDesktopUiRole();
+
+ipcMain.handle("mobile-network:read-current-wifi", async () => {
+  return readCurrentWifiName({
+    platform: process.platform,
+    resourcesPath: process.resourcesPath,
+  });
+});
+
+ipcMain.handle("mobile-network:open-location-settings", async () => {
+  if (process.platform === "darwin") {
+    await shell.openExternal(LOCATION_SERVICES_SETTINGS_URL);
+  }
+});
 
 app.on("before-quit", (event) => {
   if (!explicitExitRequested || exitInProgress) {

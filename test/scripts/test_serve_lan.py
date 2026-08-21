@@ -21,6 +21,54 @@ def test_service_host_binds_loopback_unless_lan_is_explicit() -> None:
     assert service_host(lan=True) == "0.0.0.0"
 
 
+def test_console_output_is_utf8_safe_for_frozen_windows_core(monkeypatch) -> None:
+    # Given: a frozen Windows Core whose console stream defaults to cp1252.
+    class Stream:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, str]] = []
+
+        def reconfigure(self, **kwargs: str) -> None:
+            self.calls.append(kwargs)
+
+    stdout = Stream()
+    stderr = Stream()
+    monkeypatch.setattr(serve.sys, "stdout", stdout)
+    monkeypatch.setattr(serve.sys, "stderr", stderr)
+
+    # When: the service configures its startup streams.
+    serve._configure_console_encoding()
+
+    # Then: Unicode startup diagnostics cannot crash on the Windows code page.
+    expected = {"encoding": "utf-8", "errors": "backslashreplace"}
+    assert stdout.calls == [expected]
+    assert stderr.calls == [expected]
+
+
+def test_management_cli_console_output_is_utf8_safe_on_windows(monkeypatch) -> None:
+    # Given: the packaged management CLI uses a Windows code-page stream.
+    from scripts import elfienest
+
+    class Stream:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, str]] = []
+
+        def reconfigure(self, **kwargs: str) -> None:
+            self.calls.append(kwargs)
+
+    stdout = Stream()
+    stderr = Stream()
+    monkeypatch.setattr(elfienest.sys, "stdout", stdout)
+    monkeypatch.setattr(elfienest.sys, "stderr", stderr)
+
+    # When: the management CLI configures its startup streams.
+    elfienest._configure_console_encoding()
+
+    # Then: lifecycle progress symbols cannot crash the packaged CLI.
+    expected = {"encoding": "utf-8", "errors": "backslashreplace"}
+    assert stdout.calls == [expected]
+    assert stderr.calls == [expected]
+
+
 def test_prepare_godot_web_runtime_uses_ensure_for_development() -> None:
     calls: list[tuple[str, bool]] = []
 
