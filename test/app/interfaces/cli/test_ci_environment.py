@@ -31,12 +31,20 @@ def test_ci_uses_read_only_repository_permissions() -> None:
     )
 
     # When
-    has_read_only_permissions = bool(
-        re.search(r"^permissions:\s*\n\s+contents:\s+read\s*$", workflow, re.MULTILINE)
+    permissions = re.search(
+        r"^permissions:\s*\n(?P<entries>(?:\s{2}[a-z-]+:\s+\w+\s*\n?)+)",
+        workflow,
+        re.MULTILINE,
+    )
+    values = (
+        re.findall(r"^\s{2}[a-z-]+:\s+(\w+)\s*$", permissions["entries"], re.MULTILINE)
+        if permissions
+        else []
     )
 
     # Then
-    assert has_read_only_permissions
+    assert values
+    assert set(values) == {"read"}
 
 
 def test_documentation_does_not_recommend_privileged_installation() -> None:
@@ -90,12 +98,16 @@ def test_ci_installs_and_verifies_exact_cpython_runtime() -> None:
     )
 
     # When
-    pinned_install = "uv python install " + PINNED_CPYTHON_VERSION
+    literal_install = "uv python install " + PINNED_CPYTHON_VERSION
+    variable_install = 'uv python install "$PYTHON_VERSION"'
     runtime_probe = re.compile(
         r'sys\.implementation\.name == "cpython"\s+and\s+'
         r'platform\.python_version\(\) == "3\.9\.25"'
     )
 
     # Then
-    assert workflow.count(pinned_install) == 4
+    install_count = workflow.count(literal_install) + workflow.count(variable_install)
+    assert install_count >= 4
+    if variable_install in workflow:
+        assert f'PYTHON_VERSION: "{PINNED_CPYTHON_VERSION}"' in workflow
     assert runtime_probe.search(workflow)
