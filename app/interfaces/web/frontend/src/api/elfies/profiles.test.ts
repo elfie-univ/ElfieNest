@@ -1,11 +1,19 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { requestJson } from "../http"
-import { elfies, profile } from "./profiles"
+import { elfiePortraitUrl, elfies, profile, saveElfiePortrait } from "./profiles"
 
-vi.mock("../http", () => ({ requestJson: vi.fn() }))
+vi.mock("../http", () => ({
+  csrfHeaders: (csrfToken: string) => ({ "X-CSRF-Token": csrfToken }),
+  requestJson: vi.fn(),
+}))
 
 describe("member Elfies client", () => {
+  it("builds an encoded portrait URL for each supported framing", () => {
+    expect(elfiePortraitUrl("elfie/one", "full_body")).toBe("/api/v1/elfies/elfie%2Fone/portrait?kind=full_body")
+    expect(elfiePortraitUrl("elfie/one")).toBe("/api/v1/elfies/elfie%2Fone/portrait?kind=headshot")
+  })
+
   it("unwraps the strict visible collection without adjacent-domain facts", async () => {
     vi.mocked(requestJson).mockResolvedValue({ items: [{
       relationship: "owned",
@@ -55,5 +63,25 @@ describe("member Elfies client", () => {
     expect(result.name).toBe("Kettle")
     expect(result.relationship).toBe("other")
     expect(result.private_cognition).toBeNull()
+  })
+
+  it("uploads the selected PNG with the session CSRF token", async () => {
+    vi.mocked(requestJson).mockClear()
+    vi.mocked(requestJson).mockResolvedValue({
+      portrait_url: "/api/v1/elfies/00000001/portrait",
+    })
+    const image = new Blob(["png"], { type: "image/png" })
+
+    await expect(saveElfiePortrait("elfie/one", image, "csrf-token")).resolves.toBe(
+      "/api/v1/elfies/00000001/portrait",
+    )
+
+    const call = vi.mocked(requestJson).mock.calls[0]
+    expect(call?.[0]).toBe("/api/v1/elfies/elfie%2Fone/portrait")
+    const init = call?.[1]
+    expect(init?.method).toBe("PUT")
+    expect(init?.headers).toEqual({ "X-CSRF-Token": "csrf-token" })
+    expect(init?.body).toBeInstanceOf(FormData)
+    expect((init?.body as FormData).get("file")).toBeInstanceOf(File)
   })
 })

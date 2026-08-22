@@ -13,6 +13,7 @@ const CONTACT_INTENSITY_THRESHOLD := 0.15
 
 @export var species_id := ""
 @export var install_shared_animations := true
+@export var install_preview_poses := false
 
 var elfie_id := ""
 var active_command_id := ""
@@ -57,6 +58,7 @@ func _ready() -> void:
 		_visual_root,
 		_animation_player,
 		install_shared_animations and has_skeleton,
+		install_preview_poses and has_skeleton,
 	)
 
 
@@ -67,12 +69,19 @@ func configure(
 ) -> void:
 	elfie_id = identity
 	global_position = spawn_position
+	if install_preview_poses:
+		# The preview must start from the GLB bind/rest pose. The shared idle
+		# clip is a runtime animation with a different arm position and is not
+		# the same visual as the model's authored starting pose.
+		_animation_runtime.reset_preview_pose()
 	ACTOR_APPEARANCE.apply(_visual_root, _collision_shape, appearance, species_id)
-	_play_animation("idle")
+	if not install_preview_poses:
+		_play_animation("idle")
 
 
 func prepare_preview() -> void:
 	install_shared_animations = false
+	install_preview_poses = true
 
 
 func move_to(

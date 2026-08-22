@@ -40,8 +40,10 @@ DEFAULT_OUTPUT = PROJECT_ROOT / "build" / "components" / "godot-web"
 PRESET_NAME = "Web"
 ENTRY_NAME = "elfienest.html"
 REQUIRED_SUFFIXES = (".html", ".js", ".wasm", ".pck")
-LAN_HTTP_COMPATIBILITY_VERSION = "lan-http-v2"
+LAN_HTTP_COMPATIBILITY_VERSION = "lan-http-v3"
+CANVAS_CAPTURE_VERSION = "canvas-capture-v1"
 LAN_HTTP_COMPATIBILITY_MARKER = "elfienest:lan-http-compatibility"
+CANVAS_CAPTURE_MARKER = "elfienest:webgl-canvas-capture"
 _SECURE_CONTEXT_FEATURE = "Secure Context - Check web server configuration (use HTTPS)"
 _MISSING_FEATURES_STATEMENT = (
     "\tconst missing = Engine.getMissingFeatures({\n"
@@ -67,6 +69,25 @@ if (ELFIE_NEST_LAN_HTTP && window.AudioContext && !('audioWorklet' in window.Aud
 \t\tget: () => ({ addModule: () => Promise.resolve() }),
 \t});
 }
+"""
+_CANVAS_CAPTURE_SCRIPT = """// elfienest:webgl-canvas-capture
+// Keep the WebGL drawing buffer available for the in-game portrait capture.
+// Without this, toDataURL() can read the previous camera frame after a focus change.
+(function patchGodotCanvasCapture() {
+\tconst canvas = document.getElementById('canvas');
+\tif (!canvas || !window.HTMLCanvasElement) return;
+\tconst prototype = window.HTMLCanvasElement.prototype;
+\tconst originalGetContext = prototype.getContext;
+\tif (originalGetContext.__elfieNestCapturePatched) return;
+\tconst patchedGetContext = function (type, attributes) {
+\t\tif (this === canvas && (type === 'webgl' || type === 'webgl2')) {
+\t\t\tattributes = Object.assign({}, attributes || {}, { preserveDrawingBuffer: true });
+\t\t}
+\t\treturn originalGetContext.call(this, type, attributes);
+\t};
+\tpatchedGetContext.__elfieNestCapturePatched = true;
+\tprototype.getContext = patchedGetContext;
+}());
 """
 
 
@@ -309,6 +330,8 @@ def current_source_fingerprint() -> str:
     digest = hashlib.sha256()
     digest.update(LAN_HTTP_COMPATIBILITY_VERSION.encode("utf-8"))
     digest.update(b"\0")
+    digest.update(CANVAS_CAPTURE_VERSION.encode("utf-8"))
+    digest.update(b"\0")
     if not GODOT_PROJECT.is_dir():
         return digest.hexdigest()
     for path in sorted(item for item in GODOT_PROJECT.rglob("*") if item.is_file()):
@@ -330,28 +353,38 @@ def current_species_catalog_digest() -> str:
 def patch_web_entry_for_lan_http(entry: Path) -> None:
     """Make the single-threaded Godot observer start on an explicitly enabled LAN HTTP origin."""
     text = entry.read_text(encoding="utf-8")
-    if LAN_HTTP_COMPATIBILITY_MARKER in text:
-        return
-    if _MISSING_FEATURES_STATEMENT not in text:
-        raise RuntimeError(
-            f"Godot Web entry format is unsupported; cannot patch {entry}"
+    if LAN_HTTP_COMPATIBILITY_MARKER not in text:
+        if _MISSING_FEATURES_STATEMENT not in text:
+            raise RuntimeError(
+                f"Godot Web entry format is unsupported; cannot patch {entry}"
+            )
+        config_marker = "const GODOT_CONFIG ="
+        if config_marker not in text:
+            raise RuntimeError(
+                f"Godot Web entry is missing its configuration block; cannot patch {entry}"
+            )
+        text = text.replace(
+            config_marker,
+            f"{_LAN_HTTP_COMPATIBILITY_SCRIPT}\n{config_marker}",
+            1,
         )
-    config_marker = "const GODOT_CONFIG ="
-    if config_marker not in text:
-        raise RuntimeError(
-            f"Godot Web entry is missing its configuration block; cannot patch {entry}"
+        text = text.replace(
+            _MISSING_FEATURES_STATEMENT,
+            _MISSING_FEATURES_STATEMENT[:-1]
+            + f".filter((feature) => !(ELFIE_NEST_LAN_HTTP && feature === '{_SECURE_CONTEXT_FEATURE}'));",
+            1,
         )
-    text = text.replace(
-        config_marker,
-        f"{_LAN_HTTP_COMPATIBILITY_SCRIPT}\n{config_marker}",
-        1,
-    )
-    text = text.replace(
-        _MISSING_FEATURES_STATEMENT,
-        _MISSING_FEATURES_STATEMENT[:-1]
-        + f".filter((feature) => !(ELFIE_NEST_LAN_HTTP && feature === '{_SECURE_CONTEXT_FEATURE}'));",
-        1,
-    )
+    if CANVAS_CAPTURE_MARKER not in text:
+        script_marker = '<script src="elfienest.js"></script>'
+        if script_marker not in text:
+            raise RuntimeError(
+                f"Godot Web entry is missing its engine script; cannot patch {entry}"
+            )
+        text = text.replace(
+            script_marker,
+            f"{_CANVAS_CAPTURE_SCRIPT}\n{script_marker}",
+            1,
+        )
     entry.write_text(text, encoding="utf-8")
 
 

@@ -286,7 +286,7 @@ describe("ElfieProfilePanel", () => {
     // Then: the detailed archive keeps appearance, Big Five, and cognition modules together.
     expect(screen.getByText("3D 个体视图", { selector: ".profile-appearance__title" })).toBeInTheDocument()
     expect(screen.getByText("大五人格", { selector: ".profile-dossier__section-name" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "拍照" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "打开3D" })).toBeInTheDocument()
     for (const title of PRIVATE_MODULE_TITLES.filter((item) => item !== "粮食策略" && item !== "Telegram 聊天" && item !== "Discord 聊天")) {
       expect(screen.getByRole("button", { name: title })).toBeInTheDocument()
     }
@@ -341,8 +341,8 @@ describe("ElfieProfilePanel", () => {
 
     expect(screen.getByText("3D 个体视图", { selector: ".profile-appearance__title" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "打开3D" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "复位视角" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "拍照" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "复位视角" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "拍照" })).not.toBeInTheDocument()
     expect(container.querySelector("iframe")).not.toBeInTheDocument()
   })
 })

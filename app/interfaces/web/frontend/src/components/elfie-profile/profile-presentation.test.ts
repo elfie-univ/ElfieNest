@@ -60,6 +60,7 @@ describe("presentElfieProfile", () => {
 
     // Then: the real API cognition payload is mapped without falling back to a demo fixture.
     expect(projection.publicProfile.name).toBe("Mochi")
+    expect(projection.publicProfile.fullBodyUrl).toBe("/api/v1/elfies/elfie_default/portrait?kind=full_body")
     expect(projection.privateCognition.recentFocus.topics[0]?.label).toBe("门边")
     expect(projection.privateCognition.importantExperiences.entries).toHaveLength(0)
     expect(projection.careSettings.food.selectedId).toBe("")

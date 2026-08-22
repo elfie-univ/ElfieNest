@@ -16,6 +16,20 @@ const SHARED_ANIMATIONS := {
 	"right_turn": "res://characters/animation/right turn.fbx",
 	"right_turn_90": "res://characters/animation/right turn 90.fbx",
 }
+const PREVIEW_POSES := {
+	"pose_thinking": "res://characters/animation/pose_thinking.fbx",
+	"pose_waving": "res://characters/animation/pose_waving.fbx",
+	"pose_victory": "res://characters/animation/pose_victory.fbx",
+	"pose_thumbs_up": "res://characters/animation/pose_thumbs_up.fbx",
+	"pose_hands_on_hips": "res://characters/animation/pose_hands_on_hips.fbx",
+}
+const PREVIEW_POSE_FRAME_RATIOS := {
+	"pose_thinking": 0.60,
+	"pose_waving": 0.60,
+	"pose_victory": 0.52,
+	"pose_thumbs_up": 0.52,
+	"pose_hands_on_hips": 0.0,
+}
 const LOOPING_ANIMATIONS := {"idle": true, "walking": true, "running": true}
 
 var _actor: CharacterBody3D
@@ -29,12 +43,17 @@ func setup(
 	visual_root: Node3D,
 	animation_player: AnimationPlayer,
 	install_shared: bool,
+	install_preview_poses: bool = false,
 ) -> void:
 	_actor = actor
 	_visual_root = visual_root
 	_animation_player = animation_player
+	var animation_sources := {}
 	if install_shared:
-		_install_shared_animations()
+		animation_sources.merge(SHARED_ANIMATIONS)
+	if install_preview_poses:
+		animation_sources.merge(PREVIEW_POSES)
+	_install_animations(animation_sources)
 
 
 func play(animation_name: String) -> void:
@@ -70,6 +89,11 @@ func play_preview_intent(intent: Dictionary) -> bool:
 	if String(intent.get("type", "")) != "motion":
 		return false
 	var motion := String(intent.get("motion", ""))
+	if motion == "pose_default":
+		reset_preview_pose()
+		return true
+	if PREVIEW_POSE_FRAME_RATIOS.has(motion):
+		return _play_frozen_pose(motion)
 	match motion:
 		"nod_head":
 			_animate_head_gesture.call_deferred(Vector3.RIGHT, [-0.22, 0.12, 0.0])
@@ -84,14 +108,16 @@ func play_preview_intent(intent: Dictionary) -> bool:
 			return true
 
 
-func _install_shared_animations() -> void:
+func _install_animations(animation_sources: Dictionary) -> void:
+	if animation_sources.is_empty():
+		return
 	if _animation_player.has_animation_library(""):
 		_animation_player.remove_animation_library("")
 	var merged_library := AnimationLibrary.new()
-	for animation_name: String in SHARED_ANIMATIONS:
-		var library := load(SHARED_ANIMATIONS[animation_name]) as AnimationLibrary
+	for animation_name: String in animation_sources:
+		var library := load(animation_sources[animation_name]) as AnimationLibrary
 		if library == null or library.get_animation_list().is_empty():
-			push_warning("无法加载公共角色动画：%s" % SHARED_ANIMATIONS[animation_name])
+			push_warning("无法加载角色动画：%s" % animation_sources[animation_name])
 			continue
 		var source_name := _select_source_animation(library, animation_name)
 		var animation := library.get_animation(source_name).duplicate(true) as Animation
@@ -99,6 +125,48 @@ func _install_shared_animations() -> void:
 			animation.loop_mode = Animation.LOOP_LINEAR
 		merged_library.add_animation(animation_name, animation)
 	_animation_player.add_animation_library("", merged_library)
+
+
+func reset_preview_pose() -> void:
+	if _preview_tween != null and _preview_tween.is_valid():
+		_preview_tween.kill()
+	var pose_scales: Array[Array] = []
+	for node in _visual_root.find_children("*", "Skeleton3D", true, false):
+		var skeleton := node as Skeleton3D
+		if skeleton == null:
+			continue
+		var skeleton_scales: Array[Vector3] = []
+		for bone_index in range(skeleton.get_bone_count()):
+			skeleton_scales.append(skeleton.get_bone_pose_scale(bone_index))
+		pose_scales.append(skeleton_scales)
+	_animation_player.stop()
+	_animation_player.playback_active = false
+	var skeleton_index := 0
+	for node in _visual_root.find_children("*", "Skeleton3D", true, false):
+		var skeleton := node as Skeleton3D
+		if skeleton == null:
+			continue
+		skeleton.reset_bone_poses()
+		var skeleton_scales := pose_scales[skeleton_index] as Array
+		for bone_index in range(skeleton_scales.size()):
+			skeleton.set_bone_pose_scale(bone_index, skeleton_scales[bone_index] as Vector3)
+		skeleton_index += 1
+
+
+func _play_frozen_pose(animation_name: String) -> bool:
+	if not _animation_player.has_animation(animation_name):
+		return false
+	var animation := _animation_player.get_animation(animation_name)
+	if animation == null:
+		return false
+	_animation_player.playback_active = true
+	_animation_player.play(animation_name)
+	_animation_player.seek(
+		animation.length * clampf(float(PREVIEW_POSE_FRAME_RATIOS[animation_name]), 0.0, 1.0),
+		true,
+	)
+	_animation_player.playback_active = false
+	return true
 
 
 func _select_source_animation(library: AnimationLibrary, preferred_name: String) -> String:

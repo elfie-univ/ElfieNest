@@ -171,6 +171,13 @@ func _capture_lab_portrait(request_id: String) -> void:
 	# can capture the renderer's black fallback for every candidate.
 	for _frame_index in range(3):
 		await get_tree().process_frame
+	# Camera focus/orbit changes are applied during the frame; wait for the
+	# completed render pass so the captured PNG matches the visible 3D stage.
+	await RenderingServer.frame_post_draw
+	var canvas_data_url := await _capture_browser_canvas()
+	if not canvas_data_url.is_empty():
+		_post_lab_message("portrait", {"request_id": request_id, "data_url": canvas_data_url})
+		return
 	var image := get_viewport().get_texture().get_image()
 	if image == null or image.is_empty():
 		return
@@ -183,6 +190,43 @@ func _capture_lab_portrait(request_id: String) -> void:
 		image.save_png_to_buffer()
 	)
 	_post_lab_message("portrait", {"request_id": request_id, "data_url": data_url})
+
+
+func _capture_browser_canvas() -> String:
+	if not OS.has_feature("web"):
+		return ""
+	# Godot's render loop and the browser's paint loop are separate. Reading the
+	# WebGL canvas synchronously here can therefore return the previous camera
+	# frame (for example, the full-body frame after selecting "portrait"). Ask
+	# the browser to read the canvas after two animation frames, then retrieve
+	# that completed PNG from the next few Godot frames.
+	JavaScriptBridge.eval(
+		"(() => {"
+		+ " window.__elfieLabCaptureData = '';"
+		+ " const capture = () => {"
+		+ " const canvas = document.querySelector('canvas');"
+		+ " if (!canvas || typeof canvas.toDataURL !== 'function') return;"
+		+ " try {"
+		+ " const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');"
+		+ " if (gl && typeof gl.finish === 'function') gl.finish();"
+		+ " window.__elfieLabCaptureData = canvas.toDataURL('image/png');"
+		+ " }"
+		+ " catch (_) { window.__elfieLabCaptureData = ''; }"
+		+ " };"
+		+ " if (typeof window.requestAnimationFrame === 'function')"
+		+ " requestAnimationFrame(() => requestAnimationFrame(capture));"
+		+ " else setTimeout(capture, 0);"
+		+ "})()"
+	)
+	for _frame_index in range(6):
+		await get_tree().process_frame
+	var raw_data_url: Variant = JavaScriptBridge.eval(
+		"window.__elfieLabCaptureData || ''"
+	)
+	if not raw_data_url is String:
+		return ""
+	var data_url := String(raw_data_url)
+	return data_url if data_url.begins_with("data:image/png;base64,") else ""
 
 
 func _post_lab_message(event_name: String, payload: Dictionary) -> void:
