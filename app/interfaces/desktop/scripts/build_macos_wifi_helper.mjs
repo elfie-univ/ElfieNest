@@ -3,6 +3,10 @@ import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+if (process.platform !== "darwin") {
+  process.exit(0);
+}
+
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const desktopDirectory = resolve(scriptDirectory, "..");
 const outputDirectory = resolve(desktopDirectory, "../../../build/components/desktop-interface");
@@ -15,10 +19,6 @@ const helperBuild = join(macosDirectory, "WifiAccessHelperBin");
 
 rmSync(macosDirectory, { recursive: true, force: true });
 mkdirSync(macosDirectory, { recursive: true });
-
-if (process.platform !== "darwin") {
-  process.exit(0);
-}
 
 // Use Apple's /usr/bin/swiftc shim. On the current CommandLineTools release,
 // invoking the raw xcrun-selected toolchain path directly can load two copies

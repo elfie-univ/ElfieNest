@@ -6,9 +6,15 @@ from collections import deque
 from threading import Lock
 from typing import Deque, Mapping, Tuple
 
-from elfie.brain.reasoning.context_types import ConversationContext, ConversationMessage
+from elfie.brain.reasoning.context_types import (
+    CompletedConversationInteraction,
+    ConversationContext,
+    ConversationContextCheckpoint,
+    ConversationMessage,
+    ConversationThreadCheckpoint,
+)
 from elfie.brain.workspace.contracts import SocialPayload, TurnFrame
-from elfie.message_types import EventId, UTCDateTime
+from elfie.message_types import ActorRef, EventId, UTCDateTime
 
 
 class ConversationContextStore:
@@ -81,6 +87,134 @@ class ConversationContextStore:
                 channel_id: tuple(conversations)
                 for channel_id, conversations in self._authorized_conversations.items()
             }
+
+    def record_completed_reply(
+        self,
+        *,
+        channel_id: str,
+        conversation_id: str,
+        reply_event_id: EventId,
+        sender: ActorRef,
+        occurred_at: UTCDateTime,
+        content: str,
+        cause_event_ids: Tuple[EventId, ...],
+        receipt_id: EventId,
+    ) -> CompletedConversationInteraction | None:
+        """Append one reply only after its communication receipt completed.
+
+        A reply without a causal owner message is intentionally excluded from
+        owner-chat continuity and long-term interaction Memory.
+        """
+        key = (channel_id, conversation_id)
+        causes = set(cause_event_ids)
+        with self._lock:
+            if reply_event_id in self._seen_events:
+                return None
+            history = self._histories.get(key)
+            if history is None:
+                return None
+            owner = next(
+                (
+                    message
+                    for message in reversed(history)
+                    if message.event_id in causes
+                    and message.sender.source_kind == "owner"
+                ),
+                None,
+            )
+            if owner is None:
+                return None
+            reply = ConversationMessage(
+                event_id=reply_event_id,
+                sender=sender,
+                occurred_at=occurred_at,
+                content=content,
+            )
+            history.append(reply)
+            self._remember_seen(reply_event_id)
+            self._remember_conversation(channel_id, conversation_id)
+        return CompletedConversationInteraction(
+            channel_id=channel_id,
+            conversation_id=conversation_id,
+            owner=owner,
+            reply=reply,
+            receipt_id=receipt_id,
+        )
+
+    def checkpoint(self) -> ConversationContextCheckpoint:
+        """Capture bounded alternating history for restart continuity."""
+        with self._lock:
+            threads = tuple(
+                ConversationThreadCheckpoint(
+                    channel_id=channel_id,
+                    conversation_id=conversation_id,
+                    messages=tuple(messages),
+                )
+                for (channel_id, conversation_id), messages in sorted(
+                    self._histories.items()
+                )
+            )
+        return ConversationContextCheckpoint(threads=threads)
+
+    def validate_checkpoint(self, checkpoint: ConversationContextCheckpoint) -> None:
+        """Reject duplicate endpoints or histories beyond configured bounds."""
+        keys = tuple(
+            (thread.channel_id, thread.conversation_id) for thread in checkpoint.threads
+        )
+        if len(keys) != len(set(keys)):
+            raise ValueError("conversation checkpoint endpoints must be unique")
+        if any(
+            len(thread.messages) > self._history_capacity
+            for thread in checkpoint.threads
+        ):
+            raise ValueError("conversation checkpoint exceeds history capacity")
+        per_channel: dict[str, int] = {}
+        for channel_id, _conversation_id in keys:
+            per_channel[channel_id] = per_channel.get(channel_id, 0) + 1
+        if any(
+            count > self._conversations_per_channel for count in per_channel.values()
+        ):
+            raise ValueError("conversation checkpoint exceeds channel capacity")
+        event_ids = tuple(
+            message.event_id
+            for thread in checkpoint.threads
+            for message in thread.messages
+        )
+        if len(event_ids) != len(set(event_ids)):
+            raise ValueError("conversation checkpoint event IDs must be unique")
+
+    def restore(self, checkpoint: ConversationContextCheckpoint) -> None:
+        """Replace stopped-store state from one validated checkpoint."""
+        self.validate_checkpoint(checkpoint)
+        with self._lock:
+            self._histories.clear()
+            self._seen_events.clear()
+            self._seen_order.clear()
+            self._authorized_conversations.clear()
+            self._authorized_targets.clear()
+            for thread in checkpoint.threads:
+                key = (thread.channel_id, thread.conversation_id)
+                self._histories[key] = deque(
+                    thread.messages,
+                    maxlen=self._history_capacity,
+                )
+                self._remember_conversation(*key)
+                targets = self._authorized_targets.setdefault(key, set())
+                targets.update(
+                    str(message.sender.actor_id)
+                    for message in thread.messages
+                    if message.sender.source_kind != "elfie"
+                )
+            messages = sorted(
+                (
+                    message
+                    for thread in checkpoint.threads
+                    for message in thread.messages
+                ),
+                key=lambda message: message.occurred_at,
+            )
+            for message in messages:
+                self._remember_seen(message.event_id)
 
     def can_reach_actor(
         self,

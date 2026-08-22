@@ -48,6 +48,30 @@ class ConversationContext(FrozenContractModel):
     messages: Tuple[ConversationMessage, ...]
 
 
+class CompletedConversationInteraction(FrozenContractModel):
+    """Owner input and Elfie reply joined only by a completed delivery receipt."""
+
+    channel_id: _NonBlankText
+    conversation_id: _NonBlankText
+    owner: ConversationMessage
+    reply: ConversationMessage
+    receipt_id: EventId
+
+
+class ConversationThreadCheckpoint(FrozenContractModel):
+    """Bounded messages for one concrete communication endpoint."""
+
+    channel_id: _NonBlankText
+    conversation_id: _NonBlankText
+    messages: Tuple[ConversationMessage, ...] = ()
+
+
+class ConversationContextCheckpoint(FrozenContractModel):
+    """Persistence-neutral checkpoint for receipt-backed working history."""
+
+    threads: Tuple[ConversationThreadCheckpoint, ...] = ()
+
+
 class BodyCapabilityDescriptor(FrozenContractModel):
     """Capabilities of the single body currently bound to the Elfie."""
 
@@ -138,7 +162,10 @@ __all__ = (
     "BodyCapabilityDescriptor",
     "BrainContext",
     "ConnectedChannelDescriptor",
+    "CompletedConversationInteraction",
     "ConversationContext",
+    "ConversationContextCheckpoint",
     "ConversationMessage",
+    "ConversationThreadCheckpoint",
     "EffectiveCapabilities",
 )

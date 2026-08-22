@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from threading import Lock
 from typing import Callable, Optional, Tuple
@@ -55,9 +56,19 @@ from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningWorker
 from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
+from elfie.brain.state_lifecycle import StateCommitStatus
 from elfie.brain.workspace.contracts import ExecutionStatus
 from elfie.brain.workspace.system import EventWorkspace
-from elfie.message_types import ElfieId, TurnId, UTCDateTime
+from elfie.message_types import (
+    ActorId,
+    ActorRef,
+    ElfieId,
+    EventId,
+    TurnId,
+    UTCDateTime,
+)
+
+logger = logging.getLogger("elfie.brain.runtime")
 
 
 class BrainRuntime:
@@ -95,6 +106,7 @@ class BrainRuntime:
             clock=clock,
         )
         self._activity_lock = Lock()
+        self._interaction_lock = Lock()
         activity_preflight = ActivityPreflightService(
             store=self.activity_store,
             clock=clock,
@@ -238,6 +250,7 @@ class BrainRuntime:
             selfhood=self.context.selfhood_checkpoint(),
             motivation=self.context.motivation_checkpoint(),
             consolidation=self.context.consolidation_checkpoint(),
+            conversation=self.context.conversation_checkpoint(),
         )
 
     def restore_continuity(self, checkpoint: BrainContinuityCheckpoint) -> None:
@@ -251,6 +264,7 @@ class BrainRuntime:
         self.context.validate_selfhood_checkpoint(checkpoint.selfhood)
         self.context.validate_motivation_checkpoint(checkpoint.motivation)
         self.context.validate_consolidation_checkpoint(checkpoint.consolidation)
+        self.context.validate_conversation_checkpoint(checkpoint.conversation)
         self._emotion.restore(checkpoint.emotion)
         self._homeostasis.restore(checkpoint.energy)
         self.context.restore_memory_checkpoint(checkpoint.memory)
@@ -258,6 +272,7 @@ class BrainRuntime:
         self.context.restore_selfhood_checkpoint(checkpoint.selfhood)
         self.context.restore_motivation_checkpoint(checkpoint.motivation)
         self.context.restore_consolidation_checkpoint(checkpoint.consolidation)
+        self.context.restore_conversation_checkpoint(checkpoint.conversation)
 
     def decision(self, turn_id: TurnId) -> Optional[TurnDecision]:
         return self.router.decision(turn_id)
@@ -361,6 +376,10 @@ class BrainRuntime:
         """Bind a child external receipt to the Activity step that requested it."""
         self._settle_motivation_receipt(intent, receipt)
         self._settle_consolidation_receipt(intent, receipt)
+        if receipt.status is ExecutionStatus.COMPLETED and isinstance(
+            intent, MessageIntent
+        ):
+            self._record_completed_interaction(intent, receipt)
         if receipt.status in {
             ExecutionStatus.COMPLETED,
             ExecutionStatus.REJECTED,
@@ -422,6 +441,46 @@ class BrainRuntime:
                         current,
                         detail=f"step_receipt:{receipt.receipt_id}",
                     )
+
+    def _record_completed_interaction(
+        self,
+        intent: MessageIntent,
+        receipt: ExecutionReceipt,
+    ) -> None:
+        """Join and optionally remember only an actually delivered owner reply."""
+        with self._interaction_lock:
+            interaction = self.context.record_completed_reply(
+                channel_id=intent.channel_id,
+                conversation_id=intent.conversation_id,
+                reply_event_id=EventId(f"elfie-reply:{intent.intent_id}"),
+                sender=ActorRef(
+                    actor_id=ActorId(str(self._elfie_id)),
+                    source_kind="elfie",
+                ),
+                occurred_at=receipt.occurred_at,
+                content=intent.content,
+                cause_event_ids=intent.cause_event_ids,
+                receipt_id=receipt.receipt_id,
+            )
+            if interaction is None:
+                return
+            try:
+                committed = self.context.commit_completed_interaction(interaction)
+                if committed is None:
+                    return
+                if committed.status not in {
+                    StateCommitStatus.COMMITTED,
+                    StateCommitStatus.DUPLICATE,
+                }:
+                    logger.warning(
+                        "completed interaction memory was not committed: %s",
+                        committed.reason or committed.status.value,
+                    )
+            except (OSError, RuntimeError, ValueError) as error:
+                logger.warning(
+                    "completed interaction memory commit failed: %s",
+                    type(error).__name__,
+                )
 
     def _settle_motivation_receipt(
         self,

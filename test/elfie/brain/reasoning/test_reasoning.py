@@ -18,6 +18,7 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
+    ModelResponseMode,
     StructuredOutputMode,
 )
 from elfie.brain.reasoning.run import (
@@ -280,6 +281,7 @@ def test_fast_owner_plain_text_never_enters_the_tool_loop() -> None:
                     conversation_id="owner:1",
                 ),
                 "reasoning_mode": "fast",
+                "response_mode": ModelResponseMode.DIRECT_REPLY,
             }
         ),
         seed=base.seed.model_copy(

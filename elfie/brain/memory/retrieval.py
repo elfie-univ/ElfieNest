@@ -68,7 +68,8 @@ class MemoryRetriever:
     ) -> List[MemoryNode]:
         """实体检索：通过involves边查找相关episodic
 
-        先找到名称匹配的entity节点，然后沿着INVOLVES出边找到关联的episodic节点。
+        先找到名称匹配的 entity 节点，再反向读取编码权威的
+        ``episodic → INVOLVES → entity`` 边。
         """
         all_entity_nodes = self.storage.get_nodes_by_type(
             NodeTypes.ENTITY.value, limit=1000
@@ -85,7 +86,7 @@ class MemoryRetriever:
         related: List[MemoryNode] = []
 
         for entity in matched_entities:
-            edges = self.storage.get_edges(entity.id, direction="outgoing")
+            edges = self.storage.get_edges(entity.id, direction="incoming")
             for edge in edges:
                 if edge.rel != EdgeTypes.INVOLVES.value:
                     continue
@@ -93,7 +94,7 @@ class MemoryRetriever:
                     continue
                 seen_ids.add(edge.target)
                 node = self.storage.get_node(edge.target)
-                if node:
+                if node and node.type == NodeTypes.EPISODIC.value:
                     node.metadata["_retrieval_score"] = edge.weight
                     node.metadata["_retrieval_dimension"] = "entity"
                     related.append(node)

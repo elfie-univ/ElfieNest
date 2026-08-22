@@ -11,10 +11,10 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
+    ModelResponseMode,
     StructuredOutputMode,
 )
 from elfie.brain.reasoning.tool_port import ToolPort
-from elfie.brain.workspace.contracts import ExternalExecutionDomain
 from elfie.message_types import TurnId
 from infrastructure.models.model_execution_contracts import (
     StructuredGenerationMode,
@@ -199,9 +199,7 @@ class SerializedModelExecutionAdapter:
         request: ModelGenerationRequest,
     ) -> StructuredOutputMode:
         if (
-            request.reasoning_mode == "fast"
-            and request.response_scope.external_domain
-            is ExternalExecutionDomain.COMMUNICATION
+            request.response_mode is ModelResponseMode.DIRECT_REPLY
             and capabilities.supports_plain_text
         ):
             return StructuredOutputMode.PLAIN_TEXT

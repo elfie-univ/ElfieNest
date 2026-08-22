@@ -512,6 +512,20 @@ def test_default_release_steps_use_the_current_desktop_interface_manifest() -> N
     assert manifest["author"]["email"] == "elfie-univ@users.noreply.github.com"
 
 
+def test_desktop_general_build_does_not_require_the_macos_wifi_helper() -> None:
+    # Given: development and test builds run on every supported desktop platform.
+    manifest = json.loads(
+        (release_pipeline.DESKTOP_DIR / "package.json").read_text(encoding="utf-8")
+    )
+    scripts = manifest["scripts"]
+
+    # Then: TypeScript compilation is cross-platform, while native packaging opts
+    # into the strict macOS helper build explicitly.
+    assert "build_macos_wifi_helper.mjs" not in scripts["build"]
+    assert scripts["build:macos-helper"] == "node scripts/build_macos_wifi_helper.mjs"
+    assert "pnpm build:macos-helper" in scripts["package"]
+
+
 def test_desktop_packaging_uses_only_the_current_brand_icon() -> None:
     # Given: the public App icon is the current brand source approved for releases.
     current_brand_icon = PROJECT_ROOT / "docs/public/assets/elfienest-app-icon.png"
@@ -521,13 +535,18 @@ def test_desktop_packaging_uses_only_the_current_brand_icon() -> None:
     builder_config = (
         PROJECT_ROOT / "app/bootstrap/desktop_host/electron-builder.yml"
     ).read_text(encoding="utf-8")
+    builder = yaml.safe_load(builder_config)
 
     # When/Then: Windows/Linux retain the identical brand source, while macOS uses
     # a padded transparent app-icon canvas instead of the retired full-bleed square.
     assert desktop_icon.read_bytes() == current_brand_icon.read_bytes()
     assert macos_icon.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert macos_icon.read_bytes() != desktop_icon.read_bytes()
-    assert "mac:\n  icon: assets/elfienest-macos-app-icon.png" in builder_config
+    assert builder["mac"]["icon"] == "assets/elfienest-macos-app-icon.png"
+    assert builder["extraResources"] == [{"from": "packaged-resources", "to": "."}]
+    assert builder["mac"]["extraResources"] == [
+        {"from": "desktop-interface/macos", "to": "wifi-access-helper"}
+    ]
     assert "target: [pkg]" in builder_config
     assert "scripts: packaging/macos" in builder_config
     assert "win:\n  icon: assets/elfienest-app-icon.png" in builder_config
@@ -829,7 +848,8 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
         {"ELFIENEST_TARGET": "darwin-arm64"},
     )
 
-    # Then: locked dependencies and TypeScript compilation precede electron-builder.
+    # Then: locked dependencies, TypeScript, and the macOS-only helper precede
+    # electron-builder.
     assert commands[0] == (
         "npx",
         "--yes",
@@ -838,7 +858,13 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
         "--frozen-lockfile",
     )
     assert commands[1] == ("npx", "--yes", "pnpm@10.12.1", "build")
-    assert commands[2][:7] == (
+    assert commands[2] == (
+        "npx",
+        "--yes",
+        "pnpm@10.12.1",
+        "build:macos-helper",
+    )
+    assert commands[3][:7] == (
         "npx",
         "--yes",
         "pnpm@10.12.1",
@@ -847,14 +873,54 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
         "exec",
         "electron-builder",
     )
-    project_index = commands[2].index("--projectDir")
-    assert commands[2][project_index + 1] == str(
+    project_index = commands[3].index("--projectDir")
+    assert commands[3][project_index + 1] == str(
         build_root / "desktop-host-app" / "darwin-arm64"
     )
-    config_index = commands[2].index("--config")
-    assert commands[2][config_index + 1].endswith(
+    config_index = commands[3].index("--config")
+    assert commands[3][config_index + 1].endswith(
         "app/bootstrap/desktop_host/electron-builder.yml"
     )
+
+
+def test_packager_does_not_build_the_macos_wifi_helper_for_windows(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Given: a Windows-native package stage.
+    build_root = tmp_path / "build"
+    dist_root = tmp_path / "dist"
+    resources = build_root / "staging" / "win32-x64" / "resources"
+    resources.mkdir(parents=True)
+    _create_built_desktop_interface(build_root)
+    commands: list[tuple[str, ...]] = []
+
+    def run_builder(command, _cwd, _environment) -> None:
+        commands.append(command)
+        if not any("electron-builder" in argument for argument in command):
+            return
+        output_argument = next(
+            value
+            for value in command
+            if value.startswith("--config.directories.output=")
+        )
+        output = Path(output_argument.split("=", 1)[1])
+        output.mkdir(parents=True)
+        (output / "ElfieNest-0.1.0-win-x64.exe").write_bytes(b"installer")
+
+    monkeypatch.setattr(release_pipeline, "BUILD_DIR", build_root)
+    monkeypatch.setattr(release_pipeline, "DIST_DIR", dist_root)
+    monkeypatch.setattr(release_pipeline, "_run_command", run_builder)
+
+    # When: the package stage creates a Windows installer.
+    release_pipeline._package_installer(
+        "win32-x64",
+        resources,
+        {"ELFIENEST_TARGET": "win32-x64"},
+    )
+
+    # Then: it never invokes the macOS-only helper compiler.
+    assert not any("build:macos-helper" in command for command in commands)
 
 
 def test_packager_replaces_a_previous_same_version_local_artifact(

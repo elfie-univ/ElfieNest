@@ -259,6 +259,12 @@ def _package_installer(
             DESKTOP_DIR,
             environment,
         )
+        if target.startswith("darwin-"):
+            _run_command(
+                _node_command("npx", "--yes", "pnpm@10.12.1", "build:macos-helper"),
+                DESKTOP_DIR,
+                environment,
+            )
         _stage_desktop_application(target, resources)
         target_arguments = _electron_target_arguments(target)
         _run_command(
