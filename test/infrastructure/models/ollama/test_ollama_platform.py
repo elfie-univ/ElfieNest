@@ -175,10 +175,15 @@ def test_darwin_open_helper_returns_the_new_ollama_app_identity(monkeypatch) -> 
     )
 
 
-def test_darwin_existing_ollama_app_is_not_claimed_as_owned(monkeypatch) -> None:
+def test_darwin_existing_ollama_app_is_not_claimed_as_owned(
+    monkeypatch, tmp_path: Path
+) -> None:
+    application = tmp_path / "Ollama.app"
+    application.mkdir()
+    executable = application / "Contents" / "MacOS" / "Ollama"
     identity = OllamaProcessIdentity(
         900,
-        "/Applications/Ollama.app/Contents/MacOS/Ollama",
+        str(executable),
         "birth-900",
     )
     launched: list[tuple[str, ...]] = []
@@ -190,7 +195,7 @@ def test_darwin_existing_ollama_app_is_not_claimed_as_owned(monkeypatch) -> None
         platform_name="darwin",
         command_runner=lambda *_args, **_kwargs: _Completed(
             0,
-            stdout="900 /Applications/Ollama.app/Contents/MacOS/Ollama --hidden\n",
+            stdout=f"900 {executable} --hidden\n",
         ),
         process_launcher=lambda command, **_kwargs: (
             launched.append(tuple(command)) or _Process(123)
@@ -202,7 +207,7 @@ def test_darwin_existing_ollama_app_is_not_claimed_as_owned(monkeypatch) -> None
             api_base="http://127.0.0.1:11434",
             platform="darwin",
             install_kind="official-script",
-            launch_target="/Applications/Ollama.app",
+            launch_target=str(application),
             version="0.32.11",
             installer_source_url=OFFICIAL_INSTALL_URLS["darwin"],
             installer_sha256="a" * 64,
@@ -210,7 +215,7 @@ def test_darwin_existing_ollama_app_is_not_claimed_as_owned(monkeypatch) -> None
     )
 
     assert result is None
-    assert launched == [("/usr/bin/open", "-a", "/Applications/Ollama.app")]
+    assert launched == [("/usr/bin/open", "-a", str(application))]
 
 
 def test_stop_started_process_targets_only_a_matching_process_group_leader(
