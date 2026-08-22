@@ -56,27 +56,21 @@ describe("ElfieProfilePanel", () => {
     expect(screen.queryByText(/点击右上角/)).not.toBeInTheDocument()
   })
 
-  it("renders English chrome while preserving profile content and open state across a locale switch", async () => {
-    // Given: an adopter profile with one private panel open in Chinese.
-    const user = userEvent.setup()
+  it("renders English chrome while keeping disabled cognition modules out across a locale switch", async () => {
+    // Given: an adopter profile with the cognition feature switch disabled.
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
     const { instance } = renderWithI18n(
       <ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />,
     )
-    await user.click(screen.getByRole("button", { name: "近期关注" }))
 
     // When: the shared locale changes without remounting the profile.
     await act(async () => { await instance.changeLanguage("en-US") })
 
-    // Then: chrome is English, the private panel remains open, and business content is unchanged.
+    // Then: chrome is English, the disabled panels stay absent, and public content is unchanged.
     expect(screen.getByText("3D individual view", { selector: ".profile-appearance__title" })).toBeInTheDocument()
     expect(screen.getByText("Big Five personality", { selector: ".profile-dossier__section-name" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Recent focus" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    )
+    expect(screen.queryByRole("button", { name: "Recent focus" })).not.toBeInTheDocument()
     expect(screen.getByText(HAPPY_EXPERIENCE.publicProfile.biography)).toBeInTheDocument()
-    expect(screen.getByText("晨间巡游")).toBeInTheDocument()
   }, 10_000)
 
   it("uses the registry species presentation instead of a frontend species map", () => {
@@ -274,7 +268,7 @@ describe("ElfieProfilePanel", () => {
     expect(screen.queryByText(/性别/)).not.toBeInTheDocument()
   })
 
-  it("composes the owner profile in archive and management tabs without changing module content", async () => {
+  it("composes the owner profile while keeping cognition modules disabled", async () => {
     // Given: Happy projected for the account that adopted Happy.
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
 
@@ -283,12 +277,12 @@ describe("ElfieProfilePanel", () => {
       <ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />,
     )
 
-    // Then: the detailed archive keeps appearance, Big Five, and cognition modules together.
+    // Then: the detailed archive keeps appearance and Big Five while cognition modules stay hidden.
     expect(screen.getByText("3D 个体视图", { selector: ".profile-appearance__title" })).toBeInTheDocument()
     expect(screen.getByText("大五人格", { selector: ".profile-dossier__section-name" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "打开3D" })).toBeInTheDocument()
-    for (const title of PRIVATE_MODULE_TITLES.filter((item) => item !== "粮食策略" && item !== "Telegram 聊天" && item !== "Discord 聊天")) {
-      expect(screen.getByRole("button", { name: title })).toBeInTheDocument()
+    for (const title of PRIVATE_MODULE_TITLES.slice(0, 5)) {
+      expect(screen.queryByRole("button", { name: title })).not.toBeInTheDocument()
     }
     expect(screen.queryByRole("button", { name: "粮食策略" })).not.toBeInTheDocument()
     const identity = container.querySelector(".profile-dossier__identity")

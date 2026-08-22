@@ -118,6 +118,38 @@ describe("ProfileAppearanceStage", () => {
     expect(screen.getByRole("button", { name: "打开3D" })).toBeInTheDocument()
   })
 
+  it("captures the current 3D view without resetting the camera", async () => {
+    const user = userEvent.setup()
+    const profile = { ...HAPPY_EXPERIENCE.publicProfile, runtimeAppearance: RUNTIME_APPEARANCE }
+    render(<ProfileAppearanceStage canCapture onAvatarSave={vi.fn()} profile={profile} />)
+
+    await user.click(screen.getByRole("button", { name: "打开3D" }))
+    const frame = getFrame()
+    const enqueue = vi.fn<(payload: string) => void>()
+    defineEnqueue(frame, enqueue)
+    sendGodotEvent(frame, { channel: "elfie-lab", event: "ready" })
+    await completeConfigureAndCalibration(frame, enqueue)
+
+    fireEvent.keyDown(screen.getByRole("application"), { key: "ArrowLeft" })
+    const beforeCapture = enqueue.mock.calls.length
+    await user.click(screen.getByRole("button", { name: "拍照" }))
+    await waitFor(() => expect(enqueue.mock.calls.length).toBe(beforeCapture + 1))
+
+    const rawCaptureCommand = enqueue.mock.calls[enqueue.mock.calls.length - 1]?.[0]
+    if (rawCaptureCommand === undefined) throw new TypeError("Expected a current-view capture command")
+    const captureCommand = JSON.parse(rawCaptureCommand) as { readonly request_id: string; readonly action: string }
+    expect(captureCommand.action).toBe("capture")
+    expect(enqueue.mock.calls.slice(beforeCapture).map(([payload]) => JSON.parse(payload).action)).toEqual(["capture"])
+
+    sendGodotEvent(frame, {
+      channel: "elfie-lab",
+      data_url: `data:image/png;base64,${btoa("png")}`,
+      event: "portrait",
+      request_id: captureCommand.request_id,
+    })
+    expect(await screen.findByTestId("capture-crop-workspace")).toBeInTheDocument()
+  })
+
   it("falls back to the stored headshot when the full-body portrait is unavailable", async () => {
     const profile = {
       ...HAPPY_EXPERIENCE.publicProfile,
@@ -179,6 +211,55 @@ describe("ProfileAppearanceStage", () => {
 
     await user.click(screen.getByRole("button", { name: "关闭3D" }))
     expect(screen.getByRole("img", { name: "Happy 的外观" })).toHaveAttribute("src", profile.fullBodyUrl)
+  })
+
+  it("keeps the 3D bridge interactive when saving an avatar refreshes the profile", async () => {
+    const user = userEvent.setup()
+    const blob = new Blob(["png"], { type: "image/png" })
+    const capture = vi.fn().mockResolvedValue({ blob, previewUrl: "blob:stage-preview" })
+    const profile = { ...HAPPY_EXPERIENCE.publicProfile, runtimeAppearance: RUNTIME_APPEARANCE }
+    const onAvatarSave = vi.fn().mockResolvedValue("/api/v1/elfies/12345678/portrait")
+    let view: ReturnType<typeof render>
+    const onAvatarSaved = vi.fn(() => {
+      view.rerender(
+        <ProfileAppearanceStage
+          canCapture
+          capture={capture}
+          onAvatarSave={onAvatarSave}
+          onAvatarSaved={onAvatarSaved}
+          profile={{
+            ...profile,
+            portraitUrl: "/api/v1/elfies/12345678/portrait",
+            runtimeAppearance: { ...RUNTIME_APPEARANCE },
+          }}
+        />,
+      )
+    })
+    view = render(
+      <ProfileAppearanceStage
+        canCapture
+        capture={capture}
+        onAvatarSave={onAvatarSave}
+        onAvatarSaved={onAvatarSaved}
+        profile={profile}
+      />,
+    )
+    await user.click(screen.getByRole("button", { name: "打开3D" }))
+    const frame = getFrame()
+    const enqueue = vi.fn<(payload: string) => void>()
+    defineEnqueue(frame, enqueue)
+    sendGodotEvent(frame, { channel: "elfie-lab", event: "ready" })
+    await completeConfigureAndCalibration(frame, enqueue)
+
+    await user.click(screen.getByRole("button", { name: "拍照" }))
+    await waitFor(() => expect(capture).toHaveBeenCalledOnce())
+    const commandsBeforeSave = enqueue.mock.calls.length
+    await user.click(await screen.findByRole("button", { name: "设为头像" }))
+
+    await waitFor(() => expect(screen.getByText("角色已装载 · 可交互")).toBeInTheDocument())
+    expect(enqueue.mock.calls.length).toBe(commandsBeforeSave)
+    fireEvent.keyDown(screen.getByRole("application"), { key: "ArrowLeft" })
+    expect(JSON.parse(String(enqueue.mock.calls.at(-1)?.[0]))).toEqual(expect.objectContaining({ action: "orbit" }))
   })
 
   it("keeps the crop dialog open when avatar persistence fails", async () => {
