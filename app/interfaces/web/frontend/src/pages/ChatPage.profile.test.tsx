@@ -229,7 +229,9 @@ describe("ChatPage profile integration", () => {
     await waitFor(() => {
       expect(window.location.search).toBe("?view=elfies")
     })
-    expect(screen.queryByRole("heading", { level: 1, name: "小羽" })).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { level: 1, name: "小羽" })).not.toBeInTheDocument()
+    })
   })
 
   it("replaces a bad route so browser Back reaches the prior valid profile", async () => {

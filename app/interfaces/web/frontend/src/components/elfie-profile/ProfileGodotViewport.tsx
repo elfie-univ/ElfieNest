@@ -35,6 +35,7 @@ export function ProfileGodotViewport({
   const pointerRef = useRef<PointerPosition | null>(null)
   const [status, setStatusState] = useState<PreviewStatus>("loading")
   const [error, setError] = useState("")
+  const appearanceRevision = previewRevision(profile)
 
   function setStatus(nextStatus: PreviewStatus): void {
     setStatusState(nextStatus)
@@ -133,7 +134,7 @@ export function ProfileGodotViewport({
       if (previewRef.current === bridge) previewRef.current = null
       onPreviewChange(null)
     }
-  }, [onPreviewChange, profile.elfieId, profile.runtimeAppearance, profile.speciesId])
+  }, [appearanceRevision, onPreviewChange, profile.elfieId])
 
   function pointerDown(event: React.PointerEvent<HTMLDivElement>): void {
     if (status !== "ready") return

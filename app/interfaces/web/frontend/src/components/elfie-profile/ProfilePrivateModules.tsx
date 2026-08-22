@@ -36,6 +36,10 @@ type ProfilePrivateModulesProps = {
 type ModuleKey = "focus" | "timeline" | "relationships" | "world" | "knowledge" | "food" | "telegram" | "discord"
 export type ProfilePrivateModuleSection = "all" | "archive" | "manage"
 
+// Keep the cognition panels behind one front-end switch until their data is ready.
+// Flip this to true when the five profile sections are ready to be shown again.
+export const PROFILE_COGNITION_MODULES_ENABLED = false
+
 type ModuleItem = {
   readonly displayTitle: string
   readonly key: ModuleKey
@@ -171,12 +175,16 @@ function moduleItems(
   onDiscordRefresh: (() => Promise<void>) | undefined,
   t: TFunction<"chat">,
 ): readonly ModuleItem[] {
-  return [
+  const cognitionItems: readonly ModuleItem[] = PROFILE_COGNITION_MODULES_ENABLED ? [
     { key: "focus", displayTitle: t("profile.private.titles.focus"), renderBody: () => <ProfileRecentFocus focus={cognition.recentFocus} status={cognition.status} /> },
     { key: "timeline", displayTitle: t("profile.private.titles.timeline"), renderBody: () => <ProfileImportantExperiences experiences={cognition.importantExperiences} status={cognition.status} /> },
     { key: "relationships", displayTitle: t("profile.private.titles.relationships"), renderBody: () => <ProfileRelationshipWorld world={cognition.relationshipWorld} status={cognition.status} /> },
     { key: "world", displayTitle: t("profile.private.titles.world"), renderBody: () => <ProfileWorldUnderstanding world={cognition.worldUnderstanding} status={cognition.status} /> },
     { key: "knowledge", displayTitle: t("profile.private.titles.knowledge"), renderBody: () => <ProfileKnowledgeBeliefs knowledge={cognition.knowledgeBeliefs} status={cognition.status} /> },
+  ] : []
+
+  return [
+    ...cognitionItems,
     { key: "food", displayTitle: t("profile.private.titles.food"), renderBody: () => <ProfileCareSettings csrfToken={csrfToken} elfieId={elfieId} onSaved={onFoodSaved} settings={careSettings} /> },
     {
       key: "telegram",

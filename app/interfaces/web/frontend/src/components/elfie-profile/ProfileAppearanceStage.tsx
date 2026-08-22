@@ -153,7 +153,8 @@ export function ProfileAppearanceStage({
   async function captureWithGodot(): Promise<AppearanceCapture> {
     const preview = previewRef.current
     if (preview === null) throw new ProfileGodotPreviewError("preview_not_ready")
-    await preview.sendAndWait("reset")
+    // Capture the camera, zoom, and pose the user is currently viewing. The
+    // reset action belongs only to the explicit reset control, not to photo capture.
     await waitForBrowserFrames()
     return preview.capture()
   }
