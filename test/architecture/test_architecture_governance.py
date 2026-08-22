@@ -817,6 +817,19 @@ def test_architecture_ratchet_uses_the_immutable_base_router() -> None:
     assert 'PYTHONPATH="$classifier_root"' in architecture_job
 
 
+def test_affected_python_job_installs_devtools_frontend_dependencies() -> None:
+    workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    python_job = workflow.split("  python-affected:", maxsplit=1)[1].split(
+        "  web-frontend:", maxsplit=1
+    )[0]
+
+    assert "pnpm/action-setup@" in python_job
+    assert "actions/setup-node@" in python_job
+    assert "cache-dependency-path: devtools/web/pnpm-lock.yaml" in python_job
+    assert "working-directory: devtools/web" in python_job
+    assert "pnpm install --frozen-lockfile" in python_job
+
+
 def test_ci_runs_complete_architecture_once_premerge_and_full_only_postsubmit() -> None:
     workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     architecture_job = workflow.split("  architecture-governance:", maxsplit=1)[
