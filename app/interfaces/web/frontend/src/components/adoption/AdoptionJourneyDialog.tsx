@@ -74,6 +74,7 @@ type AdoptionJourneyDialogProps = {
   readonly open: boolean
   readonly onAdopted: (elfieId: string) => Promise<void>
   readonly onOpenChange: (open: boolean) => void
+  readonly onRefreshCsrfToken: () => Promise<string>
 }
 
 type JourneyT = (key: string, options?: Record<string, unknown>) => string
@@ -91,6 +92,7 @@ const COMPANIONSHIP_OPTIONS: readonly (readonly CompanionAnswer[])[] = [
 const PORTRAIT_RUNTIME_IDLE_MILLISECONDS = 5 * 60 * 1000
 const PORTRAIT_RUNTIME_SCREENS: readonly AdoptionScreen[] = ["basic", "appearance", "companionship", "generating"]
 const INVITATION_RETRY_DELAYS_MILLISECONDS = [400, 1000] as const
+const INVITATION_TIMEOUT_MILLISECONDS = 30_000
 const WAIT_STATUS_SECOND_PHASE_MILLISECONDS = 4_000
 const WAIT_STATUS_FINAL_PHASE_MILLISECONDS = 10_000
 const WAIT_STATUS_KEYS = ["initial", "continuing", "delayed"] as const
@@ -172,13 +174,39 @@ function candidateImageUrl(candidate: Pick<Candidate, "headshotImageUrl" | "full
   return candidate.headshotImageUrl || candidate.fullBodyImageUrl
 }
 
+class InvitationReplyTimeoutError extends Error {
+  public readonly name = "InvitationReplyTimeoutError"
+}
+
+function isInvitationChannelFailure(reason: unknown): boolean {
+  if (reason instanceof InvitationReplyTimeoutError) return true
+  if (reason instanceof ApiError) return reason.status >= 500
+  if (reason instanceof Error && reason.name === "TimeoutError") return true
+  if (reason instanceof DOMException && reason.name === "NetworkError") return true
+  return reason instanceof TypeError
+    && /failed to fetch|network|load failed/i.test(reason.message)
+}
+
 function isRetryableInvitationFailure(reason: unknown): boolean {
-  return reason instanceof ApiError
-    && (reason.code === "adoption_unavailable" || reason.status >= 500)
+  return reason instanceof ApiError && reason.status >= 500
 }
 
 function waitMilliseconds(milliseconds: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
+}
+
+async function waitForInvitationReply<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
+  let timer: number | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = window.setTimeout(() => reject(new InvitationReplyTimeoutError("Invitation reply timed out")), milliseconds)
+      }),
+    ])
+  } finally {
+    if (timer !== undefined) window.clearTimeout(timer)
+  }
 }
 
 function candidateSetInput(
@@ -321,7 +349,7 @@ function AdoptionEntryBlockDialog({
   </AlertDialog>
 }
 
-export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, onOpenChange }: AdoptionJourneyDialogProps) {
+export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, onOpenChange, onRefreshCsrfToken }: AdoptionJourneyDialogProps) {
   const { i18n, t } = useTranslation("chat")
   const locale = currentLocale(i18n)
   const [state, dispatch] = useReducer(adoptionReducer, INITIAL_ADOPTION_STATE)
@@ -330,10 +358,12 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   const [entryBlock, setEntryBlock] = useState<AdoptionEntryBlock | null>(null)
   const [closePrompt, setClosePrompt] = useState(false)
   const [invitationFailureOpen, setInvitationFailureOpen] = useState(false)
+  const [candidateRecoveryNotice, setCandidateRecoveryNotice] = useState(false)
   const [generationRequest, setGenerationRequest] = useState<AdoptionCandidateSetInput | null>(null)
   const [sendingInvitations, setSendingInvitations] = useState(false)
   const [committing, setCommitting] = useState(false)
   const [apiError, setApiError] = useState<LocalizedErrorState>(null)
+  const csrfTokenRef = useRef(csrfToken)
   const retryingInvitationRef = useRef(false)
   const portraitFrameRef = useRef<HTMLIFrameElement>(null)
   const portraitRuntimeTimerRef = useRef<number | null>(null)
@@ -345,17 +375,48 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   const isBusy = state.screen === "generating" || state.screen === "inviting" || state.screen === "committing" || sendingInvitations || committing
   const isIntentLocked = !["welcome", "basic", "appearance", "companionship"].includes(state.screen)
 
-  const handleExpiredSession = useCallback((): void => {
-    sessionExpiresAtRef.current = null
+  useEffect(() => {
+    csrfTokenRef.current = csrfToken
+  }, [csrfToken])
+
+  const withCsrfRetry = useCallback(async <Result,>(request: (token: string) => Promise<Result>): Promise<Result> => {
+    try {
+      return await request(csrfTokenRef.current)
+    } catch (reason: unknown) {
+      if (!(reason instanceof ApiError) || reason.code !== "csrf_rejected") throw reason
+      let refreshedToken = ""
+      try {
+        refreshedToken = await onRefreshCsrfToken()
+      } catch {
+        throw reason
+      }
+      if (refreshedToken === "") throw reason
+      csrfTokenRef.current = refreshedToken
+      return request(refreshedToken)
+    }
+  }, [onRefreshCsrfToken])
+
+  const loadCandidates = useCallback((request: AdoptionCandidateSetInput): Promise<AdoptionCandidateSet> => (
+    withCsrfRetry((token) => adoptionCandidates(request, token))
+  ), [withCsrfRetry])
+
+  const handleExpiredSession = useCallback((draft: AdoptionDraftState["draft"]): void => {
+    const canRegenerate = intentComplete(draft)
+    sessionExpiresAtRef.current = canRegenerate ? adoptionSessionExpiryFromNow() : null
     void clearAdoptionDraft(accountId)
-    setGenerationRequest(null)
+    setGenerationRequest(canRegenerate ? candidateSetInput(draft, 1) : null)
     setSendingInvitations(false)
     setCommitting(false)
     setInvitationFailureOpen(false)
     setApiError(null)
     setPortraitRuntimeEnabled(false)
-    setPortraitRuntimeBlocked(true)
+    setPortraitRuntimeBlocked(!canRegenerate)
     setPortraitRuntimeGeneration((generation) => generation + 1)
+    setCandidateRecoveryNotice(canRegenerate)
+    if (canRegenerate) {
+      dispatch({ type: "restart-candidates" })
+      return
+    }
     dispatch({ type: "reset", screen: "basic" })
     dispatch({ type: "error", message: t("adoption.journey.errors.expired") })
   }, [accountId, t])
@@ -366,6 +427,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       setEntryBlock(null)
       setLoadingInfo(false)
       setCommitting(false)
+      setCandidateRecoveryNotice(false)
       setPortraitRuntimeBlocked(false)
       portraitLastActivityAtRef.current = Date.now()
       sessionExpiresAtRef.current = null
@@ -386,7 +448,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
         if (!active) return
         sessionExpiresAtRef.current = loaded.sessionExpiresAt
         if (loaded.expired) {
-          handleExpiredSession()
+          handleExpiredSession(loaded.state?.draft ?? INITIAL_ADOPTION_STATE.draft)
         } else if (loaded.state?.dirty && loaded.state.screen !== "arrival") {
           dispatch({ type: "restore", state: loaded.state })
         } else {
@@ -409,9 +471,8 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           && intentComplete(saved.draft)
         ) {
           try {
-            const recovered = await adoptionCandidates(
+            const recovered = await loadCandidates(
               candidateSetInput(saved.draft, saved.candidateBatch, saved.adoptionSessionId),
-              csrfToken,
             )
             if (!active) return
             const recoveredCandidates = recovered.candidates.map(asCandidate)
@@ -420,7 +481,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
             const sameCandidates = savedIds.length === 0
               || (savedIds.length === recoveredIds.length && savedIds.every((candidateId, index) => candidateId === recoveredIds[index]))
             if (!sameCandidates) {
-              handleExpiredSession()
+              handleExpiredSession(saved.draft)
               return
             }
             dispatch({ type: "candidate-set-recovered", setId: recovered.candidate_set_id })
@@ -436,7 +497,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           } catch (reason: unknown) {
             if (!active) return
             if (isExpiredSessionError(reason)) {
-              handleExpiredSession()
+              handleExpiredSession(saved.draft)
               return
             }
             setApiError(describeApiError(reason, "manage.load"))
@@ -451,13 +512,13 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       }
     })()
     return () => { active = false }
-  }, [accountId, csrfToken, handleExpiredSession, open])
+  }, [accountId, handleExpiredSession, loadCandidates, open])
 
   useEffect(() => {
     if (!open) return
     if (state.adoptionSessionId === null) sessionExpiresAtRef.current = null
     if (state.adoptionSessionId !== null && sessionExpiresAtRef.current === null) {
-      handleExpiredSession()
+      handleExpiredSession(state.draft)
       return
     }
     void saveAdoptionDraft(accountId, state, sessionExpiresAtRef.current)
@@ -468,7 +529,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     const expiresAt = sessionExpiresAtRef.current
     if (expiresAt === null) return undefined
     const timer = window.setTimeout(() => {
-      if (sessionExpiresAtRef.current === expiresAt) handleExpiredSession()
+      if (sessionExpiresAtRef.current === expiresAt) handleExpiredSession(state.draft)
     }, Math.max(0, expiresAt - Date.now()))
     return () => window.clearTimeout(timer)
   }, [handleExpiredSession, open, state.adoptionSessionId, state.screen])
@@ -531,6 +592,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     const request = candidateSetInput(state.draft, batch, state.adoptionSessionId)
     if (state.adoptionSessionId === null) sessionExpiresAtRef.current = adoptionSessionExpiryFromNow()
     setApiError(null)
+    setCandidateRecoveryNotice(false)
     setPortraitRuntimeBlocked(false)
     setGenerationRequest(request)
     dispatch({ type: "screen", screen: "generating" })
@@ -553,10 +615,13 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       let transientFailureCount = 0
       while (result === null) {
         try {
-          result = await adoptionReplies(candidateSetId, [selectedCandidateId], "", csrfToken)
+          result = await waitForInvitationReply(
+            withCsrfRetry((token) => adoptionReplies(candidateSetId, [selectedCandidateId], "", token)),
+            INVITATION_TIMEOUT_MILLISECONDS,
+          )
         } catch (reason: unknown) {
           if (isExpiredSessionError(reason)) {
-            handleExpiredSession()
+            handleExpiredSession(state.draft)
             return
           }
           if (!isRetryableInvitationFailure(reason) || transientFailureCount >= INVITATION_RETRY_DELAYS_MILLISECONDS.length) throw reason
@@ -573,17 +638,24 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       dispatch({ type: "replies-ready", finalCandidateId: selectedCandidateId, replies })
     } catch (reason: unknown) {
       if (isExpiredSessionError(reason)) {
-        handleExpiredSession()
+        handleExpiredSession(state.draft)
         return
       }
-      setInvitationFailureOpen(true)
+      if (isInvitationChannelFailure(reason)) {
+        setInvitationFailureOpen(true)
+        return
+      }
+      dispatch({ type: "screen", screen: "shortlist" })
+      setApiError(describeApiError(reason, "manage.save"))
     } finally {
       setSendingInvitations(false)
     }
   }
 
   const finishAdoption = async (): Promise<void> => {
-    if (state.candidateSetId === null || state.finalCandidateId === null) {
+    const candidateSetId = state.candidateSetId
+    const finalCandidateId = state.finalCandidateId
+    if (candidateSetId === null || finalCandidateId === null) {
       dispatch({ type: "error", message: t("adoption.journey.validation.chooseCandidate") })
       return
     }
@@ -593,22 +665,24 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       return
     }
     if (committing) return
+    setApiError(null)
     setCommitting(true)
+    dispatch({ type: "screen", screen: "committing" })
     try {
-      const finalCandidate = state.replies.find((candidate) => candidate.candidateId === state.finalCandidateId)
+      const finalCandidate = state.replies.find((candidate) => candidate.candidateId === finalCandidateId)
       const headshotImageUrl = finalCandidate?.fullBodyImageUrl
         ? await createFinalHeadshotDataUrl(finalCandidate.fullBodyImageUrl)
         : finalCandidate?.headshotImageUrl ?? ""
-      const result = await commitAdoption(state.candidateSetId, state.finalCandidateId, name, csrfToken, {
+      const result = await withCsrfRetry((token) => commitAdoption(candidateSetId, finalCandidateId, name, token, {
         ...(finalCandidate?.fullBodyImageUrl ? { fullBodyImageUrl: finalCandidate.fullBodyImageUrl } : {}),
         ...(headshotImageUrl ? { headshotImageUrl } : {}),
-      })
+      }))
       await clearAdoptionDraft(accountId)
       await onAdopted(result.elfie_id)
       onOpenChange(false)
     } catch (reason: unknown) {
       if (isExpiredSessionError(reason)) {
-        handleExpiredSession()
+        handleExpiredSession(state.draft)
         return
       }
       if (reason instanceof ApiError && reason.code === "nest_capacity_reached") {
@@ -621,7 +695,8 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
         setEntryBlock("member-full")
         return
       }
-      dispatch({ type: "error", message: t("adoption.journey.errors.commit") })
+      dispatch({ type: "screen", screen: "naming" })
+      setApiError(describeApiError(reason, "manage.save"))
     } finally {
       setCommitting(false)
     }
@@ -743,11 +818,11 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     setPortraitRuntimeBlocked(true)
     setPortraitRuntimeEnabled(false)
     if (isExpiredSessionError(reason)) {
-      handleExpiredSession()
+      handleExpiredSession(state.draft)
       return
     }
     dispatch({ type: "error", message: t("adoption.journey.errors.generate") })
-  }, [handleExpiredSession, t])
+  }, [handleExpiredSession, state.draft, t])
 
   const candidateLabel = (candidateId: string): string => {
     const index = state.candidates.findIndex((candidate) => candidate.candidateId === candidateId)
@@ -801,12 +876,13 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
         <div aria-live="polite" className="adoption-dialog__body">
           {journeyReady && state.error ? <p className="adoption-inline-error" role="alert">{state.error}</p> : null}
           {journeyReady && errorMessage ? <p className="adoption-inline-error" role="alert">{errorMessage}</p> : null}
+          {journeyReady && state.screen === "shortlist" && candidateRecoveryNotice ? <p className="adoption-inline-notice" role="status">{t("adoption.journey.recovery.candidatesRegenerated")}</p> : null}
           {entryChecking ? <AdoptionEntryCheck t={t} /> : null}
           {journeyReady && state.screen === "welcome" ? <WelcomeScreen t={t} onStart={goToBasic} /> : null}
           {journeyReady && state.screen === "basic" ? <BasicScreen allowedSpecies={allowedSpecies} canAdopt={info?.quota.can_adopt ?? true} draft={state.draft} dispatch={dispatch} locale={locale} speciesName={(id) => speciesName(id, info?.species.find((species) => species.species_id === id), locale)} stageName={(value) => stageName(t, value)} t={t} /> : null}
           {journeyReady && state.screen === "appearance" ? <AppearanceScreen controls={info?.species.find((species) => species.species_id === state.draft.speciesId)?.appearance_controls ?? []} draft={state.draft} dispatch={dispatch} t={t} /> : null}
           {journeyReady && state.screen === "companionship" ? <CompanionshipScreen draft={state.draft} dispatch={dispatch} onAnswer={answerCompanionship} questionIndex={state.questionIndex} t={t} /> : null}
-          {journeyReady && state.screen === "generating" && generationRequest !== null ? <GeneratingScreen csrfToken={csrfToken} frameRef={portraitFrameRef} onError={onGenerationError} onReady={onGenerationReady} request={generationRequest} runtimeActive={portraitRuntimeEnabled && portraitRuntimeRequested} runtimeGeneration={portraitRuntimeGeneration} t={t} /> : null}
+          {journeyReady && state.screen === "generating" && generationRequest !== null ? <GeneratingScreen frameRef={portraitFrameRef} loadCandidates={loadCandidates} onError={onGenerationError} onReady={onGenerationReady} request={generationRequest} runtimeActive={portraitRuntimeEnabled && portraitRuntimeRequested} runtimeGeneration={portraitRuntimeGeneration} t={t} /> : null}
           {journeyReady && state.screen === "shortlist" ? <ShortlistScreen candidates={state.candidates} candidateBatch={state.candidateBatch} dispatch={dispatch} onRegenerate={() => { void generateCandidates() }} selectedIds={state.selectedCandidateIds} t={t} /> : null}
           {journeyReady && state.screen === "inviting" ? <SendingScreen candidates={state.candidates.filter((candidate) => state.selectedCandidateIds.includes(candidate.candidateId))} t={t} /> : null}
           {journeyReady && state.screen === "naming" && selectedCandidate ? <ArrivalWelcomeScreen candidate={selectedCandidate} candidateImageUrl={candidateImageUrl} candidateLabel={candidateLabel(selectedCandidate.candidateId)} customName={state.customName} nameMode={state.nameMode} onFinish={() => { void finishAdoption() }} pending={committing} dispatch={dispatch} t={t} /> : null}
@@ -969,8 +1045,8 @@ function TimedWaitStatus({ translationPrefix, t }: { readonly translationPrefix:
 }
 
 type GeneratingScreenProps = {
-  readonly csrfToken: string
   readonly frameRef: RefObject<HTMLIFrameElement | null>
+  readonly loadCandidates: (request: AdoptionCandidateSetInput) => Promise<AdoptionCandidateSet>
   readonly onError: (reason: unknown) => void
   readonly onReady: (result: AdoptionCandidateSet, candidates: readonly Candidate[]) => void
   readonly request: AdoptionCandidateSetInput
@@ -980,7 +1056,7 @@ type GeneratingScreenProps = {
 }
 
 type CandidateRequestLease = {
-  readonly csrfToken: string
+  readonly loadCandidates: (request: AdoptionCandidateSetInput) => Promise<AdoptionCandidateSet>
   readonly promise: Promise<AdoptionCandidateSet>
   readonly request: AdoptionCandidateSetInput
 }
@@ -991,7 +1067,7 @@ type CandidateLoad = {
   readonly result: AdoptionCandidateSet
 }
 
-function GeneratingScreen({ csrfToken, frameRef, onError, onReady, request, runtimeActive, runtimeGeneration, t }: GeneratingScreenProps) {
+function GeneratingScreen({ frameRef, loadCandidates, onError, onReady, request, runtimeActive, runtimeGeneration, t }: GeneratingScreenProps) {
   const candidateRequestRef = useRef<CandidateRequestLease | null>(null)
   const renderedCandidatesRef = useRef(new Map<string, Candidate>())
   const [candidateLoad, setCandidateLoad] = useState<CandidateLoad | null>(null)
@@ -999,8 +1075,8 @@ function GeneratingScreen({ csrfToken, frameRef, onError, onReady, request, runt
   useEffect(() => {
     let active = true
     let lease = candidateRequestRef.current
-    if (lease === null || lease.request !== request || lease.csrfToken !== csrfToken) {
-      lease = { csrfToken, promise: adoptionCandidates(request, csrfToken), request }
+    if (lease === null || lease.request !== request || lease.loadCandidates !== loadCandidates) {
+      lease = { loadCandidates, promise: loadCandidates(request), request }
       candidateRequestRef.current = lease
       renderedCandidatesRef.current.clear()
       setCandidateLoad(null)
@@ -1020,7 +1096,7 @@ function GeneratingScreen({ csrfToken, frameRef, onError, onReady, request, runt
         if (active) onError(reason)
       })
     return () => { active = false }
-  }, [csrfToken, onError, request])
+  }, [loadCandidates, onError, request])
 
   const activeLoad = candidateLoad?.request === request ? candidateLoad : null
 

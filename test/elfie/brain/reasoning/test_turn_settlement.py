@@ -81,7 +81,7 @@ def _frame() -> TurnFrame:
     )
 
 
-def test_context_read_does_not_write_memory_and_settlement_commits_once() -> None:
+def test_owner_memory_waits_for_completed_reply_and_settlement_commits_once() -> None:
     memory = MemorySystem(
         FakeMemoryStore.in_memory(),
         elfie_id="elfie-1",
@@ -122,9 +122,32 @@ def test_context_read_does_not_write_memory_and_settlement_commits_once() -> Non
     assert memory.revision == 0
     assert memory.storage.count_nodes("episodic") == 0
 
-    candidates = context.memory_candidates(_frame(), emotion, NOW)
-    receipts = TurnSettlement(memory).settle(candidates)
-    duplicate = TurnSettlement(memory).settle(candidates)
+    frame = _frame()
+    context.conversation(frame, NOW)
+    assert context.memory_candidates(frame, emotion, NOW) == ()
+    interaction = context.record_completed_reply(
+        channel_id="chat",
+        conversation_id="owner-chat",
+        reply_event_id=EventId("elfie-reply-1"),
+        sender=ActorRef(actor_id=ActorId("elfie-1"), source_kind="elfie"),
+        occurred_at=NOW,
+        content="好，我会在时间明确后提醒你。",
+        cause_event_ids=(EventId("message-1"),),
+        receipt_id=EventId("delivery-receipt-1"),
+    )
+    assert interaction is not None
+    candidate = context.completed_interaction_candidate(interaction)
+    assert candidate is not None
+    assert "主人对我说: '今晚提醒我带钥匙'" in candidate.content
+    assert "我回复主人: '好，我会在时间明确后提醒你。'" in candidate.content
+    assert candidate.source_event_ids == (
+        EventId("message-1"),
+        EventId("elfie-reply-1"),
+        EventId("delivery-receipt-1"),
+    )
+
+    receipts = TurnSettlement(memory).settle((candidate,))
+    duplicate = TurnSettlement(memory).settle((candidate,))
 
     assert receipts[0].status is StateCommitStatus.COMMITTED
     assert duplicate[0].status is StateCommitStatus.DUPLICATE

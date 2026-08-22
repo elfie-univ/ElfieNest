@@ -33,6 +33,9 @@ function resumableState(state: AdoptionDraftState): AdoptionDraftState {
   if (state.screen === "generating") {
     return { ...state, screen: "review" }
   }
+  if (state.screen === "inviting") {
+    return { ...state, screen: "shortlist" }
+  }
   if (state.screen === "committing") {
     return { ...state, screen: "naming" }
   }

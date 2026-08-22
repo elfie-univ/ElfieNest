@@ -1,84 +1,65 @@
 ---
 name: git-submit-and-push
-description: 评估已完成改动的提交时机，并完成 Git 提交和远端推送，包含工作区审查、测试、敏感信息检查、暂存、提交、推送和远端状态验证。完成一组已验证改动、用户确认界面验收，或用户说“提交”“提交代码”“commit 一下”“保存到 Git”及要求团队共享时必须使用；除非用户明确要求只保留本地提交，否则提交默认包含 push。
+description: 管理 Git 的本地 commit、功能分支推送和主线合并。用户说 commit 时只创建本地提交；只有明确说 push/推送才执行远端写入；主线合并或发布才运行完整门禁。
 ---
 
-# Git 提交并推送
+# Git 提交、推送与合并
 
-把“提交”视为完整的远端交付流程，而不是仅创建本地 commit。推送成功并验证远端分支后才算完成。
+把本地 `commit`、远端 `push` 和主线 `merge` 视为三个独立动作，绝不从其中一个推断另外两个。
 
-## 强制规则
+## 术语路由
 
-1. 用户说“提交”时默认执行 `commit + push`。只有用户明确说“只提交本地”“不要推送”时才能停在本地。
-2. 每次完成并验证一组改动后，主动评估是否已形成边界清晰、没有已知问题的提交节点。符合时自动 `commit + push`，不等待用户再次要求提交。
-3. 不提交仍在调试、测试失败、存在已知 bug 或尚待确认的半成品。对于需要用户目视验收的界面改动，用户说“没 bug 了”“可以了”或“验收通过”即视为提交和推送确认。
-4. 提交前运行 `git status --short --branch`，确认当前分支、远端跟踪关系和所有改动来源。
-5. 不覆盖或回退用户已有改动。用户要求提交“当前代码”时包含当前工作区全部目标改动；范围不明确时根据当前任务边界审慎选择。
-6. 暂存或提交前先同步远端基础提交，再按交付层级运行分级门禁：
-   普通本地提交运行 G1，功能分支推送运行 G2，主线合并/发布或治理、工具链、未知影响改动
-   运行 G3：
+- `commit`：只创建本地 Git commit；不 fetch、不 push、不合并主分支。
+- `push` / “推送”：用户明确要求远端更新时，执行功能分支推送流程。
+- “合并到远程主分支” / “发布”：执行主线合并或发布流程。
+- 仅说“提交”时，不把它自动扩展成 push；只有用户明确说“推送”才写远端。
+
+## 按风险选择门禁
+
+- **S 级本地 commit**：单个子系统内的局部改动，不改变公开 API、持久化契约、架构边界或生命周期所有权。只做直接相关检查；CSS-only 改动不启动服务、Godot、浏览器或全套测试。
+- **M/L 级本地 commit**，或用户明确要求“完整门禁”：运行 `scripts/pre_submit_gate.sh --stage commit`。
+- **功能分支 push**：运行 `scripts/pre_submit_gate.sh --stage push`，然后推送当前功能分支。
+- **主线合并/发布**：运行 `scripts/pre_submit_gate.sh --stage main`，并完成主线状态核验。
+
+门禁失败必须区分代码失败、环境阻塞和远端拒绝；不得用 `--no-verify`、删除扫描器或放宽检查消除失败。
+
+## S 级本地 commit 快速路径
+
+1. 运行 `git status --short --branch`，确认当前分支并识别无关改动；无关文件不得顺手提交。
+2. 阅读目标 diff，运行 `git diff --check` 和与改动直接相关的最小验证。已有同一源码状态的有效证据可以复用，不重复启动无关服务或全套测试。
+3. 只暂存用户目标范围内的文件：
 
    ```bash
-   git fetch --prune origin main
-   bash scripts/pre_submit_gate.sh --stage commit \
-     --base-sha "$(git rev-parse origin/main^{commit})"
-   # feature push: replace commit with push
-   # main merge/release: replace commit with main
+   git add <目标文件>
+   git diff --cached --check
+   git diff --cached --stat
    ```
 
-   G1 只执行改动文件和受影响测试；G2 追加受影响的集成、质量和架构检查；G3 才运行完整
-   CI 对齐门禁、完整 pytest 和文档构建。G3 可以复用同一精确候选快照的成功结果，但不能
-   用本地缓存替代最新 commit SHA 的 CI。Conformance 台账中的未关闭条目、门禁失败或环境
-   阻塞都必须在交付报告中明确，不能被本地缓存或口头结论掩盖。
-7. 检查暂存内容，禁止提交本地密钥、Token、密码、运行时配置或被 `.gitignore` 保护的敏感文件。
-8. 禁止使用 `--no-verify` 绕过 pre-commit。钩子失败时修复问题并重新提交。
-9. 创建 commit 后立即推送当前分支。已有上游时运行 `git push`；没有上游时运行 `git push -u origin <branch>`。
-10. 推送失败不算完成。继续处理可恢复的网络、认证、非快进或分支跟踪问题；无法恢复时明确报告 commit 仅存在本地。
-11. 推送后再次运行 `git status --short --branch`，确认 ahead 计数清零，并报告 commit、分支和远端。
-12. 在 worktree 中完成并经用户确认的功能，还要遵循仓库 `AGENTS.md` 的推送和主分支同步流程。
+4. 对暂存内容执行仓库已有的定向敏感信息检查；不要为了本地 S 级 commit 运行 `pre-commit run --all-files`。
+5. 创建本地 commit：
 
-## 标准流程
+   ```bash
+   git commit -m "<准确概括改动的提交消息>"
+   ```
 
-### 1. 审查与验证
+6. 提交后运行 `git status --short --branch` 和 `git log -1 --oneline --decorate`，报告 commit、分支和剩余改动；到此停止，不 push。
+
+## 明确要求 push 时
+
+用户明确说“推送”或“commit 并 push”后，先确保目标 commit 已通过对应验证，再使用明确的功能分支 refspec：
 
 ```bash
-git status --short --branch
-git diff --check
-git diff --stat
-
-git fetch --prune origin main
-bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})"
+git push -u origin HEAD:refs/heads/<当前功能分支>
 ```
 
-读取关键差异并运行相关测试。分级门禁会审查当前工作树（包括未暂存文件）；若本地落后
-远端，先安全拉取并处理冲突，不丢弃工作区内容。只有 G3 的完整门禁需要全量环境预检；
-它若阻塞，必须换到允许回环端口的宿主或提升权限环境重跑，不得删测试、跳过全量套件或
-把失败改成警告。
+推送后再次运行 `git status --short --branch`，确认当前分支没有未推送的 ahead commit。禁止 `--force`、`--force-with-lease`、删除远程引用或擅自改走 PR。
 
-### 2. 暂存与提交
+## 主线合并或发布时
 
-```bash
-git add <目标文件>
-git diff --cached --check
-git diff --cached --stat
-git commit -m "<符合项目约定的消息>"
-```
+只有用户明确要求“合并到远程主分支”或“发布”时，才同步 `origin/main`、运行 main 级门禁，并在确认目标 commit 是 `origin/main` 的祖先后执行非强制快进更新。主线合并完成后核验远程主分支、本地 main worktree 和任务 worktree 状态。
 
-提交消息应准确概括行为变化。多个独立主题可以拆分成多个 commit，但所有目标 commit 都必须推送。
+## 安全边界
 
-### 3. 推送与确认
-
-```bash
-git push
-git status --short --branch
-git log -1 --oneline --decorate
-```
-
-没有上游分支时使用：
-
-```bash
-git push -u origin <当前分支>
-```
-
-最终报告必须包含：提交哈希、当前分支、推送目标、推送结果、测试结果，以及是否仍有未提交改动。
+- 不覆盖或回退用户已有改动，不自动 stash、reset、checkout 或清理无关 worktree。
+- 暂存前检查所有目标路径，禁止提交密钥、Token、密码、运行时配置、用户数据或生成物。
+- “commit”不会授权远端写操作；“push”不会授权主线合并；“合并主分支”才授权主线写入。

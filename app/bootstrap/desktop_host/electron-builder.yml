@@ -16,9 +16,10 @@ files:
 extraResources:
   - from: packaged-resources
     to: .
-  - from: desktop-interface/macos
-    to: wifi-access-helper
 mac:
+  extraResources:
+    - from: desktop-interface/macos
+      to: wifi-access-helper
   icon: assets/elfienest-macos-app-icon.png
   extendInfo:
     NSLocationUsageDescription: ElfieNest 需要读取当前 Wi-Fi 名称，用于在手机扫码连接时提供网络提示；不会记录你的位置信息。

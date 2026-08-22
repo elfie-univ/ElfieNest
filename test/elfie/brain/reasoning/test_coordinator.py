@@ -6,6 +6,8 @@ import json
 from datetime import datetime, timedelta, timezone
 from threading import Event
 
+import pytest
+
 from elfie.brain.emotion.appraiser import BrainClockPulse, EmotionAppraiser
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import EnergySystem
@@ -21,6 +23,7 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationRequest,
     ModelGenerationResult,
     ModelPort,
+    ModelResponseMode,
     StructuredOutputMode,
 )
 from elfie.brain.reasoning.turn_outcome import TerminalStatus
@@ -71,7 +74,11 @@ def _meta(
 
 
 def _social(
-    index: int, milliseconds: int, *, source_kind: str = "human"
+    index: int,
+    milliseconds: int,
+    *,
+    source_kind: str = "human",
+    text: str | None = None,
 ) -> PerceptionEvent:
     at = NOW + timedelta(milliseconds=milliseconds)
     actor = ActorRef(actor_id=ActorId("owner-1"), source_kind=source_kind)
@@ -82,7 +89,7 @@ def _social(
             channel_id="chat",
             conversation_id="conversation-1",
             sender=actor,
-            content=f"message {index}",
+            content=text or f"message {index}",
         ),
         salience=0.5,
     )
@@ -254,7 +261,14 @@ def test_owner_conversation_stays_fast_when_energy_allows_long_reasoning() -> No
         allowed_tools=("web_search",),
     )
     coordinator.start()
-    workspace.publish(_social(1, 0, source_kind="owner"))
+    workspace.publish(
+        _social(
+            1,
+            0,
+            source_kind="owner",
+            text="我记得昨天在花园散步",
+        )
+    )
     coordinator.notify_perception()
     coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
     assert runtime.started.wait(1), coordinator.outcomes()
@@ -263,12 +277,64 @@ def test_owner_conversation_stays_fast_when_energy_allows_long_reasoning() -> No
     try:
         request = runtime.calls[0]
         assert request.reasoning_mode == "fast"
+        assert request.response_mode is ModelResponseMode.DIRECT_REPLY
         assert request.allowed_tools == ()
         assert request.max_tokens == 192
         assert len(request.user_prompt) < 2000
         assert "CURRENT_MESSAGE" in request.user_prompt
         assert coordinator._inflight is not None
         assert coordinator._inflight.task.reasoning_budget.max_model_calls == 1
+        assert coordinator._inflight.task.reasoning_budget.max_tool_calls == 0
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
+@pytest.mark.parametrize(
+    "owner_text",
+    (
+        "明天上午九点提醒我带钥匙",
+        "请你比较这三个模型并整理一份报告",
+    ),
+)
+def test_explicit_task_uses_structured_activity_route_without_tools(
+    owner_text: str,
+) -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _emotion, _energy = _coordinator(
+        workspace,
+        runtime,
+        sink,
+        allowed_tools=("web_search",),
+    )
+    coordinator.start()
+    workspace.publish(
+        _social(
+            1,
+            0,
+            source_kind="owner",
+            text=owner_text,
+        )
+    )
+    coordinator.notify_perception()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+    assert runtime.started.wait(1), coordinator.outcomes()
+    coordinator.synchronize()
+
+    try:
+        request = runtime.calls[0]
+        assert request.reasoning_mode == "fast"
+        assert request.response_mode is ModelResponseMode.DECISION_PLAN
+        assert request.allowed_tools == ()
+        assert "PERSISTENT_ACTIVITY" in request.system_prompt
+        assert owner_text in request.user_prompt
+        assert request.user_prompt.count(owner_text) == 1
+        assert request.max_tokens >= 1024
+        assert coordinator._inflight is not None
+        assert coordinator._inflight.task.reasoning_budget.max_model_calls == 2
         assert coordinator._inflight.task.reasoning_budget.max_tool_calls == 0
     finally:
         runtime.release.set()

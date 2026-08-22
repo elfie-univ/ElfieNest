@@ -156,11 +156,14 @@ def test_selfhood_and_profile_anchors_are_separate_model_context_sections() -> N
     selfhood_seed["big_five"]["openness"] = 0.01
 
     # Then: the Run still sees Brain Selfhood plus immutable Profile anchors.
-    prompt = runtime.requests[0].user_prompt
-    assert '"openness":0.91' in prompt
-    assert '"selfhood"' in prompt
-    assert '"profile_anchors"' in prompt
-    assert '"display_name":"selfhood-elfie"' in prompt
+    system_prompt = runtime.requests[0].system_prompt
+    user_prompt = runtime.requests[0].user_prompt
+    assert "openness=0.91" in system_prompt
+    assert "SELF_EXPRESSION_POLICY" in system_prompt
+    assert "IMMUTABLE_IDENTITY_FACTS" in system_prompt
+    assert "You are selfhood-elfie" in system_prompt
+    assert '"selfhood"' not in user_prompt
+    assert '"profile_anchors"' not in user_prompt
     assert elfie.selfhood_snapshot().big_five.openness == 0.91
     assert elfie.profile_anchor_snapshot().display_name == "selfhood-elfie"
     elfie.stop()

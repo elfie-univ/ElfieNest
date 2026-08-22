@@ -1,3 +1,4 @@
+import inspect
 import os
 import subprocess
 import sys
@@ -79,6 +80,19 @@ def test_prepare_godot_web_runtime_uses_ensure_for_development() -> None:
 
     assert prepare_godot_web_runtime(Lifecycle(), "development") is True
     assert calls == [("development", False)]
+
+
+def test_development_start_prepares_current_godot_web_runtime() -> None:
+    main_source = inspect.getsource(serve.main)
+    startup_prefix = main_source.split('if args.runtime_mode == "release":', 1)[0]
+
+    assert (
+        "godot_ready = prepare_godot_web_runtime(lifecycle, args.runtime_mode)"
+        in startup_prefix
+    )
+    assert "godot_ready = inspect_godot_web_bundle().ready" not in main_source
+    assert "./developer.sh build-godot-web --ensure" in main_source
+    assert "./elfienest.sh build-godot-web" not in main_source
 
 
 def test_prepare_frontend_web_runtime_only_builds_development() -> None:

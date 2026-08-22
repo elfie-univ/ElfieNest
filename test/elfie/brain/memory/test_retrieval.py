@@ -81,10 +81,10 @@ def _seed_test_data(gs: FakeMemoryStore):
     for ent in entities:
         gs.add_node(ent)
 
-    # 添加INVOLVES边：entity → involves → episodic
-    gs.add_edge("ent_1", "ep_1", EdgeTypes.INVOLVES.value, 0.9)
-    gs.add_edge("ent_2", "ep_2", EdgeTypes.INVOLVES.value, 0.85)
-    gs.add_edge("ent_3", "ep_1", EdgeTypes.INVOLVES.value, 0.8)
+    # 编码权威方向：episodic → involves → entity
+    gs.add_edge("ep_1", "ent_1", EdgeTypes.INVOLVES.value, 0.9)
+    gs.add_edge("ep_2", "ent_2", EdgeTypes.INVOLVES.value, 0.85)
+    gs.add_edge("ep_1", "ent_3", EdgeTypes.INVOLVES.value, 0.8)
 
     # 添加感官索引数据
     sensory_data = [

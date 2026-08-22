@@ -120,6 +120,7 @@ function renderJourney(options: {
   readonly accountId?: string
   readonly onAdopted?: (elfieId: string) => Promise<void>
   readonly onOpenChange?: (open: boolean) => void
+  readonly onRefreshCsrfToken?: () => Promise<string>
 } = {}) {
   return render(
     <I18nextProvider i18n={createI18n()}>
@@ -128,6 +129,7 @@ function renderJourney(options: {
         csrfToken="csrf"
         onAdopted={options.onAdopted ?? (async () => undefined)}
         onOpenChange={options.onOpenChange ?? vi.fn()}
+        onRefreshCsrfToken={options.onRefreshCsrfToken ?? (async () => "csrf")}
         open
       />
     </I18nextProvider>,
@@ -290,6 +292,26 @@ describe("AdoptionJourneyDialog", () => {
     expect(screen.getByText("Elfaria 离地球很远，TA 还在路上")).toBeInTheDocument()
   })
 
+  it("recovers when the invitation reply never settles", async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    renderJourney({ onOpenChange })
+    await reachShortlist(user)
+    await user.click(screen.getByRole("button", { name: "候选者 1" }))
+    api.adoptionReplies.mockImplementationOnce(() => new Promise<never>(() => undefined))
+
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole("button", { name: "迎接 TA" }))
+
+    await act(async () => {
+      vi.advanceTimersByTime(30_001)
+      await Promise.resolve()
+    })
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("TA 暂时还没到达")
+    fireEvent.click(screen.getByRole("button", { name: "稍后再说" }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it("runs the quick three-step flow and welcomes one selected Elfie", async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
@@ -326,7 +348,9 @@ describe("AdoptionJourneyDialog", () => {
     expect(screen.queryByRole("button", { name: /拒绝|写信|回信/ })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "迎接 TA" }))
-    expect(await screen.findByRole("heading", { name: "欢迎来到 Nest，Aro 1" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "TA 已回应，确认迎接 Aro 1" })).toBeInTheDocument()
+    expect(screen.getByText("确认后 TA 才会正式加入 Nest")).toBeInTheDocument()
+    expect(api.commitAdoption).not.toHaveBeenCalled()
     expect(api.adoptionReplies).toHaveBeenCalledWith("set-1", ["candidate-1"], "", "csrf")
     expect(screen.queryByText("TA 的自我介绍")).not.toBeInTheDocument()
     expect(screen.getByText("3 岁 · 女性")).toBeInTheDocument()
@@ -336,8 +360,8 @@ describe("AdoptionJourneyDialog", () => {
     const nameInput = screen.getByRole("textbox", { name: "给 TA 一个称呼" })
     await user.clear(nameInput)
     await user.type(nameInput, "洛洛")
-    expect(screen.getByRole("heading", { name: "欢迎来到 Nest，洛洛" })).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "和 TA 聊聊" }))
+    expect(screen.getByRole("heading", { name: "TA 已回应，确认迎接 洛洛" })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "确认领养并聊天" }))
     expect(api.commitAdoption).toHaveBeenCalledWith("set-1", "candidate-1", "洛洛", "csrf", expect.any(Object))
     expect(onAdopted).toHaveBeenCalledWith("00000001")
     expect(onOpenChange).toHaveBeenCalledWith(false)
@@ -368,7 +392,7 @@ describe("AdoptionJourneyDialog", () => {
   it("keeps one-candidate invitation failures recoverable", async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
-    api.adoptionReplies.mockRejectedValue(new Error("signal unavailable"))
+    api.adoptionReplies.mockRejectedValue(new TypeError("Failed to fetch"))
     renderJourney({ onOpenChange })
 
     await reachShortlist(user)
@@ -383,8 +407,38 @@ describe("AdoptionJourneyDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   }, 15000)
 
-  it("restarts when the candidate session has expired", async () => {
+  it("refreshes the session and safely retries once after CSRF rejection", async () => {
     const user = userEvent.setup()
+    const onRefreshCsrfToken = vi.fn().mockResolvedValue("fresh-csrf")
+    api.adoptionReplies.mockRejectedValueOnce(new ApiError(403, "CSRF token 无效", [], "csrf_rejected"))
+    renderJourney({ onRefreshCsrfToken })
+
+    await reachShortlist(user)
+    await user.click(screen.getByRole("button", { name: "候选者 3" }))
+    await user.click(screen.getByRole("button", { name: "迎接 TA" }))
+
+    expect(await screen.findByRole("heading", { name: "TA 已回应，确认迎接 Aro 2" })).toBeInTheDocument()
+    expect(onRefreshCsrfToken).toHaveBeenCalledTimes(1)
+    expect(api.adoptionReplies).toHaveBeenNthCalledWith(1, "set-1", ["candidate-2"], "", "csrf")
+    expect(api.adoptionReplies).toHaveBeenNthCalledWith(2, "set-1", ["candidate-2"], "", "fresh-csrf")
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+  }, 15000)
+
+  it("regenerates candidates when the candidate session has expired", async () => {
+    const user = userEvent.setup()
+    api.adoptionCandidates
+      .mockResolvedValueOnce({
+        candidate_set_id: "set-1",
+        adoption_session_id: "session-1",
+        batch_number: 1,
+        candidates: [0, 1, 2, 3, 4].map(candidate),
+      })
+      .mockResolvedValueOnce({
+        candidate_set_id: "set-2",
+        adoption_session_id: "session-2",
+        batch_number: 1,
+        candidates: [5, 6, 7, 8, 9].map(candidate),
+      })
     api.adoptionReplies.mockRejectedValueOnce(new ApiError(410, "gone", [], "adoption_candidate_set_expired"))
     renderJourney()
 
@@ -392,7 +446,10 @@ describe("AdoptionJourneyDialog", () => {
     await user.click(screen.getByRole("button", { name: "候选者 1" }))
     await user.click(screen.getByRole("button", { name: "迎接 TA" }))
 
-    expect(await screen.findByRole("heading", { name: "先选一个基础方向" })).toBeInTheDocument()
-    expect(screen.getByText("本次领养已失效，请重新开始")).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "选一位你最喜欢的 Elfie" })).toBeInTheDocument()
+    expect(screen.getByText("服务已重启或候选已过期，已重新生成候选，请重新选择")).toBeInTheDocument()
+    expect(api.adoptionCandidates).toHaveBeenNthCalledWith(2, expect.not.objectContaining({
+      adoption_session_id: expect.anything(),
+    }), "csrf")
   }, 15000)
 })

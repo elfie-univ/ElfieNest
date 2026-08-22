@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from elfie.brain.consolidation.system import CognitiveConsolidationCheckpoint
@@ -11,6 +11,7 @@ from elfie.brain.energy.energy import EnergyCheckpoint
 from elfie.brain.memory.contracts import MemoryStateSnapshot
 from elfie.brain.motivation.system import MotivationCheckpoint
 from elfie.brain.orientation.contracts import OrientationSnapshot
+from elfie.brain.reasoning.context_types import ConversationContextCheckpoint
 from elfie.brain.selfhood.contracts import SelfhoodSnapshot
 from elfie.brain.state_lifecycle import StateCheckpoint
 
@@ -31,6 +32,9 @@ class BrainContinuityCheckpoint:
     selfhood: StateCheckpoint[SelfhoodSnapshot]
     motivation: MotivationCheckpoint
     consolidation: CognitiveConsolidationCheckpoint
+    conversation: ConversationContextCheckpoint = field(
+        default_factory=ConversationContextCheckpoint
+    )
 
 
 __all__ = ("BrainContinuityCheckpoint",)

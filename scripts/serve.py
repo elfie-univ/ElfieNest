@@ -402,23 +402,19 @@ def main():
         )
         raise SystemExit(1) from None
 
-    if args.runtime_mode == "release":
-        godot_ready = prepare_godot_web_runtime(lifecycle, args.runtime_mode)
-        if not godot_ready:
-            print(
-                "  ❌ Release mode requires verified Godot Web Runtime, service not started"
-            )
-            raise SystemExit(1)
-    else:
-        godot_ready = inspect_godot_web_bundle().ready
+    godot_ready = prepare_godot_web_runtime(lifecycle, args.runtime_mode)
+    if args.runtime_mode == "release" and not godot_ready:
+        print("  ❌ Release mode requires verified Godot Web Runtime, service not started")
+        raise SystemExit(1)
 
     godot_web = inspect_godot_web_bundle()
-    if godot_web.ready:
+    if godot_ready and godot_web.ready:
         print(f"  ✅ Godot Web Runtime: {godot_web.entry_url}")
     else:
-        print("  ⚠️  Godot Web Runtime not built yet; 3D room unavailable")
+        print("  ⚠️  Godot Web Runtime unavailable or stale; 3D room unavailable")
         print(
-            "  💡 Run after modifying Godot assets or before release: ./elfienest.sh build-godot-web"
+            "  💡 Run after modifying Godot assets or before release: "
+            "./developer.sh build-godot-web --ensure"
         )
 
     startup_cleanup = RuntimeStartupCleanup(

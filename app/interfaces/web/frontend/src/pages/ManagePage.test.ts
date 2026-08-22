@@ -13,6 +13,7 @@ import { ManagePage } from "./ManagePage"
 const session = vi.hoisted(() => ({
   loading: false,
   refresh: vi.fn(async () => undefined),
+  refreshCsrfToken: vi.fn(async () => "test-token"),
   user: {
     avatar_color: 2,
     avatar_kind: "initials" as const,
@@ -27,7 +28,7 @@ const session = vi.hoisted(() => ({
 }))
 
 vi.mock("../stores/session", () => ({
-  useSession: () => ({ user: session.user, loading: session.loading, refresh: session.refresh }),
+  useSession: () => ({ user: session.user, loading: session.loading, refresh: session.refresh, refreshCsrfToken: session.refreshCsrfToken }),
 }))
 
 vi.mock("../stores/heartbeat", () => ({

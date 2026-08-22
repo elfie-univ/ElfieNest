@@ -5,9 +5,11 @@ from __future__ import annotations
 from enum import Enum, unique
 from typing import Annotated, Literal, Mapping, Optional, Protocol, Tuple
 
-from pydantic import AliasChoices, Field, JsonValue, StringConstraints
+from pydantic import AliasChoices, Field, JsonValue, StringConstraints, model_validator
+from pydantic_core import PydanticCustomError
 
 from elfie.brain.workspace.contracts import (
+    ExternalExecutionDomain,
     InteractionScope,
     ResponseScope,
     SourceDomain,
@@ -28,6 +30,14 @@ class StructuredOutputMode(str, Enum):
     JSON_SCHEMA = "json_schema"
     TOOL_CALL = "tool_call"
     JSON_TEXT = "json_text"
+
+
+@unique
+class ModelResponseMode(str, Enum):
+    """Semantic response shape selected by Brain before provider execution."""
+
+    DIRECT_REPLY = "direct_reply"
+    DECISION_PLAN = "decision_plan"
 
 
 class JsonSchemaDocument(FrozenContractModel):
@@ -77,9 +87,26 @@ class ModelGenerationRequest(FrozenContractModel):
     user_prompt: _NonBlankText
     response_schema: JsonSchemaDocument
     reasoning_mode: Literal["fast", "long"] = "fast"
+    response_mode: ModelResponseMode = ModelResponseMode.DECISION_PLAN
     allowed_tools: Tuple[_NonBlankText, ...] = ()
     temperature: Annotated[float, Field(strict=True, ge=0.0, le=2.0)] = 0.2
     max_tokens: Annotated[int, Field(strict=True, ge=1)] = 512
+
+    @model_validator(mode="after")
+    def validate_direct_reply_scope(self) -> ModelGenerationRequest:
+        if self.response_mode is not ModelResponseMode.DIRECT_REPLY:
+            return self
+        if (
+            self.reasoning_mode != "fast"
+            or self.source_domain is not SourceDomain.COMMUNICATION
+            or self.response_scope.external_domain
+            is not ExternalExecutionDomain.COMMUNICATION
+        ):
+            raise PydanticCustomError(
+                "direct_reply_scope",
+                "direct replies require a fast communication Turn and target",
+            )
+        return self
 
 
 class ModelGenerationResult(FrozenContractModel):
@@ -123,5 +150,6 @@ __all__ = (
     "ModelGenerationCapabilities",
     "ModelGenerationRequest",
     "ModelGenerationResult",
+    "ModelResponseMode",
     "StructuredOutputMode",
 )

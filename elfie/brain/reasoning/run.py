@@ -39,9 +39,9 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationRequest,
     ModelGenerationResult,
     ModelPort,
+    ModelResponseMode,
 )
 from elfie.brain.reasoning.tool_port import ToolPort, ToolRequest, ToolResult
-from elfie.brain.workspace.contracts import ExternalExecutionDomain
 from elfie.message_types import FrozenContractModel, IntentId, PlanId
 
 if TYPE_CHECKING:
@@ -452,7 +452,7 @@ class ReasoningRun:
             update={
                 "system_prompt": (
                     base.system_prompt
-                    if direct_reply
+                    if direct_reply or not base.allowed_tools
                     else base.system_prompt + _TOOL_INSTRUCTIONS
                 ),
                 "user_prompt": user_prompt,
@@ -467,11 +467,7 @@ class ReasoningRun:
 
     @staticmethod
     def _is_fast_owner_reply(request: ModelGenerationRequest) -> bool:
-        return (
-            request.reasoning_mode == "fast"
-            and request.response_scope.external_domain
-            is ExternalExecutionDomain.COMMUNICATION
-        )
+        return request.response_mode is ModelResponseMode.DIRECT_REPLY
 
     @staticmethod
     def _marker(text: str) -> _ToolMarker | None:

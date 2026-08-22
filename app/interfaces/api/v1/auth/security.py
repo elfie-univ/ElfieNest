@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import hmac
-import secrets
 
-_CSRF_SECRET = secrets.token_hex(32)
+_CSRF_CONTEXT = b"elfienest-csrf-v1"
 
 
 def generate_csrf_token(session_token: str) -> str:
+    """Derive a restart-stable token from the high-entropy session secret."""
     return hmac.new(
-        _CSRF_SECRET.encode("utf-8"),
         session_token.encode("utf-8"),
+        _CSRF_CONTEXT,
         "sha256",
     ).hexdigest()
 
