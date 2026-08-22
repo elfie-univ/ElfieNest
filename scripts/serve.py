@@ -404,7 +404,9 @@ def main():
 
     godot_ready = prepare_godot_web_runtime(lifecycle, args.runtime_mode)
     if args.runtime_mode == "release" and not godot_ready:
-        print("  ❌ Release mode requires verified Godot Web Runtime, service not started")
+        print(
+            "  ❌ Release mode requires verified Godot Web Runtime, service not started"
+        )
         raise SystemExit(1)
 
     godot_web = inspect_godot_web_bundle()
