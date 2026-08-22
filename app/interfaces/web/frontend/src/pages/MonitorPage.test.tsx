@@ -46,7 +46,12 @@ const redirects = vi.hoisted(() => ({ assign: vi.fn() }))
 const roomFixture = [{ id: "local-nest", name: "Local Nest", desired_bed_count: 4, beds: [] }]
 
 function setSession(user: ClientUser | null, loading = false): void {
-  vi.mocked(useSession).mockReturnValue({ loading, refresh: vi.fn(async () => undefined), user })
+  vi.mocked(useSession).mockReturnValue({
+    loading,
+    refresh: vi.fn(async () => undefined),
+    refreshCsrfToken: vi.fn(async () => user?.csrf_token ?? ""),
+    user,
+  })
 }
 
 function renderMonitor(locale: SupportedLocale = "zh-CN") {

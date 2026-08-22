@@ -9,6 +9,7 @@ from elfie.body.contracts import (
     BodySensorEvent,
     EnvironmentSample,
     HeardUtterancePayload,
+    NestFactNoticePayload,
     ProprioceptionSample,
     SemanticActionResultPayload,
     SemanticVisualScenePayload,
@@ -37,6 +38,7 @@ def body_event(
         | ProprioceptionSample
         | EnvironmentSample
         | HeardUtterancePayload
+        | NestFactNoticePayload
         | SemanticVisualScenePayload
         | SemanticActionResultPayload
     ),

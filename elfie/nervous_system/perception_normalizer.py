@@ -8,6 +8,7 @@ from elfie.body.contracts import (
     BodySensorEvent,
     EnvironmentSample,
     HeardUtterancePayload,
+    NestFactNoticePayload,
     ProprioceptionSample,
     SemanticActionResultPayload,
     SemanticVisualScenePayload,
@@ -91,6 +92,24 @@ class BodyPerceptionNormalizer:
                 ),
                 (),
                 salience=0.7,
+            )
+        if isinstance(payload, NestFactNoticePayload):
+            details = [
+                f"fact_type={payload.fact_type}",
+                f"fact_id={payload.fact_id}",
+                f"summary={payload.summary}",
+            ]
+            for key in ("zone_id", "active", "lights_on", "quiet_mode", "phase"):
+                value = getattr(payload, key)
+                if value is not None:
+                    rendered = str(value).lower() if isinstance(value, bool) else value
+                    details.append(f"{key}={rendered}")
+            return self._reliable(
+                event,
+                PhysicalModality.ENVIRONMENT,
+                "; ".join(details),
+                (),
+                salience=0.6,
             )
         if isinstance(payload, UtteranceFinal):
             return self._reliable(

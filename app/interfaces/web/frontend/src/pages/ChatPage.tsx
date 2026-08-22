@@ -78,7 +78,7 @@ function compareStableText(left: string, right: string): number {
 
 export function ChatPage() {
   const { i18n, t } = useTranslation("chat")
-  const { user, loading, refresh } = useSession()
+  const { user, loading, refresh, refreshCsrfToken } = useSession()
   usePresenceHeartbeat(user)
   const { activePane, correct, go, mobileDetail, selectedId, state: viewState } = useChatView()
   const socket = useRef<ChatSocket | null>(null)
@@ -288,16 +288,30 @@ export function ChatPage() {
     go({ view: "conversation", elfie: selectedId })
   }
   const adoptionCompleted = async (elfieId: string): Promise<void> => {
-    const [visibleElfies, rows] = await Promise.all([
-      elfies(),
-      conversations(),
-    ])
+    let visibleElfies: Awaited<ReturnType<typeof elfies>>
+    try {
+      visibleElfies = await elfies()
+    } catch (reason: unknown) {
+      setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
+      go({ view: "elfies" })
+      return
+    }
     const orderedElfies = [
       ...visibleElfies.filter((entry) => entry.elfie_id === elfieId),
       ...visibleElfies.filter((entry) => entry.elfie_id !== elfieId),
     ]
-    setData(createOwnedChatData(orderedElfies, rows, user.account_id))
+    setData((current) => createOwnedChatData(orderedElfies, current?.conversations ?? [], user.account_id))
+    setFailure(null)
     go({ view: "conversation", elfie: elfieId })
+    void conversations()
+      .then((rows) => {
+        setData((current) => current === null
+          ? current
+          : createOwnedChatData(current.elfies, rows, user.account_id))
+      })
+      .catch((reason: unknown) => {
+        setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
+      })
   }
   const saveSelectedFood = async (): Promise<void> => {
     if (selectedId === null) return
@@ -448,7 +462,7 @@ export function ChatPage() {
           <Button aria-label={t("navigation.me")} className={mobileSection === "me" ? "mobile-tabbar__item mobile-tabbar__item--active" : "mobile-tabbar__item"} onClick={() => openMobileSection("me")} type="button" variant="ghost"><AccountIdentityAvatar user={user} /><span>{t("navigation.me")}</span></Button>
         </nav>
       </section>
-      <AdoptionJourneyDialog accountId={user.account_id} csrfToken={user.csrf_token ?? ""} onAdopted={adoptionCompleted} onOpenChange={setShowAdoption} open={showAdoption} />
+      <AdoptionJourneyDialog accountId={user.account_id} csrfToken={user.csrf_token ?? ""} onAdopted={adoptionCompleted} onOpenChange={setShowAdoption} onRefreshCsrfToken={refreshCsrfToken} open={showAdoption} />
       {showMobileAccess ? <MobileAccessDialog onClose={() => setShowMobileAccess(false)} targetPath="/chat" /> : null}
     </main>
   )

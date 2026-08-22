@@ -141,6 +141,7 @@ export type AdoptionAction =
   | { readonly type: "set-answer"; readonly index: number; readonly value: CompanionAnswer }
   | { readonly type: "question"; readonly index: number }
   | { readonly type: "candidates-ready"; readonly setId: string; readonly sessionId: string; readonly batch: number; readonly candidates: readonly Candidate[]; readonly selectedIds?: readonly string[] }
+  | { readonly type: "restart-candidates" }
   | { readonly type: "candidate-set-recovered"; readonly setId: string }
   | { readonly type: "toggle-candidate"; readonly candidateId: string }
   | { readonly type: "replies-ready"; readonly replies: readonly CandidateReply[]; readonly finalCandidateId: string }
@@ -195,6 +196,14 @@ export function adoptionReducer(state: AdoptionDraftState, action: AdoptionActio
       return { ...state, questionIndex: Math.max(0, Math.min(4, action.index)), error: null }
     case "candidates-ready":
       return { ...state, screen: "shortlist", candidateSetId: action.setId, adoptionSessionId: action.sessionId, candidates: action.candidates, candidateBatch: action.batch, selectedCandidateIds: (action.selectedIds ?? []).filter((candidateId) => action.candidates.some((candidate) => candidate.candidateId === candidateId)), replies: [], finalCandidateId: null, error: null, dirty: true }
+    case "restart-candidates":
+      return {
+        ...INITIAL_ADOPTION_STATE,
+        screen: "generating",
+        draft: state.draft,
+        questionIndex: state.questionIndex,
+        dirty: true,
+      }
     case "candidate-set-recovered":
       return { ...state, candidateSetId: action.setId, error: null }
     case "toggle-candidate": {

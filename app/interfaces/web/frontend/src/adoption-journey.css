@@ -75,6 +75,7 @@
 .adoption-species-choice small, .adoption-candidate-card small, .adoption-candidate-card__copy > span, .adoption-invite-card small { color: var(--text-muted); line-height: 1.5; }
 .adoption-option-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .adoption-quota-warning, .adoption-inline-error { margin: 14px 0 0; color: var(--error-text); line-height: 1.55; }
+.adoption-inline-notice { margin: 14px 0 0; color: var(--text-muted); line-height: 1.55; }
 
 .adoption-appearance-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 26px; }
 .adoption-appearance-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }

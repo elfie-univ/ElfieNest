@@ -47,6 +47,7 @@ describe("currentUser", () => {
     expect(user).not.toHaveProperty("id")
     expect(user).not.toHaveProperty("username")
     expect(user).not.toHaveProperty("nickname")
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/me", { cache: "no-store" })
   })
 
   it("accepts the canonical Admin role without treating it as an Owner", async () => {

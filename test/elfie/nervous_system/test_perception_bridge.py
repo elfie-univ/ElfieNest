@@ -9,6 +9,7 @@ from elfie.body.contracts import (
     EmergencyStopCommand,
     EnvironmentSample,
     HeardUtterancePayload,
+    NestFactNoticePayload,
     ProprioceptionSample,
     SemanticActionResultPayload,
     SemanticVisualEntityPayload,
@@ -21,6 +22,7 @@ from elfie.brain.workspace.contracts import (
     ExecutionPayload,
     IngestDisposition,
     PerceptionEvent,
+    PhysicalModality,
     PhysicalPayload,
 )
 from elfie.brain.workspace.ports import PerceptionSink
@@ -139,6 +141,19 @@ def test_nest_semantic_payloads_enter_one_typed_embodied_perception_lane() -> No
                 ),
                 cause_id="move-intent-1",
             ),
+            body_event(
+                "nest-fact-1",
+                ROOM,
+                NestFactNoticePayload(
+                    kind="nest_fact_notice",
+                    fact_type="environment_desired_changed",
+                    fact_id="environment:desired",
+                    summary="夜间环境偏好已更新",
+                    lights_on=False,
+                    quiet_mode=True,
+                ),
+                cause_id="environment-command-1",
+            ),
         )
     )
 
@@ -147,16 +162,24 @@ def test_nest_semantic_payloads_enter_one_typed_embodied_perception_lane() -> No
         EventId("heard-1"),
         EventId("visual-1"),
         EventId("action-1"),
+        EventId("nest-fact-1"),
     ]
     assert [event.meta.causation_id for event in frame.events] == [
         EventId("speech-command-1"),
         EventId("vision-observation-1"),
         EventId("move-intent-1"),
+        EventId("environment-command-1"),
     ]
     contents = [event.payload.content for event in frame.events]
     assert "sender=fox-1" in contents[0] and "emotion=happy" in contents[0]
     assert "actor/fox-1" in contents[1]
     assert "status=completed" in contents[2]
+    assert frame.events[3].payload.modality is PhysicalModality.ENVIRONMENT
+    assert "fact_type=environment_desired_changed" in contents[3]
+    assert "fact_id=environment:desired" in contents[3]
+    assert "summary=夜间环境偏好已更新" in contents[3]
+    assert "lights_on=false" in contents[3]
+    assert "quiet_mode=true" in contents[3]
 
 
 def test_body_does_not_implement_the_brain_perception_sink() -> None:
