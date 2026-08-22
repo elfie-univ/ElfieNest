@@ -1,295 +1,755 @@
 name: CI
 
 on:
-  push:
-    branches: [main, develop]
   pull_request:
     branches: [main]
+  merge_group:
+    types: [checks_requested]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Validation mode
+        required: true
+        default: candidate
+        type: choice
+        options: [candidate, full]
+      target_sha:
+        description: Exact candidate SHA (defaults to the selected ref for full mode)
+        required: false
+        type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
+  actions: read
   contents: read
+  pull-requests: read
 
 env:
   UV_VERSION: "0.9.26"
+  PNPM_VERSION: "10.12.1"
+  PYTHON_VERSION: "3.9.25"
 
 jobs:
-  architecture-governance:
-    name: Architecture Governance
+  preflight:
+    name: Trusted affected-path preflight
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'candidate')
     runs-on: ubuntu-latest
-    env:
-      BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+    outputs:
+      base_sha: ${{ steps.route.outputs.base_sha }}
+      candidate_sha: ${{ steps.route.outputs.candidate_sha }}
+      router_version: ${{ steps.route.outputs.router_version }}
+      tests_json: ${{ steps.route.outputs.tests_json }}
+      full: ${{ steps.route.outputs.full }}
+      security_fast: ${{ steps.route.outputs.security_fast }}
+      python_bundles: ${{ steps.route.outputs.python_bundles }}
+      web_frontend: ${{ steps.route.outputs.web_frontend }}
+      desktop: ${{ steps.route.outputs.desktop }}
+      devtools_web: ${{ steps.route.outputs.devtools_web }}
+      architecture: ${{ steps.route.outputs.architecture }}
+      persistence_contract: ${{ steps.route.outputs.persistence_contract }}
+      godot: ${{ steps.route.outputs.godot }}
+      docs: ${{ steps.route.outputs.docs }}
+      toolchain: ${{ steps.route.outputs.toolchain }}
+      release: ${{ steps.route.outputs.release }}
+      governance: ${{ steps.route.outputs.governance }}
+    steps:
+      - name: Check out the exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.target_sha }}
+
+      - name: Route from the immutable base classifier
+        id: route
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TARGET_INPUT: ${{ inputs.target_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base_sha="$PR_BASE_SHA"
+            candidate_sha="$PR_HEAD_SHA"
+          else
+            [[ "$TARGET_INPUT" =~ ^[0-9a-f]{40}$ ]] || {
+              echo "candidate mode requires an exact 40-character target SHA" >&2
+              exit 1
+            }
+            base_sha="$(git rev-parse 'origin/main^{commit}')"
+            candidate_sha="$TARGET_INPUT"
+          fi
+          [[ "$(git rev-parse HEAD)" == "$candidate_sha" ]] || {
+            echo "checkout is not the requested exact candidate" >&2
+            exit 1
+          }
+          git cat-file -e "$base_sha^{commit}"
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+
+          trusted_router="$RUNNER_TEMP/trusted-validation-plan.py"
+          if git show "$base_sha:scripts/architecture/validation_plan.py" \
+              > "$trusted_router" 2>/dev/null && \
+              grep -q 'MANIFEST_SCHEMA_VERSION = "affected-v1"' "$trusted_router"; then
+            ELFIENEST_PROJECT_ROOT="$GITHUB_WORKSPACE" \
+              python3 "$trusted_router" \
+                --base-sha "$base_sha" \
+                --stage push \
+                --github-output "$GITHUB_OUTPUT"
+          else
+            echo "base branch predates the trusted router; selecting every lane"
+            echo "router_version=bootstrap-full" >> "$GITHUB_OUTPUT"
+            echo 'tests_json=["test/app","test/devtools","test/e2e","test/elfie","test/infrastructure","test/nest","test/scripts"]' >> "$GITHUB_OUTPUT"
+            echo 'manifest_json={"schema_version":"bootstrap-full","full":true}' >> "$GITHUB_OUTPUT"
+            echo 'unknown_paths_json=[]' >> "$GITHUB_OUTPUT"
+            echo "full=true" >> "$GITHUB_OUTPUT"
+            for capability in \
+              security_fast python_bundles web_frontend desktop devtools_web \
+              architecture persistence_contract godot docs toolchain release governance; do
+              echo "$capability=true" >> "$GITHUB_OUTPUT"
+            done
+          fi
+
+  security-fast:
+    name: Security and changed-file quality
+    needs: preflight
+    if: needs.preflight.outputs.security_fast == 'true'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-
+          ref: ${{ needs.preflight.outputs.candidate_sha }}
       - name: Set up uv
         uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
-
       - name: Install pinned environment
         run: |
-          uv python install 3.9.25
+          uv python install "$PYTHON_VERSION"
           uv sync --locked --extra dev
-
-      - name: Check candidate scanner against candidate baseline
+      - name: Check changed files
+        env:
+          BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
+          PRE_COMMIT_HOME: /tmp/elfienest-precommit
+        shell: bash
         run: |
-          if test -f test/architecture/baselines/app_layer.py; then
-            uv run --no-sync python scripts/architecture/app_layer_scan.py \
-              --project-root . \
-              --baseline test/architecture/baselines/app_layer.py \
-              --mode exact
+          set -Eeuo pipefail
+          files=()
+          while IFS= read -r -d '' path; do
+            files+=("$path")
+          done < <(git diff --name-only --diff-filter=ACMR -z "$BASE_SHA" --)
+          if (( ${#files[@]} )); then
+            uv run --no-sync pre-commit run gitleaks --files "${files[@]}"
           else
-            uv run --no-sync python scripts/architecture/app_layer_scan.py \
-              --project-root . \
-              --mode deny-all
+            echo "No changed files require a secret scan."
           fi
-
-      - name: Check candidate system scanner against candidate baseline
-        run: |
-          if test -f test/architecture/baselines/system_layer.py; then
-            uv run --no-sync python scripts/architecture/system_layer_scan.py \
-              --project-root . \
-              --baseline test/architecture/baselines/system_layer.py \
-              --mode exact
-          else
-            uv run --no-sync python scripts/architecture/system_layer_scan.py \
-              --project-root . \
-              --mode deny-all
-          fi
-
-      - name: Check candidate effective dependencies
-        run: |
-          uv run --no-sync python scripts/architecture/effective_dependency_scan.py \
-            --project-root .
-
-      - name: Check candidate structural cleanup scopes
-        run: |
-          uv run --no-sync python scripts/architecture/structural_scope_scan.py \
-            --project-root .
-
-      - name: Check database boundaries and print consumer inventory
-        run: |
-          uv run --no-sync python scripts/architecture/database_change_scan.py \
-            --project-root . \
-            --base-sha "$BASE_SHA" \
-            --check
-
-      - name: Reject governance and implementation files in one change
-        run: |
-          if git cat-file -e "$BASE_SHA:scripts/architecture/check_governance_change.py"; then
-            classifier_root="$RUNNER_TEMP/base-governance"
-            classifier_dir="$classifier_root/scripts/architecture"
-            mkdir -p "$classifier_dir"
-            classifier="$classifier_dir/check_governance_change.py"
-            git show "$BASE_SHA:scripts/architecture/check_governance_change.py" > "$classifier"
-            if git cat-file -e "$BASE_SHA:scripts/architecture/structural_scope_scan.py"; then
-              git show "$BASE_SHA:scripts/architecture/structural_scope_scan.py" \
-                > "$classifier_dir/structural_scope_scan.py"
+          python_files=()
+          for path in "${files[@]}"; do
+            if [[ "$path" == *.py && -f "$path" ]]; then
+              python_files+=("$path")
             fi
-          else
-            classifier="scripts/architecture/check_governance_change.py"
-            classifier_root="$GITHUB_WORKSPACE"
+          done
+          if (( ${#python_files[@]} )); then
+            uv run --no-sync ruff check "${python_files[@]}"
+            uv run --no-sync ruff format --check "${python_files[@]}"
           fi
-          PYTHONPATH="$classifier_root" \
-            uv run --no-sync python "$classifier" --base-sha "$BASE_SHA"
+          git diff --check "$BASE_SHA" --
 
-      - name: Apply immutable base-branch architecture ratchet
-        run: |
-          if git cat-file -e "$BASE_SHA:scripts/architecture/app_layer_scan.py"; then
-            ratchet_dir="$RUNNER_TEMP/architecture-ratchet"
-            mkdir -p "$ratchet_dir"
-            git show "$BASE_SHA:scripts/architecture/app_layer_scan.py" > "$ratchet_dir/app_layer_scan.py"
-            if git cat-file -e "$BASE_SHA:test/architecture/baselines/app_layer.py"; then
-              git show "$BASE_SHA:test/architecture/baselines/app_layer.py" > "$ratchet_dir/app_layer.py"
-              uv run --no-sync python "$ratchet_dir/app_layer_scan.py" \
-                --project-root "$GITHUB_WORKSPACE" \
-                --baseline "$ratchet_dir/app_layer.py" \
-                --mode subset
-            else
-              uv run --no-sync python "$ratchet_dir/app_layer_scan.py" \
-                --project-root "$GITHUB_WORKSPACE" \
-                --mode deny-all
-            fi
-          elif git cat-file -e "$BASE_SHA:docs/developer/contracts/repository-governance.md"; then
-            echo "Base branch has the governance contract but no App scanner." >&2
-            exit 1
-          else
-            echo "Bootstrap governance change: no base-branch scanner exists yet."
-          fi
-
-      - name: Apply immutable base-branch system architecture ratchet
-        run: |
-          if git cat-file -e "$BASE_SHA:scripts/architecture/system_layer_scan.py"; then
-            ratchet_dir="$RUNNER_TEMP/system-architecture-ratchet"
-            mkdir -p "$ratchet_dir"
-            git show "$BASE_SHA:scripts/architecture/system_layer_scan.py" > "$ratchet_dir/system_layer_scan.py"
-            if git cat-file -e "$BASE_SHA:test/architecture/baselines/system_layer.py"; then
-              git show "$BASE_SHA:test/architecture/baselines/system_layer.py" > "$ratchet_dir/system_layer.py"
-              uv run --no-sync python "$ratchet_dir/system_layer_scan.py" \
-                --project-root "$GITHUB_WORKSPACE" \
-                --baseline "$ratchet_dir/system_layer.py" \
-                --mode subset
-            else
-              uv run --no-sync python "$ratchet_dir/system_layer_scan.py" \
-                --project-root "$GITHUB_WORKSPACE" \
-                --mode deny-all
-            fi
-          elif git cat-file -e "$BASE_SHA:docs/developer/contracts/system.md"; then
-            echo "Base branch has the system contract but no system scanner." >&2
-            exit 1
-          else
-            echo "Bootstrap system governance change: no base-branch scanner exists yet."
-          fi
-
-      - name: Apply immutable base-branch effective dependency gate
-        run: |
-          if git cat-file -e "$BASE_SHA:scripts/architecture/effective_dependency_scan.py"; then
-            scanner_root="$RUNNER_TEMP/effective-dependency-ratchet"
-            scanner_dir="$scanner_root/scripts/architecture"
-            mkdir -p "$scanner_dir"
-            for file in effective_dependency_python.py effective_dependency_scan.py effective_dependency_targets.py effective_dependency_text.py; do
-              git show "$BASE_SHA:scripts/architecture/$file" > "$scanner_dir/$file"
-            done
-            uv run --no-sync python "$scanner_dir/effective_dependency_scan.py" \
-              --project-root "$GITHUB_WORKSPACE"
-          elif git cat-file -e "$BASE_SHA:docs/developer/decisions/0012-effective-dependency-targets.md"; then
-            echo "Base branch has ADR-0012 but no effective dependency scanner." >&2
-            exit 1
-          else
-            echo "Bootstrap effective dependency governance: no base scanner exists yet."
-          fi
-
-  environment-smoke:
-    name: Environment Smoke (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-
-      - name: Install pinned development environment
-        run: |
-          uv python install 3.9.25
-          uv sync --locked --extra dev
-
-      - name: Verify exact CPython runtime
-        run: >
-          .venv/bin/python3 -c 'import platform, sys;
-          raise SystemExit(0 if sys.implementation.name == "cpython" and
-          platform.python_version() == "3.9.25" else 1)'
-
-      - name: Run CLI version smoke test
-        run: .venv/bin/python3 scripts/elfienest.py version
-
-  lint:
-    name: Lint
+  python-affected:
+    name: Affected Python tests
+    needs: preflight
+    if: needs.preflight.outputs.python_bundles == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.preflight.outputs.candidate_sha }}
       - name: Set up uv
         uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
-
       - name: Install pinned environment
         run: |
-          uv python install 3.9.25
+          uv python install "$PYTHON_VERSION"
           uv sync --locked --extra dev
-
-      - name: Check dependency lock
-        run: uv lock --check
-
-      - name: Check Node toolchain manifests
-        run: bash scripts/check_node_toolchain.sh
-
-      - name: Check Python quality baseline
-        run: uv run --no-sync python scripts/check_quality_baseline.py
-
-      - name: Run pre-commit hooks
-        run: uv run --no-sync pre-commit run --all-files
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-
-      - name: Install pinned environment
-        run: |
-          uv python install 3.9.25
-          uv sync --locked --extra dev
-
       - name: Set up pnpm
         uses: pnpm/action-setup@f2b2b233b538f500472c7274c7012f57857d8ce0 # v4.1.0
         with:
-          version: 10.12.1
-
+          version: ${{ env.PNPM_VERSION }}
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: pnpm
           cache-dependency-path: devtools/web/pnpm-lock.yaml
-
       - name: Install Developer Tools frontend dependencies
         working-directory: devtools/web
         run: pnpm install --frozen-lockfile
+      - name: Run selected deterministic tests
+        env:
+          BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
+          SELECTORS_JSON: ${{ needs.preflight.outputs.tests_json }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mapfile -t selectors < <(
+            .venv/bin/python3 -c \
+              'import json, os; print("\n".join(json.loads(os.environ["SELECTORS_JSON"])))'
+          )
+          (( ${#selectors[@]} )) || {
+            echo "python_bundles was selected without test selectors" >&2
+            exit 1
+          }
+          .venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+            --base-sha "$BASE_SHA" \
+            --selectors "${selectors[@]}"
 
-      - name: Run Tests
-        run: uv run --no-sync pytest --cov --cov-report=xml --cov-report=term-missing
-
-      - name: Upload coverage to Codecov
-        if: success()
-        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4.6.0
+  web-frontend:
+    name: Web frontend
+    needs: preflight
+    if: needs.preflight.outputs.web_frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/interfaces/web/frontend
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          file: ./coverage.xml
-          fail_ci_if_error: false
+          ref: ${{ needs.preflight.outputs.candidate_sha }}
+      - uses: pnpm/action-setup@f2b2b233b538f500472c7274c7012f57857d8ce0 # v4.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: app/interfaces/web/frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  desktop:
+    name: Desktop
+    needs: preflight
+    if: needs.preflight.outputs.desktop == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/interfaces/desktop
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.preflight.outputs.candidate_sha }}
+      - uses: pnpm/action-setup@f2b2b233b538f500472c7274c7012f57857d8ce0 # v4.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: app/interfaces/desktop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+  devtools-web:
+    name: Developer Tools web
+    needs: preflight
+    if: needs.preflight.outputs.devtools_web == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: devtools/web
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.preflight.outputs.candidate_sha }}
+      - uses: pnpm/action-setup@f2b2b233b538f500472c7274c7012f57857d8ce0 # v4.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: devtools/web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+
+  architecture-governance:
+    name: Architecture governance
+    needs: preflight
+    if: needs.preflight.outputs.architecture == 'true'
+    runs-on: ubuntu-latest
+    env:
+      BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.preflight.outputs.candidate_sha }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install pinned environment
+        run: |
+          uv python install "$PYTHON_VERSION"
+          uv sync --locked --extra dev
+      - name: Check candidate architecture rules
+        run: |
+          if test -f test/architecture/baselines/app_layer.py; then
+            uv run --no-sync python scripts/architecture/app_layer_scan.py \
+              --project-root . --baseline test/architecture/baselines/app_layer.py --mode exact
+          else
+            uv run --no-sync python scripts/architecture/app_layer_scan.py \
+              --project-root . --mode deny-all
+          fi
+          if test -f test/architecture/baselines/system_layer.py; then
+            uv run --no-sync python scripts/architecture/system_layer_scan.py \
+              --project-root . --baseline test/architecture/baselines/system_layer.py --mode exact
+          else
+            uv run --no-sync python scripts/architecture/system_layer_scan.py \
+              --project-root . --mode deny-all
+          fi
+          uv run --no-sync python scripts/architecture/effective_dependency_scan.py \
+            --project-root .
+          uv run --no-sync python scripts/architecture/structural_scope_scan.py \
+            --project-root .
+      - name: Reject self-approved governance changes
+        run: |
+          classifier_root="$RUNNER_TEMP/base-governance"
+          classifier_dir="$classifier_root/scripts/architecture"
+          mkdir -p "$classifier_dir"
+          git show "$BASE_SHA:scripts/architecture/check_governance_change.py" \
+            > "$classifier_dir/check_governance_change.py"
+          git show "$BASE_SHA:scripts/architecture/structural_scope_scan.py" \
+            > "$classifier_dir/structural_scope_scan.py"
+          PYTHONPATH="$classifier_root" uv run --no-sync python \
+            "$classifier_dir/check_governance_change.py" --base-sha "$BASE_SHA"
+      - name: Apply immutable base architecture ratchets
+        run: |
+          ratchet_root="$RUNNER_TEMP/architecture-ratchet"
+          mkdir -p "$ratchet_root/scripts/architecture" "$ratchet_root/test/architecture/baselines"
+          git show "$BASE_SHA:scripts/architecture/app_layer_scan.py" \
+            > "$ratchet_root/scripts/architecture/app_layer_scan.py"
+          if git cat-file -e "$BASE_SHA:test/architecture/baselines/app_layer.py"; then
+            git show "$BASE_SHA:test/architecture/baselines/app_layer.py" \
+              > "$ratchet_root/test/architecture/baselines/app_layer.py"
+            uv run --no-sync python "$ratchet_root/scripts/architecture/app_layer_scan.py" \
+              --project-root . --baseline "$ratchet_root/test/architecture/baselines/app_layer.py" --mode subset
+          else
+            uv run --no-sync python "$ratchet_root/scripts/architecture/app_layer_scan.py" \
+              --project-root . --mode deny-all
+          fi
+          git show "$BASE_SHA:scripts/architecture/system_layer_scan.py" \
+            > "$ratchet_root/scripts/architecture/system_layer_scan.py"
+          if git cat-file -e "$BASE_SHA:test/architecture/baselines/system_layer.py"; then
+            git show "$BASE_SHA:test/architecture/baselines/system_layer.py" \
+              > "$ratchet_root/test/architecture/baselines/system_layer.py"
+            uv run --no-sync python "$ratchet_root/scripts/architecture/system_layer_scan.py" \
+              --project-root . --baseline "$ratchet_root/test/architecture/baselines/system_layer.py" --mode subset
+          else
+            uv run --no-sync python "$ratchet_root/scripts/architecture/system_layer_scan.py" \
+              --project-root . --mode deny-all
+          fi
+      - name: Apply immutable base effective-dependency gate
+        run: |
+          scanner_root="$RUNNER_TEMP/effective-ratchet"
+          scanner_dir="$scanner_root/scripts/architecture"
+          mkdir -p "$scanner_dir"
+          for file in effective_dependency_python.py effective_dependency_scan.py \
+            effective_dependency_targets.py effective_dependency_text.py; do
+            git show "$BASE_SHA:scripts/architecture/$file" > "$scanner_dir/$file"
+          done
+          uv run --no-sync python "$scanner_dir/effective_dependency_scan.py" \
+            --project-root .
+      - name: Run governance contract tests
+        run: uv run --no-sync pytest test/architecture/
+
+  persistence-contract:
+    name: Persistence contract
+    needs: preflight
+    if: needs.preflight.outputs.persistence_contract == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.preflight.outputs.candidate_sha }}
+      - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: |
+          uv python install "$PYTHON_VERSION"
+          uv sync --locked --extra dev
+      - name: Check database impact inventory
+        env:
+          BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
+        run: >-
+          uv run --no-sync python scripts/architecture/database_change_scan.py
+          --project-root . --base-sha "$BASE_SHA" --check
+
+  godot-contract:
+    name: Godot contract tests
+    needs: preflight
+    if: needs.preflight.outputs.godot == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.preflight.outputs.candidate_sha }}
+      - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: |
+          uv python install "$PYTHON_VERSION"
+          uv sync --locked --extra dev
+      - name: Run the registered Godot test bundle
+        env:
+          BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
+        run: >-
+          .venv/bin/python3 scripts/architecture/validation_test_bundles.py
+          --base-sha "$BASE_SHA" --selectors test/godot
 
   docs-build:
-    name: Docs Build
+    name: Docs build
+    needs: preflight
+    if: needs.preflight.outputs.docs == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: docs
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@f2b2b233b538f500472c7274c7012f57857d8ce0 # v4.1.0
         with:
-          version: 10.12.1
-
-      - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+          ref: ${{ needs.preflight.outputs.candidate_sha }}
+      - uses: pnpm/action-setup@f2b2b233b538f500472c7274c7012f57857d8ce0 # v4.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: pnpm
           cache-dependency-path: docs/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
 
-      - name: Install documentation dependencies
-        run: pnpm install --frozen-lockfile
+  toolchain:
+    name: Toolchain manifests
+    needs: preflight
+    if: needs.preflight.outputs.toolchain == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.preflight.outputs.candidate_sha }}
+      - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv lock --check
+      - run: bash scripts/check_node_toolchain.sh
 
-      - name: Build documentation
-        run: pnpm build
+  release-contract:
+    name: Release contract
+    needs: preflight
+    if: needs.preflight.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.preflight.outputs.candidate_sha }}
+      - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: |
+          uv python install "$PYTHON_VERSION"
+          uv sync --locked --extra dev
+      - name: Verify repository release metadata
+        run: uv run --no-sync python scripts/check_release_version.py
+
+  ci-gate:
+    name: elfienest/ci-gate
+    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'candidate'))
+    needs:
+      - preflight
+      - security-fast
+      - python-affected
+      - web-frontend
+      - desktop
+      - devtools-web
+      - architecture-governance
+      - persistence-contract
+      - godot-contract
+      - docs-build
+      - toolchain
+      - release-contract
+    runs-on: ubuntu-latest
+    env:
+      SECURITY_SELECTED: ${{ needs.preflight.outputs.security_fast }}
+      SECURITY_RESULT: ${{ needs.security-fast.result }}
+      PYTHON_SELECTED: ${{ needs.preflight.outputs.python_bundles }}
+      PYTHON_RESULT: ${{ needs.python-affected.result }}
+      WEB_SELECTED: ${{ needs.preflight.outputs.web_frontend }}
+      WEB_RESULT: ${{ needs.web-frontend.result }}
+      DESKTOP_SELECTED: ${{ needs.preflight.outputs.desktop }}
+      DESKTOP_RESULT: ${{ needs.desktop.result }}
+      DEVTOOLS_SELECTED: ${{ needs.preflight.outputs.devtools_web }}
+      DEVTOOLS_RESULT: ${{ needs.devtools-web.result }}
+      ARCHITECTURE_SELECTED: ${{ needs.preflight.outputs.architecture }}
+      ARCHITECTURE_RESULT: ${{ needs.architecture-governance.result }}
+      PERSISTENCE_SELECTED: ${{ needs.preflight.outputs.persistence_contract }}
+      PERSISTENCE_RESULT: ${{ needs.persistence-contract.result }}
+      GODOT_SELECTED: ${{ needs.preflight.outputs.godot }}
+      GODOT_RESULT: ${{ needs.godot-contract.result }}
+      DOCS_SELECTED: ${{ needs.preflight.outputs.docs }}
+      DOCS_RESULT: ${{ needs.docs-build.result }}
+      TOOLCHAIN_SELECTED: ${{ needs.preflight.outputs.toolchain }}
+      TOOLCHAIN_RESULT: ${{ needs.toolchain.result }}
+      RELEASE_SELECTED: ${{ needs.preflight.outputs.release }}
+      RELEASE_RESULT: ${{ needs.release-contract.result }}
+    steps:
+      - name: Require every selected lane
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "${{ needs.preflight.result }}" == "success" ]] || {
+            echo "trusted preflight did not pass" >&2
+            exit 1
+          }
+          require_lane() {
+            local name="$1"
+            local selected="$2"
+            local result="$3"
+            if [[ "$selected" == "true" && "$result" != "success" ]]; then
+              echo "selected lane $name finished as $result" >&2
+              exit 1
+            fi
+            if [[ "$selected" != "true" && "$result" != "skipped" ]]; then
+              echo "unselected lane $name unexpectedly finished as $result" >&2
+              exit 1
+            fi
+          }
+          require_lane security-fast "$SECURITY_SELECTED" "$SECURITY_RESULT"
+          require_lane python-affected "$PYTHON_SELECTED" "$PYTHON_RESULT"
+          require_lane web-frontend "$WEB_SELECTED" "$WEB_RESULT"
+          require_lane desktop "$DESKTOP_SELECTED" "$DESKTOP_RESULT"
+          require_lane devtools-web "$DEVTOOLS_SELECTED" "$DEVTOOLS_RESULT"
+          require_lane architecture "$ARCHITECTURE_SELECTED" "$ARCHITECTURE_RESULT"
+          require_lane persistence "$PERSISTENCE_SELECTED" "$PERSISTENCE_RESULT"
+          require_lane godot "$GODOT_SELECTED" "$GODOT_RESULT"
+          require_lane docs "$DOCS_SELECTED" "$DOCS_RESULT"
+          require_lane toolchain "$TOOLCHAIN_SELECTED" "$TOOLCHAIN_RESULT"
+          require_lane release "$RELEASE_SELECTED" "$RELEASE_RESULT"
+          echo "All affected checks passed for ${{ needs.preflight.outputs.candidate_sha }}"
+
+  merge-gate:
+    name: elfienest/merge-gate
+    needs: ci-gate
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'candidate'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce main health quarantine
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          QUEUE_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          health_json="$RUNNER_TEMP/main-health.json"
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&status=completed&per_page=20" \
+            --output "$health_json"
+          IFS=$'\t' read -r conclusion head_sha run_url < <(
+            python3 - "$health_json" <<'PY'
+          import json
+          import sys
+
+          runs = json.load(open(sys.argv[1], encoding="utf-8")).get("workflow_runs", [])
+          terminal = next(
+              (
+                  run
+                  for run in runs
+                  if run.get("conclusion")
+                  in {"success", "failure", "timed_out", "action_required", "startup_failure"}
+              ),
+              None,
+          )
+          if terminal is None:
+              print("missing\tunknown\tunknown")
+          else:
+              print(
+                  f'{terminal.get("conclusion") or "missing"}\t'
+                  f'{terminal.get("head_sha") or "unknown"}\t'
+                  f'{terminal.get("html_url") or "unknown"}'
+              )
+          PY
+          )
+          if [[ "$conclusion" == "success" ]]; then
+            echo "latest completed main backstop is green for $head_sha"
+            exit 0
+          fi
+
+          pr_number="$PR_NUMBER"
+          if [[ -z "$pr_number" && "$EVENT_NAME" == "merge_group" && \
+                "$QUEUE_HEAD_REF" =~ /pr-([0-9]+)- ]]; then
+            pr_number="${BASH_REMATCH[1]}"
+          fi
+          if [[ -n "$pr_number" ]]; then
+            pull_json="$RUNNER_TEMP/pull-request.json"
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$pr_number" \
+              --output "$pull_json"
+            if python3 - "$pull_json" <<'PY'
+          import json
+          import sys
+
+          pull = json.load(open(sys.argv[1], encoding="utf-8"))
+          labels = {label.get("name") for label in pull.get("labels", [])}
+          raise SystemExit(0 if "main-recovery" in labels else 1)
+          PY
+            then
+              echo "main backstop is $conclusion for $head_sha; audited main-recovery PR #$pr_number may proceed"
+              exit 0
+            fi
+          fi
+          echo "main is quarantined: latest completed backstop is $conclusion for $head_sha ($run_url)" >&2
+          echo "only a narrowly scoped PR labelled main-recovery may proceed" >&2
+          exit 1
+      - name: Require the exact-candidate aggregate
+        if: github.event_name != 'merge_group'
+        env:
+          CI_GATE_RESULT: ${{ needs.ci-gate.result }}
+        run: |
+          [[ "$CI_GATE_RESULT" == "success" ]] || {
+            echo "exact-candidate aggregate finished as $CI_GATE_RESULT" >&2
+            exit 1
+          }
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        if: github.event_name == 'merge_group'
+        with:
+          fetch-depth: 0
+      - name: Verify the exact synthetic merge identity
+        if: github.event_name == 'merge_group'
+        env:
+          EVENT_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+          EVENT_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          EVENT_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          EVENT_BASE_REF: ${{ github.event.merge_group.base_ref }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$EVENT_BASE_REF" == "refs/heads/main" ]]
+          [[ "$EVENT_HEAD_REF" == refs/heads/gh-readonly-queue/main/* ]]
+          [[ "$(git rev-parse HEAD)" == "$EVENT_HEAD_SHA" ]]
+          git cat-file -e "$EVENT_BASE_SHA^{commit}"
+          git merge-base --is-ancestor "$EVENT_BASE_SHA" HEAD
+          parent_count="$(git rev-list --parents -n 1 HEAD | awk '{print NF - 1}')"
+          (( parent_count >= 1 )) || {
+            echo "merge-group head has no commit ancestry" >&2
+            exit 1
+          }
+          grep -q 'MANIFEST_SCHEMA_VERSION = "affected-v1"' \
+            scripts/architecture/validation_plan.py
+          git diff --check HEAD^1..HEAD
+
+  full-slot:
+    name: Select full-backstop slot
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'full')
+    runs-on: ubuntu-latest
+    outputs:
+      slot: ${{ steps.slot.outputs.slot }}
+      target_sha: ${{ steps.slot.outputs.target_sha }}
+    steps:
+      - id: slot
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TARGET_INPUT: ${{ inputs.target_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            echo "slot=$((GITHUB_RUN_NUMBER % 2))" >> "$GITHUB_OUTPUT"
+            echo "target_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          else
+            target_sha="${TARGET_INPUT:-$GITHUB_SHA}"
+            [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+            echo "slot=manual-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+            echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+          fi
+
+  postsubmit-full:
+    name: Post-submit full backstop
+    needs: full-slot
+    if: needs.full-slot.result == 'success'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-full-${{ needs.full-slot.outputs.slot }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.full-slot.outputs.target_sha }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: pnpm/action-setup@f2b2b233b538f500472c7274c7012f57857d8ce0 # v4.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: |
+            app/interfaces/desktop/pnpm-lock.yaml
+            app/interfaces/web/frontend/pnpm-lock.yaml
+            devtools/web/pnpm-lock.yaml
+            docs/pnpm-lock.yaml
+      - name: Install pinned environment
+        run: |
+          uv python install "$PYTHON_VERSION"
+          uv sync --locked --extra dev
+      - name: Verify exact CPython runtime
+        run: >-
+          .venv/bin/python3 -c 'import platform, sys;
+          raise SystemExit(0 if sys.implementation.name == "cpython" and
+          platform.python_version() == "3.9.25" else 1)'
+      - name: Run the complete asynchronous backstop
+        env:
+          BASE_SHA: ${{ github.event.before }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          base_sha="${BASE_SHA:-$(git rev-parse HEAD^)}"
+          if ! git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
+          bash scripts/pre_submit_gate.sh \
+            --stage full --direct-full --base-sha "$base_sha" --no-cache

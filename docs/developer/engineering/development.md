@@ -219,14 +219,14 @@ single-page console has been retired.
 
 ## Pre-commit checks
 
-Before delivering a change set, run the smallest safe validation tier: G1 for
-an ordinary commit, G2 for a feature push, and G3 for a main merge or release.
-Governance, toolchain, lockfile and unknown executable changes automatically
-escalate to G3. Confirm at least:
+Before delivering a change set, run affected local validation: G1 for an
+ordinary checkpoint and G2 for a feature push. The exact PR candidate then uses
+the immutable-base manifest, `elfienest/ci-gate` and the native merge queue.
+Full G3 runs after main or for explicit release validation. Confirm at least:
 
 1. The tests directly corresponding to the change pass;
-2. `test/architecture/` passes;
-3. The selected tier and pre-commit pass;
+2. Architecture tests pass when the affected manifest selects that boundary;
+3. Changed-file quality and secret checks pass;
 4. When docs are changed, VitePress builds cleanly;
 5. There are no real keys, local absolute paths, caches or build artifacts;
 6. README, architecture docs and tests stay in sync after adding directories or
@@ -236,17 +236,17 @@ escalate to G3. Confirm at least:
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
   --base-sha "$(git rev-parse origin/main^{commit})"
-# feature push: use --stage push; main merge/release: use --stage main
+# feature push: use --stage push; explicit full/release: use --stage full
 ```
 
-Successful results may be reused only for the exact same candidate snapshot;
-the complete G3 backstop remains mandatory when the classifier escalates or the
-change is delivered to main.
+Successful results may be reused only for their exact declared inputs. Unknown,
+governance and toolchain changes select all premerge lanes. Do not merge current
+main into the candidate merely because main advanced; only a new candidate SHA
+or an actual conflict invalidates its evidence.
 
 ```bash
-cd docs
-npx --yes pnpm@10.12.1 install --frozen-lockfile
-npx --yes pnpm@10.12.1 build
+pnpm --dir docs install --frozen-lockfile
+pnpm --dir docs build
 ```
 
 For PR scope, test evidence and review requirements see the

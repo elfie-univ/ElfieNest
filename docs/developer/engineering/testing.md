@@ -103,29 +103,30 @@ The quality baseline only admits already-existing diagnostics; any new Ruff,
 format or MyPy diagnostic must be fixed — never hidden by widening ignores or
 rewriting the baseline.
 
-## Tiered validation gate
+## Affected validation and full backstop
 
-Fetch the remote `main` base, then run the smallest safe tier:
+Fetch the remote `main` base, then run affected local validation:
 
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
   --base-sha "$(git rev-parse origin/main^{commit})"
 # feature push: use --stage push
-# main merge or release: use --stage main
+# explicit full or release replay: use --stage full
 ```
 
 G1 (`commit`) checks changed files and affected tests. G2
 (`push`) adds the quality baseline and affected API, persistence, architecture
-or documentation integration checks. G3 (`main`) combines current-candidate
-checks with the immutable-base ratchets, lock and toolchain checks,
-pre-commit/Gitleaks, complete pytest, CLI smoke and documentation build. Unknown
-executable, governance, toolchain and lockfile changes escalate to G3.
+or documentation integration checks. Ordinary submission stops there locally.
+The exact PR head is routed by the immutable-base manifest; selected lanes run
+in parallel and aggregate as `elfienest/ci-gate`. Main movement alone does not
+invalidate that head. The native merge queue then runs the seconds-long
+`elfienest/merge-gate` on the synthetic merge.
 
 Successful deterministic test checks are keyed by command, scoped input contents and
 file modes, the required immutable base, and local tools—not by delivery tier.
-G2 therefore reuses an unchanged focused test already passed by G1. The local
-G3 pytest backstop is split into the registered top-level packages `app`,
+G2 therefore reuses an unchanged focused test already passed by G1. The full
+post-submit/release pytest backstop is split into the registered top-level packages `app`,
 `architecture`, `devtools`, `e2e`, `elfie`, `godot`, `infrastructure`, `nest`
 and `scripts`. It runs only missing or invalidated bundles. Bundle inputs include
 the transitive local Python imports of their tests and shared `conftest.py`
@@ -147,22 +148,23 @@ Run reusable focused or complete-bundle checks through the controlled runner:
 ```
 
 If `--selectors` exactly names one registered bundle, it creates the same
-coverage-bearing evidence that G3 consumes. A narrower node/file result remains
+coverage-bearing evidence that the full backstop consumes. A narrower node/file result remains
 reusable only as that exact focused command and cannot prove its owning bundle.
 Raw `pytest` is diagnostic and does not create submission-cache evidence.
 
-The internal `--direct-main` path runs the complete main backstop while reusing
+The internal `--direct-full` path runs the complete backstop while reusing
 valid bundle evidence. `--no-cache` is an explicit clean replay: it must be
 passed through the gate and bundle runner, and it must not silently reuse a
 focused test, bundle, or backstop record.
 
-G3 additionally stores check-scoped evidence for its remaining expensive
+The full backstop additionally stores check-scoped evidence for its remaining expensive
 backstop. Unknown executable inputs invalidate all bundles. Cache records live under
 ignored `build/validation-cache/` and never replace CI for a new commit SHA.
 
-If a required check fails or the G3 loopback preflight is blocked, do not commit,
-push or merge. Focused tests are the normal G1/G2 path; they do not replace G3
-when the impact classifier requires it.
+If a selected premerge lane or merge gate fails, do not merge. Unknown,
+governance, toolchain and lockfile changes fail closed by selecting every lane.
+The complete G3 runs after main, on explicit `--stage full`, and for release;
+a newest-main red result quarantines ordinary merges until recovery.
 
 ### Failure repair ladder
 
@@ -173,7 +175,8 @@ level passes or a newly discovered dependency requires it:
 2. if it passes and executable code changed, run its owning test file or module;
 3. run the directly affected integration or architecture check only when that
    boundary changed;
-4. run the required G3 backstop once for the final executable candidate.
+4. let the selected exact-SHA CI lane prove the candidate; run full only when
+   diagnosing main health or preparing a release.
 
 On the same source state, never repeat a successful command. An environmental
 or flaky suspicion permits one diagnostic rerun with the reason recorded; it
@@ -184,7 +187,8 @@ Conformance rows that remain open because the current machine lacks a required
 OS or installed host stay explicitly open and must name the missing evidence.
 They are not local implementation failures, but they also cannot be presented
 as complete; CI or a matching host must provide the missing acceptance before
-protected-branch delivery. Focused tests cannot replace either gate.
+protected-branch delivery. Focused tests cannot replace a selected lane or the
+exact merge gate.
 
 ## Documentation verification
 

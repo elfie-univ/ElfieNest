@@ -7,9 +7,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 BASE_SHA=""
-STAGE="main"
+STAGE="commit"
 NO_CACHE=0
-DIRECT_MAIN=0
+DIRECT_FULL=0
 CURRENT_STEP="argument validation"
 TEMP_ROOT=""
 CANDIDATE_ROOT="$PROJECT_ROOT"
@@ -17,11 +17,12 @@ CANDIDATE_ROOT="$PROJECT_ROOT"
 usage() {
     cat <<'EOF'
 Usage: scripts/pre_submit_gate.sh [--base-sha COMMIT]
-       [--stage commit|push|main]
+       [--stage commit|push|full]
 
-The default main stage is dispatched through the reusable tiered gate. The
-internal --direct-main flag runs the CI-aligned main backstop directly while
-still reusing valid test bundles. Add --no-cache to force every bundle.
+The default commit stage is dispatched through the affected validation gate.
+The internal --direct-full flag runs the asynchronous/release backstop directly
+while still reusing valid test bundles. The legacy main and --direct-main names
+remain temporary aliases for full during the ruleset transition.
 EOF
 }
 
@@ -55,7 +56,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --stage)
-            [[ $# -ge 2 ]] || fail "--stage requires commit, push or main"
+            [[ $# -ge 2 ]] || fail "--stage requires commit, push or full"
             STAGE="$2"
             shift 2
             ;;
@@ -68,7 +69,11 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --direct-main)
-            DIRECT_MAIN=1
+            DIRECT_FULL=1
+            shift
+            ;;
+        --direct-full)
+            DIRECT_FULL=1
             shift
             ;;
         --help|-h)
@@ -82,19 +87,27 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$STAGE" in
-    commit|push|main) ;;
-    *) fail "--stage must be commit, push or main" ;;
+    commit|push|full) ;;
+    main)
+        echo "warning: --stage main is deprecated; using --stage full" >&2
+        STAGE="full"
+        ;;
+    *) fail "--stage must be commit, push or full" ;;
 esac
 
-if [[ "$NO_CACHE" -eq 0 && "$DIRECT_MAIN" -eq 0 ]]; then
+if [[ "$DIRECT_FULL" -eq 0 ]]; then
     PYTHON_BIN="$PROJECT_ROOT/.venv/bin/python3"
     [[ -x "$PYTHON_BIN" ]] || fail "missing repository interpreter: $PYTHON_BIN"
     VALIDATION_ARGS=(
         --stage "$STAGE" --base-sha "$BASE_SHA"
     )
+    if (( NO_CACHE )); then
+        VALIDATION_ARGS+=(--no-cache)
+    fi
     exec "$PYTHON_BIN" "$PROJECT_ROOT/scripts/architecture/validation_gate.py" \
         "${VALIDATION_ARGS[@]}"
 fi
+[[ "$STAGE" == "full" ]] || fail "--direct-full is only valid with --stage full"
 
 CURRENT_STEP="resolving the immutable base commit"
 if [[ -z "$BASE_SHA" ]]; then
@@ -352,4 +365,4 @@ run_step "checking the final staged diff format" \
     git -C "$PROJECT_ROOT" diff --cached --check
 
 echo
-echo "✅ pre-submit gate passed for candidate against base $BASE_SHA"
+echo "✅ full backstop passed for candidate against base $BASE_SHA"

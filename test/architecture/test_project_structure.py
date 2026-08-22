@@ -323,6 +323,9 @@ def test_ci_uses_current_python_roots_and_required_quality_gates() -> None:
     ci_config = yaml.safe_load(
         (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     )
+    pre_submit = (PROJECT_ROOT / "scripts" / "pre_submit_gate.sh").read_text(
+        encoding="utf-8"
+    )
 
     # When
     jobs = ci_config["jobs"]
@@ -331,8 +334,10 @@ def test_ci_uses_current_python_roots_and_required_quality_gates() -> None:
     ]
 
     # Then
-    assert EXPECTED_QUALITY_COMMAND in run_commands
-    assert "uv run --no-sync pre-commit run --all-files" in run_commands
+    assert "scripts/check_quality_baseline.py" in pre_submit
+    assert "pre-commit run --all-files" in pre_submit
+    assert "postsubmit-full" in jobs
+    assert "--stage full --direct-full" in "\n".join(run_commands)
     assert "docs-build" in jobs
     assert "pnpm install --frozen-lockfile" in run_commands
     assert "pnpm build" in run_commands
