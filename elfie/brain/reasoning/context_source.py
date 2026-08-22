@@ -24,7 +24,9 @@ from elfie.brain.motivation.system import (
 from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.orientation.system import OrientationSystem
 from elfie.brain.reasoning.context_types import (
+    CompletedConversationInteraction,
     ConversationContext,
+    ConversationContextCheckpoint,
     EffectiveCapabilities,
 )
 from elfie.brain.reasoning.conversation_context import ConversationContextStore
@@ -71,6 +73,7 @@ class BrainContextProvider:
         self._motivation = motivation
         self._consolidation = consolidation
         self._profile_anchors = profile_anchors
+        self._memory_lock = Lock()
         self._state_lock = Lock()
 
     def conversation(
@@ -86,7 +89,8 @@ class BrainContextProvider:
         emotion: EmotionSnapshot,
         captured_at: UTCDateTime,
     ) -> MemoryContext:
-        return self._memory.read(frame, emotion, captured_at)
+        with self._memory_lock:
+            return self._memory.read(frame, emotion, captured_at)
 
     def memory_candidates(
         self,
@@ -94,16 +98,54 @@ class BrainContextProvider:
         emotion: EmotionSnapshot,
         captured_at: UTCDateTime,
     ) -> Tuple[EpisodicMemoryCandidate, ...]:
-        return self._memory.candidates(frame, emotion, captured_at)
+        with self._memory_lock:
+            return self._memory.candidates(frame, emotion, captured_at)
 
     def memory_checkpoint(self):
-        return self._memory.checkpoint()
+        with self._memory_lock:
+            return self._memory.checkpoint()
+
+    def completed_interaction_candidate(
+        self,
+        interaction: CompletedConversationInteraction,
+    ) -> EpisodicMemoryCandidate | None:
+        with self._memory_lock:
+            return self._memory.completed_interaction_candidate(interaction)
+
+    def commit_completed_interaction(
+        self,
+        interaction: CompletedConversationInteraction,
+    ) -> StateCommitReceipt | None:
+        with self._memory_lock:
+            return self._memory.commit_completed_interaction(interaction)
 
     def restore_memory_checkpoint(self, checkpoint) -> None:
-        self._memory.restore(checkpoint)
+        with self._memory_lock:
+            self._memory.restore(checkpoint)
 
     def validate_memory_checkpoint(self, checkpoint) -> None:
-        self._memory.validate_checkpoint(checkpoint)
+        with self._memory_lock:
+            self._memory.validate_checkpoint(checkpoint)
+
+    def record_completed_reply(
+        self, **values
+    ) -> CompletedConversationInteraction | None:
+        return self._conversations.record_completed_reply(**values)
+
+    def conversation_checkpoint(self) -> ConversationContextCheckpoint:
+        return self._conversations.checkpoint()
+
+    def validate_conversation_checkpoint(
+        self,
+        checkpoint: ConversationContextCheckpoint,
+    ) -> None:
+        self._conversations.validate_checkpoint(checkpoint)
+
+    def restore_conversation_checkpoint(
+        self,
+        checkpoint: ConversationContextCheckpoint,
+    ) -> None:
+        self._conversations.restore(checkpoint)
 
     def activities(self, captured_at: UTCDateTime) -> ActivityContext:
         return self._activities.read(captured_at)

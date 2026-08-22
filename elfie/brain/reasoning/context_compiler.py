@@ -227,6 +227,7 @@ class ModelContextCompiler:
         cursor: _BudgetCursor,
     ) -> CompiledEvent:
         payload = event.payload
+        actor = event.meta.source
         cause_ids = (
             (event.meta.causation_id,) if event.meta.causation_id is not None else ()
         )
@@ -239,6 +240,7 @@ class ModelContextCompiler:
             label = "social:message"
             channel_id = payload.channel_id
             content = payload.content
+            actor = payload.sender
         elif isinstance(payload, ExecutionPayload):
             label = "execution:receipt"
             channel_id = None
@@ -254,7 +256,7 @@ class ModelContextCompiler:
         return CompiledEvent(
             event_id=event.meta.event_id,
             modality=label,
-            actor=event.meta.source,
+            actor=actor,
             occurred_at=event.meta.occurred_at,
             channel_id=channel_id,
             cause_event_ids=cause_ids,

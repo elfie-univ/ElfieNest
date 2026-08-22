@@ -11,6 +11,7 @@ from elfie.brain.reasoning.model_port import (
     JsonSchemaDocument,
     ModelGenerationCapabilities,
     ModelGenerationRequest,
+    ModelResponseMode,
     StructuredOutputMode,
 )
 from elfie.brain.workspace.contracts import (
@@ -200,6 +201,7 @@ def test_adapter_uses_plain_text_for_fast_owner_communication():
                 conversation_id="owner:1",
             ),
             "reasoning_mode": "fast",
+            "response_mode": ModelResponseMode.DIRECT_REPLY,
         }
     )
 
@@ -207,6 +209,32 @@ def test_adapter_uses_plain_text_for_fast_owner_communication():
 
     assert result.selected_mode is StructuredOutputMode.PLAIN_TEXT
     assert runtime.requests[0].selected_mode is StructuredGenerationMode.PLAIN_TEXT
+
+
+def test_adapter_uses_schema_for_fast_owner_decision_plan() -> None:
+    runtime = FakeStructuredModelExecution(_schema_capabilities())
+    adapter = SerializedModelExecutionAdapter(runtime)
+    request = _request().model_copy(
+        update={
+            "source_domain": SourceDomain.COMMUNICATION,
+            "interaction_scope": CommunicationScope(
+                channel_id="chat",
+                conversation_id="owner:1",
+            ),
+            "response_scope": ResponseScope(
+                external_domain=ExternalExecutionDomain.COMMUNICATION,
+                channel_id="chat",
+                conversation_id="owner:1",
+            ),
+            "reasoning_mode": "fast",
+            "response_mode": ModelResponseMode.DECISION_PLAN,
+        }
+    )
+
+    result = adapter.generate(request)
+
+    assert result.selected_mode is StructuredOutputMode.JSON_SCHEMA
+    assert runtime.requests[0].selected_mode is StructuredGenerationMode.JSON_SCHEMA
 
 
 def test_adapter_abandon_rotates_serialization_lease_for_replacement_call():

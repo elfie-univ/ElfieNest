@@ -75,6 +75,32 @@ def test_record_reopen_retrieve_and_consolidate_uses_final_store(
     ElfieDiagnostics(reopened).memory.storage.close()
 
 
+def test_encoded_entity_edge_retrieves_episode_from_sqlite(tmp_path: Path) -> None:
+    workspace = tmp_path / "elfie-workspace"
+    profile = _profile(workspace)
+    elfie = ElfieFactory().create(
+        ElfieAssembly(
+            profile=profile,
+            memory_store=SQLiteMemoryStoreAdapter(
+                workspace / "memory" / "knowledge.sqlite"
+            ),
+        )
+    )
+    memory = ElfieDiagnostics(elfie).memory
+
+    episode_id = memory.record_episode(
+        content="主人说他喜欢蓝色。",
+        emotion="attachment",
+        intensity=60.0,
+        stimulus="completed-owner-interaction",
+    )
+    results = memory.retriever.retrieve_by_entity(["主人"])
+
+    assert episode_id
+    assert [item.id for item in results] == [episode_id]
+    memory.storage.close()
+
+
 def test_product_memory_modules_do_not_reference_legacy_graph_store() -> None:
     memory_dir = Path(__file__).parents[4] / "elfie" / "brain" / "memory"
     product_modules = (
