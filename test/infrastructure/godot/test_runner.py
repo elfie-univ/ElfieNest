@@ -24,7 +24,7 @@ if [ \"${FAKE_GODOT_MODE:-}\" = crash ]; then
     kill -ABRT $$
 fi
 if [ \"${FAKE_GODOT_MODE:-}\" = timeout ]; then
-    exec sleep 2
+    exec sleep 5
 fi
 printf 'Godot Engine v__TEST_GODOT_OUTPUT__\\n'
 printf 'fake godot arguments: %s\\n' \"$*\"
@@ -181,8 +181,8 @@ def test_timeout_is_failed_without_a_second_process(
         project,
         ("--script", "res://check.gd"),
         # Keep enough headroom for launching the temporary shell on slower
-        # hosts while remaining well below the fake process's two-second run.
-        timeout_seconds=1.0,
+        # hosts while remaining well below the fake process's five-second run.
+        timeout_seconds=2.0,
         purpose="test-timeout",
         env=environment,
     )
