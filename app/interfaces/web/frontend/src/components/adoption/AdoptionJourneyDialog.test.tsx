@@ -290,6 +290,26 @@ describe("AdoptionJourneyDialog", () => {
     expect(screen.getByText("Elfaria 离地球很远，TA 还在路上")).toBeInTheDocument()
   })
 
+  it("recovers when the invitation reply never settles", async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    renderJourney({ onOpenChange })
+    await reachShortlist(user)
+    await user.click(screen.getByRole("button", { name: "候选者 1" }))
+    api.adoptionReplies.mockImplementationOnce(() => new Promise<never>(() => undefined))
+
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole("button", { name: "迎接 TA" }))
+
+    await act(async () => {
+      vi.advanceTimersByTime(30_001)
+      await Promise.resolve()
+    })
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("TA 暂时还没到达")
+    fireEvent.click(screen.getByRole("button", { name: "稍后再说" }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it("runs the quick three-step flow and welcomes one selected Elfie", async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()

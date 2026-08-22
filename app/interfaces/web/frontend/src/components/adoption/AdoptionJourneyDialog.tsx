@@ -91,6 +91,7 @@ const COMPANIONSHIP_OPTIONS: readonly (readonly CompanionAnswer[])[] = [
 const PORTRAIT_RUNTIME_IDLE_MILLISECONDS = 5 * 60 * 1000
 const PORTRAIT_RUNTIME_SCREENS: readonly AdoptionScreen[] = ["basic", "appearance", "companionship", "generating"]
 const INVITATION_RETRY_DELAYS_MILLISECONDS = [400, 1000] as const
+const INVITATION_TIMEOUT_MILLISECONDS = 30_000
 const WAIT_STATUS_SECOND_PHASE_MILLISECONDS = 4_000
 const WAIT_STATUS_FINAL_PHASE_MILLISECONDS = 10_000
 const WAIT_STATUS_KEYS = ["initial", "continuing", "delayed"] as const
@@ -179,6 +180,20 @@ function isRetryableInvitationFailure(reason: unknown): boolean {
 
 function waitMilliseconds(milliseconds: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
+}
+
+async function waitForInvitationReply<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
+  let timer: number | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error("Invitation reply timed out")), milliseconds)
+      }),
+    ])
+  } finally {
+    if (timer !== undefined) window.clearTimeout(timer)
+  }
 }
 
 function candidateSetInput(
@@ -553,7 +568,10 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       let transientFailureCount = 0
       while (result === null) {
         try {
-          result = await adoptionReplies(candidateSetId, [selectedCandidateId], "", csrfToken)
+          result = await waitForInvitationReply(
+            adoptionReplies(candidateSetId, [selectedCandidateId], "", csrfToken),
+            INVITATION_TIMEOUT_MILLISECONDS,
+          )
         } catch (reason: unknown) {
           if (isExpiredSessionError(reason)) {
             handleExpiredSession()
