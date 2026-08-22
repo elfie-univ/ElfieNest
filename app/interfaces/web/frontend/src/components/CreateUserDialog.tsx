@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,7 @@ export function CreateUserDialog({ actorRole, adminCapacityReached, csrfToken, o
   const [role, setRole] = useState<ManagedCreationRole>("user")
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<LocalizedErrorState>(null)
+  const submitLock = useRef(false)
 
   const close = (): void => {
     setAccountId("")
@@ -40,11 +41,13 @@ export function CreateUserDialog({ actorRole, adminCapacityReached, csrfToken, o
   }
 
   const save = async (): Promise<void> => {
+    if (submitLock.current) return
     const normalizedAccountId = accountId.trim()
     if (!normalizedAccountId || password.trim().length < 6) {
       setError(t("users.create.required"))
       return
     }
+    submitLock.current = true
     setPending(true)
     try {
       await createManagedUser(normalizedAccountId, displayName.trim() || null, password, role, csrfToken)
@@ -54,6 +57,7 @@ export function CreateUserDialog({ actorRole, adminCapacityReached, csrfToken, o
       if (!(reason instanceof Error)) throw reason
       setError(describeApiError(reason, "manage.save"))
     } finally {
+      submitLock.current = false
       setPending(false)
     }
   }

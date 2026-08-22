@@ -207,6 +207,28 @@ describe("ManageUsersPanel real-data states", () => {
     })
   })
 
+  it("does not submit the create form again while the first request is pending", async () => {
+    // Given: the create request remains pending after the dialog is submitted.
+    let resolveCreate: ((user: OwnerUser) => void) | undefined
+    vi.mocked(createManagedUser).mockReturnValue(new Promise((resolve) => { resolveCreate = resolve }))
+    renderPanel()
+    fireEvent.click(await screen.findByRole("button", { name: "添加用户" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "登录账号" }), { target: { value: "member02" } })
+    const password = screen.getByRole("group", { name: "初始密码" }).querySelector("input")
+    if (!(password instanceof HTMLInputElement)) throw new TypeError("Expected password input")
+    fireEvent.change(password, { target: { value: "secret" } })
+    const form = screen.getByRole("dialog", { name: "添加本地用户" }).querySelector("form")
+    if (!(form instanceof HTMLFormElement)) throw new TypeError("Expected create form")
+
+    // When: the same form is submitted twice before the first response arrives.
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+
+    // Then: only one create request crosses the API boundary.
+    expect(createManagedUser).toHaveBeenCalledTimes(1)
+    await act(async () => { resolveCreate?.(member) })
+  })
+
   it("edits only the Elfie limit and uses a numeric user ID", async () => {
     // Given: a member card is loaded.
     const user = userEvent.setup()
