@@ -261,6 +261,54 @@ def test_governance_checker_supports_the_documented_direct_cli() -> None:
 
     assert result.returncode == 0, result.stderr
     assert "--base-sha" in result.stdout
+    assert "--paths" in result.stdout
+
+
+def test_governance_checker_accepts_explicit_candidate_paths(monkeypatch) -> None:
+    monkeypatch.setattr(
+        governance_change,
+        "changed_paths",
+        lambda _base: (_ for _ in ()).throw(
+            AssertionError("explicit paths must bypass the committed diff")
+        ),
+    )
+    monkeypatch.setattr(
+        governance_change,
+        "validate_baseline_changes",
+        lambda *_args, **_kwargs: [],
+    )
+    monkeypatch.setattr(
+        governance_change,
+        "validate_contract_changes",
+        lambda *_args, **_kwargs: [],
+    )
+    monkeypatch.setattr(
+        governance_change,
+        "validate_decision_mirrors",
+        lambda *_args, **_kwargs: [],
+    )
+    monkeypatch.setattr(
+        governance_change,
+        "validate_governance_rule_changes",
+        lambda *_args, **_kwargs: [],
+    )
+    monkeypatch.setattr(
+        governance_change,
+        "validate_conformance_changes",
+        lambda *_args, **_kwargs: [],
+    )
+    monkeypatch.setattr(
+        governance_change,
+        "validate_temporary_cleanup_changes",
+        lambda *_args, **_kwargs: [],
+    )
+
+    assert (
+        governance_change.main(
+            ["--base-sha", "base", "--paths", "docs/developer/guide.md"]
+        )
+        == 0
+    )
 
 
 def test_newly_closed_conformance_requires_inventory_and_reference_evidence(
@@ -752,24 +800,45 @@ def test_executable_governance_rule_change_requires_bilingual_adr_update() -> No
     )
 
 
-def test_architecture_ratchet_uses_immutable_base_on_pr_and_push() -> None:
+def test_architecture_ratchet_uses_the_immutable_base_router() -> None:
     workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    architecture_job = workflow.split("  environment-smoke:", maxsplit=1)[0]
-    assert "github.event.pull_request.base.sha" in architecture_job
-    assert "github.event.before" in architecture_job
-    assert "if: github.event_name == 'pull_request'" not in architecture_job
-    assert "Check candidate structural cleanup scopes" in architecture_job
+    preflight = workflow.split("  security-fast:", maxsplit=1)[0]
+    architecture_job = workflow.split("  architecture-governance:", maxsplit=1)[
+        1
+    ].split("  persistence-contract:", maxsplit=1)[0]
+
+    assert "github.event.pull_request.base.sha" in preflight
+    assert "$base_sha:scripts/architecture/validation_plan.py" in preflight
+    assert "base branch predates the trusted router; selecting every lane" in preflight
+    assert (
+        "$BASE_SHA:scripts/architecture/check_governance_change.py" in architecture_job
+    )
     assert "$BASE_SHA:scripts/architecture/structural_scope_scan.py" in architecture_job
     assert 'PYTHONPATH="$classifier_root"' in architecture_job
 
 
-def test_ci_full_test_job_covers_the_complete_architecture_suite_once() -> None:
+def test_affected_python_job_installs_devtools_frontend_dependencies() -> None:
     workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    test_job = workflow.split("  test:", maxsplit=1)[1].split(
-        "  docs-build:", maxsplit=1
+    python_job = workflow.split("  python-affected:", maxsplit=1)[1].split(
+        "  web-frontend:", maxsplit=1
     )[0]
+
+    assert "pnpm/action-setup@" in python_job
+    assert "actions/setup-node@" in python_job
+    assert "cache-dependency-path: devtools/web/pnpm-lock.yaml" in python_job
+    assert "working-directory: devtools/web" in python_job
+    assert "pnpm install --frozen-lockfile" in python_job
+
+
+def test_ci_runs_complete_architecture_once_premerge_and_full_only_postsubmit() -> None:
+    workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    architecture_job = workflow.split("  architecture-governance:", maxsplit=1)[
+        1
+    ].split("  persistence-contract:", maxsplit=1)[0]
+    postsubmit_job = workflow.split("  postsubmit-full:", maxsplit=1)[1]
     pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
-    assert "uv run --no-sync pytest --cov" in test_job
-    assert "--ignore=test/architecture" not in test_job
+    assert architecture_job.count("pytest test/architecture/") == 1
+    assert "--stage full --direct-full" in postsubmit_job
+    assert "uv run --no-sync pytest --cov" not in workflow
     assert 'testpaths = ["test"]' in pyproject

@@ -29,11 +29,13 @@ def test_provider_changes_select_the_affected_suite_at_push_tier() -> None:
     )
 
 
-def test_unknown_executable_changes_escalate_to_main() -> None:
+def test_unknown_executable_changes_fail_closed_without_local_main_escalation() -> None:
     plan = build_plan(["new_runtime_surface.py"], "commit")
 
-    assert plan["effective_stage"] == "main"
-    assert any("unknown executable" in reason for reason in plan["reasons"])
+    assert plan["effective_stage"] == "push"
+    assert plan["full"] is True
+    assert plan["unknown_paths"] == ["new_runtime_surface.py"]
+    assert all(plan["capabilities"].values())
 
 
 def test_source_changes_use_the_mirrored_test_directory_when_available() -> None:
@@ -50,20 +52,137 @@ def test_non_executable_documentation_stays_at_commit_tier() -> None:
     assert plan["tests"] == []
 
 
-def test_toolchain_manifests_escalate_to_main() -> None:
+def test_toolchain_manifests_select_full_premerge_lanes() -> None:
     plan = build_plan(["docs/package.json"], "push")
 
-    assert plan["effective_stage"] == "main"
+    assert plan["effective_stage"] == "push"
+    assert plan["full"] is True
+    assert plan["capabilities"]["toolchain"] is True
+
+    local_labels = {label for label, _command in _commands(plan, "base")}
+    assert "dependency lock" in local_labels
+    assert "documentation build" in local_labels
+    assert "web frontend dependencies" not in local_labels
+    assert "affected tests" not in local_labels
+
+
+def test_frontend_change_selects_only_its_parallel_lane() -> None:
+    plan = build_plan(
+        ["app/interfaces/web/frontend/src/components/Example.tsx"], "push"
+    )
+
+    selected = {name for name, enabled in plan["capabilities"].items() if enabled}
+    assert plan["effective_stage"] == "push"
+    assert plan["full"] is False
+    assert selected == {"security_fast", "web_frontend"}
+    assert plan["tests"] == []
+
+
+def test_router_and_workflow_changes_cannot_approve_themselves() -> None:
+    plan = build_plan(
+        [
+            ".github/workflows/ci.yml",
+            "scripts/architecture/validation_plan.py",
+        ],
+        "push",
+    )
+
+    assert plan["full"] is True
+    assert plan["capabilities"]["governance"] is True
+    assert all(plan["capabilities"].values())
+    local_labels = {label for label, _command in _commands(plan, "base")}
+    assert "governance change policy" in local_labels
+    assert "architecture tests" in local_labels
+    assert "web frontend dependencies" not in local_labels
+    assert "affected tests" not in local_labels
+
+    governance_command = next(
+        command
+        for label, command in _commands(plan, "base")
+        if label == "governance change policy"
+    )
+    assert governance_command[-3:] == [
+        "--paths",
+        ".github/workflows/ci.yml",
+        "scripts/architecture/validation_plan.py",
+    ]
+
+
+def test_bootstrap_and_closure_governance_fail_closed() -> None:
+    bootstrap = build_plan(["scripts/bootstrap_runtime_dependencies.sh"], "push")
+    closure = build_plan(["task-closure-lifecycle.json"], "push")
+
+    assert bootstrap["full"] is True
+    assert bootstrap["capabilities"]["toolchain"] is True
+    assert bootstrap["capabilities"]["release"] is True
+    assert closure["full"] is True
+    assert closure["capabilities"]["governance"] is True
 
 
 def test_changed_paths_excludes_gate_generated_coverage_report(monkeypatch) -> None:
+    commands = []
+
+    def fake_run_lines(command):
+        commands.append(command)
+        return ["coverage.xml", "app/features/setup/service.py"]
+
     monkeypatch.setattr(
         validation_plan,
         "_run_lines",
-        lambda _command: ["coverage.xml", "app/features/setup/service.py"],
+        fake_run_lines,
     )
 
     assert validation_plan.changed_paths("base") == ["app/features/setup/service.py"]
+    assert "--no-renames" in commands[0]
+
+
+def test_manifest_exports_single_line_github_outputs(tmp_path: Path) -> None:
+    output = tmp_path / "github-output"
+    plan = build_plan(
+        ["app/interfaces/web/frontend/src/components/Example.tsx"], "push"
+    )
+
+    validation_plan._write_github_outputs(output, plan)
+
+    values = dict(
+        line.split("=", maxsplit=1)
+        for line in output.read_text(encoding="utf-8").splitlines()
+    )
+    assert values["router_version"] == validation_plan.MANIFEST_SCHEMA_VERSION
+    assert values["web_frontend"] == "true"
+    assert values["python_bundles"] == "false"
+    assert json.loads(values["manifest_json"])["full"] is False
+
+
+def test_ci_separates_candidate_merge_and_postsubmit_checks() -> None:
+    workflow = (validation_plan.PROJECT_ROOT / ".github/workflows/ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "merge_group:" in workflow
+    assert "name: elfienest/ci-gate" in workflow
+    assert "name: elfienest/merge-gate" in workflow
+    assert "needs: ci-gate" in workflow
+    assert "CI_GATE_RESULT: ${{ needs.ci-gate.result }}" in workflow
+    assert "if: github.event_name != 'merge_group'" in workflow
+    assert "name: Release contract" in workflow
+    assert 'require_lane release "$RELEASE_SELECTED" "$RELEASE_RESULT"' in workflow
+    assert "name: Enforce main health quarantine" in workflow
+    assert '"main-recovery" in labels' in workflow
+    assert "name: Post-submit full backstop" in workflow
+    assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow
+    assert "cancel-in-progress: false" in workflow
+    assert "--stage full --direct-full" in workflow
+
+
+def test_ci_uses_the_base_branch_router_and_fails_closed_during_bootstrap() -> None:
+    workflow = (validation_plan.PROJECT_ROOT / ".github/workflows/ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "$base_sha:scripts/architecture/validation_plan.py" in workflow
+    assert "base branch predates the trusted router; selecting every lane" in workflow
+    assert "grep -q 'MANIFEST_SCHEMA_VERSION = \"affected-v1\"'" in workflow
 
 
 def test_command_selection_keeps_g1_focused_and_adds_g2_quality() -> None:
@@ -175,7 +294,7 @@ def test_backstop_fingerprint_includes_every_changed_path(
     assert after_documentation != first
 
 
-def test_main_reuses_backstop_but_rechecks_current_candidate(
+def test_full_reuses_backstop_but_rechecks_current_candidate(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setattr(validation_gate, "changed_paths", lambda _base: ["source.py"])
@@ -212,25 +331,25 @@ def test_main_reuses_backstop_but_rechecks_current_candidate(
         validation_gate.subprocess,
         "run",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            AssertionError("the complete main gate must not run")
+            AssertionError("the complete full gate must not run")
         ),
     )
 
-    result = validation_gate.run_stage("main", "base", tmp_path, False)
+    result = validation_gate.run_stage("full", "base", tmp_path, False)
 
     assert result == 0
     assert labels == ["diff format"]
     assert stored == [
         (
             "exact-key",
-            "main",
+            "full",
             "base",
             {"reused_from": "backstop-key"},
         )
     ]
 
 
-def test_main_runs_and_records_full_backstop_when_execution_input_changes(
+def test_full_runs_and_records_backstop_when_execution_input_changes(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setattr(validation_gate, "changed_paths", lambda _base: ["changed.py"])
@@ -262,22 +381,22 @@ def test_main_runs_and_records_full_backstop_when_execution_input_changes(
         ),
     )
 
-    result = validation_gate.run_stage("main", "base", tmp_path, False)
+    result = validation_gate.run_stage("full", "base", tmp_path, False)
 
     assert result == 0
     assert calls[0][:4] == [
         "bash",
         "scripts/pre_submit_gate.sh",
         "--stage",
-        "main",
+        "full",
     ]
     assert stored == [
-        ("backstop-key", "main-backstop", "base", {}),
-        ("exact-key", "main", "base", {}),
+        ("backstop-key", "full-backstop", "base", {}),
+        ("exact-key", "full", "base", {}),
     ]
 
 
-def test_main_no_cache_reaches_direct_backstop_without_reusing_bundles(
+def test_full_no_cache_reaches_direct_backstop_without_reusing_bundles(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setattr(validation_gate, "changed_paths", lambda _base: ["changed.py"])
@@ -298,14 +417,14 @@ def test_main_no_cache_reaches_direct_backstop_without_reusing_bundles(
         ),
     )
 
-    result = validation_gate.run_stage("main", "base", tmp_path, True)
+    result = validation_gate.run_stage("full", "base", tmp_path, True)
 
     assert result == 0
-    assert "--direct-main" in calls[0]
+    assert "--direct-full" in calls[0]
     assert "--no-cache" in calls[0]
 
 
-def test_exact_main_cache_hit_rechecks_current_candidate_before_reuse(
+def test_exact_full_cache_hit_rechecks_current_candidate_before_reuse(
     tmp_path: Path, monkeypatch
 ) -> None:
     changed = iter((["source.py"], ["source.py", "new.py"], ["source.py", "new.py"]))
@@ -334,7 +453,7 @@ def test_exact_main_cache_hit_rechecks_current_candidate_before_reuse(
         ),
     )
 
-    result = validation_gate.run_stage("main", "base", tmp_path, False)
+    result = validation_gate.run_stage("full", "base", tmp_path, False)
 
     assert result == 1
     assert calls

@@ -51,7 +51,7 @@ uv sync --locked --extra dev
 
 Run reusable affected tests through the controlled validation runner. A
 selector that exactly matches a registered top-level bundle creates the same
-coverage-bearing evidence used by local G3:
+coverage-bearing evidence used by the post-submit/release full backstop:
 
 ```bash
 .venv/bin/python3 scripts/architecture/validation_test_bundles.py \

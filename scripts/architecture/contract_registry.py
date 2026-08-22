@@ -25,7 +25,7 @@ class ContractRegistration:
 CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ContractRegistration(
         contract_id="repository-governance",
-        version="1.14",
+        version="1.15",
         english_path="docs/developer/contracts/repository-governance.md",
         chinese_path="docs/zh/developer/contracts/repository-governance.md",
         decision_paths=(
@@ -45,6 +45,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0023-tiered-validation-and-reuse.md",
             "docs/developer/decisions/0024-external-environment-checkpoints.md",
             "docs/zh/developer/decisions/0024-external-environment-checkpoints.md",
+            "docs/developer/decisions/0027-exact-candidate-merge-and-postsubmit-validation.md",
+            "docs/zh/developer/decisions/0027-exact-candidate-merge-and-postsubmit-validation.md",
         ),
         agent_paths=(
             "AGENTS.md",

@@ -171,12 +171,13 @@ Electron 登录入口和移动浏览器。
 
 ## 提交前检查
 
-准备交付一组改动前，运行最小安全验证级别：普通提交使用 G1，功能分支推送使用 G2，主线
-合并或发布使用 G3。治理、工具链、锁文件和未知可执行路径改动自动升级到 G3。至少确认：
+准备交付一组改动前运行受影响本地验证：普通 checkpoint 使用 G1，功能分支推送使用 G2。
+精确 PR 候选随后使用不可变基础 Manifest、`elfienest/ci-gate` 和原生 merge queue。完整 G3
+在 main 后或显式发布验证时运行。至少确认：
 
 1. 改动直接对应的测试通过；
-2. `test/architecture/` 通过；
-3. 选定级别的门禁和 pre-commit 通过；
+2. 影响面 Manifest 选中架构边界时，架构测试通过；
+3. 改动文件质量与密钥检查通过；
 4. 改动文档时，VitePress 能完整构建；
 5. 没有真实密钥、本机绝对路径、缓存或构建产物；
 6. README、架构文档与测试在新增目录或跨边界依赖后保持同步。
@@ -185,16 +186,15 @@ Electron 登录入口和移动浏览器。
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
   --base-sha "$(git rev-parse origin/main^{commit})"
-# 功能分支推送使用 --stage push；主线合并/发布使用 --stage main
+# 功能分支推送使用 --stage push；显式完整/发布使用 --stage full
 ```
 
-成功结果只有在候选快照完全相同时才能复用；分类器升级或向主线交付时，完整 G3 后盾仍然
-是必需的。
+成功结果只有声明输入完全一致时才能复用；未知、治理和工具链改动会选择全部预合并 Lane。
+不能只因 main 前进就把它合入候选；只有候选 SHA 变化或真实冲突才使证据失效。
 
 ```bash
-cd docs
-npx --yes pnpm@10.12.1 install --frozen-lockfile
-npx --yes pnpm@10.12.1 build
+pnpm --dir docs install --frozen-lockfile
+pnpm --dir docs build
 ```
 
 PR 的范围、测试证据和审阅要求见
