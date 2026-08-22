@@ -109,6 +109,22 @@ export function recordChatMessage(data: ChatData, message: ChatMessage): ChatDat
   return { ...data, conversations }
 }
 
+export function replaceElfiePortrait(
+  data: ChatData,
+  elfieId: string,
+  portraitUrl: string,
+): ChatData {
+  return {
+    ...data,
+    conversations: data.conversations.map((row) => (
+      row.elfie_id === elfieId ? { ...row, portrait_url: portraitUrl } : row
+    )),
+    elfies: data.elfies.map((entry) => (
+      entry.elfie_id === elfieId ? { ...entry, portrait_url: portraitUrl } : entry
+    )),
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }

@@ -1,9 +1,10 @@
-"""Read-only SQLite and workspace Adapter for authorized Elfie projections."""
+"""SQLite and workspace Adapter for authorized Elfie projections."""
 
 from __future__ import annotations
 
 import json
 import math
+import os
 import sqlite3
 from pathlib import Path
 from typing import Final
@@ -43,7 +44,7 @@ _BIG_FIVE_KEYS: Final[tuple[str, ...]] = (
 
 
 class SQLiteElfiesProjectionAdapter:
-    """Read Elfie-owned projections without changing any authoritative source."""
+    """Read projections and atomically save Elfie-owned portrait assets."""
 
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
@@ -143,6 +144,19 @@ class SQLiteElfiesProjectionAdapter:
         except OSError as error:
             raise ElfiesPortError("unable to read Elfie portrait") from error
 
+    def save_portrait(self, elfie_id: str, content: bytes) -> None:
+        try:
+            layout = final_root_layout(data_home_from_db_path(self._db_path)).elfie(
+                elfie_id
+            )
+        except ValueError as error:
+            raise ElfiesPortError("invalid Elfie identity") from error
+        try:
+            layout.portrait_headshot.parent.mkdir(parents=True, exist_ok=True)
+            _write_private_asset(layout.portrait_headshot, content)
+        except OSError as error:
+            raise ElfiesPortError("unable to save Elfie portrait") from error
+
     def load_cognition(self, elfie_id: str) -> CognitionSnapshotRecord:
         try:
             layout = final_root_layout(data_home_from_db_path(self._db_path))
@@ -216,6 +230,21 @@ def _portrait_url(layout, elfie_id: str) -> str:
         if layout.portrait_headshot.is_file()
         else ""
     )
+
+
+def _write_private_asset(path: Path, content: bytes) -> None:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    try:
+        with temporary.open("wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        if os.name != "nt":
+            os.chmod(path, 0o600)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def _read_cognition(path: Path) -> CognitionSnapshotRecord:

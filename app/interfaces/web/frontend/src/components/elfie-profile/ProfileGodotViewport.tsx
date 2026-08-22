@@ -4,7 +4,9 @@ import { useTranslation } from "react-i18next"
 import type { PublicProfile } from "./model"
 import {
   createProfileGodotPreview,
+  measureVisibleFrame,
   ProfileGodotPreviewError,
+  toGodotVisibleFrameMetrics,
   type ProfileGodotPreview,
 } from "./profile-godot-preview"
 
@@ -44,7 +46,27 @@ export function ProfileGodotViewport({
     setError("")
     const frame = frameRef.current
     if (frame === null) return undefined
+    let active = true
+    let calibrationStarted = false
     let bridge: ProfileGodotPreview | null = null
+    const pendingActions = new Map<string, { readonly resolve: () => void; readonly reject: (reason: unknown) => void }>()
+    const waitForAction = (action: string): Promise<void> => new Promise<void>((resolve, reject) => {
+      pendingActions.set(action, { resolve, reject })
+    })
+    const calibrateVisibleFrame = async (): Promise<void> => {
+      const currentBridge = bridge
+      if (currentBridge === null) throw new ProfileGodotPreviewError("preview_not_ready")
+      const provisional = await currentBridge.capture()
+      try {
+        const metrics = await measureVisibleFrame(provisional.blob)
+        if (metrics === null) return
+        const completion = waitForAction("frame")
+        currentBridge.send("frame", toGodotVisibleFrameMetrics(metrics))
+        await completion
+      } finally {
+        if (typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(provisional.previewUrl)
+      }
+    }
     bridge = createProfileGodotPreview({
       frame,
       onEvent: (event) => {
@@ -65,12 +87,33 @@ export function ProfileGodotViewport({
           }
           return
         }
-        if (event.kind === "completed" && event.action === "configure") {
-          setStatus("ready")
-          setError("")
+        if (event.kind === "completed") {
+          const pending = pendingActions.get(event.action)
+          if (pending !== undefined) {
+            pendingActions.delete(event.action)
+            pending.resolve()
+            return
+          }
+          if (event.action === "configure" && !calibrationStarted) {
+            calibrationStarted = true
+            void calibrateVisibleFrame()
+              .then(() => {
+                if (!active) return
+                setStatus("ready")
+                setError("")
+              })
+              .catch((reason: unknown) => {
+                if (active) reportPreviewError(reason, setStatus, setError, t("profile.appearance.error"))
+              })
+          }
           return
         }
         if (event.kind === "unsupported") {
+          const pending = pendingActions.get(event.action)
+          if (pending !== undefined) {
+            pendingActions.delete(event.action)
+            pending.reject(new ProfileGodotPreviewError(event.reason))
+          }
           reportPreviewError(
             new ProfileGodotPreviewError(event.reason),
             setStatus,
@@ -83,6 +126,9 @@ export function ProfileGodotViewport({
     previewRef.current = bridge
     onPreviewChange(bridge)
     return () => {
+      active = false
+      for (const pending of pendingActions.values()) pending.reject(new ProfileGodotPreviewError("preview_closed"))
+      pendingActions.clear()
       bridge?.dispose()
       if (previewRef.current === bridge) previewRef.current = null
       onPreviewChange(null)

@@ -10,17 +10,20 @@ from app.features.elfies import (
     CognitionSnapshotRecord,
     CognitionTopicRecord,
     ElfieDirectoryRecord,
+    ElfiePortraitInvalid,
     ElfieProfileRecord,
     ElfiesForbidden,
     ElfiesService,
     GetElfieProfileQuery,
     ListAdminElfiesQuery,
     ListVisibleElfiesQuery,
+    UpdateElfiePortraitCommand,
 )
 
 
 class FakeElfiesPort:
     def __init__(self) -> None:
+        self.saved_portraits: dict[str, bytes] = {}
         self.records = (
             _record("00000001", owner_user_id=1, owner_account_id="alice"),
             _record("00000002", owner_user_id=2, owner_account_id="bob"),
@@ -44,6 +47,9 @@ class FakeElfiesPort:
             (record for record in self.records if record.elfie_id == elfie_id),
             None,
         )
+
+    def save_portrait(self, elfie_id: str, content: bytes) -> None:
+        self.saved_portraits[elfie_id] = content
 
     def load_profile(self, elfie_id: str) -> ElfieProfileRecord:
         del elfie_id
@@ -177,8 +183,17 @@ def _principal(
     )
 
 
+def _service(
+    port: FakeElfiesPort | None = None,
+    *,
+    catalog=None,
+) -> ElfiesService:
+    source = port or FakeElfiesPort()
+    return ElfiesService(source, source, catalog=catalog)
+
+
 def test_member_directory_exposes_visible_elfies_with_bounded_permissions() -> None:
-    service = ElfiesService(FakeElfiesPort())
+    service = _service()
 
     results = service.list_visible(_principal(), ListVisibleElfiesQuery())
 
@@ -203,7 +218,7 @@ def test_member_directory_exposes_visible_elfies_with_bounded_permissions() -> N
 
 
 def test_member_profile_of_another_member_is_public_without_cognition() -> None:
-    service = ElfiesService(FakeElfiesPort())
+    service = _service()
 
     result = service.get_profile(
         _principal(),
@@ -212,6 +227,49 @@ def test_member_profile_of_another_member_is_public_without_cognition() -> None:
 
     assert result.relationship == "other"
     assert result.private_cognition is None
+
+
+def test_owner_portrait_update_writes_the_supplied_png() -> None:
+    port = FakeElfiesPort()
+    service = _service(port)
+    payload = b"\x89PNG\r\n\x1a\nupdated"
+
+    result = service.update_portrait(
+        _principal(),
+        UpdateElfiePortraitCommand(
+            elfie_id="00000001",
+            content_type="image/png",
+            content=payload,
+        ),
+    )
+
+    assert result.content == payload
+    assert port.saved_portraits == {"00000001": payload}
+
+
+def test_portrait_update_rejects_non_owner_and_invalid_content() -> None:
+    port = FakeElfiesPort()
+    service = _service(port)
+
+    with pytest.raises(ElfiesForbidden):
+        service.update_portrait(
+            _principal(),
+            UpdateElfiePortraitCommand(
+                elfie_id="00000002",
+                content_type="image/png",
+                content=b"\x89PNG\r\n\x1a\nother",
+            ),
+        )
+    with pytest.raises(ElfiePortraitInvalid):
+        service.update_portrait(
+            _principal(),
+            UpdateElfiePortraitCommand(
+                elfie_id="00000001",
+                content_type="image/jpeg",
+                content=b"not a png",
+            ),
+        )
+    assert port.saved_portraits == {}
 
 
 def test_retired_species_can_still_be_presented_when_catalog_contains_it() -> None:
@@ -229,7 +287,7 @@ def test_retired_species_can_still_be_presented_when_catalog_contains_it() -> No
             for definition in catalog.definitions
         ),
     )
-    service = ElfiesService(FakeElfiesPort(), catalog=retired_catalog)
+    service = _service(catalog=retired_catalog)
 
     result = service.list_visible(_principal(), ListVisibleElfiesQuery())[0]
 
@@ -238,7 +296,7 @@ def test_retired_species_can_still_be_presented_when_catalog_contains_it() -> No
 
 
 def test_profile_preserves_the_five_existing_cognition_modules() -> None:
-    service = ElfiesService(FakeElfiesPort())
+    service = _service()
 
     result = service.get_profile(
         _principal(),
@@ -255,7 +313,7 @@ def test_profile_preserves_the_five_existing_cognition_modules() -> None:
 
 
 def test_admin_directory_requires_manager_and_does_not_grant_cognition() -> None:
-    service = ElfiesService(FakeElfiesPort())
+    service = _service()
 
     with pytest.raises(ElfiesForbidden):
         service.list_admin(_principal(), ListAdminElfiesQuery())

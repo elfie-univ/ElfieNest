@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ApiError } from "../../api/http"
 import { createI18n } from "../../i18n/config"
-import { AdoptionJourneyDialog } from "./AdoptionJourneyDialog"
+import { AdoptionJourneyDialog, calculateHeadshotCrop } from "./AdoptionJourneyDialog"
 
 const api = vi.hoisted(() => ({
   adoptionCandidates: vi.fn(),
@@ -17,6 +17,7 @@ const api = vi.hoisted(() => ({
 vi.mock("../../api/me/adoption", () => api)
 
 vi.mock("../elfie-profile/profile-godot-preview", () => ({
+  measureVisibleFrame: vi.fn().mockResolvedValue(null),
   ProfileGodotPreviewError: class ProfileGodotPreviewError extends Error {
     public readonly reason: string
 
@@ -37,6 +38,26 @@ vi.mock("../elfie-profile/profile-godot-preview", () => ({
     }
   },
 }))
+
+describe("AdoptionJourneyDialog portrait crop", () => {
+	it("frames a square headshot from the visible top through the upper body", () => {
+		expect(calculateHeadshotCrop(1024, 1536, {
+			left: 117,
+			top: 132,
+			right: 906,
+			bottom: 1402,
+		})).toEqual({ cropSize: 901, cropX: 62, cropY: 105 })
+	})
+
+	it("does not let blank vertical space pull the headshot down into the legs", () => {
+		expect(calculateHeadshotCrop(1024, 1536, {
+			left: 268,
+			top: 501,
+			right: 755,
+			bottom: 1349,
+		})).toEqual({ cropSize: 556, cropX: 234, cropY: 484 })
+	})
+})
 
 function candidate(index: number) {
   return {
@@ -214,6 +235,19 @@ describe("AdoptionJourneyDialog", () => {
     expect(screen.queryByText("先选一个方向，马上看看适合你的 Elfie。")).not.toBeInTheDocument()
     expect(screen.getByText("不确定的地方会交给缘分；想让匹配更贴合，也可以展开详细匹配")).not.toBeVisible()
     expect(screen.getByRole("button", { name: "开始寻找" })).toBeInTheDocument()
+  })
+
+  it("selects a species on the first pointer press and uses its full-body presentation", async () => {
+    const user = userEvent.setup()
+    renderJourney()
+
+    await openBasic(user)
+    const fox = screen.getByRole("button", { name: "灵狐" })
+    expect(fox.querySelector("img")).toHaveAttribute("src", "/api/v1/me/adoption/species/fox/images/full-body")
+
+    fireEvent.pointerDown(fox, { button: 0, pointerType: "mouse" })
+    expect(fox).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "灵犬" }).querySelector("img")).toHaveAttribute("src", "/api/v1/me/adoption/species/dog/images/full-body")
   })
 
   it("advances the candidate-search story while candidate profiles are in transit", async () => {

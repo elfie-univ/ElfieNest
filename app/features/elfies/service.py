@@ -6,7 +6,13 @@ from app.features.accounts import AccountPrincipal, is_manager
 from elfie.profile import SpeciesCatalog, current_species_catalog
 
 from .cognition import project_cognition
-from .errors import ElfieNotFound, ElfiesForbidden, ElfiesUnavailable
+from .errors import (
+    ElfieNotFound,
+    ElfiePortraitInvalid,
+    ElfiePortraitTooLarge,
+    ElfiesForbidden,
+    ElfiesUnavailable,
+)
 from .models import (
     AdminElfieResult,
     BigFiveResult,
@@ -21,6 +27,7 @@ from .models import (
     GetElfieProfileQuery,
     ListAdminElfiesQuery,
     ListVisibleElfiesQuery,
+    UpdateElfiePortraitCommand,
     VisibleElfieResult,
 )
 from .ports import (
@@ -28,7 +35,11 @@ from .ports import (
     ElfieProfileRecord,
     ElfiesPortError,
     ElfiesQueryPort,
+    ElfiesWritePort,
 )
+
+_MAX_PORTRAIT_BYTES = 2 * 1024 * 1024
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 _OWNED_PERMISSIONS = ElfiePermissionsResult(
     can_view_profile=True,
@@ -48,10 +59,12 @@ class ElfiesService:
     def __init__(
         self,
         queries: ElfiesQueryPort,
+        writes: ElfiesWritePort,
         *,
         catalog: SpeciesCatalog | None = None,
     ) -> None:
         self._queries = queries
+        self._writes = writes
         self._catalog = catalog or current_species_catalog()
 
     def list_visible(
@@ -131,6 +144,25 @@ class ElfiesService:
         if content is None:
             raise ElfieNotFound("Elfie portrait not found")
         return ElfiePortraitResult(content=content)
+
+    def update_portrait(
+        self,
+        principal: AccountPrincipal,
+        command: UpdateElfiePortraitCommand,
+    ) -> ElfiePortraitResult:
+        if not command.elfie_id.strip():
+            raise ElfieNotFound("Elfie not found")
+        _validate_portrait(command.content_type, command.content)
+        try:
+            record = self._queries.get_directory(command.elfie_id)
+            if record is None:
+                raise ElfieNotFound("Elfie not found")
+            if record.owner_user_id != principal.user_id:
+                raise ElfiesForbidden("Elfie portrait update requires ownership")
+            self._writes.save_portrait(command.elfie_id, command.content)
+        except ElfiesPortError as error:
+            raise ElfiesUnavailable("Elfie portrait unavailable") from error
+        return ElfiePortraitResult(content=command.content)
 
     def list_admin(
         self,
@@ -250,6 +282,17 @@ def _personality_tags(
     )
     tags.extend(name for name, _ in ranked[:2])
     return tuple(tags)
+
+
+def _validate_portrait(content_type: str, content: bytes) -> None:
+    if len(content) > _MAX_PORTRAIT_BYTES:
+        raise ElfiePortraitTooLarge("Elfie portrait exceeds 2 MiB")
+    if (
+        content_type.strip().lower() != "image/png"
+        or not content
+        or not content.startswith(_PNG_SIGNATURE)
+    ):
+        raise ElfiePortraitInvalid("Elfie portrait must be a PNG image")
 
 
 __all__ = ("ElfiesService",)

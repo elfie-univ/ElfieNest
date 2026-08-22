@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import { ElfieIdValueSchema } from "@/shared/elfie-id"
 
-import { requestJson } from "../http"
+import { csrfHeaders, requestJson } from "../http"
 
 const WeightSchema = z.number().min(0).max(1)
 
@@ -67,6 +67,10 @@ const VisibleElfieSchema = z.object({
 
 const VisibleElfiesResponseSchema = z.object({
   items: z.array(VisibleElfieSchema),
+}).strict()
+
+const ElfiePortraitUploadResponseSchema = z.object({
+  portrait_url: z.string().min(1),
 }).strict()
 
 const PrivateCognitionSchema = z.object({
@@ -160,4 +164,26 @@ export async function profile(elfieId: string): Promise<ElfieProfileDetail> {
   return ProfileDetailResponseSchema.parse(
     await requestJson(`/api/v1/elfies/${encodeURIComponent(elfieId)}/profile`),
   )
+}
+
+export async function saveElfiePortrait(
+  elfieId: string,
+  image: Blob,
+  csrfToken: string,
+): Promise<string> {
+  const formData = new FormData()
+  formData.append("file", image, "portrait.png")
+  const result = await requestJson(
+    `/api/v1/elfies/${encodeURIComponent(elfieId)}/portrait`,
+    {
+      body: formData,
+      headers: csrfHeaders(csrfToken),
+      method: "PUT",
+    },
+  )
+  return ElfiePortraitUploadResponseSchema.parse(result).portrait_url
+}
+
+export function elfiePortraitUrl(elfieId: string, kind: "headshot" | "full_body" = "headshot"): string {
+  return `/api/v1/elfies/${encodeURIComponent(elfieId)}/portrait?kind=${kind}`
 }

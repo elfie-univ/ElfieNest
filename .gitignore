@@ -75,6 +75,14 @@ dist/
 /.agents/*
 !/.agents/skills/
 !/.agents/skills/**
+# The broad skill allowlist must not re-include generated runtime caches.
+/.agents/skills/**/__pycache__/
+/.agents/skills/**/.pytest_cache/
+/.agents/skills/**/.mypy_cache/
+/.agents/skills/**/.ruff_cache/
+/.agents/skills/**/node_modules/
+/.agents/skills/**/.DS_Store
+/.agents/skills/**/*.py[cod]
 
 # Runtime temp files (audio, cache, etc.)
 *.uid
