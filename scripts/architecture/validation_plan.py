@@ -205,7 +205,11 @@ def build_plan(paths: Iterable[str], requested_stage: str) -> Dict[str, object]:
     for path in normalized_paths:
         if path in GENERATED_GATE_OUTPUTS:
             continue
-        if path.startswith(GOVERNANCE_PREFIXES) or path in GOVERNANCE_EXACT:
+        if (
+            Path(path).name == "AGENTS.md"
+            or path.startswith(GOVERNANCE_PREFIXES)
+            or path in GOVERNANCE_EXACT
+        ):
             selected_capabilities.update({"architecture", "governance"})
             if path.startswith(("docs/", "docs/zh/")):
                 selected_capabilities.add("docs")

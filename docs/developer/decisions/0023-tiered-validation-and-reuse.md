@@ -19,10 +19,15 @@ merge wait for a complete G3. Local affected validation, check-scoped evidence
 identity and reusable full-test bundles remain active. The complete G3 now runs
 after main acceptance and for manual/release validation.
 
-- Classify local work from changed paths as G1 commit or G2 push validation.
-  Unknown executable, governance, toolchain, lockfile and delivery changes
-  fail closed by selecting every exact-candidate CI lane; they do not start the
-  complete repository locally merely because a push begins.
+- Select G1 commit or G2 push validation from the requested Git action and
+  changed paths; do not ask a user or agent to assign a subjective task-size
+  label. Unknown executable, governance, toolchain, lockfile and delivery
+  changes fail closed by selecting every exact-candidate CI lane; they do not
+  start the complete repository locally merely because a push begins.
+- Treat every root or nested `AGENTS.md` as governance input. Local affected
+  validation selects only its direct governance and architecture checks, while
+  the exact PR candidate still selects every lane. A rule-only edit under a
+  product directory therefore cannot start that product's local test suite.
 - G1 runs changed-file diff/secret/quality checks and deterministic affected
   tests. G2 adds the quality baseline and affected API, persistence,
   architecture or documentation integration checks. Full mode keeps the
@@ -64,6 +69,9 @@ after main acceptance and for manual/release validation.
 
 Ordinary commits complete with focused feedback, while Provider/model changes
 select their API, persistence and validation tests instead of the whole suite.
+Validation follows changed behavior and the requested Git action rather than a
+manually assigned task size. Nested agent-rule edits remain governance-only in
+the local loop and fail closed across all exact-candidate lanes remotely.
 An unchanged test package passed during implementation is no longer repeated at
 commit, push or full backstop merely because the stage changed. Narrow repair
 checks stay narrow and cannot satisfy broader coverage. Governance and unknown

@@ -78,6 +78,21 @@ def test_frontend_change_selects_only_its_parallel_lane() -> None:
     assert plan["tests"] == []
 
 
+def test_nested_agent_rules_are_governance_not_local_product_work() -> None:
+    plan = build_plan(["app/interfaces/web/frontend/AGENTS.md"], "push")
+
+    assert plan["full"] is True
+    assert plan["capabilities"]["web_frontend"] is True
+    assert plan["direct_capabilities"]["governance"] is True
+    assert plan["direct_capabilities"]["architecture"] is True
+    assert plan["direct_capabilities"]["web_frontend"] is False
+
+    local_labels = {label for label, _command in _commands(plan, "base")}
+    assert "governance change policy" in local_labels
+    assert "architecture tests" in local_labels
+    assert "web frontend dependencies" not in local_labels
+
+
 def test_router_and_workflow_changes_cannot_approve_themselves() -> None:
     plan = build_plan(
         [

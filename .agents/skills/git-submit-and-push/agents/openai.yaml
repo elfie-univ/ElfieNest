@@ -1,4 +1,4 @@
 interface:
-  display_name: "Git 提交并推送"
-  short_description: "评估提交时机，检查改动并推送到远端"
-  default_prompt: "使用 $git-submit-and-push 评估当前改动是否已完成；符合提交条件时检查、提交并推送到远端。"
+  display_name: "Git 提交、推送与队列合并"
+  short_description: "用 Git 与 gh 稳定完成提交、推送、认证恢复和队列合并"
+  default_prompt: "使用 $git-submit-and-push 按我的明确授权完成本地提交、功能分支推送或受保护主线队列合并，并处理 Git/gh 认证与临时网络故障。"
