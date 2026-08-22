@@ -88,25 +88,25 @@ PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-f
 质量基线只容纳已经存在的诊断；新增 Ruff、格式或 MyPy 诊断必须修复，不通过扩大
 忽略项或改写基线隐藏。
 
-## 分级验证门禁
+## 受影响验证与完整后盾
 
-先同步远程 `main`，再按改动运行最小安全级别：
+先同步远程 `main`，再运行受影响本地验证：
 
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
   --base-sha "$(git rev-parse origin/main^{commit})"
 # 功能分支推送：使用 --stage push
-# 主线合并或发布：使用 --stage main
+# 显式完整或发布重放：使用 --stage full
 ```
 
 G1（`commit`）检查改动文件和受影响测试；G2（`push`）追加质量基线
-以及受影响的 API、持久化、架构或文档集成检查；G3（`main`）把当前候选检查与不可变基础
-提交架构 ratchet、锁文件和工具链、pre-commit/Gitleaks、完整 pytest、CLI smoke 和文档
-构建组合起来。未知可执行路径、治理、工具链和锁文件改动自动升级到 G3。
+以及受影响的 API、持久化、架构或文档集成检查。普通提交的本地流程到此结束。精确 PR head
+由不可变基础 Manifest 路由，选中 Lane 并行运行并聚合为 `elfienest/ci-gate`；main 单纯前进
+不会使该 head 失效。随后原生 merge queue 对合成提交执行秒级 `elfienest/merge-gate`。
 
 成功的确定性测试检查按命令、作用域输入内容与文件模式、所需不可变基础提交和本机工具计算，
-不按交付级别重复记账，因此 G2 会复用 G1 已通过且未变化的聚焦测试。本地 G3 pytest 后盾
+不按交付级别重复记账，因此 G2 会复用 G1 已通过且未变化的聚焦测试。合并后/发布完整 pytest 后盾
 拆为 `app`、`architecture`、`devtools`、`e2e`、`elfie`、`godot`、`infrastructure`、
 `nest` 和 `scripts` 九个已注册顶层包。它只运行缺失或失效的包；包输入包含测试和共享
 `conftest.py` 的本地 Python 传递 import，只有通过记录、覆盖率片段摘要/版本和可读覆盖率
@@ -124,19 +124,20 @@ G1（`commit`）检查改动文件和受影响测试；G2（`push`）追加质�
   --bundle godot
 ```
 
-如果 `--selectors` 精确命中一个已注册测试包，它会产生 G3 使用的同一份带覆盖率证据。
+如果 `--selectors` 精确命中一个已注册测试包，它会产生完整后盾使用的同一份带覆盖率证据。
 更窄的 node/单文件结果只能按原聚焦命令复用，不能证明所属完整包。原始 `pytest` 只用于
 诊断，不产生提交缓存证据。
 
-内部 `--direct-main` 路径会执行完整 main 后盾，但复用有效测试包证据。`--no-cache` 是
+内部 `--direct-full` 路径会执行完整后盾，但复用有效测试包证据。`--no-cache` 是
 明确要求的干净重放：它必须从门禁继续透传到测试包运行器，不能悄悄复用聚焦测试、测试包
 或后盾记录。
 
-G3 还为其余昂贵后盾保存按检查划分的证据。未知可执行输入会使所有测试包失效。缓存位于被忽略的
+完整后盾还为其余昂贵工作保存按检查划分的证据。未知可执行输入会使所有测试包失效。缓存位于被忽略的
 `build/validation-cache/`，不能替代新 commit SHA 的 CI。
 
-必需检查失败，或 G3 的回环端口预检被阻断时，不得提交、推送或合并。聚焦测试是 G1/G2 的
-正常路径；当影响分类器要求 G3 时不能替代完整门禁。
+选中预合并 Lane 或 merge gate 失败时不得合并。未知、治理、工具链和锁文件改动通过选择
+全部 Lane fail-closed。完整 G3 在 main 后、显式 `--stage full` 和发布时运行；最新 main
+为红时隔离普通合并，直到恢复。
 
 ### 失败修复阶梯
 
@@ -145,7 +146,7 @@ G3 还为其余昂贵后盾保存按检查划分的证据。未知可执行输�
 1. 只重跑精确失败的 pytest node ID 或失败命令；
 2. 它通过且执行代码发生变化后，再跑所属测试文件或模块；
 3. 只有对应边界发生变化，才跑直接受影响的集成或架构检查；
-4. 只对最终可执行候选运行一次必需的 G3 后盾。
+4. 由选中的精确 SHA CI Lane 证明候选；只有诊断 main 健康或准备发布时才运行 full。
 
 同一源码状态下不得重复成功命令。怀疑环境或偶发失败时，可以写明理由后诊断性重跑一次，
 但不能因此重启整套测试。每次扩大范围都必须指出新增风险、改动依赖或交付阶段。

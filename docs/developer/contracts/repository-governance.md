@@ -1,8 +1,8 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.14
+**Contract version:** 1.15
 **Adopted:** 2026-08-12
-**Revised:** 2026-08-17
+**Revised:** 2026-08-22
 **Enforced scope:** Repository-wide change classification and architecture boundaries
 
 This contract defines how ElfieNest architecture rules are organized, changed
@@ -38,74 +38,93 @@ Architecture quality is maintained by one connected system:
 | Conformance registers | Name each temporary gap and its deletion gate | Temporary |
 | CI base-branch comparison and maintainer review | Prevent a change from weakening the rule that judges itself | Permanent |
 | Runtime health and Observer projections | Report operational health; separate from source architecture checks | Permanent |
-| Tiered validation and check-scoped reuse | Match local effort to changed risk without repeating proven expensive checks | Permanent |
+| Exact-candidate affected CI and post-submit backstop | Merge quickly on relevant evidence while preserving broad asynchronous detection | Permanent |
 
 No one mechanism replaces another. Contracts state the target, `AGENTS.md`
 guides execution, machine gates reject detectable violations, conformance and
 baselines record only legacy debt, and human review covers semantic rules that
 cannot be proven mechanically.
 
-## Tiered validation and check-scoped reuse
+## Exact-candidate submission and asynchronous full validation
 
-Validation is selected from the changed-path impact, and a higher-risk result
-may always escalate but never downgrade:
+Delivery separates merge-blocking evidence from broad regression detection:
 
-| Tier | Trigger | Required checks |
+| Phase | Trigger | Required result |
 | --- | --- | --- |
-| G1 commit | ordinary local change | staged secret scan, diff check, changed-file quality and affected tests |
-| G2 push | feature-branch push or an affected integration path | G1 plus quality baseline and the affected API, persistence, architecture or documentation integration checks |
-| G3 main | main-branch merge/release, governance/toolchain change or unknown impact | current-candidate checks and one required expensive backstop |
+| Local commit | focused development checkpoint | diff/secret/changed-file quality and directly affected tests |
+| Feature push | candidate preparation | local affected integration checks; no local full-repository prerequisite |
+| Pull Request head | exact candidate SHA `H` | immutable-base manifest, security-fast and every selected parallel lane, aggregated internally as `elfienest/ci-gate` and exposed through required `elfienest/merge-gate` |
+| Merge queue | synthetic merge of current main `M` and `H` | the same required `elfienest/merge-gate` name, now performing only lightweight identity, parent, conflict and gate-version checks |
+| Main push | accepted merge result | non-blocking complete G3 backstop |
+| Manual/release | explicitly selected exact SHA | complete G3 plus release-specific acceptance |
 
-The candidate classifier owns the escalation decision. Unknown executable paths,
-governance, toolchain, lockfile and delivery changes go to G3. A normal commit
-does not wait for G3 unless its own impact requires that escalation; G3 remains
-the protected-branch backstop.
+The Pull Request preflight must execute the classifier from the immutable base
+commit, not the candidate copy. Its versioned manifest selects
+`security_fast`, Python bundles, web frontend, Desktop, Developer Tools web,
+architecture, persistence, Godot, docs, toolchain, release and governance
+capabilities. Security-fast always runs. Unknown executable paths select all
+lanes. A change to the classifier, CI workflow, governance contract or delivery
+tooling cannot approve itself: it selects all lanes, remains subject to the
+base-commit governance checker and requires maintainer review.
 
-Only a successful deterministic test check may be reused at check scope. A
-delivery tier is a set of required checks, not part of a test check's identity:
-the evidence key covers the check/rule version, exact command, declared input
-contents and file modes, local tool fingerprint and immutable base when the
-selection depends on that base. Therefore an unchanged focused test run by G1
-is reused by G2 instead of being started again.
+`elfienest/ci-gate` uses `always()` semantics and succeeds only when the trusted
+preflight passed and every selected lane succeeded. A skipped, missing,
+cancelled or timed-out selected lane is a failure. Unselected lanes may skip.
+Evidence is bound to the exact PR head SHA; a newer commit creates a new
+candidate. Movement of main alone does not invalidate `H` or restart its
+affected tests. Only an actual conflict or a new candidate SHA requires new PR
+evidence.
 
-The local G3 pytest backstop is partitioned into registered top-level bundles.
-Each bundle starts with conservative source, test, configuration and
-shared-fixture inputs, then adds the transitive local Python import closure of
-its tests and `conftest.py` files; dynamic or non-Python entry points remain
-explicit inputs. An unknown executable input invalidates every bundle. A bundle
-pass is reusable only when its pass record, coverage fragment, artifact digest,
-coverage/pytest versions and readable coverage data all agree. Running a
-complete registered bundle earlier through the controlled runner creates that
-same evidence, so G3 skips it. A narrower node, file or arbitrary selector
-cannot prove the larger bundle. One invocation shares a repository content
-snapshot across bundles and rechecks input signatures before accepting a cache
-hit. G3 combines all current bundle fragments and enforces the repository
-coverage threshold once after combination; a failed combine invalidates the
-involved fragments. Raw `pytest` commands remain useful for diagnosis but do
-not enter this evidence store.
+GitHub required status checks do not vary by event type. Therefore branch
+protection requires only the stable `elfienest/merge-gate` job. On a Pull
+Request event it succeeds only after `elfienest/ci-gate`; on a `merge_group`
+event the same job name executes the lightweight synthetic-merge checks below.
+This prevents either event from waiting forever for a check name emitted only
+by the other event.
 
-Exact-candidate evidence may still reuse a whole tier. G3 also records a
-separate expensive-backstop fingerprint covering every changed source, test,
-dependency, toolchain, documentation and validation-rule input. Any changed
-path not explicitly treated as generated or ignored by the cache rules remains
-part of that fingerprint and is fail-closed when it cannot be classified.
+The merge queue must initially build one Pull Request per synthetic merge group.
+The `merge_group` workflow is intentionally seconds-long: it does not install
+dependencies or rerun Python, frontend, Godot or documentation suites. GitHub
+serializes only the final main mutation; candidate validation remains parallel.
+The required merge check must observe the exact synthetic merge SHA and reject
+the wrong base, wrong queue ref, malformed parents, conflict residue or an
+unknown gate schema.
 
-Failed, blocked, timed-out or live-provider results are never stored as passes;
-a forced rerun that fails also removes an older pass for the same key. The
-internal `--direct-main` path runs the complete backstop while retaining valid
-bundle evidence; `--no-cache` is reserved for an intentional clean replay and
-is propagated into the bundle runner. When one G3 bundle fails, earlier
-successful bundle records remain valid; the next run skips those records and
-resumes with the failed or still-missing bundle.
-During a repair loop, rerun the exact failed node first, then its owning test
-file or module, then affected integration checks; run the required G3 backstop
-once for the final executable candidate instead of restarting it after every
-edit. Each expansion needs a new dependency or risk reason. The worktree
-fingerprint is checked again after every reused or executed gate; a change
-discards the result. Cache records live only under ignored
-`build/validation-cache/` and contain no source, credentials or user data.
-GitHub status checks still have to pass on the latest commit SHA; local evidence
-cannot replace CI for a new SHA.
+The full G3 backstop is not a prerequisite for an ordinary merge. It runs after
+each main push, on explicit full dispatches and before releases. Main full runs
+are non-cancelling and use two parity concurrency slots; each slot retains its
+running check and coalesces obsolete pending tips. Superseded PR heads cancel.
+This prevents a steady stream of contributors from holding main while retaining
+broad regression discovery.
+
+Successful deterministic local checks remain reusable by exact check identity
+as decided in ADR-0023. A cache key covers rule version, command, declared input
+content and modes, toolchain and any immutable base used for selection. Narrow
+nodes do not prove larger bundles; failures, timeouts, blocked environments and
+live-provider observations never become passes. Local cache evidence never
+replaces GitHub checks attached to the exact candidate SHA.
+
+The delivery SLO is Pull Request push-to-main p95 at or below ten minutes under
+available GitHub and runner capacity. `elfienest/ci-gate` targets p95 at or below
+eight minutes, its longest blocking lane six minutes, merge-queue wait two
+minutes and `elfienest/merge-gate` thirty seconds. Platform outage, exhausted
+runner capacity and GitHub unavailability are reported separately and cannot be
+turned into a false pass.
+
+A terminal red full backstop on the newest main tip quarantines ordinary merges
+until a newer main full backstop is green. A narrowly identified fix or revert
+may use the audited `main-recovery` path. One exact failing check may be rerun;
+the system must not repeatedly restart the entire graph or guess a revert when
+the culprit is ambiguous. A newer green main result supersedes older red
+ancestors.
+
+Cutover is two-phase. Repository code and shadow checks land first while the
+legacy full gate remains available. The faster submission instructions become
+authoritative only after the live GitHub ruleset requires Pull Requests, merge
+queue and the event-stable `elfienest/merge-gate`, blocks direct/force pushes
+and has demonstrated zero missed affected lanes. Rollback returns the ruleset
+to evaluation while retaining the full backstop; it never weakens tests or
+fabricates evidence.
 
 An architecture dependency is defined by the effective target, not only by an
 `import` statement. A repository module reached through `python -m`, a script
@@ -144,11 +163,12 @@ Every architecture-sensitive change follows one visible loop:
 3. for governance, revise the ADR/contract/local guidance and machine rule
    without implementation-side files; for migration, keep the target fixed and select one
    complete capability or business-domain slice;
-4. run the candidate scanner against its exact baseline and run focused
-   architecture tests;
-5. in CI, run the immutable base-commit scanner against candidate production
-   code for both pull requests and protected-branch pushes, then require
-   maintainer review;
+4. run the candidate scanner against its exact baseline and the affected local
+   checks; do not start the full repository merely because submission began;
+5. in CI, route from the immutable base manifest, require the event-stable
+   `elfienest/merge-gate` backed by `elfienest/ci-gate` on the candidate,
+   require maintainer review for governance, then run the complete backstop
+   asynchronously on the accepted main tip;
 6. after a migration proves its real call chain, remove the old implementation,
    reduce only the matching baseline entries and close only the evidenced
    conformance row;
@@ -276,9 +296,8 @@ boundary rather than breaking runtime behavior between commits.
 
 ## Base-branch ratchet
 
-For App and system architecture rules, CI compares the candidate tree against
-immutable facts from the pull-request base commit or protected-branch
-pre-push commit:
+For App and system architecture rules, CI compares the exact candidate tree
+against immutable facts from the Pull Request base commit:
 
 - the base-branch scanner is run against candidate production code;
 - every candidate violation must already exist in the base baseline;
@@ -309,10 +328,10 @@ gate may create its initial exact baseline because no earlier governance
 contract exists. After it reaches the protected main branch, absence of the
 base scanner is an error and a new or rewritten baseline is rejected.
 
-CI also performs this comparison after a direct protected-branch push so a
-bypass is visible, but only repository branch protection can prevent that push
-before it lands. Protected main therefore forbids direct pushes and requires
-this check before merge.
+The post-submit full run repeats the broad comparison for detection, but it is
+not a substitute for pre-write protection. The live ruleset must forbid direct
+and force pushes, require Pull Requests and merge queue, and bind the one
+event-stable required check before main can move.
 
 ## Zero-debt state
 
@@ -363,8 +382,9 @@ evidence is semantically sufficient.
 
 ## Ownership and external repository settings
 
-The protected main branch must require the architecture-governance CI check and
-at least one maintainer review for governance changes. A valid CODEOWNERS team
-may be added when the repository owner confirms its GitHub handle; this
-contract does not invent a nonexistent account. Branch protection and reviewer
-identity are repository settings and cannot be proven by source files alone.
+The protected main branch must require the event-stable
+`elfienest/merge-gate` from the expected GitHub Actions App, plus at least one
+maintainer review for governance and CI changes. It must require the merge queue
+and reject direct pushes, force pushes and deletion. Repository owners may add
+CODEOWNERS only for verified accounts. Ruleset state and reviewer identity are
+live repository settings and cannot be proved from source files alone.

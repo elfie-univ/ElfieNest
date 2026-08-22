@@ -135,26 +135,27 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 重复一遍；应在宿主或提升权限的环境中把同一条全量命令只运行一次。返回 `1` 表示预检
 本身出现未预期错误，必须先诊断。
 
-提交前先同步远程基础提交，再按改动选择最小安全验证级别：
+提交前先同步远程基础提交，再执行受影响本地验证：
 
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
   --base-sha "$(git rev-parse origin/main^{commit})"
 # 功能分支推送：把 commit 替换成 push
-# 主线合并/发布：把 commit 替换成 main
+# 显式完整/发布重放：把 commit 替换成 full
 ```
 
-G1（`commit`）执行改动文件检查和受影响测试；G2（`push`）追加质量
-基线和受影响集成检查；G3（`main`）运行不可变基础提交架构 ratchet、依赖和工具链检查、
-质量基线、pre-commit/Gitleaks、完整测试套件、CLI smoke 和文档构建。未知、治理或工具链
-改动自动升级到 G3。确定性测试检查按命令、作用域输入和工具记账，不按级别重复记账，因此 G2
-会复用 G1 已经通过且输入未变的聚焦测试。G3 只运行缺失或失效的顶层测试包，再合并所有包
-的覆盖率片段并只执行一次全仓阈值；此前完整执行的已注册测试包可复用，更窄的 node 或文件
-不可冒充完整包。修复循环先只重跑精确失败项，再按需扩大到所属模块和受影响集成，最后只对最终可执行
-候选运行一次必需 G3。若某个 G3 测试包失败，之前通过的包仍可复用；下次调用会跳过它们，
-从失败或尚未运行的包继续。缓存不能替代新 commit SHA 的 CI。必需门禁阻断或失败时，不得提交、
-推送或合并。
+G1（`commit`）执行改动文件检查和受影响测试；G2（`push`）追加质量基线和受影响集成检查。
+把精确候选推到 Pull Request；不能只因 main 前进就合入/rebase 移动主线。GitHub 并行执行
+security-fast 和不可变基础 Manifest 选择的 Lane；`elfienest/ci-gate` 是候选聚合结果。
+分支保护只要求跨事件稳定的 `elfienest/merge-gate`：Pull Request 上它等待候选聚合，原生
+merge queue 中它只对合成提交执行秒级检查。
+
+完整 G3 不属于普通提交前置条件；它只在 main push 后、显式 `--stage full` 和发布验收时执行。
+未知、治理和工具链改动会选择全部预合并 Lane，不会静默跳过。确定性通过按命令、作用域输入和
+工具记账，不按交付阶段重复；窄 node/文件不能证明更大的测试包，本地缓存也不能替代绑定新
+候选 SHA 的 CI。选中预合并 Lane 或 merge gate 失败时不得合并；合并后完整后盾失败会隔离
+普通合并，直到聚焦恢复或回滚使 main 重新变绿。
 
 如果本地测试结果需要被后续门禁复用，应通过受控运行器执行：
 

@@ -46,7 +46,7 @@ uv sync --locked --extra dev
 ```
 
 需要复用的受影响测试通过受控验证运行器执行。selector 精确命中已注册顶层测试包时，
-会产生本地 G3 使用的同一份带覆盖率证据：
+会产生合并后/发布完整后盾使用的同一份带覆盖率证据：
 
 ```bash
 .venv/bin/python3 scripts/architecture/validation_test_bundles.py \

@@ -44,12 +44,11 @@ def _commands(
         ("diff format", ["git", "diff", "--check", base_sha, "--"]),
     ]
     plan_paths = cast(Sequence[object], plan["paths"])
+    candidate_paths = [path for path in plan_paths if isinstance(path, str)]
     paths = [
         path
-        for path in plan_paths
-        if isinstance(path, str)
-        and path.endswith(".py")
-        and (PROJECT_ROOT / path).is_file()
+        for path in candidate_paths
+        if path.endswith(".py") and (PROJECT_ROOT / path).is_file()
     ]
     if paths:
         commands.extend(
@@ -64,7 +63,10 @@ def _commands(
                 ),
             ]
         )
-    plan_tests = cast(Sequence[object], plan["tests"])
+    local_affected_only = bool(plan["full"]) and plan["requested_stage"] != "full"
+    tests_key = "direct_tests" if local_affected_only else "tests"
+    capabilities_key = "direct_capabilities" if local_affected_only else "capabilities"
+    plan_tests = cast(Sequence[object], plan[tests_key])
     tests = [path for path in plan_tests if isinstance(path, str)]
     if tests:
         affected_command = [
@@ -85,14 +87,60 @@ def _commands(
                 [uv, "run", "--no-sync", "python", "scripts/check_quality_baseline.py"],
             )
         )
-        if plan["architecture"]:
+        capabilities = cast(Dict[str, object], plan[capabilities_key])
+        if capabilities["governance"]:
+            commands.append(
+                (
+                    "governance change policy",
+                    [
+                        uv,
+                        "run",
+                        "--no-sync",
+                        "python",
+                        "scripts/architecture/check_governance_change.py",
+                        "--base-sha",
+                        base_sha,
+                        "--paths",
+                        *candidate_paths,
+                    ],
+                )
+            )
+        if capabilities["architecture"]:
             commands.append(
                 (
                     "architecture tests",
                     [uv, "run", "--no-sync", "pytest", "test/architecture/"],
                 )
             )
-        if plan["docs_site"]:
+        if capabilities["persistence_contract"]:
+            commands.append(
+                (
+                    "persistence contract",
+                    [
+                        uv,
+                        "run",
+                        "--no-sync",
+                        "python",
+                        "scripts/architecture/database_change_scan.py",
+                        "--project-root",
+                        ".",
+                        "--base-sha",
+                        base_sha,
+                        "--check",
+                    ],
+                )
+            )
+        if capabilities["toolchain"]:
+            commands.extend(
+                [
+                    ("dependency lock", [uv, "lock", "--check"]),
+                    (
+                        "Node toolchain manifests",
+                        ["bash", "scripts/check_node_toolchain.sh"],
+                    ),
+                ]
+            )
+        if capabilities["docs"]:
             commands.append(
                 (
                     "documentation build",
@@ -100,14 +148,76 @@ def _commands(
                 )
             )
             commands.append(("documentation build", ["pnpm", "--dir", "docs", "build"]))
+    capabilities = cast(Dict[str, object], plan[capabilities_key])
+    if capabilities["web_frontend"]:
+        frontend = "app/interfaces/web/frontend"
+        commands.extend(
+            [
+                (
+                    "web frontend dependencies",
+                    ["pnpm", "--dir", frontend, "install", "--frozen-lockfile"],
+                ),
+                ("web frontend typecheck", ["pnpm", "--dir", frontend, "typecheck"]),
+                ("web frontend tests", ["pnpm", "--dir", frontend, "test"]),
+                ("web frontend build", ["pnpm", "--dir", frontend, "build"]),
+            ]
+        )
+    if capabilities["desktop"]:
+        desktop = "app/interfaces/desktop"
+        commands.extend(
+            [
+                (
+                    "desktop dependencies",
+                    ["pnpm", "--dir", desktop, "install", "--frozen-lockfile"],
+                ),
+                ("desktop tests", ["pnpm", "--dir", desktop, "test"]),
+            ]
+        )
+    if capabilities["devtools_web"]:
+        devtools = "devtools/web"
+        commands.extend(
+            [
+                (
+                    "Developer Tools web dependencies",
+                    ["pnpm", "--dir", devtools, "install", "--frozen-lockfile"],
+                ),
+                ("Developer Tools web tests", ["pnpm", "--dir", devtools, "test"]),
+                ("Developer Tools web build", ["pnpm", "--dir", devtools, "build"]),
+            ]
+        )
+    if capabilities["godot"]:
+        godot_command = [
+            sys.executable,
+            "scripts/architecture/validation_test_bundles.py",
+            "--base-sha",
+            base_sha,
+            "--selectors",
+            "test/godot",
+        ]
+        if no_cache:
+            godot_command.append("--no-cache")
+        commands.append(("Godot contract tests", godot_command))
+    if capabilities["release"]:
+        commands.append(
+            (
+                "release metadata contract",
+                [
+                    uv,
+                    "run",
+                    "--no-sync",
+                    "python",
+                    "scripts/check_release_version.py",
+                ],
+            )
+        )
     return commands
 
 
-def _main_revalidation_commands(
+def _full_revalidation_commands(
     paths: Sequence[str],
     base_sha: str,
 ) -> List[Tuple[str, List[str]]]:
-    """Checks that remain candidate-specific after a G3 backstop is reused."""
+    """Checks that remain candidate-specific after a full backstop is reused."""
 
     uv = shutil.which("uv") or "uv"
     commands: List[Tuple[str, List[str]]] = [
@@ -139,46 +249,40 @@ def run_stage(
     cache_root: Path,
     no_cache: bool,
 ) -> int:
+    stage = "full" if stage == "main" else stage
     paths = changed_paths(base_sha)
     plan = build_plan(paths, stage)
     print(json.dumps(plan, ensure_ascii=False, indent=2))
-    if stage == "main" or int(cast(int, plan["effective_tier"])) == 3:
-        if stage != "main":
-            return run_stage(
-                "main",
-                base_sha,
-                cache_root,
-                no_cache,
-            )
-        key = candidate_fingerprint(base_sha, "main", paths)
+    if stage == "full":
+        key = candidate_fingerprint(base_sha, "full", paths)
         backstop_key = backstop_fingerprint(base_sha, paths)
         lock = cache_root / f"{backstop_key}.lock"
         with cache_lock(lock):
             if not no_cache:
                 current_paths = changed_paths(base_sha)
-                current_key = candidate_fingerprint(base_sha, "main", current_paths)
+                current_key = candidate_fingerprint(base_sha, "full", current_paths)
                 if current_key != key:
                     paths = current_paths
                     key = current_key
                     backstop_key = backstop_fingerprint(base_sha, paths)
             if not no_cache and cache_hit(cache_root, key):
-                print(f"✅ reused exact passed main gate: {key}")
+                print(f"✅ reused exact passed full gate: {key}")
                 return 0
             if not no_cache and cache_hit(cache_root, backstop_key):
                 print(
-                    "✅ reusing passed expensive main backstop; "
+                    "✅ reusing passed expensive full backstop; "
                     "rechecking current candidate metadata"
                 )
                 env = os.environ.copy()
                 env.setdefault("UV_CACHE_DIR", "/tmp/elfienest-uv-cache")
                 env.setdefault("PRE_COMMIT_HOME", "/tmp/elfienest-precommit")
-                for label, command in _main_revalidation_commands(
+                for label, command in _full_revalidation_commands(
                     paths,
                     base_sha,
                 ):
                     if _command(label, command, env) != 0:
                         return 1
-                after = candidate_fingerprint(base_sha, "main", changed_paths(base_sha))
+                after = candidate_fingerprint(base_sha, "full", changed_paths(base_sha))
                 if after != key:
                     print(
                         "❌ worktree changed during metadata revalidation; "
@@ -189,44 +293,44 @@ def run_stage(
                 cache_store(
                     cache_root,
                     key,
-                    "main",
+                    "full",
                     base_sha,
                     reused_from=backstop_key,
                 )
                 print(
-                    "✅ main validation passed without repeating full pytest, "
+                    "✅ full validation passed without repeating pytest, "
                     "dependency installs, or documentation build"
                 )
                 return 0
-            main_command = [
+            full_command = [
                 "bash",
                 "scripts/pre_submit_gate.sh",
                 "--stage",
-                "main",
-                "--direct-main",
+                "full",
+                "--direct-full",
                 "--base-sha",
                 base_sha,
             ]
             if no_cache:
-                main_command.append("--no-cache")
-            main_env = os.environ.copy()
-            main_env["ELFIENEST_VALIDATION_CACHE_ROOT"] = str(cache_root)
+                full_command.append("--no-cache")
+            full_env = os.environ.copy()
+            full_env["ELFIENEST_VALIDATION_CACHE_ROOT"] = str(cache_root)
             result = subprocess.run(
-                main_command,
+                full_command,
                 cwd=PROJECT_ROOT,
-                env=main_env,
+                env=full_env,
                 check=False,
             ).returncode
-            after = candidate_fingerprint(base_sha, "main", changed_paths(base_sha))
+            after = candidate_fingerprint(base_sha, "full", changed_paths(base_sha))
             if result == 0 and after != key:
                 print(
-                    "❌ worktree changed during main validation; result was discarded",
+                    "❌ worktree changed during full validation; result was discarded",
                     file=sys.stderr,
                 )
                 return 1
             if result == 0 and not no_cache:
-                cache_store(cache_root, backstop_key, "main-backstop", base_sha)
-                cache_store(cache_root, key, "main", base_sha)
+                cache_store(cache_root, backstop_key, "full-backstop", base_sha)
+                cache_store(cache_root, key, "full", base_sha)
             return result
     key = candidate_fingerprint(base_sha, stage, paths)
     lock = cache_root / f"{key}.lock"

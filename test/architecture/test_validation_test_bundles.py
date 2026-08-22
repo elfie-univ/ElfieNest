@@ -461,7 +461,7 @@ def test_pre_submit_uses_reusable_bundles_instead_of_monolithic_pytest() -> None
 
     assert "validation_test_bundles.py" in source
     assert "pytest --cov --cov-report=xml --cov-report=term-missing" not in source
-    assert "--direct-main" in source
+    assert "--direct-full" in source
     assert "BUNDLE_ARGS+=(--no-cache)" in source
 
 

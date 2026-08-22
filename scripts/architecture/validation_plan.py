@@ -1,14 +1,38 @@
-"""Changed-path impact classification for the tiered validation gate."""
+#!/usr/bin/env python3
+"""Build the trusted changed-path manifest used by local and GitHub validation."""
 
 from __future__ import annotations
 
+import argparse
+import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-TIER_NAMES = {1: "commit", 2: "push", 3: "main"}
-HIGH_RISK_PREFIXES = (
+PROJECT_ROOT = Path(
+    os.environ.get("ELFIENEST_PROJECT_ROOT", Path(__file__).resolve().parents[2])
+).resolve()
+
+MANIFEST_SCHEMA_VERSION = "affected-v1"
+TIER_NAMES = {1: "commit", 2: "push", 3: "full"}
+STAGE_TIERS = {"commit": 1, "push": 2, "full": 3, "main": 3}
+CAPABILITY_NAMES = (
+    "security_fast",
+    "python_bundles",
+    "web_frontend",
+    "desktop",
+    "devtools_web",
+    "architecture",
+    "persistence_contract",
+    "godot",
+    "docs",
+    "toolchain",
+    "release",
+    "governance",
+)
+
+GOVERNANCE_PREFIXES = (
     ".agents/skills/",
     ".github/",
     "docs/developer/contracts/",
@@ -16,27 +40,38 @@ HIGH_RISK_PREFIXES = (
     "docs/zh/developer/contracts/",
     "docs/zh/developer/decisions/",
     "scripts/architecture/",
+    "task-closure",
     "test/architecture/",
 )
-HIGH_RISK_EXACT = frozenset(
+GOVERNANCE_EXACT = frozenset(
     {
         "AGENTS.md",
+        ".gitignore",
         ".pre-commit-config.yaml",
+        ".quality-baseline.json",
         "CONTRIBUTING.md",
         "CONTRIBUTING_zh.md",
-        "pyproject.toml",
-        "uv.lock",
+        "scripts/check_quality_baseline.py",
+        "scripts/pre_submit_gate.sh",
+    }
+)
+TOOLCHAIN_EXACT = frozenset(
+    {
+        ".python-version",
         "package.json",
         "pnpm-lock.yaml",
-        "scripts/check_task_closure.py",
-        "scripts/pre_submit_gate.sh",
-        "task-closure.json",
-        "task-closure-lifecycle.json",
-        "task-closure-model-availability.json",
-        "task-closure-telegram.json",
-        "task-closure-third-batch.json",
-        "test/scripts/test_check_task_closure.py",
+        "pyproject.toml",
+        "scripts/check_node_toolchain.sh",
+        "uv.lock",
     }
+)
+TOOLCHAIN_PREFIXES = ("scripts/bootstrap",)
+RELEASE_PREFIXES = (
+    ".github/workflows/release",
+    "app/bootstrap/desktop_host/",
+    "scripts/build_",
+    "scripts/package_",
+    "scripts/release",
 )
 PROVIDER_PREFIXES = (
     "app/features/configuration/providers/",
@@ -84,8 +119,24 @@ PROVIDER_TESTS = (
     "test/app/interfaces/api/v1/admin/model_providers/test_routes.py",
     "test/app/interfaces/api/v1/admin/model_providers/test_model_batch_routes.py",
 )
-PYTHON_ROOTS = ("app/", "elfie/", "infrastructure/", "nest/", "scripts/")
+PYTHON_BUNDLE_BY_ROOT = {
+    "app/": "test/app",
+    "elfie/": "test/elfie",
+    "infrastructure/": "test/infrastructure",
+    "nest/": "test/nest",
+    "scripts/": "test/scripts",
+}
+FULL_PYTHON_BUNDLES = (
+    "test/app",
+    "test/devtools",
+    "test/e2e",
+    "test/elfie",
+    "test/infrastructure",
+    "test/nest",
+    "test/scripts",
+)
 GENERATED_GATE_OUTPUTS = frozenset({"coverage.xml"})
+NEUTRAL_SUFFIXES = (".md", ".rst", ".txt")
 
 
 def _run_lines(command: Sequence[str]) -> List[str]:
@@ -96,15 +147,23 @@ def _run_lines(command: Sequence[str]) -> List[str]:
 
 
 def changed_paths(base_sha: str) -> List[str]:
-    tracked = _run_lines(["git", "diff", "--name-only", base_sha, "--"])
+    tracked = _run_lines(
+        [
+            "git",
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "--diff-filter=ACDMRTUXB",
+            base_sha,
+            "--",
+        ]
+    )
     untracked = _run_lines(["git", "ls-files", "--others", "--exclude-standard"])
     return sorted(set(tracked + untracked) - GENERATED_GATE_OUTPUTS)
 
 
 def _test_path_for_source(path: str) -> Optional[str]:
-    if not path.endswith(".py"):
-        return None
-    if Path(path).parent == Path("."):
+    if not path.endswith(".py") or Path(path).parent == Path("."):
         return None
     candidate = PROJECT_ROOT / "test" / path
     if candidate.is_file():
@@ -115,59 +174,190 @@ def _test_path_for_source(path: str) -> Optional[str]:
     return None
 
 
+def _python_bundle(path: str) -> Optional[str]:
+    for prefix, bundle in PYTHON_BUNDLE_BY_ROOT.items():
+        if path.startswith(prefix):
+            return bundle
+    return None
+
+
+def _is_toolchain_path(path: str) -> bool:
+    return (
+        path in TOOLCHAIN_EXACT
+        or path.startswith(TOOLCHAIN_PREFIXES)
+        or path.endswith(("package.json", "pnpm-lock.yaml"))
+    )
+
+
 def build_plan(paths: Iterable[str], requested_stage: str) -> Dict[str, object]:
+    if requested_stage not in STAGE_TIERS:
+        raise ValueError(f"unknown validation stage: {requested_stage}")
+
+    normalized_stage = "full" if requested_stage == "main" else requested_stage
+    normalized_paths = sorted(set(paths))
     selected: set[str] = set()
+    selected_capabilities: set[str] = {"security_fast"}
     reasons: List[str] = []
+    unknown_paths: List[str] = []
+    full = normalized_stage == "full"
     required_tier = 1
-    architecture = False
-    docs_site = False
-    for path in sorted(set(paths)):
-        if path.startswith(HIGH_RISK_PREFIXES) or path in HIGH_RISK_EXACT:
-            required_tier = 3
-            reasons.append(f"{path} changes validation or delivery governance")
-            architecture = architecture or path.startswith("scripts/architecture/")
+
+    for path in normalized_paths:
+        if path in GENERATED_GATE_OUTPUTS:
             continue
-        if path.endswith(("package.json", "pnpm-lock.yaml")):
-            required_tier = 3
-            docs_site = docs_site or path.startswith("docs/")
-            reasons.append(f"{path} changes a toolchain manifest or lockfile")
-        elif path.startswith("docs/.vitepress/"):
+        if path.startswith(GOVERNANCE_PREFIXES) or path in GOVERNANCE_EXACT:
+            selected_capabilities.update({"architecture", "governance"})
+            if path.startswith(("docs/", "docs/zh/")):
+                selected_capabilities.add("docs")
             required_tier = max(required_tier, 2)
-            docs_site = docs_site or path.startswith("docs/")
-            reasons.append(f"{path} has a direct documentation build consumer")
-        elif path.startswith(PROVIDER_PREFIXES) or path in PROVIDER_EXACT:
+            full = True
+            reasons.append(f"{path} changes validation or repository governance")
+            continue
+        if _is_toolchain_path(path):
+            selected_capabilities.add("toolchain")
             required_tier = max(required_tier, 2)
+            full = True
+            reasons.append(f"{path} changes a pinned toolchain or dependency manifest")
+            if path.startswith("docs/"):
+                selected_capabilities.add("docs")
+            if path.startswith("app/interfaces/web/frontend/"):
+                selected_capabilities.add("web_frontend")
+            if path.startswith("app/interfaces/desktop/"):
+                selected_capabilities.add("desktop")
+            if path.startswith("devtools/web/"):
+                selected_capabilities.add("devtools_web")
+            continue
+        if path.startswith(RELEASE_PREFIXES):
+            selected_capabilities.add("release")
+            required_tier = max(required_tier, 2)
+            full = True
+            reasons.append(f"{path} changes packaging or release behavior")
+            continue
+        if path.startswith("app/interfaces/web/frontend/"):
+            selected_capabilities.add("web_frontend")
+            reasons.append(f"{path} is owned by the web frontend lane")
+            continue
+        if path.startswith("app/interfaces/desktop/"):
+            selected_capabilities.add("desktop")
+            reasons.append(f"{path} is owned by the desktop lane")
+            continue
+        if path.startswith("devtools/web/"):
+            selected_capabilities.add("devtools_web")
+            reasons.append(f"{path} is owned by the Developer Tools web lane")
+            continue
+        if path.startswith("docs/"):
+            selected_capabilities.add("docs")
+            reasons.append(f"{path} is consumed by the documentation lane")
+            continue
+        if path.startswith(("godot_project/", "test/godot/")):
+            selected_capabilities.add("godot")
+            reasons.append(f"{path} is owned by the Godot lane")
+            continue
+        if path.startswith(
+            ("infrastructure/persistence/", "test/infrastructure/persistence/")
+        ):
+            selected_capabilities.add("persistence_contract")
+        if path.startswith(("infrastructure/godot/", "test/infrastructure/godot/")):
+            selected_capabilities.add("godot")
+        if path.startswith(PROVIDER_PREFIXES) or path in PROVIDER_EXACT:
             selected.update(PROVIDER_TESTS)
+            selected_capabilities.update({"python_bundles", "persistence_contract"})
+            required_tier = max(required_tier, 2)
             reasons.append(f"{path} is in the Provider/model configuration flow")
-        elif path.startswith("test/") and path.endswith(".py"):
+            continue
+        if path.startswith("test/") and path.endswith(".py"):
             selected.add(path)
-        elif path.endswith(".md") or path.endswith(".rst"):
-            reasons.append(f"{path} is non-executable documentation")
-        else:
+            selected_capabilities.add("python_bundles")
+            reasons.append(f"{path} directly selects its Python test")
+            continue
+        bundle = _python_bundle(path)
+        if bundle is not None:
+            selected_capabilities.add("python_bundles")
             test_path = _test_path_for_source(path)
-            if test_path is None and any(
-                path.startswith(root) for root in PYTHON_ROOTS
-            ):
-                required_tier = 3
-                reasons.append(f"{path} has no deterministic focused-test mapping")
-            elif test_path:
-                selected.add(test_path)
-            else:
-                required_tier = 3
-                reasons.append(f"{path} is an unknown executable path")
+            selected.add(test_path or bundle)
+            reasons.append(f"{path} selects the affected {bundle} tests")
+            continue
+        if path.startswith(("config/", "resources/")):
+            selected_capabilities.update({"python_bundles", "persistence_contract"})
+            selected.update(("test/app", "test/infrastructure", "test/scripts"))
+            required_tier = max(required_tier, 2)
+            reasons.append(f"{path} changes shared runtime configuration")
+            continue
+        if path.endswith(NEUTRAL_SUFFIXES):
+            reasons.append(f"{path} is non-executable documentation")
+            continue
+
+        unknown_paths.append(path)
+        full = True
+        required_tier = max(required_tier, 2)
+        reasons.append(f"{path} is an unknown executable path and fails closed")
+
+    direct_capabilities = set(selected_capabilities)
+    direct_tests = {path for path in selected if (PROJECT_ROOT / path).exists()}
+    if full:
+        selected_capabilities = set(CAPABILITY_NAMES)
+        selected.update(FULL_PYTHON_BUNDLES)
     selected = {path for path in selected if (PROJECT_ROOT / path).exists()}
-    requested_tier = {"commit": 1, "push": 2, "main": 3}[requested_stage]
+    requested_tier = STAGE_TIERS[requested_stage]
     effective_tier = max(required_tier, requested_tier)
     if not reasons:
-        reasons.append("no executable changes require escalation")
+        reasons.append("no executable changes require affected validation")
+    capabilities = {name: name in selected_capabilities for name in CAPABILITY_NAMES}
     return {
-        "requested_stage": requested_stage,
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "requested_stage": normalized_stage,
         "requested_tier": requested_tier,
         "effective_tier": effective_tier,
         "effective_stage": TIER_NAMES[effective_tier],
-        "paths": sorted(set(paths)),
+        "full": full,
+        "paths": normalized_paths,
         "tests": sorted(selected),
-        "architecture": architecture,
-        "docs_site": docs_site,
+        "direct_tests": sorted(direct_tests),
+        "unknown_paths": unknown_paths,
+        "capabilities": capabilities,
+        "direct_capabilities": {
+            name: name in direct_capabilities for name in CAPABILITY_NAMES
+        },
+        "architecture": capabilities["architecture"],
+        "docs_site": capabilities["docs"],
         "reasons": reasons,
     }
+
+
+def _write_github_outputs(path: Path, plan: Dict[str, object]) -> None:
+    capabilities = plan["capabilities"]
+    assert isinstance(capabilities, dict)
+    outputs = {
+        "router_version": plan["schema_version"],
+        "manifest_json": json.dumps(plan, ensure_ascii=False, separators=(",", ":")),
+        "tests_json": json.dumps(
+            plan["tests"], ensure_ascii=False, separators=(",", ":")
+        ),
+        "unknown_paths_json": json.dumps(
+            plan["unknown_paths"], ensure_ascii=False, separators=(",", ":")
+        ),
+        "full": str(bool(plan["full"])).lower(),
+        **{name: str(bool(capabilities[name])).lower() for name in CAPABILITY_NAMES},
+    }
+    with path.open("a", encoding="utf-8") as output:
+        for name, value in outputs.items():
+            output.write(f"{name}={value}\n")
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base-sha", default="")
+    parser.add_argument("--stage", choices=tuple(STAGE_TIERS), default="push")
+    parser.add_argument("--paths", nargs="*")
+    parser.add_argument("--github-output", type=Path)
+    args = parser.parse_args(argv)
+    paths = args.paths if args.paths is not None else changed_paths(args.base_sha)
+    plan = build_plan(paths, args.stage)
+    if args.github_output is not None:
+        _write_github_outputs(args.github_output, plan)
+    print(json.dumps(plan, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

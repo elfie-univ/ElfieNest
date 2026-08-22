@@ -630,8 +630,17 @@ def validate_temporary_cleanup_changes(
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-sha", required=True)
+    parser.add_argument(
+        "--paths",
+        nargs="*",
+        default=None,
+        help=(
+            "explicit candidate path inventory; defaults to the committed "
+            "base...HEAD diff"
+        ),
+    )
     args = parser.parse_args(argv)
-    paths = changed_paths(args.base_sha)
+    paths = args.paths if args.paths is not None else changed_paths(args.base_sha)
     governance, production = classify_paths(paths)
     if governance and production:
         print(

@@ -174,33 +174,34 @@ the full suite there and then repeat it; run the same full command once in a
 host or elevated environment. A return code of `1` is an unexpected probe
 failure and must be diagnosed first.
 
-Use the smallest safe validation tier after fetching the remote base:
+Use affected local validation after fetching the remote base:
 
 ```bash
 git fetch --prune origin main
 bash scripts/pre_submit_gate.sh --stage commit \
   --base-sha "$(git rev-parse origin/main^{commit})"
 # feature-branch push: replace commit with push
-# main merge/release: replace commit with main
+# explicit full/release replay: replace commit with full
 ```
 
-G1 (`commit`) runs changed-file checks and affected tests.
-G2 (`push`) adds the quality baseline and affected integration checks. G3
-(`main`) runs the immutable-base architecture ratchets, dependency and
-toolchain checks, quality baseline, pre-commit/Gitleaks, complete test suite,
-CLI smoke and documentation build. Unknown, governance or toolchain changes
-automatically escalate to G3. Passed deterministic test checks are keyed by command,
-scoped inputs and tools rather than by tier, so G2 reuses an unchanged focused
-test from G1. G3 runs only missing or invalidated top-level test bundles, then
-combines all bundle coverage fragments and enforces the repository threshold
-once. An earlier complete registered bundle is reusable by G3; a narrower node
-or file is not. During repair, rerun the
-exact failure first, expand to its owning module and affected integration only
-as needed, then run a required G3 once for the final executable candidate. If a
-G3 bundle fails, earlier passed bundles remain reusable; the next invocation
-skips them and resumes with the failed or still-missing bundle. A
-cache never replaces CI for a new commit SHA. If a required gate is blocked or
-fails, do not commit, push or merge.
+G1 (`commit`) runs changed-file checks and affected tests. G2 (`push`) adds the
+quality baseline and affected integration checks. Push the exact candidate to a
+Pull Request; do not merge/rebase a moving main merely because it advanced.
+GitHub executes security-fast and the immutable-base manifest's selected lanes
+in parallel. `elfienest/ci-gate` is the candidate aggregate. Branch protection
+requires the event-stable `elfienest/merge-gate`: it waits for that aggregate on
+the Pull Request and performs only a seconds-long synthetic-merge check in the
+native merge queue.
+
+The complete G3 is deliberately outside ordinary submission. It runs after a
+main push, on explicit `--stage full`, and for release acceptance. Unknown,
+governance and toolchain changes select every premerge lane instead of silently
+skipping checks. Deterministic passes remain keyed by command, scoped inputs and
+tools rather than by delivery stage, so unchanged evidence can be reused. A
+narrower node/file never proves a larger bundle, and local cache never replaces
+CI attached to a new candidate SHA. If a selected premerge lane or merge gate
+fails, do not merge; a post-submit full failure quarantines ordinary merges
+until a focused recovery or revert restores green main.
 
 Use the controlled runner when a local test result should be reusable by a
 later gate:
