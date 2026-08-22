@@ -1,5 +1,6 @@
 import type { ElfieProfile, ElfieProfileDetail } from "../../api/client"
 import type { ElfieFoodPolicy } from "../../api/elfies/food-policy"
+import { elfiePortraitUrl } from "../../api/elfies/profiles"
 import {
   ElfieIdSchema,
   parseGodotAppearance,
@@ -47,6 +48,7 @@ function presentApiProfile(
     },
     biography: profile.summary?.trim() ?? "",
     elfieId: elfieId.data,
+    fullBodyUrl: elfiePortraitUrl(profile.elfie_id, "full_body"),
     gender: profile.gender,
     name: profile.name,
     portraitUrl: profile.portrait_url,

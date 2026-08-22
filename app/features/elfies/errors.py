@@ -17,9 +17,19 @@ class ElfiesUnavailable(ElfiesError):
     """An authoritative read source could not be queried safely."""
 
 
+class ElfiePortraitInvalid(ElfiesError):
+    """The supplied Elfie portrait is not a valid PNG upload."""
+
+
+class ElfiePortraitTooLarge(ElfiesError):
+    """The supplied Elfie portrait exceeds the upload limit."""
+
+
 __all__ = (
     "ElfieNotFound",
     "ElfiesError",
     "ElfiesForbidden",
+    "ElfiePortraitInvalid",
+    "ElfiePortraitTooLarge",
     "ElfiesUnavailable",
 )

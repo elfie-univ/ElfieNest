@@ -30,7 +30,7 @@ import { ChatRail } from "../components/ChatRail"
 import { ElfieProfilePanel } from "../components/ElfieProfilePanel"
 import { ChatConversationPane } from "../components/elfie-profile/ChatConversationPane"
 import { ChatListPane } from "../components/elfie-profile/ChatListPane"
-import { createElfieListItems, createOwnedChatData, recordChatMessage, type ChatData } from "../components/elfie-profile/chat-data"
+import { createElfieListItems, createOwnedChatData, recordChatMessage, replaceElfiePortrait, type ChatData } from "../components/elfie-profile/chat-data"
 import type { ElfieListFilter } from "../components/elfie-profile/elfie-list-model"
 import { presentElfieProfile } from "../components/elfie-profile/profile-presentation"
 import { Icon } from "../components/Icon"
@@ -102,6 +102,7 @@ export function ChatPage() {
   const [elfieFilter, setElfieFilter] = useState<ElfieListFilter>("all")
   const reconcileTimerRef = useRef<number | null>(null)
   const reconcileGenerationRef = useRef(0)
+  const historyLoadGenerationRef = useRef(0)
   const optimisticMessageSequenceRef = useRef(0)
 
   const clearReplyReconciliation = useCallback((): void => {
@@ -126,8 +127,9 @@ export function ChatPage() {
       try {
         const loaded = await messages(elfieId)
         if (reconcileGenerationRef.current !== generation) return
-        mergeLoadedHistory(loaded)
-        const receivedReply = loaded.some(
+        const scoped = loaded.filter((message) => message.elfie_id === elfieId)
+        mergeLoadedHistory(scoped)
+        const receivedReply = scoped.some(
           (message) => message.sender === "elfie" && !knownMessageIds.has(message.id),
         )
         if (receivedReply || Date.now() - startedAt >= REPLY_RECONCILE_TIMEOUT_MILLISECONDS) return
@@ -175,13 +177,20 @@ export function ChatPage() {
   }, [correct, data, selectedId])
 
   useEffect(() => {
+    const generation = historyLoadGenerationRef.current + 1
+    historyLoadGenerationRef.current = generation
+    setHistory([])
     if (selectedId === null) {
-      setHistory([])
       return
     }
     void messages(selectedId)
-      .then((loaded) => setHistory((current) => mergeChatMessages(current, loaded)))
+      .then((loaded) => {
+        if (historyLoadGenerationRef.current !== generation) return
+        const scoped = loaded.filter((message) => message.elfie_id === selectedId)
+        setHistory((current) => mergeChatMessages(current, scoped))
+      })
       .catch((reason: unknown) => {
+        if (historyLoadGenerationRef.current !== generation) return
         setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
       })
   }, [selectedId])
@@ -299,6 +308,12 @@ export function ChatPage() {
     setSelectedProfile(loadedProfile)
     setSelectedFoodPolicy(foodPolicy)
   }
+  const handleAvatarSaved = (elfieId: string, portraitUrl: string): void => {
+    setData((current) => current === null ? current : replaceElfiePortrait(current, elfieId, portraitUrl))
+    setSelectedProfile((current) => current === null || current.elfie_id !== elfieId
+      ? current
+      : { ...current, portrait_url: portraitUrl })
+  }
   const refreshSelectedTelegram = async (): Promise<void> => {
     if (selectedId === null) return
     setTelegramAccountError(null)
@@ -350,6 +365,9 @@ export function ChatPage() {
       setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.send" })
     }
   }
+  const visibleHistory = selectedId === null
+    ? []
+    : history.filter((message) => message.elfie_id === selectedId)
 
   return (
     <main className="app-page chat-page">
@@ -383,7 +401,7 @@ export function ChatPage() {
           <ChatConversationPane
             draft={draft}
             error={failure === null ? null : localizeBackendDetail(failure.detail, failure.operation, currentLocale(i18n))}
-            history={history}
+            history={visibleHistory}
             mobileDetail={mobileDetail}
             onBack={() => go({ view: "chats" })}
             onDraftChange={setDraft}
@@ -400,6 +418,7 @@ export function ChatPage() {
               csrfToken={user.csrf_token ?? ""}
               onBack={() => go({ view: "elfies" })}
               onChat={() => { if (selectedId !== null) go({ view: "conversation", elfie: selectedId }) }}
+              onAvatarSaved={handleAvatarSaved}
               onFoodSaved={saveSelectedFood}
               onTelegramAccountChange={setSelectedTelegramAccount}
               onTelegramRefresh={refreshSelectedTelegram}

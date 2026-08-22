@@ -95,6 +95,19 @@ def test_portrait_reader_returns_only_the_saved_png_view(tmp_path: Path) -> None
     assert adapter.load_portrait("00000001", kind="full_body") is None
 
 
+def test_portrait_writer_replaces_the_headshot_atomically(tmp_path: Path) -> None:
+    db_path = _database(tmp_path)
+    adapter = SQLiteElfiesProjectionAdapter(db_path)
+    content = b"\x89PNG\r\n\x1a\nupdated"
+
+    adapter.save_portrait("00000001", content)
+
+    layout = final_root_layout(tmp_path).elfie("00000001")
+    assert layout.portrait_headshot.read_bytes() == content
+    assert adapter.load_portrait("00000001") == content
+    assert not layout.portrait_headshot.with_suffix(".png.tmp").exists()
+
+
 def test_cognition_reader_is_read_only_and_returns_typed_records(
     tmp_path: Path,
 ) -> None:

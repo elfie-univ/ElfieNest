@@ -11,9 +11,16 @@ const MIN_CAMERA_SIZE := 1.2
 const MAX_CAMERA_SIZE := 4.0
 const BUST_HEIGHT_RATIO := 0.62
 const BUST_FRAME_MARGIN := 1.12
-const V9_CAMERA_TARGET := Vector3(0.0, 0.88, 0.0)
-const V9_CAMERA_DISTANCE := 3.85
+const PORTRAIT_HEIGHT_RATIO := 0.38
+const PORTRAIT_FRAME_MARGIN := 1.12
 const V9_CAMERA_FOV := 36.0
+const V9_UPPER_BODY_FOV := 30.0
+const V9_PORTRAIT_FOV := 24.0
+const V9_FULL_BODY_OCCUPANCY := 0.82
+const V9_FOCUS_OCCUPANCY := 0.80
+const V9_FULL_BODY_FIT_ITERATIONS := 5
+const V9_MIN_DISTANCE := 1.4
+const V9_MAX_DISTANCE := 20.0
 const V9_CAMERA_FOV_MIN := 24.0
 const V9_CAMERA_FOV_MAX := 60.0
 const SUPPORTED_ACTIONS := {
@@ -24,9 +31,10 @@ const SUPPORTED_ACTIONS := {
 	"focus": true,
 	"reset": true,
 	"capture": true,
+	"frame": true,
 	"preview_intent": true,
 }
-const FOCUS_TARGETS := {"actor": true, "body": true, "head": true}
+const FOCUS_TARGETS := {"actor": true, "body": true, "head": true, "portrait": true}
 
 var _characters: Node3D
 var _camera: Camera3D
@@ -41,6 +49,7 @@ var _default_focus_point := Vector3(0.0, 0.9, 0.0)
 var _yaw := 0.0
 var _pitch := 0.0
 var _distance := 3.4
+var _default_distance := 3.4
 var _default_camera_size := 2.35
 var _use_v9_render_profile := false
 var _request_fingerprints: Dictionary = {}
@@ -109,6 +118,8 @@ func _dispatch(action: String, payload: Dictionary, request_id: String) -> Dicti
 			return _reset(request_id)
 		"capture":
 			return _capture(request_id)
+		"frame":
+			return _frame_from_visible_metrics(payload, request_id)
 		"preview_intent":
 			return _preview_intent(payload, request_id)
 	return _unsupported(request_id, action, "unsupported_action")
@@ -211,21 +222,32 @@ func _focus(payload: Dictionary, request_id: String) -> Dictionary:
 	var target := String(payload.get("target", ""))
 	if not FOCUS_TARGETS.has(target):
 		return _unsupported(request_id, "focus", "unsupported_focus")
-	if target == "head":
+	if target == "head" or target == "portrait":
 		var bounds := _actor.call("visual_bounds") as AABB
-		var bust_height := bounds.size.y * BUST_HEIGHT_RATIO
+		var frame_height_ratio := PORTRAIT_HEIGHT_RATIO if target == "portrait" else BUST_HEIGHT_RATIO
+		var frame_margin := PORTRAIT_FRAME_MARGIN if target == "portrait" else BUST_FRAME_MARGIN
+		var frame_height := bounds.size.y * frame_height_ratio
 		_focus_point = Vector3(
 			bounds.get_center().x,
-			bounds.end.y - bust_height * 0.5,
+			bounds.end.y - frame_height * 0.5,
 			bounds.get_center().z,
 		)
-		var viewport_size := _camera.get_viewport().get_visible_rect().size
-		var aspect := viewport_size.x / maxf(viewport_size.y, 1.0)
-		_camera.size = clampf(
-			maxf(bust_height, bounds.size.x / maxf(aspect, 0.1)) * BUST_FRAME_MARGIN,
-			MIN_CAMERA_SIZE,
-			MAX_CAMERA_SIZE,
-		)
+		if _use_v9_render_profile:
+			_camera.fov = V9_PORTRAIT_FOV if target == "portrait" else V9_UPPER_BODY_FOV
+			_distance = _v9_distance_for_frame(
+				bounds,
+				frame_height,
+				_camera.fov,
+				V9_FOCUS_OCCUPANCY,
+			)
+		else:
+			var viewport_size := _camera.get_viewport().get_visible_rect().size
+			var aspect := viewport_size.x / maxf(viewport_size.y, 1.0)
+			_camera.size = clampf(
+				maxf(frame_height, bounds.size.x / maxf(aspect, 0.1)) * frame_margin,
+				MIN_CAMERA_SIZE,
+				MAX_CAMERA_SIZE,
+			)
 	else:
 		_focus_point = (
 			_actor.call("preview_focus_point", target)
@@ -243,7 +265,11 @@ func _reset(request_id: String) -> Dictionary:
 	_focus_point = _default_focus_point
 	_yaw = 0.0
 	_pitch = 0.0
-	_camera.size = _default_camera_size
+	if _use_v9_render_profile:
+		_distance = _default_distance
+		_camera.fov = V9_CAMERA_FOV
+	else:
+		_camera.size = _default_camera_size
 	_apply_camera()
 	return _completed(request_id, "reset")
 
@@ -253,6 +279,52 @@ func _capture(request_id: String) -> Dictionary:
 		return _unsupported(request_id, "capture", "actor_not_configured")
 	capture_requested.emit(request_id)
 	return _completed(request_id, "capture")
+
+
+func _frame_from_visible_metrics(payload: Dictionary, request_id: String) -> Dictionary:
+	if not _has_actor():
+		return _unsupported(request_id, "frame", "actor_not_configured")
+	var center_x: Variant = payload.get("center_x")
+	var center_y: Variant = payload.get("center_y")
+	var span_x: Variant = payload.get("span_x")
+	var span_y: Variant = payload.get("span_y")
+	if (
+		not _valid_number(center_x, 1.0)
+		or not _valid_number(center_y, 1.0)
+		or not _valid_number(span_x, 2.0)
+		or not _valid_number(span_y, 2.0)
+		or float(span_x) <= 0.0
+		or float(span_y) <= 0.0
+	):
+		return _unsupported(request_id, "frame", "invalid_visible_metrics")
+	if not _use_v9_render_profile:
+		return _completed(request_id, "frame", {"calibrated": false})
+
+	var observed_span := maxf(float(span_x), float(span_y))
+	var target_span := 2.0 * clampf(V9_FULL_BODY_OCCUPANCY, 0.1, 0.95)
+	var visible_scale := target_span / observed_span
+	_distance = clampf(_distance * observed_span / target_span, V9_MIN_DISTANCE, V9_MAX_DISTANCE)
+	_apply_camera()
+	var viewport_size := _camera.get_viewport().get_visible_rect().size
+	var aspect := 1.0
+	if viewport_size.y > 0.0:
+		aspect = maxf(viewport_size.x, 1.0) / viewport_size.y
+	var frame_height := 2.0 * _distance * tan(deg_to_rad(_camera.fov * 0.5))
+	var frame_width := frame_height * maxf(aspect, 0.1)
+	# The distance change above magnifies the actor by `visible_scale`; apply
+	# the same scale to the measured center offset or an off-center silhouette
+	# (notably the shorter fox) remains visibly displaced after zooming.
+	_focus_point += _camera.global_transform.basis.y.normalized() * float(center_y) * visible_scale * frame_height * 0.5
+	_focus_point += _camera.global_transform.basis.x.normalized() * float(center_x) * visible_scale * frame_width * 0.5
+	_apply_camera()
+	_default_focus_point = _focus_point
+	_default_distance = _distance
+	return _completed(request_id, "frame", {
+		"calibrated": true,
+		"center_x": float(center_x),
+		"center_y": float(center_y),
+		"span": observed_span,
+	})
 
 
 func _preview_intent(payload: Dictionary, request_id: String) -> Dictionary:
@@ -270,18 +342,33 @@ func _preview_intent(payload: Dictionary, request_id: String) -> Dictionary:
 		return _unsupported(request_id, "preview_intent", "intent_not_supported")
 	if not bool(_actor.call("play_preview_intent", intent)):
 		return _unsupported(request_id, "preview_intent", "intent_not_supported")
+	# Static poses change the skinned silhouette. Recompute the camera target and
+	# distance from the pose that is actually on screen instead of retaining the
+	# default-pose framing.
+	_reframe_after_preview_intent()
 	return _completed(request_id, "preview_intent", {"intent": intent})
 
 
-func _frame_actor() -> void:
-	if _use_v9_render_profile:
-		_focus_point = V9_CAMERA_TARGET
-		_default_focus_point = _focus_point
-		_distance = V9_CAMERA_DISTANCE
-		_camera.fov = V9_CAMERA_FOV
-		_apply_camera()
+func _reframe_after_preview_intent() -> void:
+	if not _use_v9_render_profile or not _has_actor():
 		return
 	var bounds := _actor.call("visual_bounds") as AABB
+	if bounds.size.is_zero_approx():
+		return
+	_fit_v9_full_body(bounds)
+	_default_focus_point = _focus_point
+	_default_distance = _distance
+
+
+func _frame_actor() -> void:
+	var bounds := _actor.call("visual_bounds") as AABB
+	if _use_v9_render_profile:
+		_yaw = 0.0
+		_pitch = 0.0
+		_fit_v9_full_body(bounds)
+		_default_focus_point = _focus_point
+		_default_distance = _distance
+		return
 	_focus_point = bounds.get_center()
 	_default_focus_point = _focus_point
 	_distance = maxf(3.0, bounds.size.z * 2.0)
@@ -306,6 +393,77 @@ func _apply_camera() -> void:
 		cos(_yaw) * horizontal,
 	)
 	_camera.look_at(_focus_point, Vector3.UP)
+
+
+func _fit_v9_full_body(bounds: AABB) -> void:
+	_focus_point = bounds.get_center()
+	_distance = _v9_distance_for_frame(
+		bounds,
+		bounds.size.y,
+		V9_CAMERA_FOV,
+		V9_FULL_BODY_OCCUPANCY,
+	)
+	_camera.fov = V9_CAMERA_FOV
+	var target_span := 2.0 * clampf(V9_FULL_BODY_OCCUPANCY, 0.1, 0.95)
+	for _iteration in range(V9_FULL_BODY_FIT_ITERATIONS):
+		_apply_camera()
+		var projected := _v9_projected_bounds(bounds)
+		var projected_span := maxf(
+			projected.y - projected.x,
+			projected.w - projected.z,
+		)
+		if projected_span > 0.001:
+			_distance = maxf(V9_MIN_DISTANCE, _distance * projected_span / target_span)
+			_apply_camera()
+			projected = _v9_projected_bounds(bounds)
+		var midpoint := (projected.z + projected.w) * 0.5
+		if absf(midpoint) > 0.0005:
+			var frame_height := 2.0 * _distance * tan(deg_to_rad(_camera.fov * 0.5))
+			_focus_point += _camera.global_transform.basis.y.normalized() * midpoint * frame_height * 0.5
+	_apply_camera()
+
+
+func _v9_projected_bounds(bounds: AABB) -> Vector4:
+	var minimum_x := INF
+	var maximum_x := -INF
+	var minimum_y := INF
+	var maximum_y := -INF
+	var viewport_size := _camera.get_viewport().get_visible_rect().size
+	var aspect := 1.0
+	if viewport_size.y > 0.0:
+		aspect = maxf(viewport_size.x, 1.0) / viewport_size.y
+	var tangent := tan(deg_to_rad(_camera.fov * 0.5))
+	for x in [bounds.position.x, bounds.end.x]:
+		for y in [bounds.position.y, bounds.end.y]:
+			for z in [bounds.position.z, bounds.end.z]:
+				var local_point := _camera.global_transform.affine_inverse() * Vector3(x, y, z)
+				var depth := -local_point.z
+				if depth <= 0.0:
+					continue
+				minimum_x = minf(minimum_x, local_point.x / (depth * tangent * maxf(aspect, 0.1)))
+				maximum_x = maxf(maximum_x, local_point.x / (depth * tangent * maxf(aspect, 0.1)))
+				minimum_y = minf(minimum_y, local_point.y / (depth * tangent))
+				maximum_y = maxf(maximum_y, local_point.y / (depth * tangent))
+	return Vector4(minimum_x, maximum_x, minimum_y, maximum_y)
+
+
+func _v9_distance_for_frame(
+	bounds: AABB,
+	frame_height: float,
+	fov: float,
+	occupancy: float,
+) -> float:
+	var viewport_size := _camera.get_viewport().get_visible_rect().size
+	var aspect := 1.0
+	if viewport_size.y > 0.0:
+		aspect = maxf(viewport_size.x, 1.0) / viewport_size.y
+	var half_vertical_fov := tan(deg_to_rad(fov * 0.5))
+	var safe_occupancy := clampf(occupancy, 0.1, 0.95)
+	var vertical_distance := frame_height / (2.0 * half_vertical_fov * safe_occupancy)
+	var horizontal_distance := bounds.size.x / (
+		2.0 * half_vertical_fov * maxf(aspect, 0.1) * safe_occupancy
+	)
+	return maxf(V9_MIN_DISTANCE, maxf(vertical_distance, horizontal_distance))
 
 
 func _bounds_focus(target: String) -> Vector3:

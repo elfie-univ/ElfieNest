@@ -59,9 +59,13 @@ import {
 } from "./adoption-storage"
 import { ArrivalWelcomeScreen } from "./AdoptionReplyScreens"
 import {
+  calculateVisibleFrameBounds,
   createProfileGodotPreview,
+  measureVisibleFrame,
   ProfileGodotPreviewError,
+  toGodotVisibleFrameMetrics,
   type ProfileGodotPreview,
+  type VisibleFrameBounds,
 } from "../elfie-profile/profile-godot-preview"
 
 type AdoptionJourneyDialogProps = {
@@ -887,8 +891,18 @@ function BasicScreen({
   return <section>
     <ScreenIntro title={t("adoption.journey.basic.title")} />
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.speciesLabel")}</legend><div className="adoption-species-grid">
-      {allowedSpecies.map((species) => <ChoiceButton className="adoption-species-choice" key={species.species_id} onClick={() => dispatch({ type: "set-basic", field: "speciesId", value: species.species_id })} selected={draft.speciesId === species.species_id}>
-        <img alt="" className="adoption-species-choice__image" src={species.presentation_images.headshot_url} />
+      {allowedSpecies.map((species) => <ChoiceButton
+        className="adoption-species-choice"
+        key={species.species_id}
+        onClick={(event) => {
+          if (event.detail === 0) dispatch({ type: "set-basic", field: "speciesId", value: species.species_id })
+        }}
+        onPointerDown={(event) => {
+          if (event.button === 0) dispatch({ type: "set-basic", field: "speciesId", value: species.species_id })
+        }}
+        selected={draft.speciesId === species.species_id}
+      >
+        <img alt="" className="adoption-species-choice__image" src={species.presentation_images.full_body_url} />
         <span><strong>{locale === "zh-CN" ? species.display_name_zh : species.display_name}</strong></span>
       </ChoiceButton>)}
     </div></fieldset>
@@ -1053,6 +1067,15 @@ function GeneratingScreen({ csrfToken, frameRef, onError, onReady, request, runt
             spec_revision: portraitRevision(candidate.candidateId),
             species_id: candidate.speciesId,
           })
+          const provisional = await captureAndWait(bridge, waitForAction)
+          try {
+            const metrics = await measureVisibleFrame(provisional.blob)
+            if (metrics !== null) {
+              await sendAndWait(bridge, waitForAction, "frame", toGodotVisibleFrameMetrics(metrics))
+            }
+          } finally {
+            if (typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(provisional.previewUrl)
+          }
           const fullBody = await captureAndWait(bridge, waitForAction)
           let fullBodyImageUrl = ""
           try {
@@ -1122,6 +1145,58 @@ async function captureDataUrl(capture: { readonly blob: Blob }): Promise<string>
   })
 }
 
+const HEADSHOT_FRAME_HEIGHT_RATIO = 0.57
+const HEADSHOT_VISIBLE_HEIGHT_RATIO = 0.60
+const HEADSHOT_HORIZONTAL_PADDING_RATIO = 0.14
+const HEADSHOT_TOP_PADDING_RATIO = 0.03
+
+export function calculateHeadshotCrop(
+  naturalWidth: number,
+  naturalHeight: number,
+  visibleBounds: VisibleFrameBounds | null = null,
+): {
+  readonly cropSize: number
+  readonly cropX: number
+  readonly cropY: number
+} {
+  const safeWidth = Math.max(1, Math.floor(naturalWidth))
+  const safeHeight = Math.max(1, Math.floor(naturalHeight))
+  const visibleWidth = visibleBounds === null
+    ? 0
+    : Math.max(0, visibleBounds.right - visibleBounds.left + 1)
+  const visibleHeight = visibleBounds === null
+    ? 0
+    : Math.max(0, visibleBounds.bottom - visibleBounds.top + 1)
+  const cropSize = Math.max(
+    1,
+    Math.min(
+      safeWidth,
+      safeHeight,
+      Math.round(Math.max(
+        visibleWidth * (1 + HEADSHOT_HORIZONTAL_PADDING_RATIO),
+        Math.min(
+          visibleHeight * HEADSHOT_VISIBLE_HEIGHT_RATIO,
+          safeHeight * HEADSHOT_FRAME_HEIGHT_RATIO,
+        ),
+      )),
+    ),
+  )
+  const contentCenterX = visibleBounds === null
+    ? safeWidth * 0.5
+    : (visibleBounds.left + visibleBounds.right + 1) * 0.5
+  const cropX = Math.min(
+    Math.max(0, safeWidth - cropSize),
+    Math.max(0, Math.round(contentCenterX - cropSize * 0.5)),
+  )
+  const contentTop = visibleBounds === null ? safeHeight * 0.06 : visibleBounds.top
+  const maxCropY = Math.max(0, safeHeight - cropSize)
+  const cropY = Math.min(
+    maxCropY,
+    Math.max(0, Math.round(contentTop - cropSize * HEADSHOT_TOP_PADDING_RATIO)),
+  )
+  return { cropSize, cropX, cropY }
+}
+
 async function createHeadshotDataUrl(capture: { readonly blob: Blob }): Promise<string> {
   let sourceUrl: string | undefined
   try {
@@ -1132,9 +1207,22 @@ async function createHeadshotDataUrl(capture: { readonly blob: Blob }): Promise<
       element.onerror = () => reject(new ProfileGodotPreviewError("invalid_portrait"))
       element.src = sourceUrl as string
     })
-    const cropSize = Math.max(1, Math.min(image.naturalWidth, Math.round(image.naturalHeight * 0.58)))
-    const cropX = Math.max(0, Math.round((image.naturalWidth - cropSize) / 2))
-    const cropY = Math.max(0, Math.round(image.naturalHeight * 0.02))
+    const sourcePixels = document.createElement("canvas")
+    sourcePixels.width = image.naturalWidth
+    sourcePixels.height = image.naturalHeight
+    const sourceContext = sourcePixels.getContext("2d")
+    if (sourceContext === null) throw new ProfileGodotPreviewError("invalid_portrait")
+    sourceContext.drawImage(image, 0, 0, image.naturalWidth, image.naturalHeight)
+    const visibleBounds = calculateVisibleFrameBounds(
+      image.naturalWidth,
+      image.naturalHeight,
+      sourceContext.getImageData(0, 0, image.naturalWidth, image.naturalHeight).data,
+    )
+    const { cropSize, cropX, cropY } = calculateHeadshotCrop(
+      image.naturalWidth,
+      image.naturalHeight,
+      visibleBounds,
+    )
     const canvas = document.createElement("canvas")
     canvas.width = cropSize
     canvas.height = cropSize

@@ -35,6 +35,7 @@ export type PublicProfile = {
   readonly gender: string | null
   readonly biography: string
   readonly portraitUrl: string
+  readonly fullBodyUrl: string
   readonly appearance: {
     readonly bodyPlan: string
     readonly palette: string

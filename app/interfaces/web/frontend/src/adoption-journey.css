@@ -60,7 +60,7 @@
 
 .adoption-fieldset { margin: 0 0 24px; padding: 0; border: 0; }
 .adoption-fieldset legend { margin-bottom: 11px; color: var(--text); font-size: 14px; font-weight: 700; }
-.adoption-species-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 168px)); justify-content: start; gap: 14px; }
+.adoption-species-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 154px)); justify-content: start; gap: 14px; }
 .adoption-choice { position: relative; display: inline-flex; align-items: center; justify-content: flex-start; gap: 12px; min-height: 44px; padding: 11px 14px; border: 1px solid var(--border); border-radius: 12px; color: var(--text); background: var(--surface-field); text-align: left; transition: border-color 160ms ease, background 160ms ease, transform 160ms ease; }
 .adoption-choice:hover { border-color: var(--accent); background: var(--surface-hover); }
 .adoption-choice:disabled { cursor: not-allowed; opacity: .48; }
@@ -68,10 +68,10 @@
 .adoption-choice:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .adoption-choice--selected { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
 .adoption-choice__check { position: absolute; top: -11px; right: -11px; z-index: 2; display: grid; width: 28px; height: 28px; place-items: center; border: 2px solid var(--surface-raised); border-radius: 50%; color: var(--surface); background: var(--accent); }
-.adoption-species-choice { display: grid; box-sizing: border-box; grid-template-columns: minmax(0, 1fr); width: 100%; min-height: 84px; justify-items: center; align-content: center; gap: 9px; padding: 14px 10px 14px 18px; text-align: center; }
-.adoption-species-choice__image { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; background: var(--surface-muted); }
+.adoption-species-choice { display: grid; box-sizing: border-box; grid-template-columns: minmax(0, 1fr); width: 100%; min-height: 0; justify-items: stretch; align-content: start; gap: 8px; padding: 10px; text-align: center; }
+.adoption-species-choice__image { display: block; width: 100%; aspect-ratio: 1; height: auto; border-radius: 9px; object-fit: cover; object-position: center; background: var(--surface-muted); }
 .adoption-species-choice > span:not(.adoption-choice__check) { display: grid; gap: 5px; width: 100%; min-width: 0; text-align: center; }
-.adoption-species-choice strong { font-size: 18px; }
+.adoption-species-choice strong { font-size: 15px; line-height: 1.35; }
 .adoption-species-choice small, .adoption-candidate-card small, .adoption-candidate-card__copy > span, .adoption-invite-card small { color: var(--text-muted); line-height: 1.5; }
 .adoption-option-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .adoption-quota-warning, .adoption-inline-error { margin: 14px 0 0; color: var(--error-text); line-height: 1.55; }
@@ -125,7 +125,9 @@
 
 .adoption-candidate-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 .adoption-candidate-card { display: grid; align-content: start; gap: 10px; min-height: 310px; padding: 10px; }
-.adoption-candidate-card img, .adoption-reply-card img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; object-position: 50% 8%; border-radius: 9px; }
+.adoption-candidate-card img, .adoption-reply-card img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 9px; }
+.adoption-candidate-card img { object-position: 50% 50%; }
+.adoption-reply-card img { object-position: 50% 8%; }
 .adoption-candidate-card__copy { display: grid; align-content: start; gap: 7px; min-width: 0; }
 .adoption-candidate-card__copy strong, .adoption-reply-card strong { font-size: 17px; }
 .adoption-shortlist-header { display: flex; align-items: start; justify-content: space-between; gap: 20px; margin-bottom: 24px; }

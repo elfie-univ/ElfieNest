@@ -64,11 +64,12 @@ float joint_weight_range(uvec4 indices, vec4 weights, uint first_id, uint last_i
 }
 
 void vertex() {
-    // Region thresholds are authored in the evaluated scene-space used by the
-    // approved V9 region experiment. This keeps them stable across the GLB's
-    // centimetre armature scale and the actor's runtime transform.
-    vec3 evaluated_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-    appearance_region_position = evaluated_position
+    // The renderer applies skeletal deformation after the shader's local
+    // vertex inputs are available. Keep the semantic masks in the authored
+    // bind pose, carried in CUSTOM0, so a pose cannot make the chest mask land
+    // on the head. The mesh geometry and UVs still receive the normal skinning
+    // transform, so the interpolated material result follows the posed body.
+    appearance_region_position = CUSTOM0.xyz
         / max(appearance_region_coordinate_scale, vec3(0.0001));
     // Keep the exact region coordinate semantics from the reviewed phase-3
     // experiment. Region thresholds and normals are evaluated in the mesh's
@@ -673,6 +674,10 @@ static func apply(
 		appearance.get("blend_shapes", {}),
 		bindings.get("blend_shapes", {}),
 	)
+	for node in visual_root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance != null and mesh_instance.mesh != null:
+			_ensure_bind_position_attribute(visual_root, mesh_instance)
 	_apply_material_parameters(
 		visual_root,
 		appearance.get("material_parameters", {}),
@@ -798,8 +803,6 @@ static func visual_bounds(visual_root: Node3D) -> AABB:
 			else:
 				bounds = AABB(point, Vector3.ZERO)
 				has_bounds = true
-	if has_bounds:
-		return bounds.grow(0.14)
 	for node in visual_root.find_children("*", "MeshInstance3D", true, false):
 		var mesh_instance := node as MeshInstance3D
 		if mesh_instance == null or mesh_instance.mesh == null:
@@ -964,6 +967,156 @@ uniform float appearance_marking_intensity = 0.90;
 		push_error("ActorAppearance region shader fragment was not found")
 		return ""
 	return source.substr(0, fragment_start) + APPEARANCE_SHADER_SUFFIX
+
+
+static func _ensure_bind_position_attribute(
+	visual_root: Node3D,
+	mesh_instance: MeshInstance3D,
+) -> void:
+	var source_mesh := mesh_instance.mesh as ArrayMesh
+	if source_mesh == null:
+		return
+
+	var custom_mesh := ArrayMesh.new()
+	custom_mesh.blend_shape_mode = source_mesh.blend_shape_mode
+	for blend_shape_index in range(source_mesh.get_blend_shape_count()):
+		custom_mesh.add_blend_shape(source_mesh.get_blend_shape_name(blend_shape_index))
+
+	var mesh_to_visual_root := visual_root.global_transform.affine_inverse() * mesh_instance.global_transform
+	for surface_index in range(source_mesh.get_surface_count()):
+		var arrays := source_mesh.surface_get_arrays(surface_index)
+		if arrays.size() < Mesh.ARRAY_MAX:
+			arrays.resize(Mesh.ARRAY_MAX)
+		var vertices := arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
+		if vertices.is_empty():
+			custom_mesh.add_surface_from_arrays(
+				source_mesh.surface_get_primitive_type(surface_index),
+				arrays,
+				source_mesh.surface_get_blend_shape_arrays(surface_index),
+				{},
+			)
+			var empty_material := source_mesh.surface_get_material(surface_index)
+			if empty_material != null:
+				custom_mesh.surface_set_material(surface_index, empty_material)
+			custom_mesh.surface_set_name(surface_index, source_mesh.surface_get_name(surface_index))
+			continue
+
+		var bind_positions := PackedFloat32Array()
+		bind_positions.resize(vertices.size() * 4)
+		var bind_skin_matrices := _bind_skin_matrices(
+			visual_root,
+			mesh_instance,
+		)
+		var influence_stride := 8 if (
+			int(source_mesh.surface_get_format(surface_index))
+			& Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		) != 0 else 4
+		for vertex_index in range(vertices.size()):
+			var bind_position := _bind_position_from_skin(
+				vertices[vertex_index],
+				vertex_index,
+				arrays,
+				bind_skin_matrices,
+				influence_stride,
+				mesh_to_visual_root * vertices[vertex_index],
+			)
+			var evaluated_position := Vector3(
+				bind_position.x * visual_root.scale.x,
+				bind_position.y * visual_root.scale.y,
+				bind_position.z * visual_root.scale.z,
+			)
+			var offset := vertex_index * 4
+			bind_positions[offset] = evaluated_position.x
+			bind_positions[offset + 1] = evaluated_position.y
+			bind_positions[offset + 2] = evaluated_position.z
+			bind_positions[offset + 3] = 1.0
+		arrays[Mesh.ARRAY_CUSTOM0] = bind_positions
+
+		# add_surface_from_arrays infers the ordinary vertex/skin channels from
+		# arrays. Supply only the custom-channel format and the source's 8-weight
+		# flag so the new RGBA float attribute is laid out correctly on both the
+		# native and Web renderers.
+		var flags := Mesh.ARRAY_FORMAT_CUSTOM0
+		flags |= Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT
+		if (int(source_mesh.surface_get_format(surface_index)) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS) != 0:
+			flags |= Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		custom_mesh.add_surface_from_arrays(
+			source_mesh.surface_get_primitive_type(surface_index),
+			arrays,
+			source_mesh.surface_get_blend_shape_arrays(surface_index),
+			{},
+			flags,
+		)
+		var source_material := source_mesh.surface_get_material(surface_index)
+		if source_material != null:
+			custom_mesh.surface_set_material(surface_index, source_material)
+		custom_mesh.surface_set_name(surface_index, source_mesh.surface_get_name(surface_index))
+
+	custom_mesh.custom_aabb = source_mesh.custom_aabb
+	custom_mesh.shadow_mesh = source_mesh.shadow_mesh
+	mesh_instance.mesh = custom_mesh
+
+
+static func _bind_skin_matrices(
+	visual_root: Node3D,
+	mesh_instance: MeshInstance3D,
+) -> Array[Transform3D]:
+	var result: Array[Transform3D] = []
+	var skeleton: Skeleton3D = null
+	var ancestor: Node = mesh_instance.get_parent()
+	while ancestor != null and ancestor != visual_root:
+		if ancestor is Skeleton3D:
+			skeleton = ancestor as Skeleton3D
+			break
+		ancestor = ancestor.get_parent()
+	if skeleton == null or mesh_instance.skin == null:
+		return result
+	var bind_count := mesh_instance.skin.get_bind_count()
+	var mesh_to_skeleton := skeleton.global_transform.affine_inverse() * mesh_instance.global_transform
+	var skeleton_to_visual_root := visual_root.global_transform.affine_inverse() * skeleton.global_transform
+	for bone_index in range(skeleton.get_bone_count()):
+		var bind_pose := Transform3D.IDENTITY
+		if bone_index < bind_count:
+			bind_pose = mesh_instance.skin.get_bind_pose(bone_index)
+		result.append(
+			skeleton_to_visual_root
+			* skeleton.get_bone_global_rest(bone_index)
+			* bind_pose
+			* mesh_to_skeleton
+		)
+	return result
+
+
+static func _bind_position_from_skin(
+	vertex: Vector3,
+	vertex_index: int,
+	arrays: Array,
+	bind_skin_matrices: Array[Transform3D],
+	influence_stride: int,
+	fallback: Vector3,
+) -> Vector3:
+	if bind_skin_matrices.is_empty():
+		return fallback
+	var bones := arrays[Mesh.ARRAY_BONES] as PackedInt32Array
+	var weights := arrays[Mesh.ARRAY_WEIGHTS] as PackedFloat32Array
+	if bones.is_empty() or weights.is_empty():
+		return fallback
+	var influence_offset := vertex_index * influence_stride
+	var skeleton_bind_position := Vector3.ZERO
+	var has_influence := false
+	for influence_index in range(influence_stride):
+		var array_index := influence_offset + influence_index
+		if array_index >= bones.size() or array_index >= weights.size():
+			break
+		var weight := weights[array_index]
+		if weight <= 0.0:
+			continue
+		var bone_index := bones[array_index]
+		if bone_index < 0 or bone_index >= bind_skin_matrices.size():
+			continue
+		has_influence = true
+		skeleton_bind_position += bind_skin_matrices[bone_index] * vertex * weight
+	return skeleton_bind_position if has_influence else fallback
 
 
 static func _apply_material_parameters(

@@ -99,6 +99,8 @@ def test_patch_web_entry_for_lan_http_adds_scoped_godot_compatibility(
     assert "!('audioWorklet' in window.AudioContext.prototype)" in patched
     assert "!window.AudioContext.prototype.audioWorklet" not in patched
     assert "addModule" in patched
+    assert "elfienest:webgl-canvas-capture" in patched
+    assert "preserveDrawingBuffer: true" in patched
     assert "window.location.protocol !== 'http:'" in patched
     assert (
         "feature === 'Secure Context - Check web server configuration (use HTTPS)'"
@@ -123,6 +125,7 @@ def test_web_export_imports_before_species_validation_and_publishes_after_it(
         entry = output.parent / ".runtime.staging" / "elfienest.html"
         entry.parent.mkdir(parents=True, exist_ok=True)
         entry.write_text(
+            '<script src="elfienest.js"></script>\n'
             "const GODOT_CONFIG = {};\n"
             "const GODOT_THREADS_ENABLED = false;\n"
             "\tconst missing = Engine.getMissingFeatures({\n"

@@ -27,6 +27,13 @@ class GetElfiePortraitQuery:
 
 
 @dataclass(frozen=True)
+class UpdateElfiePortraitCommand:
+    elfie_id: str
+    content_type: str
+    content: bytes
+
+
+@dataclass(frozen=True)
 class ListAdminElfiesQuery:
     owner_user_id: int | None = None
     species_id: str | None = None
@@ -226,6 +233,7 @@ __all__ = (
     "ListVisibleElfiesQuery",
     "RecentFocusResult",
     "TopicResult",
+    "UpdateElfiePortraitCommand",
     "VisibleElfieResult",
     "WorldRingKey",
     "WorldRingResult",

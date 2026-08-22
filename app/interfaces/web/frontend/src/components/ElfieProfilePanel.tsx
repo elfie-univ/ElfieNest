@@ -2,9 +2,10 @@ import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
+import { saveElfiePortrait } from "../api/elfies/profiles"
 import type { DiscordAccount, TelegramAccount } from "../api/client"
 import type { AdoptionSpecies } from "../api/me/adoption"
-import type { AppearanceCaptureAdapter } from "./elfie-profile/appearance-capture"
+import type { AppearanceCapture, AppearanceCaptureAdapter } from "./elfie-profile/appearance-capture"
 import type { ElfieProfileProjection } from "./elfie-profile/projection"
 import { PersonalIdentityFrame } from "./elfie-profile/PersonalIdentityFrame"
 import { ProfileAppearanceStage } from "./elfie-profile/ProfileAppearanceStage"
@@ -20,6 +21,7 @@ type ElfieProfilePanelProps = {
   readonly csrfToken?: string | undefined
   readonly onBack: () => void
   readonly onChat: () => void
+  readonly onAvatarSaved?: (elfieId: string, portraitUrl: string) => void | Promise<void>
   readonly onFoodSaved?: (() => Promise<void>) | undefined
   readonly onTelegramAccountChange?: ((account: TelegramAccount) => void) | undefined
   readonly onTelegramRefresh?: (() => Promise<void>) | undefined
@@ -37,7 +39,7 @@ type ElfieProfilePanelProps = {
 
 type LocalAvatar = {
   readonly elfieId: string
-  readonly previewUrl: string
+  readonly portraitUrl: string
 }
 
 export function ElfieProfilePanel({
@@ -45,6 +47,7 @@ export function ElfieProfilePanel({
   csrfToken,
   onBack,
   onChat,
+  onAvatarSaved,
   onFoodSaved,
   onTelegramAccountChange,
   onTelegramRefresh,
@@ -80,9 +83,12 @@ export function ElfieProfilePanel({
 
   const profile = projection.publicProfile
   const portraitOverride = localAvatar?.elfieId === profile.elfieId
-    ? localAvatar.previewUrl
+    ? localAvatar.portraitUrl
     : ""
   const isAdopter = projection.kind === "adopter"
+  const saveAvatar = async (capture: AppearanceCapture): Promise<string> => {
+    return saveElfiePortrait(profile.elfieId, capture.blob, csrfToken ?? "")
+  }
   const chooseSection = (section: ProfileSection): void => {
     setActiveSection(section)
     setMobileSection(section)
@@ -145,8 +151,10 @@ export function ElfieProfilePanel({
             <ProfileAppearanceStage
               canCapture
               capture={appearanceCapture}
-              onAvatarPreview={(previewUrl) => {
-                setLocalAvatar({ elfieId: profile.elfieId, previewUrl })
+              onAvatarSave={saveAvatar}
+              onAvatarSaved={(portraitUrl) => {
+                setLocalAvatar({ elfieId: profile.elfieId, portraitUrl })
+                void onAvatarSaved?.(profile.elfieId, portraitUrl)
               }}
               profile={profile}
             />

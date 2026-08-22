@@ -3,6 +3,7 @@ import {
   type GodotAppearance,
   type PublicProfile,
 } from "../../components/elfie-profile/model"
+import { elfiePortraitUrl } from "../../api/elfies/profiles"
 import { MOCK_ELFIES } from "./owner-cards"
 import { defineElfieExperience, defineViewer } from "./project-elfie-profile"
 import { HAPPY_RELATIONSHIP_WORLD } from "./relationship-network"
@@ -62,6 +63,7 @@ export const HAPPY_EXPERIENCE = defineElfieExperience({
     speciesId: happySource.profile.species_id,
     gender: happySource.profile.gender,
     biography: "Happy 会在晨光里把新鲜发现排成小队，先贴近主人的脚边，再把窗台、床位和食物碗逐一检查。它喜欢把被夸奖的瞬间记成发光的路标。",
+    fullBodyUrl: elfiePortraitUrl(happySource.elfie_id, "full_body"),
     portraitUrl: happySource.profile.portrait_url,
     appearance: { bodyPlan: "fox", palette: "sunlit amber", signature: "soft ears" },
     runtimeAppearance: FOX_RUNTIME_APPEARANCE,
@@ -169,6 +171,7 @@ export const KETTLE_EXPERIENCE = defineElfieExperience({
     speciesId: kettleSource.profile.species_id,
     gender: kettleSource.profile.gender,
     biography: "Kettle 常在窗边静静观察风声，像一只给每个角落编号的小记录员。它把陌生访客先放进安全距离，再用很轻的点头回应。",
+    fullBodyUrl: elfiePortraitUrl(kettleSource.elfie_id, "full_body"),
     portraitUrl: kettleSource.profile.portrait_url,
     appearance: { bodyPlan: "fox", palette: "mist grey", signature: "quiet tail" },
     runtimeAppearance: FOX_RUNTIME_APPEARANCE,
@@ -242,6 +245,7 @@ export const MISSING_PUBLIC_FIELDS_EXPERIENCE = defineElfieExperience({
     speciesId: happySource.profile.species_id,
     gender: null,
     biography: "",
+    fullBodyUrl: elfiePortraitUrl(happySource.elfie_id, "full_body"),
     portraitUrl: "",
     appearance: { bodyPlan: "fox", palette: "amber", signature: "ears" },
     runtimeAppearance: null,

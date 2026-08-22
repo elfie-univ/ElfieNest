@@ -7,8 +7,25 @@ import { createI18n } from "../../i18n/config"
 
 import type { AppearanceCapture } from "./appearance-capture"
 import { ProfileCaptureDialog } from "./ProfileCaptureDialog"
+import { cropCapture } from "./profile-capture-crop"
+
+vi.mock("./profile-capture-crop", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./profile-capture-crop")>()
+  return {
+    ...actual,
+    cropCapture: vi.fn(async (value: AppearanceCapture) => value),
+    inspectCapture: vi.fn(async () => ({ height: 600, visibleBounds: null, width: 1000 })),
+  }
+})
 
 createI18n()
+
+Object.defineProperties(HTMLElement.prototype, {
+  hasPointerCapture: { configurable: true, value: () => false },
+  setPointerCapture: { configurable: true, value: () => undefined },
+  releasePointerCapture: { configurable: true, value: () => undefined },
+  scrollIntoView: { configurable: true, value: () => undefined },
+})
 
 const captureBlob = new Blob(["same-png"], { type: "image/png" })
 const capture: AppearanceCapture = {
@@ -19,10 +36,9 @@ const capture: AppearanceCapture = {
 type FixtureProps = {
   readonly onAvatar: (value: AppearanceCapture) => void
   readonly onDownload?: (value: AppearanceCapture, filename: string) => void
-  readonly onRecapture: () => void
 }
 
-function DialogFixture({ onAvatar, onDownload, onRecapture }: FixtureProps) {
+function DialogFixture({ onAvatar, onDownload }: FixtureProps) {
   const [open, setOpen] = useState(false)
   return (
     <ProfileCaptureDialog
@@ -31,7 +47,6 @@ function DialogFixture({ onAvatar, onDownload, onRecapture }: FixtureProps) {
       onAvatar={onAvatar}
       onDownload={onDownload}
       onOpenChange={setOpen}
-      onRecapture={onRecapture}
       open={open}
       trigger={<button type="button">拍照</button>}
     />
@@ -44,12 +59,10 @@ describe("ProfileCaptureDialog", () => {
     const user = userEvent.setup()
     const onAvatar = vi.fn()
     const onDownload = vi.fn()
-    const onRecapture = vi.fn()
     render(
       <DialogFixture
         onAvatar={onAvatar}
         onDownload={onDownload}
-        onRecapture={onRecapture}
       />,
     )
 
@@ -71,27 +84,27 @@ describe("ProfileCaptureDialog", () => {
     expect(trigger).toHaveFocus()
   })
 
-  it("supports recapture, cancel, Escape, and focus return", async () => {
+  it("supports crop controls, cancel, Escape, and focus return", async () => {
     // Given: an openable Radix capture dialog.
     const user = userEvent.setup()
-    const onRecapture = vi.fn()
-    render(
-      <DialogFixture
-        onAvatar={vi.fn()}
-        onRecapture={onRecapture}
-      />,
-    )
+    render(<DialogFixture onAvatar={vi.fn()} />)
     const trigger = screen.getByRole("button", { name: "拍照" })
 
-    // When: recapture is requested.
+    // When: the crop workspace is opened.
     await user.click(trigger)
     expect(screen.getByRole("dialog", { name: "确认这张照片" })).toBeVisible()
-    await user.click(screen.getByRole("button", { name: "重新拍摄" }))
-
-    // Then: recapture keeps the current decision surface while work proceeds.
-    expect(onRecapture).toHaveBeenCalledOnce()
-    expect(screen.getByRole("dialog", { name: "确认这张照片" })).toBeVisible()
-    expect(screen.getByRole("button", { name: "重新拍摄" })).toHaveFocus()
+    expect(screen.getByTestId("capture-crop-box")).toBeInTheDocument()
+    const aspectSelect = screen.getByRole("combobox", { name: "照片比例" })
+    expect(aspectSelect).toHaveTextContent("1:1")
+    expect(screen.getByRole("button", { name: "取消" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "下载图片" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "设为头像" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "重新拍摄" })).not.toBeInTheDocument()
+    await user.click(aspectSelect)
+    await user.click(screen.getByRole("option", { name: "16:9" }))
+    expect(aspectSelect).toHaveTextContent("16:9")
+    expect(screen.queryByText("你可以先设为本地头像预览，或下载 PNG 图片保存。"))
+      .not.toBeInTheDocument()
 
     // When: the still-open dialog is cancelled.
     await user.click(screen.getByRole("button", { name: "取消" }))
@@ -118,7 +131,6 @@ describe("ProfileCaptureDialog", () => {
         onDownload={() => {
           throw new DOMException("blocked", "NotAllowedError")
         }}
-        onRecapture={vi.fn()}
       />,
     )
 
@@ -128,7 +140,7 @@ describe("ProfileCaptureDialog", () => {
 
     // Then: recovery copy is announced and the other decisions remain available.
     expect(screen.getByRole("alert")).toHaveTextContent("下载没有开始")
-    expect(screen.getByRole("button", { name: "重新拍摄" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "设为头像" })).toBeInTheDocument()
   })
 
   it("downloads the PNG through a disposable object URL", async () => {
@@ -139,7 +151,7 @@ describe("ProfileCaptureDialog", () => {
     const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined)
     Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectURL })
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL })
-    render(<DialogFixture onAvatar={vi.fn()} onRecapture={vi.fn()} />)
+    render(<DialogFixture onAvatar={vi.fn()} />)
 
     // When: the PNG download is requested.
     await user.click(screen.getByRole("button", { name: "拍照" }))
@@ -163,7 +175,7 @@ describe("ProfileCaptureDialog", () => {
     })
     Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectURL })
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL })
-    render(<DialogFixture onAvatar={vi.fn()} onRecapture={vi.fn()} />)
+    render(<DialogFixture onAvatar={vi.fn()} />)
 
     // When: the default download action fails after URL allocation.
     await user.click(screen.getByRole("button", { name: "拍照" }))
@@ -174,6 +186,20 @@ describe("ProfileCaptureDialog", () => {
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:blocked-download")
     anchorClick.mockRestore()
     Reflect.deleteProperty(URL, "createObjectURL")
+    Reflect.deleteProperty(URL, "revokeObjectURL")
+  })
+
+  it("releases the derived crop URL after saving an avatar", async () => {
+    const user = userEvent.setup()
+    const revokeObjectURL = vi.fn()
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL })
+    vi.mocked(cropCapture).mockResolvedValueOnce({ blob: captureBlob, previewUrl: "blob:avatar-crop" })
+    render(<DialogFixture onAvatar={vi.fn()} />)
+
+    await user.click(screen.getByRole("button", { name: "拍照" }))
+    await user.click(screen.getByRole("button", { name: "设为头像" }))
+
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:avatar-crop")
     Reflect.deleteProperty(URL, "revokeObjectURL")
   })
 })

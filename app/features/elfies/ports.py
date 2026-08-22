@@ -1,4 +1,4 @@
-"""Read-only authoritative boundaries consumed by the Elfies Feature."""
+"""Authoritative boundaries consumed by the Elfies Feature."""
 
 from __future__ import annotations
 
@@ -126,6 +126,10 @@ class ElfiesQueryPort(Protocol):
     ) -> bytes | None: ...
 
 
+class ElfiesWritePort(Protocol):
+    def save_portrait(self, elfie_id: str, content: bytes) -> None: ...
+
+
 __all__ = (
     "CognitionEdgeRecord",
     "CognitionEntityRecord",
@@ -137,4 +141,5 @@ __all__ = (
     "ElfieProfileRecord",
     "ElfiesPortError",
     "ElfiesQueryPort",
+    "ElfiesWritePort",
 )

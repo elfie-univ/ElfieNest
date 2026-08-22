@@ -2,6 +2,8 @@
 
 from .errors import (
     ElfieNotFound,
+    ElfiePortraitInvalid,
+    ElfiePortraitTooLarge,
     ElfiesError,
     ElfiesForbidden,
     ElfiesUnavailable,
@@ -30,6 +32,7 @@ from .models import (
     RecentFocusResult,
     RelationshipWorldResult,
     TopicResult,
+    UpdateElfiePortraitCommand,
     VisibleElfieResult,
     WorldRingResult,
     WorldUnderstandingResult,
@@ -45,6 +48,7 @@ from .ports import (
     ElfieProfileRecord,
     ElfiesPortError,
     ElfiesQueryPort,
+    ElfiesWritePort,
 )
 from .service import ElfiesService
 
@@ -62,6 +66,8 @@ __all__ = (
     "ElfieAppearanceResult",
     "ElfieDirectoryRecord",
     "ElfieNotFound",
+    "ElfiePortraitInvalid",
+    "ElfiePortraitTooLarge",
     "ElfieOwnerResult",
     "ElfiePermissionsResult",
     "ElfieProfileDetailResult",
@@ -73,6 +79,7 @@ __all__ = (
     "ElfiesForbidden",
     "ElfiesPortError",
     "ElfiesQueryPort",
+    "ElfiesWritePort",
     "ElfiesService",
     "ElfiesUnavailable",
     "ExperienceResult",
@@ -87,6 +94,7 @@ __all__ = (
     "RecentFocusResult",
     "RelationshipWorldResult",
     "TopicResult",
+    "UpdateElfiePortraitCommand",
     "VisibleElfieResult",
     "WorldRingResult",
     "WorldUnderstandingResult",

@@ -49,7 +49,8 @@ def _client(
         )
         connection.commit()
     application = FastAPI()
-    application.state.elfies = ElfiesService(SQLiteElfiesProjectionAdapter(db_path))
+    elfie_projection = SQLiteElfiesProjectionAdapter(db_path)
+    application.state.elfies = ElfiesService(elfie_projection, elfie_projection)
     application.dependency_overrides[require_user] = lambda: principal
     application.include_router(member_router)
     application.include_router(admin_router)
@@ -130,6 +131,42 @@ def test_member_profile_exposes_a_private_persisted_headshot(tmp_path: Path) -> 
 
     hidden = client.get("/api/v1/elfies/00000002/portrait")
     assert hidden.status_code == 404
+
+
+def test_owner_can_upload_portrait_and_read_it_afterwards(tmp_path: Path) -> None:
+    client = _client(tmp_path, principal=_principal())
+    payload = b"\x89PNG\r\n\x1a\nupdated"
+
+    response = client.put(
+        "/api/v1/elfies/00000001/portrait",
+        files={"file": ("portrait.png", payload, "image/png")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"portrait_url": "/api/v1/elfies/00000001/portrait"}
+    image = client.get("/api/v1/elfies/00000001/portrait")
+    assert image.content == payload
+    assert image.headers["cache-control"] == "no-store"
+    assert client.get("/api/v1/elfies/00000001/profile").json()["profile"][
+        "portrait_url"
+    ] == ("/api/v1/elfies/00000001/portrait")
+    assert client.get("/api/v1/elfies").json()["items"][0]["profile"][
+        "portrait_url"
+    ] == ("/api/v1/elfies/00000001/portrait")
+
+
+def test_portrait_upload_is_owner_only(tmp_path: Path) -> None:
+    client = _client(tmp_path, principal=_principal(user_id=2))
+    payload = b"\x89PNG\r\n\x1a\nnot-owner"
+
+    response = client.put(
+        "/api/v1/elfies/00000001/portrait",
+        files={"file": ("portrait.png", payload, "image/png")},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "elfies_forbidden"
+    assert not final_root_layout(tmp_path).elfie("00000001").portrait_headshot.exists()
 
 
 def test_admin_directory_is_separate_and_feature_authorized(tmp_path: Path) -> None:

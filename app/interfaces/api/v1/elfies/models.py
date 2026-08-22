@@ -147,6 +147,10 @@ class ElfieProfileDetailResponse(_StrictModel):
     private_cognition: Optional[PrivateCognitionResponse]
 
 
+class ElfiePortraitUploadResponse(_StrictModel):
+    portrait_url: StrictStr
+
+
 class ElfiesErrorDetails(_StrictModel):
     pass
 
@@ -166,6 +170,7 @@ __all__ = (
     "ElfieAppearanceResponse",
     "ElfieProfileDetailResponse",
     "ElfieProfileResponse",
+    "ElfiePortraitUploadResponse",
     "ElfieSpeciesPresentationResponse",
     "ElfiesErrorDetails",
     "ElfiesErrorItem",

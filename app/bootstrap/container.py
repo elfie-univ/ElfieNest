@@ -304,8 +304,10 @@ def build_application_container(
         core_validation_worker = CoreValidationWorker(
             lambda: availability.run_core_validation(validation_scheduler),
         )
+    elfie_projection = SQLiteElfiesProjectionAdapter(db_path)
     elfies = ElfiesService(
-        SQLiteElfiesProjectionAdapter(db_path),
+        elfie_projection,
+        elfie_projection,
         catalog=species_catalog,
     )
     provider_scheduler = ProviderValidationScheduler(

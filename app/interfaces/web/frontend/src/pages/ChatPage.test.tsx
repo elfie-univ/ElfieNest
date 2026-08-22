@@ -7,6 +7,7 @@ import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ChatSocketEvent, ChatSocketStatus } from "../api/chat-socket"
+import type { ChatMessage } from "../api/communication"
 import { ApiError } from "../api/http"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
@@ -204,6 +205,67 @@ describe("ChatPage list pane headings", () => {
     expect(within(list).getAllByRole("button")[0]).toHaveTextContent("新芽还没有消息")
   })
 
+  it("does not carry the previous Elfie's history into a newly adopted Elfie chat", async () => {
+    const user = userEvent.setup()
+    const newlyAdopted = { ...elfie, elfie_id: "00000002", name: "新芽" }
+    const previousHistory = "第一只精灵的历史"
+    window.history.replaceState({}, "", "/chat?view=conversation&elfie=00000001")
+    chatApi.conversations.mockResolvedValue([])
+    chatApi.elfies.mockResolvedValue([elfie, newlyAdopted])
+    chatApi.messages.mockImplementation((elfieId: string) => Promise.resolve(
+      elfieId === "00000001" ? [{
+        id: 1,
+        elfie_id: "00000001",
+        sender: "elfie",
+        text: previousHistory,
+        created_at: "2026-08-05T01:00:00Z",
+      }] : [],
+    ))
+
+    renderChatPage("zh-CN")
+    expect(await screen.findByText(previousHistory)).toBeInTheDocument()
+
+    await user.click(await screen.findByRole("button", { name: "领养精灵" }))
+    await user.click(screen.getByRole("button", { name: "完成领养" }))
+
+    expect(await screen.findByRole("heading", { level: 1, name: "新芽" })).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText(previousHistory)).not.toBeInTheDocument())
+  })
+
+  it("ignores a previous Elfie's late history response after switching conversations", async () => {
+    const user = userEvent.setup()
+    const secondElfie = { ...elfie, elfie_id: "00000002", name: "阿栗" }
+    let resolveFirst: ((value: readonly ChatMessage[]) => void) | null = null
+    const firstRequest = new Promise<readonly ChatMessage[]>((resolve) => { resolveFirst = resolve })
+    window.history.replaceState({}, "", "/chat?view=conversation&elfie=00000001")
+    chatApi.conversations.mockResolvedValue([
+      { elfie_id: "00000001", name: "小羽", portrait_url: "", last_message_preview: "", last_message_at: null },
+      { elfie_id: "00000002", name: "阿栗", portrait_url: "", last_message_preview: "", last_message_at: null },
+    ])
+    chatApi.elfies.mockResolvedValue([elfie, secondElfie])
+    chatApi.messages.mockImplementation((elfieId: string) => (
+      elfieId === "00000001" ? firstRequest : Promise.resolve([])
+    ))
+
+    renderChatPage("zh-CN")
+    const list = document.querySelector(".chat-list")
+    if (!(list instanceof HTMLElement)) throw new TypeError("Expected chat list")
+    await user.click(await within(list).findByRole("button", { name: /阿栗/ }))
+    expect(await screen.findByRole("heading", { level: 1, name: "阿栗" })).toBeInTheDocument()
+
+    if (resolveFirst === null) throw new TypeError("Expected pending history request")
+    await act(async () => {
+      resolveFirst?.([{
+        id: 2,
+        elfie_id: "00000001",
+        sender: "elfie",
+        text: "延迟到达的旧历史",
+        created_at: "2026-08-05T01:01:00Z",
+      }])
+    })
+    expect(screen.queryByText("延迟到达的旧历史")).not.toBeInTheDocument()
+  })
+
   it("shows an owned Elfie in history before the first message and updates its preview after sending", async () => {
     const user = userEvent.setup()
     window.history.replaceState({}, "", "/chat?view=conversation&elfie=00000001")
@@ -279,6 +341,49 @@ describe("ChatPage list pane headings", () => {
     act(() => callbacks.onEvent({ event: "message", message }))
 
     await waitFor(() => expect(within(list).getAllByRole("button")).toHaveLength(1))
+  })
+
+  it("does not merge a cross-Elfie record from reply reconciliation", async () => {
+    const user = userEvent.setup()
+    const secondElfie = { ...elfie, elfie_id: "00000002", name: "阿栗" }
+    let messageCalls = 0
+    window.history.replaceState({}, "", "/chat?view=conversation&elfie=00000001")
+    chatApi.conversations.mockResolvedValue([])
+    chatApi.elfies.mockResolvedValue([elfie, secondElfie])
+    chatApi.messages.mockImplementation(() => {
+      messageCalls += 1
+      return Promise.resolve(messageCalls === 1 ? [] : [
+        {
+          id: 21,
+          elfie_id: "00000002",
+          sender: "elfie",
+          text: "不属于当前精灵的消息",
+          created_at: "2026-08-05T01:05:00Z",
+        },
+        {
+          id: 22,
+          elfie_id: "00000001",
+          sender: "elfie",
+          text: "当前精灵的回复",
+          created_at: "2026-08-05T01:05:01Z",
+        },
+      ])
+    })
+    chatApi.sendMessage.mockResolvedValue({
+      id: 20,
+      elfie_id: "00000001",
+      sender: "user",
+      text: "开始同步",
+      created_at: "2026-08-05T01:05:00Z",
+    })
+
+    renderChatPage("zh-CN")
+    const composer = await screen.findByPlaceholderText("对 小羽 说点什么…")
+    await user.type(composer, "开始同步")
+    await user.click(screen.getByRole("button", { name: "发送" }))
+
+    await waitFor(() => expect(screen.getAllByText("当前精灵的回复").length).toBeGreaterThan(0), { timeout: 2_000 })
+    expect(screen.queryByText("不属于当前精灵的消息")).not.toBeInTheDocument()
   })
 
   it("adds a live history row for another Elfie without changing the open conversation", async () => {
