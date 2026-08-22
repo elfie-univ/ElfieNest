@@ -126,6 +126,7 @@ export default defineConfig({
                     { text: "Designs overview", link: "/developer/designs/" },
                     { text: "Elfie top-level module design", link: "/developer/designs/elfie-top-level-module-design" },
                     { text: "Elfie Brain ten-system architecture", link: "/developer/designs/elfie-brain-ten-system-architecture" },
+                    { text: "Elfie Brain evaluation system", link: "/developer/designs/elfie-brain-evaluation-system" },
                     { text: "Provider and endpoint-model availability", link: "/developer/designs/provider-model-availability" }
                   ]
                 },
@@ -177,6 +178,7 @@ export default defineConfig({
                 { text: "Debugging & workbenches", link: "/developer/engineering/debugging" },
                 { text: "Command reference", link: "/developer/engineering/tooling" },
                 { text: "Developer Tools", link: "/developer/engineering/devtools" },
+                { text: "Brain evaluation workflow", link: "/developer/engineering/brain-evaluation" },
                 { text: "Godot", link: "/developer/engineering/godot" },
                 { text: "Desktop", link: "/developer/engineering/desktop" },
                 { text: "Code standards & constraints", link: "/developer/engineering/standards" },
@@ -266,6 +268,7 @@ export default defineConfig({
                     { text: "设计文档总览", link: "/zh/developer/designs/" },
                     { text: "Elfie 顶级模块设计", link: "/zh/developer/designs/elfie-top-level-module-design" },
                     { text: "Elfie 大脑十系统架构", link: "/zh/developer/designs/elfie-brain-ten-system-architecture" },
+                    { text: "Elfie Brain 评价与进化系统", link: "/zh/developer/designs/elfie-brain-evaluation-system" },
                     { text: "Provider 与 Endpoint 模型可用性", link: "/zh/developer/designs/provider-model-availability" }
                   ]
                 },
@@ -317,6 +320,7 @@ export default defineConfig({
                 { text: "调试与实验台", link: "/zh/developer/engineering/debugging" },
                 { text: "命令参考", link: "/zh/developer/engineering/tooling" },
                 { text: "Developer Tools", link: "/zh/developer/engineering/devtools" },
+                { text: "Brain 评价工作流", link: "/zh/developer/engineering/brain-evaluation" },
                 { text: "Godot", link: "/zh/developer/engineering/godot" },
                 { text: "Desktop", link: "/zh/developer/engineering/desktop" },
                 { text: "代码规范与约束", link: "/zh/developer/engineering/standards" },

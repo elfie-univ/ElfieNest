@@ -16,12 +16,13 @@ tools:
 ./developer.sh --help
 ```
 
-There are two entry points today:
+There are two interactive entry points and one batch entry point today:
 
 | Tool | Real entry point | Local default | Purpose |
 | --- | --- | --- | --- |
 | Elfie Lab | `./developer.sh elfie-lab` | `127.0.0.1:9001` | Single-Elfie profile, perception, decision and turn debugging |
 | Nest Lab | `./developer.sh nest-lab` | HTTP `127.0.0.1:9002`, Godot WS `127.0.0.1:9003` | Fixed rooms, temporary characters and Godot Runtime experiments |
+| Brain Eval | `./developer.sh brain-eval` | no service port | Reproducible paired Brain capture, evaluation and promotion evidence |
 
 The real App uses HTTP `8000`, Godot WebSocket `8765` and management WebSocket
 `8766`, fully separated from the Lab default ports. When you run
@@ -63,6 +64,7 @@ exits:
 ```bash
 ./developer.sh elfie-lab --host 127.0.0.1 --port 9001
 ./developer.sh nest-lab --host 127.0.0.1 --port 9002 --godot-ws-port 9003
+./developer.sh brain-eval catalog
 ```
 
 Both Elfie Lab and Nest Lab open a web page on startup and automatically reuse
@@ -82,6 +84,12 @@ based on a source digest. To inspect that artifact on its own:
 ./developer.sh build-devtools-web --ensure
 ```
 
+Brain Eval is a batch tool. It runs real Brain wiring inside disposable Elfie Lab state,
+writes artifacts only to `build/brain-eval/<run-id>/`, and never opens a port. Start with
+the [Brain evaluation workflow](../docs/developer/engineering/brain-evaluation.md); a
+cataloged scenario family is not considered automated until its Fixture, event/fault
+adapter, success rule, and evidence path exist.
+
 ## Boundaries
 
 - Do not modify or reuse `app/interfaces/web/static/` end-user pages;
@@ -90,4 +98,6 @@ based on a source digest. To inspect that artifact on its own:
   default user data;
 - Do not make `ElfieNestEngine`, Godot or product auth a mandatory dependency
   for single-module debugging;
+- Do not let Brain Eval read production `ELFIE_HOME`, write outside `build/brain-eval/`,
+  or turn an uncalibrated Judge into an automatic promotion;
 - Tests for tool behavior live in mirrored paths under `test/devtools/`.

@@ -42,7 +42,11 @@ Documentation: https://elfienest.dev/developer/engineering/devtools
             description=_help_description(tool.name),
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
-        if tool.default_port is not None:
+        if tool.name == "brain-eval":
+            from devtools.brain_eval.cli import configure_parser
+
+            configure_parser(subparser)
+        elif tool.default_port is not None:
             host_type = loopback_host
             subparser.add_argument(
                 "--host",
@@ -75,6 +79,7 @@ def _help_text(name: str) -> str:
     descriptions = {
         "elfie-lab": "Single-elfie perception and decision debugging (Web UI)",
         "nest-lab": "Nest/Godot module experiments (Web UI)",
+        "brain-eval": "Evidence-first paired Brain evaluation (batch CLI)",
     }
     return descriptions[name]
 
@@ -98,6 +103,14 @@ Automatically opens browser interface and connects to Godot Runtime on startup.
 
 Data directory: ~/.elfienest-dev/nest_lab/
 Default ports: HTTP 9002, Godot WebSocket 9003
+""",
+        "brain-eval": """
+Brain Eval — Reproducible Elfie Brain Evaluation
+
+Captures isolated Elfie Lab episodes and compares paired baseline/candidate
+evidence under constitutional gates, Q6 effects and resource budgets.
+
+Artifacts: build/brain-eval/<run-id>/
 """,
     }
     return descriptions[name]
@@ -190,6 +203,14 @@ def main(argv: list[str] | None = None) -> int:
         return _run_nest_lab(args)
     if args.tool == "elfie-lab":
         return _run_elfie_lab(args)
+    if args.tool == "brain-eval":
+        from devtools.brain_eval.cli import run as run_brain_eval
+
+        try:
+            return run_brain_eval(args)
+        except ValueError as error:
+            print(f"brain-eval: invalid input: {error}", file=sys.stderr)
+            return 2
     return 2
 
 

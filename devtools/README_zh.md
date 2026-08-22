@@ -14,12 +14,13 @@
 ./developer.sh --help
 ```
 
-当前有两个入口：
+当前有两个交互入口和一个批量入口：
 
 | 工具 | 真实入口 | 本地默认 | 用途 |
 | --- | --- | --- | --- |
 | Elfie Lab | `./developer.sh elfie-lab` | `127.0.0.1:9001` | 单精灵档案、感知、决策和回合调试 |
 | Nest Lab | `./developer.sh nest-lab` | HTTP `127.0.0.1:9002`、Godot WS `127.0.0.1:9003` | 固定房间、临时角色与 Godot Runtime 实验 |
+| Brain Eval | `./developer.sh brain-eval` | 无服务端口 | 可复现的 Brain 配对捕获、评价与晋级证据 |
 
 正式 App 使用 HTTP `8000`、Godot WebSocket `8765` 和管理 WebSocket `8766`，与 Lab
 默认端口完全分离。直接运行 `./developer.sh elfie-lab` 或 `./developer.sh nest-lab` 时，
@@ -52,6 +53,7 @@ Elfie Lab 和 Nest Lab 是本地 FastAPI 服务，会一直运行到进程退出
 ```bash
 ./developer.sh elfie-lab --host 127.0.0.1 --port 9001
 ./developer.sh nest-lab --host 127.0.0.1 --port 9002 --godot-ws-port 9003
+./developer.sh brain-eval catalog
 ```
 
 Elfie Lab 和 Nest Lab 启动后都会自动打开网页，并自动复用或更新同一份
@@ -68,10 +70,17 @@ Elfie Lab 和 Nest Lab 启动后都会自动打开网页，并自动复用或更
 ./developer.sh build-devtools-web --ensure
 ```
 
+Brain Eval 是批量工具。它在一次性 Elfie Lab 状态中运行真实 Brain 装配，只把产物写入
+`build/brain-eval/<run-id>/`，也不会打开端口。先阅读
+[Brain 评价工作流](../docs/zh/developer/engineering/brain-evaluation.md)；只有 Fixture、
+事件/故障 Adapter、成功判据和证据路径都存在时，目录中的场景家族才算完成自动化。
+
 ## 边界
 
 - 不修改或复用 `app/interfaces/web/static/` 的普通用户页面；
 - 不把工具挂到生产启动入口或普通用户导航；
 - 不用生产数据库、Owner 会话或默认用户数据做实验；
 - 不把 `ElfieNestEngine`、Godot 或产品鉴权变成单模块调试的必要依赖；
+- 不允许 Brain Eval 读取生产 `ELFIE_HOME`、写到 `build/brain-eval/` 之外，或让未校准
+  Judge 触发自动晋级；
 - 对工具行为的测试放在 `test/devtools/` 的镜像路径。

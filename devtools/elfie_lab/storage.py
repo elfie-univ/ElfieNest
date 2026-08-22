@@ -52,6 +52,7 @@ class ElfieLabStorage:
         *,
         appearance_description: str = "默认测试外貌",
         personality_description: str = "平衡、稳定",
+        elfie_id: Optional[str] = None,
     ) -> ElfieSpec:
         if species_id not in {"dog", "fox"}:
             raise ValueError("精灵物种只能是 dog 或 fox")
@@ -68,8 +69,12 @@ class ElfieLabStorage:
         for label, value in required_text.items():
             if not value.strip():
                 raise ValueError(f"{label}不能为空")
+        selected_elfie_id = elfie_id or new_id("elfie")
+        self._validate_id(selected_elfie_id)
+        if self.profile_path(selected_elfie_id).exists():
+            raise ValueError(f"测试精灵已经存在: {selected_elfie_id}")
         spec = ElfieSpec(
-            elfie_id=new_id("elfie"),
+            elfie_id=selected_elfie_id,
             name=clean_name,
             species_id=species_id,
             age_years=age_years,

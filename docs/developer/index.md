@@ -25,6 +25,8 @@ source of truth.
   target first-class ownership of one complete Elfie.
 - [Elfie Brain ten-system architecture](./designs/elfie-brain-ten-system-architecture):
   Brain's conceptual systems, runtime relationships and incremental implementation order.
+- [Elfie Brain evaluation and evolution system](./designs/elfie-brain-evaluation-system):
+  evidence-first Q6/P0 evaluation, constrained promotion and long-term evolution.
 - [Service lifecycle state-machine design](./designs/service-lifecycle-state-machine):
   stable service tiers, entrypoints, process ownership and convergence.
 - [Provider and endpoint-model availability](./designs/provider-model-availability):
@@ -67,7 +69,9 @@ source of truth.
 - [Command reference](./engineering/tooling): the unified CLI and the service, data and
   diagnosis commands.
 - [Developer Tools](./engineering/devtools): the entry points and use cases of the two
-  module workbenches.
+  module workbenches and the Brain evaluation batch tool.
+- [Brain evaluation workflow](./engineering/brain-evaluation): capture, judge calibration,
+  protected confirmations, paired comparison and artifact review.
 - [Godot](./engineering/godot): ownership and inspection of scenes, space, characters and
   the Web Runtime.
 - [Desktop](./engineering/desktop): the Electron host, resource discovery and process

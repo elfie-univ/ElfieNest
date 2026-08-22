@@ -1,9 +1,12 @@
 # Elfie Brain 评价体系与自动化试验场
 
-> 状态：内部评价体系基线设计，后续按真实评价经验逐步完善
+> 状态：历史内部基线。已经收敛并实现的 v0.1 方案以公开的
+> [Elfie Brain 评价与进化系统设计](../zh/developer/designs/elfie-brain-evaluation-system.md)
+> 为准；本文保留早期问题拆解和设计演进背景
 >
 > 文档性质：定义如何判断 Brain 修改是改善还是退化，以及如何建设可重放、可批量、
-> 可比较的自动化试验体系；不代表本文所述 Runner、裁判或历史挖掘能力已经实现
+> 可比较的自动化试验体系；当前实现状态不得从本文推断，应以公开设计的状态表和
+> `devtools/brain_eval/` 源码为准
 >
 > 依据：[Elfie 整体故事、生命形态与功能体系](./elfie-overall-story-and-functional-system.md)、
 > [Elfie Brain 内部架构契约](../zh/developer/contracts/brain.md)、

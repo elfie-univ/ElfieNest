@@ -8,12 +8,13 @@
 ./developer.sh --help
 ```
 
-工具分为两个相互隔离的工作台：
+工具包含两个相互隔离的交互工作台和一个隔离的批量评价器：
 
 | 工具 | 入口 | 关注点 |
 | --- | --- | --- |
 | Elfie Lab | `./developer.sh elfie-lab` | 单只精灵的档案、感知、决策和回合 |
 | Nest Lab | `./developer.sh nest-lab` | 固定房间、临时角色、Godot 事件与语义移动 |
+| Brain Eval | `./developer.sh brain-eval` | Brain 配对证据、P0/Q6 评价和受约束晋级结论 |
 
 它们可以复用底层库和同一份 Godot Web Runtime，但不能依赖普通用户鉴权、
 `ElfieNestEngine` 或生产数据才能启动。启动 Elfie Lab 或 Nest Lab 时会自动检查该
@@ -39,10 +40,16 @@ Elfie Lab 首次启动直接读取隔离 Runtime `nest.db` 中的粮食目录。
 
 ## 数据根
 
-两个实验台默认使用 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，并分别在
+两个交互实验台默认使用 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，并分别在
 `elfie_lab/`、`nest_lab/` 下写入自己的配置、会话和调试数据。它们绝不以
 `${ELFIE_HOME:-~/.elfienest}` 为默认值；若把生产根显式传给 Elfie Lab 的 Runtime
 配置，会被拒绝。
+
+Brain Eval 为捕获创建一次性 Runtime 状态，且只把可再生成产物写入
+`build/brain-eval/<run-id>/`。它会拒绝生产 `ELFIE_HOME` 和该构建树之外的输出路径。
+设计原理和批量操作分别见
+[Elfie Brain 评价与进化系统](../designs/elfie-brain-evaluation-system)与
+[Brain 评价工作流](./brain-evaluation)。
 
 本地验收可同时隔离两类数据：
 

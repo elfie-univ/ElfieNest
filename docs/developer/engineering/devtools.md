@@ -8,12 +8,14 @@ The unified entry point is:
 ./developer.sh --help
 ```
 
-The tools split into two mutually isolated workbenches:
+The tools provide two mutually isolated interactive workbenches and one isolated batch
+evaluator:
 
 | Tool | Entry point | Focus |
 | --- | --- | --- |
 | Elfie Lab | `./developer.sh elfie-lab` | A single Elfie's profile, perception, decisions and turns |
 | Nest Lab | `./developer.sh nest-lab` | Fixed rooms, temporary characters, Godot events and semantic motion |
+| Brain Eval | `./developer.sh brain-eval` | Paired Brain evidence, P0/Q6 evaluation and constrained promotion decisions |
 
 They can reuse the underlying libraries and the same Godot Web Runtime, but they
 must not depend on end-user auth, `ElfieNestEngine` or production data to start.
@@ -50,11 +52,17 @@ connection. The first real turn is the model connection attempt.
 
 ## Data root
 
-The two workbenches default to `${ELFIE_DEV_HOME:-~/.elfienest-dev}` and
+The two interactive workbenches default to `${ELFIE_DEV_HOME:-~/.elfienest-dev}` and
 write their own configuration, sessions and debug data under `elfie_lab/` and
 `nest_lab/`. They never default to `${ELFIE_HOME:-~/.elfienest}`; if you
 explicitly pass the production root to Elfie Lab's Runtime configuration, it
 is rejected.
+
+Brain Eval creates disposable Runtime state for capture and writes only regenerable
+artifacts under `build/brain-eval/<run-id>/`. It rejects production `ELFIE_HOME` and output
+paths outside that build tree. Its design and exact batch workflow are documented in
+[Elfie Brain evaluation and evolution system](../designs/elfie-brain-evaluation-system)
+and [Brain evaluation workflow](./brain-evaluation).
 
 Local acceptance can isolate both kinds of data at once:
 
