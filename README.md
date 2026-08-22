@@ -1,21 +1,5 @@
 <div align="center">
-  <table border="0">
-    <tr>
-      <td align="center" valign="middle" style="border: none;">
-        <img src="docs/public/assets/logo.png" alt="ElfieNest Logo" width="115" />
-      </td>
-      <td align="left" valign="middle" style="border: none;">
-        <pre>
-███████╗██╗     ███████╗██╗███████╗     ███╗   ██╗███████╗███████╗████████╗
-██╔════╝██║     ██╔════╝██║██╔════╝     ████╗  ██║██╔════╝██╔════╝╚══██╔══╝
-█████╗  ██║     █████╗  ██║█████╗       ██╔██╗ ██║█████╗  ███████╗   ██║
-██╔══╝  ██║     ██╔══╝  ██║██╔══╝       ██║╚██╗██║██╔══╝  ╚════██║   ██║
-███████╗███████╗██║     ██║███████╗     ██║ ╚████║███████╗███████║   ██║
-╚══════╝╚══════╝╚═╝     ╚═╝╚══════╝     ╚═╝  ╚═══╝╚══════╝╚══════╝   ╚═╝
-        </pre>
-      </td>
-    </tr>
-  </table>
+  <img src="docs/public/assets/elfienest-full-logo-horizontal-compact-transparent.png" alt="ElfieNest" width="560" />
 
   <p><strong>🦊 Embodied AI Creature Simulation — 仿生生命体系统</strong></p>
 
