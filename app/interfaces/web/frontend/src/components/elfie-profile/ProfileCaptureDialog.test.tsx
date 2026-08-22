@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useState } from "react"
 import { describe, expect, it, vi } from "vitest"
@@ -81,7 +81,7 @@ describe("ProfileCaptureDialog", () => {
     await user.click(screen.getByRole("button", { name: "设为头像" }))
     expect(onAvatar).toHaveBeenCalledWith(capture)
     expect(onAvatar.mock.calls[0]?.[0].blob).toBe(captureBlob)
-    expect(trigger).toHaveFocus()
+    await waitFor(() => expect(trigger).toHaveFocus())
   })
 
   it("supports crop controls, cancel, Escape, and focus return", async () => {
