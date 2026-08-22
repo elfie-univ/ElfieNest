@@ -316,16 +316,17 @@ describe("OwnerProviderPanel v2 behavior", () => {
     renderPanel()
 
     const configured = await screen.findByRole("region", { name: "已配置的远程订阅" })
-    const card = within(configured).getByRole("article")
+    const card = await within(configured).findByRole("article")
     expect(within(card).getByRole("heading", { name: "OpenAI Main" })).toBeInTheDocument()
     expect(within(card).getByText("1/1 个模型可用 · 未被粮食使用")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "同模型对比" })).toBeInTheDocument()
 
     const available = screen.getByRole("region", { name: "添加新的远程订阅" })
-    expect(within(available).getByRole("button", { name: "配置 OpenAI" })).toBeInTheDocument()
+    const openAiButton = await within(available).findByRole("button", { name: "配置 OpenAI" })
+    expect(openAiButton).toBeInTheDocument()
     expect(within(available).getByRole("button", { name: "添加其他订阅" })).toBeInTheDocument()
     expect(within(available).queryByRole("button", { name: "添加自定义连接" })).not.toBeInTheDocument()
-    expect(within(available).getByRole("button", { name: "配置 OpenAI" }).querySelector("img")).toHaveAttribute(
+    expect(openAiButton.querySelector("img")).toHaveAttribute(
       "src",
       "/brands/openai.svg",
     )
@@ -336,6 +337,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     renderPanel()
 
     const available = await screen.findByRole("region", { name: "添加新的远程订阅" })
+    await within(available).findByRole("button", { name: "配置 OpenAI" })
     expect(within(available).getAllByRole("button", { name: "配置 OpenAI" })).toHaveLength(1)
     expect(within(available).queryByRole("button", { name: "配置 OpenAI (ChatGPT)" })).not.toBeInTheDocument()
   })
@@ -359,16 +361,17 @@ describe("OwnerProviderPanel v2 behavior", () => {
     })
     renderPanel()
 
-    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    const card = await findConfiguredProviderCard()
     expect(within(card).getByText("1/1 个模型可用 · 被 1 个粮食使用")).toBeInTheDocument()
   })
 
   it("does not repeat the configured Ollama in the add-subscription grid", async () => {
-    vi.mocked(ownerProviderCatalog).mockResolvedValue([ollamaProduct, product])
+    vi.mocked(ownerProviderCatalog).mockResolvedValue([ollamaProduct, product, googleProduct])
     vi.mocked(ownerProviderConnections).mockResolvedValue([ollamaConnection, connection])
     renderPanel()
 
     const available = await screen.findByRole("region", { name: "添加新的远程订阅" })
+    await within(available).findByRole("button", { name: "配置 Google" })
     expect(within(available).queryByRole("button", { name: "配置 Ollama" })).not.toBeInTheDocument()
   })
 
@@ -408,7 +411,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     renderPanel()
 
     const configured = await screen.findByRole("region", { name: "已配置的远程订阅" })
-    expect(within(configured).getByText("1/1 个模型可用")).toBeInTheDocument()
+    expect(await within(configured).findByText("1/1 个模型可用")).toBeInTheDocument()
     resolveFood(emptyFoodCatalog)
   })
 
@@ -429,7 +432,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     renderPanel()
 
     const available = await screen.findByRole("region", { name: "添加新的远程订阅" })
-    expect(within(available).getAllByRole("button")).toHaveLength(9)
+    await waitFor(() => expect(within(available).getAllByRole("button")).toHaveLength(9))
     for (const name of ["Google", "OpenAI", "Anthropic", "DeepSeek", "Alibaba Cloud", "Zhipu AI", "Kimi", "MiniMax"]) {
       expect(within(available).getByRole("button", { name: `配置 ${name}` })).toBeInTheDocument()
     }
@@ -452,6 +455,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     vi.mocked(ownerProviderCatalog).mockResolvedValue(catalog)
     renderPanel()
 
+    await screen.findByRole("button", { name: "配置 Provider 1" })
     await user.click(await screen.findByRole("button", { name: "添加其他订阅" }))
     const dialog = screen.getByRole("dialog", { name: "添加其他订阅" })
     await user.click(within(dialog).getByRole("combobox", { name: "订阅产品" }))
@@ -506,7 +510,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     const user = userEvent.setup()
     renderPanel()
 
-    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    const card = await findConfiguredProviderCard()
     await user.click(within(card).getByRole("button", { name: "验证" }))
 
     expect(verifyProviderConnection).toHaveBeenCalledWith("conn-openai", "csrf")
@@ -554,7 +558,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
       .mockResolvedValue([refreshedConnection])
 
     renderPanel()
-    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    const card = await findConfiguredProviderCard()
     expect(within(card).getByText("不可用")).toBeInTheDocument()
 
     await user.click(within(card).getByRole("button", { name: "验证" }))
@@ -570,7 +574,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     }])
     renderPanel()
 
-    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    const card = await findConfiguredProviderCard()
     expect(card).toHaveClass("provider-card--failed")
     expect(within(card).getByText("不可用")).toBeInTheDocument()
   })
@@ -624,7 +628,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
       .mockResolvedValue([connection])
     renderPanel()
 
-    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    const card = await findConfiguredProviderCard()
     expect(within(card).getByText("待确认")).toBeInTheDocument()
     await user.click(await screen.findByRole("button", { name: "批量验证" }))
 
@@ -649,7 +653,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     const user = userEvent.setup()
     renderPanel()
 
-    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    const card = await findConfiguredProviderCard()
     await user.click(within(card).getByRole("button", { name: "更多" }))
     await user.click(screen.getByRole("menuitem", { name: "强制全量验证" }))
 
@@ -666,7 +670,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     }])
     renderPanel()
 
-    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    const card = await findConfiguredProviderCard()
     expect(card).toHaveClass("provider-card--never")
     expect(within(card).getByText("待确认")).toBeInTheDocument()
     expect(within(card).queryByText("验证失败")).not.toBeInTheDocument()
@@ -694,7 +698,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     }])
     renderPanel()
 
-    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    const card = await findConfiguredProviderCard()
     expect(card).toHaveClass("provider-card--passed")
     expect(within(card).getByText("可用")).toBeInTheDocument()
     expect(within(card).getByText("1/2 个模型可用 · 未被粮食使用")).toBeInTheDocument()
@@ -704,7 +708,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     vi.mocked(ownerProviderConnections).mockResolvedValue([{ ...connection, enabled: false }])
     renderPanel()
 
-    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    const card = await findConfiguredProviderCard()
     expect(card).toHaveClass("provider-card--disabled")
     expect(card).not.toHaveClass("provider-card--passed", "provider-card--failed")
     expect(within(card).getByText("已停用")).toBeInTheDocument()
@@ -717,7 +721,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     }])
     renderPanel()
 
-    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    const card = await findConfiguredProviderCard()
     expect(card).toHaveClass("provider-card--passed")
     expect(card).not.toHaveClass("provider-card--partial")
     expect(within(card).getByText("可用")).toBeInTheDocument()
@@ -728,7 +732,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     const user = userEvent.setup()
     renderPanel()
 
-    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    const card = await findConfiguredProviderCard()
     await user.click(within(card).getByRole("button", { name: "更多" }))
     const menu = screen.getByRole("menu")
     expect(screen.queryByRole("dialog", { name: "更多操作" })).not.toBeInTheDocument()
@@ -741,6 +745,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     renderPanel()
     const local = await screen.findByRole("region", { name: "本地模型服务" })
     const card = within(local).getByRole("article")
+    await within(card).findByRole("button", { name: "安装" })
 
     expect(within(card).getByRole("heading", { name: "Ollama" })).toBeInTheDocument()
     expect(within(card).getByText("0/0 个模型可用")).toBeInTheDocument()
@@ -748,7 +753,9 @@ describe("OwnerProviderPanel v2 behavior", () => {
     expect(within(card).queryByRole("button", { name: "模型" })).not.toBeInTheDocument()
     expect(within(card).queryByRole("button", { name: "启动" })).not.toBeInTheDocument()
     expect(within(card).queryByRole("button", { name: "重启" })).not.toBeInTheDocument()
-    expect(within(await screen.findByRole("region", { name: "已配置的远程订阅" })).queryByText("Ollama")).not.toBeInTheDocument()
+    const configured = await screen.findByRole("region", { name: "已配置的远程订阅" })
+    await within(configured).findByRole("article")
+    expect(within(configured).queryByText("Ollama")).not.toBeInTheDocument()
   })
 
   it("shows a neutral reading state before Ollama status is known", async () => {
@@ -768,8 +775,8 @@ describe("OwnerProviderPanel v2 behavior", () => {
     renderPanel()
 
     const card = within(await screen.findByRole("region", { name: "本地模型服务" })).getByRole("article")
-    expect(within(card).getByText("1/1 个模型可用")).toBeInTheDocument()
-    expect(within(card).getByRole("button", { name: "模型" })).toBeInTheDocument()
+    expect(await within(card).findByText("1/1 个模型可用")).toBeInTheDocument()
+    expect(await within(card).findByRole("button", { name: "模型" })).toBeInTheDocument()
     expect(within(card).getByRole("button", { name: "重启" })).toBeInTheDocument()
     expect(within(card).queryByRole("button", { name: "启动" })).not.toBeInTheDocument()
 
@@ -788,6 +795,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     renderPanel()
 
     const card = within(await screen.findByRole("region", { name: "本地模型服务" })).getByRole("article")
+    await within(card).findByText("待确认")
     expect(card).toHaveClass("provider-card--ollama-pending")
     expect(card).not.toHaveClass("provider-card--ollama-healthy")
     expect(within(card).getByText("待确认")).toBeInTheDocument()
@@ -809,7 +817,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     renderPanel()
 
     const card = within(await screen.findByRole("region", { name: "本地模型服务" })).getByRole("article")
-    await user.click(within(card).getByRole("button", { name: "模型" }))
+    await user.click(await within(card).findByRole("button", { name: "模型" }))
     const dialog = screen.getByRole("dialog", { name: "Ollama 模型" })
     const availableRow = within(dialog).getByText("qwen2.5:0.5b").closest(".ollama-model-row")
     const pendingRow = within(dialog).getByText("qwen3.5:0.8b").closest(".ollama-model-row")
@@ -829,7 +837,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     renderPanel()
 
     const card = within(await screen.findByRole("region", { name: "本地模型服务" })).getByRole("article")
-    await user.click(within(card).getByRole("button", { name: "模型" }))
+    await user.click(await within(card).findByRole("button", { name: "模型" }))
 
     const dialog = screen.getByRole("dialog", { name: "Ollama 模型" })
     expect(within(dialog).getAllByText("qwen2.5:0.5b")).not.toHaveLength(0)
@@ -860,4 +868,9 @@ function renderPanel(locale: SupportedLocale = "zh-CN"): ReturnType<typeof creat
   document.documentElement.lang = locale
   render(<I18nextProvider i18n={instance}><ToastProvider><OwnerProviderPanel csrfToken="csrf" /></ToastProvider></I18nextProvider>)
   return instance
+}
+
+async function findConfiguredProviderCard(): Promise<HTMLElement> {
+  const configured = await screen.findByRole("region", { name: "已配置的远程订阅" })
+  return within(configured).findByRole("article")
 }
