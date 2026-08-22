@@ -36,6 +36,60 @@ SQL_LITERAL_PATTERN = re.compile(
 )
 
 
+def _docstring_literal_node_ids(tree: ast.AST) -> set[int]:
+    docstring_node_ids: set[int] = set()
+    for node in ast.walk(tree):
+        if (
+            not isinstance(
+                node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+            )
+            or not node.body
+        ):
+            continue
+        first_statement = node.body[0]
+        if (
+            isinstance(first_statement, ast.Expr)
+            and isinstance(first_statement.value, ast.Constant)
+            and isinstance(first_statement.value.value, str)
+        ):
+            docstring_node_ids.add(id(first_statement.value))
+    return docstring_node_ids
+
+
+def _tree_contains_sql_literal(tree: ast.AST) -> bool:
+    docstring_node_ids = _docstring_literal_node_ids(tree)
+    return any(
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and id(node) not in docstring_node_ids
+        and SQL_LITERAL_PATTERN.search(node.value) is not None
+        for node in ast.walk(tree)
+    )
+
+
+def test_sql_literal_scanner_ignores_python_docstrings() -> None:
+    tree = ast.parse(
+        '"""SELECT value FROM module_records."""\n'
+        "class Example:\n"
+        '    """INSERT INTO class_records."""\n'
+        "    def run(self):\n"
+        '        """UPDATE function_records SET value."""\n'
+        "    async def run_async(self):\n"
+        '        """DELETE FROM async_function_records."""\n'
+    )
+
+    assert not _tree_contains_sql_literal(tree)
+
+
+def test_sql_literal_scanner_still_detects_non_docstring_strings() -> None:
+    tree = ast.parse(
+        '"""SELECT value FROM documented_records."""\n'
+        'query = "SELECT value FROM runtime_records"\n'
+    )
+
+    assert _tree_contains_sql_literal(tree)
+
+
 def test_developer_tools_only_reference_production_home_for_an_explicit_guard() -> None:
     offenders: list[str] = []
     for path in (PROJECT_ROOT / "devtools").rglob("*.py"):
@@ -118,12 +172,7 @@ def test_application_layers_do_not_own_sql() -> None:
             if GENERATED_DIRECTORY_NAMES.intersection(path.parts):
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
-            has_sql = any(
-                isinstance(node, ast.Constant)
-                and isinstance(node.value, str)
-                and SQL_LITERAL_PATTERN.search(node.value) is not None
-                for node in ast.walk(tree)
-            )
+            has_sql = _tree_contains_sql_literal(tree)
             imports_sqlite = any(
                 (
                     isinstance(node, ast.Import)
