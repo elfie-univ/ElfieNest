@@ -55,33 +55,35 @@ export function ChatListPane(props: ChatListPaneProps) {
           />
         ) : <Input key="chat-search" placeholder={t("list.searchChats")} />}
       </label>
-      {error ? <Notice kind="error" message={error} /> : null}
-      {activePane === "chats" ? (
-        <div className={conversations.length === 0 ? "chat-list chat-list--empty" : "chat-list"}>
-          {conversations.map((row) => (
-            <Button className={row.elfie_id === selectedId ? "wechat-row wechat-row--active" : "wechat-row"} key={row.elfie_id} onClick={() => onChat(row.elfie_id)} type="button" variant="ghost">
-              <Avatar imageUrl={row.portrait_url} name={row.name} />
-              <span className="list-copy"><strong>{row.name}</strong><small>{row.last_message_preview || t("list.noPreview")}</small></span>
-            </Button>
-          ))}
-          {conversations.length === 0 ? (
-            <div className="empty-state empty-state--list" role="status">
-              <h2>{t("list.emptyTitle")}</h2>
-              <p>{t(elfieItems.length === 0 ? "list.emptyFirstDescription" : "list.emptyExistingDescription")}</p>
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        <ElfieList
-          filter={elfieFilter}
-          items={elfieItems}
-          onFilterChange={onElfieFilterChange}
-          onProfile={onElfieProfile}
-          query={elfieQuery}
-          selectedId={selectedId}
-          viewerAccountId={viewerAccountId}
-        />
-      )}
+      <div className={error ? "chat-list-pane__body chat-list-pane__body--with-error" : "chat-list-pane__body"}>
+        {error ? <Notice kind="error" message={error} /> : null}
+        {activePane === "chats" ? (
+          <div className={conversations.length === 0 ? "chat-list chat-list--empty" : "chat-list"}>
+            {conversations.map((row) => (
+              <Button className={row.elfie_id === selectedId ? "wechat-row wechat-row--active" : "wechat-row"} key={row.elfie_id} onClick={() => onChat(row.elfie_id)} type="button" variant="ghost">
+                <Avatar imageUrl={row.portrait_url} name={row.name} />
+                <span className="list-copy"><strong>{row.name}</strong><small>{row.last_message_preview || t("list.noPreview")}</small></span>
+              </Button>
+            ))}
+            {conversations.length === 0 ? (
+              <div className="empty-state empty-state--list" role="status">
+                <h2>{t("list.emptyTitle")}</h2>
+                <p>{t(elfieItems.length === 0 ? "list.emptyFirstDescription" : "list.emptyExistingDescription")}</p>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <ElfieList
+            filter={elfieFilter}
+            items={elfieItems}
+            onFilterChange={onElfieFilterChange}
+            onProfile={onElfieProfile}
+            query={elfieQuery}
+            selectedId={selectedId}
+            viewerAccountId={viewerAccountId}
+          />
+        )}
+      </div>
     </aside>
   )
 }
