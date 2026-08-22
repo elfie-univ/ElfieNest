@@ -52,6 +52,7 @@ export function ArrivalWelcomeScreen({ candidate, candidateImageUrl, candidateLa
     </div>
     <div className="adoption-arrival__copy">
       <h2>{t("adoption.journey.arrival.welcomeTitle", { name: displayName })}</h2>
+      <p>{t("adoption.journey.arrival.confirmationHint")}</p>
       <label className="adoption-arrival__name">
         <span>{t("adoption.journey.arrival.nameLabel")}</span>
         <input

@@ -18,6 +18,7 @@ const chatStyles = readFileSync(resolve(import.meta.dirname, "../shared/chat-pro
 
 const session = vi.hoisted(() => ({
   refresh: vi.fn(async () => undefined),
+  refreshCsrfToken: vi.fn(async () => "csrf"),
   user: {
     avatar_color: 2,
     avatar_kind: "initials" as const,
@@ -53,7 +54,7 @@ const socketState = vi.hoisted<{ callbacks: SocketCallbacks | null; sendResult: 
 }))
 
 vi.mock("../stores/session", () => ({
-  useSession: () => ({ user: session.user, loading: false, refresh: session.refresh }),
+  useSession: () => ({ user: session.user, loading: false, refresh: session.refresh, refreshCsrfToken: session.refreshCsrfToken }),
 }))
 
 vi.mock("../stores/heartbeat", () => ({
@@ -203,6 +204,29 @@ describe("ChatPage list pane headings", () => {
     const list = document.querySelector(".chat-list")
     if (!(list instanceof HTMLElement)) throw new TypeError("Expected chat list")
     expect(within(list).getAllByRole("button")[0]).toHaveTextContent("新芽还没有消息")
+  })
+
+  it("opens a newly adopted Elfie even when conversation refresh fails", async () => {
+    const user = userEvent.setup()
+    const newlyAdopted = { ...elfie, elfie_id: "00000002", name: "新芽" }
+    window.history.replaceState({}, "", "/chat")
+    chatApi.elfies.mockReset()
+    chatApi.conversations.mockReset()
+    chatApi.elfies
+      .mockResolvedValueOnce([elfie])
+      .mockResolvedValueOnce([elfie, newlyAdopted])
+    chatApi.conversations
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new ApiError(503, "消息列表暂时不可用"))
+    chatApi.messages.mockResolvedValue([])
+
+    renderChatPage("zh-CN")
+    await waitFor(() => expect(chatApi.conversations).toHaveBeenCalledTimes(1))
+    await user.click(await screen.findByRole("button", { name: "领养精灵" }))
+    await user.click(screen.getByRole("button", { name: "完成领养" }))
+
+    expect(await screen.findByRole("heading", { level: 1, name: "新芽" })).toBeInTheDocument()
+    await waitFor(() => expect(window.location.search).toBe("?view=conversation&elfie=00000002"))
   })
 
   it("does not carry the previous Elfie's history into a newly adopted Elfie chat", async () => {

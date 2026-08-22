@@ -8,6 +8,7 @@ import { ChatPage } from "./ChatPage"
 
 const session = vi.hoisted(() => ({
   refresh: vi.fn(async () => undefined),
+  refreshCsrfToken: vi.fn(async () => "csrf"),
   user: {
     avatar_color: 2,
     avatar_kind: "initials" as const,
@@ -34,7 +35,7 @@ const chatApi = vi.hoisted(() => ({
 }))
 
 vi.mock("../stores/session", () => ({
-  useSession: () => ({ user: session.user, loading: false, refresh: session.refresh }),
+  useSession: () => ({ user: session.user, loading: false, refresh: session.refresh, refreshCsrfToken: session.refreshCsrfToken }),
 }))
 
 vi.mock("../stores/heartbeat", () => ({

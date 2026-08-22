@@ -64,7 +64,7 @@ export function safeLoginNextPath(rawNext: string | null): SafeLoginNextPath | "
 }
 
 export async function currentUser(): Promise<ClientUser> {
-  return CurrentAccountResponseSchema.parse(await requestJson("/api/v1/me"))
+  return CurrentAccountResponseSchema.parse(await requestJson("/api/v1/me", { cache: "no-store" }))
 }
 
 export async function saveTheme(themeKey: ThemeKey, csrfToken: string): Promise<ThemeKey> {
