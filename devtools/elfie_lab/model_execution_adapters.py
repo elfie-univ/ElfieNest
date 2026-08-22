@@ -207,6 +207,7 @@ class TracingModelExecutionAgent:
 
 
 def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
+    intent_suffix = str(request.turn_id)
     common = {
         "cause_event_ids": [str(item) for item in request.cause_event_ids],
         "dependency_ids": [],
@@ -218,7 +219,7 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
         intents = [
             {
                 "type": "message",
-                "intent_id": "mock-message",
+                "intent_id": f"mock-message:{intent_suffix}",
                 "channel_id": request.response_scope.channel_id,
                 "conversation_id": request.response_scope.conversation_id,
                 "content": speech,
@@ -231,7 +232,7 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
             intents.append(
                 {
                     "type": "activity",
-                    "intent_id": "mock-activity-intent",
+                    "intent_id": f"mock-activity-intent:{intent_suffix}",
                     "draft": {
                         "schema_version": 1,
                         "activity_id": "mock-activity",
@@ -283,7 +284,7 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
         intents = [
             {
                 "type": "message",
-                "intent_id": "mock-internal-message",
+                "intent_id": f"mock-internal-message:{intent_suffix}",
                 "channel_id": request.response_scope.channel_id,
                 "conversation_id": request.response_scope.conversation_id,
                 "content": speech,
@@ -297,13 +298,13 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
         intents = [
             {
                 "type": "speech",
-                "intent_id": "mock-internal-speech",
+                "intent_id": f"mock-internal-speech:{intent_suffix}",
                 "text": speech,
                 **common,
             },
             {
                 "type": "motion",
-                "intent_id": "mock-internal-motion",
+                "intent_id": f"mock-internal-motion:{intent_suffix}",
                 "motion": "nod_head",
                 "target": None,
                 **common,
@@ -315,7 +316,7 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
         intents = [
             {
                 "type": "noop",
-                "intent_id": "mock-noop",
+                "intent_id": f"mock-noop:{intent_suffix}",
                 "reason": (
                     "恢复驱力已处理：保持安静并等待能量恢复"
                     if recovery_trigger

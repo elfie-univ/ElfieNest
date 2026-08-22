@@ -7,7 +7,7 @@
 >
 > Current fact: typed contracts, the 24-family catalog, P0 gates, Elfie Lab capture,
 > anonymous position-flipped judging, human-anchor calibration, clustered statistics,
-> and constrained promotion live in `devtools/brain_eval/`
+> constrained promotion, and a guided exploratory surface in Elfie Lab are implemented
 
 ## 1. Background
 
@@ -26,6 +26,21 @@ The evaluation system must answer five questions:
 
 This is not an “Elfie IQ leaderboard” and does not reward one reply for resembling a
 generic assistant. The evaluated object is always a complete continuous Elfie Candidate.
+
+### 1.1 Two operating levels, one evidence model
+
+The design deliberately exposes two levels instead of forcing the full research protocol
+into every development loop:
+
+| Level | Use it for | Result authority |
+| --- | --- | --- |
+| Elfie Lab **Version evaluation** | Fast feedback after ordinary Brain changes | Exploratory baseline comparison only |
+| `brain-eval` batch workflow | Calibrated experiments and formal promotion evidence | `PROMOTE / OBSERVE / REJECT / INVALID` under the frozen protocol |
+
+The Lab reuses the real Brain capture and anonymous position-flipped comparison primitives,
+but it does not invent calibrated human anchors, confidence intervals, private holdouts, or
+constitutional confirmation. A useful Lab result can decide what to inspect next; it cannot
+approve a release.
 
 ## 2. Final design decision
 
@@ -213,6 +228,12 @@ cross-session/body-generation/restart/fault variants.
 
 The statistical unit is a complete family or trajectory, never an individual Turn.
 
+“24 families” is an internal coverage taxonomy, not 24 Brain modules or 24 buttons that a
+developer must run manually. The first Elfie Lab surface intentionally selects a runnable
+slice: Quick uses 3 scenarios, while Standard uses 8 scenarios covering all Q6 dimensions
+plus a communication/body boundary. More variants and long trajectories remain batch work
+until their adapters and evidence sources are complete.
+
 ## 9. Anonymous judging and human calibration
 
 Soft quality uses anonymous A/B with the same Fixture, scenario, and seed. One request
@@ -347,6 +368,7 @@ Godot receipts through an appropriate scenario adapter.
 | Anonymous dual-order packets, invalidation, human calibration | Implemented as provider-neutral interfaces |
 | Clustered confidence, EPI, reliability, resources, promotion | Implemented |
 | Checkout/model binding, append-only artifacts, unified batch CLI | Implemented |
+| Elfie Lab quick/standard version evaluation, local baseline/history, progress and evidence UI | Implemented as exploratory feedback; never emits formal promotion |
 | Complete event/fault adapter for every family | Built family by family; catalog presence does not claim full automation |
 | Real human anchors, empirical margins, private holdout | Not yet produced; automatic promotion stays disabled |
 | Godot multi-day Long Soak, incident mining, Shadow/Canary | Later runtime facilities, not claimed by the minimal kernel |

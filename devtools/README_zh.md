@@ -18,7 +18,7 @@
 
 | 工具 | 真实入口 | 本地默认 | 用途 |
 | --- | --- | --- | --- |
-| Elfie Lab | `./developer.sh elfie-lab` | `127.0.0.1:9001` | 单精灵档案、感知、决策和回合调试 |
+| Elfie Lab | `./developer.sh elfie-lab` | `127.0.0.1:9001` | 单精灵实验与引导式 Brain 版本评测 |
 | Nest Lab | `./developer.sh nest-lab` | HTTP `127.0.0.1:9002`、Godot WS `127.0.0.1:9003` | 固定房间、临时角色与 Godot Runtime 实验 |
 | Brain Eval | `./developer.sh brain-eval` | 无服务端口 | 可复现的 Brain 配对捕获、评价与晋级证据 |
 
@@ -45,6 +45,11 @@ Elfie Lab 会在隔离的 Lab 数据根中保存模型连接和测试粮食。�
 已安装的本地 Ollama 模型，也可以填写 OpenAI 兼容服务的 URL、Token 和模型。保存会
 创建或更新一份测试粮食；Lab 不提前验证连接，第一次真实回合才会实际调用模型。不得把
 任何实验数据、密钥或本机配置复制到 Git 跟踪文件。
+
+Elfie Lab 还提供**版本评测**工作区：快速检查运行 3 个场景，标准评测运行 8 个场景；系统按测试
+精灵保存开发基线和历史，并展示场景/Q6 变化与证据。这两套预设属于探索评测，不要求 Godot
+评测场景。具体使用循环，以及 Lab 快速反馈与正式晋级证据的边界，见
+[Brain 评价工作流](../docs/zh/developer/engineering/brain-evaluation.md#11-在-elfie-lab-做日常版本评测)。
 
 ## 各工具命令
 

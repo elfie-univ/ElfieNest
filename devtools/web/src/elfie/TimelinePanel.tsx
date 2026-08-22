@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ElfieSession, ElfieTurn, PreviewIntent } from "./contracts";
 import { buildStateInjection } from "./stimulus";
 import { formatSignedDelta } from "./viewModel";
+import { WorkspaceModeSwitch } from "./WorkspaceModeSwitch";
 
 type SourceDomain = "communication" | "embodied";
 type UploadedMedia = Readonly<{ readonly id: string; readonly mimeType: string }>;
@@ -30,6 +31,7 @@ type Props = Readonly<{
   readonly onPreviewIntent: (turn: ElfieTurn, intent: PreviewIntent) => void;
   readonly onUpload: (file: File) => Promise<UploadedMedia>;
   readonly portraitEpoch: number;
+  readonly onOpenEvaluation?: () => void;
 }>;
 
 const emotionLabels: Readonly<Record<string, string>> = {
@@ -175,8 +177,8 @@ export function TimelinePanel(props: Props): React.JSX.Element {
     : !message.trim() && media === null && impact === 0 && stroke === 0 && !hasStateInjection;
   return <section className="timeline-panel" aria-label="交互时间线">
     <div className="timeline-heading">
-      <div><p className="eyebrow">实时实验会话</p><h2>交互时间线</h2></div>
-      <div className="session-indicator"><span /><b>{props.session?.turns.length ?? 0} 轮</b></div>
+      <div className="timeline-heading-title"><div><p className="eyebrow">实时实验会话</p><h2>交互时间线</h2></div><WorkspaceModeSwitch active="experiment" onEvaluation={props.onOpenEvaluation ?? (() => undefined)} onExperiment={() => undefined} /></div>
+      <div className="timeline-heading-actions"><div className="session-indicator"><span /><b>{props.session?.turns.length ?? 0} 轮</b></div></div>
     </div>
     <div className="timeline">
       {props.session === null

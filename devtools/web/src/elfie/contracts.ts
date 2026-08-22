@@ -161,6 +161,73 @@ export const configureFoodSchema = foodsSchema.extend({
 });
 
 export const mediaSchema = z.object({ media_id: z.string(), mime_type: z.string(), media_url: z.string().optional() }).passthrough();
+
+const evaluationResultStatusSchema = z.enum(["pending", "running", "baseline", "passed", "failed", "improved", "unchanged", "regressed", "incomplete"]);
+export const evaluationPresetSchema = z.object({
+  key: z.enum(["quick", "standard"]),
+  title: z.string(),
+  description: z.string(),
+  typical_duration: z.string(),
+  scenario_count: z.number().int().positive(),
+  requires_godot: z.boolean(),
+}).readonly();
+export const evaluationPresetsSchema = z.object({ items: z.array(evaluationPresetSchema) });
+const evaluationScenarioSchema = z.object({
+  family_id: z.string(),
+  title: z.string(),
+  purpose: z.string(),
+  dimension: z.enum(["identity_continuity", "understanding_reasoning", "memory_relationships", "emotion_energy", "autonomy_boundaries", "commitment_reliability"]).nullable(),
+  status: evaluationResultStatusSchema,
+  baseline_outputs: z.array(z.string()),
+  candidate_outputs: z.array(z.string()),
+  evidence: z.array(z.string()),
+  latency_ms: z.number(),
+  error: z.string().nullable(),
+}).readonly();
+const evaluationDimensionSchema = z.object({
+  dimension: z.enum(["identity_continuity", "understanding_reasoning", "memory_relationships", "emotion_energy", "autonomy_boundaries", "commitment_reliability"]),
+  label: z.string(),
+  status: evaluationResultStatusSchema,
+  value: z.number().int().min(-1).max(1).nullable(),
+  evidence: z.array(z.string()),
+}).readonly();
+export const evaluationRunSchema = z.object({
+  schema_version: z.literal(1),
+  run_id: z.string(),
+  elfie_id: z.string(),
+  suite: z.enum(["quick", "standard"]),
+  status: z.enum(["pending", "running", "completed", "failed"]),
+  verdict: z.enum(["baseline", "improved", "observe", "regressed", "incomplete"]),
+  created_at: z.string(),
+  completed_at: z.string().nullable(),
+  source_revision: z.string(),
+  source_dirty: z.boolean(),
+  source_snapshot_sha256: z.string(),
+  candidate_label: z.string(),
+  candidate_spec_sha256: z.string(),
+  fixture_sha256: z.string(),
+  food_key: z.string(),
+  food_model: z.string(),
+  judge_food_key: z.string(),
+  judge_model: z.string(),
+  judge_spec_sha256: z.string(),
+  baseline_run_id: z.string().nullable(),
+  is_baseline: z.boolean(),
+  formal_eligible: z.boolean(),
+  total_scenarios: z.number().int(),
+  completed_scenarios: z.number().int(),
+  total_model_calls: z.number().int(),
+  total_latency_ms: z.number(),
+  scenarios: z.array(evaluationScenarioSchema),
+  dimensions: z.array(evaluationDimensionSchema),
+  p0_violations: z.array(z.object({ code: z.string(), title: z.string(), evidence: z.array(z.string()) }).readonly()),
+  warnings: z.array(z.string()),
+  error: z.string().nullable(),
+}).readonly();
+export const evaluationHistorySchema = z.object({
+  items: z.array(evaluationRunSchema),
+  baseline_run_ids: z.record(z.string(), z.string()),
+});
 export type ElfieListItem = z.infer<typeof elfieListSchema>["items"][number];
 export type ElfieSession = z.infer<typeof sessionSchema>;
 export type ElfieTurn = ElfieSession["turns"][number];
@@ -174,3 +241,6 @@ export type FoodConfiguration = Readonly<{
   readonly alias?: string;
 }>;
 export type PreviewIntent = z.infer<typeof intentSchema>;
+export type EvaluationPreset = z.infer<typeof evaluationPresetSchema>;
+export type EvaluationRun = z.infer<typeof evaluationRunSchema>;
+export type EvaluationScenario = EvaluationRun["scenarios"][number];

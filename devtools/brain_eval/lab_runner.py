@@ -25,6 +25,16 @@ class LabStepAction(str, Enum):
     RESTART = "restart"
 
 
+class LabBigFiveDefinition(EvalContract):
+    """Exact personality controls copied from the selected synthetic Elfie."""
+
+    openness: float = Field(ge=0.0, le=1.0)
+    conscientiousness: float = Field(ge=0.0, le=1.0)
+    extraversion: float = Field(ge=0.0, le=1.0)
+    agreeableness: float = Field(ge=0.0, le=1.0)
+    neuroticism: float = Field(ge=0.0, le=1.0)
+
+
 class LabFixtureDefinition(EvalContract):
     """Public synthetic fixture used to build the same Lab Elfie per candidate."""
 
@@ -36,6 +46,7 @@ class LabFixtureDefinition(EvalContract):
     description: str = Field(min_length=1, max_length=1200)
     appearance_description: str = Field(min_length=1, max_length=1200)
     personality_description: str = Field(min_length=1, max_length=1200)
+    big_five: Optional[LabBigFiveDefinition] = None
 
 
 class LabScenarioStep(EvalContract):
@@ -104,6 +115,9 @@ def capture_lab_episode(
         appearance_description=fixture.appearance_description,
         personality_description=fixture.personality_description,
         elfie_id=fixture.elfie_id,
+        big_five_overrides=(
+            fixture.big_five.model_dump() if fixture.big_five is not None else None
+        ),
     )
     session = ElfieLabSession(
         spec,
@@ -161,6 +175,7 @@ def _validate_scenario(scenario: LabScenarioDefinition) -> None:
 
 
 __all__ = (
+    "LabBigFiveDefinition",
     "LabFixtureDefinition",
     "LabScenarioDefinition",
     "LabScenarioStep",

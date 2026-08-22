@@ -11,6 +11,8 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 import devtools.elfie_lab.api_models as api_models
 import devtools.elfie_lab.model_execution_foods as model_execution_food_support
+from devtools.elfie_lab.evaluation_routes import build_evaluation_router
+from devtools.elfie_lab.evaluation_service import EvaluationService
 from devtools.elfie_lab.food_status import find_food_item
 from devtools.elfie_lab.host import LoopbackHostMiddleware
 from devtools.elfie_lab.media_store import (
@@ -33,6 +35,9 @@ from devtools.elfie_lab.static_host import mount_static_surfaces
 from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.elfie_lab.system_routes import build_system_router
 from devtools.web_host import frontend_shell
+from infrastructure.persistence.configuration.species import (
+    load_and_configure_species_catalog,
+)
 from infrastructure.persistence.layout.data_home import (
     get_elfie_developer_home,
     get_elfie_home,
@@ -45,6 +50,7 @@ def create_app(
     *,
     on_ready: Optional[Callable[[], None]] = None,
 ) -> FastAPI:
+    load_and_configure_species_catalog()
     storage = ElfieLabStorage(data_dir)
     config_root = model_execution_config_dir or str(storage.root / "runtime")
     if Path(config_root).expanduser().resolve() == get_elfie_home().resolve():
@@ -62,6 +68,10 @@ def create_app(
     sessions = SessionRegistry(storage, str(model_environment.root))
     recycle_store = RecycleStore(storage.root)
     media_store = ElfieLabMediaStore(storage.root)
+    evaluation_service = EvaluationService(
+        storage.root / "evaluations",
+        str(model_environment.root),
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -70,6 +80,7 @@ def create_app(
                 on_ready()
             yield
         finally:
+            evaluation_service.close()
             sessions.close()
 
     app = FastAPI(
@@ -85,6 +96,7 @@ def create_app(
     app.state.media_store = media_store
     app.state.model_execution = model_environment
     app.state.food_store = food_store
+    app.state.evaluation_service = evaluation_service
     mount_static_surfaces(app)
     app.include_router(build_profile_router(storage, sessions))
     app.include_router(
@@ -92,6 +104,15 @@ def create_app(
             model_environment,
             food_store,
             developer_scope=developer_scope,
+        )
+    )
+    app.include_router(
+        build_evaluation_router(
+            storage=storage,
+            sessions=sessions,
+            service=evaluation_service,
+            model_environment=model_environment,
+            food_store=food_store,
         )
     )
 
@@ -139,6 +160,11 @@ def create_app(
     def delete_elfie(elfie_id: str):
         try:
             storage.get_elfie(elfie_id)
+            if evaluation_service.has_active_run(elfie_id):
+                raise HTTPException(
+                    status_code=409,
+                    detail="该测试精灵的评测仍在运行，请等待完成后再删除",
+                )
             sessions.remove(elfie_id, lambda: recycle_store.recycle(elfie_id))
         except SessionBusyError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc

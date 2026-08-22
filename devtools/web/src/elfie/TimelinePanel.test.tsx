@@ -9,6 +9,7 @@ const doNothing = (): void => undefined;
 function renderTimeline(): string {
   return renderToStaticMarkup(<TimelinePanel
     food="mock"
+    onOpenEvaluation={doNothing}
     onPreviewIntent={doNothing}
     onSelectTurn={doNothing}
     onSend={async () => true}
@@ -45,6 +46,7 @@ function renderTimelineWithTurn(): string {
   } as unknown as ElfieSession;
   return renderToStaticMarkup(<TimelinePanel
     food="mock"
+    onOpenEvaluation={doNothing}
     onPreviewIntent={doNothing}
     onSelectTurn={doNothing}
     onSend={async () => true}
@@ -58,6 +60,7 @@ describe("Elfie Lab composer", () => {
   it("keeps the message/scene source selector visible inside the composer footer", () => {
     const markup = renderTimeline();
 
+    expect(markup).toContain('class="timeline-heading-title"');
     expect(markup).toContain('class="source-switch"');
     expect(markup).toContain(">消息</button>");
     expect(markup).toContain(">现场</button>");

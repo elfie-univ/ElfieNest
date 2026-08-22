@@ -97,10 +97,19 @@ class PortraitRequest(BaseModel):
     data_url: str = Field(min_length=32, max_length=7_000_000)
 
 
+class CreateEvaluationRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    suite: Literal["quick", "standard"]
+    food_key: str = Field(min_length=1, max_length=160)
+    judge_food_key: str = Field(min_length=1, max_length=160)
+
+
 __all__ = (
     "BigFiveUpdateRequest",
     "ConfigureFoodRequest",
     "CreateElfieRequest",
+    "CreateEvaluationRunRequest",
     "MessageAttachmentRequest",
     "PortraitRequest",
     "TurnRequest",

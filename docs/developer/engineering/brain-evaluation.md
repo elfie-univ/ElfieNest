@@ -24,6 +24,57 @@ The unified batch entry point is:
 own Fixture, parameterized variants, event/fault plan, and success criteria. A catalog ID
 does not make an unimplemented adapter pass.
 
+### 1.1 Daily feedback in Elfie Lab
+
+For an ordinary optimization loop, start with the guided UI rather than the formal batch
+protocol:
+
+```bash
+./developer.sh elfie-lab
+```
+
+1. Create or select a synthetic test Elfie and configure a runnable Food in the left
+   sidebar.
+2. Switch from **Single experiment** to **Version evaluation**.
+3. Choose **Quick** (3 scenarios) after a small change, or **Standard** (8 scenarios) for a
+   broader version checkpoint.
+4. Select an automatic Judge Food, run the suite, and inspect progress, P0 findings,
+   per-scenario baseline/current outputs, Q6 dimension changes, Brain latency, and Brain
+   model calls.
+5. The first completed run with usable evidence becomes the local development baseline.
+   Later matching runs compare against it. Use **Set as new development baseline** only
+   after reviewing the evidence.
+
+A development baseline is a comparison origin, not a pass certificate. Failed or
+incomplete scenario rows remain visible in that baseline.
+
+Quick checks communication/body scope, identity anchors, and restart memory. Standard
+includes those scenarios and covers all six user-facing Q6 dimensions with uncertainty,
+relationship/privacy, emotion proportionality, quiet-time restraint, and commitment
+preflight cases.
+
+The current Lab suites do not start or require a Godot evaluation scenario. They test
+conversation, typed decisions, receipts, isolated memory, virtual time, and session
+recreation. A future claim about movement, collision, navigation, or another physical fact
+must use an appropriate Godot-backed adapter and receipt; that future requirement is not
+part of these 3/8-scenario presets.
+
+Lab runs and baselines stay under
+`${ELFIE_DEV_HOME:-~/.elfienest-dev}/elfie_lab/evaluations/<elfie-id>/`. Deleting the test
+Elfie moves that history into the Lab recycle bundle. An interrupted process marks its
+unfinished run as incomplete on the next start instead of leaving an endless “running”
+record. Candidate identity binds the Git revision, each distinct dirty-worktree snapshot,
+and the selected Food/model; the run also records a digest of the Judge Food/model
+configuration.
+
+These results are explicitly exploratory: one run is not a confidence interval, the Lab
+Judge is not human-anchor calibrated, same-model judging is warned, and no Lab verdict can
+promote code. Use the batch workflow below when the conclusion must support promotion.
+
+The “24 families” shown by `catalog` are internal parameterized coverage templates, not 24
+features, Brain components, or mandatory UI actions. Quick and Standard are the first
+runnable product-facing selections from that larger taxonomy.
+
 ## 2. Freeze the experiment first
 
 Before observing results, preregister:

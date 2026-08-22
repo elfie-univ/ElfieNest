@@ -20,7 +20,7 @@ There are two interactive entry points and one batch entry point today:
 
 | Tool | Real entry point | Local default | Purpose |
 | --- | --- | --- | --- |
-| Elfie Lab | `./developer.sh elfie-lab` | `127.0.0.1:9001` | Single-Elfie profile, perception, decision and turn debugging |
+| Elfie Lab | `./developer.sh elfie-lab` | `127.0.0.1:9001` | Single-Elfie experiments and guided Brain version evaluation |
 | Nest Lab | `./developer.sh nest-lab` | HTTP `127.0.0.1:9002`, Godot WS `127.0.0.1:9003` | Fixed rooms, temporary characters and Godot Runtime experiments |
 | Brain Eval | `./developer.sh brain-eval` | no service port | Reproducible paired Brain capture, evaluation and promotion evidence |
 
@@ -55,6 +55,13 @@ model or enter an OpenAI-compatible URL, Token and model. Saving creates or
 updates one test Food; the Lab does not preflight the connection, and the first
 real turn makes the actual model call. Never copy any experiment data, key or
 local configuration into Git-tracked files.
+
+Elfie Lab also has a **Version evaluation** workspace. Its Quick preset runs 3 scenarios
+and its Standard preset runs 8, persists per-Elfie development baselines and history, and
+shows scenario/Q6 changes plus evidence. These presets are exploratory and do not require
+a Godot evaluation scenario. See the
+[Brain evaluation workflow](../docs/developer/engineering/brain-evaluation.md#11-daily-feedback-in-elfie-lab)
+for the exact loop and the boundary between Lab feedback and formal promotion evidence.
 
 ## Per-tool commands
 

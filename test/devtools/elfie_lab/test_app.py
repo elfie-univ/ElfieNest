@@ -16,6 +16,21 @@ def complete_elfie_payload(name="测试精灵", species_id="fox"):
     }
 
 
+def test_create_app_installs_the_bundled_species_catalog(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import elfie.profile.species_registry as species_registry
+
+    monkeypatch.setattr(species_registry, "_catalog", None)
+
+    create_app(str(tmp_path / "data"), str(tmp_path / "runtime"))
+
+    assert frozenset(
+        species_registry.current_species_catalog().supported_species
+    ) == frozenset({"dog", "fox"})
+
+
 def test_create_elfie_requires_complete_profile_and_derives_life_stage(
     tmp_path, client_for
 ):
@@ -239,6 +254,8 @@ def test_delete_elfie_recycles_data_and_selects_next_elfie(tmp_path, client_for)
     ]
     (data_dir / "media" / deleted_id).mkdir(parents=True)
     (data_dir / "media" / deleted_id / "sample.txt").write_text("media")
+    (data_dir / "evaluations" / deleted_id).mkdir(parents=True)
+    (data_dir / "evaluations" / deleted_id / "evaluation_sample.json").write_text("{}")
 
     # When
     response = client.delete(f"/api/elfies/{deleted_id}")
@@ -256,6 +273,7 @@ def test_delete_elfie_recycles_data_and_selects_next_elfie(tmp_path, client_for)
     bundle = next((data_dir / "trash").iterdir())
     assert (bundle / "elfies" / deleted_id / "profile.json").is_file()
     assert (bundle / "media" / deleted_id / "sample.txt").is_file()
+    assert (bundle / "evaluations" / deleted_id / "evaluation_sample.json").is_file()
     assert (bundle / "manifest.json").is_file()
 
 
@@ -288,6 +306,30 @@ def test_delete_elfie_returns_conflict_while_turn_is_active(tmp_path, client_for
 
     # Then
     assert response.status_code == 409
+    assert app.state.storage.get_elfie(elfie_id).elfie_id == elfie_id
+
+
+def test_delete_elfie_returns_conflict_while_evaluation_is_active(
+    tmp_path,
+    client_for,
+    monkeypatch,
+):
+    app = create_app(str(tmp_path / "data"), str(tmp_path / "runtime"))
+    client = client_for(app)
+    elfie_id = client.post(
+        "/api/elfies",
+        json=complete_elfie_payload("评测中"),
+    ).json()["elfie_id"]
+    monkeypatch.setattr(
+        app.state.evaluation_service,
+        "has_active_run",
+        lambda requested_id: requested_id == elfie_id,
+    )
+
+    response = client.delete(f"/api/elfies/{elfie_id}")
+
+    assert response.status_code == 409
+    assert "评测仍在运行" in response.json()["detail"]
     assert app.state.storage.get_elfie(elfie_id).elfie_id == elfie_id
 
 

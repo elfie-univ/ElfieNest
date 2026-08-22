@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requestFormJson, requestJson } from "../api/http";
 import { DetailPanel } from "./DetailPanel";
+import { EvaluationWorkspace } from "./EvaluationWorkspace";
 import { ElfieModals, type Creation } from "./ElfieModals";
 import { ElfieSidebar } from "./ElfieSidebar";
 import { configureFoodSchema, elfieListSchema, foodsSchema, mediaSchema, sessionSchema, turnSchema, type BigFive, type ElfieListItem, type ElfieSession, type ElfieTurn, type FoodConfiguration, type FoodItem, type PreviewIntent } from "./contracts";
@@ -14,12 +15,14 @@ import {
 } from "./previewProtocol";
 import {
   detailCloseAction,
+  selectReadyFoodAfterLoad,
   selectElfieIdAfterLoad,
   type DetailFocus,
 } from "./viewModel";
 import "./legacy.css";
 import "./composer.css";
 import "./detail-modal.css";
+import "./evaluation.css";
 import "./parity.css";
 
 const previewMessageSchema = z.object({ channel: z.literal("elfie-lab"), event: z.string(), action: z.string().optional(), request_id: z.string().optional(), data_url: z.string().optional(), reason: z.string().optional(), intent: z.object({ intent_id: z.string().optional() }).passthrough().optional() });
@@ -50,6 +53,7 @@ export function ElfieLabApp(): React.JSX.Element {
   const [previewStatus, setPreviewStatus] = useState("加载中");
   const [portraitEpoch, setPortraitEpoch] = useState(0);
   const [previewResult, setPreviewResult] = useState<{ readonly turnId: string; readonly intentId: string; readonly status: "completed" | "unsupported"; readonly reason: string } | null>(null);
+  const [workspaceMode, setWorkspaceMode] = useState<"experiment" | "evaluation">("experiment");
   const frameRef = useRef<HTMLIFrameElement>(null);
   const sessionRef = useRef<ElfieSession | null>(null);
   const pendingPreview = useRef(createPreviewRequestRegistry());
@@ -68,7 +72,7 @@ export function ElfieLabApp(): React.JSX.Element {
     const nextFoods = catalog?.items ?? [];
     setFoods(nextFoods);
     setLocalModels(catalog?.local_models ?? []);
-    setFood((current) => nextFoods.some((item) => item.key === current) ? current : nextFoods[0]?.key ?? "");
+    setFood((current) => selectReadyFoodAfterLoad(current, nextFoods));
     if (catalog !== null) setRuntimeWarning("");
     const selected = selectElfieIdAfterLoad(
       id,
@@ -199,5 +203,6 @@ export function ElfieLabApp(): React.JSX.Element {
     }
     setDetailOpen(false);
   }
-  return <main className={`lab-shell${collapsed ? " left-closed" : ""}${detailOpen ? " detail-open" : ""}`}><ElfieSidebar collapsed={collapsed} food={food} foods={foods} iframeRef={frameRef} items={items} menuOpen={menuOpen} onCollapse={() => setCollapsed(!collapsed)} onConfigureFood={() => setConfigurationOpen(true)} onCreate={() => { setMenuOpen(false); setCreateOpen(true); }} onDelete={(id) => { void requestDelete(id); }} onEditPersonality={() => setPersonalityTarget(session)} onFood={setFood} onMenu={() => setMenuOpen(!menuOpen)} onSelect={(id) => { setMenuOpen(false); configuredPreviewKey.current = ""; void load(id); }} portraitEpoch={portraitEpoch} preview={preview} previewStatus={previewStatus} runtimeWarning={runtimeWarning} session={session} /><TimelinePanel food={food} onPreviewIntent={playIntent} onSelectTurn={selectTurn} onSend={send} onUpload={upload} portraitEpoch={portraitEpoch} session={session} /><DetailPanel focus={detailFocus} initialTab={detailTab} onClose={closeDetail} open={detailOpen} previewResult={previewResult} selectedTurn={selectedTurn} session={session} /><ElfieModals configurationOpen={configurationOpen} createOpen={createOpen} deleteTarget={deleteTarget} localModels={localModels} onConfigurationClose={() => setConfigurationOpen(false)} onConfigureFood={configureFood} onCreate={create} onCreateClose={() => setCreateOpen(false)} onDelete={() => { void remove(); }} onDeleteClose={() => setDeleteTarget(null)} onPersonality={(value) => { void personality(value); }} onPersonalityClose={() => setPersonalityTarget(null)} personalityTarget={personalityTarget} /><p className="toast" hidden={!notice} role="status">{notice}</p></main>;
+  const shellClass = `lab-shell${collapsed ? " left-closed" : ""}${workspaceMode === "experiment" && detailOpen ? " detail-open" : ""}${workspaceMode === "evaluation" ? " evaluation-mode" : ""}`;
+  return <main className={shellClass}><ElfieSidebar collapsed={collapsed} food={food} foods={foods} iframeRef={frameRef} items={items} menuOpen={menuOpen} onCollapse={() => setCollapsed(!collapsed)} onConfigureFood={() => setConfigurationOpen(true)} onCreate={() => { setMenuOpen(false); setCreateOpen(true); }} onDelete={(id) => { void requestDelete(id); }} onEditPersonality={() => setPersonalityTarget(session)} onFood={setFood} onMenu={() => setMenuOpen(!menuOpen)} onSelect={(id) => { setMenuOpen(false); configuredPreviewKey.current = ""; void load(id); }} portraitEpoch={portraitEpoch} preview={preview} previewStatus={previewStatus} runtimeWarning={runtimeWarning} session={session} />{workspaceMode === "experiment" ? <><TimelinePanel food={food} onOpenEvaluation={() => setWorkspaceMode("evaluation")} onPreviewIntent={playIntent} onSelectTurn={selectTurn} onSend={send} onUpload={upload} portraitEpoch={portraitEpoch} session={session} /><DetailPanel focus={detailFocus} initialTab={detailTab} onClose={closeDetail} open={detailOpen} previewResult={previewResult} selectedTurn={selectedTurn} session={session} /></> : <EvaluationWorkspace food={food} foods={foods} onOpenExperiment={() => setWorkspaceMode("experiment")} session={session} />}<ElfieModals configurationOpen={configurationOpen} createOpen={createOpen} deleteTarget={deleteTarget} localModels={localModels} onConfigurationClose={() => setConfigurationOpen(false)} onConfigureFood={configureFood} onCreate={create} onCreateClose={() => setCreateOpen(false)} onDelete={() => { void remove(); }} onDeleteClose={() => setDeleteTarget(null)} onPersonality={(value) => { void personality(value); }} onPersonalityClose={() => setPersonalityTarget(null)} personalityTarget={personalityTarget} /><p className="toast" hidden={!notice} role="status">{notice}</p></main>;
 }

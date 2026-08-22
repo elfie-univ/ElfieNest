@@ -53,6 +53,7 @@ class ElfieLabStorage:
         appearance_description: str = "默认测试外貌",
         personality_description: str = "平衡、稳定",
         elfie_id: Optional[str] = None,
+        big_five_overrides: Optional[Dict[str, float]] = None,
     ) -> ElfieSpec:
         if species_id not in {"dog", "fox"}:
             raise ValueError("精灵物种只能是 dog 或 fox")
@@ -84,7 +85,7 @@ class ElfieLabStorage:
             personality_description=personality_description.strip(),
         )
         self._write_json(self.profile_path(spec.elfie_id), spec.to_dict())
-        self._save_character_profile(spec)
+        self._save_character_profile(spec, big_five_overrides)
         return spec
 
     def update_big_five(
