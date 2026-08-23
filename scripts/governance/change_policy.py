@@ -34,18 +34,12 @@ GOVERNANCE_PREFIXES = (
     "docs/zh/developer/contracts/",
     "docs/zh/developer/decisions/",
     ".agents/skills/",
-    "scripts/architecture/",
     "scripts/governance/",
     "scripts/quality/",
 )
 GOVERNANCE_EXACT = {
     ".pre-commit-config.yaml",
     ".github/workflows/ci.yml",
-    "scripts/check_node_toolchain.sh",
-    "scripts/check_quality_baseline.py",
-    "scripts/check_quality_environment.py",
-    "scripts/check_release_version.py",
-    "scripts/godot_host_validate.sh",
     # Retired task-closure paths remain governance-classified so their deletion
     # cannot be mixed with product implementation during this cleanup.
     "scripts/check_task_closure.py",
@@ -60,6 +54,16 @@ GOVERNANCE_EXACT = {
     "test/architecture/test_system_layer_boundaries.py",
     "test/scripts/test_check_task_closure.py",
 }
+RETIRED_SCRIPT_CONTROL_PREFIXES = ("scripts/architecture/",)
+RETIRED_SCRIPT_CONTROL_EXACT = frozenset(
+    {
+        "scripts/check_node_toolchain.sh",
+        "scripts/check_quality_baseline.py",
+        "scripts/check_quality_environment.py",
+        "scripts/check_release_version.py",
+        "scripts/godot_host_validate.sh",
+    }
+)
 CONTRACT_VERSION_PATTERN = re.compile(
     r"\*\*(?:Contract version|契约版本)[：:]\*\*\s*([^\s]+)"
 )
@@ -136,6 +140,17 @@ def classify_paths(paths: Iterable[str]) -> Tuple[Set[str], Set[str]]:
     governance = {path for path in paths if is_governance_file(path)}
     production = {path for path in paths if is_production_source(path)}
     return governance, production
+
+
+def validate_retired_script_control_paths(paths: Iterable[str]) -> List[str]:
+    """Reject any attempt to restore a retired script control-plane path."""
+
+    return [
+        f"retired script control-plane path is forbidden: {path}"
+        for path in sorted(set(paths))
+        if path in RETIRED_SCRIPT_CONTROL_EXACT
+        or path.startswith(RETIRED_SCRIPT_CONTROL_PREFIXES)
+    ]
 
 
 def changed_paths(base_sha: str) -> List[str]:
@@ -658,6 +673,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"production: {sorted(production)}", file=sys.stderr)
         return 1
     governance_failures = [
+        *validate_retired_script_control_paths(paths),
         *validate_baseline_changes(args.base_sha, paths, governance=governance),
         *validate_contract_changes(args.base_sha, paths),
         *validate_decision_mirrors(paths),

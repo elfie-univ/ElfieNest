@@ -227,6 +227,7 @@ run_candidate_architecture_gate() {
     local structural_path
     local app_scanner_path
     local system_scanner_path
+    local effective_scanner
     local file
 
     if [[ -f "$CANDIDATE_ROOT/test/architecture/baselines/app_layer.py" ]]; then
@@ -264,108 +265,76 @@ run_candidate_architecture_gate() {
         --project-root "$CANDIDATE_ROOT" --base-sha "$BASE_SHA" --check
 
     classifier_root="$TEMP_ROOT/base-governance"
-    if git -C "$CANDIDATE_ROOT" cat-file -e \
-        "$BASE_SHA:scripts/governance/change_policy.py" 2>/dev/null; then
-        classifier_path="scripts/governance/change_policy.py"
-        structural_path="scripts/governance/boundaries/structural_scope.py"
-    elif git -C "$CANDIDATE_ROOT" cat-file -e \
-        "$BASE_SHA:scripts/architecture/check_governance_change.py" 2>/dev/null; then
-        classifier_path="scripts/architecture/check_governance_change.py"
-        structural_path="scripts/architecture/structural_scope_scan.py"
-    else
-        fail "base branch has governance contract but no change classifier"
-    fi
+    classifier_path="scripts/governance/change_policy.py"
+    structural_path="scripts/governance/boundaries/structural_scope.py"
+    git -C "$CANDIDATE_ROOT" cat-file -e \
+        "$BASE_SHA:$classifier_path" 2>/dev/null || \
+        fail "base branch has no change classifier"
+    git -C "$CANDIDATE_ROOT" cat-file -e \
+        "$BASE_SHA:$structural_path" 2>/dev/null || \
+        fail "base branch has no structural scope scanner"
     copy_base_file "$classifier_path" "$classifier_root"
     copy_base_file "$structural_path" "$classifier_root"
     classifier="$classifier_root/$classifier_path"
     run_immutable_base_python "$classifier_root" \
         "$classifier" --base-sha "$BASE_SHA"
 
-    if git -C "$CANDIDATE_ROOT" cat-file -e \
-        "$BASE_SHA:scripts/governance/boundaries/app_layers.py" 2>/dev/null; then
-        app_scanner_path="scripts/governance/boundaries/app_layers.py"
-    elif git -C "$CANDIDATE_ROOT" cat-file -e \
-        "$BASE_SHA:scripts/architecture/app_layer_scan.py" 2>/dev/null; then
-        app_scanner_path="scripts/architecture/app_layer_scan.py"
-    else
-        app_scanner_path=""
-    fi
-    if [[ -n "$app_scanner_path" ]]; then
-        ratchet_root="$TEMP_ROOT/app-ratchet"
-        copy_base_file "$app_scanner_path" "$ratchet_root"
-        if git -C "$CANDIDATE_ROOT" cat-file -e \
-            "$BASE_SHA:test/architecture/baselines/app_layer.py" 2>/dev/null; then
-            copy_base_file "test/architecture/baselines/app_layer.py" "$ratchet_root"
-            run_immutable_base_python "$ratchet_root" \
-                "$ratchet_root/$app_scanner_path" \
-                --project-root "$CANDIDATE_ROOT" \
-                --baseline "$ratchet_root/test/architecture/baselines/app_layer.py" \
-                --mode subset
-        else
-            run_immutable_base_python "$ratchet_root" \
-                "$ratchet_root/$app_scanner_path" \
-                --project-root "$CANDIDATE_ROOT" --mode deny-all
-        fi
-    elif git -C "$CANDIDATE_ROOT" cat-file -e \
-        "$BASE_SHA:docs/developer/contracts/repository-governance.md" 2>/dev/null; then
+    app_scanner_path="scripts/governance/boundaries/app_layers.py"
+    if ! git -C "$CANDIDATE_ROOT" cat-file -e \
+        "$BASE_SHA:$app_scanner_path" 2>/dev/null; then
         fail "base branch has governance contract but no App scanner"
     fi
-
+    ratchet_root="$TEMP_ROOT/app-ratchet"
+    copy_base_file "$app_scanner_path" "$ratchet_root"
     if git -C "$CANDIDATE_ROOT" cat-file -e \
-        "$BASE_SHA:scripts/governance/boundaries/system_layers.py" 2>/dev/null; then
-        system_scanner_path="scripts/governance/boundaries/system_layers.py"
-    elif git -C "$CANDIDATE_ROOT" cat-file -e \
-        "$BASE_SHA:scripts/architecture/system_layer_scan.py" 2>/dev/null; then
-        system_scanner_path="scripts/architecture/system_layer_scan.py"
+        "$BASE_SHA:test/architecture/baselines/app_layer.py" 2>/dev/null; then
+        copy_base_file "test/architecture/baselines/app_layer.py" "$ratchet_root"
+        run_immutable_base_python "$ratchet_root" \
+            "$ratchet_root/$app_scanner_path" \
+            --project-root "$CANDIDATE_ROOT" \
+            --baseline "$ratchet_root/test/architecture/baselines/app_layer.py" \
+            --mode subset
     else
-        system_scanner_path=""
+        run_immutable_base_python "$ratchet_root" \
+            "$ratchet_root/$app_scanner_path" \
+            --project-root "$CANDIDATE_ROOT" --mode deny-all
     fi
-    if [[ -n "$system_scanner_path" ]]; then
-        ratchet_root="$TEMP_ROOT/system-ratchet"
-        copy_base_file "$system_scanner_path" "$ratchet_root"
-        if git -C "$CANDIDATE_ROOT" cat-file -e \
-            "$BASE_SHA:test/architecture/baselines/system_layer.py" 2>/dev/null; then
-            copy_base_file "test/architecture/baselines/system_layer.py" "$ratchet_root"
-            run_immutable_base_python "$ratchet_root" \
-                "$ratchet_root/$system_scanner_path" \
-                --project-root "$CANDIDATE_ROOT" \
-                --baseline "$ratchet_root/test/architecture/baselines/system_layer.py" \
-                --mode subset
-        else
-            run_immutable_base_python "$ratchet_root" \
-                "$ratchet_root/$system_scanner_path" \
-                --project-root "$CANDIDATE_ROOT" --mode deny-all
-        fi
-    elif git -C "$CANDIDATE_ROOT" cat-file -e \
-        "$BASE_SHA:docs/developer/contracts/system.md" 2>/dev/null; then
+
+    system_scanner_path="scripts/governance/boundaries/system_layers.py"
+    if ! git -C "$CANDIDATE_ROOT" cat-file -e \
+        "$BASE_SHA:$system_scanner_path" 2>/dev/null; then
         fail "base branch has system contract but no system scanner"
     fi
-
+    ratchet_root="$TEMP_ROOT/system-ratchet"
+    copy_base_file "$system_scanner_path" "$ratchet_root"
     if git -C "$CANDIDATE_ROOT" cat-file -e \
-        "$BASE_SHA:scripts/governance/boundaries/effective_dependencies/scan.py" 2>/dev/null; then
-        scanner_root="$TEMP_ROOT/effective-ratchet"
-        for file in python.py scan.py targets.py text.py; do
-            copy_base_file \
-                "scripts/governance/boundaries/effective_dependencies/$file" \
-                "$scanner_root"
-        done
-        run_immutable_base_python "$scanner_root" \
-            "$scanner_root/scripts/governance/boundaries/effective_dependencies/scan.py" \
-            --project-root "$CANDIDATE_ROOT"
-    elif git -C "$CANDIDATE_ROOT" cat-file -e \
-        "$BASE_SHA:scripts/architecture/effective_dependency_scan.py" 2>/dev/null; then
-        scanner_root="$TEMP_ROOT/effective-ratchet"
-        for file in effective_dependency_python.py effective_dependency_scan.py \
-            effective_dependency_targets.py effective_dependency_text.py; do
-            copy_base_file "scripts/architecture/$file" "$scanner_root"
-        done
-        run_immutable_base_python "$scanner_root" \
-            "$scanner_root/scripts/architecture/effective_dependency_scan.py" \
-            --project-root "$CANDIDATE_ROOT"
-    elif git -C "$CANDIDATE_ROOT" cat-file -e \
-        "$BASE_SHA:docs/developer/decisions/0012-effective-dependency-targets.md" 2>/dev/null; then
+        "$BASE_SHA:test/architecture/baselines/system_layer.py" 2>/dev/null; then
+        copy_base_file "test/architecture/baselines/system_layer.py" "$ratchet_root"
+        run_immutable_base_python "$ratchet_root" \
+            "$ratchet_root/$system_scanner_path" \
+            --project-root "$CANDIDATE_ROOT" \
+            --baseline "$ratchet_root/test/architecture/baselines/system_layer.py" \
+            --mode subset
+    else
+        run_immutable_base_python "$ratchet_root" \
+            "$ratchet_root/$system_scanner_path" \
+            --project-root "$CANDIDATE_ROOT" --mode deny-all
+    fi
+
+    effective_scanner="scripts/governance/boundaries/effective_dependencies/scan.py"
+    if ! git -C "$CANDIDATE_ROOT" cat-file -e \
+        "$BASE_SHA:$effective_scanner" 2>/dev/null; then
         fail "base branch has ADR-0012 but no effective dependency scanner"
     fi
+    scanner_root="$TEMP_ROOT/effective-ratchet"
+    for file in python.py scan.py targets.py text.py; do
+        copy_base_file \
+            "scripts/governance/boundaries/effective_dependencies/$file" \
+            "$scanner_root"
+    done
+    run_immutable_base_python "$scanner_root" \
+        "$scanner_root/$effective_scanner" \
+        --project-root "$CANDIDATE_ROOT"
 }
 
 CURRENT_STEP="building a candidate tree that includes unstaged changes"

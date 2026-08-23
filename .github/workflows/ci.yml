@@ -124,10 +124,8 @@ jobs:
                 --stage full \
                 --github-output "$GITHUB_OUTPUT"
           elif [[ "$route_mode" != "full" ]] && \
-              { git show "$base_sha:scripts/quality/validation/plan.py" \
-                  > "$trusted_router" 2>/dev/null || \
-                git show "$base_sha:scripts/architecture/validation_plan.py" \
-                  > "$trusted_router" 2>/dev/null; } && \
+              git show "$base_sha:scripts/quality/validation/plan.py" \
+                > "$trusted_router" 2>/dev/null && \
               grep -Eq 'MANIFEST_SCHEMA_VERSION = "affected-v(1|2)"' "$trusted_router"; then
             ELFIENEST_PROJECT_ROOT="$GITHUB_WORKSPACE" \
               python3 "$trusted_router" \
@@ -440,13 +438,8 @@ jobs:
       - name: Reject self-approved governance changes
         run: |
           classifier_root="$RUNNER_TEMP/base-governance"
-          if git cat-file -e "$BASE_SHA:scripts/governance/change_policy.py"; then
-            classifier_path="scripts/governance/change_policy.py"
-            structural_path="scripts/governance/boundaries/structural_scope.py"
-          else
-            classifier_path="scripts/architecture/check_governance_change.py"
-            structural_path="scripts/architecture/structural_scope_scan.py"
-          fi
+          classifier_path="scripts/governance/change_policy.py"
+          structural_path="scripts/governance/boundaries/structural_scope.py"
           mkdir -p \
             "$(dirname "$classifier_root/$classifier_path")" \
             "$(dirname "$classifier_root/$structural_path")"
@@ -457,13 +450,8 @@ jobs:
       - name: Apply immutable base architecture ratchets
         run: |
           ratchet_root="$RUNNER_TEMP/architecture-ratchet"
-          if git cat-file -e "$BASE_SHA:scripts/governance/boundaries/app_layers.py"; then
-            app_scanner_path="scripts/governance/boundaries/app_layers.py"
-            system_scanner_path="scripts/governance/boundaries/system_layers.py"
-          else
-            app_scanner_path="scripts/architecture/app_layer_scan.py"
-            system_scanner_path="scripts/architecture/system_layer_scan.py"
-          fi
+          app_scanner_path="scripts/governance/boundaries/app_layers.py"
+          system_scanner_path="scripts/governance/boundaries/system_layers.py"
           mkdir -p \
             "$(dirname "$ratchet_root/$app_scanner_path")" \
             "$(dirname "$ratchet_root/$system_scanner_path")" \
@@ -491,15 +479,9 @@ jobs:
       - name: Apply immutable base effective-dependency gate
         run: |
           scanner_root="$RUNNER_TEMP/effective-ratchet"
-          if git cat-file -e "$BASE_SHA:scripts/governance/boundaries/effective_dependencies/scan.py"; then
-            scanner_prefix="scripts/governance/boundaries/effective_dependencies"
-            scanner_entry="scan.py"
-            scanner_files=(python.py scan.py targets.py text.py)
-          else
-            scanner_prefix="scripts/architecture"
-            scanner_entry="effective_dependency_scan.py"
-            scanner_files=(effective_dependency_python.py effective_dependency_scan.py effective_dependency_targets.py effective_dependency_text.py)
-          fi
+          scanner_prefix="scripts/governance/boundaries/effective_dependencies"
+          scanner_entry="scan.py"
+          scanner_files=(python.py scan.py targets.py text.py)
           scanner_dir="$scanner_root/$scanner_prefix"
           mkdir -p "$scanner_dir"
           for file in "${scanner_files[@]}"; do
