@@ -52,7 +52,7 @@ The native targets are macOS `PKG`, Windows `NSIS`, and Linux `DEB`. Their
 installer hooks expose the packaged management CLI as the global `elfienest`
 command and remove only the launcher owned by that installation.
 
-The native runner invokes `scripts/release_install_smoke.py` through
+The native runner invokes `scripts/internal/release/release_install_smoke.py` through
 `scripts/release.py --run-install-smoke`. Each bounded cycle installs the
 package, starts through the global launcher, waits for `CORE_READY`/`WORLD_READY`,
 stops to `OFFLINE`, reinstalls the same package as the upgrade check, and then

@@ -34,7 +34,7 @@ Git hook 安装器；其中的 `AGENTS.md` 定义机器治理规则。
 | --- | --- |
 | `internal/bootstrap/report.sh`、`internal/bootstrap/runtime_dependencies.sh` | Bootstrap 辅助 |
 | `internal/build/assemble_desktop_resources.py`、`internal/build/build_devtools_web.py`、`internal/build/build_godot_dedicated.py`、`internal/build/build_godot_web.py`、`internal/build/package_python_core.py` | 构建辅助 |
-| `release_install_smoke.py`、`release_manifest.py`、`release_pipeline.py`、`release_planning.py` | 发布辅助 |
+| `internal/release/release_install_smoke.py`、`internal/release/release_manifest.py`、`internal/release/release_pipeline.py`、`internal/release/release_planning.py` | 发布辅助 |
 | `internal/diagnostics/chat_with_elfie.py`、`internal/diagnostics/e2e_dashboard_check.py`、`internal/diagnostics/verify_nest_runtime_e2e.py` | 人工诊断 |
 | `__init__.py` | 包标记，不是命令 |
 

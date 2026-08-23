@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts import release_manifest
+from scripts.internal.release import release_manifest
 
 
 def _copy_species_config(resources: Path) -> None:

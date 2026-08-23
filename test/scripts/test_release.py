@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from scripts import release, release_pipeline, release_planning
+from scripts import release
+from scripts.internal.release import release_pipeline, release_planning
 from test.support.paths import PROJECT_ROOT
 
 
