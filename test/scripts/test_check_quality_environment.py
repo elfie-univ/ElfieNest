@@ -5,10 +5,7 @@ from __future__ import annotations
 import errno
 from typing import Optional, Tuple
 
-try:
-    from scripts.quality.checks import environment as check_quality_environment
-except ModuleNotFoundError:
-    from scripts import check_quality_environment  # type: ignore[no-redef]
+from scripts.quality.checks import environment as check_quality_environment
 
 
 class _FakeSocket:

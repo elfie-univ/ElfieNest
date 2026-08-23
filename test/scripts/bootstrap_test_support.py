@@ -60,11 +60,6 @@ def copy_bootstrap(project_root: Path) -> Path:
         "quality/hooks/install.sh",
         "quality/hooks/pre-commit",
     )
-    if not (PROJECT_ROOT / "scripts" / hook_paths[0]).is_file():
-        hook_paths = (
-            "architecture/install_git_hooks.sh",
-            "architecture/git-hooks/pre-commit",
-        )
     for relative_path in (
         "bootstrap.sh",
         "internal/bootstrap/report.sh",
