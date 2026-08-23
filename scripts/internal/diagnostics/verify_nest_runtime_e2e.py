@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 import time
 from collections.abc import Callable
 from threading import Thread
 from typing import List, cast
 from unittest.mock import MagicMock
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+sys.path.insert(0, PROJECT_ROOT)
 
 from app.orchestration.nest_session import ElfieNestEngine
 from elfie import Elfie
