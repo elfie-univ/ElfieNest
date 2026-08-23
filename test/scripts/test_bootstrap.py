@@ -118,6 +118,24 @@ def test_bootstrap_ensure_dev_builds_electron_authority_host(tmp_path: Path) -> 
     project_root = tmp_path / "project"
     scripts_dir = copy_bootstrap(project_root)
     prepare_build_runtime(project_root)
+    subprocess.run(["git", "init", "-q", str(project_root)], check=True)
+    (project_root / ".pre-commit-config.yaml").write_text(
+        "repos: []\n", encoding="utf-8"
+    )
+    make_executable(
+        project_root / ".fake-bin/uv",
+        "#!/bin/sh\n"
+        'if [ "$1" = "python" ] && [ "$2" = "install" ]; then exit 0; fi\n'
+        'if [ "$1" = "sync" ]; then\n'
+        "  mkdir -p .venv/bin\n"
+        "  for tool in pre-commit ruff; do\n"
+        "    printf '#!/bin/sh\\nexit 0\\n' > .venv/bin/$tool\n"
+        "    chmod +x .venv/bin/$tool\n"
+        "  done\n"
+        "  exit 0\n"
+        "fi\n"
+        "exit 1\n",
+    )
     elfie_home = tmp_path / "elfie-home"
     elfie_home.mkdir()
     desktop_dir = project_root / "app/interfaces/desktop"
@@ -163,7 +181,58 @@ def test_bootstrap_ensure_dev_builds_electron_authority_host(tmp_path: Path) -> 
 
     assert result.returncode == 0, result.stderr
     assert (project_root / "build/components/desktop-interface/main.js").is_file()
+    hooks_dir = Path(
+        subprocess.check_output(
+            [
+                "git",
+                "-C",
+                str(project_root),
+                "rev-parse",
+                "--path-format=absolute",
+                "--git-path",
+                "hooks",
+            ],
+            text=True,
+        ).strip()
+    )
+    assert "ElfieNest managed pre-commit hook" in (hooks_dir / "pre-commit").read_text(
+        encoding="utf-8"
+    )
+    assert not (hooks_dir / "pre-push").exists()
     assert "Electron authority host is ready" in result.stdout
+
+
+def test_bootstrap_hooks_action_only_installs_the_repository_hook(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    scripts_dir = copy_bootstrap(project_root)
+    prepare_build_runtime(project_root)
+    subprocess.run(["git", "init", "-q", str(project_root)], check=True)
+    (project_root / ".pre-commit-config.yaml").write_text(
+        "repos: []\n", encoding="utf-8"
+    )
+    make_executable(
+        project_root / ".venv/bin/pre-commit",
+        "#!/bin/sh\nexit 0\n",
+    )
+
+    result = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "hooks"],
+        cwd=project_root,
+        env={
+            **os.environ,
+            "HOME": str(tmp_path / "home"),
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "ElfieNest fast pre-commit hook is ready" in result.stdout
+    assert "dependency check" not in result.stdout
 
 
 def test_bootstrap_report_treats_the_editor_as_optional_when_web_output_exists(

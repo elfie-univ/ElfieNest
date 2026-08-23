@@ -174,10 +174,11 @@ the full suite there and then repeat it; run the same full command once in a
 host or elevated environment. A return code of `1` is an unexpected probe
 failure and must be diagnosed first.
 
-Install the repository-managed hook once per clone/worktree setup:
+The normal development bootstrap installs the repository-managed hook
+idempotently. To repair or install only the hook, use:
 
 ```bash
-bash scripts/architecture/install_git_hooks.sh
+bash scripts/bootstrap.sh hooks
 ```
 
 During development, run only the focused tests or type checks justified by the
