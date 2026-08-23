@@ -9,10 +9,14 @@ from scripts import serve
 class _CapturingLifecycle:
     def __init__(self) -> None:
         self.registrations: list[Path] = []
+        self.retentions = 0
         self.calls: list[Any] = []
 
     def register_current_service(self, elfie_home: Path) -> None:
         self.registrations.append(elfie_home)
+
+    def retain_current_service_process(self) -> None:
+        self.retentions += 1
 
     def stop_runtime_channel(self, channel: object) -> None:
         self.calls.append(("channel", channel))
@@ -59,6 +63,7 @@ def test_managed_core_leaves_the_process_receipt_owned_by_its_supervisor(
     )
 
     assert lifecycle.registrations == []
+    assert lifecycle.retentions == 1
 
 
 def test_foreground_core_registers_its_own_process_receipt(tmp_path: Path) -> None:
@@ -71,6 +76,7 @@ def test_foreground_core_registers_its_own_process_receipt(tmp_path: Path) -> No
     )
 
     assert lifecycle.registrations == [tmp_path]
+    assert lifecycle.retentions == 0
 
 
 def test_startup_cleanup_releases_each_acquired_resource_once(tmp_path: Path) -> None:

@@ -156,6 +156,9 @@ class FakeProcessPort:
     def register_current(self, elfie_home: Path) -> Path:
         return self.register_receipt(elfie_home, 1)
 
+    def retain_current(self) -> None:
+        return None
+
 
 class MemoryRuntimeRecord:
     """Minimal authoritative snapshot used by lifecycle service tests."""

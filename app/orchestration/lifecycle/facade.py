@@ -696,6 +696,9 @@ class LifecycleFacade:
     def register_current_service(self, elfie_home: Path) -> Path:
         return self._process_port.register_current(elfie_home)
 
+    def retain_current_service_process(self) -> None:
+        self._process_port.retain_current()
+
     def current_pid(self) -> int:
         return self._process_port.current_pid()
 

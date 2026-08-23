@@ -221,6 +221,9 @@ class ServiceProcessPort(Protocol):
     def register_current(self, elfie_home: Path) -> Path:
         """Register the calling process and schedule normal-exit cleanup."""
 
+    def retain_current(self) -> None:
+        """Retain any platform launch ownership handle for the calling process."""
+
 
 class LifecycleLease(Protocol):
     """Exclusive startup lease held until the Core PID is registered."""
