@@ -209,7 +209,7 @@ def _local_runner_adapter(
 
 def release_version() -> str:
     """Read the checked release version without importing packaging-only code."""
-    from scripts import check_release_version
+    from scripts.internal.release import version as check_release_version
 
     return check_release_version.project_version()
 

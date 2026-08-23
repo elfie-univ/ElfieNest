@@ -17,8 +17,8 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from infrastructure.persistence.configuration.species import load_species_catalog
-from scripts import check_release_version
 from scripts.internal.build import package_python_core
+from scripts.internal.release import version as check_release_version
 
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[3]
 DEFAULT_STAGING_ROOT: Final = PROJECT_ROOT / "build" / "staging"
