@@ -5,23 +5,41 @@
 `scripts/` 保存仓库级启动、构建、质量检查和人工诊断入口。普通用户与贡献者应
 优先使用根目录稳定入口；不要绕过入口脚本自行拼装一套运行环境。
 
-## 稳定入口背后的脚本
+## 布局与稳定性契约
 
-| 文件 | 分类 | 说明 |
+根目录只保留被启动器、CI、发布自动化或生产 Bootstrap 引用的稳定命令或 import 路径。
+内部整理不得移动下列路径：
+
+| 稳定根路径 | 分类 | 所有者/调用方 |
 | --- | --- | --- |
-| `bootstrap.sh` | 依赖编排 | 统一准备源码开发/构建依赖（Python、Node、前端、Godot Web、Electron） |
-| `elfienest.py` | CLI 分发 | 被 `./elfienest.sh` 调用，分发配置、服务生命周期、Owner、数据库、迁移等命令 |
-| `serve.py` | 前台服务 | 启动 FastAPI、引擎和 WebSocket；由 `serve` 或后台生命周期命令调用 |
-| `build_godot_web.py` | 构建 | 导出并校验 Godot Web Runtime，正式输出到 `build/components/godot-web/` |
-| `release.py` | 发布构建 | 组装 staging 资源并调用 electron-builder |
-| `check_quality_baseline.py` | 质量门 | 比较 Ruff、Ruff format、MyPy 当前诊断与受控历史基线 |
-| `check_quality_environment.py` | 质量预检 | 在昂贵的全量门禁前检查全仓测试所需的宿主能力 |
-| `check_node_toolchain.sh` | 质量门 | 校验根目录 Node.js/pnpm 锚点与所有独立 Node 项目的清单 |
-| `architecture/app_layer_scan.py` | 架构门禁 | 对 App 层精确旧债做棘轮约束，基线删除后切换为 deny-all |
-| `architecture/system_layer_scan.py` | 架构门禁 | 对 Elfie/Nest 系统边界精确旧债做棘轮约束，基线删除后切换为 deny-all |
-| `architecture/check_governance_change.py` | 架构门禁 | 分离治理与生产变更，并要求契约中英文同步、升级版本且配套 ADR |
-| `architecture/contract_registry.py` | 架构注册表 | 关联契约、中英文镜像、ADR、Agent 规约、Scanner、测试、台账与基线 |
-| `__init__.py` | 包标记 | 允许架构测试导入脚本中的可测试函数，不是命令入口 |
+| `bootstrap.sh` | Bootstrap 入口 | 源码开发与构建依赖编排 |
+| `elfienest.py` | CLI 分发 | 只由 `./elfienest.sh` 和打包启动器调用 |
+| `serve.py` | Runtime 入口 | 前台服务和受管生命周期启动 |
+| `pre_submit_gate.sh` | 质量入口 | 显式本地 commit/push/full 诊断 checkpoint |
+| `check_node_toolchain.sh` | 质量入口 | Node.js 与 pnpm 清单一致性 |
+| `check_quality_baseline.py` | 质量入口 | Ruff、format 与 MyPy 基线 |
+| `check_quality_environment.py` | 质量入口 | 广覆盖测试的宿主能力预检 |
+| `check_release_version.py` | 发布质量入口 | 仓库与包版本一致性 |
+| `godot_host_validate.sh` | Godot 质量入口 | 受控宿主 Godot 验证 |
+| `godot_species_validation.py` | Runtime/构建模块 | 注入 App 与构建流程的共享物种验证 |
+| `release.py` | 发布入口 | 严格原生发布协调 |
+
+`architecture/` 负责架构 Scanner、不可变基础分类、验证规划/复用、契约注册表和仓库
+Git hook 安装器；其中的 `AGENTS.md` 定义机器治理规则。
+
+其余根文件属于内部实现，不是稳定用户命令。迁移时不增加兼容壳，而是在同一改动中更新
+所有调用方：
+
+| 当前内部文件 | 分类 |
+| --- | --- |
+| `bootstrap_report.sh`、`bootstrap_runtime_dependencies.sh` | Bootstrap 辅助 |
+| `assemble_desktop_resources.py`、`build_devtools_web.py`、`build_godot_dedicated.py`、`build_godot_web.py`、`package_python_core.py` | 构建辅助 |
+| `release_install_smoke.py`、`release_manifest.py`、`release_pipeline.py`、`release_planning.py` | 发布辅助 |
+| `chat_with_elfie.py`、`e2e_dashboard_check.py`、`verify_nest_runtime_e2e.py` | 人工诊断 |
+| `__init__.py` | 包标记，不是命令 |
+
+新增内部辅助实现进入 `scripts/internal/<category>/`；稳定根路径保持精简明确，不继续堆积
+无关实现。
 
 ### bootstrap.sh 用法
 

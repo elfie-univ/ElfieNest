@@ -26,6 +26,9 @@ ElfieNest 曾把完整仓库后盾设为每次 main 交付的前置条件。因�
   版本 Gitleaks 和 staged Python Ruff，不运行测试、MyPy、Node、Godot、fetch 或网络操作。
   普通 push 不设置带测试的 pre-push 门禁；显式受影响本地 stage 只保留为诊断工具，不作为
   交付前置条件。
+- 把锁定的开发工具和仓库管理的 hook 一并作为源码开发就绪条件。普通启动器通过现有幂等
+  `ensure --tier=dev` 路径修复缺失 hook；非 Git 源码归档跳过 hook 安装，也绝不假定 clone
+  已经自动执行仓库代码。
 - 并行运行选中的 Python、Web、Desktop、Developer Tools、架构、持久化、Godot、文档和
   工具链 Lane，先聚合为 `elfienest/ci-gate`，再只把跨事件稳定的
   `elfienest/merge-gate` 绑定到分支保护。Pull Request 上该必需检查等待聚合结果；合并组上

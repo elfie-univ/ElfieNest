@@ -58,6 +58,21 @@ CURRENT_PYTHON_SOURCE_ROOTS = (
     "devtools",
     "scripts",
 )
+STABLE_ROOT_SCRIPT_PATHS = frozenset(
+    {
+        "bootstrap.sh",
+        "check_node_toolchain.sh",
+        "check_quality_baseline.py",
+        "check_quality_environment.py",
+        "check_release_version.py",
+        "elfienest.py",
+        "godot_host_validate.sh",
+        "godot_species_validation.py",
+        "pre_submit_gate.sh",
+        "release.py",
+        "serve.py",
+    }
+)
 NEST_FORBIDDEN_IMPORT_ROOTS = frozenset(
     {"ai_runtime", "app", "elfie", "godot_project", "godot_runtime", "infrastructure"}
 )
@@ -114,6 +129,24 @@ def test_stable_repository_directories_exist() -> None:
 
     # Then
     assert missing == frozenset()
+
+
+def test_stable_root_script_paths_exist_and_are_documented() -> None:
+    scripts_root = PROJECT_ROOT / "scripts"
+    english_registry = (scripts_root / "README.md").read_text(encoding="utf-8")
+    chinese_registry = (scripts_root / "README_zh.md").read_text(encoding="utf-8")
+
+    missing = {
+        path for path in STABLE_ROOT_SCRIPT_PATHS if not (scripts_root / path).is_file()
+    }
+    undocumented = {
+        path
+        for path in STABLE_ROOT_SCRIPT_PATHS
+        if f"`{path}`" not in english_registry or f"`{path}`" not in chinese_registry
+    }
+
+    assert missing == set()
+    assert undocumented == set()
 
 
 def test_root_infrastructure_is_a_first_class_python_source() -> None:

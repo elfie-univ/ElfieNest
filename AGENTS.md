@@ -162,6 +162,9 @@ ElfieNest 当前目标是完成一套可安装、可运行、可观察、可继�
   环境损坏时使用 `./elfienest.sh version`；依赖检查和安装由 `scripts/bootstrap.sh`
   统一编排；`uv run --no-sync` 只能在锁定环境已经存在时使用。前端使用 Node.js 20+
   和仓库固定的 pnpm。Ollama 只能作为 Setup 中的明确选择，不能静默安装。
+- 源码开发的 `bootstrap.sh check --tier=dev` 必须把锁定的开发工具和仓库管理的
+  pre-commit hook 一并视为就绪条件；缺失时由 `./elfienest.sh` 通过现有
+  `ensure --tier=dev` 路径修复。Git clone 本身不会安装 hook；首次提交前不得绕过该检查。
 - 开发、测试、Desktop、Godot 和构建命令以 `CONTRIBUTING.md`、对应 README 与
   `docs/developer/tooling.md` 为准，不在本文件复制另一套教程。
 - 中间构建产物只写根 `build/`，最终发行物只写根 `dist/`，生产数据只写统一 resolver
