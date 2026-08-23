@@ -47,12 +47,17 @@ def test_bootstrap_wiring_scopes_exist_without_speculative_runtime_aliases() -> 
 def test_production_entrypoints_use_bootstrap_instead_of_infrastructure_imports() -> (
     None
 ):
-    for relative_path in (
-        "scripts/elfienest.py",
-        "scripts/serve.py",
-        "scripts/chat_with_elfie.py",
+    diagnostic_entrypoints = tuple(
+        (PROJECT_ROOT / "scripts").rglob("chat_with_elfie.py")
+    )
+    assert len(diagnostic_entrypoints) == 1
+
+    for path in (
+        PROJECT_ROOT / "scripts/elfienest.py",
+        PROJECT_ROOT / "scripts/serve.py",
+        diagnostic_entrypoints[0],
     ):
-        source = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
+        source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
         imported = {
             node.module
