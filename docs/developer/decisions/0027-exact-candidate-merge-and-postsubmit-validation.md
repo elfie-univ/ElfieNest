@@ -33,8 +33,9 @@ GitHub's native merge queue supplies ElfieNest's exact synthetic merge.
   `scripts/internal/build/` plus `scripts/internal/release/` through
   fail-closed release selection; internal diagnostics retain affected Python
   selection. Internal moves do not add root compatibility wrappers, and
-  architecture coverage follows logical helper identity or target category
-  instead of freezing obsolete root locations.
+  architecture coverage recursively discovers script sources and follows
+  logical helper identity or target category instead of freezing obsolete root
+  locations.
 - Install a repository-managed staged-only pre-commit hook. Its warm path runs
   diff whitespace, pinned Gitleaks and staged Python Ruff within 20 seconds and
   has no tests, MyPy, Node, Godot, fetch or network work. Ordinary push has no
