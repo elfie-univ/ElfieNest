@@ -266,7 +266,52 @@ test("background maintenance preserves the selected data root without inspecting
   assert.equal(client.inspections, inspectionsAfterStartup);
 });
 
-test("background maintenance reports a failed recovery without discarding ownership", async () => {
+test("concurrent maintenance requests share one lease-scoped recovery", async () => {
+  const client = lifecycleClient({
+    kind: "owned",
+    generation: 9,
+    ownerLease: "desktop-9",
+    dataHome: "/tmp/elfienest",
+  });
+  let completeRecovery: ((attachment: RuntimeAttachment) => void) | undefined;
+  const recoveryPending = new Promise<RuntimeAttachment>((resolve) => {
+    completeRecovery = resolve;
+  });
+  client.recoverOwnedRuntime = async (ownerLease): Promise<RuntimeAttachment> => {
+    client.recoveries.push(ownerLease);
+    return recoveryPending;
+  };
+  const controller = new DesktopRoleController(client);
+  await controller.start();
+
+  const first = controller.maintainOwnedRuntime();
+  const second = controller.maintainOwnedRuntime();
+  await Promise.resolve();
+  assert.deepEqual(client.recoveries, ["desktop-9"]);
+  completeRecovery?.({
+    kind: "owned",
+    generation: 10,
+    ownerLease: "desktop-9",
+    dataHome: "/tmp/elfienest",
+  });
+
+  assert.deepEqual(await Promise.all([first, second]), [
+    {
+      kind: "owned",
+      generation: 10,
+      ownerLease: "desktop-9",
+      dataHome: "/tmp/elfienest",
+    },
+    {
+      kind: "owned",
+      generation: 10,
+      ownerLease: "desktop-9",
+      dataHome: "/tmp/elfienest",
+    },
+  ]);
+});
+
+test("background maintenance projects a failed recovery and retains lease cleanup", async () => {
   const client = lifecycleClient({
     kind: "owned",
     generation: 9,
@@ -288,7 +333,12 @@ test("background maintenance reports a failed recovery without discarding owners
     reason: "atomic recovery was refused",
     recoverable: true,
   });
-  assert.equal(controller.state.kind, "owned");
+  assert.equal(controller.state.kind, "failed");
+
+  await controller.exitApplication();
+
+  assert.deepEqual(client.stops, ["desktop-9"]);
+  assert.equal(controller.state.kind, "stopped");
 });
 
 test("background maintenance never takes over an attached external Runtime", async () => {

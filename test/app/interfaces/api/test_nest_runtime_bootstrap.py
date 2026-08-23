@@ -48,6 +48,7 @@ def test_application_lifespan_accepts_engine_with_registered_elfies(tmp_path) ->
 
     # Then: startup succeeds instead of attempting to attach a second repository.
     assert response.status_code == 200
+    assert response.json()["engine_ready"] is False
 
 
 def test_interface_application_factory_has_no_concrete_startup_composition() -> None:

@@ -134,7 +134,7 @@ def create_http_application(
     embodiment: EmbodimentSessionService,
     body_device_channel: BodyDeviceChannel,
     lifespan: Callable[[FastAPI], AsyncContextManager[None]],
-    engine_ready: bool,
+    engine_ready: Callable[[], bool],
     godot_web_ready: Callable[[], bool],
     godot_runtime_ready: Callable[[], bool],
     godot_web_dir: Path,
@@ -209,7 +209,9 @@ def create_http_application(
     async def global_exception_handler(
         request: Request, exc: Exception
     ) -> JSONResponse:
-        logger.exception("Unhandled exception: %s %s", request.method, request.url)
+        route = request.scope.get("route")
+        route_template = getattr(route, "path", "<unmatched>")
+        logger.exception("Unhandled exception: %s %s", request.method, route_template)
         return api_error_response(500, "internal_error", "Internal Server Error")
 
     @app.exception_handler(HTTPException)
@@ -288,7 +290,7 @@ def create_http_application(
         generation = identity.get("generation")
         return HealthResponse(
             status="ok",
-            engine_ready=engine_ready,
+            engine_ready=engine_ready(),
             godot_web_ready=godot_web_ready(),
             godot_runtime_ready=godot_runtime_ready(),
             instance_id=(

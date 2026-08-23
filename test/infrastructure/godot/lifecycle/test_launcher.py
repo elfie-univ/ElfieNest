@@ -224,6 +224,47 @@ def test_explicit_packaged_electron_host_override_is_scoped_to_authority(
     )
 
 
+def test_authority_output_is_persisted_in_its_own_rotated_log(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _source_electron(tmp_path)
+    log_dir = tmp_path / "data" / "logs"
+    log_dir.mkdir(parents=True)
+    authority_log = log_dir / "authority.log"
+    authority_console_log = log_dir / "authority-console.log"
+    authority_console_log.write_bytes(b"old authority failure")
+    calls: list[dict[str, object]] = []
+
+    class Process:
+        pid = 18155
+
+    def popen(_command, **kwargs):
+        calls.append(kwargs)
+        return Process()
+
+    monkeypatch.setattr(launcher, "AUTHORITY_LOG_MAX_BYTES", 4)
+    monkeypatch.setattr(launcher.subprocess, "Popen", popen)
+
+    process_handle = launcher.start_godot_runtime(
+        launcher.AuthorityLaunchRequest(tmp_path, 18150, 18151, "nonce"),
+        platform_name="darwin",
+        environment={
+            "ELFIENEST_RUNTIME_LOG": str(log_dir / "service.log"),
+            "ELFIENEST_AUTHORITY_LOG": str(tmp_path / "outside.log"),
+        },
+    )
+
+    assert process_handle is not None
+    assert calls[0]["stdout"] is calls[0]["stderr"]
+    assert Path(calls[0]["stdout"].name) == authority_console_log
+    assert dict(calls[0]["env"])["ELFIENEST_AUTHORITY_LOG"] == str(authority_log)
+    assert authority_console_log.with_name("authority-console.log.1").read_bytes() == (
+        b"old authority failure"
+    )
+    assert authority_console_log.stat().st_mode & 0o777 == 0o600
+
+
 def test_missing_selected_host_is_a_diagnostic_failure(tmp_path: Path) -> None:
     # Given: displayless Linux has no Dedicated artifact.
     request = launcher.AuthorityLaunchRequest(tmp_path, 18150, 18151, "nonce")

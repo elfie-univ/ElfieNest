@@ -31,6 +31,7 @@ import os
 import secrets
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -150,8 +151,226 @@ from app.orchestration.lifecycle import (
     RecoveryInProgressError,
     validate_service_ports,
 )
+from infrastructure.platform.diagnostics import ProcessDiagnostics
 
 WORLD_CONVERGENCE_TIMEOUT_SECONDS = 120.0
+ENGINE_STALL_MINIMUM_SECONDS = 120.0
+ENGINE_STALL_INTERVAL_MULTIPLIER = 20.0
+ENGINE_STALL_CONFIRMATION_SECONDS = 30.0
+ENGINE_PROGRESS_HEARTBEAT_SECONDS = 300.0
+ENGINE_MONITOR_POLL_SECONDS = 1.0
+cleanup_logger = logging.getLogger("elfienest.diagnostics.core_cleanup")
+
+
+class EngineStalledError(RuntimeError):
+    """The production Engine stopped completing its non-blocking clock tick."""
+
+
+class EngineFailureSignal:
+    """Publish the first fatal Engine result across process-local threads."""
+
+    def __init__(self) -> None:
+        self._event = threading.Event()
+        self._lock = threading.Lock()
+        self._error: BaseException | None = None
+
+    @property
+    def error(self) -> BaseException | None:
+        with self._lock:
+            return self._error
+
+    def fail(self, error: BaseException) -> bool:
+        with self._lock:
+            if self._error is not None:
+                return False
+            self._error = error
+            self._event.set()
+            return True
+
+    def is_set(self) -> bool:
+        return self._event.is_set()
+
+    def wait(self, timeout: float) -> bool:
+        return self._event.wait(timeout)
+
+
+def _diagnostic_event(
+    diagnostics: ProcessDiagnostics | None,
+    event: str,
+    *,
+    level: int = logging.INFO,
+    message: str = "",
+    **fields: object,
+) -> None:
+    if diagnostics is None:
+        return
+    try:
+        diagnostics.event(event, level=level, message=message, **fields)
+    except (OSError, RuntimeError, ValueError):
+        # Supplemental observability may never become a new Core failure.
+        return
+
+
+def _diagnostic_exception(
+    diagnostics: ProcessDiagnostics | None,
+    event: str,
+    error: BaseException,
+    *,
+    level: int = logging.ERROR,
+    **fields: object,
+) -> None:
+    if diagnostics is None:
+        return
+    try:
+        diagnostics.exception(event, error, level=level, **fields)
+    except (OSError, RuntimeError, ValueError):
+        return
+
+
+def _open_core_diagnostics(elfie_home: Path) -> ProcessDiagnostics | None:
+    diagnostics: ProcessDiagnostics | None = None
+    try:
+        diagnostics = ProcessDiagnostics(
+            elfie_home,
+            role="core",
+            source_revision=os.environ.get("ELFIENEST_SOURCE_REVISION"),
+        )
+        diagnostics.configure_root_warning_log()
+        diagnostics.install_exception_hooks()
+        diagnostics.start_resource_monitor()
+    except (OSError, RuntimeError, ValueError) as error:
+        if diagnostics is not None:
+            _close_diagnostics_safely(diagnostics)
+        print(
+            "  ⚠️ Structured Core diagnostics unavailable "
+            f"({type(error).__name__}); continuing with managed console output"
+        )
+        return None
+    return diagnostics
+
+
+def _close_diagnostics_safely(diagnostics: ProcessDiagnostics) -> None:
+    try:
+        diagnostics.close()
+    except (OSError, RuntimeError, ValueError):
+        return
+
+
+def monitor_engine_progress(
+    engine: Any,
+    failure: EngineFailureSignal,
+    shutdown_requested: threading.Event,
+    diagnostics: ProcessDiagnostics | None,
+    *,
+    monotonic: Callable[[], float] = time.monotonic,
+    poll_seconds: float = ENGINE_MONITOR_POLL_SECONDS,
+    confirmation_seconds: float = ENGINE_STALL_CONFIRMATION_SECONDS,
+    heartbeat_seconds: float = ENGINE_PROGRESS_HEARTBEAT_SECONDS,
+    stall_threshold_seconds: float | None = None,
+) -> None:
+    """Observe Engine progress and publish a confirmed stall as one Core fatal."""
+    stall_threshold = (
+        max(
+            ENGINE_STALL_MINIMUM_SECONDS,
+            ENGINE_STALL_INTERVAL_MULTIPLIER * max(0.0, engine.tick_interval_sec),
+        )
+        if stall_threshold_seconds is None
+        else max(0.0, stall_threshold_seconds)
+    )
+    next_heartbeat = monotonic()
+    suspected_tick: int | None = None
+    suspected_at: float | None = None
+    while not shutdown_requested.wait(max(0.001, poll_seconds)):
+        if failure.is_set():
+            return
+        if not engine.is_running:
+            if engine.stop_requested:
+                return
+            error = RuntimeError(
+                "production Engine loop stopped without a stop request"
+            )
+            if failure.fail(error):
+                _diagnostic_exception(
+                    diagnostics,
+                    "engine_loop_stopped_unexpectedly",
+                    error,
+                    phase="core_ready",
+                )
+            return
+
+        now = monotonic()
+        progress = engine.progress_snapshot()
+        age = engine.progress_age_seconds(now=now)
+        if now >= next_heartbeat:
+            _diagnostic_event(
+                diagnostics,
+                "engine_progress",
+                completed_ticks=progress.completed_ticks,
+                last_progress_age_ms=(None if age is None else max(0, int(age * 1000))),
+                last_tick_duration_ms=(
+                    None
+                    if progress.last_tick_duration_seconds is None
+                    else max(0, int(progress.last_tick_duration_seconds * 1000))
+                ),
+                phase="core_ready",
+            )
+            next_heartbeat = now + max(1.0, heartbeat_seconds)
+
+        if age is None or age < stall_threshold:
+            suspected_tick = None
+            suspected_at = None
+            continue
+        if suspected_tick != progress.completed_ticks:
+            suspected_tick = progress.completed_ticks
+            suspected_at = now
+            _diagnostic_event(
+                diagnostics,
+                "engine_stall_suspected",
+                level=logging.WARNING,
+                completed_ticks=progress.completed_ticks,
+                last_progress_age_ms=max(0, int(age * 1000)),
+                phase="core_ready",
+            )
+            if diagnostics is not None:
+                try:
+                    diagnostics.dump_all_thread_traces(reason="engine_stall_suspected")
+                except (OSError, RuntimeError, ValueError):
+                    pass
+            continue
+        assert suspected_at is not None
+        if now - suspected_at < max(0.0, confirmation_seconds):
+            continue
+        confirmed = engine.progress_snapshot()
+        if confirmed.completed_ticks != suspected_tick:
+            suspected_tick = None
+            suspected_at = None
+            continue
+        error = EngineStalledError(
+            "production Engine did not complete a tick within its stall budget"
+        )
+        if failure.fail(error):
+            _diagnostic_exception(
+                diagnostics,
+                "engine_stalled_fatal",
+                error,
+                phase="core_ready",
+                completed_ticks=confirmed.completed_ticks,
+                last_progress_age_ms=max(0, int((age or 0.0) * 1000)),
+            )
+        return
+
+
+def stop_server_on_engine_failure(
+    failure: EngineFailureSignal,
+    shutdown_requested: threading.Event,
+    server: Any,
+) -> None:
+    """Ask Uvicorn to quiesce only after the Engine guard publishes a fatal."""
+    while not shutdown_requested.is_set():
+        if failure.wait(0.1):
+            if not shutdown_requested.is_set():
+                server.should_exit = True
+            return
 
 
 class RuntimeStartupCleanup:
@@ -174,7 +393,10 @@ class RuntimeStartupCleanup:
         self.optional_lease: Any = None
         self.optional_lease_thread: threading.Thread | None = None
         self.optional_lease_stop = threading.Event()
+        self.monitor_stop = threading.Event()
+        self.monitor_threads: list[threading.Thread] = []
         self.engine_thread: threading.Thread | None = None
+        self.engine: Any = None
         self.godot_build_thread: threading.Thread | None = None
         self.endpoint_sockets: Any = None
         self._cleaned = False
@@ -185,60 +407,140 @@ class RuntimeStartupCleanup:
             return
         self._cleaned = True
         self.optional_lease_stop.set()
+        self.monitor_stop.set()
+
+        if self.engine is not None:
+            try:
+                self.engine.request_stop()
+            except (RuntimeError, ValueError) as error:
+                cleanup_logger.exception(
+                    "Engine stop request failed",
+                    extra={
+                        "diagnostic_event": "engine_stop_request_failed",
+                        "component": "engine",
+                    },
+                )
+                print(f"  ⚠️ Engine stop request failed: {error}")
 
         if self.world_worker is not None:
             try:
                 detail = self.world_worker.stop()
                 if detail:
+                    cleanup_logger.error(
+                        "World cleanup incomplete: %s",
+                        detail,
+                        extra={
+                            "diagnostic_event": "world_cleanup_incomplete",
+                            "component": "world_worker",
+                        },
+                    )
                     print(f"  ⚠️ World cleanup incomplete: {detail}")
             except (OSError, RuntimeError, ValueError) as error:
+                cleanup_logger.exception(
+                    "World cleanup failed",
+                    extra={
+                        "diagnostic_event": "world_cleanup_failed",
+                        "component": "world_worker",
+                    },
+                )
                 print(f"  ⚠️ World cleanup failed: {error}")
 
         if self.optional_lease_thread is not None:
-            self._join_thread(self.optional_lease_thread)
+            self._join_thread(self.optional_lease_thread, "optional_model_lease")
         lease = self.optional_lease
         self.optional_lease = None
         if lease is not None:
             try:
                 lease.release()
             except (OSError, RuntimeError, ValueError) as error:
+                cleanup_logger.exception(
+                    "Local model lease release failed",
+                    extra={
+                        "diagnostic_event": "optional_lease_cleanup_failed",
+                        "component": "optional_model_lease",
+                    },
+                )
                 print(f"  ⚠️ Local Ollama release incomplete: {error}")
 
         if self.world_runtime is not None:
             try:
                 self.lifecycle.stop_runtime_channel(self.world_runtime)
             except (OSError, RuntimeError, ValueError) as error:
+                cleanup_logger.exception(
+                    "Runtime channel cleanup failed",
+                    extra={
+                        "diagnostic_event": "runtime_channel_cleanup_failed",
+                        "component": "runtime_channel",
+                    },
+                )
                 print(f"  ⚠️ Runtime channel cleanup failed: {error}")
 
         if (
             self.engine_thread is not None
             and self.engine_thread is not threading.current_thread()
         ):
-            self._join_thread(self.engine_thread)
+            self._join_thread(self.engine_thread, "engine")
         if (
             self.godot_build_thread is not None
             and self.godot_build_thread is not threading.current_thread()
         ):
-            self._join_thread(self.godot_build_thread)
+            self._join_thread(self.godot_build_thread, "godot_web_build")
+        for monitor_thread in self.monitor_threads:
+            if monitor_thread is not threading.current_thread():
+                self._join_thread(monitor_thread, monitor_thread.name)
 
         if self.endpoint_sockets is not None:
-            self.endpoint_sockets.close()
-            self.endpoint_sockets = None
+            try:
+                self.endpoint_sockets.close()
+            except (OSError, RuntimeError, ValueError) as error:
+                cleanup_logger.exception(
+                    "Endpoint socket cleanup failed",
+                    extra={
+                        "diagnostic_event": "endpoint_socket_cleanup_failed",
+                        "component": "endpoint_sockets",
+                    },
+                )
+                print(f"  ⚠️ Endpoint socket cleanup failed: {error}")
+            finally:
+                self.endpoint_sockets = None
 
         if self.receipt_registered and self.receipt_owned:
             try:
                 self.lifecycle.clear_receipt(self.elfie_home)
             except (OSError, RuntimeError, ValueError) as error:
+                cleanup_logger.exception(
+                    "Service receipt cleanup failed",
+                    extra={
+                        "diagnostic_event": "service_receipt_cleanup_failed",
+                        "component": "service_receipt",
+                    },
+                )
                 print(f"  ⚠️ Service receipt cleanup failed: {error}")
 
     @staticmethod
-    def _join_thread(thread: threading.Thread) -> None:
+    def _join_thread(thread: threading.Thread, component: str) -> None:
         try:
             thread.join(timeout=1.0)
         except RuntimeError:
             # ``Thread.start`` may fail after the cleanup guard has claimed
             # the object; an unstarted thread has no resource to wait for.
+            cleanup_logger.exception(
+                "Background thread could not be joined",
+                extra={
+                    "diagnostic_event": "background_thread_join_failed",
+                    "component": component,
+                },
+            )
             return
+        is_alive = getattr(thread, "is_alive", None)
+        if callable(is_alive) and is_alive():
+            cleanup_logger.error(
+                "Background thread did not stop within 1.0s",
+                extra={
+                    "diagnostic_event": "background_thread_stop_timeout",
+                    "component": component,
+                },
+            )
 
 
 def remaining_occupied_ports(
@@ -348,6 +650,7 @@ def build_server_model_execution_services(db_path: str) -> ModelExecutionService
 
 def main():
     _configure_console_encoding()
+    os.environ["ELFIENEST_PROCESS_ROLE"] = "core"
     parser = _build_argument_parser()
     args = parser.parse_args()
     lifecycle = create_lifecycle_facade()
@@ -370,6 +673,11 @@ def main():
         )
     except DataHomeSelectionError as error:
         parser.error(str(error))
+
+    diagnostics = _open_core_diagnostics(get_elfie_home())
+    _diagnostic_event(diagnostics, "core_process_started", phase="preflight")
+    if diagnostics is not None:
+        atexit.register(_close_diagnostics_safely, diagnostics)
 
     args.port, args.godot_ws_port = select_implicit_service_ports(
         lifecycle,
@@ -438,6 +746,22 @@ def main():
         print(f"  ❌ Cannot register service process: {error}")
         raise SystemExit(1) from None
     start_lease.release()
+    if diagnostics is not None:
+        try:
+            runtime_identity = lifecycle.runtime_snapshot(get_elfie_home())
+            diagnostics.bind_runtime_context(
+                instance_id=runtime_identity.instance_id,
+                generation=runtime_identity.generation,
+                correlation_id=runtime_identity.correlation_id,
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            _diagnostic_exception(
+                diagnostics,
+                "runtime_diagnostic_context_unavailable",
+                error,
+                level=logging.WARNING,
+                phase="preflight",
+            )
 
     automatic_ports = explicit_http_port is None and explicit_godot_ws_port is None
     try:
@@ -473,11 +797,12 @@ def main():
     model_execution_services = build_server_model_execution_services(db_path)
 
     # 3. Start the engine worker thread.
-    engine_holder: dict = {}
-    engine_start_error: dict[str, Exception] = {}
-    engine_ready = threading.Event()
+    engine_holder: dict[str, Any] = {}
+    engine_failure = EngineFailureSignal()
+    engine_constructed = threading.Event()
 
     def engine_worker():
+        engine: Any = None
         try:
             nest_session = build_nest_session_services(
                 db_path,
@@ -493,28 +818,110 @@ def main():
             engine = nest_session.engine
             engine_holder["engine"] = engine
             engine_holder["world_runtime"] = nest_session.world_runtime
+            startup_cleanup.engine = engine
+            engine_constructed.set()
+            _diagnostic_event(
+                diagnostics,
+                "engine_loop_starting",
+                phase="core_starting",
+            )
             engine.start_loop(
                 model_port_factory=nest_session.model_port_factory,
-                ticks_to_run=100000,
+                ticks_to_run=None,
             )
-        except Exception as error:
-            engine_start_error["error"] = error
+            if not engine.stop_requested and not startup_cleanup.monitor_stop.is_set():
+                error = RuntimeError(
+                    "production Engine loop returned without a stop request"
+                )
+                if engine_failure.fail(error):
+                    _diagnostic_exception(
+                        diagnostics,
+                        "engine_loop_stopped_unexpectedly",
+                        error,
+                        phase="core_ready",
+                    )
+        except BaseException as error:
+            expected_shutdown = startup_cleanup.monitor_stop.is_set() or (
+                engine is not None and engine.stop_requested
+            )
+            if expected_shutdown:
+                _diagnostic_exception(
+                    diagnostics,
+                    "engine_shutdown_failed",
+                    error,
+                    level=logging.WARNING,
+                    phase="core_stopping",
+                )
+            elif engine_failure.fail(error):
+                _diagnostic_exception(
+                    diagnostics,
+                    "engine_loop_failed",
+                    error,
+                    phase="core",
+                )
         finally:
-            engine_ready.set()
+            engine_constructed.set()
+            _diagnostic_event(
+                diagnostics,
+                "engine_loop_stopped",
+                phase="core",
+                status="failed" if engine_failure.is_set() else "stopped",
+            )
 
-    engine_thread = threading.Thread(target=engine_worker, daemon=True)
+    engine_thread = threading.Thread(
+        target=engine_worker,
+        name="ElfieNest-Engine",
+        daemon=True,
+    )
     startup_cleanup.engine_thread = engine_thread
     engine_thread.start()
 
-    engine_ready.wait(timeout=5.0)
+    startup_deadline = time.monotonic() + 5.0
+    engine_constructed.wait(timeout=5.0)
     if "engine" not in engine_holder:
-        engine_error = engine_start_error.get("error")
+        engine_error = engine_failure.error
         if engine_error is None:
+            _diagnostic_event(
+                diagnostics,
+                "engine_start_failed",
+                level=logging.ERROR,
+                message="engine construction did not complete within 5 seconds",
+                phase="core_starting",
+            )
             print("❌ Engine failed to become ready within 5s")
         else:
             print(f"❌ Engine failed to become ready: {engine_error}")
         sys.exit(1)
     engine = engine_holder["engine"]
+    remaining_startup_time = max(0.0, startup_deadline - time.monotonic())
+    if not engine.wait_until_running(timeout=remaining_startup_time):
+        engine_error = engine_failure.error
+        if engine_error is None:
+            _diagnostic_event(
+                diagnostics,
+                "engine_start_failed",
+                level=logging.ERROR,
+                message="engine loop did not enter the running state within 5 seconds",
+                phase="core_starting",
+            )
+            print("❌ Engine failed to enter its running state within 5s")
+        else:
+            print(f"❌ Engine failed to become ready: {engine_error}")
+        sys.exit(1)
+    _diagnostic_event(diagnostics, "engine_loop_ready", phase="core_ready")
+    engine_watchdog = threading.Thread(
+        target=monitor_engine_progress,
+        args=(
+            engine,
+            engine_failure,
+            startup_cleanup.monitor_stop,
+            diagnostics,
+        ),
+        name="ElfieNest-Engine-Watchdog",
+        daemon=True,
+    )
+    startup_cleanup.monitor_threads.append(engine_watchdog)
+    engine_watchdog.start()
     print("  ℹ️ Godot Web Runtime is hosted by ElfieNest Desktop hidden window")
 
     # 4. Dynamically load all Elfies from the database.
@@ -568,6 +975,11 @@ def main():
                 ValueError,
                 FrontendPreparationError,
             ) as error:
+                _diagnostic_exception(
+                    diagnostics,
+                    "godot_web_prepare_failed",
+                    error,
+                )
                 print(f"  ⚠️  Godot Web Runtime preparation failed: {error}")
 
         godot_build_thread = threading.Thread(
@@ -596,6 +1008,11 @@ def main():
                 return
             startup_cleanup.optional_lease = lease
         except (OSError, RuntimeError, ValueError) as error:
+            _diagnostic_exception(
+                diagnostics,
+                "optional_component_lease_failed",
+                error,
+            )
             print(f"  ⚠️ Local Ollama did not converge: {error}")
 
     optional_lease_thread = threading.Thread(
@@ -637,25 +1054,65 @@ def main():
         runtime_projection=lambda: runtime_projection_payload(
             lifecycle, get_elfie_home()
         ),
+        diagnostics=diagnostics,
     )
 
     import uvicorn  # noqa: PLC0415
 
+    fatal_exit = False
     try:
         config = uvicorn.Config(
             app,
             host=service_host(args.lan),
             limit_concurrency=100,
             port=args.port,
+            log_config=None,
             log_level="warning",
         )
         server = uvicorn.Server(config)
+        engine_failure_monitor = threading.Thread(
+            target=stop_server_on_engine_failure,
+            args=(engine_failure, startup_cleanup.monitor_stop, server),
+            name="ElfieNest-Engine-Failure-Bridge",
+            daemon=True,
+        )
+        startup_cleanup.monitor_threads.append(engine_failure_monitor)
+        engine_failure_monitor.start()
+        if engine_failure.is_set():
+            server.should_exit = True
+        _diagnostic_event(diagnostics, "core_http_serving", phase="core_ready")
         server.run(sockets=[bound_endpoints.http])
+        fatal_exit = engine_failure.is_set()
     except KeyboardInterrupt:
         print("\nShutting down service...")
+    except BaseException as error:
+        fatal_exit = True
+        _diagnostic_exception(
+            diagnostics,
+            "core_http_server_failed",
+            error,
+            level=logging.CRITICAL,
+            phase="core_ready",
+        )
+        raise
     finally:
+        fatal_exit = fatal_exit or engine_failure.is_set()
+        startup_cleanup.monitor_stop.set()
         startup_cleanup.cleanup()
+        _diagnostic_event(
+            diagnostics,
+            "core_process_stopping",
+            phase="core_stopping",
+            status="failed" if fatal_exit else "stopped",
+        )
         print("Service stopped.")
+    if fatal_exit:
+        engine_error = engine_failure.error
+        print(
+            "❌ Core stopped because the Engine became unhealthy"
+            + ("" if engine_error is None else f": {type(engine_error).__name__}")
+        )
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

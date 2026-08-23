@@ -41,7 +41,9 @@ export interface LifecycleClient {
 export class DesktopRoleController {
   private currentState: DesktopRoleState = { kind: "stopped" };
   private startPromise: Promise<RuntimeAttachment> | undefined;
+  private maintenancePromise: Promise<DesktopRoleState> | undefined;
   private lastRecoveryResult: DataHomeRecoveryResult | undefined;
+  private ownedRuntimeForExit: Extract<RuntimeAttachment, { readonly kind: "owned" }> | undefined;
   private exitRequested = false;
 
   constructor(private readonly lifecycleClient: LifecycleClient) {}
@@ -63,6 +65,7 @@ export class DesktopRoleController {
     const existingStart = this.startPromise;
     if (existingStart !== undefined) {
       this.currentState = await existingStart;
+      this.rememberOwnedRuntime(this.currentState);
       return this.currentState;
     }
     const pending = (async (): Promise<RuntimeAttachment> => {
@@ -89,6 +92,7 @@ export class DesktopRoleController {
         return this.currentState;
       }
       this.currentState = state;
+      this.rememberOwnedRuntime(state);
       return this.currentState;
     } finally {
       if (this.startPromise === pending) {
@@ -130,19 +134,34 @@ export class DesktopRoleController {
   }
 
   async maintainOwnedRuntime(): Promise<DesktopRoleState> {
+    const existingMaintenance = this.maintenancePromise;
+    if (existingMaintenance !== undefined) {
+      return existingMaintenance;
+    }
     if (this.currentState.kind !== "owned") {
       return this.currentState;
     }
-    const recovered = await this.lifecycleClient.recoverOwnedRuntime(
-      this.currentState.ownerLease,
-    );
-    if (recovered.kind === "failed") {
-      return recovered;
+    const ownerLease = this.currentState.ownerLease;
+    const pending = (async (): Promise<DesktopRoleState> => {
+      const recovered = await this.lifecycleClient.recoverOwnedRuntime(ownerLease);
+      if (recovered.kind === "failed") {
+        this.currentState = recovered;
+        return this.currentState;
+      }
+      if (recovered.kind === "owned") {
+        this.currentState = recovered;
+        this.rememberOwnedRuntime(recovered);
+      }
+      return this.currentState;
+    })();
+    this.maintenancePromise = pending;
+    try {
+      return await pending;
+    } finally {
+      if (this.maintenancePromise === pending) {
+        this.maintenancePromise = undefined;
+      }
     }
-    if (recovered.kind === "owned") {
-      this.currentState = recovered;
-    }
-    return this.currentState;
   }
 
   async exitApplication(): Promise<void> {
@@ -167,7 +186,7 @@ export class DesktopRoleController {
           ? this.currentState
           : pendingState?.kind === "owned"
             ? pendingState
-            : undefined;
+            : this.ownedRuntimeForExit;
       if (ownedState !== undefined) {
         await this.lifecycleClient.stopOwnedRuntime(ownedState.ownerLease);
       }
@@ -176,7 +195,14 @@ export class DesktopRoleController {
       // command succeeded. Never leave the controller in an owned state after
       // an explicit quit has been requested.
       this.currentState = { kind: "stopped" };
+      this.ownedRuntimeForExit = undefined;
     }
     if (cleanupError !== undefined) throw cleanupError;
+  }
+
+  private rememberOwnedRuntime(state: DesktopRoleState): void {
+    if (state.kind === "owned") {
+      this.ownedRuntimeForExit = state;
+    }
   }
 }

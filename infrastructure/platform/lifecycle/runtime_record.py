@@ -5,9 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import tempfile
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -30,6 +32,10 @@ from app.orchestration.lifecycle.runtime_snapshot import (
     TimingSnapshot,
 )
 from app.orchestration.lifecycle.types import SnapshotRecoveryRequiredError
+
+_HISTORY_MAX_BYTES = 5 * 1024 * 1024
+_HISTORY_BACKUP_COUNT = 3
+_SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")
 
 
 class FileRuntimeRecordAdapter:
@@ -171,9 +177,74 @@ class FileRuntimeRecordAdapter:
                 json.dump(payload, receipt, ensure_ascii=False, sort_keys=True)
                 receipt.write("\n")
             temporary_path.replace(self._record_path())
+            try:
+                self._append_diagnostic_history(previous, snapshot)
+            except (OSError, TypeError, ValueError):
+                # History is deliberately non-authoritative and may never make
+                # a successful lifecycle snapshot write fail.
+                pass
         except OSError:
             temporary_path.unlink(missing_ok=True)
             raise
+
+    def _append_diagnostic_history(
+        self,
+        previous: RuntimeSnapshotV1 | None,
+        snapshot: RuntimeSnapshotV1,
+    ) -> None:
+        self._paths.logs.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if os.name != "nt":
+            self._paths.logs.chmod(0o700)
+        path = self._paths.logs / "lifecycle-history.jsonl"
+        _rotate_history(path)
+        role = os.environ.get("ELFIENEST_PROCESS_ROLE", "").strip().lower()
+        if not role:
+            role = (
+                "controller"
+                if os.environ.get("ELFIENEST_CONTROLLER_CLIENT") == "1"
+                else "cli"
+            )
+        if role not in {"cli", "core", "controller", "unknown"}:
+            role = "unknown"
+        revision = os.environ.get("ELFIENEST_SOURCE_REVISION", "").strip().lower()
+        payload = {
+            "timestamp": datetime.now(timezone.utc)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z"),
+            "event": "runtime_snapshot_written",
+            "process_role": role,
+            "pid": os.getpid(),
+            "source_revision": (
+                revision if _SOURCE_REVISION.fullmatch(revision) else "unknown"
+            ),
+            "instance_id": snapshot.instance_id,
+            "generation": snapshot.generation,
+            "revision": snapshot.revision,
+            "previous_phase": None if previous is None else previous.phase.value,
+            "phase": snapshot.phase.value,
+            "tier": snapshot.tier.value,
+            "desired_target": snapshot.desired_target.value,
+            "reached_target": (
+                None
+                if snapshot.reached_target is None
+                else snapshot.reached_target.value
+            ),
+            "correlation_id": snapshot.correlation_id,
+            "failure_codes": [failure.code for failure in snapshot.failures],
+            "components": [
+                {
+                    "component": component.component.value,
+                    "state": component.state.value,
+                    "pid": component.pid,
+                }
+                for component in snapshot.components
+            ],
+        }
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            stream.write("\n")
+        if os.name != "nt":
+            path.chmod(0o600)
 
     def _authorize_write(
         self,
@@ -473,6 +544,19 @@ class FileRuntimeRecordAdapter:
             phase=RuntimePhase.RECOVERY_REQUIRED,
             failures=(FailureSnapshot(code=code, detail=detail, phase="preflight"),),
         )
+
+
+def _rotate_history(path: Path) -> None:
+    if not path.exists() or path.stat().st_size < _HISTORY_MAX_BYTES:
+        return
+    for index in range(_HISTORY_BACKUP_COUNT, 0, -1):
+        source = path if index == 1 else path.with_name(f"{path.name}.{index - 1}")
+        target = path.with_name(f"{path.name}.{index}")
+        if not source.exists():
+            continue
+        if target.exists():
+            target.unlink()
+        source.replace(target)
 
 
 def _list_of_dicts(value: Any, field_name: str) -> list[dict[str, Any]]:
