@@ -400,16 +400,15 @@ function startDesktopUiRole(): void {
     .whenReady()
     .then(() => {
       const locale = normalizeApplicationMenuLocale(app.getLocale());
+      const menuTemplate = applicationMenuTemplate(
+        process.platform,
+        showManagementWindow,
+        hideManagementWindow,
+        requestExplicitApplicationExit,
+        locale,
+      );
       Menu.setApplicationMenu(
-        Menu.buildFromTemplate(
-          applicationMenuTemplate(
-            process.platform,
-            showManagementWindow,
-            hideManagementWindow,
-            requestExplicitApplicationExit,
-            locale,
-          ),
-        ),
+        menuTemplate === null ? null : Menu.buildFromTemplate(menuTemplate),
       );
       createBackgroundTray(locale);
       if (!controllerOnly) {

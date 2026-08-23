@@ -18,6 +18,7 @@ test("application menu renders Chinese labels on macOS and preserves Electron ro
     },
     "zh-CN",
   );
+  assert.ok(template);
 
   assert.deepEqual(
     template.map((item) => item.label),
@@ -55,6 +56,7 @@ test("application menu renders English labels on non-macOS and preserves quit be
     },
     "en-US",
   );
+  assert.ok(template);
 
   assert.deepEqual(
     template.map((item) => item.label),
@@ -79,12 +81,13 @@ test("application menu renders English labels on non-macOS and preserves quit be
 test("application menu keeps edit and window role wiring in both locales", () => {
   for (const locale of ["zh-CN", "en-US"] as const) {
     const template = applicationMenuTemplate(
-      "win32",
+      "linux",
       () => undefined,
       () => undefined,
       () => undefined,
       locale,
     );
+    assert.ok(template);
     const editMenu = template[1];
     const windowMenu = template[2];
     assert.ok(editMenu && Array.isArray(editMenu.submenu));
@@ -100,6 +103,21 @@ test("application menu keeps edit and window role wiring in both locales", () =>
         typeof item === "object" && item !== null && "role" in item ? item.role : undefined,
       ),
       ["minimize", undefined],
+    );
+  }
+});
+
+test("application menu is absent on Windows", () => {
+  for (const locale of ["zh-CN", "en-US"] as const) {
+    assert.equal(
+      applicationMenuTemplate(
+        "win32",
+        () => undefined,
+        () => undefined,
+        () => undefined,
+        locale,
+      ),
+      null,
     );
   }
 });

@@ -45,7 +45,8 @@ export function applicationMenuTemplate(
   onHideWindow: () => void,
   onExplicitQuit: () => void,
   locale: ApplicationMenuLocale,
-): MenuItemConstructorOptions[] {
+): MenuItemConstructorOptions[] | null {
+  if (platform === "win32") return null;
   const labels = MENU_LABELS[locale];
   const applicationMenu: MenuItemConstructorOptions =
     platform === "darwin"
