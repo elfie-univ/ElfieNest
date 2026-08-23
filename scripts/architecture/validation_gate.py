@@ -80,14 +80,15 @@ def _commands(
         if no_cache:
             affected_command.append("--no-cache")
         commands.append(("affected tests", affected_command))
-    if int(cast(int, plan["effective_tier"])) >= 2:
+    effective_tier = int(cast(int, plan["effective_tier"]))
+    capabilities = cast(Dict[str, object], plan[capabilities_key])
+    if effective_tier >= 2:
         commands.append(
             (
                 "quality baseline",
                 [uv, "run", "--no-sync", "python", "scripts/check_quality_baseline.py"],
             )
         )
-        capabilities = cast(Dict[str, object], plan[capabilities_key])
         if capabilities["governance"]:
             commands.append(
                 (
@@ -148,8 +149,7 @@ def _commands(
                 )
             )
             commands.append(("documentation build", ["pnpm", "--dir", "docs", "build"]))
-    capabilities = cast(Dict[str, object], plan[capabilities_key])
-    if capabilities["web_frontend"]:
+    if effective_tier >= 2 and capabilities["web_frontend"]:
         frontend = "app/interfaces/web/frontend"
         commands.extend(
             [
@@ -162,7 +162,7 @@ def _commands(
                 ("web frontend build", ["pnpm", "--dir", frontend, "build"]),
             ]
         )
-    if capabilities["desktop"]:
+    if effective_tier >= 2 and capabilities["desktop"]:
         desktop = "app/interfaces/desktop"
         commands.extend(
             [
@@ -173,7 +173,7 @@ def _commands(
                 ("desktop tests", ["pnpm", "--dir", desktop, "test"]),
             ]
         )
-    if capabilities["devtools_web"]:
+    if effective_tier >= 2 and capabilities["devtools_web"]:
         devtools = "devtools/web"
         commands.extend(
             [
@@ -185,7 +185,7 @@ def _commands(
                 ("Developer Tools web build", ["pnpm", "--dir", devtools, "build"]),
             ]
         )
-    if capabilities["godot"]:
+    if effective_tier >= 2 and capabilities["godot"]:
         godot_command = [
             sys.executable,
             "scripts/architecture/validation_test_bundles.py",
@@ -197,7 +197,7 @@ def _commands(
         if no_cache:
             godot_command.append("--no-cache")
         commands.append(("Godot contract tests", godot_command))
-    if capabilities["release"]:
+    if effective_tier >= 2 and capabilities["release"]:
         commands.append(
             (
                 "release metadata contract",

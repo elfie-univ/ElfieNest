@@ -1,11 +1,33 @@
+minimum_pre_commit_version: "3.5.0"
+default_stages: [pre-commit]
+
 repos:
   - repo: local
     hooks:
-      - id: quality-baseline
-        name: Python quality baseline
-        entry: uv run --no-sync python scripts/check_quality_baseline.py
+      - id: staged-diff-check
+        name: Staged diff whitespace check
+        entry: git diff --cached --check --
         language: system
         pass_filenames: false
+
+      - id: staged-python-ruff-check
+        name: Staged Python Ruff check
+        entry: .venv/bin/ruff check
+        language: system
+        types_or: [python, pyi]
+
+      - id: staged-python-ruff-format
+        name: Staged Python Ruff format
+        entry: .venv/bin/ruff format --check
+        language: system
+        types_or: [python, pyi]
+
+      - id: quality-baseline
+        name: Python quality baseline
+        entry: .venv/bin/python3 scripts/check_quality_baseline.py
+        language: system
+        pass_filenames: false
+        stages: [manual]
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1

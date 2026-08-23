@@ -90,23 +90,24 @@ PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-f
 
 ## 受影响验证与完整后盾
 
-先同步远程 `main`，再运行受影响本地验证：
+每个 clone/worktree 初始化时安装一次只处理暂存内容的 commit hook：
 
 ```bash
-git fetch --prune origin main
-bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})"
-# 功能分支推送：使用 --stage push
-# 显式完整或发布重放：使用 --stage full
+bash scripts/architecture/install_git_hooks.sh
 ```
 
-G1（`commit`）检查改动文件和受影响测试；G2（`push`）追加质量基线
-以及受影响的 API、持久化、架构或文档集成检查。普通提交的本地流程到此结束。精确 PR head
-由不可变基础 Manifest 路由，选中 Lane 并行运行并聚合为 `elfienest/ci-gate`；main 单纯前进
-不会使该 head 失效。随后原生 merge queue 对合成提交执行秒级 `elfienest/merge-gate`。
+开发阶段在暂存前运行聚焦测试；`git commit` 随后只检查真实暂存快照：差异空白、锁定版本的
+Gitleaks，以及 staged Python 文件的 Ruff check/format。warm 目标为 20 秒；hook 不运行
+测试、MyPy、pnpm、Godot、fetch 或任何网络操作，也不安装带测试的 pre-push hook。
+
+普通 push 在 hook 通过后立即开始。精确 PR head 由不可变基础 Manifest 路由；security-fast、
+受影响 Python 测试、全仓 Python quality baseline 和其他选中 Lane 并行运行并聚合为
+`elfienest/ci-gate`。main 单纯前进不会使该 head 失效；随后原生 merge queue 对合成提交执行
+秒级 `elfienest/merge-gate`。`--stage commit` 只保留为显式、可复用的本地 checkpoint，
+`--stage push` 是可选的受影响集成重放，两者都不是普通 push 前置条件。
 
 成功的确定性测试检查按命令、作用域输入内容与文件模式、所需不可变基础提交和本机工具计算，
-不按交付级别重复记账，因此 G2 会复用 G1 已通过且未变化的聚焦测试。合并后/发布完整 pytest 后盾
+不按交付级别重复记账。合并后/发布完整 Python 后盾
 拆为 `app`、`architecture`、`devtools`、`e2e`、`elfie`、`godot`、`infrastructure`、
 `nest` 和 `scripts` 九个已注册顶层包。它只运行缺失或失效的包；包输入包含测试和共享
 `conftest.py` 的本地 Python 传递 import，只有通过记录、覆盖率片段摘要/版本和可读覆盖率
@@ -136,8 +137,10 @@ G1（`commit`）检查改动文件和受影响测试；G2（`push`）追加质�
 `build/validation-cache/`，不能替代新 commit SHA 的 CI。
 
 选中预合并 Lane 或 merge gate 失败时不得合并。未知、治理、工具链和锁文件改动通过选择
-全部 Lane fail-closed。完整 G3 在 main 后、显式 `--stage full` 和发布时运行；最新 main
-为红时隔离普通合并，直到恢复。
+全部 Lane fail-closed。main 合并后的完整后盾不再串行重跑本地式脚本，而是全选并行 CI
+Lane：Python 测试包与 quality、Web、Desktop、Developer Tools、架构、持久化、Godot、
+文档、工具链、发布和 Runtime smoke。main 的每条 Lane 使用两个不可取消的奇偶槽，保留
+正在运行的工作并合并过期 pending tip。最新 main 为红时隔离普通合并，直到恢复。
 
 ### 失败修复阶梯
 

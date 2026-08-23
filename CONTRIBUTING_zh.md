@@ -135,27 +135,29 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 重复一遍；应在宿主或提升权限的环境中把同一条全量命令只运行一次。返回 `1` 表示预检
 本身出现未预期错误，必须先诊断。
 
-提交前先同步远程基础提交，再执行受影响本地验证：
+每个 clone/worktree 初始化时安装一次仓库管理的 hook：
 
 ```bash
-git fetch --prune origin main
-bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})"
-# 功能分支推送：把 commit 替换成 push
-# 显式完整/发布重放：把 commit 替换成 full
+bash scripts/architecture/install_git_hooks.sh
 ```
 
-G1（`commit`）执行改动文件检查和受影响测试；G2（`push`）追加质量基线和受影响集成检查。
-把精确候选推到 Pull Request；不能只因 main 前进就合入/rebase 移动主线。GitHub 并行执行
-security-fast 和不可变基础 Manifest 选择的 Lane；`elfienest/ci-gate` 是候选聚合结果。
-分支保护只要求跨事件稳定的 `elfienest/merge-gate`：Pull Request 上它等待候选聚合，原生
-merge queue 中它只对合成提交执行秒级检查。
+开发期间只运行由改动行为实际触发的聚焦测试或类型检查。每次 `git commit` 随后对真实暂存
+快照执行 `git diff --cached --check`、锁定版本的 Gitleaks，以及 staged Python Ruff
+check/format。warm hook 目标为 20 秒，不运行测试、MyPy、pnpm、Godot、fetch 或网络操作；
+不得安装带测试的 pre-push 门禁。
 
-完整 G3 不属于普通提交前置条件；它只在 main push 后、显式 `--stage full` 和发布验收时执行。
-未知、治理和工具链改动会选择全部预合并 Lane，不会静默跳过。确定性通过按命令、作用域输入和
-工具记账，不按交付阶段重复；窄 node/文件不能证明更大的测试包，本地缓存也不能替代绑定新
-候选 SHA 的 CI。选中预合并 Lane 或 merge gate 失败时不得合并；合并后完整后盾失败会隔离
-普通合并，直到聚焦恢复或回滚使 main 重新变绿。
+hook 通过后立即推送功能分支。精确 PR head 才是权威候选：GitHub 并行执行 security-fast、
+受影响 Python 测试、全仓 Python quality baseline，以及不可变基础 Manifest 选中的其他
+Lane；`elfienest/ci-gate` 聚合结果，再由跨事件稳定的 `elfienest/merge-gate` 报告给分支
+保护。原生 merge queue 只执行秒级合成提交身份检查。不能只因 main 前进就合入/rebase
+移动主线。
+
+`scripts/pre_submit_gate.sh --stage commit` 只保留为显式、可复用的本地 checkpoint；
+`--stage push` 是离线诊断时可选的受影响集成重放，两者都不是普通 push 前置条件。完整后盾
+在 main push 后及显式 full/发布验证时把全部 Lane 并行展开。未知、治理和工具链改动会全选
+预合并 Lane。窄 node/文件不能证明更大的测试包，本地缓存也不能替代绑定新候选 SHA 的 CI。
+选中 Lane 或 merge gate 失败时不得交付；最新 main 的完整后盾失败会隔离普通合并，直到
+聚焦恢复或回滚使 main 重新变绿。
 
 如果本地测试结果需要被后续门禁复用，应通过受控运行器执行：
 

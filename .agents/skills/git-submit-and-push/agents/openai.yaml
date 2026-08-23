@@ -1,4 +1,4 @@
 interface:
-  display_name: "Git 提交、推送与队列合并"
-  short_description: "用 Git 与 gh 稳定完成提交、推送、认证恢复和队列合并"
-  default_prompt: "使用 $git-submit-and-push 按我的明确授权完成本地提交、功能分支推送或受保护主线队列合并，并处理 Git/gh 认证与临时网络故障。"
+  display_name: "GitHub 队列交付与恢复"
+  short_description: "稳定完成分支推送、队列合并与 Git/gh 故障恢复"
+  default_prompt: "使用 $git-submit-and-push 完成已授权的功能分支推送或受保护主线队列合并，并在 Git/gh 出错时做有界恢复。"

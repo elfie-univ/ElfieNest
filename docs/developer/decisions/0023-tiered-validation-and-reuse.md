@@ -1,8 +1,8 @@
 # ADR-0023: Tiered validation and check-scoped evidence reuse
 
-- **Status:** Accepted; protected-main G3 requirement partially superseded by ADR-0027
+- **Status:** Partially superseded by ADR-0027; check-scoped evidence reuse remains active
 - **Date:** 2026-08-16
-- **Revised:** 2026-08-22
+- **Revised:** 2026-08-23
 - **Scope:** local commit, feature-branch push and protected-main validation
 
 ## Context
@@ -14,25 +14,27 @@ the immutable-base or protected-main checks.
 
 ## Decision
 
-ADR-0027 supersedes only this record's requirement that every protected-main
-merge wait for a complete G3. Local affected validation, check-scoped evidence
-identity and reusable full-test bundles remain active. The complete G3 now runs
-after main acceptance and for manual/release validation.
+ADR-0027 supersedes both the protected-main G3 prerequisite and the requirement
+to map every ordinary commit/push action to a mandatory local G1/G2 tier. The
+check-scoped evidence identity, controlled affected-test runner and reusable
+full-test bundles in this record remain active.
 
-- Select G1 commit or G2 push validation from the requested Git action and
-  changed paths; do not ask a user or agent to assign a subjective task-size
-  label. Unknown executable, governance, toolchain, lockfile and delivery
-  changes fail closed by selecting every exact-candidate CI lane; they do not
-  start the complete repository locally merely because a push begins.
+- Use a repository-managed pre-commit hook for the real staged snapshot. It
+  runs diff whitespace, pinned Gitleaks and staged Python Ruff only, targets a
+  warm duration of 20 seconds, and performs no tests, MyPy, Node, Godot, fetch
+  or network work. Do not add a test-bearing pre-push hook.
+- Keep `--stage commit` as an explicit reusable local checkpoint and
+  `--stage push` as an optional affected-integration replay. Neither command is
+  an ordinary feature push prerequisite. Local development selects focused
+  checks from changed behavior, not from a subjective task-size label.
+- Move authoritative candidate selection to immutable-base CI. Python changes
+  select affected test bundles and the independent full Python quality lane in
+  parallel; unknown executable, governance, toolchain, lockfile and delivery
+  changes select every exact-candidate lane fail-closed.
 - Treat every root or nested `AGENTS.md` as governance input. Local affected
   validation selects only its direct governance and architecture checks, while
   the exact PR candidate still selects every lane. A rule-only edit under a
   product directory therefore cannot start that product's local test suite.
-- G1 runs changed-file diff/secret/quality checks and deterministic affected
-  tests. G2 adds the quality baseline and affected API, persistence,
-  architecture or documentation integration checks. Full mode keeps the
-  existing complete `pre_submit_gate.sh` backstop for post-submit, manual and
-  release execution.
 - Treat a tier as a set of required checks, not as part of a test check's identity.
   Key reusable deterministic test checks by their command, scoped input contents and
   modes, relevant immutable base, and local tools. This lets G2 consume a G1
@@ -67,13 +69,11 @@ after main acceptance and for manual/release validation.
 
 ## Consequences
 
-Ordinary commits complete with focused feedback, while Provider/model changes
-select their API, persistence and validation tests instead of the whole suite.
-Validation follows changed behavior and the requested Git action rather than a
-manually assigned task size. Nested agent-rule edits remain governance-only in
-the local loop and fail closed across all exact-candidate lanes remotely.
-An unchanged test package passed during implementation is no longer repeated at
-commit, push or full backstop merely because the stage changed. Narrow repair
+Ordinary commits stay seconds-long and ordinary pushes no longer wait for a
+second local integration stage. Provider/model changes still select their API,
+persistence and validation tests, while Python quality runs independently on
+the same exact PR head. An unchanged test package passed during development is
+not repeated merely because an explicit local stage name changed. Narrow repair
 checks stay narrow and cannot satisfy broader coverage. Governance and unknown
-changes remain fail-closed through all selected candidate lanes. Latest-SHA CI
+changes remain fail-closed through all candidate lanes, and latest-SHA CI
 remains mandatory for protected delivery.

@@ -830,15 +830,18 @@ def test_affected_python_job_installs_devtools_frontend_dependencies() -> None:
     assert "pnpm install --frozen-lockfile" in python_job
 
 
-def test_ci_runs_complete_architecture_once_premerge_and_full_only_postsubmit() -> None:
+def test_ci_runs_complete_architecture_once_in_each_selected_graph() -> None:
     workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     architecture_job = workflow.split("  architecture-governance:", maxsplit=1)[
         1
     ].split("  persistence-contract:", maxsplit=1)[0]
-    postsubmit_job = workflow.split("  postsubmit-full:", maxsplit=1)[1]
+    full_gate = workflow.split("  full-gate:", maxsplit=1)[1]
     pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert architecture_job.count("pytest test/architecture/") == 1
-    assert "--stage full --direct-full" in postsubmit_job
+    assert "Require every full-validation lane" in full_gate
+    assert "architecture-governance" in full_gate
+    assert "web-frontend" in full_gate
+    assert "python-quality" in full_gate
     assert "uv run --no-sync pytest --cov" not in workflow
     assert 'testpaths = ["test"]' in pyproject

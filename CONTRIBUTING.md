@@ -174,33 +174,35 @@ the full suite there and then repeat it; run the same full command once in a
 host or elevated environment. A return code of `1` is an unexpected probe
 failure and must be diagnosed first.
 
-Use affected local validation after fetching the remote base:
+Install the repository-managed hook once per clone/worktree setup:
 
 ```bash
-git fetch --prune origin main
-bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})"
-# feature-branch push: replace commit with push
-# explicit full/release replay: replace commit with full
+bash scripts/architecture/install_git_hooks.sh
 ```
 
-G1 (`commit`) runs changed-file checks and affected tests. G2 (`push`) adds the
-quality baseline and affected integration checks. Push the exact candidate to a
-Pull Request; do not merge/rebase a moving main merely because it advanced.
-GitHub executes security-fast and the immutable-base manifest's selected lanes
-in parallel. `elfienest/ci-gate` is the candidate aggregate. Branch protection
-requires the event-stable `elfienest/merge-gate`: it waits for that aggregate on
-the Pull Request and performs only a seconds-long synthetic-merge check in the
-native merge queue.
+During development, run only the focused tests or type checks justified by the
+changed behavior. Every `git commit` then checks the real staged snapshot with
+`git diff --cached --check`, pinned Gitleaks, and staged-file Ruff check/format.
+The warm hook target is 20 seconds and it never runs tests, MyPy, pnpm, Godot,
+fetch, or network operations. Do not install a pre-push test gate.
 
-The complete G3 is deliberately outside ordinary submission. It runs after a
-main push, on explicit `--stage full`, and for release acceptance. Unknown,
-governance and toolchain changes select every premerge lane instead of silently
-skipping checks. Deterministic passes remain keyed by command, scoped inputs and
-tools rather than by delivery stage, so unchanged evidence can be reused. A
-narrower node/file never proves a larger bundle, and local cache never replaces
-CI attached to a new candidate SHA. If a selected premerge lane or merge gate
-fails, do not merge; a post-submit full failure quarantines ordinary merges
+After the hook passes, push the feature branch immediately. The exact PR head
+is authoritative: GitHub runs security-fast, affected Python tests, the
+repository Python quality baseline, and every other lane selected by the
+immutable-base manifest in parallel. `elfienest/ci-gate` aggregates those
+results and the event-stable `elfienest/merge-gate` reports them to branch
+protection. The native merge queue then runs only the seconds-long synthetic
+merge identity check. Do not merge/rebase a moving main merely because it
+advanced.
+
+`scripts/pre_submit_gate.sh --stage commit` remains an explicit reusable local
+checkpoint; `--stage push` is an optional affected-integration replay for
+offline diagnosis. Neither is an ordinary push prerequisite. The complete
+backstop fans out every lane after a main push and for explicit full/release
+validation. Unknown, governance and toolchain changes select every premerge
+lane. A narrower node/file never proves a larger bundle, and local cache never
+replaces CI attached to a new candidate SHA. A selected lane or merge-gate
+failure blocks delivery; a newest-main full failure quarantines ordinary merges
 until a focused recovery or revert restores green main.
 
 Use the controlled runner when a local test result should be reusable by a
