@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterator, Mapping, Optional, Sequence, Tuple
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 RULE_VERSION = "tiered-validation-v5"
 CACHE_ENVIRONMENT_KEYS = (
     "CI",

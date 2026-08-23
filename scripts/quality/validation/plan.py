@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence
 
 PROJECT_ROOT = Path(
-    os.environ.get("ELFIENEST_PROJECT_ROOT", Path(__file__).resolve().parents[2])
+    os.environ.get("ELFIENEST_PROJECT_ROOT", Path(__file__).resolve().parents[3])
 ).resolve()
 
 MANIFEST_SCHEMA_VERSION = "affected-v2"
@@ -55,11 +55,11 @@ GOVERNANCE_EXACT = frozenset(
         ".quality-baseline.json",
         "CONTRIBUTING.md",
         "CONTRIBUTING_zh.md",
-        "scripts/check_node_toolchain.sh",
-        "scripts/check_quality_baseline.py",
-        "scripts/check_quality_environment.py",
-        "scripts/check_release_version.py",
-        "scripts/godot_host_validate.sh",
+        "scripts/quality/checks/node_toolchain.sh",
+        "scripts/quality/checks/python_baseline.py",
+        "scripts/quality/checks/environment.py",
+        "scripts/quality/checks/release_version.py",
+        "scripts/quality/checks/godot_host.sh",
         "scripts/pre_submit_gate.sh",
     }
 )
@@ -69,7 +69,7 @@ TOOLCHAIN_EXACT = frozenset(
         "package.json",
         "pnpm-lock.yaml",
         "pyproject.toml",
-        "scripts/check_node_toolchain.sh",
+        "scripts/quality/checks/node_toolchain.sh",
         "uv.lock",
     }
 )

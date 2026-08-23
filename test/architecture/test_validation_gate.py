@@ -7,15 +7,15 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
-import scripts.architecture.validation_cache as validation_cache
-import scripts.architecture.validation_gate as validation_gate
-import scripts.architecture.validation_plan as validation_plan
-from scripts.architecture.validation_cache import (
+import scripts.quality.validation.cache as validation_cache
+import scripts.quality.validation.gate as validation_gate
+import scripts.quality.validation.plan as validation_plan
+from scripts.quality.validation.cache import (
     backstop_fingerprint,
     cache_hit,
     cache_store,
 )
-from scripts.architecture.validation_gate import _commands, build_plan
+from scripts.quality.validation.gate import _commands, build_plan
 
 
 def test_provider_changes_select_the_affected_suite_at_push_tier() -> None:
@@ -112,7 +112,7 @@ def test_router_and_workflow_changes_cannot_approve_themselves() -> None:
     plan = build_plan(
         [
             ".github/workflows/ci.yml",
-            "scripts/architecture/validation_plan.py",
+            "scripts/quality/validation/plan.py",
         ],
         "push",
     )
@@ -134,7 +134,7 @@ def test_router_and_workflow_changes_cannot_approve_themselves() -> None:
     assert governance_command[-3:] == [
         "--paths",
         ".github/workflows/ci.yml",
-        "scripts/architecture/validation_plan.py",
+        "scripts/quality/validation/plan.py",
     ]
 
 
@@ -243,6 +243,7 @@ def test_ci_uses_the_base_branch_router_and_fails_closed_during_bootstrap() -> N
         encoding="utf-8"
     )
 
+    assert "$base_sha:scripts/quality/validation/plan.py" in workflow
     assert "$base_sha:scripts/architecture/validation_plan.py" in workflow
     assert "base branch predates the trusted router; selecting every lane" in workflow
     assert "affected-v(1|2)" in workflow
@@ -267,7 +268,7 @@ def test_command_selection_keeps_g1_focused_and_adds_g2_quality() -> None:
         for label, command in _commands(commit_plan, "base")
         if label == "affected tests"
     )
-    assert "scripts/architecture/validation_test_bundles.py" in affected_command
+    assert "scripts/quality/validation/test_bundles.py" in affected_command
     assert "--selectors" in affected_command
 
 

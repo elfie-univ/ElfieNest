@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Tuple
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SCANNED_SOURCE_ROOTS = (
     "app",
     "devtools",
@@ -186,7 +186,7 @@ def sql_boundary_violations(inventory: DatabaseInventory) -> Tuple[str, ...]:
     for reference in inventory.references:
         if reference.path.startswith("test/"):
             continue
-        if reference.path.startswith("scripts/architecture/"):
+        if reference.path.startswith("scripts/governance/"):
             continue
         if any(reference.path.startswith(root) for root in ALLOWED_SQL_ROOTS):
             continue

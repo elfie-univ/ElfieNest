@@ -4,7 +4,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="${1:-$(dirname "$SCRIPT_DIR")}"
+PROJECT_ROOT="${1:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 EXPECTED_PNPM="pnpm@10.12.1"
 EXPECTED_NODE_ENGINE=">=20"
 

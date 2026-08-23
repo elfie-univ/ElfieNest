@@ -4,9 +4,9 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PRE_COMMIT_BIN="$PROJECT_ROOT/.venv/bin/pre-commit"
-HOOK_TEMPLATE="$SCRIPT_DIR/git-hooks/pre-commit"
+HOOK_TEMPLATE="$SCRIPT_DIR/pre-commit"
 
 if ! git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "Git hooks skipped: $PROJECT_ROOT is not a Git worktree."

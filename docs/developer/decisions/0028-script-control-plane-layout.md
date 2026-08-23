@@ -46,3 +46,10 @@ from quality execution, and internal means a compatibility boundary rather
 than secrecy or a prohibition on repository-owned calls. The migration needs
 multiple independently classified Pull Requests, but ordinary delivery remains
 unchanged and no long-lived legacy path survives the cutover.
+
+## Cutover status
+
+The candidate tree now uses the target layout exclusively. Its CI and local
+full-gate code may read legacy scanners from the immutable base commit only
+while this physical move is being judged; that base-only lookup is removed in
+the follow-up cleanup after the new layout reaches protected main.

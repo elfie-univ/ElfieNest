@@ -23,7 +23,7 @@ Database changes are protected by three independent layers:
 1. `infrastructure/persistence/AGENTS.md` requires a pre-change impact
    inventory, explicit lifecycle and failure analysis, and separation of
    database work from product/UI/runtime changes.
-2. `scripts/architecture/database_change_scan.py` provides a read-only
+2. `scripts/governance/persistence/scan.py` provides a read-only
    inventory of schema objects and SQL consumers. It is the required first
    review command; it must be rerun after the change so the complete consumer
    surface is visible.

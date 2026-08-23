@@ -1,6 +1,6 @@
 # 应用架构契约
 
-**契约版本：** 1.9
+**契约版本：** 1.10
 **采用日期：** 2026-08-15
 **适用范围：** `app/`，以及位于根 `infrastructure/` 的 App Adapter
 
@@ -302,12 +302,12 @@ API 资源、版本和 DTO 细则由 `app/interfaces/api/AGENTS.md` 进一步规
 
 ## 机器约束与变更验收
 
-`scripts/architecture/app_layer_scan.py` 扫描依赖图、Feature 隔离、组合边界、Route
+`scripts/governance/boundaries/app_layers.py` 扫描依赖图、Feature 隔离、组合边界、Route
 模型和部分公开类型规则；`test/architecture/test_app_layer_boundaries.py` 保护扫描器及
 周边契约。Scanner 永久以 deny-all 模式运行，不使用 App 旧债基线；任何检测条目都
 直接失败。
 
-`scripts/architecture/effective_dependency_scan.py` 还会扫描仓库自有的 Python、
+`scripts/governance/boundaries/effective_dependencies/scan.py` 还会扫描仓库自有的 Python、
 Node、Godot 和 Shell 执行表面，解析动态模块和脚本目标。它复用本契约的依赖矩阵，
 没有旧债基线，并永久以 deny-all 模式运行。
 

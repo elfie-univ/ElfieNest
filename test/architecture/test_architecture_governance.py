@@ -9,8 +9,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Optional, Set
 
-import scripts.architecture.check_governance_change as governance_change
-from scripts.architecture.check_governance_change import (
+import scripts.governance.change_policy as governance_change
+from scripts.governance.change_policy import (
     ConformanceRow,
     classify_paths,
     has_closure_ready_marker,
@@ -23,7 +23,7 @@ from scripts.architecture.check_governance_change import (
     validate_governance_rule_changes,
     validate_temporary_cleanup_changes,
 )
-from scripts.architecture.contract_registry import CONTRACT_REGISTRY
+from scripts.governance.contract_registry import CONTRACT_REGISTRY
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -250,7 +250,7 @@ def test_governance_checker_supports_the_documented_direct_cli() -> None:
     result = subprocess.run(
         [
             sys.executable,
-            "scripts/architecture/check_governance_change.py",
+            "scripts/governance/change_policy.py",
             "--help",
         ],
         cwd=PROJECT_ROOT,
@@ -317,7 +317,7 @@ def test_newly_closed_conformance_requires_inventory_and_reference_evidence(
 ) -> None:
     english = "docs/developer/conformance/example.md"
     chinese = "docs/zh/developer/conformance/example.md"
-    registry = "scripts/architecture/contract_registry.py"
+    registry = "scripts/governance/contract_registry.py"
     registry_source = f'conformance_paths=("{english}", "{chinese}")\n'
     for path, source in (
         (
@@ -397,7 +397,7 @@ def test_conformance_removal_is_checked_against_the_base_register(
 ) -> None:
     english = "docs/developer/conformance/example.md"
     chinese = "docs/zh/developer/conformance/example.md"
-    registry = "scripts/architecture/contract_registry.py"
+    registry = "scripts/governance/contract_registry.py"
     base_registry = f'conformance_paths=("{english}", "{chinese}")\n'
     candidate_registry = tmp_path / registry
     candidate_registry.parent.mkdir(parents=True)
@@ -450,7 +450,7 @@ def test_closed_conformance_evidence_cannot_be_weakened(
 ) -> None:
     english = "docs/developer/conformance/example.md"
     chinese = "docs/zh/developer/conformance/example.md"
-    registry = "scripts/architecture/contract_registry.py"
+    registry = "scripts/governance/contract_registry.py"
     registry_source = f'conformance_paths=("{english}", "{chinese}")\n'
     complete = (
         "target=contract-1; inventory=scope-list; references=callers-scan; "
@@ -489,7 +489,7 @@ def test_open_conformance_row_cannot_disappear_from_a_live_register(
 ) -> None:
     english = "docs/developer/conformance/example.md"
     chinese = "docs/zh/developer/conformance/example.md"
-    registry = "scripts/architecture/contract_registry.py"
+    registry = "scripts/governance/contract_registry.py"
     registry_source = f'conformance_paths=("{english}", "{chinese}")\n'
     for path, source in (
         (english, "| EX-002 | P0 | open | gap | gate | pending |\n"),
@@ -600,13 +600,13 @@ def test_quality_gate_definitions_are_governance_but_baseline_can_shrink() -> No
         {
             ".pre-commit-config.yaml",
             ".quality-baseline.json",
-            "scripts/check_quality_baseline.py",
+            "scripts/quality/checks/python_baseline.py",
             "app/features/setup/service.py",
         }
     )
     assert governance == {
         ".pre-commit-config.yaml",
-        "scripts/check_quality_baseline.py",
+        "scripts/quality/checks/python_baseline.py",
     }
     assert production == {
         ".quality-baseline.json",
@@ -680,8 +680,8 @@ def test_governance_artifacts_take_precedence_over_implementation_roots() -> Non
     governance, production = classify_paths(
         {
             ".github/workflows/ci.yml",
-            "scripts/architecture/effective_dependency_scan.py",
-            "scripts/check_quality_baseline.py",
+            "scripts/governance/boundaries/effective_dependencies/scan.py",
+            "scripts/quality/checks/python_baseline.py",
             "test/architecture/test_effective_dependency_boundaries.py",
             "test/architecture/baselines/app_layer.py",
             "test/architecture/baselines/__init__.py",
@@ -690,8 +690,8 @@ def test_governance_artifacts_take_precedence_over_implementation_roots() -> Non
 
     assert governance == {
         ".github/workflows/ci.yml",
-        "scripts/architecture/effective_dependency_scan.py",
-        "scripts/check_quality_baseline.py",
+        "scripts/governance/boundaries/effective_dependencies/scan.py",
+        "scripts/quality/checks/python_baseline.py",
         "test/architecture/baselines/__init__.py",
         "test/architecture/test_effective_dependency_boundaries.py",
     }
@@ -812,14 +812,14 @@ def test_baseline_package_marker_is_governance_not_a_legacy_baseline() -> None:
 
 def test_executable_governance_rule_change_requires_bilingual_adr_update() -> None:
     failures = validate_governance_rule_changes(
-        {"scripts/architecture/system_layer_scan.py"}
+        {"scripts/governance/boundaries/system_layers.py"}
     )
     assert any("without a bilingual ADR update" in failure for failure in failures)
 
     assert (
         validate_governance_rule_changes(
             {
-                "scripts/architecture/system_layer_scan.py",
+                "scripts/governance/boundaries/system_layers.py",
                 "docs/developer/decisions/0004-rule-change.md",
                 "docs/zh/developer/decisions/0004-rule-change.md",
             }
@@ -830,19 +830,36 @@ def test_executable_governance_rule_change_requires_bilingual_adr_update() -> No
 
 def test_architecture_ratchet_uses_the_immutable_base_router() -> None:
     workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    local_gate = (PROJECT_ROOT / "scripts/pre_submit_gate.sh").read_text(
+        encoding="utf-8"
+    )
     preflight = workflow.split("  security-fast:", maxsplit=1)[0]
     architecture_job = workflow.split("  architecture-governance:", maxsplit=1)[
         1
     ].split("  persistence-contract:", maxsplit=1)[0]
 
     assert "github.event.pull_request.base.sha" in preflight
+    assert "$base_sha:scripts/quality/validation/plan.py" in preflight
     assert "$base_sha:scripts/architecture/validation_plan.py" in preflight
     assert "base branch predates the trusted router; selecting every lane" in preflight
+    assert "$BASE_SHA:scripts/governance/change_policy.py" in architecture_job
     assert (
-        "$BASE_SHA:scripts/architecture/check_governance_change.py" in architecture_job
+        'classifier_path="scripts/architecture/check_governance_change.py"'
+        in architecture_job
     )
-    assert "$BASE_SHA:scripts/architecture/structural_scope_scan.py" in architecture_job
+    assert (
+        'structural_path="scripts/governance/boundaries/structural_scope.py"'
+        in architecture_job
+    )
+    assert (
+        'structural_path="scripts/architecture/structural_scope_scan.py"'
+        in architecture_job
+    )
+    assert 'git show "$BASE_SHA:$classifier_path"' in architecture_job
     assert 'PYTHONPATH="$classifier_root"' in architecture_job
+    assert 'PYTHONPATH="$base_root"' in local_gate
+    assert 'run_immutable_base_python "$classifier_root"' in local_gate
+    assert 'run_immutable_base_python "$scanner_root"' in local_gate
 
 
 def test_affected_python_job_installs_devtools_frontend_dependencies() -> None:

@@ -8,20 +8,20 @@ from collections import defaultdict
 from pathlib import Path
 from typing import DefaultDict, Dict, FrozenSet, Iterator, List, Mapping, Set
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
 project_root_text = str(PROJECT_ROOT)
 if project_root_text not in sys.path:
     sys.path.insert(0, project_root_text)
 
-from scripts.architecture.effective_dependency_python import (  # noqa: E402
+from scripts.governance.boundaries.effective_dependencies.python import (  # noqa: E402
     python_dependencies,
     unresolved_python_dependencies,
 )
-from scripts.architecture.effective_dependency_targets import (
+from scripts.governance.boundaries.effective_dependencies.targets import (
     REPOSITORY_ROOTS,
     SOURCE_SUFFIXES,
 )  # noqa: E402
-from scripts.architecture.effective_dependency_text import (
+from scripts.governance.boundaries.effective_dependencies.text import (
     godot_dependencies,
     node_dependencies,
     shell_dependencies,

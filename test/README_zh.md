@@ -49,10 +49,10 @@ uv sync --locked --extra dev
 会产生合并后/发布完整后盾使用的同一份带覆盖率证据：
 
 ```bash
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --base-sha "$(git rev-parse origin/main^{commit})" \
   --selectors test/elfie/brain/
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --bundle architecture
 ```
 
@@ -63,8 +63,8 @@ uv sync --locked --extra dev
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py --all
+  uv run --no-sync python scripts/quality/checks/environment.py
+.venv/bin/python3 scripts/quality/validation/test_bundles.py --all
 ```
 
 先运行预检。退出码 `2` 表示当前沙箱无法绑定网关测试使用的回环端口；应在允许绑定的

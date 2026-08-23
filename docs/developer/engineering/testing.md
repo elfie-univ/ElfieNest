@@ -7,7 +7,7 @@ host can bind a loopback socket:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
+  uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 The preflight does not skip or downgrade any test. It returns:
@@ -77,9 +77,9 @@ assertion change or a silent loss of a product feature.
 ## Architecture-governance checks
 
 ```bash
-uv run --no-sync python scripts/architecture/app_layer_scan.py \
+uv run --no-sync python scripts/governance/boundaries/app_layers.py \
   --project-root . --mode deny-all
-uv run --no-sync python scripts/architecture/system_layer_scan.py \
+uv run --no-sync python scripts/governance/boundaries/system_layers.py \
   --project-root . --mode deny-all
 uv run --no-sync pytest test/architecture/
 ```
@@ -95,7 +95,7 @@ judges itself. See the
 ## Quality gate
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/check_quality_baseline.py
+UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/quality/checks/python_baseline.py
 PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
 ```
 
@@ -108,7 +108,7 @@ rewriting the baseline.
 Install the staged-only commit hook once per clone/worktree setup:
 
 ```bash
-bash scripts/architecture/install_git_hooks.sh
+bash scripts/quality/hooks/install.sh
 ```
 
 Development runs focused tests before staging. `git commit` then checks only
@@ -142,10 +142,10 @@ and resumes with the failed or still-missing bundle.
 Run reusable focused or complete-bundle checks through the controlled runner:
 
 ```bash
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --base-sha "$(git rev-parse origin/main^{commit})" \
   --selectors test/app/features/setup/
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --bundle godot
 ```
 

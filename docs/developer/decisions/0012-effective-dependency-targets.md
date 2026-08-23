@@ -18,7 +18,7 @@ Repository-module targets that can be resolved from Python, Node, Godot or shell
 execution surfaces are effective dependencies. They follow the same caller-to-
 target ownership matrix as static imports.
 
-`scripts/architecture/effective_dependency_scan.py` therefore:
+`scripts/governance/boundaries/effective_dependencies/scan.py` therefore:
 
 - classifies callers and targets by their architectural owner across the whole
   repository rather than blacklisting one directory;

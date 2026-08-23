@@ -25,7 +25,7 @@ class ContractRegistration:
 CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ContractRegistration(
         contract_id="repository-governance",
-        version="1.17",
+        version="1.18",
         english_path="docs/developer/contracts/repository-governance.md",
         chinese_path="docs/zh/developer/contracts/repository-governance.md",
         decision_paths=(
@@ -53,22 +53,23 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
         agent_paths=(
             "AGENTS.md",
             "docs/AGENTS.md",
-            "scripts/architecture/AGENTS.md",
+            "scripts/governance/AGENTS.md",
+            "scripts/quality/AGENTS.md",
             "test/architecture/AGENTS.md",
         ),
         scanner_paths=(
-            "scripts/architecture/check_governance_change.py",
-            "scripts/architecture/effective_dependency_python.py",
-            "scripts/architecture/effective_dependency_scan.py",
-            "scripts/architecture/effective_dependency_targets.py",
-            "scripts/architecture/effective_dependency_text.py",
-            "scripts/architecture/git-hooks/pre-commit",
-            "scripts/architecture/install_git_hooks.sh",
-            "scripts/architecture/structural_scope_scan.py",
-            "scripts/architecture/validation_cache.py",
-            "scripts/architecture/validation_gate.py",
-            "scripts/architecture/validation_plan.py",
-            "scripts/architecture/validation_test_bundles.py",
+            "scripts/governance/change_policy.py",
+            "scripts/governance/boundaries/effective_dependencies/python.py",
+            "scripts/governance/boundaries/effective_dependencies/scan.py",
+            "scripts/governance/boundaries/effective_dependencies/targets.py",
+            "scripts/governance/boundaries/effective_dependencies/text.py",
+            "scripts/governance/boundaries/structural_scope.py",
+            "scripts/quality/hooks/pre-commit",
+            "scripts/quality/hooks/install.sh",
+            "scripts/quality/validation/cache.py",
+            "scripts/quality/validation/gate.py",
+            "scripts/quality/validation/plan.py",
+            "scripts/quality/validation/test_bundles.py",
         ),
         test_paths=(
             "test/architecture/test_architecture_governance.py",
@@ -125,13 +126,13 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "godot_project/AGENTS.md",
         ),
         scanner_paths=(
-            "scripts/architecture/database_change_inventory.py",
-            "scripts/architecture/database_change_scan.py",
-            "scripts/architecture/effective_dependency_python.py",
-            "scripts/architecture/effective_dependency_scan.py",
-            "scripts/architecture/effective_dependency_targets.py",
-            "scripts/architecture/effective_dependency_text.py",
-            "scripts/architecture/system_layer_scan.py",
+            "scripts/governance/persistence/inventory.py",
+            "scripts/governance/persistence/scan.py",
+            "scripts/governance/boundaries/effective_dependencies/python.py",
+            "scripts/governance/boundaries/effective_dependencies/scan.py",
+            "scripts/governance/boundaries/effective_dependencies/targets.py",
+            "scripts/governance/boundaries/effective_dependencies/text.py",
+            "scripts/governance/boundaries/system_layers.py",
         ),
         test_paths=(
             "test/architecture/test_effective_dependency_boundaries.py",
@@ -191,7 +192,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "infrastructure/AGENTS.md",
             "infrastructure/persistence/AGENTS.md",
         ),
-        scanner_paths=("scripts/architecture/check_governance_change.py",),
+        scanner_paths=("scripts/governance/change_policy.py",),
         test_paths=(
             "test/architecture/test_architecture_governance.py",
             "test/architecture/test_configuration_management.py",
@@ -222,8 +223,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "godot_project/AGENTS.md",
         ),
         scanner_paths=(
-            "scripts/architecture/structural_scope_scan.py",
-            "scripts/architecture/system_layer_scan.py",
+            "scripts/governance/boundaries/structural_scope.py",
+            "scripts/governance/boundaries/system_layers.py",
         ),
         test_paths=(
             "test/architecture/test_system_layer_boundaries.py",
@@ -257,7 +258,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "elfie/nervous_system/AGENTS.md",
             "elfie/profile/AGENTS.md",
         ),
-        scanner_paths=("scripts/architecture/system_layer_scan.py",),
+        scanner_paths=("scripts/governance/boundaries/system_layers.py",),
         test_paths=("test/architecture/test_elfie_cognitive_contracts.py",),
         conformance_paths=(
             "docs/developer/conformance/elfie.md",
@@ -279,7 +280,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="application-architecture",
-        version="1.9",
+        version="1.10",
         english_path="docs/developer/contracts/application.md",
         chinese_path="docs/zh/developer/contracts/application.md",
         decision_paths=(
@@ -295,6 +296,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0016-nest-persistence-port-ownership.md",
             "docs/developer/decisions/0021-authoritative-service-lifecycle.md",
             "docs/zh/developer/decisions/0021-authoritative-service-lifecycle.md",
+            "docs/developer/decisions/0028-script-control-plane-layout.md",
+            "docs/zh/developer/decisions/0028-script-control-plane-layout.md",
         ),
         agent_paths=(
             "app/AGENTS.md",
@@ -316,11 +319,11 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "app/orchestration/lifecycle/AGENTS.md",
         ),
         scanner_paths=(
-            "scripts/architecture/app_layer_scan.py",
-            "scripts/architecture/effective_dependency_python.py",
-            "scripts/architecture/effective_dependency_scan.py",
-            "scripts/architecture/effective_dependency_targets.py",
-            "scripts/architecture/effective_dependency_text.py",
+            "scripts/governance/boundaries/app_layers.py",
+            "scripts/governance/boundaries/effective_dependencies/python.py",
+            "scripts/governance/boundaries/effective_dependencies/scan.py",
+            "scripts/governance/boundaries/effective_dependencies/targets.py",
+            "scripts/governance/boundaries/effective_dependencies/text.py",
         ),
         test_paths=(
             "test/architecture/test_app_layer_boundaries.py",

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.architecture.effective_dependency_python import python_dependencies
-from scripts.architecture.effective_dependency_scan import (
+from scripts.governance.boundaries.effective_dependencies.python import (
+    python_dependencies,
+)
+from scripts.governance.boundaries.effective_dependencies.scan import (
     RULE_LEDGER_IDS,
     collect_effective_dependency_violations,
     deny_all_failures,

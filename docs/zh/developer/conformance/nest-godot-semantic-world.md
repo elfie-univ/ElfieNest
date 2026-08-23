@@ -67,7 +67,7 @@ Godot 目录表达源码类别，不对应 Nest 的业务模块。下列归置�
 
 | ID | 严重度 | 状态 | 当前偏差 | 关闭条件 | 证据 |
 | --- | --- | --- | --- | --- | --- |
-| NGW-R01 | P0 | closed | 已删除临时 Nest 容器，事实、模型和错误均回到对应所有者。 | 目录、Facade 和旧导入清单由结构扫描器与项目结构测试守护。 | target=Nest 所有权条款；inventory=nest 根及四个所有者目录；references=无旧包或 NestState 调用方；verification=54 个聚焦测试及 49 个源文件 mypy 通过；residuals=none |
+| NGW-R01 | P0 | closed | 已删除临时 Nest 容器，事实、模型和错误均回到对应所有者。 | 目录、Facade 和旧导入清单由 `scripts/governance/boundaries/structural_scope.py` 与 `test/architecture/test_project_structure.py` 守护；`test/nest` 和 `mypy` 通过。 | target=Nest 所有权条款；inventory=nest 根及四个所有者目录；references=无旧包或 NestState 调用方；verification=54 个聚焦测试及 49 个源文件 mypy 通过；residuals=none |
 | NGW-R02 | P0 | closed | 类型化 Nest 事件投递已成为唯一生产线路，也覆盖所有者产生的事实通知。 | 交互关联和四个所有者只产生一份类型化 Envelope；路由解析明确受众，并按同一事件身份重试。 | target=公共事件机制；inventory=nest/events.py、nest/elfie_interaction/hub.py、Nest 所有者生产者和编排路由；references=事件线路及退役 sensor 扫描；verification=Nest owner-event、说话、视觉和 workflow 的重复/非目标测试通过；residuals=none |
 | NGW-R03 | P0 | closed | 结构化听觉、视觉和语义行动 Payload 在投递中保留情绪、因果、目标及 intent 身份。 | 生产消费者向所属 Elfie 各投递一次 Envelope，也支持类型化 `NestFactNotice`。 | target=结构化语义感知条款；inventory=events.py、hub.py、body contracts、world_perception.py；references=类型化投递和协议身份测试；verification=正向、非目标、重试和去重场景通过；residuals=none |
 | NGW-R04 | P0 | closed | 居民、环境和交互待处理状态统一带 Runtime/generation/revision 来源，并走一条 authority 换代失效路径。 | 陈旧帧被拒绝；Snapshot 恢复是替换而非合并；只重新同步当前期望环境。 | target=generation 与恢复条款；inventory=runtime_sync、runtime_events、Nest restore 和 interaction invalidation；references=陈旧/恢复/restore workflow 测试；verification=最新 origin/main 上全仓 Python 2350 个测试通过、3 个跳过；residuals=none |

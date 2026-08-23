@@ -14,11 +14,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if __package__ is None:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.architecture.validation_cache import (
+from scripts.quality.validation.cache import (
     RepositorySnapshot,
     cache_hit,
     cache_invalidate,
@@ -32,7 +32,7 @@ from scripts.architecture.validation_cache import (
     repository_snapshot_current,
     scoped_fingerprint,
 )
-from scripts.architecture.validation_plan import changed_paths
+from scripts.quality.validation.plan import changed_paths
 
 TEST_BUNDLE_RULE_VERSION = "pytest-bundles-v3"
 GENERATED_PATHS = frozenset({"coverage.xml"})
@@ -44,8 +44,8 @@ COMMON_EXACT_INPUTS = frozenset(
         "uv.lock",
         "test/__init__.py",
         "test/conftest.py",
-        "scripts/architecture/validation_cache.py",
-        "scripts/architecture/validation_test_bundles.py",
+        "scripts/quality/validation/cache.py",
+        "scripts/quality/validation/test_bundles.py",
     }
 )
 COMMON_INPUT_PREFIXES = ("config/", "test/support/")

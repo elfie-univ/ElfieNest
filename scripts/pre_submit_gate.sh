@@ -104,7 +104,7 @@ if [[ "$DIRECT_FULL" -eq 0 ]]; then
     if (( NO_CACHE )); then
         VALIDATION_ARGS+=(--no-cache)
     fi
-    exec "$PYTHON_BIN" "$PROJECT_ROOT/scripts/architecture/validation_gate.py" \
+    exec "$PYTHON_BIN" "$PROJECT_ROOT/scripts/quality/validation/gate.py" \
         "${VALIDATION_ARGS[@]}"
 fi
 [[ "$STAGE" == "full" ]] || fail "--direct-full is only valid with --stage full"
@@ -167,6 +167,14 @@ run_candidate_python() {
         "$PYTHON_BIN" "$@")
 }
 
+run_immutable_base_python() {
+    local base_root="$1"
+    shift
+    (cd "$CANDIDATE_ROOT" && \
+        PYTHONPATH="$base_root" \
+        "$PYTHON_BIN" "$@")
+}
+
 prepare_candidate_tree() {
     local tracked_changes
     local untracked_changes
@@ -215,70 +223,87 @@ run_candidate_architecture_gate() {
     local scanner_dir
     local classifier_root
     local classifier
+    local classifier_path
+    local structural_path
+    local app_scanner_path
+    local system_scanner_path
     local file
 
     if [[ -f "$CANDIDATE_ROOT/test/architecture/baselines/app_layer.py" ]]; then
         run_candidate_python \
-            "$CANDIDATE_ROOT/scripts/architecture/app_layer_scan.py" \
+            "$CANDIDATE_ROOT/scripts/governance/boundaries/app_layers.py" \
             --project-root "$CANDIDATE_ROOT" \
             --baseline "$CANDIDATE_ROOT/test/architecture/baselines/app_layer.py" \
             --mode exact
     else
         run_candidate_python \
-            "$CANDIDATE_ROOT/scripts/architecture/app_layer_scan.py" \
+            "$CANDIDATE_ROOT/scripts/governance/boundaries/app_layers.py" \
             --project-root "$CANDIDATE_ROOT" --mode deny-all
     fi
 
     if [[ -f "$CANDIDATE_ROOT/test/architecture/baselines/system_layer.py" ]]; then
         run_candidate_python \
-            "$CANDIDATE_ROOT/scripts/architecture/system_layer_scan.py" \
+            "$CANDIDATE_ROOT/scripts/governance/boundaries/system_layers.py" \
             --project-root "$CANDIDATE_ROOT" \
             --baseline "$CANDIDATE_ROOT/test/architecture/baselines/system_layer.py" \
             --mode exact
     else
         run_candidate_python \
-            "$CANDIDATE_ROOT/scripts/architecture/system_layer_scan.py" \
+            "$CANDIDATE_ROOT/scripts/governance/boundaries/system_layers.py" \
             --project-root "$CANDIDATE_ROOT" --mode deny-all
     fi
 
     run_candidate_python \
-        "$CANDIDATE_ROOT/scripts/architecture/effective_dependency_scan.py" \
+        "$CANDIDATE_ROOT/scripts/governance/boundaries/effective_dependencies/scan.py" \
         --project-root "$CANDIDATE_ROOT"
     run_candidate_python \
-        "$CANDIDATE_ROOT/scripts/architecture/structural_scope_scan.py" \
+        "$CANDIDATE_ROOT/scripts/governance/boundaries/structural_scope.py" \
         --project-root "$CANDIDATE_ROOT"
     run_candidate_python \
-        "$CANDIDATE_ROOT/scripts/architecture/database_change_scan.py" \
+        "$CANDIDATE_ROOT/scripts/governance/persistence/scan.py" \
         --project-root "$CANDIDATE_ROOT" --base-sha "$BASE_SHA" --check
 
+    classifier_root="$TEMP_ROOT/base-governance"
     if git -C "$CANDIDATE_ROOT" cat-file -e \
+        "$BASE_SHA:scripts/governance/change_policy.py" 2>/dev/null; then
+        classifier_path="scripts/governance/change_policy.py"
+        structural_path="scripts/governance/boundaries/structural_scope.py"
+    elif git -C "$CANDIDATE_ROOT" cat-file -e \
         "$BASE_SHA:scripts/architecture/check_governance_change.py" 2>/dev/null; then
-        classifier_root="$TEMP_ROOT/base-governance"
-        classifier="${classifier_root}/scripts/architecture/check_governance_change.py"
-        copy_base_file "scripts/architecture/check_governance_change.py" "$TEMP_ROOT/base-governance"
-        if git -C "$CANDIDATE_ROOT" cat-file -e \
-            "$BASE_SHA:scripts/architecture/structural_scope_scan.py" 2>/dev/null; then
-            copy_base_file "scripts/architecture/structural_scope_scan.py" "$TEMP_ROOT/base-governance"
-        fi
+        classifier_path="scripts/architecture/check_governance_change.py"
+        structural_path="scripts/architecture/structural_scope_scan.py"
     else
-        classifier_root="$CANDIDATE_ROOT"
-        classifier="$CANDIDATE_ROOT/scripts/architecture/check_governance_change.py"
+        fail "base branch has governance contract but no change classifier"
     fi
-    run_candidate_python "$classifier" --base-sha "$BASE_SHA"
+    copy_base_file "$classifier_path" "$classifier_root"
+    copy_base_file "$structural_path" "$classifier_root"
+    classifier="$classifier_root/$classifier_path"
+    run_immutable_base_python "$classifier_root" \
+        "$classifier" --base-sha "$BASE_SHA"
 
     if git -C "$CANDIDATE_ROOT" cat-file -e \
+        "$BASE_SHA:scripts/governance/boundaries/app_layers.py" 2>/dev/null; then
+        app_scanner_path="scripts/governance/boundaries/app_layers.py"
+    elif git -C "$CANDIDATE_ROOT" cat-file -e \
         "$BASE_SHA:scripts/architecture/app_layer_scan.py" 2>/dev/null; then
+        app_scanner_path="scripts/architecture/app_layer_scan.py"
+    else
+        app_scanner_path=""
+    fi
+    if [[ -n "$app_scanner_path" ]]; then
         ratchet_root="$TEMP_ROOT/app-ratchet"
-        copy_base_file "scripts/architecture/app_layer_scan.py" "$ratchet_root"
+        copy_base_file "$app_scanner_path" "$ratchet_root"
         if git -C "$CANDIDATE_ROOT" cat-file -e \
             "$BASE_SHA:test/architecture/baselines/app_layer.py" 2>/dev/null; then
             copy_base_file "test/architecture/baselines/app_layer.py" "$ratchet_root"
-            run_candidate_python "$ratchet_root/scripts/architecture/app_layer_scan.py" \
+            run_immutable_base_python "$ratchet_root" \
+                "$ratchet_root/$app_scanner_path" \
                 --project-root "$CANDIDATE_ROOT" \
                 --baseline "$ratchet_root/test/architecture/baselines/app_layer.py" \
                 --mode subset
         else
-            run_candidate_python "$ratchet_root/scripts/architecture/app_layer_scan.py" \
+            run_immutable_base_python "$ratchet_root" \
+                "$ratchet_root/$app_scanner_path" \
                 --project-root "$CANDIDATE_ROOT" --mode deny-all
         fi
     elif git -C "$CANDIDATE_ROOT" cat-file -e \
@@ -287,18 +312,28 @@ run_candidate_architecture_gate() {
     fi
 
     if git -C "$CANDIDATE_ROOT" cat-file -e \
+        "$BASE_SHA:scripts/governance/boundaries/system_layers.py" 2>/dev/null; then
+        system_scanner_path="scripts/governance/boundaries/system_layers.py"
+    elif git -C "$CANDIDATE_ROOT" cat-file -e \
         "$BASE_SHA:scripts/architecture/system_layer_scan.py" 2>/dev/null; then
+        system_scanner_path="scripts/architecture/system_layer_scan.py"
+    else
+        system_scanner_path=""
+    fi
+    if [[ -n "$system_scanner_path" ]]; then
         ratchet_root="$TEMP_ROOT/system-ratchet"
-        copy_base_file "scripts/architecture/system_layer_scan.py" "$ratchet_root"
+        copy_base_file "$system_scanner_path" "$ratchet_root"
         if git -C "$CANDIDATE_ROOT" cat-file -e \
             "$BASE_SHA:test/architecture/baselines/system_layer.py" 2>/dev/null; then
             copy_base_file "test/architecture/baselines/system_layer.py" "$ratchet_root"
-            run_candidate_python "$ratchet_root/scripts/architecture/system_layer_scan.py" \
+            run_immutable_base_python "$ratchet_root" \
+                "$ratchet_root/$system_scanner_path" \
                 --project-root "$CANDIDATE_ROOT" \
                 --baseline "$ratchet_root/test/architecture/baselines/system_layer.py" \
                 --mode subset
         else
-            run_candidate_python "$ratchet_root/scripts/architecture/system_layer_scan.py" \
+            run_immutable_base_python "$ratchet_root" \
+                "$ratchet_root/$system_scanner_path" \
                 --project-root "$CANDIDATE_ROOT" --mode deny-all
         fi
     elif git -C "$CANDIDATE_ROOT" cat-file -e \
@@ -307,13 +342,25 @@ run_candidate_architecture_gate() {
     fi
 
     if git -C "$CANDIDATE_ROOT" cat-file -e \
+        "$BASE_SHA:scripts/governance/boundaries/effective_dependencies/scan.py" 2>/dev/null; then
+        scanner_root="$TEMP_ROOT/effective-ratchet"
+        for file in python.py scan.py targets.py text.py; do
+            copy_base_file \
+                "scripts/governance/boundaries/effective_dependencies/$file" \
+                "$scanner_root"
+        done
+        run_immutable_base_python "$scanner_root" \
+            "$scanner_root/scripts/governance/boundaries/effective_dependencies/scan.py" \
+            --project-root "$CANDIDATE_ROOT"
+    elif git -C "$CANDIDATE_ROOT" cat-file -e \
         "$BASE_SHA:scripts/architecture/effective_dependency_scan.py" 2>/dev/null; then
         scanner_root="$TEMP_ROOT/effective-ratchet"
         for file in effective_dependency_python.py effective_dependency_scan.py \
             effective_dependency_targets.py effective_dependency_text.py; do
             copy_base_file "scripts/architecture/$file" "$scanner_root"
         done
-        run_candidate_python "$scanner_root/scripts/architecture/effective_dependency_scan.py" \
+        run_immutable_base_python "$scanner_root" \
+            "$scanner_root/scripts/architecture/effective_dependency_scan.py" \
             --project-root "$CANDIDATE_ROOT"
     elif git -C "$CANDIDATE_ROOT" cat-file -e \
         "$BASE_SHA:docs/developer/decisions/0012-effective-dependency-targets.md" 2>/dev/null; then
@@ -331,16 +378,16 @@ run_candidate_architecture_gate
 run_step "checking the dependency lock" \
     "$UV_BIN" lock --check
 run_step "checking Node and pnpm manifests" \
-    bash "$PROJECT_ROOT/scripts/check_node_toolchain.sh"
+    bash "$PROJECT_ROOT/scripts/quality/checks/node_toolchain.sh"
 run_step "checking the Python quality baseline" \
-    "$UV_BIN" run --no-sync python "$PROJECT_ROOT/scripts/check_quality_baseline.py"
+    "$UV_BIN" run --no-sync python "$PROJECT_ROOT/scripts/quality/checks/python_baseline.py"
 run_step "running pre-commit hooks and the secret scanner" \
     env PRE_COMMIT_HOME="$PRE_COMMIT_HOME" \
     "$UV_BIN" run --no-sync pre-commit run --all-files
 run_step "installing Developer Tools frontend dependencies" \
     run_in_dir "$PROJECT_ROOT/devtools/web" "$PNPM_BIN" install --frozen-lockfile
 run_step "running the exact environment capability preflight" \
-    "$UV_BIN" run --no-sync python "$PROJECT_ROOT/scripts/check_quality_environment.py"
+    "$UV_BIN" run --no-sync python "$PROJECT_ROOT/scripts/quality/checks/environment.py"
 BUNDLE_ARGS=(
     --all --base-sha "$BASE_SHA" --cache-root "$VALIDATION_CACHE_ROOT"
 )
@@ -348,7 +395,7 @@ if (( NO_CACHE )); then
     BUNDLE_ARGS+=(--no-cache)
 fi
 run_step "running missing CI test bundles and combining coverage evidence" \
-    "$PYTHON_BIN" "$PROJECT_ROOT/scripts/architecture/validation_test_bundles.py" \
+    "$PYTHON_BIN" "$PROJECT_ROOT/scripts/quality/validation/test_bundles.py" \
     "${BUNDLE_ARGS[@]}"
 run_step "checking the pinned CPython runtime" \
     "$PYTHON_BIN" -c \

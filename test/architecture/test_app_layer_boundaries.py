@@ -10,7 +10,7 @@ from typing import DefaultDict, List, Set, Tuple
 from fastapi.routing import APIRoute
 
 from app.bootstrap import create_app
-from scripts.architecture.app_layer_scan import (
+from scripts.governance.boundaries.app_layers import (
     APP_ROOT,
     LOOSE_OUTPUT_TYPES,
     RULE_NAMES,
@@ -28,7 +28,7 @@ from scripts.architecture.app_layer_scan import (
     collect_unowned_app_directories,
     deny_all_failures,
 )
-from scripts.architecture.check_governance_change import classify_paths
+from scripts.governance.change_policy import classify_paths
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -173,8 +173,8 @@ def test_application_contract_has_bilingual_authority_markers() -> None:
     chinese_contract = (
         PROJECT_ROOT / "docs/zh/developer/contracts/application.md"
     ).read_text(encoding="utf-8")
-    assert "**Contract version:** 1.9" in english_contract
-    assert "**契约版本：** 1.9" in chinese_contract
+    assert "**Contract version:** 1.10" in english_contract
+    assert "**契约版本：** 1.10" in chinese_contract
     assert "[service lifecycle contract](service-lifecycle)" in english_contract
     assert "[服务生命周期契约](service-lifecycle)" in chinese_contract
     assert "immutable species registry" in english_contract
@@ -216,7 +216,8 @@ def test_architecture_governance_layout_and_local_rules_exist() -> None:
         "app/interfaces/cli/AGENTS.md",
         "app/features/setup/AGENTS.md",
         "test/architecture/AGENTS.md",
-        "scripts/architecture/AGENTS.md",
+        "scripts/governance/AGENTS.md",
+        "scripts/quality/AGENTS.md",
     }
     assert all((PROJECT_ROOT / path).is_file() for path in required_docs)
     assert all((PROJECT_ROOT / path).is_file() for path in required_agents)
@@ -227,13 +228,13 @@ def test_governance_change_classifier_rejects_self_approval_mix() -> None:
     governance, production = classify_paths(
         {
             "docs/developer/contracts/application.md",
-            "scripts/architecture/app_layer_scan.py",
+            "scripts/governance/boundaries/app_layers.py",
             "app/features/adoption/service.py",
         }
     )
     assert governance == {
         "docs/developer/contracts/application.md",
-        "scripts/architecture/app_layer_scan.py",
+        "scripts/governance/boundaries/app_layers.py",
     }
     assert production == {"app/features/adoption/service.py"}
 

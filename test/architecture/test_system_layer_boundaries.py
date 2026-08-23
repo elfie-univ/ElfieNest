@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.architecture.check_governance_change import classify_paths
-from scripts.architecture.structural_scope_scan import (
+from scripts.governance.boundaries.structural_scope import (
     collect_structural_scope_violations,
 )
-from scripts.architecture.system_layer_scan import (
+from scripts.governance.boundaries.system_layers import (
     RULE_NAMES,
     collect_system_layer_violations,
     deny_all_failures,
 )
+from scripts.governance.change_policy import classify_paths
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
