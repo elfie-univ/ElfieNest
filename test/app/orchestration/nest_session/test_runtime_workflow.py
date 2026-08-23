@@ -288,6 +288,50 @@ def test_failed_target_delivery_requeues_only_that_target() -> None:
     assert engine.nest.drain_event_outbox() == ()
 
 
+def test_permanently_failed_target_delivery_is_quarantined_after_three_attempts() -> (
+    None
+):
+    runtime = FakeWorldRuntime()
+    runtime.connection = RuntimeConnection("runtime-a", 1)
+    engine = ElfieNestEngine(runtime)
+    fox = MagicMock(spec=Elfie)
+    dog = MagicMock(spec=Elfie)
+    engine.session.register_elfie("fox-1", fox)
+    engine.session.register_elfie("dog-1", dog)
+    for event in (
+        _event(WorldEventName.SCENE_MANIFEST, SceneManifest(_catalog())),
+        _event(WorldEventName.WORLD_CONFIGURED, WorldConfigured(True, True)),
+    ):
+        engine.session.consume_runtime_event(event)
+    dog.pump_body_events.reset_mock()
+    dog.pump_body_events.side_effect = RuntimeError("unsupported payload")
+    assert engine.nest.queue_speech(
+        command_id="speech-quarantine-1",
+        sender_id="fox-1",
+        text="不会无限重试",
+    )
+    speech = _event(
+        WorldEventName.SPEECH_REACH,
+        SpeechReach(
+            command_id="speech-quarantine-1",
+            actor_id="fox-1",
+            zone_id="dorm-01",
+            audience_actor_ids=("dog-1",),
+        ),
+        event_id="speech-quarantine-event",
+    )
+
+    for _ in range(3):
+        engine.session.consume_runtime_event(speech)
+
+    assert dog.pump_body_events.call_count == 3
+    assert engine.nest.drain_event_outbox() == ()
+    quarantined = engine.session.quarantined_nest_event_deliveries()
+    assert len(quarantined) == 1
+    assert quarantined[0].event_id == "speech-quarantine-event"
+    assert quarantined[0].target_ids == ("dog-1",)
+
+
 def test_visual_observation_uses_nest_correlation_and_returns_semantic_input() -> None:
     runtime = FakeWorldRuntime()
     runtime.connection = RuntimeConnection("runtime-a", 1)

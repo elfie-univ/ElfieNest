@@ -39,8 +39,9 @@ export type ResourceFile = Readonly<{
 }>;
 
 export type ResourceManifest = Readonly<{
-  readonly schema_version: 1;
+  readonly schema_version: 2;
   readonly application_version: string;
+  readonly source_revision: string;
   readonly target: ResourceTarget;
   readonly files: Readonly<Record<string, ResourceFile>>;
 }>;
@@ -183,8 +184,12 @@ function manifestResourcePaths(root: string, target: ResourceTarget): readonly R
 export function buildResourceManifest(
   root: string,
   applicationVersion: string,
+  sourceRevision: string,
   target: ResourceTarget,
 ): ResourceManifest {
+  if (!/^[0-9a-f]{40}$/u.test(sourceRevision)) {
+    throw new ResourceManifestError("manifest.json", "源码 revision 无效");
+  }
   const files: Record<string, ResourceFile> = {};
   for (const resourcePath of manifestResourcePaths(root, target)) {
     const fullPath = resolvedResourcePath(root, resourcePath);
@@ -202,8 +207,9 @@ export function buildResourceManifest(
     };
   }
   return {
-    schema_version: 1,
+    schema_version: 2,
     application_version: applicationVersion,
+    source_revision: sourceRevision,
     target,
     files,
   };
@@ -263,12 +269,14 @@ function parseResourceManifest(text: string): ResourceManifest {
   if (!isRecord(payload)) {
     throw new ResourceManifestError("manifest.json", "根节点必须是对象");
   }
-  const allowedKeys = new Set(["schema_version", "application_version", "target", "files"]);
+  const allowedKeys = new Set(["schema_version", "application_version", "source_revision", "target", "files"]);
   if (
     Object.keys(payload).some((key) => !allowedKeys.has(key)) ||
-    payload["schema_version"] !== 1 ||
+    payload["schema_version"] !== 2 ||
     typeof payload["application_version"] !== "string" ||
     payload["application_version"].trim() === "" ||
+    typeof payload["source_revision"] !== "string" ||
+    !/^[0-9a-f]{40}$/u.test(payload["source_revision"]) ||
     typeof payload["target"] !== "string" ||
     !isResourceTarget(payload["target"]) ||
     !isRecord(payload["files"])
@@ -286,8 +294,9 @@ function parseResourceManifest(text: string): ResourceManifest {
     files[resourcePath] = value;
   }
   return {
-    schema_version: 1,
+    schema_version: 2,
     application_version: payload["application_version"],
+    source_revision: payload["source_revision"],
     target: payload["target"],
     files,
   };

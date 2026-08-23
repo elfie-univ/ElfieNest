@@ -51,6 +51,7 @@ import { SingleWindowRegistry } from "./windows/window_registry.js";
 let roleController: DesktopRoleController | undefined;
 let explicitExitRequested = false;
 let exitInProgress = false;
+let requestedExitReason = "not-requested";
 const managementWindow = new SingleWindowRegistry<BrowserWindow>();
 let backgroundTray: Tray | undefined;
 let maintenanceTimer: NodeJS.Timeout | undefined;
@@ -247,7 +248,7 @@ async function handleDataHomeRecoveryAction(action: RecoveryAction): Promise<voi
   const window = managementWindow.current();
   if (window === undefined || roleController === undefined) return;
   if (action === "quit") {
-    requestExplicitApplicationExit();
+    requestExplicitApplicationExit("data-home-recovery-quit");
     return;
   }
   if (action === "open-data-home") {
@@ -296,7 +297,16 @@ async function startDesktop(): Promise<void> {
   // Controller recursively.
   process.env["ELFIENEST_CONTROLLER_CLIENT"] = "1";
   if (app.isPackaged) {
-    loadAndValidateResourceManifest(process.resourcesPath, app.getVersion());
+    const manifest = loadAndValidateResourceManifest(
+      process.resourcesPath,
+      app.getVersion(),
+    );
+    console.info(
+      "ElfieNest Desktop build",
+      manifest.application_version,
+      manifest.source_revision,
+      manifest.target,
+    );
   }
   const lifecycleCommand = lifecycleCommandExecutable(
     app.isPackaged,
@@ -339,7 +349,7 @@ async function startDesktop(): Promise<void> {
     },
     STOP_SERVER: async (payload) => {
       await assertControllerTarget(payload);
-      setImmediate(() => requestExplicitApplicationExit());
+      setImmediate(() => requestExplicitApplicationExit("controller-stop-server"));
       return { accepted: true, state: "stopping" };
     },
   });
@@ -373,6 +383,8 @@ function startDesktopUiRole(): void {
   app.setPath("userData", controllerHomeForAppData(app.getPath("appData")));
   const hasSingleInstanceLock = app.requestSingleInstanceLock();
   if (!hasSingleInstanceLock) {
+    requestedExitReason = "secondary-instance";
+    console.info("ElfieNest Desktop exit requested", requestedExitReason);
     app.quit();
     return;
   }
@@ -417,6 +429,8 @@ function startDesktopUiRole(): void {
       const message = error instanceof Error ? error.message : "未知错误";
       console.error("ElfieNest Desktop 启动失败", message);
       if (controllerOnly) {
+        requestedExitReason = "controller-start-failure";
+        console.info("ElfieNest Desktop exit requested", requestedExitReason);
         app.quit();
         return;
       }
@@ -539,6 +553,7 @@ ipcMain.handle("mobile-network:open-location-settings", async () => {
 });
 
 app.on("before-quit", (event) => {
+  console.info("ElfieNest Desktop before-quit", requestedExitReason);
   if (!explicitExitRequested || exitInProgress) {
     return;
   }
@@ -554,6 +569,7 @@ app.on("before-quit", (event) => {
     .finally(async () => {
       await controllerIpcServer?.close();
       controllerIpcServer = undefined;
+      console.info("ElfieNest Desktop cleanup complete", requestedExitReason);
       app.exit(0);
     });
 });
@@ -564,14 +580,24 @@ app.on("activate", () => {
 
 app.on("window-all-closed", () => {
   if (backgroundTray === undefined && process.platform !== "darwin") {
+    requestedExitReason = "window-all-closed";
+    console.info("ElfieNest Desktop exit requested", requestedExitReason);
     app.quit();
   }
 });
 
-export function requestExplicitApplicationExit(): void {
+app.on("quit", (_event, exitCode) => {
+  console.info("ElfieNest Desktop exited", requestedExitReason, exitCode);
+});
+
+export function requestExplicitApplicationExit(
+  reason = "user-request",
+): void {
   if (exitInProgress) {
     return;
   }
+  requestedExitReason = reason;
+  console.info("ElfieNest Desktop exit requested", requestedExitReason);
   explicitExitRequested = true;
   if (maintenanceTimer !== undefined) {
     clearInterval(maintenanceTimer);

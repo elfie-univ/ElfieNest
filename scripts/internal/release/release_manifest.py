@@ -51,8 +51,15 @@ def validate_release_resources(resources: Path) -> None:
     target = payload.get("target")
     if not isinstance(target, str) or target not in package_python_core.TARGETS:
         raise ReleaseResourceManifestError("release-manifest-target-invalid")
-    if payload.get("schema_version") != 1:
+    if payload.get("schema_version") != 2:
         raise ReleaseResourceManifestError("release-manifest-schema-invalid")
+    source_revision = payload.get("source_revision")
+    if (
+        not isinstance(source_revision, str)
+        or len(source_revision) != 40
+        or any(character not in "0123456789abcdef" for character in source_revision)
+    ):
+        raise ReleaseResourceManifestError("release-manifest-source-revision-invalid")
     files = payload.get("files")
     if not isinstance(files, dict):
         raise ReleaseResourceManifestError("release-manifest-files-invalid")

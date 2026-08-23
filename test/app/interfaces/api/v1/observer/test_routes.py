@@ -22,8 +22,11 @@ from test.app.interfaces.api._helpers import create_test_owner
 
 
 class FixedClock:
+    def __init__(self) -> None:
+        self.current = 10.0
+
     def now(self) -> float:
-        return 10.0
+        return self.current
 
 
 class FixedCapabilities:
@@ -54,7 +57,7 @@ class MemoryWorld:
         self.intents.append(intent)
 
 
-def _application() -> tuple[FastAPI, MemoryWorld]:
+def _application() -> tuple[FastAPI, MemoryWorld, FixedClock]:
     accounts = MagicMock(spec=AccountsService)
     accounts.session_ttl_seconds.return_value = 60
     elfies = MagicMock(spec=ElfiesService)
@@ -62,6 +65,7 @@ def _application() -> tuple[FastAPI, MemoryWorld]:
         SimpleNamespace(profile=SimpleNamespace(elfie_id="fox-1")),
     )
     world = MemoryWorld()
+    clock = FixedClock()
     application = FastAPI()
     application.include_router(router)
     application.dependency_overrides[get_current_user] = lambda: AccountPrincipal(
@@ -71,14 +75,14 @@ def _application() -> tuple[FastAPI, MemoryWorld]:
         accounts=accounts,
         elfies=elfies,
         world=world,
-        clock=FixedClock(),
+        clock=clock,
         capabilities=FixedCapabilities(),
     )
-    return application, world
+    return application, world, clock
 
 
 def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() -> None:
-    application, world = _application()
+    application, world, _clock = _application()
     with TestClient(application) as client:
         client.cookies.set("session_token", "login-token")
         opened = client.post(
@@ -103,7 +107,10 @@ def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() 
         )
 
     assert opened.status_code == 201
-    assert set(opened.json()) == {"capability"}
+    assert opened.json() == {
+        "capability": "observer-capability",
+        "idle_timeout_seconds": 120,
+    }
     assert frame.status_code == 200
     assert frame.json() == {
         "protocol": 3,
@@ -132,7 +139,7 @@ def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() 
 
 
 def test_routes_reject_authority_fields_and_use_stable_error_envelope() -> None:
-    application, _world = _application()
+    application, _world, _clock = _application()
     with TestClient(application) as client:
         rejected_payload = client.post(
             "/api/v1/observer/sessions",
@@ -157,6 +164,38 @@ def test_routes_reject_authority_fields_and_use_stable_error_envelope() -> None:
             "details": {},
         }
     }
+
+
+def test_session_close_is_idempotent_and_expired_frames_return_gone() -> None:
+    application, _world, clock = _application()
+    payload = {
+        "protocol": 3,
+        "role": "observer",
+        "subscription": {"kind": "elfie", "elfie_id": "fox-1"},
+    }
+    with TestClient(application) as client:
+        client.cookies.set("session_token", "login-token")
+        opened = client.post("/api/v1/observer/sessions", json=payload)
+        headers = {"X-ElfieNest-Observer-Capability": opened.json()["capability"]}
+        assert client.get("/api/v1/observer/frames", headers=headers).status_code == 200
+        clock.current = 131.0
+        expired = client.get("/api/v1/observer/frames", headers=headers)
+
+        reopened = client.post("/api/v1/observer/sessions", json=payload)
+        reopened_headers = {
+            "X-ElfieNest-Observer-Capability": reopened.json()["capability"]
+        }
+        closed = client.delete(
+            "/api/v1/observer/sessions/current", headers=reopened_headers
+        )
+        closed_again = client.delete(
+            "/api/v1/observer/sessions/current", headers=reopened_headers
+        )
+
+    assert expired.status_code == 410
+    assert expired.json()["error"]["code"] == "observer_session_expired"
+    assert closed.status_code == 204
+    assert closed_again.status_code == 204
 
 
 def test_production_router_requires_csrf_and_logout_revokes_capability(

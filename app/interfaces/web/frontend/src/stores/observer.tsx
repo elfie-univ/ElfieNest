@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react"
 
 import {
+  closeObserverSession,
   nextObserverFrame,
   openObserverSession,
   warmObserverAssets,
@@ -9,6 +10,7 @@ import {
   type ObserverFrame,
   type ObserverSubscription,
 } from "../api/observer"
+import { ApiError } from "../api/http"
 import { PRODUCT_OBSERVER_URL, useObserverCameraBridge } from "./observer-camera-bridge"
 import {
   OBSERVER_CHANNEL,
@@ -46,10 +48,11 @@ type ObserverState = {
   readonly status: ObserverStatus
 }
 
-const IDLE_RELEASE_MILLISECONDS = 5 * 60 * 1000
+const RENDERER_WARM_MILLISECONDS = 60 * 1000
 const READY_TIMEOUT_MILLISECONDS = 20 * 1000
 const READY_PROBE_MILLISECONDS = 250
 const POLL_MILLISECONDS = 1000
+const RETRY_MILLISECONDS = [1000, 2000, 5000, 10000] as const
 const ObserverContext = createContext<ObserverState | null>(null)
 
 function subscriptionFor(scope: ObserverScope): ObserverSubscription {
@@ -122,6 +125,22 @@ function mergeFrame(
   }
 }
 
+function deltaNeedsSnapshot(
+  frame: ObserverFrame,
+  cursor: ObserverCursor | null,
+  current: Readonly<Record<string, ObserverEntity>>,
+): boolean {
+  if (frame.kind === "snapshot") return false
+  return cursor === null
+    || frame.generation !== cursor.generation
+    || frame.sequence !== cursor.sequence + 1
+    || current[frame.entity_id] === undefined
+}
+
+function isAbortError(reason: unknown): boolean {
+  return reason instanceof DOMException && reason.name === "AbortError"
+}
+
 function semanticScope(scope: ObserverSubscription): ObserverSemanticSnapshot["scope"] {
   return scope.kind === "room"
     ? { kind: "room", room_id: scope.room_id }
@@ -147,8 +166,10 @@ export function ObserverProvider({
   const readyTimerRef = useRef<number | null>(null)
   const readinessProbeTimerRef = useRef<number | null>(null)
   const pollTimerRef = useRef<number | null>(null)
+  const pollAbortRef = useRef<AbortController | null>(null)
   const capabilityRef = useRef<string | null>(null)
   const activeScopeRef = useRef<string | null>(null)
+  const scopeRef = useRef<ObserverScope | null>(null)
   const detachedRef = useRef(false)
   const engineReadyRef = useRef(false)
   const cursorRef = useRef<ObserverCursor | null>(null)
@@ -158,6 +179,10 @@ export function ObserverProvider({
   const worldConfigRef = useRef<ObserverWorldConfig | null>(null)
   const restartRequiredRef = useRef(false)
   const attemptRef = useRef(0)
+  const retryRef = useRef(0)
+  const userPausedRef = useRef(false)
+  const csrfTokenRef = useRef(csrfToken)
+  csrfTokenRef.current = csrfToken
   const {
     cameraCatalog,
     clearCameraCatalog,
@@ -166,7 +191,7 @@ export function ObserverProvider({
     publishWorldConfig,
     reset,
     select,
-    setLocalPresentationPaused,
+    setLocalPresentationPaused: setBridgePresentationPaused,
   } = useObserverCameraBridge(iframeRef)
 
   const clearTimer = (timerRef: MutableRefObject<number | null>): void => {
@@ -174,26 +199,54 @@ export function ObserverProvider({
     timerRef.current = null
   }
 
-  const resetEngine = useCallback((): void => {
+  const stopPolling = useCallback((): void => {
+    clearTimer(pollTimerRef)
+    pollAbortRef.current?.abort()
+    pollAbortRef.current = null
+  }, [])
+
+  const destroyRenderer = useCallback((): void => {
     clearTimer(readyTimerRef)
     clearTimer(readinessProbeTimerRef)
-    clearTimer(pollTimerRef)
     attemptRef.current += 1
     iframeRef.current?.remove()
     iframeRef.current = null
     engineReadyRef.current = false
+    clearCameraCatalog()
+  }, [clearCameraCatalog])
+
+  const resetEngine = useCallback((): void => {
+    stopPolling()
+    destroyRenderer()
     capabilityRef.current = null
     activeScopeRef.current = null
+    scopeRef.current = null
     worldConfigRef.current = null
     cursorRef.current = null
+    retryRef.current = 0
     setStatus("idle")
     setFallbackReason(null)
     setEntities({})
     entitiesRef.current = {}
     entityRevisionsRef.current = {}
     semanticSnapshotRef.current = null
-    clearCameraCatalog()
-  }, [clearCameraCatalog])
+  }, [destroyRenderer, stopPolling])
+
+  const closeCurrentSession = useCallback((keepalive = false): void => {
+    stopPolling()
+    const capability = capabilityRef.current
+    capabilityRef.current = null
+    activeScopeRef.current = null
+    cursorRef.current = null
+    retryRef.current = 0
+    if (capability !== null && csrfTokenRef.current) {
+      void closeObserverSession(
+        capability,
+        csrfTokenRef.current,
+        keepalive,
+      ).catch(() => {})
+    }
+  }, [stopPolling])
 
   const markEngineReady = useCallback((): void => {
     clearTimer(readyTimerRef)
@@ -205,8 +258,11 @@ export function ObserverProvider({
     if (semanticSnapshotRef.current !== null) {
       publishSemanticSnapshot(semanticSnapshotRef.current)
     }
-    if (!detachedRef.current) setStatus("ready")
-  }, [publishSemanticSnapshot, publishWorldConfig])
+    if (!detachedRef.current && document.visibilityState !== "hidden") {
+      setBridgePresentationPaused(userPausedRef.current)
+      setStatus("ready")
+    }
+  }, [publishSemanticSnapshot, publishWorldConfig, setBridgePresentationPaused])
 
   const configureRoom = useCallback((worldConfig: ObserverWorldConfig): void => {
     worldConfigRef.current = worldConfig
@@ -245,26 +301,44 @@ export function ObserverProvider({
 
   const releaseEngine = useCallback((): void => {
     clearTimer(releaseTimerRef)
-    resetEngine()
+    destroyRenderer()
     restartRequiredRef.current = false
     setStatus("idle")
-  }, [resetEngine])
+  }, [destroyRenderer])
 
   const requireRestart = useCallback((): void => {
-    resetEngine()
+    destroyRenderer()
     restartRequiredRef.current = true
     setFallbackReason("runtime")
     setStatus("fallback")
-  }, [resetEngine])
+  }, [destroyRenderer])
 
+  const openRef = useRef<(scope: ObserverScope) => Promise<void>>(async () => {})
   const pollRef = useRef<() => void>(() => {})
   pollRef.current = (): void => {
+    pollTimerRef.current = null
     const capability = capabilityRef.current
-    if (capability === null) return
-    void nextObserverFrame(capability, cursorRef.current)
+    if (
+      capability === null
+      || detachedRef.current
+      || document.visibilityState === "hidden"
+    ) return
+    const cursor = cursorRef.current
+    const controller = new AbortController()
+    pollAbortRef.current = controller
+    void nextObserverFrame(capability, cursor, controller.signal)
       .then((frame) => {
-        if (capabilityRef.current !== capability) return
+        if (controller.signal.aborted || capabilityRef.current !== capability) return
+        pollAbortRef.current = null
+        retryRef.current = 0
+        setFallbackReason(null)
+        if (engineReadyRef.current) setStatus("ready")
         if (frame !== null) {
+          if (deltaNeedsSnapshot(frame, cursor, entitiesRef.current)) {
+            cursorRef.current = null
+            pollTimerRef.current = window.setTimeout(() => pollRef.current(), 0)
+            return
+          }
           cursorRef.current = { generation: frame.generation, sequence: frame.sequence }
           const nextEntities = mergeFrame(frame, entitiesRef.current)
           entitiesRef.current = nextEntities
@@ -287,15 +361,52 @@ export function ObserverProvider({
         if (semanticSnapshotRef.current !== null) {
           publishSemanticSnapshot(semanticSnapshotRef.current)
         }
-        pollTimerRef.current = window.setTimeout(() => pollRef.current(), POLL_MILLISECONDS)
+        if (!detachedRef.current && document.visibilityState !== "hidden") {
+          pollTimerRef.current = window.setTimeout(() => pollRef.current(), POLL_MILLISECONDS)
+        }
       })
       .catch((reason: unknown) => {
         if (capabilityRef.current !== capability) return
-        if (reason instanceof Error) {
-          requireRestart()
+        pollAbortRef.current = null
+        if (isAbortError(reason)) return
+        if (
+          reason instanceof ApiError
+          && (
+            reason.status === 410
+            || reason.code === "observer_session_expired"
+            || reason.code === "observer_forbidden"
+          )
+        ) {
+          capabilityRef.current = null
+          activeScopeRef.current = null
+          cursorRef.current = null
+          const scope = scopeRef.current
+          if (
+            scope !== null
+            && !detachedRef.current
+            && document.visibilityState !== "hidden"
+          ) {
+            void openRef.current(scope)
+          }
           return
         }
-        throw reason
+        if (reason instanceof ApiError && (reason.status === 401 || reason.status === 403)) {
+          setFallbackReason("disabled")
+          setStatus("fallback")
+          return
+        }
+        retryRef.current += 1
+        const retryIndex = Math.min(retryRef.current - 1, RETRY_MILLISECONDS.length - 1)
+        if (retryRef.current >= RETRY_MILLISECONDS.length) {
+          setFallbackReason("runtime")
+          setStatus("fallback")
+        }
+        if (!detachedRef.current && document.visibilityState !== "hidden") {
+          pollTimerRef.current = window.setTimeout(
+            () => pollRef.current(),
+            RETRY_MILLISECONDS[retryIndex] ?? 10000,
+          )
+        }
       })
   }
 
@@ -316,14 +427,24 @@ export function ObserverProvider({
     if (engine !== null && parent !== null && engine.parentElement !== parent) parent.appendChild(engine)
   }, [])
 
+  const pauseObservation = useCallback((): void => {
+    stopPolling()
+    setBridgePresentationPaused(true)
+    clearTimer(releaseTimerRef)
+    releaseTimerRef.current = window.setTimeout(
+      releaseEngine,
+      RENDERER_WARM_MILLISECONDS,
+    )
+    setStatus("idle")
+  }, [releaseEngine, setBridgePresentationPaused, stopPolling])
+
   const detach = useCallback((): void => {
     attach(null)
-    setStatus("idle")
-    clearTimer(releaseTimerRef)
-    releaseTimerRef.current = window.setTimeout(releaseEngine, IDLE_RELEASE_MILLISECONDS)
-  }, [attach, releaseEngine])
+    pauseObservation()
+  }, [attach, pauseObservation])
 
   const open = useCallback(async (scope: ObserverScope): Promise<void> => {
+    scopeRef.current = scope
     worldConfigRef.current = scope.kind === "room" ? scope.worldConfig : null
     if (!enabled || !csrfToken) {
       setFallbackReason("disabled")
@@ -340,9 +461,12 @@ export function ObserverProvider({
       setStatus("fallback")
       return
     }
+    if (document.visibilityState === "hidden") {
+      pauseObservation()
+      return
+    }
     clearTimer(releaseTimerRef)
     if (restartRequiredRef.current) {
-      resetEngine()
       restartRequiredRef.current = false
     }
     setFallbackReason(null)
@@ -350,6 +474,16 @@ export function ObserverProvider({
     const nextKey = scopeKey(scope)
     const attempt = attemptRef.current
     try {
+      if (activeScopeRef.current !== null && activeScopeRef.current !== nextKey) {
+        const previousCapability = capabilityRef.current
+        stopPolling()
+        capabilityRef.current = null
+        activeScopeRef.current = null
+        cursorRef.current = null
+        if (previousCapability !== null) {
+          void closeObserverSession(previousCapability, csrfToken).catch(() => {})
+        }
+      }
       if (iframeRef.current === null) {
         const engine = createEngine()
         iframeRef.current = engine
@@ -360,14 +494,15 @@ export function ObserverProvider({
         readyTimerRef.current = window.setTimeout(requireRestart, READY_TIMEOUT_MILLISECONDS)
       }
       if (activeScopeRef.current !== nextKey || capabilityRef.current === null) {
-        clearTimer(pollTimerRef)
-        const capability = await openObserverSession(subscriptionFor(scope), csrfToken)
+        stopPolling()
+        const session = await openObserverSession(subscriptionFor(scope), csrfToken)
         if (attemptRef.current !== attempt) return
-        capabilityRef.current = capability
+        capabilityRef.current = session.capability
         activeScopeRef.current = nextKey
         cursorRef.current = null
-        pollRef.current()
       }
+      setBridgePresentationPaused(userPausedRef.current)
+      if (pollAbortRef.current === null && pollTimerRef.current === null) pollRef.current()
       if (engineReadyRef.current) {
         publishWorldConfig(worldConfigRef.current)
         setStatus("ready")
@@ -380,7 +515,8 @@ export function ObserverProvider({
       }
       throw reason
     }
-  }, [createEngine, csrfToken, enabled, publishWorldConfig, requireRestart, resetEngine])
+  }, [createEngine, csrfToken, enabled, pauseObservation, publishWorldConfig, requireRestart, setBridgePresentationPaused, stopPolling])
+  openRef.current = open
 
   useEffect(() => {
     if (!enabled) return undefined
@@ -389,8 +525,8 @@ export function ObserverProvider({
   }, [enabled])
 
   useEffect(() => {
-    if (!enabled) releaseEngine()
-  }, [enabled, releaseEngine])
+    if (!enabled) resetEngine()
+  }, [enabled, resetEngine])
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<unknown>): void => {
@@ -403,7 +539,56 @@ export function ObserverProvider({
     return (): void => window.removeEventListener("message", onMessage)
   }, [markEngineReady])
 
-  useEffect(() => releaseEngine, [releaseEngine])
+  useEffect(() => {
+    const resume = (): void => {
+      const scope = scopeRef.current
+      if (scope !== null && !detachedRef.current) void openRef.current(scope)
+    }
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState === "hidden") {
+        pauseObservation()
+        return
+      }
+      resume()
+    }
+    const onPageHide = (event: PageTransitionEvent): void => {
+      if (event.persisted) {
+        pauseObservation()
+        return
+      }
+      closeCurrentSession(true)
+      destroyRenderer()
+    }
+    const onFreeze = (): void => {
+      pauseObservation()
+      releaseEngine()
+    }
+    const onOffline = (): void => stopPolling()
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    window.addEventListener("pagehide", onPageHide)
+    document.addEventListener("freeze", onFreeze)
+    window.addEventListener("offline", onOffline)
+    window.addEventListener("online", resume)
+    return (): void => {
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+      window.removeEventListener("pagehide", onPageHide)
+      document.removeEventListener("freeze", onFreeze)
+      window.removeEventListener("offline", onOffline)
+      window.removeEventListener("online", resume)
+    }
+  }, [closeCurrentSession, destroyRenderer, pauseObservation, releaseEngine, stopPolling])
+
+  useEffect(() => () => {
+    closeCurrentSession(true)
+    destroyRenderer()
+  }, [closeCurrentSession, destroyRenderer])
+
+  const setLocalPresentationPaused = useCallback((paused: boolean): void => {
+    userPausedRef.current = paused
+    if (!detachedRef.current && document.visibilityState !== "hidden") {
+      setBridgePresentationPaused(paused)
+    }
+  }, [setBridgePresentationPaused])
 
   const value = useMemo<ObserverState>(() => ({
     attach,

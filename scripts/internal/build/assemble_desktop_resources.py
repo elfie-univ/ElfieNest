@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Final, Iterable, Mapping
@@ -34,6 +36,20 @@ REQUIRED_GODOT_FILES: Final = (
 
 class ResourceAssemblyError(RuntimeError):
     """Raised when a release resource cannot enter target staging."""
+
+
+def _source_revision(project_root: Path = PROJECT_ROOT) -> str:
+    try:
+        revision = subprocess.check_output(
+            ("git", "rev-parse", "HEAD"),
+            cwd=project_root,
+            text=True,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise ResourceAssemblyError("resource-source-revision-unavailable") from error
+    if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+        raise ResourceAssemblyError("resource-source-revision-invalid")
+    return revision
 
 
 def _target_executable(target: str, stem: str) -> str:
@@ -70,10 +86,16 @@ def _manifest_files(root: Path) -> Mapping[str, Mapping[str, object]]:
     return files
 
 
-def _write_manifest(resources: Path, application_version: str, target: str) -> None:
+def _write_manifest(
+    resources: Path,
+    application_version: str,
+    source_revision: str,
+    target: str,
+) -> None:
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "application_version": application_version,
+        "source_revision": source_revision,
         "target": target,
         "files": _manifest_files(resources),
     }
@@ -90,9 +112,12 @@ def assemble_resources(
     core_source: Path,
     cli_source: Path,
     application_version: str,
+    source_revision: str,
     config_source: Path | None = None,
 ) -> Path:
     """Build one atomic flat resource root from validated component inputs."""
+    if re.fullmatch(r"[0-9a-f]{40}", source_revision) is None:
+        raise ResourceAssemblyError("resource-source-revision-invalid")
     if target not in package_python_core.TARGETS:
         raise ResourceAssemblyError(f"resource-target-unsupported target={target}")
     _require_files(web_source, REQUIRED_WEB_FILES, "web")
@@ -136,7 +161,9 @@ def assemble_resources(
         cli_destination = staging / "resources" / "management-cli"
         cli_destination.mkdir(parents=True, exist_ok=True)
         shutil.copy2(cli_source, cli_destination / cli_name)
-        _write_manifest(staging / "resources", application_version, target)
+        _write_manifest(
+            staging / "resources", application_version, source_revision, target
+        )
         shutil.rmtree(target_root, ignore_errors=True)
         staging.replace(target_root)
     except Exception:
@@ -186,6 +213,7 @@ def main() -> int:
             cli_source=cli_source,
             config_source=args.config_source,
             application_version=check_release_version.project_version(),
+            source_revision=_source_revision(),
         )
     except (
         ResourceAssemblyError,

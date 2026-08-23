@@ -34,6 +34,14 @@ class OpenObserverSessionCommand:
 @dataclass(frozen=True)
 class OpenObserverSessionResult:
     capability: str
+    idle_timeout_seconds: int
+
+
+@dataclass(frozen=True)
+class CloseObserverSessionCommand:
+    principal: ObserverPrincipal
+    session_fingerprint: str
+    capability: str
 
 
 @dataclass(frozen=True)
@@ -117,6 +125,7 @@ ObserverEntityField: TypeAlias = Literal[
 
 
 __all__ = (
+    "CloseObserverSessionCommand",
     "NextObserverFrameQuery",
     "ObserverDeltaResult",
     "ObserverEntityChangeResult",

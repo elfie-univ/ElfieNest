@@ -12,6 +12,8 @@ import {
   validateResourceManifest,
 } from "./resource_manifest.js";
 
+const SOURCE_REVISION = "a".repeat(40);
+
 function createResourceTree(target: "darwin-arm64" | "win32-x64"): string {
   const root = mkdtempSync(join(tmpdir(), "elfienest-resources-"));
   for (const resourcePath of requiredResourcePathsForTarget(target)) {
@@ -36,11 +38,12 @@ test("resource manifest records and validates every packaged component for one s
     writeFileSync(join(root, "icon.icns"), "application-icon");
 
     // When
-    const manifest = buildResourceManifest(root, "0.1.0", "darwin-arm64");
+    const manifest = buildResourceManifest(root, "0.1.0", SOURCE_REVISION, "darwin-arm64");
 
     // Then
-    assert.equal(manifest.schema_version, 1);
+    assert.equal(manifest.schema_version, 2);
     assert.equal(manifest.application_version, "0.1.0");
+    assert.equal(manifest.source_revision, SOURCE_REVISION);
     assert.equal(manifest.target, "darwin-arm64");
     assert.ok(manifest.files["python-core/ElfieNestCore"]);
     assert.ok(manifest.files["management-cli/ElfieNestCli"]);
@@ -67,7 +70,7 @@ test("resource manifest uses Windows executables inside the target staging root"
   const root = createResourceTree("win32-x64");
   try {
     // When
-    const manifest = buildResourceManifest(root, "0.1.0", "win32-x64");
+    const manifest = buildResourceManifest(root, "0.1.0", SOURCE_REVISION, "win32-x64");
 
     // Then
     assert.equal(manifest.target, "win32-x64");
@@ -86,7 +89,7 @@ test("resource manifest reports tampered and missing files", () => {
   // Given
   const root = createResourceTree("darwin-arm64");
   try {
-    const manifest = buildResourceManifest(root, "0.1.0", "darwin-arm64");
+    const manifest = buildResourceManifest(root, "0.1.0", SOURCE_REVISION, "darwin-arm64");
     writeFileSync(join(root, "godot-web/elfienest.wasm"), "tampered");
 
     // When
@@ -104,7 +107,7 @@ test("resource manifest refuses a tampered packaged file before startup", () => 
   // Given
   const root = createResourceTree("darwin-arm64");
   try {
-    const manifest = buildResourceManifest(root, "0.1.0", "darwin-arm64");
+    const manifest = buildResourceManifest(root, "0.1.0", SOURCE_REVISION, "darwin-arm64");
     writeFileSync(join(root, "manifest.json"), JSON.stringify(manifest));
     writeFileSync(join(root, "godot-web/elfienest.wasm"), "tampered");
 
@@ -124,7 +127,7 @@ test("resource manifest rejects parent traversal before reading outside the reso
   try {
     const outsideData = Buffer.from("outside-resource");
     writeFileSync(outsidePath, outsideData);
-    const manifest = buildResourceManifest(root, "0.1.0", "darwin-arm64");
+    const manifest = buildResourceManifest(root, "0.1.0", SOURCE_REVISION, "darwin-arm64");
     const payload = JSON.parse(JSON.stringify(manifest)) as {
       files: Record<string, { size: number; sha256: string }>;
     };
@@ -147,7 +150,7 @@ test("resource manifest rejects parent traversal before reading outside the reso
 test("resource manifest rejects absolute paths and malformed file records", () => {
   const root = createResourceTree("darwin-arm64");
   try {
-    const manifest = buildResourceManifest(root, "0.1.0", "darwin-arm64");
+    const manifest = buildResourceManifest(root, "0.1.0", SOURCE_REVISION, "darwin-arm64");
     const absolutePayload = JSON.parse(JSON.stringify(manifest)) as {
       files: Record<string, { size: number; sha256: string }>;
     };

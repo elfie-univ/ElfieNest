@@ -52,7 +52,10 @@ const ObserverDeltaSchema = z.object({
   patch: ObserverEntitySchema.partial().refine((value) => Object.keys(value).length > 0),
 }).strict()
 const ObserverFrameSchema = z.discriminatedUnion("kind", [ObserverSnapshotSchema, ObserverDeltaSchema])
-const ObserverCapabilitySchema = z.object({ capability: z.string().min(1) }).strict()
+const ObserverCapabilitySchema = z.object({
+  capability: z.string().min(1),
+  idle_timeout_seconds: z.number().int().positive(),
+}).strict()
 const GodotBuildManifestSchema = z.object({
   files: z.record(z.string(), z.object({ sha256: z.string().length(64) }).passthrough()),
 }).passthrough()
@@ -61,31 +64,59 @@ export type ObserverSubscription = z.infer<typeof ObserverSubscriptionSchema>
 export type ObserverEntity = z.infer<typeof ObserverEntitySchema>
 export type ObserverFrame = z.infer<typeof ObserverFrameSchema>
 export type ObserverCursor = { readonly generation: number; readonly sequence: number }
+export type ObserverSession = {
+  readonly capability: string
+  readonly idleTimeoutSeconds: number
+}
 
-function capabilityHeaders(capability: string): HeadersInit {
-  return { "X-ElfieNest-Observer-Capability": capability }
+function capabilityHeaders(capability: string, csrfToken?: string): HeadersInit {
+  return csrfToken === undefined
+    ? { "X-ElfieNest-Observer-Capability": capability }
+    : {
+        "X-CSRF-Token": csrfToken,
+        "X-ElfieNest-Observer-Capability": capability,
+      }
 }
 
 export async function openObserverSession(
   subscription: ObserverSubscription,
   csrfToken: string,
-): Promise<string> {
+): Promise<ObserverSession> {
   const payload = await requestJson("/api/v1/observer/sessions", {
     method: "POST",
     headers: csrfHeaders(csrfToken, true),
     body: JSON.stringify({ protocol: 3, role: "observer", subscription }),
   })
-  return ObserverCapabilitySchema.parse(payload).capability
+  const parsed = ObserverCapabilitySchema.parse(payload)
+  return {
+    capability: parsed.capability,
+    idleTimeoutSeconds: parsed.idle_timeout_seconds,
+  }
+}
+
+export async function closeObserverSession(
+  capability: string,
+  csrfToken: string,
+  keepalive = false,
+): Promise<void> {
+  await requestJson("/api/v1/observer/sessions/current", {
+    method: "DELETE",
+    headers: capabilityHeaders(capability, csrfToken),
+    keepalive,
+  })
 }
 
 export async function nextObserverFrame(
   capability: string,
   cursor: ObserverCursor | null,
+  signal?: AbortSignal,
 ): Promise<ObserverFrame | null> {
   const query = cursor === null
     ? ""
     : `?acknowledged_generation=${cursor.generation}&acknowledged_sequence=${cursor.sequence}`
-  const payload = await requestJson(`/api/v1/observer/frames${query}`, { headers: capabilityHeaders(capability) })
+  const init: RequestInit = { headers: capabilityHeaders(capability) }
+  if (signal !== undefined) init.signal = signal
+  const payload = await requestJson(`/api/v1/observer/frames${query}`, init)
   return payload === null ? null : ObserverFrameSchema.parse(payload)
 }
 
