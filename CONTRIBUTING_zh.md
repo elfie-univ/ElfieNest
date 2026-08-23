@@ -135,10 +135,10 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 重复一遍；应在宿主或提升权限的环境中把同一条全量命令只运行一次。返回 `1` 表示预检
 本身出现未预期错误，必须先诊断。
 
-每个 clone/worktree 初始化时安装一次仓库管理的 hook：
+普通开发 bootstrap 会幂等安装仓库管理的 hook；只修复或安装 hook 时使用：
 
 ```bash
-bash scripts/architecture/install_git_hooks.sh
+bash scripts/bootstrap.sh hooks
 ```
 
 开发期间只运行由改动行为实际触发的聚焦测试或类型检查。每次 `git commit` 随后对真实暂存

@@ -62,6 +62,13 @@ def copy_bootstrap(project_root: Path) -> Path:
         "bootstrap_runtime_dependencies.sh",
     ):
         shutil.copy2(PROJECT_ROOT / "scripts" / filename, scripts_dir / filename)
+    for relative_path in (
+        "architecture/install_git_hooks.sh",
+        "architecture/git-hooks/pre-commit",
+    ):
+        destination = scripts_dir / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(PROJECT_ROOT / "scripts" / relative_path, destination)
     godot_project = project_root / "godot_project"
     godot_project.mkdir(parents=True)
     shutil.copy2(

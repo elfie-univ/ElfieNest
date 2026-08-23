@@ -1,6 +1,6 @@
 #!/bin/bash
 # ElfieNest unified dependency orchestrator
-# Usage: bootstrap <check|ensure|report> [--tier=dev|build]
+# Usage: bootstrap <check|ensure|report|hooks> [--tier=dev|build]
 
 set -euo pipefail
 
@@ -22,7 +22,7 @@ RESET=$'\e[0m'
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        check|ensure|report)
+        check|ensure|report|hooks)
             ACTION="$1"
             shift
             ;;
@@ -86,8 +86,15 @@ check_python() {
     return 0
 }
 
+check_dev_python_tools() {
+    [[ -x "$PROJECT_ROOT/.venv/bin/pre-commit" ]] && \
+        [[ -x "$PROJECT_ROOT/.venv/bin/ruff" ]]
+}
+
 ensure_python() {
-    if check_python && [[ "${ELFIENEST_FORCE_LOCKED_SYNC:-0}" != "1" ]]; then
+    if check_python && \
+        [[ "${ELFIENEST_FORCE_LOCKED_SYNC:-0}" != "1" ]] && \
+        { [[ "$TIER" != "dev" ]] || check_dev_python_tools; }; then
         echo "${GREEN}  ✅ Python $PINNED_PYTHON_VERSION is ready${RESET}"
         return 0
     fi
@@ -291,11 +298,24 @@ fi
 # shellcheck source=scripts/bootstrap_report.sh
 source "$REPORT_HELPER"
 
+ensure_git_hooks() {
+    local installer="$SCRIPT_DIR/architecture/install_git_hooks.sh"
+    if [[ ! -x "$installer" ]]; then
+        echo "${RED}  ❌ Missing Git hook installer: $installer${RESET}" >&2
+        return 1
+    fi
+    bash "$installer"
+}
+
 # ============================================================================
 # Main flow
 # ============================================================================
 
 main() {
+    if [[ "$ACTION" == "hooks" ]]; then
+        ensure_git_hooks
+        return $?
+    fi
     if [[ "$ACTION" == "report" ]]; then
         emit_bootstrap_report
         return $?
@@ -322,6 +342,16 @@ main() {
         fi
     fi
     echo ""
+
+    if [[ "$ACTION" == "ensure" && "$TIER" == "dev" ]]; then
+        echo "📦 Repository Git hooks"
+        if [[ $exit_code -eq 0 ]]; then
+            ensure_git_hooks || exit_code=1
+        else
+            echo "${YELLOW}  ⚠️  Skipped until the Python environment is ready${RESET}"
+        fi
+        echo ""
+    fi
 
     # Node.js (dev tier)
     if [[ "$TIER" == "dev" ]]; then
