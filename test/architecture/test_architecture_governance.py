@@ -21,6 +21,7 @@ from scripts.governance.change_policy import (
     validate_contract_changes,
     validate_decision_mirrors,
     validate_governance_rule_changes,
+    validate_retired_script_control_paths,
     validate_temporary_cleanup_changes,
 )
 from scripts.governance.contract_registry import CONTRACT_REGISTRY
@@ -614,7 +615,7 @@ def test_quality_gate_definitions_are_governance_but_baseline_can_shrink() -> No
     }
 
 
-def test_script_control_plane_paths_are_governance_during_layout_cutover() -> None:
+def test_script_control_plane_paths_are_governance_after_layout_cutover() -> None:
     governance, production = classify_paths(
         {
             "scripts/check_node_toolchain.sh",
@@ -630,16 +631,34 @@ def test_script_control_plane_paths_are_governance_during_layout_cutover() -> No
     )
 
     assert governance == {
-        "scripts/check_node_toolchain.sh",
-        "scripts/check_quality_environment.py",
-        "scripts/check_release_version.py",
-        "scripts/godot_host_validate.sh",
         "scripts/governance/boundaries/app_layers.py",
         "scripts/governance/contract_registry.py",
         "scripts/quality/checks/python_baseline.py",
         "scripts/quality/validation/plan.py",
     }
-    assert production == {"scripts/godot_species_validation.py"}
+    assert production == {
+        "scripts/check_node_toolchain.sh",
+        "scripts/check_quality_environment.py",
+        "scripts/check_release_version.py",
+        "scripts/godot_host_validate.sh",
+        "scripts/godot_species_validation.py",
+    }
+
+
+def test_retired_script_control_plane_paths_are_rejected() -> None:
+    retired = {
+        "scripts/architecture/scanner.py",
+        "scripts/check_node_toolchain.sh",
+        "scripts/check_quality_environment.py",
+        "scripts/check_release_version.py",
+        "scripts/godot_host_validate.sh",
+    }
+
+    failures = validate_retired_script_control_paths(retired)
+
+    assert len(failures) == len(retired)
+    for path in retired:
+        assert any(path in failure for failure in failures)
 
 
 def test_repository_wide_implementation_surfaces_cannot_hide_in_governance_change() -> (
@@ -840,19 +859,10 @@ def test_architecture_ratchet_uses_the_immutable_base_router() -> None:
 
     assert "github.event.pull_request.base.sha" in preflight
     assert "$base_sha:scripts/quality/validation/plan.py" in preflight
-    assert "$base_sha:scripts/architecture/validation_plan.py" in preflight
     assert "base branch predates the trusted router; selecting every lane" in preflight
-    assert "$BASE_SHA:scripts/governance/change_policy.py" in architecture_job
-    assert (
-        'classifier_path="scripts/architecture/check_governance_change.py"'
-        in architecture_job
-    )
+    assert 'classifier_path="scripts/governance/change_policy.py"' in architecture_job
     assert (
         'structural_path="scripts/governance/boundaries/structural_scope.py"'
-        in architecture_job
-    )
-    assert (
-        'structural_path="scripts/architecture/structural_scope_scan.py"'
         in architecture_job
     )
     assert 'git show "$BASE_SHA:$classifier_path"' in architecture_job
@@ -860,6 +870,9 @@ def test_architecture_ratchet_uses_the_immutable_base_router() -> None:
     assert 'PYTHONPATH="$base_root"' in local_gate
     assert 'run_immutable_base_python "$classifier_root"' in local_gate
     assert 'run_immutable_base_python "$scanner_root"' in local_gate
+    assert "scripts/architecture/" not in preflight
+    assert "scripts/architecture/" not in architecture_job
+    assert "scripts/architecture/" not in local_gate
 
 
 def test_affected_python_job_installs_devtools_frontend_dependencies() -> None:

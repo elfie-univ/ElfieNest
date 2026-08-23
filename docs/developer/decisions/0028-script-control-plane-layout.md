@@ -49,7 +49,8 @@ unchanged and no long-lived legacy path survives the cutover.
 
 ## Cutover status
 
-The candidate tree now uses the target layout exclusively. Its CI and local
-full-gate code may read legacy scanners from the immutable base commit only
-while this physical move is being judged; that base-only lookup is removed in
-the follow-up cleanup after the new layout reaches protected main.
+Completed. Protected `main`, ordinary callers, CI and local gates now use only
+the target layout. The temporary immutable-base lookup and caller fallbacks
+were removed in separate governance and product changes. Retired paths remain
+only as historical context and explicit fail-closed rejection targets; they are
+not executable fallbacks or valid ownership locations.

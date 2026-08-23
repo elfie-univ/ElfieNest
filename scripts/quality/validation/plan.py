@@ -41,11 +41,20 @@ GOVERNANCE_PREFIXES = (
     "docs/developer/decisions/",
     "docs/zh/developer/contracts/",
     "docs/zh/developer/decisions/",
-    "scripts/architecture/",
     "scripts/governance/",
     "scripts/quality/",
     "task-closure",
     "test/architecture/",
+)
+RETIRED_SCRIPT_CONTROL_PREFIXES = ("scripts/architecture/",)
+RETIRED_SCRIPT_CONTROL_EXACT = frozenset(
+    {
+        "scripts/check_node_toolchain.sh",
+        "scripts/check_quality_baseline.py",
+        "scripts/check_quality_environment.py",
+        "scripts/check_release_version.py",
+        "scripts/godot_host_validate.sh",
+    }
 )
 GOVERNANCE_EXACT = frozenset(
     {
@@ -217,6 +226,14 @@ def build_plan(paths: Iterable[str], requested_stage: str) -> Dict[str, object]:
 
     for path in normalized_paths:
         if path in GENERATED_GATE_OUTPUTS:
+            continue
+        if path in RETIRED_SCRIPT_CONTROL_EXACT or path.startswith(
+            RETIRED_SCRIPT_CONTROL_PREFIXES
+        ):
+            selected_capabilities.update({"architecture", "governance"})
+            required_tier = max(required_tier, 2)
+            full = True
+            reasons.append(f"{path} attempts to restore a retired script path")
             continue
         if (
             Path(path).name == "AGENTS.md"

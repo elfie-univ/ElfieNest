@@ -38,6 +38,21 @@ def test_unknown_executable_changes_fail_closed_without_local_main_escalation() 
     assert all(plan["capabilities"].values())
 
 
+def test_retired_script_paths_select_governance_and_fail_closed() -> None:
+    paths = [
+        "scripts/architecture/scanner.py",
+        "scripts/check_quality_baseline.py",
+    ]
+
+    plan = build_plan(paths, "commit")
+
+    assert plan["full"] is True
+    assert plan["unknown_paths"] == []
+    assert plan["direct_capabilities"]["architecture"] is True
+    assert plan["direct_capabilities"]["governance"] is True
+    assert all("retired script path" in reason for reason in plan["reasons"])
+
+
 def test_source_changes_use_the_mirrored_test_directory_when_available() -> None:
     plan = build_plan(["app/features/setup/service.py"], "commit")
 
@@ -244,7 +259,7 @@ def test_ci_uses_the_base_branch_router_and_fails_closed_during_bootstrap() -> N
     )
 
     assert "$base_sha:scripts/quality/validation/plan.py" in workflow
-    assert "$base_sha:scripts/architecture/validation_plan.py" in workflow
+    assert "$base_sha:scripts/architecture/validation_plan.py" not in workflow
     assert "base branch predates the trusted router; selecting every lane" in workflow
     assert "affected-v(1|2)" in workflow
     assert 'MANIFEST_SCHEMA_VERSION = "affected-v2"' in workflow
