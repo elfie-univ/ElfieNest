@@ -317,7 +317,10 @@ fi
 source "$REPORT_HELPER"
 
 ensure_git_hooks() {
-    local installer="$SCRIPT_DIR/architecture/install_git_hooks.sh"
+    local installer="$SCRIPT_DIR/quality/hooks/install.sh"
+    if [[ ! -f "$installer" ]]; then
+        installer="$SCRIPT_DIR/architecture/install_git_hooks.sh"
+    fi
     if [[ ! -x "$installer" ]]; then
         echo "${RED}  ❌ Missing Git hook installer: $installer${RESET}" >&2
         return 1

@@ -56,12 +56,20 @@ exit 0
 def copy_bootstrap(project_root: Path) -> Path:
     scripts_dir = project_root / "scripts"
     scripts_dir.mkdir(parents=True)
+    hook_paths = (
+        "quality/hooks/install.sh",
+        "quality/hooks/pre-commit",
+    )
+    if not (PROJECT_ROOT / "scripts" / hook_paths[0]).is_file():
+        hook_paths = (
+            "architecture/install_git_hooks.sh",
+            "architecture/git-hooks/pre-commit",
+        )
     for relative_path in (
         "bootstrap.sh",
         "internal/bootstrap/report.sh",
         "internal/bootstrap/runtime_dependencies.sh",
-        "architecture/install_git_hooks.sh",
-        "architecture/git-hooks/pre-commit",
+        *hook_paths,
     ):
         destination = scripts_dir / relative_path
         destination.parent.mkdir(parents=True, exist_ok=True)

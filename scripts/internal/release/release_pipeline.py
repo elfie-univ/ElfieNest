@@ -9,9 +9,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, Final, Optional, TypeVar
 
-from scripts import check_release_version
 from scripts.internal.build import assemble_desktop_resources, package_python_core
 from scripts.internal.release import release_manifest
+from scripts.internal.release import version as check_release_version
 
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[3]
 BUILD_DIR: Final = PROJECT_ROOT / "build"
