@@ -98,7 +98,7 @@ def test_bundle_inputs_cover_known_cross_root_consumers() -> None:
         "package.json",
         "pnpm-lock.yaml",
         "resources/config/default.yaml",
-        "scripts/build_devtools_web.py",
+        "scripts/internal/build/build_devtools_web.py",
         "test/devtools/nest_lab/test_world.py",
         "test/scripts/test_node_toolchain.py",
     ]
@@ -115,7 +115,7 @@ def test_bundle_inputs_cover_known_cross_root_consumers() -> None:
     )
 
     assert "nest/public.py" in devtools_inputs
-    assert "scripts/build_devtools_web.py" in devtools_inputs
+    assert "scripts/internal/build/build_devtools_web.py" in devtools_inputs
     assert "nest/public.py" in set(
         test_bundles.bundle_input_paths(
             test_bundles.bundle_by_id("elfie"), repository_paths
