@@ -35,7 +35,7 @@ Git hook 安装器；其中的 `AGENTS.md` 定义机器治理规则。
 | `internal/bootstrap/report.sh`、`internal/bootstrap/runtime_dependencies.sh` | Bootstrap 辅助 |
 | `assemble_desktop_resources.py`、`build_devtools_web.py`、`build_godot_dedicated.py`、`build_godot_web.py`、`package_python_core.py` | 构建辅助 |
 | `release_install_smoke.py`、`release_manifest.py`、`release_pipeline.py`、`release_planning.py` | 发布辅助 |
-| `chat_with_elfie.py`、`e2e_dashboard_check.py`、`verify_nest_runtime_e2e.py` | 人工诊断 |
+| `internal/diagnostics/chat_with_elfie.py`、`internal/diagnostics/e2e_dashboard_check.py`、`internal/diagnostics/verify_nest_runtime_e2e.py` | 人工诊断 |
 | `__init__.py` | 包标记，不是命令 |
 
 新增内部辅助实现进入 `scripts/internal/<category>/`；稳定根路径保持精简明确，不继续堆积
@@ -110,14 +110,14 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 | 文件 | 用途与注意事项 |
 | --- | --- |
-| `chat_with_elfie.py` | 启动长时间引擎循环，与第一个已持久化的精灵在终端对话；需要先完成领养和模型运行时，手工退出后清理服务 |
-| `e2e_dashboard_check.py` | 用临时目录和随机端口启动已配置模型服务，检查登录、领养与管理面板链路；运行前必须配置模型 |
-| `verify_nest_runtime_e2e.py` | 等待一个 Godot Runtime，验证双精灵同步、广播、语义移动和取消终态 |
+| `internal/diagnostics/chat_with_elfie.py` | 启动长时间引擎循环，与第一个已持久化的精灵在终端对话；需要先完成领养和模型运行时，手工退出后清理服务 |
+| `internal/diagnostics/e2e_dashboard_check.py` | 用临时目录和随机端口启动已配置模型服务，检查登录、领养与管理面板链路；运行前必须配置模型 |
+| `internal/diagnostics/verify_nest_runtime_e2e.py` | 等待一个 Godot Runtime，验证双精灵同步、广播、语义移动和取消终态 |
 
 这些脚本可能耗时、占用端口或产生本地数据，不应作为 import 时执行的模块，也不应
 在不知情的情况下指向默认生产数据。可自动化的回归应优先进入 `test/e2e/`。
 
-`verify_nest_runtime_e2e.py` 启动 Python 侧协议 v2 网关；另一个终端需使用脚本
+`internal/diagnostics/verify_nest_runtime_e2e.py` 启动 Python 侧协议 v2 网关；另一个终端需使用脚本
 输出的 WebSocket 地址和 nonce 启动 `godot_project/main.tscn`。脚本只使用内存
 状态，不读取或写入生产 `ELFIE_HOME`。
 

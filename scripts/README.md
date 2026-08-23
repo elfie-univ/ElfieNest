@@ -40,7 +40,7 @@ the same change:
 | `internal/bootstrap/report.sh`, `internal/bootstrap/runtime_dependencies.sh` | Bootstrap support |
 | `assemble_desktop_resources.py`, `build_devtools_web.py`, `build_godot_dedicated.py`, `build_godot_web.py`, `package_python_core.py` | Build support |
 | `release_install_smoke.py`, `release_manifest.py`, `release_pipeline.py`, `release_planning.py` | Release support |
-| `chat_with_elfie.py`, `e2e_dashboard_check.py`, `verify_nest_runtime_e2e.py` | Manual diagnostics |
+| `internal/diagnostics/chat_with_elfie.py`, `internal/diagnostics/e2e_dashboard_check.py`, `internal/diagnostics/verify_nest_runtime_e2e.py` | Manual diagnostics |
 | `__init__.py` | Package marker, not a command |
 
 New internal helpers belong under `scripts/internal/<category>/`; stable root
@@ -119,15 +119,15 @@ loops; they are not stable user commands available after install:
 
 | File | Purpose & caveats |
 | --- | --- |
-| `chat_with_elfie.py` | Runs a long-lived engine loop and chats with the first persisted Elfie in the terminal; requires an adopted Elfie and a model runtime; cleans up services on manual exit |
-| `e2e_dashboard_check.py` | Starts the configured model service with a temp directory and random ports to check the login, adoption and management dashboard flow; requires a configured model |
-| `verify_nest_runtime_e2e.py` | Waits for a Godot Runtime and verifies two-Elfie sync, broadcast, semantic motion and cancel terminal states |
+| `internal/diagnostics/chat_with_elfie.py` | Runs a long-lived engine loop and chats with the first persisted Elfie in the terminal; requires an adopted Elfie and a model runtime; cleans up services on manual exit |
+| `internal/diagnostics/e2e_dashboard_check.py` | Starts the configured model service with a temp directory and random ports to check the login, adoption and management dashboard flow; requires a configured model |
+| `internal/diagnostics/verify_nest_runtime_e2e.py` | Waits for a Godot Runtime and verifies two-Elfie sync, broadcast, semantic motion and cancel terminal states |
 
 These scripts may take time, occupy ports or produce local data; they should
 not be executed on import, and must not point at default production data without
 explicit intent. Automatable regression should live under `test/e2e/` instead.
 
-`verify_nest_runtime_e2e.py` starts the Python-side protocol v2 gateway; in
+`internal/diagnostics/verify_nest_runtime_e2e.py` starts the Python-side protocol v2 gateway; in
 another terminal you need to launch `godot_project/main.tscn` against the
 WebSocket address and nonce the script prints. The script uses only in-memory
 state and never reads or writes the production `ELFIE_HOME`.
