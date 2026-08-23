@@ -61,6 +61,7 @@ def test_assemble_resources_copies_one_target_and_writes_a_manifest(
         cli_source=cli,
         config_source=config,
         application_version="0.1.0",
+        source_revision="a" * 40,
     )
 
     # Then: the flat Electron resource root contains every runtime component.
@@ -73,6 +74,8 @@ def test_assemble_resources_copies_one_target_and_writes_a_manifest(
     assert not (resources / "ollama").exists()
     manifest = json.loads((resources / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["application_version"] == "0.1.0"
+    assert manifest["schema_version"] == 2
+    assert manifest["source_revision"] == "a" * 40
     assert manifest["target"] == target
     assert "web/assets/app.js" in manifest["files"]
     assert "web/manifest.json" in manifest["files"]
@@ -109,4 +112,5 @@ def test_assemble_resources_requires_the_single_product_react_shell(
             cli_source=cli,
             config_source=config,
             application_version="0.1.0",
+            source_revision="a" * 40,
         )

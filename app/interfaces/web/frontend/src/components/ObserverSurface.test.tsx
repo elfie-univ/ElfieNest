@@ -11,8 +11,9 @@ import { isObserverContextAllowed, ObserverProvider } from "../stores/observer"
 import { ObserverSurface } from "./ObserverSurface"
 
 vi.mock("../api/observer", () => ({
+  closeObserverSession: vi.fn().mockResolvedValue(undefined),
   nextObserverFrame: vi.fn().mockResolvedValue(null),
-  openObserverSession: vi.fn().mockResolvedValue("observer-capability"),
+  openObserverSession: vi.fn().mockResolvedValue({ capability: "observer-capability", idleTimeoutSeconds: 120 }),
   warmObserverAssets: vi.fn().mockResolvedValue(undefined),
 }))
 

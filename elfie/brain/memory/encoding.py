@@ -182,7 +182,7 @@ class MemoryEncoder:
                 if prev_ts_str:
                     try:
                         prev_ts = datetime.fromisoformat(prev_ts_str)
-                        now = datetime.now()
+                        now = datetime.now(prev_ts.tzinfo)
                         diff_minutes = (now - prev_ts).total_seconds() / 60.0
 
                         if diff_minutes < 5:

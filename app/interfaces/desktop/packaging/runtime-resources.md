@@ -33,7 +33,9 @@ build/staging/<platform-arch>/resources/
 必须是前端 Vite 构建产物的完整副本；Electron 启动 Core 时将其作为
 `ELFIENEST_WEB_BUILD_DIR` 传入，Core 不会回退到旧静态控制台。
 
-`manifest.json` 应记录版本和哈希。Ollama 及其模型不随安装包提交；它们属于用户选择
+`manifest.json` 使用 schema 2，记录应用版本、40 位源码 Git revision、目标平台和每个
+资源文件的哈希。Desktop 启动时会输出该 revision，便于确认安装版的真实源码来源。
+Ollama 及其模型不随安装包提交；它们属于用户选择
 安装并由初始化向导绑定的系统级服务，因此升级应用不会重复携带大文件或私有模型目录。
 
 使用 `scripts/internal/build/assemble_desktop_resources.py` 组装时，它会复制 Vite、Godot Web、

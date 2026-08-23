@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { requestJson } from "./http"
-import { nextObserverFrame, openObserverSession, warmObserverAssets } from "./observer"
+import { closeObserverSession, nextObserverFrame, openObserverSession, warmObserverAssets } from "./observer"
 
 const { kyGet } = vi.hoisted(() => ({ kyGet: vi.fn() }))
 
@@ -14,15 +14,35 @@ vi.mock("./http", () => ({
 
 describe("openObserverSession", () => {
   it("uses the sole versioned Observer resource", async () => {
-    vi.mocked(requestJson).mockResolvedValue({ capability: "observer-capability" })
+    vi.mocked(requestJson).mockResolvedValue({
+      capability: "observer-capability",
+      idle_timeout_seconds: 120,
+    })
 
     await expect(
       openObserverSession({ kind: "room", room_id: "local-nest" }, "csrf"),
-    ).resolves.toBe("observer-capability")
+    ).resolves.toEqual({ capability: "observer-capability", idleTimeoutSeconds: 120 })
 
     expect(requestJson).toHaveBeenCalledWith(
       "/api/v1/observer/sessions",
       expect.objectContaining({ method: "POST" }),
+    )
+  })
+
+  it("closes the current capability with CSRF protection", async () => {
+    vi.mocked(requestJson).mockResolvedValue({})
+
+    await closeObserverSession("observer-capability", "csrf")
+
+    expect(requestJson).toHaveBeenCalledWith(
+      "/api/v1/observer/sessions/current",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          "X-CSRF-Token": "csrf",
+          "X-ElfieNest-Observer-Capability": "observer-capability",
+        }),
+      }),
     )
   })
 })

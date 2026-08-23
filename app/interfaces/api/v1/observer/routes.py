@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse, Response
 from app.features.accounts import AccountPrincipal
 from app.interfaces.api.v1.auth import get_current_user
 from app.orchestration.observer import (
+    CloseObserverSessionCommand,
     NextObserverFrameQuery,
     ObserverEntityRecord,
     ObserverError,
@@ -17,6 +18,7 @@ from app.orchestration.observer import (
     ObserverForbidden,
     ObserverPrincipal,
     ObserverRateLimited,
+    ObserverSessionExpired,
     ObserverSnapshotResult,
     ObserverSubscription,
     ObserverUnavailable,
@@ -74,7 +76,34 @@ def open_observer_session(
         )
     except ObserverError as error:
         return _error_response(error)
-    return OpenObserverSessionResponse(capability=result.capability)
+    return OpenObserverSessionResponse(
+        capability=result.capability,
+        idle_timeout_seconds=result.idle_timeout_seconds,
+    )
+
+
+@router.delete(
+    "/sessions/current",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    responses={403: {"model": ObserverErrorResponse}},
+)
+def close_observer_session(
+    request: Request,
+    capability: str = ObserverCapability,
+    principal: AccountPrincipal = CurrentPrincipal,
+) -> Response:
+    try:
+        _facade(request).close_session(
+            CloseObserverSessionCommand(
+                principal=_principal(principal),
+                session_fingerprint=_session_fingerprint(request, principal),
+                capability=capability,
+            )
+        )
+    except ObserverError as error:
+        return _error_response(error)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
@@ -83,6 +112,7 @@ def open_observer_session(
     status_code=status.HTTP_202_ACCEPTED,
     responses={
         403: {"model": ObserverErrorResponse},
+        410: {"model": ObserverErrorResponse},
         429: {"model": ObserverErrorResponse},
         503: {"model": ObserverErrorResponse},
     },
@@ -116,6 +146,7 @@ def submit_observer_intent(
     response_model=None,
     responses={
         403: {"model": ObserverErrorResponse},
+        410: {"model": ObserverErrorResponse},
         503: {"model": ObserverErrorResponse},
     },
 )
@@ -146,6 +177,7 @@ def update_observer_interest(
     response_model_exclude_unset=True,
     responses={
         403: {"model": ObserverErrorResponse},
+        410: {"model": ObserverErrorResponse},
         503: {"model": ObserverErrorResponse},
     },
 )
@@ -261,6 +293,9 @@ def _error_response(error: ObserverError) -> JSONResponse:
     if isinstance(error, ObserverForbidden):
         status_code = 403
         code = "observer_forbidden"
+    elif isinstance(error, ObserverSessionExpired):
+        status_code = 410
+        code = "observer_session_expired"
     elif isinstance(error, ObserverRateLimited):
         status_code = 429
         code = "observer_rate_limited"

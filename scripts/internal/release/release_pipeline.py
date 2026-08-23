@@ -231,6 +231,7 @@ def _assemble(target: str, core: Path, cli: Path, version: str) -> Path:
         cli_source=cli,
         config_source=PROJECT_ROOT / "config",
         application_version=version,
+        source_revision=assemble_desktop_resources._source_revision(PROJECT_ROOT),
     )
 
 

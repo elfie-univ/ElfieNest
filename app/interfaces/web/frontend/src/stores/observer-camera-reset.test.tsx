@@ -5,8 +5,9 @@ import { nextObserverFrame, openObserverSession } from "../api/observer"
 import { ObserverProvider, useOptionalObserver } from "./observer"
 
 vi.mock("../api/observer", () => ({
+  closeObserverSession: vi.fn().mockResolvedValue(undefined),
   nextObserverFrame: vi.fn().mockResolvedValue(null),
-  openObserverSession: vi.fn().mockResolvedValue("observer-capability"),
+  openObserverSession: vi.fn().mockResolvedValue({ capability: "observer-capability", idleTimeoutSeconds: 120 }),
   warmObserverAssets: vi.fn().mockResolvedValue(undefined),
 }))
 
@@ -41,7 +42,7 @@ function dispatchCatalog(engine: HTMLIFrameElement): void {
 afterEach(() => {
   vi.useRealTimers()
   vi.mocked(nextObserverFrame).mockReset().mockResolvedValue(null)
-  vi.mocked(openObserverSession).mockReset().mockResolvedValue("observer-capability")
+  vi.mocked(openObserverSession).mockReset().mockResolvedValue({ capability: "observer-capability", idleTimeoutSeconds: 120 })
 })
 
 beforeEach(() => {

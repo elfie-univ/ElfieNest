@@ -29,8 +29,9 @@ def test_manifest_validation_rejects_a_manifest_that_omits_required_godot_files(
     shell.parent.mkdir(parents=True)
     shell.write_bytes(b"shell")
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "application_version": "0.1.0",
+        "source_revision": "a" * 40,
         "target": "darwin-arm64",
         "files": {
             "web/index.html": {
@@ -93,8 +94,9 @@ def test_manifest_validation_accepts_runtime_without_a_bundled_ollama_binary(
     (resources / "manifest.json").write_text(
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "application_version": "0.1.0",
+                "source_revision": "a" * 40,
                 "target": target,
                 "files": files,
             }
