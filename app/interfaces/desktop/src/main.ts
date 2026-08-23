@@ -13,7 +13,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 import {
-  applicationMenuTemplate,
+  APPLICATION_MENU,
   backgroundMenuTemplate,
   normalizeApplicationMenuLocale,
 } from "./application_menu.js";
@@ -380,6 +380,7 @@ async function startDesktop(): Promise<void> {
 }
 
 function startDesktopUiRole(): void {
+  Menu.setApplicationMenu(APPLICATION_MENU);
   app.setPath("userData", controllerHomeForAppData(app.getPath("appData")));
   const hasSingleInstanceLock = app.requestSingleInstanceLock();
   if (!hasSingleInstanceLock) {
@@ -400,16 +401,6 @@ function startDesktopUiRole(): void {
     .whenReady()
     .then(() => {
       const locale = normalizeApplicationMenuLocale(app.getLocale());
-      const menuTemplate = applicationMenuTemplate(
-        process.platform,
-        showManagementWindow,
-        hideManagementWindow,
-        requestExplicitApplicationExit,
-        locale,
-      );
-      Menu.setApplicationMenu(
-        menuTemplate === null ? null : Menu.buildFromTemplate(menuTemplate),
-      );
       createBackgroundTray(locale);
       if (!controllerOnly) {
         showManagementWindow();
