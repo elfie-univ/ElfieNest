@@ -46,7 +46,7 @@ Developer Tools retain independent manifests and lockfiles. Check that their
 toolchain declarations remain aligned with:
 
 ```bash
-bash scripts/check_node_toolchain.sh
+bash scripts/quality/checks/node_toolchain.sh
 ```
 
 ## Preview the documentation site
@@ -197,7 +197,7 @@ the first real turn makes the model request. For the detailed boundaries see
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest test/architecture/
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_baseline.py
+  uv run --no-sync python scripts/quality/checks/python_baseline.py
 PRE_COMMIT_HOME=/tmp/elfienest-precommit \
   uv run --no-sync pre-commit run --all-files
 ```

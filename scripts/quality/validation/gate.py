@@ -12,18 +12,18 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, cast
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if __package__ is None:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.architecture.validation_cache import (
+from scripts.quality.validation.cache import (
     backstop_fingerprint,
     cache_hit,
     cache_lock,
     cache_store,
     candidate_fingerprint,
 )
-from scripts.architecture.validation_plan import TIER_NAMES, build_plan, changed_paths
+from scripts.quality.validation.plan import TIER_NAMES, build_plan, changed_paths
 
 
 def _command(label: str, command: Sequence[str], env: Dict[str, str]) -> int:
@@ -71,7 +71,7 @@ def _commands(
     if tests:
         affected_command = [
             sys.executable,
-            "scripts/architecture/validation_test_bundles.py",
+            "scripts/quality/validation/test_bundles.py",
             "--base-sha",
             base_sha,
             "--selectors",
@@ -86,7 +86,13 @@ def _commands(
         commands.append(
             (
                 "quality baseline",
-                [uv, "run", "--no-sync", "python", "scripts/check_quality_baseline.py"],
+                [
+                    uv,
+                    "run",
+                    "--no-sync",
+                    "python",
+                    "scripts/quality/checks/python_baseline.py",
+                ],
             )
         )
         if capabilities["governance"]:
@@ -98,7 +104,7 @@ def _commands(
                         "run",
                         "--no-sync",
                         "python",
-                        "scripts/architecture/check_governance_change.py",
+                        "scripts/governance/change_policy.py",
                         "--base-sha",
                         base_sha,
                         "--paths",
@@ -122,7 +128,7 @@ def _commands(
                         "run",
                         "--no-sync",
                         "python",
-                        "scripts/architecture/database_change_scan.py",
+                        "scripts/governance/persistence/scan.py",
                         "--project-root",
                         ".",
                         "--base-sha",
@@ -137,7 +143,7 @@ def _commands(
                     ("dependency lock", [uv, "lock", "--check"]),
                     (
                         "Node toolchain manifests",
-                        ["bash", "scripts/check_node_toolchain.sh"],
+                        ["bash", "scripts/quality/checks/node_toolchain.sh"],
                     ),
                 ]
             )
@@ -188,7 +194,7 @@ def _commands(
     if effective_tier >= 2 and capabilities["godot"]:
         godot_command = [
             sys.executable,
-            "scripts/architecture/validation_test_bundles.py",
+            "scripts/quality/validation/test_bundles.py",
             "--base-sha",
             base_sha,
             "--selectors",
@@ -206,7 +212,7 @@ def _commands(
                     "run",
                     "--no-sync",
                     "python",
-                    "scripts/check_release_version.py",
+                    "scripts/quality/checks/release_version.py",
                 ],
             )
         )

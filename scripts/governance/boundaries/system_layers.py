@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Dict, FrozenSet, Iterator, List, Mapping, Optional, Set
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 CORE_ROOTS = ("elfie", "nest")
 TECHNICAL_MODULES = frozenset(
     {

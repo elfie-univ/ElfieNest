@@ -1,4 +1,4 @@
-"""Normalize repository targets found in dynamic execution arguments."""
+"""Normalize effective repository targets found in dynamic execution arguments."""
 
 from __future__ import annotations
 

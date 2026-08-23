@@ -45,7 +45,7 @@ Bootstrap 会在各 package 目录中解析仓库锁定的 pnpm 版本。没有�
 清单与锁文件。可用下面的只读检查确认这些声明没有分叉：
 
 ```bash
-bash scripts/check_node_toolchain.sh
+bash scripts/quality/checks/node_toolchain.sh
 ```
 
 ### Python 环境契约
@@ -128,7 +128,7 @@ pnpm build
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
+  uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 如果返回 `2`，表示当前沙箱无法绑定 `127.0.0.1:0`。不要先在当前环境运行全量套件再
@@ -162,10 +162,10 @@ Lane；`elfienest/ci-gate` 聚合结果，再由跨事件稳定的 `elfienest/me
 如果本地测试结果需要被后续门禁复用，应通过受控运行器执行：
 
 ```bash
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --base-sha "$(git rev-parse origin/main^{commit})" \
   --selectors test/app/features/setup/
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --bundle godot
 ```
 
@@ -177,7 +177,7 @@ Lane；`elfienest/ci-gate` 聚合结果，再由跨事件稳定的 `elfienest/me
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/check_quality_baseline.py
+UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/quality/checks/python_baseline.py
 PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
 ```
 

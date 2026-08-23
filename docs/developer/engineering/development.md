@@ -50,7 +50,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 # When you need full regression
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
+  uv run --no-sync python scripts/quality/checks/environment.py
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest test/
 ```
@@ -73,7 +73,7 @@ blocks any new diagnostic:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_baseline.py
+  uv run --no-sync python scripts/quality/checks/python_baseline.py
 
 PRE_COMMIT_HOME=/tmp/elfienest-precommit \
   uv run --no-sync pre-commit run --all-files
@@ -235,7 +235,7 @@ validation. Confirm at least:
    cross-boundary dependencies.
 
 ```bash
-bash scripts/architecture/install_git_hooks.sh
+bash scripts/quality/hooks/install.sh
 # optional reusable checkpoint or diagnostic replay:
 bash scripts/pre_submit_gate.sh --stage commit --base-sha <immutable-base>
 bash scripts/pre_submit_gate.sh --stage push --base-sha <immutable-base>

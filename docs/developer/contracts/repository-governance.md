@@ -1,6 +1,6 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.17
+**Contract version:** 1.18
 **Adopted:** 2026-08-12
 **Revised:** 2026-08-23
 **Enforced scope:** Repository-wide change classification and architecture boundaries
@@ -62,12 +62,13 @@ external instructions must prefer the supported high-level entry. Product
 Bootstrap must not retain a runtime dependency on a convenience module under
 `scripts/` when the concrete technical adapter has an Infrastructure owner.
 
-The flat `scripts/architecture/` tree is a migration source, not the target.
-Because immutable-base policy must judge the move, both the legacy prefix and
-the two target control-plane prefixes are governance-classified during cutover.
-The base classifier lands first, files move only after it is protected on main,
-and legacy path recognition is removed after a new-layout base is available.
-No root compatibility wrappers or duplicate implementation paths are retained.
+The former flat `scripts/architecture/` tree and root-level leaf checks are not
+valid target locations. During the one-time immutable-base cutover, the
+candidate workflow may read legacy scanner files only from the exact base
+commit that judges the candidate. The candidate tree itself contains only the
+new layout; no root compatibility wrappers or duplicate implementations are
+retained. Legacy base lookup is removed once a new-layout base is protected on
+main.
 
 ## Exact-candidate submission and asynchronous full validation
 
@@ -214,7 +215,7 @@ Every architecture-sensitive change follows one visible loop:
    steady state.
 
 The machine-readable registry at
-`scripts/architecture/contract_registry.py` links each contract version to its
+`scripts/governance/contract_registry.py` links each contract version to its
 language mirrors, ADR, local guidance, scanners, architecture tests,
 conformance register and legacy baseline. Architecture tests reject unowned
 test files and missing registered artifacts. Human review remains responsible

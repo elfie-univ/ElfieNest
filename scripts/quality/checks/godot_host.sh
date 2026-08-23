@@ -4,7 +4,7 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PROJECT_DIR="$PROJECT_ROOT/godot_project"
 PYTHON_BIN="$PROJECT_ROOT/.venv/bin/python3"
 SCRIPT_TO_RUN="${1:-res://scripts/test/test_scene_resource_contract.gd}"

@@ -1,5 +1,5 @@
 #!/bin/bash
-# ElfieNest managed pre-commit hook. This Git hook directory is shared by linked
+# ElfieNest managed pre-commit hook. Git hooks are shared by linked
 # worktrees, so the interpreter must be resolved from the worktree being committed.
 
 set -Eeuo pipefail

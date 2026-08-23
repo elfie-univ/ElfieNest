@@ -14,7 +14,7 @@ from typing import Dict, List, Literal, Mapping, Optional, Sequence, Tuple
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_BASELINE_PATH = PROJECT_ROOT / ".quality-baseline.json"
 MYPY_SOURCE_ROOT_CANDIDATES: Tuple[str, ...] = (
     "app",

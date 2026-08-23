@@ -37,7 +37,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 # 需要完整回归时
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
+  uv run --no-sync python scripts/quality/checks/environment.py
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest test/
 ```
@@ -56,7 +56,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_baseline.py
+  uv run --no-sync python scripts/quality/checks/python_baseline.py
 
 PRE_COMMIT_HOME=/tmp/elfienest-precommit \
   uv run --no-sync pre-commit run --all-files
@@ -184,7 +184,7 @@ staged diff、Gitleaks 和 staged Python Ruff。精确 PR 候选使用不可变�
 6. README、架构文档与测试在新增目录或跨边界依赖后保持同步。
 
 ```bash
-bash scripts/architecture/install_git_hooks.sh
+bash scripts/quality/hooks/install.sh
 # 可选的可复用 checkpoint 或诊断重放：
 bash scripts/pre_submit_gate.sh --stage commit --base-sha <immutable-base>
 bash scripts/pre_submit_gate.sh --stage push --base-sha <immutable-base>

@@ -9,41 +9,47 @@ environment.
 
 ## Layout and stability contract
 
-The root keeps stable command or import paths that are referenced by launchers,
-CI, release automation or production bootstrap. These paths do not move during
-internal cleanup:
+The root exposes only five stable operational entry points:
 
-| Stable root path | Category | Owner / caller |
-| --- | --- | --- |
-| `bootstrap.sh` | Bootstrap entry | Source-development and build dependency orchestration |
-| `elfienest.py` | CLI dispatch | Called only through `./elfienest.sh` and packaged launchers |
-| `serve.py` | Runtime entry | Foreground service and managed lifecycle startup |
-| `pre_submit_gate.sh` | Quality entry | Explicit local commit/push/full diagnostic checkpoint |
-| `check_node_toolchain.sh` | Quality entry | Node.js and pnpm manifest consistency |
-| `check_quality_baseline.py` | Quality entry | Ruff, format and MyPy baseline |
-| `check_quality_environment.py` | Quality entry | Host capability preflight for broad tests |
-| `check_release_version.py` | Release quality entry | Repository and package version consistency |
-| `godot_host_validate.sh` | Godot quality entry | Controlled host-side Godot validation |
-| `release.py` | Release entry | Strict native release coordination |
-
-`architecture/` owns architecture scanners, immutable-base classification,
-validation planning/reuse, the contract registry and the managed Git-hook
-installer. Its `AGENTS.md` defines the machine-governance rules.
-
-The remaining root files are internal implementation, not stable user commands.
-They are grouped without compatibility wrappers, with every caller updated in
-the same change:
-
-| Internal files | Category |
+| Stable root path | Responsibility |
 | --- | --- |
-| `internal/bootstrap/report.sh`, `internal/bootstrap/runtime_dependencies.sh` | Bootstrap support |
-| `internal/build/assemble_desktop_resources.py`, `internal/build/build_devtools_web.py`, `internal/build/build_godot_dedicated.py`, `internal/build/build_godot_web.py`, `internal/build/package_python_core.py` | Build support |
-| `internal/release/release_install_smoke.py`, `internal/release/release_manifest.py`, `internal/release/release_pipeline.py`, `internal/release/release_planning.py` | Release support |
-| `internal/diagnostics/chat_with_elfie.py`, `internal/diagnostics/e2e_dashboard_check.py`, `internal/diagnostics/verify_nest_runtime_e2e.py` | Manual diagnostics |
-| `__init__.py` | Package marker, not a command |
+| `bootstrap.sh` | Prepare source-development and package-build dependencies |
+| `elfienest.py` | Dispatch the product CLI behind `./elfienest.sh` |
+| `serve.py` | Start the foreground service or managed lifecycle |
+| `pre_submit_gate.sh` | Run an explicit local commit, push or full checkpoint |
+| `release.py` | Coordinate strict native releases |
 
-New internal helpers belong under `scripts/internal/<category>/`; stable root
-paths stay thin and explicit instead of accumulating unrelated implementation.
+`README.md`, `README_zh.md` and `__init__.py` are documentation/package metadata,
+not additional commands. Single checks such as `python_baseline.py` and
+`godot_host.sh` belong under `quality/checks/`; they are implementation details,
+not stable root entry points.
+
+```text
+scripts/
+├── bootstrap.sh, elfienest.py, serve.py, pre_submit_gate.sh, release.py
+├── governance/                 # Defines what changes and dependencies are legal
+│   ├── contract_registry.py    # Versioned contract inventory
+│   ├── change_policy.py        # Immutable-base change classification
+│   ├── boundaries/             # App/system/structure/effective-dependency rules
+│   └── persistence/            # Database-change inventory and policy scan
+├── quality/                    # Executes checks selected by the quality policy
+│   ├── checks/                 # Independent Python, Node, environment and Godot checks
+│   ├── validation/             # Check planning, gates, caching and reusable bundles
+│   └── hooks/                  # Repository-managed Git hook installation/runtime
+└── internal/                   # Replaceable helpers behind stable entries
+    ├── bootstrap/              # Bootstrap reporting and dependency resolution
+    ├── build/                  # Intermediate build assembly
+    ├── release/                # Release planning, manifests and smoke checks
+    └── diagnostics/            # Manual and interactive diagnostics
+```
+
+`governance/` is the policy layer: it describes ownership, dependency and
+contract boundaries. `quality/` is the execution layer: it runs concrete checks
+and composes their evidence. `internal/` does not mean private or security
+sensitive; it means repo-owned support code whose path is not a public command
+contract. Call stable root entries whenever one exists, and invoke a leaf check
+directly only for focused diagnosis or when a documented CI/developer workflow
+requires it.
 
 ### bootstrap.sh usage
 
@@ -68,7 +74,7 @@ official build only after an explicit `y` confirmation.
 ./scripts/bootstrap.sh report --tier=build
 
 # Verify the Node.js/pnpm declarations
-bash scripts/check_node_toolchain.sh
+bash scripts/quality/checks/node_toolchain.sh
 ```
 
 ### release.py usage
@@ -93,17 +99,17 @@ Typical usage:
 ```bash
 ./elfienest.sh --help
 ./elfienest.sh serve
-./elfienest.sh build-godot-web --check
+./developer.sh build-godot-web --check
 ./developer.sh build-godot-dedicated --check
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_baseline.py
+  uv run --no-sync python scripts/quality/checks/python_baseline.py
 ```
 
 Before a repository-wide pytest run, probe the host once:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
+  uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 Exit code `0` means loopback binding is available. Exit code `2` means the
@@ -139,6 +145,7 @@ state and never reads or writes the production `ELFIE_HOME`.
 - Never write generated Godot Web, Desktop JavaScript, Python Core, logs or
   caches back into `scripts/` or any other source directory.
 
-When you add a new script, make clear whether it is a stable entry point, a
-build / quality gate, or a manual diagnosis tool, and update the corresponding
-tests and Developer docs in lockstep.
+When adding a script, place policy in `governance/`, executable verification in
+`quality/`, and support implementation in `internal/`. Adding another stable
+root entry changes the script-layout contract and requires the corresponding
+governance review, tests and Developer documentation.

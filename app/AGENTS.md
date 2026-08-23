@@ -136,7 +136,7 @@ orchestration/
 
 ## 验证与防回退
 
-- `scripts/architecture/app_layer_scan.py --mode deny-all` 与
+- `scripts/governance/boundaries/app_layers.py --mode deny-all` 与
   `test/architecture/test_app_layer_boundaries.py` 是 App 依赖、目录和协议边界的永久门禁；
   不得恢复空基线或为回退增加 allowlist。
 - 新能力必须同时验证直接契约、授权/事务/错误/超时/幂等语义和至少一条真实调用路径；

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Sequence
 
 try:
-    from scripts.architecture.database_change_inventory import (
+    from scripts.governance.persistence.inventory import (
         PROJECT_ROOT,
         DatabaseInventory,
         check,
@@ -20,7 +20,7 @@ try:
 except (
     ModuleNotFoundError
 ):  # Direct script execution places this directory on sys.path.
-    from database_change_inventory import (  # type: ignore[no-redef]
+    from inventory import (  # type: ignore[no-redef]
         PROJECT_ROOT,
         DatabaseInventory,
         check,

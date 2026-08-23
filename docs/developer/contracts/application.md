@@ -1,6 +1,6 @@
 # Application architecture contract
 
-**Contract version:** 1.9
+**Contract version:** 1.10
 **Adopted:** 2026-08-15
 **Scope:** `app/` and App-owned adapters in root `infrastructure/`
 
@@ -359,13 +359,13 @@ dependency direction and ownership.
 
 ## Machine enforcement and change acceptance
 
-`scripts/architecture/app_layer_scan.py` scans the dependency graph, Feature
+`scripts/governance/boundaries/app_layers.py` scans the dependency graph, Feature
 isolation, composition boundary, route model requirements and selected public
 typing rules. `test/architecture/test_app_layer_boundaries.py` protects that
 scanner and the surrounding contract. The scanner runs permanently in deny-all
 mode without a legacy App baseline; every detected entry fails.
 
-`scripts/architecture/effective_dependency_scan.py` also scans repository-owned
+`scripts/governance/boundaries/effective_dependencies/scan.py` also scans repository-owned
 Python, Node, Godot and shell execution surfaces for resolvable dynamic module
 and script targets. It reuses this contract's dependency matrix, has no legacy
 baseline and runs permanently in deny-all mode.

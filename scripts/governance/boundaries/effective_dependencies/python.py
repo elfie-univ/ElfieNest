@@ -7,7 +7,7 @@ import shlex
 from pathlib import Path
 from typing import Dict, FrozenSet, Iterator, List, Mapping
 
-from scripts.architecture.effective_dependency_targets import (
+from scripts.governance.boundaries.effective_dependencies.targets import (
     REPOSITORY_ROOTS,
     normalize_module_target,
     targets_from_tokens,

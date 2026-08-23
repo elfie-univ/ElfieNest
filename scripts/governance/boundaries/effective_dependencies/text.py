@@ -7,7 +7,7 @@ import shlex
 from pathlib import Path
 from typing import Iterable, Iterator, List
 
-from scripts.architecture.effective_dependency_targets import (
+from scripts.governance.boundaries.effective_dependencies.targets import (
     normalize_module_target,
     targets_from_tokens,
 )

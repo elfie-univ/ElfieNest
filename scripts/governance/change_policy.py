@@ -12,12 +12,12 @@ from pathlib import Path
 from typing import Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 
 try:
-    from scripts.architecture.structural_scope_scan import (
+    from scripts.governance.boundaries.structural_scope import (
         TEMPORARY_CLEANUP_PREFIXES,
         temporary_cleanup_owner,
     )
 except ModuleNotFoundError:  # Direct script execution puts this directory on sys.path.
-    from structural_scope_scan import (  # type: ignore[no-redef]
+    from boundaries.structural_scope import (  # type: ignore[no-redef]
         TEMPORARY_CLEANUP_PREFIXES,
         temporary_cleanup_owner,
     )
@@ -69,7 +69,7 @@ ARCHITECTURE_BASELINE_SUPPORT_FILES = frozenset(
     {"test/architecture/baselines/__init__.py"}
 )
 GOVERNANCE_CONTRACT_PATH = "docs/developer/contracts/repository-governance.md"
-CONTRACT_REGISTRY_PATH = "scripts/architecture/contract_registry.py"
+CONTRACT_REGISTRY_PATH = "scripts/governance/contract_registry.py"
 CONFORMANCE_PREFIXES = (
     "docs/developer/conformance/",
     "docs/zh/developer/conformance/",
@@ -386,7 +386,7 @@ def validate_governance_rule_changes(paths: Iterable[str]) -> List[str]:
             path == ".github/workflows/ci.yml"
             or path == "AGENTS.md"
             or path.endswith("/AGENTS.md")
-            or path.startswith("scripts/architecture/")
+            or path.startswith(("scripts/governance/", "scripts/quality/"))
             or (
                 path.startswith(ARCHITECTURE_TEST_PREFIX)
                 and not path.startswith(ARCHITECTURE_BASELINE_PREFIX)

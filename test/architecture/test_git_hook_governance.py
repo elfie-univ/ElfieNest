@@ -53,15 +53,14 @@ def test_hook_installer_backs_up_legacy_hook_and_is_idempotent(tmp_path: Path) -
     project = tmp_path / "project"
     project.mkdir()
     subprocess.run(["git", "init", "-q", str(project)], check=True)
-    (project / "scripts/architecture").mkdir(parents=True)
+    (project / "scripts/quality/hooks").mkdir(parents=True)
     shutil.copy2(
-        PROJECT_ROOT / "scripts/architecture/install_git_hooks.sh",
-        project / "scripts/architecture/install_git_hooks.sh",
+        PROJECT_ROOT / "scripts/quality/hooks/install.sh",
+        project / "scripts/quality/hooks/install.sh",
     )
-    hook_template = project / "scripts/architecture/git-hooks/pre-commit"
-    hook_template.parent.mkdir(parents=True)
+    hook_template = project / "scripts/quality/hooks/pre-commit"
     shutil.copy2(
-        PROJECT_ROOT / "scripts/architecture/git-hooks/pre-commit",
+        PROJECT_ROOT / "scripts/quality/hooks/pre-commit",
         hook_template,
     )
     (project / ".pre-commit-config.yaml").write_text("repos: []\n", encoding="utf-8")
@@ -96,7 +95,7 @@ printf '%s\\n' "$*" >> "$ELFIENEST_HOOK_TEST_LOG"
 
     for _ in range(2):
         result = subprocess.run(
-            ["bash", str(project / "scripts/architecture/install_git_hooks.sh")],
+            ["bash", str(project / "scripts/quality/hooks/install.sh")],
             cwd=project,
             env=environment,
             capture_output=True,
@@ -119,7 +118,7 @@ printf '%s\\n' "$*" >> "$ELFIENEST_HOOK_TEST_LOG"
 
 
 def test_managed_hook_resolves_the_current_worktree_environment() -> None:
-    source = (PROJECT_ROOT / "scripts/architecture/git-hooks/pre-commit").read_text(
+    source = (PROJECT_ROOT / "scripts/quality/hooks/pre-commit").read_text(
         encoding="utf-8"
     )
 

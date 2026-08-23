@@ -7,38 +7,43 @@
 
 ## 布局与稳定性契约
 
-根目录只保留被启动器、CI、发布自动化或生产 Bootstrap 引用的稳定命令或 import 路径。
-内部整理不得移动下列路径：
+根目录只暴露五个稳定运行入口：
 
-| 稳定根路径 | 分类 | 所有者/调用方 |
-| --- | --- | --- |
-| `bootstrap.sh` | Bootstrap 入口 | 源码开发与构建依赖编排 |
-| `elfienest.py` | CLI 分发 | 只由 `./elfienest.sh` 和打包启动器调用 |
-| `serve.py` | Runtime 入口 | 前台服务和受管生命周期启动 |
-| `pre_submit_gate.sh` | 质量入口 | 显式本地 commit/push/full 诊断 checkpoint |
-| `check_node_toolchain.sh` | 质量入口 | Node.js 与 pnpm 清单一致性 |
-| `check_quality_baseline.py` | 质量入口 | Ruff、format 与 MyPy 基线 |
-| `check_quality_environment.py` | 质量入口 | 广覆盖测试的宿主能力预检 |
-| `check_release_version.py` | 发布质量入口 | 仓库与包版本一致性 |
-| `godot_host_validate.sh` | Godot 质量入口 | 受控宿主 Godot 验证 |
-| `release.py` | 发布入口 | 严格原生发布协调 |
-
-`architecture/` 负责架构 Scanner、不可变基础分类、验证规划/复用、契约注册表和仓库
-Git hook 安装器；其中的 `AGENTS.md` 定义机器治理规则。
-
-其余根文件属于内部实现，不是稳定用户命令。迁移时不增加兼容壳，而是在同一改动中更新
-所有调用方：
-
-| 内部文件 | 分类 |
+| 稳定根路径 | 职责 |
 | --- | --- |
-| `internal/bootstrap/report.sh`、`internal/bootstrap/runtime_dependencies.sh` | Bootstrap 辅助 |
-| `internal/build/assemble_desktop_resources.py`、`internal/build/build_devtools_web.py`、`internal/build/build_godot_dedicated.py`、`internal/build/build_godot_web.py`、`internal/build/package_python_core.py` | 构建辅助 |
-| `internal/release/release_install_smoke.py`、`internal/release/release_manifest.py`、`internal/release/release_pipeline.py`、`internal/release/release_planning.py` | 发布辅助 |
-| `internal/diagnostics/chat_with_elfie.py`、`internal/diagnostics/e2e_dashboard_check.py`、`internal/diagnostics/verify_nest_runtime_e2e.py` | 人工诊断 |
-| `__init__.py` | 包标记，不是命令 |
+| `bootstrap.sh` | 准备源码开发与安装包构建依赖 |
+| `elfienest.py` | 为 `./elfienest.sh` 分发产品 CLI |
+| `serve.py` | 启动前台服务或受管生命周期 |
+| `pre_submit_gate.sh` | 显式运行本地 commit、push 或 full checkpoint |
+| `release.py` | 协调严格原生发布 |
 
-新增内部辅助实现进入 `scripts/internal/<category>/`；稳定根路径保持精简明确，不继续堆积
-无关实现。
+`README.md`、`README_zh.md` 和 `__init__.py` 是文档/包元数据，不是额外命令。
+`python_baseline.py`、`godot_host.sh` 等单项检查统一进入 `quality/checks/`，不再作为
+根目录稳定入口。
+
+```text
+scripts/
+├── bootstrap.sh, elfienest.py, serve.py, pre_submit_gate.sh, release.py
+├── governance/                 # 定义哪些改动和依赖是合法的
+│   ├── contract_registry.py    # 版本化契约清单
+│   ├── change_policy.py        # 基于不可变基础的变更分类
+│   ├── boundaries/             # App、系统、结构和有效依赖边界
+│   └── persistence/            # 数据库变更盘点与策略扫描
+├── quality/                    # 执行质量策略选中的检查
+│   ├── checks/                 # 独立 Python、Node、环境与 Godot 检查
+│   ├── validation/             # 检查规划、门禁、缓存与可复用测试包
+│   └── hooks/                  # 仓库托管的 Git hook 安装与运行文件
+└── internal/                   # 稳定入口背后的可替换辅助实现
+    ├── bootstrap/              # Bootstrap 报告与依赖解析
+    ├── build/                  # 中间构建组装
+    ├── release/                # 发布规划、清单和烟雾检查
+    └── diagnostics/            # 人工与交互式诊断
+```
+
+`governance/` 是策略层，描述所有权、依赖方向和契约边界；`quality/` 是执行层，运行具体
+检查并组合证据；`internal/` 不表示秘密或安全隔离，只表示路径不是公开命令契约的仓库内部
+辅助代码。有稳定根入口时应使用稳定入口；只有聚焦诊断或文档明确要求的 CI/开发流程才
+直接调用单项检查。
 
 ### bootstrap.sh 用法
 
@@ -62,7 +67,7 @@ Godot 编辑器不是普通启动依赖。只有缺少已导出的 Web Runtime �
 ./scripts/bootstrap.sh report --tier=build
 
 # 校验 Node.js/pnpm 声明
-bash scripts/check_node_toolchain.sh
+bash scripts/quality/checks/node_toolchain.sh
 ```
 
 ### release.py 用法
@@ -86,17 +91,17 @@ bash scripts/check_node_toolchain.sh
 ```bash
 ./elfienest.sh --help
 ./elfienest.sh serve
-./elfienest.sh build-godot-web --check
+./developer.sh build-godot-web --check
 ./developer.sh build-godot-dedicated --check
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_baseline.py
+  uv run --no-sync python scripts/quality/checks/python_baseline.py
 ```
 
 运行全仓 pytest 前先做一次宿主能力预检：
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
+  uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 退出码 `0` 表示允许回环端口绑定。退出码 `2` 表示当前沙箱或宿主策略拒绝
@@ -128,5 +133,6 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 - 不把生成的 Godot Web、Desktop JavaScript、Python Core、日志或缓存写回
   `scripts/` 或其他源码目录。
 
-新增脚本时应明确它是稳定入口、构建/质量门还是人工诊断，并同步相应测试与
+新增脚本时，策略进入 `governance/`，可执行检查进入 `quality/`，辅助实现进入
+`internal/`。新增根目录稳定入口属于脚本布局契约变化，必须同步治理审阅、测试和
 Developer 文档。

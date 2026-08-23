@@ -13,7 +13,7 @@ from typing import DefaultDict, Dict, FrozenSet, Iterator, List, Optional, Set, 
 from fastapi.routing import APIRoute
 from starlette.routing import WebSocketRoute
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 APP_ROOT = PROJECT_ROOT / "app"
 APP_LAYERS = frozenset(
     {"bootstrap", "features", "infrastructure", "interfaces", "orchestration"}

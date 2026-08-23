@@ -1,4 +1,4 @@
-"""Check host capabilities required by the repository-wide test gate."""
+"""Check host capabilities required by broad repository test gates."""
 
 from __future__ import annotations
 

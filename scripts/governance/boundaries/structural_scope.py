@@ -1,4 +1,4 @@
-"""Classify every structural entry in contract-guarded cleanup scopes."""
+"""Enforce every structural entry in contract-guarded cleanup scopes."""
 
 from __future__ import annotations
 

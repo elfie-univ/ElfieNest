@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from scripts.architecture.database_change_inventory import (
+from scripts.governance.persistence.inventory import (
     DatabaseInventory,
     DatabaseReference,
     collect_inventory,
