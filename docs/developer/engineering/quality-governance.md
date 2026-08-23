@@ -46,9 +46,10 @@ semantic decisions that static analysis cannot prove.
 Architecture-sensitive CI compares candidate production code using the scanner
 and exact baseline from the immutable base commit. A normal product or migration
 change may remove recorded violations, but it cannot add or rewrite them.
-Governance changes are reviewed separately from production changes, so changing
-a contract, scanner or architecture test cannot silently make accompanying
-product code acceptable.
+Governance and production responsibilities use distinct local commits. They may
+share one final Pull Request because the immutable base contract, scanner and
+architecture tests still judge the whole candidate; candidate rule changes
+cannot silently make accompanying product code acceptable.
 
 When a legacy baseline reaches zero, the temporary baseline and detailed
 conformance register are removed. The scanner and architecture tests remain and
@@ -63,8 +64,8 @@ therefore means the boundary is fully enforced, not that it is no longer checked
    ownership, dependencies, authority, persistence or another protected boundary.
 3. Make the smallest complete change and run the tests closest to it.
 4. Run the directly affected architecture checks when a protected boundary changes.
-5. Report the actual evidence and keep governance changes separate from product
-   or migration changes.
+5. Report the actual evidence and keep governance and product responsibilities
+   in clear commits; prefer one final PR when the immutable base accepts both.
 
 The concrete commands and test layers are listed in [Testing & quality](./testing).
 The normative rules for this system live in the

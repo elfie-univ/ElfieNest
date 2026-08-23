@@ -1,6 +1,6 @@
 # 仓库架构治理契约
 
-**契约版本：** 1.18
+**契约版本：** 1.20
 **采用日期：** 2026-08-12
 **修订日期：** 2026-08-23
 **机器约束范围：** 全仓变更分类与架构边界
@@ -32,7 +32,7 @@
 | Scanner、类型/Lint 与架构测试 | 执行可机器证明的规则 | 永久 |
 | 精确旧架构基线 | 棘轮式缩减已知实现债，不授权新增债 | 临时 |
 | 一致性台账 | 命名每个临时缺口和删除门槛 | 临时 |
-| CI 主分支比较与维护者审查 | 防止变更放松评判自己的规则 | 永久 |
+| CI 主分支比较与可用时的独立维护者审查 | 防止变更放松评判自己的规则；独立审查可用前记录单维护者限制 | 永久 |
 | Runtime 健康与 Observer 投影 | 报告运行健康，与源码架构检查分离 | 永久 |
 | 精确候选受影响 CI 与合并后完整后盾 | 以相关证据快速合并，同时保留广覆盖异步发现 | 永久 |
 
@@ -65,25 +65,44 @@ Infrastructure 所有者，产品 Bootstrap 不得继续依赖 `scripts/` 下的
 
 | 阶段 | 触发 | 必需结果 |
 | --- | --- | --- |
-| 本地开发 | 暂存前的行为改动 | 按实际风险选择的聚焦测试/类型检查 |
+| 本地开发 | 明确实现动作 | 按实际风险选择的聚焦测试/类型检查，以及未被明确禁止时的合理本地 commit |
 | 本地提交 | 真实暂存快照 | staged diff、锁定版本 Gitleaks 和 staged Python Ruff；warm 目标不超过 20 秒 |
-| 功能分支推送 | 准备候选 | commit hook 通过后立即推送；不要求第二轮本地集成或 pre-push 测试门禁 |
-| Pull Request head | 精确候选 SHA `H` | 不可变基础 Manifest、security-fast 和全部选中并行 Lane，内部聚合为 `elfienest/ci-gate`，再由必需检查 `elfienest/merge-gate` 对外报告 |
+| 功能分支推送 | 明确功能分支 push 动作 | 只更新并核验当前功能分支；不创建 PR，也不要求第二轮本地集成或 pre-push 测试门禁 |
+| PR 前候选 | 明确 main 交付动作放行最终 SHA `H` | 受信任 main candidate dispatch，以及绑定 `H`、基础治理、Manifest、工具链和 Workflow 身份的可复用证据 |
+| Pull Request head | 为精确 `H` 创建或复用的唯一 PR | 核验匹配的 PR 前证据，或运行不可变基础 Manifest、security-fast 和全部选中并行 Lane；内部聚合为 `elfienest/ci-gate`，再由必需检查 `elfienest/merge-gate` 对外报告 |
 | 合并队列 | 当前 main `M` 与 `H` 的合成提交 | 沿用同一个必需检查名 `elfienest/merge-gate`，此时只执行轻量身份、父提交、冲突和门禁版本检查 |
 | main push | 已接受的合并结果 | 不阻塞提交的全表面并行后盾与聚合 |
 | 手工/发布 | 显式选择的精确 SHA | 全表面 full 图与发布专项验收 |
 
+Git 授权采用显式动作矩阵。实现授权本地编辑、聚焦检查和合理本地 commit；`commit` 只留在
+本地；`push` 只更新当前功能分支；`创建 PR` 创建或复用一个 PR 后停止；`合并 main` 才授权
+该单一 PR、候选 CI、merge queue 与远端 main 核验。没有明确 Git 动作的“完成”或“交付”
+不授予权限。计划、ADR、技能和历史授权永远不能授予远端动作；否定指令优先。
+
+授权绑定当前任务、仓库、功能分支、动作和候选；成功或取消后即消费，任务、目标、范围或
+候选 SHA 变化时失效。同一个已授权动作内的有界重试不需要再次确认；跨越 commit、push、
+PR 或 merge 边界则需要。功能分支可以跨会话、跨天持续存在，包含多个聚焦 commit 和 push，
+但不会因此创建 PR。一次 main 交付动作最多创建或复用一个 PR。多个 PR 属于范围扩张，必须
+事先批准准确 PR 数量、边界和原因；未获批准时新 PR 数为零。
+
 Pull Request 预检必须执行基础提交中的分类器，不执行候选副本。版本化 Manifest 选择
 `security_fast`、Python 测试包、Python quality、Web 前端、Desktop、Developer Tools
 Web、架构、持久化、Godot、文档、工具链、发布、Runtime smoke 和治理能力。
-security-fast 永远执行；未知可执行路径
-选择全部 Lane。分类器、CI Workflow、治理契约或交付工具不能批准自身：此类改动选择
-全部 Lane，继续受基础提交治理检查器约束，并要求维护者审查。
+security-fast 永远执行；未知可执行路径选择全部 Lane。分类器、CI Workflow 或机器门禁不能
+批准自身：此类改动选择全部 Lane，继续受基础提交治理检查器约束；出现第二名已验证维护者后还要求独立维护者审查。纯
+ADR、契约、AGENTS 或技能说明只选择 security、治理、适用时的文档与架构审查，不运行无关
+Web、Godot 或发布 Lane。架构测试改动追加架构与相关语言质量 Lane；混合 diff 取受影响 Lane
+并集。
 
 `elfienest/ci-gate` 采用 `always()` 聚合语义；只有可信预检通过且每个选中 Lane 都成功
 时才成功。选中 Lane 被跳过、缺失、取消或超时都算失败；未选中 Lane 可以跳过。证据绑定
-精确 PR head SHA；新 commit 会产生新候选。仅 main 向前移动不会使 `H` 失效，也不会重跑
-其受影响测试；只有真实冲突或候选 SHA 变化才需要新证据。
+精确 PR head SHA；新 commit 会产生新候选，并终止此前 main 交付授权。仅 main 向前移动不会
+使 `H` 失效，也不会重跑其受影响测试；只有真实冲突、新候选 SHA 或基础治理指纹变化才需要
+新证据。只有候选 SHA、基础治理指纹、Manifest 版本、候选工具链指纹和受信任 main Workflow
+身份全部匹配时，PR 前证据才可复用。缺失、陈旧、失败、阻塞或不可信证据会选择正常受影响
+图，永远不能变成通过。在一次性协议 Bootstrap 期间，基础分支尚无 `candidate-evidence-v1`
+时，不触发无法发布复用证据的预验证，而是在本次唯一 PR 上正常运行一次选中图。协议进入
+受保护 main 后，该例外自动消失。
 
 GitHub 的必需状态检查不会按事件类型区分。因此分支保护只要求稳定的
 `elfienest/merge-gate`：在 Pull Request 事件中，它只会在 `elfienest/ci-gate` 成功后成功；
@@ -106,12 +125,13 @@ ADR-0023 定义的确定性本地检查继续按精确检查身份复用。缓�
 环境阻塞和真实 Provider 观察永远不能成为通过。本地缓存不能替代绑定精确候选 SHA 的 GitHub
 检查。
 
-交付 SLO 是 GitHub 与 Runner 容量可用时 Pull Request 从 push 到 main 的 p95 不超过 10 分钟：
-本地收尾加 push 不超过 1 分钟，PR 验证不超过 7 分钟，queue 加 merge/ref 核验不超过 2 分钟；
-`elfienest/merge-gate` 在该 queue 预算内目标不超过 30 秒。CI 在 Job Summary 记录候选与 full
-图耗时，候选验证超过 420 秒时告警。平台故障、Runner 容量耗尽和 GitHub 不可用必须单独报告，
-不能伪造成通过。满足 SLO 需要足够 Runner 容量让选中 Lane 并行启动；仅凭源码配置不能声称
-外部容量已经存在。
+交付 SLO 从用户放行稳定最终候选开始，到该候选在远端 main 完成核验为止；GitHub 与 Runner
+容量可用时 p95 不超过 10 分钟。候选验证预算 7 分钟；创建/核验单一 PR、queue 和 merge/ref
+核验共用剩余 3 分钟，其中合成 `elfienest/merge-gate` 目标不超过 30 秒。不得按每个 Pull Request 重新计时，
+也不得按内部 commit 重新计时。CI 在 Job Summary 记录候选、PR 证据核验和 full 图耗时，
+候选验证超过 420 秒时告警。CI 无法观察用户放行消息，因此交付操作者记录该边界并报告端到端
+耗时。平台故障、Runner 容量耗尽和 GitHub 不可用必须单独报告，不能伪造成通过。满足 SLO
+需要足够 Runner 容量让选中 Lane 并行启动；仅凭源码配置不能声称外部容量已经存在。
 重型 Lane 把仓库变量 `ELFIENEST_HEAVY_RUNNER` 作为 Runner label；未设置时回退到
 `ubuntu-latest`。只有带该 label 的多 Runner 池已经在线后才能设置此变量；把 label 指向一个
 串行 Worker 不满足容量要求。
@@ -148,12 +168,13 @@ subprocess、Node 子进程命令、Shell 命令、`importlib`、`runpy` 或其�
 每个涉及架构的变更都遵循同一条可见闭环：
 
 1. 改代码前先读最近的 `AGENTS.md`、权威契约和当前一致性条目；
-2. 把工作分类为治理变更或产品/迁移变更；
-3. 治理变更只调整 ADR、契约、本地指引和机器规则，不带实现侧文件；迁移变更固定目标，
-   一次只选择一个完整能力或业务域切片；
+2. 把每个本地 commit 分类为治理敏感或产品/迁移；
+3. 用职责清晰的 commit 分开两类工作；只要产品仍通过不可变基础规则，一个最终 PR 可以
+   同时包含两类 commit；
 4. 本地使用候选 Scanner 对照候选精确基线并运行受影响检查；不能仅因开始提交就启动全仓；
 5. CI 使用不可变基础 Manifest 路由，要求候选阶段由 `elfienest/ci-gate` 支撑的跨事件稳定
-   `elfienest/merge-gate` 与治理维护者审查，随后对已接受 main tip 异步运行完整后盾；
+   `elfienest/merge-gate`；出现第二名已验证维护者后还要求治理独立审查，随后对已接受
+   main tip 异步运行完整后盾；
 6. 迁移真实调用链通过后，删除旧实现，只减少对应基线条目，只关闭已有证据的台账项；
 7. 某规则集最后一个缺口清零后，把具备证据的台账标记为待收口，并立即执行下述独立
    “零债务治理收口流程”；全 closed 台账或空基线不能成为稳定状态。
@@ -196,7 +217,7 @@ Desktop、CLI、Setup、accounts、configuration、persistence、
 
 ## 变更类别
 
-每个受审查的 Commit 或 Pull Request 只能属于以下一类：
+每个受审查的本地 commit 应有一个主要类别：
 
 1. **产品或迁移变更。** 可以修改实现侧文件并缩减已有架构基线。实现侧包括产品代码、
    Developer Tools、构建/发布脚本、普通测试、可执行 Manifest、交付 Workflow 和
@@ -204,8 +225,11 @@ Desktop、CLI、Setup、accounts、configuration、persistence、
 2. **治理变更。** 可以修改契约、`AGENTS.md`、架构扫描器、治理 CI 和 ADR，但不能
    修改实现侧文件。
 
-禁止混合两类变更。说明公开产品行为所需的普通文档可以与产品代码同行，但修改架构
-契约或执行方式仍必须单独治理。这样同一个变更不能先放松题目，再让自己的实现过关。
+不要在一个不透明 commit 中混入两类职责。最终 Pull Request 可以包含治理敏感 commit 与
+产品 commit：不可变基础分类器和 Scanner 仍用变更前规则检查完整候选，因此候选治理不能
+批准随附实现。说明公开产品行为所需的普通文档可以与产品代码同行。若产品依赖放宽规则，
+因而无法通过基础规则，就不能进入同一个 PR；独立治理 PR 属于多 PR 交付例外，必须事先批准
+准确 PR 数量。
 
 ## 契约变更流程
 
@@ -215,8 +239,9 @@ Desktop、CLI、Setup、accounts、configuration、persistence、
 2. 同步升级中英文契约版本；
 3. 执行指引变化时同步修改根或子 `AGENTS.md`；
 4. 可机器检查的规则同步修改扫描器和聚焦架构测试；
-5. 使用只含治理内容的 Pull Request 并经过维护者审查；
-6. 若实现也要变化，另开后续产品迁移变更。
+5. 使用治理聚焦的本地 commit，并在条件具备时经过独立维护者审查；
+6. 若实现也要变化，使用后续产品 commit；只有它已经通过不可变基础契约时，才可进入同一个
+   最终 PR。
 
 ADR 不能批准无限期例外。临时实现缺口必须具有一致性 ID、精确机器条目和删除条件。
 
@@ -251,7 +276,7 @@ App 与系统架构 CI 使用 Pull Request 基础提交中的不可变事实检�
 - 无基线的有效依赖 Scanner 必须报告零个禁止的仓库目标；
 - 普通变更只能删除基线条目，不能新增或改写；
 - 治理变更不得修改旧架构基线；
-- 治理文件和实现侧文件不能在同一变更中出现；
+- 候选治理变更不能用于批准随附实现；实现继续由不可变基础规则评判；
 - 删除路径必须参与变更分类与收口校验；
 - 临时清理路径不能新增基线树中不存在的文件；
 - 一致性状态和注册项变化必须对比基线双语台账，不能只观察候选文件。
@@ -305,6 +330,19 @@ Bootstrap 变更因为基础提交没有治理契约，可以创建初始精确�
 ## 所有权与仓库外部设置
 
 受保护主分支必须要求预期 GitHub Actions App 产生的跨事件稳定
-`elfienest/merge-gate`，并要求治理/CI 改动至少经过一名维护者审查。它必须启用 merge
-queue，并拒绝直接 Push、强制 Push 和删除。只有验证过的账号才能进入 CODEOWNERS。
+`elfienest/merge-gate`。它必须启用 merge queue，并拒绝直接 Push、强制 Push 和删除。
+出现第二名具有仓库写权限的已验证维护者后，治理/CI 路径还必须通过路径级 Required
+reviewers 或等价的可执行规则要求独立维护者审查。只有验证过的账号才能进入 CODEOWNERS。
 Ruleset 状态和审查者身份属于 live 仓库设置，无法只凭源码文件证明。
+
+### 已知限制：单维护者阶段
+
+2026-08-23 的只读 live 审计确认 PR 要求、原生 merge queue、`elfienest/merge-gate`、删除
+保护和非快进保护均已启用，但没有必需审批者。ElfieNest 当前只有一名维护者，因此无法在
+不虚构审查者的情况下取得独立批准。单维护者阶段显式接受该限制：治理/CI 改动仍必须通过
+不可变基础分类器、全部选中 Lane、必需聚合门和原生 merge queue；交付报告必须如实说明
+没有执行独立维护者审查。
+
+一旦出现第二名具有仓库写权限的已验证维护者，该例外立即失效。届时必须为治理/CI 路径配置
+路径级 Required reviewers 或等价的可执行规则，主线交付技能必须核验 live 规则和真实非作者
+批准，并通过治理变更退役本已知限制。

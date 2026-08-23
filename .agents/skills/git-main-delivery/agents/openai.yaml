@@ -1,0 +1,6 @@
+interface:
+  display_name: "ElfieNest 单一 PR 主线交付"
+  short_description: "Create one PR or queue one frozen candidate into main"
+  default_prompt: "使用 $git-main-delivery 对冻结候选执行当前消息明确授权的单一 PR 创建或 main 队列合并。"
+policy:
+  allow_implicit_invocation: false

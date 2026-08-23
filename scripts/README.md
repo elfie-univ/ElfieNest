@@ -34,7 +34,7 @@ scripts/
 │   └── persistence/            # Database-change inventory and policy scan
 ├── quality/                    # Executes checks selected by the quality policy
 │   ├── checks/                 # Independent Python, Node, environment and Godot checks
-│   ├── validation/             # Check planning, gates, caching and reusable bundles
+│   ├── validation/             # Check planning, gates, candidate evidence, caches and bundles
 │   └── hooks/                  # Repository-managed Git hook installation/runtime
 └── internal/                   # Replaceable helpers behind stable entries
     ├── bootstrap/              # Bootstrap reporting and dependency resolution

@@ -14,7 +14,7 @@ PROJECT_ROOT = Path(
     os.environ.get("ELFIENEST_PROJECT_ROOT", Path(__file__).resolve().parents[3])
 ).resolve()
 
-MANIFEST_SCHEMA_VERSION = "affected-v2"
+MANIFEST_SCHEMA_VERSION = "affected-v3"
 TIER_NAMES = {1: "commit", 2: "push", 3: "full"}
 STAGE_TIERS = {"commit": 1, "push": 2, "full": 3, "main": 3}
 CAPABILITY_NAMES = (
@@ -34,17 +34,25 @@ CAPABILITY_NAMES = (
     "governance",
 )
 
-GOVERNANCE_PREFIXES = (
+TRUST_ROOT_PREFIXES = (
+    "scripts/governance/",
+    "scripts/quality/",
+    "task-closure",
+)
+TRUST_ROOT_EXACT = frozenset(
+    {
+        ".pre-commit-config.yaml",
+        ".quality-baseline.json",
+        ".github/workflows/ci.yml",
+        "scripts/pre_submit_gate.sh",
+    }
+)
+GOVERNANCE_PROSE_PREFIXES = (
     ".agents/skills/",
-    ".github/",
     "docs/developer/contracts/",
     "docs/developer/decisions/",
     "docs/zh/developer/contracts/",
     "docs/zh/developer/decisions/",
-    "scripts/governance/",
-    "scripts/quality/",
-    "task-closure",
-    "test/architecture/",
 )
 RETIRED_SCRIPT_CONTROL_PREFIXES = ("scripts/architecture/",)
 RETIRED_SCRIPT_CONTROL_EXACT = frozenset(
@@ -56,20 +64,13 @@ RETIRED_SCRIPT_CONTROL_EXACT = frozenset(
         "scripts/godot_host_validate.sh",
     }
 )
-GOVERNANCE_EXACT = frozenset(
+GOVERNANCE_PROSE_EXACT = frozenset(
     {
         "AGENTS.md",
         ".gitignore",
-        ".pre-commit-config.yaml",
-        ".quality-baseline.json",
         "CONTRIBUTING.md",
         "CONTRIBUTING_zh.md",
-        "scripts/quality/checks/node_toolchain.sh",
-        "scripts/quality/checks/python_baseline.py",
-        "scripts/quality/checks/environment.py",
-        "scripts/quality/checks/release_version.py",
-        "scripts/quality/checks/godot_host.sh",
-        "scripts/pre_submit_gate.sh",
+        ".github/pull_request_template.md",
     }
 )
 TOOLCHAIN_EXACT = frozenset(
@@ -235,17 +236,29 @@ def build_plan(paths: Iterable[str], requested_stage: str) -> Dict[str, object]:
             full = True
             reasons.append(f"{path} attempts to restore a retired script path")
             continue
+        if path in TRUST_ROOT_EXACT or path.startswith(TRUST_ROOT_PREFIXES):
+            selected_capabilities.update({"architecture", "governance"})
+            required_tier = max(required_tier, 2)
+            full = True
+            reasons.append(f"{path} changes a repository trust root")
+            continue
+        if path.startswith("test/architecture/") and path.endswith(".py"):
+            selected_capabilities.update(
+                {"architecture", "governance", "python_quality"}
+            )
+            required_tier = max(required_tier, 2)
+            reasons.append(f"{path} changes an executable architecture contract")
+            continue
         if (
             Path(path).name == "AGENTS.md"
-            or path.startswith(GOVERNANCE_PREFIXES)
-            or path in GOVERNANCE_EXACT
+            or path.startswith(GOVERNANCE_PROSE_PREFIXES)
+            or path in GOVERNANCE_PROSE_EXACT
         ):
             selected_capabilities.update({"architecture", "governance"})
             if path.startswith(("docs/", "docs/zh/")):
                 selected_capabilities.add("docs")
             required_tier = max(required_tier, 2)
-            full = True
-            reasons.append(f"{path} changes validation or repository governance")
+            reasons.append(f"{path} changes governance guidance or documentation")
             continue
         if _is_toolchain_path(path):
             selected_capabilities.add("toolchain")

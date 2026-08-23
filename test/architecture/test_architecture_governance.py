@@ -312,6 +312,35 @@ def test_governance_checker_accepts_explicit_candidate_paths(monkeypatch) -> Non
     )
 
 
+def test_mixed_governance_and_implementation_can_share_one_final_pr(
+    monkeypatch,
+    capsys,
+) -> None:
+    for validator in (
+        "validate_retired_script_control_paths",
+        "validate_baseline_changes",
+        "validate_contract_changes",
+        "validate_decision_mirrors",
+        "validate_governance_rule_changes",
+        "validate_conformance_changes",
+        "validate_temporary_cleanup_changes",
+    ):
+        monkeypatch.setattr(governance_change, validator, lambda *_args, **_kwargs: [])
+
+    result = governance_change.main(
+        [
+            "--base-sha",
+            "base",
+            "--paths",
+            "docs/developer/contracts/repository-governance.md",
+            "app/features/setup/service.py",
+        ]
+    )
+
+    assert result == 0
+    assert "mixed governance-sensitive/product" in capsys.readouterr().out
+
+
 def test_newly_closed_conformance_requires_inventory_and_reference_evidence(
     tmp_path: Path,
     monkeypatch,
@@ -439,10 +468,12 @@ def test_conformance_removal_is_checked_against_the_base_register(
         )
         == []
     )
-    failures = validate_conformance_changes(
-        "base", changed, governance={registry}, production={"nest/example.py"}
+    assert (
+        validate_conformance_changes(
+            "base", changed, governance={registry}, production={"nest/example.py"}
+        )
+        == []
     )
-    assert any("governance-only" in item for item in failures)
 
 
 def test_closed_conformance_evidence_cannot_be_weakened(

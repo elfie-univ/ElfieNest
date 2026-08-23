@@ -187,8 +187,11 @@ changed behavior. Every `git commit` then checks the real staged snapshot with
 The warm hook target is 20 seconds and it never runs tests, MyPy, pnpm, Godot,
 fetch, or network operations. Do not install a pre-push test gate.
 
-After the hook passes, push the feature branch immediately. The exact PR head
-is authoritative: GitHub runs security-fast, affected Python tests, the
+After the hook passes, the local commit is ready; it stays local until an
+explicit branch-push action. A feature branch may remain open across sessions
+and days, accumulate focused commits, and be pushed repeatedly without creating
+a Pull Request. Once an explicit main-delivery action freezes the exact PR head,
+GitHub runs security-fast, affected Python tests, the
 repository Python quality baseline, and every other lane selected by the
 immutable-base manifest in parallel. `elfienest/ci-gate` aggregates those
 results and the event-stable `elfienest/merge-gate` reports them to branch
@@ -200,8 +203,9 @@ advanced.
 checkpoint; `--stage push` is an optional affected-integration replay for
 offline diagnosis. Neither is an ordinary push prerequisite. The complete
 backstop fans out every lane after a main push and for explicit full/release
-validation. Unknown, governance and toolchain changes select every premerge
-lane. A narrower node/file never proves a larger bundle, and local cache never
+validation. Unknown executable, machine trust-root and toolchain changes select
+every premerge lane; pure governance prose selects only governance, docs and
+architecture review. A narrower node/file never proves a larger bundle, and local cache never
 replaces CI attached to a new candidate SHA. A selected lane or merge-gate
 failure blocks delivery; a newest-main full failure quarantines ordinary merges
 until a focused recovery or revert restores green main.
@@ -266,13 +270,36 @@ tests or an updated quality baseline.
 
 ## Branch and commit scope
 
+The following action boundary is normative for coding Agents. A plan, ADR,
+skill, old task or the words "done" / "deliver" never upgrade one row into the
+next row.
+
+<!-- git-action-matrix:start -->
+| Action ID | Explicit instruction | Maximum authorized result |
+| --- | --- | --- |
+| `implement` | implement / execute the plan | `local-work` |
+| `commit` | commit / local commit | `local-commit` |
+| `push` | push the feature branch | `branch-push` |
+| `create-pr` | create a Pull Request | `one-pr-stop` |
+| `merge-main` | merge to remote main | `one-pr-merge` |
+| `complete` | done / deliver, without an explicit Git action | `no-git` |
+<!-- git-action-matrix:end -->
+
+- `local-work` includes focused verification and reasonable local commits for
+  the approved implementation, unless the user says not to commit or asks to
+  review first. Each later row requires its own explicit instruction.
+- One feature branch may contain several independently understandable commits,
+  but one main-delivery request creates or reuses at most one Pull Request. If
+  more are genuinely required, state the exact PR count and boundaries and get
+  that count approved before creating any of them.
 - One PR solves one well-scoped problem; avoid drive-by formatting or
   refactoring of unrelated files.
 - Do not overwrite others' uncommitted changes; do not commit local configs,
   generated artifacts, caches or production data.
 - Commit messages explain "why", not just list filenames.
-- UI or docs-site changes must be visually accepted by the maintainer first;
-  keep changes local, uncommitted and unpushed until accepted.
+- UI or docs-site changes may be locally committed and pushed for review, but
+  must be visually accepted by the maintainer before a Pull Request is created
+  for main delivery.
 
 ## A Pull Request must include
 

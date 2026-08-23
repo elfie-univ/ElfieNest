@@ -5,6 +5,7 @@
 - **Revised:** 2026-08-23
 - **Scope:** Pull Request routing, merge queue, main health and release validation
 - **Supersedes:** ADR-0023's protected-main G3 prerequisite and mandatory ordinary local G1/G2 delivery stages
+- **Refined by:** ADR-0029 for explicit Git authorization, one-PR delivery and pre-PR evidence reuse
 
 ## Context
 
@@ -26,8 +27,9 @@ GitHub's native merge queue supplies ElfieNest's exact synthetic merge.
 
 - Bind merge-blocking evidence to the exact Pull Request head SHA. Use the
   classifier from the immutable base commit to emit a versioned affected-path
-  manifest. Unknown executable and governance/toolchain changes select all
-  lanes; security-fast always runs.
+  manifest. Unknown executable, machine trust-root and toolchain changes select
+  all lanes; pure governance prose selects only governance, documentation and
+  architecture review lanes. Security-fast always runs.
 - Keep `scripts/bootstrap.sh` as the stable bootstrap/toolchain entry. Route
   `scripts/internal/bootstrap/` through fail-closed toolchain selection and
   `scripts/internal/build/` plus `scripts/internal/release/` through
@@ -58,6 +60,10 @@ GitHub's native merge queue supplies ElfieNest's exact synthetic merge.
   quality unless governance/toolchain/unknown classification fails closed.
 - Do not rebase or rerun affected tests merely because main advanced. A new
   candidate SHA or an actual conflict is the invalidation boundary.
+- For an explicitly released final candidate, run the affected graph once from
+  the trusted main Workflow before creating the single PR. Reuse it on the PR
+  only when exact candidate, base-governance, Manifest, toolchain and Workflow
+  identity match; otherwise run the selected graph normally.
 - Use GitHub's native `merge_group` event for `elfienest/merge-gate`. Start with
   one Pull Request per group. The merge gate checks exact identity, base/ref,
   parents, diff cleanliness and gate schema; it installs no dependencies and
@@ -68,17 +74,20 @@ GitHub's native merge queue supplies ElfieNest's exact synthetic merge.
   persistence, Godot, docs, toolchain, release and runtime smoke. Each main
   lane uses two non-cancelling parity slots that retain running work while
   coalescing obsolete pending tips. Superseded PR heads may cancel.
-- Record candidate and full-graph elapsed time in CI summaries. Budget local
-  finalize/push at one minute, candidate CI at seven minutes and queue plus
-  merge/ref verification at two minutes. The ten-minute p95 is conditional on
-  sufficient external runner capacity; lack of capacity is an operational
-  blocker, never a reason to skip a selected lane.
+- Record candidate, PR evidence-verification and full-graph elapsed time in CI
+  summaries. Measure the ten-minute p95 from user release of the stable final
+  candidate through verified main, without resetting the timer per PR. Budget
+  candidate CI at seven minutes and the single PR plus queue/ref verification at
+  three minutes. The target is conditional on sufficient external runner
+  capacity; lack of capacity is an operational blocker, never a reason to skip
+  a selected lane.
 - Quarantine ordinary merges after the newest main tip has a terminal red full
   backstop. Permit only an audited, narrowly scoped fix or revert until a newer
   green main result supersedes the red state.
-- Require a live GitHub ruleset with Pull Requests, merge queue, stable checks,
-  no direct/force pushes and maintainer review for governance/CI. Repository
-  source alone cannot claim that external state is active.
+- Require a live GitHub ruleset with Pull Requests, merge queue, stable checks
+  and no direct/force pushes. Once a second verified maintainer exists, require
+  path-scoped independent review for governance/CI. Repository source alone
+  cannot claim that external state is active.
 
 ## Alternatives rejected
 

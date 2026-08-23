@@ -21,8 +21,8 @@ on:
         type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('candidate-{0}', github.event.pull_request.head.sha) || (github.event_name == 'workflow_dispatch' && inputs.mode == 'candidate' && format('candidate-{0}', inputs.target_sha)) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'candidate') }}
 
 permissions:
   actions: read
@@ -44,22 +44,24 @@ jobs:
       candidate_sha: ${{ steps.route.outputs.candidate_sha }}
       full_slot: ${{ steps.route.outputs.full_slot }}
       router_version: ${{ steps.route.outputs.router_version }}
-      tests_json: ${{ steps.route.outputs.tests_json }}
-      full: ${{ steps.route.outputs.full }}
-      security_fast: ${{ steps.route.outputs.security_fast }}
-      python_bundles: ${{ steps.route.outputs.python_bundles }}
-      python_quality: ${{ steps.route.outputs.python_quality }}
-      web_frontend: ${{ steps.route.outputs.web_frontend }}
-      desktop: ${{ steps.route.outputs.desktop }}
-      devtools_web: ${{ steps.route.outputs.devtools_web }}
-      architecture: ${{ steps.route.outputs.architecture }}
-      persistence_contract: ${{ steps.route.outputs.persistence_contract }}
-      godot: ${{ steps.route.outputs.godot }}
-      docs: ${{ steps.route.outputs.docs }}
-      toolchain: ${{ steps.route.outputs.toolchain }}
-      release: ${{ steps.route.outputs.release }}
-      runtime_smoke: ${{ steps.route.outputs.runtime_smoke }}
-      governance: ${{ steps.route.outputs.governance }}
+      evidence_name: ${{ steps.route.outputs.evidence_name }}
+      reused_evidence: ${{ steps.evidence.outputs.reused }}
+      tests_json: ${{ steps.evidence.outputs.reused == 'true' && '[]' || steps.route.outputs.tests_json }}
+      full: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.full }}
+      security_fast: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.security_fast }}
+      python_bundles: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.python_bundles }}
+      python_quality: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.python_quality }}
+      web_frontend: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.web_frontend }}
+      desktop: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.desktop }}
+      devtools_web: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.devtools_web }}
+      architecture: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.architecture }}
+      persistence_contract: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.persistence_contract }}
+      godot: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.godot }}
+      docs: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.docs }}
+      toolchain: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.toolchain }}
+      release: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.release }}
+      runtime_smoke: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.runtime_smoke }}
+      governance: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.governance }}
     steps:
       - name: Check out the exact candidate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -114,9 +116,22 @@ jobs:
             echo "full_slot=run-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
           fi
 
+          trusted_evidence="$RUNNER_TEMP/trusted-candidate-evidence.py"
+          if git show "$base_sha:scripts/quality/validation/candidate_evidence.py" \
+              > "$trusted_evidence" 2>/dev/null; then
+            evidence_name="$(ELFIENEST_PROJECT_ROOT="$GITHUB_WORKSPACE" \
+              python3 "$trusted_evidence" \
+              --base-sha "$base_sha" \
+              --candidate-sha "$candidate_sha" \
+              --format name)"
+          else
+            evidence_name=""
+          fi
+          echo "evidence_name=$evidence_name" >> "$GITHUB_OUTPUT"
+
           trusted_router="$RUNNER_TEMP/trusted-validation-plan.py"
           if [[ "$route_mode" == "full" ]] && \
-              grep -Eq 'MANIFEST_SCHEMA_VERSION = "affected-v(1|2)"' \
+              grep -Eq 'MANIFEST_SCHEMA_VERSION = "affected-v(1|2|3)"' \
                 scripts/quality/validation/plan.py; then
             ELFIENEST_PROJECT_ROOT="$GITHUB_WORKSPACE" \
               python3 scripts/quality/validation/plan.py \
@@ -126,7 +141,7 @@ jobs:
           elif [[ "$route_mode" != "full" ]] && \
               git show "$base_sha:scripts/quality/validation/plan.py" \
                 > "$trusted_router" 2>/dev/null && \
-              grep -Eq 'MANIFEST_SCHEMA_VERSION = "affected-v(1|2)"' "$trusted_router"; then
+              grep -Eq 'MANIFEST_SCHEMA_VERSION = "affected-v(1|2|3)"' "$trusted_router"; then
             ELFIENEST_PROJECT_ROOT="$GITHUB_WORKSPACE" \
               python3 "$trusted_router" \
                 --base-sha "$base_sha" \
@@ -171,6 +186,79 @@ jobs:
                   output.write(f"runtime_smoke={str(full).lower()}\n")
           PY
           fi
+
+      - name: Reuse trusted pre-PR candidate evidence
+        id: evidence
+        if: github.event_name == 'pull_request'
+        env:
+          EVIDENCE_NAME: ${{ steps.route.outputs.evidence_name }}
+          PR_BASE_SHA: ${{ steps.route.outputs.base_sha }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "reused=false" >> "$GITHUB_OUTPUT"
+          [[ -n "$EVIDENCE_NAME" ]] || exit 0
+          artifacts_json="$RUNNER_TEMP/candidate-artifacts.json"
+          if ! curl --fail --silent --show-error \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts?name=$EVIDENCE_NAME&per_page=100" \
+              --output "$artifacts_json"; then
+            echo "::warning::candidate evidence lookup failed; running selected lanes"
+            exit 0
+          fi
+          run_id="$(python3 - "$artifacts_json" "$EVIDENCE_NAME" <<'PY'
+          import json
+          import sys
+
+          artifacts = json.load(open(sys.argv[1], encoding="utf-8")).get("artifacts", [])
+          usable = [
+              artifact
+              for artifact in artifacts
+              if artifact.get("name") == sys.argv[2]
+              and not artifact.get("expired")
+              and artifact.get("workflow_run", {}).get("id")
+          ]
+          usable.sort(key=lambda artifact: artifact.get("created_at", ""), reverse=True)
+          print(usable[0]["workflow_run"]["id"] if usable else "")
+          PY
+          )"
+          [[ -n "$run_id" ]] || exit 0
+          run_json="$RUNNER_TEMP/candidate-evidence-run.json"
+          if ! curl --fail --silent --show-error \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" \
+              --output "$run_json"; then
+            echo "::warning::candidate evidence source lookup failed; running selected lanes"
+            exit 0
+          fi
+          run_head="$(python3 - "$run_json" "$GITHUB_REPOSITORY" <<'PY'
+          import json
+          import sys
+
+          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          repository = run.get("repository", {}).get("full_name")
+          valid = (
+              run.get("event") == "workflow_dispatch"
+              and run.get("path") == ".github/workflows/ci.yml"
+              and run.get("head_branch") == "main"
+              and run.get("conclusion") == "success"
+              and repository == sys.argv[2]
+          )
+          print(run.get("head_sha", "") if valid else "")
+          PY
+          )"
+          [[ "$run_head" =~ ^[0-9a-f]{40}$ ]] || exit 0
+          if ! git merge-base --is-ancestor "$run_head" "$PR_BASE_SHA"; then
+            echo "::warning::candidate evidence did not originate from an ancestor of the PR base"
+            exit 0
+          fi
+          echo "reused=true" >> "$GITHUB_OUTPUT"
+          echo "Reusing exact candidate evidence from trusted run $run_id"
 
   security-fast:
     name: Security and changed-file quality
@@ -692,6 +780,7 @@ jobs:
       RELEASE_RESULT: ${{ needs.release-contract.result }}
       RUNTIME_SMOKE_SELECTED: ${{ needs.preflight.outputs.runtime_smoke }}
       RUNTIME_SMOKE_RESULT: ${{ needs.runtime-smoke.result }}
+      REUSED_EVIDENCE: ${{ needs.preflight.outputs.reused_evidence }}
     steps:
       - name: Require every selected lane
         shell: bash
@@ -727,11 +816,16 @@ jobs:
           require_lane toolchain "$TOOLCHAIN_SELECTED" "$TOOLCHAIN_RESULT"
           require_lane release "$RELEASE_SELECTED" "$RELEASE_RESULT"
           require_lane runtime-smoke "$RUNTIME_SMOKE_SELECTED" "$RUNTIME_SMOKE_RESULT"
-          echo "All affected checks passed for ${{ needs.preflight.outputs.candidate_sha }}"
+          if [[ "$REUSED_EVIDENCE" == "true" ]]; then
+            echo "Trusted pre-PR evidence verified for ${{ needs.preflight.outputs.candidate_sha }}"
+          else
+            echo "All affected checks passed for ${{ needs.preflight.outputs.candidate_sha }}"
+          fi
       - name: Report candidate validation latency
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          REUSED_EVIDENCE: ${{ needs.preflight.outputs.reused_evidence }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -745,6 +839,7 @@ jobs:
           python3 - "$run_json" "$GITHUB_STEP_SUMMARY" <<'PY'
           import datetime as dt
           import json
+          import os
           import sys
 
           payload = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -752,8 +847,12 @@ jobs:
           elapsed = int((dt.datetime.now(dt.timezone.utc) - started).total_seconds())
           with open(sys.argv[2], "a", encoding="utf-8") as summary:
               summary.write("## Candidate delivery timing\n\n")
-              summary.write(f"- PR validation elapsed: {elapsed}s (target: <=420s)\n")
-              summary.write("- End-to-end push-to-main SLO: p95 <=600s\n")
+              if os.environ.get("REUSED_EVIDENCE") == "true":
+                  summary.write(f"- PR evidence verification elapsed: {elapsed}s\n")
+                  summary.write("- Selected lanes were reused from exact pre-PR evidence.\n")
+              else:
+                  summary.write(f"- Candidate validation elapsed: {elapsed}s (target: <=420s)\n")
+              summary.write("- End-to-end final-candidate release-to-main SLO: p95 <=600s; the delivery operator records the user-release boundary.\n")
           if elapsed > 420:
               print(f"::warning::candidate validation exceeded the 420s budget: {elapsed}s")
           PY
@@ -872,9 +971,56 @@ jobs:
             echo "merge-group head has no commit ancestry" >&2
             exit 1
           }
-          grep -q 'MANIFEST_SCHEMA_VERSION = "affected-v2"' \
+          grep -q 'MANIFEST_SCHEMA_VERSION = "affected-v3"' \
             scripts/quality/validation/plan.py
           git diff --check HEAD^1..HEAD
+
+  candidate-evidence:
+    name: Publish exact candidate evidence
+    needs:
+      - preflight
+      - merge-gate
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'candidate' && needs.merge-gate.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build evidence record
+        env:
+          EVIDENCE_NAME: ${{ needs.preflight.outputs.evidence_name }}
+          BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
+          CANDIDATE_SHA: ${{ needs.preflight.outputs.candidate_sha }}
+          ROUTER_VERSION: ${{ needs.preflight.outputs.router_version }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$EVIDENCE_NAME" ]] || {
+            echo "trusted base cannot publish reusable candidate evidence" >&2
+            exit 1
+          }
+          mkdir -p "$RUNNER_TEMP/candidate-evidence"
+          python3 - "$RUNNER_TEMP/candidate-evidence/evidence.json" <<'PY'
+          import json
+          import os
+          import sys
+
+          payload = {
+              "artifact_name": os.environ["EVIDENCE_NAME"],
+              "base_sha": os.environ["BASE_SHA"],
+              "candidate_sha": os.environ["CANDIDATE_SHA"],
+              "router_version": os.environ["ROUTER_VERSION"],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "workflow_identity": "CI:.github/workflows/ci.yml@refs/heads/main",
+          }
+          with open(sys.argv[1], "w", encoding="utf-8") as output:
+              json.dump(payload, output, sort_keys=True)
+          PY
+      - name: Publish exact candidate evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ needs.preflight.outputs.evidence_name }}
+          path: ${{ runner.temp }}/candidate-evidence/evidence.json
+          if-no-files-found: error
+          retention-days: 7
 
   full-gate:
     name: Complete full backstop

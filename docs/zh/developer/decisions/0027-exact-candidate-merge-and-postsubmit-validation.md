@@ -5,6 +5,7 @@
 - **修订：** 2026-08-23
 - **范围：** Pull Request 路由、合并队列、main 健康和发布验证
 - **取代：** ADR-0023 中受保护主线前置 G3 及普通本地 G1/G2 交付阶段强制要求
+- **由 ADR-0029 细化：** 显式 Git 授权、单 PR 交付与 PR 前证据复用
 
 ## 背景
 
@@ -20,8 +21,8 @@ ElfieNest 曾把完整仓库后盾设为每次 main 交付的前置条件。因�
 ## 决策
 
 - 把阻塞合并的证据绑定到精确 Pull Request head SHA。使用不可变基础提交中的分类器生成
-  版本化受影响路径 Manifest。未知可执行、治理和工具链改动选择全部 Lane；security-fast
-  永远执行。
+  版本化受影响路径 Manifest。未知可执行、机器信任根和工具链改动选择全部 Lane；纯治理
+  说明只选择治理、文档与架构审查 Lane。security-fast 永远执行。
 - 保持 `scripts/bootstrap.sh` 为稳定 Bootstrap/工具链入口。`scripts/internal/bootstrap/`
   通过 fail-closed 工具链分类，`scripts/internal/build/` 与 `scripts/internal/release/`
   通过 fail-closed 发布分类；内部诊断脚本继续选择受影响 Python Lane。内部迁移不新增根目录
@@ -42,6 +43,9 @@ ElfieNest 曾把完整仓库后盾设为每次 main 交付的前置条件。因�
   两条并行 Lane。Python 源码/测试同时选择两者；纯前端改动不选择 Python quality，除非治理、
   工具链或未知分类 fail-closed。
 - 不因 main 前进而 rebase 或重跑受影响测试。只有候选 SHA 变化或真实冲突才使证据失效。
+- 对用户明确放行的最终候选，在创建单一 PR 前从受信任 main Workflow 运行一次受影响图。
+  只有候选、基础治理、Manifest、工具链与 Workflow 身份完全匹配时才在 PR 复用，否则正常
+  运行选中图。
 - 使用 GitHub 原生 `merge_group` 事件生成 `elfienest/merge-gate`，初始每组一个 Pull
   Request。合并门检查精确身份、基础/Ref、父提交、差异洁净和门禁 Schema；不安装依赖，也
   不重跑产品套件。
@@ -49,13 +53,15 @@ ElfieNest 曾把完整仓库后盾设为每次 main 交付的前置条件。因�
   测试包与 quality、Web、Desktop、Developer Tools、架构、持久化、Godot、文档、工具链、
   发布和 Runtime smoke。main 的每条 Lane 使用两个不可取消的奇偶槽，保留正在运行的工作并
   合并过期 pending tip；已被新 commit 取代的 PR head 可以取消。
-- 在 CI Summary 记录候选与 full 图耗时。本地收尾/push 预算 1 分钟，候选 CI 预算 7 分钟，
-  queue 加 merge/ref 核验预算 2 分钟。十分钟 p95 依赖足够的外部 Runner 容量；容量不足是
-  运维阻塞，不能成为跳过选中 Lane 的理由。
+- 在 CI Summary 记录候选、PR 证据核验与 full 图耗时。十分钟 p95 从用户放行稳定最终候选
+  开始，到 main 核验完成为止，不按 PR 重新计时；候选 CI 预算 7 分钟，单一 PR 加 queue/ref
+  核验预算 3 分钟。目标依赖足够的外部 Runner 容量；容量不足是运维阻塞，不能成为跳过
+  选中 Lane 的理由。
 - 最新 main tip 完整后盾终态为红时隔离普通合并；只允许受审计且范围明确的修复或回滚，
   直到更新 main 的绿色结果取代红灯。
-- live GitHub Ruleset 必须要求 Pull Request、merge queue、稳定检查、禁止直接/强制 Push，
-  并要求治理/CI 维护者审查。仅凭仓库源码不能声称这些外部状态已生效。
+- live GitHub Ruleset 必须要求 Pull Request、merge queue、稳定检查并禁止直接/强制 Push；
+  出现第二名已验证维护者后，还必须要求治理/CI 路径级独立审查。仅凭仓库源码不能声称这些
+  外部状态已生效。
 
 ## 被拒绝方案
 

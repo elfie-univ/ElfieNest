@@ -1,6 +1,6 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.18
+**Contract version:** 1.20
 **Adopted:** 2026-08-12
 **Revised:** 2026-08-23
 **Enforced scope:** Repository-wide change classification and architecture boundaries
@@ -36,7 +36,7 @@ Architecture quality is maintained by one connected system:
 | Scanners, type/lint checks and architecture tests | Enforce machine-checkable rules | Permanent |
 | Exact legacy baselines | Ratchet known implementation debt without authorizing new debt | Temporary |
 | Conformance registers | Name each temporary gap and its deletion gate | Temporary |
-| CI base-branch comparison and maintainer review | Prevent a change from weakening the rule that judges itself | Permanent |
+| CI base-branch comparison and independent maintainer review when available | Prevent a change from weakening the rule that judges itself; record the solo-maintainer limitation until independent review is possible | Permanent |
 | Runtime health and Observer projections | Report operational health; separate from source architecture checks | Permanent |
 | Exact-candidate affected CI and post-submit backstop | Merge quickly on relevant evidence while preserving broad asynchronous detection | Permanent |
 
@@ -76,13 +76,32 @@ Delivery separates merge-blocking evidence from broad regression detection:
 
 | Phase | Trigger | Required result |
 | --- | --- | --- |
-| Local development | behavior change before staging | focused tests/type checks selected from actual risk |
+| Local development | explicit implementation action | focused tests/type checks selected from actual risk and reasonable local commits unless explicitly withheld |
 | Local commit | real staged snapshot | staged diff, pinned Gitleaks and staged Python Ruff; warm target at or below 20 seconds |
-| Feature push | candidate preparation | immediate branch push after the commit hook; no mandatory second local integration stage or pre-push test gate |
-| Pull Request head | exact candidate SHA `H` | immutable-base manifest, security-fast and every selected parallel lane, aggregated internally as `elfienest/ci-gate` and exposed through required `elfienest/merge-gate` |
+| Feature push | explicit branch-push action | update and verify only the current feature branch; no PR, second local integration stage or pre-push test gate |
+| Pre-PR candidate | explicit main-delivery action releases final SHA `H` | trusted-main candidate dispatch and reusable evidence bound to `H`, base governance, Manifest, toolchain and Workflow identity |
+| Pull Request head | the one PR created or reused for exact `H` | verify matching pre-PR evidence or run the immutable-base manifest, security-fast and every selected parallel lane; aggregate internally as `elfienest/ci-gate` and expose through required `elfienest/merge-gate` |
 | Merge queue | synthetic merge of current main `M` and `H` | the same required `elfienest/merge-gate` name, now performing only lightweight identity, parent, conflict and gate-version checks |
 | Main push | accepted merge result | non-blocking all-surface parallel backstop and aggregate |
 | Manual/release | explicitly selected exact SHA | all-surface full graph plus release-specific acceptance |
+
+Git authorization is an explicit action matrix. Implementation authorizes local
+editing, focused checks and reasonable local commits. `commit` remains local;
+`push` updates only the current feature branch; `create PR` creates or reuses one
+PR and stops; `merge main` authorizes that one PR, candidate CI, merge queue and
+remote-main verification. Completion or delivery without an explicit Git action
+grants nothing. Plans, ADRs, skills and historical authorization never grant a
+remote action. Negative instructions override positive defaults.
+
+Authorization is bound to the current task, repository, feature branch, action
+and candidate. It is consumed on success or cancellation and expires when the
+task, target, scope or candidate SHA changes. Bounded retries inside the same
+already authorized action do not require another confirmation; crossing commit,
+push, PR or merge boundaries does. A feature branch may remain open across sessions and days
+and may hold several focused commits and pushes without
+creating a PR. One main-delivery action creates or reuses at most one PR. More
+than one is scope expansion and requires advance approval of the exact PR count,
+boundaries and reason; without it, the number of new PRs is zero.
 
 The Pull Request preflight must execute the classifier from the immutable base
 commit, not the candidate copy. Its versioned manifest selects
@@ -90,17 +109,29 @@ commit, not the candidate copy. Its versioned manifest selects
 Developer Tools web, architecture, persistence, Godot, docs, toolchain,
 release, runtime smoke and governance
 capabilities. Security-fast always runs. Unknown executable paths select all
-lanes. A change to the classifier, CI workflow, governance contract or delivery
-tooling cannot approve itself: it selects all lanes, remains subject to the
-base-commit governance checker and requires maintainer review.
+lanes. A change to the classifier, CI workflow or machine gate cannot approve
+itself: it selects all lanes, remains subject to the base-commit governance
+checker and, once a second verified maintainer exists, requires independent maintainer review. Pure ADR, contract, AGENTS or skill prose
+selects security, governance, documentation where applicable and architecture
+review without unrelated Web, Godot or release lanes. Architecture-test changes
+add the architecture and relevant language-quality lanes. Mixed diffs take the
+union of their affected lanes.
 
 `elfienest/ci-gate` uses `always()` semantics and succeeds only when the trusted
 preflight passed and every selected lane succeeded. A skipped, missing,
 cancelled or timed-out selected lane is a failure. Unselected lanes may skip.
 Evidence is bound to the exact PR head SHA; a newer commit creates a new
-candidate. Movement of main alone does not invalidate `H` or restart its
-affected tests. Only an actual conflict or a new candidate SHA requires new PR
-evidence.
+candidate and terminates the previous main-delivery authorization. Movement of
+main alone does not invalidate `H` or restart its affected tests. Only an actual
+conflict, a new candidate SHA, or a changed base-governance fingerprint requires
+new evidence. Pre-PR evidence is reusable only when its candidate SHA,
+base-governance fingerprint, Manifest version, candidate-toolchain fingerprint
+and trusted-main Workflow identity all match. Missing, stale, failed, blocked or
+untrusted evidence selects the normal affected graph; it never becomes a pass.
+During the one-time protocol bootstrap, a base branch without
+`candidate-evidence-v1` runs the selected graph once on the single PR rather than
+dispatching a pre-validation that cannot publish reusable evidence. The
+exception disappears when the protocol reaches protected main.
 
 GitHub required status checks do not vary by event type. Therefore branch
 protection requires only the stable `elfienest/merge-gate` job. On a Pull
@@ -133,15 +164,19 @@ nodes do not prove larger bundles; failures, timeouts, blocked environments and
 live-provider observations never become passes. Local cache evidence never
 replaces GitHub checks attached to the exact candidate SHA.
 
-The delivery SLO is Pull Request push-to-main p95 at or below ten minutes under
-available GitHub and runner capacity: local finalize plus push at or below one
-minute, PR validation at or below seven minutes, and queue plus merge/ref
-verification at or below two minutes. `elfienest/merge-gate` targets thirty
-seconds inside that queue budget. CI records elapsed candidate and full-graph
-timing in the job summary and warns when candidate validation exceeds 420
-seconds. Platform outage, exhausted runner capacity and GitHub unavailability
-are reported separately and cannot be turned into a false pass. Meeting the SLO
-requires enough runner capacity for selected lanes to start in parallel; source
+The delivery SLO starts when the user releases a stable final candidate for
+main and ends when that candidate is verified on remote main: p95 at or below
+ten minutes under available GitHub and runner capacity. Candidate validation is
+budgeted at seven minutes; creating/verifying the single PR plus queue and
+merge/ref verification use the remaining three minutes, with the synthetic
+`elfienest/merge-gate` targeting thirty seconds. The timer must not reset for each Pull Request
+or internal commit. CI records elapsed candidate, PR evidence
+verification and full-graph timing and warns when candidate validation exceeds
+420 seconds. Because CI cannot observe the user's release message, the delivery
+operator records that boundary and reports the end-to-end elapsed time. Platform
+outage, exhausted runner capacity and GitHub unavailability are reported
+separately and cannot be turned into a false pass. Meeting the SLO requires
+enough runner capacity for selected lanes to start in parallel; source
 configuration alone cannot claim that external capacity exists.
 Heavy lanes read the repository variable `ELFIENEST_HEAVY_RUNNER` as a runner
 label and fall back to `ubuntu-latest` when it is unset. Setting that variable
@@ -196,16 +231,16 @@ Every architecture-sensitive change follows one visible loop:
 
 1. read the nearest `AGENTS.md`, the governing contract and the current
    conformance row before changing code;
-2. classify the work as a governance change or a product/migration change;
-3. for governance, revise the ADR/contract/local guidance and machine rule
-   without implementation-side files; for migration, keep the target fixed and select one
-   complete capability or business-domain slice;
+2. classify each local commit as governance-sensitive or product/migration;
+3. keep those responsibilities in understandable commits; one final PR may
+   contain both when the product still passes the immutable base rules;
 4. run the candidate scanner against its exact baseline and the affected local
    checks; do not start the full repository merely because submission began;
 5. in CI, route from the immutable base manifest, require the event-stable
    `elfienest/merge-gate` backed by `elfienest/ci-gate` on the candidate,
-   require maintainer review for governance, then run the complete backstop
-   asynchronously on the accepted main tip;
+   require independent maintainer review for governance once a second verified
+   maintainer exists, then run the complete backstop asynchronously on the
+   accepted main tip;
 6. after a migration proves its real call chain, remove the old implementation,
    reduce only the matching baseline entries and close only the evidenced
    conformance row;
@@ -267,7 +302,7 @@ persistence, architecture-scanner and architecture-test boundaries.
 
 ## Change classes
 
-Every reviewed commit or pull request is one of two classes:
+Every reviewed local commit should have one primary class:
 
 1. **Product/migration change.** It may change implementation-side files and
    reduce an existing architecture baseline. Implementation-side files include
@@ -279,10 +314,14 @@ Every reviewed commit or pull request is one of two classes:
    scanners, governance CI and ADRs. It must not change implementation-side
    files.
 
-Mixing these classes is forbidden. Documentation needed to describe a public
-product behavior may travel with product code, but changing an architecture
-contract or its enforcement still requires a separate governance change. This
-prevents one change from weakening the rule that judges its own implementation.
+Do not mix both responsibilities inside an opaque commit. A final Pull Request
+may contain governance-sensitive and product commits: the immutable base
+classifier and scanners still judge the complete candidate with the pre-change
+rules, so candidate governance cannot approve accompanying implementation.
+Documentation needed to describe public product behavior may travel with product
+code. If product code depends on a rule relaxation and therefore fails the base
+rule, it cannot share that PR; using a separate governance PR is an exceptional
+multi-PR delivery and requires advance approval of the exact PR count.
 
 ## Contract change procedure
 
@@ -292,8 +331,9 @@ A deliberate ownership, dependency or authority change requires all of:
 2. synchronized English and Chinese contract version changes;
 3. matching root/child `AGENTS.md` updates where execution guidance changes;
 4. scanner and focused architecture-test updates where the rule is mechanical;
-5. a governance-only pull request and maintainer review;
-6. a separate later product migration, if implementation must change.
+5. a governance-focused local commit and, when available, independent maintainer review;
+6. a later product commit if implementation must change; it may share the final
+   PR only when it already passes the immutable base contract.
 
 An ADR cannot approve an unbounded exception. Temporary implementation gaps
 use a conformance ID, exact machine entry and deletion condition.
@@ -343,7 +383,8 @@ against immutable facts from the Pull Request base commit:
   repository targets;
 - a normal change may delete baseline entries but may not add or rewrite them;
 - a governance change may not edit a legacy baseline;
-- governance and implementation-side changes may not coexist;
+- candidate governance changes cannot be used to approve accompanying
+  implementation; the immutable base rules continue to judge it;
 - deleted paths participate in classification and closure validation;
 - a temporary cleanup path cannot gain a file absent from the base tree;
 - conformance status and registration changes are compared with the base
@@ -420,8 +461,28 @@ evidence is semantically sufficient.
 ## Ownership and external repository settings
 
 The protected main branch must require the event-stable
-`elfienest/merge-gate` from the expected GitHub Actions App, plus at least one
-maintainer review for governance and CI changes. It must require the merge queue
-and reject direct pushes, force pushes and deletion. Repository owners may add
+`elfienest/merge-gate` from the expected GitHub Actions App. It must require the
+merge queue and reject direct pushes, force pushes and deletion. Once a second
+verified maintainer with repository write permission exists, governance and CI
+paths must also require an independent maintainer review through path-scoped
+required reviewers or an equivalent enforceable rule. Repository owners may add
 CODEOWNERS only for verified accounts. Ruleset state and reviewer identity are
 live repository settings and cannot be proved from source files alone.
+
+### Known limitation: solo-maintainer stage
+
+The read-only live audit on 2026-08-23 confirmed the active PR requirement,
+native merge queue, `elfienest/merge-gate`, deletion protection and non-fast-
+forward protection, but reported no required approving reviewer. ElfieNest
+currently has only one maintainer, so an independent approval cannot be obtained
+without inventing an inauthentic reviewer. This limitation is explicitly
+accepted for the solo-maintainer stage: governance and CI changes still require
+the immutable-base classifier, every selected lane, the required aggregate and
+the native merge queue, but delivery reports must state that independent review
+did not occur.
+
+The exception expires as soon as a second verified maintainer with repository
+write permission exists. At that point, path-scoped required reviewers (or an
+equivalent enforceable rule) must be configured for governance and CI paths,
+the main-delivery skill must verify the live rule and actual non-author approval,
+and this known limitation must be retired in a governance change.
