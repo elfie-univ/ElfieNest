@@ -300,20 +300,20 @@ ensure_electron() {
     echo "${GREEN}  ✅ Electron authority host is ready${RESET}"
 }
 
-RUNTIME_DEPENDENCIES_HELPER="$SCRIPT_DIR/bootstrap_runtime_dependencies.sh"
+RUNTIME_DEPENDENCIES_HELPER="$SCRIPT_DIR/internal/bootstrap/runtime_dependencies.sh"
 if [[ ! -f "$RUNTIME_DEPENDENCIES_HELPER" ]]; then
     echo "${RED}❌ Missing runtime dependency module: $RUNTIME_DEPENDENCIES_HELPER${RESET}" >&2
     exit 1
 fi
-# shellcheck source=scripts/bootstrap_runtime_dependencies.sh
+# shellcheck source=scripts/internal/bootstrap/runtime_dependencies.sh
 source "$RUNTIME_DEPENDENCIES_HELPER"
 
-REPORT_HELPER="$SCRIPT_DIR/bootstrap_report.sh"
+REPORT_HELPER="$SCRIPT_DIR/internal/bootstrap/report.sh"
 if [[ ! -f "$REPORT_HELPER" ]]; then
     echo "${RED}❌ Missing dependency report module: $REPORT_HELPER${RESET}" >&2
     exit 1
 fi
-# shellcheck source=scripts/bootstrap_report.sh
+# shellcheck source=scripts/internal/bootstrap/report.sh
 source "$REPORT_HELPER"
 
 ensure_git_hooks() {

@@ -46,7 +46,7 @@ def test_toolchain_callers_delegate_project_execution_to_shared_runner() -> None
 
 def test_bootstrap_delegates_version_probes_to_shared_runner() -> None:
     bootstrap = (
-        PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh"
+        PROJECT_ROOT / "scripts/internal/bootstrap/runtime_dependencies.sh"
     ).read_text(encoding="utf-8")
 
     assert "infrastructure.godot.runner" in bootstrap

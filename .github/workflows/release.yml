@@ -63,8 +63,8 @@ jobs:
           YELLOW=$'\e[1;33m'
           CYAN=$'\e[1;36m'
           RESET=$'\e[0m'
-          # shellcheck source=scripts/bootstrap_runtime_dependencies.sh
-          source scripts/bootstrap_runtime_dependencies.sh
+          # shellcheck source=scripts/internal/bootstrap/runtime_dependencies.sh
+          source scripts/internal/bootstrap/runtime_dependencies.sh
           install_official_godot_toolchain
           [[ -f "$(dirname "$GODOT_RESOLVED_EDITOR_DATA")/_sc_" ]]
           web_template="$(find "$GODOT_RESOLVED_EDITOR_DATA/export_templates" -mindepth 2 -maxdepth 2 -type f -name web_release.zip -print -quit)"

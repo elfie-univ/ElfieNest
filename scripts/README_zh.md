@@ -30,9 +30,9 @@ Git hook 安装器；其中的 `AGENTS.md` 定义机器治理规则。
 其余根文件属于内部实现，不是稳定用户命令。迁移时不增加兼容壳，而是在同一改动中更新
 所有调用方：
 
-| 当前内部文件 | 分类 |
+| 内部文件 | 分类 |
 | --- | --- |
-| `bootstrap_report.sh`、`bootstrap_runtime_dependencies.sh` | Bootstrap 辅助 |
+| `internal/bootstrap/report.sh`、`internal/bootstrap/runtime_dependencies.sh` | Bootstrap 辅助 |
 | `assemble_desktop_resources.py`、`build_devtools_web.py`、`build_godot_dedicated.py`、`build_godot_web.py`、`package_python_core.py` | 构建辅助 |
 | `release_install_smoke.py`、`release_manifest.py`、`release_pipeline.py`、`release_planning.py` | 发布辅助 |
 | `chat_with_elfie.py`、`e2e_dashboard_check.py`、`verify_nest_runtime_e2e.py` | 人工诊断 |
