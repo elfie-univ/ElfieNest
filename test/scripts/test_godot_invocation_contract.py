@@ -3,6 +3,13 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _godot_host_entrypoint() -> Path:
+    candidate = PROJECT_ROOT / "scripts/quality/checks/godot_host.sh"
+    if candidate.is_file():
+        return candidate
+    return PROJECT_ROOT / "scripts/godot_host_validate.sh"
+
+
 def test_normal_submit_gate_has_no_godot_startup_entrypoint() -> None:
     gate = (PROJECT_ROOT / "scripts" / "pre_submit_gate.sh").read_text(encoding="utf-8")
 
@@ -12,9 +19,7 @@ def test_normal_submit_gate_has_no_godot_startup_entrypoint() -> None:
 
 
 def test_host_validation_entrypoint_is_explicit_and_single_shot() -> None:
-    entrypoint = (PROJECT_ROOT / "scripts" / "godot_host_validate.sh").read_text(
-        encoding="utf-8"
-    )
+    entrypoint = _godot_host_entrypoint().read_text(encoding="utf-8")
 
     assert "godot_guard.py" in entrypoint
     assert "status" in entrypoint
