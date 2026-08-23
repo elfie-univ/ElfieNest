@@ -35,11 +35,17 @@ GOVERNANCE_PREFIXES = (
     "docs/zh/developer/decisions/",
     ".agents/skills/",
     "scripts/architecture/",
+    "scripts/governance/",
+    "scripts/quality/",
 )
 GOVERNANCE_EXACT = {
     ".pre-commit-config.yaml",
     ".github/workflows/ci.yml",
+    "scripts/check_node_toolchain.sh",
     "scripts/check_quality_baseline.py",
+    "scripts/check_quality_environment.py",
+    "scripts/check_release_version.py",
+    "scripts/godot_host_validate.sh",
     # Retired task-closure paths remain governance-classified so their deletion
     # cannot be mixed with product implementation during this cleanup.
     "scripts/check_task_closure.py",

@@ -42,6 +42,8 @@ GOVERNANCE_PREFIXES = (
     "docs/zh/developer/contracts/",
     "docs/zh/developer/decisions/",
     "scripts/architecture/",
+    "scripts/governance/",
+    "scripts/quality/",
     "task-closure",
     "test/architecture/",
 )
@@ -53,7 +55,11 @@ GOVERNANCE_EXACT = frozenset(
         ".quality-baseline.json",
         "CONTRIBUTING.md",
         "CONTRIBUTING_zh.md",
+        "scripts/check_node_toolchain.sh",
         "scripts/check_quality_baseline.py",
+        "scripts/check_quality_environment.py",
+        "scripts/check_release_version.py",
+        "scripts/godot_host_validate.sh",
         "scripts/pre_submit_gate.sh",
     }
 )

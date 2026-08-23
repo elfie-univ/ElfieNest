@@ -138,6 +138,21 @@ def test_router_and_workflow_changes_cannot_approve_themselves() -> None:
     ]
 
 
+def test_future_script_control_plane_paths_select_every_candidate_lane() -> None:
+    plan = build_plan(
+        [
+            "scripts/governance/change_policy.py",
+            "scripts/quality/checks/environment.py",
+            "scripts/quality/validation/plan.py",
+        ],
+        "push",
+    )
+
+    assert plan["full"] is True
+    assert plan["capabilities"]["governance"] is True
+    assert all(plan["capabilities"].values())
+
+
 def test_bootstrap_and_closure_governance_fail_closed() -> None:
     bootstrap = build_plan(["scripts/bootstrap.sh"], "push")
     internal_bootstrap = build_plan(
