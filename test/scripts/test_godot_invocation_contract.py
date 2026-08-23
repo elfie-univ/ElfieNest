@@ -27,7 +27,7 @@ def test_host_validation_entrypoint_is_explicit_and_single_shot() -> None:
 def test_toolchain_callers_delegate_project_execution_to_shared_runner() -> None:
     source_paths = (
         PROJECT_ROOT / "scripts" / "godot_species_validation.py",
-        PROJECT_ROOT / "scripts" / "build_godot_dedicated.py",
+        PROJECT_ROOT / "scripts/internal/build/build_godot_dedicated.py",
         PROJECT_ROOT / "infrastructure" / "godot" / "artifacts" / "web_build.py",
         PROJECT_ROOT
         / ".agents"

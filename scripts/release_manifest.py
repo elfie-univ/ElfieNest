@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, Final, Mapping, Tuple
 
 from infrastructure.persistence.configuration.species import load_species_catalog
-from scripts import package_python_core
+from scripts.internal.build import package_python_core
 
 REQUIRED_WEB_FILES: Final[Tuple[str, ...]] = (
     "web/index.html",

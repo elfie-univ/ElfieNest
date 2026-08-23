@@ -194,7 +194,13 @@ def test_prebuilt_godot_web_step_checks_the_shared_runtime_without_exporting(
     steps.build_godot()
 
     # Then: the runner validates the artifact and never requests another Godot export.
-    assert commands == [("/managed/python", "scripts/build_godot_web.py", "--check")]
+    assert commands == [
+        (
+            "/managed/python",
+            "scripts/internal/build/build_godot_web.py",
+            "--check",
+        )
+    ]
 
 
 def test_release_session_dispatches_all_targets_and_requires_artifact_hash_and_smoke(

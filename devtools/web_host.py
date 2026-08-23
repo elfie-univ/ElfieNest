@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
 
-from scripts.build_devtools_web import OUTPUT_DIRECTORY, ensure_bundle
+from scripts.internal.build.build_devtools_web import OUTPUT_DIRECTORY, ensure_bundle
 
 LabShell = Literal["elfie", "nest"]
 

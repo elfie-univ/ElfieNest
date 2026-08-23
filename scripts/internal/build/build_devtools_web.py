@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import Iterable
 
-REPOSITORY_ROOT = Path(__file__).parents[1]
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 WEB_SOURCE = REPOSITORY_ROOT / "devtools" / "web"
 OUTPUT_DIRECTORY = REPOSITORY_ROOT / "build" / "components" / "devtools-web"
 MANIFEST_NAME = "build-manifest.json"

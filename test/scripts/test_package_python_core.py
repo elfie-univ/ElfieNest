@@ -8,7 +8,7 @@ from typing import Sequence
 
 import pytest
 
-from scripts import package_python_core
+from scripts.internal.build import package_python_core
 from test.support.paths import PROJECT_ROOT
 
 

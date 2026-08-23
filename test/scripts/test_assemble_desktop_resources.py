@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts import assemble_desktop_resources
+from scripts.internal.build import assemble_desktop_resources
 
 
 def _write_file(path: Path, content: bytes) -> None:

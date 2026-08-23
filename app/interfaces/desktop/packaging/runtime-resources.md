@@ -36,7 +36,7 @@ build/staging/<platform-arch>/resources/
 `manifest.json` 应记录版本和哈希。Ollama 及其模型不随安装包提交；它们属于用户选择
 安装并由初始化向导绑定的系统级服务，因此升级应用不会重复携带大文件或私有模型目录。
 
-使用 `scripts/assemble_desktop_resources.py` 组装时，它会复制 Vite、Godot Web、
+使用 `scripts/internal/build/assemble_desktop_resources.py` 组装时，它会复制 Vite、Godot Web、
 target-native Python Core 和管理 CLI，最后原子写入 `manifest.json`。资源缺失或路径
 不是文件时命令会失败，不会生成不完整的安装清单。Electron 在已打包模式还会再次验证
 清单；Ollama 仅作为可选的已绑定公共服务做健康检查，Desktop 不下载或启动它。最终

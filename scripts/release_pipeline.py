@@ -9,12 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, Final, Optional, TypeVar
 
-from scripts import (
-    assemble_desktop_resources,
-    check_release_version,
-    package_python_core,
-    release_manifest,
-)
+from scripts import check_release_version, release_manifest
+from scripts.internal.build import assemble_desktop_resources, package_python_core
 
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[1]
 BUILD_DIR: Final = PROJECT_ROOT / "build"
@@ -184,14 +180,24 @@ def _build_web() -> None:
 def _build_godot() -> None:
     """Export the required Godot Web runtime through the controlled project script."""
     _run_command(
-        (_project_python(), "scripts/build_godot_web.py", "--ensure"), PROJECT_ROOT
+        (
+            _project_python(),
+            "scripts/internal/build/build_godot_web.py",
+            "--ensure",
+        ),
+        PROJECT_ROOT,
     )
 
 
 def _check_godot() -> None:
     """Validate the shared Godot Web runtime without requiring a local Godot editor."""
     _run_command(
-        (_project_python(), "scripts/build_godot_web.py", "--check"), PROJECT_ROOT
+        (
+            _project_python(),
+            "scripts/internal/build/build_godot_web.py",
+            "--check",
+        ),
+        PROJECT_ROOT,
     )
 
 
