@@ -67,11 +67,16 @@ TOOLCHAIN_EXACT = frozenset(
         "uv.lock",
     }
 )
-TOOLCHAIN_PREFIXES = ("scripts/bootstrap",)
+TOOLCHAIN_PREFIXES = (
+    "scripts/bootstrap",
+    "scripts/internal/bootstrap/",
+)
 RELEASE_PREFIXES = (
     ".github/workflows/release",
     "app/bootstrap/desktop_host/",
     "scripts/build_",
+    "scripts/internal/build/",
+    "scripts/internal/release/",
     "scripts/package_",
     "scripts/release",
 )
