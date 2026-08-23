@@ -139,7 +139,7 @@ def test_router_and_workflow_changes_cannot_approve_themselves() -> None:
 
 
 def test_bootstrap_and_closure_governance_fail_closed() -> None:
-    bootstrap = build_plan(["scripts/bootstrap_runtime_dependencies.sh"], "push")
+    bootstrap = build_plan(["scripts/bootstrap.sh"], "push")
     internal_bootstrap = build_plan(
         ["scripts/internal/bootstrap/runtime_dependencies.sh"], "push"
     )
