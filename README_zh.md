@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/public/assets/elfienest-full-logo-horizontal-compact-transparent.png" alt="ElfieNest" width="560" />
+  <img src="docs/public/assets/elfienest-full-logo-transparent.png" alt="ElfieNest" width="720" />
 
   <p><strong>🦊 仿生生命体系统 - Embodied AI Creature Simulation</strong></p>
 
