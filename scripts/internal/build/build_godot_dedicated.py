@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
 from infrastructure.godot.artifacts.species_package_validation import (
@@ -38,7 +38,7 @@ from infrastructure.godot.runner import (
 from infrastructure.persistence.configuration.species import load_species_catalog
 from scripts.godot_species_validation import run_godot_species_validation
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 GODOT_PROJECT = PROJECT_ROOT / "godot_project"
 OUTPUT_RELATIVE_PATH = "build/components/godot-linux-dedicated"
 DEFAULT_OUTPUT = PROJECT_ROOT / OUTPUT_RELATIVE_PATH

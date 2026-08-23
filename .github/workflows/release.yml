@@ -72,8 +72,8 @@ jobs:
           printf 'Godot editor data: %s\nWeb release template: %s\n' \
             "$GODOT_RESOLVED_EDITOR_DATA" "$web_template"
           GODOT_BIN="$GODOT_RESOLVED_BIN" \
-            .venv/bin/python scripts/build_godot_web.py
-          .venv/bin/python scripts/build_godot_web.py --check
+            .venv/bin/python scripts/internal/build/build_godot_web.py
+          .venv/bin/python scripts/internal/build/build_godot_web.py --check
 
       - name: Upload shared Godot Web Runtime
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -147,7 +147,7 @@ jobs:
             export ARTIFACT_PATH_FILE="$RUNNER_TEMP/elfienest-artifact-path"
             python_bin=".venv/bin/python"
           fi
-          "$python_bin" scripts/build_godot_web.py --check
+          "$python_bin" scripts/internal/build/build_godot_web.py --check
 
           set +e
           "$python_bin" scripts/release.py \

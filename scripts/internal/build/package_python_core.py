@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Callable, Final, Sequence, Tuple
 
-PROJECT_ROOT: Final = Path(__file__).resolve().parents[1]
+PROJECT_ROOT: Final = Path(__file__).resolve().parents[3]
 PYINSTALLER_CACHE_DIR: Final = PROJECT_ROOT / "build" / "pyinstaller-cache"
 TARGETS: Final[Tuple[str, ...]] = (
     "darwin-arm64",

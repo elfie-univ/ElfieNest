@@ -13,7 +13,7 @@ from typing import Final, Optional, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import package_python_core
+from scripts.internal.build import package_python_core
 from scripts.release_install_smoke import run_install_smoke as execute_install_smoke
 from scripts.release_planning import (
     ReleasePlanError,

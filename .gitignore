@@ -27,7 +27,7 @@ ENV/
 env/
 *.egg-info/
 *.egg
-build/
+/build/
 dist/
 # Keep the setuptools metadata output directory available in clean checkouts.
 !/build/

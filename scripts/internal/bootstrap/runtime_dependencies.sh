@@ -435,7 +435,7 @@ ensure_godot_web() {
         return 1
     }
     if ! GODOT_BIN="$GODOT_RESOLVED_BIN" \
-        "$python_bin" "$PROJECT_ROOT/scripts/build_godot_web.py" --ensure; then
+        "$python_bin" "$PROJECT_ROOT/scripts/internal/build/build_godot_web.py" --ensure; then
         echo "${RED}  ❌ Godot compatibility line $GODOT_PROJECT_VERSION or matching Web Export Templates cannot export Web Runtime.${RESET}" >&2
         return 1
     fi

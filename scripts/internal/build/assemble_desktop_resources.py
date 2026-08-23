@@ -7,13 +7,18 @@ import argparse
 import hashlib
 import json
 import shutil
+import sys
 from pathlib import Path
 from typing import Final, Iterable, Mapping
 
-from infrastructure.persistence.configuration.species import load_species_catalog
-from scripts import check_release_version, package_python_core
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-PROJECT_ROOT: Final = Path(__file__).resolve().parents[1]
+from infrastructure.persistence.configuration.species import load_species_catalog
+from scripts import check_release_version
+from scripts.internal.build import package_python_core
+
+PROJECT_ROOT: Final = Path(__file__).resolve().parents[3]
 DEFAULT_STAGING_ROOT: Final = PROJECT_ROOT / "build" / "staging"
 DEFAULT_WEB_SOURCE: Final = PROJECT_ROOT / "build" / "web"
 DEFAULT_GODOT_SOURCE: Final = PROJECT_ROOT / "build" / "components" / "godot-web"

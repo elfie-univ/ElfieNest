@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Final, Optional, Sequence
 
-from scripts.package_python_core import TARGETS
+from scripts.internal.build.package_python_core import TARGETS
 
 SUPPORTED_TARGETS: Final[tuple[str, ...]] = TARGETS
 
