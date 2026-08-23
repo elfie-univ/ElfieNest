@@ -70,6 +70,13 @@ pinned CPython `3.9.25` and `uv.lock` through this entry point:
 ./elfienest.sh
 ```
 
+The first source-development command checks both the locked development
+environment and the repository-managed pre-commit hook. Missing state is
+repaired through `scripts/bootstrap.sh`; run
+`./scripts/bootstrap.sh ensure --tier=dev` directly when preparing a checkout
+without launching the product. Git does not execute hooks from a clone by
+itself. Installed-package users do not need this contributor setup.
+
 The no-argument launcher opens the interactive menu; use `./elfienest.sh serve`
 to run the service in the foreground. Public Ollama is optional: Setup can skip
 it or bind one chosen endpoint, but the application never silently bundles or

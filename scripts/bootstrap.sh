@@ -91,6 +91,24 @@ check_dev_python_tools() {
         [[ -x "$PROJECT_ROOT/.venv/bin/ruff" ]]
 }
 
+check_managed_git_hook() {
+    local worktree_state
+    worktree_state="$(
+        git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree 2>/dev/null || true
+    )"
+    if [[ "$worktree_state" != "true" ]]; then
+        return 0
+    fi
+
+    local hook_path
+    hook_path="$(
+        git -C "$PROJECT_ROOT" rev-parse \
+            --path-format=absolute --git-path hooks/pre-commit 2>/dev/null
+    )" || return 1
+    [[ -x "$hook_path" ]] && \
+        grep -Fq "ElfieNest managed pre-commit hook" "$hook_path"
+}
+
 ensure_python() {
     if check_python && \
         [[ "${ELFIENEST_FORCE_LOCKED_SYNC:-0}" != "1" ]] && \
@@ -334,21 +352,33 @@ main() {
     if [[ "$ACTION" == "ensure" ]]; then
         ensure_python || exit_code=1
     else
-        if check_python; then
+        if check_python && \
+            { [[ "$TIER" != "dev" ]] || check_dev_python_tools; }; then
             echo "${GREEN}  ✅ Python $PINNED_PYTHON_VERSION is ready${RESET}"
         else
-            echo "${RED}  ❌ Python is missing or version mismatched${RESET}"
+            if [[ "$TIER" == "dev" ]]; then
+                echo "${RED}  ❌ Python runtime or required development tools are missing${RESET}"
+            else
+                echo "${RED}  ❌ Python is missing or version mismatched${RESET}"
+            fi
             exit_code=1
         fi
     fi
     echo ""
 
-    if [[ "$ACTION" == "ensure" && "$TIER" == "dev" ]]; then
+    if [[ "$TIER" == "dev" ]]; then
         echo "📦 Repository Git hooks"
-        if [[ $exit_code -eq 0 ]]; then
-            ensure_git_hooks || exit_code=1
+        if [[ "$ACTION" == "ensure" ]]; then
+            if [[ $exit_code -eq 0 ]]; then
+                ensure_git_hooks || exit_code=1
+            else
+                echo "${YELLOW}  ⚠️  Skipped until the Python environment is ready${RESET}"
+            fi
+        elif check_managed_git_hook; then
+            echo "${GREEN}  ✅ ElfieNest managed pre-commit hook is ready${RESET}"
         else
-            echo "${YELLOW}  ⚠️  Skipped until the Python environment is ready${RESET}"
+            echo "${RED}  ❌ ElfieNest managed pre-commit hook is missing${RESET}" >&2
+            exit_code=1
         fi
         echo ""
     fi
