@@ -631,7 +631,7 @@ def test_godot_export_configuration_declares_web_and_linux_dedicated_outputs() -
     export_presets = _export_presets()
     script_sources = "\n".join(
         path.read_text(encoding="utf-8")
-        for path in (PROJECT_ROOT / "scripts").glob("*.py")
+        for path in (PROJECT_ROOT / "scripts").rglob("*.py")
     )
 
     # When / Then: Web and Linux Dedicated outputs are independently declared.
