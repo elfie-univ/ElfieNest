@@ -48,7 +48,7 @@ ARM64、macOS x64、Windows x64、Linux x64。安装包不包含 Ollama 引擎�
 CLI 暴露为全局 `elfienest` 命令，并且只移除当前安装所拥有的 launcher。
 
 原生 runner 会通过 `scripts/release.py --run-install-smoke` 调用
-`scripts/release_install_smoke.py`。每个有界循环都会安装安装包、通过全局 launcher
+`scripts/internal/release/release_install_smoke.py`。每个有界循环都会安装安装包、通过全局 launcher
 启动、等待 `CORE_READY`/`WORLD_READY`、停止到 `OFFLINE`、再次安装同一个包验证升级，
 最后卸载并证明所选 `ELFIE_HOME` 仍然保留。输出 JSON 包含带类型的安装/启动/健康/停止/
 升级/卸载耗时和预算，Workflow 会把它和安装包一起上传。不带

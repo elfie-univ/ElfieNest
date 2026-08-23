@@ -14,8 +14,10 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.internal.build import package_python_core
-from scripts.release_install_smoke import run_install_smoke as execute_install_smoke
-from scripts.release_planning import (
+from scripts.internal.release.release_install_smoke import (
+    run_install_smoke as execute_install_smoke,
+)
+from scripts.internal.release.release_planning import (
     ReleasePlanError,
     ReleaseRequest,
     RunnerResult,
@@ -92,7 +94,7 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         return 1
     if plan.native_targets:
         try:
-            from scripts import release_pipeline
+            from scripts.internal.release import release_pipeline
         except ImportError as error:
             print(f"release-dependency-missing module={error.name}")
             return 1

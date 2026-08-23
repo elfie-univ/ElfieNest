@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.release_install_smoke import (
+from scripts.internal.release.release_install_smoke import (
     NativePackageAdapter,
     ReleaseInstallSmokeError,
     run_install_smoke,
@@ -136,7 +136,9 @@ def test_linux_native_install_resolves_declared_deb_dependencies(
             return "elfienest-desktop\n"
         return ""
 
-    monkeypatch.setattr("scripts.release_install_smoke._run_checked", fake_run_checked)
+    monkeypatch.setattr(
+        "scripts.internal.release.release_install_smoke._run_checked", fake_run_checked
+    )
 
     adapter = NativePackageAdapter("linux-x64", artifact)
     adapter.install()
@@ -200,7 +202,9 @@ def test_windows_native_uninstall_requires_a_successful_uninstaller(
         commands.append(tuple(command))
         return ""
 
-    monkeypatch.setattr("scripts.release_install_smoke._run_checked", fake_run_checked)
+    monkeypatch.setattr(
+        "scripts.internal.release.release_install_smoke._run_checked", fake_run_checked
+    )
 
     adapter.uninstall()
 

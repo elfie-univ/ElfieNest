@@ -39,7 +39,7 @@ the same change:
 | --- | --- |
 | `internal/bootstrap/report.sh`, `internal/bootstrap/runtime_dependencies.sh` | Bootstrap support |
 | `internal/build/assemble_desktop_resources.py`, `internal/build/build_devtools_web.py`, `internal/build/build_godot_dedicated.py`, `internal/build/build_godot_web.py`, `internal/build/package_python_core.py` | Build support |
-| `release_install_smoke.py`, `release_manifest.py`, `release_pipeline.py`, `release_planning.py` | Release support |
+| `internal/release/release_install_smoke.py`, `internal/release/release_manifest.py`, `internal/release/release_pipeline.py`, `internal/release/release_planning.py` | Release support |
 | `internal/diagnostics/chat_with_elfie.py`, `internal/diagnostics/e2e_dashboard_check.py`, `internal/diagnostics/verify_nest_runtime_e2e.py` | Manual diagnostics |
 | `__init__.py` | Package marker, not a command |
 
