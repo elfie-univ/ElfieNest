@@ -7,23 +7,44 @@ entry points. Both end users and contributors should prefer the stable entry
 points at the repository root; do not bypass them to assemble your own runtime
 environment.
 
-## Scripts behind the stable entry points
+## Layout and stability contract
 
-| File | Category | Description |
+The root keeps stable command or import paths that are referenced by launchers,
+CI, release automation or production bootstrap. These paths do not move during
+internal cleanup:
+
+| Stable root path | Category | Owner / caller |
 | --- | --- | --- |
-| `bootstrap.sh` | Dependency orchestration | Unified source-development/build preparation (Python, Node, frontend, Godot Web and Electron) |
-| `elfienest.py` | CLI dispatcher | Called by `./elfienest.sh`; dispatches config, service lifecycle, Owner, database, migration and other commands |
-| `serve.py` | Foreground service | Starts FastAPI, the engine and WebSockets; called by `serve` or background lifecycle commands |
-| `build_godot_web.py` | Build | Exports and validates the Godot Web Runtime; final output goes to `build/components/godot-web/` |
-| `release.py` | Release build | Assembles staging resources and invokes electron-builder |
-| `check_quality_baseline.py` | Quality gate | Compares current Ruff, Ruff format and MyPy diagnostics against the controlled historical baseline |
-| `check_quality_environment.py` | Quality preflight | Checks host capabilities required by repository-wide tests before the expensive full gate |
-| `check_node_toolchain.sh` | Quality gate | Verifies the root Node.js/pnpm anchor and all independent Node project manifests |
-| `architecture/app_layer_scan.py` | Architecture gate | Ratchets exact legacy App-layer violations and switches to deny-all after baseline removal |
-| `architecture/system_layer_scan.py` | Architecture gate | Ratchets exact Elfie/Nest system-boundary violations and switches to deny-all after baseline removal |
-| `architecture/check_governance_change.py` | Architecture gate | Separates governance from production changes and requires mirrored, versioned contract changes with an ADR |
-| `architecture/contract_registry.py` | Architecture registry | Links each contract to its mirrors, ADRs, Agent rules, scanners, tests, conformance register and baseline |
-| `__init__.py` | Package marker | Lets architecture tests import testable functions from scripts; not a command entry point |
+| `bootstrap.sh` | Bootstrap entry | Source-development and build dependency orchestration |
+| `elfienest.py` | CLI dispatch | Called only through `./elfienest.sh` and packaged launchers |
+| `serve.py` | Runtime entry | Foreground service and managed lifecycle startup |
+| `pre_submit_gate.sh` | Quality entry | Explicit local commit/push/full diagnostic checkpoint |
+| `check_node_toolchain.sh` | Quality entry | Node.js and pnpm manifest consistency |
+| `check_quality_baseline.py` | Quality entry | Ruff, format and MyPy baseline |
+| `check_quality_environment.py` | Quality entry | Host capability preflight for broad tests |
+| `check_release_version.py` | Release quality entry | Repository and package version consistency |
+| `godot_host_validate.sh` | Godot quality entry | Controlled host-side Godot validation |
+| `godot_species_validation.py` | Runtime/build module | Shared species validation injected into App and build flows |
+| `release.py` | Release entry | Strict native release coordination |
+
+`architecture/` owns architecture scanners, immutable-base classification,
+validation planning/reuse, the contract registry and the managed Git-hook
+installer. Its `AGENTS.md` defines the machine-governance rules.
+
+The remaining root files are internal implementation, not stable user commands.
+They are grouped without compatibility wrappers, with every caller updated in
+the same change:
+
+| Current internal files | Category |
+| --- | --- |
+| `bootstrap_report.sh`, `bootstrap_runtime_dependencies.sh` | Bootstrap support |
+| `assemble_desktop_resources.py`, `build_devtools_web.py`, `build_godot_dedicated.py`, `build_godot_web.py`, `package_python_core.py` | Build support |
+| `release_install_smoke.py`, `release_manifest.py`, `release_pipeline.py`, `release_planning.py` | Release support |
+| `chat_with_elfie.py`, `e2e_dashboard_check.py`, `verify_nest_runtime_e2e.py` | Manual diagnostics |
+| `__init__.py` | Package marker, not a command |
+
+New internal helpers belong under `scripts/internal/<category>/`; stable root
+paths stay thin and explicit instead of accumulating unrelated implementation.
 
 ### bootstrap.sh usage
 

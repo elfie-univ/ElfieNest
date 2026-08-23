@@ -140,11 +140,24 @@ def test_router_and_workflow_changes_cannot_approve_themselves() -> None:
 
 def test_bootstrap_and_closure_governance_fail_closed() -> None:
     bootstrap = build_plan(["scripts/bootstrap_runtime_dependencies.sh"], "push")
+    internal_bootstrap = build_plan(
+        ["scripts/internal/bootstrap/runtime_dependencies.sh"], "push"
+    )
+    internal_build = build_plan(["scripts/internal/build/build_godot_web.py"], "push")
+    internal_release = build_plan(
+        ["scripts/internal/release/release_pipeline.py"], "push"
+    )
     closure = build_plan(["task-closure-lifecycle.json"], "push")
 
     assert bootstrap["full"] is True
     assert bootstrap["capabilities"]["toolchain"] is True
     assert bootstrap["capabilities"]["release"] is True
+    assert internal_bootstrap["full"] is True
+    assert internal_bootstrap["direct_capabilities"]["toolchain"] is True
+    assert internal_build["full"] is True
+    assert internal_build["direct_capabilities"]["release"] is True
+    assert internal_release["full"] is True
+    assert internal_release["direct_capabilities"]["release"] is True
     assert closure["full"] is True
     assert closure["capabilities"]["governance"] is True
 

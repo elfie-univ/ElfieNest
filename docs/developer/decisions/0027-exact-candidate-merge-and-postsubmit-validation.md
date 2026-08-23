@@ -33,6 +33,10 @@ GitHub's native merge queue supplies ElfieNest's exact synthetic merge.
   has no tests, MyPy, Node, Godot, fetch or network work. Ordinary push has no
   test-bearing pre-push gate; explicit affected local stages remain diagnostic
   tools rather than delivery prerequisites.
+- Treat the locked development tools and the managed hook as source-development
+  readiness. The normal launcher repairs a missing hook through the existing
+  idempotent `ensure --tier=dev` path; a non-Git source archive skips hook setup,
+  and a clone is never assumed to have executed repository code automatically.
 - Run selected Python, web, Desktop, Developer Tools, architecture,
   persistence, Godot, docs and toolchain lanes in parallel. Aggregate them as
   `elfienest/ci-gate`, then publish only the event-stable
