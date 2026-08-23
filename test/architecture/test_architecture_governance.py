@@ -614,6 +614,34 @@ def test_quality_gate_definitions_are_governance_but_baseline_can_shrink() -> No
     }
 
 
+def test_script_control_plane_paths_are_governance_during_layout_cutover() -> None:
+    governance, production = classify_paths(
+        {
+            "scripts/check_node_toolchain.sh",
+            "scripts/check_quality_environment.py",
+            "scripts/check_release_version.py",
+            "scripts/godot_host_validate.sh",
+            "scripts/governance/boundaries/app_layers.py",
+            "scripts/governance/contract_registry.py",
+            "scripts/quality/checks/python_baseline.py",
+            "scripts/quality/validation/plan.py",
+            "scripts/godot_species_validation.py",
+        }
+    )
+
+    assert governance == {
+        "scripts/check_node_toolchain.sh",
+        "scripts/check_quality_environment.py",
+        "scripts/check_release_version.py",
+        "scripts/godot_host_validate.sh",
+        "scripts/governance/boundaries/app_layers.py",
+        "scripts/governance/contract_registry.py",
+        "scripts/quality/checks/python_baseline.py",
+        "scripts/quality/validation/plan.py",
+    }
+    assert production == {"scripts/godot_species_validation.py"}
+
+
 def test_repository_wide_implementation_surfaces_cannot_hide_in_governance_change() -> (
     None
 ):

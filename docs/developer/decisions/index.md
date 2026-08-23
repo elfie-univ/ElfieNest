@@ -30,5 +30,6 @@ The current contract always states the enforceable rule.
 - [ADR-0025: Keep executable architecture tests formatter-clean](./0025-formatter-clean-executable-architecture-tests)
 - [ADR-0026: Ignore Python docstrings in the SQL boundary scanner](./0026-ignore-docstrings-in-sql-boundary-scanner)
 - [ADR-0027: Exact-candidate merge gates and post-submit full validation](./0027-exact-candidate-merge-and-postsubmit-validation)
+- [ADR-0028: Separate the script control plane by responsibility](./0028-script-control-plane-layout)
 - [ADR-0019: Provider availability is endpoint-scoped and serving-driven](./0019-provider-endpoint-availability)
 - [ADR-0020: Configuration-driven species packages](./0020-configuration-driven-species-packages)

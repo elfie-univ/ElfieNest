@@ -1,6 +1,6 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.16
+**Contract version:** 1.17
 **Adopted:** 2026-08-12
 **Revised:** 2026-08-23
 **Enforced scope:** Repository-wide change classification and architecture boundaries
@@ -44,6 +44,30 @@ No one mechanism replaces another. Contracts state the target, `AGENTS.md`
 guides execution, machine gates reject detectable violations, conformance and
 baselines record only legacy debt, and human review covers semantic rules that
 cannot be proven mechanically.
+
+## Repository script control plane
+
+Repository scripts use one explicit stability and ownership model:
+
+| Surface | Responsibility | Stability |
+| --- | --- | --- |
+| Stable files directly under `scripts/` | High-level Bootstrap, runtime, local-quality and release entry points | Exact command or import path is preserved deliberately |
+| `scripts/governance/` | Contract registry, change policy, structural/dependency boundaries and persistence guards | First-class machine governance; never product implementation |
+| `scripts/quality/` | Individual checks, validation planning/execution/evidence reuse and managed Git hooks | First-class machine governance; a gate cannot approve its own change |
+| `scripts/internal/` | Replaceable Bootstrap, build, release and diagnostic helpers | No external path-compatibility promise; repository-owned callers may update atomically |
+
+`internal` is a compatibility boundary, not access control. Repository-owned
+CI, tests and stable entry points may call an internal helper directly, but
+external instructions must prefer the supported high-level entry. Product
+Bootstrap must not retain a runtime dependency on a convenience module under
+`scripts/` when the concrete technical adapter has an Infrastructure owner.
+
+The flat `scripts/architecture/` tree is a migration source, not the target.
+Because immutable-base policy must judge the move, both the legacy prefix and
+the two target control-plane prefixes are governance-classified during cutover.
+The base classifier lands first, files move only after it is protected on main,
+and legacy path recognition is removed after a new-layout base is available.
+No root compatibility wrappers or duplicate implementation paths are retained.
 
 ## Exact-candidate submission and asynchronous full validation
 

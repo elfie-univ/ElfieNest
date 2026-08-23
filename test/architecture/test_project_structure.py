@@ -61,13 +61,7 @@ CURRENT_PYTHON_SOURCE_ROOTS = (
 STABLE_ROOT_SCRIPT_PATHS = frozenset(
     {
         "bootstrap.sh",
-        "check_node_toolchain.sh",
-        "check_quality_baseline.py",
-        "check_quality_environment.py",
-        "check_release_version.py",
         "elfienest.py",
-        "godot_host_validate.sh",
-        "godot_species_validation.py",
         "pre_submit_gate.sh",
         "release.py",
         "serve.py",
