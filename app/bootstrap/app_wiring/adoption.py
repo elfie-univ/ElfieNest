@@ -16,6 +16,9 @@ from app.orchestration.nest_session import NestSession
 from app.orchestration.resident_admission import ResidentAdmissionService
 from elfie.public import BodyPort, ElfieFactory
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
+from infrastructure.godot.artifacts.species_package_validation import (
+    run_godot_species_validation,
+)
 from infrastructure.godot.artifacts.species_runtime_catalog import (
     build_species_runtime_catalog,
 )
@@ -54,7 +57,6 @@ from infrastructure.platform import (
     SettingsAdoptionPolicyAdapter,
 )
 from nest.public import NestConfig
-from scripts.godot_species_validation import run_godot_species_validation
 
 
 @dataclass(frozen=True)

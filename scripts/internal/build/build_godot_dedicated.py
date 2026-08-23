@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
 from infrastructure.godot.artifacts.species_package_validation import (
     SpeciesPackageValidationError,
+    run_godot_species_validation,
     source_species_package_ids,
     validate_source_species_packages,
 )
@@ -36,7 +37,6 @@ from infrastructure.godot.runner import (
     godot_version as godot_version_helper,
 )
 from infrastructure.persistence.configuration.species import load_species_catalog
-from scripts.godot_species_validation import run_godot_species_validation
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 GODOT_PROJECT = PROJECT_ROOT / "godot_project"

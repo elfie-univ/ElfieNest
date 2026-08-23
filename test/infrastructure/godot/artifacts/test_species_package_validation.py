@@ -26,6 +26,63 @@ def _godot_runner(
     return run
 
 
+def test_concrete_runner_delegates_to_the_shared_godot_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: dict[str, object] = {}
+
+    def fake_run_headless(
+        godot_binary: Path,
+        godot_project: Path,
+        args: tuple[str, ...],
+        *,
+        timeout_seconds: float,
+        godot_version: str | None,
+        purpose: str,
+    ) -> object:
+        observed.update(
+            godot_binary=godot_binary,
+            godot_project=godot_project,
+            args=args,
+            timeout_seconds=timeout_seconds,
+            godot_version=godot_version,
+            purpose=purpose,
+        )
+        return type(
+            "RunResult",
+            (),
+            {"exit_code": 7, "stdout": "stdout", "stderr": "stderr"},
+        )()
+
+    monkeypatch.setattr(
+        species_package_validation,
+        "run_headless",
+        fake_run_headless,
+        raising=False,
+    )
+
+    result = species_package_validation.run_godot_species_validation(
+        godot_binary=Path("/godot"),
+        godot_project=Path("/project"),
+        timeout_seconds=42.0,
+        godot_version="4.6",
+    )
+
+    assert observed == {
+        "godot_binary": Path("/godot"),
+        "godot_project": Path("/project"),
+        "args": ("--script", "scripts/test/test_species_catalog.gd"),
+        "timeout_seconds": 42.0,
+        "godot_version": "4.6",
+        "purpose": "species-package-validation",
+    }
+    assert result == species_package_validation.GodotSpeciesValidationResult(
+        7,
+        "stdout",
+        "stderr",
+    )
+
+
 def test_source_species_gate_joins_config_and_godot_ids() -> None:
 
     assert species_package_validation.validate_source_species_packages(

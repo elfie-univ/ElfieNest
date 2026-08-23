@@ -200,6 +200,9 @@ def create_lifecycle_facade() -> LifecycleFacade:
     """Create one process-scoped lifecycle facade with explicit Adapter injection."""
     from app.interfaces.web.build_discovery import discover_web_build
     from app.orchestration.lifecycle import LifecycleFacade
+    from infrastructure.godot.artifacts.species_package_validation import (
+        run_godot_species_validation,
+    )
     from infrastructure.godot.artifacts.web_build import GodotWebBuildAdapter
     from infrastructure.godot.lifecycle.authority import GodotAuthorityHostAdapter
     from infrastructure.models.ollama.lifecycle_ollama import OllamaLifecycleAdapter
@@ -229,7 +232,6 @@ def create_lifecycle_facade() -> LifecycleFacade:
     )
     from infrastructure.platform.source_cli_state import SourceCliState
     from infrastructure.platform.uninstall import LocalUninstallAdapter
-    from scripts.godot_species_validation import run_godot_species_validation
 
     inspector = DefaultProcessInspector()
     local_data = LifecycleDataHomeAdapter()
