@@ -21,7 +21,6 @@
 | `check_quality_environment.py` | 质量入口 | 广覆盖测试的宿主能力预检 |
 | `check_release_version.py` | 发布质量入口 | 仓库与包版本一致性 |
 | `godot_host_validate.sh` | Godot 质量入口 | 受控宿主 Godot 验证 |
-| `godot_species_validation.py` | Runtime/构建模块 | 注入 App 与构建流程的共享物种验证 |
 | `release.py` | 发布入口 | 严格原生发布协调 |
 
 `architecture/` 负责架构 Scanner、不可变基础分类、验证规划/复用、契约注册表和仓库

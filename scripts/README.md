@@ -24,7 +24,6 @@ internal cleanup:
 | `check_quality_environment.py` | Quality entry | Host capability preflight for broad tests |
 | `check_release_version.py` | Release quality entry | Repository and package version consistency |
 | `godot_host_validate.sh` | Godot quality entry | Controlled host-side Godot validation |
-| `godot_species_validation.py` | Runtime/build module | Shared species validation injected into App and build flows |
 | `release.py` | Release entry | Strict native release coordination |
 
 `architecture/` owns architecture scanners, immutable-base classification,
