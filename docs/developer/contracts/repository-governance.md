@@ -1,6 +1,6 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.19
+**Contract version:** 1.20
 **Adopted:** 2026-08-12
 **Revised:** 2026-08-23
 **Enforced scope:** Repository-wide change classification and architecture boundaries
@@ -36,7 +36,7 @@ Architecture quality is maintained by one connected system:
 | Scanners, type/lint checks and architecture tests | Enforce machine-checkable rules | Permanent |
 | Exact legacy baselines | Ratchet known implementation debt without authorizing new debt | Temporary |
 | Conformance registers | Name each temporary gap and its deletion gate | Temporary |
-| CI base-branch comparison and maintainer review | Prevent a change from weakening the rule that judges itself | Permanent |
+| CI base-branch comparison and independent maintainer review when available | Prevent a change from weakening the rule that judges itself; record the solo-maintainer limitation until independent review is possible | Permanent |
 | Runtime health and Observer projections | Report operational health; separate from source architecture checks | Permanent |
 | Exact-candidate affected CI and post-submit backstop | Merge quickly on relevant evidence while preserving broad asynchronous detection | Permanent |
 
@@ -111,7 +111,7 @@ release, runtime smoke and governance
 capabilities. Security-fast always runs. Unknown executable paths select all
 lanes. A change to the classifier, CI workflow or machine gate cannot approve
 itself: it selects all lanes, remains subject to the base-commit governance
-checker and requires maintainer review. Pure ADR, contract, AGENTS or skill prose
+checker and, once a second verified maintainer exists, requires independent maintainer review. Pure ADR, contract, AGENTS or skill prose
 selects security, governance, documentation where applicable and architecture
 review without unrelated Web, Godot or release lanes. Architecture-test changes
 add the architecture and relevant language-quality lanes. Mixed diffs take the
@@ -238,8 +238,9 @@ Every architecture-sensitive change follows one visible loop:
    checks; do not start the full repository merely because submission began;
 5. in CI, route from the immutable base manifest, require the event-stable
    `elfienest/merge-gate` backed by `elfienest/ci-gate` on the candidate,
-   require maintainer review for governance, then run the complete backstop
-   asynchronously on the accepted main tip;
+   require independent maintainer review for governance once a second verified
+   maintainer exists, then run the complete backstop asynchronously on the
+   accepted main tip;
 6. after a migration proves its real call chain, remove the old implementation,
    reduce only the matching baseline entries and close only the evidenced
    conformance row;
@@ -330,7 +331,7 @@ A deliberate ownership, dependency or authority change requires all of:
 2. synchronized English and Chinese contract version changes;
 3. matching root/child `AGENTS.md` updates where execution guidance changes;
 4. scanner and focused architecture-test updates where the rule is mechanical;
-5. a governance-focused local commit and maintainer review;
+5. a governance-focused local commit and, when available, independent maintainer review;
 6. a later product commit if implementation must change; it may share the final
    PR only when it already passes the immutable base contract.
 
@@ -460,16 +461,28 @@ evidence is semantically sufficient.
 ## Ownership and external repository settings
 
 The protected main branch must require the event-stable
-`elfienest/merge-gate` from the expected GitHub Actions App, plus at least one
-maintainer review for governance and CI changes. It must require the merge queue
-and reject direct pushes, force pushes and deletion. Repository owners may add
+`elfienest/merge-gate` from the expected GitHub Actions App. It must require the
+merge queue and reject direct pushes, force pushes and deletion. Once a second
+verified maintainer with repository write permission exists, governance and CI
+paths must also require an independent maintainer review through path-scoped
+required reviewers or an equivalent enforceable rule. Repository owners may add
 CODEOWNERS only for verified accounts. Ruleset state and reviewer identity are
 live repository settings and cannot be proved from source files alone.
 
+### Known limitation: solo-maintainer stage
+
 The read-only live audit on 2026-08-23 confirmed the active PR requirement,
 native merge queue, `elfienest/merge-gate`, deletion protection and non-fast-
-forward protection, but reported `required_approving_review_count: 0`. Therefore
-the maintainer-review hard gate is not implemented yet. Until a later live audit
-proves a count of at least one and an actual non-author approval, main delivery
-must report this external gap and fail closed; source changes cannot claim it is
-complete.
+forward protection, but reported no required approving reviewer. ElfieNest
+currently has only one maintainer, so an independent approval cannot be obtained
+without inventing an inauthentic reviewer. This limitation is explicitly
+accepted for the solo-maintainer stage: governance and CI changes still require
+the immutable-base classifier, every selected lane, the required aggregate and
+the native merge queue, but delivery reports must state that independent review
+did not occur.
+
+The exception expires as soon as a second verified maintainer with repository
+write permission exists. At that point, path-scoped required reviewers (or an
+equivalent enforceable rule) must be configured for governance and CI paths,
+the main-delivery skill must verify the live rule and actual non-author approval,
+and this known limitation must be retired in a governance change.

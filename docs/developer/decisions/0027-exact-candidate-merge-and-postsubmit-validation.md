@@ -84,9 +84,10 @@ GitHub's native merge queue supplies ElfieNest's exact synthetic merge.
 - Quarantine ordinary merges after the newest main tip has a terminal red full
   backstop. Permit only an audited, narrowly scoped fix or revert until a newer
   green main result supersedes the red state.
-- Require a live GitHub ruleset with Pull Requests, merge queue, stable checks,
-  no direct/force pushes and maintainer review for governance/CI. Repository
-  source alone cannot claim that external state is active.
+- Require a live GitHub ruleset with Pull Requests, merge queue, stable checks
+  and no direct/force pushes. Once a second verified maintainer exists, require
+  path-scoped independent review for governance/CI. Repository source alone
+  cannot claim that external state is active.
 
 ## Alternatives rejected
 

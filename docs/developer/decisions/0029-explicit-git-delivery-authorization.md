@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
+- **Revised:** 2026-08-23
 - **Scope:** Coding-Agent Git authorization, Pull Request lifecycle and candidate evidence reuse
 
 ## Context
@@ -80,7 +81,10 @@ Failure to prove any identity component is safe: the PR runs its selected lanes
 instead of reusing evidence. A changed candidate requires a new user main action
 rather than an automatic fix-and-requeue loop.
 
-The source contract requires a live maintainer-review rule, but source files
-cannot enable or prove that external setting. Until the live ruleset and an
-actual non-author approval satisfy it, the narrow main skill fails closed; it
-does not claim the review gate is active.
+Independent governance review remains the target, but the repository currently
+has only one maintainer. The solo-maintainer stage therefore records the missing
+independent review as a known limitation instead of inventing a reviewer or
+blocking every governance repair. Immutable-base classification, selected CI
+lanes, the aggregate gate and native merge queue remain mandatory. The exception
+expires when a second verified maintainer with write permission exists; path-
+scoped required review and live approval verification must then be enabled.

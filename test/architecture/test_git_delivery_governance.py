@@ -94,6 +94,7 @@ def test_main_delivery_skill_freezes_one_candidate_and_fails_closed() -> None:
         "--match-head-commit",
         "mergeQueueEntry",
         "required_approving_review_count",
+        "required_reviewers",
         "候选 SHA 变化",
         "dequeuePullRequest",
         "无法确认",
@@ -101,6 +102,18 @@ def test_main_delivery_skill_freezes_one_candidate_and_fails_closed() -> None:
     ):
         assert required in source
     assert "allow_implicit_invocation: false" in metadata
+
+
+def test_solo_maintainer_review_limit_is_explicit_and_self_expiring() -> None:
+    skill = MAIN_SKILL.read_text(encoding="utf-8")
+    english = _read("docs/developer/contracts/repository-governance.md")
+    chinese = _read("docs/zh/developer/contracts/repository-governance.md")
+
+    assert "Known limitation: solo-maintainer stage" in english
+    assert "second verified maintainer" in english
+    assert "已知限制：单维护者阶段" in chinese
+    assert "第二名具有仓库写权限的已验证维护者" in chinese
+    assert "单维护者例外不能继续沿用" in skill
 
 
 def test_contract_allows_one_long_lived_branch_but_requires_exact_multi_pr_approval() -> (

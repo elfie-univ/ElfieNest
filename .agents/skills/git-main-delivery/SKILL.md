@@ -1,6 +1,6 @@
 ---
 name: git-main-delivery
-description: 仅在用户当前消息明确要求 ElfieNest 创建 Pull Request 或合并到远程 main 时使用。对已经稳定并获用户验收的精确候选，每次最多创建或复用一个 PR；创建 PR 模式随后停止，合并 main 模式才等待 CI、进入原生 merge queue 并核验远端结果。规则、队列、必需检查或审查无法确认时 fail closed。
+description: 仅在用户当前消息明确要求 ElfieNest 创建 Pull Request 或合并到远程 main 时使用。对已经稳定并获用户验收的精确候选，每次最多创建或复用一个 PR；创建 PR 模式随后停止，合并 main 模式才等待 CI、进入原生 merge queue 并核验远端结果。规则、队列或必需检查无法确认时 fail closed；单维护者阶段的已知审查限制按版本化契约处理。
 ---
 
 # ElfieNest 单一 PR 主线交付
@@ -27,10 +27,10 @@ description: 仅在用户当前消息明确要求 ElfieNest 创建 Pull Request 
 
 - enforcement 为 active，main 要求 Pull Request 和 merge queue；
 - required status checks 包含预期 GitHub Actions App 产生的 `elfienest/merge-gate`；
-- 若候选包含治理/CI 路径，Pull Request 参数 `required_approving_review_count` 至少为 1；普通产品候选不把该治理专项要求扩大成额外审批；
+- 读取 Pull Request 的 `required_approving_review_count`、`required_reviewers` 和 Code Owner 审查配置。当前仓库处于只有一名维护者的阶段，版本化治理契约明确记录第二人审批硬门尚不可实现；该已知限制不阻塞治理/CI 候选，但必须在交付报告中保留，不能伪称已经获得独立审查；
 - 禁止直接/强制写 main，队列和 required-check 来源身份可识别。
 
-只看仓库文档、缓存响应或某一个 ruleset 不算确认。API 失败、字段未知、多条规则无法合成、队列未启用、必需检查来源不明，或治理/CI 候选的审查配置未满足时都视为“无法确认”：fail closed，停止且不创建第二条路径。不得通过直接 main 技能绕过。实际非作者批准只能在 PR 创建后核验。
+只看缓存响应或某一个 ruleset 不算确认。API 失败、字段未知、多条规则无法合成、队列未启用或必需检查来源不明时都视为“无法确认”：fail closed，停止且不创建第二条路径。不得通过直接 main 技能绕过。出现第二名具有写权限的已验证维护者后，必须先按治理契约启用治理/CI 路径审批硬门并更新本技能；单维护者例外不能继续沿用。
 
 ## 3. PR 前精确候选验证
 
@@ -58,7 +58,7 @@ gh workflow run ci.yml --ref main -f mode=candidate -f target_sha=<候选 SHA>
 
 ## 5. 等待检查、审查并进入原生队列
 
-1. PR 事件应通过可信 candidate evidence 做快速身份复核；证据缺失或失效时重新运行受影响 Lane，而不是伪造通过。等待该 SHA 的 `elfienest/merge-gate`；治理/CI 候选还必须获得一名非作者维护者的有效批准。
+1. PR 事件应通过可信 candidate evidence 做快速身份复核；证据缺失或失效时重新运行受影响 Lane，而不是伪造通过。等待该 SHA 的 `elfienest/merge-gate`。单维护者阶段如候选包含治理/CI 路径，明确报告“独立维护者审查未执行”的已知限制；出现第二名已验证维护者后，这类候选必须获得一名非作者维护者的有效批准。
 2. 每次状态变化都重新核验 PR head 仍等于冻结候选。绑定 head 请求原生合并入口：
 
    ```bash

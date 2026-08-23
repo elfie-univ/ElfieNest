@@ -59,8 +59,9 @@ ElfieNest 曾把完整仓库后盾设为每次 main 交付的前置条件。因�
   选中 Lane 的理由。
 - 最新 main tip 完整后盾终态为红时隔离普通合并；只允许受审计且范围明确的修复或回滚，
   直到更新 main 的绿色结果取代红灯。
-- live GitHub Ruleset 必须要求 Pull Request、merge queue、稳定检查、禁止直接/强制 Push，
-  并要求治理/CI 维护者审查。仅凭仓库源码不能声称这些外部状态已生效。
+- live GitHub Ruleset 必须要求 Pull Request、merge queue、稳定检查并禁止直接/强制 Push；
+  出现第二名已验证维护者后，还必须要求治理/CI 路径级独立审查。仅凭仓库源码不能声称这些
+  外部状态已生效。
 
 ## 被拒绝方案
 
