@@ -17,6 +17,8 @@ def _prepare_dev_project(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
     project_root = tmp_path / "project"
     scripts_dir = copy_bootstrap(project_root)
     prepare_build_runtime(project_root)
+    make_executable(project_root / ".venv/bin/pre-commit")
+    make_executable(project_root / ".venv/bin/ruff")
     desktop_dir = project_root / "app/interfaces/desktop"
     desktop_dir.mkdir(parents=True)
     (desktop_dir / "package.json").write_text(
