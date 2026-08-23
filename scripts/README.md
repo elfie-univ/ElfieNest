@@ -35,9 +35,9 @@ The remaining root files are internal implementation, not stable user commands.
 They are grouped without compatibility wrappers, with every caller updated in
 the same change:
 
-| Current internal files | Category |
+| Internal files | Category |
 | --- | --- |
-| `bootstrap_report.sh`, `bootstrap_runtime_dependencies.sh` | Bootstrap support |
+| `internal/bootstrap/report.sh`, `internal/bootstrap/runtime_dependencies.sh` | Bootstrap support |
 | `assemble_desktop_resources.py`, `build_devtools_web.py`, `build_godot_dedicated.py`, `build_godot_web.py`, `package_python_core.py` | Build support |
 | `release_install_smoke.py`, `release_manifest.py`, `release_pipeline.py`, `release_planning.py` | Release support |
 | `chat_with_elfie.py`, `e2e_dashboard_check.py`, `verify_nest_runtime_e2e.py` | Manual diagnostics |

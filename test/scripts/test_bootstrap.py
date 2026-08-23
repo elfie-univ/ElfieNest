@@ -418,7 +418,7 @@ def test_bootstrap_pnpm_preparation_uses_repository_pinned_version() -> None:
         encoding="utf-8"
     )
     runtime_source = (
-        PROJECT_ROOT / "scripts/bootstrap_runtime_dependencies.sh"
+        PROJECT_ROOT / "scripts/internal/bootstrap/runtime_dependencies.sh"
     ).read_text(encoding="utf-8")
 
     assert 'PNPM_VERSION="10.12.1"' in runtime_source
@@ -471,7 +471,7 @@ def test_bootstrap_accepts_only_dev_and_build_tiers(tmp_path: Path) -> None:
 def test_bootstrap_derives_the_official_godot_toolchain_for_source_builds() -> None:
     # Given: the source-build bootstrap dependency contract.
     runtime_source = (
-        PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh"
+        PROJECT_ROOT / "scripts/internal/bootstrap/runtime_dependencies.sh"
     ).read_text(encoding="utf-8")
 
     # When: Godot prerequisites are inspected before a Web runtime export.
@@ -533,7 +533,7 @@ def test_bootstrap_reuses_a_matching_managed_godot_toolchain(tmp_path: Path) -> 
             'PROJECT_ROOT="$1"; source "$2"; ensure_godot_toolchain; printf "%s|%s\\n" "$GODOT_RESOLVED_BIN" "$GODOT_RESOLVED_EDITOR_DATA"',
             "bootstrap-godot",
             str(project_root),
-            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+            str(scripts_dir / "internal/bootstrap/runtime_dependencies.sh"),
         ],
         env={
             **os.environ,
@@ -573,7 +573,7 @@ def test_bootstrap_reuses_a_matching_system_godot_binary(tmp_path: Path) -> None
             'PROJECT_ROOT="$1"; source "$2"; ensure_godot_toolchain; printf "%s|%s\\n" "$GODOT_RESOLVED_BIN" "$GODOT_RESOLVED_EDITOR_DATA"',
             "bootstrap-godot",
             str(project_root),
-            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+            str(scripts_dir / "internal/bootstrap/runtime_dependencies.sh"),
         ],
         env={
             **os.environ,
@@ -610,7 +610,7 @@ def test_bootstrap_rejects_a_different_godot_compatibility_line(
             'PROJECT_ROOT="$1"; source "$2"; ensure_godot_toolchain',
             "bootstrap-godot",
             str(project_root),
-            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+            str(scripts_dir / "internal/bootstrap/runtime_dependencies.sh"),
         ],
         env={
             **os.environ,
@@ -692,7 +692,7 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
             'PROJECT_ROOT="$1"; source "$2"; install_official_godot_toolchain',
             "bootstrap-godot",
             str(project_root),
-            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+            str(scripts_dir / "internal/bootstrap/runtime_dependencies.sh"),
         ],
         env={**environment, "FAKE_GODOT_DOWNLOAD_FAIL": "1"},
         capture_output=True,
@@ -712,7 +712,7 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
             command,
             "bootstrap-godot",
             str(project_root),
-            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+            str(scripts_dir / "internal/bootstrap/runtime_dependencies.sh"),
         ],
         env=environment,
         capture_output=True,
@@ -762,7 +762,7 @@ def test_godot_toolchain_paths_and_downloads_follow_project_godot(
             '"$(godot_download_url templates export_templates.tpz)"',
             "bootstrap-godot",
             str(project_root),
-            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+            str(scripts_dir / "internal/bootstrap/runtime_dependencies.sh"),
         ],
         env={
             **os.environ,
