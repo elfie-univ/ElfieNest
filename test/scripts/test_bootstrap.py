@@ -235,6 +235,73 @@ def test_bootstrap_hooks_action_only_installs_the_repository_hook(
     assert "dependency check" not in result.stdout
 
 
+def test_bootstrap_dev_check_detects_and_ensure_repairs_a_missing_hook(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    scripts_dir = copy_bootstrap(project_root)
+    prepare_build_runtime(project_root)
+    subprocess.run(["git", "init", "-q", str(project_root)], check=True)
+    (project_root / ".pre-commit-config.yaml").write_text(
+        "repos: []\n", encoding="utf-8"
+    )
+    make_executable(project_root / ".venv/bin/pre-commit")
+    make_executable(project_root / ".venv/bin/ruff")
+    make_executable(
+        project_root / ".fake-bin/node",
+        "#!/bin/sh\n"
+        'if [ "${1:-}" = "--version" ]; then printf "v20.12.0\\n"; fi\n'
+        "exit 0\n",
+    )
+    make_executable(project_root / "app/interfaces/desktop/node_modules/.bin/electron")
+    for relative_path in (
+        "build/components/desktop-interface/main.js",
+        "app/bootstrap/desktop_host/host_main.mjs",
+        "infrastructure/godot/lifecycle/electron/authority_main.mjs",
+    ):
+        destination = project_root / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text("ready\n", encoding="utf-8")
+    environment = {
+        **os.environ,
+        "HOME": str(tmp_path / "home"),
+        "PATH": f"{project_root / '.fake-bin'}:/usr/bin:/bin:/usr/sbin:/sbin",
+    }
+
+    missing = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "check", "--tier=dev"],
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert missing.returncode == 1
+    assert "managed pre-commit hook is missing" in missing.stderr
+
+    repaired = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "ensure", "--tier=dev"],
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    healthy = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "check", "--tier=dev"],
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert repaired.returncode == 0, repaired.stderr
+    assert healthy.returncode == 0, healthy.stderr
+    assert "managed pre-commit hook is ready" in healthy.stdout
+
+
 def test_bootstrap_report_treats_the_editor_as_optional_when_web_output_exists(
     tmp_path: Path,
 ) -> None:
