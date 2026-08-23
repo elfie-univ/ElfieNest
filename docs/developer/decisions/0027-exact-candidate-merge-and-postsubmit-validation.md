@@ -28,6 +28,11 @@ GitHub's native merge queue supplies ElfieNest's exact synthetic merge.
   classifier from the immutable base commit to emit a versioned affected-path
   manifest. Unknown executable and governance/toolchain changes select all
   lanes; security-fast always runs.
+- Keep `scripts/bootstrap.sh` as the stable bootstrap/toolchain entry. Route
+  `scripts/internal/bootstrap/` through fail-closed toolchain selection and
+  `scripts/internal/build/` plus `scripts/internal/release/` through
+  fail-closed release selection; internal diagnostics retain affected Python
+  selection. Internal moves do not add root compatibility wrappers.
 - Install a repository-managed staged-only pre-commit hook. Its warm path runs
   diff whitespace, pinned Gitleaks and staged Python Ruff within 20 seconds and
   has no tests, MyPy, Node, Godot, fetch or network work. Ordinary push has no

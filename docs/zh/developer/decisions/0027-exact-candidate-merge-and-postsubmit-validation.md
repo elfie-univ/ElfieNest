@@ -22,6 +22,10 @@ ElfieNest 曾把完整仓库后盾设为每次 main 交付的前置条件。因�
 - 把阻塞合并的证据绑定到精确 Pull Request head SHA。使用不可变基础提交中的分类器生成
   版本化受影响路径 Manifest。未知可执行、治理和工具链改动选择全部 Lane；security-fast
   永远执行。
+- 保持 `scripts/bootstrap.sh` 为稳定 Bootstrap/工具链入口。`scripts/internal/bootstrap/`
+  通过 fail-closed 工具链分类，`scripts/internal/build/` 与 `scripts/internal/release/`
+  通过 fail-closed 发布分类；内部诊断脚本继续选择受影响 Python Lane。内部迁移不新增根目录
+  兼容壳。
 - 安装仓库管理且只处理暂存内容的 pre-commit hook。warm 路径在 20 秒内执行差异空白、锁定
   版本 Gitleaks 和 staged Python Ruff，不运行测试、MyPy、Node、Godot、fetch 或网络操作。
   普通 push 不设置带测试的 pre-push 门禁；显式受影响本地 stage 只保留为诊断工具，不作为
