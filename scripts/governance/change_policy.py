@@ -1,4 +1,4 @@
-"""Reject changes that mix architecture governance and implementation files."""
+"""Validate governance-sensitive changes against immutable-base policy."""
 
 from __future__ import annotations
 
@@ -624,9 +624,9 @@ def validate_conformance_changes(
             )
         if base_source is None or not has_closure_ready_marker(base_source):
             failures.append(f"cannot remove conformance not closure-ready: {path}")
-        if not governance or production:
+        if not governance:
             failures.append(
-                f"conformance removal must be a governance-only change: {path}"
+                f"conformance removal must remain governance-classified: {path}"
             )
     return failures
 
@@ -663,15 +663,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
     paths = args.paths if args.paths is not None else changed_paths(args.base_sha)
     governance, production = classify_paths(paths)
-    if governance and production:
-        print(
-            "Architecture governance and implementation files must be reviewed "
-            "in separate pull requests.",
-            file=sys.stderr,
-        )
-        print(f"governance: {sorted(governance)}", file=sys.stderr)
-        print(f"production: {sorted(production)}", file=sys.stderr)
-        return 1
     governance_failures = [
         *validate_retired_script_control_paths(paths),
         *validate_baseline_changes(args.base_sha, paths, governance=governance),
@@ -690,7 +681,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         for failure in governance_failures:
             print(failure, file=sys.stderr)
         return 1
-    kind = "governance" if governance else "product/migration"
+    if governance and production:
+        kind = "mixed governance-sensitive/product"
+    elif governance:
+        kind = "governance-sensitive"
+    else:
+        kind = "product/migration"
     print(f"Architecture change class: {kind}")
     return 0
 

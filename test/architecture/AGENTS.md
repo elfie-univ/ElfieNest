@@ -25,5 +25,6 @@
 - `test_effective_dependency_boundaries.py` 必须同时攻击模块命令、脚本路径、动态加载、
   Node 子进程、Godot、Shell 与未知源码根目标，并跨 Interface、Feature、Core、
   Infrastructure、Bootstrap、Scripts 与 Developer Tools 所有权验证允许和禁止方向。
-- 删除或弱化规则属于治理变更，必须同步 ADR/契约并与实现侧文件分开审查。
+- 删除或弱化规则属于治理变更，必须同步 ADR/契约并使用独立本地 commit；候选实现仍由
+  不可变基础规则检查，不能借同一最终 PR 中的候选规则放宽而通过。
 - 只运行与本次边界变化直接相关的架构测试；不得把产品功能断言塞进本目录。

@@ -30,5 +30,6 @@
 - [ADR-0026：SQL 边界扫描器忽略 Python docstring](./0026-ignore-docstrings-in-sql-boundary-scanner)
 - [ADR-0027：精确候选合并门与合并后完整验证](./0027-exact-candidate-merge-and-postsubmit-validation)
 - [ADR-0028：按职责拆分脚本控制面](./0028-script-control-plane-layout)
+- [ADR-0029：显式 Git 动作授权与单 PR 交付](./0029-explicit-git-delivery-authorization)
 - [ADR-0019：Provider 可用性按 Endpoint 定义并由在用路径驱动](./0019-provider-endpoint-availability)
 - [ADR-0020：配置驱动的物种包](./0020-configuration-driven-species-packages)

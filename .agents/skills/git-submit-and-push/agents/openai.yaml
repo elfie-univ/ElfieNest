@@ -1,4 +1,4 @@
 interface:
-  display_name: "GitHub 队列交付与恢复"
-  short_description: "稳定完成分支推送、队列合并与 Git/gh 故障恢复"
-  default_prompt: "使用 $git-submit-and-push 完成已授权的功能分支推送或受保护主线队列合并，并在 Git/gh 出错时做有界恢复。"
+  display_name: "功能分支 Push 与恢复"
+  short_description: "Push one feature branch with bounded Git and gh recovery"
+  default_prompt: "使用 $git-submit-and-push 只完成明确授权的功能分支 push 和远端 SHA 核验，不创建 PR。"

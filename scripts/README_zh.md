@@ -31,7 +31,7 @@ scripts/
 │   └── persistence/            # 数据库变更盘点与策略扫描
 ├── quality/                    # 执行质量策略选中的检查
 │   ├── checks/                 # 独立 Python、Node、环境与 Godot 检查
-│   ├── validation/             # 检查规划、门禁、缓存与可复用测试包
+│   ├── validation/             # 检查规划、门禁、候选证据、缓存与可复用测试包
 │   └── hooks/                  # 仓库托管的 Git hook 安装与运行文件
 └── internal/                   # 稳定入口背后的可替换辅助实现
     ├── bootstrap/              # Bootstrap 报告与依赖解析

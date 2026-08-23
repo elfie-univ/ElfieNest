@@ -146,16 +146,19 @@ bash scripts/bootstrap.sh hooks
 check/format。warm hook 目标为 20 秒，不运行测试、MyPy、pnpm、Godot、fetch 或网络操作；
 不得安装带测试的 pre-push 门禁。
 
-hook 通过后立即推送功能分支。精确 PR head 才是权威候选：GitHub 并行执行 security-fast、
-受影响 Python 测试、全仓 Python quality baseline，以及不可变基础 Manifest 选中的其他
+hook 通过后，本地 commit 已经就绪；只有收到明确的功能分支 push 指令才推送。功能分支
+可以跨会话、跨天保留，持续积累聚焦 commit 并多次 push，而不会自动创建 Pull Request。
+明确的主线合并动作冻结精确 PR head 后，GitHub 并行执行 security-fast、受影响 Python
+测试、全仓 Python quality baseline，以及不可变基础 Manifest 选中的其他
 Lane；`elfienest/ci-gate` 聚合结果，再由跨事件稳定的 `elfienest/merge-gate` 报告给分支
 保护。原生 merge queue 只执行秒级合成提交身份检查。不能只因 main 前进就合入/rebase
 移动主线。
 
 `scripts/pre_submit_gate.sh --stage commit` 只保留为显式、可复用的本地 checkpoint；
 `--stage push` 是离线诊断时可选的受影响集成重放，两者都不是普通 push 前置条件。完整后盾
-在 main push 后及显式 full/发布验证时把全部 Lane 并行展开。未知、治理和工具链改动会全选
-预合并 Lane。窄 node/文件不能证明更大的测试包，本地缓存也不能替代绑定新候选 SHA 的 CI。
+在 main push 后及显式 full/发布验证时把全部 Lane 并行展开。未知可执行、机器信任根和工具链
+改动会全选预合并 Lane；纯治理说明只选择治理、文档与架构审查。窄 node/文件不能证明更大的
+测试包，本地缓存也不能替代绑定新候选 SHA 的 CI。
 选中 Lane 或 merge gate 失败时不得交付；最新 main 的完整后盾失败会隔离普通合并，直到
 聚焦恢复或回滚使 main 重新变绿。
 
@@ -206,10 +209,30 @@ npx --yes pnpm@10.12.1 build
 
 ## 分支和提交范围
 
+下面的动作边界是编码 Agent 的规范规则。计划、ADR、技能、旧任务以及孤立的“完成”或
+“交付”都不能把某一行升级为下一行。
+
+<!-- git-action-matrix:start -->
+| 动作 ID | 明确指令 | 最大授权结果 |
+| --- | --- | --- |
+| `implement` | 开始实现 / 按计划执行 | `local-work` |
+| `commit` | 提交 / 本地 commit | `local-commit` |
+| `push` | 推送功能分支 | `branch-push` |
+| `create-pr` | 创建 Pull Request | `one-pr-stop` |
+| `merge-main` | 合并到远程主分支 | `one-pr-merge` |
+| `complete` | 只说完成 / 交付，没有明确 Git 动作 | `no-git` |
+<!-- git-action-matrix:end -->
+
+- `local-work` 包含批准实现所需的聚焦验证和合理本地 commit；用户说“不提交”或“先给我
+  看”时除外。后续每一行都需要对应的明确指令。
+- 一个功能分支可以包含多个职责清晰的 commit，但一次主线合并请求最多创建或复用一个
+  Pull Request。确实需要多个时，必须先说明准确 PR 数量及边界，并在创建任何 PR 前取得
+  对该数量的明确批准。
 - 一个 PR 只解决一个边界清晰的问题；避免顺手格式化或重构无关文件。
 - 不覆盖他人的未提交改动，不提交本机配置、生成物、缓存或生产数据。
 - 提交信息说明“为什么改”，而不只是罗列文件名。
-- 界面或文档网站改动必须先由负责人目视验收；未确认前保持本地改动，不提交、不推送。
+- 界面或文档网站改动可以本地 commit、push 以供审阅，但在负责人目视验收前不得创建用于
+  合并 main 的 Pull Request。
 
 ## Pull Request 必须包含
 

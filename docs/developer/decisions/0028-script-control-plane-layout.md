@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
+- **Revised:** 2026-08-23 by ADR-0029
 - **Scope:** Repository script ownership, stable entry points and governance cutover
 
 ## Context
@@ -13,10 +14,11 @@ commands, individual checks and one product-consumed Godot adapter were mixed at
 the `scripts/` root. The resulting layout obscured both responsibility and path
 stability.
 
-The repository's immutable-base checker also means that this self-governing
-layout cannot move in one unprepared Pull Request: the old classifier would see
-deleted governance files and unknown implementation additions, then correctly
-reject the mixed candidate.
+At the time of the cutover, the old classifier rejected every candidate that
+contained both governance and implementation paths. The migration was therefore
+split into multiple Pull Requests. ADR-0029 later identified that PR-level split
+as an over-broad control: immutable-base rules prevent self-approval without
+turning every local review boundary into a main-delivery boundary.
 
 ## Decision
 
@@ -33,9 +35,10 @@ reject the mixed candidate.
 - Move the concrete Godot species-validation runner to its existing
   Infrastructure artifact owner instead of retaining a product dependency on a
   convenience module under `scripts/`.
-- Perform the cutover through an immutable-base preparation change, separate
-  implementation and governance moves, then remove legacy path recognition.
-  Do not add compatibility wrappers or retain two physical implementations.
+- Perform the cutover with immutable-base protection, logically separate local
+  commits and a final removal of legacy path recognition. Do not add
+  compatibility wrappers or retain two physical implementations. The historical
+  multi-PR execution is not a reusable delivery requirement.
 - Maintain `scripts/README.md` and `scripts/README_zh.md` as the concise,
   bilingual directory map and script-placement guide.
 
@@ -43,9 +46,10 @@ reject the mixed candidate.
 
 The root becomes a small control panel, governance policy is distinguishable
 from quality execution, and internal means a compatibility boundary rather
-than secrecy or a prohibition on repository-owned calls. The migration needs
-multiple independently classified Pull Requests, but ordinary delivery remains
-unchanged and no long-lived legacy path survives the cutover.
+than secrecy or a prohibition on repository-owned calls. No long-lived legacy
+path survives the cutover. Future work may keep governance and implementation
+in separate local commits on one long-lived branch and use one final Pull
+Request when the immutable base rules still accept the implementation.
 
 ## Cutover status
 

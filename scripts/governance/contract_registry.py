@@ -25,7 +25,7 @@ class ContractRegistration:
 CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ContractRegistration(
         contract_id="repository-governance",
-        version="1.18",
+        version="1.19",
         english_path="docs/developer/contracts/repository-governance.md",
         chinese_path="docs/zh/developer/contracts/repository-governance.md",
         decision_paths=(
@@ -49,6 +49,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0027-exact-candidate-merge-and-postsubmit-validation.md",
             "docs/developer/decisions/0028-script-control-plane-layout.md",
             "docs/zh/developer/decisions/0028-script-control-plane-layout.md",
+            "docs/developer/decisions/0029-explicit-git-delivery-authorization.md",
+            "docs/zh/developer/decisions/0029-explicit-git-delivery-authorization.md",
         ),
         agent_paths=(
             "AGENTS.md",
@@ -67,6 +69,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "scripts/quality/hooks/pre-commit",
             "scripts/quality/hooks/install.sh",
             "scripts/quality/validation/cache.py",
+            "scripts/quality/validation/candidate_evidence.py",
             "scripts/quality/validation/gate.py",
             "scripts/quality/validation/plan.py",
             "scripts/quality/validation/test_bundles.py",
@@ -76,6 +79,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "test/architecture/test_app_layer_boundaries.py",
             "test/architecture/test_effective_dependency_boundaries.py",
             "test/architecture/test_git_hook_governance.py",
+            "test/architecture/test_git_delivery_governance.py",
             "test/architecture/test_system_layer_boundaries.py",
             "test/architecture/test_validation_gate.py",
             "test/architecture/test_validation_test_bundles.py",

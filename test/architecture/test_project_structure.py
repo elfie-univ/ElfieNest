@@ -88,6 +88,7 @@ REQUIRED_SCRIPT_CONTROL_PATHS = frozenset(
         "quality/hooks/install.sh",
         "quality/hooks/pre-commit",
         "quality/validation/cache.py",
+        "quality/validation/candidate_evidence.py",
         "quality/validation/gate.py",
         "quality/validation/plan.py",
         "quality/validation/test_bundles.py",

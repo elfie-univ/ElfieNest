@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import scripts.quality.validation.cache as validation_cache
+import scripts.quality.validation.candidate_evidence as candidate_evidence
 import scripts.quality.validation.gate as validation_gate
 import scripts.quality.validation.plan as validation_plan
 from scripts.quality.validation.cache import (
@@ -111,8 +112,8 @@ def test_python_change_selects_remote_tests_and_quality_in_parallel() -> None:
 def test_nested_agent_rules_are_governance_not_local_product_work() -> None:
     plan = build_plan(["app/interfaces/web/frontend/AGENTS.md"], "push")
 
-    assert plan["full"] is True
-    assert plan["capabilities"]["web_frontend"] is True
+    assert plan["full"] is False
+    assert plan["capabilities"]["web_frontend"] is False
     assert plan["direct_capabilities"]["governance"] is True
     assert plan["direct_capabilities"]["architecture"] is True
     assert plan["direct_capabilities"]["web_frontend"] is False
@@ -121,6 +122,50 @@ def test_nested_agent_rules_are_governance_not_local_product_work() -> None:
     assert "governance change policy" in local_labels
     assert "architecture tests" in local_labels
     assert "web frontend dependencies" not in local_labels
+
+
+def test_pure_governance_prose_selects_only_governance_docs_and_security() -> None:
+    plan = build_plan(
+        ["docs/developer/decisions/0029-explicit-git-delivery-authorization.md"],
+        "push",
+    )
+
+    selected = {name for name, enabled in plan["capabilities"].items() if enabled}
+    assert plan["full"] is False
+    assert selected == {"security_fast", "architecture", "docs", "governance"}
+
+
+def test_architecture_test_changes_select_architecture_and_python_quality() -> None:
+    plan = build_plan(["test/architecture/test_git_delivery_governance.py"], "push")
+
+    selected = {name for name, enabled in plan["capabilities"].items() if enabled}
+    assert plan["full"] is False
+    assert selected == {
+        "security_fast",
+        "python_quality",
+        "architecture",
+        "governance",
+    }
+
+
+def test_mixed_diff_unions_product_and_governance_lanes_without_full_graph() -> None:
+    plan = build_plan(
+        [
+            "docs/developer/decisions/0029-explicit-git-delivery-authorization.md",
+            "app/interfaces/web/frontend/src/components/Example.tsx",
+        ],
+        "push",
+    )
+
+    selected = {name for name, enabled in plan["capabilities"].items() if enabled}
+    assert plan["full"] is False
+    assert selected == {
+        "security_fast",
+        "web_frontend",
+        "architecture",
+        "docs",
+        "governance",
+    }
 
 
 def test_router_and_workflow_changes_cannot_approve_themselves() -> None:
@@ -247,10 +292,60 @@ def test_ci_separates_candidate_merge_and_postsubmit_checks() -> None:
     assert "full-gate:" in workflow
     assert "python-quality:" in workflow
     assert "runtime-smoke:" in workflow
-    assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow
+    assert "format('candidate-{0}', github.event.pull_request.head.sha)" in workflow
+    assert "inputs.mode == 'candidate'" in workflow
     assert "cancel-in-progress: false" in workflow
     assert "--stage full" in workflow
     assert "pre-commit run gitleaks --all-files" in workflow
+
+
+def test_pre_pr_evidence_reuse_is_bound_to_trusted_exact_identity() -> None:
+    values = {
+        ("a" * 40, "scripts/quality/validation/plan.py"): (
+            b'MANIFEST_SCHEMA_VERSION = "affected-v3"\n'
+        ),
+    }
+
+    def reader(commit: str, path: str) -> bytes:
+        return values.get((commit, path), f"{commit}:{path}".encode())
+
+    first = candidate_evidence.build_identity("a" * 40, "b" * 40, reader=reader)
+    values[("a" * 40, ".github/workflows/ci.yml")] = b"changed workflow"
+    changed_governance = candidate_evidence.build_identity(
+        "a" * 40, "b" * 40, reader=reader
+    )
+    values[("b" * 40, "uv.lock")] = b"changed toolchain"
+    changed_toolchain = candidate_evidence.build_identity(
+        "a" * 40, "b" * 40, reader=reader
+    )
+    changed_candidate = candidate_evidence.build_identity(
+        "a" * 40, "c" * 40, reader=reader
+    )
+
+    assert first["candidate_sha"] == "b" * 40
+    assert first["manifest_version"] == "affected-v3"
+    assert first["workflow_identity"].endswith("@refs/heads/main")
+    assert changed_governance["artifact_name"] != first["artifact_name"]
+    assert changed_toolchain["artifact_name"] != changed_governance["artifact_name"]
+    assert changed_candidate["artifact_name"] != changed_toolchain["artifact_name"]
+
+
+def test_pr_reuse_verifies_dispatch_source_and_fails_closed() -> None:
+    workflow = (validation_plan.PROJECT_ROOT / ".github/workflows/ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    for required in (
+        "candidate_evidence.py",
+        'run.get("event") == "workflow_dispatch"',
+        'run.get("path") == ".github/workflows/ci.yml"',
+        'run.get("head_branch") == "main"',
+        'run.get("conclusion") == "success"',
+        "git merge-base --is-ancestor",
+        'echo "reused=true"',
+        "Publish exact candidate evidence",
+    ):
+        assert required in workflow
 
 
 def test_ci_uses_the_base_branch_router_and_fails_closed_during_bootstrap() -> None:
@@ -261,8 +356,8 @@ def test_ci_uses_the_base_branch_router_and_fails_closed_during_bootstrap() -> N
     assert "$base_sha:scripts/quality/validation/plan.py" in workflow
     assert "$base_sha:scripts/architecture/validation_plan.py" not in workflow
     assert "base branch predates the trusted router; selecting every lane" in workflow
-    assert "affected-v(1|2)" in workflow
-    assert 'MANIFEST_SCHEMA_VERSION = "affected-v2"' in workflow
+    assert "affected-v(1|2|3)" in workflow
+    assert 'MANIFEST_SCHEMA_VERSION = "affected-v3"' in workflow
 
 
 def test_command_selection_keeps_g1_focused_and_adds_g2_quality() -> None:
