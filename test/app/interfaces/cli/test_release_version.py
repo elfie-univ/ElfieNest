@@ -8,8 +8,6 @@ from pathlib import Path
 from test.support.paths import PROJECT_ROOT
 
 VERSION_CHECK = PROJECT_ROOT / "scripts" / "quality" / "checks" / "release_version.py"
-if not VERSION_CHECK.is_file():
-    VERSION_CHECK = PROJECT_ROOT / "scripts" / "check_release_version.py"
 
 
 def test_release_version_check_accepts_repository_metadata() -> None:

@@ -6,26 +6,15 @@ import json
 from collections import Counter
 from pathlib import Path
 
-try:
-    from scripts.quality.checks.python_baseline import (
-        DiagnosticDelta,
-        compare_diagnostics,
-        format_gate_summary,
-        parse_mypy_output,
-        parse_ruff_format_output,
-        parse_ruff_output,
-        quality_exit_code,
-    )
-except ModuleNotFoundError:
-    from scripts.check_quality_baseline import (  # type: ignore[no-redef]
-        DiagnosticDelta,
-        compare_diagnostics,
-        format_gate_summary,
-        parse_mypy_output,
-        parse_ruff_format_output,
-        parse_ruff_output,
-        quality_exit_code,
-    )
+from scripts.quality.checks.python_baseline import (
+    DiagnosticDelta,
+    compare_diagnostics,
+    format_gate_summary,
+    parse_mypy_output,
+    parse_ruff_format_output,
+    parse_ruff_output,
+    quality_exit_code,
+)
 
 
 def test_ruff_parser_does_not_retain_diagnostic_message_secrets(
