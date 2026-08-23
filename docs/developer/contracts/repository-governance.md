@@ -1,8 +1,8 @@
 # Repository architecture governance contract
 
-**Contract version:** 1.15
+**Contract version:** 1.16
 **Adopted:** 2026-08-12
-**Revised:** 2026-08-22
+**Revised:** 2026-08-23
 **Enforced scope:** Repository-wide change classification and architecture boundaries
 
 This contract defines how ElfieNest architecture rules are organized, changed
@@ -51,17 +51,19 @@ Delivery separates merge-blocking evidence from broad regression detection:
 
 | Phase | Trigger | Required result |
 | --- | --- | --- |
-| Local commit | focused development checkpoint | diff/secret/changed-file quality and directly affected tests |
-| Feature push | candidate preparation | local affected integration checks; no local full-repository prerequisite |
+| Local development | behavior change before staging | focused tests/type checks selected from actual risk |
+| Local commit | real staged snapshot | staged diff, pinned Gitleaks and staged Python Ruff; warm target at or below 20 seconds |
+| Feature push | candidate preparation | immediate branch push after the commit hook; no mandatory second local integration stage or pre-push test gate |
 | Pull Request head | exact candidate SHA `H` | immutable-base manifest, security-fast and every selected parallel lane, aggregated internally as `elfienest/ci-gate` and exposed through required `elfienest/merge-gate` |
 | Merge queue | synthetic merge of current main `M` and `H` | the same required `elfienest/merge-gate` name, now performing only lightweight identity, parent, conflict and gate-version checks |
-| Main push | accepted merge result | non-blocking complete G3 backstop |
-| Manual/release | explicitly selected exact SHA | complete G3 plus release-specific acceptance |
+| Main push | accepted merge result | non-blocking all-surface parallel backstop and aggregate |
+| Manual/release | explicitly selected exact SHA | all-surface full graph plus release-specific acceptance |
 
 The Pull Request preflight must execute the classifier from the immutable base
 commit, not the candidate copy. Its versioned manifest selects
-`security_fast`, Python bundles, web frontend, Desktop, Developer Tools web,
-architecture, persistence, Godot, docs, toolchain, release and governance
+`security_fast`, Python bundles, Python quality, web frontend, Desktop,
+Developer Tools web, architecture, persistence, Godot, docs, toolchain,
+release, runtime smoke and governance
 capabilities. Security-fast always runs. Unknown executable paths select all
 lanes. A change to the classifier, CI workflow, governance contract or delivery
 tooling cannot approve itself: it selects all lanes, remains subject to the
@@ -90,12 +92,14 @@ The required merge check must observe the exact synthetic merge SHA and reject
 the wrong base, wrong queue ref, malformed parents, conflict residue or an
 unknown gate schema.
 
-The full G3 backstop is not a prerequisite for an ordinary merge. It runs after
-each main push, on explicit full dispatches and before releases. Main full runs
-are non-cancelling and use two parity concurrency slots; each slot retains its
-running check and coalesces obsolete pending tips. Superseded PR heads cancel.
-This prevents a steady stream of contributors from holding main while retaining
-broad regression discovery.
+The complete backstop is not a prerequisite for an ordinary merge. It runs
+after each main push, on explicit full dispatches and before releases by
+selecting every existing lane, not by serially repeating a local submission
+script. Each main lane uses two non-cancelling parity concurrency slots; each
+slot retains its running check and coalesces obsolete pending tips. A full
+aggregate fails if any all-surface lane is missing, skipped, cancelled or red.
+Superseded PR heads cancel. This prevents a steady stream of contributors from
+holding main while retaining broad regression discovery.
 
 Successful deterministic local checks remain reusable by exact check identity
 as decided in ADR-0023. A cache key covers rule version, command, declared input
@@ -105,11 +109,19 @@ live-provider observations never become passes. Local cache evidence never
 replaces GitHub checks attached to the exact candidate SHA.
 
 The delivery SLO is Pull Request push-to-main p95 at or below ten minutes under
-available GitHub and runner capacity. `elfienest/ci-gate` targets p95 at or below
-eight minutes, its longest blocking lane six minutes, merge-queue wait two
-minutes and `elfienest/merge-gate` thirty seconds. Platform outage, exhausted
-runner capacity and GitHub unavailability are reported separately and cannot be
-turned into a false pass.
+available GitHub and runner capacity: local finalize plus push at or below one
+minute, PR validation at or below seven minutes, and queue plus merge/ref
+verification at or below two minutes. `elfienest/merge-gate` targets thirty
+seconds inside that queue budget. CI records elapsed candidate and full-graph
+timing in the job summary and warns when candidate validation exceeds 420
+seconds. Platform outage, exhausted runner capacity and GitHub unavailability
+are reported separately and cannot be turned into a false pass. Meeting the SLO
+requires enough runner capacity for selected lanes to start in parallel; source
+configuration alone cannot claim that external capacity exists.
+Heavy lanes read the repository variable `ELFIENEST_HEAVY_RUNNER` as a runner
+label and fall back to `ubuntu-latest` when it is unset. Setting that variable
+is valid only after a multi-runner pool with the label is live; a label pointing
+to one serialized worker does not satisfy the capacity requirement.
 
 A terminal red full backstop on the newest main tip quarantines ordinary merges
 until a newer main full backstop is green. A narrowly identified fix or revert

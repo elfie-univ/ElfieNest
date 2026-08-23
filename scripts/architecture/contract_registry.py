@@ -25,7 +25,7 @@ class ContractRegistration:
 CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ContractRegistration(
         contract_id="repository-governance",
-        version="1.15",
+        version="1.16",
         english_path="docs/developer/contracts/repository-governance.md",
         chinese_path="docs/zh/developer/contracts/repository-governance.md",
         decision_paths=(
@@ -60,6 +60,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "scripts/architecture/effective_dependency_scan.py",
             "scripts/architecture/effective_dependency_targets.py",
             "scripts/architecture/effective_dependency_text.py",
+            "scripts/architecture/git-hooks/pre-commit",
+            "scripts/architecture/install_git_hooks.sh",
             "scripts/architecture/structural_scope_scan.py",
             "scripts/architecture/validation_cache.py",
             "scripts/architecture/validation_gate.py",
@@ -70,6 +72,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "test/architecture/test_architecture_governance.py",
             "test/architecture/test_app_layer_boundaries.py",
             "test/architecture/test_effective_dependency_boundaries.py",
+            "test/architecture/test_git_hook_governance.py",
             "test/architecture/test_system_layer_boundaries.py",
             "test/architecture/test_validation_gate.py",
             "test/architecture/test_validation_test_bundles.py",

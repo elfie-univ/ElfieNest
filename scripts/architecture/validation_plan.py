@@ -14,12 +14,13 @@ PROJECT_ROOT = Path(
     os.environ.get("ELFIENEST_PROJECT_ROOT", Path(__file__).resolve().parents[2])
 ).resolve()
 
-MANIFEST_SCHEMA_VERSION = "affected-v1"
+MANIFEST_SCHEMA_VERSION = "affected-v2"
 TIER_NAMES = {1: "commit", 2: "push", 3: "full"}
 STAGE_TIERS = {"commit": 1, "push": 2, "full": 3, "main": 3}
 CAPABILITY_NAMES = (
     "security_fast",
     "python_bundles",
+    "python_quality",
     "web_frontend",
     "desktop",
     "devtools_web",
@@ -29,6 +30,7 @@ CAPABILITY_NAMES = (
     "docs",
     "toolchain",
     "release",
+    "runtime_smoke",
     "governance",
 )
 
@@ -205,7 +207,11 @@ def build_plan(paths: Iterable[str], requested_stage: str) -> Dict[str, object]:
     for path in normalized_paths:
         if path in GENERATED_GATE_OUTPUTS:
             continue
-        if path.startswith(GOVERNANCE_PREFIXES) or path in GOVERNANCE_EXACT:
+        if (
+            Path(path).name == "AGENTS.md"
+            or path.startswith(GOVERNANCE_PREFIXES)
+            or path in GOVERNANCE_EXACT
+        ):
             selected_capabilities.update({"architecture", "governance"})
             if path.startswith(("docs/", "docs/zh/")):
                 selected_capabilities.add("docs")
@@ -261,24 +267,28 @@ def build_plan(paths: Iterable[str], requested_stage: str) -> Dict[str, object]:
             selected_capabilities.add("godot")
         if path.startswith(PROVIDER_PREFIXES) or path in PROVIDER_EXACT:
             selected.update(PROVIDER_TESTS)
-            selected_capabilities.update({"python_bundles", "persistence_contract"})
+            selected_capabilities.update(
+                {"python_bundles", "python_quality", "persistence_contract"}
+            )
             required_tier = max(required_tier, 2)
             reasons.append(f"{path} is in the Provider/model configuration flow")
             continue
         if path.startswith("test/") and path.endswith(".py"):
             selected.add(path)
-            selected_capabilities.add("python_bundles")
+            selected_capabilities.update({"python_bundles", "python_quality"})
             reasons.append(f"{path} directly selects its Python test")
             continue
         bundle = _python_bundle(path)
         if bundle is not None:
-            selected_capabilities.add("python_bundles")
+            selected_capabilities.update({"python_bundles", "python_quality"})
             test_path = _test_path_for_source(path)
             selected.add(test_path or bundle)
             reasons.append(f"{path} selects the affected {bundle} tests")
             continue
         if path.startswith(("config/", "resources/")):
-            selected_capabilities.update({"python_bundles", "persistence_contract"})
+            selected_capabilities.update(
+                {"python_bundles", "python_quality", "persistence_contract"}
+            )
             selected.update(("test/app", "test/infrastructure", "test/scripts"))
             required_tier = max(required_tier, 2)
             reasons.append(f"{path} changes shared runtime configuration")

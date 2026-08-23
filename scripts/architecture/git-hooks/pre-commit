@@ -1,0 +1,19 @@
+#!/bin/bash
+# ElfieNest managed pre-commit hook. This Git hook directory is shared by linked
+# worktrees, so the interpreter must be resolved from the worktree being committed.
+
+set -Eeuo pipefail
+
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+PRE_COMMIT_PYTHON="$PROJECT_ROOT/.venv/bin/python"
+
+if [[ ! -x "$PRE_COMMIT_PYTHON" ]]; then
+    echo "Missing repository pre-commit environment: $PRE_COMMIT_PYTHON" >&2
+    echo "Run: bash scripts/bootstrap.sh ensure --tier=dev" >&2
+    exit 1
+fi
+
+cd "$PROJECT_ROOT"
+exec "$PRE_COMMIT_PYTHON" -m pre_commit run \
+    --config "$PROJECT_ROOT/.pre-commit-config.yaml" \
+    --hook-stage pre-commit

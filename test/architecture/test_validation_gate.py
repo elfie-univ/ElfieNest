@@ -77,6 +77,36 @@ def test_frontend_change_selects_only_its_parallel_lane() -> None:
     assert selected == {"security_fast", "web_frontend"}
     assert plan["tests"] == []
 
+    commit_plan = build_plan(
+        ["app/interfaces/web/frontend/src/components/Example.tsx"], "commit"
+    )
+    local_labels = {label for label, _command in _commands(commit_plan, "base")}
+    assert "web frontend dependencies" not in local_labels
+    assert "web frontend tests" not in local_labels
+
+
+def test_python_change_selects_remote_tests_and_quality_in_parallel() -> None:
+    plan = build_plan(["app/features/setup/service.py"], "push")
+
+    assert plan["capabilities"]["python_bundles"] is True
+    assert plan["capabilities"]["python_quality"] is True
+    assert plan["capabilities"]["runtime_smoke"] is False
+
+
+def test_nested_agent_rules_are_governance_not_local_product_work() -> None:
+    plan = build_plan(["app/interfaces/web/frontend/AGENTS.md"], "push")
+
+    assert plan["full"] is True
+    assert plan["capabilities"]["web_frontend"] is True
+    assert plan["direct_capabilities"]["governance"] is True
+    assert plan["direct_capabilities"]["architecture"] is True
+    assert plan["direct_capabilities"]["web_frontend"] is False
+
+    local_labels = {label for label, _command in _commands(plan, "base")}
+    assert "governance change policy" in local_labels
+    assert "architecture tests" in local_labels
+    assert "web frontend dependencies" not in local_labels
+
 
 def test_router_and_workflow_changes_cannot_approve_themselves() -> None:
     plan = build_plan(
@@ -151,6 +181,7 @@ def test_manifest_exports_single_line_github_outputs(tmp_path: Path) -> None:
     assert values["router_version"] == validation_plan.MANIFEST_SCHEMA_VERSION
     assert values["web_frontend"] == "true"
     assert values["python_bundles"] == "false"
+    assert values["python_quality"] == "false"
     assert json.loads(values["manifest_json"])["full"] is False
 
 
@@ -169,10 +200,14 @@ def test_ci_separates_candidate_merge_and_postsubmit_checks() -> None:
     assert 'require_lane release "$RELEASE_SELECTED" "$RELEASE_RESULT"' in workflow
     assert "name: Enforce main health quarantine" in workflow
     assert '"main-recovery" in labels' in workflow
-    assert "name: Post-submit full backstop" in workflow
+    assert "name: Complete full backstop" in workflow
+    assert "full-gate:" in workflow
+    assert "python-quality:" in workflow
+    assert "runtime-smoke:" in workflow
     assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow
     assert "cancel-in-progress: false" in workflow
-    assert "--stage full --direct-full" in workflow
+    assert "--stage full" in workflow
+    assert "pre-commit run gitleaks --all-files" in workflow
 
 
 def test_ci_uses_the_base_branch_router_and_fails_closed_during_bootstrap() -> None:
@@ -182,7 +217,8 @@ def test_ci_uses_the_base_branch_router_and_fails_closed_during_bootstrap() -> N
 
     assert "$base_sha:scripts/architecture/validation_plan.py" in workflow
     assert "base branch predates the trusted router; selecting every lane" in workflow
-    assert "grep -q 'MANIFEST_SCHEMA_VERSION = \"affected-v1\"'" in workflow
+    assert "affected-v(1|2)" in workflow
+    assert 'MANIFEST_SCHEMA_VERSION = "affected-v2"' in workflow
 
 
 def test_command_selection_keeps_g1_focused_and_adds_g2_quality() -> None:

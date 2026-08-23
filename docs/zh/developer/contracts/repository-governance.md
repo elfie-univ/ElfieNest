@@ -1,8 +1,8 @@
 # 仓库架构治理契约
 
-**契约版本：** 1.15
+**契约版本：** 1.16
 **采用日期：** 2026-08-12
-**修订日期：** 2026-08-22
+**修订日期：** 2026-08-23
 **机器约束范围：** 全仓变更分类与架构边界
 
 本契约定义 ElfieNest 如何组织、修改和执行架构规则。精确基线和一致性台账只在仍有
@@ -45,16 +45,18 @@
 
 | 阶段 | 触发 | 必需结果 |
 | --- | --- | --- |
-| 本地提交 | 聚焦开发 checkpoint | 差异/密钥/改动文件质量和直接受影响测试 |
-| 功能分支推送 | 准备候选 | 本地受影响集成检查；不要求先跑全仓 |
+| 本地开发 | 暂存前的行为改动 | 按实际风险选择的聚焦测试/类型检查 |
+| 本地提交 | 真实暂存快照 | staged diff、锁定版本 Gitleaks 和 staged Python Ruff；warm 目标不超过 20 秒 |
+| 功能分支推送 | 准备候选 | commit hook 通过后立即推送；不要求第二轮本地集成或 pre-push 测试门禁 |
 | Pull Request head | 精确候选 SHA `H` | 不可变基础 Manifest、security-fast 和全部选中并行 Lane，内部聚合为 `elfienest/ci-gate`，再由必需检查 `elfienest/merge-gate` 对外报告 |
 | 合并队列 | 当前 main `M` 与 `H` 的合成提交 | 沿用同一个必需检查名 `elfienest/merge-gate`，此时只执行轻量身份、父提交、冲突和门禁版本检查 |
-| main push | 已接受的合并结果 | 不阻塞提交的完整 G3 后盾 |
-| 手工/发布 | 显式选择的精确 SHA | 完整 G3 与发布专项验收 |
+| main push | 已接受的合并结果 | 不阻塞提交的全表面并行后盾与聚合 |
+| 手工/发布 | 显式选择的精确 SHA | 全表面 full 图与发布专项验收 |
 
 Pull Request 预检必须执行基础提交中的分类器，不执行候选副本。版本化 Manifest 选择
-`security_fast`、Python 测试包、Web 前端、Desktop、Developer Tools Web、架构、
-持久化、Godot、文档、工具链、发布和治理能力。security-fast 永远执行；未知可执行路径
+`security_fast`、Python 测试包、Python quality、Web 前端、Desktop、Developer Tools
+Web、架构、持久化、Godot、文档、工具链、发布、Runtime smoke 和治理能力。
+security-fast 永远执行；未知可执行路径
 选择全部 Lane。分类器、CI Workflow、治理契约或交付工具不能批准自身：此类改动选择
 全部 Lane，继续受基础提交治理检查器约束，并要求维护者审查。
 
@@ -73,20 +75,26 @@ GitHub 的必需状态检查不会按事件类型区分。因此分支保护只�
 验证继续并行。必需合并检查必须观察精确合成 SHA，并拒绝错误基础分支、错误队列 Ref、
 畸形父提交、冲突残留或未知门禁 Schema。
 
-完整 G3 不是普通合并的前置条件。它在每次 main push 后、显式 full dispatch 和发布前执行。
-main 的完整运行不可取消，并使用两个奇偶并发槽；每个槽保留正在运行的检查，只合并掉过期
-pending tip。已经被新 commit 取代的 PR head 可以取消。这样持续贡献不会占住 main，同时仍
-保留广覆盖回归发现。
+完整后盾不是普通合并的前置条件。它在每次 main push 后、显式 full dispatch 和发布前通过
+全选现有 Lane 执行，不串行重复本地提交脚本。main 的每条 Lane 使用两个不可取消的奇偶并发
+槽；每个槽保留正在运行的检查，只合并掉过期 pending tip。任一全表面 Lane 缺失、跳过、取消
+或变红都会使 full 聚合失败。已经被新 commit 取代的 PR head 可以取消。这样持续贡献不会占住
+main，同时仍保留广覆盖回归发现。
 
 ADR-0023 定义的确定性本地检查继续按精确检查身份复用。缓存键覆盖规则版本、命令、声明输入
 内容与模式、工具链，以及选择依赖的不可变基础。窄 node 不能证明更大的测试包；失败、超时、
 环境阻塞和真实 Provider 观察永远不能成为通过。本地缓存不能替代绑定精确候选 SHA 的 GitHub
 检查。
 
-交付 SLO 是 GitHub 与 Runner 容量可用时 Pull Request 从 push 到 main 的 p95 不超过 10 分钟。
-`elfienest/ci-gate` 目标 p95 不超过 8 分钟，最长阻塞 Lane 不超过 6 分钟，合并队列等待不超过
-2 分钟，`elfienest/merge-gate` 不超过 30 秒。平台故障、Runner 容量耗尽和 GitHub 不可用必须
-单独报告，不能伪造成通过。
+交付 SLO 是 GitHub 与 Runner 容量可用时 Pull Request 从 push 到 main 的 p95 不超过 10 分钟：
+本地收尾加 push 不超过 1 分钟，PR 验证不超过 7 分钟，queue 加 merge/ref 核验不超过 2 分钟；
+`elfienest/merge-gate` 在该 queue 预算内目标不超过 30 秒。CI 在 Job Summary 记录候选与 full
+图耗时，候选验证超过 420 秒时告警。平台故障、Runner 容量耗尽和 GitHub 不可用必须单独报告，
+不能伪造成通过。满足 SLO 需要足够 Runner 容量让选中 Lane 并行启动；仅凭源码配置不能声称
+外部容量已经存在。
+重型 Lane 把仓库变量 `ELFIENEST_HEAVY_RUNNER` 作为 Runner label；未设置时回退到
+`ubuntu-latest`。只有带该 label 的多 Runner 池已经在线后才能设置此变量；把 label 指向一个
+串行 Worker 不满足容量要求。
 
 最新 main tip 的完整后盾终态为红时，普通合并进入隔离，直到更新 main 的完整后盾恢复绿色。
 范围明确的修复或回滚可以使用受审计的 `main-recovery` 路径。精确失败项只允许诊断性重跑一次；

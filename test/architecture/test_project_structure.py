@@ -58,7 +58,6 @@ CURRENT_PYTHON_SOURCE_ROOTS = (
     "devtools",
     "scripts",
 )
-EXPECTED_QUALITY_COMMAND = "uv run --no-sync python scripts/check_quality_baseline.py"
 NEST_FORBIDDEN_IMPORT_ROOTS = frozenset(
     {"ai_runtime", "app", "elfie", "godot_project", "godot_runtime", "infrastructure"}
 )
@@ -336,11 +335,31 @@ def test_ci_uses_current_python_roots_and_required_quality_gates() -> None:
     # Then
     assert "scripts/check_quality_baseline.py" in pre_submit
     assert "pre-commit run --all-files" in pre_submit
-    assert "postsubmit-full" in jobs
-    assert "--stage full --direct-full" in "\n".join(run_commands)
+    assert "full-gate" in jobs
+    assert "python-quality" in jobs
+    assert "runtime-smoke" in jobs
+    assert "--stage full" in "\n".join(run_commands)
     assert "docs-build" in jobs
     assert "pnpm install --frozen-lockfile" in run_commands
     assert "pnpm build" in run_commands
+    heavy_jobs = {
+        "architecture-governance",
+        "desktop",
+        "devtools-web",
+        "docs-build",
+        "godot-contract",
+        "persistence-contract",
+        "python-affected",
+        "python-quality",
+        "release-contract",
+        "runtime-smoke",
+        "security-fast",
+        "toolchain",
+        "web-frontend",
+    }
+    for job_name in heavy_jobs:
+        assert "vars.ELFIENEST_HEAVY_RUNNER" in jobs[job_name]["runs-on"]
+        assert jobs[job_name]["timeout-minutes"] == 10
 
 
 def test_root_test_directory_contains_no_test_modules() -> None:
@@ -376,11 +395,19 @@ def test_precommit_uses_locked_project_tools_and_gitleaks() -> None:
     assert MYPY_SOURCE_ROOTS == tuple(
         root for root in CURRENT_PYTHON_SOURCE_ROOTS if (PROJECT_ROOT / root).is_dir()
     )
-    assert set(local_hooks) == {"quality-baseline"}
-    assert local_hooks["quality-baseline"]["entry"] == EXPECTED_QUALITY_COMMAND
-    assert all(
-        hook["language"] == "system" and hook["pass_filenames"] is False
-        for hook in local_hooks.values()
+    assert set(local_hooks) == {
+        "quality-baseline",
+        "staged-diff-check",
+        "staged-python-ruff-check",
+        "staged-python-ruff-format",
+    }
+    assert local_hooks["quality-baseline"]["entry"] == (
+        ".venv/bin/python3 scripts/check_quality_baseline.py"
     )
+    assert local_hooks["quality-baseline"]["stages"] == ["manual"]
+    assert local_hooks["staged-diff-check"]["entry"] == "git diff --cached --check --"
+    assert all(hook["language"] == "system" for hook in local_hooks.values())
+    assert local_hooks["staged-diff-check"]["pass_filenames"] is False
+    assert local_hooks["quality-baseline"]["pass_filenames"] is False
     assert gitleaks_repository["rev"] == "v8.30.1"
     assert [hook["id"] for hook in gitleaks_repository["hooks"]] == ["gitleaks"]
