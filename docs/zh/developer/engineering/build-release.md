@@ -45,14 +45,17 @@ ARM64、macOS x64、Windows x64、Linux x64。安装包不包含 Ollama 引擎�
 `dist/`：
 
 原生 target 使用 macOS `PKG`、Windows `NSIS` 和 Linux `DEB`。各安装器钩子会把包内管理
-CLI 暴露为全局 `elfienest` 命令，并且只移除当前安装所拥有的 launcher。
+CLI 暴露为全局 `elfienest` 命令。POSIX 钩子只有在现有命令是同一软件包拥有的精确符号
+链接时才允许复用，否则会报告冲突而不会覆盖；移除钩子也只删除精确匹配的软件包 launcher。
+Windows 只在当前用户 PATH 中增加和删除本次安装目录对应的精确项。
 
 原生 runner 会通过 `scripts/release.py --run-install-smoke` 调用
 `scripts/internal/release/release_install_smoke.py`。每个有界循环都会安装安装包、通过全局 launcher
-启动、等待 `CORE_READY`/`WORLD_READY`、停止到 `OFFLINE`、再次安装同一个包验证升级，
-最后卸载并证明所选 `ELFIE_HOME` 仍然保留。输出 JSON 包含带类型的安装/启动/健康/停止/
+启动、必须到达 `WORLD_READY`、停止到 `OFFLINE`、再次安装同一个包验证升级，
+最后卸载并证明所选 `ELFIE_HOME` 仍然保留。输出 JSON 会记录已到达的 `WORLD_READY`，并包含带类型的安装/启动/健康/停止/
 升级/卸载耗时和预算，Workflow 会把它和安装包一起上传。不带
 `--run-install-smoke` 的本地构建不会修改主机安装环境。
+smoke runner 会在首次清理前从 DEB 读取 Linux 软件包名，不会无条件删除全局 launcher。
 
 ```bash
 # 构建当前原生 target；只在本地 build/dist 生成，不上传或发布

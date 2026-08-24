@@ -14,6 +14,7 @@ from app.features.setup import (
 from app.interfaces.api.v1.setup.dependencies import setup_principal
 from app.interfaces.api.v1.setup.routes import router
 from app.orchestration.setup_installation import (
+    CancelSetupInstallationResult,
     ConfirmSetupInstallationResult,
     SetupInstallationService,
 )
@@ -24,6 +25,8 @@ from infrastructure.persistence.setup import SQLiteSetupAdapter
 
 
 class ReadOnlySetupTechnology:
+    platform = "linux"
+
     def has_owner(self) -> bool:
         return False
 
@@ -45,6 +48,20 @@ class AcceptedInstallation(SetupInstallationService):
             ),
             session_token="owner-session",
             session_ttl_seconds=3600,
+        )
+
+    def cancel(self, _command: object) -> CancelSetupInstallationResult:
+        return CancelSetupInstallationResult(
+            StoredSetupInstallation(
+                1,
+                "in_progress",
+                2,
+                "cancelled",
+                "cancelled",
+                20,
+                None,
+                None,
+            )
         )
 
 
@@ -113,12 +130,30 @@ def test_unknown_draft_fields_use_the_standard_error_envelope(tmp_path: Path) ->
     }
 
 
-def test_setup_principal_cannot_read_owner_only_ollama_projection(
+def test_local_setup_principal_can_read_guided_ollama_projection(
     tmp_path: Path,
 ) -> None:
     with _client(tmp_path) as client:
         client.cookies.set("setup_token", "local-token")
         response = client.get("/api/v1/setup/ollama")
+    assert response.status_code == 200
+    assert response.json() == {
+        "state": "absent",
+        "endpoint": None,
+        "version": None,
+        "platform": "linux",
+    }
+
+
+def test_remote_setup_principal_cannot_read_ollama_projection(
+    tmp_path: Path,
+) -> None:
+    with _client(tmp_path) as client:
+        client.app.dependency_overrides[setup_principal] = lambda: SetupPrincipal(
+            "setup", False
+        )
+        response = client.get("/api/v1/setup/ollama")
+
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "setup_forbidden"
 
@@ -132,7 +167,12 @@ def test_owner_can_read_ollama_projection_without_triggering_install(
         )
         response = client.get("/api/v1/setup/ollama")
     assert response.status_code == 200
-    assert response.json() == {"state": "absent", "endpoint": None, "version": None}
+    assert response.json() == {
+        "state": "absent",
+        "endpoint": None,
+        "version": None,
+        "platform": "linux",
+    }
 
 
 def test_installation_returns_202_and_replaces_setup_cookie_with_session(
@@ -147,3 +187,14 @@ def test_installation_returns_202_and_replaces_setup_cookie_with_session(
     assert response.status_code == 202
     assert response.cookies.get("session_token") == "owner-session"
     assert response.headers["X-CSRF-Token"] == response.json()["csrf_token"]
+
+
+def test_owner_can_cancel_a_running_setup_installation(tmp_path: Path) -> None:
+    with _client(tmp_path) as client:
+        client.app.dependency_overrides[setup_principal] = lambda: SetupPrincipal(
+            "owner", True
+        )
+        response = client.post("/api/v1/setup/installation/cancel")
+
+    assert response.status_code == 200
+    assert response.json()["need_setup"] is True

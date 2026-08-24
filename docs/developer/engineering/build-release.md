@@ -50,16 +50,21 @@ and final installers only in `dist/`.
 
 The native targets are macOS `PKG`, Windows `NSIS`, and Linux `DEB`. Their
 installer hooks expose the packaged management CLI as the global `elfienest`
-command and remove only the launcher owned by that installation.
+command. POSIX hooks refuse to replace an existing command unless it is the
+exact symlink owned by the same package, and removal hooks delete only exact
+package-owned launchers. Windows adds and removes only its exact installation
+directory from the current user's PATH.
 
 The native runner invokes `scripts/internal/release/release_install_smoke.py` through
 `scripts/release.py --run-install-smoke`. Each bounded cycle installs the
-package, starts through the global launcher, waits for `CORE_READY`/`WORLD_READY`,
+package, starts through the global launcher, requires `WORLD_READY`,
 stops to `OFFLINE`, reinstalls the same package as the upgrade check, and then
 uninstalls it while proving the selected `ELFIE_HOME` remains. The resulting JSON
-contains typed install/start/health/stop/upgrade/uninstall durations and budgets;
+contains the reached `WORLD_READY` state plus typed install/start/health/stop/upgrade/uninstall durations and budgets;
 the workflow uploads it beside the installer. A local build without
 `--run-install-smoke` does not mutate the host installation.
+The smoke runner resolves the Linux package name from the DEB before its initial
+cleanup and never performs an unconditional deletion of a global launcher.
 
 ```bash
 # Build the current native target locally; this does not upload or publish.

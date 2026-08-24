@@ -49,6 +49,18 @@ def test_manifest_validation_rejects_a_manifest_that_omits_required_godot_files(
         release_manifest.validate_release_resources(resources)
 
 
+def test_linux_manifest_requires_the_dedicated_world_authority() -> None:
+    # Given/When: required resource paths are resolved for a Linux package.
+    linux_paths = release_manifest._required_paths("linux-x64")
+
+    # Then: both the executable and its export provenance are mandatory only there.
+    assert "godot-linux-dedicated/ElfieNestRuntime" in linux_paths
+    assert "godot-linux-dedicated/build-manifest.json" in linux_paths
+    assert "godot-linux-dedicated/ElfieNestRuntime" not in (
+        release_manifest._required_paths("darwin-arm64")
+    )
+
+
 def test_manifest_validation_accepts_runtime_without_a_bundled_ollama_binary(
     tmp_path: Path,
 ) -> None:

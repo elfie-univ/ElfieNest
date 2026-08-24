@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from typing import Callable, Final
 
 from app.features.nest_management import NestPortError
 
@@ -13,7 +13,12 @@ from .errors import (
     SetupInstallationInvalid,
     SetupInstallationUnavailable,
 )
-from .models import ConfirmSetupInstallationCommand, ConfirmSetupInstallationResult
+from .models import (
+    CancelSetupInstallationCommand,
+    CancelSetupInstallationResult,
+    ConfirmSetupInstallationCommand,
+    ConfirmSetupInstallationResult,
+)
 from .ports import (
     SetupAccountPort,
     SetupFoodPort,
@@ -28,6 +33,11 @@ from .ports import (
 )
 
 logger = logging.getLogger("app.orchestration.setup_installation")
+SETUP_INSTALLATION_TIMEOUT_SECONDS: Final[float] = 3600.0
+
+
+class _SetupInstallationStopped(RuntimeError):
+    """The persisted task is terminal, so the cooperative worker must stop."""
 
 
 class SetupInstallationService:
@@ -43,6 +53,7 @@ class SetupInstallationService:
         nest: SetupNestPort,
         runner: SetupInstallationRunnerPort,
         ollama_task_lease_factory: SetupOllamaTaskLeaseFactory | None = None,
+        timeout_seconds: float = SETUP_INSTALLATION_TIMEOUT_SECONDS,
     ) -> None:
         self._key = key
         self._state = state
@@ -53,6 +64,7 @@ class SetupInstallationService:
         self._nest = nest
         self._runner = runner
         self._ollama_task_lease_factory = ollama_task_lease_factory
+        self._timeout_seconds = timeout_seconds
 
     def confirm(
         self, command: ConfirmSetupInstallationCommand
@@ -75,9 +87,20 @@ class SetupInstallationService:
             owner = self._accounts.create_first_owner(draft)
             self._state.mark_owner_completed(owner.user_id)
             session_token, ttl = self._accounts.issue_session(owner.user_id)
+            previous = self._state.read_installation()
             installation = self._state.begin_or_resume()
             if installation.task_status != "completed":
-                self._runner.start(self._key, self._run_safely)
+                started = self._runner.start(
+                    self._key,
+                    self._run_safely,
+                    timeout_seconds=self._timeout_seconds,
+                    on_timeout=self._timeout_safely,
+                )
+                if not started and previous.task_status != "running":
+                    self._state.fail(
+                        "installation.busy",
+                        "上一个 Setup 安装任务仍在收尾，请稍后重试",
+                    )
                 installation = self._state.read_installation()
             return ConfirmSetupInstallationResult(
                 installation=installation,
@@ -93,26 +116,54 @@ class SetupInstallationService:
                 "Setup installation unavailable"
             ) from error
 
+    def cancel(
+        self, command: CancelSetupInstallationCommand
+    ) -> CancelSetupInstallationResult:
+        if not command.principal.local or command.principal.kind not in {
+            "setup",
+            "owner",
+        }:
+            raise SetupInstallationForbidden(
+                "Setup 安装取消仅允许本机 Setup 或 Owner principal"
+            )
+        try:
+            current = self._state.read_installation()
+            if current.task_status != "running":
+                raise SetupInstallationConflict("Setup 安装任务当前不可取消")
+            self._runner.cancel(self._key)
+            return CancelSetupInstallationResult(self._state.cancel_installation())
+        except (SetupInstallationConflict, SetupInstallationForbidden):
+            raise
+        except SetupInstallationPortError as error:
+            raise SetupInstallationUnavailable(
+                "Setup cancellation unavailable"
+            ) from error
+
     def recover(self) -> None:
         try:
             self._state.recover_running("应用重启前的 Setup 安装任务未完成")
         except SetupInstallationPortError as error:
             raise SetupInstallationUnavailable("Setup recovery unavailable") from error
 
-    def _run_safely(self) -> None:
+    def _run_safely(self, cancelled: Callable[[], bool]) -> None:
         try:
-            self._run()
+            self._run(cancelled)
+        except _SetupInstallationStopped:
+            return
         except Exception as error:  # noqa: BLE001 - workflow boundary persists failure
             logger.exception("Setup installation worker failed")
             try:
                 current = self._state.read_installation()
+                if current.task_status != "running":
+                    return
                 self._state.fail(
                     current.install_action or "unknown", _safe_error(str(error))
                 )
             except SetupInstallationPortError:
                 logger.exception("Setup installation failure could not be persisted")
 
-    def _run(self) -> None:
+    def _run(self, cancelled: Callable[[], bool]) -> None:
+        self._checkpoint(cancelled)
         draft = self._state.read_draft()
         if not draft.complete or draft.locked_at is None:
             raise SetupInstallationInvalid("Setup 安装草稿未锁定或不完整")
@@ -125,9 +176,12 @@ class SetupInstallationService:
         try:
             if phase <= 2:
                 if draft.use_local_ollama:
-                    task_lease = self._ollama.ensure_installation(self._reporter(2))
+                    task_lease = self._ollama.ensure_installation(
+                        self._reporter(2, cancelled)
+                    )
                 else:
-                    self._reporter(2)("ollama.skipped")
+                    self._reporter(2, cancelled)("ollama.skipped")
+                self._checkpoint(cancelled)
                 self._state.complete_phase(2)
                 phase = 3
             if draft.use_local_ollama and task_lease is None:
@@ -142,10 +196,11 @@ class SetupInstallationService:
                     if draft.model_id is None:
                         raise SetupInstallationInvalid("Setup 模型草稿缺失")
                     model_reference = self._ollama.ensure_model(
-                        draft.model_id, self._reporter(3)
+                        draft.model_id, self._reporter(3, cancelled)
                     )
                 else:
-                    self._reporter(3)("model.skipped")
+                    self._reporter(3, cancelled)("model.skipped")
+                self._checkpoint(cancelled)
                 self._state.complete_phase(3)
                 phase = 4
             if phase <= 4:
@@ -158,22 +213,24 @@ class SetupInstallationService:
                     )
                     if model_reference is None:
                         raise SetupInstallationInvalid("Setup 模型连接记录缺失")
-                    self._reporter(4)("food.emergency")
+                    self._reporter(4, cancelled)("food.emergency")
                     self._food.ensure_emergency_food(model_reference)
                 else:
-                    self._reporter(4)("food.skipped")
+                    self._reporter(4, cancelled)("food.skipped")
+                self._checkpoint(cancelled)
                 self._state.complete_phase(4)
                 phase = 5
             if phase <= 5:
                 if draft.bed_count is None:
                     raise SetupInstallationInvalid("Setup 床位草稿缺失")
-                self._reporter(5)("nest.apply")
+                self._reporter(5, cancelled)("nest.apply")
                 try:
                     self._nest.initialize_bed_count(draft.bed_count)
                 except NestPortError as error:
                     raise SetupInstallationPortError(
                         "unable to apply Nest bed count"
                     ) from error
+                self._checkpoint(cancelled)
                 self._state.complete_phase(5)
         finally:
             if task_lease is not None:
@@ -182,13 +239,32 @@ class SetupInstallationService:
                 except Exception:  # noqa: BLE001 - cleanup is best effort at worker boundary
                     logger.exception("Setup Ollama task lease release failed")
 
-    def _reporter(self, phase: int) -> Callable[[str], None]:
+    def _reporter(
+        self, phase: int, cancelled: Callable[[], bool]
+    ) -> Callable[[str], None]:
         progress = {2: 30, 3: 50, 4: 70, 5: 90}[phase]
 
         def report(action_key: str) -> None:
+            self._checkpoint(cancelled)
             self._state.report(phase=phase, action_key=action_key, progress=progress)
 
         return report
+
+    def _timeout_safely(self) -> None:
+        try:
+            current = self._state.read_installation()
+            if current.task_status == "running":
+                self._state.fail(
+                    "installation.timeout",
+                    "Setup 安装超过一小时未完成，已停止等待；请检查网络或本机服务后重试",
+                )
+        except SetupInstallationPortError:
+            logger.exception("Setup installation timeout could not be persisted")
+
+    @staticmethod
+    def _checkpoint(cancelled: Callable[[], bool]) -> None:
+        if cancelled():
+            raise _SetupInstallationStopped
 
 
 def _safe_error(message: str) -> str:

@@ -14,10 +14,25 @@ class ConfirmSetupInstallationCommand:
 
 
 @dataclass(frozen=True)
+class CancelSetupInstallationCommand:
+    principal: SetupPrincipal
+
+
+@dataclass(frozen=True)
 class ConfirmSetupInstallationResult:
     installation: StoredSetupInstallation
     session_token: str
     session_ttl_seconds: int
 
 
-__all__ = ("ConfirmSetupInstallationCommand", "ConfirmSetupInstallationResult")
+@dataclass(frozen=True)
+class CancelSetupInstallationResult:
+    installation: StoredSetupInstallation
+
+
+__all__ = (
+    "CancelSetupInstallationCommand",
+    "CancelSetupInstallationResult",
+    "ConfirmSetupInstallationCommand",
+    "ConfirmSetupInstallationResult",
+)

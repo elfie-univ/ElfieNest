@@ -72,6 +72,28 @@ def test_packaged_runtime_reports_a_damaged_install_without_bootstrapping(
     assert environment == {}
 
 
+def test_linux_packaged_runtime_rejects_a_missing_world_authority(
+    tmp_path: Path,
+) -> None:
+    # Given: a Linux install with Core present but no dedicated Godot executable.
+    resources = tmp_path / "opt" / "ElfieNest" / "resources"
+    cli = resources / "management-cli" / "ElfieNestCli"
+    core = resources / "python-core" / "ElfieNestCore"
+    cli.parent.mkdir(parents=True)
+    core.parent.mkdir(parents=True)
+    cli.write_bytes(b"cli")
+    core.write_bytes(b"core")
+    environment: dict[str, str] = {}
+
+    # When/Then: startup reports the damaged package before mutating its environment.
+    with pytest.raises(
+        packaged_runtime.PackagedCliRuntimeError,
+        match="packaged-cli-world-runtime-missing",
+    ):
+        packaged_runtime.configure_frozen_cli_runtime(cli, "linux", environment)
+    assert environment == {}
+
+
 def test_runtime_state_contract_allows_only_source_and_installed_runtime() -> None:
     # Given: the public runtime-state contract.
     expected_states = ("source_development", "installed_runtime")

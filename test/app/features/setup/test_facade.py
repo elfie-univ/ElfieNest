@@ -7,9 +7,13 @@ import pytest
 from app.features.setup import (
     GetSetupStatusQuery,
     SaveSetupNestDraftCommand,
+    SaveSetupOfflineDraftCommand,
+    SaveSetupOwnerDraftCommand,
+    SetupConflict,
     SetupForbidden,
     SetupPrincipal,
     SetupService,
+    SetupValidationError,
     StoredOllamaObservation,
     StoredSetupDraft,
     StoredSetupInstallation,
@@ -26,6 +30,8 @@ class FakeBoundary:
             None, "not_started", None, None, "idle", 0, None, None
         )
         self.owner = False
+        self.platform = "darwin"
+        self.ollama = StoredOllamaObservation("stopped", "http://127.0.0.1:11434", None)
         self.validated: list[int] = []
 
     def read_installation(self) -> StoredSetupInstallation:
@@ -38,7 +44,7 @@ class FakeBoundary:
         return self.owner
 
     def inspect(self) -> StoredOllamaObservation:
-        return StoredOllamaObservation("stopped", "http://127.0.0.1:11434", None)
+        return self.ollama
 
     def validate_bed_count(self, bed_count: int) -> int:
         self.validated.append(bed_count)
@@ -94,4 +100,56 @@ def test_draft_mutations_reject_non_local_setup_principal() -> None:
         _service(boundary).save_nest_draft(
             SetupPrincipal("setup", local=False),
             SaveSetupNestDraftCommand(bed_count=7),
+        )
+
+
+def test_linux_local_ollama_draft_waits_for_the_user_installed_service() -> None:
+    boundary = FakeBoundary()
+    boundary.platform = "linux"
+    boundary.ollama = StoredOllamaObservation("absent", None, None)
+
+    with pytest.raises(SetupValidationError, match="终端"):
+        _service(boundary).save_offline_draft(
+            SetupPrincipal("setup", local=True),
+            SaveSetupOfflineDraftCommand(
+                use_local_ollama=True,
+                model_id="qwen2.5:0.5b",
+            ),
+        )
+
+
+def test_local_owner_can_revise_non_account_choices_after_failed_install() -> None:
+    boundary = FakeBoundary()
+    boundary.owner = True
+    boundary.install = replace(
+        boundary.install,
+        status="in_progress",
+        install_step=3,
+        task_status="failed",
+    )
+    boundary.draft = replace(
+        boundary.draft,
+        owner_configured=True,
+        offline_configured=True,
+        nest_configured=True,
+        locked_at=None,
+    )
+
+    result = _service(boundary).save_nest_draft(
+        SetupPrincipal("owner", local=True),
+        SaveSetupNestDraftCommand(bed_count=7),
+    )
+
+    assert result.draft.bed_count == 7
+
+
+def test_existing_owner_account_cannot_be_rewritten_through_setup_draft() -> None:
+    boundary = FakeBoundary()
+    boundary.owner = True
+    boundary.install = replace(boundary.install, task_status="failed")
+
+    with pytest.raises(SetupConflict, match="Owner"):
+        _service(boundary).save_owner_draft(
+            SetupPrincipal("owner", local=True),
+            SaveSetupOwnerDraftCommand("changed", None, "new-secret"),
         )

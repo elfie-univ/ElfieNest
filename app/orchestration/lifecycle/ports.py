@@ -34,6 +34,21 @@ class ProcessSnapshot:
 
 
 @dataclass(frozen=True)
+class ProcessIdentityEvidence:
+    """Exact OS identity used before a managed process can be owned or stopped."""
+
+    pid: int
+    executable: str
+    birth_identity: str
+
+
+class ProcessIdentityReaderPort(Protocol):
+    """Read PID-reuse-safe process evidence without exposing an OS handle."""
+
+    def read(self, pid: int) -> Optional[ProcessIdentityEvidence]: ...
+
+
+@dataclass(frozen=True)
 class LocalProcessEntry:
     """Technical process-table facts used by local diagnostics."""
 
@@ -220,6 +235,9 @@ class ServiceProcessPort(Protocol):
 
     def register_current(self, elfie_home: Path) -> Path:
         """Register the calling process and schedule normal-exit cleanup."""
+
+    def retain_current(self) -> None:
+        """Retain any platform launch ownership handle for the calling process."""
 
 
 class LifecycleLease(Protocol):

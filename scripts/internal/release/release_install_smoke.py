@@ -38,6 +38,10 @@ PHASE_BUDGETS_MS = {
     "upgrade": 180_000,
     "uninstall": 120_000,
 }
+GLOBAL_CLI_LAUNCHER = Path("/usr/local/bin/elfienest")
+MAC_INSTALL_ROOT = Path("/Applications/ElfieNest.app")
+LINUX_INSTALL_ROOT = Path("/opt/ElfieNest")
+LINUX_GUI_LAUNCHER = Path("/usr/bin/elfienest-gui")
 
 
 class ReleaseInstallSmokeError(RuntimeError):
@@ -123,10 +127,10 @@ def run_install_smoke(
                 )
             )
             health_started = monotonic()
-            _wait_for_state(
+            reached_state = _wait_for_state(
                 native,
                 environment,
-                expected={"core_ready", "world_ready"},
+                expected={"world_ready"},
                 monotonic=monotonic,
                 sleeper=sleeper,
                 timeout_seconds=timeout_seconds,
@@ -172,6 +176,7 @@ def run_install_smoke(
                 {
                     "cycle": cycle,
                     "phase_count": len(phases) - cycle_start,
+                    "reached_state": reached_state,
                     "result": "passed",
                 }
             )
@@ -199,9 +204,10 @@ def run_install_smoke(
             for phase in phases
         ]
         evidence = {
-            "schema_version": 1,
+            "schema_version": 2,
             "target": target,
             "artifact": artifact.name,
+            "required_state": "world_ready",
             "cycles": cycle_records,
             "phases": phase_payloads,
             "result": "passed",
@@ -241,7 +247,7 @@ def _wait_for_state(
     monotonic: Callable[[], float],
     sleeper: Callable[[float], None],
     timeout_seconds: float,
-) -> None:
+) -> str:
     deadline = monotonic() + timeout_seconds
     last_state = "unknown"
     while True:
@@ -250,7 +256,7 @@ def _wait_for_state(
         if isinstance(state, str):
             last_state = state
             if state in expected:
-                return
+                return state
         if monotonic() >= deadline:
             raise ReleaseInstallSmokeError(
                 f"release-smoke-state-timeout expected={sorted(expected)} actual={last_state}"
@@ -344,6 +350,16 @@ def _ignore_failure(operation: Callable[[], None]) -> None:
         return
 
 
+def _is_owned_symlink(launcher: Path, expected_target: Path) -> bool:
+    """Return whether a launcher is the exact symlink created by our package."""
+    if not launcher.is_symlink():
+        return False
+    try:
+        return os.readlink(launcher) == str(expected_target)
+    except OSError:
+        return False
+
+
 class NativePackageAdapter:
     """Target-native package operations used by release runners."""
 
@@ -355,7 +371,16 @@ class NativePackageAdapter:
         if target == "win32-x64":
             self.install_root = self.install_root.with_suffix(".windows")
         elif target == "darwin-arm64" or target == "darwin-x64":
-            self.install_root = Path("/Applications/ElfieNest.app")
+            self.install_root = MAC_INSTALL_ROOT
+
+    def _linux_package_name(self) -> str:
+        if self.package_name is None:
+            self.package_name = _run_checked(
+                ("dpkg-deb", "--field", str(self.artifact), "Package")
+            ).strip()
+        if not self.package_name:
+            raise ReleaseInstallSmokeError("release-smoke-linux-package-name-missing")
+        return self.package_name
 
     def install(self) -> None:
         if self.target.startswith("darwin"):
@@ -364,10 +389,8 @@ class NativePackageAdapter:
             )
             return
         if self.target == "linux-x64":
+            self._linux_package_name()
             _run_checked(("sudo", "apt-get", "install", "--yes", str(self.artifact)))
-            self.package_name = _run_checked(
-                ("dpkg-deb", "--field", str(self.artifact), "Package")
-            ).strip()
             return
         _run_checked(
             (
@@ -387,11 +410,9 @@ class NativePackageAdapter:
             )
         elif self.target == "linux-x64":
             required = (
-                Path("/opt/ElfieNest/elfienest-gui"),
-                Path("/opt/ElfieNest/resources/management-cli/ElfieNestCli"),
-                Path("/opt/ElfieNest/resources/manifest.json"),
-                Path("/usr/bin/elfienest-gui"),
-                Path("/usr/local/bin/elfienest"),
+                LINUX_INSTALL_ROOT / "elfienest-gui",
+                LINUX_INSTALL_ROOT / "resources/management-cli/ElfieNestCli",
+                LINUX_INSTALL_ROOT / "resources/manifest.json",
             )
         else:
             required = (
@@ -404,6 +425,35 @@ class NativePackageAdapter:
         if missing:
             raise ReleaseInstallSmokeError(
                 f"release-smoke-installed-files-missing paths={','.join(missing)}"
+            )
+        expected_launchers: Sequence[tuple[Path, Path]]
+        if self.target.startswith("darwin"):
+            expected_launchers = (
+                (
+                    GLOBAL_CLI_LAUNCHER,
+                    self.install_root
+                    / "Contents/Resources/management-cli/ElfieNestCli",
+                ),
+            )
+        elif self.target == "linux-x64":
+            expected_launchers = (
+                (LINUX_GUI_LAUNCHER, LINUX_INSTALL_ROOT / "elfienest-gui"),
+                (
+                    GLOBAL_CLI_LAUNCHER,
+                    LINUX_INSTALL_ROOT / "resources/management-cli/ElfieNestCli",
+                ),
+            )
+        else:
+            expected_launchers = ()
+        wrong_launchers = tuple(
+            str(launcher)
+            for launcher, target in expected_launchers
+            if not _is_owned_symlink(launcher, target)
+        )
+        if wrong_launchers:
+            raise ReleaseInstallSmokeError(
+                "release-smoke-owned-launcher-invalid "
+                f"paths={','.join(wrong_launchers)}"
             )
 
     def run_cli(self, arguments: Sequence[str], environment: Mapping[str, str]) -> str:
@@ -422,14 +472,15 @@ class NativePackageAdapter:
     def uninstall(self) -> None:
         if self.target.startswith("darwin"):
             _run_allow_failure(("sudo", "pkgutil", "--forget", "com.elfienest.desktop"))
-            if Path("/usr/local/bin/elfienest").is_symlink():
-                _run_checked(("sudo", "rm", "-f", "/usr/local/bin/elfienest"))
+            cli_target = (
+                self.install_root / "Contents/Resources/management-cli/ElfieNestCli"
+            )
+            if _is_owned_symlink(GLOBAL_CLI_LAUNCHER, cli_target):
+                _run_checked(("sudo", "rm", "-f", str(GLOBAL_CLI_LAUNCHER)))
             _run_allow_failure(("sudo", "rm", "-rf", str(self.install_root)))
             return
         if self.target == "linux-x64":
-            if self.package_name:
-                _run_allow_failure(("sudo", "dpkg", "--purge", self.package_name))
-            _run_allow_failure(("sudo", "rm", "-f", "/usr/local/bin/elfienest"))
+            _run_allow_failure(("sudo", "dpkg", "--purge", self._linux_package_name()))
             return
         uninstaller = self.install_root / "Uninstall ElfieNest.exe"
         if not uninstaller.is_file():
@@ -448,14 +499,37 @@ class NativePackageAdapter:
             time.sleep(0.25)
 
     def verify_uninstalled(self) -> None:
-        launcher = (
-            Path("/usr/local/bin/elfienest")
-            if self.target != "win32-x64"
-            else self.install_root / "bin/elfienest.cmd"
-        )
-        if launcher.exists() or launcher.is_symlink():
+        owned_launchers: Sequence[tuple[Path, Path]]
+        owned_roots: Sequence[Path]
+        if self.target.startswith("darwin"):
+            owned_launchers = (
+                (
+                    GLOBAL_CLI_LAUNCHER,
+                    self.install_root
+                    / "Contents/Resources/management-cli/ElfieNestCli",
+                ),
+            )
+            owned_roots = (self.install_root,)
+        elif self.target == "linux-x64":
+            owned_launchers = (
+                (LINUX_GUI_LAUNCHER, LINUX_INSTALL_ROOT / "elfienest-gui"),
+                (
+                    GLOBAL_CLI_LAUNCHER,
+                    LINUX_INSTALL_ROOT / "resources/management-cli/ElfieNestCli",
+                ),
+            )
+            owned_roots = (LINUX_INSTALL_ROOT,)
+        else:
+            owned_launchers = ()
+            owned_roots = (self.install_root,)
+        remaining = tuple(
+            str(launcher)
+            for launcher, target in owned_launchers
+            if _is_owned_symlink(launcher, target)
+        ) + tuple(str(root) for root in owned_roots if root.exists())
+        if remaining:
             raise ReleaseInstallSmokeError(
-                f"release-smoke-owned-launcher-remains path={launcher}"
+                f"release-smoke-owned-files-remain paths={','.join(remaining)}"
             )
 
 

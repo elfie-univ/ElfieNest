@@ -13,6 +13,7 @@ from app.features.configuration import ProviderLocalStatePort
 from app.features.configuration.providers import StoredLocalProviderBinding
 from app.features.nest_management import NestManagementCommandPort
 from app.features.setup import SetupService
+from app.orchestration.lifecycle.ports import ProcessIdentityReaderPort
 from app.orchestration.setup_installation import (
     SetupInstallationService,
     SetupOllamaBinding,
@@ -54,6 +55,7 @@ def build_setup_services(
     food_evidence: FoodEvidencePort | None = None,
     catalog: ProviderCatalog | None = None,
     data_home: Path | None = None,
+    process_identity_reader: ProcessIdentityReaderPort,
 ) -> SetupServices:
     state = SQLiteSetupAdapter(db_path)
     setup_accounts = SetupAccountsAdapter(accounts)
@@ -62,9 +64,12 @@ def build_setup_services(
         providers,
         data_home,
         catalog,
+        process_identity_reader,
     )
     ollama = SetupOllamaAdapter(
-        technology=PublicOllamaSetupTechnologyAdapter(),
+        technology=PublicOllamaSetupTechnologyAdapter(
+            process_identity_reader=process_identity_reader
+        ),
         load_binding=providers.load_ollama_binding,
         save_binding=providers.save_ollama_binding,
         save_model=providers.save_ollama_model,
@@ -121,6 +126,7 @@ def _build_ollama_task_lease_factory(
     providers: SetupProviderAdapter,
     data_home: Path | None,
     catalog: ProviderCatalog | None,
+    process_identity_reader: ProcessIdentityReaderPort,
 ) -> Callable[[SetupOllamaBinding], Optional[SetupOllamaTaskLease]] | None:
     """Share the user-scoped Ollama lease with Setup model downloads."""
     if data_home is None:
@@ -145,7 +151,11 @@ def _build_ollama_task_lease_factory(
         )
 
     lifecycle = OllamaLifecycleAdapter(
-        PublicOllamaProviderAdapter(catalog=catalog),
+        PublicOllamaProviderAdapter(
+            catalog=catalog,
+            process_identity_reader=process_identity_reader,
+        ),
+        process_identity_reader=process_identity_reader,
         binding_loader=load_binding,
     )
     owner_id = f"setup:{os.getpid()}"

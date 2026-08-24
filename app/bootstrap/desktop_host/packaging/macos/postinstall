@@ -2,6 +2,26 @@
 
 set -eu
 
+install_owned_launcher() {
+    target="$1"
+    launcher="$2"
+
+    if [ -L "$launcher" ]; then
+        current_target="$(readlink "$launcher")"
+        if [ "$current_target" = "$target" ]; then
+            return
+        fi
+        echo "Refusing to replace launcher not owned by ElfieNest: $launcher -> $current_target" >&2
+        exit 1
+    fi
+    if [ -e "$launcher" ]; then
+        echo "Refusing to replace launcher not owned by ElfieNest: $launcher" >&2
+        exit 1
+    fi
+
+    ln -s "$target" "$launcher"
+}
+
 target_root="${3:-/}"
 app="${target_root%/}/Applications/ElfieNest.app"
 cli="$app/Contents/Resources/management-cli/ElfieNestCli"
@@ -17,8 +37,7 @@ if [ ! -x "$cli" ]; then
 fi
 
 mkdir -p /usr/local/bin
-ln -sfn "$cli" /usr/local/bin/elfienest
-chmod 755 /usr/local/bin/elfienest
+install_owned_launcher "$cli" /usr/local/bin/elfienest
 
 if [ ! -x "$lsregister" ]; then
     echo "macOS LaunchServices registrar is missing: $lsregister" >&2

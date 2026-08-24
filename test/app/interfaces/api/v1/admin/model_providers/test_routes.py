@@ -25,6 +25,7 @@ from infrastructure.models.validation.provider_validation import DiscoveredModel
 from infrastructure.persistence.food_evidence import record_model_evidence
 from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.reports.report_repository import ReportRepository
+from infrastructure.platform.lifecycle.process import DefaultProcessIdentityReader
 from test.support.provider import provider_models_adapter
 
 
@@ -69,7 +70,10 @@ def _client(
         technology=adapter,
         local_state=adapter,
         local_technology=local_technology
-        or PublicOllamaProviderAdapter(catalog=load_provider_catalog()),
+        or PublicOllamaProviderAdapter(
+            catalog=load_provider_catalog(),
+            process_identity_reader=DefaultProcessIdentityReader(),
+        ),
         oauth=oauth,
     )
     application.dependency_overrides[require_user] = lambda: _principal(role)
@@ -90,7 +94,10 @@ def _anonymous_client(tmp_path, monkeypatch) -> TestClient:
         references=NoProviderReferences(),
         technology=adapter,
         local_state=adapter,
-        local_technology=PublicOllamaProviderAdapter(catalog=load_provider_catalog()),
+        local_technology=PublicOllamaProviderAdapter(
+            catalog=load_provider_catalog(),
+            process_identity_reader=DefaultProcessIdentityReader(),
+        ),
     )
     application.include_router(router)
     return TestClient(application)

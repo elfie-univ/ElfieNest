@@ -12,6 +12,7 @@ from app.features.configuration import (
     StoredLocalProviderCandidate,
     StoredLocalProviderProbe,
 )
+from app.orchestration.lifecycle.ports import ProcessIdentityReaderPort
 from infrastructure.models.providers.catalog import ProviderCatalog
 
 from .ollama_platform import (
@@ -29,6 +30,7 @@ class PublicOllamaProviderAdapter:
         self,
         platform: OllamaPlatformAdapter | None = None,
         *,
+        process_identity_reader: ProcessIdentityReaderPort | None = None,
         catalog: ProviderCatalog | None = None,
         catalog_loader: Callable[[], ProviderCatalog] | None = None,
     ) -> None:
@@ -36,7 +38,15 @@ class PublicOllamaProviderAdapter:
             raise ValueError(
                 "PublicOllamaProviderAdapter requires an injected catalog or loader"
             )
-        self._platform = platform or OllamaPlatformAdapter()
+        if platform is None:
+            if process_identity_reader is None:
+                raise ValueError(
+                    "PublicOllamaProviderAdapter requires a process identity reader"
+                )
+            platform = OllamaPlatformAdapter(
+                process_identity_reader=process_identity_reader
+            )
+        self._platform = platform
         self._catalog = catalog
         self._catalog_loader = catalog_loader
 

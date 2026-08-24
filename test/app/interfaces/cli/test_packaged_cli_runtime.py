@@ -40,6 +40,31 @@ def test_frozen_cli_discovers_its_sibling_core_without_a_checkout(
     }
 
 
+def test_linux_frozen_cli_selects_the_deb_host_and_dedicated_world_runtime(
+    tmp_path: Path,
+) -> None:
+    # Given: the CLI inside the canonical Electron DEB resource layout.
+    resources = tmp_path / "opt" / "ElfieNest" / "resources"
+    cli = resources / "management-cli" / "ElfieNestCli"
+    core = resources / "python-core" / "ElfieNestCore"
+    world = resources / "godot-linux-dedicated" / "ElfieNestRuntime"
+    for executable in (cli, core, world):
+        executable.parent.mkdir(parents=True, exist_ok=True)
+        executable.write_bytes(executable.name.encode("utf-8"))
+        executable.chmod(0o755)
+    environment: dict[str, str] = {}
+
+    # When: the installed Linux CLI configures its managed runtime siblings.
+    packaged_runtime.configure_frozen_cli_runtime(cli, "linux", environment)
+
+    # Then: it activates the real DEB host and the packaged headless authority.
+    assert environment["ELFIENEST_DESKTOP_BIN"] == str(
+        resources.parent / "elfienest-gui"
+    )
+    assert environment["ELFIENEST_RUNTIME_BIN"] == str(world)
+    assert environment["ELFIENEST_PROJECT_ROOT"] == str(resources.parent)
+
+
 def test_frozen_cli_reads_the_packaged_manifest_version_without_distribution_metadata(
     tmp_path: Path,
 ) -> None:

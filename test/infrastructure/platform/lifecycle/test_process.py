@@ -2,8 +2,11 @@
 
 import os
 import signal
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from infrastructure.platform.lifecycle import process
 from infrastructure.platform.lifecycle.process import LocalServiceProcessAdapter
@@ -59,6 +62,46 @@ def test_windows_process_inspector_uses_native_birth_identity(monkeypatch) -> No
     assert process.DefaultProcessInspector().birth_identity(17) == "win32-create:17"
 
 
+def test_windows_process_identity_reader_uses_only_native_kernel_evidence(
+    monkeypatch,
+) -> None:
+    real_os = process.os
+
+    class WindowsOsProxy:
+        name = "nt"
+
+        def __getattr__(self, attribute: str):
+            return getattr(real_os, attribute)
+
+    monkeypatch.setattr(process, "os", WindowsOsProxy())
+    monkeypatch.setattr(
+        process,
+        "_windows_process_birth_identity",
+        lambda pid: f"win32-create:{pid}",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        process,
+        "_windows_process_executable",
+        lambda pid: rf"C:\Program Files\Ollama\ollama-{pid}.exe",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        process.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("Windows process identity must not invoke CIM or ps")
+        ),
+    )
+
+    identity = process.DefaultProcessIdentityReader().read(17)
+
+    assert identity is not None
+    assert identity.pid == 17
+    assert identity.birth_identity == "win32-create:17"
+    assert identity.executable == r"C:\Program Files\Ollama\ollama-17.exe"
+
+
 def test_windows_process_inspector_uses_native_process_queries(monkeypatch) -> None:
     real_os = process.os
 
@@ -101,6 +144,101 @@ def test_windows_process_inspector_uses_native_process_queries(monkeypatch) -> N
     assert inspector.exists(17)
     assert inspector.command(17)[0].endswith("ElfieNestCore.exe")
     assert inspector.cwd(17) == Path(r"C:\Program Files\ElfieNest")
+
+
+def test_windows_process_query_converts_cim_timeout_to_stable_os_error(
+    monkeypatch,
+) -> None:
+    def timeout(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(process.subprocess, "run", timeout)
+
+    with pytest.raises(
+        OSError,
+        match=r"Windows process identity query timed out for PID 1872",
+    ):
+        process._windows_process_command(1872)
+
+
+def test_windows_process_snapshot_reuses_one_cim_command_query(monkeypatch) -> None:
+    real_os = process.os
+    command = (r"C:\Program Files\ElfieNest\ElfieNestCore.exe", "--lan")
+    calls: list[tuple[str, object]] = []
+
+    class WindowsOsProxy:
+        name = "nt"
+
+        def __getattr__(self, attribute: str):
+            return getattr(real_os, attribute)
+
+    monkeypatch.setattr(process, "os", WindowsOsProxy())
+    monkeypatch.setattr(
+        process,
+        "_windows_process_birth_identity",
+        lambda pid: f"win32-create:{pid}",
+    )
+    monkeypatch.setattr(
+        process,
+        "_windows_process_command",
+        lambda pid: calls.append(("command", pid)) or command,
+    )
+    monkeypatch.setattr(
+        process,
+        "_windows_process_cwd_from_command",
+        lambda pid, observed: (
+            calls.append(("cwd", observed)) or Path(r"C:\Program Files\ElfieNest")
+        ),
+        raising=False,
+    )
+
+    snapshot = process.DefaultProcessInspector().snapshot(17)
+
+    assert snapshot.command == command
+    assert snapshot.cwd == Path(r"C:\Program Files\ElfieNest")
+    assert snapshot.birth_identity == "win32-create:17"
+    assert calls == [("command", 17), ("cwd", command)]
+
+
+def test_owned_windows_launch_uses_captured_command_without_cim_query(
+    monkeypatch, tmp_path: Path
+) -> None:
+    command = (r"C:\Program Files\ElfieNest\ElfieNestCore.exe", "--lan")
+    monkeypatch.setenv("ELFIENEST_RUNTIME_LOG", str(tmp_path / "runtime.log"))
+
+    class Inspector:
+        def birth_identity(self, pid: int) -> str:
+            assert pid == 99
+            return "win32-create:99"
+
+        def cwd(self, _pid: int) -> Path:
+            raise AssertionError("owned launch cwd must not invoke CIM")
+
+        def command(self, _pid: int) -> tuple[str, ...]:
+            raise AssertionError("owned launch command must not invoke CIM")
+
+    class Process:
+        pid = 99
+
+    monkeypatch.setattr(
+        process,
+        "os",
+        SimpleNamespace(name="nt", environ=os.environ),
+    )
+    monkeypatch.setattr(
+        process.subprocess,
+        "Popen",
+        lambda *_args, **_kwargs: Process(),
+    )
+
+    adapter = LocalServiceProcessAdapter(Inspector())
+    pid = adapter.launch(command, tmp_path)
+    snapshot = adapter.inspect(pid)
+
+    assert snapshot.pid == 99
+    assert snapshot.cwd == tmp_path.resolve()
+    assert snapshot.command == command
+    assert snapshot.birth_identity == "win32-create:99"
 
 
 def test_process_adapter_pid_receipt_is_owned_and_private(tmp_path: Path) -> None:
@@ -271,6 +409,32 @@ def test_process_adapter_cleans_windows_job_after_graceful_stop(monkeypatch) -> 
     adapter.terminate(17)
 
     assert calls == ["kill:17:False", "close"]
+
+
+def test_managed_windows_core_retains_launcher_job_once(monkeypatch) -> None:
+    calls: list[str] = []
+
+    class Job:
+        def close(self) -> None:
+            calls.append("close")
+
+    monkeypatch.setenv("ELFIENEST_JOB_NAME", r"Local\ElfieNest.core.test")
+    monkeypatch.setattr(
+        process,
+        "os",
+        SimpleNamespace(name="nt", environ=os.environ),
+    )
+    monkeypatch.setattr(
+        process.WindowsJobObject,
+        "open",
+        classmethod(lambda _cls, name: calls.append(f"open:{name}") or Job()),
+        raising=False,
+    )
+    adapter = LocalServiceProcessAdapter()
+    adapter.retain_current()
+    adapter.retain_current()
+
+    assert calls == [r"open:Local\ElfieNest.core.test"]
 
 
 def test_process_adapter_kills_child_when_windows_job_attach_fails(

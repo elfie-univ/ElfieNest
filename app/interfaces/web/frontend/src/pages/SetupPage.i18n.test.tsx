@@ -51,8 +51,18 @@ function statusFor(
   }
 }
 
-function renderSetup(locale: SupportedLocale, status: SetupStatus): void {
+function renderSetup(
+  locale: SupportedLocale,
+  status: SetupStatus,
+  ollama: client.SetupOllamaObservation = {
+    endpoint: "http://127.0.0.1:11434",
+    platform: "darwin",
+    state: "stopped",
+    version: null,
+  },
+): void {
   vi.spyOn(client, "setupStatus").mockResolvedValue(status)
+  vi.spyOn(client, "setupInspectOllama").mockResolvedValue(ollama)
   vi.spyOn(client, "setupModelCatalog").mockResolvedValue([
     { model_id: "qwen2.5:0.5b", label: "qwen2.5:0.5b（推荐）", approx_download_mb: 398, recommended: true },
     { model_id: "qwen3.5:0.8b", label: "qwen3.5:0.8b", approx_download_mb: 1024, recommended: false },
@@ -278,11 +288,43 @@ describe("localized setup wizard", () => {
     const installedStatus = await screen.findByText("Installed · reusable")
     expect(installedStatus).toHaveClass("setup-hint--status", "setup-hint--installed")
 
-    renderSetup("en-US", statusFor(2, {
-      draft: { ...statusFor(2).draft, ollama_installed: false },
-    }))
+    renderSetup(
+      "en-US",
+      statusFor(2, {
+        draft: { ...statusFor(2).draft, ollama_installed: false },
+      }),
+      { endpoint: null, platform: "darwin", state: "absent", version: null },
+    )
     const pendingStatus = await screen.findByText("Not installed · handled during setup")
     expect(pendingStatus).toHaveClass("setup-hint--status", "setup-hint--missing")
+  })
+
+  it("guides Linux installation in a terminal and rechecks before continuing", async () => {
+    const user = userEvent.setup()
+    renderSetup(
+      "en-US",
+      statusFor(2, {
+        draft: { ...statusFor(2).draft, ollama_installed: false },
+      }),
+      { endpoint: null, platform: "linux", state: "absent", version: null },
+    )
+
+    expect(await screen.findByText("Install Ollama in a terminal first")).toBeInTheDocument()
+    expect(screen.getByText("curl -fsSL https://ollama.com/install.sh | sh")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
+
+    vi.mocked(client.setupInspectOllama).mockResolvedValue({
+      endpoint: "http://127.0.0.1:11434",
+      platform: "linux",
+      state: "healthy",
+      version: "0.12.0",
+    })
+    await user.click(screen.getByRole("button", { name: "I've installed Ollama — check again" }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Installed · reusable")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled()
+    })
   })
 
   it("renders exactly four review rows and keeps Ollama status inside its row", async () => {
@@ -390,16 +432,36 @@ describe("localized setup wizard", () => {
     expect(rows[2]).toHaveTextContent("local Ollama is disabled")
   })
 
-  it("locks the page after confirmation and only shows the install progress", async () => {
+  it("locks the page after confirmation and exposes cancellation", async () => {
     const user = userEvent.setup()
-    const install = vi.spyOn(client, "setupInstall").mockResolvedValue(statusFor(4, {
+    const running = statusFor(4, {
       locked: true,
       install: { phase: "ollama", action_key: "ollama.start", state: "running", progress: 30, error_key: null },
+    })
+    const install = vi.spyOn(client, "setupInstall").mockResolvedValue(running)
+    const cancel = vi.spyOn(client, "setupCancel").mockResolvedValue(statusFor(4, {
+      install: { phase: "ollama", action_key: "cancelled", state: "cancelled", progress: 30, error_key: "setup.install.cancelled" },
     }))
     renderSetup("en-US", statusFor(4))
     await user.click(await screen.findByRole("button", { name: "Confirm configuration and start installation" }))
     expect(install).toHaveBeenCalledWith("setup-csrf")
     expect(await screen.findByRole("progressbar")).toHaveAttribute("aria-valuenow", "30")
-    expect(screen.queryByRole("button", { name: /edit|back|cancel/i })).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Cancel installation" }))
+    expect(cancel).toHaveBeenCalledWith("setup-csrf")
+    expect(await screen.findByText("Installation cancelled. You can adjust the remaining settings and try again.")).toBeInTheDocument()
+  })
+
+  it("shows persisted failure detail after unlocking safe configuration fields", async () => {
+    const failed = statusFor(4, {
+      install: { phase: "model", action_key: "model.download", state: "failed", progress: 50, error_key: "setup.install.failed" },
+      last_error: "The model download timed out.",
+    })
+    renderSetup("en-US", failed)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The model download timed out.")
+    const rows = await screen.findAllByTestId("setup-review-row")
+    expect(rows).toHaveLength(4)
+    expect(within(rows[0]!).queryByRole("button", { name: "Modify" })).not.toBeInTheDocument()
+    expect(within(rows[1]!).getByRole("button", { name: "Modify" })).toBeInTheDocument()
   })
 })

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -24,6 +25,9 @@ PROJECT_ROOT: Final = Path(__file__).resolve().parents[3]
 DEFAULT_STAGING_ROOT: Final = PROJECT_ROOT / "build" / "staging"
 DEFAULT_WEB_SOURCE: Final = PROJECT_ROOT / "build" / "web"
 DEFAULT_GODOT_SOURCE: Final = PROJECT_ROOT / "build" / "components" / "godot-web"
+DEFAULT_GODOT_DEDICATED_SOURCE: Final = (
+    PROJECT_ROOT / "build" / "components" / "godot-linux-dedicated"
+)
 DEFAULT_CONFIG_SOURCE: Final = PROJECT_ROOT / "config"
 REQUIRED_WEB_FILES: Final = ("manifest.json", "index.html")
 REQUIRED_GODOT_FILES: Final = (
@@ -31,6 +35,10 @@ REQUIRED_GODOT_FILES: Final = (
     "elfienest.js",
     "elfienest.wasm",
     "elfienest.pck",
+)
+REQUIRED_GODOT_DEDICATED_FILES: Final = (
+    "ElfieNestRuntime",
+    "build-manifest.json",
 )
 
 
@@ -114,6 +122,7 @@ def assemble_resources(
     application_version: str,
     source_revision: str,
     config_source: Path | None = None,
+    godot_dedicated_source: Path | None = None,
 ) -> Path:
     """Build one atomic flat resource root from validated component inputs."""
     if re.fullmatch(r"[0-9a-f]{40}", source_revision) is None:
@@ -122,6 +131,23 @@ def assemble_resources(
         raise ResourceAssemblyError(f"resource-target-unsupported target={target}")
     _require_files(web_source, REQUIRED_WEB_FILES, "web")
     _require_files(godot_source, REQUIRED_GODOT_FILES, "godot-web")
+    if target == "linux-x64":
+        if godot_dedicated_source is None or not godot_dedicated_source.is_dir():
+            raise ResourceAssemblyError(
+                "resource-component-missing component=godot-linux-dedicated "
+                f"path={godot_dedicated_source or '<unset>'}"
+            )
+        _require_files(
+            godot_dedicated_source,
+            REQUIRED_GODOT_DEDICATED_FILES,
+            "godot-linux-dedicated",
+        )
+        dedicated_entry = godot_dedicated_source / "ElfieNestRuntime"
+        if not os.access(dedicated_entry, os.X_OK):
+            raise ResourceAssemblyError(
+                "resource-component-incomplete component=godot-linux-dedicated "
+                "missing=executable-permission"
+            )
     core_name = _target_executable(target, "ElfieNestCore")
     if not core_source.is_file() or core_source.name != core_name:
         raise ResourceAssemblyError(
@@ -150,6 +176,12 @@ def assemble_resources(
     try:
         _copy_directory(web_source, staging / "resources" / "web", "web")
         _copy_directory(godot_source, staging / "resources" / "godot-web", "godot-web")
+        if godot_dedicated_source is not None and target == "linux-x64":
+            _copy_directory(
+                godot_dedicated_source,
+                staging / "resources" / "godot-linux-dedicated",
+                "godot-linux-dedicated",
+            )
         _copy_directory(
             selected_config_source,
             staging / "resources" / "config",
@@ -179,6 +211,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-root", type=Path, default=DEFAULT_STAGING_ROOT)
     parser.add_argument("--web-source", type=Path, default=DEFAULT_WEB_SOURCE)
     parser.add_argument("--godot-source", type=Path, default=DEFAULT_GODOT_SOURCE)
+    parser.add_argument(
+        "--godot-dedicated-source",
+        type=Path,
+        default=DEFAULT_GODOT_DEDICATED_SOURCE,
+    )
     parser.add_argument("--config-source", type=Path, default=DEFAULT_CONFIG_SOURCE)
     parser.add_argument("--core-source", type=Path)
     parser.add_argument("--cli-source", type=Path)
@@ -209,6 +246,7 @@ def main() -> int:
             output_root=args.output_root,
             web_source=args.web_source,
             godot_source=args.godot_source,
+            godot_dedicated_source=args.godot_dedicated_source,
             core_source=core_source,
             cli_source=cli_source,
             config_source=args.config_source,

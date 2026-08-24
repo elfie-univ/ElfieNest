@@ -670,8 +670,10 @@ def register_service_process_for_start(
     lifecycle, elfie_home: Path, *, managed_start: bool
 ) -> None:
     """Let the parent Supervisor own managed receipts, including frozen Core parents."""
-    if not managed_start:
-        lifecycle.register_current_service(elfie_home)
+    if managed_start:
+        lifecycle.retain_current_service_process()
+        return
+    lifecycle.register_current_service(elfie_home)
 
 
 def _configure_console_encoding() -> None:

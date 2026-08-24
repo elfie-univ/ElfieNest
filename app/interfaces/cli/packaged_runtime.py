@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from enum import Enum
 from pathlib import Path
 from typing import Final, Mapping, MutableMapping, NamedTuple
@@ -187,21 +188,29 @@ def configure_frozen_cli_runtime(
     desktop_executables = {
         "win32": resources.parent / "ElfieNest.exe",
         "darwin": resources.parent / "MacOS" / "ElfieNest",
-        "linux": resources.parent / "AppRun",
+        "linux": resources.parent / "elfienest-gui",
     }
     desktop = desktop_executables[platform]
+    world_runtime: Path | None = None
+    if platform == "linux":
+        world_runtime = resources / "godot-linux-dedicated" / "ElfieNestRuntime"
+        if not world_runtime.is_file() or not os.access(world_runtime, os.X_OK):
+            raise PackagedCliRuntimeError(
+                f"packaged-cli-world-runtime-missing path={world_runtime}"
+            )
     application_root = (
         resources.parent.parent if platform == "darwin" else resources.parent
     )
-    environment.update(
-        {
-            "ELFIENEST_CORE_BIN": str(core),
-            "ELFIENEST_WEB_BUILD_DIR": str(resources / "web"),
-            "ELFIENEST_GODOT_WEB_DIR": str(resources / "godot-web"),
-            "ELFIENEST_BUNDLED_CONFIG_DIR": str(resources / "config"),
-            "ELFIENEST_RUNTIME_MODE": "release",
-            "ELFIENEST_PROJECT_ROOT": str(application_root),
-            "ELFIENEST_DESKTOP_BIN": str(desktop),
-            "PYINSTALLER_RESET_ENVIRONMENT": "1",
-        }
-    )
+    runtime_environment = {
+        "ELFIENEST_CORE_BIN": str(core),
+        "ELFIENEST_WEB_BUILD_DIR": str(resources / "web"),
+        "ELFIENEST_GODOT_WEB_DIR": str(resources / "godot-web"),
+        "ELFIENEST_BUNDLED_CONFIG_DIR": str(resources / "config"),
+        "ELFIENEST_RUNTIME_MODE": "release",
+        "ELFIENEST_PROJECT_ROOT": str(application_root),
+        "ELFIENEST_DESKTOP_BIN": str(desktop),
+        "PYINSTALLER_RESET_ENVIRONMENT": "1",
+    }
+    if world_runtime is not None:
+        runtime_environment["ELFIENEST_RUNTIME_BIN"] = str(world_runtime)
+    environment.update(runtime_environment)

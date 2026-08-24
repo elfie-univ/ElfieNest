@@ -33,6 +33,12 @@ when you install a newer version.
 The first launch may take a little longer while the app prepares its local
 services. Do not open multiple copies of the app at the same time.
 
+The macOS and Linux installers publish the management command at
+`/usr/local/bin/elfienest`. If that path already contains a file or points to a
+different program, installation stops and reports the conflict instead of
+overwriting it. Check who owns the existing command before moving or removing
+it, then run the installer again.
+
 Preview macOS and Windows packages may show a warning that the package is not
 signed or notarized. Confirm that the file came from the official Releases page;
 do not disable your computer's security settings for an unknown file.
@@ -46,11 +52,32 @@ open a phone view without reopening the desktop window.
 
 ## Remove the app
 
-Use your system's normal uninstall flow. The native installer also removes the
-global `elfienest` launcher when the package manager supports removal. Before
-removing the app, make sure you have decided whether the Nest data should be
-backed up or kept. If you are not sure, ask the Nest administrator; do not
-delete the data folder manually.
+Removing the application keeps `ELFIE_HOME` (normally `~/.elfienest`) and all
+Nest data. If you also want to delete configuration or data, run
+`elfienest uninstall` **before** removing the application and choose the
+corresponding cleanup option. That command handles data only; it does not remove
+the installed application.
+
+- **Windows:** open **Settings > Apps > Installed apps**, select **ElfieNest**,
+  and choose **Uninstall**. The uninstaller removes its own application files,
+  command launcher and PATH entry.
+- **Linux (DEB):** run `sudo apt remove elfienest-desktop`. The package removes
+  only launchers that still point to the installed ElfieNest files.
+- **macOS (PKG):** macOS has no standard PKG uninstall button. Use the commands
+  below. The launcher is removed only when it still points to this ElfieNest
+  application:
+
+  ```bash
+  if [ "$(readlink /usr/local/bin/elfienest 2>/dev/null || true)" = "/Applications/ElfieNest.app/Contents/Resources/management-cli/ElfieNestCli" ]; then
+    sudo rm -f /usr/local/bin/elfienest
+  fi
+  sudo rm -rf /Applications/ElfieNest.app
+  sudo pkgutil --forget com.elfienest.desktop
+  ```
+
+If the Nest belongs to several people or you are unsure whether its data should
+be kept, back it up and ask the Nest administrator before choosing a data-cleanup
+option.
 
 ## Next step
 

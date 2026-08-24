@@ -178,6 +178,10 @@
 .setup-form--offline .setup-hint { margin-top: -4px; border: 0; padding: 0; background: transparent; font-size: 13px; line-height: 1.5; }
 .setup-form--offline .setup-hint--installed { color: var(--success-text); }
 .setup-form--offline .setup-hint--missing { color: var(--warning-text); }
+.setup-linux-install { margin-left: calc(var(--setup-label-column) + var(--setup-label-gap)); border: 1px solid color-mix(in srgb, var(--warning-text) 28%, var(--border)); border-radius: 12px; padding: 13px 14px; background: var(--surface-muted); }
+.setup-linux-install strong, .setup-linux-install p { display: block; margin: 0; }
+.setup-linux-install p { margin-top: 5px; color: var(--text-muted); font-size: 13px; line-height: 1.55; }
+.setup-linux-install code { display: block; overflow-x: auto; margin: 10px 0; border-radius: 8px; padding: 9px 10px; background: var(--surface); color: var(--active-ink); font-size: 12px; white-space: nowrap; }
 .setup-form--offline .setup-actions { margin-left: calc(var(--setup-label-column) + var(--setup-label-gap)); padding-top: 2px; }
 .setup-field { display: grid; gap: 7px; color: var(--text-muted); font-size: 13px; font-weight: 700; }
 .setup-field select { width: 100%; border: 1px solid var(--border); border-radius: 12px; padding: 12px 13px; color: var(--text); background: var(--field-bg); font: inherit; font-weight: 400; }
@@ -187,6 +191,7 @@
 .setup-hint { color: var(--active-ink); background: var(--accent-soft); }
 .setup-model-status { margin: -8px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.55; }
 .setup-task { display: block; padding: 0; border: 0; color: var(--active-ink); background: transparent; font-weight: 700; }
+.setup-install-error { margin: 0; color: var(--danger-text, #b42318); line-height: 1.55; overflow-wrap: anywhere; }
 .setup-check { display: flex !important; align-items: flex-start; gap: 9px !important; color: var(--text-muted) !important; font-weight: 400 !important; line-height: 1.55; }
 .setup-check input { margin: 3px 0 0; accent-color: var(--accent); }
 .setup-review { gap: 0; }
@@ -218,7 +223,7 @@
   .setup-form--offline .setup-check--row > [data-slot="checkbox"] { grid-column: 1; }
   .setup-form--offline .setup-field--row .manage-field { grid-template-columns: 1fr; gap: 7px; }
   .setup-form--offline .setup-field--row .manage-field__control-column { grid-column: 1; }
-  .setup-form--offline .setup-hint, .setup-form--offline .setup-model-status, .setup-form--offline .setup-actions { margin-left: 0; }
+  .setup-form--offline .setup-hint, .setup-form--offline .setup-model-status, .setup-form--offline .setup-actions, .setup-linux-install { margin-left: 0; }
   .setup-main { display: block; padding: 20px; }
   .setup-locale-control { top: 32px; right: 32px; }
   .setup-card__header { padding-top: 76px; }

@@ -14,7 +14,7 @@ import {
 
 const SOURCE_REVISION = "a".repeat(40);
 
-function createResourceTree(target: "darwin-arm64" | "win32-x64"): string {
+function createResourceTree(target: "darwin-arm64" | "win32-x64" | "linux-x64"): string {
   const root = mkdtempSync(join(tmpdir(), "elfienest-resources-"));
   for (const resourcePath of requiredResourcePathsForTarget(target)) {
     const fullPath = join(root, resourcePath);
@@ -79,6 +79,25 @@ test("resource manifest uses Windows executables inside the target staging root"
     assert.equal(manifest.files["ollama/ollama.exe"], undefined);
     assert.ok(manifest.files["web/manifest.json"]);
     assert.equal(manifest.files["python-core/win32/ElfieNestCore.exe"], undefined);
+    assert.deepEqual(validateResourceManifest(root, manifest), []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("Linux resource manifest requires and validates the dedicated World authority", () => {
+  // Given
+  const root = createResourceTree("linux-x64");
+  try {
+    // When
+    const required = requiredResourcePathsForTarget("linux-x64");
+    const manifest = buildResourceManifest(root, "0.1.0", SOURCE_REVISION, "linux-x64");
+
+    // Then
+    assert.ok(required.includes("godot-linux-dedicated/ElfieNestRuntime"));
+    assert.ok(required.includes("godot-linux-dedicated/build-manifest.json"));
+    assert.ok(manifest.files["godot-linux-dedicated/ElfieNestRuntime"]);
+    assert.ok(manifest.files["godot-linux-dedicated/build-manifest.json"]);
     assert.deepEqual(validateResourceManifest(root, manifest), []);
   } finally {
     rmSync(root, { recursive: true, force: true });

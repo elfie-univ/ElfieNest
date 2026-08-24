@@ -184,20 +184,102 @@ class SQLiteSetupAdapter:
             ) from error
 
     def fail(self, action_key: str, error: str) -> None:
-        self._mutate(
-            """UPDATE local_installations SET install_action=?,task_status='failed',last_error=?,
-               updated_at=CURRENT_TIMESTAMP WHERE installation_id='local' AND task_status='running'""",
-            (action_key or "unknown", error[:512]),
-            require_row=True,
+        self._finish_running(
+            task_status="failed",
+            action_key=action_key or "unknown",
+            error=error[:512],
+        )
+
+    def cancel_installation(self) -> StoredSetupInstallation:
+        return self._finish_running(
+            task_status="cancelled",
+            action_key="cancelled",
+            error=None,
         )
 
     def recover_running(self, error: str) -> None:
-        self._mutate(
-            """UPDATE local_installations SET task_status='failed',last_error=?,updated_at=CURRENT_TIMESTAMP
-               WHERE installation_id='local' AND task_status='running'""",
-            (error[:512],),
-            ensure_row=False,
-        )
+        try:
+            with app_sqlite_connection(self._db_path) as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    """SELECT task_status,setup_draft_json FROM local_installations
+                       WHERE installation_id='local'"""
+                ).fetchone()
+                if row is None or str(row[0]) not in {
+                    "running",
+                    "failed",
+                    "cancelled",
+                }:
+                    connection.commit()
+                    return
+                unlocked_draft = _unlocked_draft_json(row[1])
+                if str(row[0]) == "running":
+                    connection.execute(
+                        """UPDATE local_installations SET task_status='failed',last_error=?,
+                           setup_draft_json=?,updated_at=CURRENT_TIMESTAMP
+                           WHERE installation_id='local' AND task_status='running'""",
+                        (error[:512], unlocked_draft),
+                    )
+                else:
+                    connection.execute(
+                        """UPDATE local_installations SET setup_draft_json=?,
+                           updated_at=CURRENT_TIMESTAMP WHERE installation_id='local'""",
+                        (unlocked_draft,),
+                    )
+                connection.commit()
+        except (
+            sqlite3.DatabaseError,
+            TypeError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as cause:
+            raise SetupInstallationPortError(
+                "unable to recover Setup installation"
+            ) from cause
+
+    def _finish_running(
+        self,
+        *,
+        task_status: Literal["failed", "cancelled"],
+        action_key: str,
+        error: Optional[str],
+    ) -> StoredSetupInstallation:
+        try:
+            with app_sqlite_connection(self._db_path) as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    """SELECT setup_draft_json FROM local_installations
+                       WHERE installation_id='local' AND task_status='running'"""
+                ).fetchone()
+                if row is None:
+                    raise SetupInstallationPortError("Setup task no longer running")
+                cursor = connection.execute(
+                    """UPDATE local_installations SET install_action=?,task_status=?,last_error=?,
+                       setup_draft_json=?,updated_at=CURRENT_TIMESTAMP
+                       WHERE installation_id='local' AND task_status='running'""",
+                    (
+                        action_key,
+                        task_status,
+                        error,
+                        _unlocked_draft_json(row[0]),
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise SetupInstallationPortError("Setup task no longer running")
+                result = _installation(self._read_installation_row(connection))
+                connection.commit()
+                return result
+        except SetupInstallationPortError:
+            raise
+        except (
+            sqlite3.DatabaseError,
+            TypeError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as cause:
+            raise SetupInstallationPortError(
+                "unable to finish Setup installation"
+            ) from cause
 
     def _update_draft(
         self, update: Callable[[dict[str, object]], None]
@@ -323,14 +405,14 @@ def _default_installation() -> StoredSetupInstallation:
 
 def _installation(row: sqlite3.Row) -> StoredSetupInstallation:
     task = str(row[4])
-    if task not in {"idle", "running", "failed", "completed"}:
+    if task not in {"idle", "running", "failed", "completed", "cancelled"}:
         task = "idle"
     return StoredSetupInstallation(
         None if row[0] is None else int(row[0]),
         str(row[1]),
         None if row[2] is None else int(row[2]),
         None if row[3] is None else str(row[3]),
-        cast(Literal["idle", "running", "failed", "completed"], task),
+        cast(Literal["idle", "running", "failed", "completed", "cancelled"], task),
         int(row[5]),
         None if row[6] is None else str(row[6]),
         None if row[7] is None else str(row[7]),
@@ -355,6 +437,16 @@ def _integer(value: object) -> Optional[int]:
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError("invalid Setup integer")
     return value
+
+
+def _unlocked_draft_json(raw: object) -> str:
+    values = (
+        _default_draft_mapping()
+        if raw is None
+        else cast(dict[str, object], json.loads(str(raw)))
+    )
+    values["locked_at"] = None
+    return json.dumps(values, ensure_ascii=False)
 
 
 __all__ = ("SQLiteSetupAdapter",)

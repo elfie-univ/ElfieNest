@@ -1,17 +1,42 @@
 from __future__ import annotations
 
+import hashlib
 import signal
 import subprocess
 from pathlib import Path
 
 import pytest
 
+from app.orchestration.lifecycle.ports import ProcessIdentityEvidence
 from infrastructure.models.ollama.ollama_platform import (
     OFFICIAL_INSTALL_URLS,
+    DownloadedInstaller,
     OllamaBinding,
+    OllamaInteractiveInstallRequired,
     OllamaPlatformAdapter,
     OllamaProcessIdentity,
 )
+
+
+class _MissingIdentityReader:
+    def read(self, _pid: int) -> ProcessIdentityEvidence | None:
+        return None
+
+
+class _SequenceIdentityReader:
+    def __init__(self, evidence: list[ProcessIdentityEvidence | None]) -> None:
+        self._evidence = evidence
+
+    def read(self, _pid: int) -> ProcessIdentityEvidence | None:
+        return self._evidence.pop(0)
+
+
+def _evidence(identity: OllamaProcessIdentity) -> ProcessIdentityEvidence:
+    return ProcessIdentityEvidence(
+        identity.pid,
+        identity.executable,
+        identity.birth_identity,
+    )
 
 
 class _Response:
@@ -30,6 +55,7 @@ class _Response:
 
 def test_adapter_reports_deleted_binding_without_scanning_another_endpoint() -> None:
     adapter = OllamaPlatformAdapter(
+        process_identity_reader=_MissingIdentityReader(),
         platform_name="linux",
         request_opener=lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("down")),
     )
@@ -50,11 +76,15 @@ def test_adapter_reports_deleted_binding_without_scanning_another_endpoint() -> 
 
 def test_official_installer_is_downloaded_then_runs_only_the_fixed_template() -> None:
     commands: list[tuple[str, ...]] = []
+    run_options: list[dict[str, object]] = []
     adapter = OllamaPlatformAdapter(
+        process_identity_reader=_MissingIdentityReader(),
         platform_name="win32",
         request_opener=lambda *_args, **_kwargs: _Response(b"Write-Output official"),
-        command_runner=lambda command, **_kwargs: (
-            commands.append(tuple(command)) or _Completed(0)
+        command_runner=lambda command, **kwargs: (
+            commands.append(tuple(command))
+            or run_options.append(kwargs)
+            or _Completed(0)
         ),
     )
 
@@ -68,6 +98,34 @@ def test_official_installer_is_downloaded_then_runs_only_the_fixed_template() ->
     assert installer.source_url == OFFICIAL_INSTALL_URLS["win32"]
     assert len(installer.sha256) == 64
     assert commands == [installer.command]
+    assert run_options[0]["timeout"] == 600.0
+
+
+def test_linux_official_installer_requires_an_interactive_terminal(
+    tmp_path: Path,
+) -> None:
+    # Given: an authentic downloaded Linux script and a non-interactive runner.
+    script = tmp_path / "install.sh"
+    script.write_bytes(b"#!/bin/sh\n")
+    commands: list[tuple[str, ...]] = []
+    adapter = OllamaPlatformAdapter(
+        process_identity_reader=_MissingIdentityReader(),
+        platform_name="linux",
+        command_runner=lambda command, **_kwargs: (
+            commands.append(tuple(command)) or _Completed(0)
+        ),
+    )
+    installer = DownloadedInstaller(
+        source_url=OFFICIAL_INSTALL_URLS["linux"],
+        sha256=hashlib.sha256(script.read_bytes()).hexdigest(),
+        script_path=script,
+        command=("/bin/sh", str(script)),
+    )
+
+    # When/Then: Desktop never hides sudo prompts in its background worker.
+    with pytest.raises(OllamaInteractiveInstallRequired, match="终端"):
+        adapter.run_confirmed_installer(installer, user_confirmed=True)
+    assert commands == []
 
 
 def test_official_binding_with_invalid_platform_signature_requires_repair(
@@ -76,6 +134,7 @@ def test_official_binding_with_invalid_platform_signature_requires_repair(
     application = tmp_path / "Ollama.app"
     application.mkdir()
     adapter = OllamaPlatformAdapter(
+        process_identity_reader=_MissingIdentityReader(),
         platform_name="darwin",
         command_runner=lambda *_args, **_kwargs: _Completed(1),
     )
@@ -102,6 +161,7 @@ def test_start_bound_installation_launches_without_waiting_for_serve_process(
     executable.write_text("binary", encoding="utf-8")
     launched: list[tuple[tuple[str, ...], dict[str, object]]] = []
     adapter = OllamaPlatformAdapter(
+        process_identity_reader=_MissingIdentityReader(),
         platform_name="linux",
         process_launcher=lambda command, **kwargs: launched.append(
             (tuple(command), kwargs)
@@ -131,7 +191,45 @@ def test_start_bound_installation_launches_without_waiting_for_serve_process(
     ]
 
 
-def test_darwin_open_helper_returns_the_new_ollama_app_identity(monkeypatch) -> None:
+def test_windows_started_ollama_uses_injected_exact_process_identity(
+    tmp_path: Path,
+) -> None:
+    executable = tmp_path / "ollama.exe"
+    executable.write_text("binary", encoding="utf-8")
+    evidence = ProcessIdentityEvidence(
+        pid=900,
+        executable=str(executable),
+        birth_identity="win32-create:900",
+    )
+
+    class Reader:
+        def read(self, pid: int) -> ProcessIdentityEvidence | None:
+            return evidence if pid == evidence.pid else None
+
+    adapter = OllamaPlatformAdapter(
+        platform_name="win32",
+        process_identity_reader=Reader(),
+        process_launcher=lambda *_args, **_kwargs: _Process(evidence.pid),
+    )
+
+    identity = adapter.start_bound_installation(
+        OllamaBinding(
+            api_base="http://127.0.0.1:11434",
+            platform="win32",
+            install_kind="binary",
+            launch_target=str(executable),
+            version="0.12.0",
+        )
+    )
+
+    assert identity == OllamaProcessIdentity(
+        evidence.pid,
+        evidence.executable,
+        evidence.birth_identity,
+    )
+
+
+def test_darwin_open_helper_returns_the_new_ollama_app_identity() -> None:
     identity = OllamaProcessIdentity(
         900,
         "/Applications/Ollama.app/Contents/MacOS/Ollama",
@@ -145,11 +243,8 @@ def test_darwin_open_helper_returns_the_new_ollama_app_identity(monkeypatch) -> 
         ),
     ]
     launched: list[tuple[tuple[str, ...], dict[str, object]]] = []
-    monkeypatch.setattr(
-        "infrastructure.models.ollama.ollama_platform.process_identity",
-        lambda pid: identity if pid == identity.pid else None,
-    )
     adapter = OllamaPlatformAdapter(
+        process_identity_reader=_SequenceIdentityReader([_evidence(identity)]),
         platform_name="darwin",
         command_runner=lambda *_args, **_kwargs: ps_outputs.pop(0),
         process_launcher=lambda command, **kwargs: (
@@ -175,9 +270,7 @@ def test_darwin_open_helper_returns_the_new_ollama_app_identity(monkeypatch) -> 
     )
 
 
-def test_darwin_existing_ollama_app_is_not_claimed_as_owned(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_darwin_existing_ollama_app_is_not_claimed_as_owned(tmp_path: Path) -> None:
     application = tmp_path / "Ollama.app"
     application.mkdir()
     executable = application / "Contents" / "MacOS" / "Ollama"
@@ -187,11 +280,8 @@ def test_darwin_existing_ollama_app_is_not_claimed_as_owned(
         "birth-900",
     )
     launched: list[tuple[str, ...]] = []
-    monkeypatch.setattr(
-        "infrastructure.models.ollama.ollama_platform.process_identity",
-        lambda pid: identity if pid == identity.pid else None,
-    )
     adapter = OllamaPlatformAdapter(
+        process_identity_reader=_SequenceIdentityReader([_evidence(identity)]),
         platform_name="darwin",
         command_runner=lambda *_args, **_kwargs: _Completed(
             0,
@@ -225,10 +315,6 @@ def test_stop_started_process_targets_only_a_matching_process_group_leader(
     current = [identity, None]
     signals: list[tuple[int, int]] = []
     monkeypatch.setattr(
-        "infrastructure.models.ollama.ollama_platform.process_identity",
-        lambda _pid: current.pop(0),
-    )
-    monkeypatch.setattr(
         "infrastructure.models.ollama.ollama_platform.os.getpgid",
         lambda pid: pid,
     )
@@ -237,9 +323,12 @@ def test_stop_started_process_targets_only_a_matching_process_group_leader(
         lambda pid, sig: signals.append((pid, sig)),
     )
 
-    OllamaPlatformAdapter(platform_name="darwin").stop_started_process(
-        identity, timeout_seconds=0.1
-    )
+    OllamaPlatformAdapter(
+        platform_name="darwin",
+        process_identity_reader=_SequenceIdentityReader(
+            [None if item is None else _evidence(item) for item in current]
+        ),
+    ).stop_started_process(identity, timeout_seconds=0.1)
 
     assert signals == [(identity.pid, signal.SIGTERM)]
 
@@ -250,6 +339,7 @@ def test_linux_official_binding_requires_recorded_script_provenance(
     executable = tmp_path / "ollama"
     executable.write_text("binary", encoding="utf-8")
     adapter = OllamaPlatformAdapter(
+        process_identity_reader=_MissingIdentityReader(),
         platform_name="linux",
         request_opener=lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("down")),
     )

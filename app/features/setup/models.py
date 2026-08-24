@@ -104,6 +104,7 @@ class SetupOllamaResult:
     state: SetupOllamaState
     endpoint: Optional[str]
     version: Optional[str]
+    platform: Literal["darwin", "linux", "win32"]
 
 
 __all__ = tuple(
