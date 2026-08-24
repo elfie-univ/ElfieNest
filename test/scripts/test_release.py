@@ -664,13 +664,23 @@ def test_native_installers_publish_the_global_cli_launcher_contract() -> None:
     assert "launchctl asuser" in mac
     assert "-gc" in mac
     assert '-f "$app"' in mac
+    assert "install_owned_launcher" in mac
+    assert 'readlink "$launcher"' in mac
+    assert "Refusing to replace launcher not owned by ElfieNest" in mac
+    assert "ln -sfn" not in mac
     assert "/usr/local/bin/elfienest" in linux_install
     assert 'app_root="/opt/ElfieNest"' in linux_install
     assert 'gui="$app_root/elfienest-gui"' in linux_install
-    assert 'ln -sfn "$gui" /usr/bin/elfienest-gui' in linux_install
+    assert "install_owned_launcher" in linux_install
+    assert 'readlink "$launcher"' in linux_install
+    assert "Refusing to replace launcher not owned by ElfieNest" in linux_install
+    assert "ln -sfn" not in linux_install
     assert "resources/management-cli/ElfieNestCli" in linux_install
     assert "/usr/bin/elfienest-gui" in linux_remove
     assert "resources/management-cli/ElfieNestCli" in linux_remove
+    assert 'cli="/opt/ElfieNest/resources/management-cli/ElfieNestCli"' in linux_remove
+    assert 'remove_owned_launcher "$launcher" "$cli"' in linux_remove
+    assert "*/resources/management-cli/ElfieNestCli" not in linux_remove
     assert "management-cli\\ElfieNestCli.exe" in windows
     assert "customInstall" in windows
     assert "Call ElfieNestAddLauncherPath" not in windows
@@ -685,6 +695,9 @@ def test_native_installers_publish_the_global_cli_launcher_contract() -> None:
     assert "${UnStrRep}" in windows
     assert "\n${StrRep}\n" not in windows
     assert "Call ElfieNestRemoveLauncherPath" not in windows
+    assert '${StrStr} $2 $1 ";$INSTDIR\\bin;"' in windows
+    assert '${UnStrRep} $2 $1 ";$INSTDIR\\bin;" ";"' in windows
+    assert 'Delete "$INSTDIR\\bin\\elfienest.cmd"' in windows
 
 
 def test_release_cli_only_reports_success_after_its_native_pipeline_finishes(

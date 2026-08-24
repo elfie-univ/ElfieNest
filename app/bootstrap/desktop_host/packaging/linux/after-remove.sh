@@ -2,22 +2,19 @@
 
 set -eu
 
+remove_owned_launcher() {
+    launcher="$1"
+    expected_target="$2"
+
+    if [ -L "$launcher" ] && [ "$(readlink "$launcher")" = "$expected_target" ]; then
+        rm -f "$launcher"
+    fi
+}
+
 launcher="/usr/local/bin/elfienest"
-if [ -L "$launcher" ]; then
-    target="$(readlink "$launcher")"
-    case "$target" in
-        */resources/management-cli/ElfieNestCli)
-            rm -f "$launcher"
-            ;;
-    esac
-fi
+cli="/opt/ElfieNest/resources/management-cli/ElfieNestCli"
+remove_owned_launcher "$launcher" "$cli"
 
 gui_launcher="/usr/bin/elfienest-gui"
-if [ -L "$gui_launcher" ]; then
-    target="$(readlink "$gui_launcher")"
-    case "$target" in
-        /opt/ElfieNest/elfienest-gui)
-            rm -f "$gui_launcher"
-            ;;
-    esac
-fi
+gui="/opt/ElfieNest/elfienest-gui"
+remove_owned_launcher "$gui_launcher" "$gui"

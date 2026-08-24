@@ -29,6 +29,10 @@
 第一次打开时，应用需要准备本地服务，可能会比平时多等一会儿。不要同时打开多个
 ElfieNest 窗口。
 
+macOS 和 Linux 安装器会把管理命令发布到 `/usr/local/bin/elfienest`。如果这里已经有
+普通文件，或符号链接指向另一个程序，安装器会报告冲突并停止，不会覆盖原有命令。请先
+确认原命令由谁管理，妥善移动或移除后再重新安装。
+
 预览版 macOS 和 Windows 安装包可能会提示“未签名”或“未公证”。请先确认文件确实
 来自官方 Releases 页面，不要为了来源不明的文件关闭电脑安全设置。
 
@@ -39,8 +43,27 @@ ElfieNest 窗口。
 
 ## 如何卸载
 
-使用系统自带的常规卸载流程；系统支持时，原生安装器也会移除全局 `elfienest` launcher。
-卸载前先确认是否需要备份或保留 Nest 数据；不确定时请询问管理员，不要手动删除数据目录。
+移除应用不会删除 `ELFIE_HOME`（默认通常是 `~/.elfienest`）和 Nest 数据。如果还要删除
+配置或数据，请在移除应用**之前**运行 `elfienest uninstall`，并选择对应的清理选项。
+这个命令只处理数据，不会移除已经安装的应用。
+
+- **Windows：**打开“设置 > 应用 > 已安装的应用”，选择 **ElfieNest** 后点击“卸载”。
+  卸载器会移除自己安装的应用文件、命令 launcher 和 PATH 项。
+- **Linux（DEB）：**运行 `sudo apt remove elfienest-desktop`。软件包只会删除仍然指向
+  当前 ElfieNest 安装文件的 launcher。
+- **macOS（PKG）：**macOS 没有统一的 PKG 卸载按钮，请运行下面的命令。只有 launcher
+  仍然指向当前 ElfieNest 应用时才会将它移除：
+
+  ```bash
+  if [ "$(readlink /usr/local/bin/elfienest 2>/dev/null || true)" = "/Applications/ElfieNest.app/Contents/Resources/management-cli/ElfieNestCli" ]; then
+    sudo rm -f /usr/local/bin/elfienest
+  fi
+  sudo rm -rf /Applications/ElfieNest.app
+  sudo pkgutil --forget com.elfienest.desktop
+  ```
+
+如果这个 Nest 由多人使用，或你不确定数据是否应该保留，请先备份并询问 Nest 管理员，
+再选择数据清理选项。
 
 ## 下一步
 
