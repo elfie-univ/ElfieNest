@@ -226,6 +226,7 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     renderPanel()
 
     const region = await screen.findByRole("region", { name: "Interstellar travel" })
+    await screen.findByText("Enabled")
     expect(region).toHaveTextContent("Enabled")
     expect(region).not.toHaveTextContent("Please provide at least one valid model subscription")
   })
@@ -272,6 +273,7 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     renderPanel()
 
     const region = await screen.findByRole("region", { name: "Interstellar travel" })
+    await screen.findByText("Enabled")
     expect(region).toHaveTextContent("Enabled")
   })
 
@@ -280,6 +282,7 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     renderPanel()
 
     const region = await screen.findByRole("region", { name: "Interstellar travel" })
+    await screen.findByText("Not enabled")
     expect(region).toHaveTextContent("Not enabled")
     expect(region).toHaveTextContent("Please provide at least one valid model subscription")
   })

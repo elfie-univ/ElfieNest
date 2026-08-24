@@ -14,9 +14,6 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.internal.build import package_python_core
-from scripts.internal.release.release_install_smoke import (
-    run_install_smoke as execute_install_smoke,
-)
 from scripts.internal.release.release_planning import (
     ReleasePlanError,
     ReleaseRequest,
@@ -29,6 +26,24 @@ from scripts.internal.release.release_planning import (
 
 SUPPORTED_TARGETS: Final[tuple[str, ...]] = package_python_core.TARGETS
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[1]
+
+
+def execute_install_smoke(
+    target: str,
+    artifact: Path,
+    evidence_output: Path,
+    *,
+    cycles: int = 1,
+) -> dict[str, object]:
+    """Load the optional native smoke runner only after environment checks."""
+    from scripts.internal.release.release_install_smoke import run_install_smoke
+
+    return run_install_smoke(
+        target,
+        artifact,
+        evidence_output,
+        cycles=cycles,
+    )
 
 
 def parse_args(arguments: Optional[Sequence[str]] = None) -> argparse.Namespace:
