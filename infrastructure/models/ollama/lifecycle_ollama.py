@@ -14,9 +14,9 @@ from app.features.configuration.providers import (
     ProviderPortError,
     StoredLocalProviderBinding,
 )
+from app.orchestration.lifecycle.ports import ProcessIdentityReaderPort
 from infrastructure.models.ollama.ollama_platform import (
     OllamaProcessIdentity,
-    process_identity,
 )
 
 if os.name == "nt":
@@ -77,10 +77,12 @@ class OllamaLifecycleAdapter:
         self,
         technology: ProviderLocalTechnologyPort,
         *,
+        process_identity_reader: ProcessIdentityReaderPort,
         runtime_root: Optional[Path] = None,
         binding_loader: Optional[BindingLoader] = None,
     ) -> None:
         self._technology = technology
+        self._process_identity_reader = process_identity_reader
         self._runtime_root = runtime_root
         self._binding_loader = binding_loader
 
@@ -123,7 +125,7 @@ class OllamaLifecycleAdapter:
             for service_key, raw_state in tuple(services.items()):
                 if raw_state.get("origin") != "ELFIENEST_OWNED":
                     continue
-                state = _prune_holders(raw_state)
+                state = self._prune_holders(raw_state)
                 if state.get("holders"):
                     if state != raw_state:
                         services[service_key] = state
@@ -131,7 +133,7 @@ class OllamaLifecycleAdapter:
                     continue
 
                 identity = _state_process_identity(state)
-                if identity is None or not _identity_is_current(identity):
+                if identity is None or not self._identity_is_current(identity):
                     if self._probe_state(state) == "healthy":
                         services[service_key] = _external_state(state)
                         repaired.append(
@@ -181,7 +183,7 @@ class OllamaLifecycleAdapter:
         service_key = _service_key(binding.api_base)
         if not may_start and self._technology.probe(binding).state != "healthy":
             return None
-        holder_identity = process_identity(os.getpid())
+        holder_identity = self._read_identity(os.getpid())
         if holder_identity is None:
             if may_start:
                 raise OllamaLeaseError("无法取得 Core holder 的精确进程身份")
@@ -191,7 +193,7 @@ class OllamaLifecycleAdapter:
         with self._locked_state() as (state_path, services):
             state = services.get(service_key)
             if state is not None:
-                state = _prune_holders(state)
+                state = self._prune_holders(state)
                 origin = state.get("origin")
                 if origin == "ELFIENEST_OWNED":
                     if holder_identity is None:
@@ -199,7 +201,7 @@ class OllamaLifecycleAdapter:
                             "无法取得当前 Core holder 的精确进程身份"
                         )
                     owned_identity = _state_process_identity(state)
-                    if owned_identity is not None and _identity_is_current(
+                    if owned_identity is not None and self._identity_is_current(
                         owned_identity
                     ):
                         state["holders"] = _add_holder(
@@ -289,7 +291,7 @@ class OllamaLifecycleAdapter:
             raise OllamaLeaseError(str(error)) from error
         if not isinstance(process, OllamaProcessIdentity):
             raise OllamaLeaseError("Ollama 启动未返回精确进程身份")
-        if not _identity_is_current(process):
+        if not self._identity_is_current(process):
             raise OllamaLeaseError("Ollama 启动进程身份校验失败")
         return process
 
@@ -327,7 +329,7 @@ class OllamaLifecycleAdapter:
                 return
 
             owned_identity = _state_process_identity(state)
-            if owned_identity is None or not _identity_is_current(owned_identity):
+            if owned_identity is None or not self._identity_is_current(owned_identity):
                 if self._probe_state(state) == "healthy":
                     services[service_key] = _external_state(state)
                 else:
@@ -352,6 +354,34 @@ class OllamaLifecycleAdapter:
                 raise OllamaLeaseError(str(error)) from error
             services.pop(service_key, None)
             _write_services(state_path, services)
+
+    def _read_identity(self, pid: int) -> OllamaProcessIdentity | None:
+        evidence = self._process_identity_reader.read(pid)
+        if evidence is None:
+            return None
+        return OllamaProcessIdentity(
+            evidence.pid,
+            evidence.executable,
+            evidence.birth_identity,
+        )
+
+    def _identity_is_current(self, identity: OllamaProcessIdentity) -> bool:
+        current = self._read_identity(identity.pid)
+        return current is not None and current == identity
+
+    def _prune_holders(self, state: Mapping[str, Any]) -> dict[str, Any]:
+        result = dict(state)
+        raw_holders = state.get("holders")
+        holders: dict[str, dict[str, Any]] = {}
+        if isinstance(raw_holders, Mapping):
+            for key, raw in raw_holders.items():
+                if not isinstance(key, str) or not isinstance(raw, Mapping):
+                    continue
+                identity = _state_process_identity({"process": raw})
+                if identity is not None and self._identity_is_current(identity):
+                    holders[key] = dict(raw)
+        result["holders"] = holders
+        return result
 
     @contextmanager
     def _locked_state(self) -> Iterator[tuple[Path, dict[str, dict[str, Any]]]]:
@@ -451,11 +481,6 @@ def _state_process_identity(state: Mapping[str, Any]) -> OllamaProcessIdentity |
     return OllamaProcessIdentity(pid, executable, birth_identity)
 
 
-def _identity_is_current(identity: OllamaProcessIdentity) -> bool:
-    current = process_identity(identity.pid)
-    return current is not None and current == identity
-
-
 def _add_holder(
     raw_holders: object,
     holder_id: str,
@@ -474,21 +499,6 @@ def _add_holder(
         "birth_identity": identity.birth_identity,
     }
     return holders
-
-
-def _prune_holders(state: Mapping[str, Any]) -> dict[str, Any]:
-    result = dict(state)
-    raw_holders = state.get("holders")
-    holders: dict[str, dict[str, Any]] = {}
-    if isinstance(raw_holders, Mapping):
-        for key, raw in raw_holders.items():
-            if not isinstance(key, str) or not isinstance(raw, Mapping):
-                continue
-            identity = _state_process_identity({"process": raw})
-            if identity is not None and _identity_is_current(identity):
-                holders[key] = dict(raw)
-    result["holders"] = holders
-    return result
 
 
 def _binding_from_state(state: Mapping[str, Any]) -> StoredLocalProviderBinding:

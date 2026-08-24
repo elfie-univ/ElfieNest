@@ -14,6 +14,7 @@ from typing import Final, Mapping, Optional, Sequence, Tuple
 
 from app.orchestration.lifecycle.ports import (
     LocalProcessEntry,
+    ProcessIdentityEvidence,
     ProcessInspectorPort,
     ProcessSnapshot,
 )
@@ -161,6 +162,34 @@ class DefaultProcessInspector:
         )
 
 
+class DefaultProcessIdentityReader:
+    """Read the exact creation identity and executable through native OS facts."""
+
+    def __init__(
+        self,
+        inspector: Optional[ProcessInspectorPort] = None,
+        proc_root: Optional[Path] = None,
+    ) -> None:
+        self._proc_root = proc_root or Path("/proc")
+        self._inspector = inspector or DefaultProcessInspector(self._proc_root)
+
+    def read(self, pid: int) -> Optional[ProcessIdentityEvidence]:
+        if pid <= 0:
+            return None
+        try:
+            birth_identity = self._inspector.birth_identity(pid)
+            executable = (
+                _windows_process_executable(pid)
+                if os.name == "nt"
+                else _posix_process_executable(pid, self._proc_root, self._inspector)
+            )
+        except (OSError, RuntimeError, subprocess.SubprocessError):
+            return None
+        if not birth_identity or not executable:
+            return None
+        return ProcessIdentityEvidence(pid, executable, birth_identity)
+
+
 _WINDOWS_PROCESS_QUERY_LIMITED_INFORMATION: Final = 0x1000
 _WINDOWS_STILL_ACTIVE: Final = 259
 
@@ -252,6 +281,53 @@ def _windows_process_birth_identity(pid: int) -> str:
         return f"win32-create:{value}"
     finally:
         kernel32.CloseHandle(handle)
+
+
+def _windows_process_executable(pid: int) -> str:
+    """Read the executable path without PowerShell, CIM, or Unix process tools."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32, handle = _windows_open_process(pid)
+    try:
+        kernel32.QueryFullProcessImageNameW.argtypes = [
+            wintypes.HANDLE,
+            wintypes.DWORD,
+            wintypes.LPWSTR,
+            ctypes.POINTER(wintypes.DWORD),
+        ]
+        kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+        buffer = ctypes.create_unicode_buffer(32768)
+        size = wintypes.DWORD(len(buffer))
+        if not kernel32.QueryFullProcessImageNameW(
+            handle,
+            0,
+            buffer,
+            ctypes.byref(size),
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())  # type: ignore[attr-defined]
+        executable = buffer.value[: size.value].strip()
+        if not executable:
+            raise OSError(f"process executable is unavailable for PID {pid}")
+        return executable
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def _posix_process_executable(
+    pid: int,
+    proc_root: Path,
+    inspector: ProcessInspectorPort,
+) -> str:
+    """Read the executable from procfs, with the native command as a fallback."""
+    try:
+        executable = os.readlink(proc_root / str(pid) / "exe")
+    except (FileNotFoundError, OSError):
+        command = inspector.command(pid)
+        if not command:
+            raise OSError(f"process executable is unavailable for PID {pid}") from None
+        executable = command[0]
+    return str(Path(executable).expanduser().resolve(strict=False))
 
 
 def _windows_process_command(pid: int) -> Tuple[str, ...]:

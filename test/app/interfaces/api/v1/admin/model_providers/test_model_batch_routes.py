@@ -20,6 +20,7 @@ from infrastructure.persistence.provider_connections import (
 from infrastructure.persistence.reports.validation_reports import (
     write_model_validation_report,
 )
+from infrastructure.platform.lifecycle.process import DefaultProcessIdentityReader
 from test.support.provider import provider_models_adapter
 
 
@@ -48,7 +49,10 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         references=NoProviderReferences(),
         technology=adapter,
         local_state=adapter,
-        local_technology=PublicOllamaProviderAdapter(catalog=load_provider_catalog()),
+        local_technology=PublicOllamaProviderAdapter(
+            catalog=load_provider_catalog(),
+            process_identity_reader=DefaultProcessIdentityReader(),
+        ),
     )
     application.dependency_overrides[require_user] = lambda: AccountPrincipal(
         1,

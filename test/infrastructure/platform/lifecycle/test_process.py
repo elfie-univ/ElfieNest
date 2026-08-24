@@ -62,6 +62,46 @@ def test_windows_process_inspector_uses_native_birth_identity(monkeypatch) -> No
     assert process.DefaultProcessInspector().birth_identity(17) == "win32-create:17"
 
 
+def test_windows_process_identity_reader_uses_only_native_kernel_evidence(
+    monkeypatch,
+) -> None:
+    real_os = process.os
+
+    class WindowsOsProxy:
+        name = "nt"
+
+        def __getattr__(self, attribute: str):
+            return getattr(real_os, attribute)
+
+    monkeypatch.setattr(process, "os", WindowsOsProxy())
+    monkeypatch.setattr(
+        process,
+        "_windows_process_birth_identity",
+        lambda pid: f"win32-create:{pid}",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        process,
+        "_windows_process_executable",
+        lambda pid: rf"C:\Program Files\Ollama\ollama-{pid}.exe",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        process.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("Windows process identity must not invoke CIM or ps")
+        ),
+    )
+
+    identity = process.DefaultProcessIdentityReader().read(17)
+
+    assert identity is not None
+    assert identity.pid == 17
+    assert identity.birth_identity == "win32-create:17"
+    assert identity.executable == r"C:\Program Files\Ollama\ollama-17.exe"
+
+
 def test_windows_process_inspector_uses_native_process_queries(monkeypatch) -> None:
     real_os = process.os
 

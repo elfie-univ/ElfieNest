@@ -34,6 +34,21 @@ class ProcessSnapshot:
 
 
 @dataclass(frozen=True)
+class ProcessIdentityEvidence:
+    """Exact OS identity used before a managed process can be owned or stopped."""
+
+    pid: int
+    executable: str
+    birth_identity: str
+
+
+class ProcessIdentityReaderPort(Protocol):
+    """Read PID-reuse-safe process evidence without exposing an OS handle."""
+
+    def read(self, pid: int) -> Optional[ProcessIdentityEvidence]: ...
+
+
+@dataclass(frozen=True)
 class LocalProcessEntry:
     """Technical process-table facts used by local diagnostics."""
 

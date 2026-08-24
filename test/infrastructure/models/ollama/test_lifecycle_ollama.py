@@ -1,15 +1,37 @@
+from __future__ import annotations
+
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Callable
 from unittest.mock import Mock
 
 from app.features.configuration.providers import (
     StoredLocalProviderBinding,
     StoredLocalProviderProbe,
 )
+from app.orchestration.lifecycle.ports import ProcessIdentityEvidence
 from infrastructure.models.ollama import lifecycle_ollama
 from infrastructure.models.ollama.lifecycle_ollama import OllamaLifecycleAdapter
 from infrastructure.models.ollama.ollama_platform import OllamaProcessIdentity
+
+
+class _IdentityReader:
+    def __init__(
+        self,
+        read: Callable[[int], OllamaProcessIdentity | None],
+    ) -> None:
+        self._read = read
+
+    def read(self, pid: int) -> ProcessIdentityEvidence | None:
+        identity = self._read(pid)
+        if identity is None:
+            return None
+        return ProcessIdentityEvidence(
+            identity.pid,
+            identity.executable,
+            identity.birth_identity,
+        )
 
 
 def test_ollama_service_state_skips_posix_fchmod_on_windows(
@@ -52,12 +74,55 @@ def test_lifecycle_ollama_only_starts_an_unhealthy_existing_binding() -> None:
         StoredLocalProviderProbe("unavailable", binding.api_base),
         StoredLocalProviderProbe("unavailable", binding.api_base),
     )
-    adapter = OllamaLifecycleAdapter(technology)
+    adapter = OllamaLifecycleAdapter(
+        technology,
+        process_identity_reader=_IdentityReader(lambda _pid: None),
+    )
 
     assert adapter.ready() is False
     adapter.prepare()
 
     technology.start.assert_called_once_with(binding)
+
+
+def test_configured_ollama_lease_uses_injected_holder_identity(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    binding = StoredLocalProviderBinding(
+        api_base="http://127.0.0.1:11434",
+        platform="win32",
+        install_kind="binary",
+        launch_target=r"C:\Program Files\Ollama\ollama.exe",
+    )
+    holder = ProcessIdentityEvidence(
+        pid=501,
+        executable=r"C:\Program Files\ElfieNest\ElfieNestCore.exe",
+        birth_identity="win32-create:501",
+    )
+
+    class Reader:
+        def read(self, pid: int) -> ProcessIdentityEvidence | None:
+            return holder if pid == holder.pid else None
+
+    technology = Mock()
+    technology.default_binding.return_value = binding
+    technology.probe.return_value = StoredLocalProviderProbe(
+        "healthy", binding.api_base
+    )
+    monkeypatch.setattr(
+        "infrastructure.models.ollama.lifecycle_ollama.os.getpid",
+        lambda: holder.pid,
+    )
+
+    lease = OllamaLifecycleAdapter(
+        technology,
+        runtime_root=tmp_path / "shared",
+        process_identity_reader=Reader(),
+    ).acquire(owner_id="core", instance_id="one", generation=1)
+
+    assert lease is not None
+    assert lease.origin == "EXTERNAL"
 
 
 def test_shared_owned_ollama_is_reused_until_the_last_holder_releases(
@@ -78,10 +143,6 @@ def test_shared_owned_ollama_is_reused_until_the_last_holder_releases(
     def current_identity(pid: int):
         return live.get(pid)
 
-    monkeypatch.setattr(
-        "infrastructure.models.ollama.lifecycle_ollama.process_identity",
-        current_identity,
-    )
     monkeypatch.setattr(
         "infrastructure.models.ollama.lifecycle_ollama.os.getpid",
         lambda: 501,
@@ -115,10 +176,14 @@ def test_shared_owned_ollama_is_reused_until_the_last_holder_releases(
 
     technology = Technology()
     first = OllamaLifecycleAdapter(
-        technology, runtime_root=tmp_path / "shared"
+        technology,
+        runtime_root=tmp_path / "shared",
+        process_identity_reader=_IdentityReader(current_identity),
     ).acquire(owner_id="cli-a", instance_id="one", generation=1)
     second = OllamaLifecycleAdapter(
-        technology, runtime_root=tmp_path / "shared"
+        technology,
+        runtime_root=tmp_path / "shared",
+        process_identity_reader=_IdentityReader(current_identity),
     ).acquire(owner_id="cli-b", instance_id="two", generation=1)
 
     # When: the first Core exits before the second.
@@ -150,10 +215,6 @@ def test_orphaned_owned_ollama_is_reused_by_the_next_runtime(
     current_pid = [501]
     live = {501: holder_one}
 
-    monkeypatch.setattr(
-        "infrastructure.models.ollama.lifecycle_ollama.process_identity",
-        lambda pid: live.get(pid),
-    )
     monkeypatch.setattr(
         "infrastructure.models.ollama.lifecycle_ollama.os.getpid",
         lambda: current_pid[0],
@@ -187,7 +248,9 @@ def test_orphaned_owned_ollama_is_reused_by_the_next_runtime(
 
     technology = Technology()
     first = OllamaLifecycleAdapter(
-        technology, runtime_root=tmp_path / "shared"
+        technology,
+        runtime_root=tmp_path / "shared",
+        process_identity_reader=_IdentityReader(lambda pid: live.get(pid)),
     ).acquire(owner_id="cli-a", instance_id="one", generation=1)
     assert first is not None
 
@@ -197,7 +260,9 @@ def test_orphaned_owned_ollama_is_reused_by_the_next_runtime(
     current_pid[0] = holder_two.pid
     live[holder_two.pid] = holder_two
     second = OllamaLifecycleAdapter(
-        technology, runtime_root=tmp_path / "shared"
+        technology,
+        runtime_root=tmp_path / "shared",
+        process_identity_reader=_IdentityReader(lambda pid: live.get(pid)),
     ).acquire(owner_id="cli-b", instance_id="two", generation=1)
 
     assert second is not None
@@ -222,10 +287,6 @@ def test_reused_pid_never_allows_stopping_a_different_ollama_process(
     reused_pid = OllamaProcessIdentity(900, "/usr/local/bin/ollama", "new")
     live = {501: holder, 900: reused_pid}
     monkeypatch.setattr(
-        "infrastructure.models.ollama.lifecycle_ollama.process_identity",
-        lambda pid: live.get(pid),
-    )
-    monkeypatch.setattr(
         "infrastructure.models.ollama.lifecycle_ollama.os.getpid",
         lambda: 501,
     )
@@ -237,7 +298,11 @@ def test_reused_pid_never_allows_stopping_a_different_ollama_process(
     )
 
     # Seed an owned record whose PID has since been reused with a new birth ID.
-    adapter = OllamaLifecycleAdapter(technology, runtime_root=tmp_path / "shared")
+    adapter = OllamaLifecycleAdapter(
+        technology,
+        runtime_root=tmp_path / "shared",
+        process_identity_reader=_IdentityReader(lambda pid: live.get(pid)),
+    )
     state_root = tmp_path / "shared"
     state_root.mkdir(parents=True)
     (state_root / "services.json").write_text(
@@ -270,10 +335,6 @@ def test_healthy_preexisting_ollama_is_external_and_never_stopped(
     )
     holder = OllamaProcessIdentity(501, "/usr/local/bin/python", "holder")
     monkeypatch.setattr(
-        "infrastructure.models.ollama.lifecycle_ollama.process_identity",
-        lambda pid: holder if pid == 501 else None,
-    )
-    monkeypatch.setattr(
         "infrastructure.models.ollama.lifecycle_ollama.os.getpid",
         lambda: 501,
     )
@@ -284,7 +345,11 @@ def test_healthy_preexisting_ollama_is_external_and_never_stopped(
     )
 
     lease = OllamaLifecycleAdapter(
-        technology, runtime_root=tmp_path / "shared"
+        technology,
+        runtime_root=tmp_path / "shared",
+        process_identity_reader=_IdentityReader(
+            lambda pid: holder if pid == holder.pid else None
+        ),
     ).acquire(owner_id="cli", instance_id="one", generation=1)
 
     assert lease.origin == "EXTERNAL"
@@ -310,6 +375,7 @@ def test_unconfigured_data_root_does_not_start_default_ollama(
     adapter = OllamaLifecycleAdapter(
         technology,
         runtime_root=tmp_path / "shared",
+        process_identity_reader=_IdentityReader(lambda _pid: None),
         binding_loader=lambda _home: None,
     )
 
@@ -329,10 +395,6 @@ def test_doctor_reclaims_an_exact_owned_ollama_orphan(
     monkeypatch,
 ) -> None:
     identity = OllamaProcessIdentity(900, "/usr/local/bin/ollama", "owned")
-    monkeypatch.setattr(
-        "infrastructure.models.ollama.lifecycle_ollama.process_identity",
-        lambda pid: identity if pid == identity.pid else None,
-    )
     technology = Mock()
     root = tmp_path / "shared"
     root.mkdir(parents=True)
@@ -361,7 +423,11 @@ def test_doctor_reclaims_an_exact_owned_ollama_orphan(
     )
 
     repaired = OllamaLifecycleAdapter(
-        technology, runtime_root=root
+        technology,
+        runtime_root=root,
+        process_identity_reader=_IdentityReader(
+            lambda pid: identity if pid == identity.pid else None
+        ),
     ).reconcile_orphaned_services()
 
     assert repaired == ("stopped orphaned owned Ollama ollama:http://127.0.0.1:11416",)

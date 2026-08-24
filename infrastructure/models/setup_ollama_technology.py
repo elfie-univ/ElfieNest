@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import cast
 
+from app.orchestration.lifecycle.ports import ProcessIdentityReaderPort
 from app.orchestration.setup_installation import (
     SetupDownloadedInstaller,
     SetupOllamaBinding,
@@ -19,8 +20,21 @@ from infrastructure.models.ollama.ollama_platform_commands import official_launc
 
 
 class PublicOllamaSetupTechnologyAdapter:
-    def __init__(self, platform: OllamaPlatformAdapter | None = None) -> None:
-        self._platform = platform or OllamaPlatformAdapter()
+    def __init__(
+        self,
+        platform: OllamaPlatformAdapter | None = None,
+        *,
+        process_identity_reader: ProcessIdentityReaderPort | None = None,
+    ) -> None:
+        if platform is None:
+            if process_identity_reader is None:
+                raise ValueError(
+                    "PublicOllamaSetupTechnologyAdapter requires a process identity reader"
+                )
+            platform = OllamaPlatformAdapter(
+                process_identity_reader=process_identity_reader
+            )
+        self._platform = platform
 
     @property
     def platform(self) -> str:

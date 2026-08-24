@@ -37,6 +37,7 @@ from infrastructure.persistence.provider_references import (
 )
 from infrastructure.persistence.provider_storage import ProviderStorageAdapter
 from infrastructure.persistence.report_storage import ReportStorageAdapter
+from infrastructure.platform.lifecycle.process import DefaultProcessIdentityReader
 
 from .capabilities import build_capability_adapters
 from .food import build_food_service, build_report_repository
@@ -53,6 +54,7 @@ class CliConfigurationContainer:
 
 
 def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
+    process_identity_reader = DefaultProcessIdentityReader()
     layout = (
         None
         if db_path == ":memory:"
@@ -98,7 +100,10 @@ def build_cli_configuration(db_path: str) -> CliConfigurationContainer:
         references=SQLiteProviderReferenceAdapter(db_path),
         technology=provider_models,
         local_state=provider_models,
-        local_technology=PublicOllamaProviderAdapter(catalog=provider_catalog),
+        local_technology=PublicOllamaProviderAdapter(
+            catalog=provider_catalog,
+            process_identity_reader=process_identity_reader,
+        ),
     )
     if db_path != ":memory:":
         providers.ensure_default_local_connection(

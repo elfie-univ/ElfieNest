@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Callable, ContextManager, Final, Literal, Protocol, Tuple
 from urllib.parse import urlsplit
 
+from app.orchestration.lifecycle.ports import ProcessIdentityReaderPort
 from infrastructure.models.ollama.ollama_platform_commands import (
     PlatformName,
     current_platform,
@@ -120,6 +121,7 @@ class OllamaPlatformAdapter:
     def __init__(
         self,
         *,
+        process_identity_reader: ProcessIdentityReaderPort,
         platform_name: PlatformName | None = None,
         request_opener: Callable[
             ..., ContextManager[_ReadableResponse]
@@ -133,6 +135,7 @@ class OllamaPlatformAdapter:
         self._request_opener = request_opener
         self._command_runner = command_runner
         self._process_launcher = process_launcher
+        self._process_identity_reader = process_identity_reader
 
     def probe(self, binding: OllamaBinding | None) -> OllamaProbe:
         if binding is None:
@@ -321,7 +324,7 @@ class OllamaPlatformAdapter:
         if not isinstance(pid, int) or pid <= 0:
             return None
         for _ in range(20):
-            identity = process_identity(pid)
+            identity = self._process_identity(pid)
             if identity is not None:
                 return identity
             time.sleep(0.05)
@@ -394,7 +397,7 @@ class OllamaPlatformAdapter:
             command = fields[1].split(maxsplit=1)[0]
             if os.path.realpath(command) != expected:
                 continue
-            identity = process_identity(pid)
+            identity = self._process_identity(pid)
             if identity is not None:
                 identities[pid] = identity
         return identities
@@ -407,7 +410,7 @@ class OllamaPlatformAdapter:
         timeout_seconds: float = 5.0,
     ) -> None:
         """Stop only an exact process identity previously returned by this adapter."""
-        current = process_identity(identity.pid)
+        current = self._process_identity(identity.pid)
         if current is None or current != identity:
             raise RuntimeError("拒绝停止身份已变化的 Ollama 进程")
         if os.name == "nt":
@@ -421,7 +424,7 @@ class OllamaPlatformAdapter:
             except ProcessLookupError:
                 return
         deadline = time.monotonic() + max(0.0, timeout_seconds)
-        while process_identity(identity.pid) is not None:
+        while self._process_identity(identity.pid) is not None:
             if time.monotonic() >= deadline:
                 if not force:
                     self.stop_started_process(
@@ -432,6 +435,16 @@ class OllamaPlatformAdapter:
                     return
                 raise TimeoutError("Ollama 进程未在期限内退出")
             time.sleep(0.1)
+
+    def _process_identity(self, pid: int) -> OllamaProcessIdentity | None:
+        evidence = self._process_identity_reader.read(pid)
+        if evidence is None:
+            return None
+        return OllamaProcessIdentity(
+            evidence.pid,
+            evidence.executable,
+            evidence.birth_identity,
+        )
 
     def official_binding_after_install(
         self,
@@ -469,55 +482,6 @@ def wait_for_healthy(
         time.sleep(0.25)
         probe = adapter.probe(binding)
     return probe
-
-
-def process_birth_identity(pid: int) -> str:
-    """Return a platform process-start identity, or an empty value if unavailable."""
-    proc_stat = Path("/proc") / str(pid) / "stat"
-    try:
-        if proc_stat.is_file():
-            raw = proc_stat.read_text(encoding="utf-8")
-            remainder = raw.rpartition(")")[2].split()
-            if len(remainder) > 19:
-                return remainder[19]
-    except OSError:
-        pass
-    try:
-        completed = subprocess.run(
-            ["ps", "-p", str(pid), "-o", "lstart="],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return ""
-    return completed.stdout.strip()
-
-
-def process_executable(pid: int) -> str:
-    """Return the current executable path when the platform exposes it."""
-    try:
-        return str(Path(os.readlink(f"/proc/{pid}/exe")).resolve())
-    except (FileNotFoundError, OSError, RuntimeError):
-        try:
-            completed = subprocess.run(
-                ["ps", "-p", str(pid), "-o", "comm="],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return ""
-        return completed.stdout.strip()
-
-
-def process_identity(pid: int) -> OllamaProcessIdentity | None:
-    """Read exact process evidence without granting control from PID alone."""
-    birth = process_birth_identity(pid)
-    executable = process_executable(pid)
-    if not birth or not executable:
-        return None
-    return OllamaProcessIdentity(pid, executable, birth)
 
 
 def _darwin_app_executable(launch_target: str) -> str:
