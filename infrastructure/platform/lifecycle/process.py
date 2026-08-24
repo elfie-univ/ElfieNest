@@ -22,6 +22,9 @@ from infrastructure.platform.lifecycle.windows_job import (
     deterministic_job_name,
 )
 
+RUNTIME_LOG_MAX_BYTES = 10 * 1024 * 1024
+RUNTIME_LOG_BACKUP_COUNT = 3
+
 PID_FILENAME: Final = "elfienest.pid"
 DEFAULT_SERVICE_PORTS: Final[Tuple[int, ...]] = (8000, 8765)
 DEFAULT_HTTP_PORT: Final = 8000
@@ -448,18 +451,39 @@ def get_port_occupant_pid(port: int) -> Optional[int]:
 
 
 def _open_runtime_log(environment: Mapping[str, str]):
-    """Open the selected root's append-only service log for child stdout/stderr."""
-    configured = environment.get("ELFIENEST_RUNTIME_LOG", "").strip()
+    """Open the selected root's restart-rotated raw console stream."""
+    configured = environment.get("ELFIENEST_RUNTIME_CONSOLE_LOG", "").strip()
     if not configured:
-        raise OSError("ELFIENEST_RUNTIME_LOG is required for managed service output")
+        configured = environment.get("ELFIENEST_RUNTIME_LOG", "").strip()
+    if not configured:
+        raise OSError("a managed service output log is required")
     log_path = Path(configured).expanduser()
     log_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     if os.name != "nt":
         os.chmod(log_path.parent, 0o700)
+    _rotate_runtime_log(log_path)
     stream = log_path.open("ab", buffering=0)
     if os.name != "nt":
         os.chmod(log_path, 0o600)
     return stream
+
+
+def _rotate_runtime_log(log_path: Path) -> None:
+    """Rotate only before a newly launched Core inherits the file handle."""
+    if not log_path.exists() or log_path.stat().st_size < RUNTIME_LOG_MAX_BYTES:
+        return
+    for index in range(RUNTIME_LOG_BACKUP_COUNT, 0, -1):
+        source = (
+            log_path
+            if index == 1
+            else log_path.with_name(f"{log_path.name}.{index - 1}")
+        )
+        target = log_path.with_name(f"{log_path.name}.{index}")
+        if not source.exists():
+            continue
+        if target.exists():
+            target.unlink()
+        source.replace(target)
 
 
 class LocalServiceProcessAdapter:

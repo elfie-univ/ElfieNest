@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+from collections import OrderedDict
 from datetime import datetime, timezone
 from threading import Event
 from typing import Callable, Optional, Tuple
@@ -43,6 +45,8 @@ from elfie.brain.workspace.trigger_policy import TurnTriggerPolicy
 from elfie.brain.workspace.types import FrameLifecycleError
 from elfie.message_types import ElfieId, TurnId
 
+diagnostic_logger = logging.getLogger("elfienest.diagnostics.brain")
+
 
 class BrainCoordinator:
     """Own Brain mutation, frame claims, and one in-flight reasoning turn."""
@@ -69,7 +73,10 @@ class BrainCoordinator:
         journal: BrainJournal | None = None,
         on_outcome: Callable[[TurnOutcome], None] | None = None,
         on_state_change: Callable[[], None] | None = None,
+        reasoning_retention: int = 256,
     ) -> None:
+        if reasoning_retention <= 0:
+            raise ValueError("reasoning_retention must be positive")
         self._elfie_id = elfie_id
         self._workspace = workspace
         self._emotion = emotion
@@ -103,7 +110,9 @@ class BrainCoordinator:
         )
         self._runtime = CoordinatorRuntime(elfie_id, reasoning_worker)
         self._inflight: Optional[InFlightTurn] = None
-        self._reasoning: dict[TurnId, ReasoningRunResult] = {}
+        self._reasoning: OrderedDict[TurnId, ReasoningRunResult] = OrderedDict()
+        self._reasoning_retention = reasoning_retention
+        self._evicted_reasoning_count = 0
         self._outcomes = TurnOutcomeBuffer(
             on_record=self._outcome_recorder(journal, on_outcome)
         )
@@ -156,6 +165,32 @@ class BrainCoordinator:
     def reasoning(self, turn_id: TurnId) -> Optional[ReasoningRunResult]:
         """Return the bounded cognitive trace for a completed worker turn."""
         return self._reasoning.get(turn_id)
+
+    @property
+    def evicted_reasoning_count(self) -> int:
+        return self._evicted_reasoning_count
+
+    def _remember_reasoning(
+        self,
+        turn_id: TurnId,
+        reasoning: ReasoningRunResult,
+    ) -> None:
+        self._reasoning[turn_id] = reasoning
+        self._reasoning.move_to_end(turn_id)
+        while len(self._reasoning) > self._reasoning_retention:
+            self._reasoning.popitem(last=False)
+            self._evicted_reasoning_count += 1
+            count = self._evicted_reasoning_count
+            if count & (count - 1) == 0:
+                diagnostic_logger.info(
+                    "Brain reasoning trace retention evicted its oldest item",
+                    extra={
+                        "diagnostic_event": "bounded_retention_evict",
+                        "component": "brain_reasoning",
+                        "capacity": self._reasoning_retention,
+                        "dropped_count": count,
+                    },
+                )
 
     def _run(self) -> None:
         while True:
@@ -319,7 +354,7 @@ class BrainCoordinator:
         except Exception:  # noqa: BLE001 - completion handler owns failure mapping
             self._homeostasis.settle_cognitive_budget(control.turn_id, consumed=0.25)
         else:
-            self._reasoning[control.turn_id] = result.reasoning
+            self._remember_reasoning(control.turn_id, result.reasoning)
             consumed = (
                 result.reasoning.model_calls
                 + (0.5 * result.reasoning.tool_calls)

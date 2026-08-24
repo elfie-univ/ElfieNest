@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from contextlib import contextmanager, nullcontext
@@ -31,6 +32,7 @@ CommandLeaseFactory = Callable[[], LifecycleLease]
 WORLD_RETRY_DELAY_SECONDS = 10.0
 WORLD_START_MAX_ATTEMPTS = 3
 WORLD_DISCONNECT_GRACE_SECONDS = 10.0
+diagnostic_logger = logging.getLogger("elfienest.diagnostics.lifecycle")
 
 
 class RuntimeWorldWorker:
@@ -157,17 +159,40 @@ class RuntimeWorldWorker:
                 return
             process = self._authority_process
             process_poll = getattr(process, "poll", None)
-            if callable(process_poll) and process_poll() is not None:
+            exit_code = process_poll() if callable(process_poll) else None
+            if exit_code is not None:
+                detail = _authority_exit_detail(
+                    "Godot authority Runtime exited after World readiness",
+                    exit_code,
+                )
+                diagnostic_logger.error(
+                    detail,
+                    extra={
+                        "diagnostic_event": "authority_exited",
+                        "generation": owner_lease.generation,
+                        "exit_code": exit_code,
+                    },
+                )
                 self._record_failure(
                     owner_lease.owner_id,
                     owner_lease.generation,
                     "AUTHORITY_EXITED",
-                    "Godot authority Runtime exited after World readiness",
+                    detail,
                 )
                 return
             try:
                 ready = self._world_ready_probe()
-            except (OSError, RuntimeError, ValueError):
+            except (OSError, RuntimeError, ValueError) as error:
+                if unhealthy_since is None:
+                    diagnostic_logger.warning(
+                        "World readiness probe failed",
+                        exc_info=True,
+                        extra={
+                            "diagnostic_event": "world_readiness_probe_failed",
+                            "generation": owner_lease.generation,
+                            "error_type": type(error).__name__,
+                        },
+                    )
                 ready = False
             if not ready:
                 now = self._monotonic()
@@ -192,6 +217,13 @@ class RuntimeWorldWorker:
         owner_id = owner_lease.owner_id
         generation = owner_lease.generation
         world_started_at = self._monotonic()
+        diagnostic_logger.info(
+            "World convergence starting",
+            extra={
+                "diagnostic_event": "world_convergence_starting",
+                "generation": generation,
+            },
+        )
         with self._command_lock():
             current = self._runtime_record.read()
             if not self._claim_is_current(current, owner_id, generation):
@@ -251,24 +283,50 @@ class RuntimeWorldWorker:
             )
 
         deadline = self._monotonic() + self._authority_timeout_seconds
+        readiness_probe_failures = 0
         while not self._stop_event.is_set():
             current = self._runtime_record.read()
             if not self._claim_is_current(current, owner_id, generation):
                 self._stop_authority()
                 return
             process_poll = getattr(authority, "poll", None)
-            if callable(process_poll) and process_poll() is not None:
+            exit_code = process_poll() if callable(process_poll) else None
+            if exit_code is not None:
+                detail = _authority_exit_detail(
+                    "Godot authority Runtime exited before World readiness",
+                    exit_code,
+                )
+                diagnostic_logger.error(
+                    detail,
+                    extra={
+                        "diagnostic_event": "authority_exited",
+                        "generation": generation,
+                        "exit_code": exit_code,
+                    },
+                )
                 self._record_failure(
                     owner_id,
                     generation,
                     "AUTHORITY_EXITED",
-                    "Godot authority Runtime exited before World readiness",
+                    detail,
                     world_started_at=world_started_at,
                 )
                 return
             try:
                 ready = self._world_ready_probe()
-            except (OSError, RuntimeError, ValueError):
+            except (OSError, RuntimeError, ValueError) as error:
+                readiness_probe_failures += 1
+                if readiness_probe_failures & (readiness_probe_failures - 1) == 0:
+                    diagnostic_logger.warning(
+                        "World readiness probe failed during convergence",
+                        exc_info=True,
+                        extra={
+                            "diagnostic_event": "world_readiness_probe_failed",
+                            "generation": generation,
+                            "error_type": type(error).__name__,
+                            "attempt": readiness_probe_failures,
+                        },
+                    )
                 ready = False
             if ready:
                 self._promote_world_ready(
@@ -322,6 +380,13 @@ class RuntimeWorldWorker:
                     ),
                 )
             )
+        diagnostic_logger.info(
+            "World convergence reached readiness",
+            extra={
+                "diagnostic_event": "world_convergence_ready",
+                "generation": generation,
+            },
+        )
 
     def _record_failure(
         self,
@@ -332,6 +397,14 @@ class RuntimeWorldWorker:
         *,
         world_started_at: Optional[float] = None,
     ) -> None:
+        diagnostic_logger.error(
+            detail,
+            extra={
+                "diagnostic_event": "world_convergence_failed",
+                "generation": generation,
+                "reason": code,
+            },
+        )
         self._stop_authority()
         with self._command_lock():
             current = self._runtime_record.read()
@@ -543,6 +616,12 @@ def _append_timing(
         duration_ms=max(0, int(elapsed_seconds * 1000)),
     )
     return tuple(item for item in timings if item.phase != phase) + (completed,)
+
+
+def _authority_exit_detail(prefix: str, exit_code: int) -> str:
+    if exit_code < 0:
+        return f"{prefix} (exit_code={exit_code}, signal={-exit_code})"
+    return f"{prefix} (exit_code={exit_code})"
 
 
 __all__ = ("RuntimeWorldWorker",)

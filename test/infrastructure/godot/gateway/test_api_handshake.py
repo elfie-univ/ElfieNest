@@ -1,13 +1,65 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import socket
+from concurrent.futures import Future
 from types import SimpleNamespace
+from typing import Any, cast
 
 import anyio
 import pytest
 
 from infrastructure.godot.gateway.api import GodotAPIServer
+
+
+def test_gateway_records_background_send_failures(caplog) -> None:
+    server = GodotAPIServer()
+    future: Future[object] = Future()
+    future.set_exception(RuntimeError("send exploded"))
+
+    with caplog.at_level(logging.ERROR, logger="infrastructure.godot.gateway.api"):
+        server._observe_send_completion(future)
+
+    assert "background command send failed" in caplog.text
+
+
+def test_gateway_records_a_thread_stop_timeout(caplog) -> None:
+    class StuckThread:
+        def join(self, timeout: float) -> None:
+            assert timeout > 0
+
+        def is_alive(self) -> bool:
+            return True
+
+    server = GodotAPIServer()
+    server._running = True
+    server._thread = cast(Any, StuckThread())
+
+    with caplog.at_level(logging.ERROR, logger="infrastructure.godot.gateway.api"):
+        server.stop()
+
+    assert "did not stop within" in caplog.text
+
+
+def test_gateway_stop_tolerates_an_event_loop_close_race(monkeypatch, caplog) -> None:
+    class ClosingLoop:
+        def is_running(self) -> bool:
+            return True
+
+    def reject_schedule(_coroutine, _loop):
+        raise RuntimeError("event loop already closed")
+
+    server = GodotAPIServer()
+    server._running = True
+    server._loop = cast(Any, ClosingLoop())
+    monkeypatch.setattr(asyncio, "run_coroutine_threadsafe", reject_schedule)
+
+    with caplog.at_level(logging.ERROR, logger="infrastructure.godot.gateway.api"):
+        server.stop()
+
+    assert "stop could not be scheduled" in caplog.text
 
 
 def test_gateway_start_propagates_bind_failure_detail(monkeypatch) -> None:

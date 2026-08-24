@@ -9,5 +9,6 @@ test("sandbox preload is emitted as CommonJS and can load Electron through requi
   const source = readFileSync(output, "utf8");
 
   assert.match(source, /require\(["']electron["']\)/);
+  assert.match(source, /diagnostics:renderer-error/u);
   assert.doesNotMatch(source, /^\s*import\s/m);
 });

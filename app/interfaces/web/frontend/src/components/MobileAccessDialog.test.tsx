@@ -79,6 +79,7 @@ describe("MobileAccessDialog", () => {
     window.elfienestDesktop = {
       readCurrentWifiName,
       openLocationSettings: vi.fn().mockResolvedValue(undefined),
+      reportRendererError: vi.fn(),
     }
     mobileAccessMock.mockResolvedValue({
       available: true,
@@ -105,6 +106,7 @@ describe("MobileAccessDialog", () => {
         network_name: null,
       }),
       openLocationSettings,
+      reportRendererError: vi.fn(),
     }
     mobileAccessMock.mockResolvedValue({
       available: true,

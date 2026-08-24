@@ -209,6 +209,45 @@ def test_process_adapter_starts_a_windows_process_group(
     )
 
 
+def test_managed_service_log_rotates_before_a_new_process_owns_it(
+    monkeypatch, tmp_path: Path
+) -> None:
+    log_path = tmp_path / "logs" / "service.log"
+    log_path.parent.mkdir()
+    log_path.write_bytes(b"old-storm")
+    monkeypatch.setattr(process, "RUNTIME_LOG_MAX_BYTES", 4)
+    monkeypatch.setattr(process, "RUNTIME_LOG_BACKUP_COUNT", 2)
+
+    stream = process._open_runtime_log({"ELFIENEST_RUNTIME_LOG": str(log_path)})
+    try:
+        stream.write(b"new-run")
+    finally:
+        stream.close()
+
+    assert log_path.read_bytes() == b"new-run"
+    assert log_path.with_name("service.log.1").read_bytes() == b"old-storm"
+    assert log_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_managed_core_console_has_a_separate_owned_log(tmp_path: Path) -> None:
+    service_log = tmp_path / "logs" / "service.log"
+    console_log = tmp_path / "logs" / "service-console.log"
+
+    stream = process._open_runtime_log(
+        {
+            "ELFIENEST_RUNTIME_LOG": str(service_log),
+            "ELFIENEST_RUNTIME_CONSOLE_LOG": str(console_log),
+        }
+    )
+    try:
+        stream.write(b"startup output")
+    finally:
+        stream.close()
+
+    assert console_log.read_bytes() == b"startup output"
+    assert service_log.exists() is False
+
+
 def test_process_adapter_cleans_windows_job_after_graceful_stop(monkeypatch) -> None:
     calls: list[str] = []
 

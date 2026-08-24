@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from unittest.mock import call, patch
 
@@ -139,6 +140,35 @@ def test_worker_world_failure_preserves_core_and_stops_only_authority() -> None:
     )
 
 
+def test_worker_records_startup_readiness_probe_exceptions(caplog) -> None:
+    snapshot = _core_snapshot()
+    record = MemoryRecord(snapshot)
+    host = AuthorityHost(Process(9006))
+
+    def readiness() -> bool:
+        raise OSError("readiness endpoint unavailable")
+
+    worker = RuntimeWorldWorker(
+        runtime_record=record,
+        authority_host=host,
+        world_ready_probe=readiness,
+        authority_timeout_seconds=0.0,
+        sleeper=lambda _seconds: None,
+    )
+
+    caplog.set_level(logging.WARNING, logger="elfienest.diagnostics.lifecycle")
+    worker._converge(snapshot)
+
+    probe_records = [
+        record
+        for record in caplog.records
+        if getattr(record, "diagnostic_event", "") == "world_readiness_probe_failed"
+    ]
+    assert len(probe_records) == 1
+    assert probe_records[0].error_type == "OSError"
+    assert probe_records[0].attempt == 1
+
+
 def test_worker_retries_world_convergence_slowly_with_a_bounded_budget() -> None:
     snapshot = _core_snapshot()
     record = MemoryRecord(snapshot)
@@ -183,6 +213,7 @@ def test_worker_watchdog_demotes_world_after_authority_crash() -> None:
     assert record.read().tier is BackendTier.CORE_READY
     assert record.read().phase is RuntimePhase.FAILED
     assert record.read().failures[0].code == "AUTHORITY_EXITED"
+    assert "exit_code=1" in record.read().failures[0].detail
 
 
 def test_worker_watchdog_tolerates_a_transient_readiness_gap() -> None:

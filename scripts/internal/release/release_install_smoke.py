@@ -22,6 +22,7 @@ from typing import Callable, Mapping, MutableMapping, Protocol, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from infrastructure.platform.diagnostics import redact_diagnostic_text
 
 SUPPORTED_TARGETS = {
     "darwin-arm64",
@@ -303,13 +304,33 @@ def _start_native_service(
 
 
 def _service_log_tail(home: Path) -> str:
-    """Return a bounded, single-line tail of the selected smoke service log."""
-    path = home / "logs" / "service.log"
-    try:
-        content = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    """Return a bounded, redacted tail across startup-owned diagnostic logs."""
+    log_dir = home / "logs"
+    fragments: list[tuple[str, str]] = []
+    for name in (
+        "service.log",
+        "core-events.jsonl",
+        "service-console.log",
+        "authority.log",
+        "authority-console.log",
+    ):
+        try:
+            content = (log_dir / name).read_text(
+                encoding="utf-8",
+                errors="replace",
+            )
+        except OSError:
+            continue
+        normalized = redact_diagnostic_text(" ".join(content[-4096:].split()))
+        if normalized:
+            fragments.append((name, normalized))
+    if not fragments:
         return ""
-    return " ".join(content[-8192:].split())
+    if len(fragments) == 1:
+        combined = fragments[0][1]
+    else:
+        combined = " | ".join(f"{name}:{content}" for name, content in fragments)
+    return redact_diagnostic_text(combined[-8192:])
 
 
 def _duration_ms(duration_seconds: float) -> int:

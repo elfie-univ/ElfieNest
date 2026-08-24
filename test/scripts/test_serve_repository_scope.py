@@ -45,6 +45,30 @@ def test_service_entrypoint_uses_bootstrap_instead_of_concrete_adapters() -> Non
     assert "init_db(" not in source
 
 
+def test_production_engine_loop_has_no_fixed_tick_expiry() -> None:
+    main_source = inspect.getsource(serve.main)
+
+    assert "ticks_to_run=None" in main_source
+    assert "ticks_to_run=100000" not in main_source
+
+
+def test_api_exception_logging_does_not_persist_query_values() -> None:
+    from app.interfaces.api import app as api_app
+
+    source = inspect.getsource(api_app.create_http_application)
+
+    assert 'request.scope.get("route")' in source
+    assert 'getattr(route, "path", "<unmatched>")' in source
+    assert "request.method, route_template" in source
+    assert "request.method, request.url.path" not in source
+
+
+def test_uvicorn_errors_stay_on_the_rotated_core_log_handler() -> None:
+    main_source = inspect.getsource(serve.main)
+
+    assert "log_config=None" in main_source
+
+
 def test_server_runtime_keeps_live_reload_when_configured_model_cannot_warm_up(
     monkeypatch,
 ) -> None:

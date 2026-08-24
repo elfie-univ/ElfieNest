@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from elfie.body import (
     BodyCapabilities,
     BodyId,
@@ -13,7 +15,13 @@ from elfie.body import (
     UtteranceFinal,
 )
 from elfie.message_types import ActorId, ActorRef, CommandId, EventId, IntentId, TurnId
-from infrastructure.devices import DeviceGateway, DeviceGatewayTransport, ExternalBody
+from infrastructure.devices import (
+    CommandEnqueueResult,
+    DeviceCommandQueueFullError,
+    DeviceGateway,
+    DeviceGatewayTransport,
+    ExternalBody,
+)
 
 NOW = datetime(2026, 7, 24, 8, 0, tzinfo=timezone.utc)
 
@@ -78,3 +86,35 @@ def test_gateway_transport_disconnects_from_the_device_sensor_stream() -> None:
 
     assert delivered is False
     assert received == []
+
+
+def test_device_command_queue_applies_backpressure_without_dropping_accepted_work() -> (
+    None
+):
+    gateway = DeviceGateway(command_capacity_per_device=1)
+    gateway.connect_device("dev_living_room")
+    first = _speech_command()
+    second = first.model_copy(update={"command_id": CommandId("gateway-command-2")})
+
+    assert (
+        gateway.enqueue_command("dev_living_room", first)
+        is CommandEnqueueResult.ACCEPTED
+    )
+    assert (
+        gateway.enqueue_command("dev_living_room", second) is CommandEnqueueResult.FULL
+    )
+    assert gateway.drain_commands("dev_living_room") == [first]
+
+
+def test_device_transport_distinguishes_queue_pressure_from_disconnect() -> None:
+    gateway = DeviceGateway(command_capacity_per_device=1)
+    gateway.connect_device("dev_living_room")
+    transport = DeviceGatewayTransport(gateway, "dev_living_room")
+    transport.connect(lambda _event: None)
+    first = _speech_command()
+    transport.send_command(first)
+
+    with pytest.raises(DeviceCommandQueueFullError):
+        transport.send_command(
+            first.model_copy(update={"command_id": CommandId("gateway-command-2")})
+        )
