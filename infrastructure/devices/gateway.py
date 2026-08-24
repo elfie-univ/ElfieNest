@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from collections import deque
 from collections.abc import Callable
 from datetime import datetime
+from enum import Enum
 from threading import Lock
 from typing import Deque, Dict, List
 
@@ -21,16 +23,36 @@ from infrastructure.devices.body_transport import (
 )
 
 ReceiptHandler = Callable[[CommandReceipt], None]
+DEFAULT_COMMAND_CAPACITY_PER_DEVICE = 256
+diagnostic_logger = logging.getLogger("elfienest.diagnostics.device_gateway")
+
+
+class CommandEnqueueResult(str, Enum):
+    ACCEPTED = "accepted"
+    DISCONNECTED = "disconnected"
+    FULL = "full"
+
+
+class DeviceCommandQueueFullError(RuntimeError):
+    """The connected device has not drained previously accepted commands."""
 
 
 class DeviceGateway:
     """Mutable connection registry; mutation represents current LAN socket state."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        command_capacity_per_device: int = DEFAULT_COMMAND_CAPACITY_PER_DEVICE,
+    ) -> None:
+        if command_capacity_per_device <= 0:
+            raise ValueError("command_capacity_per_device must be positive")
         self._active_devices: set[str] = set()
         self._commands: Dict[str, Deque[BodyCommand]] = {}
         self._sensor_handlers: Dict[str, ExternalEventHandler] = {}
         self._receipt_handlers: Dict[str, ReceiptHandler] = {}
+        self._command_capacity_per_device = command_capacity_per_device
+        self._rejected_command_count = 0
         self._lock = Lock()
 
     def connect_device(self, device_id: str) -> None:
@@ -84,13 +106,34 @@ class DeviceGateway:
         handler(receipt)
         return True
 
-    def enqueue_command(self, device_id: str, command: BodyCommand) -> bool:
+    def enqueue_command(
+        self, device_id: str, command: BodyCommand
+    ) -> CommandEnqueueResult:
         """Queue an action for a currently connected device's next protocol poll."""
+        report_count = 0
         with self._lock:
             if device_id not in self._active_devices:
-                return False
-            self._commands.setdefault(device_id, deque()).append(command)
-        return True
+                return CommandEnqueueResult.DISCONNECTED
+            queued = self._commands.setdefault(device_id, deque())
+            if len(queued) >= self._command_capacity_per_device:
+                self._rejected_command_count += 1
+                count = self._rejected_command_count
+                if count & (count - 1) == 0:
+                    report_count = count
+            else:
+                queued.append(command)
+                return CommandEnqueueResult.ACCEPTED
+        if report_count:
+            diagnostic_logger.warning(
+                "Device command queue rejected new work at capacity",
+                extra={
+                    "diagnostic_event": "bounded_queue_backpressure",
+                    "component": "device_commands",
+                    "capacity": self._command_capacity_per_device,
+                    "rejected_count": report_count,
+                },
+            )
+        return CommandEnqueueResult.FULL
 
     def drain_commands(self, device_id: str) -> List[BodyCommand]:
         """Return each queued action once, in the order issued by Core."""
@@ -122,10 +165,13 @@ class DeviceGatewayTransport(ExternalTransport):
 
     def send_command(self, command: BodyCommand) -> CommandReceipt:
         """Queue a typed command and acknowledge gateway acceptance, or fail closed."""
-        if not self._connected or not self._gateway.enqueue_command(
-            self._device_id, command
-        ):
+        if not self._connected:
             raise ConnectionError("设备网关未连接，无法投递动作")
+        result = self._gateway.enqueue_command(self._device_id, command)
+        if result is CommandEnqueueResult.DISCONNECTED:
+            raise ConnectionError("设备网关未连接，无法投递动作")
+        if result is CommandEnqueueResult.FULL:
+            raise DeviceCommandQueueFullError("设备命令队列已满，请稍后重试")
         return CommandReceipt.for_status(
             command,
             CommandStatus.ACCEPTED,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 from threading import Event
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -26,6 +27,7 @@ from elfie.brain.reasoning.model_port import (
     ModelResponseMode,
     StructuredOutputMode,
 )
+from elfie.brain.reasoning.run import ReasoningRunResult
 from elfie.brain.reasoning.turn_outcome import TerminalStatus
 from elfie.brain.reasoning.worker import ReasoningWorker
 from elfie.brain.workspace.contracts import (
@@ -225,6 +227,7 @@ def _coordinator(
     next_autonomous_at: float | None = None,
     allowed_tools: tuple[str, ...] = (),
     initial_energy: float = 100.0,
+    reasoning_retention: int = 256,
 ) -> tuple[BrainCoordinator, EmotionSystem, EnergySystem]:
     initial = NOW.timestamp()
     emotion = EmotionSystem(clock=lambda: initial)
@@ -246,8 +249,30 @@ def _coordinator(
         initial_timestamp=initial,
         next_autonomous_at=next_autonomous_at,
         allowed_tools=allowed_tools,
+        reasoning_retention=reasoning_retention,
     )
     return coordinator, emotion, energy
+
+
+def test_completed_reasoning_traces_have_a_bounded_in_memory_retention() -> None:
+    coordinator, _emotion, _energy = _coordinator(
+        EventWorkspace(ELFIE_ID),
+        BlockingPlanRuntime(),
+        RecordingPlanSink(),
+        reasoning_retention=2,
+    )
+    first = MagicMock(spec=ReasoningRunResult)
+    second = MagicMock(spec=ReasoningRunResult)
+    third = MagicMock(spec=ReasoningRunResult)
+
+    coordinator._remember_reasoning(TurnId("turn-1"), first)
+    coordinator._remember_reasoning(TurnId("turn-2"), second)
+    coordinator._remember_reasoning(TurnId("turn-3"), third)
+
+    assert coordinator.reasoning(TurnId("turn-1")) is None
+    assert coordinator.reasoning(TurnId("turn-2")) is second
+    assert coordinator.reasoning(TurnId("turn-3")) is third
+    assert coordinator.evicted_reasoning_count == 1
 
 
 def test_owner_conversation_stays_fast_when_energy_allows_long_reasoning() -> None:

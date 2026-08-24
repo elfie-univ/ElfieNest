@@ -1,3 +1,4 @@
+import json
 import os
 from dataclasses import replace
 from pathlib import Path
@@ -81,6 +82,18 @@ def test_runtime_record_round_trip_and_retain_offline_snapshot(tmp_path: Path) -
     )
     adapter.write(offline)
     assert adapter.read() == offline
+
+    history_path = tmp_path / "logs" / "lifecycle-history.jsonl"
+    history = [
+        json.loads(line)
+        for line in history_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert [item["phase"] for item in history] == ["world_ready", "offline"]
+    assert [item["revision"] for item in history] == [1, 2]
+    assert history[-1]["previous_phase"] == "world_ready"
+    assert history[-1]["process_role"] == "cli"
+    assert "detail" not in history[-1]
+    assert history_path.stat().st_mode & 0o777 == 0o600
 
 
 def test_runtime_record_skips_posix_fchmod_on_windows(

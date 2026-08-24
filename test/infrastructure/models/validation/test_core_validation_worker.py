@@ -1,11 +1,36 @@
 from __future__ import annotations
 
+import logging
 import threading
 import time
 
 from infrastructure.models.validation.core_validation_worker import (
     CoreValidationWorker,
 )
+
+
+def test_worker_records_stop_timeout_without_forgetting_the_live_thread(
+    caplog,
+) -> None:
+    class StuckThread:
+        def join(self, timeout: float) -> None:
+            assert timeout == 0.0
+
+        def is_alive(self) -> bool:
+            return True
+
+    worker = CoreValidationWorker(lambda: None)
+    stuck = StuckThread()
+    worker._thread = stuck
+
+    with caplog.at_level(
+        logging.ERROR,
+        logger="elfienest.diagnostics.core_validation",
+    ):
+        worker.stop(timeout_seconds=0.0)
+
+    assert worker._thread is stuck
+    assert "did not stop within" in caplog.text
 
 
 def test_worker_runs_periodic_pass_and_stops() -> None:

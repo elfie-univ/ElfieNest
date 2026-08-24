@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 from typing import Callable
+
+diagnostic_logger = logging.getLogger("elfienest.diagnostics.core_validation")
 
 
 class CoreValidationWorker:
@@ -49,6 +52,16 @@ class CoreValidationWorker:
         thread = self._thread
         if thread is not None:
             thread.join(timeout=timeout_seconds)
+        if thread is not None and thread.is_alive():
+            diagnostic_logger.error(
+                "Core validation worker did not stop within %.1fs",
+                timeout_seconds,
+                extra={
+                    "diagnostic_event": "background_worker_stop_timeout",
+                    "component": "core_validation",
+                },
+            )
+            return
         if thread is not None and not thread.is_alive():
             with self._lock:
                 if self._thread is thread:
@@ -58,10 +71,18 @@ class CoreValidationWorker:
         while not self._stop.is_set():
             try:
                 self._run_pass()
-            except (OSError, RuntimeError, TimeoutError, ValueError):
+            except (OSError, RuntimeError, TimeoutError, ValueError) as error:
                 # A single stale Provider/configuration observation must not
                 # kill the Core worker. The next bounded pass can retry it.
-                pass
+                diagnostic_logger.warning(
+                    "Core validation pass failed",
+                    exc_info=True,
+                    extra={
+                        "diagnostic_event": "background_worker_pass_failed",
+                        "component": "core_validation",
+                        "error_type": type(error).__name__,
+                    },
+                )
             self._stop.wait(self._interval_seconds)
 
 

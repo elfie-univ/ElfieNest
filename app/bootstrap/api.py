@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
-from contextlib import asynccontextmanager
+from contextlib import ExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Mapping, Optional
 
@@ -35,6 +36,7 @@ from .app_wiring.storage import (
     ensure_application_storage,
 )
 from .container import build_application_container
+from .diagnostics import ProcessDiagnosticsHandle
 
 
 def create_app(
@@ -48,6 +50,7 @@ def create_app(
     runtime_capability_gate: RuntimeCapabilityGate | None = None,
     runtime_projection: Callable[[], Mapping[str, object]] | None = None,
     species_runtime: SpeciesRuntimeReadinessPort | None = None,
+    diagnostics: ProcessDiagnosticsHandle | None = None,
 ) -> FastAPI:
     selected_db_path = db_path or str(get_db_path())
     ensure_application_storage(selected_db_path)
@@ -71,23 +74,29 @@ def create_app(
 
     @asynccontextmanager
     async def application_lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        container.setup_installation.recover()
-        container.provider_scheduler.start()
-        core_validation_started = False
-        runtime_started = False
-        try:
-            if engine is not None and container.core_validation_worker is not None:
-                container.core_validation_worker.start()
-                core_validation_started = True
+        with ExitStack() as cleanup:
+            if diagnostics is not None:
+                try:
+                    restore_asyncio_handler = (
+                        diagnostics.install_asyncio_exception_handler(
+                            asyncio.get_running_loop()
+                        )
+                    )
+                except (OSError, RuntimeError, ValueError):
+                    # Supplemental logging must not become an API startup failure.
+                    pass
+                else:
+                    cleanup.callback(restore_asyncio_handler)
+            container.setup_installation.recover()
+            container.provider_scheduler.start()
+            cleanup.callback(container.provider_scheduler.stop)
+            core_validation_worker = container.core_validation_worker
+            if engine is not None and core_validation_worker is not None:
+                core_validation_worker.start()
+                cleanup.callback(core_validation_worker.stop)
             container.runtime_lifecycle.start()
-            runtime_started = True
+            cleanup.callback(container.runtime_lifecycle.stop)
             yield
-        finally:
-            if runtime_started:
-                container.runtime_lifecycle.stop()
-            if core_validation_started and container.core_validation_worker is not None:
-                container.core_validation_worker.stop()
-            container.provider_scheduler.stop()
 
     return create_http_application(
         accounts=container.accounts,
@@ -114,7 +123,7 @@ def create_app(
         embodiment=container.embodiment,
         body_device_channel=container.body_device_channel,
         lifespan=application_lifespan,
-        engine_ready=engine is not None,
+        engine_ready=lambda: bool(engine is not None and engine.is_running),
         godot_web_ready=godot_web_bundle_present,
         godot_runtime_ready=lambda: bool(
             engine is not None and engine.session.runtime_world_ready

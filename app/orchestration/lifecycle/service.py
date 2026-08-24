@@ -522,10 +522,12 @@ def start_service(
             )
 
         log_path = detail_path_for_home(elfie_home)
+        console_log_path = log_path.with_name("service-console.log")
         environment = {
             MANAGED_START_ENV: "1",
             "ELFIENEST_SUPERVISED": "1",
             "ELFIENEST_RUNTIME_LOG": str(log_path),
+            "ELFIENEST_RUNTIME_CONSOLE_LOG": str(console_log_path),
             "ELFIENEST_JOB_NAME": (
                 "Local\\ElfieNest.core."
                 + hashlib.sha256(str(elfie_home.resolve()).encode("utf-8")).hexdigest()[
@@ -539,6 +541,7 @@ def start_service(
         # settings, but it cannot redirect the managed service log into a
         # different task's root.
         environment["ELFIENEST_RUNTIME_LOG"] = str(log_path)
+        environment["ELFIENEST_RUNTIME_CONSOLE_LOG"] = str(console_log_path)
         pid = process_port.launch(
             launch_command,
             resolved_root,

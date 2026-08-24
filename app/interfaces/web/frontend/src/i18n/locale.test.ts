@@ -283,7 +283,7 @@ describe("locale entry contract", () => {
     // When: initialization and render-boundary positions are inspected.
     const createInstancePosition = mainSource.indexOf("createI18n()")
     const initializePosition = mainSource.indexOf("initializeLocale(")
-    const createRootPosition = mainSource.indexOf("createRoot(mount)")
+    const createRootPosition = mainSource.indexOf("createRoot(mount")
     const providerCount = mainSource.match(/<I18nextProvider\b/g)?.length ?? 0
 
     // Then: one provider receives a synchronously initialized instance before render.
