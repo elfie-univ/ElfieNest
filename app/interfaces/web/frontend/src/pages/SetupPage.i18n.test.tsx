@@ -460,7 +460,8 @@ describe("localized setup wizard", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("The model download timed out.")
     const rows = await screen.findAllByTestId("setup-review-row")
-    expect(within(rows[0]).queryByRole("button", { name: "Modify" })).not.toBeInTheDocument()
-    expect(within(rows[1]).getByRole("button", { name: "Modify" })).toBeInTheDocument()
+    expect(rows).toHaveLength(4)
+    expect(within(rows[0]!).queryByRole("button", { name: "Modify" })).not.toBeInTheDocument()
+    expect(within(rows[1]!).getByRole("button", { name: "Modify" })).toBeInTheDocument()
   })
 })
