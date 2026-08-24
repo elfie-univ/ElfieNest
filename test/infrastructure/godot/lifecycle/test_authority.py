@@ -241,6 +241,45 @@ def test_recorded_authority_timeout_logs_escalation_without_false_stop(
     ]
 
 
+def test_owned_authority_stop_does_not_report_stopped_while_process_is_alive(
+    monkeypatch, tmp_path: Path
+) -> None:
+    class OwnedProcess:
+        pid = 57
+        returncode = None
+
+        def poll(self) -> None:
+            return None
+
+    adapter = authority.GodotAuthorityHostAdapter(
+        AuthorityHostConfig(
+            project_root=tmp_path,
+            http_port=8000,
+            ws_port=8765,
+            nonce="generation",
+            core_pid_file=tmp_path / "elfienest.pid",
+        ),
+        inspector=_UnusedInspector(),
+    )
+    monkeypatch.setattr(authority, "Popen", OwnedProcess)
+    monkeypatch.setattr(authority, "stop_godot_runtime", lambda _process: None)
+
+    adapter.stop(OwnedProcess())
+
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "logs/authority.log")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert [event["event"] for event in events] == [
+        "authority_shutdown_requested",
+        "authority_process_stop_failed",
+    ]
+    assert events[1]["status"] == "still_running"
+    assert "exit_code" not in events[1]
+
+
 def test_godot_authority_requires_bootstrap_to_inject_process_inspection() -> None:
     source = inspect.getsource(authority)
 

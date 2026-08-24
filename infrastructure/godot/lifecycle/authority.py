@@ -101,11 +101,20 @@ class GodotAuthorityHostAdapter:
                     level="error",
                 )
                 raise
+            exit_code = process.poll()
+            if exit_code is None:
+                self._record_stop_event(
+                    "authority_process_stop_failed",
+                    process.pid,
+                    status="still_running",
+                    level="error",
+                )
+                return
             self._record_stop_event(
                 "authority_process_stopped",
                 process.pid,
                 status="stopped",
-                exit_code=process.poll(),
+                exit_code=exit_code,
             )
             return
         self._stop_recorded(process.pid)
