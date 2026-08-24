@@ -49,8 +49,8 @@ CLI 暴露为全局 `elfienest` 命令，并且只移除当前安装所拥有的
 
 原生 runner 会通过 `scripts/release.py --run-install-smoke` 调用
 `scripts/internal/release/release_install_smoke.py`。每个有界循环都会安装安装包、通过全局 launcher
-启动、等待 `CORE_READY`/`WORLD_READY`、停止到 `OFFLINE`、再次安装同一个包验证升级，
-最后卸载并证明所选 `ELFIE_HOME` 仍然保留。输出 JSON 包含带类型的安装/启动/健康/停止/
+启动、必须到达 `WORLD_READY`、停止到 `OFFLINE`、再次安装同一个包验证升级，
+最后卸载并证明所选 `ELFIE_HOME` 仍然保留。输出 JSON 会记录已到达的 `WORLD_READY`，并包含带类型的安装/启动/健康/停止/
 升级/卸载耗时和预算，Workflow 会把它和安装包一起上传。不带
 `--run-install-smoke` 的本地构建不会修改主机安装环境。
 

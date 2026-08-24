@@ -122,10 +122,10 @@ def run_install_smoke(
                 )
             )
             health_started = monotonic()
-            _wait_for_state(
+            reached_state = _wait_for_state(
                 native,
                 environment,
-                expected={"core_ready", "world_ready"},
+                expected={"world_ready"},
                 monotonic=monotonic,
                 sleeper=sleeper,
                 timeout_seconds=timeout_seconds,
@@ -171,6 +171,7 @@ def run_install_smoke(
                 {
                     "cycle": cycle,
                     "phase_count": len(phases) - cycle_start,
+                    "reached_state": reached_state,
                     "result": "passed",
                 }
             )
@@ -198,9 +199,10 @@ def run_install_smoke(
             for phase in phases
         ]
         evidence = {
-            "schema_version": 1,
+            "schema_version": 2,
             "target": target,
             "artifact": artifact.name,
+            "required_state": "world_ready",
             "cycles": cycle_records,
             "phases": phase_payloads,
             "result": "passed",
@@ -240,7 +242,7 @@ def _wait_for_state(
     monotonic: Callable[[], float],
     sleeper: Callable[[float], None],
     timeout_seconds: float,
-) -> None:
+) -> str:
     deadline = monotonic() + timeout_seconds
     last_state = "unknown"
     while True:
@@ -249,7 +251,7 @@ def _wait_for_state(
         if isinstance(state, str):
             last_state = state
             if state in expected:
-                return
+                return state
         if monotonic() >= deadline:
             raise ReleaseInstallSmokeError(
                 f"release-smoke-state-timeout expected={sorted(expected)} actual={last_state}"

@@ -7,6 +7,7 @@ import pytest
 from scripts.internal.release.release_install_smoke import (
     NativePackageAdapter,
     ReleaseInstallSmokeError,
+    _wait_for_state,
     run_install_smoke,
 )
 
@@ -15,7 +16,7 @@ class FakeAdapter:
     def __init__(self, home: Path) -> None:
         self.home = home
         self.calls: list[str] = []
-        self.states = ["core_ready", "offline"]
+        self.states = ["world_ready", "offline"]
 
     def install(self) -> None:
         self.calls.append("install")
@@ -66,9 +67,30 @@ def test_smoke_runner_publishes_install_upgrade_start_stop_evidence(
         "uninstall",
     ]
     assert evidence.is_file()
+    assert payload["cycles"][0]["reached_state"] == "world_ready"
     assert home.is_dir()
     assert adapter.calls[0] == "uninstall"
     assert adapter.calls[-1] == "verify-uninstalled"
+
+
+def test_smoke_runner_does_not_accept_core_ready_without_the_world() -> None:
+    class CoreOnlyAdapter:
+        def run_cli(self, arguments, environment) -> str:
+            del arguments, environment
+            return '{"state":"core_ready"}'
+
+    with pytest.raises(
+        ReleaseInstallSmokeError,
+        match=r"expected=\['world_ready'\] actual=core_ready",
+    ):
+        _wait_for_state(
+            CoreOnlyAdapter(),  # type: ignore[arg-type]
+            {},
+            expected={"world_ready"},
+            monotonic=lambda: 0.0,
+            sleeper=lambda _seconds: None,
+            timeout_seconds=0.0,
+        )
 
 
 def test_smoke_runner_rejects_missing_artifact(tmp_path: Path) -> None:
