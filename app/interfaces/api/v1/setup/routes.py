@@ -24,6 +24,7 @@ from app.features.setup import (
 )
 from app.interfaces.api.v1.auth import generate_csrf_token
 from app.orchestration.setup_installation import (
+    CancelSetupInstallationCommand,
     ConfirmSetupInstallationCommand,
     SetupInstallationConflict,
     SetupInstallationForbidden,
@@ -211,6 +212,26 @@ def start_installation(
     response.delete_cookie("setup_token", path="/")
     response.headers["X-CSRF-Token"] = csrf
     return response
+
+
+@router.post("/installation/cancel", response_model=SetupStatusResponse)
+def cancel_installation(
+    principal: PrincipalDependency,
+    service: SetupDependency,
+    workflow: InstallationDependency,
+) -> Union[SetupStatusResponse, JSONResponse]:
+    try:
+        workflow.cancel(CancelSetupInstallationCommand(principal=principal))
+        return SetupStatusResponse.from_result(
+            service.get_status(GetSetupStatusQuery())
+        )
+    except (
+        SetupInstallationConflict,
+        SetupInstallationForbidden,
+        SetupInstallationInvalid,
+        SetupInstallationUnavailable,
+    ) as error:
+        return _error(error)
 
 
 @router.get("/ollama", response_model=SetupOllamaResponse)

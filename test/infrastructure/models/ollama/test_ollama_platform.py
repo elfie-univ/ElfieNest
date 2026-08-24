@@ -76,12 +76,15 @@ def test_adapter_reports_deleted_binding_without_scanning_another_endpoint() -> 
 
 def test_official_installer_is_downloaded_then_runs_only_the_fixed_template() -> None:
     commands: list[tuple[str, ...]] = []
+    run_options: list[dict[str, object]] = []
     adapter = OllamaPlatformAdapter(
         process_identity_reader=_MissingIdentityReader(),
         platform_name="win32",
         request_opener=lambda *_args, **_kwargs: _Response(b"Write-Output official"),
-        command_runner=lambda command, **_kwargs: (
-            commands.append(tuple(command)) or _Completed(0)
+        command_runner=lambda command, **kwargs: (
+            commands.append(tuple(command))
+            or run_options.append(kwargs)
+            or _Completed(0)
         ),
     )
 
@@ -95,6 +98,7 @@ def test_official_installer_is_downloaded_then_runs_only_the_fixed_template() ->
     assert installer.source_url == OFFICIAL_INSTALL_URLS["win32"]
     assert len(installer.sha256) == 64
     assert commands == [installer.command]
+    assert run_options[0]["timeout"] == 600.0
 
 
 def test_linux_official_installer_requires_an_interactive_terminal(

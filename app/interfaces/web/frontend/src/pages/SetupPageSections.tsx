@@ -10,6 +10,7 @@ type SetupReviewProps = {
   readonly bedCount: number
   readonly csrfToken: string
   readonly isInstalling: boolean
+  readonly ownerEditable: boolean
   readonly model: SetupModelOption | undefined
   readonly modelId: string
   readonly ollamaStatus: string
@@ -25,6 +26,7 @@ export function SetupReview({
   bedCount,
   csrfToken,
   isInstalling,
+  ownerEditable,
   model,
   modelId,
   ollamaStatus,
@@ -37,7 +39,7 @@ export function SetupReview({
   return <section className="setup-form setup-review">
     <div className="setup-review-row" data-testid="setup-review-row">
       <div><strong>{t("review.owner")}</strong><span>{accountId || t("review.notConfigured")}</span></div>
-      {!isInstalling && <button className="button button--quiet" onClick={() => onStepChange(1)} type="button">{t("review.modify")}</button>}
+      {!isInstalling && ownerEditable && <button className="button button--quiet" onClick={() => onStepChange(1)} type="button">{t("review.modify")}</button>}
     </div>
     <div className="setup-review-row" data-testid="setup-review-row">
       <div><strong>{t("review.ollama")}</strong><span>{useLocalOllama ? t("review.enabled") : t("review.disabled")} · {ollamaStatus}</span></div>
@@ -61,8 +63,10 @@ type SetupInstallProps = {
   readonly model: SetupModelOption | undefined
   readonly modelId: string
   readonly saving: boolean
+  readonly lastError: string | null
   readonly t: SetupTranslation
   readonly onConfirmInstall: () => void
+  readonly onCancelInstall: () => void
   readonly onEnterManage: () => void
 }
 
@@ -72,8 +76,10 @@ export function SetupInstall({
   model,
   modelId,
   saving,
+  lastError,
   t,
   onConfirmInstall,
+  onCancelInstall,
   onEnterManage,
 }: SetupInstallProps) {
   const phase = install?.phase ?? "owner"
@@ -113,6 +119,8 @@ export function SetupInstall({
     : t(actionKey)
   const statusText = install?.state === "failed"
     ? t("install.failed")
+    : install?.state === "cancelled"
+      ? t("install.cancelled")
     : install?.state === "completed"
       ? t("install.completed")
       : actionText
@@ -122,6 +130,8 @@ export function SetupInstall({
       <span className="setup-progress__bar" style={{ width: `${progressValue}%` }} />
     </div>
     <p aria-live="polite" className="setup-task">[{progressValue}%] {statusText}</p>
+    {install?.state === "failed" && lastError && <p className="setup-install-error" role="alert">{lastError}</p>}
+    {install?.state === "running" && <div className="setup-actions"><button className="button button--quiet" disabled={saving} onClick={onCancelInstall} type="button">{t("install.cancel")}</button></div>}
     {install?.state === "failed" && <div className="setup-actions"><button className="button" disabled={saving} onClick={onConfirmInstall} type="button">{t("install.retry")}</button></div>}
     {install?.state === "completed" && <div className="setup-actions"><button className="button" onClick={onEnterManage} type="button">{t("install.enter")}</button></div>}
   </section>

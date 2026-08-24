@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { Checkbox } from "@/components/ui/checkbox"
 
 import {
+  setupCancel,
   setupInstall,
   setupInspectOllama,
   setupModelCatalog,
@@ -197,10 +198,20 @@ export function SetupPage() {
     void saveStatus(() => setupInstall(csrfToken), "setup.install")
   }
 
+  const cancelInstall = (): void => {
+    void saveStatus(() => setupCancel(csrfToken), "setup.install")
+  }
+
   const currentStep = progress?.locked ? 4 : step
   const draft = progress?.draft
   const install = progress?.install
   const isInstalling = progress?.locked === true
+  const ownerEditable = install === undefined || install.state === "idle"
+  const persistedInstallNotice = !isInstalling && install?.state === "failed"
+    ? progress?.last_error ?? t("install.failed")
+    : !isInstalling && install?.state === "cancelled"
+      ? t("install.cancelled")
+      : null
   const showWelcome = !welcomeDismissed && (progress === null || isFreshSetup(progress))
   const model = catalog.find((option) => option.model_id === (draft?.model_id ?? modelId))
   const ollamaInstalled = ollama !== null
@@ -241,7 +252,7 @@ export function SetupPage() {
           const current = stepNumber === currentStep
           const stateClassName = current ? "setup-step--current" : completed ? "setup-step--completed" : ""
           return <li className={`setup-step ${stateClassName}`} key={stepNumber}>
-            <button aria-current={current ? "step" : undefined} className="setup-step__button" disabled={!completed || isInstalling || current} onClick={() => setStep(stepNumber)} type="button">
+            <button aria-current={current ? "step" : undefined} className="setup-step__button" disabled={!completed || isInstalling || current || (stepNumber === 1 && !ownerEditable)} onClick={() => setStep(stepNumber)} type="button">
               <span aria-hidden="true" className="setup-step__number">{completed ? "✓" : stepNumber}</span>
               <span><strong>{t(stepCopy[stepNumber].label)}</strong><small>{completed ? t("rail.saved") : current ? t("rail.current") : t("rail.pending")}</small></span>
             </button>
@@ -257,7 +268,8 @@ export function SetupPage() {
           <h1 className="setup-card__title" id="setup-title">{isInstalling ? t("install.title") : t(stepCopy[currentStep].title)}</h1>
         </header>
         <div className="setup-card__content">
-          {isInstalling ? <SetupInstall draft={draft} install={install} model={model} modelId={modelId} onConfirmInstall={confirmInstall} onEnterManage={() => window.location.assign("/manage")} saving={saving} t={t} /> : currentStep === 1 && <form className="setup-form setup-form--owner" onSubmit={submitOwner}>
+          {persistedInstallNotice !== null ? <Notice kind={install?.state === "failed" ? "error" : "info"} message={persistedInstallNotice} /> : null}
+          {isInstalling ? <SetupInstall draft={draft} install={install} lastError={progress?.last_error ?? null} model={model} modelId={modelId} onCancelInstall={cancelInstall} onConfirmInstall={confirmInstall} onEnterManage={() => window.location.assign("/manage")} saving={saving} t={t} /> : currentStep === 1 && <form className="setup-form setup-form--owner" onSubmit={submitOwner}>
             <TextField autoComplete="username" label={t("owner.fields.accountId")} minLength={3} onChange={setAccountId} required value={accountId} />
             <TextField autoComplete="name" label={t("owner.fields.displayName")} onChange={setDisplayName} required value={displayName} />
             <TextField {...(draft?.password_configured ? { placeholder: t("owner.passwordConfiguredPlaceholder") } : {})} autoComplete="new-password" label={t("owner.fields.password")} minLength={6} onChange={setPassword} required={!draft?.password_configured} type="password" value={password} />
@@ -295,7 +307,7 @@ export function SetupPage() {
             />
             <div className="setup-actions"><button className="button" disabled={saving || !csrfToken || bedCountIsInvalid} onClick={saveNest} type="button">{t("nest.action")}</button></div>
           </section>}
-          {!isInstalling && currentStep === 4 && <SetupReview accountId={accountId} bedCount={bedCount} csrfToken={csrfToken} isInstalling={isInstalling} model={model} modelId={modelId} ollamaStatus={ollamaStatus} onConfirmInstall={confirmInstall} onStepChange={setStep} saving={saving} t={t} useLocalOllama={useLocalOllama} />}
+          {!isInstalling && currentStep === 4 && <SetupReview accountId={accountId} bedCount={bedCount} csrfToken={csrfToken} isInstalling={isInstalling} model={model} modelId={modelId} ollamaStatus={ollamaStatus} onConfirmInstall={confirmInstall} onStepChange={setStep} ownerEditable={ownerEditable} saving={saving} t={t} useLocalOllama={useLocalOllama} />}
           {error ? <Notice kind="error" message={error.kind === "local" ? t(error.key) : localizeApiError(error.reason, error.operation, currentLocale(i18n))} /> : null}
         </div>
       </section>

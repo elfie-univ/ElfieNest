@@ -28,6 +28,8 @@ export const setup = {
       "owner.create": "正在创建超级管理员账号",
       preparing: "正在准备安装",
     },
+    cancel: "取消安装",
+    cancelled: "安装已取消。你可以调整剩余设置后重新开始。",
     completed: "安装完成。",
     enter: "安装完成并进入管理台",
     failed: "安装暂时失败，可以从失败阶段重试。",

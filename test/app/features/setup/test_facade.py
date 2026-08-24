@@ -8,6 +8,8 @@ from app.features.setup import (
     GetSetupStatusQuery,
     SaveSetupNestDraftCommand,
     SaveSetupOfflineDraftCommand,
+    SaveSetupOwnerDraftCommand,
+    SetupConflict,
     SetupForbidden,
     SetupPrincipal,
     SetupService,
@@ -113,4 +115,41 @@ def test_linux_local_ollama_draft_waits_for_the_user_installed_service() -> None
                 use_local_ollama=True,
                 model_id="qwen2.5:0.5b",
             ),
+        )
+
+
+def test_local_owner_can_revise_non_account_choices_after_failed_install() -> None:
+    boundary = FakeBoundary()
+    boundary.owner = True
+    boundary.install = replace(
+        boundary.install,
+        status="in_progress",
+        install_step=3,
+        task_status="failed",
+    )
+    boundary.draft = replace(
+        boundary.draft,
+        owner_configured=True,
+        offline_configured=True,
+        nest_configured=True,
+        locked_at=None,
+    )
+
+    result = _service(boundary).save_nest_draft(
+        SetupPrincipal("owner", local=True),
+        SaveSetupNestDraftCommand(bed_count=7),
+    )
+
+    assert result.draft.bed_count == 7
+
+
+def test_existing_owner_account_cannot_be_rewritten_through_setup_draft() -> None:
+    boundary = FakeBoundary()
+    boundary.owner = True
+    boundary.install = replace(boundary.install, task_status="failed")
+
+    with pytest.raises(SetupConflict, match="Owner"):
+        _service(boundary).save_owner_draft(
+            SetupPrincipal("owner", local=True),
+            SaveSetupOwnerDraftCommand("changed", None, "new-secret"),
         )

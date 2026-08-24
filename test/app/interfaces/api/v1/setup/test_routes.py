@@ -14,6 +14,7 @@ from app.features.setup import (
 from app.interfaces.api.v1.setup.dependencies import setup_principal
 from app.interfaces.api.v1.setup.routes import router
 from app.orchestration.setup_installation import (
+    CancelSetupInstallationResult,
     ConfirmSetupInstallationResult,
     SetupInstallationService,
 )
@@ -47,6 +48,20 @@ class AcceptedInstallation(SetupInstallationService):
             ),
             session_token="owner-session",
             session_ttl_seconds=3600,
+        )
+
+    def cancel(self, _command: object) -> CancelSetupInstallationResult:
+        return CancelSetupInstallationResult(
+            StoredSetupInstallation(
+                1,
+                "in_progress",
+                2,
+                "cancelled",
+                "cancelled",
+                20,
+                None,
+                None,
+            )
         )
 
 
@@ -172,3 +187,14 @@ def test_installation_returns_202_and_replaces_setup_cookie_with_session(
     assert response.status_code == 202
     assert response.cookies.get("session_token") == "owner-session"
     assert response.headers["X-CSRF-Token"] == response.json()["csrf_token"]
+
+
+def test_owner_can_cancel_a_running_setup_installation(tmp_path: Path) -> None:
+    with _client(tmp_path) as client:
+        client.app.dependency_overrides[setup_principal] = lambda: SetupPrincipal(
+            "owner", True
+        )
+        response = client.post("/api/v1/setup/installation/cancel")
+
+    assert response.status_code == 200
+    assert response.json()["need_setup"] is True

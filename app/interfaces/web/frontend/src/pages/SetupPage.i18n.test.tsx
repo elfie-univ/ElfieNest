@@ -432,16 +432,35 @@ describe("localized setup wizard", () => {
     expect(rows[2]).toHaveTextContent("local Ollama is disabled")
   })
 
-  it("locks the page after confirmation and only shows the install progress", async () => {
+  it("locks the page after confirmation and exposes cancellation", async () => {
     const user = userEvent.setup()
-    const install = vi.spyOn(client, "setupInstall").mockResolvedValue(statusFor(4, {
+    const running = statusFor(4, {
       locked: true,
       install: { phase: "ollama", action_key: "ollama.start", state: "running", progress: 30, error_key: null },
+    })
+    const install = vi.spyOn(client, "setupInstall").mockResolvedValue(running)
+    const cancel = vi.spyOn(client, "setupCancel").mockResolvedValue(statusFor(4, {
+      install: { phase: "ollama", action_key: "cancelled", state: "cancelled", progress: 30, error_key: "setup.install.cancelled" },
     }))
     renderSetup("en-US", statusFor(4))
     await user.click(await screen.findByRole("button", { name: "Confirm configuration and start installation" }))
     expect(install).toHaveBeenCalledWith("setup-csrf")
     expect(await screen.findByRole("progressbar")).toHaveAttribute("aria-valuenow", "30")
-    expect(screen.queryByRole("button", { name: /edit|back|cancel/i })).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Cancel installation" }))
+    expect(cancel).toHaveBeenCalledWith("setup-csrf")
+    expect(await screen.findByText("Installation cancelled. You can adjust the remaining settings and try again.")).toBeInTheDocument()
+  })
+
+  it("shows persisted failure detail after unlocking safe configuration fields", async () => {
+    const failed = statusFor(4, {
+      install: { phase: "model", action_key: "model.download", state: "failed", progress: 50, error_key: "setup.install.failed" },
+      last_error: "The model download timed out.",
+    })
+    renderSetup("en-US", failed)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The model download timed out.")
+    const rows = await screen.findAllByTestId("setup-review-row")
+    expect(within(rows[0]).queryByRole("button", { name: "Modify" })).not.toBeInTheDocument()
+    expect(within(rows[1]).getByRole("button", { name: "Modify" })).toBeInTheDocument()
   })
 })

@@ -128,7 +128,7 @@ class SetupService:
     def save_offline_draft(
         self, principal: SetupPrincipal, command: SaveSetupOfflineDraftCommand
     ) -> SetupStatusResult:
-        self._require_open_local_setup(principal)
+        self._require_editable_local_setup(principal)
         model_id = command.model_id if command.use_local_ollama else None
         if command.use_local_ollama and model_id is None:
             raise SetupValidationError("启用本地 Ollama 时必须选择模型")
@@ -153,7 +153,7 @@ class SetupService:
     def save_nest_draft(
         self, principal: SetupPrincipal, command: SaveSetupNestDraftCommand
     ) -> SetupStatusResult:
-        self._require_open_local_setup(principal)
+        self._require_editable_local_setup(principal)
         try:
             bed_count = self._nest_choices.validate_bed_count(command.bed_count)
             self._state.save_nest_draft(bed_count=bed_count)
@@ -164,13 +164,33 @@ class SetupService:
         return self.get_status(GetSetupStatusQuery())
 
     def _require_open_local_setup(self, principal: SetupPrincipal) -> None:
-        if principal.kind != "setup" or not principal.local:
+        if not principal.local or principal.kind not in {"setup", "owner"}:
             raise SetupForbidden("首次设置仅允许本机 Setup principal")
         try:
             if self._owners.has_owner():
                 raise SetupConflict("系统已有 Owner，Setup 草稿已关闭")
+            if principal.kind != "setup":
+                raise SetupForbidden("首次设置仅允许本机 Setup principal")
             if self._state.read_draft().locked_at is not None:
                 raise SetupConflict("Setup 配置已锁定")
+        except SetupPortError as error:
+            raise SetupUnavailable("Setup state unavailable") from error
+
+    def _require_editable_local_setup(self, principal: SetupPrincipal) -> None:
+        if not principal.local or principal.kind not in {"setup", "owner"}:
+            raise SetupForbidden("Setup 配置修改仅允许本机 Setup 或 Owner principal")
+        try:
+            owner_exists = self._owners.has_owner()
+            installation = self._state.read_installation()
+            draft = self._state.read_draft()
+            if installation.status == "completed":
+                raise SetupConflict("Setup 已完成，初始化草稿不可再修改")
+            if draft.locked_at is not None:
+                raise SetupConflict("Setup 配置已锁定")
+            if owner_exists and principal.kind != "owner":
+                raise SetupForbidden("已有 Owner 的 Setup 修改需要本机 Owner 权限")
+            if not owner_exists and principal.kind != "setup":
+                raise SetupForbidden("首次设置仅允许本机 Setup principal")
         except SetupPortError as error:
             raise SetupUnavailable("Setup state unavailable") from error
 
@@ -237,7 +257,7 @@ class SetupService:
                 if index == current_step
                 else "pending",
                 retry_action="retry_install"
-                if index == 4 and install.task_status == "failed"
+                if index == 4 and install.task_status in {"failed", "cancelled"}
                 else None,
             )
             for index, value in enumerate(configured, start=1)
@@ -274,9 +294,13 @@ class SetupService:
                 action_key=install.install_action or "idle",
                 state=install.task_status,
                 progress=install.task_progress,
-                error_key="setup.install.failed"
-                if install.task_status == "failed"
-                else None,
+                error_key=(
+                    "setup.install.failed"
+                    if install.task_status == "failed"
+                    else "setup.install.cancelled"
+                    if install.task_status == "cancelled"
+                    else None
+                ),
             ),
             locked=draft.locked_at is not None,
         )

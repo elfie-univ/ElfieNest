@@ -68,7 +68,7 @@ class SetupInstallResponse(BaseModel):
     model_config = _STRICT
     phase: Literal["owner", "ollama", "model", "emergency_food", "nest"]
     action_key: str
-    state: Literal["idle", "running", "failed", "completed"]
+    state: Literal["idle", "running", "failed", "completed", "cancelled"]
     progress: int
     error_key: Optional[str]
 

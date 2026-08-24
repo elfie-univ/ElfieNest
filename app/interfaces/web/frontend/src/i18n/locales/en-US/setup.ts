@@ -28,6 +28,8 @@ export const setup = {
       "owner.create": "Creating the Owner account",
       preparing: "Preparing installation",
     },
+    cancel: "Cancel installation",
+    cancelled: "Installation cancelled. You can adjust the remaining settings and try again.",
     completed: "Installation complete.",
     enter: "Finish and enter dashboard",
     failed: "Installation paused with an error. You can retry from the failed phase.",

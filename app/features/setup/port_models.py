@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Optional
 
-SetupTaskState = Literal["idle", "running", "failed", "completed"]
+SetupTaskState = Literal["idle", "running", "failed", "completed", "cancelled"]
 SetupOllamaState = Literal[
     "absent",
     "healthy",

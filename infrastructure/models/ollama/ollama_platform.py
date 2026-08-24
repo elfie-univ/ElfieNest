@@ -262,6 +262,7 @@ class OllamaPlatformAdapter:
             check=False,
             text=True,
             capture_output=True,
+            timeout=600.0,
         )
         if result.returncode != 0:
             raise RuntimeError("官方 Ollama 安装失败；请查看本机安装日志")

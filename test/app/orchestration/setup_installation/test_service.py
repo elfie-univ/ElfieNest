@@ -5,6 +5,7 @@ from typing import Callable, Optional
 
 from app.features.setup import SetupPrincipal, StoredSetupDraft, StoredSetupInstallation
 from app.orchestration.setup_installation import (
+    CancelSetupInstallationCommand,
     ConfirmSetupInstallationCommand,
     CreatedSetupOwner,
     SetupInstallationService,
@@ -28,6 +29,8 @@ class FakeWorkflowPorts:
         )
         self.actions: list[str] = []
         self.worker: Optional[Callable[[], None]] = None
+        self.cancelled = False
+        self.on_timeout: Optional[Callable[[], None]] = None
 
     def read_draft(self) -> StoredSetupDraft:
         return self.draft
@@ -51,8 +54,21 @@ class FakeWorkflowPorts:
         self.install = replace(self.install, task_status="running")
         return self.install
 
-    def start(self, _key: str, worker: Callable[[], None]) -> bool:
-        self.worker = worker
+    def start(
+        self,
+        _key: str,
+        worker: Callable[[Callable[[], bool]], None],
+        *,
+        timeout_seconds: float,
+        on_timeout: Callable[[], None],
+    ) -> bool:
+        assert timeout_seconds > 0
+        self.worker = lambda: worker(lambda: self.cancelled)
+        self.on_timeout = on_timeout
+        return True
+
+    def cancel(self, _key: str) -> bool:
+        self.cancelled = True
         return True
 
     def ensure_installation(self, report: Callable[[str], None]) -> None:
@@ -95,6 +111,17 @@ class FakeWorkflowPorts:
             task_status="failed",
             last_error=error,
         )
+        self.draft = replace(self.draft, locked_at=None)
+
+    def cancel_installation(self) -> StoredSetupInstallation:
+        self.install = replace(
+            self.install,
+            install_action="cancelled",
+            task_status="cancelled",
+            last_error=None,
+        )
+        self.draft = replace(self.draft, locked_at=None)
+        return self.install
 
     def recover_running(self, error: str) -> None:
         if self.install.task_status == "running":
@@ -103,6 +130,7 @@ class FakeWorkflowPorts:
                 task_status="failed",
                 last_error=error,
             )
+            self.draft = replace(self.draft, locked_at=None)
 
 
 def _workflow(ports: FakeWorkflowPorts) -> SetupInstallationService:
@@ -152,3 +180,37 @@ def test_recover_marks_orphaned_running_job_failed() -> None:
     ports.install = replace(ports.install, task_status="running")
     _workflow(ports).recover()
     assert ports.install.task_status == "failed"
+    assert ports.draft.locked_at is None
+
+
+def test_cancel_signals_worker_and_persists_unlocked_cancelled_state() -> None:
+    ports = FakeWorkflowPorts()
+    workflow = _workflow(ports)
+    workflow.confirm(
+        ConfirmSetupInstallationCommand(SetupPrincipal("setup", True), True)
+    )
+    assert ports.worker is not None
+
+    result = workflow.cancel(
+        CancelSetupInstallationCommand(SetupPrincipal("owner", True))
+    )
+    ports.worker()
+
+    assert ports.cancelled is True
+    assert result.installation.task_status == "cancelled"
+    assert ports.draft.locked_at is None
+    assert ports.actions == []
+
+
+def test_timeout_marks_the_running_task_failed_and_unlocks_retry() -> None:
+    ports = FakeWorkflowPorts()
+    _workflow(ports).confirm(
+        ConfirmSetupInstallationCommand(SetupPrincipal("setup", True), True)
+    )
+    assert ports.on_timeout is not None
+
+    ports.on_timeout()
+
+    assert ports.install.task_status == "failed"
+    assert ports.install.install_action == "installation.timeout"
+    assert ports.draft.locked_at is None

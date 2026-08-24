@@ -21,7 +21,7 @@ const SetupStatusSchema = z.object({
   last_error: z.string().nullable(),
   install: z.object({
     phase: z.enum(["owner", "ollama", "model", "emergency_food", "nest"]),
-    action_key: z.string(), state: z.enum(["idle", "running", "failed", "completed"]),
+    action_key: z.string(), state: z.enum(["idle", "running", "failed", "completed", "cancelled"]),
     progress: z.number().int().min(0).max(100), error_key: z.string().nullable(),
   }),
 })
@@ -69,5 +69,10 @@ export async function setupSaveNestDraft(bedCount: number, csrfToken: string): P
 export async function setupInstall(csrfToken: string): Promise<SetupStatus> {
   return SetupStatusSchema.parse(await requestJson("/api/v1/setup/installation", {
     method: "POST", headers: csrfHeaders(csrfToken, true), body: JSON.stringify({ confirmed: true }),
+  }))
+}
+export async function setupCancel(csrfToken: string): Promise<SetupStatus> {
+  return SetupStatusSchema.parse(await requestJson("/api/v1/setup/installation/cancel", {
+    method: "POST", headers: csrfHeaders(csrfToken, true),
   }))
 }
