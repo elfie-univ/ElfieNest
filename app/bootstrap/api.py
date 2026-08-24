@@ -31,12 +31,12 @@ from infrastructure.models.model_execution_adapter import StructuredModelExecuti
 from infrastructure.persistence.configuration.bundled_defaults import load_nest_config
 from infrastructure.persistence.layout.data_home import get_db_path
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
-from infrastructure.platform.diagnostics import ProcessDiagnostics
 
 from .app_wiring.storage import (
     ensure_application_storage,
 )
 from .container import build_application_container
+from .diagnostics import ProcessDiagnosticsHandle
 
 
 def create_app(
@@ -50,7 +50,7 @@ def create_app(
     runtime_capability_gate: RuntimeCapabilityGate | None = None,
     runtime_projection: Callable[[], Mapping[str, object]] | None = None,
     species_runtime: SpeciesRuntimeReadinessPort | None = None,
-    diagnostics: ProcessDiagnostics | None = None,
+    diagnostics: ProcessDiagnosticsHandle | None = None,
 ) -> FastAPI:
     selected_db_path = db_path or str(get_db_path())
     ensure_application_storage(selected_db_path)

@@ -116,7 +116,11 @@ if __name__ == "__main__":
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
-from app.bootstrap import create_app
+from app.bootstrap import (
+    ProcessDiagnosticsHandle,
+    create_app,
+    open_core_process_diagnostics,
+)
 from app.bootstrap.app_wiring.accounts import build_accounts_service
 from app.bootstrap.app_wiring.storage import ensure_application_storage
 from app.bootstrap.model_execution import (
@@ -153,7 +157,6 @@ from app.orchestration.lifecycle import (
     RecoveryInProgressError,
     validate_service_ports,
 )
-from infrastructure.platform.diagnostics import ProcessDiagnostics
 
 WORLD_CONVERGENCE_TIMEOUT_SECONDS = 120.0
 ENGINE_STALL_MINIMUM_SECONDS = 120.0
@@ -197,7 +200,7 @@ class EngineFailureSignal:
 
 
 def _diagnostic_event(
-    diagnostics: ProcessDiagnostics | None,
+    diagnostics: ProcessDiagnosticsHandle | None,
     event: str,
     *,
     level: int = logging.INFO,
@@ -214,7 +217,7 @@ def _diagnostic_event(
 
 
 def _diagnostic_exception(
-    diagnostics: ProcessDiagnostics | None,
+    diagnostics: ProcessDiagnosticsHandle | None,
     event: str,
     error: BaseException,
     *,
@@ -229,29 +232,21 @@ def _diagnostic_exception(
         return
 
 
-def _open_core_diagnostics(elfie_home: Path) -> ProcessDiagnostics | None:
-    diagnostics: ProcessDiagnostics | None = None
+def _open_core_diagnostics(elfie_home: Path) -> ProcessDiagnosticsHandle | None:
     try:
-        diagnostics = ProcessDiagnostics(
+        return open_core_process_diagnostics(
             elfie_home,
-            role="core",
             source_revision=os.environ.get("ELFIENEST_SOURCE_REVISION"),
         )
-        diagnostics.configure_root_warning_log()
-        diagnostics.install_exception_hooks()
-        diagnostics.start_resource_monitor()
     except (OSError, RuntimeError, ValueError) as error:
-        if diagnostics is not None:
-            _close_diagnostics_safely(diagnostics)
         print(
             "  ⚠️ Structured Core diagnostics unavailable "
             f"({type(error).__name__}); continuing with managed console output"
         )
         return None
-    return diagnostics
 
 
-def _close_diagnostics_safely(diagnostics: ProcessDiagnostics) -> None:
+def _close_diagnostics_safely(diagnostics: ProcessDiagnosticsHandle) -> None:
     try:
         diagnostics.close()
     except (OSError, RuntimeError, ValueError):
@@ -259,7 +254,7 @@ def _close_diagnostics_safely(diagnostics: ProcessDiagnostics) -> None:
 
 
 def _install_managed_core_sigterm_handler(
-    diagnostics: ProcessDiagnostics | None,
+    diagnostics: ProcessDiagnosticsHandle | None,
 ) -> Callable[[], None]:
     """Let Uvicorn re-raise managed SIGTERM without skipping Core cleanup."""
     previous_handler = signal.getsignal(signal.SIGTERM)
@@ -291,7 +286,7 @@ def monitor_engine_progress(
     engine: Any,
     failure: EngineFailureSignal,
     shutdown_requested: threading.Event,
-    diagnostics: ProcessDiagnostics | None,
+    diagnostics: ProcessDiagnosticsHandle | None,
     *,
     monotonic: Callable[[], float] = time.monotonic,
     poll_seconds: float = ENGINE_MONITOR_POLL_SECONDS,
@@ -576,7 +571,7 @@ class RuntimeStartupCleanup:
 
 def _finalize_core_runtime(
     startup_cleanup: RuntimeStartupCleanup,
-    diagnostics: ProcessDiagnostics | None,
+    diagnostics: ProcessDiagnosticsHandle | None,
     *,
     fatal_exit: bool,
 ) -> None:

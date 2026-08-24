@@ -224,11 +224,14 @@ def test_unavailable_structured_diagnostics_do_not_abort_core_startup(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    class _UnavailableDiagnostics:
-        def __init__(self, *_args: object, **_kwargs: object) -> None:
-            raise OSError("log directory unavailable")
+    def unavailable_diagnostics(*_args: object, **_kwargs: object) -> None:
+        raise OSError("log directory unavailable")
 
-    monkeypatch.setattr(serve, "ProcessDiagnostics", _UnavailableDiagnostics)
+    monkeypatch.setattr(
+        serve,
+        "open_core_process_diagnostics",
+        unavailable_diagnostics,
+    )
 
     assert serve._open_core_diagnostics(tmp_path) is None
 
