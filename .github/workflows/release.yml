@@ -27,7 +27,7 @@ env:
 
 jobs:
   godot-web:
-    name: Build shared Godot Web Runtime
+    name: Build shared Godot runtimes
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -74,12 +74,25 @@ jobs:
           GODOT_BIN="$GODOT_RESOLVED_BIN" \
             .venv/bin/python scripts/internal/build/build_godot_web.py
           .venv/bin/python scripts/internal/build/build_godot_web.py --check
+          GODOT_BIN="$GODOT_RESOLVED_BIN" \
+            .venv/bin/python scripts/internal/build/build_godot_dedicated.py
+          .venv/bin/python scripts/internal/build/build_godot_dedicated.py --check
+          tar -C build/components -czf build/godot-linux-dedicated.tar.gz \
+            godot-linux-dedicated
 
       - name: Upload shared Godot Web Runtime
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: godot-web-runtime
           path: build/components/godot-web
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload shared Linux Dedicated Runtime
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: godot-linux-dedicated-runtime
+          path: build/godot-linux-dedicated.tar.gz
           if-no-files-found: error
           retention-days: 14
 
@@ -134,6 +147,21 @@ jobs:
         with:
           name: godot-web-runtime
           path: build/components/godot-web
+
+      - name: Download shared Linux Dedicated Runtime
+        if: matrix.target == 'linux-x64'
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: godot-linux-dedicated-runtime
+          path: build/prebuilt-godot-linux-dedicated
+
+      - name: Restore Linux Dedicated executable permissions
+        if: matrix.target == 'linux-x64'
+        run: |
+          set -euo pipefail
+          tar -C build/components -xzf \
+            build/prebuilt-godot-linux-dedicated/godot-linux-dedicated.tar.gz
+          test -x build/components/godot-linux-dedicated/ElfieNestRuntime
 
       - name: Build and smoke-test target installer
         env:
@@ -209,6 +237,7 @@ jobs:
           rm -rf "$extract_root"
           dpkg-deb --extract "$artifact" "$extract_root"
           test -x "$extract_root/opt/ElfieNest/resources/management-cli/ElfieNestCli"
+          test -x "$extract_root/opt/ElfieNest/resources/godot-linux-dedicated/ElfieNestRuntime"
           test -f "$extract_root/opt/ElfieNest/resources/manifest.json"
           test -x "$extract_root/opt/ElfieNest/elfienest-gui"
 

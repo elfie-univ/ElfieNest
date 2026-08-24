@@ -18,6 +18,11 @@ const GODOT_WEB_RESOURCE_PATHS = [
   "godot-web/elfienest.pck",
 ] as const;
 
+const GODOT_LINUX_DEDICATED_RESOURCE_PATHS = [
+  "godot-linux-dedicated/ElfieNestRuntime",
+  "godot-linux-dedicated/build-manifest.json",
+] as const;
+
 const PRODUCT_WEB_RESOURCE_PATHS = [
   "web/manifest.json",
   "web/index.html",
@@ -26,6 +31,7 @@ const PRODUCT_WEB_RESOURCE_PATHS = [
 const PACKAGED_RESOURCE_DIRECTORIES = [
   "web",
   "godot-web",
+  "godot-linux-dedicated",
   "python-core",
   "management-cli",
   "config",
@@ -144,6 +150,7 @@ export function requiredResourcePathsForTarget(
 ): readonly ResourcePath[] {
   return [
     ...GODOT_WEB_RESOURCE_PATHS,
+    ...(target === "linux-x64" ? GODOT_LINUX_DEDICATED_RESOURCE_PATHS : []),
     ...PRODUCT_WEB_RESOURCE_PATHS,
     executablePathForTarget(target, "python-core"),
     executablePathForTarget(target, "management-cli"),

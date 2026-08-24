@@ -20,6 +20,10 @@ REQUIRED_GODOT_FILES: Final[Tuple[str, ...]] = (
     "godot-web/elfienest.wasm",
     "godot-web/elfienest.pck",
 )
+REQUIRED_GODOT_DEDICATED_FILES: Final[Tuple[str, ...]] = (
+    "godot-linux-dedicated/ElfieNestRuntime",
+    "godot-linux-dedicated/build-manifest.json",
+)
 REQUIRED_CONFIG_FILES: Final[Tuple[str, ...]] = (
     "config/app/system-defaults.yaml",
     "config/models/provider-catalog.yaml",
@@ -120,13 +124,16 @@ def _parse_entries(files: Dict[str, object]) -> Mapping[str, Tuple[int, str]]:
 def _required_paths(target: str) -> set[str]:
     """Return runtime paths that every target package must contain."""
     executable_suffix = ".exe" if target == "win32-x64" else ""
-    return {
+    required = {
         *REQUIRED_WEB_FILES,
         *REQUIRED_GODOT_FILES,
         *REQUIRED_CONFIG_FILES,
         f"python-core/ElfieNestCore{executable_suffix}",
         f"management-cli/ElfieNestCli{executable_suffix}",
     }
+    if target == "linux-x64":
+        required.update(REQUIRED_GODOT_DEDICATED_FILES)
+    return required
 
 
 def _actual_paths(resources: Path) -> set[str]:

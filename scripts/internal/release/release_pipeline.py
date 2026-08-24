@@ -47,7 +47,7 @@ class NativeReleaseSteps:
 
     ensure_dependencies: Callable[[], None]
     build_web: Callable[[], None]
-    build_godot: Callable[[], None]
+    build_godot: Callable[[str], None]
     freeze_core: Callable[[str], Path]
     freeze_cli: Callable[[str], Path]
     assemble: Callable[[str, Path, Path], Path]
@@ -66,7 +66,7 @@ def run_native_release(
             f"native-target-required target={target} host_target={host_target}"
         )
     _run_stage("web", steps.build_web)
-    _run_stage("godot", steps.build_godot)
+    _run_stage("godot", lambda: steps.build_godot(target))
     _run_stage("dependencies", steps.ensure_dependencies)
     core = _run_stage("python-core", lambda: steps.freeze_core(target))
     cli = _run_stage("management-cli", lambda: steps.freeze_cli(target))
@@ -178,8 +178,8 @@ def _build_web() -> None:
     )
 
 
-def _build_godot() -> None:
-    """Export the required Godot Web runtime through the controlled project script."""
+def _build_godot(target: str) -> None:
+    """Export the target's Godot runtimes through controlled project scripts."""
     _run_command(
         (
             _project_python(),
@@ -188,10 +188,18 @@ def _build_godot() -> None:
         ),
         PROJECT_ROOT,
     )
+    if target == "linux-x64":
+        _run_command(
+            (
+                _project_python(),
+                "scripts/internal/build/build_godot_dedicated.py",
+            ),
+            PROJECT_ROOT,
+        )
 
 
-def _check_godot() -> None:
-    """Validate the shared Godot Web runtime without requiring a local Godot editor."""
+def _check_godot(target: str) -> None:
+    """Validate prebuilt Godot runtimes without requiring a local Godot editor."""
     _run_command(
         (
             _project_python(),
@@ -200,6 +208,15 @@ def _check_godot() -> None:
         ),
         PROJECT_ROOT,
     )
+    if target == "linux-x64":
+        _run_command(
+            (
+                _project_python(),
+                "scripts/internal/build/build_godot_dedicated.py",
+                "--check",
+            ),
+            PROJECT_ROOT,
+        )
 
 
 def _freeze_core(target: str) -> Path:
@@ -227,6 +244,11 @@ def _assemble(target: str, core: Path, cli: Path, version: str) -> Path:
         output_root=BUILD_DIR / "staging",
         web_source=BUILD_DIR / "web",
         godot_source=BUILD_DIR / "components" / "godot-web",
+        godot_dedicated_source=(
+            BUILD_DIR / "components" / "godot-linux-dedicated"
+            if target == "linux-x64"
+            else None
+        ),
         core_source=core,
         cli_source=cli,
         config_source=PROJECT_ROOT / "config",
