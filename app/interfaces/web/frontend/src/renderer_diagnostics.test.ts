@@ -36,6 +36,31 @@ describe("Desktop renderer diagnostics", () => {
     expect(payload["suppressed_count"]).toBe(0)
   })
 
+  it("redacts OAuth credentials and authorization headers", () => {
+    const report = vi.fn()
+    window.elfienestDesktop = {
+      readCurrentWifiName: vi.fn(),
+      openLocationSettings: vi.fn(),
+      reportRendererError: report,
+    }
+
+    reportRendererError(
+      "react_uncaught",
+      new Error(
+        "access_token=sample-access "
+        + "refresh_token='sample-refresh' "
+        + '"client_secret": "sample-client" '
+        + "Authorization: Bearer sample-bearer "
+        + "Bearer sample-standalone",
+      ),
+    )
+
+    const encoded = JSON.stringify(report.mock.calls[0]?.[0])
+    expect(encoded).not.toMatch(
+      /sample-access|sample-refresh|sample-client|sample-bearer|sample-standalone/u,
+    )
+  })
+
   it("captures global errors without suppressing normal browser handling", () => {
     const report = vi.fn()
     window.elfienestDesktop = {

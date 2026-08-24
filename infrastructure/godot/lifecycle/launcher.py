@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import signal
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from hashlib import sha256
 from pathlib import Path
@@ -133,9 +135,21 @@ def _electron_command(
         packaged = _executable(Path(configured))
         if packaged is not None:
             return (str(packaged), AUTHORITY_ROLE_ARGUMENT)
-    electron = _executable(
-        project_root / "app/interfaces/desktop/node_modules/.bin/electron"
-    )
+    electron_package = project_root / "app/interfaces/desktop/node_modules/electron"
+    try:
+        relative_executable = Path(
+            (electron_package / "path.txt").read_text(encoding="utf-8").strip()
+        )
+    except (OSError, UnicodeError):
+        return None
+    if (
+        not relative_executable.parts
+        or relative_executable.is_absolute()
+        or bool(relative_executable.drive)
+        or ".." in relative_executable.parts
+    ):
+        return None
+    electron = _executable(electron_package / "dist" / relative_executable)
     desktop_host = project_root / "app/bootstrap/desktop_host/host_main.mjs"
     try:
         resolved_host = desktop_host.resolve()
@@ -353,6 +367,57 @@ def _rotate_authority_log(path: Path) -> None:
         if target.exists():
             target.unlink()
         source.replace(target)
+
+
+def record_authority_stop_diagnostic(
+    path: Optional[Path],
+    *,
+    event: str,
+    pid: int,
+    status: str,
+    level: str = "info",
+    signal_name: Optional[str] = None,
+    exit_code: Optional[int] = None,
+) -> None:
+    """Append one lifecycle-observed stop event to the authority's own log."""
+    if path is None:
+        return
+    revision = os.environ.get("ELFIENEST_SOURCE_REVISION", "").strip().lower()
+    if len(revision) != 40 or any(
+        character not in "0123456789abcdef" for character in revision
+    ):
+        revision = "unknown"
+    payload: dict[str, object] = {
+        "timestamp": datetime.now(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z"),
+        "event": event,
+        "level": level,
+        "role": "godot-authority",
+        "pid": pid,
+        "observer_role": "lifecycle-supervisor",
+        "observer_pid": os.getpid(),
+        "source_revision": revision,
+        "status": status,
+    }
+    if signal_name is not None:
+        payload["signal"] = signal_name
+    if exit_code is not None:
+        payload["exit_code"] = exit_code
+    try:
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if os.name != "nt":
+            path.parent.chmod(0o700)
+        _rotate_authority_log(path)
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            stream.write("\n")
+        if os.name != "nt":
+            path.chmod(0o600)
+    except OSError:
+        # Diagnostics must never prevent the lifecycle owner from stopping the
+        # process it has already identity-validated.
+        logger.exception("Godot authority stop diagnostic could not be persisted")
 
 
 def stop_godot_runtime(process: Optional[OwnedRuntimeProcess]) -> None:

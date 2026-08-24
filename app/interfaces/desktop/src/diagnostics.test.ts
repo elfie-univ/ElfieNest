@@ -15,7 +15,28 @@ import {
   DesktopDiagnostics,
   installDesktopProcessExceptionHandlers,
   normalizeRendererDiagnosticPayload,
+  redactDiagnosticText,
 } from "./diagnostics.js";
+
+test("desktop diagnostics redacts OAuth credentials and authorization headers", () => {
+  const redacted = redactDiagnosticText(
+    "access_token=sample-access "
+    + "refresh_token='sample-refresh' "
+    + '"client_secret": "sample-client" '
+    + "Authorization: Bearer sample-bearer "
+    + "Bearer sample-standalone",
+  );
+
+  for (const credential of [
+    "sample-access",
+    "sample-refresh",
+    "sample-client",
+    "sample-bearer",
+    "sample-standalone",
+  ]) {
+    assert.doesNotMatch(redacted, new RegExp(credential, "u"));
+  }
+});
 
 test("desktop diagnostics writes redacted structured events with private modes", () => {
   const root = mkdtempSync(join(tmpdir(), "elfienest-desktop-diagnostics-"));

@@ -292,6 +292,28 @@ def test_redaction_covers_quoted_mapping_assignments() -> None:
     assert redacted.count("<redacted>") == 3
 
 
+def test_redaction_covers_oauth_credentials_and_authorization_headers() -> None:
+    source = (
+        "access_token=sample-access "
+        "refresh_token='sample-refresh' "
+        '"client_secret": "sample-client" '
+        "Authorization: Bearer sample-bearer "
+        "Bearer sample-standalone"
+    )
+
+    redacted = redact_diagnostic_text(source)
+
+    for credential in (
+        "sample-access",
+        "sample-refresh",
+        "sample-client",
+        "sample-bearer",
+        "sample-standalone",
+    ):
+        assert credential not in redacted
+    assert redacted.count("<redacted>") >= 5
+
+
 def test_runtime_identity_is_automatically_attached_to_later_events(
     tmp_path: Path,
 ) -> None:

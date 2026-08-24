@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -61,6 +62,39 @@ def test_hidden_authority_records_process_and_electron_crash_surfaces() -> None:
     assert "parsed.total_attempts" in source
     assert "sampledRendererDiagnostic" in source
     assert "suppressed_count" in source
+
+
+def test_hidden_authority_redacts_oauth_credentials_and_authorization_headers() -> None:
+    source = AUTHORITY_MAIN.read_text(encoding="utf-8")
+    function_start = source.index("function redactDiagnosticText")
+    function_end = source.index("\nfunction diagnosticError", function_start)
+    script = (
+        source[function_start:function_end]
+        + "\nprocess.stdout.write(redactDiagnosticText(process.argv[1]));"
+    )
+    credential_text = (
+        "access_token=sample-access "
+        "refresh_token='sample-refresh' "
+        '"client_secret": "sample-client" '
+        "Authorization: Bearer sample-bearer "
+        "Bearer sample-standalone"
+    )
+
+    completed = subprocess.run(
+        ["node", "--input-type=module", "-e", script, credential_text],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    for credential in (
+        "sample-access",
+        "sample-refresh",
+        "sample-client",
+        "sample-bearer",
+        "sample-standalone",
+    ):
+        assert credential not in completed.stdout
 
 
 def test_hidden_authority_exits_when_its_core_process_dies() -> None:

@@ -29,10 +29,12 @@ import hashlib
 import logging
 import os
 import secrets
+import signal
 import sys
 import threading
 import time
 from pathlib import Path
+from types import FrameType
 from typing import Any, Callable, Sequence
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -254,6 +256,35 @@ def _close_diagnostics_safely(diagnostics: ProcessDiagnostics) -> None:
         diagnostics.close()
     except (OSError, RuntimeError, ValueError):
         return
+
+
+def _install_managed_core_sigterm_handler(
+    diagnostics: ProcessDiagnostics | None,
+) -> Callable[[], None]:
+    """Let Uvicorn re-raise managed SIGTERM without skipping Core cleanup."""
+    previous_handler = signal.getsignal(signal.SIGTERM)
+    recorded = False
+
+    def handle_sigterm(signum: int, _frame: FrameType | None) -> None:
+        nonlocal recorded
+        if recorded:
+            return
+        recorded = True
+        _diagnostic_event(
+            diagnostics,
+            "core_shutdown_requested",
+            phase="core_stopping",
+            signal=signal.Signals(signum).name,
+            status="requested",
+        )
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+
+    def restore() -> None:
+        if signal.getsignal(signal.SIGTERM) is handle_sigterm:
+            signal.signal(signal.SIGTERM, previous_handler)
+
+    return restore
 
 
 def monitor_engine_progress(
@@ -541,6 +572,28 @@ class RuntimeStartupCleanup:
                     "component": component,
                 },
             )
+
+
+def _finalize_core_runtime(
+    startup_cleanup: RuntimeStartupCleanup,
+    diagnostics: ProcessDiagnostics | None,
+    *,
+    fatal_exit: bool,
+) -> None:
+    """Bracket managed cleanup with durable process-terminal diagnostics."""
+    _diagnostic_event(
+        diagnostics,
+        "core_process_stopping",
+        phase="core_stopping",
+        status="failed" if fatal_exit else "stopping",
+    )
+    startup_cleanup.cleanup()
+    _diagnostic_event(
+        diagnostics,
+        "core_process_stopped",
+        phase="core_stopping",
+        status="failed" if fatal_exit else "stopped",
+    )
 
 
 def remaining_occupied_ports(
@@ -1059,6 +1112,7 @@ def main():
 
     import uvicorn  # noqa: PLC0415
 
+    restore_sigterm_handler = _install_managed_core_sigterm_handler(diagnostics)
     fatal_exit = False
     try:
         config = uvicorn.Config(
@@ -1098,13 +1152,14 @@ def main():
     finally:
         fatal_exit = fatal_exit or engine_failure.is_set()
         startup_cleanup.monitor_stop.set()
-        startup_cleanup.cleanup()
-        _diagnostic_event(
-            diagnostics,
-            "core_process_stopping",
-            phase="core_stopping",
-            status="failed" if fatal_exit else "stopped",
-        )
+        try:
+            _finalize_core_runtime(
+                startup_cleanup,
+                diagnostics,
+                fatal_exit=fatal_exit,
+            )
+        finally:
+            restore_sigterm_handler()
         print("Service stopped.")
     if fatal_exit:
         engine_error = engine_failure.error

@@ -35,9 +35,10 @@ _DIAGNOSTIC_LOGGER_NAME = "elfienest.diagnostics"
 _URL_QUERY = re.compile(r"(https?://[^\s?]+)\?[^\s]+", re.IGNORECASE)
 _BEARER = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+\-/]+=*")
 _SECRET_ASSIGNMENT = re.compile(
-    r"(?i)([\"']?\b(?:api[_-]?key|token|nonce|password|secret|authorization)\b"
+    r"(?i)([\"']?\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|"
+    r"client[_-]?secret|token|nonce|password|secret|authorization)\b"
     r"[\"']?\s*[:=]\s*)"
-    r"(\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s,;}\]]+)"
+    r"(\"[^\"\r\n]*\"|'[^'\r\n]*'|(?:Bearer\s+)?[^\s,;}\]]+)"
 )
 _SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")
 _SAFE_FIELDS = frozenset(
@@ -99,7 +100,6 @@ class ProcessResourceSample(TypedDict, total=False):
 def redact_diagnostic_text(value: str) -> str:
     """Remove common credential shapes and every URL query string."""
     redacted = _URL_QUERY.sub(r"\1?<redacted>", value)
-    redacted = _BEARER.sub("Bearer <redacted>", redacted)
 
     def replace_assignment(match: re.Match[str]) -> str:
         prefix = match.group(1)
@@ -110,7 +110,8 @@ def redact_diagnostic_text(value: str) -> str:
             return f"{prefix}'<redacted>'"
         return f"{prefix}<redacted>"
 
-    return _SECRET_ASSIGNMENT.sub(replace_assignment, redacted)
+    redacted = _SECRET_ASSIGNMENT.sub(replace_assignment, redacted)
+    return _BEARER.sub("Bearer <redacted>", redacted)
 
 
 class _SecureRotatingFileHandler(logging.handlers.RotatingFileHandler):

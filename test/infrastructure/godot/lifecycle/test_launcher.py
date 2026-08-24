@@ -14,11 +14,19 @@ from infrastructure.godot.lifecycle import launcher
 
 
 def _source_electron(project_root: Path) -> tuple[Path, Path]:
-    electron = project_root / "app/interfaces/desktop/node_modules/.bin/electron"
-    host_main = project_root / "app/bootstrap/desktop_host/host_main.mjs"
+    electron_package = project_root / "app/interfaces/desktop/node_modules/electron"
+    electron = electron_package / "dist/electron-bin"
     electron.parent.mkdir(parents=True)
     electron.write_text("electron", encoding="utf-8")
     electron.chmod(0o755)
+    (electron_package / "path.txt").write_text("electron-bin", encoding="utf-8")
+    electron_wrapper = (
+        project_root / "app/interfaces/desktop/node_modules/.bin/electron"
+    )
+    electron_wrapper.parent.mkdir(parents=True)
+    electron_wrapper.write_text("electron wrapper", encoding="utf-8")
+    electron_wrapper.chmod(0o755)
+    host_main = project_root / "app/bootstrap/desktop_host/host_main.mjs"
     host_main.parent.mkdir(parents=True)
     host_main.write_text("main", encoding="utf-8")
     return electron, host_main
@@ -45,7 +53,8 @@ def test_graphical_source_platform_routes_to_hidden_electron_authority(
         environment={},
     )
 
-    # Then: it reuses the hidden Electron role and the same-origin Web authority URL.
+    # Then: it owns the real Electron process (not the forwarding CLI wrapper)
+    # and uses the same-origin Web authority URL.
     assert plan.host_kind is launcher.RuntimeHostKind.ELECTRON_AUTHORITY
     assert plan.command == (
         str(electron.resolve()),
@@ -87,6 +96,16 @@ def test_authority_launch_plan_passes_core_pid_to_electron(
 
     assert plan.command[0] == str(electron.resolve())
     assert dict(plan.environment)["ELFIENEST_CORE_PID"] == "12345"
+
+
+def test_corrupt_source_electron_path_is_treated_as_a_missing_artifact(
+    tmp_path: Path,
+) -> None:
+    electron_package = tmp_path / "app/interfaces/desktop/node_modules/electron"
+    electron_package.mkdir(parents=True)
+    (electron_package / "path.txt").write_bytes(b"\xff")
+
+    assert launcher._electron_command(tmp_path, {}) is None
 
 
 def test_electron_authority_namespace_is_scoped_to_the_checkout(
@@ -315,6 +334,51 @@ def test_stop_targets_only_the_process_started_by_this_launcher(
     # Then: only that owned start_new_session process group is terminated.
     assert groups == [(18161, signal.SIGTERM)]
     assert calls == [("wait", launcher.AUTHORITY_STOP_GRACE_SECONDS)]
+
+
+def test_stop_force_kills_the_owned_process_group_after_grace_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, float | None]] = []
+
+    class OwnedProcess:
+        pid = 18162
+        wait_count = 0
+
+        def poll(self) -> None:
+            return None
+
+        def terminate(self) -> None:
+            raise AssertionError("POSIX cleanup must target the owned process group")
+
+        def wait(self, timeout: float) -> int:
+            calls.append(("wait", timeout))
+            self.wait_count += 1
+            if self.wait_count == 1:
+                raise launcher.subprocess.TimeoutExpired("authority", timeout)
+            return -signal.SIGKILL
+
+        def kill(self) -> None:
+            raise AssertionError("forced cleanup must include descendants")
+
+    groups: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        launcher.os,
+        "killpg",
+        lambda pid, sig: groups.append((pid, sig)),
+    )
+    monkeypatch.setattr(launcher.os, "name", "posix")
+
+    launcher.stop_godot_runtime(OwnedProcess())
+
+    assert groups == [
+        (18162, signal.SIGTERM),
+        (18162, signal.SIGKILL),
+    ]
+    assert calls == [
+        ("wait", launcher.AUTHORITY_STOP_GRACE_SECONDS),
+        ("wait", launcher.AUTHORITY_STOP_FORCE_GRACE_SECONDS),
+    ]
 
 
 def test_stop_uses_windows_process_tree_for_owned_authority(

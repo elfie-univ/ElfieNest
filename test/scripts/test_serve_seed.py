@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import signal
 import threading
 from pathlib import Path
 from typing import Any
@@ -89,6 +90,14 @@ class _CapturingDiagnostics:
     def dump_all_thread_traces(self, *, reason: str) -> bool:
         self.dumps.append(reason)
         return True
+
+
+class _OrderedCleanup:
+    def __init__(self, calls: list[str]) -> None:
+        self.calls = calls
+
+    def cleanup(self) -> None:
+        self.calls.append("cleanup")
 
 
 def test_managed_core_leaves_the_process_receipt_owned_by_its_supervisor(
@@ -222,3 +231,36 @@ def test_unavailable_structured_diagnostics_do_not_abort_core_startup(
     monkeypatch.setattr(serve, "ProcessDiagnostics", _UnavailableDiagnostics)
 
     assert serve._open_core_diagnostics(tmp_path) is None
+
+
+def test_core_shutdown_events_bracket_runtime_cleanup() -> None:
+    calls: list[str] = []
+
+    class OrderedDiagnostics(_CapturingDiagnostics):
+        def event(self, event: str, **_fields: object) -> None:
+            calls.append(event)
+
+    serve._finalize_core_runtime(
+        _OrderedCleanup(calls),  # type: ignore[arg-type]
+        OrderedDiagnostics(),  # type: ignore[arg-type]
+        fatal_exit=False,
+    )
+
+    assert calls == ["core_process_stopping", "cleanup", "core_process_stopped"]
+
+
+def test_managed_core_sigterm_handler_records_shutdown_request() -> None:
+    diagnostics = _CapturingDiagnostics()
+    previous = signal.getsignal(signal.SIGTERM)
+    restore = serve._install_managed_core_sigterm_handler(
+        diagnostics,  # type: ignore[arg-type]
+    )
+    try:
+        handler = signal.getsignal(signal.SIGTERM)
+        assert callable(handler)
+        handler(signal.SIGTERM, None)
+    finally:
+        restore()
+
+    assert signal.getsignal(signal.SIGTERM) is previous
+    assert diagnostics.events == ["core_shutdown_requested"]

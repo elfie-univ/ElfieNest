@@ -42,11 +42,11 @@ function redactDiagnosticText(value) {
   return String(value)
     .replace(/(https?:\/\/[^\s?]+)\?[^\s]+/giu, "$1?<redacted>")
     .replace(
-      /(["']?\b(?:api[_-]?key|token|nonce|password|secret|authorization)\b["']?\s*[:=]\s*)(["'])[^\r\n]*?\2/giu,
+      /(["']?\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|token|nonce|password|secret|authorization)\b["']?\s*[:=]\s*)(["'])[^\r\n]*?\2/giu,
       "$1$2<redacted>$2",
     )
     .replace(
-      /(["']?\b(?:api[_-]?key|token|nonce|password|secret|authorization)\b["']?\s*[:=]\s*)(?!["'])[^\s,;}\]]+/giu,
+      /(["']?\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|token|nonce|password|secret|authorization)\b["']?\s*[:=]\s*)(?!["'])(?:Bearer\s+)?[^\s,;}\]]+/giu,
       "$1<redacted>",
     )
     .replace(/\bBearer\s+[A-Za-z0-9._~+\-/]+=*/giu, "Bearer <redacted>");

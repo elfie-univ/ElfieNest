@@ -21,6 +21,7 @@ from infrastructure.godot.lifecycle.launcher import (
     AuthorityLaunchError,
     AuthorityLaunchRequest,
     plan_godot_runtime_launch,
+    record_authority_stop_diagnostic,
     start_godot_runtime,
     stop_godot_runtime,
     terminate_recorded_godot_runtime,
@@ -76,9 +77,61 @@ class GodotAuthorityHostAdapter:
 
     def stop(self, process: AuthorityProcess) -> None:
         if isinstance(process, Popen):
-            stop_godot_runtime(process)
+            if process.poll() is not None:
+                self._record_stop_event(
+                    "authority_process_stopped",
+                    process.pid,
+                    status="already_stopped",
+                    exit_code=process.returncode,
+                )
+                return
+            self._record_stop_event(
+                "authority_shutdown_requested",
+                process.pid,
+                status="requested",
+                signal_name="SIGTERM" if os.name != "nt" else None,
+            )
+            try:
+                stop_godot_runtime(process)
+            except Exception:
+                self._record_stop_event(
+                    "authority_process_stop_failed",
+                    process.pid,
+                    status="failed",
+                    level="error",
+                )
+                raise
+            self._record_stop_event(
+                "authority_process_stopped",
+                process.pid,
+                status="stopped",
+                exit_code=process.poll(),
+            )
             return
         self._stop_recorded(process.pid)
+
+    def _record_stop_event(
+        self,
+        event: str,
+        pid: int,
+        *,
+        status: str,
+        level: str = "info",
+        signal_name: str | None = None,
+        exit_code: int | None = None,
+    ) -> None:
+        core_pid_file = self._config.core_pid_file
+        record_authority_stop_diagnostic(
+            None
+            if core_pid_file is None
+            else core_pid_file.parent / "logs" / "authority.log",
+            event=event,
+            pid=pid,
+            status=status,
+            level=level,
+            signal_name=signal_name,
+            exit_code=exit_code,
+        )
 
     def _recorded_matches(self, pid: int) -> bool:
         try:
@@ -104,25 +157,93 @@ class GodotAuthorityHostAdapter:
         if not self._inspector.exists(pid) or not self._recorded_matches(pid):
             return
         if os.name == "nt":
+            self._record_stop_event(
+                "authority_shutdown_requested", pid, status="requested"
+            )
             try:
                 terminate_recorded_godot_runtime(pid)
             except (OSError, ProcessLookupError):
+                self._record_stop_event(
+                    "authority_process_stop_failed",
+                    pid,
+                    status="failed",
+                    level="error",
+                )
                 return
+            self._record_stop_event("authority_process_stopped", pid, status="stopped")
             return
         try:
             process_group = os.getpgid(pid)
-            if process_group != pid:
-                return
+        except ProcessLookupError:
+            self._record_stop_event(
+                "authority_process_stopped", pid, status="already_stopped"
+            )
+            return
+        except PermissionError:
+            self._record_stop_event(
+                "authority_process_stop_failed",
+                pid,
+                status="permission_denied",
+                level="error",
+            )
+            return
+        if process_group != pid:
+            self._record_stop_event(
+                "authority_process_stop_failed",
+                pid,
+                status="unsafe_process_group",
+                level="error",
+            )
+            return
+        self._record_stop_event(
+            "authority_shutdown_requested",
+            pid,
+            status="requested",
+            signal_name="SIGTERM",
+        )
+        try:
             os.killpg(process_group, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError):
+        except ProcessLookupError:
+            self._record_stop_event(
+                "authority_process_stopped", pid, status="already_stopped"
+            )
+            return
+        except PermissionError:
+            self._record_stop_event(
+                "authority_process_stop_failed",
+                pid,
+                status="permission_denied",
+                level="error",
+            )
             return
         deadline = time.monotonic() + self._stop_timeout_seconds
         while self._inspector.exists(pid):
             if time.monotonic() >= deadline:
                 if self._recorded_matches(pid):
+                    self._record_stop_event(
+                        "authority_shutdown_escalated",
+                        pid,
+                        status="forced",
+                        level="warning",
+                        signal_name="SIGKILL",
+                    )
                     try:
                         os.killpg(process_group, signal.SIGKILL)
-                    except (ProcessLookupError, PermissionError):
+                    except ProcessLookupError:
+                        self._record_stop_event(
+                            "authority_process_stopped",
+                            pid,
+                            status="already_stopped",
+                        )
+                        return
+                    except PermissionError:
+                        self._record_stop_event(
+                            "authority_process_stop_failed",
+                            pid,
+                            status="permission_denied",
+                            level="error",
+                        )
                         return
                 return
             time.sleep(0.1)
+        self._record_stop_event("authority_process_stopped", pid, status="stopped")
