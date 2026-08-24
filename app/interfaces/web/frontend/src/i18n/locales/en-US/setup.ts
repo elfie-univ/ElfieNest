@@ -12,6 +12,7 @@ export const setup = {
     actions: {
       "ollama.check": "Checking Ollama",
       "ollama.install": "Installing Ollama",
+      "ollama.manual": "Waiting for terminal installation",
       "ollama.repair": "Repairing Ollama",
       "ollama.reuse": "Reusing Ollama",
       "ollama.start": "Trying to start Ollama",
@@ -40,6 +41,12 @@ export const setup = {
   offline: {
     action: "Save and continue",
     installed: "Installed · reusable",
+    linuxInstall: {
+      checking: "Checking…",
+      description: "The official Linux installer needs sudo in a visible terminal. Run this command, finish its prompts, then recheck.",
+      recheck: "I've installed Ollama — check again",
+      title: "Install Ollama in a terminal first",
+    },
     model: "Local model",
     modelDisabled: "Local Ollama is disabled; no model configured",
     modelStatus: "Checked during installation; missing model will download about {{size}} MB",

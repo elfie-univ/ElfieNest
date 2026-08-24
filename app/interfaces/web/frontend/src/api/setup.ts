@@ -29,15 +29,25 @@ const SetupModelOptionSchema = z.object({
   model_id: z.string(), label: z.string(), approx_download_mb: z.number().int().positive(), recommended: z.boolean(),
 })
 const SetupModelCollectionSchema = z.object({ items: z.array(SetupModelOptionSchema) })
+const SetupOllamaObservationSchema = z.object({
+  endpoint: z.string().nullable(),
+  platform: z.enum(["darwin", "linux", "win32"]),
+  state: z.enum(["absent", "healthy", "stopped", "deleted", "installing", "failed", "cancelled", "repair_required"]),
+  version: z.string().nullable(),
+})
 
 export type SetupStatus = z.infer<typeof SetupStatusSchema>
 export type SetupModelOption = z.infer<typeof SetupModelOptionSchema>
+export type SetupOllamaObservation = z.infer<typeof SetupOllamaObservationSchema>
 
 export async function setupStatus(): Promise<SetupStatus> {
   return SetupStatusSchema.parse(await requestJson("/api/v1/setup/status"))
 }
 export async function setupModelCatalog(): Promise<readonly SetupModelOption[]> {
   return SetupModelCollectionSchema.parse(await requestJson("/api/v1/setup/models")).items
+}
+export async function setupInspectOllama(): Promise<SetupOllamaObservation> {
+  return SetupOllamaObservationSchema.parse(await requestJson("/api/v1/setup/ollama"))
 }
 export async function setupSaveOwnerDraft(accountId: string, displayName: string, password: string | null, confirmPassword: string | null, csrfToken: string): Promise<SetupStatus> {
   return SetupStatusSchema.parse(await requestJson("/api/v1/setup/draft/owner", {

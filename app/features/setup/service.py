@@ -87,13 +87,16 @@ class SetupService:
         self, principal: SetupPrincipal, query: InspectSetupOllamaQuery
     ) -> SetupOllamaResult:
         _ = query
-        self._require_owner(principal)
+        self._require_ollama_inspection(principal)
         try:
             item = self._ollama.inspect()
         except SetupPortError as error:
             raise SetupUnavailable("Ollama inspection unavailable") from error
         return SetupOllamaResult(
-            state=item.state, endpoint=item.endpoint, version=item.version
+            state=item.state,
+            endpoint=item.endpoint,
+            version=item.version,
+            platform=self._ollama.platform,
         )
 
     def save_owner_draft(
@@ -134,6 +137,12 @@ class SetupService:
                 item.model_id for item in self._models.list_setup_models()
             }:
                 raise SetupValidationError("Setup 只支持固定的本地模型")
+            if command.use_local_ollama and self._ollama.platform == "linux":
+                observation = self._ollama.inspect()
+                if observation.state not in {"healthy", "stopped"}:
+                    raise SetupValidationError(
+                        "Linux 上请先在终端安装并启动 Ollama，然后重新检测"
+                    )
             self._state.save_offline_draft(
                 use_local_ollama=command.use_local_ollama, model_id=model_id
             )
@@ -169,6 +178,14 @@ class SetupService:
     def _require_owner(principal: SetupPrincipal) -> None:
         if principal.kind != "owner":
             raise SetupForbidden("需要 Owner 权限")
+
+    @staticmethod
+    def _require_ollama_inspection(principal: SetupPrincipal) -> None:
+        if principal.kind == "owner":
+            return
+        if principal.kind == "setup" and principal.local:
+            return
+        raise SetupForbidden("Ollama 检测仅允许本机 Setup 或 Owner")
 
     def _safe_ollama_observation(self) -> StoredOllamaObservation:
         try:

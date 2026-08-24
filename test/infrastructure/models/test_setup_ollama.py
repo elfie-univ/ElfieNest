@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from app.orchestration.setup_installation import (
     SetupDownloadedInstaller,
     SetupOllamaBinding,
@@ -11,9 +13,8 @@ from infrastructure.models.setup_ollama import SetupOllamaAdapter
 
 
 class FakeTechnology:
-    platform = "darwin"
-
-    def __init__(self) -> None:
+    def __init__(self, platform: str = "darwin") -> None:
+        self.platform = platform
         self.actions: list[str] = []
 
     def default_binding(self) -> SetupOllamaBinding:
@@ -83,3 +84,12 @@ def test_confirmed_workflow_action_owns_external_install_side_effects() -> None:
     _adapter(technology).ensure_installation(reports.append)
     assert reports == ["ollama.install"]
     assert technology.actions == ["download", "run", "start", "wait"]
+
+
+def test_linux_setup_never_downloads_or_runs_a_hidden_privileged_installer() -> None:
+    technology = FakeTechnology(platform="linux")
+
+    with pytest.raises(RuntimeError, match="终端"):
+        _adapter(technology).ensure_installation(lambda _action: None)
+
+    assert technology.actions == []

@@ -81,6 +81,7 @@ export function SetupInstall({
   const actionKeys = {
     "ollama.check": "install.actions.ollama.check",
     "ollama.install": "install.actions.ollama.install",
+    "ollama.manual": "install.actions.ollama.manual",
     "ollama.repair": "install.actions.ollama.repair",
     "ollama.reuse": "install.actions.ollama.reuse",
     "ollama.start": "install.actions.ollama.start",

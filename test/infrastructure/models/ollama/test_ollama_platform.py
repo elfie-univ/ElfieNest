@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import signal
 import subprocess
 from pathlib import Path
@@ -9,7 +10,9 @@ import pytest
 from app.orchestration.lifecycle.ports import ProcessIdentityEvidence
 from infrastructure.models.ollama.ollama_platform import (
     OFFICIAL_INSTALL_URLS,
+    DownloadedInstaller,
     OllamaBinding,
+    OllamaInteractiveInstallRequired,
     OllamaPlatformAdapter,
     OllamaProcessIdentity,
 )
@@ -92,6 +95,33 @@ def test_official_installer_is_downloaded_then_runs_only_the_fixed_template() ->
     assert installer.source_url == OFFICIAL_INSTALL_URLS["win32"]
     assert len(installer.sha256) == 64
     assert commands == [installer.command]
+
+
+def test_linux_official_installer_requires_an_interactive_terminal(
+    tmp_path: Path,
+) -> None:
+    # Given: an authentic downloaded Linux script and a non-interactive runner.
+    script = tmp_path / "install.sh"
+    script.write_bytes(b"#!/bin/sh\n")
+    commands: list[tuple[str, ...]] = []
+    adapter = OllamaPlatformAdapter(
+        process_identity_reader=_MissingIdentityReader(),
+        platform_name="linux",
+        command_runner=lambda command, **_kwargs: (
+            commands.append(tuple(command)) or _Completed(0)
+        ),
+    )
+    installer = DownloadedInstaller(
+        source_url=OFFICIAL_INSTALL_URLS["linux"],
+        sha256=hashlib.sha256(script.read_bytes()).hexdigest(),
+        script_path=script,
+        command=("/bin/sh", str(script)),
+    )
+
+    # When/Then: Desktop never hides sudo prompts in its background worker.
+    with pytest.raises(OllamaInteractiveInstallRequired, match="终端"):
+        adapter.run_confirmed_installer(installer, user_confirmed=True)
+    assert commands == []
 
 
 def test_official_binding_with_invalid_platform_signature_requires_repair(

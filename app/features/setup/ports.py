@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Protocol
+from typing import Literal, Optional, Protocol
 
 from .port_models import (
     StoredOllamaObservation,
@@ -41,6 +41,9 @@ class SetupOwnerStatusPort(Protocol):
 
 
 class SetupOllamaInspectionPort(Protocol):
+    @property
+    def platform(self) -> Literal["darwin", "linux", "win32"]: ...
+
     def inspect(self) -> StoredOllamaObservation: ...
 
 

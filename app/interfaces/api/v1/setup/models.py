@@ -10,6 +10,7 @@ from app.features.accounts import validate_password_strength
 from app.features.setup import (
     SetupModelOptionResult,
     SetupOllamaResult,
+    SetupOllamaState,
     SetupStatusResult,
 )
 
@@ -135,9 +136,10 @@ class SetupModelCollectionResponse(BaseModel):
 
 class SetupOllamaResponse(BaseModel):
     model_config = _STRICT
-    state: str
+    state: SetupOllamaState
     endpoint: Optional[str]
     version: Optional[str]
+    platform: Literal["darwin", "linux", "win32"]
 
     @classmethod
     def from_result(cls, result: SetupOllamaResult) -> SetupOllamaResponse:

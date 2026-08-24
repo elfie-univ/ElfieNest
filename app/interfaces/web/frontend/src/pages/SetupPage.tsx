@@ -5,12 +5,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 
 import {
   setupInstall,
+  setupInspectOllama,
   setupModelCatalog,
   setupSaveNestDraft,
   setupSaveOfflineDraft,
   setupSaveOwnerDraft,
   setupStatus,
   type SetupModelOption,
+  type SetupOllamaObservation,
   type SetupStatus,
 } from "../api/setup"
 import { LanguageSwitcher } from "../components/LanguageSwitcher"
@@ -51,6 +53,7 @@ export function SetupPage() {
   const { t: commonT } = useTranslation("common")
   const [progress, setProgress] = useState<SetupStatus | null>(null)
   const [catalog, setCatalog] = useState<readonly SetupModelOption[]>([])
+  const [ollama, setOllama] = useState<SetupOllamaObservation | null>(null)
   const [step, setStep] = useState<SetupStepNumber>(1)
   const [accountId, setAccountId] = useState("")
   const [displayName, setDisplayName] = useState("")
@@ -62,6 +65,7 @@ export function SetupPage() {
   const [csrfToken, setCsrfToken] = useState("")
   const [error, setError] = useState<SetupError | null>(null)
   const [saving, setSaving] = useState(false)
+  const [checkingOllama, setCheckingOllama] = useState(false)
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const bedCountIsInvalid = !Number.isInteger(bedCount) || bedCount < 4 || bedCount > 32
 
@@ -85,12 +89,18 @@ export function SetupPage() {
     let cancelled = false
     const load = async (): Promise<void> => {
       try {
-        const [status, models] = await Promise.all([setupStatus(), setupModelCatalog()])
+        const status = await setupStatus()
+        if (cancelled) return
+        applyStatus(status)
+        const [models, observation] = await Promise.all([
+          setupModelCatalog(),
+          setupInspectOllama(),
+        ])
         if (cancelled) return
         setCatalog(models)
+        setOllama(observation)
         if (status.draft.model_id !== null) setModelId(status.draft.model_id)
         else if (models[0] !== undefined) setModelId(models[0].model_id)
-        applyStatus(status)
       } catch (reason: unknown) {
         if (reason instanceof Error) {
           if (!cancelled) setError(setupError(reason, "setup.load"))
@@ -175,6 +185,14 @@ export function SetupPage() {
     void saveStatus(() => setupSaveNestDraft(bedCount, csrfToken))
   }
 
+  const recheckOllama = (): void => {
+    setCheckingOllama(true)
+    setError(null)
+    void setupInspectOllama().then(setOllama).catch((reason: unknown) => {
+      setError(setupError(reason, "setup.load"))
+    }).finally(() => setCheckingOllama(false))
+  }
+
   const confirmInstall = (): void => {
     void saveStatus(() => setupInstall(csrfToken), "setup.install")
   }
@@ -185,7 +203,12 @@ export function SetupPage() {
   const isInstalling = progress?.locked === true
   const showWelcome = !welcomeDismissed && (progress === null || isFreshSetup(progress))
   const model = catalog.find((option) => option.model_id === (draft?.model_id ?? modelId))
-  const ollamaInstalled = draft?.ollama_installed === true
+  const ollamaInstalled = ollama !== null
+    ? ollama.state === "healthy" || ollama.state === "stopped"
+    : draft?.ollama_installed === true
+  const linuxInstallRequired = useLocalOllama
+    && ollama?.platform === "linux"
+    && !ollamaInstalled
   const ollamaStatus = ollamaInstalled ? t("offline.installed") : t("offline.notInstalled")
   const stepCopy = {
     1: { label: "steps.owner.label", title: "steps.owner.title" },
@@ -244,9 +267,17 @@ export function SetupPage() {
           {!isInstalling && currentStep === 2 && <section className="setup-form setup-form--offline">
             <div className="setup-check setup-check--row"><span id="setup-use-local-label">{t("offline.useLocal")}</span><Checkbox aria-labelledby="setup-use-local-label" checked={useLocalOllama} onCheckedChange={(checked) => setUseLocalOllama(checked === true)} /></div>
             <p className={`setup-hint setup-hint--status ${ollamaInstalled ? "setup-hint--installed" : "setup-hint--missing"}`}>{ollamaStatus}</p>
+            {linuxInstallRequired && <aside className="setup-linux-install" role="note">
+              <strong>{t("offline.linuxInstall.title")}</strong>
+              <p>{t("offline.linuxInstall.description")}</p>
+              <code>curl -fsSL https://ollama.com/install.sh | sh</code>
+              <button className="button button--quiet" disabled={checkingOllama} onClick={recheckOllama} type="button">
+                {checkingOllama ? t("offline.linuxInstall.checking") : t("offline.linuxInstall.recheck")}
+              </button>
+            </aside>}
             <div className="setup-field--row"><SelectField disabled={!useLocalOllama} label={t("offline.model")} onValueChange={setModelId} options={catalog.map((option) => ({ label: option.label, value: option.model_id }))} value={modelId} /></div>
             <p className="setup-model-status">{useLocalOllama ? t("offline.modelStatus", { size: model?.approx_download_mb ?? 0 }) : t("offline.modelDisabled")}</p>
-            <div className="setup-actions"><button className="button" disabled={saving || !csrfToken || (useLocalOllama && !modelId)} onClick={saveOffline} type="button">{t("offline.action")}</button></div>
+            <div className="setup-actions"><button className="button" disabled={saving || !csrfToken || (useLocalOllama && (!modelId || linuxInstallRequired))} onClick={saveOffline} type="button">{t("offline.action")}</button></div>
           </section>}
           {!isInstalling && currentStep === 3 && <section className="setup-form setup-form--bed-count">
             <NumberField

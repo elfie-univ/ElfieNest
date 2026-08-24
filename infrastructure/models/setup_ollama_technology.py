@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import cast
-
 from app.orchestration.lifecycle.ports import ProcessIdentityReaderPort
 from app.orchestration.setup_installation import (
     SetupDownloadedInstaller,
@@ -16,7 +14,10 @@ from infrastructure.models.ollama.ollama_platform import (
     OllamaPlatformAdapter,
     wait_for_healthy,
 )
-from infrastructure.models.ollama.ollama_platform_commands import official_launch_target
+from infrastructure.models.ollama.ollama_platform_commands import (
+    PlatformName,
+    official_launch_target,
+)
 
 
 class PublicOllamaSetupTechnologyAdapter:
@@ -37,8 +38,8 @@ class PublicOllamaSetupTechnologyAdapter:
         self._platform = platform
 
     @property
-    def platform(self) -> str:
-        return cast(str, self._platform.platform)
+    def platform(self) -> PlatformName:
+        return self._platform.platform
 
     def default_binding(self) -> SetupOllamaBinding:
         try:

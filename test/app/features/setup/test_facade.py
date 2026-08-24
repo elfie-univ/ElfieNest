@@ -7,9 +7,11 @@ import pytest
 from app.features.setup import (
     GetSetupStatusQuery,
     SaveSetupNestDraftCommand,
+    SaveSetupOfflineDraftCommand,
     SetupForbidden,
     SetupPrincipal,
     SetupService,
+    SetupValidationError,
     StoredOllamaObservation,
     StoredSetupDraft,
     StoredSetupInstallation,
@@ -26,6 +28,8 @@ class FakeBoundary:
             None, "not_started", None, None, "idle", 0, None, None
         )
         self.owner = False
+        self.platform = "darwin"
+        self.ollama = StoredOllamaObservation("stopped", "http://127.0.0.1:11434", None)
         self.validated: list[int] = []
 
     def read_installation(self) -> StoredSetupInstallation:
@@ -38,7 +42,7 @@ class FakeBoundary:
         return self.owner
 
     def inspect(self) -> StoredOllamaObservation:
-        return StoredOllamaObservation("stopped", "http://127.0.0.1:11434", None)
+        return self.ollama
 
     def validate_bed_count(self, bed_count: int) -> int:
         self.validated.append(bed_count)
@@ -94,4 +98,19 @@ def test_draft_mutations_reject_non_local_setup_principal() -> None:
         _service(boundary).save_nest_draft(
             SetupPrincipal("setup", local=False),
             SaveSetupNestDraftCommand(bed_count=7),
+        )
+
+
+def test_linux_local_ollama_draft_waits_for_the_user_installed_service() -> None:
+    boundary = FakeBoundary()
+    boundary.platform = "linux"
+    boundary.ollama = StoredOllamaObservation("absent", None, None)
+
+    with pytest.raises(SetupValidationError, match="终端"):
+        _service(boundary).save_offline_draft(
+            SetupPrincipal("setup", local=True),
+            SaveSetupOfflineDraftCommand(
+                use_local_ollama=True,
+                model_id="qwen2.5:0.5b",
+            ),
         )

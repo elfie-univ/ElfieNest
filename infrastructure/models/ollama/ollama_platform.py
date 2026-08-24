@@ -101,6 +101,10 @@ class DownloadedInstaller:
     command: Tuple[str, ...]
 
 
+class OllamaInteractiveInstallRequired(RuntimeError):
+    """Raised when a privileged installer must run in a user-visible terminal."""
+
+
 class _ReadableResponse(Protocol):
     def read(self) -> bytes: ...
 
@@ -249,6 +253,10 @@ class OllamaPlatformAdapter:
         actual_sha256 = hashlib.sha256(installer.script_path.read_bytes()).hexdigest()
         if actual_sha256 != installer.sha256:
             raise RuntimeError("官方 Ollama 安装脚本校验失败")
+        if self.platform == "linux":
+            raise OllamaInteractiveInstallRequired(
+                "Linux Ollama 安装需要在用户终端中运行官方命令并完成 sudo 授权"
+            )
         result = self._command_runner(
             installer.command,
             check=False,

@@ -51,8 +51,18 @@ function statusFor(
   }
 }
 
-function renderSetup(locale: SupportedLocale, status: SetupStatus): void {
+function renderSetup(
+  locale: SupportedLocale,
+  status: SetupStatus,
+  ollama: client.SetupOllamaObservation = {
+    endpoint: "http://127.0.0.1:11434",
+    platform: "darwin",
+    state: "stopped",
+    version: null,
+  },
+): void {
   vi.spyOn(client, "setupStatus").mockResolvedValue(status)
+  vi.spyOn(client, "setupInspectOllama").mockResolvedValue(ollama)
   vi.spyOn(client, "setupModelCatalog").mockResolvedValue([
     { model_id: "qwen2.5:0.5b", label: "qwen2.5:0.5b（推荐）", approx_download_mb: 398, recommended: true },
     { model_id: "qwen3.5:0.8b", label: "qwen3.5:0.8b", approx_download_mb: 1024, recommended: false },
@@ -278,11 +288,43 @@ describe("localized setup wizard", () => {
     const installedStatus = await screen.findByText("Installed · reusable")
     expect(installedStatus).toHaveClass("setup-hint--status", "setup-hint--installed")
 
-    renderSetup("en-US", statusFor(2, {
-      draft: { ...statusFor(2).draft, ollama_installed: false },
-    }))
+    renderSetup(
+      "en-US",
+      statusFor(2, {
+        draft: { ...statusFor(2).draft, ollama_installed: false },
+      }),
+      { endpoint: null, platform: "darwin", state: "absent", version: null },
+    )
     const pendingStatus = await screen.findByText("Not installed · handled during setup")
     expect(pendingStatus).toHaveClass("setup-hint--status", "setup-hint--missing")
+  })
+
+  it("guides Linux installation in a terminal and rechecks before continuing", async () => {
+    const user = userEvent.setup()
+    renderSetup(
+      "en-US",
+      statusFor(2, {
+        draft: { ...statusFor(2).draft, ollama_installed: false },
+      }),
+      { endpoint: null, platform: "linux", state: "absent", version: null },
+    )
+
+    expect(await screen.findByText("Install Ollama in a terminal first")).toBeInTheDocument()
+    expect(screen.getByText("curl -fsSL https://ollama.com/install.sh | sh")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
+
+    vi.mocked(client.setupInspectOllama).mockResolvedValue({
+      endpoint: "http://127.0.0.1:11434",
+      platform: "linux",
+      state: "healthy",
+      version: "0.12.0",
+    })
+    await user.click(screen.getByRole("button", { name: "I've installed Ollama — check again" }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Installed · reusable")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled()
+    })
   })
 
   it("renders exactly four review rows and keeps Ollama status inside its row", async () => {

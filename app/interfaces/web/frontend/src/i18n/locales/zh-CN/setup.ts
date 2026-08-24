@@ -12,6 +12,7 @@ export const setup = {
     actions: {
       "ollama.check": "正在检查 Ollama",
       "ollama.install": "正在安装 Ollama",
+      "ollama.manual": "正在等待终端安装 Ollama",
       "ollama.repair": "正在修复 Ollama",
       "ollama.reuse": "正在复用 Ollama",
       "ollama.start": "正在尝试启动 Ollama",
@@ -40,6 +41,12 @@ export const setup = {
   offline: {
     action: "保存并继续",
     installed: "已安装 · 可复用",
+    linuxInstall: {
+      checking: "正在检测…",
+      description: "Linux 官方安装程序需要在可见终端中完成 sudo 授权。请运行下面的命令，完成提示后重新检测。",
+      recheck: "我已安装 Ollama，重新检测",
+      title: "请先在终端安装 Ollama",
+    },
     model: "本地模型",
     modelDisabled: "未启用本地 Ollama，不配置模型",
     modelStatus: "安装时检查；缺失时下载约 {{size}} MB",
