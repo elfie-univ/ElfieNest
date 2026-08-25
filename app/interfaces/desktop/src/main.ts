@@ -163,6 +163,9 @@ function recoveryActionFromUrl(url: string): RecoveryAction | undefined {
 }
 
 function bindManagementWindow(window: BrowserWindow): void {
+  window.webContents.on("did-finish-load", () => {
+    desktopDiagnostics?.event("management_page_ready");
+  });
   window.on("unresponsive", () => {
     desktopDiagnostics?.event("management_window_unresponsive", {}, "error");
   });

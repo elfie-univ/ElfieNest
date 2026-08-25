@@ -167,15 +167,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # GitHub's macos-latest label is currently an arm64 runner.
+          # Keep the validation matrix pinned. Product support claims are
+          # limited to these image families plus named manual hosts; never use
+          # a floating -latest label for a release gate.
           - target: darwin-arm64
-            runner: macos-latest
+            runner: macos-14
           - target: darwin-x64
             runner: macos-15-intel
           - target: win32-x64
-            runner: windows-latest
+            runner: windows-2025
           - target: linux-x64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
 
     defaults:
       run:
@@ -244,6 +246,9 @@ jobs:
               --prebuilt-godot-web \
               --native-package-output "$ARTIFACT_PATH_FILE" \
               --run-install-smoke \
+              --run-product-journey \
+              --run-recovery-matrix \
+              --run-viewer-check \
               --smoke-cycles 3 \
               --smoke-evidence-output "dist/ElfieNest-${RELEASE_TARGET}-install-smoke.json")
           if [[ "$RELEASE_TARGET" == "linux-x64" ]]; then
@@ -342,6 +347,18 @@ jobs:
           pattern: installer-*
           path: release-artifacts
           merge-multiple: true
+
+      - name: Aggregate exact target evidence
+        run: |
+          set -euo pipefail
+          python scripts/internal/release/release_evidence.py \
+            --candidate-sha "$GITHUB_SHA" \
+            --artifact-dir release-artifacts \
+            --evidence release-artifacts/ElfieNest-darwin-arm64-install-smoke.json \
+            --evidence release-artifacts/ElfieNest-darwin-x64-install-smoke.json \
+            --evidence release-artifacts/ElfieNest-win32-x64-install-smoke.json \
+            --evidence release-artifacts/ElfieNest-linux-x64-install-smoke.json \
+            --output release-artifacts/native-release-evidence.json
 
       - name: Verify version, targets, and checksums
         id: metadata

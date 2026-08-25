@@ -9,15 +9,18 @@ outside the uninstall path.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping, MutableMapping, Protocol, Sequence
+from typing import Any, Callable, Mapping, MutableMapping, Protocol, Sequence
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -38,7 +41,9 @@ PHASE_BUDGETS_MS = {
     "stop": 60_000,
     "upgrade": 180_000,
     "uninstall": 120_000,
+    "product_journey": 300_000,
 }
+SCRIPTED_MODEL_READY_TIMEOUT_SECONDS = 30.0
 GLOBAL_CLI_LAUNCHER = Path("/usr/local/bin/elfienest")
 MAC_INSTALL_ROOT = Path("/Applications/ElfieNest.app")
 LINUX_INSTALL_ROOT = Path("/opt/ElfieNest")
@@ -85,6 +90,10 @@ def run_install_smoke(
     sleeper: Callable[[float], None] = time.sleep,
     timeout_seconds: float = 120.0,
     smoke_home: Path | None = None,
+    product_journey: bool = False,
+    candidate_sha: str | None = None,
+    recovery_matrix: bool = False,
+    viewer_check: bool = False,
 ) -> dict[str, object]:
     """Execute bounded native lifecycle cycles and write machine-readable evidence."""
     if target not in SUPPORTED_TARGETS:
@@ -98,6 +107,10 @@ def run_install_smoke(
         )
     if cycles < 1:
         raise ReleaseInstallSmokeError("release-smoke-cycles-invalid")
+    if candidate_sha is not None and not re.fullmatch(
+        r"[0-9a-fA-F]{40}", candidate_sha
+    ):
+        raise ReleaseInstallSmokeError("release-smoke-candidate-sha-invalid")
 
     owned_home = smoke_home is None
     temporary_home = (
@@ -106,11 +119,21 @@ def run_install_smoke(
         else None
     )
     home = smoke_home or Path(temporary_home.name)  # type: ignore[union-attr]
+    scripted_model: _ScriptedModelProcess | None = None
     try:
         native = adapter or NativePackageAdapter(target, artifact)
         # A rerun must start from a package-owned clean surface.  Native
         # uninstall implementations are intentionally idempotent here.
         _ignore_failure(native.uninstall)
+        scripted_model_info: MutableMapping[str, object] = {}
+        if product_journey:
+            scripted_model = _start_scripted_model_server(home)
+            scripted_model_info.update(
+                {
+                    "pid": scripted_model.pid,
+                    "endpoint": scripted_model.endpoint,
+                }
+            )
         phases: list[SmokePhase] = []
         cycle_records: list[dict[str, object]] = []
         environment = _smoke_environment(home)
@@ -146,6 +169,44 @@ def run_install_smoke(
                     PHASE_BUDGETS_MS["health"],
                 )
             )
+            recovery = None
+            if recovery_matrix:
+                recovery = _verify_duplicate_start(
+                    ready_status,
+                    native=native,
+                    environment=environment,
+                    home=home,
+                    monotonic=monotonic,
+                    sleeper=sleeper,
+                    timeout_seconds=timeout_seconds,
+                )
+            viewer = None
+            if viewer_check and cycle == 1:
+                viewer = _verify_installed_viewer(
+                    native,
+                    environment=environment,
+                    home=home,
+                    timeout_seconds=min(timeout_seconds, 60.0),
+                )
+            journey = None
+            if scripted_model is not None:
+                journey_started = monotonic()
+                journey = _run_product_journey(
+                    ready_status,
+                    home=home,
+                    model_endpoint=scripted_model.endpoint,
+                    mode="initial" if cycle == 1 else "resume",
+                    native=native,
+                    environment=environment,
+                    timeout_seconds=min(timeout_seconds, 120.0),
+                )
+                phases.append(
+                    SmokePhase(
+                        "product_journey",
+                        _duration_ms(monotonic() - journey_started),
+                        PHASE_BUDGETS_MS["product_journey"],
+                    )
+                )
 
             stop_started = monotonic()
             native.run_cli(("stop",), environment)
@@ -190,6 +251,9 @@ def run_install_smoke(
                     "reached_state": reached_state,
                     "desktop_controller_pid": controller_pid,
                     "verified_stopped_pids": list(owned_pids),
+                    **({"recovery": recovery} if recovery is not None else {}),
+                    **({"viewer": viewer} if viewer is not None else {}),
+                    **({"product_journey": journey} if journey is not None else {}),
                     "result": "passed",
                 }
             )
@@ -207,6 +271,10 @@ def run_install_smoke(
         if not home.exists():
             raise ReleaseInstallSmokeError("release-smoke-uninstall-removed-user-data")
 
+        if scripted_model is not None:
+            scripted_model_info["summary"] = _stop_scripted_model_server(scripted_model)
+            scripted_model = None
+
         phase_payloads: list[dict[str, object]] = [
             {
                 "name": phase.name,
@@ -220,11 +288,16 @@ def run_install_smoke(
             "schema_version": 2,
             "target": target,
             "artifact": artifact.name,
+            "artifact_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+            "source_commit": candidate_sha,
+            "runner": _runner_identity(),
             "required_state": "world_ready",
             "cycles": cycle_records,
             "phases": phase_payloads,
             "result": "passed",
         }
+        if scripted_model_info:
+            evidence["scripted_model"] = dict(scripted_model_info)
         if any(not bool(phase["within_budget"]) for phase in phase_payloads):
             raise ReleaseInstallSmokeError("release-smoke-phase-budget-exceeded")
         evidence_output.parent.mkdir(parents=True, exist_ok=True)
@@ -234,8 +307,245 @@ def run_install_smoke(
         )
         return evidence
     finally:
+        if scripted_model is not None:
+            _stop_scripted_model_server(scripted_model)
         if temporary_home is not None:
             temporary_home.cleanup()
+
+
+@dataclass
+class _ScriptedModelProcess:
+    process: subprocess.Popen
+    endpoint: str
+    ready_file: Path
+    summary_file: Path
+
+    @property
+    def pid(self) -> int:
+        return int(self.process.pid or 0)
+
+
+def _start_scripted_model_server(home: Path) -> _ScriptedModelProcess:
+    """Start the repository-owned deterministic model boundary on loopback."""
+    script = Path(__file__).with_name("scripted_model_server.py")
+    if not script.is_file():
+        raise ReleaseInstallSmokeError("release-smoke-scripted-model-missing")
+    runtime_dir = home / "runtime"
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    ready_file = runtime_dir / "scripted-model-ready.json"
+    summary_file = runtime_dir / "scripted-model-summary.json"
+    process = subprocess.Popen(
+        (
+            sys.executable,
+            str(script),
+            "--ready-file",
+            str(ready_file),
+            "--summary-file",
+            str(summary_file),
+        ),
+        cwd=str(Path.cwd()),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    deadline = time.monotonic() + SCRIPTED_MODEL_READY_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise ReleaseInstallSmokeError("release-smoke-scripted-model-exited")
+        try:
+            payload = json.loads(ready_file.read_text(encoding="utf-8"))
+        except (FileNotFoundError, OSError, UnicodeDecodeError, json.JSONDecodeError):
+            time.sleep(0.1)
+            continue
+        endpoint = payload.get("endpoint") if isinstance(payload, dict) else None
+        if isinstance(endpoint, str) and _is_loopback_model_endpoint(endpoint):
+            return _ScriptedModelProcess(process, endpoint, ready_file, summary_file)
+        time.sleep(0.1)
+    _stop_scripted_model_server(
+        _ScriptedModelProcess(process, "", ready_file, summary_file)
+    )
+    raise ReleaseInstallSmokeError("release-smoke-scripted-model-timeout")
+
+
+def _stop_scripted_model_server(server: _ScriptedModelProcess) -> dict[str, Any]:
+    """Stop only the test-owned model process and read its redacted summary."""
+    if server.process.poll() is None:
+        server.process.terminate()
+        try:
+            server.process.wait(timeout=10)
+        except subprocess.TimeoutExpired as error:
+            server.process.kill()
+            try:
+                server.process.wait(timeout=5)
+            except subprocess.TimeoutExpired as kill_error:
+                raise ReleaseInstallSmokeError(
+                    "release-smoke-scripted-model-stop-timeout"
+                ) from kill_error
+            raise ReleaseInstallSmokeError(
+                "release-smoke-scripted-model-stop-forced"
+            ) from error
+    try:
+        payload = json.loads(server.summary_file.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {"result": "summary_missing"}
+    return payload if isinstance(payload, dict) else {"result": "summary_invalid"}
+
+
+def _is_loopback_model_endpoint(endpoint: str) -> bool:
+    parsed = urllib.parse.urlsplit(endpoint)
+    return (
+        parsed.scheme == "http"
+        and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
+        and parsed.port is not None
+        and 1 <= parsed.port <= 65535
+        and parsed.path == "/v1"
+    )
+
+
+def _run_product_journey(
+    ready_status: Mapping[str, object],
+    *,
+    home: Path,
+    model_endpoint: str,
+    mode: str,
+    native: SmokeAdapter,
+    environment: Mapping[str, str],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    """Run Setup/adoption/chat through the installed Controller API."""
+    from scripts.internal.release.installed_product_journey import (
+        InstalledJourneyConfig,
+        JourneyFailure,
+        run_installed_product_journey,
+    )
+
+    base_url = _installed_http_base_url(ready_status)
+
+    def read_status() -> Mapping[str, Any]:
+        return _parse_status(native.run_cli(("status", "--json"), environment))
+
+    try:
+        return run_installed_product_journey(
+            InstalledJourneyConfig(
+                base_url=base_url,
+                data_home=home.resolve(),
+                model_endpoint=model_endpoint,
+                timeout_seconds=timeout_seconds,
+                expected_source_root=Path.cwd().resolve(),
+            ),
+            mode=mode,
+            status_reader=read_status,
+        )
+    except JourneyFailure as error:
+        raise ReleaseInstallSmokeError(
+            "release-smoke-product-journey-failed "
+            f"phase={error.phase} code={error.code}"
+        ) from error
+
+
+def _installed_http_base_url(status: Mapping[str, object]) -> str:
+    endpoints = status.get("endpoints")
+    if not isinstance(endpoints, list):
+        raise ReleaseInstallSmokeError("release-smoke-http-endpoint-missing")
+    for endpoint in endpoints:
+        if not isinstance(endpoint, dict) or endpoint.get("name") != "http":
+            continue
+        scheme = endpoint.get("scheme")
+        host = endpoint.get("host")
+        port = endpoint.get("port")
+        if (
+            scheme in {"http", "https"}
+            and host in {"127.0.0.1", "localhost", "::1"}
+            and isinstance(port, int)
+            and 1 <= port <= 65535
+        ):
+            rendered_host = f"[{host}]" if host == "::1" else str(host)
+            return f"{scheme}://{rendered_host}:{port}"
+    raise ReleaseInstallSmokeError("release-smoke-http-endpoint-not-loopback")
+
+
+def _verify_duplicate_start(
+    ready_status: Mapping[str, object],
+    *,
+    native: SmokeAdapter,
+    environment: Mapping[str, str],
+    home: Path,
+    monotonic: Callable[[], float],
+    sleeper: Callable[[float], None],
+    timeout_seconds: float,
+) -> dict[str, object]:
+    """Prove an attached start does not create a second authority generation."""
+    generation = ready_status.get("generation")
+    if not isinstance(generation, int) or generation < 0:
+        raise ReleaseInstallSmokeError("release-smoke-recovery-generation-missing")
+    controller_pid = _desktop_controller_pid(home)
+    before = _owned_runtime_pids(ready_status, controller_pid)
+    native.run_cli(("start", "--json", "--loopback"), environment)
+    after_status = _wait_for_state(
+        native,
+        environment,
+        expected={"world_ready"},
+        monotonic=monotonic,
+        sleeper=sleeper,
+        timeout_seconds=timeout_seconds,
+    )
+    after_generation = after_status.get("generation")
+    if after_generation != generation:
+        raise ReleaseInstallSmokeError("release-smoke-recovery-generation-changed")
+    after_controller_pid = _desktop_controller_pid(home)
+    after = _owned_runtime_pids(after_status, after_controller_pid)
+    if after_controller_pid != controller_pid or after != before:
+        raise ReleaseInstallSmokeError("release-smoke-recovery-duplicate-authority")
+    return {
+        "same_generation": True,
+        "generation": generation,
+        "owned_pids": list(before),
+    }
+
+
+def _verify_installed_viewer(
+    native: SmokeAdapter,
+    *,
+    environment: Mapping[str, str],
+    home: Path,
+    timeout_seconds: float,
+) -> dict[str, object]:
+    """Activate the packaged Viewer and require a rendered management page marker."""
+    launch = getattr(native, "launch_gui", None)
+    diagnostics_path = getattr(native, "desktop_diagnostics_path", None)
+    if not callable(launch) or not callable(diagnostics_path):
+        raise ReleaseInstallSmokeError("release-smoke-viewer-launch-unavailable")
+    process = launch(environment)
+    marker_path = diagnostics_path(home)
+    deadline = time.monotonic() + timeout_seconds
+    try:
+        while time.monotonic() < deadline:
+            if _diagnostic_has_event(marker_path, "management_page_ready"):
+                return {"management_page_ready": True}
+            time.sleep(0.25)
+        raise ReleaseInstallSmokeError("release-smoke-viewer-ready-timeout")
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+
+
+def _diagnostic_has_event(path: Path, event_name: str) -> bool:
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return False
+    for line in lines:
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and payload.get("event") == event_name:
+            return True
+    return False
 
 
 def _smoke_environment(home: Path) -> MutableMapping[str, str]:
@@ -245,10 +555,20 @@ def _smoke_environment(home: Path) -> MutableMapping[str, str]:
             "ELFIE_HOME": str(home.resolve()),
             "HOME": str(home.resolve()),
             "USERPROFILE": str(home.resolve()),
+            "APPDATA": str((home / "AppData" / "Roaming").resolve()),
+            "LOCALAPPDATA": str((home / "AppData" / "Local").resolve()),
+            "XDG_CONFIG_HOME": str((home / ".config").resolve()),
+            "XDG_DATA_HOME": str((home / ".local" / "share").resolve()),
             "ELFIENEST_RUNTIME_MODE": "release",
         }
     )
     return environment
+
+
+def _runner_identity() -> dict[str, str]:
+    """Capture only non-secret CI host identity for evidence binding."""
+    names = ("RUNNER_OS", "RUNNER_ARCH", "ImageOS", "ImageVersion")
+    return {name: os.environ[name] for name in names if os.environ.get(name)}
 
 
 def _wait_for_state(
@@ -547,6 +867,40 @@ class NativePackageAdapter:
                 *arguments,
             )
         return _run_checked(command, environment=environment)
+
+    def launch_gui(self, environment: Mapping[str, str]) -> subprocess.Popen:
+        if self.target.startswith("darwin"):
+            command = (str(self.install_root / "Contents/MacOS/ElfieNest"),)
+        elif self.target == "linux-x64":
+            command = (str(self.install_root / "elfienest-gui"),)
+        else:
+            command = (str(self.install_root / "ElfieNest.exe"),)
+        try:
+            return subprocess.Popen(
+                command,
+                env=dict(environment),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError as error:
+            raise ReleaseInstallSmokeError(
+                "release-smoke-viewer-launch-failed"
+            ) from error
+
+    def desktop_diagnostics_path(self, home: Path) -> Path:
+        if self.target.startswith("darwin"):
+            app_data = home / "Library" / "Application Support"
+        elif self.target == "linux-x64":
+            app_data = home / ".config"
+        else:
+            app_data = home / "AppData" / "Roaming"
+        return (
+            app_data
+            / "ElfieNest"
+            / "elfienest.desktop-ui"
+            / "logs"
+            / "desktop-events.jsonl"
+        )
 
     def uninstall(self) -> None:
         if self.target.startswith("darwin"):

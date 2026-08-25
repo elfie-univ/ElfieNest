@@ -16,3 +16,6 @@ in [Conformance](../conformance/).
   curated model loading, serving-core scope, low-cost evidence and shared health projections.
 - [Virtual appearance generation](./virtual-appearance-generation): geometry inputs, four ordered
   skin layers, semantic regions, palettes and visual acceptance gates for one immutable Elfie look.
+- [Native release validation and installed product journey](./native-release-validation): the
+  six-layer test system, deterministic CI model boundary, four-target coverage, cost controls and
+  phased closure plan.

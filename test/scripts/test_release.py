@@ -137,10 +137,10 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     assert native_build["timeout-minutes"] == 90
     assert {entry["target"] for entry in matrix} == set(release.SUPPORTED_TARGETS)
     assert {entry["runner"] for entry in matrix} == {
-        "macos-latest",
+        "macos-14",
         "macos-15-intel",
-        "windows-latest",
-        "ubuntu-latest",
+        "windows-2025",
+        "ubuntu-24.04",
     }
     assert 'tags:\n      - "v*"' in source
     assert "workflow_dispatch:" in source
@@ -160,6 +160,9 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     assert "release_args+=(--prerelease)" in source
     assert "--prebuilt-godot-web" in source
     assert "--run-install-smoke" in source
+    assert "--run-product-journey" in source
+    assert "--run-recovery-matrix" in source
+    assert "--run-viewer-check" in source
     assert "--smoke-cycles 3" in source
     assert "xvfb-run --auto-servernum" in source
     assert "command -v xvfb-run" in source
@@ -167,6 +170,8 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     assert "release-artifacts/*-install-smoke.json" not in source
     assert "SHA256SUMS" in source
     assert "sha256sum" in source
+    assert "release_evidence.py" in source
+    assert "native-release-evidence.json" in source
     assert "--verify-tag" in source
     assert 'tag_commit="$(git rev-list -n 1 "$release_tag")"' in source
     assert '[[ "$tag_commit" == "$GITHUB_SHA" ]]' in source
@@ -190,6 +195,42 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     ).read_text(encoding="utf-8")
     assert "artifactName: ElfieNest-${version}-${os}-${arch}.${ext}" in artifact_config
     assert "-internal-" not in artifact_config
+
+
+def test_release_smoke_wrapper_forwards_all_native_journey_gates(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed: dict[str, object] = {}
+
+    def fake_smoke(target, artifact, evidence_output, **kwargs):
+        observed.update(kwargs)
+        return {"result": "passed"}
+
+    monkeypatch.setattr(
+        "scripts.internal.release.release_install_smoke.run_install_smoke",
+        fake_smoke,
+    )
+
+    result = release.execute_install_smoke(
+        "darwin-arm64",
+        tmp_path / "ElfieNest.pkg",
+        tmp_path / "evidence.json",
+        cycles=3,
+        candidate_sha="a" * 40,
+        product_journey=True,
+        recovery_matrix=True,
+        viewer_check=True,
+    )
+
+    assert result == {"result": "passed"}
+    assert observed == {
+        "cycles": 3,
+        "candidate_sha": "a" * 40,
+        "product_journey": True,
+        "recovery_matrix": True,
+        "viewer_check": True,
+    }
 
 
 def test_prebuilt_godot_web_step_checks_the_shared_runtime_without_exporting(

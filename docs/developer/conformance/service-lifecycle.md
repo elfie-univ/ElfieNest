@@ -126,14 +126,36 @@ authority semantics.
 
 These rows are closed independently. Local implementation or unit tests may
 move a row to `implemented; not tested (external)`, but only the named native
-evidence closes it.
+evidence closes it. The target coverage and closure order are defined by the
+[native release validation design](../designs/native-release-validation.md).
 
-| ID | Status | Immediate implementation | External closure evidence |
-| --- | --- | --- | --- |
-| NAT-WIN-01 | implemented; not tested (external) | Release smoke now starts the installed Windows Desktop Controller, runs three install/start/stop/upgrade cycles, records Controller/Core/Godot PIDs and rejects surviving recorded processes. | A native Windows runner must prove GUI/background start, tray/single-instance handoff, three clean cycles, zero recorded process residue, stable generation and retained evidence JSON. |
-| NAT-LNX-01 | implemented; not tested (external) | Release smoke now runs the installed Linux Desktop Controller under Xvfb for three cycles; CI verifies the dedicated Runtime and `elfienest-gui.desktop`. | A native Linux runner must pass that gate; a real desktop session must additionally prove launcher visibility, tray behavior and clean exit. |
-| NAT-LONG-01 | not tested (external) | Resource diagnostics already publish process samples; no short test can replace elapsed runtime. | Windows and Linux installed packages each need a sustained run with fixed PID/generation tracking, CPU/RSS/handle trend, error/crash deltas and authority/Core recovery evidence. Close only after the agreed observation window completes without an unclassified restart or resource trend. |
-| NAT-SIGN-01 | deferred by internal-test scope | The current internal package contract intentionally has no signing/notarization gate. | Open and close a separate public-distribution task only when a public Windows/macOS release is authorized and the required signing identities are available. |
+Before any NAT row becomes `closed`, its row or attached evidence must record
+`target`, `inventory`, `references`, `verification` and `residuals`, including
+the exact OS image, candidate SHA and package SHA-256. NAT rows supply native
+evidence to existing LFC/CFG/PMA contracts; they do not close or duplicate those
+contracts by name alone.
+
+| ID | Severity | Status | Immediate implementation | External closure evidence |
+| --- | --- | --- | --- | --- |
+| NAT-MAC-01 | P0 | implemented; not tested (external) | Release smoke code supports both macOS arm64 and Intel installed Controller/Core/Godot chains. | Both clean native targets pass exact-package smoke and receipt/footprint checks; a real macOS session proves interactive PKG/Launchpad, Viewer/Observer, tray, single-instance, close and uninstall behavior. |
+| NAT-WIN-01 | P0 | implemented; not tested (external) | Release smoke starts the installed Windows Controller, runs three cycles, records Controller/Core/Godot PIDs and rejects surviving recorded processes. | The frozen Windows host passes exact-package smoke, receipt/PATH/Start Menu/Apps registration and removal, standard-user launch, tray/single-instance handoff, clean cycles and retained evidence. |
+| NAT-LNX-01 | P0 | implemented; not tested (external) | Release smoke runs the installed Linux Controller under Xvfb; CI checks the Dedicated Runtime and freedesktop entry. | Every named supported DEB host passes exact-package smoke, dpkg/desktop-entry/icon/launcher footprint, standard-user launch, graphical and Dedicated authority; a named desktop session proves application-menu and tray behavior. |
+| NAT-COMPAT-01 | P0 | implemented; not tested (external) | Exact internal-Beta OS versions, Linux distribution/session and native runner images are frozen in the design and release workflow. | Each declared support cell has an exact CI image or named real-host sample and records architecture, OS build, desktop/session and result; untested cells are excluded from the support claim. |
+| NAT-MODEL-01 | P0 | implemented; not tested (external) | Loopback scripted protocol model server, synthetic credential boundary, capability probes, Common/Emergency Food routes, adoption/chat responses and fail-closed request checks are implemented. | One installed reference journey proves model aggregate readiness, `adoption_candidate_reveal_v1` and complete-response chat through the production HTTP adapter; the test server and credential leave no residue or secret evidence. |
+| NAT-JOURNEY-01 | P0 | implemented; not tested (external) | Installed Setup/provider/Food/adoption/chat/restart Driver is wired into each native smoke cycle and writes redacted evidence without database seeding. | All four package hashes pass from a neutral cwd without checkout fallback; evidence retains Setup, Elfie/history, execution receipt and PID/generation continuity with redacted failures. |
+| NAT-UI-01 | P0 | partially implemented | Native smoke now activates the installed Viewer and requires the redacted `management_page_ready` marker; the full rendered Setup-to-chat UI path and event-severity gate remain. | Shared UI path passes; all four targets prove activation, management ready marker, rendered Observer surface and no fatal renderer/console event; OS Shell behavior is attached separately. |
+| NAT-RECOVERY-01 | P0 | partially implemented | Native smoke can run a duplicate-start matrix and rejects changed generation or owned PID sets; focused lifecycle tests cover exact identity and bounded cleanup. | Applicable Windows/POSIX/native authority scenarios pass on disposable roots with exact-PID injection, bounded recovery and no unrelated process action; linked LFC residuals remain open until their own evidence closes. |
+| NAT-UPGRADE-01 | P0 | not implemented | Replace same-version reinstall with previous-release-to-candidate acceptance, including running-Controller handoff and installed state created only through supported APIs. | All four targets prove safe handoff, version/source change, credential reference usability and Owner/Provider/Food/Nest/Elfie/chat/config continuity with exact old/new hashes. |
+| NAT-EVIDENCE-01 | P0 | implemented; not tested (external) | Smoke JSON now carries candidate/package identity and runner fields; an independent four-target aggregator enforces exact hashes, journey presence and redaction sentinels. | Independent aggregation rejects a deliberately mismatched or secret-bearing summary and accepts one exact four-target candidate; normal PRs retain no installer and storage stays within budget. |
+| NAT-PROVIDER-01 | P0 | not tested (external) | Keep deterministic package acceptance independent from Provider availability; keep the protected minimal canary only as a separate reachability signal. | The current PMA-002 representative real-provider capability matrix passes for the release without exposing credentials/prompts; adapter gaps are recorded separately from package results. |
+| NAT-LONG-01 | P0 | not tested (external) | Freeze target-specific budgets and provide a redacted soak trend classifier; passive read-only observation remains separate from active disposable-host soak. | macOS, Windows and Linux each complete the agreed window with PID/generation, CPU/RSS/handle-or-FD, log/data growth, error/crash and recovery evidence; no unexplained restart or over-budget trend remains. |
+| NAT-SIGN-01 | P1 | deferred by internal-test scope | The current internal package contract intentionally has no signing/notarization gate. | Open and close a separate public-distribution task only when public Windows/macOS release is authorized and signing identities are available. |
+
+Closure crosswalk: NAT-MODEL and NAT-PROVIDER preserve LFC-004 and PMA-002;
+NAT-JOURNEY preserves CFG-003 and supplies LFC-001/002/009/010 evidence;
+NAT-RECOVERY supplies LFC-001/002/003/005/006/008 evidence; platform rows and
+NAT-UPGRADE supply LFC-006/007/009 evidence. Closing a NAT row with an affected
+LFC/PMA residual still open is not a release-closure claim.
 
 | ID | Severity | Status | Current deviation | Closure gate | Evidence |
 | --- | --- | --- | --- | --- | --- |

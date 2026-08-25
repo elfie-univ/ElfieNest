@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -8,10 +9,89 @@ from scripts.internal.release import release_install_smoke
 from scripts.internal.release.release_install_smoke import (
     NativePackageAdapter,
     ReleaseInstallSmokeError,
+    _diagnostic_has_event,
     _is_owned_symlink,
+    _start_scripted_model_server,
+    _stop_scripted_model_server,
+    _verify_duplicate_start,
     _wait_for_state,
     run_install_smoke,
 )
+
+
+def test_scripted_model_process_is_loopback_and_stops_with_summary(
+    tmp_path: Path,
+) -> None:
+    server = _start_scripted_model_server(tmp_path / "home")
+    try:
+        assert server.pid > 0
+        assert server.endpoint.startswith("http://127.0.0.1:")
+    finally:
+        summary = _stop_scripted_model_server(server)
+
+    assert summary["request_count"] == 0
+    assert server.process.poll() is not None
+
+
+def test_duplicate_start_keeps_generation_and_owned_processes(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    receipt = home / "runtime" / "desktop.pid"
+    receipt.parent.mkdir(parents=True)
+    receipt.write_text("100\n", encoding="utf-8")
+
+    class Adapter:
+        def run_cli(self, arguments, environment) -> str:
+            del environment
+            assert arguments[0] in {"start", "status"}
+            return json.dumps(
+                {
+                    "state": "world_ready",
+                    "generation": 7,
+                    "components": [
+                        {"name": "core", "pid": 101},
+                        {"name": "godot_authority", "pid": 102},
+                    ],
+                }
+            )
+
+    result = _verify_duplicate_start(
+        {
+            "state": "world_ready",
+            "generation": 7,
+            "components": [
+                {"name": "core", "pid": 101},
+                {"name": "godot_authority", "pid": 102},
+            ],
+        },
+        native=Adapter(),
+        environment={},
+        home=home,
+        monotonic=lambda: 0.0,
+        sleeper=lambda _seconds: None,
+        timeout_seconds=0.0,
+    )
+
+    assert result == {
+        "same_generation": True,
+        "generation": 7,
+        "owned_pids": [100, 101, 102],
+    }
+
+
+def test_viewer_marker_reader_accepts_only_the_named_json_event(tmp_path: Path) -> None:
+    diagnostics = tmp_path / "desktop-events.jsonl"
+    diagnostics.write_text(
+        "not-json\n"
+        '{"event":"desktop_process_started"}\n'
+        '{"event":"management_page_ready"}\n',
+        encoding="utf-8",
+    )
+
+    assert _diagnostic_has_event(diagnostics, "management_page_ready")
+    assert not _diagnostic_has_event(diagnostics, "renderer_error")
+    assert not _diagnostic_has_event(
+        tmp_path / "missing.jsonl", "management_page_ready"
+    )
 
 
 class FakeAdapter:

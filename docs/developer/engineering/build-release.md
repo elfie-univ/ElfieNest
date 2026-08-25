@@ -57,14 +57,19 @@ directory from the current user's PATH.
 
 The native runner invokes `scripts/internal/release/release_install_smoke.py` through
 `scripts/release.py --run-install-smoke`. The release workflow runs three bounded
-cycles. Each cycle installs the package, starts the installed Desktop Controller
-through the global launcher, requires `WORLD_READY`, records the Controller,
-Core and Godot authority PIDs, stops to `OFFLINE`, proves those recorded PIDs and
-the Desktop receipt are gone, and reinstalls the same package as the upgrade
-check. The final phase uninstalls the package while proving the selected
-`ELFIE_HOME` remains. The resulting JSON contains the reached `WORLD_READY`
-state, the Controller PID, the verified stopped PID set, and typed
-install/start/health/stop/upgrade/uninstall durations and budgets;
+cycles. With `--run-product-journey`, each cycle also starts a test-owned loopback
+model process and drives the installed Setup, Provider/Food, adoption, Chat and
+history path; cycle two and three use the same data home to exercise recovery.
+With `--run-recovery-matrix`, a duplicate installed start must retain the same
+Controller, generation and owned PID set. The lifecycle still installs the package,
+requires `WORLD_READY`, stops to `OFFLINE`, proves recorded PIDs and the Desktop
+receipt are gone, and reinstalls the same package. The final phase uninstalls the
+package while proving the selected `ELFIE_HOME` remains. With `--run-viewer-check`,
+the packaged Viewer is activated and must emit the redacted management-page-ready
+diagnostic marker; this is a minimum activation check, not a substitute for the
+full rendered UI journey. The resulting JSON contains
+the reached state, package/candidate identity, redacted model summary, recovery
+result and typed phase durations/budgets;
 the workflow uploads it beside the installer. A local build without
 `--run-install-smoke` does not mutate the host installation.
 The smoke runner resolves the Linux package name from the DEB before its initial
@@ -76,6 +81,7 @@ cleanup and never performs an unconditional deletion of a global launcher.
 
 # Only on a disposable native release runner; also runs install/upgrade/smoke/uninstall.
 .venv/bin/python scripts/release.py --target darwin-x64 --run-install-smoke \
+  --run-product-journey --run-recovery-matrix --run-viewer-check --smoke-cycles 3 \
   --smoke-evidence-output dist/ElfieNest-darwin-x64-install-smoke.json
 
 # Ask the coordinator for all targets. Unavailable runners remain incomplete.
@@ -93,7 +99,9 @@ exists at that exact source commit. Pushing a matching tag, for example
 `v0.1.0-beta.1`, runs the same matrix, validates the native installer contents,
 and publishes the four user-downloadable installers plus `SHA256SUMS` to GitHub
 Releases. The typed install-smoke JSON remains in the Actions build artifact
-for CI evidence and is not presented as a Release download. Pre-release tags are published with GitHub's
+for CI evidence; the publish job independently aggregates all four summaries with
+exact candidate/package hashes and redaction sentinels before creating a Release.
+It is not presented as a Release download. Pre-release tags are published with GitHub's
 pre-release flag; a manual run only creates a Release when
 `publish_release` is enabled and `release_tag` is the matching existing tag at
 the workflow source SHA.
