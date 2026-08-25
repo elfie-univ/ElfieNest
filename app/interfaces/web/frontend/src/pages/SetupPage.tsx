@@ -165,7 +165,7 @@ export function SetupPage() {
       applyStatus(initial)
       const initialToken = initial.csrf_token
       if (initialToken === null || initialToken === "") {
-        throw new ApiError(403, "缺少 Setup CSRF token", [], "csrf_rejected")
+        throw new ApiError(403, "", [], "csrf_rejected")
       }
       try {
         applyStatus(await action(initialToken))
