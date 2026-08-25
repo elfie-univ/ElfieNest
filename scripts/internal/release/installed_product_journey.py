@@ -132,6 +132,7 @@ class InstalledHttpSession:
     def chat(self, elfie_id: str, text: str, *, timeout_seconds: float) -> HttpResult:
         try:
             from websockets.sync.client import connect
+            from websockets.typing import Origin
         except ImportError as error:  # pragma: no cover - dependency is locked
             raise JourneyFailure(
                 "websocket_client_missing", phase="chat", detail=type(error).__name__
@@ -146,7 +147,7 @@ class InstalledHttpSession:
             with connect(
                 ws_url,
                 additional_headers=headers,
-                origin=self.base_url,
+                origin=Origin(self.base_url),
                 proxy=None,
                 open_timeout=timeout_seconds,
                 close_timeout=5.0,
@@ -469,7 +470,7 @@ class InstalledProductJourney:
         items = listed.payload.get("items")
         if not isinstance(items, list):
             raise JourneyFailure("provider_inventory_invalid", phase="provider")
-        provider = next(
+        provider: Mapping[str, Any] | None = next(
             (
                 item
                 for item in items
@@ -509,9 +510,10 @@ class InstalledProductJourney:
                 },
             )
             _expect(response, 201, phase="provider", code="provider_create_failed")
-            provider = response.payload
-            if not isinstance(provider, dict):
+            provider_payload = response.payload
+            if not isinstance(provider_payload, dict):
                 raise JourneyFailure("provider_response_invalid", phase="provider")
+            provider = provider_payload
         connection_id = provider.get("connection_id")
         if not isinstance(connection_id, str) or not connection_id:
             raise JourneyFailure("provider_connection_id_missing", phase="provider")
@@ -769,9 +771,10 @@ class InstalledProductJourney:
             },
         )
         _expect(adopted, 201, phase="adoption", code="adoption_commit_failed")
-        elfie_id = adopted.payload.get("elfie_id")
-        if not isinstance(elfie_id, str) or not elfie_id:
+        adopted_elfie_id = adopted.payload.get("elfie_id")
+        if not isinstance(adopted_elfie_id, str) or not adopted_elfie_id:
             raise JourneyFailure("adopted_elfie_id_missing", phase="adoption")
+        elfie_id = adopted_elfie_id
         if self._owned_elfie_id(session, expected=elfie_id) != elfie_id:
             raise JourneyFailure("adopted_elfie_not_visible", phase="adoption")
         evidence.details["adoption"] = {

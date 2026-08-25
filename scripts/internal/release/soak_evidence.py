@@ -99,11 +99,10 @@ def classify_soak(
     ]
     baseline_rss = rss_values[0] if rss_values else None
     peak_rss = max(rss_values) if rss_values else None
-    rss_growth_ratio = (
-        0.0
-        if baseline_rss in (None, 0) or peak_rss is None
-        else max(0.0, (peak_rss - baseline_rss) / baseline_rss)
-    )
+    if baseline_rss is None or baseline_rss == 0 or peak_rss is None:
+        rss_growth_ratio = 0.0
+    else:
+        rss_growth_ratio = max(0.0, (peak_rss - baseline_rss) / baseline_rss)
     cpu_p95 = _percentile(cpu_values, 95.0)
     error_delta = max(0, samples[-1].error_count - samples[0].error_count)
     fatal_delta = max(0, samples[-1].fatal_count - samples[0].fatal_count)
