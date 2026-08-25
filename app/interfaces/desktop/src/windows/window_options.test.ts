@@ -38,3 +38,13 @@ test("desktop reserves macOS traffic-light space for the server-owned landing ro
   assert.match(MACOS_CONTENT_INSET_CSS, /\.observation-monitor--standalone \.observation-monitor__back/);
   assert.match(MACOS_CONTENT_INSET_CSS, /padding-top: 50px/);
 });
+
+test("macOS reserves a transparent drag region without stealing top controls", () => {
+  assert.match(MACOS_CONTENT_INSET_CSS, /body::before/);
+  assert.match(MACOS_CONTENT_INSET_CSS, /left: 72px/);
+  assert.match(MACOS_CONTENT_INSET_CSS, /height: 50px/);
+  assert.match(MACOS_CONTENT_INSET_CSS, /background: transparent/);
+  assert.match(MACOS_CONTENT_INSET_CSS, /-webkit-app-region: drag/);
+  assert.match(MACOS_CONTENT_INSET_CSS, /#app :is\(button, a, input, textarea, select, \[role="button"\]\)/);
+  assert.match(MACOS_CONTENT_INSET_CSS, /-webkit-app-region: no-drag/);
+});
