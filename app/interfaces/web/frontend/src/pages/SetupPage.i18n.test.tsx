@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
+import { ApiError } from "../api/http"
 import * as client from "../api/setup"
 import { createI18n } from "../i18n/config"
 import { initializeLocale, type SupportedLocale } from "../i18n/locale"
@@ -60,8 +61,15 @@ function renderSetup(
     state: "stopped",
     version: null,
   },
+  setupStatuses: readonly SetupStatus[] = [],
 ): void {
-  vi.spyOn(client, "setupStatus").mockResolvedValue(status)
+  const setupStatus = vi.spyOn(client, "setupStatus")
+  if (setupStatuses.length > 0) {
+    setupStatus.mockReset()
+    for (const setupResponse of setupStatuses) setupStatus.mockResolvedValueOnce(setupResponse)
+  } else {
+    setupStatus.mockResolvedValue(status)
+  }
   vi.spyOn(client, "setupInspectOllama").mockResolvedValue(ollama)
   vi.spyOn(client, "setupModelCatalog").mockResolvedValue([
     { model_id: "qwen2.5:0.5b", label: "qwen2.5:0.5b（推荐）", approx_download_mb: 398, recommended: true },
@@ -249,7 +257,7 @@ describe("localized setup wizard", () => {
     await user.type(within(screen.getByRole("group", { name: "Password" })).getByLabelText("Password"), "secret-pass")
     await user.type(within(screen.getByRole("group", { name: "Confirm password" })).getByLabelText("Confirm password"), "secret-pass")
     await user.click(screen.getByRole("button", { name: "Save and continue" }))
-    expect(save).toHaveBeenCalledWith("owner", "Owner", "secret-pass", "secret-pass", "setup-csrf")
+    await waitFor(() => expect(save).toHaveBeenCalledWith("owner", "Owner", "secret-pass", "secret-pass", "setup-csrf"))
   })
 
   it("uses shared controls and disables the model selector when local Ollama is unchecked", async () => {
@@ -269,7 +277,7 @@ describe("localized setup wizard", () => {
     await user.click(checkbox)
     expect(model).toBeDisabled()
     await user.click(screen.getByRole("button", { name: "Save and continue" }))
-    expect(save).toHaveBeenCalledWith(false, null, "setup-csrf")
+    await waitFor(() => expect(save).toHaveBeenCalledWith(false, null, "setup-csrf"))
   })
 
   it("saves enabled local Ollama with the selected model for final installation", async () => {
@@ -281,6 +289,23 @@ describe("localized setup wizard", () => {
     await user.click(screen.getByRole("button", { name: "Save and continue" }))
 
     expect(save).toHaveBeenCalledWith(true, "qwen2.5:0.5b", "setup-csrf")
+  })
+
+  it("refreshes an expired Setup CSRF lease before replaying a rejected draft write", async () => {
+    const user = userEvent.setup()
+    const initial = statusFor(2)
+    const refreshed = statusFor(2, { csrf_token: "fresh-setup-csrf" })
+    const save = vi.spyOn(client, "setupSaveOfflineDraft")
+      .mockRejectedValueOnce(new ApiError(403, "缺少 Setup CSRF token", [], "csrf_rejected"))
+      .mockResolvedValue(statusFor(3, { csrf_token: "fresh-setup-csrf" }))
+    renderSetup("en-US", initial, undefined, [initial, initial, refreshed])
+
+    await screen.findByRole("combobox", { name: "Local model" })
+    await user.click(screen.getByRole("button", { name: "Save and continue" }))
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2))
+    expect(save.mock.calls[0]?.[2]).toBe("setup-csrf")
+    expect(save.mock.calls[1]?.[2]).toBe("fresh-setup-csrf")
   })
 
   it("shows reusable and pending Ollama states with distinct status styles", async () => {
@@ -409,7 +434,7 @@ describe("localized setup wizard", () => {
     await user.type(confirmation, "new-secret")
     await user.click(screen.getByRole("button", { name: "Save and continue" }))
 
-    expect(save).toHaveBeenCalledWith("owner", "Owner", "new-secret", "new-secret", "setup-csrf")
+    await waitFor(() => expect(save).toHaveBeenCalledWith("owner", "Owner", "new-secret", "new-secret", "setup-csrf"))
   })
 
   it("removes the large explanatory callout from nest beds", async () => {

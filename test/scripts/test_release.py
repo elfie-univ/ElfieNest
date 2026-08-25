@@ -141,6 +141,7 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     }
     assert 'tags:\n      - "v*"' in source
     assert "workflow_dispatch:" in source
+    assert source.count("ref: ${{ inputs.release_tag || github.ref }}") == 3
     assert workflow["env"]["PYTHONUTF8"] == "1"
     assert source.count("install_official_godot_toolchain") == 1
     assert "name: godot-web-runtime" in source

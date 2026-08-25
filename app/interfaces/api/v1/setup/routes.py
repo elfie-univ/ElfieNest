@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import secrets
-from typing import Annotated, Union
+from typing import Annotated, Final, Union
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -19,6 +19,7 @@ from app.features.setup import (
     SetupForbidden,
     SetupPrincipal,
     SetupService,
+    SetupStatusResult,
     SetupUnavailable,
     SetupValidationError,
 )
@@ -60,6 +61,9 @@ InstallationDependency = Annotated[
 ]
 PrincipalDependency = Annotated[SetupPrincipal, Depends(setup_principal)]
 
+SETUP_TOKEN_MAX_AGE: Final[int] = 900
+_NO_STORE_CACHE_CONTROL: Final[str] = "no-store, no-cache, must-revalidate, max-age=0"
+
 
 @router.get("/status", response_model=SetupStatusResponse)
 def get_status(
@@ -70,27 +74,17 @@ def get_status(
     except SetupUnavailable as error:
         return _error(error)
     setup_token = request.cookies.get("setup_token")
-    if result.need_setup and setup_token is None:
+    if result.need_setup and not setup_token:
         setup_source = secrets.token_hex(32)
-        csrf = generate_csrf_token(setup_source)
-        response = JSONResponse(
-            content=SetupStatusResponse.from_result(result, csrf_token=csrf).model_dump(
-                mode="json"
-            )
+        return _status_response(
+            result,
+            source=setup_source,
+            setup_token=setup_source,
         )
-        response.set_cookie(
-            "setup_token",
-            setup_source,
-            httponly=True,
-            samesite="strict",
-            max_age=900,
-            path="/",
-        )
-        response.headers["X-CSRF-Token"] = csrf
-        return response
-    source: str | None = setup_token or request.cookies.get("session_token")
-    return SetupStatusResponse.from_result(
-        result, csrf_token=generate_csrf_token(source) if source else None
+    return _status_response(
+        result,
+        source=setup_token or request.cookies.get("session_token"),
+        setup_token=setup_token if result.need_setup else None,
     )
 
 
@@ -112,6 +106,7 @@ def list_models(
 @router.put("/draft/owner", response_model=SetupStatusResponse)
 def save_owner(
     body: SetupOwnerDraftRequest,
+    request: Request,
     principal: PrincipalDependency,
     service: SetupDependency,
 ) -> Union[SetupStatusResponse, JSONResponse]:
@@ -129,12 +124,13 @@ def save_owner(
         SetupValidationError,
     ) as error:
         return _error(error)
-    return SetupStatusResponse.from_result(result)
+    return _status_response_for_request(request, result)
 
 
 @router.put("/draft/offline", response_model=SetupStatusResponse)
 def save_offline(
     body: SetupOfflineDraftRequest,
+    request: Request,
     principal: PrincipalDependency,
     service: SetupDependency,
 ) -> Union[SetupStatusResponse, JSONResponse]:
@@ -150,12 +146,13 @@ def save_offline(
         SetupValidationError,
     ) as error:
         return _error(error)
-    return SetupStatusResponse.from_result(result)
+    return _status_response_for_request(request, result)
 
 
 @router.put("/draft/nest", response_model=SetupStatusResponse)
 def save_nest(
     body: SetupNestDraftRequest,
+    request: Request,
     principal: PrincipalDependency,
     service: SetupDependency,
 ) -> Union[SetupStatusResponse, JSONResponse]:
@@ -170,7 +167,7 @@ def save_nest(
         SetupValidationError,
     ) as error:
         return _error(error)
-    return SetupStatusResponse.from_result(result)
+    return _status_response_for_request(request, result)
 
 
 @router.post("/installation", response_model=SetupStatusResponse, status_code=202)
@@ -202,6 +199,7 @@ def start_installation(
         ),
         status_code=200 if result.installation.task_status == "completed" else 202,
     )
+    response.headers["Cache-Control"] = _NO_STORE_CACHE_CONTROL
     response.set_cookie(
         "session_token",
         result.session_token,
@@ -216,14 +214,15 @@ def start_installation(
 
 @router.post("/installation/cancel", response_model=SetupStatusResponse)
 def cancel_installation(
+    request: Request,
     principal: PrincipalDependency,
     service: SetupDependency,
     workflow: InstallationDependency,
 ) -> Union[SetupStatusResponse, JSONResponse]:
     try:
         workflow.cancel(CancelSetupInstallationCommand(principal=principal))
-        return SetupStatusResponse.from_result(
-            service.get_status(GetSetupStatusQuery())
+        return _status_response_for_request(
+            request, service.get_status(GetSetupStatusQuery())
         )
     except (
         SetupInstallationConflict,
@@ -258,7 +257,49 @@ def _error(error: Exception) -> JSONResponse:
     payload = SetupErrorResponse(
         error=SetupErrorItem(code=code, message=str(error), details=SetupErrorDetails())
     )
-    return JSONResponse(status_code=status, content=payload.model_dump())
+    response = JSONResponse(status_code=status, content=payload.model_dump())
+    response.headers["Cache-Control"] = _NO_STORE_CACHE_CONTROL
+    return response
+
+
+def _status_response_for_request(
+    request: Request, result: SetupStatusResult
+) -> JSONResponse:
+    setup_token = request.cookies.get("setup_token")
+    return _status_response(
+        result,
+        source=setup_token or request.cookies.get("session_token"),
+        setup_token=setup_token,
+    )
+
+
+def _status_response(
+    result: SetupStatusResult,
+    *,
+    source: str | None,
+    setup_token: str | None = None,
+    status_code: int = 200,
+) -> JSONResponse:
+    csrf = generate_csrf_token(source) if source else None
+    response = JSONResponse(
+        content=SetupStatusResponse.from_result(result, csrf_token=csrf).model_dump(
+            mode="json"
+        ),
+        status_code=status_code,
+    )
+    response.headers["Cache-Control"] = _NO_STORE_CACHE_CONTROL
+    if csrf is not None:
+        response.headers["X-CSRF-Token"] = csrf
+    if setup_token:
+        response.set_cookie(
+            "setup_token",
+            setup_token,
+            httponly=True,
+            samesite="strict",
+            max_age=SETUP_TOKEN_MAX_AGE,
+            path="/",
+        )
+    return response
 
 
 __all__ = ("router",)
