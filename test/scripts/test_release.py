@@ -605,11 +605,15 @@ def test_desktop_general_build_does_not_require_the_macos_wifi_helper() -> None:
     )
     scripts = manifest["scripts"]
 
-    # Then: TypeScript compilation is cross-platform, while native packaging opts
-    # into the strict macOS helper build explicitly.
+    # Then: TypeScript compilation is cross-platform, while native packaging treats
+    # the macOS helper as an optional enhancement.
     assert "build_macos_wifi_helper.mjs" not in scripts["build"]
     assert scripts["build:macos-helper"] == "node scripts/build_macos_wifi_helper.mjs"
-    assert "pnpm build:macos-helper" in scripts["package"]
+    assert scripts["build:macos-helper:optional"] == (
+        "node scripts/build_optional_macos_wifi_helper.mjs"
+    )
+    assert "pnpm build:macos-helper:optional" in scripts["package"]
+    assert "&& pnpm build:macos-helper &&" not in scripts["package"]
 
 
 def test_desktop_packaging_uses_only_the_current_brand_icon() -> None:
@@ -947,8 +951,8 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
         {"ELFIENEST_TARGET": "darwin-arm64"},
     )
 
-    # Then: locked dependencies, TypeScript, and the macOS-only helper precede
-    # electron-builder.
+    # Then: locked dependencies, TypeScript, and the optional macOS-only helper
+    # precede electron-builder.
     assert commands[0] == (
         "npx",
         "--yes",
@@ -961,7 +965,7 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
         "npx",
         "--yes",
         "pnpm@10.12.1",
-        "build:macos-helper",
+        "build:macos-helper:optional",
     )
     assert commands[3][:7] == (
         "npx",
@@ -980,6 +984,54 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
     assert commands[3][config_index + 1].endswith(
         "app/bootstrap/desktop_host/electron-builder.yml"
     )
+
+
+def test_packager_continues_when_optional_macos_wifi_helper_command_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Given: the app shell is buildable but the optional Wi-Fi helper command fails.
+    build_root = tmp_path / "build"
+    dist_root = tmp_path / "dist"
+    resources = build_root / "staging" / "darwin-arm64" / "resources"
+    resources.mkdir(parents=True)
+    _create_built_desktop_interface(build_root)
+    commands: list[tuple[str, ...]] = []
+
+    def run_builder(command, _cwd, _environment) -> None:
+        commands.append(command)
+        if "build:macos-helper:optional" in command:
+            raise subprocess.CalledProcessError(1, command)
+        if not any("electron-builder" in argument for argument in command):
+            return
+        output_argument = next(
+            value
+            for value in command
+            if value.startswith("--config.directories.output=")
+        )
+        output = Path(output_argument.split("=", 1)[1])
+        output.mkdir(parents=True)
+        (output / "ElfieNest-0.1.0-mac-arm64.pkg").write_bytes(b"installer")
+
+    monkeypatch.setattr(release_pipeline, "BUILD_DIR", build_root)
+    monkeypatch.setattr(release_pipeline, "DIST_DIR", dist_root)
+    monkeypatch.setattr(release_pipeline, "_run_command", run_builder)
+
+    # When: the package stage creates the native installer.
+    installer = release_pipeline._package_installer(
+        "darwin-arm64",
+        resources,
+        {"ELFIENEST_TARGET": "darwin-arm64"},
+    )
+
+    # Then: helper omission is observable, but the core installer is still built.
+    assert installer == dist_root / "ElfieNest-0.1.0-mac-arm64.pkg"
+    assert installer.read_bytes() == b"installer"
+    assert any(
+        "electron-builder" in argument for command in commands for argument in command
+    )
+    assert "macos-wifi-helper" in capsys.readouterr().err
 
 
 def test_packager_does_not_build_the_macos_wifi_helper_for_windows(
