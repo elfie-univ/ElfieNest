@@ -6,10 +6,34 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.bootstrap.api import create_app
+from app.features.setup import StoredSetupInstallation
 from app.orchestration.nest_session import ElfieNestEngine
+from app.orchestration.setup_installation import (
+    CancelSetupInstallationResult,
+    SetupInstallationService,
+)
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.nest_db.store import init_db
 from test.app.orchestration.nest_session.fakes import FakeWorldRuntime
+
+
+class AcceptedCancellation(SetupInstallationService):
+    def __init__(self) -> None:
+        pass
+
+    def cancel(self, _command: object) -> CancelSetupInstallationResult:
+        return CancelSetupInstallationResult(
+            StoredSetupInstallation(
+                1,
+                "in_progress",
+                2,
+                "cancelled",
+                "cancelled",
+                20,
+                None,
+                None,
+            )
+        )
 
 
 def _application_with_engine(tmp_path: Path):
@@ -109,3 +133,98 @@ def test_real_setup_chain_replaces_stale_session_cookie_before_writing_owner(
         )
 
     assert response.status_code == 200
+
+
+def test_setup_status_renews_setup_lease_and_disables_browser_cache(
+    tmp_path: Path,
+) -> None:
+    application, _, _ = _application_with_engine(tmp_path)
+    with TestClient(application) as client:
+        initial = client.get("/api/v1/setup/status")
+        renewed = client.get("/api/v1/setup/status")
+
+    assert renewed.status_code == 200
+    assert (
+        renewed.headers["Cache-Control"]
+        == "no-store, no-cache, must-revalidate, max-age=0"
+    )
+    assert renewed.headers["X-CSRF-Token"] == renewed.json()["csrf_token"]
+    assert "Max-Age=900" in renewed.headers["set-cookie"]
+    assert renewed.json()["csrf_token"] == initial.json()["csrf_token"]
+
+
+def test_setup_status_recovers_expired_cookie_before_owner_write(
+    tmp_path: Path,
+) -> None:
+    application, _, _ = _application_with_engine(tmp_path)
+    with TestClient(application) as client:
+        initial = client.get("/api/v1/setup/status")
+        old_csrf = initial.headers["X-CSRF-Token"]
+        client.cookies.delete("setup_token")
+        rejected = client.put(
+            "/api/v1/setup/draft/owner",
+            headers={"X-CSRF-Token": old_csrf},
+            json={
+                "account_id": "owner",
+                "display_name": "Owner",
+                "password": "owner-secret",
+                "confirm_password": "owner-secret",
+            },
+        )
+        refreshed = client.get("/api/v1/setup/status")
+        recovered = client.put(
+            "/api/v1/setup/draft/owner",
+            headers={"X-CSRF-Token": refreshed.headers["X-CSRF-Token"]},
+            json={
+                "account_id": "owner",
+                "display_name": "Owner",
+                "password": "owner-secret",
+                "confirm_password": "owner-secret",
+            },
+        )
+
+    assert rejected.status_code == 403
+    assert rejected.json()["error"]["code"] == "csrf_rejected"
+    assert refreshed.status_code == 200
+    assert refreshed.cookies.get("setup_token")
+    assert recovered.status_code == 200
+
+
+def test_setup_status_replaces_empty_cookie_before_owner_write(
+    tmp_path: Path,
+) -> None:
+    application, _, _ = _application_with_engine(tmp_path)
+    with TestClient(application) as client:
+        client.get("/api/v1/setup/status")
+        client.cookies.set("setup_token", "")
+        refreshed = client.get("/api/v1/setup/status")
+        response = client.put(
+            "/api/v1/setup/draft/owner",
+            headers={"X-CSRF-Token": refreshed.headers["X-CSRF-Token"]},
+            json={
+                "account_id": "owner",
+                "display_name": "Owner",
+                "password": "owner-secret",
+                "confirm_password": "owner-secret",
+            },
+        )
+
+    assert refreshed.status_code == 200
+    assert refreshed.cookies.get("setup_token")
+    assert response.status_code == 200
+
+
+def test_setup_cancel_uses_setup_csrf_through_the_production_middleware(
+    tmp_path: Path,
+) -> None:
+    application, _, _ = _application_with_engine(tmp_path)
+    application.state.setup_installation = AcceptedCancellation()
+    with TestClient(application) as client:
+        status = client.get("/api/v1/setup/status")
+        response = client.post(
+            "/api/v1/setup/installation/cancel",
+            headers={"X-CSRF-Token": status.headers["X-CSRF-Token"]},
+        )
+
+    assert response.status_code == 200
+    assert response.headers["X-CSRF-Token"] == response.json()["csrf_token"]
