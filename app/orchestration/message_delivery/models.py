@@ -25,6 +25,8 @@ class DeliverElfieReplyCommand:
     text: str
     channel: str = "web"
     meta: str = "实时回复"
+    conversation_id: Optional[str] = None
+    message_id: Optional[str] = None
 
 
 @dataclass(frozen=True)

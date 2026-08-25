@@ -95,6 +95,64 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(
     assert YamlEnergyLimitsAdapter(workspace_path / "brain").load() == first_energy
 
     adapter.release(reservation.elfie_id)
+
+
+@pytest.mark.parametrize(
+    "personality_style",
+    ("活泼好动", "安静温顺", "好奇探索", "胆小害羞", "傲娇独立", "完全随机"),
+)
+def test_stage1_speech_templates_do_not_claim_unobserved_current_facts(
+    tmp_path: Path,
+    personality_style: str,
+) -> None:
+    adapter = FinalElfieWorkspaceAdapter(tmp_path)
+    reservation = AcceptedAdoptionReservation(
+        elfie_id="00000042",
+        owner_user_id=7,
+        name="模板精灵",
+        species_id="fox",
+        personality_style=personality_style,
+        height="standard",
+        build="standard",
+        appearance_seed=42,
+        face="soft",
+        signature="warm",
+        gender="female",
+        birth_date="2000-01-01",
+    )
+
+    workspace = Path(adapter.materialize(reservation))
+    seed = YamlSelfhoodSeedAdapter(workspace / "brain").load()
+    speech_style = seed["speech_style"]
+    rendered = "\n".join(
+        [
+            *(str(item) for item in speech_style["greetings"]),
+            *(
+                str(item)
+                for values in speech_style.get("mutter_templates", {}).values()
+                for item in values
+            ),
+        ]
+    )
+
+    assert not any(
+        marker in rendered
+        for marker in (
+            "天气",
+            "元气满满",
+            "那边",
+            "快来看",
+            "正忙",
+            "窗外",
+            "盯着",
+            "耳朵耷",
+            "揉眼睛",
+            "打哈欠",
+            "咬了咬",
+            "画圈圈",
+        )
+    )
+    adapter.release(reservation.elfie_id)
     assert not Path(workspace).exists()
 
 
@@ -125,6 +183,56 @@ def test_workspace_adapter_uses_a_species_compatible_pattern_for_marked_signatur
     assert profile.appearance.coat.marking_id != "none"
     assert profile.appearance.coat.marking_placement != "none"
     profile.validate()
+    adapter.release(reservation.elfie_id)
+
+
+def test_unverified_adoption_story_is_not_selfhood_identity_fact(
+    tmp_path: Path,
+) -> None:
+    candidate = (
+        GenesisEngine()
+        .generate_batch(
+            master_seed=99,
+            batch_number=1,
+            species_id="fox",
+            life_stage="young_adult",
+            gender="female",
+            appearance=GenesisAppearanceIntent(
+                stature="any",
+                build="any",
+                face="balanced",
+                signature="any",
+                priority="face",
+            ),
+            answers=("quiet", "explore", "plan", "discuss", "steady"),
+        )
+        .candidates[0]
+    )
+    story = "我有一段还没有经过正式记忆校验的自我介绍。"
+    reservation = AcceptedAdoptionReservation(
+        elfie_id="00000043",
+        owner_user_id=7,
+        name="故事精灵",
+        species_id="fox",
+        personality_style="Genesis",
+        height="standard",
+        build="standard",
+        appearance_seed=candidate.seed,
+        face="balanced",
+        signature="any",
+        gender="female",
+        birth_date="2001-01-01",
+        genesis_candidate=candidate,
+        personal_story=story,
+    )
+
+    adapter = FinalElfieWorkspaceAdapter(tmp_path)
+    workspace = Path(adapter.materialize(reservation))
+    selfhood = YamlSelfhoodSeedAdapter(workspace / "brain").load()
+
+    assert selfhood["self_description"] != story
+    assert "Elfaria" in selfhood["self_description"]
+    assert selfhood["metadata"]["personal_story"] == story
     adapter.release(reservation.elfie_id)
 
 

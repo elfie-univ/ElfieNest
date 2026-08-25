@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Literal, Tuple, cast
 
 from elfie.brain.emotion.contracts import EmotionSnapshot
 from elfie.brain.memory import EpisodicMemoryCandidate, MemorySystem
@@ -10,6 +10,7 @@ from elfie.brain.memory.contracts import (
     MemoryContext,
     MemoryItem,
 )
+from elfie.brain.memory.node_types import MemoryNode
 from elfie.brain.reasoning.context_types import CompletedConversationInteraction
 from elfie.brain.state_lifecycle import StateCommitReceipt, StateCommitStatus
 from elfie.brain.workspace.contracts import SocialPayload, TurnFrame
@@ -29,13 +30,10 @@ class MemoryContextReader:
         captured_at: UTCDateTime,
     ) -> MemoryContext:
         query_parts: list[str] = []
-        source_ids: list[EventId] = []
-        dominant = emotion.dominant or "calm"
-        intensity = max((value.intensity for value in emotion.values), default=0.0)
+        del emotion
         for event in frame.events:
             if isinstance(event.payload, SocialPayload):
                 query_parts.append(event.payload.content)
-                source_ids.append(event.meta.event_id)
         state = self._memory.snapshot(captured_at)
         if not query_parts:
             return MemoryContext(
@@ -44,24 +42,12 @@ class MemoryContextReader:
                 items=(),
                 state=state,
             )
-        content = self._memory.recall_context(
+        nodes = self._memory.recall_nodes(
             query="\n".join(query_parts),
-            emotion=dominant,
-            intensity=intensity * 100.0,
-            current_time=captured_at.isoformat(),
             top_k=5,
-        ).strip()
-        items = (
-            (
-                MemoryItem(
-                    memory_id=EventId(f"memory-context:{frame.frame_id}"),
-                    content=content,
-                    relevance=1.0,
-                    source_event_ids=tuple(source_ids),
-                ),
-            )
-            if content
-            else ()
+        )
+        items = tuple(
+            _memory_item_from_node(node) for node in nodes if node.content.strip()
         )
         return MemoryContext(
             revision=frame.revision,
@@ -137,6 +123,49 @@ class MemoryContextReader:
 
 
 __all__ = ("MemoryContextReader",)
+
+
+def _memory_item_from_node(node: MemoryNode) -> MemoryItem:
+    raw_source_ids = node.metadata.get("source_event_ids", ())
+    if isinstance(raw_source_ids, (list, tuple)):
+        source_event_ids = tuple(
+            EventId(str(value).strip())
+            for value in raw_source_ids
+            if str(value).strip()
+        )
+    else:
+        source_event_ids = ()
+    if not source_event_ids:
+        source_event_ids = (EventId(f"memory-node:{node.id}"),)
+
+    kind = (
+        node.type
+        if node.type in {"episodic", "knowledge", "entity", "pattern"}
+        else "episodic"
+    )
+    raw_source = node.metadata.get("source") or node.metadata.get("genesis_kind")
+    source = str(raw_source).strip() if raw_source is not None else None
+    if source == "":
+        source = None
+    raw_relevance = node.metadata.get("_retrieval_score", 0.5)
+    try:
+        relevance = min(1.0, max(0.0, float(raw_relevance)))
+    except (TypeError, ValueError):
+        relevance = 0.5
+    return MemoryItem(
+        memory_id=EventId(node.id),
+        content=node.content,
+        relevance=relevance,
+        source_event_ids=source_event_ids,
+        kind=cast(Literal["episodic", "knowledge", "entity", "pattern"], kind),
+        source=source,
+        certainty=cast(
+            Literal["high", "medium", "low"],
+            node.metadata.get("certainty", "medium")
+            if node.metadata.get("certainty") in {"high", "medium", "low"}
+            else "medium",
+        ),
+    )
 
 
 _DURABLE_OWNER_SIGNALS = (

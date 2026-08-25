@@ -94,6 +94,7 @@ class ConversationsResult:
 class RecordedElfieMessageResult:
     owner_user_id: int
     message: MessageResult
+    realtime_delivered: bool = True
 
 
 __all__ = (

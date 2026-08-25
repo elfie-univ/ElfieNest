@@ -463,7 +463,13 @@ class CoordinatorTurnFactory:
             f"{item.actor.source_kind}: {item.content}" for item in recent
         )
         memories = "\n".join(
-            f"- {item.content}" for item in tuple(compiled.memories)[:3]
+            "- "
+            f"[{getattr(item, 'kind', 'episodic')}; memory_id={getattr(item, 'memory_id', 'unknown')}; "
+            f"source={getattr(item, 'source', None) or 'unknown'}; "
+            f"certainty={getattr(item, 'certainty', 'medium')}; "
+            f"source_event_ids={','.join(str(source_id) for source_id in getattr(item, 'source_event_ids', ())) or 'unknown'}] "
+            f"{item.content}"
+            for item in tuple(compiled.memories)[:3]
         )
         activities = "\n".join(
             "- "

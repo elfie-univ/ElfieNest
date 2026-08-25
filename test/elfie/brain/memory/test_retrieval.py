@@ -120,6 +120,23 @@ class TestMemoryRetriever:
         ids = [n.id for n in results]
         assert "ep_1" in ids, "ep_1内容包含'公园'，应该被检索到"
 
+    def test_retrieve_by_text_includes_recallable_knowledge(self, storage, retriever):
+        storage.add_node(
+            MemoryNode(
+                id="knowledge-elfaria",
+                type=NodeTypes.KNOWLEDGE.value,
+                content="我来自 Elfaria。",
+                metadata={
+                    "recall_eligible": True,
+                    "source_event_ids": ["genesis:fact:elfie-1:0"],
+                },
+            )
+        )
+
+        results = retriever.retrieve_by_text("Elfaria", top_k=5)
+
+        assert "knowledge-elfaria" in [node.id for node in results]
+
     def test_retrieve_by_text_only_returns_episodic_memories(self, retriever):
         """公开文字检索不暴露内部实体、知识或核心认知节点。"""
         # Given: "公园"同时命中一个情景节点和内部实体节点。
