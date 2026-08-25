@@ -543,6 +543,49 @@ def test_reasoning_run_exposes_model_unavailable_as_failure() -> None:
     assert result.decode.plan.intents[0].type == "noop"
 
 
+def test_reasoning_run_keeps_owner_chat_alive_when_model_generation_fails() -> None:
+    class UnavailableOwnerRuntime(SearchRuntime):
+        def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
+            del request
+            raise RuntimeError("provider unavailable")
+
+    base = _task()
+    task = replace(
+        base,
+        request=base.request.model_copy(
+            update={
+                "source_domain": SourceDomain.COMMUNICATION,
+                "interaction_scope": CommunicationScope(
+                    channel_id="chat",
+                    conversation_id="owner:1",
+                ),
+                "response_scope": ResponseScope(
+                    external_domain=ExternalExecutionDomain.COMMUNICATION,
+                    channel_id="chat",
+                    conversation_id="owner:1",
+                ),
+                "response_mode": ModelResponseMode.DIRECT_REPLY,
+            }
+        ),
+        seed=base.seed.model_copy(
+            update={
+                "reply_channel_id": "chat",
+                "reply_conversation_id": "owner:1",
+            }
+        ),
+    )
+
+    result = ReasoningRun(
+        model_port=UnavailableOwnerRuntime(),
+        decoder=DecisionPlanDecoder(),
+    ).run(task)
+
+    assert result.status is ReasoningStatus.FAILED
+    assert result.decode.plan.intents[0].type == "message"
+    assert result.decode.plan.intents[0].content == "我收到你的消息了，正在想一想。"
+    assert result.decode.report.fallback_reason == "model_unavailable:RuntimeError"
+
+
 def test_reasoning_run_rejects_failed_tool_as_non_success() -> None:
     class FailedTools(SearchTools):
         def execute(self, request: ToolRequest) -> ToolResult:

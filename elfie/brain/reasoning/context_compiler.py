@@ -73,6 +73,9 @@ class CompiledMemory(FrozenContractModel):
     source_event_ids: Tuple[EventId, ...]
     relevance: float
     content: str
+    kind: Literal["episodic", "knowledge", "entity", "pattern"] = "episodic"
+    source: Optional[str] = None
+    certainty: Literal["high", "medium", "low"] = "medium"
 
 
 class CompiledStateUpdate(FrozenContractModel):
@@ -198,6 +201,9 @@ class ModelContextCompiler:
                 source_event_ids=item.source_event_ids,
                 relevance=item.relevance,
                 content=cursor.fit(item.content),
+                kind=item.kind,
+                source=item.source,
+                certainty=item.certainty,
             )
             for item in context.memory.items
         )

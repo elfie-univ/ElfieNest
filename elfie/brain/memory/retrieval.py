@@ -48,20 +48,31 @@ class MemoryRetriever:
         return self._merge_and_deduplicate(result_lists, top_k)
 
     def retrieve_by_text(self, text_query: str, top_k: int = 5) -> List[MemoryNode]:
-        """文字检索：仅返回可公开召回的情景记忆。"""
-        results = self.storage.search_by_content(
-            text_query,
-            top_k,
-            node_type=NodeTypes.EPISODIC.value,
-        )
+        """文字检索：返回可召回的情景记忆与世界/自我知识。"""
+        if top_k < 1:
+            return []
+        search_limit = max(top_k * 2, top_k)
+        results: list[tuple[str, float]] = []
+        for node_type in (NodeTypes.EPISODIC.value, NodeTypes.KNOWLEDGE.value):
+            results.extend(
+                self.storage.search_by_content(
+                    text_query,
+                    search_limit,
+                    node_type=node_type,
+                )
+            )
         nodes: List[MemoryNode] = []
         for node_id, score in results:
             node = self.storage.get_node(node_id)
-            if node:
-                node.metadata["_retrieval_score"] = score
-                node.metadata["_retrieval_dimension"] = "text"
-                nodes.append(node)
-        return nodes
+            if node is None or node.metadata.get("recall_eligible") is False:
+                continue
+            node.metadata["_retrieval_score"] = score
+            node.metadata["_retrieval_dimension"] = "text"
+            nodes.append(node)
+        nodes.sort(
+            key=lambda node: node.metadata.get("_retrieval_score", 0.0), reverse=True
+        )
+        return nodes[:top_k]
 
     def retrieve_by_entity(
         self, entity_names: List[str], top_k: int = 5

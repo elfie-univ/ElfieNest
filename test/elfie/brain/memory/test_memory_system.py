@@ -27,6 +27,7 @@ from elfie.brain.memory import (
     SensoryIndexer,
     SpreadingActivation,
 )
+from elfie.message_types import EventId
 from infrastructure.persistence.configuration.bundled_defaults import (
     load_selfhood_defaults,
 )
@@ -111,6 +112,20 @@ class TestMemorySystem:
             stimulus="听觉",
         )
         assert node_id, "有刺激源的事件应返回非空node_id"
+
+    def test_record_episode_preserves_source_event_ids_on_the_node(self):
+        ms = _new_memory_system()
+
+        node_id = ms.record_episode(
+            content="主人带我看到了 Elfaria 的星光",
+            emotion="curious",
+            intensity=80.0,
+            source_event_ids=(EventId("owner-event-1"),),
+        )
+
+        assert ms.storage.get_node(node_id).metadata["source_event_ids"] == [
+            "owner-event-1"
+        ]
 
     def test_retrieve_memories(self):
         """检索记忆：记录事件后应能检索到"""

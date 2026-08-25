@@ -20,6 +20,7 @@ from .contracts import GenesisBundle, GenesisValidationError, validate_genesis_b
 _GENESIS_MARKER_PREFIX = "genesis:manifest:"
 _SELF_NODE_PREFIX = "genesis:self:"
 _SELF_MODEL_PREFIX = "genesis:self-model:"
+_SELF_FACT_PREFIX = "genesis:knowledge:"
 _PLACE_NODE_PREFIX = "genesis:place:"
 _PERSON_NODE_PREFIX = "genesis:person:"
 
@@ -95,6 +96,9 @@ class GenesisMemoryCommitter:
                 metadata={
                     "genesis_kind": "self_model",
                     "genesis_manifest_id": bundle.manifest.manifest_id,
+                    "recall_eligible": False,
+                    "source": "genesis:self_model",
+                    "source_event_ids": [self_model_id],
                     "known_facts": list(bundle.self_model_seed.known_facts),
                     "unknown_facts": list(bundle.self_model_seed.unknown_facts),
                     "knowledge_scope": list(bundle.self_model_seed.knowledge_scope),
@@ -106,6 +110,31 @@ class GenesisMemoryCommitter:
         )
         node_ids.append(self_model_id)
         storage.add_edge(self_id, self_model_id, "about", weight=1.0)
+
+        for index, fact in enumerate(bundle.self_model_seed.known_facts):
+            fact_id = f"{_SELF_FACT_PREFIX}{_safe_component(elfie_id)}:{index}"
+            source_event_id = f"genesis:fact:{_safe_component(elfie_id)}:{index}"
+            storage.add_node(
+                MemoryNode(
+                    id=fact_id,
+                    type=NodeTypes.KNOWLEDGE.value,
+                    content=fact,
+                    metadata={
+                        "genesis_kind": "knowledge_fact",
+                        "genesis_manifest_id": bundle.manifest.manifest_id,
+                        "source": "genesis:self_model",
+                        "source_event_ids": [source_event_id],
+                        "recall_eligible": True,
+                        "certainty": "high",
+                        "status": "active",
+                        "knowledge_scope": list(bundle.self_model_seed.knowledge_scope),
+                    },
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            node_ids.append(fact_id)
+            storage.add_edge(self_id, fact_id, "about", weight=1.0)
 
         place_ids = _write_place_nodes(bundle, storage, now)
         node_ids.extend(place_ids)
@@ -131,6 +160,11 @@ class GenesisMemoryCommitter:
                         "recall_count": 0,
                         "timestamp": now,
                         "consolidated": False,
+                        "status": "active",
+                        "source_event_ids": [
+                            f"genesis:memory:{_safe_component(seed.seed_id)}"
+                        ],
+                        "recall_eligible": True,
                     },
                     created_at=now,
                     updated_at=now,
@@ -185,6 +219,8 @@ class GenesisMemoryCommitter:
                     "canon_version": bundle.manifest.canon_version,
                     "species_version": bundle.manifest.species_version,
                     "status": "committed",
+                    "recall_eligible": False,
+                    "source_event_ids": [marker_id],
                     "node_ids": list(node_ids),
                     "committed_at": now,
                 },

@@ -29,7 +29,9 @@ from elfie.brain.reasoning.decision_decoder import (
 )
 from elfie.brain.reasoning.decision_types import (
     CancelPolicy,
+    DecisionIntent,
     DecisionPlan,
+    MessageIntent,
     NoOpIntent,
     PersistentActivityRequest,
 )
@@ -132,6 +134,7 @@ _TOOL_INSTRUCTIONS = (
 )
 _MAX_OBSERVATION_CHARS = 2400
 _MAX_MODEL_SUMMARY_CHARS = 240
+_OWNER_MESSAGE_FALLBACK = "我收到你的消息了，正在想一想。"
 _TOOL_STEP_SCHEMA: dict[str, JsonValue] = {
     "type": "object",
     "required": ["tool_key", "operation", "value"],
@@ -623,7 +626,11 @@ class ReasoningRun:
                 CognitiveStep(
                     ordinal=len(steps) + 1,
                     kind=CognitiveStepKind.VERIFY,
-                    status="safe_noop",
+                    status=(
+                        "fallback"
+                        if decode.plan.intents[0].type == "message"
+                        else "safe_noop"
+                    ),
                     summary=reason,
                 )
             )
@@ -645,8 +652,35 @@ class ReasoningRun:
         generation: Optional[ModelGenerationResult],
     ) -> DecisionDecodeResult:
         seed = task.seed
+        intent: DecisionIntent
+        if seed.reply_channel_id and seed.reply_conversation_id:
+            intent = MessageIntent(
+                type="message",
+                intent_id=IntentId(f"reasoning-fallback-intent-{seed.turn_id}"),
+                cause_event_ids=seed.cause_event_ids,
+                dependency_ids=(),
+                deadline=seed.deadline,
+                cancel_policy=CancelPolicy.ALWAYS,
+                channel_id=seed.reply_channel_id,
+                conversation_id=seed.reply_conversation_id,
+                content=_OWNER_MESSAGE_FALLBACK,
+            )
+        else:
+            intent = NoOpIntent(
+                type="noop",
+                intent_id=IntentId(f"reasoning-noop-intent-{seed.turn_id}"),
+                cause_event_ids=seed.cause_event_ids,
+                dependency_ids=(),
+                deadline=seed.deadline,
+                cancel_policy=CancelPolicy.IF_NOT_STARTED,
+                reason=reason,
+            )
         plan = DecisionPlan(
-            plan_id=PlanId(f"reasoning-noop-{seed.turn_id}"),
+            plan_id=PlanId(
+                f"reasoning-fallback-{seed.turn_id}"
+                if seed.reply_channel_id and seed.reply_conversation_id
+                else f"reasoning-noop-{seed.turn_id}"
+            ),
             turn_id=seed.turn_id,
             frame_id=seed.frame_id,
             context_revision=seed.context_revision,
@@ -654,17 +688,7 @@ class ReasoningRun:
             created_at=seed.created_at,
             deadline=seed.deadline,
             cause_event_ids=seed.cause_event_ids,
-            intents=(
-                NoOpIntent(
-                    type="noop",
-                    intent_id=IntentId(f"reasoning-noop-intent-{seed.turn_id}"),
-                    cause_event_ids=seed.cause_event_ids,
-                    dependency_ids=(),
-                    deadline=seed.deadline,
-                    cancel_policy=CancelPolicy.IF_NOT_STARTED,
-                    reason=reason,
-                ),
-            ),
+            intents=(intent,),
         )
         return DecisionDecodeResult(
             plan=plan,

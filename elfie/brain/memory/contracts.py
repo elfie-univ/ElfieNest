@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Annotated, Literal, Tuple
+from typing import Annotated, Literal, Optional, Tuple
 
 from pydantic import Field, StringConstraints, model_validator
 from pydantic_core import PydanticCustomError
@@ -65,6 +65,9 @@ class MemoryItem(FrozenContractModel):
     content: _NonBlankText
     relevance: _Ratio
     source_event_ids: Tuple[EventId, ...]
+    kind: Literal["episodic", "knowledge", "entity", "pattern"] = "episodic"
+    source: Optional[str] = None
+    certainty: Literal["high", "medium", "low"] = "medium"
 
 
 class MemoryContext(FrozenContractModel):

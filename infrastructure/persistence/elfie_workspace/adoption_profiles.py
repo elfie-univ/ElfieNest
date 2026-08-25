@@ -51,19 +51,19 @@ from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 _VERBAL_TICKS = ("哒", "喵", "呢", "啦", "呀")
 _MUTTER_TEMPLATES: dict[str, tuple[str, ...]] = {
     "bored": (
-        "({name}无聊地咬了咬尾巴...)",
-        "({name}趴在地上画圈圈...)",
-        "(打哈欠) 没人理{name}呀...",
-        "({name}盯着窗外发呆...)",
+        "({name}有点无聊，想和你说说话...)",
+        "({name}想找点事情聊聊...)",
+        "({name}轻轻叹了口气...)",
+        "({name}等你说话呢...)",
     ),
     "tired": (
-        "({name}的耳朵耷拉下来了...)",
-        "(揉眼睛) 呼...{name}要睡了...",
-        "({name}打了个大大的哈欠...)",
+        "({name}有点累，想慢一点说...)",
+        "({name}需要安静一会儿...)",
+        "(轻轻叹气) {name}想休息一下...",
     ),
     "jealous": (
-        "哼，主人又忙别的了...",
-        "({name}酸溜溜地撇过头...)",
+        "哼，{name}也想和主人说说话...",
+        "({name}有点在意主人呢...)",
         "({name}小声嘀咕着什么...)",
     ),
 }
@@ -76,12 +76,12 @@ _DESCRIPTIONS = {
     "完全随机": "一只充满了个性、独一无二的小精灵",
 }
 _GREETINGS: dict[str, tuple[str, ...]] = {
-    "活泼好动": ("主人好呀！", "今天又是元气满满的一天！", "嘿嘿，我来啦！"),
-    "安静温顺": ("主人好...", "今天也很安静呢", "嗯...我在的"),
-    "好奇探索": ("咦？这是什么？", "主人快来看！", "那边好像有什么有趣的东西！"),
+    "活泼好动": ("主人好呀！", "嘿嘿，我来啦！", "见到你真好！"),
+    "安静温顺": ("主人好...", "我在听呢", "很高兴见到你"),
+    "好奇探索": ("主人好！", "我有点好奇", "可以和我说说吗？"),
     "胆小害羞": ("呜...主人好", "那个...你、你好...", "唔...被发现了"),
-    "傲娇独立": ("哼，我才不是想你呢！", "干嘛呀，人家正忙着呢", "哟，你来了啊"),
-    "完全随机": ("你好呀！", "咦，是你啊", "嘿嘿，今天天气真不错"),
+    "傲娇独立": ("哼，你来了啊", "我才不是在等你", "有事就说嘛"),
+    "完全随机": ("你好呀！", "咦，是你啊", "很高兴见到你"),
 }
 
 
@@ -293,7 +293,15 @@ def _selfhood_seed(
                 **_portrait_metadata(reservation),
             },
             "big_five": big_five,
-            "self_description": reservation.personal_story or "、".join(labels),
+            # The reveal story is a display summary until a structured
+            # biography is validated and committed by Genesis.  Keep the
+            # runtime self-description anchored to Profile/Canon so an
+            # unverified model paragraph cannot become an identity fact.
+            "self_description": (
+                f"我是 {reservation.name}，正式物种名是 {species.display_name}；"
+                f"我来自 {ELFARIA_CANON.display_name} 的 "
+                f"{ELFARIA_CANON.known_region_name}。"
+            ),
             "species_name": species.display_name,
             "identity_facts": (
                 f"正式物种名是 {species.display_name}，{species.earth_shape_label} 只是地球侧形态说明。",

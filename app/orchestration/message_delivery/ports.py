@@ -28,13 +28,17 @@ class LiveConversationPort(Protocol):
 
 
 class OwnerMessageBroadcaster(Protocol):
-    """Product owner WebSocket broadcast capability consumed by delivery."""
+    """Product owner delivery capability consumed by the communication channel.
+
+    ``True`` means the authoritative history accepted the reply.  The realtime
+    publisher may still be pending and can be retried with the same message ID.
+    """
 
     def broadcast_to_owners(
         self,
         elfie_id: str,
         message_dict: dict[str, JsonValue],
-    ) -> None: ...
+    ) -> bool: ...
 
 
 __all__ = (
