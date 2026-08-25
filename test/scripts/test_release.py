@@ -124,14 +124,17 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     workflow_path = PROJECT_ROOT / ".github" / "workflows" / "release.yml"
     source = workflow_path.read_text(encoding="utf-8")
     workflow = yaml.safe_load(source)
+    preflight = workflow["jobs"]["preflight"]
     godot_web = workflow["jobs"]["godot-web"]
     native_build = workflow["jobs"]["build"]
     matrix = native_build["strategy"]["matrix"]["include"]
 
     # Then: one Linux job exports the platform-neutral Web runtime, each supported
     # package consumes it on a native runner, and publication remains tag-gated.
-    assert godot_web["runs-on"] == "ubuntu-latest"
-    assert native_build["needs"] == "godot-web"
+    assert preflight["runs-on"] == "ubuntu-latest"
+    assert godot_web["needs"] == "preflight"
+    assert native_build["needs"] == ["preflight", "godot-web"]
+    assert native_build["timeout-minutes"] == 90
     assert {entry["target"] for entry in matrix} == set(release.SUPPORTED_TARGETS)
     assert {entry["runner"] for entry in matrix} == {
         "macos-latest",
@@ -157,11 +160,23 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     assert "release_args+=(--prerelease)" in source
     assert "--prebuilt-godot-web" in source
     assert "--run-install-smoke" in source
+    assert "--smoke-cycles 3" in source
+    assert "xvfb-run --auto-servernum" in source
+    assert "command -v xvfb-run" in source
     assert "dist/ElfieNest-${RELEASE_TARGET}-install-smoke.json" in source
     assert "release-artifacts/*-install-smoke.json" not in source
-    assert "SHA256SUMS" not in source
+    assert "SHA256SUMS" in source
+    assert "sha256sum" in source
+    assert "--verify-tag" in source
+    assert 'tag_commit="$(git rev-list -n 1 "$release_tag")"' in source
+    assert '[[ "$tag_commit" == "$GITHUB_SHA" ]]' in source
     assert "release-artifacts/manifest.json" not in source
     assert 'test -x "$extract_root/opt/ElfieNest/elfienest-gui"' in source
+    assert (
+        'desktop_entry="$extract_root/usr/share/applications/elfienest-gui.desktop"'
+        in source
+    )
+    assert 'test -f "$desktop_entry"' in source
     assert (
         'test -x "$extract_root/opt/ElfieNest/resources/godot-linux-dedicated/ElfieNestRuntime"'
         in source

@@ -23,6 +23,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from infrastructure.platform.diagnostics import redact_diagnostic_text
+from infrastructure.platform.lifecycle.process import DefaultProcessInspector
 
 SUPPORTED_TARGETS = {
     "darwin-arm64",
@@ -127,7 +128,7 @@ def run_install_smoke(
                 )
             )
             health_started = monotonic()
-            reached_state = _wait_for_state(
+            ready_status = _wait_for_state(
                 native,
                 environment,
                 expected={"world_ready"},
@@ -135,6 +136,9 @@ def run_install_smoke(
                 sleeper=sleeper,
                 timeout_seconds=timeout_seconds,
             )
+            reached_state = str(ready_status["state"])
+            controller_pid = _desktop_controller_pid(home)
+            owned_pids = _owned_runtime_pids(ready_status, controller_pid)
             phases.append(
                 SmokePhase(
                     "health",
@@ -152,6 +156,13 @@ def run_install_smoke(
                 monotonic=monotonic,
                 sleeper=sleeper,
                 timeout_seconds=timeout_seconds,
+            )
+            _wait_for_owned_processes_stopped(
+                owned_pids,
+                home=home,
+                monotonic=monotonic,
+                sleeper=sleeper,
+                timeout_seconds=min(timeout_seconds, 10.0),
             )
             phases.append(
                 SmokePhase(
@@ -177,6 +188,8 @@ def run_install_smoke(
                     "cycle": cycle,
                     "phase_count": len(phases) - cycle_start,
                     "reached_state": reached_state,
+                    "desktop_controller_pid": controller_pid,
+                    "verified_stopped_pids": list(owned_pids),
                     "result": "passed",
                 }
             )
@@ -232,7 +245,6 @@ def _smoke_environment(home: Path) -> MutableMapping[str, str]:
             "ELFIE_HOME": str(home.resolve()),
             "HOME": str(home.resolve()),
             "USERPROFILE": str(home.resolve()),
-            "ELFIENEST_CONTROLLER_CLIENT": "1",
             "ELFIENEST_RUNTIME_MODE": "release",
         }
     )
@@ -247,7 +259,7 @@ def _wait_for_state(
     monotonic: Callable[[], float],
     sleeper: Callable[[float], None],
     timeout_seconds: float,
-) -> str:
+) -> Mapping[str, object]:
     deadline = monotonic() + timeout_seconds
     last_state = "unknown"
     while True:
@@ -256,7 +268,7 @@ def _wait_for_state(
         if isinstance(state, str):
             last_state = state
             if state in expected:
-                return state
+                return payload
         if monotonic() >= deadline:
             raise ReleaseInstallSmokeError(
                 f"release-smoke-state-timeout expected={sorted(expected)} actual={last_state}"
@@ -273,6 +285,73 @@ def _parse_status(output: str) -> Mapping[str, object]:
         if isinstance(payload, dict):
             return payload
     raise ReleaseInstallSmokeError("release-smoke-status-not-json")
+
+
+def _desktop_controller_pid(home: Path) -> int:
+    receipt = home / "runtime" / "desktop.pid"
+    try:
+        pid = int(receipt.read_text(encoding="utf-8").strip())
+    except (FileNotFoundError, OSError, ValueError) as error:
+        raise ReleaseInstallSmokeError(
+            f"release-smoke-desktop-controller-receipt-missing path={receipt}"
+        ) from error
+    if pid <= 0:
+        raise ReleaseInstallSmokeError(
+            f"release-smoke-desktop-controller-receipt-invalid path={receipt}"
+        )
+    return pid
+
+
+def _owned_runtime_pids(
+    ready_status: Mapping[str, object],
+    controller_pid: int,
+) -> tuple[int, ...]:
+    pids = {controller_pid}
+    required = {"core", "godot_authority"}
+    observed: set[str] = set()
+    components = ready_status.get("components")
+    if isinstance(components, list):
+        for component in components:
+            if not isinstance(component, dict):
+                continue
+            name = component.get("name")
+            pid = component.get("pid")
+            if isinstance(name, str) and isinstance(pid, int) and pid > 0:
+                observed.add(name)
+                pids.add(pid)
+    missing = sorted(required - observed)
+    if missing:
+        raise ReleaseInstallSmokeError(
+            "release-smoke-component-pids-missing names=" + ",".join(missing)
+        )
+    return tuple(sorted(pids))
+
+
+def _wait_for_owned_processes_stopped(
+    pids: Sequence[int],
+    *,
+    home: Path,
+    monotonic: Callable[[], float],
+    sleeper: Callable[[float], None],
+    timeout_seconds: float,
+) -> None:
+    deadline = monotonic() + timeout_seconds
+    receipt = home / "runtime" / "desktop.pid"
+    while True:
+        remaining = tuple(pid for pid in pids if _pid_exists(pid))
+        if not remaining and not receipt.exists():
+            return
+        if monotonic() >= deadline:
+            details = ",".join(str(pid) for pid in remaining) or "receipt"
+            raise ReleaseInstallSmokeError(
+                "release-smoke-owned-processes-remain "
+                f"pids={details} desktop_receipt={receipt.exists()}"
+            )
+        sleeper(0.25)
+
+
+def _pid_exists(pid: int) -> bool:
+    return DefaultProcessInspector().exists(pid)
 
 
 def _measure(

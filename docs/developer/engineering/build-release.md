@@ -56,11 +56,15 @@ package-owned launchers. Windows adds and removes only its exact installation
 directory from the current user's PATH.
 
 The native runner invokes `scripts/internal/release/release_install_smoke.py` through
-`scripts/release.py --run-install-smoke`. Each bounded cycle installs the
-package, starts through the global launcher, requires `WORLD_READY`,
-stops to `OFFLINE`, reinstalls the same package as the upgrade check, and then
-uninstalls it while proving the selected `ELFIE_HOME` remains. The resulting JSON
-contains the reached `WORLD_READY` state plus typed install/start/health/stop/upgrade/uninstall durations and budgets;
+`scripts/release.py --run-install-smoke`. The release workflow runs three bounded
+cycles. Each cycle installs the package, starts the installed Desktop Controller
+through the global launcher, requires `WORLD_READY`, records the Controller,
+Core and Godot authority PIDs, stops to `OFFLINE`, proves those recorded PIDs and
+the Desktop receipt are gone, and reinstalls the same package as the upgrade
+check. The final phase uninstalls the package while proving the selected
+`ELFIE_HOME` remains. The resulting JSON contains the reached `WORLD_READY`
+state, the Controller PID, the verified stopped PID set, and typed
+install/start/health/stop/upgrade/uninstall durations and budgets;
 the workflow uploads it beside the installer. A local build without
 `--run-install-smoke` does not mutate the host installation.
 The smoke runner resolves the Linux package name from the DEB before its initial
@@ -81,13 +85,18 @@ cleanup and never performs an unconditional deletion of a global launcher.
 The checked-in `.github/workflows/release.yml` is the multi-platform release
 pipeline. It uses native GitHub-hosted runners for macOS arm64, macOS Intel,
 Windows x64, and Linux x64. A `workflow_dispatch` run builds all four installers
-and keeps them as Actions artifacts. Pushing a tag matching the project version,
-for example `v0.1.0-beta.1`, runs the same matrix, validates the native installer
-contents, and publishes only the four user-downloadable installers to GitHub
+and keeps them as Actions artifacts. Linux runs its real Desktop Controller under
+Xvfb and additionally verifies the packaged freedesktop entry. Before any costly
+native build, a small preflight binds the project version, existing release tag
+and exact `GITHUB_SHA`; a manual publish is rejected unless its tag already
+exists at that exact source commit. Pushing a matching tag, for example
+`v0.1.0-beta.1`, runs the same matrix, validates the native installer contents,
+and publishes the four user-downloadable installers plus `SHA256SUMS` to GitHub
 Releases. The typed install-smoke JSON remains in the Actions build artifact
 for CI evidence and is not presented as a Release download. Pre-release tags are published with GitHub's
 pre-release flag; a manual run only creates a Release when
-`publish_release` is enabled and `release_tag` is set to the matching tag.
+`publish_release` is enabled and `release_tag` is the matching existing tag at
+the workflow source SHA.
 
 For the current version, the normal publication command is:
 

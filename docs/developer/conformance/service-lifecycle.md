@@ -122,6 +122,19 @@ The review found no remaining decision that needs a new product rule. The open
 items are implementation and external supported-host evidence, not unresolved
 authority semantics.
 
+### Native release acceptance queue
+
+These rows are closed independently. Local implementation or unit tests may
+move a row to `implemented; not tested (external)`, but only the named native
+evidence closes it.
+
+| ID | Status | Immediate implementation | External closure evidence |
+| --- | --- | --- | --- |
+| NAT-WIN-01 | implemented; not tested (external) | Release smoke now starts the installed Windows Desktop Controller, runs three install/start/stop/upgrade cycles, records Controller/Core/Godot PIDs and rejects surviving recorded processes. | A native Windows runner must prove GUI/background start, tray/single-instance handoff, three clean cycles, zero recorded process residue, stable generation and retained evidence JSON. |
+| NAT-LNX-01 | implemented; not tested (external) | Release smoke now runs the installed Linux Desktop Controller under Xvfb for three cycles; CI verifies the dedicated Runtime and `elfienest-gui.desktop`. | A native Linux runner must pass that gate; a real desktop session must additionally prove launcher visibility, tray behavior and clean exit. |
+| NAT-LONG-01 | not tested (external) | Resource diagnostics already publish process samples; no short test can replace elapsed runtime. | Windows and Linux installed packages each need a sustained run with fixed PID/generation tracking, CPU/RSS/handle trend, error/crash deltas and authority/Core recovery evidence. Close only after the agreed observation window completes without an unclassified restart or resource trend. |
+| NAT-SIGN-01 | deferred by internal-test scope | The current internal package contract intentionally has no signing/notarization gate. | Open and close a separate public-distribution task only when a public Windows/macOS release is authorized and the required signing identities are available. |
+
 | ID | Severity | Status | Current deviation | Closure gate | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | LFC-001 | P0 | in progress | Snapshot schema, generation, phase, targets, endpoints, failures, timings, Controller token authentication and generation-scoped writer handoff are implemented; stale writer credentials are rejected. | Prove the same authority/identity chain on installed supported hosts, including process birth identity and recovery. | target=authoritative snapshot; inventory=`runtime_snapshot.py`, `runtime_record.py`, `runtime_supervisor.py`, `controller_ipc.py`; references=contract §Authority; verification=architecture gate plus runtime-record/supervisor/IPC tests; residuals=installed cross-platform identity and recovery acceptance remain. |

@@ -102,6 +102,18 @@
 三轮审查后，没有遗留需要新增产品规则的决策冲突；开放项是实现与支持主机外部证据，不是
 authority 语义未定。
 
+### 原生发布验收队列
+
+以下各行独立关闭。本地实现或单元测试只能把状态推进到“已实现；外部未测试”，只有指定
+原生证据才能关闭。
+
+| ID | 状态 | 可立即完成的实现 | 外部收口证据 |
+| --- | --- | --- | --- |
+| NAT-WIN-01 | 已实现；外部未测试 | 发布 smoke 现在会启动安装版 Windows Desktop Controller，运行三轮安装/启动/停止/升级，记录 Controller/Core/Godot PID，并拒绝仍存活的已记录进程。 | Windows 原生 runner 必须证明 GUI/后台启动、托盘/单实例交接、三轮干净循环、已记录进程零残留、generation 稳定并保留 evidence JSON。 |
+| NAT-LNX-01 | 已实现；外部未测试 | 发布 smoke 现在会在 Xvfb 下运行安装版 Linux Desktop Controller 三轮；CI 校验 Dedicated Runtime 与 `elfienest-gui.desktop`。 | Linux 原生 runner 必须通过该门禁；真实桌面会话还必须证明 launcher 可见、托盘行为和干净退出。 |
+| NAT-LONG-01 | 外部未测试 | 资源诊断已经发布进程采样；任何短测试都不能代替实际运行时长。 | Windows 与 Linux 安装包分别持续运行并跟踪固定 PID/generation、CPU/RSS/句柄趋势、错误/崩溃增量及 authority/Core 恢复。约定观察窗口结束且没有未分类重启或资源趋势后才能关闭。 |
+| NAT-SIGN-01 | 按内测范围延期 | 当前内测包契约明确不设签名/公证门禁。 | 只有明确授权公开 Windows/macOS 发布且签名身份可用时，才另开并关闭公开发行任务。 |
+
 | ID | 严重度 | 状态 | 当前偏差 | 收口门 | 证据 |
 | --- | --- | --- | --- | --- | --- |
 | LFC-001 | P0 | in progress | 快照 Schema、generation、phase、目标、端点、失败、计时、Controller token 认证和 generation 级 writer 交接已实现；旧 writer 凭据会被拒绝。 | 在支持的已安装主机上证明同一套 authority/identity 链，包括进程出生身份和恢复。 | target=权威快照；inventory=`runtime_snapshot.py`、`runtime_record.py`、`runtime_supervisor.py`、`controller_ipc.py`；references=契约 Authority；verification=架构门禁及 runtime-record/supervisor/IPC 测试；residuals=已安装跨平台身份与恢复验收仍缺。 |
