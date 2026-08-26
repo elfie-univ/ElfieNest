@@ -725,6 +725,7 @@ def _service_log_tail(home: Path, *, native: SmokeAdapter | None = None) -> str:
         "service-console.log",
         "authority.log",
         "authority-console.log",
+        "desktop-controller-console.log",
         "desktop-console.log",
     ):
         normalized = _diagnostic_file_tail(log_dir / name)
