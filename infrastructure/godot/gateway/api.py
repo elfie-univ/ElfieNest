@@ -69,6 +69,12 @@ class GodotAPIServer:
             else {
                 f"http://127.0.0.1:{http_port}",
                 f"http://localhost:{http_port}",
+                # The displayless Dedicated Runtime uses Godot's native
+                # WebSocketPeer.  Its handshake Origin is derived from the
+                # WebSocket endpoint rather than the Core HTTP page, so the
+                # exact loopback WS origins must be trusted as well.
+                f"http://127.0.0.1:{self.port}",
+                f"http://localhost:{self.port}",
             }
         )
         self.clients: set[Any] = set()

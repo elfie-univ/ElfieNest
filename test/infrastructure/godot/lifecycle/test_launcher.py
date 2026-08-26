@@ -146,6 +146,24 @@ def test_electron_authority_namespace_is_scoped_to_the_checkout(
     )
 
 
+def test_electron_authority_uses_runtime_scoped_user_data_when_supervised(
+    tmp_path: Path,
+) -> None:
+    _source_electron(tmp_path)
+    runtime_log = tmp_path / "smoke-home" / "logs" / "service.log"
+    request = launcher.AuthorityLaunchRequest(tmp_path, 18130, 18131, "nonce")
+
+    plan = launcher.plan_godot_runtime_launch(
+        request,
+        platform_name="win32",
+        environment={"ELFIENEST_RUNTIME_LOG": str(runtime_log)},
+    )
+
+    assert dict(plan.environment)["ELFIENEST_AUTHORITY_USER_DATA"] == str(
+        runtime_log.parent / "authority-user-data"
+    )
+
+
 def test_displayless_linux_routes_to_the_single_dedicated_artifact(
     tmp_path: Path,
 ) -> None:
