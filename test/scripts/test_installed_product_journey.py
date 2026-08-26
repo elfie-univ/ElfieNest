@@ -29,11 +29,13 @@ class FakeSession:
         resumed: bool = False,
         existing_provider: bool = False,
         verification_status: str = "passed",
+        species_ids: tuple[str, ...] = ("fox",),
     ) -> None:
         self.csrf_token = "csrf-test"
         self.resumed = resumed
         self.existing_provider = existing_provider
         self.verification_status = verification_status
+        self.species_ids = species_ids
         self.setup_installed = resumed
         self.calls: list[tuple[str, str, Mapping[str, Any] | None]] = []
         self._elfie_id = "elfie-release-1"
@@ -69,7 +71,9 @@ class FakeSession:
                 },
             )
         if path == "/api/v1/me/adoption":
-            return self._result(200, {"species": [{"species_id": "fox"}]})
+            return self._result(
+                200, {"species": [{"species_id": item} for item in self.species_ids]}
+            )
         if path == "/api/v1/elfies?relationship=owned":
             return self._result(
                 200, {"items": [{"profile": {"elfie_id": self._elfie_id}}]}
@@ -334,6 +338,25 @@ def test_initial_journey_runs_setup_provider_adoption_chat_and_redacts_evidence(
         if method == "POST" and path == "/api/v1/me/adoption/candidate-sets"
     )
     assert candidate_call["species_id"] == "fox"
+    assert "adoption_session_id" not in candidate_call
+
+
+def test_initial_journey_uses_packaged_species_when_fox_is_unavailable(
+    tmp_path: Path,
+) -> None:
+    session = FakeSession(species_ids=("dog",))
+    InstalledProductJourney(
+        _config(tmp_path),
+        session_factory=lambda _base_url, _timeout: session,
+        status_reader=lambda: {"state": "ready", "generation": 3, "components": []},
+    ).run(mode="initial")
+
+    candidate_call = next(
+        body
+        for method, path, body in session.calls
+        if method == "POST" and path == "/api/v1/me/adoption/candidate-sets"
+    )
+    assert candidate_call["species_id"] == "dog"
 
 
 def test_resume_journey_skips_first_run_setup_and_repeats_chat(tmp_path: Path) -> None:
