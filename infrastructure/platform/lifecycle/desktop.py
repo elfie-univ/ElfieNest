@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional, Sequence, cast
 
 from app.orchestration.lifecycle.ports import DesktopProcess
+from infrastructure.platform.lifecycle.process import DefaultProcessInspector
 
 PID_NAME = "desktop.pid"
 
@@ -95,13 +96,7 @@ class LocalDesktopHostAdapter:
         self._pid_path(elfie_home, create=False).unlink(missing_ok=True)
 
     def exists(self, pid: int) -> bool:
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            return True
-        return True
+        return DefaultProcessInspector().exists(pid)
 
     def terminate(self, process: DesktopProcess, *, force: bool = False) -> None:
         if process.poll() is not None:

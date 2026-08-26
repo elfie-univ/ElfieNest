@@ -880,6 +880,7 @@ def stop_background_service(
                 )
                 print(f"  ❌ Failed to stop service: {result.error}")
                 return result
+            lifecycle.remove_desktop_receipt(selected_home)
             print("  ✅ Service stopped")
             return ServiceLifecycleResult(status="stopped")
 
