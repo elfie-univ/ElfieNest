@@ -11,6 +11,7 @@ from scripts.internal.release.release_install_smoke import (
     ReleaseInstallSmokeError,
     _diagnostic_has_event,
     _is_owned_symlink,
+    _service_log_tail,
     _start_scripted_model_server,
     _stop_scripted_model_server,
     _verify_duplicate_start,
@@ -433,6 +434,68 @@ def test_smoke_runner_includes_raw_console_when_core_fails_before_logging(
 
     detail = str(raised.value)
     assert "bootstrap failed" in detail
+    assert "do-not-publish" not in detail
+    assert "<redacted>" in detail
+
+
+def test_smoke_runner_includes_desktop_controller_diagnostics_on_start_failure(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "ElfieNest.deb"
+    artifact.write_bytes(b"native installer")
+    home = tmp_path / "user-data"
+
+    class FailingStartAdapter(FakeAdapter):
+        def desktop_diagnostics_path(self, selected_home: Path) -> Path:
+            path = selected_home / "desktop-events.jsonl"
+            path.write_text(
+                '{"event":"desktop_start_failed","message":"controller failed"}\n',
+                encoding="utf-8",
+            )
+            return path
+
+        def run_cli(self, arguments, environment) -> str:
+            if arguments[0] == "start":
+                raise ReleaseInstallSmokeError("start-failed")
+            return super().run_cli(arguments, environment)
+
+    with pytest.raises(
+        ReleaseInstallSmokeError,
+        match="desktop_start_failed.*controller failed",
+    ):
+        run_install_smoke(
+            "linux-x64",
+            artifact,
+            tmp_path / "evidence.json",
+            adapter=FailingStartAdapter(home),
+            smoke_home=home,
+        )
+    diagnostics = json.loads(
+        (home / "failure-diagnostics.json").read_text(encoding="utf-8")
+    )
+    assert diagnostics["target"] == "linux-x64"
+    assert "desktop_start_failed" in diagnostics["logs"]
+    assert "controller failed" in diagnostics["logs"]
+
+
+def test_service_log_tail_redacts_desktop_controller_diagnostics(
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "user-data"
+    path = home / "desktop-events.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        '{"event":"desktop_start_failed","token":"do-not-publish"}\n',
+        encoding="utf-8",
+    )
+
+    class Adapter:
+        def desktop_diagnostics_path(self, selected_home: Path) -> Path:
+            assert selected_home == home
+            return path
+
+    detail = _service_log_tail(home, native=Adapter())
+    assert "desktop_start_failed" in detail
     assert "do-not-publish" not in detail
     assert "<redacted>" in detail
 
