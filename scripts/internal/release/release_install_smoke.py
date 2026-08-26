@@ -444,6 +444,7 @@ def _run_product_journey(
         raise ReleaseInstallSmokeError(
             "release-smoke-product-journey-failed "
             f"phase={error.phase} code={error.code}"
+            + (f" detail={error.detail}" if error.detail else "")
         ) from error
 
 
