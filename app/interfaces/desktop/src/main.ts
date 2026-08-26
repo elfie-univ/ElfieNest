@@ -77,6 +77,7 @@ let desktopDiagnostics: DesktopDiagnostics | undefined;
 let removeProcessExceptionHandlers: (() => void) | undefined;
 let diagnosticsTimer: NodeJS.Timeout | undefined;
 const DESKTOP_CLEANUP_TIMEOUT_MS = 5_000;
+const DESKTOP_IPC_CLOSE_TIMEOUT_MS = 1_000;
 
 type RecoveryAction =
   | "recover-data-home"
@@ -715,7 +716,24 @@ app.on("before-quit", (event) => {
       if (cleanupTimer !== undefined) {
         clearTimeout(cleanupTimer);
       }
-      await controllerIpcServer?.close();
+      const ipcServer = controllerIpcServer;
+      if (ipcServer !== undefined) {
+        let ipcCloseTimer: NodeJS.Timeout | undefined;
+        const ipcCloseDeadline = new Promise<void>((resolve) => {
+          ipcCloseTimer = setTimeout(() => {
+            desktopDiagnostics?.event(
+              "controller_ipc_close_timeout",
+              { timeout_ms: DESKTOP_IPC_CLOSE_TIMEOUT_MS },
+              "warning",
+            );
+            resolve();
+          }, DESKTOP_IPC_CLOSE_TIMEOUT_MS);
+        });
+        await Promise.race([ipcServer.close(), ipcCloseDeadline]);
+        if (ipcCloseTimer !== undefined) {
+          clearTimeout(ipcCloseTimer);
+        }
+      }
       controllerIpcServer = undefined;
       console.info("ElfieNest Desktop cleanup complete", requestedExitReason);
       app.exit(0);
