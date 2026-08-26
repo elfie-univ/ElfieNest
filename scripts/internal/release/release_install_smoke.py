@@ -120,6 +120,7 @@ def run_install_smoke(
     )
     home = smoke_home or Path(temporary_home.name)  # type: ignore[union-attr]
     scripted_model: _ScriptedModelProcess | None = None
+    native: SmokeAdapter | None = None
     try:
         native = adapter or NativePackageAdapter(target, artifact)
         # A rerun must start from a package-owned clean surface.  Native
@@ -306,6 +307,10 @@ def run_install_smoke(
             encoding="utf-8",
         )
         return evidence
+    except Exception as error:
+        if smoke_home is not None and native is not None:
+            _write_failure_diagnostics(home, target, error, native)
+        raise
     finally:
         if scripted_model is not None:
             _stop_scripted_model_server(scripted_model)
@@ -522,7 +527,9 @@ def _verify_installed_viewer(
             if _diagnostic_has_event(marker_path, "management_page_ready"):
                 return {"management_page_ready": True}
             time.sleep(0.25)
-        raise ReleaseInstallSmokeError("release-smoke-viewer-ready-timeout")
+        detail = _diagnostic_file_tail(marker_path)
+        suffix = f" diagnostics={detail}" if detail else ""
+        raise ReleaseInstallSmokeError(f"release-smoke-viewer-ready-timeout{suffix}")
     finally:
         if process.poll() is None:
             process.terminate()
@@ -700,7 +707,7 @@ def _start_native_service(
     try:
         native.run_cli(("start", "--json", "--loopback"), environment)
     except Exception as error:  # noqa: BLE001 - attach native failure evidence
-        detail = _service_log_tail(home)
+        detail = _service_log_tail(home, native=native)
         if detail:
             raise ReleaseInstallSmokeError(
                 f"{error}; service-log-tail={detail}"
@@ -708,7 +715,7 @@ def _start_native_service(
         raise
 
 
-def _service_log_tail(home: Path) -> str:
+def _service_log_tail(home: Path, *, native: SmokeAdapter | None = None) -> str:
     """Return a bounded, redacted tail across startup-owned diagnostic logs."""
     log_dir = home / "logs"
     fragments: list[tuple[str, str]] = []
@@ -719,16 +726,15 @@ def _service_log_tail(home: Path) -> str:
         "authority.log",
         "authority-console.log",
     ):
-        try:
-            content = (log_dir / name).read_text(
-                encoding="utf-8",
-                errors="replace",
-            )
-        except OSError:
-            continue
-        normalized = redact_diagnostic_text(" ".join(content[-4096:].split()))
+        normalized = _diagnostic_file_tail(log_dir / name)
         if normalized:
             fragments.append((name, normalized))
+    diagnostics_path = getattr(native, "desktop_diagnostics_path", None)
+    if callable(diagnostics_path):
+        desktop_path = diagnostics_path(home)
+        desktop_tail = _diagnostic_file_tail(desktop_path)
+        if desktop_tail:
+            fragments.append(("desktop-events.jsonl", desktop_tail))
     if not fragments:
         return ""
     if len(fragments) == 1:
@@ -736,6 +742,42 @@ def _service_log_tail(home: Path) -> str:
     else:
         combined = " | ".join(f"{name}:{content}" for name, content in fragments)
     return redact_diagnostic_text(combined[-8192:])
+
+
+def _diagnostic_file_tail(path: Path) -> str:
+    """Read a bounded, whitespace-normalized and secret-redacted log tail."""
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return redact_diagnostic_text(" ".join(content[-4096:].split()))
+
+
+def _write_failure_diagnostics(
+    home: Path,
+    target: str,
+    error: Exception,
+    native: SmokeAdapter,
+) -> None:
+    """Persist only bounded, redacted failure evidence for CI artifact upload."""
+    payload = {
+        "schema_version": 1,
+        "target": target,
+        "result": "failed",
+        "error": redact_diagnostic_text(str(error))[-4096:],
+        "logs": _service_log_tail(home, native=native),
+    }
+    try:
+        home.mkdir(mode=0o700, parents=True, exist_ok=True)
+        path = home / "failure-diagnostics.json"
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        if os.name != "nt":
+            path.chmod(0o600)
+    except OSError:
+        return
 
 
 def _duration_ms(duration_seconds: float) -> int:

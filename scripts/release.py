@@ -38,19 +38,25 @@ def execute_install_smoke(
     product_journey: bool = False,
     recovery_matrix: bool = False,
     viewer_check: bool = False,
+    smoke_home: Path | None = None,
 ) -> dict[str, object]:
     """Load the optional native smoke runner only after environment checks."""
     from scripts.internal.release.release_install_smoke import run_install_smoke
 
+    smoke_options = {
+        "cycles": cycles,
+        "candidate_sha": candidate_sha,
+        "product_journey": product_journey,
+        "recovery_matrix": recovery_matrix,
+        "viewer_check": viewer_check,
+    }
+    if smoke_home is not None:
+        smoke_options["smoke_home"] = smoke_home
     return run_install_smoke(
         target,
         artifact,
         evidence_output,
-        cycles=cycles,
-        candidate_sha=candidate_sha,
-        product_journey=product_journey,
-        recovery_matrix=recovery_matrix,
-        viewer_check=viewer_check,
+        **smoke_options,
     )
 
 
@@ -109,6 +115,11 @@ def parse_args(arguments: Optional[Sequence[str]] = None) -> argparse.Namespace:
         action="store_true",
         help="activate the installed Viewer and require a management page ready marker",
     )
+    parser.add_argument(
+        "--smoke-home",
+        type=Path,
+        help="keep the disposable smoke data root for failure diagnostics",
+    )
     return parser.parse_args(arguments)
 
 
@@ -161,6 +172,7 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
                 candidate_sha=release_source_commit,
                 recovery_matrix=args.run_recovery_matrix,
                 viewer_check=args.run_viewer_check,
+                smoke_home=args.smoke_home,
             )
         session = coordinate_release(requests, adapters)
     except (
@@ -215,6 +227,7 @@ def _local_runner_adapter(
     candidate_sha: str | None = None,
     recovery_matrix: bool = False,
     viewer_check: bool = False,
+    smoke_home: Path | None = None,
 ):
     """Return the current-host native builder and optional real install gate."""
     host_target = package_python_core.host_target()
@@ -239,6 +252,7 @@ def _local_runner_adapter(
                 candidate_sha=candidate_sha or request.source_commit,
                 recovery_matrix=recovery_matrix,
                 viewer_check=viewer_check,
+                smoke_home=smoke_home,
             )
             return completed_runner_result(
                 request,

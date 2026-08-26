@@ -164,6 +164,11 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     assert "--run-recovery-matrix" in source
     assert "--run-viewer-check" in source
     assert "--smoke-cycles 3" in source
+    assert "--smoke-home" in source
+    assert "name: diagnostics-${{ matrix.target }}" in source
+    assert "failure-diagnostics.json" in source
+    assert "elfienest-smoke-home/failure-diagnostics.json" in source
+    assert "if: always()" in source
     assert "xvfb-run --auto-servernum" in source
     assert "command -v xvfb-run" in source
     assert "dist/ElfieNest-${RELEASE_TARGET}-install-smoke.json" in source

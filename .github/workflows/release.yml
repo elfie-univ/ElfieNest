@@ -234,9 +234,11 @@ jobs:
           set -euo pipefail
           if command -v cygpath >/dev/null 2>&1; then
             export ARTIFACT_PATH_FILE="$(cygpath --windows "$RUNNER_TEMP/elfienest-artifact-path")"
+            smoke_home_arg="$(cygpath --windows "$RUNNER_TEMP/elfienest-smoke-home")"
             python_bin=".venv/Scripts/python.exe"
           else
             export ARTIFACT_PATH_FILE="$RUNNER_TEMP/elfienest-artifact-path"
+            smoke_home_arg="$RUNNER_TEMP/elfienest-smoke-home"
             python_bin=".venv/bin/python"
           fi
           "$python_bin" scripts/internal/build/build_godot_web.py --check
@@ -250,6 +252,7 @@ jobs:
               --run-recovery-matrix \
               --run-viewer-check \
               --smoke-cycles 3 \
+              --smoke-home "$smoke_home_arg" \
               --smoke-evidence-output "dist/ElfieNest-${RELEASE_TARGET}-install-smoke.json")
           if [[ "$RELEASE_TARGET" == "linux-x64" ]]; then
             command -v xvfb-run >/dev/null
@@ -271,6 +274,17 @@ jobs:
           fi
           [[ -f "$artifact_for_shell" ]]
           printf 'Built %s: %s\n' "$RELEASE_TARGET" "$artifact"
+
+      - name: Upload native smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: diagnostics-${{ matrix.target }}
+          path: |
+            ${{ runner.temp }}/elfienest-smoke-home/failure-diagnostics.json
+            dist/ElfieNest-${{ matrix.target }}-install-smoke.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Validate macOS PKG contents
         if: runner.os == 'macOS'
