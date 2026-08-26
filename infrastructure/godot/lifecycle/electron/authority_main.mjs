@@ -370,7 +370,13 @@ function requestShutdown(exitCode = 0, reason = "requested") {
 process.once("SIGTERM", () => requestShutdown(0, "sigterm"));
 process.once("SIGINT", () => requestShutdown(0, "sigint"));
 
-app.setPath("userData", join(app.getPath("userData"), authorityNamespace));
+const configuredAuthorityUserData = process.env.ELFIENEST_AUTHORITY_USER_DATA;
+app.setPath(
+  "userData",
+  configuredAuthorityUserData === undefined || configuredAuthorityUserData === ""
+    ? join(app.getPath("userData"), authorityNamespace)
+    : configuredAuthorityUserData,
+);
 try {
   crashReporter.start({
     companyName: "ElfieNest",

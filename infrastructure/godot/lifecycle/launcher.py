@@ -225,6 +225,21 @@ def plan_godot_runtime_launch(
             ("ELFIENEST_GODOT_URL", _authority_url(request)),
             ("ELFIENEST_AUTHORITY_NAMESPACE", _authority_namespace(root)),
         )
+        runtime_log = values.get("ELFIENEST_RUNTIME_LOG", "").strip()
+        if runtime_log:
+            # Electron's single-instance lock is acquired before the hidden
+            # authority can start the Core-owned page.  Give the authority a
+            # deterministic, runtime-scoped user-data directory so the
+            # background Desktop Controller never contends for the same lock
+            # on Windows (and diagnostics remain inside the disposable home).
+            authority_user_data = (
+                Path(runtime_log).expanduser().resolve(strict=False).parent
+                / "authority-user-data"
+            )
+            additions = (
+                *additions,
+                ("ELFIENEST_AUTHORITY_USER_DATA", str(authority_user_data)),
+            )
         command = electron_command
     elif host.kind is RuntimeHostKind.LINUX_DEDICATED:
         binary = find_runtime_binary(root, values)
