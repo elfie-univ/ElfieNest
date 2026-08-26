@@ -1,9 +1,13 @@
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 from app.features.configuration.food import StoredModelEvidence
 from infrastructure.models.food_technology import _project_model
 from infrastructure.models.provider_records import ProviderModelRecord as ExactModel
 from infrastructure.models.report_records import ValidationObservation
+from infrastructure.models.validation.provider_validation_policy import (
+    connection_validation_fingerprint,
+)
 from infrastructure.persistence.food_evidence import (
     _production_capability_observations,
     query_model_evidence,
@@ -592,3 +596,68 @@ def test_projection_rejects_model_evidence_from_old_configuration_fingerprint(
 
     assert evidence["cloud_0001/main"].status == "never_verified"
     assert evidence["cloud_0001/main"].fresh is False
+
+
+def test_projection_keeps_model_evidence_after_capability_probe_persistence(
+    tmp_path,
+) -> None:
+    provider_store = ProviderConnectionStore(tmp_path / "providers.yaml")
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Probe persistence",
+        credential_ref="PROBE_KEY",
+        models=(
+            ProviderModelRecord(
+                "model-a",
+            ),
+        ),
+    )
+    provider_store.replace(connection)
+
+    def secret_resolver(_name: str) -> str:
+        return "synthetic-key"
+
+    fingerprint = connection_validation_fingerprint(
+        connection,
+        secret_resolver=secret_resolver,
+    )
+    now = datetime.now(timezone.utc)
+    observation = ValidationObservation(
+        observation_id=1,
+        run_id="full-run",
+        subject_kind="model",
+        subject_id="custom_openai_0001/model-a",
+        observed_at=now.isoformat(),
+        status="passed",
+        latency_ms=10.0,
+        time_to_first_token_ms=None,
+        error_category=None,
+        error_message=None,
+        details={
+            "evidence_kind": "model_validation",
+            "config_fingerprint": fingerprint,
+        },
+    )
+    provider_store.replace(
+        replace(
+            connection,
+            models=(
+                replace(
+                    connection.models[0],
+                    supports_tools=True,
+                    capability_evidence={"tools": "verified"},
+                ),
+            ),
+        )
+    )
+
+    evidence = query_model_evidence(
+        provider_catalog=PROVIDER_CATALOG,
+        connection_store=provider_store,
+        observations=(observation,),
+        secret_resolver=secret_resolver,
+        now=now,
+    )
+
+    assert evidence["custom_openai_0001/model-a"].verified is True

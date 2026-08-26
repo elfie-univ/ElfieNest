@@ -186,6 +186,12 @@ class InstalledHttpSession:
                         message = event.get("message")
                         if not isinstance(message, dict):
                             raise JourneyFailure("chat_message_invalid", phase="chat")
+                        # The product WebSocket publishes the persisted user
+                        # message before the asynchronous Elfie reply.  Consume
+                        # that normal acknowledgement and wait for the reply
+                        # event instead of returning the echo to the journey.
+                        if message.get("sender") == "user":
+                            continue
                         return HttpResult(200, {"message": message}, {})
         except JourneyFailure:
             raise

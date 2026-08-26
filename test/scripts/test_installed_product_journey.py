@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, Mapping
+from unittest.mock import patch
 
 import pytest
 
 from scripts.internal.release.installed_product_journey import (
     HttpResult,
+    InstalledHttpSession,
     InstalledJourneyConfig,
     InstalledProductJourney,
     JourneyFailure,
@@ -226,6 +228,57 @@ def _config(tmp_path: Path, *, mode: str = "initial") -> InstalledJourneyConfig:
         expected_source_root=tmp_path / "source",
         timeout_seconds=0.5,
     )
+
+
+def test_http_chat_skips_user_echo_before_elfie_reply() -> None:
+    class FakeSocket:
+        def __init__(self) -> None:
+            self.sent: list[str] = []
+            self.events = iter(
+                (
+                    json.dumps({"event": "ready"}),
+                    json.dumps(
+                        {
+                            "event": "message",
+                            "message": {
+                                "sender": "user",
+                                "text": "你好",
+                            },
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "event": "message",
+                            "message": {
+                                "sender": "elfie",
+                                "text": "我在这里",
+                            },
+                        }
+                    ),
+                )
+            )
+
+        def __enter__(self) -> FakeSocket:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def send(self, payload: str) -> None:
+            self.sent.append(payload)
+
+        def recv(self, timeout: float | None = None) -> str:
+            _ = timeout
+            return next(self.events)
+
+    socket = FakeSocket()
+    session = InstalledHttpSession("http://127.0.0.1:43122")
+    session._cookies["session_token"] = "test-session"
+    with patch("websockets.sync.client.connect", return_value=socket):
+        result = session.chat("elfie-1", "你好", timeout_seconds=1.0)
+
+    assert result.payload["message"] == {"sender": "elfie", "text": "我在这里"}
+    assert len(socket.sent) == 1
 
 
 def test_initial_journey_runs_setup_provider_adoption_chat_and_redacts_evidence(
