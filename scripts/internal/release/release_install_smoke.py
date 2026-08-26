@@ -557,6 +557,7 @@ def _diagnostic_has_event(path: Path, event_name: str) -> bool:
 
 def _smoke_environment(home: Path) -> MutableMapping[str, str]:
     environment = dict(os.environ)
+    desktop_app_data = home / "desktop-app-data"
     environment.update(
         {
             "ELFIE_HOME": str(home.resolve()),
@@ -566,6 +567,11 @@ def _smoke_environment(home: Path) -> MutableMapping[str, str]:
             "LOCALAPPDATA": str((home / "AppData" / "Local").resolve()),
             "XDG_CONFIG_HOME": str((home / ".config").resolve()),
             "XDG_DATA_HOME": str((home / ".local" / "share").resolve()),
+            # Electron normally chooses a native OS app-data directory.  A
+            # release smoke run must keep Controller IPC and diagnostics in
+            # its isolated smoke home so the readiness marker is collected
+            # deterministically on every runner.
+            "ELFIENEST_DESKTOP_APP_DATA": str(desktop_app_data.resolve()),
             "ELFIENEST_RUNTIME_MODE": "release",
         }
     )
@@ -952,12 +958,7 @@ class NativePackageAdapter:
             ) from error
 
     def desktop_diagnostics_path(self, home: Path) -> Path:
-        if self.target.startswith("darwin"):
-            app_data = home / "Library" / "Application Support"
-        elif self.target == "linux-x64":
-            app_data = home / ".config"
-        else:
-            app_data = home / "AppData" / "Roaming"
+        app_data = home / "desktop-app-data"
         return (
             app_data
             / "ElfieNest"

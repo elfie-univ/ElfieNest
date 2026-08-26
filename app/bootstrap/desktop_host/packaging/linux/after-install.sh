@@ -35,6 +35,16 @@ if [ ! -x "$cli" ]; then
     exit 1
 fi
 
+# Electron's Chromium sandbox helper must retain the setuid bit after the
+# package is installed.  electron-builder ships the helper in the application
+# root, but a Debian install can leave it as a regular executable; Chromium
+# then aborts before the Desktop Controller can publish its Runtime.
+chrome_sandbox="$app_root/chrome-sandbox"
+if [ -f "$chrome_sandbox" ]; then
+    chown root:root "$chrome_sandbox"
+    chmod 4755 "$chrome_sandbox"
+fi
+
 install -d -m 0755 /usr/bin /usr/local/bin
 install_owned_launcher "$gui" /usr/bin/elfienest-gui
 install_owned_launcher "$cli" /usr/local/bin/elfienest

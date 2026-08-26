@@ -12,12 +12,25 @@ from scripts.internal.release.release_install_smoke import (
     _diagnostic_has_event,
     _is_owned_symlink,
     _service_log_tail,
+    _smoke_environment,
     _start_scripted_model_server,
     _stop_scripted_model_server,
     _verify_duplicate_start,
     _wait_for_state,
     run_install_smoke,
 )
+
+
+def test_smoke_environment_pins_desktop_app_data_to_isolated_home(
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "smoke-home"
+    environment = _smoke_environment(home)
+
+    assert environment["ELFIE_HOME"] == str(home.resolve())
+    assert environment["ELFIENEST_DESKTOP_APP_DATA"] == str(
+        (home / "desktop-app-data").resolve()
+    )
 
 
 def test_scripted_model_process_is_loopback_and_stops_with_summary(
