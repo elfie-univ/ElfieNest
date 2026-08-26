@@ -75,6 +75,7 @@ def test_hidden_authority_records_process_and_electron_crash_surfaces() -> None:
     assert "suppressed_count" in source
     assert "if (shuttingDown)" in source
     assert '"render_process_gone_during_shutdown"' in source
+    assert 'details.reason === "killed" && details.exitCode === 15' in source
 
 
 def test_hidden_authority_redacts_oauth_credentials_and_authorization_headers() -> None:
@@ -161,3 +162,9 @@ def test_desktop_controller_handles_lifecycle_termination_signals() -> None:
         'process.once("SIGINT", () => requestExplicitApplicationExit("sigint"))'
         in source
     )
+    assert "DESKTOP_CLEANUP_TIMEOUT_MS" in source
+    assert "runtime_cleanup_timeout" in source
+    assert "DESKTOP_IPC_CLOSE_TIMEOUT_MS" in source
+    assert "controller_ipc_close_timeout" in source
+    assert "if (roleController === undefined || exitInProgress)" in source
+    assert 'requestedExitReason = "before-quit"' in source
