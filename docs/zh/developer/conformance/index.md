@@ -15,3 +15,4 @@
 - [Nest–Godot 语义世界一致性](./nest-godot-semantic-world)——逐条款、逐目录复查已准备收口。
 - [服务生命周期一致性](./service-lifecycle)——已接受契约与当前启动、所有权和入口之间的
   开放缺口。
+- [Elfie Memory 一致性](./elfie-memory)——记录 Memory 设计的实现状态与剩余外部验收门禁。

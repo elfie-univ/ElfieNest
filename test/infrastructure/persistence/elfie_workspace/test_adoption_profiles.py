@@ -70,19 +70,20 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(
         assert any("尊重自愿选择" in norm for norm in elfie.selfhood_snapshot().norms)
         assert memory_store.count_nodes("episodic") == 5
         assert memory_store.get_node("genesis:self:00000001") is not None
-        known_elfie = memory_store.conn.execute(
-            "SELECT species, is_self FROM known_elfies"
-        ).fetchone()
-        assert (known_elfie["species"], known_elfie["is_self"]) == (species_name, 1)
+        known_elfie = memory_store.get_node("genesis:self:00000001")
+        assert known_elfie is not None
+        assert (known_elfie.metadata["species"], known_elfie.metadata["is_self"]) == (
+            species_name,
+            True,
+        )
         self_model = memory_store.get_node("genesis:self-model:00000001")
         assert self_model is not None
         assert self_model.metadata["species_knowledge"]
-        person = memory_store.conn.execute(
-            "SELECT relationship_label, is_owner FROM people"
-        ).fetchone()
-        assert (person["relationship_label"], person["is_owner"]) == (
+        person = memory_store.get_node("genesis:person:owner-7")
+        assert person is not None
+        assert (person.metadata["relationship_label"], person.metadata["is_owner"]) == (
             "earth_household",
-            1,
+            True,
         )
 
     first_profile = profile_store.load()

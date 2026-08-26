@@ -33,7 +33,10 @@ def test_factory_workspace_uses_only_final_knowledge_database(tmp_path: Path) ->
 
     db_path = workspace / "memory" / "knowledge.sqlite"
     assert db_path.is_file()
-    assert _user_tables(db_path) == set(KNOWLEDGE_TABLES)
+    assert _user_tables(db_path) == set(KNOWLEDGE_TABLES) | {
+        "episodes_fts",
+        "nodes_fts",
+    }
     assert not list(workspace.rglob("graph_memory.db"))
     ElfieDiagnostics(elfie).memory.storage.close()
 

@@ -1,181 +1,221 @@
-"""Final nine-table schema for per-Elfie knowledge storage."""
+"""Target SQLite schema for one Elfie's episodic and graph Memory.
+
+Episodes are the durable source line. Nodes, assertions and evidence are
+qualified projections and every derived text index can be rebuilt.
+"""
 
 from __future__ import annotations
 
 from typing import Final
 
+SCHEMA_VERSION: Final[int] = 2
+
 KNOWLEDGE_TABLES: Final[tuple[str, ...]] = (
-    "entities",
-    "people",
-    "known_elfies",
-    "concepts",
-    "places",
-    "events",
-    "entity_edges",
-    "memory_notes",
-    "source_evidence_links",
+    "episodes",
+    "nodes",
+    "node_aliases",
+    "node_descriptions",
+    "episode_mentions",
+    "assertions",
+    "evidence",
+    "assertion_evidence",
 )
 
-KNOWLEDGE_SCHEMA_SQL: Final[tuple[str, ...]] = (
+SCHEMA_SQL: Final[tuple[str, ...]] = (
     """
-    CREATE TABLE IF NOT EXISTS entities (
-        entity_id TEXT PRIMARY KEY NOT NULL,
-        entity_type TEXT NOT NULL CHECK (
-            entity_type IN ('person', 'elfie', 'concept', 'place', 'event', 'object')
-        ),
-        name TEXT NOT NULL CHECK (length(trim(name)) > 0),
-        aliases_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(aliases_json)),
-        summary TEXT,
+    CREATE TABLE IF NOT EXISTS episodes (
+        episode_id TEXT PRIMARY KEY NOT NULL,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        occurred_from TEXT NOT NULL,
+        occurred_to TEXT,
+        content_text TEXT NOT NULL CHECK (length(trim(content_text)) > 0),
+        summary_text TEXT,
+        event_kind TEXT NOT NULL DEFAULT 'interaction'
+            CHECK (length(trim(event_kind)) > 0),
+        source_refs_json TEXT NOT NULL DEFAULT '[]'
+            CHECK (json_valid(source_refs_json)),
+        media_refs_json TEXT NOT NULL DEFAULT '[]'
+            CHECK (json_valid(media_refs_json)),
+        source_event_ids_json TEXT NOT NULL DEFAULT '[]'
+            CHECK (json_valid(source_event_ids_json)),
+        importance REAL NOT NULL DEFAULT 0.5
+            CHECK (importance >= 0.0 AND importance <= 1.0),
+        detail_level TEXT NOT NULL DEFAULT 'full'
+            CHECK (detail_level IN ('full', 'compressed', 'digest', 'incomplete')),
+        lifecycle TEXT NOT NULL DEFAULT 'active'
+            CHECK (lifecycle IN ('active', 'archived', 'forgotten')),
+        consolidation_state TEXT NOT NULL DEFAULT 'pending'
+            CHECK (consolidation_state IN ('pending', 'processing', 'consolidated', 'failed')),
+        consolidation_attempts INTEGER NOT NULL DEFAULT 0
+            CHECK (consolidation_attempts >= 0),
+        next_attempt_at TEXT,
+        lease_owner TEXT,
+        lease_until TEXT,
+        content_sha256 TEXT NOT NULL CHECK (length(content_sha256) = 64),
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+            CHECK (json_valid(metadata_json)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS nodes (
+        node_id TEXT PRIMARY KEY NOT NULL,
+        node_type TEXT NOT NULL CHECK (length(trim(node_type)) > 0),
+        canonical_label TEXT NOT NULL CHECK (length(trim(canonical_label)) > 0),
+        normalized_label TEXT NOT NULL CHECK (length(trim(normalized_label)) > 0),
+        description TEXT,
+        scope TEXT NOT NULL DEFAULT 'elfie'
+            CHECK (length(trim(scope)) > 0),
+        status TEXT NOT NULL DEFAULT 'active'
+            CHECK (status IN ('active', 'candidate', 'unresolved', 'forgotten')),
         confidence REAL NOT NULL DEFAULT 0.5
             CHECK (confidence >= 0.0 AND confidence <= 1.0),
+        properties_json TEXT NOT NULL DEFAULT '{}'
+            CHECK (json_valid(properties_json)),
+        merged_into TEXT REFERENCES nodes(node_id) ON DELETE RESTRICT,
         first_seen_at TEXT,
         last_seen_at TEXT,
-        updated_at TEXT,
-        meta_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json))
+        updated_at TEXT NOT NULL
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS people (
-        entity_id TEXT PRIMARY KEY NOT NULL
-            REFERENCES entities(entity_id) ON DELETE CASCADE,
-        display_name TEXT,
-        relationship_label TEXT,
-        closeness_score REAL NOT NULL DEFAULT 0.5
-            CHECK (closeness_score >= 0.0 AND closeness_score <= 1.0),
-        trust_score REAL NOT NULL DEFAULT 0.5
-            CHECK (trust_score >= 0.0 AND trust_score <= 1.0),
-        importance_score REAL NOT NULL DEFAULT 0.5
-            CHECK (importance_score >= 0.0 AND importance_score <= 1.0),
-        is_owner INTEGER NOT NULL DEFAULT 0 CHECK (is_owner IN (0, 1)),
-        profile_summary TEXT,
-        preferences_json TEXT NOT NULL DEFAULT '{}'
-            CHECK (json_valid(preferences_json)),
-        updated_at TEXT
-    )
-    """,
-    """
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_people_single_owner
-    ON people(is_owner) WHERE is_owner = 1
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS known_elfies (
-        entity_id TEXT PRIMARY KEY NOT NULL
-            REFERENCES entities(entity_id) ON DELETE CASCADE,
-        elfie_id TEXT CHECK (elfie_id IS NULL OR length(trim(elfie_id)) > 0),
-        display_name TEXT,
-        species TEXT,
-        is_self INTEGER NOT NULL DEFAULT 0 CHECK (is_self IN (0, 1)),
-        relationship_label TEXT,
-        closeness_score REAL NOT NULL DEFAULT 0.5
-            CHECK (closeness_score >= 0.0 AND closeness_score <= 1.0),
-        profile_summary TEXT,
-        updated_at TEXT
-    )
-    """,
-    """
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_known_elfies_known_id
-    ON known_elfies(elfie_id) WHERE elfie_id IS NOT NULL
-    """,
-    """
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_known_elfies_single_self
-    ON known_elfies(is_self) WHERE is_self = 1
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS concepts (
-        entity_id TEXT PRIMARY KEY NOT NULL
-            REFERENCES entities(entity_id) ON DELETE CASCADE,
-        concept_type TEXT,
-        definition TEXT,
+    CREATE TABLE IF NOT EXISTS node_aliases (
+        alias_id TEXT PRIMARY KEY NOT NULL,
+        node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE RESTRICT,
+        alias TEXT NOT NULL CHECK (length(trim(alias)) > 0),
+        normalized_alias TEXT NOT NULL CHECK (length(trim(normalized_alias)) > 0),
+        scope TEXT NOT NULL DEFAULT 'elfie',
+        evidence_id TEXT REFERENCES evidence(evidence_id) ON DELETE RESTRICT,
         confidence REAL NOT NULL DEFAULT 0.5
             CHECK (confidence >= 0.0 AND confidence <= 1.0),
-        updated_at TEXT
+        created_at TEXT NOT NULL,
+        UNIQUE (node_id, normalized_alias, scope)
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS places (
-        entity_id TEXT PRIMARY KEY NOT NULL
-            REFERENCES entities(entity_id) ON DELETE CASCADE,
-        place_type TEXT,
-        description TEXT,
-        meta_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json)),
-        updated_at TEXT
+    CREATE TABLE IF NOT EXISTS node_descriptions (
+        description_id TEXT PRIMARY KEY NOT NULL,
+        node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE RESTRICT,
+        text TEXT NOT NULL CHECK (length(trim(text)) > 0),
+        language TEXT NOT NULL DEFAULT 'und',
+        kind TEXT NOT NULL DEFAULT 'description',
+        content_sha256 TEXT NOT NULL CHECK (length(content_sha256) = 64),
+        evidence_id TEXT REFERENCES evidence(evidence_id) ON DELETE RESTRICT,
+        confidence REAL NOT NULL DEFAULT 0.5,
+        created_at TEXT NOT NULL,
+        UNIQUE (node_id, language, kind, content_sha256)
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS events (
-        entity_id TEXT PRIMARY KEY NOT NULL
-            REFERENCES entities(entity_id) ON DELETE CASCADE,
-        event_time TEXT,
-        event_type TEXT,
-        description TEXT,
-        importance_score REAL NOT NULL DEFAULT 0.5
-            CHECK (importance_score >= 0.0 AND importance_score <= 1.0),
-        meta_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json)),
-        updated_at TEXT
+    CREATE TABLE IF NOT EXISTS episode_mentions (
+        mention_id TEXT PRIMARY KEY NOT NULL,
+        episode_id TEXT NOT NULL REFERENCES episodes(episode_id) ON DELETE RESTRICT,
+        node_id TEXT REFERENCES nodes(node_id) ON DELETE RESTRICT,
+        resolution_state TEXT NOT NULL DEFAULT 'unresolved'
+            CHECK (resolution_state IN ('resolved', 'ambiguous', 'unresolved')),
+        role TEXT,
+        surface_text TEXT NOT NULL CHECK (length(trim(surface_text)) > 0),
+        span_start INTEGER CHECK (span_start IS NULL OR span_start >= 0),
+        span_end INTEGER CHECK (span_end IS NULL OR span_end >= span_start),
+        confidence REAL NOT NULL DEFAULT 0.5,
+        created_at TEXT NOT NULL,
+        UNIQUE (episode_id, surface_text, span_start, span_end)
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS entity_edges (
-        edge_id TEXT PRIMARY KEY NOT NULL,
-        source_entity_id TEXT NOT NULL
-            REFERENCES entities(entity_id) ON DELETE CASCADE,
-        target_entity_id TEXT NOT NULL
-            REFERENCES entities(entity_id) ON DELETE CASCADE,
-        relation_type TEXT NOT NULL CHECK (length(trim(relation_type)) > 0),
-        summary TEXT,
-        weight REAL NOT NULL DEFAULT 0.5
-            CHECK (weight >= 0.0 AND weight <= 1.0),
+    CREATE TABLE IF NOT EXISTS assertions (
+        assertion_id TEXT PRIMARY KEY NOT NULL,
+        subject_node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE RESTRICT,
+        predicate TEXT NOT NULL CHECK (length(trim(predicate)) > 0),
+        object_node_id TEXT REFERENCES nodes(node_id) ON DELETE RESTRICT,
+        object_literal_json TEXT,
+        object_unit TEXT,
+        polarity TEXT NOT NULL DEFAULT 'positive'
+            CHECK (polarity IN ('positive', 'negative')),
+        epistemic_status TEXT NOT NULL DEFAULT 'known'
+            CHECK (epistemic_status IN ('known', 'believed', 'uncertain', 'reported')),
+        viewpoint TEXT,
+        context TEXT,
+        valid_from TEXT,
+        valid_to TEXT,
         confidence REAL NOT NULL DEFAULT 0.5
             CHECK (confidence >= 0.0 AND confidence <= 1.0),
-        updated_at TEXT,
-        UNIQUE (source_entity_id, target_entity_id, relation_type)
-    )
-    """,
-    """
-    CREATE INDEX IF NOT EXISTS idx_entity_edges_sensory_relation
-    ON entity_edges(relation_type, source_entity_id, target_entity_id, weight)
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS memory_notes (
-        note_id TEXT PRIMARY KEY NOT NULL,
-        entity_id TEXT NOT NULL REFERENCES entities(entity_id) ON DELETE CASCADE,
-        note_type TEXT NOT NULL CHECK (length(trim(note_type)) > 0),
-        title TEXT,
-        path TEXT NOT NULL CHECK (
-            length(trim(path)) > 0
-            AND instr(path, ':') = 0
-            AND instr(path, char(92)) = 0
-            AND path NOT LIKE '/%'
-            AND path NOT LIKE '../%'
-            AND path NOT LIKE '%/../%'
-            AND path NOT LIKE '..'
-            AND path NOT LIKE '%/..'
+        support_score REAL NOT NULL DEFAULT 0.5
+            CHECK (support_score >= 0.0 AND support_score <= 1.0),
+        conflict_group TEXT,
+        fingerprint TEXT NOT NULL UNIQUE,
+        lifecycle TEXT NOT NULL DEFAULT 'active'
+            CHECK (lifecycle IN ('active', 'superseded', 'forgotten')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (
+            (object_node_id IS NOT NULL AND object_literal_json IS NULL)
+            OR (object_node_id IS NULL AND object_literal_json IS NOT NULL)
         ),
-        summary TEXT,
-        created_at TEXT,
-        updated_at TEXT,
-        meta_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json))
+        CHECK (object_literal_json IS NULL OR json_valid(object_literal_json))
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS source_evidence_links (
-        link_id TEXT PRIMARY KEY NOT NULL,
-        target_type TEXT NOT NULL CHECK (target_type IN ('entity', 'edge', 'note')),
-        target_id TEXT NOT NULL CHECK (length(trim(target_id)) > 0),
-        source_db TEXT NOT NULL CHECK (source_db = 'history'),
-        source_type TEXT NOT NULL CHECK (source_type IN ('message', 'conversation')),
+    CREATE TABLE IF NOT EXISTS evidence (
+        evidence_id TEXT PRIMARY KEY NOT NULL,
+        source_type TEXT NOT NULL CHECK (source_type IN ('episode', 'seed', 'legacy')),
         source_id TEXT NOT NULL CHECK (length(trim(source_id)) > 0),
-        weight REAL NOT NULL DEFAULT 0.5
-            CHECK (weight >= 0.0 AND weight <= 1.0),
-        created_at TEXT
+        excerpt TEXT,
+        media_locator TEXT,
+        modality TEXT NOT NULL DEFAULT 'text',
+        span_start INTEGER CHECK (span_start IS NULL OR span_start >= 0),
+        span_end INTEGER CHECK (span_end IS NULL OR span_end >= span_start),
+        speaker TEXT,
+        viewpoint TEXT,
+        captured_at TEXT,
+        extraction_run_id TEXT,
+        source_sha256 TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE (source_type, source_id, modality, span_start, span_end, media_locator)
     )
     """,
     """
-    CREATE INDEX IF NOT EXISTS idx_entities_sensory_lookup
-    ON entities(entity_type, name)
+    CREATE TABLE IF NOT EXISTS assertion_evidence (
+        assertion_id TEXT NOT NULL REFERENCES assertions(assertion_id) ON DELETE RESTRICT,
+        evidence_id TEXT NOT NULL REFERENCES evidence(evidence_id) ON DELETE RESTRICT,
+        stance TEXT NOT NULL DEFAULT 'supports'
+            CHECK (stance IN ('supports', 'contradicts', 'context')),
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (assertion_id, evidence_id)
+    )
     """,
     """
-    CREATE INDEX IF NOT EXISTS idx_source_evidence_target
-    ON source_evidence_links(target_type, target_id)
+    CREATE TABLE IF NOT EXISTS episodes_fts (
+        episode_id TEXT PRIMARY KEY NOT NULL REFERENCES episodes(episode_id) ON DELETE CASCADE,
+        searchable_text TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS nodes_fts (
+        node_id TEXT PRIMARY KEY NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+        searchable_text TEXT NOT NULL
+    )
     """,
 )
+
+INDEX_SQL: Final[tuple[str, ...]] = (
+    "CREATE INDEX IF NOT EXISTS idx_episodes_lifecycle_attempt ON episodes(lifecycle, consolidation_state, next_attempt_at)",
+    "CREATE INDEX IF NOT EXISTS idx_episodes_time ON episodes(occurred_from, occurred_to)",
+    "CREATE INDEX IF NOT EXISTS idx_episodes_hash ON episodes(content_sha256)",
+    "CREATE INDEX IF NOT EXISTS idx_nodes_label_type ON nodes(normalized_label, node_type, status)",
+    "CREATE INDEX IF NOT EXISTS idx_nodes_merged_into ON nodes(merged_into)",
+    "CREATE INDEX IF NOT EXISTS idx_aliases_normalized ON node_aliases(normalized_alias, scope)",
+    "CREATE INDEX IF NOT EXISTS idx_descriptions_node ON node_descriptions(node_id, language, kind)",
+    "CREATE INDEX IF NOT EXISTS idx_mentions_node ON episode_mentions(node_id, resolution_state)",
+    "CREATE INDEX IF NOT EXISTS idx_mentions_episode ON episode_mentions(episode_id)",
+    "CREATE INDEX IF NOT EXISTS idx_assertions_subject_predicate ON assertions(subject_node_id, predicate, lifecycle)",
+    "CREATE INDEX IF NOT EXISTS idx_assertions_object_predicate ON assertions(object_node_id, predicate, lifecycle)",
+    "CREATE INDEX IF NOT EXISTS idx_assertions_conflict ON assertions(conflict_group, lifecycle)",
+    "CREATE INDEX IF NOT EXISTS idx_evidence_source ON evidence(source_type, source_id)",
+    "CREATE INDEX IF NOT EXISTS idx_assertion_evidence_assertion ON assertion_evidence(assertion_id, stance)",
+    "CREATE INDEX IF NOT EXISTS idx_assertion_evidence_evidence ON assertion_evidence(evidence_id)",
+)
+
+
+__all__ = ["INDEX_SQL", "KNOWLEDGE_TABLES", "SCHEMA_SQL", "SCHEMA_VERSION"]

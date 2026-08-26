@@ -85,6 +85,18 @@ _SECRET_PATTERNS = (
     re.compile(r"(?:api[_-]?key|token|secret)\s*[:=]\s*[^\s,;]+", re.IGNORECASE),
 )
 
+# Match stable identifiers, not prompt field names such as ``memory_id`` or
+# ``event_ids``.  Canonical generated IDs use ``genesis:...`` or a typed
+# prefix followed by ``:``/a hyphen and an alphanumeric value.
+_MEMORY_ID_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_])(?:"
+    r"genesis:[A-Za-z0-9][A-Za-z0-9_.:-]*|"
+    r"memory-episode:[A-Za-z0-9][A-Za-z0-9_.:-]*|"
+    r"(?:episode|memory|event|knowledge|assertion):[A-Za-z0-9][A-Za-z0-9_.:-]*|"
+    r"(?:episode|event|knowledge|assertion)-[A-Za-z0-9][A-Za-z0-9_.:-]*"
+    r")"
+)
+
 
 def redact(value: str) -> str:
     result = value
@@ -95,6 +107,11 @@ def redact(value: str) -> str:
 
 def sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def memory_evidence_from_prompt(prompt: str) -> List[str]:
+    """Extract only stable memory IDs for an auditable, privacy-safe report."""
+    return list(dict.fromkeys(_MEMORY_ID_PATTERN.findall(prompt)))[:32]
 
 
 def utc_now() -> str:
@@ -615,7 +632,7 @@ def _run_step(
         ),
         "reply": redact(reply_text),
         "reply_count": len(replies),
-        "prompt_memory_evidence": request_prompt[:0],
+        "prompt_memory_evidence": memory_evidence_from_prompt(request_prompt),
         "prompt_fingerprint": sha256_text(request_prompt) if request_prompt else None,
         "prompt_contains": request_prompt,
     }

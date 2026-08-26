@@ -4,6 +4,14 @@ from __future__ import annotations
 
 from typing import Mapping, Protocol
 
+from .memory_records import (
+    ClosedEpisode,
+    ConsolidationProjection,
+    ConsolidationReceipt,
+    EpisodeReceipt,
+    RecallBundle,
+    RecallRequest,
+)
 from .node_types import Edge, JsonValue, MemoryMetadata, MemoryNode
 
 
@@ -53,6 +61,18 @@ class MemoryStorePort(Protocol):
     ) -> list[tuple[str, float]]: ...
 
     def close(self) -> None: ...
+
+    # Target source-first contract. The legacy node methods above remain only
+    # as a semantic compatibility surface for existing callers.
+    def record_episode(self, episode: ClosedEpisode) -> EpisodeReceipt: ...
+
+    def get_episode(self, episode_id: str) -> ClosedEpisode | None: ...
+
+    def apply_consolidation(
+        self, projection: ConsolidationProjection
+    ) -> ConsolidationReceipt: ...
+
+    def recall(self, request: RecallRequest) -> RecallBundle: ...
 
 
 __all__ = ["MemoryStorePort"]
