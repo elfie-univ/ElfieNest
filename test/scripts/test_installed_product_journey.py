@@ -68,6 +68,8 @@ class FakeSession:
                     }
                 },
             )
+        if path == "/api/v1/me/adoption":
+            return self._result(200, {"species": [{"species_id": "fox"}]})
         if path == "/api/v1/elfies?relationship=owned":
             return self._result(
                 200, {"items": [{"profile": {"elfie_id": self._elfie_id}}]}
@@ -331,7 +333,7 @@ def test_initial_journey_runs_setup_provider_adoption_chat_and_redacts_evidence(
         for method, path, body in session.calls
         if method == "POST" and path == "/api/v1/me/adoption/candidate-sets"
     )
-    assert candidate_call["adoption_session_id"] == "release-adoption"
+    assert candidate_call["species_id"] == "fox"
 
 
 def test_resume_journey_skips_first_run_setup_and_repeats_chat(tmp_path: Path) -> None:

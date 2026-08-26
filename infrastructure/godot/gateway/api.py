@@ -77,11 +77,12 @@ class GodotAPIServer:
                 f"http://127.0.0.1:{self.port}",
                 f"http://localhost:{self.port}",
                 # Godot's native Dedicated export may omit the default port
-                # from its synthesized Origin.  Keep this allowance limited
-                # to exact loopback HTTP origins; empty and remote origins
-                # remain rejected by the handshake gate.
+                # or the Origin header entirely.  The empty-origin case is
+                # still protected by the per-runtime handshake nonce below;
+                # remote origins remain rejected by the handshake gate.
                 "http://127.0.0.1",
                 "http://localhost",
+                "",
             }
         )
         self.clients: set[Any] = set()
@@ -350,9 +351,8 @@ class GodotAPIServer:
         Godot's native WebSocketPeer has emitted the same loopback origin both
         with and without a trailing slash across platform/runtime versions.
         Normalize only a valid HTTP(S) origin, then compare it with the
-        explicitly configured allow-list.  An empty origin remains rejected by
-        the production default but can still be explicitly allowed by the
-        protocol diagnostic harness.
+        explicitly configured allow-list.  Native Dedicated runtimes may omit
+        Origin; the authenticated nonce handshake still protects that case.
         """
         normalized = self._normalize_origin(origin)
         if normalized is None:

@@ -155,7 +155,7 @@ def test_gateway_rejects_wrong_nonce_and_origin() -> None:
 
     assert wrong_nonce.closed == [(4004, "Invalid Godot handshake")]
     assert wrong_origin.closed == [(4005, "Origin not allowed")]
-    assert empty_origin.closed == [(4005, "Origin not allowed")]
+    assert empty_origin.closed == []
 
 
 def test_gateway_allows_configured_web_runtime_origin() -> None:
