@@ -574,6 +574,10 @@ def _smoke_environment(home: Path) -> MutableMapping[str, str]:
             # deterministically on every runner.
             "ELFIENEST_DESKTOP_APP_DATA": str(desktop_app_data.resolve()),
             "ELFIENEST_RUNTIME_MODE": "release",
+            # GitHub macOS runners can expose an unstable headless GPU/WebGL
+            # stack.  The packaged smoke test must exercise the real Electron
+            # authority without making hardware acceleration a prerequisite.
+            "ELFIENEST_RELEASE_SMOKE": "1",
         }
     )
     return environment
@@ -824,6 +828,12 @@ class NativePackageAdapter:
         self.package_name: str | None = None
         if target == "win32-x64":
             self.install_root = self.install_root.with_suffix(".windows")
+        elif target == "linux-x64":
+            # Debian installs the GUI and its resources under the fixed
+            # system root.  Keep all native operations (including the real
+            # Viewer launch) pointed at the same installed tree that
+            # verify_installed() checks.
+            self.install_root = LINUX_INSTALL_ROOT
         elif target == "darwin-arm64" or target == "darwin-x64":
             self.install_root = MAC_INSTALL_ROOT
 

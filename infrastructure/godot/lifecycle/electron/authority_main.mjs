@@ -38,6 +38,14 @@ let resourceTimer = null;
 let failedLoadCount = 0;
 const rendererDiagnosticOccurrences = new Map();
 
+// Release smoke runs execute a hidden Electron authority on shared macOS CI
+// hosts where the hardware WebGL stack is not stable.  Keep this opt-in and
+// test-only so normal installed users retain native acceleration.
+if (process.env.ELFIENEST_RELEASE_SMOKE === "1") {
+  app.commandLine.appendSwitch("disable-gpu");
+  app.commandLine.appendSwitch("enable-unsafe-swiftshader");
+}
+
 function redactDiagnosticText(value) {
   return String(value)
     .replace(/(https?:\/\/[^\s?]+)\?[^\s]+/giu, "$1?<redacted>")

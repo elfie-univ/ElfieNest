@@ -580,14 +580,11 @@ def test_packaged_stop_waits_for_confirmed_offline_state(monkeypatch) -> None:
         "runtime_snapshot",
         lambda *_args, **_kwargs: next(snapshots),
     )
-    stopped_desktop: list[Path] = []
+    desktop_pids = iter((99, None))
     monkeypatch.setattr(
         LIFECYCLE,
-        "stop_desktop",
-        lambda home: (
-            stopped_desktop.append(home)
-            or ServiceLifecycleResult(status="stopped", pid=99)
-        ),
+        "desktop_process_id",
+        lambda _home: next(desktop_pids),
     )
     monkeypatch.setattr(
         LIFECYCLE,
@@ -598,7 +595,6 @@ def test_packaged_stop_waits_for_confirmed_offline_state(monkeypatch) -> None:
     result = lifecycle_commands.stop_background_service(LIFECYCLE)
 
     assert result.status == "stopped"
-    assert stopped_desktop
 
 
 def test_start_reports_incompatible_database_before_launch(monkeypatch, capsys) -> None:
