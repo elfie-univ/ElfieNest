@@ -20,6 +20,7 @@ from urllib.parse import urlsplit
 MODEL_ID = "elfienest-release-model"
 SYNTHETIC_CREDENTIAL = "elfienest-release-synthetic-credential"
 ADOPTION_SCHEMA_NAME = "adoption_candidate_reveal_v1"
+STRUCTURED_PROBE_SCHEMA_NAME = "elfienest_probe"
 _MAX_REQUEST_BYTES = 1024 * 1024
 
 
@@ -307,6 +308,8 @@ def _completion_for(
     if is_reasoning_probe:
         return "reasoning", "OK", {"reasoning_content": "ELFIENEST_REASONING_TRACE"}
     if is_structured_probe:
+        if _is_json_schema_probe(response_format):
+            return "structured_output", json.dumps({"probe": "ok"}), None
         return "structured_output", json.dumps({"ok": True}), None
     return (
         "owner_chat",
@@ -330,9 +333,21 @@ def _is_adoption_request(
 
 
 def _is_structured_probe(response_format: object) -> bool:
+    if not isinstance(response_format, Mapping):
+        return False
+    if response_format.get("type") == "json_object":
+        return True
+    return _is_json_schema_probe(response_format)
+
+
+def _is_json_schema_probe(response_format: Mapping[str, Any] | object) -> bool:
+    if not isinstance(response_format, Mapping):
+        return False
+    schema = response_format.get("json_schema")
     return (
-        isinstance(response_format, Mapping)
-        and response_format.get("type") == "json_object"
+        isinstance(schema, Mapping)
+        and response_format.get("type") == "json_schema"
+        and schema.get("name") == STRUCTURED_PROBE_SCHEMA_NAME
     )
 
 

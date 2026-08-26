@@ -9,6 +9,7 @@ import pytest
 from scripts.internal.release.scripted_model_server import (
     ADOPTION_SCHEMA_NAME,
     MODEL_ID,
+    STRUCTURED_PROBE_SCHEMA_NAME,
     SYNTHETIC_CREDENTIAL,
     ScriptedModelServer,
 )
@@ -228,5 +229,35 @@ def test_declared_capability_probe_shapes_are_deterministic(
             assert message["tool_calls"]  # type: ignore[index]
         elif kind == "structured_output":
             assert json.loads(message["content"]) == {"ok": True}  # type: ignore[index]
+    finally:
+        server.close()
+
+
+def test_json_schema_capability_probe_is_deterministic() -> None:
+    server = ScriptedModelServer()
+    server.start()
+    try:
+        status, response = _request(
+            f"{server.endpoint}/chat/completions",
+            method="POST",
+            payload={
+                "model": MODEL_ID,
+                "messages": [
+                    {"role": "user", "content": "Return the requested JSON object."}
+                ],
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": STRUCTURED_PROBE_SCHEMA_NAME,
+                        "schema": {"type": "object"},
+                    },
+                },
+            },
+        )
+        assert status == 200
+        message = response["choices"][0]["message"]  # type: ignore[index]
+        assert isinstance(message, dict)
+        assert json.loads(message["content"]) == {"probe": "ok"}  # type: ignore[index]
+        assert server.snapshot().request_kinds == {"structured_output": 1}
     finally:
         server.close()
