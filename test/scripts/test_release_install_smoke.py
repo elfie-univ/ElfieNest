@@ -33,6 +33,12 @@ def test_smoke_environment_pins_desktop_app_data_to_isolated_home(
     )
 
 
+def test_linux_native_adapter_uses_the_deb_install_root() -> None:
+    adapter = NativePackageAdapter("linux-x64", Path("ElfieNest.deb"))
+
+    assert adapter.install_root == release_install_smoke.LINUX_INSTALL_ROOT
+
+
 def test_scripted_model_process_is_loopback_and_stops_with_summary(
     tmp_path: Path,
 ) -> None:

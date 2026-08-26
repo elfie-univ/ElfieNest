@@ -39,6 +39,14 @@ def test_hidden_authority_retries_core_load_and_handles_owned_shutdown() -> None
     assert "process.exit(exitCode)" in source
 
 
+def test_release_smoke_uses_opt_in_software_webgl_on_shared_ci_hosts() -> None:
+    source = AUTHORITY_MAIN.read_text(encoding="utf-8")
+
+    assert 'process.env.ELFIENEST_RELEASE_SMOKE === "1"' in source
+    assert 'app.commandLine.appendSwitch("disable-gpu")' in source
+    assert 'app.commandLine.appendSwitch("enable-unsafe-swiftshader")' in source
+
+
 def test_hidden_authority_records_process_and_electron_crash_surfaces() -> None:
     source = AUTHORITY_MAIN.read_text(encoding="utf-8")
 
