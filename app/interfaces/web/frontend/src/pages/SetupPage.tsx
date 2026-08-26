@@ -1,8 +1,9 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 
 import { Checkbox } from "@/components/ui/checkbox"
 
+import { ApiError } from "../api/http"
 import {
   setupCancel,
   setupInstall,
@@ -68,11 +69,12 @@ export function SetupPage() {
   const [saving, setSaving] = useState(false)
   const [checkingOllama, setCheckingOllama] = useState(false)
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
+  const statusRequestRef = useRef<Promise<SetupStatus> | null>(null)
   const bedCountIsInvalid = !Number.isInteger(bedCount) || bedCount < 4 || bedCount > 32
 
   const applyStatus = (status: SetupStatus): void => {
     setProgress(status)
-    if (status.csrf_token) setCsrfToken(status.csrf_token)
+    setCsrfToken(status.csrf_token ?? "")
     if (status.locked) {
       setStep(4)
       return
@@ -86,11 +88,27 @@ export function SetupPage() {
     if (draft.bed_count !== null) setBedCount(draft.bed_count)
   }
 
+  const refreshStatus = (): Promise<SetupStatus> => {
+    const inFlight = statusRequestRef.current
+    if (inFlight !== null) return inFlight
+    const request = setupStatus()
+    statusRequestRef.current = request
+    void request.then(
+      () => {
+        if (statusRequestRef.current === request) statusRequestRef.current = null
+      },
+      () => {
+        if (statusRequestRef.current === request) statusRequestRef.current = null
+      },
+    )
+    return request
+  }
+
   useEffect(() => {
     let cancelled = false
     const load = async (): Promise<void> => {
       try {
-        const status = await setupStatus()
+        const status = await refreshStatus()
         if (cancelled) return
         applyStatus(status)
         const [models, observation] = await Promise.all([
@@ -120,7 +138,7 @@ export function SetupPage() {
     if (!progress?.locked || progress.install.state === "completed") return
     let cancelled = false
     const timer = window.setInterval(() => {
-      void setupStatus().then((status) => {
+      void refreshStatus().then((status) => {
         if (!cancelled) applyStatus(status)
       }).catch((reason: unknown) => {
         if (reason instanceof Error) {
@@ -137,13 +155,34 @@ export function SetupPage() {
   }, [progress?.locked, progress?.install.state])
 
   const saveStatus = async (
-    action: () => Promise<SetupStatus>,
+    action: (csrfToken: string) => Promise<SetupStatus>,
     operation: ErrorOperation = "setup.save",
   ): Promise<void> => {
     setSaving(true)
     setError(null)
     try {
-      applyStatus(await action())
+      const initial = await refreshStatus()
+      applyStatus(initial)
+      const initialToken = initial.csrf_token
+      if (initialToken === null || initialToken === "") {
+        throw new ApiError(403, "", [], "csrf_rejected")
+      }
+      try {
+        applyStatus(await action(initialToken))
+      } catch (reason: unknown) {
+        if (
+          !(reason instanceof ApiError)
+          || reason.status !== 403
+          || reason.code !== "csrf_rejected"
+        ) throw reason
+        const refreshed = await refreshStatus()
+        applyStatus(refreshed)
+        const refreshedToken = refreshed.csrf_token
+        if (refreshedToken === null || refreshedToken === "") throw reason
+        // A csrf_rejected response is emitted before the Setup route runs, so this
+        // single replay cannot duplicate a completed installation action.
+        applyStatus(await action(refreshedToken))
+      }
     } catch (reason: unknown) {
       if (reason instanceof Error) {
         setError(setupError(reason, operation))
@@ -161,7 +200,7 @@ export function SetupPage() {
       setError({ kind: "local", key: "errors.passwordMismatch" })
       return
     }
-    void saveStatus(() => setupSaveOwnerDraft(
+    void saveStatus((csrfToken) => setupSaveOwnerDraft(
       accountId.trim(),
       displayName.trim(),
       password.trim() || null,
@@ -171,7 +210,7 @@ export function SetupPage() {
   }
 
   const saveOffline = (): void => {
-    void saveStatus(() => setupSaveOfflineDraft(
+    void saveStatus((csrfToken) => setupSaveOfflineDraft(
       useLocalOllama,
       useLocalOllama ? modelId : null,
       csrfToken,
@@ -183,7 +222,7 @@ export function SetupPage() {
       setError({ kind: "local", key: "errors.bedCount" })
       return
     }
-    void saveStatus(() => setupSaveNestDraft(bedCount, csrfToken))
+    void saveStatus((csrfToken) => setupSaveNestDraft(bedCount, csrfToken))
   }
 
   const recheckOllama = (): void => {
@@ -195,11 +234,11 @@ export function SetupPage() {
   }
 
   const confirmInstall = (): void => {
-    void saveStatus(() => setupInstall(csrfToken), "setup.install")
+    void saveStatus((csrfToken) => setupInstall(csrfToken), "setup.install")
   }
 
   const cancelInstall = (): void => {
-    void saveStatus(() => setupCancel(csrfToken), "setup.install")
+    void saveStatus((csrfToken) => setupCancel(csrfToken), "setup.install")
   }
 
   const currentStep = progress?.locked ? 4 : step
