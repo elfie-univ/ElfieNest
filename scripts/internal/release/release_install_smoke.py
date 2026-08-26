@@ -725,6 +725,7 @@ def _service_log_tail(home: Path, *, native: SmokeAdapter | None = None) -> str:
         "service-console.log",
         "authority.log",
         "authority-console.log",
+        "desktop-console.log",
     ):
         normalized = _diagnostic_file_tail(log_dir / name)
         if normalized:
@@ -766,6 +767,10 @@ def _write_failure_diagnostics(
         "result": "failed",
         "error": redact_diagnostic_text(str(error))[-4096:],
         "logs": _service_log_tail(home, native=native),
+        "runtime_snapshot": _diagnostic_file_tail(home / "runtime" / "runtime.json"),
+        "lifecycle_history": _diagnostic_file_tail(
+            home / "logs" / "lifecycle-history.jsonl"
+        ),
     }
     try:
         home.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -917,6 +922,22 @@ class NativePackageAdapter:
             command = (str(self.install_root / "elfienest-gui"),)
         else:
             command = (str(self.install_root / "ElfieNest.exe"),)
+        smoke_home = environment.get("ELFIE_HOME")
+        if smoke_home:
+            console_path = Path(smoke_home) / "logs" / "desktop-console.log"
+            try:
+                console_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                with console_path.open("ab") as console:
+                    return subprocess.Popen(
+                        command,
+                        env=dict(environment),
+                        stdout=console,
+                        stderr=subprocess.STDOUT,
+                    )
+            except OSError as error:
+                raise ReleaseInstallSmokeError(
+                    "release-smoke-viewer-launch-failed"
+                ) from error
         try:
             return subprocess.Popen(
                 command,
