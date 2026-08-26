@@ -174,6 +174,18 @@ def test_gateway_allows_configured_web_runtime_origin() -> None:
     assert websocket.closed == []
 
 
+def test_gateway_allows_native_dedicated_loopback_origin_without_port() -> None:
+    server = GodotAPIServer(port=8765, handshake_nonce="nonce-1")
+    websocket = FakeWebSocket(
+        [_hello(protocol=3, nonce="nonce-1")],
+        origin="http://127.0.0.1",
+    )
+
+    anyio.run(server._handle_client, websocket)
+
+    assert websocket.closed == []
+
+
 def test_gateway_restarts_fifty_times_without_leaking_thread_or_clients() -> None:
     server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
 

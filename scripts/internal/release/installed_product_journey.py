@@ -481,6 +481,7 @@ class InstalledProductJourney:
             ),
             None,
         )
+        created = provider is None
         if provider is None:
             response = session.post_json(
                 "/api/v1/admin/model-providers/connections",
@@ -505,8 +506,11 @@ class InstalledProductJourney:
                             "request_profile_version": 1,
                         }
                     ],
-                    "verify": True,
-                    "refresh_models": True,
+                    # Match the real Owner UI: saving a custom connection is
+                    # cheap, then initial model setup refreshes inventory and
+                    # the Owner explicitly runs the cost-bearing validation.
+                    "verify": False,
+                    "refresh_models": False,
                 },
             )
             _expect(response, 201, phase="provider", code="provider_create_failed")
@@ -527,7 +531,39 @@ class InstalledProductJourney:
         model = _model_from_connection(provider, self.config.model_id)
         if model is None:
             raise JourneyFailure("provider_model_missing", phase="provider")
+        verification_payload: Mapping[str, Any] | None = None
         if mode == "initial":
+            if created:
+                refresh = session.post_json(
+                    f"/api/v1/admin/model-providers/connections/"
+                    f"{urllib.parse.quote(connection_id, safe='')}/models/refresh",
+                    {},
+                )
+                _expect(
+                    refresh,
+                    200,
+                    phase="provider",
+                    code="provider_model_refresh_failed",
+                )
+            verification = session.post_json(
+                f"/api/v1/admin/model-providers/connections/"
+                f"{urllib.parse.quote(connection_id, safe='')}/verify?force_full=true",
+                {},
+            )
+            _expect(
+                verification,
+                200,
+                phase="provider",
+                code="provider_verification_failed",
+            )
+            verification_payload = verification.payload.get("verification")
+            if (
+                not isinstance(verification_payload, dict)
+                or verification_payload.get("status") != "passed"
+            ):
+                raise JourneyFailure(
+                    "provider_verification_not_passed", phase="provider"
+                )
             probe_path = (
                 f"/api/v1/admin/model-providers/connections/"
                 f"{urllib.parse.quote(connection_id, safe='')}/models/"
@@ -557,7 +593,11 @@ class InstalledProductJourney:
             "enabled": provider.get("enabled") is True,
             "has_credential": provider.get("has_credential") is True
             or provider.get("has_api_key") is True,
-            "verification_status": _nested(provider, "verification", "status"),
+            "verification_status": (
+                verification_payload.get("status")
+                if isinstance(verification_payload, dict)
+                else _nested(provider, "verification", "status")
+            ),
             "capability_states": _capability_states(model),
         }
         _phase(evidence, "provider", connection_id=connection_id)
