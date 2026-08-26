@@ -1,6 +1,6 @@
 # Elfie Memory conformance
 
-> Status: implementation complete on the current branch; external-model acceptance and production cutover remain explicitly gated<br>
+> Status: implementation complete on the current branch; the real Ark evaluation ran, but Stage 1 promotion remains gated by one P0 machine failure, owner review and production cutover<br>
 > Baseline: 2026-08-27<br>
 > Target: [Elfie Memory design](../designs/elfie-memory-architecture)
 
@@ -19,11 +19,11 @@ Memory model, authorize schema changes or describe an implementation diary.
 | MEM-005 | P0 | closed | `RecallRequest` now performs deterministic Basic/Text candidate search followed by bounded Local Graph traversal, source lookup, relation/time filters and declared limits. | Text covers rare/unresolved wording; graph traversal covers explicit relationships; sources and conflicts remain visible. | target=design §6 and §9.5; inventory=`sqlite_retrieval_store.py`, `node_store.py`, `sqlite_graph_store.py`; references=source-first retrieval tests; verification=rare-term/alias, person-network, knowledge-object, seed, time-window, hop/limit and representative latency checks; residuals=Global/community and vector retrieval remain later projections. | Current lexical projection is intentionally simpler than FTS5 and is rebuildable. |
 | MEM-006 | P0 | closed | `RecallBundle` and its deterministic renderer are implemented; the reasoning Memory reader consumes independent typed items with real source IDs. | Upper layers receive bounded nodes, assertions, paths, Episodes, evidence and conflicts through the semantic contract, not raw SQL. | target=design §6 and §9.5; inventory=`memory_records.py`, `recall_renderer.py`, `reasoning/memory_context.py`; references=reasoning and renderer tests; verification=stable rendering, hard character cap, provenance and no synthetic source for typed nodes; residuals=final natural-language narration remains Reasoning's responsibility. | None for the Memory boundary. |
 | MEM-007 | P0 | closed (development) | A fresh-target importer, source read-only guard, count/digest/hash reconciliation, lease recovery and retention operations are implemented. | Import is Episodes-first, auditable and reversible; old data is not mutated and no long-term dual write is introduced. | target=design §9.6; inventory=`migration.py`, `sqlite_memory_store.py`; references=ADR-0018 and persistence rules; verification=legacy import, eligible Episode hash match, evidence mapping, reopen and forget/archive tests; residuals=production data migration/cutover was intentionally not run and requires a separate explicit approval. | No live user database was touched. |
-| MEM-008 | P0 | blocked | Deterministic structural gates pass, but the real Ark candidate/judge run and owner experience review are not complete. | A replayable redacted report must show deterministic gates, source grounding, relationship/conflict behavior, restart and latency before Stage 1 promotion. | target=design §9.7 and `docs/.internal/elfie-stage1-memory-backed-chat-execution-plan.md`; inventory=`devtools/evals/stage1_chat_ark.py`, scenario set and focused tests; references=E1 preflight/blocked report; verification=332 combined affected tests, persistence scan exit 0, and ~40.6 ms database-only p95 on the representative fixture; residuals=the authorized real Ark run is still blocked before model invocation by local ArkCLI staging-directory permissions; human review remains. | No external model call or secret leakage occurred in the blocked attempt. |
+| MEM-008 | P0 | no-go | Deterministic structural gates and the authorized real Ark candidate/judge run completed, but one `nest-unknown` repetition failed the machine hard gate and owner experience review is not complete. | A replayable redacted report must show deterministic gates, source grounding, relationship/conflict behavior, restart and latency before Stage 1 promotion. | target=design §9.7 and `docs/.internal/elfie-stage1-memory-backed-chat-execution-plan.md`; inventory=`devtools/evals/stage1_chat_ark.py`, scenario set and focused tests; references=`build/evaluations/stage1-chat/e1-ark-final-rejudged-v2/report.json`; verification=332 combined affected tests, deterministic E1 gate 79 passed, real Ark candidate 36 calls and judge 24 calls, persistence scan exit 0, and ~40.6 ms database-only p95 on the representative fixture; residuals=the second `nest-unknown` repetition asserted an unsupported current Nest state and must be fixed before rerunning promotion; human review remains. | Ark authentication and structured judge completion passed; no secret was written to the report. |
 
 ## Remaining acceptance order
 
-1. After the local ArkCLI staging-directory permission is repaired, rerun the authorized real Ark
+1. Fix the `nest-unknown` current-state boundary violation, then rerun the full authorized Ark
    evaluation with synthetic scenarios only; the evaluator will keep keys local and write only redacted evidence.
 2. Perform the owner experience review and record the promotion decision.
 3. Approve and execute any production-data cutover separately; development migration is complete.
@@ -36,4 +36,5 @@ uv run --no-sync python scripts/governance/persistence/scan.py --project-root . 
 
 It must be rerun after schema changes. A row closes only when its target,
 inventory, references, verification and residuals are recorded. MEM-008 remains
-blocked until the external-model and human acceptance gates are explicitly completed.
+no-go until the machine violation is fixed, the real evaluation is rerun, and the human
+acceptance gate is completed.
