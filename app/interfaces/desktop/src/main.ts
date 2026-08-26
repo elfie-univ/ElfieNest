@@ -442,7 +442,12 @@ async function startDesktop(): Promise<void> {
 
 function startDesktopUiRole(): void {
   Menu.setApplicationMenu(APPLICATION_MENU);
-  const controllerHome = controllerHomeForAppData(app.getPath("appData"));
+  const configuredAppData = process.env["ELFIENEST_DESKTOP_APP_DATA"]?.trim();
+  const controllerHome = controllerHomeForAppData(
+    configuredAppData === undefined || configuredAppData === ""
+      ? app.getPath("appData")
+      : configuredAppData,
+  );
   app.setPath("userData", controllerHome);
   const hasSingleInstanceLock = app.requestSingleInstanceLock();
   if (!hasSingleInstanceLock) {
