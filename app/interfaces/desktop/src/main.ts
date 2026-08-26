@@ -421,12 +421,18 @@ async function startDesktop(): Promise<void> {
     }
     throw new Error(state.reason);
   }
+  if (state.kind === "attached" || state.kind === "owned") {
+    // A background Controller has no window during initial startup. Keep the
+    // ready Runtime URL available so a later single-instance activation can
+    // create the Viewer and load the real management page.
+    runtimeUiAvailable = true;
+    runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
+    if (runtimeUiUrl === undefined) {
+      throw new Error("Runtime did not publish an HTTP endpoint");
+    }
+  }
   const window = managementWindow.current();
   if (window !== undefined) {
-    runtimeUiAvailable = true;
-    if (state.kind === "attached" || state.kind === "owned") {
-      runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
-    }
     if (runtimeUiUrl === undefined) {
       throw new Error("Runtime did not publish an HTTP endpoint");
     }
