@@ -13,3 +13,5 @@
   范围、低成本证据与统一健康投影。
 - [虚拟外貌生成最终设计](./virtual-appearance-generation)：一只 Elfie 的几何输入、四层皮肤、
   语义区域、颜色体系和视觉验收门。
+- [原生发布验证与安装版核心用户旅程](./native-release-validation)：六层测试体系、确定性 CI
+  模型边界、四 target 覆盖、成本控制和分阶段收口计划。

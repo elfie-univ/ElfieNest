@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, Final, Optional, TypeVar
@@ -290,11 +291,7 @@ def _package_installer(
             environment,
         )
         if target.startswith("darwin-"):
-            _run_command(
-                _node_command("npx", "--yes", "pnpm@10.12.1", "build:macos-helper"),
-                DESKTOP_DIR,
-                environment,
-            )
+            _build_optional_macos_wifi_helper(environment)
         _stage_desktop_application(target, resources)
         target_arguments = _electron_target_arguments(target)
         _run_command(
@@ -332,6 +329,31 @@ def _package_installer(
             shutil.rmtree(output)
         if application.exists():
             shutil.rmtree(application)
+
+
+def _build_optional_macos_wifi_helper(environment: Dict[str, str]) -> None:
+    """Build the SSID helper when possible without blocking the core installer."""
+    try:
+        _run_command(
+            _node_command(
+                "npx",
+                "--yes",
+                "pnpm@10.12.1",
+                "build:macos-helper:optional",
+            ),
+            DESKTOP_DIR,
+            environment,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        helper_output = BUILD_DIR / "components" / "desktop-interface" / "macos"
+        if helper_output.exists():
+            shutil.rmtree(helper_output)
+        helper_output.mkdir(parents=True)
+        print(
+            "release-optional-component-skipped "
+            f"component=macos-wifi-helper cause={error}",
+            file=sys.stderr,
+        )
 
 
 def _stage_desktop_application(target: str, resources: Path) -> Path:

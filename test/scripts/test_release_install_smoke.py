@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -8,10 +9,89 @@ from scripts.internal.release import release_install_smoke
 from scripts.internal.release.release_install_smoke import (
     NativePackageAdapter,
     ReleaseInstallSmokeError,
+    _diagnostic_has_event,
     _is_owned_symlink,
+    _start_scripted_model_server,
+    _stop_scripted_model_server,
+    _verify_duplicate_start,
     _wait_for_state,
     run_install_smoke,
 )
+
+
+def test_scripted_model_process_is_loopback_and_stops_with_summary(
+    tmp_path: Path,
+) -> None:
+    server = _start_scripted_model_server(tmp_path / "home")
+    try:
+        assert server.pid > 0
+        assert server.endpoint.startswith("http://127.0.0.1:")
+    finally:
+        summary = _stop_scripted_model_server(server)
+
+    assert summary["request_count"] == 0
+    assert server.process.poll() is not None
+
+
+def test_duplicate_start_keeps_generation_and_owned_processes(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    receipt = home / "runtime" / "desktop.pid"
+    receipt.parent.mkdir(parents=True)
+    receipt.write_text("100\n", encoding="utf-8")
+
+    class Adapter:
+        def run_cli(self, arguments, environment) -> str:
+            del environment
+            assert arguments[0] in {"start", "status"}
+            return json.dumps(
+                {
+                    "state": "world_ready",
+                    "generation": 7,
+                    "components": [
+                        {"name": "core", "pid": 101},
+                        {"name": "godot_authority", "pid": 102},
+                    ],
+                }
+            )
+
+    result = _verify_duplicate_start(
+        {
+            "state": "world_ready",
+            "generation": 7,
+            "components": [
+                {"name": "core", "pid": 101},
+                {"name": "godot_authority", "pid": 102},
+            ],
+        },
+        native=Adapter(),
+        environment={},
+        home=home,
+        monotonic=lambda: 0.0,
+        sleeper=lambda _seconds: None,
+        timeout_seconds=0.0,
+    )
+
+    assert result == {
+        "same_generation": True,
+        "generation": 7,
+        "owned_pids": [100, 101, 102],
+    }
+
+
+def test_viewer_marker_reader_accepts_only_the_named_json_event(tmp_path: Path) -> None:
+    diagnostics = tmp_path / "desktop-events.jsonl"
+    diagnostics.write_text(
+        "not-json\n"
+        '{"event":"desktop_process_started"}\n'
+        '{"event":"management_page_ready"}\n',
+        encoding="utf-8",
+    )
+
+    assert _diagnostic_has_event(diagnostics, "management_page_ready")
+    assert not _diagnostic_has_event(diagnostics, "renderer_error")
+    assert not _diagnostic_has_event(
+        tmp_path / "missing.jsonl", "management_page_ready"
+    )
 
 
 class FakeAdapter:
@@ -29,8 +109,21 @@ class FakeAdapter:
 
     def run_cli(self, arguments, environment) -> str:
         self.calls.append("cli:" + " ".join(arguments))
+        if arguments[0] == "start":
+            receipt = self.home / "runtime" / "desktop.pid"
+            receipt.parent.mkdir(parents=True, exist_ok=True)
+            receipt.write_text("99999999\n", encoding="utf-8")
+        if arguments[0] == "stop":
+            (self.home / "runtime" / "desktop.pid").unlink(missing_ok=True)
         if arguments[0] == "status":
-            return '{"state":"' + self.states.pop(0) + '"}'
+            state = self.states.pop(0)
+            if state == "world_ready":
+                return (
+                    '{"state":"world_ready","components":'
+                    '[{"name":"core","pid":99999998},'
+                    '{"name":"godot_authority","pid":99999997}]}'
+                )
+            return '{"state":"' + state + '"}'
         return "{}"
 
     def uninstall(self) -> None:
@@ -70,9 +163,175 @@ def test_smoke_runner_publishes_install_upgrade_start_stop_evidence(
     ]
     assert evidence.is_file()
     assert payload["cycles"][0]["reached_state"] == "world_ready"
+    assert payload["cycles"][0]["desktop_controller_pid"] == 99999999
+    assert payload["cycles"][0]["verified_stopped_pids"] == [
+        99999997,
+        99999998,
+        99999999,
+    ]
     assert home.is_dir()
     assert adapter.calls[0] == "uninstall"
     assert adapter.calls[-1] == "verify-uninstalled"
+
+
+def test_smoke_runner_executes_each_requested_lifecycle_cycle(tmp_path: Path) -> None:
+    artifact = tmp_path / "ElfieNest.deb"
+    artifact.write_bytes(b"native installer")
+    home = tmp_path / "user-data"
+    adapter = FakeAdapter(home)
+    adapter.states = ["world_ready", "offline"] * 3
+
+    payload = run_install_smoke(
+        "linux-x64",
+        artifact,
+        tmp_path / "evidence.json",
+        cycles=3,
+        adapter=adapter,
+        smoke_home=home,
+        monotonic=lambda: 0.0,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert [cycle["cycle"] for cycle in payload["cycles"]] == [1, 2, 3]
+    assert adapter.calls.count("cli:start --json --loopback") == 3
+    assert adapter.calls.count("cli:stop") == 3
+
+
+def test_smoke_runner_uses_the_installed_desktop_controller_environment(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "ElfieNest.deb"
+    artifact.write_bytes(b"native installer")
+    home = tmp_path / "user-data"
+    observed_environments: list[dict[str, str]] = []
+
+    class RecordingAdapter(FakeAdapter):
+        def run_cli(self, arguments, environment) -> str:
+            observed_environments.append(dict(environment))
+            return super().run_cli(arguments, environment)
+
+    run_install_smoke(
+        "linux-x64",
+        artifact,
+        tmp_path / "evidence.json",
+        adapter=RecordingAdapter(home),
+        smoke_home=home,
+        monotonic=lambda: 0.0,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert observed_environments
+    assert all(
+        "ELFIENEST_CONTROLLER_CLIENT" not in environment
+        for environment in observed_environments
+    )
+
+
+def test_smoke_runner_rejects_a_missing_desktop_controller_receipt(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "ElfieNest.deb"
+    artifact.write_bytes(b"native installer")
+    home = tmp_path / "user-data"
+
+    class MissingControllerAdapter(FakeAdapter):
+        def run_cli(self, arguments, environment) -> str:
+            output = super().run_cli(arguments, environment)
+            if arguments[0] == "start":
+                (self.home / "runtime" / "desktop.pid").unlink(missing_ok=True)
+            return output
+
+    with pytest.raises(
+        ReleaseInstallSmokeError,
+        match="desktop-controller-receipt-missing",
+    ):
+        run_install_smoke(
+            "linux-x64",
+            artifact,
+            tmp_path / "evidence.json",
+            adapter=MissingControllerAdapter(home),
+            smoke_home=home,
+            monotonic=lambda: 0.0,
+            sleeper=lambda _seconds: None,
+        )
+
+
+def test_smoke_runner_rejects_missing_core_or_godot_process_evidence(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "ElfieNest.deb"
+    artifact.write_bytes(b"native installer")
+    home = tmp_path / "user-data"
+
+    class MissingGodotAdapter(FakeAdapter):
+        def run_cli(self, arguments, environment) -> str:
+            output = super().run_cli(arguments, environment)
+            if arguments[0] == "status" and "world_ready" in output:
+                return (
+                    '{"state":"world_ready","components":'
+                    '[{"name":"core","pid":99999998}]}'
+                )
+            return output
+
+    with pytest.raises(
+        ReleaseInstallSmokeError,
+        match="component-pids-missing names=godot_authority",
+    ):
+        run_install_smoke(
+            "linux-x64",
+            artifact,
+            tmp_path / "evidence.json",
+            adapter=MissingGodotAdapter(home),
+            smoke_home=home,
+            monotonic=lambda: 0.0,
+            sleeper=lambda _seconds: None,
+        )
+
+
+def test_smoke_runner_rejects_a_surviving_owned_process(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "user-data"
+
+    monkeypatch.setattr(
+        release_install_smoke,
+        "_pid_exists",
+        lambda pid: pid == 99999997,
+    )
+
+    clock = iter((0.0, 11.0))
+    with pytest.raises(
+        ReleaseInstallSmokeError,
+        match="owned-processes-remain.*99999997",
+    ):
+        release_install_smoke._wait_for_owned_processes_stopped(
+            (99999997,),
+            home=home,
+            monotonic=lambda: next(clock),
+            sleeper=lambda _seconds: None,
+            timeout_seconds=10.0,
+        )
+
+
+def test_pid_exists_uses_the_read_only_platform_inspector(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[int] = []
+
+    class FakeInspector:
+        def exists(self, pid: int) -> bool:
+            observed.append(pid)
+            return False
+
+    monkeypatch.setattr(
+        release_install_smoke,
+        "DefaultProcessInspector",
+        FakeInspector,
+    )
+
+    assert release_install_smoke._pid_exists(12345) is False
+    assert observed == [12345]
 
 
 def test_smoke_runner_does_not_accept_core_ready_without_the_world() -> None:
