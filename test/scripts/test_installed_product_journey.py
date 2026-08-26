@@ -326,6 +326,12 @@ def test_initial_journey_runs_setup_provider_adoption_chat_and_redacts_evidence(
         method == "POST" and path.endswith("/verify?force_full=true")
         for method, path, _ in session.calls
     )
+    candidate_call = next(
+        body
+        for method, path, body in session.calls
+        if method == "POST" and path == "/api/v1/me/adoption/candidate-sets"
+    )
+    assert candidate_call["adoption_session_id"] == "release-adoption"
 
 
 def test_resume_journey_skips_first_run_setup_and_repeats_chat(tmp_path: Path) -> None:

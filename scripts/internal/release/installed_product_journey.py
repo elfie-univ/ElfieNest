@@ -749,6 +749,11 @@ class InstalledProductJourney:
         candidate_set = session.post_json(
             "/api/v1/me/adoption/candidate-sets",
             {
+                # Keep release adoption reproducible across native runners.  The
+                # server derives candidate generation from this session id; an
+                # implicit random id can select a seed that exhausts genesis
+                # retries on only one platform.
+                "adoption_session_id": "release-adoption",
                 "species_id": "fox",
                 "life_stage": "young_adult",
                 "gender": "any",
@@ -951,10 +956,16 @@ def _expect(
     if result.status not in expected_values:
         error = result.payload.get("error")
         error_code = error.get("code") if isinstance(error, dict) else None
+        error_message = error.get("message") if isinstance(error, dict) else None
+        if isinstance(error_message, str):
+            error_message = " ".join(error_message.split())[:160]
+        detail = f"status={result.status} api_code={error_code or 'unknown'}"
+        if error_message:
+            detail += f" api_message={error_message}"
         raise JourneyFailure(
             code,
             phase=phase,
-            detail=f"status={result.status} api_code={error_code or 'unknown'}",
+            detail=detail,
         )
 
 
