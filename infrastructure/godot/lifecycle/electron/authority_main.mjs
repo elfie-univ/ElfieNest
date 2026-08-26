@@ -473,7 +473,10 @@ void (async () => {
 });
 
 app.on("render-process-gone", (_event, webContents, details) => {
-  if (shuttingDown) {
+  const expectedSignalTermination = (
+    details.reason === "killed" && details.exitCode === 15
+  );
+  if (shuttingDown || expectedSignalTermination) {
     emitDiagnostic("render_process_gone_during_shutdown", "info", {
       reason: details.reason,
       exit_code: details.exitCode,

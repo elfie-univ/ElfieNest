@@ -76,6 +76,7 @@ let controllerStartPromise: Promise<DesktopRoleState> | undefined;
 let desktopDiagnostics: DesktopDiagnostics | undefined;
 let removeProcessExceptionHandlers: (() => void) | undefined;
 let diagnosticsTimer: NodeJS.Timeout | undefined;
+const DESKTOP_CLEANUP_TIMEOUT_MS = 5_000;
 
 type RecoveryAction =
   | "recover-data-home"
@@ -693,13 +694,27 @@ app.on("before-quit", (event) => {
   explicitExitRequested = false;
   exitInProgress = true;
   const cleanup = roleController?.exitApplication() ?? Promise.resolve();
-  void cleanup
+  let cleanupTimer: NodeJS.Timeout | undefined;
+  const cleanupDeadline = new Promise<void>((resolve) => {
+    cleanupTimer = setTimeout(() => {
+      desktopDiagnostics?.event(
+        "runtime_cleanup_timeout",
+        { timeout_ms: DESKTOP_CLEANUP_TIMEOUT_MS },
+        "warning",
+      );
+      resolve();
+    }, DESKTOP_CLEANUP_TIMEOUT_MS);
+  });
+  void Promise.race([cleanup, cleanupDeadline])
     .catch((error: unknown) => {
       desktopDiagnostics?.error("runtime_cleanup_failed", error);
       const message = error instanceof Error ? error.message : String(error);
       console.error("ElfieNest Runtime cleanup during quit failed", message);
     })
     .finally(async () => {
+      if (cleanupTimer !== undefined) {
+        clearTimeout(cleanupTimer);
+      }
       await controllerIpcServer?.close();
       controllerIpcServer = undefined;
       console.info("ElfieNest Desktop cleanup complete", requestedExitReason);
