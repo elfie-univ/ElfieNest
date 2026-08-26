@@ -473,6 +473,13 @@ void (async () => {
 });
 
 app.on("render-process-gone", (_event, webContents, details) => {
+  if (shuttingDown) {
+    emitDiagnostic("render_process_gone_during_shutdown", "info", {
+      reason: details.reason,
+      exit_code: details.exitCode,
+    });
+    return;
+  }
   emitDiagnostic("render_process_gone", "critical", {
     reason: details.reason,
     exit_code: details.exitCode,

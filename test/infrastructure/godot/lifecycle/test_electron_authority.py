@@ -73,6 +73,8 @@ def test_hidden_authority_records_process_and_electron_crash_surfaces() -> None:
     assert "parsed.total_attempts" in source
     assert "sampledRendererDiagnostic" in source
     assert "suppressed_count" in source
+    assert "if (shuttingDown)" in source
+    assert '"render_process_gone_during_shutdown"' in source
 
 
 def test_hidden_authority_redacts_oauth_credentials_and_authorization_headers() -> None:
