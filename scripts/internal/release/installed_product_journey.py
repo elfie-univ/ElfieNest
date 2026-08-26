@@ -746,15 +746,24 @@ class InstalledProductJourney:
             evidence.details["adoption"] = {"resumed": True, "elfie_id": elfie_id}
             _phase(evidence, "adoption", resumed=True, elfie_id=elfie_id)
             return elfie_id
+        options = session.get("/api/v1/me/adoption")
+        _expect(options, 200, phase="adoption", code="adoption_options_failed")
+        species = options.payload.get("species")
+        species_ids = [
+            item.get("species_id")
+            for item in (species if isinstance(species, list) else [])
+            if isinstance(item, dict) and isinstance(item.get("species_id"), str)
+        ]
+        if not species_ids:
+            raise JourneyFailure("adoption_species_missing", phase="adoption")
+        species_id = next(
+            (candidate for candidate in ("fox", "dog") if candidate in species_ids),
+            species_ids[0],
+        )
         candidate_set = session.post_json(
             "/api/v1/me/adoption/candidate-sets",
             {
-                # Keep release adoption reproducible across native runners.  The
-                # server derives candidate generation from this session id; an
-                # implicit random id can select a seed that exhausts genesis
-                # retries on only one platform.
-                "adoption_session_id": "release-adoption",
-                "species_id": "fox",
+                "species_id": species_id,
                 "life_stage": "young_adult",
                 "gender": "any",
                 "appearance": {
