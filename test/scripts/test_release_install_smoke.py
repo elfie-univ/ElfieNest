@@ -757,6 +757,8 @@ def test_windows_native_uninstall_requires_a_successful_uninstaller(
     def fake_run_checked(command, *, environment=None) -> str:
         del environment
         commands.append(tuple(command))
+        (install_root / "Uninstall ElfieNest.exe").unlink()
+        install_root.rmdir()
         return ""
 
     monkeypatch.setattr(
@@ -766,3 +768,42 @@ def test_windows_native_uninstall_requires_a_successful_uninstaller(
     adapter.uninstall()
 
     assert commands == [(str(install_root / "Uninstall ElfieNest.exe"), "/S")]
+
+
+def test_windows_native_uninstall_waits_for_async_root_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "ElfieNest.exe"
+    artifact.write_bytes(b"native installer")
+    install_root = tmp_path / "install-root"
+    install_root.mkdir()
+    uninstaller = install_root / "Uninstall ElfieNest.exe"
+    uninstaller.write_bytes(b"uninstaller")
+    adapter = NativePackageAdapter("win32-x64", artifact)
+    adapter.install_root = install_root
+    commands: list[tuple[str, ...]] = []
+    sleeps = 0
+
+    def fake_run_checked(command, *, environment=None) -> str:
+        del environment
+        commands.append(tuple(command))
+        return ""
+
+    def fake_sleep(_seconds: float) -> None:
+        nonlocal sleeps
+        sleeps += 1
+        if sleeps == 2:
+            uninstaller.unlink()
+            install_root.rmdir()
+
+    monkeypatch.setattr(
+        "scripts.internal.release.release_install_smoke._run_checked", fake_run_checked
+    )
+    monkeypatch.setattr(release_install_smoke.time, "monotonic", lambda: 0.0)
+    monkeypatch.setattr(release_install_smoke.time, "sleep", fake_sleep)
+
+    adapter.uninstall()
+
+    assert sleeps == 2
+    assert commands == [(str(uninstaller), "/S")]
