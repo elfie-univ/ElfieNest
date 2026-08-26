@@ -75,6 +75,12 @@ class GodotAPIServer:
                 # exact loopback WS origins must be trusted as well.
                 f"http://127.0.0.1:{self.port}",
                 f"http://localhost:{self.port}",
+                # Godot's native Dedicated export may omit the default port
+                # from its synthesized Origin.  Keep this allowance limited
+                # to exact loopback HTTP origins; empty and remote origins
+                # remain rejected by the handshake gate.
+                "http://127.0.0.1",
+                "http://localhost",
             }
         )
         self.clients: set[Any] = set()

@@ -22,11 +22,16 @@ class FakeSession:
     """Deterministic API boundary; no source server or data store is used."""
 
     def __init__(
-        self, *, resumed: bool = False, existing_provider: bool = False
+        self,
+        *,
+        resumed: bool = False,
+        existing_provider: bool = False,
+        verification_status: str = "passed",
     ) -> None:
         self.csrf_token = "csrf-test"
         self.resumed = resumed
         self.existing_provider = existing_provider
+        self.verification_status = verification_status
         self.setup_installed = resumed
         self.calls: list[tuple[str, str, Mapping[str, Any] | None]] = []
         self._elfie_id = "elfie-release-1"
@@ -81,6 +86,24 @@ class FakeSession:
             raise AssertionError("login must use login(), not post_json()")
         if path == "/api/v1/admin/model-providers/connections":
             return self._result(201, self._provider())
+        if path.endswith("/models/refresh"):
+            return self._result(
+                200,
+                {
+                    "status": "updated",
+                    "checked_at": "2026-08-26T00:00:00Z",
+                    "message": None,
+                    "models": self._provider()["models"],
+                },
+            )
+        if path.endswith("/verify?force_full=true"):
+            return self._result(
+                200,
+                {
+                    "connection_id": self._connection_id,
+                    "verification": {"status": self.verification_status},
+                },
+            )
         if path.endswith("/capability-probes"):
             return self._result(
                 200,
@@ -234,6 +257,22 @@ def test_initial_journey_runs_setup_provider_adoption_chat_and_redacts_evidence(
         method == "POST" and path.endswith("/capability-probes")
         for method, path, _ in session.calls
     )
+    create_call = next(
+        body
+        for method, path, body in session.calls
+        if method == "POST" and path == "/api/v1/admin/model-providers/connections"
+    )
+    assert create_call is not None
+    assert create_call["verify"] is False
+    assert create_call["refresh_models"] is False
+    assert any(
+        method == "POST" and path.endswith("/models/refresh")
+        for method, path, _ in session.calls
+    )
+    assert any(
+        method == "POST" and path.endswith("/verify?force_full=true")
+        for method, path, _ in session.calls
+    )
 
 
 def test_resume_journey_skips_first_run_setup_and_repeats_chat(tmp_path: Path) -> None:
@@ -250,6 +289,18 @@ def test_resume_journey_skips_first_run_setup_and_repeats_chat(tmp_path: Path) -
     )
     assert not any(path.endswith("/capability-probes") for _, path, _ in session.calls)
     assert any(method == "CHAT" for method, _, _ in session.calls)
+
+
+def test_initial_journey_fails_closed_when_provider_verification_is_not_passed(
+    tmp_path: Path,
+) -> None:
+    session = FakeSession(verification_status="failed")
+
+    with pytest.raises(JourneyFailure, match="provider_verification_not_passed"):
+        InstalledProductJourney(
+            _config(tmp_path),
+            session_factory=lambda _base_url, _timeout: session,
+        ).run(mode="initial")
 
 
 def test_journey_fails_closed_when_model_projection_never_becomes_ready(
