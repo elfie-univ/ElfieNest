@@ -43,20 +43,27 @@ def execute_install_smoke(
     """Load the optional native smoke runner only after environment checks."""
     from scripts.internal.release.release_install_smoke import run_install_smoke
 
-    smoke_options = {
-        "cycles": cycles,
-        "candidate_sha": candidate_sha,
-        "product_journey": product_journey,
-        "recovery_matrix": recovery_matrix,
-        "viewer_check": viewer_check,
-    }
-    if smoke_home is not None:
-        smoke_options["smoke_home"] = smoke_home
+    if smoke_home is None:
+        return run_install_smoke(
+            target,
+            artifact,
+            evidence_output,
+            cycles=cycles,
+            candidate_sha=candidate_sha,
+            product_journey=product_journey,
+            recovery_matrix=recovery_matrix,
+            viewer_check=viewer_check,
+        )
     return run_install_smoke(
         target,
         artifact,
         evidence_output,
-        **smoke_options,
+        cycles=cycles,
+        candidate_sha=candidate_sha,
+        product_journey=product_journey,
+        recovery_matrix=recovery_matrix,
+        viewer_check=viewer_check,
+        smoke_home=smoke_home,
     )
 
 
