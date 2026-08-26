@@ -417,6 +417,54 @@ def test_smoke_runner_includes_service_log_when_start_fails(tmp_path: Path) -> N
         )
 
 
+def test_product_journey_failure_preserves_redacted_api_detail(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from scripts.internal.release import installed_product_journey
+
+    def fail(*_args, **_kwargs):
+        raise installed_product_journey.JourneyFailure(
+            "candidate_set_failed",
+            phase="adoption",
+            detail="status=503 api_code=model_unconfigured",
+        )
+
+    monkeypatch.setattr(
+        installed_product_journey,
+        "run_installed_product_journey",
+        fail,
+    )
+
+    class Native:
+        def run_cli(self, arguments, environment) -> str:
+            del arguments, environment
+            return "{}"
+
+    with pytest.raises(
+        ReleaseInstallSmokeError,
+        match=r"phase=adoption code=candidate_set_failed detail=status=503 api_code=model_unconfigured",
+    ):
+        release_install_smoke._run_product_journey(
+            {
+                "endpoints": [
+                    {
+                        "name": "http",
+                        "scheme": "http",
+                        "host": "127.0.0.1",
+                        "port": 8000,
+                    }
+                ]
+            },
+            home=tmp_path,
+            model_endpoint="http://127.0.0.1:9000/v1",
+            mode="initial",
+            native=Native(),
+            environment={},
+            timeout_seconds=1.0,
+        )
+
+
 def test_smoke_runner_includes_raw_console_when_core_fails_before_logging(
     tmp_path: Path,
 ) -> None:

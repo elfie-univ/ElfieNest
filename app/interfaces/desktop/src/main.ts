@@ -782,4 +782,12 @@ export function requestExplicitApplicationExit(
   app.quit();
 }
 
+// The packaged lifecycle controller terminates the Desktop Controller with a
+// POSIX signal after asking it to stop the owned runtime.  Handle that signal
+// through the same explicit-exit path as the tray/menu action so Electron runs
+// the normal role cleanup and closes its process instead of lingering in a
+// partially-quit state.
+process.once("SIGTERM", () => requestExplicitApplicationExit("sigterm"));
+process.once("SIGINT", () => requestExplicitApplicationExit("sigint"));
+
 startDesktopUiRole();

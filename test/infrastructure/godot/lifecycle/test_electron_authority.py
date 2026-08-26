@@ -136,3 +136,18 @@ def test_bootstrap_host_loads_and_packages_the_authority_entrypoint() -> None:
     assert "from: packaged-resources" in host_config
     assert "icon: assets/elfienest-macos-app-icon.png" in host_config
     assert "icon: assets/elfienest-app-icon.png" in host_config
+
+
+def test_desktop_controller_handles_lifecycle_termination_signals() -> None:
+    source = (PROJECT_ROOT / "app/interfaces/desktop/src/main.ts").read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        'process.once("SIGTERM", () => requestExplicitApplicationExit("sigterm"))'
+        in source
+    )
+    assert (
+        'process.once("SIGINT", () => requestExplicitApplicationExit("sigint"))'
+        in source
+    )
