@@ -166,3 +166,5 @@ def test_desktop_controller_handles_lifecycle_termination_signals() -> None:
     assert "runtime_cleanup_timeout" in source
     assert "DESKTOP_IPC_CLOSE_TIMEOUT_MS" in source
     assert "controller_ipc_close_timeout" in source
+    assert "if (roleController === undefined || exitInProgress)" in source
+    assert 'requestedExitReason = "before-quit"' in source

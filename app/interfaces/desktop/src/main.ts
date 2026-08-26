@@ -688,8 +688,15 @@ app.on("before-quit", (event) => {
   desktopDiagnostics?.event("desktop_before_quit", {
     reason: requestedExitReason,
   });
-  if (!explicitExitRequested || exitInProgress) {
+  // A managed SIGTERM can cause Electron to emit before-quit without first
+  // delivering the Node signal handler. The primary Controller must still
+  // run its ordered Runtime cleanup; a secondary instance has no role
+  // controller and should exit immediately.
+  if (roleController === undefined || exitInProgress) {
     return;
+  }
+  if (!explicitExitRequested) {
+    requestedExitReason = "before-quit";
   }
   event.preventDefault();
   explicitExitRequested = false;
