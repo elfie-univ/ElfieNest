@@ -246,6 +246,12 @@ class ArkCliJsonClient:
         if instructions.strip():
             command.extend(("--instructions", instructions))
         if schema_path is not None:
+            # The judge is required to return a small strict JSON object.  Some
+            # Ark reasoning models otherwise spend the entire 768-token budget
+            # on hidden reasoning and truncate the JSON response at `length`.
+            # Disable provider thinking for this advisory call; machine facts
+            # remain authoritative and candidate calls keep their normal mode.
+            command.extend(("--thinking", "disabled"))
             command.extend(
                 (
                     "--text-format",
