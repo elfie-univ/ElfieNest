@@ -57,6 +57,9 @@ def test_hidden_authority_records_process_and_electron_crash_surfaces() -> None:
     assert "crash_reporter_start_failed" in source
     assert "redactDiagnosticText(errorDescription).slice(0, 2048)" in source
     assert 'emitDiagnostic("authority_window_unresponsive", "warning")' in source
+    assert 'emitDiagnostic("webgl_context_lost", "critical", {' in source
+    assert 'requestShutdown(12, "webgl_context_lost")' in source
+    assert "setImmediate(exitProcess)" in source
     assert 'requestShutdown(12, "renderer_unresponsive")' not in source
     assert "AUTHORITY_UNRESPONSIVE_GRACE_MS" not in source
     assert "parsed.total_attempts" in source

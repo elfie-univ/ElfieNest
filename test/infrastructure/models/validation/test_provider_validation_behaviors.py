@@ -226,6 +226,34 @@ def test_reachability_fingerprint_ignores_model_inventory_changes() -> None:
     )
 
 
+def test_validation_fingerprint_ignores_persisted_capability_evidence() -> None:
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Capability evidence",
+        models=(
+            ProviderModelRecord(
+                endpoint_model_id="model-a",
+                supports_tools=True,
+                capability_evidence={"tools": "declared_by_user"},
+            ),
+        ),
+    )
+    probed = replace(
+        connection,
+        models=(
+            replace(
+                connection.models[0],
+                capability_evidence={"tools": "verified"},
+            ),
+        ),
+    )
+
+    assert connection_validation_fingerprint(connection) == (
+        connection_validation_fingerprint(probed)
+    )
+
+
 def test_model_execution_projection_uses_connection_id_for_builtin_connection() -> None:
     connection = ProviderConnection(
         connection_id="volcengine_coding_plan_0001",

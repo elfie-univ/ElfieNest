@@ -274,6 +274,14 @@ def _snapshot_from_report(latest: Mapping[str, Any]) -> _FullValidationSnapshot 
 
 
 def _model_fingerprint(model: ProviderModelRecord) -> dict[str, Any]:
+    # Capability declarations and probe evidence are channel observations, not
+    # stable text-validation inputs.  Capability probes persist their result
+    # back onto the model record for UI and inventory projections; including
+    # those fields here would immediately invalidate the full model evidence
+    # that was just recorded (especially when an undeclared channel becomes
+    # verified).  The immutable report observations carry channel-specific
+    # proof, while the stable endpoint/profile fields below keep text evidence
+    # bound to the actual model configuration.
     return {
         "id": model.endpoint_model_id,
         "display_name": model.display_name,
@@ -283,11 +291,6 @@ def _model_fingerprint(model: ProviderModelRecord) -> dict[str, Any]:
         "request_profile_version": model.request_profile_version,
         "context_window_tokens": model.context_window_tokens,
         "max_output_tokens": model.max_output_tokens,
-        "supports_tools": model.supports_tools,
-        "supports_vision": model.supports_vision,
-        "supports_reasoning": model.supports_reasoning,
-        "supports_structured_output": model.supports_structured_output,
-        "capability_evidence": dict(sorted(model.capability_evidence.items())),
         "hidden": model.hidden,
         "retired": model.retired,
     }

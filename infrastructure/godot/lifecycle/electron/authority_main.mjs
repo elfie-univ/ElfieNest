@@ -167,9 +167,17 @@ function pruneCrashDumps(directory) {
 function recordRendererConsole(details) {
   details.preventDefault();
   const consoleLevel = diagnosticLevel(details.level);
+  const rendererMessage = String(details.message);
+  if (rendererMessage.toUpperCase().includes("CONTEXT_LOST_WEBGL")) {
+    emitDiagnostic("webgl_context_lost", "critical", {
+      message: redactDiagnosticText(rendererMessage).slice(0, 2048),
+    });
+    requestShutdown(12, "webgl_context_lost");
+    return;
+  }
   let parsed;
   try {
-    parsed = JSON.parse(details.message);
+    parsed = JSON.parse(rendererMessage);
   } catch (_error) {
     parsed = null;
   }
@@ -216,7 +224,7 @@ function recordRendererConsole(details) {
   }
   if (consoleLevel === "warning" || consoleLevel === "error") {
     emitDiagnostic("authority_renderer_console", consoleLevel, {
-      message: redactDiagnosticText(details.message).slice(0, 2048),
+      message: redactDiagnosticText(rendererMessage).slice(0, 2048),
     });
   }
 }
@@ -356,15 +364,23 @@ function requestShutdown(exitCode = 0, reason = "requested") {
     exit_code: exitCode,
     reason,
   });
+  const exitProcess = () => {
+    app.exit(exitCode);
+    process.exit(exitCode);
+  };
   if (authorityWindow !== null && !authorityWindow.isDestroyed()) {
     authorityWindow.close();
+    // Electron can defer BrowserWindow teardown when this is called from a
+    // renderer callback (notably WebGL context loss). Let the close event
+    // unwind before forcing the hidden authority process to exit.
+    setImmediate(exitProcess);
+    return;
   }
   // This process is a hidden authority child with no user-facing work to save.
   // app.quit() waits for Electron's asynchronous lifecycle while the parent
   // Supervisor is already waiting on this exact process group. Exit directly
   // so an explicit Runtime stop does not inherit Electron's multi-second tail.
-  app.exit(exitCode);
-  process.exit(exitCode);
+  exitProcess();
 }
 
 process.once("SIGTERM", () => requestShutdown(0, "sigterm"));
