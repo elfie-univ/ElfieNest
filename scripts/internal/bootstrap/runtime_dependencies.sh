@@ -163,6 +163,84 @@ godot_download_url() {
         "$GODOT_DOWNLOAD_ENDPOINT" "$platform" "$slug" "$GODOT_PROJECT_VERSION"
 }
 
+download_godot_archive() {
+    local url="$1"
+    local output="$2"
+    local chunk_size="${GODOT_DOWNLOAD_CHUNK_BYTES:-67108864}"
+    local total_bytes
+    local offset=0
+    local end
+    local expected
+    local actual
+    local part
+    local attempt
+
+    if [[ ! "$chunk_size" =~ ^[0-9]+$ ]] || (( chunk_size <= 0 )); then
+        echo "${RED}  ❌ Invalid Godot download chunk size: $chunk_size${RESET}" >&2
+        return 1
+    fi
+
+    if ! total_bytes="$({
+        curl --fail --silent --show-error --location --http1.1 \
+            --retry 5 --retry-all-errors --retry-delay 2 \
+            --connect-timeout 20 --head "$url"
+    } | awk 'tolower($1) == "content-length:" {
+        value = $2
+        sub(/\r$/, "", value)
+    } END { print value }')"; then
+        echo "${RED}  ❌ Could not read the Godot archive size.${RESET}" >&2
+        return 1
+    fi
+    if [[ ! "$total_bytes" =~ ^[0-9]+$ ]] || (( total_bytes <= 0 )); then
+        echo "${RED}  ❌ Godot archive did not provide a valid content length: $total_bytes${RESET}" >&2
+        return 1
+    fi
+
+    part="${output}.part"
+    : > "$output"
+    while (( offset < total_bytes )); do
+        end=$((offset + chunk_size - 1))
+        if (( end >= total_bytes )); then
+            end=$((total_bytes - 1))
+        fi
+        expected=$((end - offset + 1))
+        rm -f -- "$part"
+
+        for attempt in 1 2 3 4 5; do
+            actual=0
+            if curl --fail --silent --show-error --location --http1.1 \
+                --retry 2 --retry-all-errors --retry-delay 2 \
+                --connect-timeout 20 --max-time 600 \
+                --range "${offset}-${end}" --output "$part" "$url"; then
+                actual="$(wc -c < "$part" | tr -d '[:space:]')"
+                if [[ "$actual" == "$expected" ]]; then
+                    break
+                fi
+                echo "${YELLOW}  ⚠️ Godot archive range returned $actual bytes; expected $expected (attempt $attempt/5).${RESET}" >&2
+            fi
+            if (( attempt == 5 )); then
+                echo "${RED}  ❌ Godot archive range download failed at byte $offset.${RESET}" >&2
+                rm -f -- "$part"
+                return 1
+            fi
+            rm -f -- "$part"
+            sleep 2
+        done
+
+        cat "$part" >> "$output"
+        offset=$((offset + expected))
+        printf '  Godot archive download: %s/%s MiB\n' \
+            "$((offset / 1048576))" "$(((total_bytes + 1048575) / 1048576))"
+    done
+
+    rm -f -- "$part"
+    actual="$(wc -c < "$output" | tr -d '[:space:]')"
+    if [[ "$actual" != "$total_bytes" ]]; then
+        echo "${RED}  ❌ Godot archive size mismatch: $actual bytes, expected $total_bytes.${RESET}" >&2
+        return 1
+    fi
+}
+
 godot_template_version() {
     local staging_root="$1"
     local version_file
@@ -305,10 +383,9 @@ install_official_godot_toolchain() {
     template_staging="$(mktemp -d "${TMPDIR:-/tmp}/elfienest-godot-templates.XXXXXX")"
 
     echo "${CYAN}  📥 Downloading official Godot $GODOT_PROJECT_VERSION editor...${RESET}"
-    if ! curl --fail --location --http1.1 \
-        --retry 5 --retry-all-errors --retry-delay 2 \
-        --continue-at - --output "$editor_archive" \
-        "$(godot_download_url "$editor_platform" "$editor_slug")"; then
+    if ! download_godot_archive \
+        "$(godot_download_url "$editor_platform" "$editor_slug")" \
+        "$editor_archive"; then
         echo "${RED}  ❌ Godot editor download failed.${RESET}" >&2
         rm -f -- "$editor_archive" "$template_archive"
         rm -rf -- "$editor_staging" "$template_staging"
@@ -321,10 +398,9 @@ install_official_godot_toolchain() {
         return 1
     fi
     echo "${CYAN}  📥 Downloading official Godot Web Export Templates...${RESET}"
-    if ! curl --fail --location --http1.1 \
-        --retry 5 --retry-all-errors --retry-delay 2 \
-        --continue-at - --output "$template_archive" \
-        "$(godot_download_url "templates" "export_templates.tpz")"; then
+    if ! download_godot_archive \
+        "$(godot_download_url "templates" "export_templates.tpz")" \
+        "$template_archive"; then
         echo "${RED}  ❌ Godot Web Export Templates download failed.${RESET}" >&2
         rm -f -- "$editor_archive" "$template_archive"
         rm -rf -- "$editor_staging" "$template_staging"
