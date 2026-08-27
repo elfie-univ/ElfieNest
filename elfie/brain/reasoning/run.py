@@ -43,6 +43,7 @@ from elfie.brain.reasoning.model_port import (
     ModelPort,
     ModelResponseMode,
 )
+from elfie.brain.reasoning.reply_safety import sanitize_direct_owner_reply
 from elfie.brain.reasoning.tool_port import ToolPort, ToolRequest, ToolResult
 from elfie.message_types import FrozenContractModel, IntentId, PlanId
 
@@ -361,6 +362,7 @@ class ReasoningRun:
                     capabilities=capabilities,
                     repair_callback=None if capabilities.plain_text_only else repair,
                 )
+                decode, reply_was_sanitized = self._sanitize_direct_reply(task, decode)
                 plan, preflight_observation = self._preflight_activities(decode.plan)
                 if preflight_observation is not None:
                     add_step(
@@ -390,7 +392,10 @@ class ReasoningRun:
                     add_step(
                         CognitiveStepKind.VERIFY,
                         "degraded",
-                        decode.report.fallback_reason,
+                        self._verification_summary(
+                            decode.report.fallback_reason,
+                            reply_was_sanitized,
+                        ),
                     )
                     return ReasoningRunResult(
                         status=ReasoningStatus.SAFE_NOOP,
@@ -400,7 +405,13 @@ class ReasoningRun:
                         failure_reason=decode.report.fallback_reason,
                         decode=decode,
                     )
-                add_step(CognitiveStepKind.VERIFY, "accepted", "DecisionPlan verified")
+                add_step(
+                    CognitiveStepKind.VERIFY,
+                    "accepted",
+                    self._verification_summary(
+                        "DecisionPlan verified", reply_was_sanitized
+                    ),
+                )
                 return ReasoningRunResult(
                     status=ReasoningStatus.COMPLETED,
                     steps=tuple(steps),
@@ -471,6 +482,40 @@ class ReasoningRun:
     @staticmethod
     def _is_fast_owner_reply(request: ModelGenerationRequest) -> bool:
         return request.response_mode is ModelResponseMode.DIRECT_REPLY
+
+    @staticmethod
+    def _sanitize_direct_reply(
+        task: ReasoningTaskView,
+        decode: DecisionDecodeResult,
+    ) -> tuple[DecisionDecodeResult, bool]:
+        if task.request.response_mode is not ModelResponseMode.DIRECT_REPLY:
+            return decode, False
+        context = getattr(task, "reply_safety_context", None)
+        if context is None:
+            return decode, False
+        changed = False
+        intents = []
+        for intent in decode.plan.intents:
+            if not isinstance(intent, MessageIntent):
+                intents.append(intent)
+                continue
+            content = sanitize_direct_owner_reply(intent.content, context)
+            changed = changed or content != intent.content
+            intents.append(
+                intent.model_copy(update={"content": content})
+                if content != intent.content
+                else intent
+            )
+        if not changed:
+            return decode, False
+        plan = decode.plan.model_copy(update={"intents": tuple(intents)})
+        return decode.model_copy(update={"plan": plan}), True
+
+    @staticmethod
+    def _verification_summary(reason: str, reply_was_sanitized: bool) -> str:
+        if not reply_was_sanitized:
+            return reason
+        return f"{reason}; direct_reply_current_nest_boundary"
 
     @staticmethod
     def _marker(text: str) -> _ToolMarker | None:

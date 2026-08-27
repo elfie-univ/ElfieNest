@@ -16,6 +16,7 @@ from elfie.brain.reasoning.decision_decoder import (
     DecisionPlanDecoder,
 )
 from elfie.brain.reasoning.model_port import ModelGenerationRequest, ModelPort
+from elfie.brain.reasoning.reply_safety import ReplySafetyContext
 from elfie.brain.reasoning.run import (
     ReasoningBudget,
     ReasoningRun,
@@ -93,6 +94,10 @@ class ReasoningTaskView(Protocol):
     def state_candidates(self) -> tuple[TurnStateCandidate, ...]:
         """Return explicit owner candidates prepared before model execution."""
 
+    @property
+    def reply_safety_context(self) -> ReplySafetyContext | None:
+        """Return current-state evidence used by direct reply validation."""
+
 
 @dataclass(frozen=True)
 class ReasoningTask:
@@ -104,6 +109,7 @@ class ReasoningTask:
     reasoning_budget: ReasoningBudget | None = None
     energy_reservation: CognitiveBudgetReservation | None = None
     state_candidates: tuple[TurnStateCandidate, ...] = ()
+    reply_safety_context: ReplySafetyContext | None = None
 
 
 @dataclass(frozen=True)

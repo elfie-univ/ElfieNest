@@ -29,6 +29,7 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationRequest,
     ModelResponseMode,
 )
+from elfie.brain.reasoning.reply_safety import ReplySafetyContext
 from elfie.brain.reasoning.run import ReasoningBudget
 from elfie.brain.reasoning.worker import ReasoningTask
 from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
@@ -37,6 +38,8 @@ from elfie.brain.workspace.contracts import (
     InternalPayload,
     InternalSignal,
     PerceptionEvent,
+    PhysicalModality,
+    PhysicalPayload,
     SocialPayload,
     SourceDomain,
     TurnFrame,
@@ -272,6 +275,7 @@ class CoordinatorTurnFactory:
             reasoning_budget=reasoning_budget,
             energy_reservation=energy_reservation,
             state_candidates=state_candidates,
+            reply_safety_context=self._reply_safety_context(frame),
         )
 
     @staticmethod
@@ -384,6 +388,29 @@ class CoordinatorTurnFactory:
             isinstance(event.payload, SocialPayload)
             and event.payload.sender.source_kind == "owner"
             for event in frame.events
+        )
+
+    @staticmethod
+    def _reply_safety_context(frame: TurnFrame) -> ReplySafetyContext:
+        """Carry owner text and only explicit current embodied observations."""
+        owner_messages = tuple(
+            event.payload.content
+            for event in frame.events
+            if isinstance(event.payload, SocialPayload)
+            and event.payload.sender.source_kind == "owner"
+        )
+        has_current_nest_observation = (
+            frame.source_domain is SourceDomain.EMBODIED
+            and any(
+                isinstance(event.payload, PhysicalPayload)
+                and event.payload.modality
+                in (PhysicalModality.ENVIRONMENT, PhysicalModality.VISION)
+                for event in frame.events
+            )
+        )
+        return ReplySafetyContext(
+            current_message=owner_messages[-1] if owner_messages else "",
+            has_current_nest_observation=has_current_nest_observation,
         )
 
     @staticmethod
@@ -630,6 +657,7 @@ class CoordinatorTurnFactory:
             (
                 "- 你的身份、身体和记忆属于你自己；ElfieNest 是你在地球生活的基地和家。",
                 "- 不知道的事情要明确说不知道、只听说过或还没见过；不要把推测说成亲身经历。",
+                "- 只有当前回合明确提供的环境观测才能支持‘现在/今天巢内发生了什么’；基地名称或过去记忆不能证明此刻情况。",
                 "- 物种先验不能替代你的个体人格、关系和记忆；不要把物种倾向说成所有同类都必然如此。",
             )
         )
