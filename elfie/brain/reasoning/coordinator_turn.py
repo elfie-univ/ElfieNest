@@ -125,6 +125,12 @@ class CoordinatorTurnFactory:
             if memory_candidate_reader is not None
             else ()
         )
+        closed_episode_reader = getattr(
+            self._context_source, "pending_closed_episodes", None
+        )
+        closed_episodes = (
+            tuple(closed_episode_reader()) if closed_episode_reader is not None else ()
+        )
         activities_reader = getattr(self._context_source, "activities", None)
         activities = (
             activities_reader(captured_at)
@@ -275,6 +281,7 @@ class CoordinatorTurnFactory:
             reasoning_budget=reasoning_budget,
             energy_reservation=energy_reservation,
             state_candidates=state_candidates,
+            closed_episodes=closed_episodes,
             reply_safety_context=self._reply_safety_context(frame),
         )
 

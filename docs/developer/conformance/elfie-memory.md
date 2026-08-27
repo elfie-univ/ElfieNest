@@ -29,12 +29,24 @@ status of `MEM-001`–`MEM-008`.
 | ID | Priority | Status | Current gap | Next acceptance gate |
 | --- | --- | --- | --- | --- |
 | OPT-001 | P0 | planned | Genesis world knowledge, personal stories and relationship content are too sparse for sustained exploration. | Freeze the story/knowledge coverage matrix; pass the relevant E2/E3 new-adoption, paraphrase and restart gates. |
-| OPT-002 | P0 | planned | Ongoing-chat Episode grouping, entity disambiguation, relationship merge and correction chains need broader validation. | Pass the continuous-learning regression for new people, names, preferences, corrections, conflicts, duplicates and restart. |
+| OPT-002 | P0 | in progress | WorkingContext now closes bounded topic Episodes, captures source records before inference, extracts explicitly attributed owner/person facts, preserves aliases and supports explicit correction chains. Full longitudinal evaluation is still open. | Pass the continuous-learning regression for new people, names, preferences, corrections, conflicts, duplicates, restart and failed delivery/model paths. |
 | OPT-003 | P1 | deferred | Long-run compaction, forgetting, archiving, growth and latency have not had endurance validation. | After OPT-001/002 pass, establish bounded-growth and recoverable-lifecycle evaluation. |
 | OPT-004 | P1/P2 | deferred | Real Nest observation, activity and multi-Elfie interaction are outside the current chat loop. | After Stage 2 world integration, validate embodied memory and world-event provenance. |
 
 OPT-001 and OPT-002 may be developed in parallel, using separate feature branches and independent evaluations; run a
 combined regression after both pass. Do not start OPT-003 or OPT-004 before then.
+
+OPT-002 implementation evidence (2026-08-27): target=continuous-learning source-first
+flow and WorkingContext boundary; inventory=`elfie/brain/reasoning/conversation_context.py`,
+`coordinator.py`, `settlement.py`, `elfie/brain/memory/consolidation.py`,
+`infrastructure/persistence/memory/{schema.py,sqlite_memory_store.py,sqlite_graph_store.py}`;
+references=OPT-002 execution brief §3–§7 and Memory design §9.4–§9.5;
+verification=`test/elfie/brain/reasoning/test_conversation_context.py`,
+`test/elfie/brain/reasoning/test_memory_context.py`,
+`test/elfie/brain/reasoning/test_turn_settlement.py`,
+`test/infrastructure/persistence/memory` (40 tests), Ruff and persistence scan;
+residuals=full BrainRuntime longitudinal replay, production cutover, owner experience
+review and OPT-003/OPT-004 capabilities remain open.
 
 ## Remaining acceptance order
 

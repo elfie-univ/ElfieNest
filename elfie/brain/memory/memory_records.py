@@ -236,6 +236,7 @@ class AssertionInput:
     confidence: float = 0.5
     support_score: float = 0.5
     conflict_group: Optional[str] = None
+    supersedes_assertion_id: Optional[str] = None
     evidence_ids: Tuple[str, ...] = ()
     assertion_id: Optional[str] = None
 
@@ -252,6 +253,9 @@ class AssertionInput:
             raise ValueError("object_node_id must not be blank")
         if self.object_unit is not None and not self.object_unit.strip():
             raise ValueError("object_unit must not be blank")
+        if self.supersedes_assertion_id is not None:
+            if not self.supersedes_assertion_id.strip():
+                raise ValueError("supersedes_assertion_id must not be blank")
         if self.valid_from is not None:
             _timestamp_key(self.valid_from)
         if self.valid_to is not None:

@@ -410,6 +410,30 @@ class _ProposalModel:
         return self.payload
 
 
+class _FailingProposalModel:
+    def ask_with_food(self, **_kwargs: object) -> str:
+        raise TimeoutError("provider unavailable")
+
+
+def test_model_failure_keeps_episode_retryable_and_source_intact() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode(
+                "episode-model-failure", "model-failure", "2026-01-01", "我叫小林"
+            )
+        )
+        result = MemoryConsolidator(store).run_batch(
+            ConsolidationRequest(max_episodes=1), model_port=_FailingProposalModel()
+        )
+        assert result.status == "failed"
+        assert store.get_episode("episode-model-failure").content_text == "我叫小林"
+        row = store.connection.execute(
+            "SELECT consolidation_state FROM episodes WHERE episode_id=?",
+            ("episode-model-failure",),
+        ).fetchone()
+        assert row[0] == "failed"
+
+
 def test_model_projection_is_grounded_and_uses_global_semantic_ids() -> None:
     proposal = (
         '{"nodes":[{"label":"主人","type":"person"},'
@@ -507,6 +531,7 @@ def test_recall_respects_graph_limits_and_renderer_preserves_provenance() -> Non
         assert len(bundle.assertions) <= 1
         assert len(bundle.episodes) <= 1
         assert bundle.limits.truncated is True
+
         rendered = render_recall_bundle(bundle, character_limit=120)
         assert len(rendered) <= 120
         assert rendered.startswith("[MEMORY_DATA]")
@@ -666,3 +691,68 @@ def test_seed_graph_recall_honors_episode_time_window() -> None:
         assert [assertion.object_node_id for assertion in bundle.assertions] == [
             "person-乙"
         ]
+
+
+def test_correction_supersedes_active_assertion_and_preserves_old_evidence() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode("episode-old", "old", "2026-01-01", "我叫小林")
+        )
+        store.record_episode(
+            ClosedEpisode("episode-new", "new", "2026-01-02", "我不叫小林，我叫小周")
+        )
+        store.apply_consolidation(
+            ConsolidationProjection(
+                episode_id="episode-old",
+                nodes=(NodeInput("owner", "person", "主人"),),
+                evidence=(
+                    EvidenceInput(
+                        "ev-old", "episode", "episode-old", excerpt="我叫小林"
+                    ),
+                ),
+                assertions=(
+                    AssertionInput(
+                        "owner",
+                        "preferred_name",
+                        object_literal="小林",
+                        evidence_ids=("ev-old",),
+                        assertion_id="claim-old",
+                    ),
+                ),
+            )
+        )
+        store.apply_consolidation(
+            ConsolidationProjection(
+                episode_id="episode-new",
+                nodes=(NodeInput("owner", "person", "主人"),),
+                evidence=(
+                    EvidenceInput(
+                        "ev-new",
+                        "episode",
+                        "episode-new",
+                        excerpt="我不叫小林，我叫小周",
+                    ),
+                ),
+                assertions=(
+                    AssertionInput(
+                        "owner",
+                        "preferred_name",
+                        object_literal="小周",
+                        evidence_ids=("ev-new",),
+                        assertion_id="claim-new",
+                        supersedes_assertion_id="claim-old",
+                    ),
+                ),
+            )
+        )
+        rows = store.connection.execute(
+            "SELECT assertion_id, lifecycle, supersedes_assertion_id FROM assertions ORDER BY assertion_id"
+        ).fetchall()
+        assert [tuple(row) for row in rows] == [
+            ("claim-new", "active", "claim-old"),
+            ("claim-old", "superseded", None),
+        ]
+        bundle = store.recall(
+            RecallRequest(seed_node_ids=("owner",), mode="basic", assertion_limit=8)
+        )
+        assert any(item.assertion_id == "claim-new" for item in bundle.assertions)

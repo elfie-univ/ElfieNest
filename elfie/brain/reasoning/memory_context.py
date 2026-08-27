@@ -92,17 +92,26 @@ class MemoryContextReader:
         self,
         interaction: CompletedConversationInteraction,
     ) -> EpisodicMemoryCandidate | None:
-        """Prepare one durable episode for explicit long-term owner signals."""
-        if not _contains_durable_owner_signal(interaction.owner.content):
+        """Prepare one durable episode for an explicit durable signal.
+
+        The source participant is retained verbatim; only owner messages get
+        the legacy human-readable wording used by existing diagnostics.
+        """
+        if not _contains_durable_signal(interaction.owner.content):
             return None
+        if interaction.owner.sender.source_kind == "owner":
+            incoming = f"主人对我说: '{interaction.owner.content}'"
+            outgoing = f"我回复主人: '{interaction.reply.content}'"
+        else:
+            incoming = (
+                f"{interaction.owner.sender.source_kind}"
+                f"({interaction.owner.sender.actor_id})对我说: '{interaction.owner.content}'"
+            )
+            outgoing = f"我回复对方: '{interaction.reply.content}'"
         return EpisodicMemoryCandidate(
             candidate_id=EventId(f"memory-interaction:{interaction.receipt_id}"),
             base_revision=self._memory.revision,
-            content=(
-                f"主人对我说: '{interaction.owner.content}'。\n"
-                f"我回复主人: '{interaction.reply.content}'。\n"
-                "投递结果: completed。"
-            ),
+            content=(f"{incoming}。\n{outgoing}。\n投递结果: completed。"),
             emotion="calm",
             intensity=0.0,
             stimulus=f"completed-owner-interaction:{interaction.conversation_id}",
@@ -304,3 +313,11 @@ _DURABLE_OWNER_SIGNALS = (
 def _contains_durable_owner_signal(content: str) -> bool:
     normalized = content.casefold()
     return any(signal in normalized for signal in _DURABLE_OWNER_SIGNALS)
+
+
+def _contains_durable_signal(content: str) -> bool:
+    """Shared explicit-signal gate for owner and other participants."""
+    return _contains_durable_owner_signal(content) or any(
+        signal in content.casefold()
+        for signal in ("重要", "我们约定", "成为朋友", "important", "agreed")
+    )

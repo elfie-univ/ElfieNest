@@ -26,12 +26,21 @@
 | ID | 优先级 | 状态 | 当前差距 | 下一验收门 |
 | --- | --- | --- | --- | --- |
 | OPT-001 | P0 | 待开始 | Genesis 的世界知识、个人故事和关系内容密度不足，连续追问很快失去可用记忆。 | 冻结故事/知识覆盖表；新领养、改写问法和重启场景通过 E2/E3 相关门。 |
-| OPT-002 | P0 | 待开始 | 正常聊天中新事实的 Episode 聚合、实体消歧、关系合并和纠正链仍需扩大验证。 | 新人物、称呼、喜好、纠正、冲突、重复消息和重启场景通过持续学习回归。 |
+| OPT-002 | P0 | 进行中 | WorkingContext 已能闭合有界话题 Episode，在推理前先落盘来源，抽取带归因的主人/人物事实，保留别名并支持显式纠正链；完整纵向评测仍未完成。 | 新人物、称呼、喜好、纠正、冲突、重复、重启以及投递/模型失败路径通过持续学习回归。 |
 | OPT-003 | P1 | 暂缓 | 长期压缩、遗忘、归档、增长和延迟还未做长期运行验证。 | 在 OPT-001/002 通过后，建立有界增长和可恢复生命周期评测。 |
 | OPT-004 | P1/P2 | 暂缓 | 真实精灵巢观测、活动和多精灵互动尚未进入当前聊天闭环。 | 第二阶段真实巢场景接入后，再验证具身记忆和世界事件来源。 |
 
 OPT-001 与 OPT-002 可以并行开发，但必须使用各自功能分支和独立评测；两者完成后再进行组合回归。OPT-003
 和 OPT-004 在此之前不启动。
+
+OPT-002 实现证据（2026-08-27）：target=持续学习 source-first 流程与 WorkingContext
+边界；inventory=`elfie/brain/reasoning/conversation_context.py`、`coordinator.py`、
+`settlement.py`、`elfie/brain/memory/consolidation.py`、
+`infrastructure/persistence/memory/{schema.py,sqlite_memory_store.py,sqlite_graph_store.py}`；
+references=OPT-002 开工文档 §3–§7 与 Memory 设计 §9.4–§9.5；verification=`test/elfie/brain/reasoning/test_conversation_context.py`、
+`test/elfie/brain/reasoning/test_memory_context.py`、`test/elfie/brain/reasoning/test_turn_settlement.py`、
+`test/infrastructure/persistence/memory`（40 个测试）、Ruff 与持久化扫描；residuals=完整
+BrainRuntime 纵向重放、生产数据切换、主人体验评审以及 OPT-003/OPT-004 能力仍未完成。
 
 ## 剩余验收顺序
 

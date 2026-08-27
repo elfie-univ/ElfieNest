@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Final
 
-SCHEMA_VERSION: Final[int] = 2
+SCHEMA_VERSION: Final[int] = 3
 
 KNOWLEDGE_TABLES: Final[tuple[str, ...]] = (
     "episodes",
@@ -144,6 +144,7 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
         support_score REAL NOT NULL DEFAULT 0.5
             CHECK (support_score >= 0.0 AND support_score <= 1.0),
         conflict_group TEXT,
+        supersedes_assertion_id TEXT REFERENCES assertions(assertion_id) ON DELETE RESTRICT,
         fingerprint TEXT NOT NULL UNIQUE,
         lifecycle TEXT NOT NULL DEFAULT 'active'
             CHECK (lifecycle IN ('active', 'superseded', 'forgotten')),
@@ -212,6 +213,7 @@ INDEX_SQL: Final[tuple[str, ...]] = (
     "CREATE INDEX IF NOT EXISTS idx_assertions_subject_predicate ON assertions(subject_node_id, predicate, lifecycle)",
     "CREATE INDEX IF NOT EXISTS idx_assertions_object_predicate ON assertions(object_node_id, predicate, lifecycle)",
     "CREATE INDEX IF NOT EXISTS idx_assertions_conflict ON assertions(conflict_group, lifecycle)",
+    "CREATE INDEX IF NOT EXISTS idx_assertions_supersedes ON assertions(supersedes_assertion_id)",
     "CREATE INDEX IF NOT EXISTS idx_evidence_source ON evidence(source_type, source_id)",
     "CREATE INDEX IF NOT EXISTS idx_assertion_evidence_assertion ON assertion_evidence(assertion_id, stance)",
     "CREATE INDEX IF NOT EXISTS idx_assertion_evidence_evidence ON assertion_evidence(evidence_id)",

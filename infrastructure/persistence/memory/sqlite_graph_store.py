@@ -198,11 +198,54 @@ class SQLiteGraphStoreMixin:
                         confidence=assertion.confidence,
                         support_score=assertion.support_score,
                         conflict_group=assertion.conflict_group,
+                        supersedes_assertion_id=assertion.supersedes_assertion_id,
                         evidence_ids=assertion.evidence_ids,
                         assertion_id=assertion.assertion_id,
                     )
+                    if (
+                        normalized_assertion.context == "correction"
+                        and normalized_assertion.supersedes_assertion_id is None
+                    ):
+                        prior = self._latest_active_claim(
+                            subject_id=subject_id,
+                            predicate=normalized_assertion.predicate,
+                            object_node_id=object_node_id,
+                            object_literal=normalized_assertion.object_literal,
+                        )
+                        if prior is not None:
+                            normalized_assertion = AssertionInput(
+                                subject_id=normalized_assertion.subject_id,
+                                predicate=normalized_assertion.predicate,
+                                object_node_id=normalized_assertion.object_node_id,
+                                object_literal=normalized_assertion.object_literal,
+                                object_unit=normalized_assertion.object_unit,
+                                polarity=normalized_assertion.polarity,
+                                epistemic_status=normalized_assertion.epistemic_status,
+                                viewpoint=normalized_assertion.viewpoint,
+                                context=normalized_assertion.context,
+                                valid_from=normalized_assertion.valid_from,
+                                valid_to=normalized_assertion.valid_to,
+                                confidence=normalized_assertion.confidence,
+                                support_score=normalized_assertion.support_score,
+                                conflict_group=normalized_assertion.conflict_group,
+                                supersedes_assertion_id=prior,
+                                evidence_ids=normalized_assertion.evidence_ids,
+                                assertion_id=normalized_assertion.assertion_id,
+                            )
                     assertion_id = self._insert_assertion(normalized_assertion, now)
                     assertion_ids[assertion.assertion_id or assertion_id] = assertion_id
+                    superseded_id = normalized_assertion.supersedes_assertion_id
+                    if superseded_id is not None:
+                        if superseded_id == assertion_id:
+                            raise ValueError("an assertion cannot supersede itself")
+                        if not self._assertion_exists(superseded_id):
+                            raise ValueError(
+                                f"unknown superseded assertion: {superseded_id}"
+                            )
+                        self.conn.execute(
+                            "UPDATE assertions SET lifecycle='superseded', updated_at=? WHERE assertion_id=?",
+                            (now, superseded_id),
+                        )
                     for evidence_id in assertion.evidence_ids:
                         if (
                             evidence_id not in evidence_by_id
@@ -1175,8 +1218,8 @@ class SQLiteGraphStoreMixin:
                    object_literal_json, object_unit, polarity, epistemic_status,
                    viewpoint, context, valid_from, valid_to, confidence,
                    support_score, conflict_group, fingerprint, lifecycle,
-                   created_at, updated_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+                   supersedes_assertion_id, created_at, updated_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
                ON CONFLICT(fingerprint) DO UPDATE SET
                    confidence=MAX(assertions.confidence, excluded.confidence),
                    support_score=MAX(assertions.support_score, excluded.support_score),
@@ -1198,6 +1241,7 @@ class SQLiteGraphStoreMixin:
                 bounded_score(assertion.support_score),
                 conflict_group,
                 fingerprint,
+                assertion.supersedes_assertion_id,
                 now,
                 now,
             ),
@@ -1232,6 +1276,34 @@ class SQLiteGraphStoreMixin:
             ).fetchone()
             is not None
         )
+
+    def _latest_active_claim(
+        self,
+        *,
+        subject_id: str,
+        predicate: str,
+        object_node_id: str | None,
+        object_literal: object | None,
+    ) -> str | None:
+        """Find a prior value for an explicit correction, never a conflict."""
+        rows = self.conn.execute(
+            """SELECT assertion_id, object_node_id, object_literal_json
+                 FROM assertions
+                WHERE subject_node_id=? AND predicate=? AND lifecycle='active'
+                ORDER BY updated_at DESC, assertion_id DESC""",
+            (subject_id, predicate),
+        ).fetchall()
+        desired_literal = (
+            None if object_literal is None else canonical_json(object_literal)
+        )
+        for row in rows:
+            if (
+                row["object_node_id"] == object_node_id
+                and row["object_literal_json"] == desired_literal
+            ):
+                continue
+            return str(row["assertion_id"])
+        return None
 
     def _ensure_compat_node(self, node_id: str, now: str) -> None:
         self.conn.execute(
@@ -1299,6 +1371,7 @@ def _row_as_assertion_input(
         confidence=bounded_score(row["confidence"]),
         support_score=bounded_score(row["support_score"]),
         conflict_group=row["conflict_group"],
+        supersedes_assertion_id=row["supersedes_assertion_id"],
     )
 
 
@@ -1317,6 +1390,7 @@ def _row_to_assertion(row: sqlite3.Row) -> RecallAssertion:
             "polarity",
             "epistemic_status",
             "conflict_group",
+            "supersedes_assertion_id",
         )
         if row[key] is not None
     }

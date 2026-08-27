@@ -45,7 +45,7 @@ def test_schema_initialization_is_idempotent(tmp_path: Path) -> None:
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )
         }
-        assert store.schema_version == 2
+        assert store.schema_version == 3
 
     assert tables == EXPECTED_TABLES
 

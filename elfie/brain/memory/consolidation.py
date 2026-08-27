@@ -365,6 +365,7 @@ class MemoryConsolidator:
             return model_projection
 
         assertions: list[AssertionInput] = []
+        aliases: list[AliasInput] = []
         labels = self._labels_from_content(episode.content_text)
         label_nodes: list[tuple[str, str]] = []
         for label, node_type, start in labels:
@@ -405,6 +406,23 @@ class MemoryConsolidator:
                     evidence_ids=(evidence_id,),
                 )
             )
+        self._append_deterministic_owner_claims(
+            episode.content_text,
+            episode.episode_id,
+            evidence_id,
+            nodes,
+            mentions,
+            assertions,
+        )
+        self._append_deterministic_entity_facts(
+            episode.content_text,
+            episode.episode_id,
+            evidence_id,
+            nodes,
+            aliases,
+            mentions,
+            assertions,
+        )
         if episode.emotion:
             emotion_id = (
                 "emotion:"
@@ -448,10 +466,174 @@ class MemoryConsolidator:
         return ConsolidationProjection(
             episode_id=episode.episode_id,
             nodes=tuple(nodes),
+            aliases=tuple(aliases),
             mentions=tuple(mentions),
             assertions=tuple(assertions),
             evidence=(evidence,),
         )
+
+    @staticmethod
+    def _append_deterministic_owner_claims(
+        content: str,
+        episode_id: str,
+        evidence_id: str,
+        nodes: list[NodeInput],
+        mentions: list[MentionInput],
+        assertions: list[AssertionInput],
+    ) -> None:
+        """Extract only explicit, source-grounded owner facts.
+
+        This deliberately handles a small set of unambiguous Chinese/English
+        forms.  It is a safety fallback, not a semantic parser: every value is
+        copied from the Episode and remains attributed to the speaker.
+        """
+        owner_patterns = (
+            "我叫",
+            "叫我",
+            "我的名字",
+            "我喜欢",
+            "我不喜欢",
+            "我讨厌",
+            "我有个",
+            "我的朋友",
+        )
+        if not any(marker in content for marker in owner_patterns):
+            return
+        owner_id = _projection_id("node:", "person", "elfie", "主人")
+        if not any(node.node_id == owner_id for node in nodes):
+            nodes.append(
+                NodeInput(
+                    node_id=owner_id,
+                    node_type="person",
+                    canonical_label="主人",
+                    confidence=1.0,
+                    properties={"attribution": "owner"},
+                )
+            )
+        correction = any(
+            marker in content for marker in ("不叫", "不是", "更喜欢", "纠正", "改成")
+        )
+
+        def add_claim(predicate: str, value: str, start: int) -> None:
+            value = value.strip().strip("，。！？,.!?；;")
+            if not value or len(value) > 64:
+                return
+            assertions.append(
+                AssertionInput(
+                    subject_id=owner_id,
+                    predicate=predicate,
+                    object_literal=value,
+                    epistemic_status="reported",
+                    viewpoint="owner",
+                    context="correction" if correction else "owner_claim",
+                    confidence=0.95,
+                    support_score=0.95,
+                    evidence_ids=(evidence_id,),
+                    assertion_id=_projection_id("claim:", episode_id, predicate, value),
+                )
+            )
+            mentions.append(
+                MentionInput(
+                    episode_id=episode_id,
+                    surface_text=value,
+                    resolution_state="unresolved",
+                    role="owner_claim_value",
+                    span_start=start,
+                    span_end=start + len(value),
+                    confidence=0.95,
+                )
+            )
+
+        patterns = (
+            (
+                "preferred_name",
+                r"(?:我|主人)\s*(?:的名字是|叫做|叫|名叫)\s*([^\s，。！？,.!?；;]+)",
+            ),
+            ("preferred_name", r"叫我\s*([^\s，。！？,.!?；;]+)"),
+            (
+                "likes",
+                r"(?:我|主人)\s*(?:喜欢|爱吃|爱|更喜欢)\s*([^\s，。！？,.!?；;]+)",
+            ),
+            ("dislikes", r"(?:我|主人)\s*(?:不喜欢|讨厌)\s*([^\s，。！？,.!?；;]+)"),
+        )
+        for predicate, pattern in patterns:
+            match = re.search(pattern, content, flags=re.IGNORECASE)
+            if match is not None:
+                add_claim(predicate, match.group(1), match.start(1))
+
+    @staticmethod
+    def _append_deterministic_entity_facts(
+        content: str,
+        episode_id: str,
+        evidence_id: str,
+        nodes: list[NodeInput],
+        aliases: list[AliasInput],
+        mentions: list[MentionInput],
+        assertions: list[AssertionInput],
+    ) -> None:
+        """Capture explicitly named people, aliases and relationships."""
+        matches = list(
+            re.finditer(
+                r"(?:我的|我有个|那个)?(?:朋友|同事|同学|哥哥|姐姐|弟弟|妹妹|爸爸|妈妈)"
+                r"\s*(?:叫|名字是|名叫|是)\s*([^\s，。！？,.!?；;]+)",
+                content,
+            )
+        )
+        for match in matches:
+            label = match.group(1).strip()
+            if not label or len(label) > 32:
+                continue
+            node_id = _projection_id("node:", "person", "elfie", label)
+            if not any(node.node_id == node_id for node in nodes):
+                nodes.append(
+                    NodeInput(
+                        node_id=node_id,
+                        node_type="person",
+                        canonical_label=label,
+                        confidence=0.9,
+                    )
+                )
+            mentions.append(
+                MentionInput(
+                    episode_id=episode_id,
+                    surface_text=label,
+                    node_id=node_id,
+                    resolution_state="resolved",
+                    role="person",
+                    span_start=match.start(1),
+                    span_end=match.end(1),
+                    confidence=0.9,
+                )
+            )
+            owner_id = _projection_id("node:", "person", "elfie", "主人")
+            if any(node.node_id == owner_id for node in nodes):
+                assertions.append(
+                    AssertionInput(
+                        subject_id=owner_id,
+                        predicate="knows",
+                        object_node_id=node_id,
+                        viewpoint="owner",
+                        epistemic_status="reported",
+                        confidence=0.85,
+                        support_score=0.85,
+                        evidence_ids=(evidence_id,),
+                    )
+                )
+        for match in re.finditer(
+            r"([^\s，。！？,.!?；;]{1,32})\s*(?:也叫|又叫|昵称是)\s*([^\s，。！？,.!?；;]{1,32})",
+            content,
+        ):
+            canonical, alias = (value.strip() for value in match.groups())
+            node_id = _projection_id("node:", "person", "elfie", canonical)
+            if any(node.node_id == node_id for node in nodes):
+                aliases.append(
+                    AliasInput(
+                        node_id=node_id,
+                        alias=alias,
+                        evidence_id=evidence_id,
+                        confidence=0.9,
+                    )
+                )
 
     def _projection_from_model(
         self,
@@ -507,8 +689,11 @@ class MemoryConsolidator:
             logger.warning("模型记忆提案被丢弃，使用保守提取: %s", error)
             return None
         except Exception as error:  # noqa: BLE001 - model failures are retryable
-            logger.warning("模型记忆提案调用失败，使用保守提取: %s", error)
-            return None
+            # A provider outage is different from an ungrounded proposal.  Do
+            # not mark the source Episode consolidated with guessed facts; the
+            # worker will lease it again after the retry backoff.
+            logger.warning("模型记忆提案调用失败，保留 Episode 等待重试: %s", error)
+            raise RuntimeError("memory model proposal failed") from error
 
     def _validate_model_projection(
         self,

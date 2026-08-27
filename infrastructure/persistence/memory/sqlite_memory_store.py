@@ -208,7 +208,7 @@ class SQLiteMemoryStoreAdapter(
         user_tables = existing - {"sqlite_sequence"}
         target_tables = set(KNOWLEDGE_TABLES) | {"episodes_fts", "nodes_fts"}
         current_version = self.schema_version
-        if current_version not in (0, SCHEMA_VERSION):
+        if current_version not in (0, 2, SCHEMA_VERSION):
             raise MemoryStoreSchemaError(
                 f"unsupported Memory schema version: {current_version}"
             )
@@ -221,7 +221,7 @@ class SQLiteMemoryStoreAdapter(
             raise MemoryStoreSchemaError(
                 "Memory database contains unknown tables: " + ", ".join(sorted(unknown))
             )
-        if current_version == SCHEMA_VERSION and user_tables != target_tables:
+        if current_version in (2, SCHEMA_VERSION) and user_tables != target_tables:
             missing = ", ".join(sorted(target_tables - user_tables))
             raise MemoryStoreSchemaError(
                 "Memory schema version is current but tables are missing: " + missing
@@ -233,6 +233,19 @@ class SQLiteMemoryStoreAdapter(
                 self.conn.execute("PRAGMA synchronous=NORMAL")
             for statement in SCHEMA_SQL:
                 self.conn.execute(statement)
+            if current_version == 2:
+                # OPT-002 adds the explicit correction chain without changing
+                # the source-first Episode contract.  Existing development
+                # databases are upgraded in place inside this initialization
+                # transaction; fresh databases receive the column above.
+                columns = {
+                    str(row["name"])
+                    for row in self.conn.execute("PRAGMA table_info(assertions)")
+                }
+                if "supersedes_assertion_id" not in columns:
+                    self.conn.execute(
+                        "ALTER TABLE assertions ADD COLUMN supersedes_assertion_id TEXT REFERENCES assertions(assertion_id) ON DELETE RESTRICT"
+                    )
             for statement in INDEX_SQL:
                 self.conn.execute(statement)
             self.conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")

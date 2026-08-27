@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from collections import deque
+from collections import OrderedDict, deque
+from dataclasses import dataclass, field
+from datetime import timedelta
 from threading import Lock
 from typing import Deque, Mapping, Tuple
 
+from elfie.brain.memory.memory_records import ClosedEpisode, SourceReference
 from elfie.brain.reasoning.context_types import (
     CompletedConversationInteraction,
     ConversationContext,
@@ -17,6 +20,38 @@ from elfie.brain.workspace.contracts import SocialPayload, TurnFrame
 from elfie.message_types import ActorRef, EventId, UTCDateTime
 
 
+@dataclass
+class _TopicThread:
+    """Mutable working-context topic owned by the Brain owner thread."""
+
+    channel_id: str
+    conversation_id: str
+    thread_id: str
+    messages: list[ConversationMessage] = field(default_factory=list)
+    started_at: UTCDateTime | None = None
+    last_activity_at: UTCDateTime | None = None
+
+
+_TOPIC_SHIFT_MARKERS = (
+    "换个话题",
+    "换一个话题",
+    "另外说",
+    "另外聊",
+    "顺便问",
+    "说到另一个",
+    "new topic",
+    "change the subject",
+)
+_TOPIC_END_MARKERS = (
+    "先这样",
+    "就这样吧",
+    "聊到这里",
+    "结束这个话题",
+    "bye",
+    "goodbye",
+)
+
+
 class ConversationContextStore:
     """Own short conversation history without becoming long-term Memory."""
 
@@ -26,11 +61,23 @@ class ConversationContextStore:
         history_capacity: int = 32,
         event_identity_capacity: int = 2048,
         conversations_per_channel: int = 128,
+        topic_idle_seconds: float = 1800.0,
+        topic_max_messages: int = 24,
+        topic_max_characters: int = 12000,
     ) -> None:
         self._history_capacity = history_capacity
         self._event_identity_capacity = event_identity_capacity
         self._conversations_per_channel = conversations_per_channel
+        if topic_idle_seconds <= 0:
+            raise ValueError("topic_idle_seconds must be positive")
+        if topic_max_messages < 1 or topic_max_characters < 1:
+            raise ValueError("topic limits must be positive")
+        self._topic_idle = timedelta(seconds=topic_idle_seconds)
+        self._topic_max_messages = topic_max_messages
+        self._topic_max_characters = topic_max_characters
         self._histories: dict[tuple[str, str], Deque[ConversationMessage]] = {}
+        self._topics: dict[tuple[str, str], _TopicThread] = {}
+        self._closed_episodes: OrderedDict[str, ClosedEpisode] = OrderedDict()
         self._seen_events: set[EventId] = set()
         self._seen_order: Deque[EventId] = deque()
         self._authorized_conversations: dict[str, Deque[str]] = {}
@@ -58,6 +105,38 @@ class ConversationContextStore:
                 )
                 if event.meta.event_id in self._seen_events:
                     continue
+                self._close_idle_topics(event.meta.occurred_at)
+                topic = self._topics.get(active_key)
+                if topic is not None and self._starts_new_topic(
+                    topic, payload.content, event.meta.occurred_at
+                ):
+                    self._close_topic(topic)
+                    topic = None
+                if topic is None:
+                    topic = _TopicThread(
+                        channel_id=payload.channel_id,
+                        conversation_id=payload.conversation_id,
+                        thread_id=f"topic:{event.meta.event_id}",
+                        started_at=event.meta.occurred_at,
+                    )
+                    self._topics[active_key] = topic
+                message = ConversationMessage(
+                    event_id=event.meta.event_id,
+                    sender=payload.sender,
+                    occurred_at=event.meta.occurred_at,
+                    content=payload.content,
+                )
+                if self._topic_would_overflow(topic, payload.content):
+                    self._close_topic(topic)
+                    topic = _TopicThread(
+                        channel_id=payload.channel_id,
+                        conversation_id=payload.conversation_id,
+                        thread_id=f"topic:{event.meta.event_id}",
+                        started_at=event.meta.occurred_at,
+                    )
+                    self._topics[active_key] = topic
+                topic.messages.append(message)
+                topic.last_activity_at = event.meta.occurred_at
                 history = self._histories.setdefault(
                     active_key,
                     deque(maxlen=self._history_capacity),
@@ -71,6 +150,8 @@ class ConversationContextStore:
                     )
                 )
                 self._remember_seen(event.meta.event_id)
+                if self._ends_topic(payload.content):
+                    self._close_topic(topic)
             messages = tuple(self._histories.get(active_key, ())) if active_key else ()
         unique = tuple(dict.fromkeys(conversation_ids))
         return ConversationContext(
@@ -79,6 +160,27 @@ class ConversationContextStore:
             conversation_id=unique[0] if len(unique) == 1 else None,
             messages=messages,
         )
+
+    def pending_closed_episodes(self) -> Tuple[ClosedEpisode, ...]:
+        """Return closed source Episodes awaiting acknowledgement by Memory."""
+        with self._lock:
+            return tuple(self._closed_episodes.values())
+
+    def ack_closed_episodes(self, episode_ids: Tuple[str, ...]) -> None:
+        """Remove only source Episodes successfully handed to Memory."""
+        with self._lock:
+            for episode_id in episode_ids:
+                self._closed_episodes.pop(episode_id, None)
+
+    def close_topics(
+        self, *, captured_at: UTCDateTime | None = None
+    ) -> Tuple[ClosedEpisode, ...]:
+        """Explicitly close active topics at an upstream boundary."""
+        with self._lock:
+            topics = tuple(self._topics.values())
+            for topic in topics:
+                self._close_topic(topic, closed_at=captured_at)
+            return tuple(self._closed_episodes.values())
 
     def authorization_map(self) -> Mapping[str, Tuple[str, ...]]:
         """Return a copy safe for capability projection."""
@@ -102,8 +204,10 @@ class ConversationContextStore:
     ) -> CompletedConversationInteraction | None:
         """Append one reply only after its communication receipt completed.
 
-        A reply without a causal owner message is intentionally excluded from
-        owner-chat continuity and long-term interaction Memory.
+        The causal conversation participant may be the owner, another person,
+        or another Elfie.  Attribution is retained on the source message;
+        delivery success, rather than a hard-coded owner check, decides
+        whether the interaction can enter working history.
         """
         key = (channel_id, conversation_id)
         causes = set(cause_event_ids)
@@ -118,7 +222,6 @@ class ConversationContextStore:
                     message
                     for message in reversed(history)
                     if message.event_id in causes
-                    and message.sender.source_kind == "owner"
                 ),
                 None,
             )
@@ -149,6 +252,16 @@ class ConversationContextStore:
                     channel_id=channel_id,
                     conversation_id=conversation_id,
                     messages=tuple(messages),
+                    topic_thread_id=(
+                        self._topics[(channel_id, conversation_id)].thread_id
+                        if (channel_id, conversation_id) in self._topics
+                        else None
+                    ),
+                    topic_messages=(
+                        tuple(self._topics[(channel_id, conversation_id)].messages)
+                        if (channel_id, conversation_id) in self._topics
+                        else ()
+                    ),
                 )
                 for (channel_id, conversation_id), messages in sorted(
                     self._histories.items()
@@ -168,6 +281,20 @@ class ConversationContextStore:
             for thread in checkpoint.threads
         ):
             raise ValueError("conversation checkpoint exceeds history capacity")
+        if any(
+            len(thread.topic_messages) > self._topic_max_messages
+            or sum(len(message.content) for message in thread.topic_messages)
+            > self._topic_max_characters
+            for thread in checkpoint.threads
+        ):
+            raise ValueError("conversation checkpoint exceeds topic capacity")
+        topic_ids = tuple(
+            thread.topic_thread_id
+            for thread in checkpoint.threads
+            if thread.topic_thread_id is not None
+        )
+        if len(topic_ids) != len(set(topic_ids)):
+            raise ValueError("conversation checkpoint topic IDs must be unique")
         per_channel: dict[str, int] = {}
         for channel_id, _conversation_id in keys:
             per_channel[channel_id] = per_channel.get(channel_id, 0) + 1
@@ -192,12 +319,22 @@ class ConversationContextStore:
             self._seen_order.clear()
             self._authorized_conversations.clear()
             self._authorized_targets.clear()
+            self._topics.clear()
             for thread in checkpoint.threads:
                 key = (thread.channel_id, thread.conversation_id)
                 self._histories[key] = deque(
                     thread.messages,
                     maxlen=self._history_capacity,
                 )
+                if thread.topic_thread_id is not None and thread.topic_messages:
+                    self._topics[key] = _TopicThread(
+                        channel_id=thread.channel_id,
+                        conversation_id=thread.conversation_id,
+                        thread_id=thread.topic_thread_id,
+                        messages=list(thread.topic_messages),
+                        started_at=thread.topic_messages[0].occurred_at,
+                        last_activity_at=thread.topic_messages[-1].occurred_at,
+                    )
                 self._remember_conversation(*key)
                 targets = self._authorized_targets.setdefault(key, set())
                 targets.update(
@@ -232,6 +369,88 @@ class ConversationContextStore:
         self._seen_order.append(event_id)
         while len(self._seen_order) > self._event_identity_capacity:
             self._seen_events.discard(self._seen_order.popleft())
+
+    def _close_idle_topics(self, at: UTCDateTime) -> None:
+        for topic in tuple(self._topics.values()):
+            if topic.last_activity_at is None:
+                continue
+            if at - topic.last_activity_at >= self._topic_idle:
+                self._close_topic(topic, closed_at=topic.last_activity_at)
+
+    def _starts_new_topic(
+        self,
+        topic: _TopicThread,
+        content: str,
+        at: UTCDateTime,
+    ) -> bool:
+        if (
+            topic.last_activity_at is not None
+            and at - topic.last_activity_at >= self._topic_idle
+        ):
+            return True
+        folded = content.casefold()
+        return any(marker.casefold() in folded for marker in _TOPIC_SHIFT_MARKERS)
+
+    def _topic_would_overflow(self, topic: _TopicThread, content: str) -> bool:
+        return len(topic.messages) >= self._topic_max_messages or (
+            sum(len(message.content) for message in topic.messages) + len(content)
+            > self._topic_max_characters
+        )
+
+    @staticmethod
+    def _ends_topic(content: str) -> bool:
+        folded = content.casefold().strip()
+        return any(folded.endswith(marker.casefold()) for marker in _TOPIC_END_MARKERS)
+
+    def _close_topic(
+        self,
+        topic: _TopicThread,
+        *,
+        closed_at: UTCDateTime | None = None,
+    ) -> None:
+        if not topic.messages:
+            self._topics.pop((topic.channel_id, topic.conversation_id), None)
+            return
+        first = topic.messages[0]
+        last = topic.messages[-1]
+        end = closed_at or last.occurred_at
+        episode_id = f"episode:{topic.thread_id}"
+        participants = list(
+            dict.fromkeys(str(message.sender.actor_id) for message in topic.messages)
+        )
+        content = "\n".join(
+            f"[{message.sender.source_kind}:{message.sender.actor_id}] {message.content}"
+            for message in topic.messages
+        )
+        self._closed_episodes.setdefault(
+            episode_id,
+            ClosedEpisode(
+                episode_id=episode_id,
+                idempotency_key=episode_id,
+                occurred_from=first.occurred_at.isoformat(),
+                occurred_to=end.isoformat(),
+                content_text=content,
+                event_kind="conversation_episode",
+                source_refs=tuple(
+                    SourceReference(
+                        source_id=str(message.event_id),
+                        source_kind=message.sender.source_kind,
+                        locator=f"{topic.channel_id}:{topic.conversation_id}",
+                    )
+                    for message in topic.messages
+                ),
+                source_event_ids=tuple(
+                    str(message.event_id) for message in topic.messages
+                ),
+                metadata={
+                    "channel_id": topic.channel_id,
+                    "conversation_id": topic.conversation_id,
+                    "topic_id": topic.thread_id,
+                    "participants": participants,
+                },
+            ),
+        )
+        self._topics.pop((topic.channel_id, topic.conversation_id), None)
 
     def _remember_conversation(self, channel_id: str, conversation_id: str) -> None:
         conversations = self._authorized_conversations.setdefault(channel_id, deque())

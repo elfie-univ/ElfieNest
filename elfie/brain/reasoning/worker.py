@@ -10,6 +10,7 @@ from typing import Deque, Dict, NamedTuple, Optional, Protocol
 
 from elfie.brain.activity.preflight import ActivityPreflightPort
 from elfie.brain.energy.contracts import CognitiveBudgetReservation
+from elfie.brain.memory.memory_records import ClosedEpisode
 from elfie.brain.reasoning.decision_decoder import (
     DecisionDecodeResult,
     DecisionDecodeSeed,
@@ -95,6 +96,10 @@ class ReasoningTaskView(Protocol):
         """Return explicit owner candidates prepared before model execution."""
 
     @property
+    def closed_episodes(self) -> tuple[ClosedEpisode, ...]:
+        """Return upstream-closed source Episodes captured before inference."""
+
+    @property
     def reply_safety_context(self) -> ReplySafetyContext | None:
         """Return current-state evidence used by direct reply validation."""
 
@@ -109,6 +114,7 @@ class ReasoningTask:
     reasoning_budget: ReasoningBudget | None = None
     energy_reservation: CognitiveBudgetReservation | None = None
     state_candidates: tuple[TurnStateCandidate, ...] = ()
+    closed_episodes: tuple[ClosedEpisode, ...] = ()
     reply_safety_context: ReplySafetyContext | None = None
 
 

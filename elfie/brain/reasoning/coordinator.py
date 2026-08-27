@@ -39,6 +39,7 @@ from elfie.brain.reasoning.run import ReasoningRunResult
 from elfie.brain.reasoning.settlement import TurnSettlementPort
 from elfie.brain.reasoning.turn_outcome import TerminalStatus, TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningExecutionPort
+from elfie.brain.state_lifecycle import StateCommitStatus
 from elfie.brain.workspace.contracts import IngestDisposition
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.brain.workspace.trigger_policy import TurnTriggerPolicy
@@ -312,6 +313,7 @@ class BrainCoordinator:
             if self._journal is not None:
                 self._journal.record_run_started(frame, turn_id)
             task = self._turn_factory.build_task(frame, turn_id, self._timestamp)
+            self._capture_closed_episodes(task)
             future = self._worker.submit(task)
         except Exception as error:  # noqa: BLE001 - claim boundary owns failure mapping
             self._homeostasis.release_cognitive_budget(turn_id)
@@ -344,6 +346,35 @@ class BrainCoordinator:
         future.add_done_callback(
             lambda completed: self._runtime.post(WorkerDoneControl(turn_id, completed))
         )
+
+    def _capture_closed_episodes(self, task) -> None:
+        """Persist upstream-closed Episodes before inference starts.
+
+        WorkingContext owns topic boundaries; this coordinator only forwards
+        the resulting typed source records to Memory.  A failed write aborts
+        the frame claim while the upstream queue remains retryable.
+        """
+        episodes = getattr(task, "closed_episodes", ())
+        if not episodes:
+            return
+        capture = getattr(self._settlement, "capture_episodes", None)
+        if not callable(capture):
+            raise RuntimeError("source-first Episode capture is unavailable")
+        receipts = capture(tuple(episodes))
+        failed = tuple(
+            receipt
+            for receipt in receipts
+            if receipt.status
+            not in {StateCommitStatus.COMMITTED, StateCommitStatus.DUPLICATE}
+        )
+        if failed:
+            reasons = ",".join(
+                receipt.reason or receipt.status.value for receipt in failed
+            )
+            raise RuntimeError(f"Episode source capture failed: {reasons}")
+        acknowledge = getattr(self._context_source, "ack_closed_episodes", None)
+        if callable(acknowledge):
+            acknowledge(tuple(episode.episode_id for episode in episodes))
 
     def _handle_worker_done(self, control: WorkerDoneControl) -> None:
         inflight = self._inflight
