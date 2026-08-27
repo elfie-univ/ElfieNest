@@ -41,7 +41,7 @@ export type SetupModelOption = z.infer<typeof SetupModelOptionSchema>
 export type SetupOllamaObservation = z.infer<typeof SetupOllamaObservationSchema>
 
 export async function setupStatus(): Promise<SetupStatus> {
-  return SetupStatusSchema.parse(await requestJson("/api/v1/setup/status"))
+  return SetupStatusSchema.parse(await requestJson("/api/v1/setup/status", { cache: "no-store" }))
 }
 export async function setupModelCatalog(): Promise<readonly SetupModelOption[]> {
   return SetupModelCollectionSchema.parse(await requestJson("/api/v1/setup/models")).items

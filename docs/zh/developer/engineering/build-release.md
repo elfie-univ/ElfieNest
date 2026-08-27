@@ -32,9 +32,9 @@ GitHub Pages 使用 `/ElfieNest/` base。Pull Request 只构建；只有经过�
 4. 用户完成页面目视验收；
 5. 再由负责人决定何时提交、推送和部署。
 
-## 0.1.0-beta.1 内测桌面安装包
+## 0.1.0-beta.2 内测桌面安装包
 
-当前只构建内部测试安装包：版本固定为 `0.1.0-beta.1`，不配置自动更新，也不打包任何
+当前只构建内部测试安装包：版本固定为 `0.1.0-beta.2`，不配置自动更新，也不打包任何
 模型权重。每个平台必须在对应原生 runner 上构建：macOS
 ARM64、macOS x64、Windows x64、Linux x64。安装包不包含 Ollama 引擎或模型，也不
 创建私有 sidecar；公共 Ollama 是 Setup 中可选的用户决策。
@@ -50,10 +50,14 @@ CLI 暴露为全局 `elfienest` 命令。POSIX 钩子只有在现有命令是同
 Windows 只在当前用户 PATH 中增加和删除本次安装目录对应的精确项。
 
 原生 runner 会通过 `scripts/release.py --run-install-smoke` 调用
-`scripts/internal/release/release_install_smoke.py`。每个有界循环都会安装安装包、通过全局 launcher
-启动、必须到达 `WORLD_READY`、停止到 `OFFLINE`、再次安装同一个包验证升级，
-最后卸载并证明所选 `ELFIE_HOME` 仍然保留。输出 JSON 会记录已到达的 `WORLD_READY`，并包含带类型的安装/启动/健康/停止/
-升级/卸载耗时和预算，Workflow 会把它和安装包一起上传。不带
+`scripts/internal/release/release_install_smoke.py`。发布 Workflow 会运行三个有界循环。
+每个循环都会安装安装包，通过全局 launcher 启动安装版 Desktop Controller，必须到达
+`WORLD_READY`，记录 Controller、Core 和 Godot authority PID，停止到 `OFFLINE`，证明这些
+PID 与 Desktop receipt 已消失，再次安装同一个包验证升级。最后卸载并证明所选
+`ELFIE_HOME` 仍然保留。`--run-viewer-check` 会激活安装版 Viewer，并要求脱敏的管理页 ready
+diagnostic marker；它是最小激活检查，不能替代完整渲染 UI 旅程。输出 JSON 会记录已到达的 `WORLD_READY`、Controller PID、已验证
+停止的 PID 集合，以及带类型的安装/启动/健康/停止/升级/卸载耗时和预算，Workflow 会把它
+和安装包一起上传。不带
 `--run-install-smoke` 的本地构建不会修改主机安装环境。
 smoke runner 会在首次清理前从 DEB 读取 Linux 软件包名，不会无条件删除全局 launcher。
 
@@ -63,6 +67,7 @@ smoke runner 会在首次清理前从 DEB 读取 Linux 软件包名，不会无�
 
 # 只在一次性原生发布 runner 上运行；同时执行安装/升级/烟测/卸载。
 .venv/bin/python scripts/release.py --target darwin-x64 --run-install-smoke \
+  --run-product-journey --run-recovery-matrix --run-viewer-check --smoke-cycles 3 \
   --smoke-evidence-output dist/ElfieNest-darwin-x64-install-smoke.json
 
 # 请求完整矩阵；不可用 runner 保持 incomplete
@@ -71,18 +76,23 @@ smoke runner 会在首次清理前从 DEB 读取 Linux 软件包名，不会无�
 
 仓库内的 `.github/workflows/release.yml` 是多平台发布 Pipeline。它分别使用
 macOS arm64、macOS Intel、Windows x64 和 Linux x64 的原生 GitHub runner。手动运行
-`workflow_dispatch` 会构建四个安装包并保存为 Actions artifacts；推送与项目版本一致
-的 tag（例如 `v0.1.0-beta.1`）会运行同一套矩阵，校验各平台安装包内容，并把四个安装包、
-发布到 GitHub Releases。每个平台的 typed install-smoke JSON 只保留在 Actions 构建产物中
-作为 CI 证据，不作为 Release 下载项展示。带预发布后缀的 tag
+`workflow_dispatch` 会构建四个安装包并保存为 Actions artifacts；Linux 会在 Xvfb 下运行
+真实 Desktop Controller，并额外校验 freedesktop 入口。在任何昂贵的原生构建之前，小型
+preflight 会绑定项目版本、已存在的发布 tag 和准确 `GITHUB_SHA`；手动发布只有在 tag 已
+存在且指向本次源码提交时才允许继续。推送与项目版本一致的 tag（例如
+`v0.1.0-beta.2`）会运行同一套矩阵，校验各平台安装包内容，并把四个安装包及
+`SHA256SUMS` 发布到 GitHub Releases。每个平台的 typed install-smoke JSON 只保留在 Actions 构建产物中
+作为 CI 证据；发布 job 会在创建 Release 前独立聚合四个平台摘要并校验准确候选/包哈希与脱敏
+哨兵，不作为 Release 下载项展示。带预发布后缀的 tag
 会被标记为 GitHub Pre-release；手动运行只有在开启
-`publish_release` 且填写匹配的 `release_tag` 时才会创建 Release。
+`publish_release`，且 `release_tag` 是指向本次 Workflow 源码 SHA 的匹配既有 tag 时才会
+创建 Release。
 
 当前版本的正常发布命令是：
 
 ```bash
-git tag -a v0.1.0-beta.1 -m "ElfieNest 0.1.0-beta.1"
-git push origin v0.1.0-beta.1
+git tag -a v0.1.0-beta.2 -m "ElfieNest 0.1.0-beta.2"
+git push origin v0.1.0-beta.2
 ```
 
 Workflow 会在各平台校验安装后的资源布局，但当前内测包仍未签名或公证。交给测试者

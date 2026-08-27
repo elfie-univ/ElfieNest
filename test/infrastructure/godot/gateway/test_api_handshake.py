@@ -155,7 +155,7 @@ def test_gateway_rejects_wrong_nonce_and_origin() -> None:
 
     assert wrong_nonce.closed == [(4004, "Invalid Godot handshake")]
     assert wrong_origin.closed == [(4005, "Origin not allowed")]
-    assert empty_origin.closed == [(4005, "Origin not allowed")]
+    assert empty_origin.closed == []
 
 
 def test_gateway_allows_configured_web_runtime_origin() -> None:
@@ -172,6 +172,48 @@ def test_gateway_allows_configured_web_runtime_origin() -> None:
     anyio.run(server._handle_client, websocket)
 
     assert websocket.closed == []
+
+
+def test_gateway_allows_native_dedicated_loopback_origin_without_port() -> None:
+    server = GodotAPIServer(port=8765, handshake_nonce="nonce-1")
+    websocket = FakeWebSocket(
+        [_hello(protocol=3, nonce="nonce-1")],
+        origin="http://127.0.0.1",
+    )
+
+    anyio.run(server._handle_client, websocket)
+
+    assert websocket.closed == []
+
+
+def test_gateway_normalizes_native_loopback_origin_trailing_slash() -> None:
+    server = GodotAPIServer(port=8765, handshake_nonce="nonce-1")
+    websocket = FakeWebSocket(
+        [_hello(protocol=3, nonce="nonce-1")],
+        origin="http://127.0.0.1:8765/",
+    )
+
+    anyio.run(server._handle_client, websocket)
+
+    assert websocket.closed == []
+
+
+def test_gateway_rejects_origin_with_credentials_or_path() -> None:
+    server = GodotAPIServer(port=8765, handshake_nonce="nonce-1")
+    with_credentials = FakeWebSocket(
+        [_hello(protocol=3, nonce="nonce-1")],
+        origin="http://user:pass@127.0.0.1:8765",
+    )
+    with_path = FakeWebSocket(
+        [_hello(protocol=3, nonce="nonce-1")],
+        origin="http://127.0.0.1:8765/runtime",
+    )
+
+    anyio.run(server._handle_client, with_credentials)
+    anyio.run(server._handle_client, with_path)
+
+    assert with_credentials.closed == [(4005, "Origin not allowed")]
+    assert with_path.closed == [(4005, "Origin not allowed")]
 
 
 def test_gateway_restarts_fifty_times_without_leaking_thread_or_clients() -> None:

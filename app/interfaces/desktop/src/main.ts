@@ -76,6 +76,8 @@ let controllerStartPromise: Promise<DesktopRoleState> | undefined;
 let desktopDiagnostics: DesktopDiagnostics | undefined;
 let removeProcessExceptionHandlers: (() => void) | undefined;
 let diagnosticsTimer: NodeJS.Timeout | undefined;
+const DESKTOP_CLEANUP_TIMEOUT_MS = 5_000;
+const DESKTOP_IPC_CLOSE_TIMEOUT_MS = 1_000;
 
 type RecoveryAction =
   | "recover-data-home"
@@ -163,6 +165,9 @@ function recoveryActionFromUrl(url: string): RecoveryAction | undefined {
 }
 
 function bindManagementWindow(window: BrowserWindow): void {
+  window.webContents.on("did-finish-load", () => {
+    desktopDiagnostics?.event("management_page_ready");
+  });
   window.on("unresponsive", () => {
     desktopDiagnostics?.event("management_window_unresponsive", {}, "error");
   });
@@ -418,12 +423,18 @@ async function startDesktop(): Promise<void> {
     }
     throw new Error(state.reason);
   }
+  if (state.kind === "attached" || state.kind === "owned") {
+    // A background Controller has no window during initial startup. Keep the
+    // ready Runtime URL available so a later single-instance activation can
+    // create the Viewer and load the real management page.
+    runtimeUiAvailable = true;
+    runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
+    if (runtimeUiUrl === undefined) {
+      throw new Error("Runtime did not publish an HTTP endpoint");
+    }
+  }
   const window = managementWindow.current();
   if (window !== undefined) {
-    runtimeUiAvailable = true;
-    if (state.kind === "attached" || state.kind === "owned") {
-      runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
-    }
     if (runtimeUiUrl === undefined) {
       throw new Error("Runtime did not publish an HTTP endpoint");
     }
@@ -433,7 +444,12 @@ async function startDesktop(): Promise<void> {
 
 function startDesktopUiRole(): void {
   Menu.setApplicationMenu(APPLICATION_MENU);
-  const controllerHome = controllerHomeForAppData(app.getPath("appData"));
+  const configuredAppData = process.env["ELFIENEST_DESKTOP_APP_DATA"]?.trim();
+  const controllerHome = controllerHomeForAppData(
+    configuredAppData === undefined || configuredAppData === ""
+      ? app.getPath("appData")
+      : configuredAppData,
+  );
   app.setPath("userData", controllerHome);
   const hasSingleInstanceLock = app.requestSingleInstanceLock();
   if (!hasSingleInstanceLock) {
@@ -672,21 +688,59 @@ app.on("before-quit", (event) => {
   desktopDiagnostics?.event("desktop_before_quit", {
     reason: requestedExitReason,
   });
-  if (!explicitExitRequested || exitInProgress) {
+  // A managed SIGTERM can cause Electron to emit before-quit without first
+  // delivering the Node signal handler. The primary Controller must still
+  // run its ordered Runtime cleanup; a secondary instance has no role
+  // controller and should exit immediately.
+  if (roleController === undefined || exitInProgress) {
     return;
+  }
+  if (!explicitExitRequested) {
+    requestedExitReason = "before-quit";
   }
   event.preventDefault();
   explicitExitRequested = false;
   exitInProgress = true;
   const cleanup = roleController?.exitApplication() ?? Promise.resolve();
-  void cleanup
+  let cleanupTimer: NodeJS.Timeout | undefined;
+  const cleanupDeadline = new Promise<void>((resolve) => {
+    cleanupTimer = setTimeout(() => {
+      desktopDiagnostics?.event(
+        "runtime_cleanup_timeout",
+        { timeout_ms: DESKTOP_CLEANUP_TIMEOUT_MS },
+        "warning",
+      );
+      resolve();
+    }, DESKTOP_CLEANUP_TIMEOUT_MS);
+  });
+  void Promise.race([cleanup, cleanupDeadline])
     .catch((error: unknown) => {
       desktopDiagnostics?.error("runtime_cleanup_failed", error);
       const message = error instanceof Error ? error.message : String(error);
       console.error("ElfieNest Runtime cleanup during quit failed", message);
     })
     .finally(async () => {
-      await controllerIpcServer?.close();
+      if (cleanupTimer !== undefined) {
+        clearTimeout(cleanupTimer);
+      }
+      const ipcServer = controllerIpcServer;
+      if (ipcServer !== undefined) {
+        let ipcCloseTimer: NodeJS.Timeout | undefined;
+        const ipcCloseDeadline = new Promise<void>((resolve) => {
+          ipcCloseTimer = setTimeout(() => {
+            desktopDiagnostics?.event(
+              "controller_ipc_close_timeout",
+              { timeout_ms: DESKTOP_IPC_CLOSE_TIMEOUT_MS },
+              "warning",
+            );
+            resolve();
+          }, DESKTOP_IPC_CLOSE_TIMEOUT_MS);
+        });
+        await Promise.race([ipcServer.close(), ipcCloseDeadline]);
+        if (ipcCloseTimer !== undefined) {
+          clearTimeout(ipcCloseTimer);
+        }
+      }
       controllerIpcServer = undefined;
       console.info("ElfieNest Desktop cleanup complete", requestedExitReason);
       app.exit(0);
@@ -767,5 +821,13 @@ export function requestExplicitApplicationExit(
   backgroundTray = undefined;
   app.quit();
 }
+
+// The packaged lifecycle controller terminates the Desktop Controller with a
+// POSIX signal after asking it to stop the owned runtime.  Handle that signal
+// through the same explicit-exit path as the tray/menu action so Electron runs
+// the normal role cleanup and closes its process instead of lingering in a
+// partially-quit state.
+process.once("SIGTERM", () => requestExplicitApplicationExit("sigterm"));
+process.once("SIGINT", () => requestExplicitApplicationExit("sigint"));
 
 startDesktopUiRole();

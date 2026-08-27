@@ -1,6 +1,6 @@
 {
   "name": "elfienest-desktop",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "private": true,
   "type": "module",
   "description": "ElfieNest 跨平台桌面应用外壳",
@@ -13,10 +13,11 @@
   "scripts": {
     "build": "pnpm exec tsc -p tsconfig.json && pnpm exec tsc -p tsconfig.preload.json",
     "build:macos-helper": "node scripts/build_macos_wifi_helper.mjs",
+    "build:macos-helper:optional": "node scripts/build_optional_macos_wifi_helper.mjs",
     "test": "pnpm build && node --test ../../../build/components/desktop-interface/application_menu.test.js ../../../build/components/desktop-interface/resources/resource_manifest.test.js ../../../build/components/desktop-interface/desktop_role_lifecycle.test.js ../../../build/components/desktop-interface/diagnostics.test.js ../../../build/components/desktop-interface/lifecycle_client.test.js ../../../build/components/desktop-interface/controller_ipc.test.js ../../../build/components/desktop-interface/mobile_network_access.test.js ../../../build/components/desktop-interface/preload.test.js ../../../build/components/desktop-interface/windows/window_options.test.js ../../../build/components/desktop-interface/windows/window_registry.test.js",
     "build-resource-manifest": "pnpm build && node ../../../build/components/desktop-interface/resources/build_resource_manifest.js",
     "dev": "pnpm build && electron ../../../app/bootstrap/desktop_host/host_main.mjs",
-    "package": "pnpm build && pnpm build:macos-helper && electron-builder --publish never --config ../../../app/bootstrap/desktop_host/electron-builder.yml"
+    "package": "pnpm build && pnpm build:macos-helper:optional && electron-builder --publish never --config ../../../app/bootstrap/desktop_host/electron-builder.yml"
   },
   "packageManager": "pnpm@10.12.1",
   "engines": {

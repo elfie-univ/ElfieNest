@@ -102,6 +102,37 @@
 三轮审查后，没有遗留需要新增产品规则的决策冲突；开放项是实现与支持主机外部证据，不是
 authority 语义未定。
 
+### 原生发布验收队列
+
+以下各行独立关闭。本地实现或单元测试只能把状态推进到“已实现；外部未测试”，只有指定
+原生证据才能关闭。目标覆盖与收口顺序由[原生发布验证设计](../designs/native-release-validation.md)
+定义。
+
+任何 NAT 行改为“已关闭”前，该行或所附证据必须记录 `target`、`inventory`、`references`、
+`verification` 与 `residuals`，并包含准确 OS 镜像、候选 SHA 与安装包 SHA-256。NAT 行为已有
+LFC/CFG/PMA 契约提供原生证据，不能仅凭同名台账行关闭或重复替代那些契约。
+
+| ID | 严重级别 | 状态 | 可立即完成的实现 | 外部收口证据 |
+| --- | --- | --- | --- | --- |
+| NAT-MAC-01 | P0 | 已实现；外部未测试 | 发布 smoke 代码支持 macOS arm64 与 Intel 两个安装版 Controller/Core/Godot 链。 | 两个干净原生 target 通过准确包 smoke 与收据/footprint 检查；真实 macOS 会话证明交互式 PKG/Launchpad、Viewer/Observer、托盘、单实例、关闭与卸载。 |
+| NAT-WIN-01 | P0 | 已实现；外部未测试 | 发布 smoke 启动安装版 Windows Controller，运行三轮循环，记录 Controller/Core/Godot PID 并拒绝仍存活的已记录进程。 | 冻结的 Windows 主机通过准确包 smoke、收据/PATH/开始菜单/Apps 注册与移除、普通用户启动、托盘/单实例交接、干净循环和证据保留。 |
+| NAT-LNX-01 | P0 | 已实现；外部未测试 | 发布 smoke 在 Xvfb 下运行安装版 Linux Controller；CI 检查 Dedicated Runtime 与 freedesktop entry。 | 每个命名支持的 DEB 主机通过准确包 smoke、dpkg/desktop-entry/icon/launcher footprint、普通用户启动、图形与 Dedicated authority；命名桌面会话证明应用菜单与托盘行为。 |
+| NAT-COMPAT-01 | P0 | 已实现；外部未测试 | 准确内测 OS 版本、Linux 发行版/会话与原生 runner 镜像已在设计文档和发布 Workflow 冻结。 | 每个声明支持的单元格都有准确 CI 镜像或命名真实主机样本，并记录架构、OS build、桌面/会话和结果；未测单元格从支持结论排除。 |
+| NAT-MODEL-01 | P0 | 已实现；外部未测试 | loopback 脚本模型服务、合成凭据边界、能力探测、Common/Emergency Food、领养/Chat 回复与 fail-closed 请求检查已实现。 | 一条安装版参考旅程通过生产 HTTP Adapter 证明模型聚合就绪、`adoption_candidate_reveal_v1` 与完整回复 Chat；测试服务/凭据无残留且证据无 Secret。 |
+| NAT-JOURNEY-01 | P0 | 已实现；外部未测试 | 安装版 Setup/Provider/Food/领养/Chat/重启 Driver 已接入每轮原生 smoke，不写数据库并输出脱敏证据。 | 四个准确包哈希都从中性 cwd 通过，不回退 checkout；证据保留 Setup、Elfie/历史、执行收据与 PID/generation 连续性，失败诊断脱敏。 |
+| NAT-UI-01 | P0 | 部分实现 | 原生 smoke 已激活安装版 Viewer 并要求脱敏的 `management_page_ready` marker；完整渲染版 Setup 到 Chat UI 旅程和事件严重级别门禁仍待补齐。 | 共享 UI 路径通过；四个 target 都证明激活、管理页 ready marker、Observer 已渲染且无致命 Renderer/Console 事件；OS Shell 行为另附证据。 |
+| NAT-RECOVERY-01 | P0 | 部分实现 | 原生 smoke 可运行重复启动矩阵，并拒绝 generation 或受管 PID 集合变化；聚焦生命周期测试覆盖准确身份与有界清理。 | 适用 Windows/POSIX/原生 authority 场景在一次性数据根使用准确 PID 注入通过、有界恢复且不操作无关进程；关联 LFC residual 在自身证据关闭前继续开放。 |
+| NAT-UPGRADE-01 | P0 | 未实现 | 将同版本重新安装替换为上一发行版到候选的验收，包含运行中 Controller 交接，状态只由支持的安装版 API 创建。 | 四个 target 都以准确新旧哈希证明安全交接、版本/source 变化、credential reference 可用及 Owner/Provider/Food/Nest/Elfie/Chat/配置连续性。 |
+| NAT-EVIDENCE-01 | P0 | 已实现；外部未测试 | smoke JSON 已包含候选/包身份和 runner 字段；独立四 target 聚合器强制准确哈希、旅程存在和脱敏哨兵。 | 独立聚合器拒绝故意错配或含 Secret 的摘要，并接受同一准确四 target 候选；普通 PR 不保留安装包，存储保持预算内。 |
+| NAT-PROVIDER-01 | P0 | 外部未测试 | 确定性包验收继续独立于 Provider 可用性；受保护最小 canary 只作为分离的连通性信号。 | 当前 PMA-002 代表性真实 Provider 能力矩阵为该发行通过且不暴露凭据/Prompt；Adapter 缺口与安装包结果分开记录。 |
+| NAT-LONG-01 | P0 | 外部未测试 | 冻结 target 特定预算并提供脱敏 Soak 趋势分类器；被动只读观察继续与主动一次性主机 Soak 分开。 | macOS、Windows、Linux 都完成约定窗口，具备 PID/generation、CPU/RSS/handle 或 FD、日志/数据增长、错误/崩溃与恢复证据；没有未解释重启或超预算趋势。 |
+| NAT-SIGN-01 | P1 | 按内测范围延期 | 当前内测包契约明确不设签名/公证门禁。 | 只有明确授权公开 Windows/macOS 发布且签名身份可用时，才另开并关闭公开发行任务。 |
+
+收口映射：NAT-MODEL 与 NAT-PROVIDER 保护 LFC-004/PMA-002；NAT-JOURNEY 保护 CFG-003
+并提供 LFC-001/002/009/010 证据；NAT-RECOVERY 提供 LFC-001/002/003/005/006/008
+证据；平台行和 NAT-UPGRADE 提供 LFC-006/007/009 证据。只要受影响 LFC/PMA residual
+仍开放，关闭 NAT 行也不能形成发布收口结论。
+
 | ID | 严重度 | 状态 | 当前偏差 | 收口门 | 证据 |
 | --- | --- | --- | --- | --- | --- |
 | LFC-001 | P0 | in progress | 快照 Schema、generation、phase、目标、端点、失败、计时、Controller token 认证和 generation 级 writer 交接已实现；旧 writer 凭据会被拒绝。 | 在支持的已安装主机上证明同一套 authority/identity 链，包括进程出生身份和恢复。 | target=权威快照；inventory=`runtime_snapshot.py`、`runtime_record.py`、`runtime_supervisor.py`、`controller_ipc.py`；references=契约 Authority；verification=架构门禁及 runtime-record/supervisor/IPC 测试；residuals=已安装跨平台身份与恢复验收仍缺。 |

@@ -50,6 +50,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 BACKGROUND_START_TIMEOUT_SECONDS = 60.0
 AUTHORITY_START_TIMEOUT_SECONDS = 120.0
 CONTROLLER_STOP_TIMEOUT_SECONDS = 15.0
+CONTROLLER_DESKTOP_EXIT_TIMEOUT_SECONDS = 10.0
 _DISPLAY_DATA_HOME: ContextVar[Optional[str]] = ContextVar(
     "elfienest_display_data_home", default=None
 )
@@ -863,12 +864,25 @@ def stop_background_service(
                 )
                 print(f"  ❌ Failed to stop service: {result.error}")
                 return result
-            desktop_result = lifecycle.stop_desktop(selected_home)
-            if desktop_result.status == "failed":
-                print(f"  ❌ Failed to stop service: {desktop_result.error}")
-                return desktop_result
+            # STOP_SERVER asks the Controller to stop its owned Runtime and
+            # then exit.  Sending a second SIGTERM here races that cleanup on
+            # macOS (especially while Electron's renderer/GPU children exit),
+            # leaving a live PID receipt even though Runtime is already
+            # offline.  Observe the Controller receipt instead; the Controller
+            # remains the sole owner of its own shutdown path.
+            if not _wait_for_desktop_controller_exit(lifecycle, selected_home):
+                result = ServiceLifecycleResult(
+                    status="failed",
+                    error=LaunchFailedError(
+                        "Controller accepted stop but Desktop did not exit "
+                        f"within {CONTROLLER_DESKTOP_EXIT_TIMEOUT_SECONDS:g} seconds"
+                    ),
+                )
+                print(f"  ❌ Failed to stop service: {result.error}")
+                return result
+            lifecycle.remove_desktop_receipt(selected_home)
             print("  ✅ Service stopped")
-            return ServiceLifecycleResult(status="stopped", pid=desktop_result.pid)
+            return ServiceLifecycleResult(status="stopped")
 
     supervisor = _supervisor_for(
         lifecycle,
@@ -1628,6 +1642,26 @@ def _wait_for_runtime_offline(
             and snapshot.startup_owner_id is None
         ):
             return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(poll_interval_seconds)
+
+
+def _wait_for_desktop_controller_exit(
+    lifecycle: LifecycleFacade,
+    elfie_home: Path,
+    *,
+    timeout_seconds: float = CONTROLLER_DESKTOP_EXIT_TIMEOUT_SECONDS,
+    poll_interval_seconds: float = 0.1,
+) -> bool:
+    """Observe the Controller PID after its authenticated stop request."""
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        try:
+            if lifecycle.desktop_process_id(elfie_home) is None:
+                return True
+        except (OSError, RuntimeError, ValueError):
+            return False
         if time.monotonic() >= deadline:
             return False
         time.sleep(poll_interval_seconds)

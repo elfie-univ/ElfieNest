@@ -12,6 +12,7 @@ import threading
 from concurrent.futures import CancelledError, Future
 from threading import RLock
 from typing import Any, Protocol, cast
+from urllib.parse import urlsplit
 
 import websockets
 
@@ -69,6 +70,19 @@ class GodotAPIServer:
             else {
                 f"http://127.0.0.1:{http_port}",
                 f"http://localhost:{http_port}",
+                # The displayless Dedicated Runtime uses Godot's native
+                # WebSocketPeer.  Its handshake Origin is derived from the
+                # WebSocket endpoint rather than the Core HTTP page, so the
+                # exact loopback WS origins must be trusted as well.
+                f"http://127.0.0.1:{self.port}",
+                f"http://localhost:{self.port}",
+                # Godot's native Dedicated export may omit the default port
+                # or the Origin header entirely.  The empty-origin case is
+                # still protected by the per-runtime handshake nonce below;
+                # remote origins remain rejected by the handshake gate.
+                "http://127.0.0.1",
+                "http://localhost",
+                "",
             }
         )
         self.clients: set[Any] = set()
@@ -211,8 +225,13 @@ class GodotAPIServer:
     async def _handle_client(self, websocket: Any) -> None:
         request = getattr(websocket, "request", None)
         headers = getattr(request, "headers", {})
-        if headers.get("Origin", "") not in self.allowed_origins:
-            self._log_handshake_rejection("origin", "origin not allowed")
+        origin = headers.get("Origin", "")
+        if not self._origin_allowed(origin):
+            self._log_handshake_rejection(
+                "origin",
+                "origin not allowed",
+                origin=origin,
+            )
             await websocket.close(4005, "Origin not allowed")
             return
         try:
@@ -326,18 +345,75 @@ class GodotAPIServer:
         except Exception:
             logger.exception("Godot Runtime gateway asynchronous stop failed")
 
-    def _log_handshake_rejection(self, reason: str, message: str) -> None:
+    def _origin_allowed(self, origin: object) -> bool:
+        """Match WebSocket origins without trusting formatting variations.
+
+        Godot's native WebSocketPeer has emitted the same loopback origin both
+        with and without a trailing slash across platform/runtime versions.
+        Normalize only a valid HTTP(S) origin, then compare it with the
+        explicitly configured allow-list.  Native Dedicated runtimes may omit
+        Origin; the authenticated nonce handshake still protects that case.
+        """
+        normalized = self._normalize_origin(origin)
+        if normalized is None:
+            return False
+        allowed = {
+            value if value == "" else self._normalize_origin(value)
+            for value in self.allowed_origins
+        }
+        return normalized in allowed
+
+    @staticmethod
+    def _normalize_origin(origin: object) -> str | None:
+        if not isinstance(origin, str):
+            return None
+        value = origin.strip()
+        if value == "":
+            return ""
+        try:
+            parsed = urlsplit(value)
+            port = parsed.port
+        except ValueError:
+            return None
+        if (
+            parsed.scheme.lower() not in {"http", "https"}
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.hostname is None
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+        ):
+            return None
+        host = parsed.hostname.lower()
+        netloc = host if ":" not in host else f"[{host}]"
+        if port is not None:
+            netloc = f"{netloc}:{port}"
+        return f"{parsed.scheme.lower()}://{netloc}"
+
+    def _log_handshake_rejection(
+        self,
+        reason: str,
+        message: str,
+        *,
+        origin: object | None = None,
+    ) -> None:
         attempt = self._sampled_diagnostic_count(f"handshake:{reason}")
         if attempt is None:
             return
+        details: dict[str, object] = {
+            "diagnostic_event": "godot_handshake_rejected",
+            "reason": reason,
+            "attempt": attempt,
+        }
+        if origin is not None:
+            details["origin"] = (
+                origin[:256] if isinstance(origin, str) else type(origin).__name__
+            )
         logger.warning(
             "Rejected Godot handshake: %s",
             message,
-            extra={
-                "diagnostic_event": "godot_handshake_rejected",
-                "reason": reason,
-                "attempt": attempt,
-            },
+            extra=details,
         )
 
     def _sampled_diagnostic_count(self, key: str) -> int | None:

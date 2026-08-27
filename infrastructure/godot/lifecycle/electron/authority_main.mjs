@@ -38,6 +38,14 @@ let resourceTimer = null;
 let failedLoadCount = 0;
 const rendererDiagnosticOccurrences = new Map();
 
+// Release smoke runs execute a hidden Electron authority on shared macOS CI
+// hosts where the hardware WebGL stack is not stable.  Keep this opt-in and
+// test-only so normal installed users retain native acceleration.
+if (process.env.ELFIENEST_RELEASE_SMOKE === "1") {
+  app.commandLine.appendSwitch("disable-gpu");
+  app.commandLine.appendSwitch("enable-unsafe-swiftshader");
+}
+
 function redactDiagnosticText(value) {
   return String(value)
     .replace(/(https?:\/\/[^\s?]+)\?[^\s]+/giu, "$1?<redacted>")
@@ -167,9 +175,17 @@ function pruneCrashDumps(directory) {
 function recordRendererConsole(details) {
   details.preventDefault();
   const consoleLevel = diagnosticLevel(details.level);
+  const rendererMessage = String(details.message);
+  if (rendererMessage.toUpperCase().includes("CONTEXT_LOST_WEBGL")) {
+    emitDiagnostic("webgl_context_lost", "critical", {
+      message: redactDiagnosticText(rendererMessage).slice(0, 2048),
+    });
+    requestShutdown(12, "webgl_context_lost");
+    return;
+  }
   let parsed;
   try {
-    parsed = JSON.parse(details.message);
+    parsed = JSON.parse(rendererMessage);
   } catch (_error) {
     parsed = null;
   }
@@ -216,7 +232,7 @@ function recordRendererConsole(details) {
   }
   if (consoleLevel === "warning" || consoleLevel === "error") {
     emitDiagnostic("authority_renderer_console", consoleLevel, {
-      message: redactDiagnosticText(details.message).slice(0, 2048),
+      message: redactDiagnosticText(rendererMessage).slice(0, 2048),
     });
   }
 }
@@ -356,21 +372,35 @@ function requestShutdown(exitCode = 0, reason = "requested") {
     exit_code: exitCode,
     reason,
   });
+  const exitProcess = () => {
+    app.exit(exitCode);
+    process.exit(exitCode);
+  };
   if (authorityWindow !== null && !authorityWindow.isDestroyed()) {
     authorityWindow.close();
+    // Electron can defer BrowserWindow teardown when this is called from a
+    // renderer callback (notably WebGL context loss). Let the close event
+    // unwind before forcing the hidden authority process to exit.
+    setImmediate(exitProcess);
+    return;
   }
   // This process is a hidden authority child with no user-facing work to save.
   // app.quit() waits for Electron's asynchronous lifecycle while the parent
   // Supervisor is already waiting on this exact process group. Exit directly
   // so an explicit Runtime stop does not inherit Electron's multi-second tail.
-  app.exit(exitCode);
-  process.exit(exitCode);
+  exitProcess();
 }
 
 process.once("SIGTERM", () => requestShutdown(0, "sigterm"));
 process.once("SIGINT", () => requestShutdown(0, "sigint"));
 
-app.setPath("userData", join(app.getPath("userData"), authorityNamespace));
+const configuredAuthorityUserData = process.env.ELFIENEST_AUTHORITY_USER_DATA;
+app.setPath(
+  "userData",
+  configuredAuthorityUserData === undefined || configuredAuthorityUserData === ""
+    ? join(app.getPath("userData"), authorityNamespace)
+    : configuredAuthorityUserData,
+);
 try {
   crashReporter.start({
     companyName: "ElfieNest",
@@ -443,6 +473,16 @@ void (async () => {
 });
 
 app.on("render-process-gone", (_event, webContents, details) => {
+  const expectedSignalTermination = (
+    details.reason === "killed" && details.exitCode === 15
+  );
+  if (shuttingDown || expectedSignalTermination) {
+    emitDiagnostic("render_process_gone_during_shutdown", "info", {
+      reason: details.reason,
+      exit_code: details.exitCode,
+    });
+    return;
+  }
   emitDiagnostic("render_process_gone", "critical", {
     reason: details.reason,
     exit_code: details.exitCode,

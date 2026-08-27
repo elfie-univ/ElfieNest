@@ -39,6 +39,14 @@ def test_hidden_authority_retries_core_load_and_handles_owned_shutdown() -> None
     assert "process.exit(exitCode)" in source
 
 
+def test_release_smoke_uses_opt_in_software_webgl_on_shared_ci_hosts() -> None:
+    source = AUTHORITY_MAIN.read_text(encoding="utf-8")
+
+    assert 'process.env.ELFIENEST_RELEASE_SMOKE === "1"' in source
+    assert 'app.commandLine.appendSwitch("disable-gpu")' in source
+    assert 'app.commandLine.appendSwitch("enable-unsafe-swiftshader")' in source
+
+
 def test_hidden_authority_records_process_and_electron_crash_surfaces() -> None:
     source = AUTHORITY_MAIN.read_text(encoding="utf-8")
 
@@ -57,11 +65,17 @@ def test_hidden_authority_records_process_and_electron_crash_surfaces() -> None:
     assert "crash_reporter_start_failed" in source
     assert "redactDiagnosticText(errorDescription).slice(0, 2048)" in source
     assert 'emitDiagnostic("authority_window_unresponsive", "warning")' in source
+    assert 'emitDiagnostic("webgl_context_lost", "critical", {' in source
+    assert 'requestShutdown(12, "webgl_context_lost")' in source
+    assert "setImmediate(exitProcess)" in source
     assert 'requestShutdown(12, "renderer_unresponsive")' not in source
     assert "AUTHORITY_UNRESPONSIVE_GRACE_MS" not in source
     assert "parsed.total_attempts" in source
     assert "sampledRendererDiagnostic" in source
     assert "suppressed_count" in source
+    assert "if (shuttingDown)" in source
+    assert '"render_process_gone_during_shutdown"' in source
+    assert 'details.reason === "killed" && details.exitCode === 15' in source
 
 
 def test_hidden_authority_redacts_oauth_credentials_and_authorization_headers() -> None:
@@ -133,3 +147,24 @@ def test_bootstrap_host_loads_and_packages_the_authority_entrypoint() -> None:
     assert "from: packaged-resources" in host_config
     assert "icon: assets/elfienest-macos-app-icon.png" in host_config
     assert "icon: assets/elfienest-app-icon.png" in host_config
+
+
+def test_desktop_controller_handles_lifecycle_termination_signals() -> None:
+    source = (PROJECT_ROOT / "app/interfaces/desktop/src/main.ts").read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        'process.once("SIGTERM", () => requestExplicitApplicationExit("sigterm"))'
+        in source
+    )
+    assert (
+        'process.once("SIGINT", () => requestExplicitApplicationExit("sigint"))'
+        in source
+    )
+    assert "DESKTOP_CLEANUP_TIMEOUT_MS" in source
+    assert "runtime_cleanup_timeout" in source
+    assert "DESKTOP_IPC_CLOSE_TIMEOUT_MS" in source
+    assert "controller_ipc_close_timeout" in source
+    assert "if (roleController === undefined || exitInProgress)" in source
+    assert 'requestedExitReason = "before-quit"' in source

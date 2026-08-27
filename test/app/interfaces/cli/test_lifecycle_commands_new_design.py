@@ -563,7 +563,9 @@ def test_packaged_start_surfaces_controller_failure(monkeypatch, capsys) -> None
     assert "Core could not bind its endpoint" in capsys.readouterr().out
 
 
-def test_packaged_stop_waits_for_confirmed_offline_state(monkeypatch) -> None:
+def test_packaged_stop_waits_for_confirmed_offline_state(
+    monkeypatch, tmp_path: Path
+) -> None:
     monkeypatch.setenv("ELFIENEST_DESKTOP_BIN", "/Applications/ElfieNest")
     monkeypatch.delenv("ELFIENEST_CONTROLLER_CLIENT", raising=False)
     monkeypatch.setattr(
@@ -580,14 +582,17 @@ def test_packaged_stop_waits_for_confirmed_offline_state(monkeypatch) -> None:
         "runtime_snapshot",
         lambda *_args, **_kwargs: next(snapshots),
     )
-    stopped_desktop: list[Path] = []
+    desktop_pids = iter((99, None))
+    removed_receipts: list[Path] = []
     monkeypatch.setattr(
         LIFECYCLE,
-        "stop_desktop",
-        lambda home: (
-            stopped_desktop.append(home)
-            or ServiceLifecycleResult(status="stopped", pid=99)
-        ),
+        "desktop_process_id",
+        lambda _home: next(desktop_pids),
+    )
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "remove_desktop_receipt",
+        lambda home: removed_receipts.append(home),
     )
     monkeypatch.setattr(
         LIFECYCLE,
@@ -598,7 +603,7 @@ def test_packaged_stop_waits_for_confirmed_offline_state(monkeypatch) -> None:
     result = lifecycle_commands.stop_background_service(LIFECYCLE)
 
     assert result.status == "stopped"
-    assert stopped_desktop
+    assert removed_receipts == [tmp_path / "elfie-home"]
 
 
 def test_start_reports_incompatible_database_before_launch(monkeypatch, capsys) -> None:

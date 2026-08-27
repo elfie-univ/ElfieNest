@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional, Sequence, cast
 
 from app.orchestration.lifecycle.ports import DesktopProcess
+from infrastructure.platform.lifecycle.process import DefaultProcessInspector
 
 PID_NAME = "desktop.pid"
 
@@ -43,14 +44,35 @@ class LocalDesktopHostAdapter:
         return None
 
     def launch(self, command: Sequence[str], cwd: Path) -> DesktopProcess:
-        process = subprocess.Popen(
-            list(command),
-            cwd=str(cwd),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
+        console = None
+        if os.environ.get("ELFIENEST_RUNTIME_MODE") == "release":
+            smoke_home = os.environ.get("ELFIE_HOME", "").strip()
+            if smoke_home:
+                console_path = (
+                    Path(smoke_home) / "logs" / "desktop-controller-console.log"
+                )
+                try:
+                    console_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                    console = console_path.open("ab")
+                except OSError:
+                    console = None
+        try:
+            process = subprocess.Popen(
+                list(command),
+                cwd=str(cwd),
+                stdin=subprocess.DEVNULL,
+                stdout=console if console is not None else subprocess.DEVNULL,
+                stderr=(
+                    subprocess.STDOUT if console is not None else subprocess.DEVNULL
+                ),
+                start_new_session=True,
+            )
+        except BaseException:
+            if console is not None:
+                console.close()
+            raise
+        if console is not None:
+            console.close()
         return cast(DesktopProcess, process)
 
     def process_id(self, elfie_home: Path) -> Optional[int]:
@@ -74,13 +96,7 @@ class LocalDesktopHostAdapter:
         self._pid_path(elfie_home, create=False).unlink(missing_ok=True)
 
     def exists(self, pid: int) -> bool:
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            return True
-        return True
+        return DefaultProcessInspector().exists(pid)
 
     def terminate(self, process: DesktopProcess, *, force: bool = False) -> None:
         if process.poll() is not None:
