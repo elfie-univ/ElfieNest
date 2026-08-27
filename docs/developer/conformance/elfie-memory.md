@@ -21,6 +21,21 @@ Memory model, authorize schema changes or describe an implementation diary.
 | MEM-007 | P0 | closed (development) | A fresh-target importer, source read-only guard, count/digest/hash reconciliation, lease recovery and retention operations are implemented. | Import is Episodes-first, auditable and reversible; old data is not mutated and no long-term dual write is introduced. | target=design §9.6; inventory=`migration.py`, `sqlite_memory_store.py`; references=ADR-0018 and persistence rules; verification=legacy import, eligible Episode hash match, evidence mapping, reopen and forget/archive tests; residuals=production data migration/cutover was intentionally not run and requires a separate explicit approval. | No live user database was touched. |
 | MEM-008 | P0 | blocked | Deterministic structural gates and the authorized real Ark candidate/judge run now pass; owner experience review is not complete, so Stage 1 is not promoted. | A replayable redacted report must show deterministic gates, source grounding, relationship/conflict behavior, restart and latency before Stage 1 promotion. | target=design §9.7 and `docs/.internal/elfie-stage1-memory-backed-chat-execution-plan.md`; inventory=`devtools/evals/stage1_chat_ark.py`, scenario set and focused tests; references=`build/evaluations/stage1-chat/e1-ark-fixed-v2/report.json`; verification=81 deterministic E1 tests passed, real Ark candidate 36 calls and judge 24 calls, machine hard gate passed, all five Ark dimensions passed (worst alien-world-boundary 5, history 4, identity 5, memory grounding 5, naturalness 4), persistence scan exit 0; residuals=owner experience review and separate production-data cutover remain. | Ark authentication and structured judge completion passed; no secret was written to the report. |
 
+## Post-baseline optimization register
+
+The following records the current development priorities after the baseline; it does not rewrite the closed or blocked
+status of `MEM-001`–`MEM-008`.
+
+| ID | Priority | Status | Current gap | Next acceptance gate |
+| --- | --- | --- | --- | --- |
+| OPT-001 | P0 | planned | Genesis world knowledge, personal stories and relationship content are too sparse for sustained exploration. | Freeze the story/knowledge coverage matrix; pass the relevant E2/E3 new-adoption, paraphrase and restart gates. |
+| OPT-002 | P0 | planned | Ongoing-chat Episode grouping, entity disambiguation, relationship merge and correction chains need broader validation. | Pass the continuous-learning regression for new people, names, preferences, corrections, conflicts, duplicates and restart. |
+| OPT-003 | P1 | deferred | Long-run compaction, forgetting, archiving, growth and latency have not had endurance validation. | After OPT-001/002 pass, establish bounded-growth and recoverable-lifecycle evaluation. |
+| OPT-004 | P1/P2 | deferred | Real Nest observation, activity and multi-Elfie interaction are outside the current chat loop. | After Stage 2 world integration, validate embodied memory and world-event provenance. |
+
+OPT-001 and OPT-002 may be developed in parallel, using separate feature branches and independent evaluations; run a
+combined regression after both pass. Do not start OPT-003 or OPT-004 before then.
+
 ## Remaining acceptance order
 
 1. Perform the owner experience review and record the promotion decision.
