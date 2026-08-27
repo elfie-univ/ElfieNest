@@ -1,6 +1,6 @@
 # Elfie Memory 一致性
 
-> 状态：当前分支实现已完成；真实 Ark 评测已执行，但一个 P0 机器失败、人工复核和生产切换仍阻止第一阶段晋级<br>
+> 状态：当前分支实现已完成；真实 Ark 评测的机器硬门和软质量门均已通过，人工复核和生产切换仍阻止第一阶段晋级<br>
 > 基线：2026-08-27<br>
 > 目标：[Elfie Memory 设计](../designs/elfie-memory-architecture)
 
@@ -17,13 +17,12 @@
 | MEM-005 | P0 | 已关闭 | `RecallRequest` 已执行确定性的 Basic/Text 候选检索，再做有界 Local Graph 遍历、来源获取、关系/时间过滤和限制控制。 | 文本覆盖罕见/未解析表述；图遍历覆盖明确关系；来源和冲突保持可见。 | target=设计第 6、9.5 节；inventory=`sqlite_retrieval_store.py`、`node_store.py`、`sqlite_graph_store.py`；references=source-first 检索测试；verification=罕见词/别名、人物关系网、知识对象、种子、时间窗口、跳数/限制和代表性延迟检查；residuals=Global/社区和向量检索仍是后续投影。 | 当前词法投影有意保持简单且可重建。 |
 | MEM-006 | P0 | 已关闭 | `RecallBundle` 及确定性渲染器已实现；Reasoning Memory reader 消费独立的带真实来源 ID 的类型化项目。 | 上层通过语义契约取得有界节点、Assertion、路径、Episode、Evidence 和冲突，不读取原始 SQL。 | target=设计第 6、9.5 节；inventory=`memory_records.py`、`recall_renderer.py`、`reasoning/memory_context.py`；references=推理和渲染测试；verification=稳定渲染、字符硬上限、来源和类型节点不合成虚假来源测试；residuals=最终自然语言叙述仍由 Reasoning 负责。 | Memory 边界无残余。 |
 | MEM-007 | P0 | 开发已关闭 | 已实现新库导入器、只读源保护、数量/摘要/哈希对账、租约恢复和保留操作。 | 导入按 Episode 优先、可审计且可回退；不修改旧库，不引入长期双写。 | target=设计第 9.6 节；inventory=`migration.py`、`sqlite_memory_store.py`；references=ADR-0018 和持久化规则；verification=旧库导入、可迁移 Episode 哈希匹配、证据映射、重开和归档/遗忘测试；residuals=生产数据切换未执行，需单独明确批准。 | 未接触线上用户库。 |
-| MEM-008 | P0 | 不通过 | 确定性结构门禁和已授权的真实 Ark 候选/裁判运行均已完成，但 `nest-unknown` 的一次重复未通过机器硬门，且负责人体验复核尚未完成。 | 可重放脱敏报告必须在 Stage 1 晋级前证明结构门禁、来源锚定、关系/冲突、重启和延迟。 | target=设计第 9.7 节及 `docs/.internal/elfie-stage1-memory-backed-chat-execution-plan.md`；inventory=`devtools/evals/stage1_chat_ark.py`、场景集和聚焦测试；references=`build/evaluations/stage1-chat/e1-ark-final-rejudged-v2/report.json`；verification=332 项组合受影响测试、确定性 E1 门禁 79 项通过、真实 Ark 候选 36 次和裁判 24 次调用、持久化扫描退出码 0、代表性夹具纯数据库 p95 约 40.6 ms；residuals=`nest-unknown` 第 2 次重复无依据断言了当前精灵巢状态，修复后必须重新运行晋级评测；人工复核仍待完成。 | Ark 鉴权和结构化裁判返回均通过，报告未写入密钥。 |
+| MEM-008 | P0 | 阻塞 | 确定性结构门禁和已授权的真实 Ark 候选/裁判运行现在均通过；负责人体验复核尚未完成，因此第一阶段尚未晋级。 | 可重放脱敏报告必须在 Stage 1 晋级前证明结构门禁、来源锚定、关系/冲突、重启和延迟。 | target=设计第 9.7 节及 `docs/.internal/elfie-stage1-memory-backed-chat-execution-plan.md`；inventory=`devtools/evals/stage1_chat_ark.py`、场景集和聚焦测试；references=`build/evaluations/stage1-chat/e1-ark-fixed-v2/report.json`；verification=确定性 E1 81 项测试通过、真实 Ark 候选 36 次和裁判 24 次调用、机器硬门通过、五项 Ark 质量维度全部通过（异星边界最差 5、历史 4、身份 5、记忆 grounding 5、自然度 4）、持久化扫描退出码 0；residuals=负责人体验复核和单独批准的生产数据切换仍待完成。 | Ark 鉴权和结构化裁判返回均通过，报告未写入密钥。 |
 
 ## 剩余验收顺序
 
-1. 修复 `nest-unknown` 的当前状态边界违规后，按已获授权的范围仅使用合成场景重跑完整 Ark；评测器保持密钥本地并只写入脱敏证据。
-2. 完成人工体验复核并记录晋级决定。
-3. 另行批准并执行生产数据切换；开发迁移已经完成。
+1. 完成人工体验复核并记录晋级决定。
+2. 另行批准并执行生产数据切换；开发迁移已经完成。
 
 要求的只读持久化盘点命令是：
 
@@ -31,4 +30,4 @@
 uv run --no-sync python scripts/governance/persistence/scan.py --project-root . --check
 ```
 
-修改 schema 后必须再次运行。每一行只有在 target、inventory、references、verification 和 residuals 五类信息都记录完整后才能关闭。MEM-008 在机器违规修复、真实评测重跑和人工验收完成前保持不通过。
+修改 schema 后必须再次运行。每一行只有在 target、inventory、references、verification 和 residuals 五类信息都记录完整后才能关闭。MEM-008 在人工验收完成前保持阻塞。
