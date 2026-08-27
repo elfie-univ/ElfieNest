@@ -646,12 +646,29 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
         'if [ "${FAKE_GODOT_DOWNLOAD_FAIL:-0}" = "1" ]; then exit 22; fi\n'
         'output=""\n'
         'url=""\n'
+        'range=""\n'
         'while [ "$#" -gt 0 ]; do\n'
+        '  if [ "$1" = "--head" ]; then\n'
+        '    printf "HTTP/1.1 200 OK\\nContent-Length: 256\\nAccept-Ranges: bytes\\n\\n"\n'
+        "    exit 0\n"
+        "  fi\n"
         '  if [ "$1" = "--output" ]; then output="$2"; shift 2; continue; fi\n'
+        '  if [ "$1" = "--range" ]; then range="$2"; shift 2; continue; fi\n'
         '  url="$1"; shift\n'
         "done\n"
         'printf "%s\\n" "$url" >> "$FAKE_GODOT_URL_LOG"\n'
-        'printf "%s\\n" "$url" > "$output"\n',
+        'start="${range%%-*}"\n'
+        'end="${range##*-}"\n'
+        "size=$((end - start + 1))\n"
+        'printf "%s" "$url" > "$output"\n'
+        'current=$(wc -c < "$output" | tr -d "[:space:]")\n'
+        'if [ "$current" -lt "$size" ]; then\n'
+        '  head -c "$((size - current))" /dev/zero >> "$output"\n'
+        "fi\n"
+        'if [ "$current" -gt "$size" ]; then\n'
+        '  head -c "$size" "$output" > "$output.trimmed"\n'
+        '  mv "$output.trimmed" "$output"\n'
+        "fi\n",
     )
     make_executable(
         fake_bin / "unzip",
@@ -731,13 +748,20 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
     assert len(download_urls) == 2
     assert all(url.endswith(f"version={required_version}") for url in download_urls)
     curl_invocations = curl_args_log.read_text(encoding="utf-8").splitlines()
-    assert len(curl_invocations) == 3
+    assert len(curl_invocations) == 5
+    assert sum("--head" in invocation for invocation in curl_invocations) == 3
+    assert sum("--range" in invocation for invocation in curl_invocations) == 2
     for invocation in curl_invocations:
         assert "--http1.1" in invocation
-        assert "--retry 5" in invocation
         assert "--retry-all-errors" in invocation
         assert "--retry-delay 2" in invocation
-        assert "--continue-at -" in invocation
+    for invocation in curl_invocations:
+        if "--head" in invocation:
+            assert "--retry 5" in invocation
+        else:
+            assert "--retry 2" in invocation
+            assert "--connect-timeout 20" in invocation
+            assert "--max-time 600" in invocation
 
 
 def test_godot_toolchain_paths_and_downloads_follow_project_godot(
