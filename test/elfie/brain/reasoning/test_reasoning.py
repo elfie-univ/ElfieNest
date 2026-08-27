@@ -312,7 +312,7 @@ def test_fast_owner_reply_cannot_invent_current_nest_activity() -> None:
         def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
             self.calls.append(request)
             return ModelGenerationResult(
-                text="今天精灵巢暂时还没发生什么特别的事呢，我正在整理小物件。",
+                text="我现在还不清楚今天精灵巢发生了什么呢，等我看看之后再告诉你哦。",
                 selected_mode=StructuredOutputMode.PLAIN_TEXT,
                 provider="fake",
                 model_key="fake/schema",

@@ -19,6 +19,12 @@ _EXPLICIT_UNKNOWN = re.compile(
     r"(?:观测|信息|事实|记录))",
     flags=re.IGNORECASE | re.DOTALL,
 )
+_UNSAFE_CURRENT_NEST_CLAIM = re.compile(
+    r"(?:今天|现在|此刻|刚才|最近).{0,32}"
+    r"(?:精灵巢|巢内|巢里|elfienest).{0,32}"
+    r"(?:发生|活动|动态|情况|在做|安静|整理|待)",
+    flags=re.IGNORECASE | re.DOTALL,
+)
 
 SAFE_CURRENT_NEST_REPLY = "我现在还没有真实探索精灵巢，所以不知道今天那里发生了什么呢。"
 
@@ -40,7 +46,7 @@ def sanitize_direct_owner_reply(
         return text
     if not _CURRENT_NEST_QUERY.search(context.current_message):
         return text
-    if _EXPLICIT_UNKNOWN.search(text):
+    if _EXPLICIT_UNKNOWN.search(text) and not _UNSAFE_CURRENT_NEST_CLAIM.search(text):
         return text
     return SAFE_CURRENT_NEST_REPLY
 
