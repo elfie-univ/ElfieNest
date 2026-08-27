@@ -32,9 +32,9 @@ GitHub Pages 使用 `/ElfieNest/` base。Pull Request 只构建；只有经过�
 4. 用户完成页面目视验收；
 5. 再由负责人决定何时提交、推送和部署。
 
-## 0.1.0-beta.1 内测桌面安装包
+## 0.1.0-beta.2 内测桌面安装包
 
-当前只构建内部测试安装包：版本固定为 `0.1.0-beta.1`，不配置自动更新，也不打包任何
+当前只构建内部测试安装包：版本固定为 `0.1.0-beta.2`，不配置自动更新，也不打包任何
 模型权重。每个平台必须在对应原生 runner 上构建：macOS
 ARM64、macOS x64、Windows x64、Linux x64。安装包不包含 Ollama 引擎或模型，也不
 创建私有 sidecar；公共 Ollama 是 Setup 中可选的用户决策。
@@ -80,7 +80,7 @@ macOS arm64、macOS Intel、Windows x64 和 Linux x64 的原生 GitHub runner。
 真实 Desktop Controller，并额外校验 freedesktop 入口。在任何昂贵的原生构建之前，小型
 preflight 会绑定项目版本、已存在的发布 tag 和准确 `GITHUB_SHA`；手动发布只有在 tag 已
 存在且指向本次源码提交时才允许继续。推送与项目版本一致的 tag（例如
-`v0.1.0-beta.1`）会运行同一套矩阵，校验各平台安装包内容，并把四个安装包及
+`v0.1.0-beta.2`）会运行同一套矩阵，校验各平台安装包内容，并把四个安装包及
 `SHA256SUMS` 发布到 GitHub Releases。每个平台的 typed install-smoke JSON 只保留在 Actions 构建产物中
 作为 CI 证据；发布 job 会在创建 Release 前独立聚合四个平台摘要并校验准确候选/包哈希与脱敏
 哨兵，不作为 Release 下载项展示。带预发布后缀的 tag
@@ -91,8 +91,8 @@ preflight 会绑定项目版本、已存在的发布 tag 和准确 `GITHUB_SHA`�
 当前版本的正常发布命令是：
 
 ```bash
-git tag -a v0.1.0-beta.1 -m "ElfieNest 0.1.0-beta.1"
-git push origin v0.1.0-beta.1
+git tag -a v0.1.0-beta.2 -m "ElfieNest 0.1.0-beta.2"
+git push origin v0.1.0-beta.2
 ```
 
 Workflow 会在各平台校验安装后的资源布局，但当前内测包仍未签名或公证。交给测试者
