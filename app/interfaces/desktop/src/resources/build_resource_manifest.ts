@@ -29,7 +29,7 @@ try {
   const outputPath = process.argv[3] ?? join(resourcesRoot, "manifest.json");
   const manifest = buildResourceManifest(
     resourcesRoot,
-    "0.1.0-beta.3",
+    "0.1.0-beta.2",
     sourceRevision,
     target,
   );
