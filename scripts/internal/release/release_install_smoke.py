@@ -44,6 +44,7 @@ PHASE_BUDGETS_MS = {
     "product_journey": 300_000,
 }
 SCRIPTED_MODEL_READY_TIMEOUT_SECONDS = 30.0
+WINDOWS_UNINSTALL_CLEANUP_TIMEOUT_SECONDS = 30.0
 GLOBAL_CLI_LAUNCHER = Path("/usr/local/bin/elfienest")
 MAC_INSTALL_ROOT = Path("/Applications/ElfieNest.app")
 LINUX_INSTALL_ROOT = Path("/opt/ElfieNest")
@@ -999,11 +1000,16 @@ class NativePackageAdapter:
         _run_checked((str(uninstaller), "/S"))
 
         launcher = self.install_root / "bin/elfienest.cmd"
-        deadline = time.monotonic() + 10.0
-        while launcher.exists() or launcher.is_symlink():
+        deadline = time.monotonic() + WINDOWS_UNINSTALL_CLEANUP_TIMEOUT_SECONDS
+        while launcher.exists() or launcher.is_symlink() or self.install_root.exists():
             if time.monotonic() >= deadline:
+                remaining: list[str] = []
+                if launcher.exists() or launcher.is_symlink():
+                    remaining.append(str(launcher))
+                if self.install_root.exists():
+                    remaining.append(str(self.install_root))
                 raise ReleaseInstallSmokeError(
-                    f"release-smoke-uninstall-timeout path={launcher}"
+                    f"release-smoke-uninstall-timeout paths={','.join(remaining)}"
                 )
             time.sleep(0.25)
 
