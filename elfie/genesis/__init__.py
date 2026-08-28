@@ -7,6 +7,7 @@ from .contracts import (
     BiographyEnrichmentPlan,
     CandidateReveal,
     CandidateSignature,
+    EpisodeSeed,
     GenesisAppearanceIntent,
     GenesisBatch,
     GenesisBundle,
@@ -16,6 +17,10 @@ from .contracts import (
     GenesisStatus,
     GenesisValidationError,
     InitializationManifest,
+    KnowledgeLevel,
+    KnowledgeMastery,
+    KnowledgeSeed,
+    KnowledgeStatus,
     MemoryCertainty,
     MemorySeed,
     MemorySource,
@@ -26,7 +31,12 @@ from .contracts import (
     validate_genesis_bundle,
 )
 from .engine import GenesisEngine
-from .initializer import GenesisCommitReceipt, GenesisMemoryCommitter
+from .initializer import (
+    GenesisCommitReceipt,
+    GenesisMemoryCommitter,
+    planned_genesis_output_ids,
+)
+from .world import WorldCanonPackage, WorldKnowledgeFact, WorldPlace, WorldStoryEvent
 
 __all__ = (
     "BIG_FIVE_TRAITS",
@@ -46,6 +56,12 @@ __all__ = (
     "GenesisMemoryCommitter",
     "GenesisStatus",
     "GenesisValidationError",
+    "planned_genesis_output_ids",
+    "EpisodeSeed",
+    "KnowledgeLevel",
+    "KnowledgeMastery",
+    "KnowledgeSeed",
+    "KnowledgeStatus",
     "InitializationManifest",
     "MemoryCertainty",
     "MemorySeed",
@@ -55,4 +71,8 @@ __all__ = (
     "RelationshipSeed",
     "SelfModelSeed",
     "validate_genesis_bundle",
+    "WorldCanonPackage",
+    "WorldKnowledgeFact",
+    "WorldPlace",
+    "WorldStoryEvent",
 )

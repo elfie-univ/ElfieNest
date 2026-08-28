@@ -45,6 +45,7 @@ class ConfigDocumentId(str, Enum):
     EMOTION_EXPRESSIONS = "emotion_expressions"
     NEST_DEFAULTS = "nest_defaults"
     SPECIES_CATALOG = "species_catalog"
+    WORLD_CANON = "world_canon"
     RUNTIME_SETTINGS = "runtime_settings"
     PROVIDER_CONNECTIONS = "provider_connections"
     TOOL_SETTINGS = "tool_settings"
@@ -192,6 +193,19 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         "infrastructure.persistence.configuration.species",
         True,
         "species-catalog-v1",
+        "immutable-bundled",
+        "bootstrap",
+        "fail-closed",
+    ),
+    ConfigDocumentId.WORLD_CANON: ConfigDocumentSpec(
+        ConfigDocumentId.WORLD_CANON,
+        "world/elfaria.yaml",
+        None,
+        1,
+        ConfigPolicy.BUNDLED_ONLY,
+        "elfie.genesis",
+        True,
+        "world-canon-v1",
         "immutable-bundled",
         "bootstrap",
         "fail-closed",

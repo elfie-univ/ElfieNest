@@ -28,13 +28,25 @@ status of `MEM-001`–`MEM-008`.
 
 | ID | Priority | Status | Current gap | Next acceptance gate |
 | --- | --- | --- | --- | --- |
-| OPT-001 | P0 | planned | Genesis world knowledge, personal stories and relationship content are too sparse for sustained exploration. | Freeze the story/knowledge coverage matrix; pass the relevant E2/E3 new-adoption, paraphrase and restart gates. |
+| OPT-001 | P0 | in progress | The bounded slice now compiles the frozen E1 fixture through the typed Elfaria World Canon/Genesis path, removes duplicated identity facts from the reasoning prompt, and verifies cleanup on cross-file publish failure. Full E2/E3 coverage and owner experience review remain open. | Freeze the story/knowledge coverage matrix; pass the relevant E2/E3 new-adoption, paraphrase and restart gates, then complete owner review. |
 | OPT-002 | P0 | in progress | WorkingContext now closes bounded topic Episodes, captures source records before inference, extracts explicitly attributed owner/person facts, preserves aliases and supports explicit correction chains. Full longitudinal evaluation is still open. | Pass the continuous-learning regression for new people, names, preferences, corrections, conflicts, duplicates, restart and failed delivery/model paths. |
 | OPT-003 | P1 | deferred | Long-run compaction, forgetting, archiving, growth and latency have not had endurance validation. | After OPT-001/002 pass, establish bounded-growth and recoverable-lifecycle evaluation. |
 | OPT-004 | P1/P2 | deferred | Real Nest observation, activity and multi-Elfie interaction are outside the current chat loop. | After Stage 2 world integration, validate embodied memory and world-event provenance. |
 
 OPT-001 and OPT-002 may be developed in parallel, using separate feature branches and independent evaluations; run a
 combined regression after both pass. Do not start OPT-003 or OPT-004 before then.
+
+OPT-001 first-slice evidence (2026-08-28): target=OPT-001 plan §§3–5; inventory=`config/world/elfaria.yaml`,
+configuration registry/schema, `elfie/genesis/{contracts.py,initializer.py}`, and
+`infrastructure/persistence/elfie_workspace/adoption_profiles.py`; references=Elfaria World Canon/species cards and
+typed Genesis tests; verification=the typed fixture compiler test, 15 focused adoption/evaluation tests, the
+affected Memory/Reasoning suite, Ruff, `git diff --check`, and the existing persistence scan, with the Canon
+containing 42 facts and each published-species adoption selecting 40 eligible knowledge seeds, plus 5 Episodes and
+13 private relationship objects; materialization cleanup is now covered by an injected publish-failure test and the
+reasoning prompt no longer repeats Selfhood identity facts already supplied by Profile/Canon. The typed `stage1-e1.v2`
+fixture passed the deterministic gate and a real Ark single-repetition run (26 provider calls; machine and judge gates
+passed) in `/private/tmp/elfie-e1-real-20260828-final2/report.md`. Residuals=full E2/E3 coverage and owner experience
+review remain; no production backfill and no OPT-002/003/004 work.
 
 OPT-002 implementation evidence (2026-08-27): target=continuous-learning source-first
 flow and WorkingContext boundary; inventory=`elfie/brain/reasoning/conversation_context.py`,

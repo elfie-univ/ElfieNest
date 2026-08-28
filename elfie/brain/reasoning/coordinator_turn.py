@@ -599,10 +599,6 @@ class CoordinatorTurnFactory:
             )
         if selfhood.norms:
             lines.append("- norms: " + "；".join(selfhood.norms[:4]))
-        if selfhood.identity_facts:
-            lines.append(
-                "- personal identity facts: " + "；".join(selfhood.identity_facts[:4])
-            )
         return "\n".join(lines)
 
     @staticmethod

@@ -25,13 +25,23 @@
 
 | ID | 优先级 | 状态 | 当前差距 | 下一验收门 |
 | --- | --- | --- | --- | --- |
-| OPT-001 | P0 | 待开始 | Genesis 的世界知识、个人故事和关系内容密度不足，连续追问很快失去可用记忆。 | 冻结故事/知识覆盖表；新领养、改写问法和重启场景通过 E2/E3 相关门。 |
+| OPT-001 | P0 | 进行中 | 有界切片现已让冻结的 E1 fixture 走类型化 Elfaria World Canon/Genesis 路径，移除推理提示中与 Profile/Canon 重复的身份事实，并覆盖跨文件发布失败时的清理。完整 E2/E3 覆盖和负责人体验复核仍未完成。 | 冻结故事/知识覆盖表；新领养、改写问法和重启场景通过 E2/E3 相关门，并完成负责人复核。 |
 | OPT-002 | P0 | 进行中 | WorkingContext 已能闭合有界话题 Episode，在推理前先落盘来源，抽取带归因的主人/人物事实，保留别名并支持显式纠正链；完整纵向评测仍未完成。 | 新人物、称呼、喜好、纠正、冲突、重复、重启以及投递/模型失败路径通过持续学习回归。 |
 | OPT-003 | P1 | 暂缓 | 长期压缩、遗忘、归档、增长和延迟还未做长期运行验证。 | 在 OPT-001/002 通过后，建立有界增长和可恢复生命周期评测。 |
 | OPT-004 | P1/P2 | 暂缓 | 真实精灵巢观测、活动和多精灵互动尚未进入当前聊天闭环。 | 第二阶段真实巢场景接入后，再验证具身记忆和世界事件来源。 |
 
 OPT-001 与 OPT-002 可以并行开发，但必须使用各自功能分支和独立评测；两者完成后再进行组合回归。OPT-003
 和 OPT-004 在此之前不启动。
+
+OPT-001 第一版证据（2026-08-28）：target=OPT-001 计划第 3–5 节；inventory=`config/world/elfaria.yaml`、
+配置 registry/schema、`elfie/genesis/{contracts.py,initializer.py}`、
+`infrastructure/persistence/elfie_workspace/adoption_profiles.py`；references=Elfaria 世界 Canon/物种卡与类型化
+Genesis 测试；verification=类型化 fixture 编译测试、15 项聚焦领养/评测测试、受影响的 Memory/Reasoning 测试、
+Ruff、`git diff --check` 及既有持久化扫描；Canon 共 42 条事实，每个已发布物种的领养按资格选择 40 条知识 seed，
+并生成 5 段 Episode、13 个私有关系对象；注入发布失败测试覆盖物料化清理，推理提示不再重复 Profile/Canon 已提供的
+Selfhood 身份事实。residuals=完整 E2/E3 覆盖和负责人体验复核仍待完成；未做生产回填，也未涉及 OPT-002/003/004。
+类型化 `stage1-e1.v2` fixture 已通过确定性门，并完成一次真实 Ark 单重复运行（26 次 provider 调用；机器门和裁判门均通过），
+报告位于 `/private/tmp/elfie-e1-real-20260828-final2/report.md`。
 
 OPT-002 实现证据（2026-08-27）：target=持续学习 source-first 流程与 WorkingContext
 边界；inventory=`elfie/brain/reasoning/conversation_context.py`、`coordinator.py`、

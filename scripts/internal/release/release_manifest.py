@@ -34,6 +34,7 @@ REQUIRED_CONFIG_FILES: Final[Tuple[str, ...]] = (
     "config/brain/emotion-expressions.yaml",
     "config/nest/defaults.yaml",
     "config/species/catalog.yaml",
+    "config/world/elfaria.yaml",
 )
 
 

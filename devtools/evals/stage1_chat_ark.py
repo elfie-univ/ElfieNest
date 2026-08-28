@@ -23,6 +23,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from app.features.adoption import AcceptedAdoptionReservation
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
 from elfie.brain.reasoning.model_port import (
@@ -32,7 +33,6 @@ from elfie.brain.reasoning.model_port import (
     ModelResponseMode,
     StructuredOutputMode,
 )
-from elfie.brain.selfhood.contracts import BigFiveTraits, SelfhoodSpeechStyle
 from elfie.communication import (
     CommunicationEnvelope,
     CommunicationHub,
@@ -43,24 +43,18 @@ from elfie.communication import (
 )
 from elfie.factory import ElfieAssembly
 from elfie.genesis import (
-    BiographyEnrichmentPlan,
     GenesisBundle,
     GenesisMemoryCommitter,
-    InitializationManifest,
-    MemorySeed,
-    PersonalitySeed,
-    ProfileDraft,
-    RelationshipSeed,
-    SelfModelSeed,
 )
 from elfie.message_types import ActorRef, MessageMeta
 from elfie.profile import (
-    SPECIES_CANON_VERSION,
-    WORLD_CANON_VERSION,
     configure_species_catalog,
     create_visual_profile,
 )
 from infrastructure.persistence.configuration.species import load_species_catalog
+from infrastructure.persistence.elfie_workspace.adoption_profiles import (
+    _genesis_bundle,
+)
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -68,6 +62,7 @@ DEFAULT_SPEC = ROOT / "devtools" / "evals" / "stage1_e1_scenarios.json"
 JUDGE_SCHEMA = ROOT / "devtools" / "evals" / "stage1_judge_schema.json"
 DEFAULT_OUTPUT = ROOT / "build" / "evaluations" / "stage1-chat" / "e1-ark-current"
 DETERMINISTIC_TESTS = (
+    "test/devtools/evals/test_stage1_chat_ark.py",
     "test/e2e/test_stage1_memory_chat.py",
     "test/elfie/brain/memory/test_memory_system.py",
     "test/elfie/brain/memory/test_retrieval.py",
@@ -410,68 +405,41 @@ class RuntimeBundle:
 def _build_bundle(
     spec: Mapping[str, Any], elfie_id: str, display_name: str
 ) -> GenesisBundle:
+    """Build the E1 fixture through the same typed Canon compiler as adoption."""
     elfie_spec = spec["elfie"]
+    species_id = str(elfie_spec["species_id"])
+    appearance_seed = int(elfie_spec["profile_seed"])
     profile = create_visual_profile(
         elfie_id=elfie_id,
         display_name=display_name,
-        species_id=str(elfie_spec["species_id"]),
-        seed=int(elfie_spec["profile_seed"]),
+        species_id=species_id,
+        seed=appearance_seed,
     )
-    genesis = spec["genesis"]
-    raw_traits = dict(genesis.get("big_five", {}))
-    traits = BigFiveTraits(**raw_traits)
-    speech = SelfhoodSpeechStyle(greetings=("你好呀", "我在听呢"))
-    memory_seeds = tuple(
-        MemorySeed(**dict(seed)) for seed in genesis.get("memory_seeds", ())
+    reservation = AcceptedAdoptionReservation(
+        elfie_id=elfie_id,
+        owner_user_id=1,
+        name=display_name,
+        species_id=species_id,
+        personality_style="好奇探索",
+        height="standard",
+        build="standard",
+        appearance_seed=appearance_seed,
+        face="soft",
+        signature="warm",
+        gender="female",
+        birth_date="2001-01-01",
     )
-    raw_relationship = dict(genesis["relationship"])
-    relationship = RelationshipSeed(
-        person_id=str(raw_relationship["person_id"]),
-        display_name=str(raw_relationship["display_name"]),
-        role=str(raw_relationship["role"]),
-        initial_trust=float(raw_relationship["initial_trust"]),
-        shared_facts=tuple(
-            str(item) for item in raw_relationship.get("shared_facts", ())
-        ),
-        unknown_facts=tuple(
-            str(item) for item in raw_relationship.get("unknown_facts", ())
-        ),
-    )
-    return GenesisBundle(
-        profile_draft=ProfileDraft(profile=profile),
-        personality_seed=PersonalitySeed(
-            big_five=traits,
-            self_description=str(genesis["self_description"]),
-            speech_style=speech,
-            norms=tuple(str(item) for item in genesis.get("norms", ())),
-        ),
-        memory_seeds=memory_seeds,
-        relationship_seeds=(relationship,),
-        self_model_seed=SelfModelSeed(
-            identity_summary=str(genesis["self_description"]),
-            known_facts=tuple(str(item) for item in genesis["known_facts"]),
-            unknown_facts=tuple(str(item) for item in genesis["unknown_facts"]),
-            knowledge_scope=(
-                "只把 Profile、Genesis 资料和亲历记忆当作身份依据。",
-                "不把地球模型常识冒充为 Elfaria 的亲历。",
-            ),
-            species_knowledge=(),
-        ),
-        biography_plan=BiographyEnrichmentPlan(
-            allowed_memory_seed_ids=tuple(
-                str(item) for item in genesis["biography_allowed_memory_seed_ids"]
-            ),
-            max_additional_memories=4,
-            expires_after_events=8,
-        ),
-        manifest=InitializationManifest(
-            manifest_id=f"e1-ark:{elfie_id}:v1",
-            canon_version=WORLD_CANON_VERSION,
-            species_version=SPECIES_CANON_VERSION,
-            reference_version="stage1-e1-ark.v1",
-            status="validated",
-        ),
-    )
+    selfhood_seed = {
+        "big_five": {
+            "openness": 0.5,
+            "conscientiousness": 0.5,
+            "extraversion": 0.5,
+            "agreeableness": 0.5,
+            "neuroticism": 0.5,
+        },
+        "speech_style": {"greetings": ("你好呀", "我在听呢"), "verbal_ticks": "呢"},
+    }
+    return _genesis_bundle(reservation, profile, selfhood_seed)
 
 
 def _build_runtime(
@@ -1034,7 +1002,7 @@ def _parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--case", action="append", dest="cases", default=[])
     parser.add_argument("--skip-deterministic", action="store_true")
-    parser.add_argument("--max-calls", type=int, default=64)
+    parser.add_argument("--max-calls", type=int, default=96)
     return parser.parse_args(argv)
 
 
