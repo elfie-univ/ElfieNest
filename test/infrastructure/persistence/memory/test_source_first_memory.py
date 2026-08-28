@@ -601,6 +601,33 @@ def test_rebuild_indexes_recreates_alias_and_description_search_text() -> None:
         assert store.search_by_content("可食用", top_k=5)[0][0] == "food"
 
 
+def test_recall_prioritizes_a_direct_label_over_broad_distractors() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        for index in range(20):
+            store.upsert_node_record(
+                NodeInput(
+                    node_id=f"distractor-{index:02d}",
+                    node_type="event",
+                    canonical_label=f"普通事件 {index}",
+                    description="这段经历提到了迷雾镇，但不是区域定义。",
+                )
+            )
+        store.upsert_node_record(
+            NodeInput(
+                node_id="known-region",
+                node_type="knowledge",
+                canonical_label="当前可确认的生活区域是迷雾镇（Mistyville）。",
+                description="迷雾镇是这只 Elfie 已知的生活区域。",
+            )
+        )
+
+        bundle = store.recall(
+            RecallRequest(text="迷雾镇", lexical_limit=20, seed_limit=8)
+        )
+
+        assert any(node.node_id == "known-region" for node in bundle.focus_nodes)
+
+
 def test_conflicting_qualified_claims_remain_visible_with_their_sources() -> None:
     with SQLiteMemoryStoreAdapter.in_memory() as store:
         store.record_episode(
@@ -756,3 +783,37 @@ def test_correction_supersedes_active_assertion_and_preserves_old_evidence() -> 
             RecallRequest(seed_node_ids=("owner",), mode="basic", assertion_limit=8)
         )
         assert any(item.assertion_id == "claim-new" for item in bundle.assertions)
+
+
+def test_natural_name_correction_forms_a_supersedes_chain() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode("episode-name-old", "name-old", "2026-01-01", "我叫小林")
+        )
+        store.record_episode(
+            ClosedEpisode(
+                "episode-name-new",
+                "name-new",
+                "2026-01-02",
+                "我不叫小林了，叫小周。",
+            )
+        )
+        consolidator = MemoryConsolidator(store)
+        assert consolidator.run_batch(ConsolidationRequest(max_episodes=1)).status == (
+            "completed"
+        )
+        assert consolidator.run_batch(ConsolidationRequest(max_episodes=1)).status == (
+            "completed"
+        )
+
+        rows = store.connection.execute(
+            """SELECT assertion_id, object_literal_json, lifecycle, supersedes_assertion_id
+                 FROM assertions
+                WHERE predicate='preferred_name'
+                ORDER BY assertion_id"""
+        ).fetchall()
+        assert len(rows) == 2
+        old = next(row for row in rows if row[1] == '"小林"')
+        new = next(row for row in rows if row[1] == '"小周"')
+        assert old[1:] == ('"小林"', "superseded", None)
+        assert new[1:] == ('"小周"', "active", old[0])

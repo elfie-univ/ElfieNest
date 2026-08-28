@@ -53,10 +53,37 @@ def _reservation(elfie_id: str, species_id: str, seed: int, stage: str):
 
 def _query_variants(fact: Any) -> Iterable[str]:
     yield fact.statement
-    for term in fact.aliases[:2]:
-        yield term
     for term in fact.retrieval_terms[:2]:
         yield term
+    for term in fact.aliases[:2]:
+        yield term
+
+
+def _eligible_for_species(fact: Any, species_id: str) -> bool:
+    eligibility = set(getattr(fact, "eligibility", ()))
+    return "all" in eligibility or species_id in eligibility
+
+
+def _query_cases_for_species(
+    facts: Iterable[Any], species_id: str, limit: int = 96
+) -> list[tuple[Any, str]]:
+    """Build a bounded E2 set that covers every eligible fact first."""
+    eligible = [
+        fact
+        for fact in facts
+        if getattr(fact, "status", None) == "active"
+        and _eligible_for_species(fact, species_id)
+    ]
+    variants = [tuple(_query_variants(fact)) for fact in eligible]
+    cases: list[tuple[Any, str]] = []
+    for variant_index in range(max((len(item) for item in variants), default=0)):
+        for fact, fact_variants in zip(eligible, variants):
+            if variant_index >= len(fact_variants):
+                continue
+            cases.append((fact, fact_variants[variant_index]))
+            if len(cases) >= limit:
+                return cases
+    return cases
 
 
 def _contains_fact(bundle: Any, fact_id: str) -> bool:
@@ -75,7 +102,6 @@ def run(output: Path) -> dict[str, Any]:
     if not species_ids:
         raise RuntimeError("没有 published 物种，不能运行 OPT-001 E2/E3")
 
-    active_facts = tuple(fact for fact in world.knowledge if fact.status == "active")
     unknown_facts = tuple(
         fact for fact in world.knowledge if fact.status == "unknown-boundary"
     )
@@ -92,18 +118,11 @@ def run(output: Path) -> dict[str, Any]:
     ) as raw_root:
         root = Path(raw_root)
         for species_index, species_id in enumerate(species_ids):
-            eligible_facts = tuple(
-                fact
-                for fact in active_facts
-                if "all" in fact.eligibility or species_id in fact.eligibility
-            )
-            query_cases: list[tuple[Any, str]] = [
-                (fact, query)
-                for fact in eligible_facts
-                for query in _query_variants(fact)
-            ][:96]
-            while len(query_cases) < 96:
-                query_cases.append(query_cases[len(query_cases) % len(query_cases)])
+            query_cases = _query_cases_for_species(world.knowledge, species_id)
+            if len(query_cases) < 96:
+                raise RuntimeError(
+                    f"物种 {species_id} 的 E2 题目不足 96 条：{len(query_cases)}"
+                )
             for stage_index, stage in enumerate(PUBLISHED_STAGES):
                 for seed in SEEDS:
                     e3_total += 1

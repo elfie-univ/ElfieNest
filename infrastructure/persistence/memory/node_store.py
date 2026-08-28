@@ -254,7 +254,7 @@ class KnowledgeNodeStoreMixin:
         if not terms:
             return []
         like_patterns = _lexical_like_patterns(query, terms)
-        candidates: list[tuple[str, str, str]] = []
+        candidates: list[tuple[str, str, str, str]] = []
         with self._lock:
             if node_type in (None, "episodic"):
                 episode_where = " OR ".join(
@@ -269,7 +269,7 @@ class KnowledgeNodeStoreMixin:
                     like_patterns,
                 ).fetchall()
                 candidates.extend(
-                    (str(row[0]), str(row[1]), str(row[2])) for row in rows
+                    (str(row[0]), str(row[1]), str(row[2]), str(row[1])) for row in rows
                 )
             if node_type is None or node_type != "episodic":
                 node_where = " OR ".join(
@@ -277,6 +277,7 @@ class KnowledgeNodeStoreMixin:
                 )
                 rows = self.conn.execute(
                     """SELECT f.node_id, f.searchable_text, n.node_type,
+                                      n.canonical_label,
                                       json_extract(n.properties_json, '$.entity_type') AS entity_type
                        FROM nodes_fts AS f JOIN nodes AS n USING (node_id)
                        WHERE n.status <> 'forgotten' AND n.merged_into IS NULL
@@ -286,7 +287,7 @@ class KnowledgeNodeStoreMixin:
                     like_patterns,
                 ).fetchall()
                 candidates.extend(
-                    (str(row[0]), str(row[1]), str(row[2]))
+                    (str(row[0]), str(row[1]), str(row[2]), str(row[3] or ""))
                     for row in rows
                     if node_type is None
                     or str(row[2]) == node_type
@@ -297,7 +298,20 @@ class KnowledgeNodeStoreMixin:
         # may search ``rare-term`` while the source stored ``rare term``),
         # without changing the stricter normalization used for identity keys.
         query_normalized = _lexical_normalize(query)
-        for identifier, text, _kind in candidates:
+        with self._lock:
+            exact_alias_ids = {
+                str(row[0])
+                for row in self.conn.execute(
+                    """SELECT DISTINCT a.node_id
+                         FROM node_aliases AS a
+                         JOIN nodes AS n ON n.node_id=a.node_id
+                        WHERE a.normalized_alias=?
+                          AND n.status <> 'forgotten'
+                          AND n.merged_into IS NULL""",
+                    (normalize_text(query),),
+                ).fetchall()
+            }
+        for identifier, text, kind, canonical_label in candidates:
             normalized = _lexical_normalize(text)
             if not normalized:
                 continue
@@ -307,7 +321,22 @@ class KnowledgeNodeStoreMixin:
             score = hits / max(1, len(terms))
             if query_normalized in normalized:
                 score += 0.5
-            scored[identifier] = max(scored.get(identifier, 0.0), min(1.0, score))
+            # Exact aliases are stronger evidence than an incidental mention
+            # buried in an Episode or a long description.  Keep a small
+            # canonical-label density bonus so a direct knowledge label stays
+            # in the bounded seed set when a short place term matches many
+            # unrelated Episodes.
+            if identifier in exact_alias_ids:
+                score += 0.35
+            label_normalized = _lexical_normalize(canonical_label)
+            if query_normalized and query_normalized in label_normalized:
+                score += min(
+                    0.2,
+                    len(query_normalized) / max(1, len(label_normalized)) * 0.2,
+                )
+            if kind == "knowledge":
+                score += 0.05
+            scored[identifier] = max(scored.get(identifier, 0.0), score)
         return sorted(scored.items(), key=lambda item: (-item[1], item[0]))[:top_k]
 
     def _add_episode_node(self, node: MemoryNode) -> str:
