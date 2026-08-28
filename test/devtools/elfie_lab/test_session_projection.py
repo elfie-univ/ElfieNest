@@ -100,7 +100,10 @@ def test_projection_caps_collections_and_is_deterministic(projection_subject) ->
 def test_projection_normalizes_malformed_numeric_metadata(projection_subject) -> None:
     # Given
     elfie, spec, storage = projection_subject
-    raw_weights = [float("nan"), "heavy", 2.4, -3]
+    # SQLite's JSON validity constraint rejects non-finite float literals
+    # before the projection can inspect them. ``None`` keeps the malformed
+    # numeric case JSON-safe while still exercising the projection fallback.
+    raw_weights = [None, "heavy", 2.4, -3]
     for index, raw_weight in enumerate(raw_weights):
         add_node(
             storage,

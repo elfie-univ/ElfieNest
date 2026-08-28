@@ -128,12 +128,13 @@ def _important_events(episodes: Sequence[MemoryNode]) -> List[Dict[str, Any]]:
             importance = metadata.get(
                 "emotion_intensity", metadata.get("intensity", 0.0)
             )
+        emotion = metadata.get("emotion")
         events.append(
             {
                 "id": node.id,
                 "content": node.content,
                 "timestamp": str(metadata.get("timestamp", node.created_at or "")),
-                "emotion": str(metadata.get("emotion", "")),
+                "emotion": emotion if isinstance(emotion, str) else "",
                 "importance": _weight(importance),
                 "people": [person for person in people if isinstance(person, str)],
                 "changed": (
