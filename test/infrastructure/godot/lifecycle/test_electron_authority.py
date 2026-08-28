@@ -163,7 +163,8 @@ def test_desktop_controller_handles_lifecycle_termination_signals() -> None:
         in source
     )
     assert "DESKTOP_CLEANUP_TIMEOUT_MS" in source
-    assert "runtime_cleanup_timeout" in source
+    assert "runtime_cleanup_slow" in source
+    assert "runtime_cleanup_complete" in source
     assert "DESKTOP_IPC_CLOSE_TIMEOUT_MS" in source
     assert "controller_ipc_close_timeout" in source
     assert "if (roleController === undefined || exitInProgress)" in source

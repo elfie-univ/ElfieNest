@@ -328,20 +328,28 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     try {
       const initial = await this.status();
       if (this.isReady(initial)) {
-        if (initial.ownerLease === null) {
+        const attachable = await this.isAttachableReady(initial);
+        if (attachable && initial.ownerLease === null) {
           return this.failure(
             "Another ElfieNest checkout is using the service ports; Desktop refused to attach to its data",
           );
         }
-        if (initial.ownerLease === this.ownerLease) {
-          return this.ownedAttachment(initial);
+        if (attachable) {
+          if (initial.ownerLease === this.ownerLease) {
+            return this.ownedAttachment(initial);
+          }
+          return {
+            kind: "attached",
+            generation: initial.generation,
+            dataHome: this.requireSelectedDataHome(),
+            ...(initial.httpUrl === null ? {} : { httpUrl: initial.httpUrl }),
+          };
         }
-        return {
-          kind: "attached",
-          generation: initial.generation,
-          dataHome: this.requireSelectedDataHome(),
-          ...(initial.httpUrl === null ? {} : { httpUrl: initial.httpUrl }),
-        };
+        if (initial.ownerLease !== this.ownerLease) {
+          return this.failure(
+            "Runtime status is not attachable; Desktop refused to use an unverified owner generation",
+          );
+        }
       }
       if (initial.phase === "core_starting") {
         return this.waitForStartup(initial);
@@ -494,7 +502,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
         String(initial.generation),
       ]),
     );
-    if (this.isReady(current) && current.ownerLease !== null) {
+    if (await this.isAttachableReady(current) && current.ownerLease !== null) {
       return {
         kind: "attached",
         generation: current.generation,
@@ -759,6 +767,28 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
 
   private isReady(status: RuntimeStatus): boolean {
     return status.state === "core_ready" || status.state === "world_ready";
+  }
+
+  private async isAttachableReady(status: RuntimeStatus): Promise<boolean> {
+    if (!this.isReady(status)) return false;
+    if (status.phase !== "failed") return true;
+    if (
+      status.state !== "core_ready"
+      || status.corePid === null
+      || status.httpUrl === null
+      || status.instanceId === null
+      || status.instanceId === "uninitialized"
+      || status.instanceId === "unavailable"
+    ) {
+      return false;
+    }
+    if (this.runtimeProcessProbeSafely(status.corePid) !== "alive") return false;
+    const health = await this.runtimeHealthProbeSafely({
+      httpUrl: status.httpUrl,
+      instanceId: status.instanceId,
+      generation: status.generation,
+    });
+    return health.kind === "healthy";
   }
 
   private ownedAttachment(status: RuntimeStatus): RuntimeAttachment {
