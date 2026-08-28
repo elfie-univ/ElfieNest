@@ -47,6 +47,7 @@ from infrastructure.persistence.nest_db.store import init_db
 from infrastructure.persistence.provider_catalog import load_provider_catalog
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
 from infrastructure.persistence.provider_storage import ProviderStorageAdapter
+from infrastructure.platform.lifecycle.process import DefaultProcessIdentityReader
 
 
 class _ElfieLabModelEnvironmentConfigSource:
@@ -237,7 +238,9 @@ class ElfieLabModelEnvironment:
         if not is_safe_local_endpoint(endpoint):
             raise ValueError("Ollama endpoint 必须是本机回环地址并包含端口")
 
-        adapter = OllamaPlatformAdapter()
+        adapter = OllamaPlatformAdapter(
+            process_identity_reader=DefaultProcessIdentityReader()
+        )
         probe = adapter.probe(
             OllamaBinding(
                 api_base=endpoint,
