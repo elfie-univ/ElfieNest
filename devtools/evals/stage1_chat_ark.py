@@ -53,7 +53,14 @@ from elfie.genesis import (
     RelationshipSeed,
     SelfModelSeed,
 )
-from elfie.message_types import ActorRef, MessageMeta
+from elfie.message_types import (
+    ActorId,
+    ActorRef,
+    ElfieId,
+    EventId,
+    MessageMeta,
+    TraceId,
+)
 from elfie.profile import (
     SPECIES_CANON_VERSION,
     WORLD_CANON_VERSION,
@@ -154,7 +161,8 @@ class ArkCliJsonClient:
             dry_run=False,
         )
         duration_ms = round((time.perf_counter() - started) * 1000.0, 2)
-        usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+        usage_value = payload.get("usage")
+        usage: Mapping[str, Any] = usage_value if isinstance(usage_value, dict) else {}
         call = {
             "model_requested": self.model,
             "model_returned": str(payload.get("model") or self.model),
@@ -188,7 +196,8 @@ class ArkCliJsonClient:
             dry_run=False,
         )
         duration_ms = round((time.perf_counter() - started) * 1000.0, 2)
-        usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+        usage_value = payload.get("usage")
+        usage: Mapping[str, Any] = usage_value if isinstance(usage_value, dict) else {}
         content = payload.get("content")
         if not isinstance(content, str) or not content.strip():
             raise ArkCallError("Ark 返回了空 content")
@@ -497,21 +506,21 @@ def _owner_message(
     text: str,
     elfie_id: str,
 ) -> CommunicationEnvelope:
-    owner = ActorRef(actor_id="owner-1", source_kind="owner")
+    owner = ActorRef(actor_id=ActorId("owner-1"), source_kind="owner")
     return CommunicationEnvelope(
         meta=MessageMeta(
-            event_id=event_id,
-            elfie_id=elfie_id,
+            event_id=EventId(event_id),
+            elfie_id=ElfieId(elfie_id),
             source=owner,
             occurred_at=at,
             received_at=at,
-            trace_id=f"trace-{event_id}",
+            trace_id=TraceId(f"trace-{event_id}"),
         ),
         account_id="owner-account",
         channel_id="chat",
         conversation_id="owner-chat",
         sender=owner,
-        recipients=(ActorRef(actor_id=elfie_id, source_kind="elfie"),),
+        recipients=(ActorRef(actor_id=ActorId(elfie_id), source_kind="elfie"),),
         direction=MessageDirection.INBOUND,
         external_message_id=f"external-{event_id}",
         dedupe_key=f"external-{event_id}",
