@@ -14,7 +14,7 @@ import tempfile
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Mapping, Sequence
+from typing import Any, Callable, Dict, Literal, Mapping, Sequence, cast
 
 from elfie.brain.memory import (
     AliasInput,
@@ -28,6 +28,7 @@ from elfie.brain.memory import (
     RecallRequest,
 )
 from elfie.brain.memory.consolidation import MemoryConsolidator
+from elfie.brain.memory.model_food import MemoryModelPort
 from elfie.brain.reasoning.conversation_context import ConversationContextStore
 from elfie.brain.workspace.contracts import (
     CommunicationScope,
@@ -47,7 +48,14 @@ from elfie.communication import (
     MessageDirection,
     TextPart,
 )
-from elfie.message_types import ActorRef, MessageMeta
+from elfie.message_types import (
+    ActorId,
+    ActorRef,
+    ElfieId,
+    EventId,
+    MessageMeta,
+    TraceId,
+)
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -57,7 +65,20 @@ NOW = datetime(2026, 8, 28, 8, 0, tzinfo=timezone.utc)
 
 
 class _FailingProposalModel:
-    def ask_with_food(self, **_kwargs: object) -> str:
+    def ask_with_food(
+        self,
+        prompt: str,
+        *,
+        food_key: str | None,
+        elfie_id: str | None,
+        scene: str,
+        semantic_role: str,
+        energy: float,
+        task_complexity: int,
+        allowed_skills: list[str] | None,
+    ) -> str:
+        del prompt, food_key, elfie_id, scene, semantic_role, energy, task_complexity
+        del allowed_skills
         raise TimeoutError("provider unavailable")
 
 
@@ -89,15 +110,15 @@ class _FailingChannel:
 
 
 def _frame(index: int, text: str, *, at: datetime) -> TurnFrame:
-    owner = ActorRef(actor_id="owner-1", source_kind="owner")
+    owner = ActorRef(actor_id=ActorId("owner-1"), source_kind="owner")
     event = PerceptionEvent(
         meta=MessageMeta(
-            event_id=f"opt002-owner-{index}",
-            elfie_id="opt002-elfie",
+            event_id=EventId(f"opt002-owner-{index}"),
+            elfie_id=ElfieId("opt002-elfie"),
             source=owner,
             occurred_at=at,
             received_at=at,
-            trace_id=f"opt002-trace-{index}",
+            trace_id=TraceId(f"opt002-trace-{index}"),
         ),
         payload=SocialPayload(
             type="social",
@@ -108,8 +129,8 @@ def _frame(index: int, text: str, *, at: datetime) -> TurnFrame:
         ),
     )
     return TurnFrame(
-        frame_id=f"opt002-frame-{index}",
-        elfie_id="opt002-elfie",
+        frame_id=EventId(f"opt002-frame-{index}"),
+        elfie_id=ElfieId("opt002-elfie"),
         revision=index,
         captured_at=at,
         cutoff_seq=index,
@@ -141,7 +162,7 @@ def _episode(episode_id: str, content: str, day: int = 1) -> ClosedEpisode:
 def _consolidate(
     store: SQLiteMemoryStoreAdapter,
     *,
-    model_port: object | None = None,
+    model_port: MemoryModelPort | None = None,
     limit: int = 8,
 ) -> list[Any]:
     consolidator = MemoryConsolidator(store)
@@ -317,7 +338,7 @@ def _scenario_conflicts() -> Dict[str, Any]:
                             "owner",
                             "likes",
                             object_node_id="food",
-                            polarity=polarity,
+                            polarity=cast(Literal["positive", "negative"], polarity),
                             evidence_ids=(evidence_id,),
                         ),
                     ),
@@ -392,16 +413,16 @@ def _scenario_delivery_failure() -> Dict[str, Any]:
     context.observe(frame, NOW)
     hub = CommunicationHub("opt002-elfie")
     hub.register_channel(_FailingChannel(), connect=True)
-    elfie = ActorRef(actor_id="opt002-elfie", source_kind="elfie")
-    owner = ActorRef(actor_id="owner-1", source_kind="owner")
+    elfie = ActorRef(actor_id=ActorId("opt002-elfie"), source_kind="elfie")
+    owner = ActorRef(actor_id=ActorId("owner-1"), source_kind="owner")
     envelope = CommunicationEnvelope(
         meta=MessageMeta(
-            event_id="opt002-reply",
-            elfie_id="opt002-elfie",
+            event_id=EventId("opt002-reply"),
+            elfie_id=ElfieId("opt002-elfie"),
             source=elfie,
             occurred_at=NOW + timedelta(seconds=1),
             received_at=NOW + timedelta(seconds=1),
-            trace_id="opt002-reply-trace",
+            trace_id=TraceId("opt002-reply-trace"),
         ),
         account_id="owner-account",
         channel_id="chat",

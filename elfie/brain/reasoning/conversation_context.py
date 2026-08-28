@@ -9,6 +9,7 @@ from threading import Lock
 from typing import Deque, Mapping, Tuple
 
 from elfie.brain.memory.memory_records import ClosedEpisode, SourceReference
+from elfie.brain.memory.node_types import JsonValue
 from elfie.brain.reasoning.context_types import (
     CompletedConversationInteraction,
     ConversationContext,
@@ -415,7 +416,7 @@ class ConversationContextStore:
         last = topic.messages[-1]
         end = closed_at or last.occurred_at
         episode_id = f"episode:{topic.thread_id}"
-        participants = list(
+        participants: list[JsonValue] = list(
             dict.fromkeys(str(message.sender.actor_id) for message in topic.messages)
         )
         content = "\n".join(

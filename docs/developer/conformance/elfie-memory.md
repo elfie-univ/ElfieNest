@@ -26,12 +26,12 @@ Memory model, authorize schema changes or describe an implementation diary.
 The following records the current development priorities after the baseline; it does not rewrite the closed or deferred
 status of `MEM-001`–`MEM-008`.
 
-| ID | Priority | Status | Current gap | Next acceptance gate |
-| --- | --- | --- | --- | --- |
-| OPT-001 | P0 | closed | The bounded slice compiles the frozen E1 fixture through typed Elfaria World Canon/Genesis, removes duplicated identity facts from the reasoning prompt, verifies publish-failure cleanup, and passes the deterministic E2/E3 gates. | No further OPT-001 implementation gate. |
-| OPT-002 | P0 | closed | WorkingContext closes bounded topic Episodes, captures source records before inference, extracts explicitly attributed owner/person facts, preserves aliases and supports explicit correction chains. | The deterministic continuous-learning regression passes all eight source-first scenarios. |
-| OPT-003 | P1 | deferred | Long-run compaction, forgetting, archiving, growth and latency have not had endurance validation. | After OPT-001/002 pass, establish bounded-growth and recoverable-lifecycle evaluation. |
-| OPT-004 | P1/P2 | deferred | Real Nest observation, activity and multi-Elfie interaction are outside the current chat loop. | After Stage 2 world integration, validate embodied memory and world-event provenance. |
+| ID | Priority | Status | Current gap | Next acceptance gate | Evidence / references |
+| --- | --- | --- | --- | --- | --- |
+| OPT-001 | P0 | closed | The bounded slice compiles the frozen E1 fixture through typed Elfaria World Canon/Genesis, removes duplicated identity facts from the reasoning prompt, verifies publish-failure cleanup, and passes the deterministic E2/E3 gates. | No further OPT-001 implementation gate. | target=OPT-001; inventory=`config/world/elfaria.yaml`, typed Genesis and adoption modules; references=OPT-001 execution brief and E1/E2/E3 scenario set; verification=typed fixture, affected Memory/Reasoning tests, deterministic E2/E3, Ruff and persistence scan passed; residuals=production backfill intentionally not run. |
+| OPT-002 | P0 | closed | WorkingContext closes bounded topic Episodes, captures source records before inference, extracts explicitly attributed owner/person facts, preserves aliases and supports explicit correction chains. | The deterministic continuous-learning regression passes all eight source-first scenarios. | target=OPT-002; inventory=`conversation_context.py`, `settlement.py`, `consolidation.py` and SQLite Memory adapter; references=OPT-002 execution brief and Memory design §§9.4–9.5; verification=eight continuous-learning scenarios, affected suite, Ruff and persistence scan passed; residuals=production cutover remains separately governed by MEM-007. |
+| OPT-003 | P1 | deferred | Long-run compaction, forgetting, archiving, growth and latency have not had endurance validation. | After OPT-001/002 pass, establish bounded-growth and recoverable-lifecycle evaluation. | — |
+| OPT-004 | P1/P2 | deferred | Real Nest observation, activity and multi-Elfie interaction are outside the current chat loop. | After Stage 2 world integration, validate embodied memory and world-event provenance. | — |
 
 OPT-001 and OPT-002 may be developed in parallel, using separate feature branches and independent evaluations; run a
 combined regression after both pass. Do not start OPT-003 or OPT-004 before then.
@@ -67,3 +67,5 @@ uv run --no-sync python scripts/governance/persistence/scan.py --project-root . 
 It must be rerun after schema changes. A row closes only when its target,
 inventory, references, verification and residuals are recorded. All Stage 1 P0 rows are now closed; production
 cutover remains separately governed by MEM-007.
+
+**Closure state:** ready

@@ -17,8 +17,10 @@ from elfie.brain.memory.memory_records import (
     RecallRequest,
 )
 
+from .sqlite_mixin_base import SQLiteMemoryMixinBase
 
-class SQLiteRecallStoreMixin:
+
+class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
     """Run lexical source search followed by a bounded local graph walk."""
 
     conn: sqlite3.Connection

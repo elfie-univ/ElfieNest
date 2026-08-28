@@ -23,6 +23,7 @@ from elfie.brain.memory.memory_records import (
 )
 from elfie.brain.memory.node_types import Edge
 
+from .sqlite_mixin_base import SQLiteMemoryMixinBase
 from .sqlite_utils import (
     bounded_score,
     canonical_json,
@@ -37,7 +38,7 @@ _NON_CANONICAL_NODE_TYPES = frozenset({"event", "episode", "claim"})
 _MAX_EPISODE_MENTIONS = 128
 
 
-class SQLiteGraphStoreMixin:
+class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
     conn: sqlite3.Connection
 
     def apply_consolidation(
@@ -172,12 +173,13 @@ class SQLiteGraphStoreMixin:
                         raise ValueError(
                             f"unknown assertion subject: {assertion.subject_id}"
                         )
-                    object_node_id = assertion.object_node_id
-                    if object_node_id is not None:
-                        object_node_id = node_id_map.get(object_node_id)
+                    object_node_reference = assertion.object_node_id
+                    object_node_id = object_node_reference
+                    if object_node_reference is not None:
+                        object_node_id = node_id_map.get(object_node_reference)
                         if object_node_id is None:
                             object_node_id = self._resolve_graph_node_id_locked(
-                                assertion.object_node_id
+                                object_node_reference
                             )
                         if object_node_id is None:
                             raise ValueError(

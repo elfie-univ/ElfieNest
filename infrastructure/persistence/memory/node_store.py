@@ -14,6 +14,7 @@ from typing import Mapping
 from elfie.brain.memory.memory_records import ClosedEpisode, NodeInput
 from elfie.brain.memory.node_types import Edge, JsonValue, MemoryMetadata, MemoryNode
 
+from .sqlite_mixin_base import SQLiteMemoryMixinBase
 from .sqlite_utils import (
     bounded_score,
     canonical_json,
@@ -26,7 +27,7 @@ from .sqlite_utils import (
 )
 
 
-class KnowledgeNodeStoreMixin:
+class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
     """Map the historical ``MemoryNode`` API to the target fact model."""
 
     conn: sqlite3.Connection

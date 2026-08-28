@@ -13,6 +13,7 @@ from elfie.brain.memory.memory_records import (
     SourceReference,
 )
 
+from .sqlite_mixin_base import SQLiteMemoryMixinBase
 from .sqlite_utils import canonical_json, content_hash, json_list, json_object, utc_now
 
 
@@ -20,7 +21,7 @@ class EpisodeIdempotencyError(ValueError):
     """The same idempotency key was submitted with different source content."""
 
 
-class SQLiteEpisodeStoreMixin:
+class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
     conn: sqlite3.Connection
 
     def record_episode(self, episode: ClosedEpisode) -> EpisodeReceipt:

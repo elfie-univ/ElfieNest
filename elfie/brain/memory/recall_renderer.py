@@ -9,7 +9,15 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from .memory_records import RecallAssertion, RecallBundle, RecallEvidence, RecallNode
+from .memory_records import (
+    RecallAssertion,
+    RecallBundle,
+    RecallConflict,
+    RecallEpisode,
+    RecallEvidence,
+    RecallNode,
+    RecallPath,
+)
 
 
 def render_recall_bundle(
@@ -107,7 +115,7 @@ def _append_assertions(lines: list[str], assertions: Iterable[RecallAssertion]) 
         )
 
 
-def _append_paths(lines: list[str], paths: Iterable[object]) -> None:
+def _append_paths(lines: list[str], paths: Iterable[RecallPath]) -> None:
     values = list(paths)
     if not values:
         return
@@ -119,7 +127,7 @@ def _append_paths(lines: list[str], paths: Iterable[object]) -> None:
         )
 
 
-def _append_episodes(lines: list[str], episodes: Iterable[object]) -> None:
+def _append_episodes(lines: list[str], episodes: Iterable[RecallEpisode]) -> None:
     values = list(episodes)
     if not values:
         return
@@ -146,7 +154,7 @@ def _append_evidence(lines: list[str], evidence: Iterable[RecallEvidence]) -> No
         )
 
 
-def _append_conflicts(lines: list[str], conflicts: Iterable[object]) -> None:
+def _append_conflicts(lines: list[str], conflicts: Iterable[RecallConflict]) -> None:
     values = list(conflicts)
     if not values:
         return

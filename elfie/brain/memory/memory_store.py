@@ -68,6 +68,18 @@ class MemoryStorePort(Protocol):
 
     def get_episode(self, episode_id: str) -> ClosedEpisode | None: ...
 
+    def pending_episodes(self, limit: int = 8) -> tuple[ClosedEpisode, ...]: ...
+
+    def claim_episodes(
+        self,
+        limit: int = 8,
+        *,
+        owner: str = "memory-worker",
+        lease_seconds: int = 120,
+    ) -> tuple[ClosedEpisode, ...]: ...
+
+    def mark_episode_failed(self, episode_id: str, error: str) -> bool: ...
+
     def apply_consolidation(
         self, projection: ConsolidationProjection
     ) -> ConsolidationReceipt: ...

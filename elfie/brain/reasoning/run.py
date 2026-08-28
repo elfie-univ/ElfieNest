@@ -494,7 +494,7 @@ class ReasoningRun:
         if context is None:
             return decode, False
         changed = False
-        intents = []
+        intents: list[DecisionIntent] = []
         for intent in decode.plan.intents:
             if not isinstance(intent, MessageIntent):
                 intents.append(intent)
