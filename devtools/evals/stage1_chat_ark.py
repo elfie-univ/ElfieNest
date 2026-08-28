@@ -64,7 +64,9 @@ DEFAULT_OUTPUT = ROOT / "build" / "evaluations" / "stage1-chat" / "e1-ark-curren
 DETERMINISTIC_TESTS = (
     "test/devtools/evals/test_stage1_chat_ark.py",
     "test/devtools/evals/test_opt001_e2e3.py",
+    "test/devtools/evals/test_opt002_continuous_learning.py",
     "test/e2e/test_stage1_memory_chat.py",
+    "test/e2e/test_continuous_learning_memory.py",
     "test/elfie/brain/memory/test_memory_system.py",
     "test/elfie/brain/memory/test_retrieval.py",
     "test/elfie/brain/reasoning/test_memory_context.py",
