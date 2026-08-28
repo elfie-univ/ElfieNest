@@ -17,7 +17,7 @@
 | MEM-005 | P0 | 已关闭 | `RecallRequest` 已执行确定性的 Basic/Text 候选检索，再做有界 Local Graph 遍历、来源获取、关系/时间过滤和限制控制。 | 文本覆盖罕见/未解析表述；图遍历覆盖明确关系；来源和冲突保持可见。 | target=设计第 6、9.5 节；inventory=`sqlite_retrieval_store.py`、`node_store.py`、`sqlite_graph_store.py`；references=source-first 检索测试；verification=罕见词/别名、人物关系网、知识对象、种子、时间窗口、跳数/限制和代表性延迟检查；residuals=Global/社区和向量检索仍是后续投影。 | 当前词法投影有意保持简单且可重建。 |
 | MEM-006 | P0 | 已关闭 | `RecallBundle` 及确定性渲染器已实现；Reasoning Memory reader 消费独立的带真实来源 ID 的类型化项目。 | 上层通过语义契约取得有界节点、Assertion、路径、Episode、Evidence 和冲突，不读取原始 SQL。 | target=设计第 6、9.5 节；inventory=`memory_records.py`、`recall_renderer.py`、`reasoning/memory_context.py`；references=推理和渲染测试；verification=稳定渲染、字符硬上限、来源和类型节点不合成虚假来源测试；residuals=最终自然语言叙述仍由 Reasoning 负责。 | Memory 边界无残余。 |
 | MEM-007 | P0 | 开发已关闭 | 已实现新库导入器、只读源保护、数量/摘要/哈希对账、租约恢复和保留操作。 | 导入按 Episode 优先、可审计且可回退；不修改旧库，不引入长期双写。 | target=设计第 9.6 节；inventory=`migration.py`、`sqlite_memory_store.py`；references=ADR-0018 和持久化规则；verification=旧库导入、可迁移 Episode 哈希匹配、证据映射、重开和归档/遗忘测试；residuals=生产数据切换未执行，需单独明确批准。 | 未接触线上用户库。 |
-| MEM-008 | P0 | 阻塞 | 确定性结构门禁和已授权的真实 Ark 候选/裁判运行现在均通过；负责人体验复核尚未完成，因此第一阶段尚未晋级。 | 可重放脱敏报告必须在 Stage 1 晋级前证明结构门禁、来源锚定、关系/冲突、重启和延迟。 | target=设计第 9.7 节及 `docs/.internal/elfie-stage1-memory-backed-chat-execution-plan.md`；inventory=`devtools/evals/stage1_chat_ark.py`、场景集和聚焦测试；references=`build/evaluations/stage1-chat/e1-ark-fixed-v2/report.json`；verification=确定性 E1 81 项测试通过、真实 Ark 候选 36 次和裁判 24 次调用、机器硬门通过、五项 Ark 质量维度全部通过（异星边界最差 5、历史 4、身份 5、记忆 grounding 5、自然度 4）、持久化扫描退出码 0；residuals=负责人体验复核和单独批准的生产数据切换仍待完成。 | Ark 鉴权和结构化裁判返回均通过，报告未写入密钥。 |
+| MEM-008 | P0 | 阻塞 | 确定性结构门禁和已授权的真实 Ark 候选/裁判运行均通过；负责人体验复核尚未完成，因此第一阶段尚未晋级。 | 可重放脱敏报告必须在 Stage 1 晋级前证明结构门禁、来源锚定、关系/冲突、重启和延迟。 | target=设计第 9.7 节及 `docs/.internal/elfie-stage1-memory-backed-chat-execution-plan.md`；inventory=`devtools/evals/stage1_chat_ark.py`、场景集和聚焦测试；references=`build/evaluations/stage1-chat/e1-ark-real-63219031/report.json`；verification=确定性 E1 86 项测试通过、33/33 个重复机器场景通过，真实 Ark 候选 45 次（其中 1 次 provider 空响应由既有失败收束路径恢复）和裁判 33 次调用，机器硬门全部通过，五项 Ark 维度全部通过（异星边界最差 4、历史连续性 4、身份连续性 5、记忆 grounding 4、自然度 5），持久化扫描退出码 0；residuals=负责人体验复核和单独批准的生产数据切换仍待完成。 | Ark 鉴权和结构化裁判返回均通过，报告未写入密钥。 |
 
 ## 当前基线后的优化台账
 
@@ -26,7 +26,7 @@
 | ID | 优先级 | 状态 | 当前差距 | 下一验收门 |
 | --- | --- | --- | --- | --- |
 | OPT-001 | P0 | 已关闭 | 有界切片现已让冻结的 E1 fixture 走类型化 Elfaria World Canon/Genesis 路径，移除推理提示中与 Profile/Canon 重复的身份事实，覆盖跨文件发布失败时的清理，并通过确定性 E2/E3 门。 | OPT-001 无后续实现门；负责人体验复核归 MEM-008 第一阶段门。 |
-| OPT-002 | P0 | 进行中 | WorkingContext 已能闭合有界话题 Episode，在推理前先落盘来源，抽取带归因的主人/人物事实，保留别名并支持显式纠正链；完整纵向评测仍未完成。 | 新人物、称呼、喜好、纠正、冲突、重复、重启以及投递/模型失败路径通过持续学习回归。 |
+| OPT-002 | P0 | 已关闭 | WorkingContext 已能闭合有界话题 Episode，在推理前先落盘来源，抽取带归因的主人/人物事实，保留别名并支持显式纠正链。 | 确定性持续学习回归的八类 source-first 场景全部通过；第一阶段整体负责人体验复核仍归 MEM-008。 |
 | OPT-003 | P1 | 暂缓 | 长期压缩、遗忘、归档、增长和延迟还未做长期运行验证。 | 在 OPT-001/002 通过后，建立有界增长和可恢复生命周期评测。 |
 | OPT-004 | P1/P2 | 暂缓 | 真实精灵巢观测、活动和多精灵互动尚未进入当前聊天闭环。 | 第二阶段真实巢场景接入后，再验证具身记忆和世界事件来源。 |
 
@@ -46,14 +46,7 @@ OPT-001 的确定性 E2/E3 门也已通过：2 个 published 物种、每物种 
 以及 24 个传记组合（每物种 4 个 life stage × 3 个 seed），报告位于 `/private/tmp/elfie-opt001-e2e3-20260828/report.json`。
 负责人体验复核仍是 MEM-008 的第一阶段门；未做生产回填，也未涉及 OPT-002/003/004。
 
-OPT-002 实现证据（2026-08-27）：target=持续学习 source-first 流程与 WorkingContext
-边界；inventory=`elfie/brain/reasoning/conversation_context.py`、`coordinator.py`、
-`settlement.py`、`elfie/brain/memory/consolidation.py`、
-`infrastructure/persistence/memory/{schema.py,sqlite_memory_store.py,sqlite_graph_store.py}`；
-references=OPT-002 开工文档 §3–§7 与 Memory 设计 §9.4–§9.5；verification=`test/elfie/brain/reasoning/test_conversation_context.py`、
-`test/elfie/brain/reasoning/test_memory_context.py`、`test/elfie/brain/reasoning/test_turn_settlement.py`、
-`test/infrastructure/persistence/memory`（40 个测试）、Ruff 与持久化扫描；residuals=完整
-BrainRuntime 纵向重放、生产数据切换、主人体验评审以及 OPT-003/OPT-004 能力仍未完成。
+OPT-002 实现与评测证据（2026-08-28）：target=持续学习 source-first 流程与 WorkingContext 边界；inventory=`elfie/brain/reasoning/conversation_context.py`、`coordinator.py`、`settlement.py`、`elfie/brain/memory/consolidation.py`、`infrastructure/persistence/memory/{schema.py,sqlite_memory_store.py,sqlite_graph_store.py}`；references=OPT-002 开工文档 §3–§7 与 Memory 设计 §9.4–§9.5；verification=`devtools/evals/opt002_continuous_learning.py` 与 `test/devtools/evals/test_opt002_continuous_learning.py` 的八类场景全部通过：Episode 边界、实体/别名/歧义、主人纠正/重启、冲突、幂等重放、失败重试、投递失败边界、精灵隔离；组合受影响测试 36/36 通过，Ruff 和持久化扫描退出码 0，报告为 `build/evaluations/stage1-chat/opt002-candidate-63219031/report.json`；residuals=负责人体验复核和生产切换仍归 MEM-008/MEM-007，OPT-003/OPT-004 按计划暂缓。
 
 ## 剩余验收顺序
 
