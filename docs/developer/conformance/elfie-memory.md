@@ -28,7 +28,7 @@ status of `MEM-001`–`MEM-008`.
 
 | ID | Priority | Status | Current gap | Next acceptance gate |
 | --- | --- | --- | --- | --- |
-| OPT-001 | P0 | in progress | The bounded slice now compiles the frozen E1 fixture through the typed Elfaria World Canon/Genesis path, removes duplicated identity facts from the reasoning prompt, and verifies cleanup on cross-file publish failure. Full E2/E3 coverage and owner experience review remain open. | Freeze the story/knowledge coverage matrix; pass the relevant E2/E3 new-adoption, paraphrase and restart gates, then complete owner review. |
+| OPT-001 | P0 | closed | The bounded slice compiles the frozen E1 fixture through typed Elfaria World Canon/Genesis, removes duplicated identity facts from the reasoning prompt, verifies publish-failure cleanup, and passes the deterministic E2/E3 gates. | No further OPT-001 implementation gate. Stage-wide owner experience review remains tracked under MEM-008. |
 | OPT-002 | P0 | in progress | WorkingContext now closes bounded topic Episodes, captures source records before inference, extracts explicitly attributed owner/person facts, preserves aliases and supports explicit correction chains. Full longitudinal evaluation is still open. | Pass the continuous-learning regression for new people, names, preferences, corrections, conflicts, duplicates, restart and failed delivery/model paths. |
 | OPT-003 | P1 | deferred | Long-run compaction, forgetting, archiving, growth and latency have not had endurance validation. | After OPT-001/002 pass, establish bounded-growth and recoverable-lifecycle evaluation. |
 | OPT-004 | P1/P2 | deferred | Real Nest observation, activity and multi-Elfie interaction are outside the current chat loop. | After Stage 2 world integration, validate embodied memory and world-event provenance. |
@@ -45,8 +45,10 @@ containing 42 facts and each published-species adoption selecting 40 eligible kn
 13 private relationship objects; materialization cleanup is now covered by an injected publish-failure test and the
 reasoning prompt no longer repeats Selfhood identity facts already supplied by Profile/Canon. The typed `stage1-e1.v2`
 fixture passed the deterministic gate and a real Ark single-repetition run (26 provider calls; machine and judge gates
-passed) in `/private/tmp/elfie-e1-real-20260828-final2/report.md`. Residuals=full E2/E3 coverage and owner experience
-review remain; no production backfill and no OPT-002/003/004 work.
+passed) in `/private/tmp/elfie-e1-real-20260828-final2/report.md`. The deterministic E2/E3 gate passed 2 published
+species, 96 eligible knowledge queries per species, 240 unknown-boundary queries, and 24 biography combinations
+(4 life stages × 3 seeds per species) in `/private/tmp/elfie-opt001-e2e3-20260828/report.json`. Owner experience review
+remains a separate MEM-008 Stage 1 gate; no production backfill and no OPT-002/003/004 work.
 
 OPT-002 implementation evidence (2026-08-27): target=continuous-learning source-first
 flow and WorkingContext boundary; inventory=`elfie/brain/reasoning/conversation_context.py`,

@@ -1,6 +1,6 @@
 # OPT-001 执行计划（修订候选）：Elfaria 知识与个体初始化
 
-> **状态：第一版已实现；E2/E3 与最终收口门仍开放**
+> **状态：OPT-001 实现与 E2/E3 机器门已关闭；负责人体验复核归 MEM-008**
 > **目标基线：** `origin/codex/memory-source-first`，`1aa51264`（2026-08-27）
 > **目标：** 让新领养的 Elfie 从第一次对话起，能从自身 Memory 连续回答 Elfaria、物种、迷雾镇、过去、人物和赴地经历；未知处明确说不知道。
 
@@ -224,7 +224,7 @@ draft/candidate → validated → staged → committed
 5. **实现审查：**是否复用现有 SQLite/RecallBundle/配置 registry；任何 schema、Port、迁移或生产数据影响都暂停请求确认。
 6. **评测审查：**事实、改写、关系、未知/反事实、重启、隔离、稀有词和三条过去线是否都有可重放证据；不能用旧 E1 的薄 fixture 冒充 OPT-001。
 
-本次修订已补回原设计中缺失的条目字段、地图层级、物种合同、个体差异、Seed/Manifest、导入映射、Recall/unknown 规则和可执行评测格式。第一版已完成配置注册、类型化 Genesis、source-first 导入、重启/幂等、typed E1 fixture、发布失败清理和 Prompt/Selfhood 去重；E2/E3 与负责人体验复核仍是明确残余，不能用局部测试代替。
+本次修订已补回原设计中缺失的条目字段、地图层级、物种合同、个体差异、Seed/Manifest、导入映射、Recall/unknown 规则和可执行评测格式。OPT-001 已完成配置注册、类型化 Genesis、source-first 导入、重启/幂等、typed E1 fixture、发布失败清理、Prompt/Selfhood 去重及 E2/E3 机器门；负责人体验复核属于 MEM-008 的 Stage 1 门，不再作为 OPT-001 实现残余。
 
 **冻结判定：**本阶段以当前首版切片作为冻结实现基线。若后续出现新 schema、系统 Port、真实迁移、未批准设定或范围外模块，立即暂停并报告；本计划不自行扩大。
 
