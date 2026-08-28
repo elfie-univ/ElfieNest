@@ -19,6 +19,8 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
   一级所有权。
 - [Elfie 大脑十系统架构](./designs/elfie-brain-ten-system-architecture)：Brain 的概念系统、
   运行关系和渐进实现顺序。
+- [Elfie Brain 评价与进化系统](./designs/elfie-brain-evaluation-system)：以证据为先的
+  Q6/P0 评价、受约束晋级和长期进化闭环。
 - [Elfie Memory 架构](./designs/elfie-memory-architecture)：经历记忆、个人知识图谱与图谱/文本混合检索。
 - [服务生命周期状态机设计](./designs/service-lifecycle-state-machine)：服务稳定层级、入口、
   进程所有权和收敛。
@@ -50,7 +52,9 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
 - [测试与质量](./engineering/testing)：测试层级、质量基线、pre-commit 与 CI。
 - [调试与实验台](./engineering/debugging)：Elfie Lab、Nest Lab 的用途和隔离方式。
 - [命令参考](./engineering/tooling)：统一 CLI、服务、数据和诊断命令。
-- [Developer Tools](./engineering/devtools)：两个模块实验台的入口和适用场景。
+- [Developer Tools](./engineering/devtools)：两个模块实验台和 Brain 批量评价工具的入口。
+- [Brain 评价工作流](./engineering/brain-evaluation)：捕获、Judge 校准、受保护确认、
+  配对比较和产物复核。
 - [Godot](./engineering/godot)：场景、空间、角色、Web Runtime 的所有权和检查流程。
 - [Desktop](./engineering/desktop)：Electron 宿主、资源发现和进程监督边界。
 - [代码规范与约束](./engineering/standards)：目录边界、Python 类型、测试和文档写法。

@@ -6,6 +6,7 @@ import {
   detailCloseAction,
   detailTitle,
   formatSignedDelta,
+  selectReadyFoodAfterLoad,
   selectElfieIdAfterLoad,
 } from "./viewModel";
 
@@ -47,5 +48,16 @@ describe("Elfie Lab view model", () => {
     expect(selectElfieIdAfterLoad(null, "deleted", undefined)).toBeUndefined();
     expect(selectElfieIdAfterLoad(null, "deleted", "remaining")).toBe("remaining");
     expect(selectElfieIdAfterLoad(undefined, "current", "first")).toBe("current");
+  });
+
+  it("selects the first runnable Food instead of a disabled system placeholder", () => {
+    const foods = [
+      { key: "food_emergency", ready_for_attempt: false },
+      { key: "mock", ready_for_attempt: true },
+    ];
+
+    expect(selectReadyFoodAfterLoad("", foods)).toBe("mock");
+    expect(selectReadyFoodAfterLoad("food_emergency", foods)).toBe("mock");
+    expect(selectReadyFoodAfterLoad("mock", foods)).toBe("mock");
   });
 });

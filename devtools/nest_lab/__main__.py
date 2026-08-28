@@ -16,12 +16,14 @@ def main() -> None:
     """启动独立的精灵巢模块实验台。"""
     parser = argparse.ArgumentParser(description="启动精灵巢模块 Developer Tool")
     parser.add_argument("--host", default="127.0.0.1", type=loopback_host)
-    parser.add_argument("--port", default=9002, type=int)
+    parser.add_argument("--port", default=9001, type=int)
     parser.add_argument("--godot-ws-port", default=None, type=int)
     parser.add_argument("--data-dir", default=None)
     args = parser.parse_args()
     godot_ws_port = args.godot_ws_port or args.port + 1
-    browser_url = f"http://{args.host}:{args.port}/?run={token_urlsafe(12)}"
+    browser_url = (
+        f"http://{args.host}:{args.port}/nest/experiment?run={token_urlsafe(12)}"
+    )
 
     def open_browser() -> None:
         webbrowser.open(browser_url)

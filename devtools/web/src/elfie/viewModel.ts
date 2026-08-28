@@ -42,6 +42,18 @@ export function selectElfieIdAfterLoad(
   return requestedId ?? currentId ?? firstId;
 }
 
+export function selectReadyFoodAfterLoad(
+  currentKey: string,
+  foods: readonly Readonly<{
+    readonly key: string;
+    readonly ready_for_attempt: boolean;
+  }>[],
+): string {
+  const current = foods.find((item) => item.key === currentKey);
+  if (current?.ready_for_attempt) return current.key;
+  return foods.find((item) => item.ready_for_attempt)?.key ?? foods[0]?.key ?? "";
+}
+
 export function detailTitle(focus: DetailFocus, tab: string): string {
   if (tab === "链路" || focus === "chain") return "完整处理链路";
   if (focus === "input") return "输入与感知";

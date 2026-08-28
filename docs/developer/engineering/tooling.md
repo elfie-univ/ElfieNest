@@ -180,16 +180,22 @@ end-user product entry:
 ```bash
 ./developer.sh --help
 ./developer.sh elfie-lab --data-dir /tmp/elfienest-elfie-lab
+./developer.sh brain-eval --data-dir /tmp/elfienest-brain-eval
 ./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab
+./developer.sh brain-eval catalog
 ```
 
-- Elfie Lab listens on `127.0.0.1:8877` by default;
-- Nest Lab listens on `127.0.0.1:8890` by default.
+- The three page entry points share HTTP `127.0.0.1:9001` by default;
+- Nest Lab's Godot WebSocket is an internal `127.0.0.1:9002` listener;
+- `brain-eval` without an action opens the batch evaluation page, while explicit
+  actions such as `catalog` remain the artifact CLI and write to `build/brain-eval/`.
 
 Ports are only local defaults, not production guarantees. Configure the model
 from Elfie Lab's experiment panel; saving does not validate the connection and
 the first real turn makes the model request. For the detailed boundaries see
 `devtools/README.md`.
+For reproducible Candidate capture, Judge calibration, protected confirmations, and
+promotion decisions, see [Brain evaluation workflow](./brain-evaluation).
 
 ## Quality checks and tests
 

@@ -16,7 +16,7 @@ def _write_source(root: Path, category: str, elfie_id: str, name: str) -> Path:
 def test_recycle_moves_all_data_into_manifested_bundle(tmp_path):
     # Given
     elfie_id = "elfie_recycle"
-    for category in ("elfies", "sessions", "media"):
+    for category in ("elfies", "sessions", "media", "evaluations"):
         _write_source(tmp_path, category, elfie_id, f"{category}.txt")
 
     # When
@@ -27,11 +27,12 @@ def test_recycle_moves_all_data_into_manifested_bundle(tmp_path):
         f"elfies/{elfie_id}",
         f"sessions/{elfie_id}",
         f"media/{elfie_id}",
+        f"evaluations/{elfie_id}",
     )
     manifest = json.loads((result.bundle_dir / "manifest.json").read_text())
     assert manifest["deleted_elfie_id"] == elfie_id
     assert manifest["moved_sources"] == list(result.moved_sources)
-    for category in ("elfies", "sessions", "media"):
+    for category in ("elfies", "sessions", "media", "evaluations"):
         assert not (tmp_path / category / elfie_id).exists()
         assert (result.bundle_dir / category / elfie_id / f"{category}.txt").is_file()
 

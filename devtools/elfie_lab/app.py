@@ -4,13 +4,15 @@ import base64
 import binascii
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, AsyncIterator, Callable, Optional
+from typing import Annotated, AsyncIterator, Callable, Optional, Union
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 import devtools.elfie_lab.api_models as api_models
 import devtools.elfie_lab.model_execution_foods as model_execution_food_support
+from devtools.elfie_lab.evaluation_batches import BatchEvaluationService
+from devtools.elfie_lab.evaluation_routes import build_evaluation_router
 from devtools.elfie_lab.food_status import find_food_item
 from devtools.elfie_lab.host import LoopbackHostMiddleware
 from devtools.elfie_lab.media_store import (
@@ -32,11 +34,23 @@ from devtools.elfie_lab.session_registry import SessionBusyError, SessionRegistr
 from devtools.elfie_lab.static_host import mount_static_surfaces
 from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.elfie_lab.system_routes import build_system_router
-from devtools.web_host import frontend_shell
+from devtools.web_host import LabShell, frontend_shell
+from infrastructure.persistence.configuration.species import (
+    load_and_configure_species_catalog,
+)
 from infrastructure.persistence.layout.data_home import (
     get_elfie_developer_home,
     get_elfie_home,
 )
+
+
+def _assert_brain_eval_runtime_root_isolated(selected_root: Path) -> None:
+    """Keep disposable Brain evaluation data outside the production data root."""
+
+    resolved_root = selected_root.expanduser().resolve(strict=False)
+    production_root = get_elfie_home().expanduser().resolve(strict=False)
+    if resolved_root == production_root or production_root in resolved_root.parents:
+        raise ValueError("Brain evaluation cannot use production ELFIE_HOME")
 
 
 def create_app(
@@ -44,7 +58,21 @@ def create_app(
     model_execution_config_dir: Optional[str] = None,
     *,
     on_ready: Optional[Callable[[], None]] = None,
+    shell: LabShell = "elfie",
+    default_path: str = "/elfie/experiment",
+    nest_data_dir: Optional[Union[str, Path]] = None,
+    nest_http_port: int = 9001,
+    nest_godot_ws_port: Optional[int] = None,
 ) -> FastAPI:
+    """Create the Elfie Lab HTTP app.
+
+    ``shell="elfie"`` keeps the standalone application contract intact.  The
+    unified Developer Tools entry point passes ``shell="unified"`` and a
+    Nest data directory so all three browser surfaces share this one HTTP
+    listener while retaining separate data ownership and the existing internal
+    Godot WebSocket gateway.
+    """
+    load_and_configure_species_catalog()
     storage = ElfieLabStorage(data_dir)
     config_root = model_execution_config_dir or str(storage.root / "runtime")
     if Path(config_root).expanduser().resolve() == get_elfie_home().resolve():
@@ -62,14 +90,46 @@ def create_app(
     sessions = SessionRegistry(storage, str(model_environment.root))
     recycle_store = RecycleStore(storage.root)
     media_store = ElfieLabMediaStore(storage.root)
+    evaluation_service = BatchEvaluationService(
+        storage.root / "evaluations",
+        str(model_environment.root),
+    )
+    nest_world = None
+    nest_runtime_startup_error: Optional[str] = None
+    if shell == "unified":
+        from devtools.nest_lab.world import NestLabWorld
+
+        nest_root = (
+            Path(nest_data_dir).expanduser().resolve()
+            if nest_data_dir is not None
+            else get_elfie_developer_home() / "nest_lab"
+        )
+        nest_root.mkdir(parents=True, exist_ok=True)
+        nest_world = NestLabWorld(
+            data_dir=nest_root,
+            http_port=nest_http_port,
+            websocket_port=nest_godot_ws_port or nest_http_port + 1,
+        )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        nonlocal nest_runtime_startup_error
         try:
+            if nest_world is not None:
+                try:
+                    nest_world.start()
+                except RuntimeError as error:
+                    # Keep the unified HTTP shell usable when the optional
+                    # Godot gateway port is occupied.  The Nest page exposes
+                    # the degraded state through its existing runtime API.
+                    nest_runtime_startup_error = str(error)
             if on_ready is not None:
                 on_ready()
             yield
         finally:
+            if nest_world is not None:
+                nest_world.stop()
+            evaluation_service.close()
             sessions.close()
 
     app = FastAPI(
@@ -85,7 +145,20 @@ def create_app(
     app.state.media_store = media_store
     app.state.model_execution = model_environment
     app.state.food_store = food_store
+    app.state.evaluation_service = evaluation_service
+    app.state.nest_world = nest_world
     mount_static_surfaces(app)
+    godot_web_entry = (
+        Path(__file__).parents[2]
+        / "build"
+        / "components"
+        / "godot-web"
+        / "elfienest.html"
+    )
+    unified_godot_web_ready = (
+        godot_web_entry.is_file() if nest_world is not None else False
+    )
+    app.state.godot_web_ready = unified_godot_web_ready
     app.include_router(build_profile_router(storage, sessions))
     app.include_router(
         build_system_router(
@@ -94,14 +167,59 @@ def create_app(
             developer_scope=developer_scope,
         )
     )
+    app.include_router(
+        build_evaluation_router(
+            storage=storage,
+            sessions=sessions,
+            service=evaluation_service,
+            model_environment=model_environment,
+            food_store=food_store,
+        )
+    )
+    if nest_world is not None:
+        from devtools.nest_lab.routes import build_router as build_nest_router
+
+        app.include_router(build_nest_router(nest_world))
+
+        @app.get("/api/godot-web")
+        def godot_web_status() -> dict[str, object]:
+            return {
+                "ready": unified_godot_web_ready,
+                "entry_url": "/godot-web/elfienest.html"
+                if unified_godot_web_ready
+                else "",
+                "build_command": "./developer.sh build-godot-web",
+            }
 
     @app.get("/", include_in_schema=False)
-    def index() -> HTMLResponse:
-        return frontend_shell("elfie")
+    def index() -> RedirectResponse:
+        return RedirectResponse(default_path, status_code=307)
+
+    @app.get("/elfie/experiment", include_in_schema=False)
+    def experiment_page() -> HTMLResponse:
+        return frontend_shell(shell)
+
+    @app.get("/elfie/evaluations", include_in_schema=False)
+    def evaluations_page() -> HTMLResponse:
+        return frontend_shell(shell)
+
+    if nest_world is not None:
+
+        @app.get("/nest/experiment", include_in_schema=False)
+        def nest_experiment_page() -> HTMLResponse:
+            return frontend_shell(shell)
 
     @app.get("/api/health")
     def health():
-        return {"status": "ok", "service": "elfie-lab"}
+        payload: dict[str, object] = {
+            "status": "degraded" if nest_runtime_startup_error is not None else "ok",
+            "service": "developer-tools" if nest_world is not None else "elfie-lab",
+        }
+        if nest_world is not None:
+            payload["scope"] = "developer"
+            payload["production_engine"] = False
+            payload["runtime_startup_error"] = nest_runtime_startup_error or ""
+        return payload
 
     @app.get("/api/elfies")
     def list_elfies():
@@ -139,6 +257,11 @@ def create_app(
     def delete_elfie(elfie_id: str):
         try:
             storage.get_elfie(elfie_id)
+            if evaluation_service.has_active_run(elfie_id):
+                raise HTTPException(
+                    status_code=409,
+                    detail="该测试精灵的评测仍在运行，请等待完成后再删除",
+                )
             sessions.remove(elfie_id, lambda: recycle_store.recycle(elfie_id))
         except SessionBusyError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -277,3 +400,33 @@ def create_app(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return app
+
+
+def create_unified_app(
+    data_dir: Optional[Union[str, Path]] = None,
+    *,
+    http_port: int = 9001,
+    godot_ws_port: Optional[int] = None,
+    on_ready: Optional[Callable[[], None]] = None,
+    default_path: str = "/elfie/experiment",
+) -> FastAPI:
+    """Create the single-port Developer Tools surface.
+
+    The parent directory owns the two isolated stores.  This keeps Elfie
+    session/evaluation data and Nest/Godot experiment data independent while
+    presenting one browser origin and one user-facing HTTP port.
+    """
+    root = (
+        Path(data_dir).expanduser().resolve()
+        if data_dir is not None
+        else get_elfie_developer_home()
+    )
+    return create_app(
+        str(root / "elfie_lab"),
+        shell="unified",
+        default_path=default_path,
+        nest_data_dir=root / "nest_lab",
+        nest_http_port=http_port,
+        nest_godot_ws_port=godot_ws_port,
+        on_ready=on_ready,
+    )
