@@ -63,6 +63,7 @@ JUDGE_SCHEMA = ROOT / "devtools" / "evals" / "stage1_judge_schema.json"
 DEFAULT_OUTPUT = ROOT / "build" / "evaluations" / "stage1-chat" / "e1-ark-current"
 DETERMINISTIC_TESTS = (
     "test/devtools/evals/test_stage1_chat_ark.py",
+    "test/devtools/evals/test_opt001_e2e3.py",
     "test/e2e/test_stage1_memory_chat.py",
     "test/elfie/brain/memory/test_memory_system.py",
     "test/elfie/brain/memory/test_retrieval.py",
