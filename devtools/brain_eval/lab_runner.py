@@ -17,7 +17,6 @@ from devtools.elfie_lab.schemas import StimulusBundle
 from devtools.elfie_lab.session import ElfieLabSession
 from devtools.elfie_lab.session_state import apply_state_injection
 from devtools.elfie_lab.storage import ElfieLabStorage
-from infrastructure.persistence.layout.data_home import get_elfie_home
 
 
 @unique
@@ -108,9 +107,11 @@ def capture_lab_episode(
 
     _validate_scenario(scenario)
     selected_root = runtime_root.expanduser().resolve(strict=False)
-    production_root = get_elfie_home().expanduser().resolve(strict=False)
-    if selected_root == production_root or production_root in selected_root.parents:
-        raise ValueError("Brain evaluation cannot use production ELFIE_HOME")
+    # Keep the production-root guard in the Elfie Lab application boundary so
+    # developer tools do not reach into infrastructure for path policy.
+    from devtools.elfie_lab.app import _assert_brain_eval_runtime_root_isolated
+
+    _assert_brain_eval_runtime_root_isolated(selected_root)
     if fixture_snapshot_root is not None:
         source_root = fixture_snapshot_root.expanduser().resolve(strict=True)
         shutil.copytree(source_root, selected_root, dirs_exist_ok=True)

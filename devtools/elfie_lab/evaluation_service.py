@@ -1394,16 +1394,37 @@ def _current_source_ref(project_root: Path) -> str:
     return _git_output(project_root, "branch", "--show-current") or "HEAD"
 
 
-def _source_state_for_ref(project_root: Path, source_ref: str) -> Tuple[str, bool, str]:
-    """Resolve a branch/ref to an immutable commit and tree fingerprint."""
+def _git_ref_candidates(source_ref: str) -> Tuple[str, ...]:
+    """Accept branch names from the UI whether or not CI prefixes ``origin/``."""
+
+    normalized = source_ref.strip()
+    candidates = [normalized]
+    if normalized and not normalized.startswith(("refs/", "origin/")):
+        candidates.append(f"origin/{normalized}")
+    return tuple(dict.fromkeys(candidates))
+
+
+def _resolve_source_ref(project_root: Path, source_ref: str) -> str:
+    """Resolve a selectable branch name to a locally available Git ref."""
 
     normalized = source_ref.strip()
     if not normalized:
         raise ValueError("代码分支不能为空")
-    revision = _git_output(project_root, "rev-parse", f"{normalized}^{{commit}}")
-    tree = _git_output(project_root, "rev-parse", f"{normalized}^{{tree}}")
-    if not revision or not tree:
-        raise ValueError(f"代码分支不存在或无法解析: {normalized}")
+    for candidate in _git_ref_candidates(normalized):
+        revision = _git_output(project_root, "rev-parse", f"{candidate}^{{commit}}")
+        tree = _git_output(project_root, "rev-parse", f"{candidate}^{{tree}}")
+        if revision and tree:
+            return candidate
+    raise ValueError(f"代码分支不存在或无法解析: {normalized}")
+
+
+def _source_state_for_ref(project_root: Path, source_ref: str) -> Tuple[str, bool, str]:
+    """Resolve a branch/ref to an immutable commit and tree fingerprint."""
+
+    normalized = source_ref.strip()
+    resolved_ref = _resolve_source_ref(project_root, normalized)
+    revision = _git_output(project_root, "rev-parse", f"{resolved_ref}^{{commit}}")
+    tree = _git_output(project_root, "rev-parse", f"{resolved_ref}^{{tree}}")
     # A new evaluation on the active branch must represent the working tree the
     # user is actually testing, including uncommitted edits. Other branches are
     # immutable Git snapshots and intentionally use their commit/tree identity.
@@ -1427,14 +1448,16 @@ def _code_branch_refs(project_root: Path) -> Tuple[str, ...]:
         "refs/heads",
         "refs/remotes",
     )
-    names = {
-        line.strip()
-        for line in output.splitlines()
-        if line.strip() and not line.strip().endswith("/HEAD")
-    }
+    names = set()
+    for raw_line in output.splitlines():
+        name = raw_line.strip()
+        if not name or name.endswith("/HEAD"):
+            continue
+        if name.startswith("origin/"):
+            name = name[len("origin/") :]
+        names.add(name)
     current = _current_source_ref(project_root)
-    if current != "HEAD":
-        names.add(current)
+    names.add(current)
     return tuple(sorted(names, key=lambda item: (item != current, item.casefold())))
 
 

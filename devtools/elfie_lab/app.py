@@ -44,6 +44,15 @@ from infrastructure.persistence.layout.data_home import (
 )
 
 
+def _assert_brain_eval_runtime_root_isolated(selected_root: Path) -> None:
+    """Keep disposable Brain evaluation data outside the production data root."""
+
+    resolved_root = selected_root.expanduser().resolve(strict=False)
+    production_root = get_elfie_home().expanduser().resolve(strict=False)
+    if resolved_root == production_root or production_root in resolved_root.parents:
+        raise ValueError("Brain evaluation cannot use production ELFIE_HOME")
+
+
 def create_app(
     data_dir: Optional[str] = None,
     model_execution_config_dir: Optional[str] = None,

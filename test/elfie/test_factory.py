@@ -26,7 +26,7 @@ def test_memory_adapter_owns_workspace_knowledge_sqlite(tmp_path: Path) -> None:
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
             )
         }
-    assert len(tables) == 9
+    assert len(tables) == 10
     assert not (tmp_path / "graph_memory.db").exists()
     store.close()
 

@@ -52,6 +52,7 @@ from devtools.elfie_lab.evaluation_service import (
     _food_fingerprint,
     _merge_dimension_scores,
     _overall_verdict,
+    _resolve_source_ref,
     _reviewer_fingerprint,
     _run_validity,
     _scenario_assertions,
@@ -724,13 +725,14 @@ class BatchEvaluationService(EvaluationService):
     def _source_checkout(self, source_ref: str):
         """Materialize a branch commit without changing the user's checkout."""
 
+        resolved_ref = _resolve_source_ref(self._project_root, source_ref)
         with tempfile.TemporaryDirectory(
             prefix="elfienest-evaluation-worktree-"
         ) as parent:
             worktree = Path(parent) / "source"
             worktree.mkdir()
             result = subprocess.run(
-                ("git", "archive", "--format=tar", source_ref),
+                ("git", "archive", "--format=tar", resolved_ref),
                 cwd=self._project_root,
                 capture_output=True,
                 check=False,
