@@ -11,6 +11,7 @@ from app.features.communication import (
     MessageResult,
     PreparedUserMessageResult,
     RecordedElfieMessageResult,
+    RecordElfieMessageCommand,
 )
 from app.orchestration.message_delivery import (
     DeliverElfieReplyCommand,
@@ -18,6 +19,7 @@ from app.orchestration.message_delivery import (
     DuplicateMessage,
     LiveConversationMessage,
     MessageDeliveryFacade,
+    MessageDeliveryPortError,
     SubmitUserMessageCommand,
     UserMessageDeliveryAttempt,
 )
@@ -81,6 +83,13 @@ class Live:
     def publish_message(self, message: LiveConversationMessage) -> None:
         self.events.append("broadcast")
         self.messages.append(message)
+
+
+class FailingLive(Live):
+    def publish_message(self, message: LiveConversationMessage) -> None:
+        del message
+        self.events.append("broadcast_failed")
+        raise MessageDeliveryPortError("websocket unavailable")
 
 
 def test_user_message_is_written_once_only_after_accepted_receipt() -> None:
@@ -164,8 +173,46 @@ def test_elfie_reply_is_persisted_before_the_same_record_is_broadcast() -> None:
     )
 
     facade.deliver_elfie_reply(
-        DeliverElfieReplyCommand(elfie_id="00000001", text="你好"),
+        DeliverElfieReplyCommand(
+            elfie_id="00000001",
+            text="你好",
+            conversation_id="owner:7",
+            message_id="outbound-1",
+        ),
     )
 
     assert events == ["persist_reply", "broadcast"]
     assert live.messages[0].message.id == 1
+    communication.record_elfie_message.assert_called_once_with(
+        RecordElfieMessageCommand(
+            elfie_id="00000001",
+            text="你好",
+            channel="web",
+            meta="实时回复",
+            conversation_id="owner:7",
+            message_id="outbound-1",
+        )
+    )
+
+
+def test_elfie_reply_keeps_history_success_when_realtime_publish_fails() -> None:
+    events: list[str] = []
+    communication = _communication(events)
+    facade = MessageDeliveryFacade(
+        communication,
+        Delivery(events, DeliveryAdmission(status="accepted")),
+        FailingLive(events),
+    )
+
+    result = facade.deliver_elfie_reply(
+        DeliverElfieReplyCommand(
+            elfie_id="00000001",
+            text="你好",
+            conversation_id="owner:7",
+            message_id="outbound-1",
+        )
+    )
+
+    assert result.message.text == "你好"
+    assert result.realtime_delivered is False
+    assert events == ["persist_reply", "broadcast_failed"]

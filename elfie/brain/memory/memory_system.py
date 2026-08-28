@@ -45,7 +45,7 @@ from .emotion_weighting import EmotionWeighting
 from .encoding import MemoryEncoder
 from .memory_store import MemoryStorePort
 from .model_food import MemoryModelPort
-from .node_types import RetrievalQuery
+from .node_types import MemoryNode, RetrievalQuery
 from .recall_formatter import MemoryRecallFormatter
 from .retrieval import MemoryRetriever
 from .self_narrative import MemorySelfNarrativeProjection
@@ -175,6 +175,7 @@ class MemorySystem:
             stimulus,
             sensory,
             model_port,
+            source_event_ids,
         )
         self._commit_state(
             source_event_ids=source_event_ids,
@@ -209,6 +210,7 @@ class MemorySystem:
                 candidate.stimulus,
                 None,
                 None,
+                candidate.source_event_ids,
             )
             self._commit_state(
                 source_event_ids=candidate.source_event_ids,
@@ -250,6 +252,30 @@ class MemorySystem:
         )
         nodes = self.retriever.retrieve(retrieval_query, top_k)
         return [node.content for node in nodes]
+
+    def recall_nodes(
+        self,
+        query: str,
+        *,
+        emotion: str = "",
+        intensity: float = 0.0,
+        current_time: str = "",
+        top_k: int = 5,
+    ) -> list[MemoryNode]:
+        """Return the durable nodes selected for one reasoning context.
+
+        The reasoning boundary needs node identity and provenance, not a
+        preformatted narrative string.  Formatting remains a presentation
+        concern; this method exposes only the typed storage nodes selected by
+        the existing retriever.
+        """
+        retrieval_query = RetrievalQuery(
+            text_query=query,
+            current_emotion=emotion,
+            current_intensity=intensity,
+            current_time=current_time,
+        )
+        return self.retriever.retrieve(retrieval_query, top_k)
 
     def pending_consolidation_ids(self, limit: int = 8) -> tuple[str, ...]:
         """Return a bounded, read-only view of episodic work awaiting consolidation."""
