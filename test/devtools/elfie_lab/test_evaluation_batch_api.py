@@ -62,6 +62,9 @@ def test_code_pair_runs_named_branches_with_shared_fixture(
     seed_mock_food(runtime)
     client = client_for(create_app(str(tmp_path / "data"), str(runtime)))
     elfie_id = _create_elfie(client)
+    code_branches = client.get("/api/evaluations/code-branches")
+    assert code_branches.status_code == 200, code_branches.text
+    current_ref = code_branches.json()["current_ref"]
 
     response = client.post(
         "/api/evaluations/batches/paired",
@@ -71,7 +74,7 @@ def test_code_pair_runs_named_branches_with_shared_fixture(
             "comparison_variable": "code",
             "food_key_b": "mock",
             "judge_subscription_id": "mock",
-            "code_ref_a": "codex/brain-eval-system",
+            "code_ref_a": current_ref,
             "code_ref_b": "main",
             "title": "代码分支验证",
         },
@@ -80,10 +83,7 @@ def test_code_pair_runs_named_branches_with_shared_fixture(
     batch = _wait_for_batch(client, response.json()["batch"]["batch_id"])
 
     assert batch["batch"]["status"] in {"completed", "partial_failed"}
-    assert [item["source_ref"] for item in batch["reports"]] == [
-        "codex/brain-eval-system",
-        "main",
-    ]
+    assert [item["source_ref"] for item in batch["reports"]] == [current_ref, "main"]
     assert batch["batch"]["fixture_sha256"] == batch["reports"][0]["fixture_sha256"]
 
 
