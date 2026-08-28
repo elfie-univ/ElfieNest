@@ -1,6 +1,6 @@
 # Elfie 第一阶段：记忆支撑的完整聊天闭环执行计划
 
-> 状态：E1 确定性闭环和真实火山 Ark 候选/裁判机器、软质量门均已通过；负责人体验评审待执行，尚未晋级 E2
+> 状态：E1 确定性闭环和真实火山 Ark 机器门已通过；`136eebaa` 的完整 3× 运行有一次 `memory_grounding=3`，软质量门未通过，负责人体验评审待执行，尚未晋级 E2
 > 制定日期：2026-08-25
 > 对应产品阶段：[Elfie 三阶段产品交付路线](./elfie-product-delivery-stages.md)第一阶段
 > 评测基础：[Elfie Brain 评价体系与自动化试验场](./elfie-brain-evaluation-system.md)、[E1 火山 Ark 评测计划](./elfie-stage1-ark-evaluation-plan.md)
