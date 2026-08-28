@@ -1,21 +1,5 @@
 <div align="center">
-  <table border="0">
-    <tr>
-      <td align="center" valign="middle" style="border: none;">
-        <img src="docs/public/assets/logo.png" alt="ElfieNest Logo" width="115" />
-      </td>
-      <td align="left" valign="middle" style="border: none;">
-        <pre>
-███████╗██╗     ███████╗██╗███████╗     ███╗   ██╗███████╗███████╗████████╗
-██╔════╝██║     ██╔════╝██║██╔════╝     ████╗  ██║██╔════╝██╔════╝╚══██╔══╝
-█████╗  ██║     █████╗  ██║█████╗       ██╔██╗ ██║█████╗  ███████╗   ██║
-██╔══╝  ██║     ██╔══╝  ██║██╔══╝       ██║╚██╗██║██╔══╝  ╚════██║   ██║
-███████╗███████╗██║     ██║███████╗     ██║ ╚████║███████╗███████║   ██║
-╚══════╝╚══════╝╚═╝     ╚═╝╚══════╝     ╚═╝  ╚═══╝╚══════╝╚══════╝   ╚═╝
-        </pre>
-      </td>
-    </tr>
-  </table>
+  <img src="docs/public/assets/elfienest-full-logo-transparent.png" alt="ElfieNest" width="720" />
 
   <p><strong>🦊 仿生生命体系统 - Embodied AI Creature Simulation</strong></p>
 
@@ -79,6 +63,11 @@ ExecutionReceipt 回到感知工作区
 ./elfienest.sh
 ```
 
+首次运行源码开发命令时，启动器会同时检查锁定的开发环境和仓库管理的 pre-commit
+hook，缺失项统一通过 `scripts/bootstrap.sh` 修复。不启动产品、只准备 checkout 时，
+直接运行 `./scripts/bootstrap.sh ensure --tier=dev`。Git 不会在 clone 后自行执行仓库
+hook；安装包用户不需要这套贡献者准备流程。
+
 不带参数的启动器会进入交互菜单；如需在前台运行服务，请使用
 `./elfienest.sh serve`。Ollama 是可选的公共本地模型能力：没有它时，应用仍可完成
 Setup 并使用其他已配置 Provider；不会静默下载私有 Ollama 或模型权重。
@@ -114,7 +103,7 @@ uv sync --locked --extra dev
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest test/architecture/
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_baseline.py
+  uv run --no-sync python scripts/quality/checks/python_baseline.py
 ```
 
 测试路径、Desktop 与 Godot 构建命令分别由

@@ -8,11 +8,13 @@ import shlex
 import socket
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Final, Mapping, Optional, Sequence, Tuple
 
 from app.orchestration.lifecycle.ports import (
     LocalProcessEntry,
+    ProcessIdentityEvidence,
     ProcessInspectorPort,
     ProcessSnapshot,
 )
@@ -22,11 +24,18 @@ from infrastructure.platform.lifecycle.windows_job import (
     deterministic_job_name,
 )
 
+RUNTIME_LOG_MAX_BYTES = 10 * 1024 * 1024
+RUNTIME_LOG_BACKUP_COUNT = 3
+
 PID_FILENAME: Final = "elfienest.pid"
 DEFAULT_SERVICE_PORTS: Final[Tuple[int, ...]] = (8000, 8765)
 DEFAULT_HTTP_PORT: Final = 8000
 DEFAULT_GODOT_WS_PORT: Final = 8765
 INTERNAL_SERVICE_PORTS: Final[Tuple[int, ...]] = (8765,)
+WINDOWS_PROCESS_QUERY_OPERATION_TIMEOUT_SECONDS: Final = 20
+WINDOWS_PROCESS_QUERY_TIMEOUT_SECONDS: Final = 30.0
+WINDOWS_JOB_OPEN_TIMEOUT_SECONDS: Final = 5.0
+WINDOWS_JOB_OPEN_POLL_INTERVAL_SECONDS: Final = 0.05
 
 
 class DefaultProcessInspector:
@@ -139,6 +148,50 @@ class DefaultProcessInspector:
             raise OSError(f"process birth identity is unavailable for PID {pid}")
         return f"ps-start:{value}"
 
+    def snapshot(self, pid: int) -> ProcessSnapshot:
+        """Read one coherent process snapshot without duplicate platform queries."""
+        birth_identity = self.birth_identity(pid)
+        if os.name == "nt":
+            command = _windows_process_command(pid)
+            cwd = _windows_process_cwd_from_command(pid, command)
+        else:
+            cwd = self.cwd(pid)
+            command = self.command(pid)
+        return ProcessSnapshot(
+            pid=pid,
+            cwd=cwd,
+            command=command,
+            birth_identity=birth_identity,
+        )
+
+
+class DefaultProcessIdentityReader:
+    """Read the exact creation identity and executable through native OS facts."""
+
+    def __init__(
+        self,
+        inspector: Optional[ProcessInspectorPort] = None,
+        proc_root: Optional[Path] = None,
+    ) -> None:
+        self._proc_root = proc_root or Path("/proc")
+        self._inspector = inspector or DefaultProcessInspector(self._proc_root)
+
+    def read(self, pid: int) -> Optional[ProcessIdentityEvidence]:
+        if pid <= 0:
+            return None
+        try:
+            birth_identity = self._inspector.birth_identity(pid)
+            executable = (
+                _windows_process_executable(pid)
+                if os.name == "nt"
+                else _posix_process_executable(pid, self._proc_root, self._inspector)
+            )
+        except (OSError, RuntimeError, subprocess.SubprocessError):
+            return None
+        if not birth_identity or not executable:
+            return None
+        return ProcessIdentityEvidence(pid, executable, birth_identity)
+
 
 _WINDOWS_PROCESS_QUERY_LIMITED_INFORMATION: Final = 0x1000
 _WINDOWS_STILL_ACTIVE: Final = 259
@@ -233,31 +286,93 @@ def _windows_process_birth_identity(pid: int) -> str:
         kernel32.CloseHandle(handle)
 
 
+def _windows_process_executable(pid: int) -> str:
+    """Read the executable path without PowerShell, CIM, or Unix process tools."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32, handle = _windows_open_process(pid)
+    try:
+        kernel32.QueryFullProcessImageNameW.argtypes = [
+            wintypes.HANDLE,
+            wintypes.DWORD,
+            wintypes.LPWSTR,
+            ctypes.POINTER(wintypes.DWORD),
+        ]
+        kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+        buffer = ctypes.create_unicode_buffer(32768)
+        size = wintypes.DWORD(len(buffer))
+        if not kernel32.QueryFullProcessImageNameW(
+            handle,
+            0,
+            buffer,
+            ctypes.byref(size),
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())  # type: ignore[attr-defined]
+        executable = buffer.value[: size.value].strip()
+        if not executable:
+            raise OSError(f"process executable is unavailable for PID {pid}")
+        return executable
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def _posix_process_executable(
+    pid: int,
+    proc_root: Path,
+    inspector: ProcessInspectorPort,
+) -> str:
+    """Read the executable from procfs, with the native command as a fallback."""
+    try:
+        executable = os.readlink(proc_root / str(pid) / "exe")
+    except (FileNotFoundError, OSError):
+        command = inspector.command(pid)
+        if not command:
+            raise OSError(f"process executable is unavailable for PID {pid}") from None
+        executable = command[0]
+    return str(Path(executable).expanduser().resolve(strict=False))
+
+
 def _windows_process_command(pid: int) -> Tuple[str, ...]:
     """Read a Windows process command line through the built-in CIM provider."""
     query = (
         "$process = Get-CimInstance -ClassName Win32_Process "
-        f"-Filter 'ProcessId = {pid}'; "
+        f"-Filter 'ProcessId = {pid}' "
+        "-Property CommandLine,ExecutablePath "
+        f"-OperationTimeoutSec {WINDOWS_PROCESS_QUERY_OPERATION_TIMEOUT_SECONDS}; "
         "if ($null -eq $process) { exit 1 }; "
         "$command = $process.CommandLine; "
         "if ([string]::IsNullOrWhiteSpace($command)) "
         "{ $command = $process.ExecutablePath }; "
         "[Console]::Write($command)"
     )
-    completed = subprocess.run(
-        [
-            "powershell.exe",
-            "-NoLogo",
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            query,
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=5.0,
-    )
+    command = [
+        "powershell.exe",
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        query,
+    ]
+    try:
+        completed = subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=WINDOWS_PROCESS_QUERY_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise OSError(
+            "Windows process identity query timed out for "
+            f"PID {pid} after {WINDOWS_PROCESS_QUERY_TIMEOUT_SECONDS:.1f}s"
+        ) from error
+    except subprocess.CalledProcessError as error:
+        detail = " ".join((error.stderr or error.stdout or "").split())
+        suffix = f": {detail[:500]}" if detail else ""
+        raise OSError(
+            f"Windows process identity query failed for PID {pid}{suffix}"
+        ) from error
     raw = completed.stdout.strip()
     if not raw:
         raise OSError(f"process command line is unavailable for PID {pid}")
@@ -276,9 +391,8 @@ def _windows_process_command(pid: int) -> Tuple[str, ...]:
     return normalized
 
 
-def _windows_process_cwd(pid: int) -> Path:
-    """Infer the managed application's cwd from its canonical entrypoint path."""
-    command = _windows_process_command(pid)
+def _windows_process_cwd_from_command(pid: int, command: Sequence[str]) -> Path:
+    """Infer the managed application's cwd from one observed command line."""
     for argument in command:
         candidate = Path(argument)
         name = candidate.name.casefold()
@@ -293,6 +407,11 @@ def _windows_process_cwd(pid: int) -> Path:
         ):
             return candidate.parents[2].resolve()
     raise OSError(f"managed process cwd is unavailable for PID {pid}")
+
+
+def _windows_process_cwd(pid: int) -> Path:
+    """Infer the managed application's cwd from its canonical entrypoint path."""
+    return _windows_process_cwd_from_command(pid, _windows_process_command(pid))
 
 
 def command_runs_service(
@@ -448,18 +567,39 @@ def get_port_occupant_pid(port: int) -> Optional[int]:
 
 
 def _open_runtime_log(environment: Mapping[str, str]):
-    """Open the selected root's append-only service log for child stdout/stderr."""
-    configured = environment.get("ELFIENEST_RUNTIME_LOG", "").strip()
+    """Open the selected root's restart-rotated raw console stream."""
+    configured = environment.get("ELFIENEST_RUNTIME_CONSOLE_LOG", "").strip()
     if not configured:
-        raise OSError("ELFIENEST_RUNTIME_LOG is required for managed service output")
+        configured = environment.get("ELFIENEST_RUNTIME_LOG", "").strip()
+    if not configured:
+        raise OSError("a managed service output log is required")
     log_path = Path(configured).expanduser()
     log_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     if os.name != "nt":
         os.chmod(log_path.parent, 0o700)
+    _rotate_runtime_log(log_path)
     stream = log_path.open("ab", buffering=0)
     if os.name != "nt":
         os.chmod(log_path, 0o600)
     return stream
+
+
+def _rotate_runtime_log(log_path: Path) -> None:
+    """Rotate only before a newly launched Core inherits the file handle."""
+    if not log_path.exists() or log_path.stat().st_size < RUNTIME_LOG_MAX_BYTES:
+        return
+    for index in range(RUNTIME_LOG_BACKUP_COUNT, 0, -1):
+        source = (
+            log_path
+            if index == 1
+            else log_path.with_name(f"{log_path.name}.{index - 1}")
+        )
+        target = log_path.with_name(f"{log_path.name}.{index}")
+        if not source.exists():
+            continue
+        if target.exists():
+            target.unlink()
+        source.replace(target)
 
 
 class LocalServiceProcessAdapter:
@@ -468,11 +608,34 @@ class LocalServiceProcessAdapter:
     def __init__(self, inspector: Optional[ProcessInspectorPort] = None) -> None:
         self._inspector = inspector or DefaultProcessInspector()
         self._windows_jobs: dict[int, WindowsJobObject] = {}
+        self._launched_snapshots: dict[int, ProcessSnapshot] = {}
+        self._retained_windows_job: Optional[WindowsJobObject] = None
 
     def exists(self, pid: int) -> bool:
         return self._inspector.exists(pid)
 
     def inspect(self, pid: int) -> ProcessSnapshot:
+        launched = self._launched_snapshots.get(pid)
+        if launched is not None:
+            birth_reader = getattr(self._inspector, "birth_identity", None)
+            birth_identity = birth_reader(pid) if callable(birth_reader) else None
+            if (
+                launched.birth_identity is not None
+                and birth_identity != launched.birth_identity
+            ):
+                self._launched_snapshots.pop(pid, None)
+                raise OSError(f"launched process identity changed for PID {pid}")
+            snapshot = ProcessSnapshot(
+                pid=pid,
+                cwd=launched.cwd,
+                command=launched.command,
+                birth_identity=birth_identity,
+            )
+            self._launched_snapshots[pid] = snapshot
+            return snapshot
+        snapshot_reader = getattr(self._inspector, "snapshot", None)
+        if callable(snapshot_reader):
+            return snapshot_reader(pid)
         birth_reader = getattr(self._inspector, "birth_identity", None)
         birth_identity = birth_reader(pid) if callable(birth_reader) else None
         return ProcessSnapshot(
@@ -522,6 +685,11 @@ class LocalServiceProcessAdapter:
                     raise
                 if job is not None:
                     self._windows_jobs[process.pid] = job
+                self._launched_snapshots[process.pid] = ProcessSnapshot(
+                    pid=process.pid,
+                    cwd=cwd.resolve(),
+                    command=tuple(command),
+                )
             else:
                 process = subprocess.Popen(
                     command,
@@ -550,6 +718,7 @@ class LocalServiceProcessAdapter:
                 if job is not None:
                     job.close()
                     self._windows_jobs.pop(pid, None)
+                self._launched_snapshots.pop(pid, None)
             return
         requested_signal = signal.SIGKILL if force else signal.SIGTERM
         try:
@@ -627,6 +796,29 @@ class LocalServiceProcessAdapter:
 
     def register_current(self, elfie_home: Path) -> Path:
         return register_current_service(elfie_home)
+
+    def retain_current(self) -> None:
+        """Keep the launcher's kill-on-close Job alive for this managed Core."""
+        if os.name != "nt" or self._retained_windows_job is not None:
+            return
+        job_name = os.environ.get("ELFIENEST_JOB_NAME", "").strip()
+        if not job_name:
+            raise OSError("ELFIENEST_JOB_NAME is required for a managed Windows Core")
+        deadline = time.monotonic() + WINDOWS_JOB_OPEN_TIMEOUT_SECONDS
+        while True:
+            try:
+                job = WindowsJobObject.open(job_name)
+                break
+            except OSError as error:
+                if time.monotonic() >= deadline:
+                    raise OSError(
+                        f"cannot retain managed Windows Job Object {job_name!r}"
+                    ) from error
+                time.sleep(WINDOWS_JOB_OPEN_POLL_INTERVAL_SECONDS)
+        # The Core keeps this handle until process teardown. Registering an
+        # earlier atexit close would trigger KILL_ON_JOB_CLOSE before the
+        # server's normal Runtime cleanup callbacks have finished.
+        self._retained_windows_job = job
 
 
 def _terminate_windows_process_tree(pid: int, *, force: bool) -> None:

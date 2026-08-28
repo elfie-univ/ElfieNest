@@ -26,7 +26,10 @@ class ControllerIpcError(RuntimeError):
 
 def controller_home() -> Path:
     """Return the stable per-user Controller directory used by Electron."""
-    if sys.platform == "darwin":
+    configured_app_data = os.environ.get("ELFIENEST_DESKTOP_APP_DATA", "").strip()
+    if configured_app_data:
+        base = Path(configured_app_data).expanduser()
+    elif sys.platform == "darwin":
         base = Path.home() / "Library" / "Application Support"
     elif sys.platform == "win32":
         base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))

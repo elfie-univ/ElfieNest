@@ -627,6 +627,9 @@ class LifecycleFacade:
     def desktop_process_id(self, elfie_home: Path) -> Optional[int]:
         return desktop.desktop_process_id(elfie_home, host=self._desktop_host)
 
+    def remove_desktop_receipt(self, elfie_home: Path) -> None:
+        self._desktop_host.remove_receipt(elfie_home)
+
     def http_get(self, url: str, *, timeout_seconds: float) -> HttpProbeResult:
         return self._http_probe.get(url, timeout_seconds=timeout_seconds)
 
@@ -695,6 +698,9 @@ class LifecycleFacade:
 
     def register_current_service(self, elfie_home: Path) -> Path:
         return self._process_port.register_current(elfie_home)
+
+    def retain_current_service_process(self) -> None:
+        self._process_port.retain_current()
 
     def current_pid(self) -> int:
         return self._process_port.current_pid()

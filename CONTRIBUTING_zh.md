@@ -45,7 +45,7 @@ Bootstrap 会在各 package 目录中解析仓库锁定的 pnpm 版本。没有�
 清单与锁文件。可用下面的只读检查确认这些声明没有分叉：
 
 ```bash
-bash scripts/check_node_toolchain.sh
+bash scripts/quality/checks/node_toolchain.sh
 ```
 
 ### Python 环境契约
@@ -128,42 +128,47 @@ pnpm build
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
+  uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 如果返回 `2`，表示当前沙箱无法绑定 `127.0.0.1:0`。不要先在当前环境运行全量套件再
 重复一遍；应在宿主或提升权限的环境中把同一条全量命令只运行一次。返回 `1` 表示预检
 本身出现未预期错误，必须先诊断。
 
-提交前先同步远程基础提交，再执行受影响本地验证：
+普通开发 bootstrap 会幂等安装仓库管理的 hook；只修复或安装 hook 时使用：
 
 ```bash
-git fetch --prune origin main
-bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})"
-# 功能分支推送：把 commit 替换成 push
-# 显式完整/发布重放：把 commit 替换成 full
+bash scripts/bootstrap.sh hooks
 ```
 
-G1（`commit`）执行改动文件检查和受影响测试；G2（`push`）追加质量基线和受影响集成检查。
-把精确候选推到 Pull Request；不能只因 main 前进就合入/rebase 移动主线。GitHub 并行执行
-security-fast 和不可变基础 Manifest 选择的 Lane；`elfienest/ci-gate` 是候选聚合结果。
-分支保护只要求跨事件稳定的 `elfienest/merge-gate`：Pull Request 上它等待候选聚合，原生
-merge queue 中它只对合成提交执行秒级检查。
+开发期间只运行由改动行为实际触发的聚焦测试或类型检查。每次 `git commit` 随后对真实暂存
+快照执行 `git diff --cached --check`、锁定版本的 Gitleaks，以及 staged Python Ruff
+check/format。warm hook 目标为 20 秒，不运行测试、MyPy、pnpm、Godot、fetch 或网络操作；
+不得安装带测试的 pre-push 门禁。
 
-完整 G3 不属于普通提交前置条件；它只在 main push 后、显式 `--stage full` 和发布验收时执行。
-未知、治理和工具链改动会选择全部预合并 Lane，不会静默跳过。确定性通过按命令、作用域输入和
-工具记账，不按交付阶段重复；窄 node/文件不能证明更大的测试包，本地缓存也不能替代绑定新
-候选 SHA 的 CI。选中预合并 Lane 或 merge gate 失败时不得合并；合并后完整后盾失败会隔离
-普通合并，直到聚焦恢复或回滚使 main 重新变绿。
+hook 通过后，本地 commit 已经就绪；只有收到明确的功能分支 push 指令才推送。功能分支
+可以跨会话、跨天保留，持续积累聚焦 commit 并多次 push，而不会自动创建 Pull Request。
+明确的主线合并动作冻结精确 PR head 后，GitHub 并行执行 security-fast、受影响 Python
+测试、全仓 Python quality baseline，以及不可变基础 Manifest 选中的其他
+Lane；`elfienest/ci-gate` 聚合结果，再由跨事件稳定的 `elfienest/merge-gate` 报告给分支
+保护。原生 merge queue 只执行秒级合成提交身份检查。不能只因 main 前进就合入/rebase
+移动主线。
+
+`scripts/pre_submit_gate.sh --stage commit` 只保留为显式、可复用的本地 checkpoint；
+`--stage push` 是离线诊断时可选的受影响集成重放，两者都不是普通 push 前置条件。完整后盾
+在 main push 后及显式 full/发布验证时把全部 Lane 并行展开。未知可执行、机器信任根和工具链
+改动会全选预合并 Lane；纯治理说明只选择治理、文档与架构审查。窄 node/文件不能证明更大的
+测试包，本地缓存也不能替代绑定新候选 SHA 的 CI。
+选中 Lane 或 merge gate 失败时不得交付；最新 main 的完整后盾失败会隔离普通合并，直到
+聚焦恢复或回滚使 main 重新变绿。
 
 如果本地测试结果需要被后续门禁复用，应通过受控运行器执行：
 
 ```bash
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --base-sha "$(git rev-parse origin/main^{commit})" \
   --selectors test/app/features/setup/
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --bundle godot
 ```
 
@@ -175,7 +180,7 @@ merge queue 中它只对合成提交执行秒级检查。
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/check_quality_baseline.py
+UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/quality/checks/python_baseline.py
 PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
 ```
 
@@ -204,10 +209,30 @@ npx --yes pnpm@10.12.1 build
 
 ## 分支和提交范围
 
+下面的动作边界是编码 Agent 的规范规则。计划、ADR、技能、旧任务以及孤立的“完成”或
+“交付”都不能把某一行升级为下一行。
+
+<!-- git-action-matrix:start -->
+| 动作 ID | 明确指令 | 最大授权结果 |
+| --- | --- | --- |
+| `implement` | 开始实现 / 按计划执行 | `local-work` |
+| `commit` | 提交 / 本地 commit | `local-commit` |
+| `push` | 推送功能分支 | `branch-push` |
+| `create-pr` | 创建 Pull Request | `one-pr-stop` |
+| `merge-main` | 合并到远程主分支 | `one-pr-merge` |
+| `complete` | 只说完成 / 交付，没有明确 Git 动作 | `no-git` |
+<!-- git-action-matrix:end -->
+
+- `local-work` 包含批准实现所需的聚焦验证和合理本地 commit；用户说“不提交”或“先给我
+  看”时除外。后续每一行都需要对应的明确指令。
+- 一个功能分支可以包含多个职责清晰的 commit，但一次主线合并请求最多创建或复用一个
+  Pull Request。确实需要多个时，必须先说明准确 PR 数量及边界，并在创建任何 PR 前取得
+  对该数量的明确批准。
 - 一个 PR 只解决一个边界清晰的问题；避免顺手格式化或重构无关文件。
 - 不覆盖他人的未提交改动，不提交本机配置、生成物、缓存或生产数据。
 - 提交信息说明“为什么改”，而不只是罗列文件名。
-- 界面或文档网站改动必须先由负责人目视验收；未确认前保持本地改动，不提交、不推送。
+- 界面或文档网站改动可以本地 commit、push 以供审阅，但在负责人目视验收前不得创建用于
+  合并 main 的 Pull Request。
 
 ## Pull Request 必须包含
 

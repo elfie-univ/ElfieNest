@@ -127,7 +127,8 @@ export default defineConfig({
                     { text: "Elfie top-level module design", link: "/developer/designs/elfie-top-level-module-design" },
                     { text: "Elfie Brain ten-system architecture", link: "/developer/designs/elfie-brain-ten-system-architecture" },
                     { text: "Elfie Brain evaluation system", link: "/developer/designs/elfie-brain-evaluation-system" },
-                    { text: "Provider and endpoint-model availability", link: "/developer/designs/provider-model-availability" }
+                    { text: "Provider and endpoint-model availability", link: "/developer/designs/provider-model-availability" },
+                    { text: "Native release validation", link: "/developer/designs/native-release-validation" }
                   ]
                 },
                 {
@@ -269,7 +270,8 @@ export default defineConfig({
                     { text: "Elfie 顶级模块设计", link: "/zh/developer/designs/elfie-top-level-module-design" },
                     { text: "Elfie 大脑十系统架构", link: "/zh/developer/designs/elfie-brain-ten-system-architecture" },
                     { text: "Elfie Brain 评价与进化系统", link: "/zh/developer/designs/elfie-brain-evaluation-system" },
-                    { text: "Provider 与 Endpoint 模型可用性", link: "/zh/developer/designs/provider-model-availability" }
+                    { text: "Provider 与 Endpoint 模型可用性", link: "/zh/developer/designs/provider-model-availability" },
+                    { text: "原生发布验证", link: "/zh/developer/designs/native-release-validation" }
                   ]
                 },
                 {

@@ -4,16 +4,24 @@ from __future__ import annotations
 
 import hashlib
 from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Deque
+from threading import RLock
+from typing import Deque, Iterator
 
 from pydantic import JsonValue
 
 from app.features.accounts import AccountPrincipal, AccountsService
 from app.features.elfies import ElfiesError, ElfiesService, ListVisibleElfiesQuery
 
-from .errors import ObserverForbidden, ObserverRateLimited, ObserverUnavailable
+from .errors import (
+    ObserverForbidden,
+    ObserverRateLimited,
+    ObserverSessionExpired,
+    ObserverUnavailable,
+)
 from .models import (
+    CloseObserverSessionCommand,
     NextObserverFrameQuery,
     ObserverDeltaResult,
     ObserverEntityChangeResult,
@@ -52,6 +60,9 @@ class _ObserverSession:
     entities: dict[str, ObserverEntityRecord] = field(default_factory=dict)
     entity_revisions: dict[str, int] = field(default_factory=dict)
     snapshot_required: bool = True
+    intent_timestamps: Deque[float] = field(default_factory=deque)
+    lock: RLock = field(default_factory=RLock, repr=False)
+    revoked: bool = False
 
 
 class ObserverFacade:
@@ -68,11 +79,14 @@ class ObserverFacade:
         max_pending_frames: int = 16,
         max_intents_per_window: int = 12,
         intent_window_seconds: float = 1.0,
+        session_ttl_seconds: int = 120,
     ) -> None:
         if max_pending_frames < 1:
             raise ValueError("max_pending_frames must be positive")
         if max_intents_per_window < 1 or intent_window_seconds <= 0:
             raise ValueError("observer intent rate limit must be positive")
+        if session_ttl_seconds < 1:
+            raise ValueError("observer session TTL must be positive")
         self._accounts = accounts
         self._elfies = elfies
         self._world = world
@@ -81,8 +95,9 @@ class ObserverFacade:
         self._max_pending_frames = max_pending_frames
         self._max_intents_per_window = max_intents_per_window
         self._intent_window_seconds = intent_window_seconds
+        self._session_ttl_seconds = session_ttl_seconds
         self._sessions: dict[str, _ObserverSession] = {}
-        self._intent_timestamps: dict[str, Deque[float]] = {}
+        self._sessions_lock = RLock()
 
     def open_session(
         self,
@@ -92,88 +107,110 @@ class ObserverFacade:
             raise ObserverForbidden("viewer cannot observe this Elfie")
         capability = self._capabilities.issue()
         now = self._clock.now()
-        session_ttl_seconds = self._accounts.session_ttl_seconds()
-        if session_ttl_seconds <= 0:
-            raise ObserverUnavailable("Observer session policy unavailable")
-        self._sessions[capability] = _ObserverSession(
-            principal=command.principal,
-            session_fingerprint=command.session_fingerprint,
-            subscription=command.subscription,
-            authorized_subscription=command.subscription,
-            expires_at=now + session_ttl_seconds,
+        with self._sessions_lock:
+            self._sweep_expired(now)
+            self._sessions[_capability_fingerprint(capability)] = _ObserverSession(
+                principal=command.principal,
+                session_fingerprint=command.session_fingerprint,
+                subscription=command.subscription,
+                authorized_subscription=command.subscription,
+                expires_at=now + self._session_ttl_seconds,
+            )
+        return OpenObserverSessionResult(
+            capability=capability,
+            idle_timeout_seconds=self._session_ttl_seconds,
         )
-        return OpenObserverSessionResult(capability=capability)
+
+    def close_session(self, command: CloseObserverSessionCommand) -> None:
+        key = _capability_fingerprint(command.capability)
+        with self._sessions_lock:
+            session = self._sessions.get(key)
+            if session is None:
+                return
+            if (
+                session.principal != command.principal
+                or session.session_fingerprint != command.session_fingerprint
+            ):
+                raise ObserverForbidden("invalid observer capability")
+            with session.lock:
+                session.revoked = True
+                self._sessions.pop(key, None)
 
     def update_interest(self, command: UpdateObserverInterestCommand) -> None:
-        session = self._require_session(
+        with self._locked_session(
             command.principal,
             command.session_fingerprint,
             command.capability,
-        )
-        if command.subscription != session.authorized_subscription:
-            raise ObserverForbidden(
-                "observer interest cannot change its authorized subscription"
+        ) as session:
+            if command.subscription != session.authorized_subscription:
+                raise ObserverForbidden(
+                    "observer interest cannot change its authorized subscription"
+                )
+            session.subscription = command.subscription
+            session.visible_entity_ids = (
+                None
+                if command.visible_entity_ids is None
+                else frozenset(command.visible_entity_ids)
             )
-        session.subscription = command.subscription
-        session.visible_entity_ids = (
-            None
-            if command.visible_entity_ids is None
-            else frozenset(command.visible_entity_ids)
-        )
-        session.pending.clear()
-        session.delivered = None
-        session.snapshot_required = True
+            session.pending.clear()
+            session.delivered = None
+            session.snapshot_required = True
+            self._renew(session)
 
     def next_frame(
         self,
         query: NextObserverFrameQuery,
     ) -> ObserverFrameResult | None:
-        session = self._require_session(
+        with self._locked_session(
             query.principal,
             query.session_fingerprint,
             query.capability,
-        )
-        self._publish(self._entities())
-        if self._acknowledgement_is_invalid(
-            session,
-            acknowledged_generation=query.acknowledged_generation,
-            acknowledged_sequence=query.acknowledged_sequence,
-        ):
-            session.pending.clear()
-            session.snapshot_required = True
-            session.delivered = None
-        if session.snapshot_required:
-            snapshot = self._snapshot_for(session)
-            session.snapshot_required = False
-            session.delivered = snapshot
-            return snapshot
-        if not session.pending:
-            return None
-        frame = session.pending.popleft()
-        session.delivered = frame
-        return frame
+        ) as session:
+            self._publish_session(session, self._entities())
+            if self._acknowledgement_is_invalid(
+                session,
+                acknowledged_generation=query.acknowledged_generation,
+                acknowledged_sequence=query.acknowledged_sequence,
+            ):
+                session.pending.clear()
+                session.snapshot_required = True
+                session.delivered = None
+            self._renew(session)
+            if session.snapshot_required:
+                snapshot = self._snapshot_for(session)
+                session.snapshot_required = False
+                session.delivered = snapshot
+                return snapshot
+            if not session.pending:
+                return None
+            frame = session.pending.popleft()
+            session.delivered = frame
+            return frame
 
     def submit_intent(self, command: SubmitObserverIntentCommand) -> None:
-        self._require_session(
+        with self._locked_session(
             command.principal,
             command.session_fingerprint,
             command.capability,
-        )
-        self._limit_intent(command.capability)
-        if not self._can_change_world(command.principal, command.intent.actor_id):
-            raise ObserverForbidden("viewer cannot change this Elfie world state")
-        try:
-            self._world.submit_intent(command.intent)
-        except ObserverPortError as error:
-            raise ObserverUnavailable(
-                "observer world intent sink unavailable"
-            ) from error
+        ) as session:
+            self._limit_intent(session)
+            if not self._can_change_world(command.principal, command.intent.actor_id):
+                raise ObserverForbidden("viewer cannot change this Elfie world state")
+            try:
+                self._world.submit_intent(command.intent)
+            except ObserverPortError as error:
+                raise ObserverUnavailable(
+                    "observer world intent sink unavailable"
+                ) from error
+            self._renew(session)
 
     def revoke_session(self, session_fingerprint: str) -> None:
-        for capability, session in tuple(self._sessions.items()):
-            if session.session_fingerprint == session_fingerprint:
-                del self._sessions[capability]
-                self._intent_timestamps.pop(capability, None)
+        with self._sessions_lock:
+            for capability, session in tuple(self._sessions.items()):
+                if session.session_fingerprint == session_fingerprint:
+                    with session.lock:
+                        session.revoked = True
+                        del self._sessions[capability]
 
     def _entities(self) -> tuple[ObserverEntityRecord, ...]:
         try:
@@ -181,47 +218,51 @@ class ObserverFacade:
         except ObserverPortError as error:
             raise ObserverUnavailable("observer projection unavailable") from error
 
-    def _publish(self, entities: tuple[ObserverEntityRecord, ...]) -> None:
+    def _publish_session(
+        self,
+        session: _ObserverSession,
+        entities: tuple[ObserverEntityRecord, ...],
+    ) -> None:
         by_id = {entity.entity_id: entity for entity in entities}
-        for session in self._sessions.values():
-            projected = self._filtered_entities(session, by_id)
-            if session.snapshot_required:
-                session.entities = projected
-                session.entity_revisions = dict.fromkeys(projected, 1)
-                continue
-            changed_ids = tuple(
-                entity_id
-                for entity_id in set(projected) | set(session.entities)
-                if projected.get(entity_id) != session.entities.get(entity_id)
-            )
-            if not changed_ids:
-                continue
-            if len(changed_ids) != 1 or changed_ids[0] not in projected:
-                session.entities = projected
-                session.entity_revisions = {
-                    entity_id: session.entity_revisions.get(entity_id, 0) + 1
-                    for entity_id in projected
-                }
-                self._enqueue(session, self._snapshot_for(session))
-                continue
-            entity_id = changed_ids[0]
-            previous = session.entities[entity_id]
-            current = projected[entity_id]
-            session.entities[entity_id] = current
-            revision = session.entity_revisions.get(entity_id, 0) + 1
-            session.entity_revisions[entity_id] = revision
-            session.sequence += 1
-            self._enqueue(
-                session,
-                ObserverDeltaResult(
-                    generation=session.generation,
-                    sequence=session.sequence,
-                    scope=session.subscription,
-                    entity_id=entity_id,
-                    entity_revision=revision,
-                    changes=_changes(previous, current),
-                ),
-            )
+        projected = self._filtered_entities(session, by_id)
+        if session.snapshot_required:
+            session.entities = projected
+            session.entity_revisions = dict.fromkeys(projected, 1)
+            return
+        changed_ids = tuple(
+            entity_id
+            for entity_id in set(projected) | set(session.entities)
+            if projected.get(entity_id) != session.entities.get(entity_id)
+        )
+        if not changed_ids:
+            return
+        membership_changed = set(projected) != set(session.entities)
+        if membership_changed or len(changed_ids) != 1:
+            session.entities = projected
+            session.entity_revisions = {
+                entity_id: session.entity_revisions.get(entity_id, 0) + 1
+                for entity_id in projected
+            }
+            self._enqueue(session, self._snapshot_for(session))
+            return
+        entity_id = changed_ids[0]
+        previous = session.entities[entity_id]
+        current = projected[entity_id]
+        session.entities[entity_id] = current
+        revision = session.entity_revisions.get(entity_id, 0) + 1
+        session.entity_revisions[entity_id] = revision
+        session.sequence += 1
+        self._enqueue(
+            session,
+            ObserverDeltaResult(
+                generation=session.generation,
+                sequence=session.sequence,
+                scope=session.subscription,
+                entity_id=entity_id,
+                entity_revision=revision,
+                changes=_changes(previous, current),
+            ),
+        )
 
     def _can_access_subscription(
         self,
@@ -250,25 +291,46 @@ class ObserverFacade:
             raise ObserverUnavailable("Elfie authorization unavailable") from error
         return any(item.profile.elfie_id == elfie_id for item in visible)
 
-    def _require_session(
+    @contextmanager
+    def _locked_session(
         self,
         principal: ObserverPrincipal,
         session_fingerprint: str,
         capability: str,
-    ) -> _ObserverSession:
-        session = self._sessions.get(capability)
+    ) -> Iterator[_ObserverSession]:
+        key = _capability_fingerprint(capability)
         now = self._clock.now()
-        if (
-            session is None
-            or session.principal != principal
-            or session.session_fingerprint != session_fingerprint
-            or session.expires_at <= now
-        ):
+        with self._sessions_lock:
+            session = self._sessions.get(key)
             if session is not None and session.expires_at <= now:
-                del self._sessions[capability]
-                self._intent_timestamps.pop(capability, None)
-            raise ObserverForbidden("invalid observer capability")
-        return session
+                session.revoked = True
+                del self._sessions[key]
+                raise ObserverSessionExpired("observer session expired")
+            self._sweep_expired(now)
+            if (
+                session is None
+                or session.revoked
+                or session.principal != principal
+                or session.session_fingerprint != session_fingerprint
+            ):
+                raise ObserverForbidden("invalid observer capability")
+            session.lock.acquire()
+        try:
+            if session.revoked:
+                raise ObserverForbidden("invalid observer capability")
+            yield session
+        finally:
+            session.lock.release()
+
+    def _renew(self, session: _ObserverSession) -> None:
+        session.expires_at = self._clock.now() + self._session_ttl_seconds
+
+    def _sweep_expired(self, now: float) -> None:
+        for key, session in tuple(self._sessions.items()):
+            if session.expires_at <= now:
+                with session.lock:
+                    session.revoked = True
+                    del self._sessions[key]
 
     @staticmethod
     def _acknowledgement_is_invalid(
@@ -344,9 +406,9 @@ class ObserverFacade:
             return
         session.pending.append(frame)
 
-    def _limit_intent(self, capability: str) -> None:
+    def _limit_intent(self, session: _ObserverSession) -> None:
         now = self._clock.now()
-        timestamps = self._intent_timestamps.setdefault(capability, deque())
+        timestamps = session.intent_timestamps
         cutoff = now - self._intent_window_seconds
         while timestamps and timestamps[0] <= cutoff:
             timestamps.popleft()
@@ -358,6 +420,10 @@ class ObserverFacade:
 def session_token_fingerprint(token: str) -> str:
     """Bind capabilities to a login without retaining its raw session token."""
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _capability_fingerprint(capability: str) -> str:
+    return hashlib.sha256(capability.encode("utf-8")).hexdigest()
 
 
 def _account_principal(principal: ObserverPrincipal) -> AccountPrincipal:

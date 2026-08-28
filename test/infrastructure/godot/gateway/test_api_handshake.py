@@ -1,13 +1,65 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import socket
+from concurrent.futures import Future
 from types import SimpleNamespace
+from typing import Any, cast
 
 import anyio
 import pytest
 
 from infrastructure.godot.gateway.api import GodotAPIServer
+
+
+def test_gateway_records_background_send_failures(caplog) -> None:
+    server = GodotAPIServer()
+    future: Future[object] = Future()
+    future.set_exception(RuntimeError("send exploded"))
+
+    with caplog.at_level(logging.ERROR, logger="infrastructure.godot.gateway.api"):
+        server._observe_send_completion(future)
+
+    assert "background command send failed" in caplog.text
+
+
+def test_gateway_records_a_thread_stop_timeout(caplog) -> None:
+    class StuckThread:
+        def join(self, timeout: float) -> None:
+            assert timeout > 0
+
+        def is_alive(self) -> bool:
+            return True
+
+    server = GodotAPIServer()
+    server._running = True
+    server._thread = cast(Any, StuckThread())
+
+    with caplog.at_level(logging.ERROR, logger="infrastructure.godot.gateway.api"):
+        server.stop()
+
+    assert "did not stop within" in caplog.text
+
+
+def test_gateway_stop_tolerates_an_event_loop_close_race(monkeypatch, caplog) -> None:
+    class ClosingLoop:
+        def is_running(self) -> bool:
+            return True
+
+    def reject_schedule(_coroutine, _loop):
+        raise RuntimeError("event loop already closed")
+
+    server = GodotAPIServer()
+    server._running = True
+    server._loop = cast(Any, ClosingLoop())
+    monkeypatch.setattr(asyncio, "run_coroutine_threadsafe", reject_schedule)
+
+    with caplog.at_level(logging.ERROR, logger="infrastructure.godot.gateway.api"):
+        server.stop()
+
+    assert "stop could not be scheduled" in caplog.text
 
 
 def test_gateway_start_propagates_bind_failure_detail(monkeypatch) -> None:
@@ -103,7 +155,7 @@ def test_gateway_rejects_wrong_nonce_and_origin() -> None:
 
     assert wrong_nonce.closed == [(4004, "Invalid Godot handshake")]
     assert wrong_origin.closed == [(4005, "Origin not allowed")]
-    assert empty_origin.closed == [(4005, "Origin not allowed")]
+    assert empty_origin.closed == []
 
 
 def test_gateway_allows_configured_web_runtime_origin() -> None:
@@ -120,6 +172,48 @@ def test_gateway_allows_configured_web_runtime_origin() -> None:
     anyio.run(server._handle_client, websocket)
 
     assert websocket.closed == []
+
+
+def test_gateway_allows_native_dedicated_loopback_origin_without_port() -> None:
+    server = GodotAPIServer(port=8765, handshake_nonce="nonce-1")
+    websocket = FakeWebSocket(
+        [_hello(protocol=3, nonce="nonce-1")],
+        origin="http://127.0.0.1",
+    )
+
+    anyio.run(server._handle_client, websocket)
+
+    assert websocket.closed == []
+
+
+def test_gateway_normalizes_native_loopback_origin_trailing_slash() -> None:
+    server = GodotAPIServer(port=8765, handshake_nonce="nonce-1")
+    websocket = FakeWebSocket(
+        [_hello(protocol=3, nonce="nonce-1")],
+        origin="http://127.0.0.1:8765/",
+    )
+
+    anyio.run(server._handle_client, websocket)
+
+    assert websocket.closed == []
+
+
+def test_gateway_rejects_origin_with_credentials_or_path() -> None:
+    server = GodotAPIServer(port=8765, handshake_nonce="nonce-1")
+    with_credentials = FakeWebSocket(
+        [_hello(protocol=3, nonce="nonce-1")],
+        origin="http://user:pass@127.0.0.1:8765",
+    )
+    with_path = FakeWebSocket(
+        [_hello(protocol=3, nonce="nonce-1")],
+        origin="http://127.0.0.1:8765/runtime",
+    )
+
+    anyio.run(server._handle_client, with_credentials)
+    anyio.run(server._handle_client, with_path)
+
+    assert with_credentials.closed == [(4005, "Origin not allowed")]
+    assert with_path.closed == [(4005, "Origin not allowed")]
 
 
 def test_gateway_restarts_fifty_times_without_leaking_thread_or_clients() -> None:

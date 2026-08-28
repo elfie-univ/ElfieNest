@@ -123,6 +123,7 @@ export class LifecycleClientError extends Error {
 const runFile = promisify(execFile);
 const RUNTIME_HEALTH_TIMEOUT_MS = 2_000;
 const RUNTIME_TRANSPORT_FAILURE_GRACE_MS = 60_000;
+const RUNTIME_RECOVERY_STABILITY_WINDOW_MS = 10 * 60_000;
 
 function runtimeProcessState(pid: number): RuntimeProcessState {
   try {
@@ -286,7 +287,10 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
   private ownedRuntimeCorePid: number | undefined;
   private ownedRuntimeAttachment: Extract<RuntimeAttachment, { readonly kind: "owned" }> | undefined;
   private transportFailureStartedAt: number | undefined;
-  private recoveryLatchedGeneration: number | undefined;
+  private automaticRecoveryAvailable = true;
+  private automaticallyRecoveredGeneration: number | undefined;
+  private automaticRecoveryHealthySince: number | undefined;
+  private automaticRecoveryPausedReason: string | undefined;
 
   constructor(
     private readonly ownerLease: string,
@@ -317,20 +321,35 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
   async attachOrStart(
     onProgress?: (phase: RuntimeStartupPhase) => void,
   ): Promise<RuntimeAttachment> {
+    // This method is reached only from initial startup or an explicit
+    // Controller/UI retry. Either action is allowed to close a tripped
+    // automatic-recovery circuit breaker.
+    this.resetAutomaticRecoveryPolicy();
     try {
       const initial = await this.status();
       if (this.isReady(initial)) {
-        if (initial.ownerLease === null) {
+        const attachable = await this.isAttachableReady(initial);
+        if (attachable && initial.ownerLease === null) {
           return this.failure(
             "Another ElfieNest checkout is using the service ports; Desktop refused to attach to its data",
           );
         }
-        return {
-          kind: "attached",
-          generation: initial.generation,
-          dataHome: this.requireSelectedDataHome(),
-          ...(initial.httpUrl === null ? {} : { httpUrl: initial.httpUrl }),
-        };
+        if (attachable) {
+          if (initial.ownerLease === this.ownerLease) {
+            return this.ownedAttachment(initial);
+          }
+          return {
+            kind: "attached",
+            generation: initial.generation,
+            dataHome: this.requireSelectedDataHome(),
+            ...(initial.httpUrl === null ? {} : { httpUrl: initial.httpUrl }),
+          };
+        }
+        if (initial.ownerLease !== this.ownerLease) {
+          return this.failure(
+            "Runtime status is not attachable; Desktop refused to use an unverified owner generation",
+          );
+        }
       }
       if (initial.phase === "core_starting") {
         return this.waitForStartup(initial);
@@ -389,9 +408,10 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       const observation = await this.runtimeHealthProbeSafely(healthTarget);
       if (observation.kind === "healthy") {
         this.transportFailureStartedAt = undefined;
-        this.recoveryLatchedGeneration = undefined;
+        this.recordRecoveredGenerationHealth(healthTarget.generation);
         return attachment;
       }
+      this.recordRecoveredGenerationUnhealthy(healthTarget.generation);
       if (observation.kind === "transitioning") {
         this.transportFailureStartedAt = undefined;
         return attachment;
@@ -401,7 +421,10 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
         || observation.kind === "protocol_invalid"
       ) {
         this.transportFailureStartedAt = undefined;
-        return attachment;
+        return this.failure(
+          `Core health ${observation.kind}: ${observation.detail}. `
+          + "Automatic recovery was refused; use an explicit retry or Doctor.",
+        );
       }
 
       let recoveryReason: "process-absent" | "transport-failure";
@@ -422,24 +445,35 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
         }
         recoveryReason = "transport-failure";
       }
-      if (this.recoveryLatchedGeneration === healthTarget.generation) {
-        return attachment;
+      if (!this.automaticRecoveryAvailable) {
+        return await this.pauseAutomaticRecovery(healthTarget.generation);
       }
-      this.recoveryLatchedGeneration = healthTarget.generation;
+      // Consume the one-shot budget before invoking the Supervisor so a
+      // command failure cannot turn the maintenance timer into a restart loop.
+      this.automaticRecoveryAvailable = false;
       const recovered = this.parseStatus(
         await this.commandRunner.run(
           this.recoverOwnedArguments(healthTarget, recoveryReason),
         ),
       );
       if (this.isReady(recovered) && recovered.ownerLease === ownerLease) {
-        return this.ownedAttachment(recovered);
+        const recoveredAttachment = this.ownedAttachment(recovered);
+        this.automaticallyRecoveredGeneration = recovered.generation;
+        this.automaticRecoveryHealthySince = undefined;
+        return recoveredAttachment;
       }
-      return this.failure(
+      const failure = this.failure(
         this.firstFailureDetail(recovered)
         ?? "Owned Runtime recovery did not restore Core health",
       );
+      this.automaticRecoveryPausedReason = failure.reason;
+      return failure;
     } catch (error: unknown) {
-      return this.failure(this.errorMessage(error));
+      const failure = this.failure(this.errorMessage(error));
+      if (!this.automaticRecoveryAvailable) {
+        this.automaticRecoveryPausedReason = failure.reason;
+      }
+      return failure;
     }
   }
 
@@ -468,7 +502,7 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
         String(initial.generation),
       ]),
     );
-    if (this.isReady(current) && current.ownerLease !== null) {
+    if (await this.isAttachableReady(current) && current.ownerLease !== null) {
       return {
         kind: "attached",
         generation: current.generation,
@@ -735,6 +769,28 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     return status.state === "core_ready" || status.state === "world_ready";
   }
 
+  private async isAttachableReady(status: RuntimeStatus): Promise<boolean> {
+    if (!this.isReady(status)) return false;
+    if (status.phase !== "failed") return true;
+    if (
+      status.state !== "core_ready"
+      || status.corePid === null
+      || status.httpUrl === null
+      || status.instanceId === null
+      || status.instanceId === "uninitialized"
+      || status.instanceId === "unavailable"
+    ) {
+      return false;
+    }
+    if (this.runtimeProcessProbeSafely(status.corePid) !== "alive") return false;
+    const health = await this.runtimeHealthProbeSafely({
+      httpUrl: status.httpUrl,
+      instanceId: status.instanceId,
+      generation: status.generation,
+    });
+    return health.kind === "healthy";
+  }
+
   private ownedAttachment(status: RuntimeStatus): RuntimeAttachment {
     const attachment: Extract<RuntimeAttachment, { readonly kind: "owned" }> = {
       kind: "owned",
@@ -746,7 +802,6 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     const previousGeneration = this.ownedRuntimeHealthTarget?.generation;
     if (previousGeneration !== status.generation) {
       this.transportFailureStartedAt = undefined;
-      this.recoveryLatchedGeneration = undefined;
     }
     this.ownedRuntimeAttachment = attachment;
     this.ownedRuntimeCorePid = status.corePid ?? undefined;
@@ -763,6 +818,56 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
       }
       : undefined;
     return attachment;
+  }
+
+  private resetAutomaticRecoveryPolicy(): void {
+    this.transportFailureStartedAt = undefined;
+    this.automaticRecoveryAvailable = true;
+    this.automaticallyRecoveredGeneration = undefined;
+    this.automaticRecoveryHealthySince = undefined;
+    this.automaticRecoveryPausedReason = undefined;
+  }
+
+  private recordRecoveredGenerationHealth(generation: number): void {
+    if (this.automaticallyRecoveredGeneration !== generation) return;
+    const now = this.monotonicNow();
+    if (this.automaticRecoveryHealthySince === undefined) {
+      this.automaticRecoveryHealthySince = now;
+      return;
+    }
+    if (
+      now - this.automaticRecoveryHealthySince
+      >= RUNTIME_RECOVERY_STABILITY_WINDOW_MS
+    ) {
+      this.resetAutomaticRecoveryPolicy();
+    }
+  }
+
+  private recordRecoveredGenerationUnhealthy(generation: number): void {
+    if (this.automaticallyRecoveredGeneration === generation) {
+      this.automaticRecoveryHealthySince = undefined;
+    }
+  }
+
+  private async pauseAutomaticRecovery(
+    generation: number,
+  ): Promise<RuntimeAttachment> {
+    if (this.automaticRecoveryPausedReason !== undefined) {
+      return this.failure(this.automaticRecoveryPausedReason);
+    }
+    let detail = (
+      `Automatically recovered Core generation ${generation} failed before `
+      + "10 minutes of continuous health; automatic recovery is paused. "
+      + "Use an explicit retry or Doctor before restarting it."
+    );
+    this.automaticRecoveryPausedReason = detail;
+    try {
+      await this.stopOwnedRuntime(this.ownerLease);
+    } catch (error: unknown) {
+      detail += ` Cleanup also failed: ${this.errorMessage(error)}`;
+      this.automaticRecoveryPausedReason = detail;
+    }
+    return this.failure(detail);
   }
 
   private async runtimeHealthProbeSafely(
@@ -863,7 +968,9 @@ export class ManagedRuntimeLifecycleClient implements LifecycleClient {
     return host === "127.0.0.1" || host === "localhost" || host === "::1";
   }
 
-  private failure(reason: string): RuntimeAttachment {
+  private failure(
+    reason: string,
+  ): Extract<RuntimeAttachment, { readonly kind: "failed" }> {
     return { kind: "failed", reason, recoverable: true };
   }
 

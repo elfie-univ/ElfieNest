@@ -36,7 +36,7 @@
   表只保存已经完成、可被上层当作事实使用的数据。不得用 `provisioning`、`pending`、
   `draft` 等状态把半成品伪装成最终记录。
 - 先执行只读盘点：
-  `uv run --no-sync python scripts/architecture/database_change_scan.py --project-root . --check`。
+  `uv run --no-sync python scripts/governance/persistence/scan.py --project-root . --check`。
   审查输出必须覆盖变更表、所有写入方、所有读取方、统计/容量/权限/运行时依赖、触发器、
   API/前端投影、测试夹具和数据目录；不能只看当前正在修改的 Repository。
 - 每次变更必须回答：新库和已有库如何处理、是否需要显式 migration、事务边界在哪里、

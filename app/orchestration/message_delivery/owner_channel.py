@@ -34,26 +34,37 @@ class MessageDeliveryOwnerBroadcaster:
         self,
         elfie_id: str,
         message_dict: dict[str, JsonValue],
-    ) -> None:
+    ) -> bool:
         event = message_dict.get("event") or message_dict.get("action")
         payload = message_dict.get("payload") or {}
         if not isinstance(payload, dict):
-            return
+            return False
         text = self._message_text(str(event), payload)
         if not text:
-            return
+            return False
         emotion = str(payload.get("emotion") or "").strip()
+        conversation_id = _optional_text(payload.get("conversation_id"))
+        message_id = _optional_text(payload.get("message_id"))
         try:
-            self._delivery.deliver_elfie_reply(
+            result = self._delivery.deliver_elfie_reply(
                 DeliverElfieReplyCommand(
                     elfie_id=elfie_id,
                     text=text,
                     channel="web",
                     meta=f"情绪：{emotion}" if emotion else "实时回复",
+                    conversation_id=conversation_id,
+                    message_id=message_id,
                 )
             )
+            if not result.realtime_delivered:
+                logger.info(
+                    "owner reply persisted; realtime publication can be retried "
+                    "with the same message ID"
+                )
         except (CommunicationError, MessageDeliveryError) as error:
             logger.warning("精灵聊天消息投递失败: %s", error)
+            return False
+        return True
 
     @staticmethod
     def _message_text(event: str, payload: dict[str, JsonValue]) -> str:
@@ -70,6 +81,13 @@ class MessageDeliveryOwnerBroadcaster:
             if isinstance(part, dict) and part.get("type") == "text"
         ]
         return "\n".join(text for text in texts if text)
+
+
+def _optional_text(value: JsonValue) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 class GodotOwnerChannel:
@@ -108,13 +126,32 @@ class GodotOwnerChannel:
             "parts": [part.model_dump(mode="json") for part in envelope.parts],
         }
         broadcaster = self._owner_broadcaster()
-        if broadcaster is not None:
-            broadcaster.broadcast_to_owners(
+        if broadcaster is None:
+            return DeliveryReceipt.for_envelope(
+                envelope,
+                status=DeliveryStatus.FAILED,
+                error_code="owner_broadcaster_unavailable",
+                error_message="owner message broadcaster is unavailable",
+                retryable=True,
+            )
+        try:
+            accepted = broadcaster.broadcast_to_owners(
                 str(envelope.meta.elfie_id),
                 {
                     "action": "owner_message",
                     "payload": payload,
                 },
+            )
+        except (OSError, RuntimeError) as error:
+            logger.warning("owner message broadcaster failed: %s", error)
+            accepted = False
+        if not accepted:
+            return DeliveryReceipt.for_envelope(
+                envelope,
+                status=DeliveryStatus.FAILED,
+                error_code="owner_delivery_unconfirmed",
+                error_message="owner message delivery was not confirmed",
+                retryable=True,
             )
         return DeliveryReceipt.for_envelope(envelope, status=DeliveryStatus.SENT)
 

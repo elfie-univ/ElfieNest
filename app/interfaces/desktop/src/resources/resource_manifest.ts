@@ -18,6 +18,11 @@ const GODOT_WEB_RESOURCE_PATHS = [
   "godot-web/elfienest.pck",
 ] as const;
 
+const GODOT_LINUX_DEDICATED_RESOURCE_PATHS = [
+  "godot-linux-dedicated/ElfieNestRuntime",
+  "godot-linux-dedicated/build-manifest.json",
+] as const;
+
 const PRODUCT_WEB_RESOURCE_PATHS = [
   "web/manifest.json",
   "web/index.html",
@@ -26,6 +31,7 @@ const PRODUCT_WEB_RESOURCE_PATHS = [
 const PACKAGED_RESOURCE_DIRECTORIES = [
   "web",
   "godot-web",
+  "godot-linux-dedicated",
   "python-core",
   "management-cli",
   "config",
@@ -39,8 +45,9 @@ export type ResourceFile = Readonly<{
 }>;
 
 export type ResourceManifest = Readonly<{
-  readonly schema_version: 1;
+  readonly schema_version: 2;
   readonly application_version: string;
+  readonly source_revision: string;
   readonly target: ResourceTarget;
   readonly files: Readonly<Record<string, ResourceFile>>;
 }>;
@@ -143,6 +150,7 @@ export function requiredResourcePathsForTarget(
 ): readonly ResourcePath[] {
   return [
     ...GODOT_WEB_RESOURCE_PATHS,
+    ...(target === "linux-x64" ? GODOT_LINUX_DEDICATED_RESOURCE_PATHS : []),
     ...PRODUCT_WEB_RESOURCE_PATHS,
     executablePathForTarget(target, "python-core"),
     executablePathForTarget(target, "management-cli"),
@@ -183,8 +191,12 @@ function manifestResourcePaths(root: string, target: ResourceTarget): readonly R
 export function buildResourceManifest(
   root: string,
   applicationVersion: string,
+  sourceRevision: string,
   target: ResourceTarget,
 ): ResourceManifest {
+  if (!/^[0-9a-f]{40}$/u.test(sourceRevision)) {
+    throw new ResourceManifestError("manifest.json", "源码 revision 无效");
+  }
   const files: Record<string, ResourceFile> = {};
   for (const resourcePath of manifestResourcePaths(root, target)) {
     const fullPath = resolvedResourcePath(root, resourcePath);
@@ -202,8 +214,9 @@ export function buildResourceManifest(
     };
   }
   return {
-    schema_version: 1,
+    schema_version: 2,
     application_version: applicationVersion,
+    source_revision: sourceRevision,
     target,
     files,
   };
@@ -263,12 +276,14 @@ function parseResourceManifest(text: string): ResourceManifest {
   if (!isRecord(payload)) {
     throw new ResourceManifestError("manifest.json", "根节点必须是对象");
   }
-  const allowedKeys = new Set(["schema_version", "application_version", "target", "files"]);
+  const allowedKeys = new Set(["schema_version", "application_version", "source_revision", "target", "files"]);
   if (
     Object.keys(payload).some((key) => !allowedKeys.has(key)) ||
-    payload["schema_version"] !== 1 ||
+    payload["schema_version"] !== 2 ||
     typeof payload["application_version"] !== "string" ||
     payload["application_version"].trim() === "" ||
+    typeof payload["source_revision"] !== "string" ||
+    !/^[0-9a-f]{40}$/u.test(payload["source_revision"]) ||
     typeof payload["target"] !== "string" ||
     !isResourceTarget(payload["target"]) ||
     !isRecord(payload["files"])
@@ -286,8 +301,9 @@ function parseResourceManifest(text: string): ResourceManifest {
     files[resourcePath] = value;
   }
   return {
-    schema_version: 1,
+    schema_version: 2,
     application_version: payload["application_version"],
+    source_revision: payload["source_revision"],
     target: payload["target"],
     files,
   };

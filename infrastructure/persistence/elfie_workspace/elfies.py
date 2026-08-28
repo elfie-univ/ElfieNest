@@ -32,7 +32,7 @@ from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_conn
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 _REQUIRED_COGNITION_TABLES: Final[frozenset[str]] = frozenset(
-    {"entities", "people", "known_elfies", "concepts", "events", "entity_edges"}
+    {"episodes", "nodes", "assertions"}
 )
 _BIG_FIVE_KEYS: Final[tuple[str, ...]] = (
     "openness",
@@ -283,52 +283,31 @@ def _read_cognition(path: Path) -> CognitionSnapshotRecord:
 
 def _cognition_snapshot(connection: sqlite3.Connection) -> CognitionSnapshotRecord:
     entity_rows = connection.execute(
-        """
-        SELECT e.entity_id, e.entity_type, e.name, e.summary, e.confidence,
-               e.meta_json,
-               p.display_name AS person_display_name,
-               p.relationship_label AS person_relationship_label,
-               p.closeness_score AS person_closeness,
-               p.importance_score AS person_importance,
-               k.display_name AS elfie_display_name,
-               k.relationship_label AS elfie_relationship_label,
-               k.closeness_score AS elfie_closeness,
-               k.is_self,
-               c.concept_type
-          FROM entities AS e
-          LEFT JOIN people AS p ON p.entity_id=e.entity_id
-          LEFT JOIN known_elfies AS k ON k.entity_id=e.entity_id
-          LEFT JOIN concepts AS c ON c.entity_id=e.entity_id
-         ORDER BY e.entity_id
-        """
+        """SELECT node_id, node_type, canonical_label, description, confidence,
+                  properties_json, status
+             FROM nodes WHERE status <> 'forgotten' ORDER BY node_id"""
     ).fetchall()
-    entities = tuple(_cognition_entity(row) for row in entity_rows)
+    entities = tuple(_target_cognition_entity(row) for row in entity_rows)
     event_rows = connection.execute(
-        """
-        SELECT e.entity_id, e.first_seen_at, e.last_seen_at,
-               e.name, e.summary, e.meta_json,
-               ev.event_time, ev.event_type, ev.description,
-               ev.importance_score, ev.meta_json AS event_meta_json
-          FROM events AS ev
-          JOIN entities AS e ON e.entity_id=ev.entity_id
-         ORDER BY e.entity_id
-        """
+        """SELECT episode_id, occurred_from, occurred_to, content_text,
+                  summary_text, event_kind, importance, metadata_json, lifecycle
+             FROM episodes WHERE lifecycle <> 'forgotten'
+             ORDER BY occurred_from, episode_id"""
     ).fetchall()
-    events = tuple(_cognition_event(row) for row in event_rows)
+    events = tuple(_target_cognition_event(row, connection) for row in event_rows)
     edge_rows = connection.execute(
-        """
-        SELECT source_entity_id, target_entity_id, relation_type, summary, weight
-          FROM entity_edges
-         ORDER BY source_entity_id, target_entity_id, relation_type, edge_id
-        """
+        """SELECT subject_node_id, object_node_id, predicate, context,
+                  support_score FROM assertions
+             WHERE lifecycle='active' AND object_node_id IS NOT NULL
+             ORDER BY subject_node_id, object_node_id, predicate, assertion_id"""
     ).fetchall()
     edges = tuple(
         CognitionEdgeRecord(
-            source=str(row["source_entity_id"]),
-            target=str(row["target_entity_id"]),
-            relation_type=str(row["relation_type"]),
-            summary=_text(row["summary"]),
-            weight=_number(row["weight"], 0.5),
+            source=str(row["subject_node_id"]),
+            target=str(row["object_node_id"]),
+            relation_type=str(row["predicate"]),
+            summary=_text(row["context"]),
+            weight=_number(row["support_score"], 0.5),
         )
         for row in edge_rows
     )
@@ -346,6 +325,96 @@ def _cognition_snapshot(connection: sqlite3.Connection) -> CognitionSnapshotReco
         events=events,
         edges=edges,
         core_world=core_world,
+    )
+
+
+def _target_cognition_entity(row: sqlite3.Row) -> CognitionEntityRecord:
+    metadata = _target_metadata(row["properties_json"])
+    entity_type = _text(row["node_type"]) or "object"
+    return CognitionEntityRecord(
+        id=str(row["node_id"]),
+        entity_type=entity_type,
+        name=_text(row["canonical_label"]),
+        summary=_text(row["description"]),
+        relationship_label=(
+            _text(metadata.get("relationship_label"))
+            or _text(metadata.get("relationship"))
+        ),
+        relation_key=(
+            _text(metadata.get("relation_kind"))
+            or _text(metadata.get("relationship_key"))
+            or ""
+        ),
+        weight=max(
+            _number(metadata.get("importance")),
+            _number(metadata.get("importance_score")),
+            _number(row["confidence"]),
+        ),
+        closeness=max(
+            _number(metadata.get("closeness_score")),
+            _number(metadata.get("trust_score")),
+        ),
+        is_self=bool(metadata.get("is_self")),
+        world_ring=_optional_text(metadata.get("world_ring")),
+        concept_kind=(
+            _optional_text(metadata.get("kind"))
+            or _optional_text(metadata.get("concept_type"))
+            or (entity_type if entity_type not in {"entity", "object"} else None)
+        ),
+        core_key=_optional_text(metadata.get("core_key")),
+    )
+
+
+def _target_cognition_event(
+    row: sqlite3.Row,
+    connection: sqlite3.Connection,
+) -> CognitionEventRecord:
+    metadata = _target_metadata(row["metadata_json"])
+    mention_rows = connection.execute(
+        """SELECT n.canonical_label, n.node_type
+             FROM episode_mentions AS m JOIN nodes AS n ON n.node_id=m.node_id
+            WHERE m.episode_id=? AND m.resolution_state='resolved'
+            ORDER BY m.mention_id LIMIT 32""",
+        (row["episode_id"],),
+    ).fetchall()
+    topics = tuple(
+        CognitionTopicRecord(
+            label=str(item["canonical_label"]),
+            category=_optional_text(item["node_type"]),
+        )
+        for item in mention_rows
+    )
+    if not topics:
+        raw_topics = metadata.get("topics")
+        if isinstance(raw_topics, dict):
+            raw_topics = tuple(raw_topics.items())
+        if isinstance(raw_topics, (list, tuple)):
+            topic_values: list[CognitionTopicRecord] = []
+            for item in raw_topics:
+                if isinstance(item, str) and item.strip():
+                    topic_values.append(CognitionTopicRecord(item.strip(), None))
+                elif isinstance(item, dict):
+                    label = _text(item.get("label") or item.get("topic"))
+                    if label:
+                        topic_values.append(
+                            CognitionTopicRecord(
+                                label,
+                                _optional_text(item.get("category")),
+                            )
+                        )
+            topics = tuple(topic_values)
+    return CognitionEventRecord(
+        id=str(row["episode_id"]),
+        occurred_at=str(row["occurred_from"]),
+        event_type=_text(row["event_kind"]),
+        description=_text(row["summary_text"] or row["content_text"]),
+        importance=_number(row["importance"]),
+        topics=topics,
+        major_event=bool(metadata.get("major_event")),
+        lifecycle_event=_text(metadata.get("lifecycle_event")),
+        title=_text(metadata.get("title")),
+        changed=_text(metadata.get("changed")),
+        people=_string_items(metadata.get("people")),
     )
 
 
@@ -429,6 +498,11 @@ def _memory_metadata(value: object) -> dict[str, object]:
     wrapper = _json_object(value)
     nested = wrapper.get("memory_metadata")
     return _string_key_object(nested)
+
+
+def _target_metadata(value: object) -> dict[str, object]:
+    """Decode target node/episode properties without legacy wrappers."""
+    return _string_key_object(_json_object(value))
 
 
 def _topics(metadata: dict[str, object]) -> tuple[CognitionTopicRecord, ...]:

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts import release_manifest
+from scripts.internal.release import release_manifest
 
 
 def _copy_species_config(resources: Path) -> None:
@@ -18,6 +18,13 @@ def _copy_species_config(resources: Path) -> None:
         project_root / "config" / "species",
         resources / "config" / "species",
     )
+
+
+def _copy_world_config(resources: Path) -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    target = resources / "config" / "world" / "elfaria.yaml"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(project_root / "config" / "world" / "elfaria.yaml", target)
 
 
 def test_manifest_validation_rejects_a_manifest_that_omits_required_godot_files(
@@ -29,8 +36,9 @@ def test_manifest_validation_rejects_a_manifest_that_omits_required_godot_files(
     shell.parent.mkdir(parents=True)
     shell.write_bytes(b"shell")
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "application_version": "0.1.0",
+        "source_revision": "a" * 40,
         "target": "darwin-arm64",
         "files": {
             "web/index.html": {
@@ -46,6 +54,18 @@ def test_manifest_validation_rejects_a_manifest_that_omits_required_godot_files(
         release_manifest.ReleaseResourceManifestError, match="godot-web"
     ):
         release_manifest.validate_release_resources(resources)
+
+
+def test_linux_manifest_requires_the_dedicated_world_authority() -> None:
+    # Given/When: required resource paths are resolved for a Linux package.
+    linux_paths = release_manifest._required_paths("linux-x64")
+
+    # Then: both the executable and its export provenance are mandatory only there.
+    assert "godot-linux-dedicated/ElfieNestRuntime" in linux_paths
+    assert "godot-linux-dedicated/build-manifest.json" in linux_paths
+    assert "godot-linux-dedicated/ElfieNestRuntime" not in (
+        release_manifest._required_paths("darwin-arm64")
+    )
 
 
 def test_manifest_validation_accepts_runtime_without_a_bundled_ollama_binary(
@@ -82,6 +102,7 @@ def test_manifest_validation_accepts_runtime_without_a_bundled_ollama_binary(
             "sha256": hashlib.sha256(data).hexdigest(),
         }
     _copy_species_config(resources)
+    _copy_world_config(resources)
     for path in sorted((resources / "config" / "species").rglob("*")):
         if path.is_file():
             relative = path.relative_to(resources).as_posix()
@@ -90,11 +111,19 @@ def test_manifest_validation_accepts_runtime_without_a_bundled_ollama_binary(
                 "size": len(data),
                 "sha256": hashlib.sha256(data).hexdigest(),
             }
+    world_path = resources / "config" / "world" / "elfaria.yaml"
+    world_data = world_path.read_bytes()
+    world_relative = world_path.relative_to(resources).as_posix()
+    files[world_relative] = {
+        "size": len(world_data),
+        "sha256": hashlib.sha256(world_data).hexdigest(),
+    }
     (resources / "manifest.json").write_text(
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "application_version": "0.1.0",
+                "source_revision": "a" * 40,
                 "target": target,
                 "files": files,
             }

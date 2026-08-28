@@ -15,17 +15,14 @@ def _copy_runtime_entrypoint_fixture(project_root: Path) -> None:
         shutil.copy2(PROJECT_ROOT / relative_path, project_root / relative_path)
     scripts_dir = project_root / "scripts"
     scripts_dir.mkdir()
-    shutil.copy2(
-        PROJECT_ROOT / "scripts" / "bootstrap.sh", scripts_dir / "bootstrap.sh"
-    )
-    shutil.copy2(
-        PROJECT_ROOT / "scripts" / "bootstrap_report.sh",
-        scripts_dir / "bootstrap_report.sh",
-    )
-    shutil.copy2(
-        PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh",
-        scripts_dir / "bootstrap_runtime_dependencies.sh",
-    )
+    for relative_path in (
+        "bootstrap.sh",
+        "internal/bootstrap/report.sh",
+        "internal/bootstrap/runtime_dependencies.sh",
+    ):
+        destination = scripts_dir / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(PROJECT_ROOT / "scripts" / relative_path, destination)
     (scripts_dir / "serve.py").write_text("", encoding="utf-8")
 
 

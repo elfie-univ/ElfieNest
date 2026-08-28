@@ -11,6 +11,9 @@
 > 依据：[Elfie 整体故事、生命形态与功能体系](./elfie-overall-story-and-functional-system.md)、
 > [Elfie Brain 内部架构契约](../zh/developer/contracts/brain.md)、
 > [Elfie Brain 七阶段实施与体验验收计划](./elfie-brain-implementation-plan.md)
+>
+> 第一阶段聊天专项规约：
+> [记忆支撑的完整聊天闭环执行计划 §6](./elfie-stage1-memory-backed-chat-execution-plan.md#6-验收体系与全方位对抗审查)
 
 ## 1. 目标
 

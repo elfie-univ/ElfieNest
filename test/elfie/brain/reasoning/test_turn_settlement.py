@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from elfie.brain.activity.context import ActivityContextReader
 from elfie.brain.consolidation.system import CognitiveConsolidationSystem
 from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
-from elfie.brain.memory import MemorySystem
+from elfie.brain.memory import ClosedEpisode, MemorySystem
 from elfie.brain.motivation.system import MotivationSystem
 from elfie.brain.orientation.system import OrientationSystem
 from elfie.brain.reasoning.context_source import BrainContextProvider
@@ -209,3 +209,43 @@ def test_orientation_candidate_is_visible_to_run_but_commits_only_at_settlement(
     assert receipts[0].status is StateCommitStatus.COMMITTED
     assert context.orientation_checkpoint().revision == before.revision + 1
     assert context.orientation_snapshot().current_turn_id == "turn-orientation-1"
+
+
+def test_closed_episode_capture_is_source_first_and_idempotent() -> None:
+    # The semantic Fake has no SQLite source-first adapter.  This test uses a
+    # tiny recording wrapper to prove the settlement boundary forwards a
+    # typed Episode before any model result is needed.
+    class RecordingMemory:
+        revision = 0
+
+        def __init__(self) -> None:
+            self.episodes = []
+
+        def record_closed_episode(self, episode):
+            self.episodes.append(episode)
+            from elfie.brain.memory.memory_records import EpisodeReceipt
+
+            return EpisodeReceipt(
+                episode_id=episode.episode_id,
+                idempotency_key=episode.idempotency_key,
+                status="duplicate" if len(self.episodes) > 1 else "committed",
+                content_sha256="0" * 64,
+            )
+
+    recorder = RecordingMemory()
+    settlement = TurnSettlement(recorder)  # type: ignore[arg-type]
+    episode = ClosedEpisode(
+        episode_id="episode-capture-1",
+        idempotency_key="episode-capture-1",
+        occurred_from=NOW.isoformat(),
+        content_text="一次完整的话题",
+        source_event_ids=(EventId("source-1"),),
+    )
+    first = settlement.capture_episodes((episode,))
+    second = settlement.capture_episodes((episode,))
+    assert first[0].status is StateCommitStatus.COMMITTED
+    assert second[0].status is StateCommitStatus.DUPLICATE
+    assert [item.episode_id for item in recorder.episodes] == [
+        "episode-capture-1",
+        "episode-capture-1",
+    ]

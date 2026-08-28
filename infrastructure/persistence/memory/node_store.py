@@ -1,256 +1,453 @@
-"""Memory-node projection onto the final knowledge entity tables."""
+"""Compatibility operations for the semantic Memory Port.
+
+The Brain still exposes ``MemoryNode`` for older callers. This mixin maps that
+API onto the target Episode and graph fact tables; it deliberately does not
+create a second entity/edge store or hide relationships in JSON.
+"""
 
 from __future__ import annotations
 
-import json
-import math
+import re
 import sqlite3
-from datetime import datetime, timezone
-from typing import Any, Final, Mapping, cast
+from typing import Mapping
 
-from elfie.brain.memory.node_types import Edge, JsonValue, MemoryNode
+from elfie.brain.memory.memory_records import ClosedEpisode, NodeInput
+from elfie.brain.memory.node_types import Edge, JsonValue, MemoryMetadata, MemoryNode
 
-_TYPE_MAP: Final[dict[str, str]] = {
-    "core": "concept",
-    "entity": "object",
-    "episodic": "event",
-    "knowledge": "concept",
-    "pattern": "concept",
-}
-_SUBTYPE_TABLES: Final[tuple[str, ...]] = (
-    "people",
-    "known_elfies",
-    "concepts",
-    "places",
-    "events",
+from .sqlite_mixin_base import SQLiteMemoryMixinBase
+from .sqlite_utils import (
+    bounded_score,
+    canonical_json,
+    content_hash,
+    json_list,
+    json_object,
+    normalize_text,
+    normalized_tokens,
+    utc_now,
 )
 
 
-def _json_safe(value):
-    """Encode malformed numeric metadata without violating SQLite JSON checks."""
-    if isinstance(value, float) and not math.isfinite(value):
-        return str(value)
-    if isinstance(value, Mapping):
-        return {key: _json_safe(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_json_safe(item) for item in value]
-    if isinstance(value, tuple):
-        return tuple(_json_safe(item) for item in value)
-    return value
-
-
-def _bounded_score(value: object, default: float = 0.5) -> float:
-    """Keep legacy metadata values inside final schema score constraints."""
-    try:
-        score = float(cast(Any, value))
-    except (TypeError, ValueError):
-        return default
-    if not math.isfinite(score):
-        return default
-    return min(max(score, 0.0), 1.0)
-
-
-class KnowledgeNodeStoreMixin:
-    """Preserve legacy memory-node behavior using final entity semantics."""
+class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
+    """Map the historical ``MemoryNode`` API to the target fact model."""
 
     conn: sqlite3.Connection
 
     def add_node(self, node: MemoryNode) -> str:
-        now = datetime.now(timezone.utc).isoformat()
-        entity_type = self._entity_type(node)
-        metadata = {
-            "memory_node_type": node.type,
-            "memory_metadata": node.metadata,
-            "memory_edges": [
-                {"target": edge.target, "rel": edge.rel, "weight": edge.weight}
-                for edge in node.edges
-            ],
-        }
-        self.conn.execute(
-            """INSERT INTO entities (
-                   entity_id, entity_type, name, summary, confidence,
-                   first_seen_at, last_seen_at, updated_at, meta_json
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(entity_id) DO UPDATE SET
-                   entity_type=excluded.entity_type,
-                   name=excluded.name,
-                   summary=excluded.summary,
-                   confidence=excluded.confidence,
-                   last_seen_at=excluded.last_seen_at,
-                   updated_at=excluded.updated_at,
-                   meta_json=excluded.meta_json""",
-            (
-                node.id,
-                entity_type,
-                node.content or node.id,
-                node.content,
-                _bounded_score(node.metadata.get("confidence", 0.5)),
-                node.created_at or now,
-                node.updated_at or now,
-                node.updated_at or now,
-                json.dumps(_json_safe(metadata), ensure_ascii=False),
-            ),
+        if not node.content.strip():
+            raise ValueError("memory node content must not be blank")
+        if node.type == "episodic":
+            return self._add_episode_node(node)
+        properties = dict(node.metadata)
+        properties.setdefault("memory_node_type", node.type)
+        self.upsert_node_record(
+            NodeInput(
+                node_id=node.id,
+                node_type=node.type,
+                canonical_label=node.content,
+                description=node.content,
+                status="forgotten" if properties.get("forgotten") is True else "active",
+                confidence=bounded_score(properties.get("confidence", 0.5)),
+                properties=properties,
+            )
         )
-        self._replace_subtype(node, entity_type, now)
-        self.conn.commit()
         return node.id
 
     def get_node(self, node_id: str) -> MemoryNode | None:
-        row = self.conn.execute(
-            "SELECT * FROM entities WHERE entity_id=?", (node_id,)
-        ).fetchone()
-        return None if row is None else self._row_to_node(row)
+        with self._lock:
+            episode = self.conn.execute(
+                "SELECT * FROM episodes WHERE episode_id=?", (node_id,)
+            ).fetchone()
+            if episode is not None:
+                return self._episode_row_to_node(episode)
+            row = self.conn.execute(
+                "SELECT * FROM nodes WHERE node_id=?", (node_id,)
+            ).fetchone()
+        if row is None:
+            return None
+        metadata = MemoryMetadata(json_object(row["properties_json"]))
+        metadata.setdefault("memory_node_type", str(row["node_type"]))
+        return MemoryNode(
+            id=str(row["node_id"]),
+            type=str(row["node_type"]),
+            content=str(row["description"] or row["canonical_label"]),
+            metadata=metadata,
+            edges=self.get_edges(str(row["node_id"]), direction="outgoing"),
+            created_at=row["first_seen_at"],
+            updated_at=row["updated_at"],
+        )
 
     def update_node(
         self,
         node_id: str,
         *,
         content: str | None = None,
-        metadata: Mapping[str, JsonValue] | None = None,
+        metadata: Mapping[str, JsonValue] | MemoryMetadata | None = None,
         edges: list[Edge] | None = None,
     ) -> bool:
-        node = self.get_node(node_id)
-        if node is None:
-            return False
-        if content is not None:
-            node.content = content
-        if metadata is not None:
-            node.metadata.update(metadata)
-        if edges is not None:
-            node.edges = edges
-        node.updated_at = datetime.now(timezone.utc).isoformat()
-        self.add_node(node)
-        return True
+        with self._lock:
+            episode = self.conn.execute(
+                "SELECT * FROM episodes WHERE episode_id=?", (node_id,)
+            ).fetchone()
+            if episode is not None:
+                current = json_object(episode["metadata_json"])
+                if metadata:
+                    current.update(dict(metadata))
+                text = content if content is not None else str(episode["content_text"])
+                digest = content_hash(text)
+                cursor = self.conn.execute(
+                    """UPDATE episodes SET content_text=?, content_sha256=?,
+                           metadata_json=?, updated_at=? WHERE episode_id=?""",
+                    (text, digest, canonical_json(current), utc_now(), node_id),
+                )
+                self._upsert_episode_fts_from_values(
+                    node_id, text, episode["summary_text"]
+                )
+                self.conn.commit()
+                changed = cursor.rowcount > 0
+            else:
+                row = self.conn.execute(
+                    "SELECT * FROM nodes WHERE node_id=?", (node_id,)
+                ).fetchone()
+                if row is None:
+                    changed = False
+                else:
+                    properties = json_object(row["properties_json"])
+                    if metadata:
+                        properties.update(dict(metadata))
+                    label = (
+                        content if content is not None else str(row["canonical_label"])
+                    )
+                    now = utc_now()
+                    cursor = self.conn.execute(
+                        """UPDATE nodes SET canonical_label=?, normalized_label=?,
+                               description=?, properties_json=?, updated_at=?
+                           WHERE node_id=?""",
+                        (
+                            label,
+                            normalize_text(label),
+                            content if content is not None else row["description"],
+                            canonical_json(properties),
+                            now,
+                            node_id,
+                        ),
+                    )
+                    self.conn.execute(
+                        """INSERT INTO nodes_fts(node_id, searchable_text) VALUES (?, ?)
+                           ON CONFLICT(node_id) DO UPDATE SET searchable_text=excluded.searchable_text""",
+                        (
+                            node_id,
+                            "\n".join(
+                                value
+                                for value in (label, row["description"] or "")
+                                if value
+                            ),
+                        ),
+                    )
+                    self.conn.commit()
+                    changed = cursor.rowcount > 0
+        if edges is not None and changed:
+            for edge in edges:
+                self.add_edge(node_id, edge.target, edge.rel, edge.weight)
+        return changed
 
     def delete_node(self, node_id: str) -> bool:
-        return self.update_node(node_id, metadata={"forgotten": True})
+        with self._lock:
+            episode = self.conn.execute(
+                "SELECT episode_id FROM episodes WHERE episode_id=?", (node_id,)
+            ).fetchone()
+            if episode is not None:
+                digest_row = self.conn.execute(
+                    "SELECT content_sha256 FROM episodes WHERE episode_id=?",
+                    (node_id,),
+                ).fetchone()
+                forgotten_text = (
+                    f"[forgotten:{digest_row['content_sha256']}]"
+                    if digest_row is not None
+                    else "[forgotten]"
+                )
+                cursor = self.conn.execute(
+                    """UPDATE episodes SET lifecycle='forgotten', detail_level='digest',
+                           content_text=?, summary_text=NULL, updated_at=?
+                       WHERE episode_id=?""",
+                    (forgotten_text, utc_now(), node_id),
+                )
+                self._upsert_episode_fts_from_values(node_id, forgotten_text, None)
+            else:
+                cursor = self.conn.execute(
+                    "UPDATE nodes SET status='forgotten', updated_at=? WHERE node_id=?",
+                    (utc_now(), node_id),
+                )
+            self.conn.commit()
+        return cursor.rowcount > 0
 
     def get_nodes_by_type(self, node_type: str, limit: int = 100) -> list[MemoryNode]:
-        rows = self.conn.execute(
-            """SELECT * FROM entities
-               WHERE json_extract(meta_json, '$.memory_node_type')=? LIMIT ?""",
-            (node_type, limit),
-        ).fetchall()
-        return [self._row_to_node(row) for row in rows]
-
-    def get_unconsolidated_nodes(self, node_type: str = "episodic") -> list[MemoryNode]:
+        if limit < 1:
+            return []
+        if node_type == "episodic":
+            with self._lock:
+                rows = self.conn.execute(
+                    """SELECT * FROM episodes WHERE lifecycle <> 'forgotten'
+                       ORDER BY occurred_from, episode_id LIMIT ?""",
+                    (limit,),
+                ).fetchall()
+            return [self._episode_row_to_node(row) for row in rows]
+        with self._lock:
+            rows = self.conn.execute(
+                """SELECT * FROM nodes WHERE (node_type=? OR json_extract(properties_json, '$.entity_type')=? )
+                                      AND status <> 'forgotten' AND merged_into IS NULL
+                   ORDER BY node_id LIMIT ?""",
+                (node_type, node_type, limit),
+            ).fetchall()
         return [
-            node
-            for node in self.get_nodes_by_type(node_type, limit=100000)
-            if node.metadata.get("consolidated") is not True
+            MemoryNode(
+                id=str(row["node_id"]),
+                type=str(row["node_type"]),
+                content=str(row["description"] or row["canonical_label"]),
+                metadata=MemoryMetadata(json_object(row["properties_json"])),
+                edges=self.get_edges(str(row["node_id"]), direction="outgoing"),
+                created_at=row["first_seen_at"],
+                updated_at=row["updated_at"],
+            )
+            for row in rows
         ]
 
+    def get_unconsolidated_nodes(self, node_type: str = "episodic") -> list[MemoryNode]:
+        if node_type != "episodic":
+            return []
+        with self._lock:
+            rows = self.conn.execute(
+                """SELECT * FROM episodes
+                   WHERE lifecycle='active'
+                     AND consolidation_state IN ('pending', 'failed')
+                   ORDER BY occurred_from, episode_id"""
+            ).fetchall()
+        return [self._episode_row_to_node(row) for row in rows]
+
     def count_nodes(self, node_type: str | None = None) -> int:
-        if node_type is None:
-            row = self.conn.execute("SELECT COUNT(*) FROM entities").fetchone()
-        else:
-            row = self.conn.execute(
-                """SELECT COUNT(*) FROM entities
-                   WHERE json_extract(meta_json, '$.memory_node_type')=?""",
-                (node_type,),
-            ).fetchone()
+        with self._lock:
+            if node_type == "episodic":
+                row = self.conn.execute(
+                    "SELECT COUNT(*) FROM episodes WHERE lifecycle <> 'forgotten'"
+                ).fetchone()
+            elif node_type is None:
+                row = self.conn.execute(
+                    "SELECT (SELECT COUNT(*) FROM episodes WHERE lifecycle <> 'forgotten') + (SELECT COUNT(*) FROM nodes WHERE status <> 'forgotten')"
+                ).fetchone()
+            else:
+                row = self.conn.execute(
+                    """SELECT COUNT(*) FROM nodes
+                        WHERE (node_type=? OR json_extract(properties_json, '$.entity_type')=? )
+                          AND status <> 'forgotten' AND merged_into IS NULL""",
+                    (node_type, node_type),
+                ).fetchone()
         return int(row[0])
 
-    @staticmethod
-    def _row_to_node(row) -> MemoryNode:
-        payload = json.loads(row["meta_json"])
-        edges = [Edge(**edge) for edge in payload.get("memory_edges", [])]
+    def search_by_content(
+        self,
+        query: str,
+        top_k: int = 5,
+        node_type: str | None = None,
+    ) -> list[tuple[str, float]]:
+        """Deterministic lexical search over Episode text and graph labels."""
+        if top_k < 1 or not query.strip():
+            return []
+        terms = list(dict.fromkeys(normalized_tokens(query)))
+        if not terms:
+            return []
+        like_patterns = _lexical_like_patterns(query, terms)
+        candidates: list[tuple[str, str, str, str]] = []
+        with self._lock:
+            if node_type in (None, "episodic"):
+                episode_where = " OR ".join(
+                    "f.searchable_text LIKE ?" for _ in like_patterns
+                )
+                rows = self.conn.execute(
+                    """SELECT e.episode_id, f.searchable_text, 'episodic' AS node_type
+                       FROM episodes_fts AS f JOIN episodes AS e USING (episode_id)
+                       WHERE e.lifecycle <> 'forgotten' AND ("""
+                    + episode_where
+                    + ")",
+                    like_patterns,
+                ).fetchall()
+                candidates.extend(
+                    (str(row[0]), str(row[1]), str(row[2]), str(row[1])) for row in rows
+                )
+            if node_type is None or node_type != "episodic":
+                node_where = " OR ".join(
+                    "f.searchable_text LIKE ?" for _ in like_patterns
+                )
+                rows = self.conn.execute(
+                    """SELECT f.node_id, f.searchable_text, n.node_type,
+                                      n.canonical_label,
+                                      json_extract(n.properties_json, '$.entity_type') AS entity_type
+                       FROM nodes_fts AS f JOIN nodes AS n USING (node_id)
+                       WHERE n.status <> 'forgotten' AND n.merged_into IS NULL
+                         AND ("""
+                    + node_where
+                    + ")",
+                    like_patterns,
+                ).fetchall()
+                candidates.extend(
+                    (str(row[0]), str(row[1]), str(row[2]), str(row[3] or ""))
+                    for row in rows
+                    if node_type is None
+                    or str(row[2]) == node_type
+                    or str(row[3] or "") == node_type
+                )
+        scored: dict[str, float] = {}
+        # Keep lexical matching tolerant of punctuation (for example a user
+        # may search ``rare-term`` while the source stored ``rare term``),
+        # without changing the stricter normalization used for identity keys.
+        query_normalized = _lexical_normalize(query)
+        with self._lock:
+            exact_alias_ids = {
+                str(row[0])
+                for row in self.conn.execute(
+                    """SELECT DISTINCT a.node_id
+                         FROM node_aliases AS a
+                         JOIN nodes AS n ON n.node_id=a.node_id
+                        WHERE a.normalized_alias=?
+                          AND n.status <> 'forgotten'
+                          AND n.merged_into IS NULL""",
+                    (normalize_text(query),),
+                ).fetchall()
+            }
+        for identifier, text, kind, canonical_label in candidates:
+            normalized = _lexical_normalize(text)
+            if not normalized:
+                continue
+            hits = sum(1 for term in terms if term in normalized)
+            if hits == 0:
+                continue
+            score = hits / max(1, len(terms))
+            if query_normalized in normalized:
+                score += 0.5
+            # Exact aliases are stronger evidence than an incidental mention
+            # buried in an Episode or a long description.  Keep a small
+            # canonical-label density bonus so a direct knowledge label stays
+            # in the bounded seed set when a short place term matches many
+            # unrelated Episodes.
+            if identifier in exact_alias_ids:
+                score += 0.35
+            label_normalized = _lexical_normalize(canonical_label)
+            if query_normalized and query_normalized in label_normalized:
+                score += min(
+                    0.2,
+                    len(query_normalized) / max(1, len(label_normalized)) * 0.2,
+                )
+            if kind == "knowledge":
+                score += 0.05
+            scored[identifier] = max(scored.get(identifier, 0.0), score)
+        return sorted(scored.items(), key=lambda item: (-item[1], item[0]))[:top_k]
+
+    def _add_episode_node(self, node: MemoryNode) -> str:
+        metadata = dict(node.metadata)
+        raw_intensity = metadata.get(
+            "emotion_intensity", metadata.get("intensity", 0.0)
+        )
+        intensity = _as_unit_interval(raw_intensity)
+        importance = _as_unit_interval(
+            metadata.get(
+                "importance", intensity / 100.0 if intensity > 1 else intensity
+            )
+        )
+        occurred = str(metadata.get("timestamp") or node.created_at or utc_now())
+        source_event_ids = tuple(
+            str(value) for value in _list(metadata.get("source_event_ids"))
+        )
+        episode = ClosedEpisode(
+            episode_id=node.id,
+            idempotency_key=str(
+                metadata.get("idempotency_key") or f"legacy-node:{node.id}"
+            ),
+            occurred_from=occurred,
+            content_text=node.content,
+            event_kind=str(metadata.get("event_kind") or "interaction"),
+            source_event_ids=source_event_ids,
+            importance=importance,
+            emotion=str(metadata.get("emotion"))
+            if metadata.get("emotion") is not None
+            else None,
+            # The compatibility API historically accepted a 0-100 intensity,
+            # while the source-first Episode contract stores a unit interval.
+            # Keep the legacy metadata intact, but pass the normalized value
+            # into the validated durable record.
+            emotion_intensity=intensity
+            if isinstance(raw_intensity, (int, float))
+            else None,
+            stimulus=str(metadata.get("stimulus"))
+            if metadata.get("stimulus") is not None
+            else None,
+            sensory=tuple(
+                (str(key), str(value))
+                for key, value in _mapping(metadata.get("sensory")).items()
+            ),
+            metadata=metadata,
+        )
+        return self.record_episode(episode).episode_id
+
+    def _episode_row_to_node(self, row: sqlite3.Row) -> MemoryNode:
+        metadata = MemoryMetadata(json_object(row["metadata_json"]))
+        metadata["timestamp"] = str(row["occurred_from"])
+        metadata["importance"] = float(row["importance"])
+        metadata["consolidated"] = str(row["consolidation_state"]) == "consolidated"
+        metadata["detail_level"] = str(row["detail_level"])
+        metadata["lifecycle"] = str(row["lifecycle"])
+        metadata["source_event_ids"] = _list(json_list(row["source_event_ids_json"]))
         return MemoryNode(
-            id=row["entity_id"],
-            type=payload.get("memory_node_type", row["entity_type"]),
-            content=row["summary"] or row["name"],
-            metadata=payload.get("memory_metadata", {}),
-            edges=edges,
-            created_at=row["first_seen_at"],
-            updated_at=row["updated_at"],
+            id=str(row["episode_id"]),
+            type="episodic",
+            content=str(row["content_text"]),
+            metadata=metadata,
+            edges=self.get_edges(str(row["episode_id"]), direction="outgoing"),
+            created_at=str(row["created_at"]),
+            updated_at=str(row["updated_at"]),
         )
 
-    @staticmethod
-    def _entity_type(node: MemoryNode) -> str:
-        if node.type != "entity":
-            return _TYPE_MAP.get(node.type, "object")
-        candidate = node.metadata.get("entity_type")
-        return candidate if candidate in {"person", "elfie", "place"} else "object"
-
-    def _replace_subtype(self, node: MemoryNode, entity_type: str, now: str) -> None:
-        for table in _SUBTYPE_TABLES:
-            self.conn.execute(f"DELETE FROM {table} WHERE entity_id=?", (node.id,))
-        if entity_type == "event":
-            self.conn.execute(
-                """INSERT INTO events (
-                       entity_id, event_time, event_type, description,
-                       importance_score, meta_json, updated_at
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    node.id,
-                    node.metadata.get("timestamp", node.created_at),
-                    node.type,
-                    node.content,
-                    _bounded_score(node.metadata.get("importance", 0.5)),
-                    json.dumps(node.metadata, ensure_ascii=False),
-                    node.updated_at or now,
-                ),
-            )
-        elif entity_type == "concept":
-            self.conn.execute(
-                """INSERT INTO concepts
-                   (entity_id, concept_type, definition, confidence, updated_at)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (node.id, node.type, node.content, 0.5, node.updated_at or now),
-            )
-        elif entity_type == "place":
-            self.conn.execute(
-                """INSERT INTO places
-                   (entity_id, place_type, description, updated_at)
-                   VALUES (?, ?, ?, ?)""",
-                (node.id, node.metadata.get("entity_type"), node.content, now),
-            )
-        elif entity_type == "person":
-            self.conn.execute(
-                """INSERT INTO people (
-                       entity_id, display_name, relationship_label,
-                       closeness_score, trust_score, importance_score,
-                       is_owner, profile_summary, preferences_json, updated_at
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    node.id,
-                    node.metadata.get("display_name", node.content),
-                    node.metadata.get("relationship_label"),
-                    _bounded_score(node.metadata.get("closeness_score")),
-                    _bounded_score(node.metadata.get("trust_score")),
-                    _bounded_score(node.metadata.get("importance_score")),
-                    1 if node.metadata.get("is_owner") is True else 0,
-                    _joined_facts(node.metadata.get("shared_facts")),
-                    json.dumps(
-                        {"unknown_facts": node.metadata.get("unknown_facts", [])},
-                        ensure_ascii=False,
-                    ),
-                    node.updated_at or now,
-                ),
-            )
-        elif entity_type == "elfie":
-            self.conn.execute(
-                """INSERT INTO known_elfies (
-                       entity_id, elfie_id, display_name, species, is_self,
-                       relationship_label, closeness_score, profile_summary,
-                       updated_at
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    node.id,
-                    node.metadata.get("elfie_id"),
-                    node.metadata.get("display_name", node.content),
-                    node.metadata.get("species"),
-                    1 if node.metadata.get("is_self") is True else 0,
-                    node.metadata.get("relationship_label"),
-                    _bounded_score(node.metadata.get("closeness_score")),
-                    node.content,
-                    node.updated_at or now,
-                ),
-            )
+    def _upsert_episode_fts_from_values(
+        self, episode_id: str, content: str, summary: str | None
+    ) -> None:
+        self.conn.execute(
+            """INSERT INTO episodes_fts(episode_id, searchable_text) VALUES (?, ?)
+               ON CONFLICT(episode_id) DO UPDATE SET searchable_text=excluded.searchable_text""",
+            (
+                episode_id,
+                "\n".join(value for value in (content, summary or "") if value),
+            ),
+        )
 
 
-def _joined_facts(value: object) -> str | None:
-    if not isinstance(value, (list, tuple)):
-        return None
-    facts = [str(item).strip() for item in value if str(item).strip()]
-    return "；".join(facts) or None
+def _mapping(value: object) -> Mapping[str, object]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _list(value: object) -> list[JsonValue]:
+    return list(value) if isinstance(value, (list, tuple)) else []
+
+
+def _as_unit_interval(value: object) -> float:
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0.0
+    if number > 1.0:
+        number /= 100.0
+    return max(0.0, min(1.0, number))
+
+
+def _lexical_normalize(value: str) -> str:
+    """Normalize searchable text without weakening semantic identity rules."""
+    cleaned = re.sub(r"[^\u4e00-\u9fa5a-zA-Z0-9\s]", "", value.casefold())
+    return " ".join(cleaned.split())
+
+
+def _lexical_like_patterns(query: str, terms: list[str]) -> list[str]:
+    """Build SQL prefilters while retaining the deterministic Python scorer."""
+    patterns = [f"%{term}%" for term in terms]
+    ascii_parts = re.findall(r"[a-z0-9]+", query.casefold())
+    if len(ascii_parts) > 1:
+        patterns.append("%" + "%".join(ascii_parts) + "%")
+    return list(dict.fromkeys(patterns))
+
+
+__all__ = ["KnowledgeNodeStoreMixin"]

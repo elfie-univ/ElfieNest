@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Callable, Optional, Protocol
+from typing import Callable, Literal, Optional, Protocol
 
 from app.features.setup import SetupPortError, StoredOllamaObservation
 from app.orchestration.setup_installation import (
@@ -22,7 +22,7 @@ AcquireTaskLease = Callable[[SetupOllamaBinding], Optional[SetupOllamaTaskLease]
 
 class SetupOllamaTechnologyPort(Protocol):
     @property
-    def platform(self) -> str: ...
+    def platform(self) -> Literal["darwin", "linux", "win32"]: ...
 
     def default_binding(self) -> SetupOllamaBinding: ...
     def probe(self, binding: SetupOllamaBinding) -> SetupOllamaProbe: ...
@@ -56,6 +56,10 @@ class SetupOllamaAdapter:
         self._save_binding = save_binding
         self._save_model = save_model
         self._acquire_task_lease = acquire_task_lease
+
+    @property
+    def platform(self) -> Literal["darwin", "linux", "win32"]:
+        return self._technology.platform
 
     def inspect(self) -> StoredOllamaObservation:
         try:
@@ -103,6 +107,11 @@ class SetupOllamaAdapter:
                         replace(binding, version=started.version or binding.version)
                     )
                     return lease
+            if self.platform == "linux":
+                report("ollama.manual")
+                raise SetupInstallationPortError(
+                    "Linux Ollama 安装需要先在用户终端执行官方安装命令"
+                )
             report("ollama.repair" if saved is not None else "ollama.install")
             installer = self._technology.download_official_installer()
             self._technology.run_confirmed_installer(installer, user_confirmed=True)
@@ -121,6 +130,8 @@ class SetupOllamaAdapter:
                 replace(installed, version=healthy.version or installed.version)
             )
             return lease
+        except SetupInstallationPortError:
+            raise
         except (OSError, RuntimeError, ValueError) as error:
             raise SetupInstallationPortError("unable to prepare Ollama") from error
 

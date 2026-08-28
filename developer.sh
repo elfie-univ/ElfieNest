@@ -52,15 +52,15 @@ fi
 cd "$SCRIPT_DIR"
 if [[ "${1:-}" == "build-godot-web" ]]; then
   shift
-  exec "$PYTHON_BIN" scripts/build_godot_web.py "$@"
+  exec "$PYTHON_BIN" scripts/internal/build/build_godot_web.py "$@"
 fi
 if [[ "${1:-}" == "build-godot-dedicated" ]]; then
   shift
-  exec "$PYTHON_BIN" scripts/build_godot_dedicated.py "$@"
+  exec "$PYTHON_BIN" scripts/internal/build/build_godot_dedicated.py "$@"
 fi
 if [[ "${1:-}" == "build-devtools-web" ]]; then
   shift
-  exec "$PYTHON_BIN" scripts/build_devtools_web.py "$@"
+  exec "$PYTHON_BIN" scripts/internal/build/build_devtools_web.py "$@"
 fi
 
 # For --help or -h, skip builds and show help directly
@@ -75,8 +75,8 @@ fi
 
 case "${1:-}" in
   elfie-lab|nest-lab)
-    "$PYTHON_BIN" scripts/build_godot_web.py --ensure
-    "$PYTHON_BIN" scripts/build_devtools_web.py --ensure
+    "$PYTHON_BIN" scripts/internal/build/build_godot_web.py --ensure
+    "$PYTHON_BIN" scripts/internal/build/build_devtools_web.py --ensure
     ;;
   brain-eval)
     # The no-action form launches the unified web service, so keep the Nest

@@ -1,12 +1,14 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { nextObserverFrame, openObserverSession, type ObserverFrame } from "../api/observer"
+import { closeObserverSession, nextObserverFrame, openObserverSession, type ObserverFrame } from "../api/observer"
+import { ApiError } from "../api/http"
 import { ObserverProvider, useOptionalObserver } from "./observer"
 
 vi.mock("../api/observer", () => ({
+  closeObserverSession: vi.fn().mockResolvedValue(undefined),
   nextObserverFrame: vi.fn().mockResolvedValue(null),
-  openObserverSession: vi.fn().mockResolvedValue("observer-capability"),
+  openObserverSession: vi.fn().mockResolvedValue({ capability: "observer-capability", idleTimeoutSeconds: 120 }),
   warmObserverAssets: vi.fn().mockResolvedValue(undefined),
 }))
 
@@ -28,7 +30,8 @@ function useRequiredObserver() {
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.mocked(openObserverSession).mockReset().mockResolvedValue("observer-capability")
+  vi.mocked(openObserverSession).mockReset().mockResolvedValue({ capability: "observer-capability", idleTimeoutSeconds: 120 })
+  vi.mocked(closeObserverSession).mockReset().mockResolvedValue(undefined)
   vi.mocked(nextObserverFrame).mockReset().mockResolvedValue(null)
 })
 
@@ -36,6 +39,10 @@ beforeEach(() => {
   Object.defineProperty(window, "isSecureContext", {
     configurable: true,
     value: true,
+  })
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    value: "visible",
   })
 })
 
@@ -144,22 +151,123 @@ describe("ObserverProvider", () => {
     expect(screen.getByText("ready")).toBeInTheDocument()
   })
 
-  it("reuses one observer engine across room and Elfie scopes, then releases it after five idle minutes", async () => {
+  it("stops polling immediately and releases the renderer after one warm minute", async () => {
     vi.useFakeTimers()
     Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
     const { container } = render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
 
     fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
     await act(async () => {})
-    expect(container.querySelectorAll("iframe[title='ElfieNest 3D Observer']")).toHaveLength(1)
-
-    fireEvent.click(screen.getByRole("button", { name: "打开精灵" }))
+    const engine = container.querySelector<HTMLIFrameElement>("iframe[title='ElfieNest 3D Observer']")
+    if (engine?.contentWindow === null || engine === null) throw new Error("observer iframe missing")
+    window.dispatchEvent(new MessageEvent("message", {
+      data: "elfienest:godot-web-ready",
+      origin: window.location.origin,
+      source: engine.contentWindow,
+    }))
     await act(async () => {})
     expect(container.querySelectorAll("iframe[title='ElfieNest 3D Observer']")).toHaveLength(1)
 
+    const pollCount = vi.mocked(nextObserverFrame).mock.calls.length
+    const closeCount = vi.mocked(closeObserverSession).mock.calls.length
     fireEvent.click(screen.getByRole("button", { name: "离开 3D" }))
-    await act(async () => { vi.advanceTimersByTime(5 * 60 * 1000) })
+    await act(async () => { vi.advanceTimersByTime(59 * 1000) })
+    expect(container.querySelector("iframe[title='ElfieNest 3D Observer']")).not.toBeNull()
+    expect(nextObserverFrame).toHaveBeenCalledTimes(pollCount)
+    await act(async () => { vi.advanceTimersByTime(1000) })
     expect(container.querySelector("iframe[title='ElfieNest 3D Observer']")).toBeNull()
+    expect(closeObserverSession).toHaveBeenCalledTimes(closeCount)
+  })
+
+  it("pauses in a hidden tab and reuses the same session after a quick return", async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
+    const { container } = render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+
+    fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+    await act(async () => {})
+    const engine = container.querySelector<HTMLIFrameElement>("iframe[title='ElfieNest 3D Observer']")
+    if (engine?.contentWindow === null || engine === null) throw new Error("observer iframe missing")
+    window.dispatchEvent(new MessageEvent("message", {
+      data: "elfienest:godot-web-ready",
+      origin: window.location.origin,
+      source: engine.contentWindow,
+    }))
+    await act(async () => {})
+    const pollCount = vi.mocked(nextObserverFrame).mock.calls.length
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" })
+    document.dispatchEvent(new Event("visibilitychange"))
+    await act(async () => { vi.advanceTimersByTime(30 * 1000) })
+
+    expect(nextObserverFrame).toHaveBeenCalledTimes(pollCount)
+    expect(container.querySelector("iframe[title='ElfieNest 3D Observer']")).toBe(engine)
+
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" })
+    document.dispatchEvent(new Event("visibilitychange"))
+    await act(async () => {})
+
+    expect(openObserverSession).toHaveBeenCalledTimes(1)
+    expect(nextObserverFrame).toHaveBeenCalledTimes(pollCount + 1)
+    expect(container.querySelector("iframe[title='ElfieNest 3D Observer']")).toBe(engine)
+  })
+
+  it("reopens an expired observer lease without destroying the renderer", async () => {
+    vi.mocked(nextObserverFrame)
+      .mockRejectedValueOnce(new ApiError(410, "expired", [], "observer_session_expired"))
+      .mockResolvedValueOnce(null)
+    vi.mocked(openObserverSession)
+      .mockResolvedValueOnce({ capability: "expired-capability", idleTimeoutSeconds: 120 })
+      .mockResolvedValueOnce({ capability: "renewed-capability", idleTimeoutSeconds: 120 })
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
+    const { container } = render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+
+    fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+    await act(async () => {})
+
+    expect(openObserverSession).toHaveBeenCalledTimes(2)
+    expect(nextObserverFrame).toHaveBeenNthCalledWith(
+      2,
+      "renewed-capability",
+      null,
+      expect.any(AbortSignal),
+    )
+    expect(container.querySelectorAll("iframe[title='ElfieNest 3D Observer']")).toHaveLength(1)
+  })
+
+  it("keeps the renderer and retries a transient frame failure", async () => {
+    vi.useFakeTimers()
+    vi.mocked(nextObserverFrame)
+      .mockRejectedValueOnce(new Error("temporary network failure"))
+      .mockResolvedValueOnce(null)
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
+    const { container } = render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+
+    fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+    await act(async () => {})
+    const engine = container.querySelector("iframe[title='ElfieNest 3D Observer']")
+    await act(async () => { vi.advanceTimersByTime(1000) })
+
+    expect(nextObserverFrame).toHaveBeenCalledTimes(2)
+    expect(openObserverSession).toHaveBeenCalledTimes(1)
+    expect(container.querySelector("iframe[title='ElfieNest 3D Observer']")).toBe(engine)
+  })
+
+  it("best-effort closes the session when the page is really unloaded", async () => {
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
+    render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+    fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+    await act(async () => {})
+    const event = new Event("pagehide")
+    Object.defineProperty(event, "persisted", { value: false })
+
+    window.dispatchEvent(event)
+    await act(async () => {})
+
+    expect(closeObserverSession).toHaveBeenCalledWith(
+      "observer-capability",
+      "csrf",
+      true,
+    )
   })
 
   it("recreates the same room observer after its readiness deadline expires", async () => {
@@ -194,13 +302,13 @@ describe("ObserverProvider", () => {
     }))
     await act(async () => {})
     expect(screen.getByText("loading")).toBeInTheDocument()
-    expect(openObserverSession).toHaveBeenCalledTimes(2)
+    expect(openObserverSession).toHaveBeenCalledTimes(1)
   })
 
   it("recreates the same room observer after a capability handshake failure", async () => {
     vi.mocked(openObserverSession)
       .mockRejectedValueOnce(new Error("offline"))
-      .mockResolvedValueOnce("retry-capability")
+      .mockResolvedValueOnce({ capability: "retry-capability", idleTimeoutSeconds: 120 })
     Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
     const { container } = render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
 

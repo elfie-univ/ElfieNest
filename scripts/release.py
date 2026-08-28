@@ -13,9 +13,8 @@ from typing import Final, Optional, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import package_python_core
-from scripts.release_install_smoke import run_install_smoke as execute_install_smoke
-from scripts.release_planning import (
+from scripts.internal.build import package_python_core
+from scripts.internal.release.release_planning import (
     ReleasePlanError,
     ReleaseRequest,
     RunnerResult,
@@ -27,6 +26,45 @@ from scripts.release_planning import (
 
 SUPPORTED_TARGETS: Final[tuple[str, ...]] = package_python_core.TARGETS
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[1]
+
+
+def execute_install_smoke(
+    target: str,
+    artifact: Path,
+    evidence_output: Path,
+    *,
+    cycles: int = 1,
+    candidate_sha: str | None = None,
+    product_journey: bool = False,
+    recovery_matrix: bool = False,
+    viewer_check: bool = False,
+    smoke_home: Path | None = None,
+) -> dict[str, object]:
+    """Load the optional native smoke runner only after environment checks."""
+    from scripts.internal.release.release_install_smoke import run_install_smoke
+
+    if smoke_home is None:
+        return run_install_smoke(
+            target,
+            artifact,
+            evidence_output,
+            cycles=cycles,
+            candidate_sha=candidate_sha,
+            product_journey=product_journey,
+            recovery_matrix=recovery_matrix,
+            viewer_check=viewer_check,
+        )
+    return run_install_smoke(
+        target,
+        artifact,
+        evidence_output,
+        cycles=cycles,
+        candidate_sha=candidate_sha,
+        product_journey=product_journey,
+        recovery_matrix=recovery_matrix,
+        viewer_check=viewer_check,
+        smoke_home=smoke_home,
+    )
 
 
 def parse_args(arguments: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -69,6 +107,26 @@ def parse_args(arguments: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=1,
         help="number of install/start/stop/upgrade smoke cycles",
     )
+    parser.add_argument(
+        "--run-product-journey",
+        action="store_true",
+        help="run the installed Setup/provider/adoption/chat journey inside each smoke cycle",
+    )
+    parser.add_argument(
+        "--run-recovery-matrix",
+        action="store_true",
+        help="prove duplicate installed starts preserve one generation and process tree",
+    )
+    parser.add_argument(
+        "--run-viewer-check",
+        action="store_true",
+        help="activate the installed Viewer and require a management page ready marker",
+    )
+    parser.add_argument(
+        "--smoke-home",
+        type=Path,
+        help="keep the disposable smoke data root for failure diagnostics",
+    )
     return parser.parse_args(arguments)
 
 
@@ -92,16 +150,17 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         return 1
     if plan.native_targets:
         try:
-            from scripts import release_pipeline
+            from scripts.internal.release import release_pipeline
         except ImportError as error:
             print(f"release-dependency-missing module={error.name}")
             return 1
 
     try:
+        release_source_commit = source_commit()
         requests = release_requests(
             targets,
             version=release_version(),
-            source_commit=source_commit(),
+            source_commit=release_source_commit,
             input_manifest=release_input_manifest(),
         )
         adapters = {}
@@ -116,6 +175,11 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
                 run_install_smoke=args.run_install_smoke,
                 smoke_evidence_output=args.smoke_evidence_output,
                 smoke_cycles=args.smoke_cycles,
+                product_journey=args.run_product_journey,
+                candidate_sha=release_source_commit,
+                recovery_matrix=args.run_recovery_matrix,
+                viewer_check=args.run_viewer_check,
+                smoke_home=args.smoke_home,
             )
         session = coordinate_release(requests, adapters)
     except (
@@ -166,6 +230,11 @@ def _local_runner_adapter(
     run_install_smoke: bool = False,
     smoke_evidence_output: Optional[Path] = None,
     smoke_cycles: int = 1,
+    product_journey: bool = False,
+    candidate_sha: str | None = None,
+    recovery_matrix: bool = False,
+    viewer_check: bool = False,
+    smoke_home: Path | None = None,
 ):
     """Return the current-host native builder and optional real install gate."""
     host_target = package_python_core.host_target()
@@ -186,6 +255,11 @@ def _local_runner_adapter(
                 artifact,
                 evidence,
                 cycles=smoke_cycles,
+                product_journey=product_journey,
+                candidate_sha=candidate_sha or request.source_commit,
+                recovery_matrix=recovery_matrix,
+                viewer_check=viewer_check,
+                smoke_home=smoke_home,
             )
             return completed_runner_result(
                 request,
@@ -207,7 +281,7 @@ def _local_runner_adapter(
 
 def release_version() -> str:
     """Read the checked release version without importing packaging-only code."""
-    from scripts import check_release_version
+    from scripts.internal.release import version as check_release_version
 
     return check_release_version.project_version()
 

@@ -29,7 +29,9 @@ from elfie.brain.reasoning.decision_decoder import (
 )
 from elfie.brain.reasoning.decision_types import (
     CancelPolicy,
+    DecisionIntent,
     DecisionPlan,
+    MessageIntent,
     NoOpIntent,
     PersistentActivityRequest,
 )
@@ -41,6 +43,7 @@ from elfie.brain.reasoning.model_port import (
     ModelPort,
     ModelResponseMode,
 )
+from elfie.brain.reasoning.reply_safety import sanitize_direct_owner_reply
 from elfie.brain.reasoning.tool_port import ToolPort, ToolRequest, ToolResult
 from elfie.message_types import FrozenContractModel, IntentId, PlanId
 
@@ -132,6 +135,7 @@ _TOOL_INSTRUCTIONS = (
 )
 _MAX_OBSERVATION_CHARS = 2400
 _MAX_MODEL_SUMMARY_CHARS = 240
+_OWNER_MESSAGE_FALLBACK = "我收到你的消息了，正在想一想。"
 _TOOL_STEP_SCHEMA: dict[str, JsonValue] = {
     "type": "object",
     "required": ["tool_key", "operation", "value"],
@@ -358,6 +362,7 @@ class ReasoningRun:
                     capabilities=capabilities,
                     repair_callback=None if capabilities.plain_text_only else repair,
                 )
+                decode, reply_was_sanitized = self._sanitize_direct_reply(task, decode)
                 plan, preflight_observation = self._preflight_activities(decode.plan)
                 if preflight_observation is not None:
                     add_step(
@@ -387,7 +392,10 @@ class ReasoningRun:
                     add_step(
                         CognitiveStepKind.VERIFY,
                         "degraded",
-                        decode.report.fallback_reason,
+                        self._verification_summary(
+                            decode.report.fallback_reason,
+                            reply_was_sanitized,
+                        ),
                     )
                     return ReasoningRunResult(
                         status=ReasoningStatus.SAFE_NOOP,
@@ -397,7 +405,13 @@ class ReasoningRun:
                         failure_reason=decode.report.fallback_reason,
                         decode=decode,
                     )
-                add_step(CognitiveStepKind.VERIFY, "accepted", "DecisionPlan verified")
+                add_step(
+                    CognitiveStepKind.VERIFY,
+                    "accepted",
+                    self._verification_summary(
+                        "DecisionPlan verified", reply_was_sanitized
+                    ),
+                )
                 return ReasoningRunResult(
                     status=ReasoningStatus.COMPLETED,
                     steps=tuple(steps),
@@ -468,6 +482,40 @@ class ReasoningRun:
     @staticmethod
     def _is_fast_owner_reply(request: ModelGenerationRequest) -> bool:
         return request.response_mode is ModelResponseMode.DIRECT_REPLY
+
+    @staticmethod
+    def _sanitize_direct_reply(
+        task: ReasoningTaskView,
+        decode: DecisionDecodeResult,
+    ) -> tuple[DecisionDecodeResult, bool]:
+        if task.request.response_mode is not ModelResponseMode.DIRECT_REPLY:
+            return decode, False
+        context = getattr(task, "reply_safety_context", None)
+        if context is None:
+            return decode, False
+        changed = False
+        intents: list[DecisionIntent] = []
+        for intent in decode.plan.intents:
+            if not isinstance(intent, MessageIntent):
+                intents.append(intent)
+                continue
+            content = sanitize_direct_owner_reply(intent.content, context)
+            changed = changed or content != intent.content
+            intents.append(
+                intent.model_copy(update={"content": content})
+                if content != intent.content
+                else intent
+            )
+        if not changed:
+            return decode, False
+        plan = decode.plan.model_copy(update={"intents": tuple(intents)})
+        return decode.model_copy(update={"plan": plan}), True
+
+    @staticmethod
+    def _verification_summary(reason: str, reply_was_sanitized: bool) -> str:
+        if not reply_was_sanitized:
+            return reason
+        return f"{reason}; direct_reply_current_nest_boundary"
 
     @staticmethod
     def _marker(text: str) -> _ToolMarker | None:
@@ -623,7 +671,11 @@ class ReasoningRun:
                 CognitiveStep(
                     ordinal=len(steps) + 1,
                     kind=CognitiveStepKind.VERIFY,
-                    status="safe_noop",
+                    status=(
+                        "fallback"
+                        if decode.plan.intents[0].type == "message"
+                        else "safe_noop"
+                    ),
                     summary=reason,
                 )
             )
@@ -645,8 +697,35 @@ class ReasoningRun:
         generation: Optional[ModelGenerationResult],
     ) -> DecisionDecodeResult:
         seed = task.seed
+        intent: DecisionIntent
+        if seed.reply_channel_id and seed.reply_conversation_id:
+            intent = MessageIntent(
+                type="message",
+                intent_id=IntentId(f"reasoning-fallback-intent-{seed.turn_id}"),
+                cause_event_ids=seed.cause_event_ids,
+                dependency_ids=(),
+                deadline=seed.deadline,
+                cancel_policy=CancelPolicy.ALWAYS,
+                channel_id=seed.reply_channel_id,
+                conversation_id=seed.reply_conversation_id,
+                content=_OWNER_MESSAGE_FALLBACK,
+            )
+        else:
+            intent = NoOpIntent(
+                type="noop",
+                intent_id=IntentId(f"reasoning-noop-intent-{seed.turn_id}"),
+                cause_event_ids=seed.cause_event_ids,
+                dependency_ids=(),
+                deadline=seed.deadline,
+                cancel_policy=CancelPolicy.IF_NOT_STARTED,
+                reason=reason,
+            )
         plan = DecisionPlan(
-            plan_id=PlanId(f"reasoning-noop-{seed.turn_id}"),
+            plan_id=PlanId(
+                f"reasoning-fallback-{seed.turn_id}"
+                if seed.reply_channel_id and seed.reply_conversation_id
+                else f"reasoning-noop-{seed.turn_id}"
+            ),
             turn_id=seed.turn_id,
             frame_id=seed.frame_id,
             context_revision=seed.context_revision,
@@ -654,17 +733,7 @@ class ReasoningRun:
             created_at=seed.created_at,
             deadline=seed.deadline,
             cause_event_ids=seed.cause_event_ids,
-            intents=(
-                NoOpIntent(
-                    type="noop",
-                    intent_id=IntentId(f"reasoning-noop-intent-{seed.turn_id}"),
-                    cause_event_ids=seed.cause_event_ids,
-                    dependency_ids=(),
-                    deadline=seed.deadline,
-                    cancel_policy=CancelPolicy.IF_NOT_STARTED,
-                    reason=reason,
-                ),
-            ),
+            intents=(intent,),
         )
         return DecisionDecodeResult(
             plan=plan,

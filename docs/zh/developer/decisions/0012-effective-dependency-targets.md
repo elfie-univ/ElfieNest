@@ -15,7 +15,7 @@
 能够从 Python、Node、Godot 或 Shell 执行表面解析出的仓库模块目标，都属于有效依赖，并遵守
 与静态 import 相同的“调用方所有者到目标所有者”矩阵。
 
-因此，`scripts/architecture/effective_dependency_scan.py`：
+因此，`scripts/governance/boundaries/effective_dependencies/scan.py`：
 
 - 在全仓按调用方和目标的架构所有者分类，不为某个目录写黑名单；
 - 检测字面量 Python 模块命令、仓库脚本路径、`importlib`/`runpy`、Node 动态加载与

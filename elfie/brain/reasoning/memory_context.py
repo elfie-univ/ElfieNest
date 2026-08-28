@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Literal, Tuple, cast
 
 from elfie.brain.emotion.contracts import EmotionSnapshot
 from elfie.brain.memory import EpisodicMemoryCandidate, MemorySystem
@@ -10,6 +10,8 @@ from elfie.brain.memory.contracts import (
     MemoryContext,
     MemoryItem,
 )
+from elfie.brain.memory.memory_records import RecallBundle, RecallRequest
+from elfie.brain.memory.node_types import MemoryNode
 from elfie.brain.reasoning.context_types import CompletedConversationInteraction
 from elfie.brain.state_lifecycle import StateCommitReceipt, StateCommitStatus
 from elfie.brain.workspace.contracts import SocialPayload, TurnFrame
@@ -29,13 +31,10 @@ class MemoryContextReader:
         captured_at: UTCDateTime,
     ) -> MemoryContext:
         query_parts: list[str] = []
-        source_ids: list[EventId] = []
-        dominant = emotion.dominant or "calm"
-        intensity = max((value.intensity for value in emotion.values), default=0.0)
+        del emotion
         for event in frame.events:
             if isinstance(event.payload, SocialPayload):
                 query_parts.append(event.payload.content)
-                source_ids.append(event.meta.event_id)
         state = self._memory.snapshot(captured_at)
         if not query_parts:
             return MemoryContext(
@@ -44,25 +43,30 @@ class MemoryContextReader:
                 items=(),
                 state=state,
             )
-        content = self._memory.recall_context(
-            query="\n".join(query_parts),
-            emotion=dominant,
-            intensity=intensity * 100.0,
-            current_time=captured_at.isoformat(),
-            top_k=5,
-        ).strip()
-        items = (
-            (
-                MemoryItem(
-                    memory_id=EventId(f"memory-context:{frame.frame_id}"),
-                    content=content,
-                    relevance=1.0,
-                    source_event_ids=tuple(source_ids),
-                ),
+        query = "\n".join(query_parts)
+        try:
+            bundle = self._memory.recall(
+                RecallRequest(
+                    text=query,
+                    mode="basic_local",
+                    seed_limit=8,
+                    node_limit=32,
+                    assertion_limit=48,
+                    episode_limit=8,
+                    evidence_limit=16,
+                    character_limit=6000,
+                )
             )
-            if content
-            else ()
-        )
+        except (TypeError, AttributeError):
+            # Keep semantic Fakes and older injected stores usable while the
+            # target adapter is being adopted.  Production SQLite follows the
+            # typed RecallBundle path above.
+            nodes = self._memory.recall_nodes(query=query, top_k=5)
+            items = tuple(
+                _memory_item_from_node(node) for node in nodes if node.content.strip()
+            )
+        else:
+            items = _memory_items_from_bundle(bundle)
         return MemoryContext(
             revision=frame.revision,
             captured_at=captured_at,
@@ -88,17 +92,26 @@ class MemoryContextReader:
         self,
         interaction: CompletedConversationInteraction,
     ) -> EpisodicMemoryCandidate | None:
-        """Prepare one durable episode for explicit long-term owner signals."""
-        if not _contains_durable_owner_signal(interaction.owner.content):
+        """Prepare one durable episode for an explicit durable signal.
+
+        The source participant is retained verbatim; only owner messages get
+        the legacy human-readable wording used by existing diagnostics.
+        """
+        if not _contains_durable_signal(interaction.owner.content):
             return None
+        if interaction.owner.sender.source_kind == "owner":
+            incoming = f"主人对我说: '{interaction.owner.content}'"
+            outgoing = f"我回复主人: '{interaction.reply.content}'"
+        else:
+            incoming = (
+                f"{interaction.owner.sender.source_kind}"
+                f"({interaction.owner.sender.actor_id})对我说: '{interaction.owner.content}'"
+            )
+            outgoing = f"我回复对方: '{interaction.reply.content}'"
         return EpisodicMemoryCandidate(
             candidate_id=EventId(f"memory-interaction:{interaction.receipt_id}"),
             base_revision=self._memory.revision,
-            content=(
-                f"主人对我说: '{interaction.owner.content}'。\n"
-                f"我回复主人: '{interaction.reply.content}'。\n"
-                "投递结果: completed。"
-            ),
+            content=(f"{incoming}。\n{outgoing}。\n投递结果: completed。"),
             emotion="calm",
             intensity=0.0,
             stimulus=f"completed-owner-interaction:{interaction.conversation_id}",
@@ -139,6 +152,136 @@ class MemoryContextReader:
 __all__ = ("MemoryContextReader",)
 
 
+def _memory_item_from_node(node: MemoryNode) -> MemoryItem:
+    raw_source_ids = node.metadata.get("source_event_ids", ())
+    if isinstance(raw_source_ids, (list, tuple)):
+        source_event_ids = tuple(
+            EventId(str(value).strip())
+            for value in raw_source_ids
+            if str(value).strip()
+        )
+    else:
+        source_event_ids = ()
+    if not source_event_ids:
+        source_event_ids = (EventId(f"memory-node:{node.id}"),)
+
+    kind = _memory_item_kind(node.type)
+    raw_source = node.metadata.get("source") or node.metadata.get("genesis_kind")
+    source = str(raw_source).strip() if raw_source is not None else None
+    if source == "":
+        source = None
+    raw_relevance = node.metadata.get("_retrieval_score", 0.5)
+    try:
+        relevance = min(1.0, max(0.0, float(raw_relevance)))
+    except (TypeError, ValueError):
+        relevance = 0.5
+    return MemoryItem(
+        memory_id=EventId(node.id),
+        content=node.content,
+        relevance=relevance,
+        source_event_ids=source_event_ids,
+        kind=kind,
+        source=source,
+        certainty=cast(
+            Literal["high", "medium", "low"],
+            node.metadata.get("certainty", "medium")
+            if node.metadata.get("certainty") in {"high", "medium", "low"}
+            else "medium",
+        ),
+    )
+
+
+def _memory_items_from_bundle(bundle: RecallBundle) -> Tuple[MemoryItem, ...]:
+    """Project structured recall into independent, provenance-bearing items."""
+    evidence_sources = {
+        evidence.evidence_id: EventId(str(evidence.source_id))
+        for evidence in bundle.evidence
+        if str(evidence.source_id).strip()
+    }
+    assertion_sources: dict[str, tuple[EventId, ...]] = {}
+    for assertion in bundle.assertions:
+        assertion_source_ids = tuple(
+            evidence_sources[evidence_id]
+            for evidence_id in assertion.evidence_ids
+            if evidence_id in evidence_sources
+        )
+        assertion_sources[assertion.assertion_id] = tuple(
+            dict.fromkeys(assertion_source_ids)
+        )
+
+    items: list[MemoryItem] = []
+    seen_ids: set[str] = set()
+    for node in bundle.focus_nodes:
+        if not node.label.strip() or node.node_id in seen_ids:
+            continue
+        node_sources: list[EventId] = []
+        for assertion in bundle.assertions:
+            if node.node_id in {assertion.subject_id, assertion.object_node_id}:
+                node_sources.extend(assertion_sources.get(assertion.assertion_id, ()))
+        # A graph node without a sourced assertion is still useful as a
+        # semantic anchor, but it must not be presented as if the node ID were
+        # an originating event.  Provenance is empty until a real Episode or
+        # seed evidence link is available.
+        source_ids = tuple(dict.fromkeys(node_sources))
+        kind = _memory_item_kind(node.node_type)
+        content = node.label
+        if node.description and node.description != node.label:
+            content = f"{node.label}：{node.description}"
+        items.append(
+            MemoryItem(
+                memory_id=EventId(node.node_id),
+                content=content,
+                relevance=max(0.0, min(1.0, node.relevance)),
+                source_event_ids=source_ids,
+                kind=kind,
+                source="memory_recall",
+                certainty="medium",
+            )
+        )
+        seen_ids.add(node.node_id)
+        if len(items) >= 8:
+            return tuple(items)
+    for episode in bundle.episodes:
+        if episode.episode_id in seen_ids or not episode.excerpt.strip():
+            continue
+        items.append(
+            MemoryItem(
+                memory_id=EventId(episode.episode_id),
+                content=episode.excerpt,
+                relevance=max(0.0, min(1.0, episode.relevance)),
+                source_event_ids=(EventId(episode.episode_id),),
+                kind="episodic",
+                source="episode",
+                certainty="medium",
+            )
+        )
+        seen_ids.add(episode.episode_id)
+        if len(items) >= 8:
+            break
+    return tuple(items)
+
+
+def _memory_item_kind(
+    node_type: str,
+) -> Literal["episodic", "knowledge", "entity", "pattern"]:
+    """Map heterogeneous graph node types to the stable Brain item taxonomy."""
+    if node_type in {"episodic", "event"}:
+        return "episodic"
+    if node_type == "pattern":
+        return "pattern"
+    if node_type in {
+        "entity",
+        "elfie",
+        "person",
+        "animal",
+        "place",
+        "object",
+        "group",
+    }:
+        return "entity"
+    return "knowledge"
+
+
 _DURABLE_OWNER_SIGNALS = (
     "记住",
     "纠正",
@@ -170,3 +313,11 @@ _DURABLE_OWNER_SIGNALS = (
 def _contains_durable_owner_signal(content: str) -> bool:
     normalized = content.casefold()
     return any(signal in normalized for signal in _DURABLE_OWNER_SIGNALS)
+
+
+def _contains_durable_signal(content: str) -> bool:
+    """Shared explicit-signal gate for owner and other participants."""
+    return _contains_durable_owner_signal(content) or any(
+        signal in content.casefold()
+        for signal in ("重要", "我们约定", "成为朋友", "important", "agreed")
+    )

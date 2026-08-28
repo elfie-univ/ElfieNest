@@ -98,6 +98,8 @@ class MessageDeliveryFacade:
                 text=command.text,
                 channel=command.channel,
                 meta=command.meta,
+                conversation_id=command.conversation_id,
+                message_id=command.message_id,
             )
         )
         try:
@@ -107,8 +109,15 @@ class MessageDeliveryFacade:
                     message=recorded.message,
                 )
             )
-        except MessageDeliveryPortError as error:
-            raise MessageDeliveryUnavailable("Realtime reply unavailable") from error
+        except MessageDeliveryPortError:
+            # The authoritative history row already exists.  Keep the stable
+            # reply result so the channel can report SENT and a later retry can
+            # replay the same message ID without creating a duplicate row.
+            return RecordedElfieMessageResult(
+                owner_user_id=recorded.owner_user_id,
+                message=recorded.message,
+                realtime_delivered=False,
+            )
         return recorded
 
 

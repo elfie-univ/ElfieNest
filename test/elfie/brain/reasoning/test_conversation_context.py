@@ -115,3 +115,78 @@ def test_failed_or_duplicate_reply_is_not_added_twice() -> None:
     assert store.record_completed_reply(**values) is None
     context = store.observe(frame, NOW + timedelta(seconds=2))
     assert [message.content for message in context.messages] == ["你好", "你好呀"]
+
+
+def test_working_context_closes_topic_threads_without_owner_pairing() -> None:
+    store = ConversationContextStore(topic_idle_seconds=60)
+    first = _frame(1, "我们讨论周末去爬山。", at=NOW)
+    second = _frame(2, "换个话题，厨房要买什么？", at=NOW + timedelta(seconds=5))
+
+    store.observe(first, NOW)
+    store.observe(second, NOW + timedelta(seconds=5))
+
+    episodes = store.pending_closed_episodes()
+    assert len(episodes) == 1
+    assert episodes[0].source_event_ids == ("owner-message-1",)
+    assert episodes[0].metadata["topic_id"]
+    assert episodes[0].metadata["participants"] == ["owner-1"]
+
+
+def test_working_context_closes_after_idle_and_ack_is_idempotent() -> None:
+    store = ConversationContextStore(topic_idle_seconds=60)
+    store.observe(_frame(1, "我叫小林。", at=NOW), NOW)
+    store.observe(
+        _frame(2, "继续聊。", at=NOW + timedelta(seconds=61)),
+        NOW + timedelta(seconds=61),
+    )
+
+    episodes = store.pending_closed_episodes()
+    assert len(episodes) == 1
+    store.ack_closed_episodes((episodes[0].episode_id,))
+
+
+def test_completed_reply_can_join_a_non_owner_participant() -> None:
+    store = ConversationContextStore()
+    frame = _frame(1, "小鹿说它明天来。", at=NOW).model_copy(
+        update={
+            "events": (
+                _frame(1, "小鹿说它明天来。", at=NOW)
+                .events[0]
+                .model_copy(
+                    update={
+                        "meta": _frame(1, "小鹿说它明天来。", at=NOW)
+                        .events[0]
+                        .meta.model_copy(
+                            update={
+                                "source": ActorRef(
+                                    actor_id="guest-1", source_kind="participant"
+                                )
+                            }
+                        ),
+                        "payload": _frame(1, "小鹿说它明天来。", at=NOW)
+                        .events[0]
+                        .payload.model_copy(
+                            update={
+                                "sender": ActorRef(
+                                    actor_id="guest-1", source_kind="participant"
+                                )
+                            }
+                        ),
+                    }
+                ),
+            )
+        }
+    )
+    store.observe(frame, NOW)
+    interaction = store.record_completed_reply(
+        channel_id="chat",
+        conversation_id="owner-chat",
+        reply_event_id="elfie-reply-guest-1",
+        sender=ActorRef(actor_id="elfie-1", source_kind="elfie"),
+        occurred_at=NOW + timedelta(seconds=1),
+        content="我会记得。",
+        cause_event_ids=("owner-message-1",),
+        receipt_id="delivery-receipt-guest-1",
+    )
+    assert interaction is not None
+    assert interaction.owner.sender.source_kind == "participant"

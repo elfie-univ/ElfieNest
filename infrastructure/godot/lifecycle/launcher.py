@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import signal
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from hashlib import sha256
 from pathlib import Path
@@ -28,7 +31,10 @@ AUTHORITY_ROLE_ARGUMENT: Final = "--elfienest-role=godot-authority"
 RUNTIME_HOST_ENV: Final = "ELFIENEST_RUNTIME_HOST"
 AUTHORITY_STOP_GRACE_SECONDS: Final = 1.0
 AUTHORITY_STOP_FORCE_GRACE_SECONDS: Final = 1.0
+AUTHORITY_LOG_MAX_BYTES: Final = 10 * 1024 * 1024
+AUTHORITY_LOG_BACKUP_COUNT: Final = 3
 _WINDOWS_AUTHORITY_JOBS: dict[int, WindowsJobObject] = {}
+logger = logging.getLogger("elfienest.diagnostics.authority_launcher")
 
 
 class AuthorityLaunchFailureKind(str, Enum):
@@ -129,9 +135,21 @@ def _electron_command(
         packaged = _executable(Path(configured))
         if packaged is not None:
             return (str(packaged), AUTHORITY_ROLE_ARGUMENT)
-    electron = _executable(
-        project_root / "app/interfaces/desktop/node_modules/.bin/electron"
-    )
+    electron_package = project_root / "app/interfaces/desktop/node_modules/electron"
+    try:
+        relative_executable = Path(
+            (electron_package / "path.txt").read_text(encoding="utf-8").strip()
+        )
+    except (OSError, UnicodeError):
+        return None
+    if (
+        not relative_executable.parts
+        or relative_executable.is_absolute()
+        or bool(relative_executable.drive)
+        or ".." in relative_executable.parts
+    ):
+        return None
+    electron = _executable(electron_package / "dist" / relative_executable)
     desktop_host = project_root / "app/bootstrap/desktop_host/host_main.mjs"
     try:
         resolved_host = desktop_host.resolve()
@@ -207,6 +225,21 @@ def plan_godot_runtime_launch(
             ("ELFIENEST_GODOT_URL", _authority_url(request)),
             ("ELFIENEST_AUTHORITY_NAMESPACE", _authority_namespace(root)),
         )
+        runtime_log = values.get("ELFIENEST_RUNTIME_LOG", "").strip()
+        if runtime_log:
+            # Electron's single-instance lock is acquired before the hidden
+            # authority can start the Core-owned page.  Give the authority a
+            # deterministic, runtime-scoped user-data directory so the
+            # background Desktop Controller never contends for the same lock
+            # on Windows (and diagnostics remain inside the disposable home).
+            authority_user_data = (
+                Path(runtime_log).expanduser().resolve(strict=False).parent
+                / "authority-user-data"
+            )
+            additions = (
+                *additions,
+                ("ELFIENEST_AUTHORITY_USER_DATA", str(authority_user_data)),
+            )
         command = electron_command
     elif host.kind is RuntimeHostKind.LINUX_DEDICATED:
         binary = find_runtime_binary(root, values)
@@ -251,15 +284,26 @@ def start_godot_runtime(
     )
     child_environment = dict(values)
     child_environment.update(plan.environment)
-    if os.name == "nt":
+    authority_log_path = _authority_log_path(child_environment)
+    log_stream = None
+    if authority_log_path is not None:
+        child_environment["ELFIENEST_AUTHORITY_LOG"] = str(authority_log_path)
         try:
+            log_stream = _open_authority_console_log(
+                authority_log_path.with_name("authority-console.log")
+            )
+        except OSError:
+            logger.exception("Godot authority console log could not be opened")
+    output = subprocess.DEVNULL if log_stream is None else log_stream
+    try:
+        if os.name == "nt":
             process = subprocess.Popen(
                 plan.command,
                 cwd=str(plan.cwd),
                 env=child_environment,
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=output,
+                stderr=output,
                 creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
             )
             job_name = deterministic_job_name(
@@ -281,29 +325,114 @@ def start_godot_runtime(
             if job is not None:
                 _WINDOWS_AUTHORITY_JOBS[process.pid] = job
             return process
-        except OSError as error:
-            raise AuthorityLaunchError(
-                AuthorityLaunchFailureKind.PROCESS_LAUNCH,
-                str(error),
-                Path(plan.command[0]),
-            ) from error
-    else:
-        try:
-            return subprocess.Popen(
-                plan.command,
-                cwd=str(plan.cwd),
-                env=child_environment,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-        except OSError as error:
-            raise AuthorityLaunchError(
-                AuthorityLaunchFailureKind.PROCESS_LAUNCH,
-                str(error),
-                Path(plan.command[0]),
-            ) from error
+        return subprocess.Popen(
+            plan.command,
+            cwd=str(plan.cwd),
+            env=child_environment,
+            stdin=subprocess.DEVNULL,
+            stdout=output,
+            stderr=output,
+            start_new_session=True,
+        )
+    except OSError as error:
+        raise AuthorityLaunchError(
+            AuthorityLaunchFailureKind.PROCESS_LAUNCH,
+            str(error),
+            Path(plan.command[0]),
+        ) from error
+    finally:
+        if log_stream is not None:
+            log_stream.close()
+
+
+def _authority_log_path(environment: Mapping[str, str]) -> Optional[Path]:
+    runtime_log = environment.get("ELFIENEST_RUNTIME_LOG", "").strip()
+    if runtime_log:
+        return (
+            Path(runtime_log)
+            .expanduser()
+            .resolve(strict=False)
+            .with_name("authority.log")
+        )
+    configured = environment.get("ELFIENEST_AUTHORITY_LOG", "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve(strict=False)
+    return None
+
+
+def _open_authority_console_log(path: Path):
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if os.name != "nt":
+        path.parent.chmod(0o700)
+    _rotate_authority_log(path)
+    stream = path.open("ab", buffering=0)
+    if os.name != "nt":
+        path.chmod(0o600)
+    return stream
+
+
+def _rotate_authority_log(path: Path) -> None:
+    if not path.exists() or path.stat().st_size < AUTHORITY_LOG_MAX_BYTES:
+        return
+    for index in range(AUTHORITY_LOG_BACKUP_COUNT, 0, -1):
+        source = path if index == 1 else path.with_name(f"{path.name}.{index - 1}")
+        target = path.with_name(f"{path.name}.{index}")
+        if not source.exists():
+            continue
+        if target.exists():
+            target.unlink()
+        source.replace(target)
+
+
+def record_authority_stop_diagnostic(
+    path: Optional[Path],
+    *,
+    event: str,
+    pid: int,
+    status: str,
+    level: str = "info",
+    signal_name: Optional[str] = None,
+    exit_code: Optional[int] = None,
+) -> None:
+    """Append one lifecycle-observed stop event to the authority's own log."""
+    if path is None:
+        return
+    revision = os.environ.get("ELFIENEST_SOURCE_REVISION", "").strip().lower()
+    if len(revision) != 40 or any(
+        character not in "0123456789abcdef" for character in revision
+    ):
+        revision = "unknown"
+    payload: dict[str, object] = {
+        "timestamp": datetime.now(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z"),
+        "event": event,
+        "level": level,
+        "role": "godot-authority",
+        "pid": pid,
+        "observer_role": "lifecycle-supervisor",
+        "observer_pid": os.getpid(),
+        "source_revision": revision,
+        "status": status,
+    }
+    if signal_name is not None:
+        payload["signal"] = signal_name
+    if exit_code is not None:
+        payload["exit_code"] = exit_code
+    try:
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if os.name != "nt":
+            path.parent.chmod(0o700)
+        _rotate_authority_log(path)
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            stream.write("\n")
+        if os.name != "nt":
+            path.chmod(0o600)
+    except OSError:
+        # Diagnostics must never prevent the lifecycle owner from stopping the
+        # process it has already identity-validated.
+        logger.exception("Godot authority stop diagnostic could not be persisted")
 
 
 def stop_godot_runtime(process: Optional[OwnedRuntimeProcess]) -> None:

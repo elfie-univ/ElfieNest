@@ -14,6 +14,7 @@ from typing import Optional
 
 JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+JOB_OBJECT_QUERY = 0x0004
 PROCESS_SET_QUOTA = 0x0100
 PROCESS_TERMINATE = 0x0001
 
@@ -82,6 +83,30 @@ class WindowsJobObject:
             error = ctypes.WinError(ctypes.get_last_error())  # type: ignore[attr-defined]
             kernel32.CloseHandle(handle)
             raise error
+        return cls(int(handle), name)
+
+    @classmethod
+    def open(cls, name: str) -> WindowsJobObject:
+        """Open a named Job so a managed child can retain its lifetime handle."""
+        if os.name != "nt":
+            raise OSError("Windows Job Objects are unavailable on this platform")
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+        kernel32.OpenJobObjectW.argtypes = [
+            wintypes.DWORD,
+            wintypes.BOOL,
+            wintypes.LPCWSTR,
+        ]
+        kernel32.OpenJobObjectW.restype = wintypes.HANDLE
+        handle = kernel32.OpenJobObjectW(
+            JOB_OBJECT_QUERY,
+            False,
+            wintypes.LPCWSTR(name),
+        )
+        if not handle:
+            raise ctypes.WinError(ctypes.get_last_error())  # type: ignore[attr-defined]
         return cls(int(handle), name)
 
     def assign(self, pid: int) -> None:

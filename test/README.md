@@ -54,10 +54,10 @@ selector that exactly matches a registered top-level bundle creates the same
 coverage-bearing evidence used by the post-submit/release full backstop:
 
 ```bash
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --base-sha "$(git rev-parse origin/main^{commit})" \
   --selectors test/elfie/brain/
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --bundle architecture
 ```
 
@@ -69,8 +69,8 @@ Full test suite:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py --all
+  uv run --no-sync python scripts/quality/checks/environment.py
+.venv/bin/python3 scripts/quality/validation/test_bundles.py --all
 ```
 
 Run the preflight first. Exit `2` means the current sandbox cannot bind the

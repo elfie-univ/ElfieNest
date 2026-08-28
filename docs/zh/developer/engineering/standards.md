@@ -36,7 +36,7 @@
 
 ```bash
 uv run --no-sync pytest test/architecture/
-uv run --no-sync python scripts/check_quality_baseline.py
+uv run --no-sync python scripts/quality/checks/python_baseline.py
 cd docs && npx --yes pnpm@10.12.1 build
 ```
 

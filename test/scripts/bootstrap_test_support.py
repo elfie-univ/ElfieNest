@@ -56,12 +56,19 @@ exit 0
 def copy_bootstrap(project_root: Path) -> Path:
     scripts_dir = project_root / "scripts"
     scripts_dir.mkdir(parents=True)
-    for filename in (
+    hook_paths = (
+        "quality/hooks/install.sh",
+        "quality/hooks/pre-commit",
+    )
+    for relative_path in (
         "bootstrap.sh",
-        "bootstrap_report.sh",
-        "bootstrap_runtime_dependencies.sh",
+        "internal/bootstrap/report.sh",
+        "internal/bootstrap/runtime_dependencies.sh",
+        *hook_paths,
     ):
-        shutil.copy2(PROJECT_ROOT / "scripts" / filename, scripts_dir / filename)
+        destination = scripts_dir / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(PROJECT_ROOT / "scripts" / relative_path, destination)
     godot_project = project_root / "godot_project"
     godot_project.mkdir(parents=True)
     shutil.copy2(

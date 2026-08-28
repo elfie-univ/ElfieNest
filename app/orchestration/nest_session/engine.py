@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass
+from threading import Event, Lock
 from typing import Optional
 
 from app.orchestration.nest_session.ports import (
@@ -13,6 +15,17 @@ from app.orchestration.nest_session.session import NestSession
 from nest.public import Nest, NestConfig
 
 logger = logging.getLogger("app.orchestration.engine")
+
+
+@dataclass(frozen=True)
+class EngineProgress:
+    """Thread-safe progress evidence for Core liveness diagnostics."""
+
+    completed_ticks: int
+    loop_started_at: Optional[float]
+    last_tick_started_at: Optional[float]
+    last_tick_completed_at: Optional[float]
+    last_tick_duration_seconds: Optional[float]
 
 
 class ElfieNestEngine:
@@ -47,6 +60,58 @@ class ElfieNestEngine:
         )
         self.coordinator = self.session
         self._loop_started = False
+        self._stop_event = Event()
+        self._running_event = Event()
+        self._progress_lock = Lock()
+        self._completed_ticks = 0
+        self._loop_started_at: Optional[float] = None
+        self._last_tick_started_at: Optional[float] = None
+        self._last_tick_completed_at: Optional[float] = None
+        self._last_tick_duration_seconds: Optional[float] = None
+
+    @property
+    def is_running(self) -> bool:
+        """Return whether the physical clock loop is currently alive."""
+        return self._running_event.is_set()
+
+    @property
+    def stop_requested(self) -> bool:
+        """Return whether lifecycle cleanup explicitly requested loop shutdown."""
+        return self._stop_event.is_set()
+
+    def progress_snapshot(self) -> EngineProgress:
+        """Return monotonic progress evidence without mutating engine state."""
+        with self._progress_lock:
+            return EngineProgress(
+                completed_ticks=self._completed_ticks,
+                loop_started_at=self._loop_started_at,
+                last_tick_started_at=self._last_tick_started_at,
+                last_tick_completed_at=self._last_tick_completed_at,
+                last_tick_duration_seconds=self._last_tick_duration_seconds,
+            )
+
+    def progress_age_seconds(self, *, now: Optional[float] = None) -> Optional[float]:
+        """Return how long the running loop has gone without completing a tick."""
+        snapshot = self.progress_snapshot()
+        reference = (
+            snapshot.last_tick_completed_at
+            if snapshot.last_tick_completed_at is not None
+            else snapshot.loop_started_at
+        )
+        if reference is None:
+            return None
+        observed_at = time.monotonic() if now is None else now
+        return max(0.0, observed_at - reference)
+
+    def wait_until_running(self, timeout: float) -> bool:
+        """Wait for startup without mistaking engine construction for readiness."""
+        if timeout < 0:
+            raise ValueError("timeout must be non-negative")
+        return self._running_event.wait(timeout)
+
+    def request_stop(self) -> None:
+        """Interrupt the production loop's wait so shutdown stays bounded."""
+        self._stop_event.set()
 
     def tick_once(self, seconds: float) -> None:
         """Advance physics and publish inputs without awaiting cognition or output."""
@@ -67,7 +132,7 @@ class ElfieNestEngine:
     def start_loop(
         self,
         model_port_factory: ModelPortFactory,
-        ticks_to_run: int = 3,
+        ticks_to_run: Optional[int] = 3,
         interval_sec: Optional[float] = None,
     ) -> None:
         """
@@ -77,11 +142,15 @@ class ElfieNestEngine:
 
         Args:
             model_port_factory: Injected model Port factory for each Elfie.
-            ticks_to_run: 运行周期数
+            ticks_to_run: 运行周期数；``None`` 表示持续运行直到明确停止
             interval_sec: 间隔秒数，None 则使用 self.tick_interval_sec
         """
         if interval_sec is None:
             interval_sec = self.tick_interval_sec
+        if interval_sec < 0:
+            raise ValueError("interval_sec must be non-negative")
+        if ticks_to_run is not None and ticks_to_run < 0:
+            raise ValueError("ticks_to_run must be non-negative or None")
         if self._loop_started:
             raise RuntimeError("ElfieNestEngine 主循环只能启动一次")
         self._loop_started = True
@@ -89,33 +158,55 @@ class ElfieNestEngine:
         # This loop starts only the resident Elfies it coordinates.
         self.session.configure_cognition_factory(model_port_factory)
         self.session.start_elfies()
+        started_at = time.monotonic()
+        with self._progress_lock:
+            self._loop_started_at = started_at
+        self._running_event.set()
 
         logger.info(
-            f"⏳ [时间盒子] 物理仿真启动。总计运行 {ticks_to_run} 个 Tick 周期，每个周期阻尼间歇 {interval_sec} 秒..."
+            "ElfieNest engine loop started (ticks=%s interval_sec=%s)",
+            "unbounded" if ticks_to_run is None else ticks_to_run,
+            interval_sec,
         )
 
         current_tick = 0
-        next_deadline = time.monotonic()
+        next_deadline = started_at
         try:
-            while current_tick < ticks_to_run:
+            while not self._stop_event.is_set() and (
+                ticks_to_run is None or current_tick < ticks_to_run
+            ):
                 current_tick += 1
-                logger.info(
-                    f"\n====================== 🌀 PHYSICS TICK {current_tick}/{ticks_to_run} ======================"
+                logger.debug(
+                    "ElfieNest engine tick %s/%s",
+                    current_tick,
+                    "unbounded" if ticks_to_run is None else ticks_to_run,
                 )
 
+                tick_started_at = time.monotonic()
+                with self._progress_lock:
+                    self._last_tick_started_at = tick_started_at
                 self.tick_once(interval_sec)
+                tick_completed_at = time.monotonic()
+                with self._progress_lock:
+                    self._completed_ticks = current_tick
+                    self._last_tick_completed_at = tick_completed_at
+                    self._last_tick_duration_seconds = max(
+                        0.0, tick_completed_at - tick_started_at
+                    )
                 next_deadline += interval_sec
                 remaining = next_deadline - time.monotonic()
-                if remaining > 0:
-                    time.sleep(remaining)
+                if remaining > 0 and self._stop_event.wait(remaining):
+                    break
 
         except KeyboardInterrupt:
-            logger.info("👋 收到键盘中断，正在强行收束物理世界...")
+            self.request_stop()
+            logger.info("ElfieNest engine loop received a keyboard interrupt")
         finally:
+            self._running_event.clear()
             # Stop only resident workers; lifecycle owns process/channel shutdown.
             self.session.stop_elfies()
             self.session.join_elfies()
-            logger.info("🌈 [时间盒子] 仿真主循环已平稳落地退出。")
+            logger.info("ElfieNest engine loop stopped")
 
 
-__all__ = ("ElfieNestEngine",)
+__all__ = ("ElfieNestEngine", "EngineProgress")

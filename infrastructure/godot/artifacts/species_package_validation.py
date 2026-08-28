@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Protocol
 
+from infrastructure.godot.runner import run_headless
 from infrastructure.persistence.configuration.species import load_species_catalog
 
 
@@ -54,6 +55,32 @@ class GodotSpeciesValidationRunner(Protocol):
 
 _CATALOG_MARKER = re.compile(r"^SPECIES_CATALOG_IDS:(.+)$", re.MULTILINE)
 _EXCLUDED_CHARACTER_DIRECTORIES = {"animation", "shared", "tools"}
+_SPECIES_VALIDATION_SCRIPT = "scripts/test/test_species_catalog.gd"
+
+
+def run_godot_species_validation(
+    *,
+    godot_binary: Path,
+    godot_project: Path,
+    timeout_seconds: float,
+    godot_version: Optional[str] = None,
+) -> GodotSpeciesValidationResult:
+    """Run the Godot source-project contract through the shared runner."""
+
+    result = run_headless(
+        godot_binary,
+        godot_project,
+        ("--script", _SPECIES_VALIDATION_SCRIPT),
+        timeout_seconds=timeout_seconds,
+        godot_version=godot_version,
+        purpose="species-package-validation",
+    )
+    return GodotSpeciesValidationResult(
+        result.exit_code,
+        result.stdout,
+        result.stderr,
+        phase="species-validation",
+    )
 
 
 def source_species_package_ids(
@@ -216,6 +243,7 @@ __all__ = (
     "GodotSpeciesValidationResult",
     "GodotSpeciesValidationRunner",
     "SpeciesPackageValidationError",
+    "run_godot_species_validation",
     "source_species_package_ids",
     "validate_source_species_packages",
 )

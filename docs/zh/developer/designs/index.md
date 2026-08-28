@@ -9,9 +9,12 @@
   运行回路和渐进实现顺序。
 - [Elfie Brain 评价与进化系统](./elfie-brain-evaluation-system)：面向一只完整、连续生活
   Elfie 的 Quality Constitution、Q6/P0 证据协议、统计决策和安全持续改进闭环。
+- [Elfie Memory 架构](./elfie-memory-architecture)：经历记忆、个人知识图谱与图谱/文本混合检索。
 - [ElfieNest 服务生命周期状态机设计](./service-lifecycle-state-machine)：服务稳定态、
   入口行为、进程所有权与故障收敛。
 - [Provider 与 Endpoint 模型可用性](./provider-model-availability)：精选模型加载、在用核心
   范围、低成本证据与统一健康投影。
 - [虚拟外貌生成最终设计](./virtual-appearance-generation)：一只 Elfie 的几何输入、四层皮肤、
   语义区域、颜色体系和视觉验收门。
+- [原生发布验证与安装版核心用户旅程](./native-release-validation)：六层测试体系、确定性 CI
+  模型边界、四 target 覆盖、成本控制和分阶段收口计划。

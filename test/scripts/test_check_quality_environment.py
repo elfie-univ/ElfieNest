@@ -5,7 +5,7 @@ from __future__ import annotations
 import errno
 from typing import Optional, Tuple
 
-from scripts import check_quality_environment
+from scripts.quality.checks import environment as check_quality_environment
 
 
 class _FakeSocket:

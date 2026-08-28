@@ -8,6 +8,7 @@ from elfie.brain.consolidation.system import CognitiveConsolidationCandidate
 from elfie.brain.emotion.contracts import EmotionSnapshot
 from elfie.brain.memory import EpisodicMemoryCandidate
 from elfie.brain.memory.contracts import MemoryContext
+from elfie.brain.memory.memory_records import ClosedEpisode
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.motivation.system import RecoveryDriveCandidate
 from elfie.brain.orientation.contracts import OrientationSnapshot
@@ -46,6 +47,12 @@ class BrainContextSource(Protocol):
         captured_at: UTCDateTime,
     ) -> tuple[EpisodicMemoryCandidate, ...]:
         """Return explicit candidates without mutating Memory."""
+
+    def pending_closed_episodes(self) -> tuple[ClosedEpisode, ...]:
+        """Return Episodes closed by WorkingContext and awaiting source capture."""
+
+    def ack_closed_episodes(self, episode_ids: tuple[str, ...]) -> None:
+        """Acknowledge source Episodes after durable capture."""
 
     def activities(self, captured_at: UTCDateTime) -> ActivityContext:
         """Return the bounded committed Activity projection at the Turn cutoff."""

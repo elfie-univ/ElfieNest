@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+from collections import OrderedDict
 from datetime import datetime, timezone
 from threading import Event
 from typing import Callable, Optional, Tuple
@@ -37,11 +39,14 @@ from elfie.brain.reasoning.run import ReasoningRunResult
 from elfie.brain.reasoning.settlement import TurnSettlementPort
 from elfie.brain.reasoning.turn_outcome import TerminalStatus, TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningExecutionPort
+from elfie.brain.state_lifecycle import StateCommitStatus
 from elfie.brain.workspace.contracts import IngestDisposition
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.brain.workspace.trigger_policy import TurnTriggerPolicy
 from elfie.brain.workspace.types import FrameLifecycleError
 from elfie.message_types import ElfieId, TurnId
+
+diagnostic_logger = logging.getLogger("elfienest.diagnostics.brain")
 
 
 class BrainCoordinator:
@@ -69,7 +74,10 @@ class BrainCoordinator:
         journal: BrainJournal | None = None,
         on_outcome: Callable[[TurnOutcome], None] | None = None,
         on_state_change: Callable[[], None] | None = None,
+        reasoning_retention: int = 256,
     ) -> None:
+        if reasoning_retention <= 0:
+            raise ValueError("reasoning_retention must be positive")
         self._elfie_id = elfie_id
         self._workspace = workspace
         self._emotion = emotion
@@ -103,7 +111,9 @@ class BrainCoordinator:
         )
         self._runtime = CoordinatorRuntime(elfie_id, reasoning_worker)
         self._inflight: Optional[InFlightTurn] = None
-        self._reasoning: dict[TurnId, ReasoningRunResult] = {}
+        self._reasoning: OrderedDict[TurnId, ReasoningRunResult] = OrderedDict()
+        self._reasoning_retention = reasoning_retention
+        self._evicted_reasoning_count = 0
         self._outcomes = TurnOutcomeBuffer(
             on_record=self._outcome_recorder(journal, on_outcome)
         )
@@ -156,6 +166,32 @@ class BrainCoordinator:
     def reasoning(self, turn_id: TurnId) -> Optional[ReasoningRunResult]:
         """Return the bounded cognitive trace for a completed worker turn."""
         return self._reasoning.get(turn_id)
+
+    @property
+    def evicted_reasoning_count(self) -> int:
+        return self._evicted_reasoning_count
+
+    def _remember_reasoning(
+        self,
+        turn_id: TurnId,
+        reasoning: ReasoningRunResult,
+    ) -> None:
+        self._reasoning[turn_id] = reasoning
+        self._reasoning.move_to_end(turn_id)
+        while len(self._reasoning) > self._reasoning_retention:
+            self._reasoning.popitem(last=False)
+            self._evicted_reasoning_count += 1
+            count = self._evicted_reasoning_count
+            if count & (count - 1) == 0:
+                diagnostic_logger.info(
+                    "Brain reasoning trace retention evicted its oldest item",
+                    extra={
+                        "diagnostic_event": "bounded_retention_evict",
+                        "component": "brain_reasoning",
+                        "capacity": self._reasoning_retention,
+                        "dropped_count": count,
+                    },
+                )
 
     def _run(self) -> None:
         while True:
@@ -277,6 +313,7 @@ class BrainCoordinator:
             if self._journal is not None:
                 self._journal.record_run_started(frame, turn_id)
             task = self._turn_factory.build_task(frame, turn_id, self._timestamp)
+            self._capture_closed_episodes(task)
             future = self._worker.submit(task)
         except Exception as error:  # noqa: BLE001 - claim boundary owns failure mapping
             self._homeostasis.release_cognitive_budget(turn_id)
@@ -310,6 +347,35 @@ class BrainCoordinator:
             lambda completed: self._runtime.post(WorkerDoneControl(turn_id, completed))
         )
 
+    def _capture_closed_episodes(self, task) -> None:
+        """Persist upstream-closed Episodes before inference starts.
+
+        WorkingContext owns topic boundaries; this coordinator only forwards
+        the resulting typed source records to Memory.  A failed write aborts
+        the frame claim while the upstream queue remains retryable.
+        """
+        episodes = getattr(task, "closed_episodes", ())
+        if not episodes:
+            return
+        capture = getattr(self._settlement, "capture_episodes", None)
+        if not callable(capture):
+            raise RuntimeError("source-first Episode capture is unavailable")
+        receipts = capture(tuple(episodes))
+        failed = tuple(
+            receipt
+            for receipt in receipts
+            if receipt.status
+            not in {StateCommitStatus.COMMITTED, StateCommitStatus.DUPLICATE}
+        )
+        if failed:
+            reasons = ",".join(
+                receipt.reason or receipt.status.value for receipt in failed
+            )
+            raise RuntimeError(f"Episode source capture failed: {reasons}")
+        acknowledge = getattr(self._context_source, "ack_closed_episodes", None)
+        if callable(acknowledge):
+            acknowledge(tuple(episode.episode_id for episode in episodes))
+
     def _handle_worker_done(self, control: WorkerDoneControl) -> None:
         inflight = self._inflight
         if inflight is None or control.turn_id != inflight.task.seed.turn_id:
@@ -319,7 +385,7 @@ class BrainCoordinator:
         except Exception:  # noqa: BLE001 - completion handler owns failure mapping
             self._homeostasis.settle_cognitive_budget(control.turn_id, consumed=0.25)
         else:
-            self._reasoning[control.turn_id] = result.reasoning
+            self._remember_reasoning(control.turn_id, result.reasoning)
             consumed = (
                 result.reasoning.model_calls
                 + (0.5 * result.reasoning.tool_calls)

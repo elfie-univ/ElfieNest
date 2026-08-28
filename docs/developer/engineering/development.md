@@ -50,7 +50,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 # When you need full regression
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
+  uv run --no-sync python scripts/quality/checks/environment.py
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest test/
 ```
@@ -73,7 +73,7 @@ blocks any new diagnostic:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_baseline.py
+  uv run --no-sync python scripts/quality/checks/python_baseline.py
 
 PRE_COMMIT_HOME=/tmp/elfienest-precommit \
   uv run --no-sync pre-commit run --all-files
@@ -223,10 +223,12 @@ single-page console has been retired.
 
 ## Pre-commit checks
 
-Before delivering a change set, run affected local validation: G1 for an
-ordinary checkpoint and G2 for a feature push. The exact PR candidate then uses
-the immutable-base manifest, `elfienest/ci-gate` and the native merge queue.
-Full G3 runs after main or for explicit release validation. Confirm at least:
+Before delivering a change set, run the focused tests justified by the changed
+behavior. The repository-managed commit hook then checks the staged diff,
+Gitleaks and staged Python Ruff only. The exact PR candidate uses the
+immutable-base manifest, `elfienest/ci-gate` and the native merge queue; the
+complete all-lane backstop runs after main or for explicit full/release
+validation. Confirm at least:
 
 1. The tests directly corresponding to the change pass;
 2. Architecture tests pass when the affected manifest selects that boundary;
@@ -237,12 +239,14 @@ Full G3 runs after main or for explicit release validation. Confirm at least:
    cross-boundary dependencies.
 
 ```bash
-git fetch --prune origin main
-bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})"
-# feature push: use --stage push; explicit full/release: use --stage full
+bash scripts/quality/hooks/install.sh
+# optional reusable checkpoint or diagnostic replay:
+bash scripts/pre_submit_gate.sh --stage commit --base-sha <immutable-base>
+bash scripts/pre_submit_gate.sh --stage push --base-sha <immutable-base>
 ```
 
+The hook has a 20-second warm target and performs no tests, MyPy, pnpm, Godot,
+fetch or network work. Ordinary push does not wait for either optional replay.
 Successful results may be reused only for their exact declared inputs. Unknown,
 governance and toolchain changes select all premerge lanes. Do not merge current
 main into the candidate merely because main advanced; only a new candidate SHA

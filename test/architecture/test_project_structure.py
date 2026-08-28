@@ -3,7 +3,7 @@ from pathlib import Path
 
 import yaml
 
-from scripts.check_quality_baseline import (
+from scripts.quality.checks.python_baseline import (
     MYPY_SOURCE_ROOT_CANDIDATES,
     MYPY_SOURCE_ROOTS,
 )
@@ -58,7 +58,42 @@ CURRENT_PYTHON_SOURCE_ROOTS = (
     "devtools",
     "scripts",
 )
-EXPECTED_QUALITY_COMMAND = "uv run --no-sync python scripts/check_quality_baseline.py"
+STABLE_ROOT_SCRIPT_PATHS = frozenset(
+    {
+        "bootstrap.sh",
+        "elfienest.py",
+        "pre_submit_gate.sh",
+        "release.py",
+        "serve.py",
+    }
+)
+REQUIRED_SCRIPT_CONTROL_DIRECTORIES = frozenset({"governance", "internal", "quality"})
+REQUIRED_SCRIPT_CONTROL_PATHS = frozenset(
+    {
+        "governance/AGENTS.md",
+        "governance/boundaries/app_layers.py",
+        "governance/boundaries/effective_dependencies/scan.py",
+        "governance/boundaries/structural_scope.py",
+        "governance/boundaries/system_layers.py",
+        "governance/change_policy.py",
+        "governance/contract_registry.py",
+        "governance/persistence/inventory.py",
+        "governance/persistence/scan.py",
+        "quality/AGENTS.md",
+        "quality/checks/environment.py",
+        "quality/checks/godot_host.sh",
+        "quality/checks/node_toolchain.sh",
+        "quality/checks/python_baseline.py",
+        "quality/checks/release_version.py",
+        "quality/hooks/install.sh",
+        "quality/hooks/pre-commit",
+        "quality/validation/cache.py",
+        "quality/validation/candidate_evidence.py",
+        "quality/validation/gate.py",
+        "quality/validation/plan.py",
+        "quality/validation/test_bundles.py",
+    }
+)
 NEST_FORBIDDEN_IMPORT_ROOTS = frozenset(
     {"ai_runtime", "app", "elfie", "godot_project", "godot_runtime", "infrastructure"}
 )
@@ -115,6 +150,60 @@ def test_stable_repository_directories_exist() -> None:
 
     # Then
     assert missing == frozenset()
+
+
+def test_stable_root_script_paths_exist_and_are_documented() -> None:
+    scripts_root = PROJECT_ROOT / "scripts"
+    english_registry = (scripts_root / "README.md").read_text(encoding="utf-8")
+    chinese_registry = (scripts_root / "README_zh.md").read_text(encoding="utf-8")
+
+    missing = {
+        path for path in STABLE_ROOT_SCRIPT_PATHS if not (scripts_root / path).is_file()
+    }
+    undocumented = {
+        path
+        for path in STABLE_ROOT_SCRIPT_PATHS
+        if f"`{path}`" not in english_registry or f"`{path}`" not in chinese_registry
+    }
+
+    assert missing == set()
+    assert undocumented == set()
+
+
+def test_script_control_plane_uses_the_confirmed_layout() -> None:
+    scripts_root = PROJECT_ROOT / "scripts"
+    english_registry = (scripts_root / "README.md").read_text(encoding="utf-8")
+    chinese_registry = (scripts_root / "README_zh.md").read_text(encoding="utf-8")
+
+    actual_directories = {
+        path.name
+        for path in scripts_root.iterdir()
+        if path.is_dir() and not path.name.startswith("__pycache__")
+    }
+    root_commands = {
+        path.name
+        for path in scripts_root.iterdir()
+        if path.is_file()
+        and path.name != "__init__.py"
+        and path.suffix in {".py", ".sh"}
+    }
+    missing_paths = {
+        path
+        for path in REQUIRED_SCRIPT_CONTROL_PATHS
+        if not (scripts_root / path).is_file()
+    }
+    undocumented_sections = {
+        section
+        for section in REQUIRED_SCRIPT_CONTROL_DIRECTORIES
+        if f"`{section}/`" not in english_registry
+        or f"`{section}/`" not in chinese_registry
+    }
+
+    assert REQUIRED_SCRIPT_CONTROL_DIRECTORIES <= actual_directories
+    assert "architecture" not in actual_directories
+    assert root_commands == STABLE_ROOT_SCRIPT_PATHS
+    assert missing_paths == set()
+    assert undocumented_sections == set()
 
 
 def test_root_infrastructure_is_a_first_class_python_source() -> None:
@@ -334,13 +423,33 @@ def test_ci_uses_current_python_roots_and_required_quality_gates() -> None:
     ]
 
     # Then
-    assert "scripts/check_quality_baseline.py" in pre_submit
+    assert "scripts/quality/checks/python_baseline.py" in pre_submit
     assert "pre-commit run --all-files" in pre_submit
-    assert "postsubmit-full" in jobs
-    assert "--stage full --direct-full" in "\n".join(run_commands)
+    assert "full-gate" in jobs
+    assert "python-quality" in jobs
+    assert "runtime-smoke" in jobs
+    assert "--stage full" in "\n".join(run_commands)
     assert "docs-build" in jobs
     assert "pnpm install --frozen-lockfile" in run_commands
     assert "pnpm build" in run_commands
+    heavy_jobs = {
+        "architecture-governance",
+        "desktop",
+        "devtools-web",
+        "docs-build",
+        "godot-contract",
+        "persistence-contract",
+        "python-affected",
+        "python-quality",
+        "release-contract",
+        "runtime-smoke",
+        "security-fast",
+        "toolchain",
+        "web-frontend",
+    }
+    for job_name in heavy_jobs:
+        assert "vars.ELFIENEST_HEAVY_RUNNER" in jobs[job_name]["runs-on"]
+        assert jobs[job_name]["timeout-minutes"] == 10
 
 
 def test_root_test_directory_contains_no_test_modules() -> None:
@@ -376,11 +485,19 @@ def test_precommit_uses_locked_project_tools_and_gitleaks() -> None:
     assert MYPY_SOURCE_ROOTS == tuple(
         root for root in CURRENT_PYTHON_SOURCE_ROOTS if (PROJECT_ROOT / root).is_dir()
     )
-    assert set(local_hooks) == {"quality-baseline"}
-    assert local_hooks["quality-baseline"]["entry"] == EXPECTED_QUALITY_COMMAND
-    assert all(
-        hook["language"] == "system" and hook["pass_filenames"] is False
-        for hook in local_hooks.values()
+    assert set(local_hooks) == {
+        "quality-baseline",
+        "staged-diff-check",
+        "staged-python-ruff-check",
+        "staged-python-ruff-format",
+    }
+    assert local_hooks["quality-baseline"]["entry"] == (
+        ".venv/bin/python3 scripts/quality/checks/python_baseline.py"
     )
+    assert local_hooks["quality-baseline"]["stages"] == ["manual"]
+    assert local_hooks["staged-diff-check"]["entry"] == "git diff --cached --check --"
+    assert all(hook["language"] == "system" for hook in local_hooks.values())
+    assert local_hooks["staged-diff-check"]["pass_filenames"] is False
+    assert local_hooks["quality-baseline"]["pass_filenames"] is False
     assert gitleaks_repository["rev"] == "v8.30.1"
     assert [hook["id"] for hook in gitleaks_repository["hooks"]] == ["gitleaks"]

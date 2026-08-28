@@ -1,75 +1,56 @@
 ---
 name: git-submit-and-push
-description: 管理 Git 的本地 commit、功能分支推送、Pull Request 合并队列和发布。用户说 commit 时只创建本地提交；只有明确说 push/推送才执行远端写入；普通主线合并依赖精确候选 CI 与 merge queue，完整门禁只用于合并后健康和发布。
+description: 使用 Git 和 gh 稳定完成 ElfieNest 当前功能分支的显式 push 与远端 SHA 核验，并在认证、DNS、TLS 或 worktree 权限出错时做有界恢复。仅在用户当前指令明确要求 push 功能分支或相关 Git/GitHub 故障已经出现时使用；不创建 Pull Request、不操作 main 或 merge queue。
 ---
 
-# Git 提交、推送与合并
+# 功能分支 Push 与 GitHub 访问恢复
 
-把本地 `commit`、远端 `push` 和主线 `merge` 视为三个独立动作，绝不从其中一个推断另外两个。
+## 严格边界
 
-## 术语路由
+- 本技能只执行用户当前消息明确授权的功能分支 push；不决定本地验证范围，不替代根/目录 `AGENTS.md`、`CONTRIBUTING.md`、机器分类器或 CI。
+- “开始实现”“按计划执行”“commit”“完成”或“交付”都不触发本技能。计划、技能、旧任务和历史授权不能产生 push 权限。
+- push 授权只绑定当前任务、仓库和功能分支；它不创建 Pull Request、不更新 main、不等待或操作 merge queue。
+- 同一 SHA 的一次有界恢复属于同一个已授权 push；分支、仓库、任务或候选 SHA 变化时停止并重新取得对应动作指令。
+- Git 负责仓库传输，`gh` 负责 GitHub API；其中一个成功不能证明另一个可用。
 
-- `commit`：只创建本地 Git commit；不 fetch、不 push、不合并主分支。
-- `push` / “推送”：用户明确要求远端更新时，执行功能分支推送流程。
-- “合并到远程主分支”：推送功能分支、等待精确候选 CI，并进入 merge queue；不直接 Push main。
-- “发布”：在已接受的精确 SHA 上追加完整 G3 与发布验收。
-- 仅说“提交”时，不把它自动扩展成 push；只有用户明确说“推送”才写远端。
+## 出错后诊断
 
-## 按风险选择门禁
-
-- **S 级本地 commit**：单个子系统内的局部改动，不改变公开 API、持久化契约、架构边界或生命周期所有权。只做直接相关检查；CSS-only 改动不启动服务、Godot、浏览器或全套测试。
-- **M/L 级本地 commit**，或用户明确要求“完整门禁”：运行 `scripts/pre_submit_gate.sh --stage commit`。
-- **功能分支 push**：运行 `scripts/pre_submit_gate.sh --stage push`，然后推送当前功能分支。
-- **普通主线合并**：不运行本地全仓门禁；要求精确 PR head 的 `elfienest/ci-gate` 及其必需包装 `elfienest/merge-gate` 通过，再进入 merge queue 并等待同名合并门复检合成提交。
-- **发布或显式完整验证**：运行 `scripts/pre_submit_gate.sh --stage full`，并完成发布状态核验。
-
-门禁失败必须区分代码失败、环境阻塞和远端拒绝；不得用 `--no-verify`、删除扫描器或放宽检查消除失败。
-
-## S 级本地 commit 快速路径
-
-1. 运行 `git status --short --branch`，确认当前分支并识别无关改动；无关文件不得顺手提交。
-2. 阅读目标 diff，运行 `git diff --check` 和与改动直接相关的最小验证。已有同一源码状态的有效证据可以复用，不重复启动无关服务或全套测试。
-3. 只暂存用户目标范围内的文件：
-
-   ```bash
-   git add <目标文件>
-   git diff --cached --check
-   git diff --cached --stat
-   ```
-
-4. 对暂存内容执行仓库已有的定向敏感信息检查；不要为了本地 S 级 commit 运行 `pre-commit run --all-files`。
-5. 创建本地 commit：
-
-   ```bash
-   git commit -m "<准确概括改动的提交消息>"
-   ```
-
-6. 提交后运行 `git status --short --branch` 和 `git log -1 --oneline --decorate`，报告 commit、分支和剩余改动；到此停止，不 push。
-
-## 明确要求 push 时
-
-用户明确说“推送”或“commit 并 push”后，先确保目标 commit 已通过对应验证，再使用明确的功能分支 refspec：
+健康操作不预跑探测。出现认证、DNS、TLS、连接关闭、沙箱或 worktree 权限错误后运行：
 
 ```bash
-git push -u origin HEAD:refs/heads/<当前功能分支>
+bash .agents/skills/git-submit-and-push/scripts/github_access_preflight.sh
 ```
 
-推送后再次运行 `git status --short --branch`，确认当前分支没有未推送的 ahead commit。禁止 `--force`、`--force-with-lease`、删除远程引用或绕过 Pull Request。
+- 脚本只输出工具路径、协议、环境覆盖变量名、凭据可取性、API 身份和远端 main SHA，永不输出 token。
+- 普通沙箱出现 `Operation not permitted`、凭据不可取或 worktree lock 错误时，用最小宿主权限原样重跑失败命令或探测一次；这不是用户退出登录。
+- 宿主 `gh auth token` 可取且 `gh api user --jq .login` 成功即证明 `gh` 认证有效。若清除 `GH_TOKEN`、`GITHUB_TOKEN` 或 `GH_CONFIG_DIR` 等覆盖后恢复，则修正启动环境，不要求用户退出有效账号。
+- 只有宿主仍取不到凭据或 API 明确返回 401/`Bad credentials`，才运行一次 `gh auth login --hostname github.com --git-protocol ssh --web` 并用 `gh api user` 复核。
+- 日常操作只使用 Git 与 `gh`；浏览器只用于 `gh auth login` 发起的交互，不复制 token，也不把浏览器当作 GitHub 操作通道。
 
-## 主线合并或发布时
+## 有上限的恢复
 
-只有用户明确要求“合并到远程主分支”时，才把已经推送的精确候选送入 Pull Request 合并流程：
+| 失败类型 | 处理 |
+| --- | --- |
+| 只读 Git/gh 操作出现 DNS、TLS、连接关闭或 timeout | 最多重试 2 次，短退避 2 秒、5 秒 |
+| push 结果不确定 | 先查询精确远端分支 ref；确认未生效后只重试 1 次 |
+| 401、`Bad credentials` 或宿主 keyring 不可取 | 不做网络重试；按诊断流程执行一次交互恢复 |
+| worktree lock 或沙箱权限错误 | 用最小宿主权限原样重试 1 次；不 reset、不换协议、不改代码 |
+| SSH push 达到上限但宿主 `gh api user` 有效 | 确认远端未写入，临时使用 `gh auth git-credential` 做一次 HTTPS 读取；成功后只允许一次同配置的明确分支 push |
 
-1. 核对远端 PR head SHA 与已验证 SHA 一致，并等待 `elfienest/ci-gate` 及候选阶段的 `elfienest/merge-gate`；
-2. main 仅向前移动不是重跑理由，不把最新 main 合回候选，也不持续 rebase；
-3. 真实冲突或候选 commit 变化时才产生新 SHA 并重跑受影响证据；
-4. 进入 GitHub merge queue，等待同名 `elfienest/merge-gate` 对合成提交做秒级复检，由 GitHub 串行化最终写入；
-5. 合并后核验远端 main 包含该候选，并记录异步完整后盾状态。最新 main 完整后盾为红时，只允许受审计的聚焦恢复或回滚。
+任何失败都不得使用 force push、`--admin`、`--no-verify`、删除远端引用、修改保护规则或无上限循环。
 
-只有“发布”或用户明确要求完整验证时才在目标 SHA 上运行 `--stage full`。不得用直接 main Push、反复合并移动主线或本地全仓重跑代替 merge queue。
+## 功能分支 Push
 
-## 安全边界
+1. 按仓库权威规则完成当前 push 所需的最小验证，确认工作区与目标路径没有混入无关改动。
+2. 确认当前分支既不是 `main`，也不是 merge queue 的只读 ref；冻结当前候选 SHA。
+3. 使用明确 refspec：
 
-- 不覆盖或回退用户已有改动，不自动 stash、reset、checkout 或清理无关 worktree。
-- 暂存前检查所有目标路径，禁止提交密钥、Token、密码、运行时配置、用户数据或生成物。
-- “commit”不会授权远端写操作；“push”不会授权主线合并；“合并主分支”授权进入受保护的 PR/merge queue，不授权绕过规则直接 Push main。
+   ```bash
+   git push -u origin HEAD:refs/heads/<功能分支>
+   ```
+
+4. 结果不确定时，用 `git ls-remote origin refs/heads/<功能分支>` 比较候选 SHA；相等即成功，远端未生效才按上限重试。
+5. 临时 HTTPS fallback 不得修改 `origin` 或全局 Git 配置；失败后结束本次写入周期并报告。
+6. 远端分支 SHA 核验成功后停止。不得因为分支已 push、任务完成、main 前进或分支存在较久而进入任何 PR 或主线动作。
+
+主分支规则拒绝不是重试直接写 main 的理由。用户以后明确要求创建 PR 或合并 main 时，另行使用仓库的窄主线技能。

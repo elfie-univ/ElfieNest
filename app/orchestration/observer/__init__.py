@@ -4,9 +4,11 @@ from .errors import (
     ObserverError,
     ObserverForbidden,
     ObserverRateLimited,
+    ObserverSessionExpired,
     ObserverUnavailable,
 )
 from .models import (
+    CloseObserverSessionCommand,
     NextObserverFrameQuery,
     ObserverDeltaResult,
     ObserverEntityChangeResult,
@@ -31,6 +33,7 @@ from .service import ObserverFacade, session_token_fingerprint
 from .session_logout import SessionLogoutWorkflow
 
 __all__ = (
+    "CloseObserverSessionCommand",
     "NextObserverFrameQuery",
     "ObserverCapabilityIssuerPort",
     "ObserverClockPort",
@@ -45,6 +48,7 @@ __all__ = (
     "ObserverPrincipal",
     "ObserverProjectedEntityResult",
     "ObserverRateLimited",
+    "ObserverSessionExpired",
     "ObserverSnapshotResult",
     "ObserverSubscription",
     "ObserverUnavailable",

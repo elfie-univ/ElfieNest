@@ -58,7 +58,7 @@ desktop host, docs site and Developer Tools keep separate manifests and
 lockfiles. Verify that their declarations stay aligned with:
 
 ```bash
-bash scripts/check_node_toolchain.sh
+bash scripts/quality/checks/node_toolchain.sh
 ```
 
 ### Python environment contract
@@ -166,7 +166,7 @@ preflight once:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
+  uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 If it returns `2`, the current sandbox cannot bind `127.0.0.1:0`. Do not run
@@ -174,43 +174,50 @@ the full suite there and then repeat it; run the same full command once in a
 host or elevated environment. A return code of `1` is an unexpected probe
 failure and must be diagnosed first.
 
-Use affected local validation after fetching the remote base:
+The normal development bootstrap installs the repository-managed hook
+idempotently. To repair or install only the hook, use:
 
 ```bash
-git fetch --prune origin main
-bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})"
-# feature-branch push: replace commit with push
-# explicit full/release replay: replace commit with full
+bash scripts/bootstrap.sh hooks
 ```
 
-G1 (`commit`) runs changed-file checks and affected tests. G2 (`push`) adds the
-quality baseline and affected integration checks. Push the exact candidate to a
-Pull Request; do not merge/rebase a moving main merely because it advanced.
-GitHub executes security-fast and the immutable-base manifest's selected lanes
-in parallel. `elfienest/ci-gate` is the candidate aggregate. Branch protection
-requires the event-stable `elfienest/merge-gate`: it waits for that aggregate on
-the Pull Request and performs only a seconds-long synthetic-merge check in the
-native merge queue.
+During development, run only the focused tests or type checks justified by the
+changed behavior. Every `git commit` then checks the real staged snapshot with
+`git diff --cached --check`, pinned Gitleaks, and staged-file Ruff check/format.
+The warm hook target is 20 seconds and it never runs tests, MyPy, pnpm, Godot,
+fetch, or network operations. Do not install a pre-push test gate.
 
-The complete G3 is deliberately outside ordinary submission. It runs after a
-main push, on explicit `--stage full`, and for release acceptance. Unknown,
-governance and toolchain changes select every premerge lane instead of silently
-skipping checks. Deterministic passes remain keyed by command, scoped inputs and
-tools rather than by delivery stage, so unchanged evidence can be reused. A
-narrower node/file never proves a larger bundle, and local cache never replaces
-CI attached to a new candidate SHA. If a selected premerge lane or merge gate
-fails, do not merge; a post-submit full failure quarantines ordinary merges
+After the hook passes, the local commit is ready; it stays local until an
+explicit branch-push action. A feature branch may remain open across sessions
+and days, accumulate focused commits, and be pushed repeatedly without creating
+a Pull Request. Once an explicit main-delivery action freezes the exact PR head,
+GitHub runs security-fast, affected Python tests, the
+repository Python quality baseline, and every other lane selected by the
+immutable-base manifest in parallel. `elfienest/ci-gate` aggregates those
+results and the event-stable `elfienest/merge-gate` reports them to branch
+protection. The native merge queue then runs only the seconds-long synthetic
+merge identity check. Do not merge/rebase a moving main merely because it
+advanced.
+
+`scripts/pre_submit_gate.sh --stage commit` remains an explicit reusable local
+checkpoint; `--stage push` is an optional affected-integration replay for
+offline diagnosis. Neither is an ordinary push prerequisite. The complete
+backstop fans out every lane after a main push and for explicit full/release
+validation. Unknown executable, machine trust-root and toolchain changes select
+every premerge lane; pure governance prose selects only governance, docs and
+architecture review. A narrower node/file never proves a larger bundle, and local cache never
+replaces CI attached to a new candidate SHA. A selected lane or merge-gate
+failure blocks delivery; a newest-main full failure quarantines ordinary merges
 until a focused recovery or revert restores green main.
 
 Use the controlled runner when a local test result should be reusable by a
 later gate:
 
 ```bash
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --base-sha "$(git rev-parse origin/main^{commit})" \
   --selectors test/app/features/setup/
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --bundle godot
 ```
 
@@ -223,7 +230,7 @@ The individual checks performed by the gate are:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/check_quality_baseline.py
+UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/quality/checks/python_baseline.py
 PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
 ```
 
@@ -263,13 +270,36 @@ tests or an updated quality baseline.
 
 ## Branch and commit scope
 
+The following action boundary is normative for coding Agents. A plan, ADR,
+skill, old task or the words "done" / "deliver" never upgrade one row into the
+next row.
+
+<!-- git-action-matrix:start -->
+| Action ID | Explicit instruction | Maximum authorized result |
+| --- | --- | --- |
+| `implement` | implement / execute the plan | `local-work` |
+| `commit` | commit / local commit | `local-commit` |
+| `push` | push the feature branch | `branch-push` |
+| `create-pr` | create a Pull Request | `one-pr-stop` |
+| `merge-main` | merge to remote main | `one-pr-merge` |
+| `complete` | done / deliver, without an explicit Git action | `no-git` |
+<!-- git-action-matrix:end -->
+
+- `local-work` includes focused verification and reasonable local commits for
+  the approved implementation, unless the user says not to commit or asks to
+  review first. Each later row requires its own explicit instruction.
+- One feature branch may contain several independently understandable commits,
+  but one main-delivery request creates or reuses at most one Pull Request. If
+  more are genuinely required, state the exact PR count and boundaries and get
+  that count approved before creating any of them.
 - One PR solves one well-scoped problem; avoid drive-by formatting or
   refactoring of unrelated files.
 - Do not overwrite others' uncommitted changes; do not commit local configs,
   generated artifacts, caches or production data.
 - Commit messages explain "why", not just list filenames.
-- UI or docs-site changes must be visually accepted by the maintainer first;
-  keep changes local, uncommitted and unpushed until accepted.
+- UI or docs-site changes may be locally committed and pushed for review, but
+  must be visually accepted by the maintainer before a Pull Request is created
+  for main delivery.
 
 ## A Pull Request must include
 

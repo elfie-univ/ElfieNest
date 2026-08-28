@@ -6,7 +6,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from scripts.check_quality_baseline import (
+from scripts.quality.checks.python_baseline import (
     DiagnosticDelta,
     compare_diagnostics,
     format_gate_summary,

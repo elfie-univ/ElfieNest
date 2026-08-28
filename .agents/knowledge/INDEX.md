@@ -5,6 +5,44 @@
 
 ## 架构设计
 
+### Elfie 三阶段产品交付路线
+
+- file: `../../docs/.internal/elfie-product-delivery-stages.md`
+- status: `discussion-baseline`
+- read_when:
+  - 讨论 ElfieNest 的顶层产品阶段、首个聊天交付、虚拟精灵巢生活或现实身体路线；
+  - 规划第一阶段身份、领养前历史、主人共同经历与认知边界的纵向实现；
+  - 规划第二阶段真实具身、日常生活、自主活动、多精灵社会或受控成长；
+  - 为上述任一产品子阶段创建实现工作卡或用户可感知验收场景前。
+- do_not_read_when:
+  - 只需要判断当前源码行为、局部修复或运行故障；
+  - 与产品交付阶段、聊天体验、虚拟生活或现实具身无关的任务。
+
+### Elfie 第一阶段记忆支撑聊天闭环执行计划
+
+- file: `../../docs/.internal/elfie-stage1-memory-backed-chat-execution-plan.md`
+- status: `e1-deterministic-pass-real-model-blocked`
+- read_when:
+  - 实施或审查第一阶段稳定聊天、异星知识、领养前传记、主人事实或完整聊天验收；
+  - 修改 Genesis Memory seed、Memory 类型化检索、Reasoning 记忆上下文或聊天回执/写回语义；
+  - 评估 Canon 与 Memory 的事实分工、旧 Elfie 数据策略或第一阶段 P0 优先顺序；
+  - 为第一阶段任一轮建立具体工作卡、失败测试和纵向验收场景前。
+- do_not_read_when:
+  - 只讨论第二阶段 Nest/Godot 真实生活或第三阶段实体身体；
+  - 与第一阶段聊天、记忆、Genesis、Reasoning 或 Communication 无关的局部任务。
+
+### Elfie Brain 评价体系与自动化试验场
+
+- file: `../../docs/.internal/elfie-brain-evaluation-system.md`
+- status: `evaluation-baseline-design`
+- read_when:
+  - 设计或审查 Brain 修改的基线/候选对比、确定性红线、真实模型评测或人工体验验收；
+  - 建立 EvalRun、EvalScenario、回归场景、模型裁判、长时间试验或候选晋级规则；
+  - 为第一阶段 `E1–E5` 之外的 Brain/Nest/具身能力建立统一评测方法。
+- do_not_read_when:
+  - 只需执行第一阶段聊天某一轮的既定专项题库和门禁，此时直接读上面的执行计划；
+  - 与 Brain 行为质量、回归或晋级无关的局部实现任务。
+
 ### Elfie 整体故事、生命形态与功能体系
 
 - file: `../../docs/.internal/elfie-overall-story-and-functional-system.md`

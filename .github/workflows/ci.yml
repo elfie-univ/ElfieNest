@@ -21,8 +21,8 @@ on:
         type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('candidate-{0}', github.event.pull_request.head.sha) || (github.event_name == 'workflow_dispatch' && inputs.mode == 'candidate' && format('candidate-{0}', inputs.target_sha)) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'candidate') }}
 
 permissions:
   actions: read
@@ -37,39 +37,47 @@ env:
 jobs:
   preflight:
     name: Trusted affected-path preflight
-    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'candidate')
+    if: github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     outputs:
       base_sha: ${{ steps.route.outputs.base_sha }}
       candidate_sha: ${{ steps.route.outputs.candidate_sha }}
+      full_slot: ${{ steps.route.outputs.full_slot }}
       router_version: ${{ steps.route.outputs.router_version }}
-      tests_json: ${{ steps.route.outputs.tests_json }}
-      full: ${{ steps.route.outputs.full }}
-      security_fast: ${{ steps.route.outputs.security_fast }}
-      python_bundles: ${{ steps.route.outputs.python_bundles }}
-      web_frontend: ${{ steps.route.outputs.web_frontend }}
-      desktop: ${{ steps.route.outputs.desktop }}
-      devtools_web: ${{ steps.route.outputs.devtools_web }}
-      architecture: ${{ steps.route.outputs.architecture }}
-      persistence_contract: ${{ steps.route.outputs.persistence_contract }}
-      godot: ${{ steps.route.outputs.godot }}
-      docs: ${{ steps.route.outputs.docs }}
-      toolchain: ${{ steps.route.outputs.toolchain }}
-      release: ${{ steps.route.outputs.release }}
-      governance: ${{ steps.route.outputs.governance }}
+      evidence_name: ${{ steps.route.outputs.evidence_name }}
+      reused_evidence: ${{ steps.evidence.outputs.reused }}
+      tests_json: ${{ steps.evidence.outputs.reused == 'true' && '[]' || steps.route.outputs.tests_json }}
+      full: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.full }}
+      security_fast: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.security_fast }}
+      python_bundles: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.python_bundles }}
+      python_quality: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.python_quality }}
+      web_frontend: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.web_frontend }}
+      desktop: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.desktop }}
+      devtools_web: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.devtools_web }}
+      architecture: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.architecture }}
+      persistence_contract: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.persistence_contract }}
+      godot: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.godot }}
+      docs: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.docs }}
+      toolchain: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.toolchain }}
+      release: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.release }}
+      runtime_smoke: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.runtime_smoke }}
+      governance: ${{ steps.evidence.outputs.reused == 'true' && 'false' || steps.route.outputs.governance }}
     steps:
       - name: Check out the exact candidate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.target_sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event_name == 'push' && github.sha || inputs.target_sha }}
 
       - name: Route from the immutable base classifier
         id: route
         env:
           EVENT_NAME: ${{ github.event_name }}
+          VALIDATION_MODE: ${{ inputs.mode }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_HEAD_SHA: ${{ github.sha }}
           TARGET_INPUT: ${{ inputs.target_sha }}
         shell: bash
         run: |
@@ -77,13 +85,23 @@ jobs:
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             base_sha="$PR_BASE_SHA"
             candidate_sha="$PR_HEAD_SHA"
+            route_mode="candidate"
+          elif [[ "$EVENT_NAME" == "push" ]]; then
+            base_sha="$PUSH_BEFORE_SHA"
+            candidate_sha="$PUSH_HEAD_SHA"
+            route_mode="full"
           else
             [[ "$TARGET_INPUT" =~ ^[0-9a-f]{40}$ ]] || {
-              echo "candidate mode requires an exact 40-character target SHA" >&2
+              echo "manual validation requires an exact 40-character target SHA" >&2
               exit 1
             }
-            base_sha="$(git rev-parse 'origin/main^{commit}')"
             candidate_sha="$TARGET_INPUT"
+            route_mode="$VALIDATION_MODE"
+            if [[ "$route_mode" == "full" ]]; then
+              base_sha="$(git rev-parse "$candidate_sha^" 2>/dev/null || printf '%s' "$candidate_sha")"
+            else
+              base_sha="$(git rev-parse 'origin/main^{commit}')"
+            fi
           fi
           [[ "$(git rev-parse HEAD)" == "$candidate_sha" ]] || {
             echo "checkout is not the requested exact candidate" >&2
@@ -92,11 +110,38 @@ jobs:
           git cat-file -e "$base_sha^{commit}"
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
           echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            echo "full_slot=$((GITHUB_RUN_NUMBER % 2))" >> "$GITHUB_OUTPUT"
+          else
+            echo "full_slot=run-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+          fi
+
+          trusted_evidence="$RUNNER_TEMP/trusted-candidate-evidence.py"
+          if git show "$base_sha:scripts/quality/validation/candidate_evidence.py" \
+              > "$trusted_evidence" 2>/dev/null; then
+            evidence_name="$(ELFIENEST_PROJECT_ROOT="$GITHUB_WORKSPACE" \
+              python3 "$trusted_evidence" \
+              --base-sha "$base_sha" \
+              --candidate-sha "$candidate_sha" \
+              --format name)"
+          else
+            evidence_name=""
+          fi
+          echo "evidence_name=$evidence_name" >> "$GITHUB_OUTPUT"
 
           trusted_router="$RUNNER_TEMP/trusted-validation-plan.py"
-          if git show "$base_sha:scripts/architecture/validation_plan.py" \
-              > "$trusted_router" 2>/dev/null && \
-              grep -q 'MANIFEST_SCHEMA_VERSION = "affected-v1"' "$trusted_router"; then
+          if [[ "$route_mode" == "full" ]] && \
+              grep -Eq 'MANIFEST_SCHEMA_VERSION = "affected-v(1|2|3)"' \
+                scripts/quality/validation/plan.py; then
+            ELFIENEST_PROJECT_ROOT="$GITHUB_WORKSPACE" \
+              python3 scripts/quality/validation/plan.py \
+                --base-sha "$base_sha" \
+                --stage full \
+                --github-output "$GITHUB_OUTPUT"
+          elif [[ "$route_mode" != "full" ]] && \
+              git show "$base_sha:scripts/quality/validation/plan.py" \
+                > "$trusted_router" 2>/dev/null && \
+              grep -Eq 'MANIFEST_SCHEMA_VERSION = "affected-v(1|2|3)"' "$trusted_router"; then
             ELFIENEST_PROJECT_ROOT="$GITHUB_WORKSPACE" \
               python3 "$trusted_router" \
                 --base-sha "$base_sha" \
@@ -110,17 +155,120 @@ jobs:
             echo 'unknown_paths_json=[]' >> "$GITHUB_OUTPUT"
             echo "full=true" >> "$GITHUB_OUTPUT"
             for capability in \
-              security_fast python_bundles web_frontend desktop devtools_web \
-              architecture persistence_contract godot docs toolchain release governance; do
+              security_fast python_bundles python_quality web_frontend desktop \
+              devtools_web architecture persistence_contract godot docs toolchain \
+              release runtime_smoke governance; do
               echo "$capability=true" >> "$GITHUB_OUTPUT"
             done
           fi
+
+          if ! grep -q '^python_quality=' "$GITHUB_OUTPUT" || \
+              ! grep -q '^runtime_smoke=' "$GITHUB_OUTPUT"; then
+            python3 - "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import sys
+
+          output_path = sys.argv[1]
+          values = {}
+          with open(output_path, encoding="utf-8") as output:
+              for line in output:
+                  key, separator, value = line.rstrip("\n").partition("=")
+                  if separator:
+                      values[key] = value
+          manifest = json.loads(values["manifest_json"])
+          capabilities = manifest.get("capabilities", {})
+          full = bool(manifest.get("full"))
+          with open(output_path, "a", encoding="utf-8") as output:
+              if "python_quality" not in values:
+                  selected = full or bool(capabilities.get("python_bundles"))
+                  output.write(f"python_quality={str(selected).lower()}\n")
+              if "runtime_smoke" not in values:
+                  output.write(f"runtime_smoke={str(full).lower()}\n")
+          PY
+          fi
+
+      - name: Reuse trusted pre-PR candidate evidence
+        id: evidence
+        if: github.event_name == 'pull_request'
+        env:
+          EVIDENCE_NAME: ${{ steps.route.outputs.evidence_name }}
+          PR_BASE_SHA: ${{ steps.route.outputs.base_sha }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "reused=false" >> "$GITHUB_OUTPUT"
+          [[ -n "$EVIDENCE_NAME" ]] || exit 0
+          artifacts_json="$RUNNER_TEMP/candidate-artifacts.json"
+          if ! curl --fail --silent --show-error \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts?name=$EVIDENCE_NAME&per_page=100" \
+              --output "$artifacts_json"; then
+            echo "::warning::candidate evidence lookup failed; running selected lanes"
+            exit 0
+          fi
+          run_id="$(python3 - "$artifacts_json" "$EVIDENCE_NAME" <<'PY'
+          import json
+          import sys
+
+          artifacts = json.load(open(sys.argv[1], encoding="utf-8")).get("artifacts", [])
+          usable = [
+              artifact
+              for artifact in artifacts
+              if artifact.get("name") == sys.argv[2]
+              and not artifact.get("expired")
+              and artifact.get("workflow_run", {}).get("id")
+          ]
+          usable.sort(key=lambda artifact: artifact.get("created_at", ""), reverse=True)
+          print(usable[0]["workflow_run"]["id"] if usable else "")
+          PY
+          )"
+          [[ -n "$run_id" ]] || exit 0
+          run_json="$RUNNER_TEMP/candidate-evidence-run.json"
+          if ! curl --fail --silent --show-error \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" \
+              --output "$run_json"; then
+            echo "::warning::candidate evidence source lookup failed; running selected lanes"
+            exit 0
+          fi
+          run_head="$(python3 - "$run_json" "$GITHUB_REPOSITORY" <<'PY'
+          import json
+          import sys
+
+          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          repository = run.get("repository", {}).get("full_name")
+          valid = (
+              run.get("event") == "workflow_dispatch"
+              and run.get("path") == ".github/workflows/ci.yml"
+              and run.get("head_branch") == "main"
+              and run.get("conclusion") == "success"
+              and repository == sys.argv[2]
+          )
+          print(run.get("head_sha", "") if valid else "")
+          PY
+          )"
+          [[ "$run_head" =~ ^[0-9a-f]{40}$ ]] || exit 0
+          if ! git merge-base --is-ancestor "$run_head" "$PR_BASE_SHA"; then
+            echo "::warning::candidate evidence did not originate from an ancestor of the PR base"
+            exit 0
+          fi
+          echo "reused=true" >> "$GITHUB_OUTPUT"
+          echo "Reusing exact candidate evidence from trusted run $run_id"
 
   security-fast:
     name: Security and changed-file quality
     needs: preflight
     if: needs.preflight.outputs.security_fast == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    concurrency:
+      group: ${{ github.workflow }}-security-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -138,6 +286,7 @@ jobs:
       - name: Check changed files
         env:
           BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
+          FULL_VALIDATION: ${{ needs.preflight.outputs.full }}
           PRE_COMMIT_HOME: /tmp/elfienest-precommit
         shell: bash
         run: |
@@ -146,7 +295,9 @@ jobs:
           while IFS= read -r -d '' path; do
             files+=("$path")
           done < <(git diff --name-only --diff-filter=ACMR -z "$BASE_SHA" --)
-          if (( ${#files[@]} )); then
+          if [[ "$FULL_VALIDATION" == "true" ]]; then
+            uv run --no-sync pre-commit run gitleaks --all-files
+          elif (( ${#files[@]} )); then
             uv run --no-sync pre-commit run gitleaks --files "${files[@]}"
           else
             echo "No changed files require a secret scan."
@@ -167,7 +318,11 @@ jobs:
     name: Affected Python tests
     needs: preflight
     if: needs.preflight.outputs.python_bundles == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    concurrency:
+      group: ${{ github.workflow }}-python-tests-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -210,15 +365,44 @@ jobs:
             echo "python_bundles was selected without test selectors" >&2
             exit 1
           }
-          .venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+          .venv/bin/python3 scripts/quality/validation/test_bundles.py \
             --base-sha "$BASE_SHA" \
             --selectors "${selectors[@]}"
+
+  python-quality:
+    name: Python quality baseline
+    needs: preflight
+    if: needs.preflight.outputs.python_quality == 'true'
+    runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    concurrency:
+      group: ${{ github.workflow }}-python-quality-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.preflight.outputs.candidate_sha }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install pinned environment
+        run: |
+          uv python install "$PYTHON_VERSION"
+          uv sync --locked --extra dev
+      - name: Run the repository Python quality baseline
+        run: uv run --no-sync python scripts/quality/checks/python_baseline.py
 
   web-frontend:
     name: Web frontend
     needs: preflight
     if: needs.preflight.outputs.web_frontend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    concurrency:
+      group: ${{ github.workflow }}-web-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: app/interfaces/web/frontend
@@ -243,7 +427,11 @@ jobs:
     name: Desktop
     needs: preflight
     if: needs.preflight.outputs.desktop == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    concurrency:
+      group: ${{ github.workflow }}-desktop-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: app/interfaces/desktop
@@ -266,7 +454,11 @@ jobs:
     name: Developer Tools web
     needs: preflight
     if: needs.preflight.outputs.devtools_web == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    concurrency:
+      group: ${{ github.workflow }}-devtools-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: devtools/web
@@ -290,7 +482,11 @@ jobs:
     name: Architecture governance
     needs: preflight
     if: needs.preflight.outputs.architecture == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    concurrency:
+      group: ${{ github.workflow }}-architecture-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      cancel-in-progress: false
     env:
       BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
     steps:
@@ -310,70 +506,76 @@ jobs:
       - name: Check candidate architecture rules
         run: |
           if test -f test/architecture/baselines/app_layer.py; then
-            uv run --no-sync python scripts/architecture/app_layer_scan.py \
+            uv run --no-sync python scripts/governance/boundaries/app_layers.py \
               --project-root . --baseline test/architecture/baselines/app_layer.py --mode exact
           else
-            uv run --no-sync python scripts/architecture/app_layer_scan.py \
+            uv run --no-sync python scripts/governance/boundaries/app_layers.py \
               --project-root . --mode deny-all
           fi
           if test -f test/architecture/baselines/system_layer.py; then
-            uv run --no-sync python scripts/architecture/system_layer_scan.py \
+            uv run --no-sync python scripts/governance/boundaries/system_layers.py \
               --project-root . --baseline test/architecture/baselines/system_layer.py --mode exact
           else
-            uv run --no-sync python scripts/architecture/system_layer_scan.py \
+            uv run --no-sync python scripts/governance/boundaries/system_layers.py \
               --project-root . --mode deny-all
           fi
-          uv run --no-sync python scripts/architecture/effective_dependency_scan.py \
+          uv run --no-sync python scripts/governance/boundaries/effective_dependencies/scan.py \
             --project-root .
-          uv run --no-sync python scripts/architecture/structural_scope_scan.py \
+          uv run --no-sync python scripts/governance/boundaries/structural_scope.py \
             --project-root .
       - name: Reject self-approved governance changes
         run: |
           classifier_root="$RUNNER_TEMP/base-governance"
-          classifier_dir="$classifier_root/scripts/architecture"
-          mkdir -p "$classifier_dir"
-          git show "$BASE_SHA:scripts/architecture/check_governance_change.py" \
-            > "$classifier_dir/check_governance_change.py"
-          git show "$BASE_SHA:scripts/architecture/structural_scope_scan.py" \
-            > "$classifier_dir/structural_scope_scan.py"
+          classifier_path="scripts/governance/change_policy.py"
+          structural_path="scripts/governance/boundaries/structural_scope.py"
+          mkdir -p \
+            "$(dirname "$classifier_root/$classifier_path")" \
+            "$(dirname "$classifier_root/$structural_path")"
+          git show "$BASE_SHA:$classifier_path" > "$classifier_root/$classifier_path"
+          git show "$BASE_SHA:$structural_path" > "$classifier_root/$structural_path"
           PYTHONPATH="$classifier_root" uv run --no-sync python \
-            "$classifier_dir/check_governance_change.py" --base-sha "$BASE_SHA"
+            "$classifier_root/$classifier_path" --base-sha "$BASE_SHA"
       - name: Apply immutable base architecture ratchets
         run: |
           ratchet_root="$RUNNER_TEMP/architecture-ratchet"
-          mkdir -p "$ratchet_root/scripts/architecture" "$ratchet_root/test/architecture/baselines"
-          git show "$BASE_SHA:scripts/architecture/app_layer_scan.py" \
-            > "$ratchet_root/scripts/architecture/app_layer_scan.py"
+          app_scanner_path="scripts/governance/boundaries/app_layers.py"
+          system_scanner_path="scripts/governance/boundaries/system_layers.py"
+          mkdir -p \
+            "$(dirname "$ratchet_root/$app_scanner_path")" \
+            "$(dirname "$ratchet_root/$system_scanner_path")" \
+            "$ratchet_root/test/architecture/baselines"
+          git show "$BASE_SHA:$app_scanner_path" > "$ratchet_root/$app_scanner_path"
           if git cat-file -e "$BASE_SHA:test/architecture/baselines/app_layer.py"; then
             git show "$BASE_SHA:test/architecture/baselines/app_layer.py" \
               > "$ratchet_root/test/architecture/baselines/app_layer.py"
-            uv run --no-sync python "$ratchet_root/scripts/architecture/app_layer_scan.py" \
+            uv run --no-sync python "$ratchet_root/$app_scanner_path" \
               --project-root . --baseline "$ratchet_root/test/architecture/baselines/app_layer.py" --mode subset
           else
-            uv run --no-sync python "$ratchet_root/scripts/architecture/app_layer_scan.py" \
+            uv run --no-sync python "$ratchet_root/$app_scanner_path" \
               --project-root . --mode deny-all
           fi
-          git show "$BASE_SHA:scripts/architecture/system_layer_scan.py" \
-            > "$ratchet_root/scripts/architecture/system_layer_scan.py"
+          git show "$BASE_SHA:$system_scanner_path" > "$ratchet_root/$system_scanner_path"
           if git cat-file -e "$BASE_SHA:test/architecture/baselines/system_layer.py"; then
             git show "$BASE_SHA:test/architecture/baselines/system_layer.py" \
               > "$ratchet_root/test/architecture/baselines/system_layer.py"
-            uv run --no-sync python "$ratchet_root/scripts/architecture/system_layer_scan.py" \
+            uv run --no-sync python "$ratchet_root/$system_scanner_path" \
               --project-root . --baseline "$ratchet_root/test/architecture/baselines/system_layer.py" --mode subset
           else
-            uv run --no-sync python "$ratchet_root/scripts/architecture/system_layer_scan.py" \
+            uv run --no-sync python "$ratchet_root/$system_scanner_path" \
               --project-root . --mode deny-all
           fi
       - name: Apply immutable base effective-dependency gate
         run: |
           scanner_root="$RUNNER_TEMP/effective-ratchet"
-          scanner_dir="$scanner_root/scripts/architecture"
+          scanner_prefix="scripts/governance/boundaries/effective_dependencies"
+          scanner_entry="scan.py"
+          scanner_files=(python.py scan.py targets.py text.py)
+          scanner_dir="$scanner_root/$scanner_prefix"
           mkdir -p "$scanner_dir"
-          for file in effective_dependency_python.py effective_dependency_scan.py \
-            effective_dependency_targets.py effective_dependency_text.py; do
-            git show "$BASE_SHA:scripts/architecture/$file" > "$scanner_dir/$file"
+          for file in "${scanner_files[@]}"; do
+            git show "$BASE_SHA:$scanner_prefix/$file" > "$scanner_dir/$file"
           done
-          uv run --no-sync python "$scanner_dir/effective_dependency_scan.py" \
+          PYTHONPATH="$scanner_root" uv run --no-sync python "$scanner_dir/$scanner_entry" \
             --project-root .
       - name: Run governance contract tests
         run: uv run --no-sync pytest test/architecture/
@@ -382,7 +584,11 @@ jobs:
     name: Persistence contract
     needs: preflight
     if: needs.preflight.outputs.persistence_contract == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    concurrency:
+      group: ${{ github.workflow }}-persistence-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -399,14 +605,18 @@ jobs:
         env:
           BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
         run: >-
-          uv run --no-sync python scripts/architecture/database_change_scan.py
+          uv run --no-sync python scripts/governance/persistence/scan.py
           --project-root . --base-sha "$BASE_SHA" --check
 
   godot-contract:
     name: Godot contract tests
     needs: preflight
     if: needs.preflight.outputs.godot == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    concurrency:
+      group: ${{ github.workflow }}-godot-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -423,14 +633,18 @@ jobs:
         env:
           BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
         run: >-
-          .venv/bin/python3 scripts/architecture/validation_test_bundles.py
+          .venv/bin/python3 scripts/quality/validation/test_bundles.py
           --base-sha "$BASE_SHA" --selectors test/godot
 
   docs-build:
     name: Docs build
     needs: preflight
     if: needs.preflight.outputs.docs == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    concurrency:
+      group: ${{ github.workflow }}-docs-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: docs
@@ -453,7 +667,11 @@ jobs:
     name: Toolchain manifests
     needs: preflight
     if: needs.preflight.outputs.toolchain == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    concurrency:
+      group: ${{ github.workflow }}-toolchain-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -463,13 +681,17 @@ jobs:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
       - run: uv lock --check
-      - run: bash scripts/check_node_toolchain.sh
+      - run: bash scripts/quality/checks/node_toolchain.sh
 
   release-contract:
     name: Release contract
     needs: preflight
     if: needs.preflight.outputs.release == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    concurrency:
+      group: ${{ github.workflow }}-release-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -482,7 +704,35 @@ jobs:
           uv python install "$PYTHON_VERSION"
           uv sync --locked --extra dev
       - name: Verify repository release metadata
-        run: uv run --no-sync python scripts/check_release_version.py
+        run: uv run --no-sync python scripts/quality/checks/release_version.py
+
+  runtime-smoke:
+    name: Runtime and CLI smoke
+    needs: preflight
+    if: needs.preflight.outputs.runtime_smoke == 'true'
+    runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    concurrency:
+      group: ${{ github.workflow }}-runtime-smoke-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.preflight.outputs.candidate_sha }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install pinned environment
+        run: |
+          uv python install "$PYTHON_VERSION"
+          uv sync --locked --extra dev
+      - name: Verify runtime capability and CLI entry
+        run: |
+          .venv/bin/python3 -c 'import platform, sys; raise SystemExit(0 if sys.implementation.name == "cpython" and platform.python_version() == "3.9.25" else 1)'
+          uv run --no-sync python scripts/quality/checks/environment.py
+          .venv/bin/python3 scripts/elfienest.py version
 
   ci-gate:
     name: elfienest/ci-gate
@@ -491,6 +741,7 @@ jobs:
       - preflight
       - security-fast
       - python-affected
+      - python-quality
       - web-frontend
       - desktop
       - devtools-web
@@ -500,12 +751,15 @@ jobs:
       - docs-build
       - toolchain
       - release-contract
+      - runtime-smoke
     runs-on: ubuntu-latest
     env:
       SECURITY_SELECTED: ${{ needs.preflight.outputs.security_fast }}
       SECURITY_RESULT: ${{ needs.security-fast.result }}
       PYTHON_SELECTED: ${{ needs.preflight.outputs.python_bundles }}
       PYTHON_RESULT: ${{ needs.python-affected.result }}
+      PYTHON_QUALITY_SELECTED: ${{ needs.preflight.outputs.python_quality }}
+      PYTHON_QUALITY_RESULT: ${{ needs.python-quality.result }}
       WEB_SELECTED: ${{ needs.preflight.outputs.web_frontend }}
       WEB_RESULT: ${{ needs.web-frontend.result }}
       DESKTOP_SELECTED: ${{ needs.preflight.outputs.desktop }}
@@ -524,6 +778,9 @@ jobs:
       TOOLCHAIN_RESULT: ${{ needs.toolchain.result }}
       RELEASE_SELECTED: ${{ needs.preflight.outputs.release }}
       RELEASE_RESULT: ${{ needs.release-contract.result }}
+      RUNTIME_SMOKE_SELECTED: ${{ needs.preflight.outputs.runtime_smoke }}
+      RUNTIME_SMOKE_RESULT: ${{ needs.runtime-smoke.result }}
+      REUSED_EVIDENCE: ${{ needs.preflight.outputs.reused_evidence }}
     steps:
       - name: Require every selected lane
         shell: bash
@@ -548,6 +805,7 @@ jobs:
           }
           require_lane security-fast "$SECURITY_SELECTED" "$SECURITY_RESULT"
           require_lane python-affected "$PYTHON_SELECTED" "$PYTHON_RESULT"
+          require_lane python-quality "$PYTHON_QUALITY_SELECTED" "$PYTHON_QUALITY_RESULT"
           require_lane web-frontend "$WEB_SELECTED" "$WEB_RESULT"
           require_lane desktop "$DESKTOP_SELECTED" "$DESKTOP_RESULT"
           require_lane devtools-web "$DEVTOOLS_SELECTED" "$DEVTOOLS_RESULT"
@@ -557,7 +815,47 @@ jobs:
           require_lane docs "$DOCS_SELECTED" "$DOCS_RESULT"
           require_lane toolchain "$TOOLCHAIN_SELECTED" "$TOOLCHAIN_RESULT"
           require_lane release "$RELEASE_SELECTED" "$RELEASE_RESULT"
-          echo "All affected checks passed for ${{ needs.preflight.outputs.candidate_sha }}"
+          require_lane runtime-smoke "$RUNTIME_SMOKE_SELECTED" "$RUNTIME_SMOKE_RESULT"
+          if [[ "$REUSED_EVIDENCE" == "true" ]]; then
+            echo "Trusted pre-PR evidence verified for ${{ needs.preflight.outputs.candidate_sha }}"
+          else
+            echo "All affected checks passed for ${{ needs.preflight.outputs.candidate_sha }}"
+          fi
+      - name: Report candidate validation latency
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REUSED_EVIDENCE: ${{ needs.preflight.outputs.reused_evidence }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          run_json="$RUNNER_TEMP/workflow-run.json"
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --output "$run_json"
+          python3 - "$run_json" "$GITHUB_STEP_SUMMARY" <<'PY'
+          import datetime as dt
+          import json
+          import os
+          import sys
+
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          started = dt.datetime.fromisoformat(payload["created_at"].replace("Z", "+00:00"))
+          elapsed = int((dt.datetime.now(dt.timezone.utc) - started).total_seconds())
+          with open(sys.argv[2], "a", encoding="utf-8") as summary:
+              summary.write("## Candidate delivery timing\n\n")
+              if os.environ.get("REUSED_EVIDENCE") == "true":
+                  summary.write(f"- PR evidence verification elapsed: {elapsed}s\n")
+                  summary.write("- Selected lanes were reused from exact pre-PR evidence.\n")
+              else:
+                  summary.write(f"- Candidate validation elapsed: {elapsed}s (target: <=420s)\n")
+              summary.write("- End-to-end final-candidate release-to-main SLO: p95 <=600s; the delivery operator records the user-release boundary.\n")
+          if elapsed > 420:
+              print(f"::warning::candidate validation exceeded the 420s budget: {elapsed}s")
+          PY
 
   merge-gate:
     name: elfienest/merge-gate
@@ -673,83 +971,137 @@ jobs:
             echo "merge-group head has no commit ancestry" >&2
             exit 1
           }
-          grep -q 'MANIFEST_SCHEMA_VERSION = "affected-v1"' \
-            scripts/architecture/validation_plan.py
+          grep -q 'MANIFEST_SCHEMA_VERSION = "affected-v3"' \
+            scripts/quality/validation/plan.py
           git diff --check HEAD^1..HEAD
 
-  full-slot:
-    name: Select full-backstop slot
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'full')
+  candidate-evidence:
+    name: Publish exact candidate evidence
+    needs:
+      - preflight
+      - merge-gate
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'candidate' && needs.merge-gate.result == 'success'
     runs-on: ubuntu-latest
-    outputs:
-      slot: ${{ steps.slot.outputs.slot }}
-      target_sha: ${{ steps.slot.outputs.target_sha }}
     steps:
-      - id: slot
+      - name: Build evidence record
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          TARGET_INPUT: ${{ inputs.target_sha }}
+          EVIDENCE_NAME: ${{ needs.preflight.outputs.evidence_name }}
+          BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
+          CANDIDATE_SHA: ${{ needs.preflight.outputs.candidate_sha }}
+          ROUTER_VERSION: ${{ needs.preflight.outputs.router_version }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          if [[ "$EVENT_NAME" == "push" ]]; then
-            echo "slot=$((GITHUB_RUN_NUMBER % 2))" >> "$GITHUB_OUTPUT"
-            echo "target_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-          else
-            target_sha="${TARGET_INPUT:-$GITHUB_SHA}"
-            [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
-            echo "slot=manual-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
-            echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
-          fi
+          [[ -n "$EVIDENCE_NAME" ]] || {
+            echo "trusted base cannot publish reusable candidate evidence" >&2
+            exit 1
+          }
+          mkdir -p "$RUNNER_TEMP/candidate-evidence"
+          python3 - "$RUNNER_TEMP/candidate-evidence/evidence.json" <<'PY'
+          import json
+          import os
+          import sys
 
-  postsubmit-full:
-    name: Post-submit full backstop
-    needs: full-slot
-    if: needs.full-slot.result == 'success'
+          payload = {
+              "artifact_name": os.environ["EVIDENCE_NAME"],
+              "base_sha": os.environ["BASE_SHA"],
+              "candidate_sha": os.environ["CANDIDATE_SHA"],
+              "router_version": os.environ["ROUTER_VERSION"],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "workflow_identity": "CI:.github/workflows/ci.yml@refs/heads/main",
+          }
+          with open(sys.argv[1], "w", encoding="utf-8") as output:
+              json.dump(payload, output, sort_keys=True)
+          PY
+      - name: Publish exact candidate evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ needs.preflight.outputs.evidence_name }}
+          path: ${{ runner.temp }}/candidate-evidence/evidence.json
+          if-no-files-found: error
+          retention-days: 7
+
+  full-gate:
+    name: Complete full backstop
+    if: always() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'full'))
+    needs:
+      - preflight
+      - security-fast
+      - python-affected
+      - python-quality
+      - web-frontend
+      - desktop
+      - devtools-web
+      - architecture-governance
+      - persistence-contract
+      - godot-contract
+      - docs-build
+      - toolchain
+      - release-contract
+      - runtime-smoke
     runs-on: ubuntu-latest
-    concurrency:
-      group: ${{ github.workflow }}-full-${{ needs.full-slot.outputs.slot }}
-      cancel-in-progress: false
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.full-slot.outputs.target_sha }}
-      - name: Set up uv
-        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: pnpm/action-setup@f2b2b233b538f500472c7274c7012f57857d8ce0 # v4.1.0
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 20
-          cache: pnpm
-          cache-dependency-path: |
-            app/interfaces/desktop/pnpm-lock.yaml
-            app/interfaces/web/frontend/pnpm-lock.yaml
-            devtools/web/pnpm-lock.yaml
-            docs/pnpm-lock.yaml
-      - name: Install pinned environment
-        run: |
-          uv python install "$PYTHON_VERSION"
-          uv sync --locked --extra dev
-      - name: Verify exact CPython runtime
-        run: >-
-          .venv/bin/python3 -c 'import platform, sys;
-          raise SystemExit(0 if sys.implementation.name == "cpython" and
-          platform.python_version() == "3.9.25" else 1)'
-      - name: Run the complete asynchronous backstop
+      - name: Require every full-validation lane
         env:
-          BASE_SHA: ${{ github.event.before }}
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          FULL_SELECTED: ${{ needs.preflight.outputs.full }}
+          SECURITY_RESULT: ${{ needs.security-fast.result }}
+          PYTHON_RESULT: ${{ needs.python-affected.result }}
+          PYTHON_QUALITY_RESULT: ${{ needs.python-quality.result }}
+          WEB_RESULT: ${{ needs.web-frontend.result }}
+          DESKTOP_RESULT: ${{ needs.desktop.result }}
+          DEVTOOLS_RESULT: ${{ needs.devtools-web.result }}
+          ARCHITECTURE_RESULT: ${{ needs.architecture-governance.result }}
+          PERSISTENCE_RESULT: ${{ needs.persistence-contract.result }}
+          GODOT_RESULT: ${{ needs.godot-contract.result }}
+          DOCS_RESULT: ${{ needs.docs-build.result }}
+          TOOLCHAIN_RESULT: ${{ needs.toolchain.result }}
+          RELEASE_RESULT: ${{ needs.release-contract.result }}
+          RUNTIME_SMOKE_RESULT: ${{ needs.runtime-smoke.result }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          base_sha="${BASE_SHA:-$(git rev-parse HEAD^)}"
-          if ! git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
-            base_sha="$(git rev-parse HEAD^)"
-          fi
-          bash scripts/pre_submit_gate.sh \
-            --stage full --direct-full --base-sha "$base_sha" --no-cache
+          [[ "$PREFLIGHT_RESULT" == "success" && "$FULL_SELECTED" == "true" ]] || {
+            echo "full validation preflight did not select the complete graph" >&2
+            exit 1
+          }
+          for result in \
+            "$SECURITY_RESULT" "$PYTHON_RESULT" "$PYTHON_QUALITY_RESULT" \
+            "$WEB_RESULT" "$DESKTOP_RESULT" "$DEVTOOLS_RESULT" \
+            "$ARCHITECTURE_RESULT" "$PERSISTENCE_RESULT" "$GODOT_RESULT" \
+            "$DOCS_RESULT" "$TOOLCHAIN_RESULT" "$RELEASE_RESULT" \
+            "$RUNTIME_SMOKE_RESULT"; do
+            [[ "$result" == "success" ]] || {
+              echo "a full-validation lane finished as $result" >&2
+              exit 1
+            }
+          done
+          echo "Complete parallel backstop passed for ${{ needs.preflight.outputs.candidate_sha }}"
+      - name: Report full-backstop latency
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          run_json="$RUNNER_TEMP/workflow-run.json"
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --output "$run_json"
+          python3 - "$run_json" "$GITHUB_STEP_SUMMARY" <<'PY'
+          import datetime as dt
+          import json
+          import sys
+
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          started = dt.datetime.fromisoformat(payload["created_at"].replace("Z", "+00:00"))
+          elapsed = int((dt.datetime.now(dt.timezone.utc) - started).total_seconds())
+          with open(sys.argv[2], "a", encoding="utf-8") as summary:
+              summary.write("## Complete backstop timing\n\n")
+              summary.write(f"- All-surface parallel backstop: {elapsed}s\n")
+              summary.write("- Main tips use two non-cancelling parity slots per lane.\n")
+          PY

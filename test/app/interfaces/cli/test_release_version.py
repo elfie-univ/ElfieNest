@@ -7,7 +7,7 @@ from pathlib import Path
 
 from test.support.paths import PROJECT_ROOT
 
-VERSION_CHECK = PROJECT_ROOT / "scripts" / "check_release_version.py"
+VERSION_CHECK = PROJECT_ROOT / "scripts" / "quality" / "checks" / "release_version.py"
 
 
 def test_release_version_check_accepts_repository_metadata() -> None:
@@ -24,7 +24,7 @@ def test_release_version_check_accepts_repository_metadata() -> None:
 
     # Then: every application-facing manifest agrees with pyproject.toml.
     assert result.returncode == 0, result.stderr
-    assert "release-version-ok version=0.1.0-beta.1" in result.stdout
+    assert "release-version-ok version=0.1.0-beta.2" in result.stdout
 
 
 def test_release_version_check_rejects_mismatched_frontend_manifest(

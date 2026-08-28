@@ -7,7 +7,7 @@ host can bind a loopback socket:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
+  uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 The preflight does not skip or downgrade any test. It returns:
@@ -77,9 +77,9 @@ assertion change or a silent loss of a product feature.
 ## Architecture-governance checks
 
 ```bash
-uv run --no-sync python scripts/architecture/app_layer_scan.py \
+uv run --no-sync python scripts/governance/boundaries/app_layers.py \
   --project-root . --mode deny-all
-uv run --no-sync python scripts/architecture/system_layer_scan.py \
+uv run --no-sync python scripts/governance/boundaries/system_layers.py \
   --project-root . --mode deny-all
 uv run --no-sync pytest test/architecture/
 ```
@@ -95,7 +95,7 @@ judges itself. See the
 ## Quality gate
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/check_quality_baseline.py
+UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/quality/checks/python_baseline.py
 PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
 ```
 
@@ -105,28 +105,30 @@ rewriting the baseline.
 
 ## Affected validation and full backstop
 
-Fetch the remote `main` base, then run affected local validation:
+Install the staged-only commit hook once per clone/worktree setup:
 
 ```bash
-git fetch --prune origin main
-bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})"
-# feature push: use --stage push
-# explicit full or release replay: use --stage full
+bash scripts/quality/hooks/install.sh
 ```
 
-G1 (`commit`) checks changed files and affected tests. G2
-(`push`) adds the quality baseline and affected API, persistence, architecture
-or documentation integration checks. Ordinary submission stops there locally.
-The exact PR head is routed by the immutable-base manifest; selected lanes run
-in parallel and aggregate as `elfienest/ci-gate`. Main movement alone does not
-invalidate that head. The native merge queue then runs the seconds-long
-`elfienest/merge-gate` on the synthetic merge.
+Development runs focused tests before staging. `git commit` then checks only
+the real staged snapshot: diff whitespace, pinned Gitleaks, and Ruff
+check/format for staged Python files. The warm target is 20 seconds. The hook
+does not run tests, MyPy, pnpm, Godot, fetch, or any network operation, and no
+test-bearing pre-push hook is installed.
+
+An ordinary push starts immediately after that hook. The exact PR head is
+routed by the immutable-base manifest; security-fast, affected Python tests,
+the full Python quality baseline and the other selected lanes run in parallel
+and aggregate as `elfienest/ci-gate`. Main movement alone does not invalidate
+that head. The native merge queue then runs the seconds-long
+`elfienest/merge-gate` on the synthetic merge. `--stage commit` remains an
+explicit reusable local checkpoint and `--stage push` an optional affected
+integration replay; neither is an ordinary push prerequisite.
 
 Successful deterministic test checks are keyed by command, scoped input contents and
 file modes, the required immutable base, and local tools—not by delivery tier.
-G2 therefore reuses an unchanged focused test already passed by G1. The full
-post-submit/release pytest backstop is split into the registered top-level packages `app`,
+The full post-submit/release Python backstop is split into the registered top-level packages `app`,
 `architecture`, `devtools`, `e2e`, `elfie`, `godot`, `infrastructure`, `nest`
 and `scripts`. It runs only missing or invalidated bundles. Bundle inputs include
 the transitive local Python imports of their tests and shared `conftest.py`
@@ -140,10 +142,10 @@ and resumes with the failed or still-missing bundle.
 Run reusable focused or complete-bundle checks through the controlled runner:
 
 ```bash
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --base-sha "$(git rev-parse origin/main^{commit})" \
   --selectors test/app/features/setup/
-.venv/bin/python3 scripts/architecture/validation_test_bundles.py \
+.venv/bin/python3 scripts/quality/validation/test_bundles.py \
   --bundle godot
 ```
 
@@ -163,8 +165,12 @@ ignored `build/validation-cache/` and never replace CI for a new commit SHA.
 
 If a selected premerge lane or merge gate fails, do not merge. Unknown,
 governance, toolchain and lockfile changes fail closed by selecting every lane.
-The complete G3 runs after main, on explicit `--stage full`, and for release;
-a newest-main red result quarantines ordinary merges until recovery.
+After main, the complete backstop selects every CI lane rather than rerunning a
+serial local-style script: Python bundles and quality, Web, Desktop, Developer
+Tools, architecture, persistence, Godot, docs, toolchain, release and runtime
+smoke all fan out in parallel. Each main lane uses two non-cancelling parity
+slots that retain running work and coalesce obsolete pending tips. A newest-main
+red result quarantines ordinary merges until recovery.
 
 ### Failure repair ladder
 

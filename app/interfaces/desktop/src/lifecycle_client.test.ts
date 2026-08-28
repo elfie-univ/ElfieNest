@@ -159,12 +159,54 @@ test("managed lifecycle client attaches to a ready CLI-owned Runtime without sta
   ]);
 });
 
+test("an explicit retry retains ownership of its already-ready lease", async () => {
+  const runner = commandRunner([
+    READY_DATA_HOME,
+    JSON.stringify({
+      instance_id: "runtime-owned-retry",
+      state: "world_ready",
+      tier: "world_ready",
+      phase: "world_ready",
+      generation: 12,
+      owner_lease: { owner_id: "desktop-retry" },
+      components: [{ name: "core", state: "ready", pid: 7012 }],
+      endpoints: [{ name: "http", scheme: "http", host: "127.0.0.1", port: 18112 }],
+    }),
+  ]);
+  const client = new ManagedRuntimeLifecycleClient("desktop-retry", runner);
+
+  await selectTestDataHome(client);
+  const attachment = await client.attachOrStart();
+
+  assert.deepEqual(attachment, {
+    kind: "owned",
+    generation: 12,
+    ownerLease: "desktop-retry",
+    dataHome: "/Users/test/.elfienest",
+    httpUrl: "http://127.0.0.1:18112/",
+  });
+});
+
 test("managed lifecycle client refuses an external checkout without a verified owner lease", async () => {
   // Given: another checkout already serves the Core, without a Desktop owner lease.
   const runner = commandRunner([
-    JSON.stringify({ state: "core_ready", tier: "core_ready", phase: "failed", generation: 0, owner_lease: null }),
+    JSON.stringify({
+      state: "core_ready",
+      tier: "core_ready",
+      phase: "failed",
+      generation: 0,
+      owner_lease: null,
+      instance_id: "runtime-external",
+      components: [{ name: "core", state: "ready", pid: 7000 }],
+      endpoints: [{ name: "http", scheme: "http", host: "127.0.0.1", port: 18100 }],
+    }),
   ]);
-  const client = new ManagedRuntimeLifecycleClient("desktop-external", runner);
+  const client = new ManagedRuntimeLifecycleClient(
+    "desktop-external",
+    runner,
+    async () => ({ kind: "healthy" }),
+    () => "alive",
+  );
 
   // When: packaged Desktop requests an attachment.
   const attachment = await client.attachOrStart();
@@ -388,14 +430,22 @@ test("managed lifecycle client keeps the owned Core after authority failure", as
       owner_lease: null,
     }),
     JSON.stringify({
+      instance_id: "runtime-instance-14",
       state: "core_ready",
       tier: "core_ready",
       phase: "failed",
       generation: 14,
       owner_lease: { owner_id: "desktop-14" },
+      components: [{ name: "core", state: "ready", pid: 7014 }],
+      endpoints: [{ name: "http", scheme: "http", host: "127.0.0.1", port: 18114 }],
     }),
   ]);
-  const client = new ManagedRuntimeLifecycleClient("desktop-14", runner);
+  const client = new ManagedRuntimeLifecycleClient(
+    "desktop-14",
+    runner,
+    async () => ({ kind: "healthy" }),
+    () => "alive",
+  );
 
   await selectTestDataHome(client);
   await client.attachOrStart();
@@ -407,8 +457,35 @@ test("managed lifecycle client keeps the owned Core after authority failure", as
     generation: 14,
     ownerLease: "desktop-14",
     dataHome: "/Users/test/.elfienest",
+    httpUrl: "http://127.0.0.1:18114/",
   });
   assert.equal(runner.calls.length, callsAfterStartup);
+});
+
+test("managed lifecycle client refuses a stale failed Core projection from another owner", async () => {
+  const runner = commandRunner([
+    JSON.stringify({
+      state: "core_ready",
+      tier: "core_ready",
+      phase: "failed",
+      generation: 15,
+      owner_lease: { owner_id: "desktop-other" },
+      instance_id: "runtime-instance-15",
+      components: [{ name: "core", state: "ready", pid: 7015 }],
+      endpoints: [{ name: "http", scheme: "http", host: "127.0.0.1", port: 18115 }],
+    }),
+  ]);
+  const client = new ManagedRuntimeLifecycleClient(
+    "desktop-stale",
+    runner,
+    async () => ({ kind: "transport_failure", detail: "connection refused" }),
+    () => "absent",
+  );
+
+  const attachment = await client.attachOrStart();
+
+  assert.equal(attachment.kind, "failed");
+  assert.deepEqual(runner.calls, [{ argumentsList: ["status", "--json"] }]);
 });
 
 test("repeated healthy owned Runtime maintenance does not launch the management CLI", async () => {
@@ -729,6 +806,165 @@ test("sustained Core transport failure triggers one atomic recovery after 60 sec
   ]);
 });
 
+test("an automatically recovered generation cannot start a cross-generation crash loop", async () => {
+  const ownedStatus = {
+    state: "world_ready",
+    tier: "world_ready",
+    phase: "world_ready",
+    owner_lease: { owner_id: "desktop-loop" },
+  } as const;
+  const runner = commandRunner([
+    READY_DATA_HOME,
+    JSON.stringify({
+      state: "offline",
+      tier: "offline",
+      phase: "offline",
+      generation: 0,
+      owner_lease: null,
+    }),
+    JSON.stringify({
+      ...ownedStatus,
+      instance_id: "runtime-loop-30",
+      generation: 30,
+      components: [{ name: "core", state: "ready", pid: 7030 }],
+      endpoints: [{ name: "http", scheme: "http", host: "127.0.0.1", port: 18130 }],
+    }),
+    JSON.stringify({
+      ...ownedStatus,
+      instance_id: "runtime-loop-31",
+      generation: 31,
+      components: [{ name: "core", state: "ready", pid: 7031 }],
+      endpoints: [{ name: "http", scheme: "http", host: "127.0.0.1", port: 18131 }],
+    }),
+    "stopped",
+  ]);
+  const client = new ManagedRuntimeLifecycleClient(
+    "desktop-loop",
+    runner,
+    async () => ({ kind: "transport_failure", detail: "connection refused" }),
+    () => "absent",
+    () => 0,
+  );
+  await selectTestDataHome(client);
+  await client.attachOrStart();
+  const callsAfterStartup = runner.calls.length;
+
+  const recovered = await client.recoverOwnedRuntime("desktop-loop");
+  const tripped = await client.recoverOwnedRuntime("desktop-loop");
+  const repeated = await client.recoverOwnedRuntime("desktop-loop");
+
+  assert.equal(recovered.kind, "owned");
+  if (recovered.kind === "owned") {
+    assert.equal(recovered.generation, 31);
+  }
+  assert.equal(tripped.kind, "failed");
+  assert.equal(repeated.kind, "failed");
+  if (tripped.kind === "failed") {
+    assert.match(tripped.reason, /10 minutes of continuous health/u);
+  }
+  assert.deepEqual(runner.calls.slice(callsAfterStartup), [
+    {
+      argumentsList: [
+        "--__controller-action",
+        "recover-owned",
+        "--__controller-data-home",
+        "/Users/test/.elfienest",
+        "--__controller-owner-id",
+        "desktop-loop",
+        "--__controller-instance-id",
+        "runtime-loop-30",
+        "--__controller-generation",
+        "30",
+        "--__controller-core-pid",
+        "7030",
+        "--__controller-reason",
+        "process-absent",
+      ],
+    },
+    { argumentsList: ["stop", "--owner-id", "desktop-loop"] },
+  ]);
+});
+
+test("ten minutes of continuous recovered-generation health reopens one recovery budget", async () => {
+  const ownedStatus = {
+    state: "world_ready",
+    tier: "world_ready",
+    phase: "world_ready",
+    owner_lease: { owner_id: "desktop-stable" },
+  } as const;
+  const runner = commandRunner([
+    READY_DATA_HOME,
+    JSON.stringify({
+      state: "offline",
+      tier: "offline",
+      phase: "offline",
+      generation: 0,
+      owner_lease: null,
+    }),
+    JSON.stringify({
+      ...ownedStatus,
+      instance_id: "runtime-stable-40",
+      generation: 40,
+      components: [{ name: "core", state: "ready", pid: 7040 }],
+      endpoints: [{ name: "http", scheme: "http", host: "127.0.0.1", port: 18140 }],
+    }),
+    JSON.stringify({
+      ...ownedStatus,
+      instance_id: "runtime-stable-41",
+      generation: 41,
+      components: [{ name: "core", state: "ready", pid: 7041 }],
+      endpoints: [{ name: "http", scheme: "http", host: "127.0.0.1", port: 18141 }],
+    }),
+    JSON.stringify({
+      ...ownedStatus,
+      instance_id: "runtime-stable-42",
+      generation: 42,
+      components: [{ name: "core", state: "ready", pid: 7042 }],
+      endpoints: [{ name: "http", scheme: "http", host: "127.0.0.1", port: 18142 }],
+    }),
+  ]);
+  let now = 0;
+  let probeIndex = 0;
+  const client = new ManagedRuntimeLifecycleClient(
+    "desktop-stable",
+    runner,
+    async () => {
+      probeIndex += 1;
+      return probeIndex === 2 || probeIndex === 3
+        ? { kind: "healthy" }
+        : { kind: "transport_failure", detail: "connection refused" };
+    },
+    () => "absent",
+    () => now,
+  );
+  await selectTestDataHome(client);
+  await client.attachOrStart();
+
+  const firstRecovery = await client.recoverOwnedRuntime("desktop-stable");
+  assert.equal(firstRecovery.kind, "owned");
+  if (firstRecovery.kind === "owned") {
+    assert.equal(firstRecovery.generation, 41);
+  }
+  await client.recoverOwnedRuntime("desktop-stable");
+  now = 10 * 60_000;
+  await client.recoverOwnedRuntime("desktop-stable");
+  now += 1;
+  const secondRecovery = await client.recoverOwnedRuntime("desktop-stable");
+
+  assert.equal(secondRecovery.kind, "owned");
+  if (secondRecovery.kind === "owned") {
+    assert.equal(secondRecovery.generation, 42);
+  }
+  assert.equal(
+    runner.calls.filter((call) => call.argumentsList.includes("recover-owned")).length,
+    2,
+  );
+  assert.equal(
+    runner.calls.filter((call) => call.argumentsList[0] === "stop").length,
+    0,
+  );
+});
+
 test("identity and protocol failures never launch automatic recovery", async () => {
   const runner = commandRunner([
     READY_DATA_HOME,
@@ -776,7 +1012,8 @@ test("identity and protocol failures never launch automatic recovery", async () 
     maintained.push(await client.recoverOwnedRuntime("desktop-22"));
   }
 
-  assert.deepEqual(maintained, Array.from({ length: 10 }, () => started));
+  assert.equal(started.kind, "owned");
+  assert.ok(maintained.every((attachment) => attachment.kind === "failed"));
   assert.equal(runner.calls.length, callsAfterStartup);
   assert.equal(processProbeCount, 0);
 });

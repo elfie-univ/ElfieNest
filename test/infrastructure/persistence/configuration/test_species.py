@@ -64,6 +64,18 @@ def test_species_assets_are_validated_inside_their_package(tmp_path: Path) -> No
     assert headshot != full_body
 
 
+def test_species_digest_is_stable_across_text_checkout_newlines(tmp_path: Path) -> None:
+    root = tmp_path / "config"
+    shutil.copytree(resolve_bundled_config_root(), root)
+    for path in (root / "species").rglob("*"):
+        if path.is_file() and path.suffix.lower() in {".yaml", ".yml"}:
+            path.write_bytes(
+                path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+            )
+
+    assert load_species_catalog(root=root).digest == load_species_catalog().digest
+
+
 def test_published_species_rejects_invalid_png_members(tmp_path: Path) -> None:
     root = tmp_path / "config"
     shutil.copytree(resolve_bundled_config_root(), root)

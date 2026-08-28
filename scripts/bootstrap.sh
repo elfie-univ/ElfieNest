@@ -1,6 +1,6 @@
 #!/bin/bash
 # ElfieNest unified dependency orchestrator
-# Usage: bootstrap <check|ensure|report> [--tier=dev|build]
+# Usage: bootstrap <check|ensure|report|hooks> [--tier=dev|build]
 
 set -euo pipefail
 
@@ -22,7 +22,7 @@ RESET=$'\e[0m'
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        check|ensure|report)
+        check|ensure|report|hooks)
             ACTION="$1"
             shift
             ;;
@@ -86,8 +86,33 @@ check_python() {
     return 0
 }
 
+check_dev_python_tools() {
+    [[ -x "$PROJECT_ROOT/.venv/bin/pre-commit" ]] && \
+        [[ -x "$PROJECT_ROOT/.venv/bin/ruff" ]]
+}
+
+check_managed_git_hook() {
+    local worktree_state
+    worktree_state="$(
+        git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree 2>/dev/null || true
+    )"
+    if [[ "$worktree_state" != "true" ]]; then
+        return 0
+    fi
+
+    local hook_path
+    hook_path="$(
+        git -C "$PROJECT_ROOT" rev-parse \
+            --path-format=absolute --git-path hooks/pre-commit 2>/dev/null
+    )" || return 1
+    [[ -x "$hook_path" ]] && \
+        grep -Fq "ElfieNest managed pre-commit hook" "$hook_path"
+}
+
 ensure_python() {
-    if check_python && [[ "${ELFIENEST_FORCE_LOCKED_SYNC:-0}" != "1" ]]; then
+    if check_python && \
+        [[ "${ELFIENEST_FORCE_LOCKED_SYNC:-0}" != "1" ]] && \
+        { [[ "$TIER" != "dev" ]] || check_dev_python_tools; }; then
         echo "${GREEN}  ✅ Python $PINNED_PYTHON_VERSION is ready${RESET}"
         return 0
     fi
@@ -275,27 +300,40 @@ ensure_electron() {
     echo "${GREEN}  ✅ Electron authority host is ready${RESET}"
 }
 
-RUNTIME_DEPENDENCIES_HELPER="$SCRIPT_DIR/bootstrap_runtime_dependencies.sh"
+RUNTIME_DEPENDENCIES_HELPER="$SCRIPT_DIR/internal/bootstrap/runtime_dependencies.sh"
 if [[ ! -f "$RUNTIME_DEPENDENCIES_HELPER" ]]; then
     echo "${RED}❌ Missing runtime dependency module: $RUNTIME_DEPENDENCIES_HELPER${RESET}" >&2
     exit 1
 fi
-# shellcheck source=scripts/bootstrap_runtime_dependencies.sh
+# shellcheck source=scripts/internal/bootstrap/runtime_dependencies.sh
 source "$RUNTIME_DEPENDENCIES_HELPER"
 
-REPORT_HELPER="$SCRIPT_DIR/bootstrap_report.sh"
+REPORT_HELPER="$SCRIPT_DIR/internal/bootstrap/report.sh"
 if [[ ! -f "$REPORT_HELPER" ]]; then
     echo "${RED}❌ Missing dependency report module: $REPORT_HELPER${RESET}" >&2
     exit 1
 fi
-# shellcheck source=scripts/bootstrap_report.sh
+# shellcheck source=scripts/internal/bootstrap/report.sh
 source "$REPORT_HELPER"
+
+ensure_git_hooks() {
+    local installer="$SCRIPT_DIR/quality/hooks/install.sh"
+    if [[ ! -x "$installer" ]]; then
+        echo "${RED}  ❌ Missing Git hook installer: $installer${RESET}" >&2
+        return 1
+    fi
+    bash "$installer"
+}
 
 # ============================================================================
 # Main flow
 # ============================================================================
 
 main() {
+    if [[ "$ACTION" == "hooks" ]]; then
+        ensure_git_hooks
+        return $?
+    fi
     if [[ "$ACTION" == "report" ]]; then
         emit_bootstrap_report
         return $?
@@ -314,14 +352,36 @@ main() {
     if [[ "$ACTION" == "ensure" ]]; then
         ensure_python || exit_code=1
     else
-        if check_python; then
+        if check_python && \
+            { [[ "$TIER" != "dev" ]] || check_dev_python_tools; }; then
             echo "${GREEN}  ✅ Python $PINNED_PYTHON_VERSION is ready${RESET}"
         else
-            echo "${RED}  ❌ Python is missing or version mismatched${RESET}"
+            if [[ "$TIER" == "dev" ]]; then
+                echo "${RED}  ❌ Python runtime or required development tools are missing${RESET}"
+            else
+                echo "${RED}  ❌ Python is missing or version mismatched${RESET}"
+            fi
             exit_code=1
         fi
     fi
     echo ""
+
+    if [[ "$TIER" == "dev" ]]; then
+        echo "📦 Repository Git hooks"
+        if [[ "$ACTION" == "ensure" ]]; then
+            if [[ $exit_code -eq 0 ]]; then
+                ensure_git_hooks || exit_code=1
+            else
+                echo "${YELLOW}  ⚠️  Skipped until the Python environment is ready${RESET}"
+            fi
+        elif check_managed_git_hook; then
+            echo "${GREEN}  ✅ ElfieNest managed pre-commit hook is ready${RESET}"
+        else
+            echo "${RED}  ❌ ElfieNest managed pre-commit hook is missing${RESET}" >&2
+            exit_code=1
+        fi
+        echo ""
+    fi
 
     # Node.js (dev tier)
     if [[ "$TIER" == "dev" ]]; then

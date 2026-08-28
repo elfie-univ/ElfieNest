@@ -1,6 +1,7 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+GODOT_HOST_ENTRYPOINT = PROJECT_ROOT / "scripts/quality/checks/godot_host.sh"
 
 
 def test_normal_submit_gate_has_no_godot_startup_entrypoint() -> None:
@@ -12,9 +13,7 @@ def test_normal_submit_gate_has_no_godot_startup_entrypoint() -> None:
 
 
 def test_host_validation_entrypoint_is_explicit_and_single_shot() -> None:
-    entrypoint = (PROJECT_ROOT / "scripts" / "godot_host_validate.sh").read_text(
-        encoding="utf-8"
-    )
+    entrypoint = GODOT_HOST_ENTRYPOINT.read_text(encoding="utf-8")
 
     assert "godot_guard.py" in entrypoint
     assert "status" in entrypoint
@@ -26,8 +25,12 @@ def test_host_validation_entrypoint_is_explicit_and_single_shot() -> None:
 
 def test_toolchain_callers_delegate_project_execution_to_shared_runner() -> None:
     source_paths = (
-        PROJECT_ROOT / "scripts" / "godot_species_validation.py",
-        PROJECT_ROOT / "scripts" / "build_godot_dedicated.py",
+        PROJECT_ROOT
+        / "infrastructure"
+        / "godot"
+        / "artifacts"
+        / "species_package_validation.py",
+        PROJECT_ROOT / "scripts/internal/build/build_godot_dedicated.py",
         PROJECT_ROOT / "infrastructure" / "godot" / "artifacts" / "web_build.py",
         PROJECT_ROOT
         / ".agents"
@@ -46,7 +49,7 @@ def test_toolchain_callers_delegate_project_execution_to_shared_runner() -> None
 
 def test_bootstrap_delegates_version_probes_to_shared_runner() -> None:
     bootstrap = (
-        PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh"
+        PROJECT_ROOT / "scripts/internal/bootstrap/runtime_dependencies.sh"
     ).read_text(encoding="utf-8")
 
     assert "infrastructure.godot.runner" in bootstrap

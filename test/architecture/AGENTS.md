@@ -16,7 +16,8 @@
 - 变更分类攻击测试必须覆盖全仓实现表面，不得只用 `app/` 或某个当前违规目录举例。
   `devtools/`、普通脚本、根入口、普通测试、Manifest、文档站代码和 Workflow 至少各有
   一个代表用例；同时证明架构 Scanner/测试的治理身份优先、普通说明文档保持中立。
-- 扫描器放在 `scripts/architecture/` 供本地测试和 CI 复用；测试验证扫描算法、契约
+- Scanner 按职责放在 `scripts/governance/`，验证选择与证据复用位于
+  `scripts/quality/`，供本地测试和 CI 复用；测试验证扫描算法、契约
   路径、临时债务生命周期和主分支 ratchet。
 - `test_app_layer_boundaries.py` 约束 App 内部分层；`test_system_layer_boundaries.py`
   约束 `app`、`elfie`、`nest`、目标 `infrastructure` 之间的系统级边界。两套规则
@@ -24,5 +25,6 @@
 - `test_effective_dependency_boundaries.py` 必须同时攻击模块命令、脚本路径、动态加载、
   Node 子进程、Godot、Shell 与未知源码根目标，并跨 Interface、Feature、Core、
   Infrastructure、Bootstrap、Scripts 与 Developer Tools 所有权验证允许和禁止方向。
-- 删除或弱化规则属于治理变更，必须同步 ADR/契约并与实现侧文件分开审查。
+- 删除或弱化规则属于治理变更，必须同步 ADR/契约并使用独立本地 commit；候选实现仍由
+  不可变基础规则检查，不能借同一最终 PR 中的候选规则放宽而通过。
 - 只运行与本次边界变化直接相关的架构测试；不得把产品功能断言塞进本目录。

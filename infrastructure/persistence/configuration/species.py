@@ -71,6 +71,7 @@ _REQUIRED_SHAPE_CORRELATIONS = (
     "Face_LowerFullness",
 )
 _REQUIRED_SEMANTIC_CONTROLS = ("stature", "build", "face", "signature")
+_TEXT_DIGEST_SUFFIXES = frozenset((".json", ".txt", ".yaml", ".yml"))
 
 
 class SpeciesCatalogError(ConfigDocumentError):
@@ -868,9 +869,25 @@ def _catalog_digest(root: Path) -> str:
     for path in sorted(item for item in root.rglob("*") if item.is_file()):
         digest.update(path.relative_to(root).as_posix().encode("utf-8"))
         digest.update(b"\0")
-        digest.update(path.read_bytes())
+        digest.update(_digest_bytes(path))
         digest.update(b"\0")
     return digest.hexdigest()
+
+
+def _digest_bytes(path: Path) -> bytes:
+    """Hash text members canonically so Windows checkout newlines match CI."""
+    data = path.read_bytes()
+    if path.suffix.lower() not in _TEXT_DIGEST_SUFFIXES:
+        return data
+    try:
+        return (
+            data.decode("utf-8")
+            .replace("\r\n", "\n")
+            .replace("\r", "\n")
+            .encode("utf-8")
+        )
+    except UnicodeDecodeError:
+        return data
 
 
 def _validate_catalog(catalog: SpeciesCatalog) -> None:

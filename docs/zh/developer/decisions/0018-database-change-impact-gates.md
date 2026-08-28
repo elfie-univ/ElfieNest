@@ -19,7 +19,7 @@ API 夹具使用。一个看似只影响某个 Repository 的改动，可能改�
 
 1. `infrastructure/persistence/AGENTS.md` 要求变更前完成影响盘点，明确生命周期与失败
    分析，并把数据库工作与产品/UI/运行时改动分开。
-2. `scripts/architecture/database_change_scan.py` 提供 schema 对象和 SQL 消费方的只读
+2. `scripts/governance/persistence/scan.py` 提供 schema 对象和 SQL 消费方的只读
    盘点。它是变更前必须执行的第一条审查命令；改动后必须重新执行，确认完整消费面。
 3. `test/architecture/test_database_change_boundaries.py` 与现有架构测试共同约束持久化
    边界，拒绝把临时进程状态嵌入最终精灵表。CI 会运行这些测试。

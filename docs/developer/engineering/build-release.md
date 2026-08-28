@@ -35,10 +35,10 @@ Before releasing you must confirm:
 4. The user has completed visual acceptance of the pages;
 5. The maintainer then decides when to commit, push and deploy.
 
-## 0.1.0-beta.1 internal-test desktop installer
+## 0.1.0-beta.2 internal-test desktop installer
 
 We currently build only internal-test installers: the version is pinned to
-`0.1.0-beta.1`, with no auto-update configured and no model weights, Ollama engine or
+`0.1.0-beta.2`, with no auto-update configured and no model weights, Ollama engine or
 models packaged. Ollama is an optional public dependency selected during Setup;
 an installer never creates a private sidecar.
 
@@ -50,16 +50,30 @@ and final installers only in `dist/`.
 
 The native targets are macOS `PKG`, Windows `NSIS`, and Linux `DEB`. Their
 installer hooks expose the packaged management CLI as the global `elfienest`
-command and remove only the launcher owned by that installation.
+command. POSIX hooks refuse to replace an existing command unless it is the
+exact symlink owned by the same package, and removal hooks delete only exact
+package-owned launchers. Windows adds and removes only its exact installation
+directory from the current user's PATH.
 
-The native runner invokes `scripts/release_install_smoke.py` through
-`scripts/release.py --run-install-smoke`. Each bounded cycle installs the
-package, starts through the global launcher, waits for `CORE_READY`/`WORLD_READY`,
-stops to `OFFLINE`, reinstalls the same package as the upgrade check, and then
-uninstalls it while proving the selected `ELFIE_HOME` remains. The resulting JSON
-contains typed install/start/health/stop/upgrade/uninstall durations and budgets;
+The native runner invokes `scripts/internal/release/release_install_smoke.py` through
+`scripts/release.py --run-install-smoke`. The release workflow runs three bounded
+cycles. With `--run-product-journey`, each cycle also starts a test-owned loopback
+model process and drives the installed Setup, Provider/Food, adoption, Chat and
+history path; cycle two and three use the same data home to exercise recovery.
+With `--run-recovery-matrix`, a duplicate installed start must retain the same
+Controller, generation and owned PID set. The lifecycle still installs the package,
+requires `WORLD_READY`, stops to `OFFLINE`, proves recorded PIDs and the Desktop
+receipt are gone, and reinstalls the same package. The final phase uninstalls the
+package while proving the selected `ELFIE_HOME` remains. With `--run-viewer-check`,
+the packaged Viewer is activated and must emit the redacted management-page-ready
+diagnostic marker; this is a minimum activation check, not a substitute for the
+full rendered UI journey. The resulting JSON contains
+the reached state, package/candidate identity, redacted model summary, recovery
+result and typed phase durations/budgets;
 the workflow uploads it beside the installer. A local build without
 `--run-install-smoke` does not mutate the host installation.
+The smoke runner resolves the Linux package name from the DEB before its initial
+cleanup and never performs an unconditional deletion of a global launcher.
 
 ```bash
 # Build the current native target locally; this does not upload or publish.
@@ -67,6 +81,7 @@ the workflow uploads it beside the installer. A local build without
 
 # Only on a disposable native release runner; also runs install/upgrade/smoke/uninstall.
 .venv/bin/python scripts/release.py --target darwin-x64 --run-install-smoke \
+  --run-product-journey --run-recovery-matrix --run-viewer-check --smoke-cycles 3 \
   --smoke-evidence-output dist/ElfieNest-darwin-x64-install-smoke.json
 
 # Ask the coordinator for all targets. Unavailable runners remain incomplete.
@@ -76,19 +91,26 @@ the workflow uploads it beside the installer. A local build without
 The checked-in `.github/workflows/release.yml` is the multi-platform release
 pipeline. It uses native GitHub-hosted runners for macOS arm64, macOS Intel,
 Windows x64, and Linux x64. A `workflow_dispatch` run builds all four installers
-and keeps them as Actions artifacts. Pushing a tag matching the project version,
-for example `v0.1.0-beta.1`, runs the same matrix, validates the native installer
-contents, and publishes only the four user-downloadable installers to GitHub
+and keeps them as Actions artifacts. Linux runs its real Desktop Controller under
+Xvfb and additionally verifies the packaged freedesktop entry. Before any costly
+native build, a small preflight binds the project version, existing release tag
+and exact `GITHUB_SHA`; a manual publish is rejected unless its tag already
+exists at that exact source commit. Pushing a matching tag, for example
+`v0.1.0-beta.2`, runs the same matrix, validates the native installer contents,
+and publishes the four user-downloadable installers plus `SHA256SUMS` to GitHub
 Releases. The typed install-smoke JSON remains in the Actions build artifact
-for CI evidence and is not presented as a Release download. Pre-release tags are published with GitHub's
+for CI evidence; the publish job independently aggregates all four summaries with
+exact candidate/package hashes and redaction sentinels before creating a Release.
+It is not presented as a Release download. Pre-release tags are published with GitHub's
 pre-release flag; a manual run only creates a Release when
-`publish_release` is enabled and `release_tag` is set to the matching tag.
+`publish_release` is enabled and `release_tag` is the matching existing tag at
+the workflow source SHA.
 
 For the current version, the normal publication command is:
 
 ```bash
-git tag -a v0.1.0-beta.1 -m "ElfieNest 0.1.0-beta.1"
-git push origin v0.1.0-beta.1
+git tag -a v0.1.0-beta.2 -m "ElfieNest 0.1.0-beta.2"
+git push origin v0.1.0-beta.2
 ```
 
 The workflow validates the installed resource layout for each package; it does

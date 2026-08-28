@@ -14,6 +14,20 @@ from test.app.interfaces.cli.entrypoint_test_support import (
 )
 
 
+def _copy_bootstrap_scripts(project_root: Path) -> Path:
+    scripts_dir = project_root / "scripts"
+    scripts_dir.mkdir()
+    for relative_path in (
+        "bootstrap.sh",
+        "internal/bootstrap/report.sh",
+        "internal/bootstrap/runtime_dependencies.sh",
+    ):
+        destination = scripts_dir / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(PROJECT_ROOT / "scripts" / relative_path, destination)
+    return scripts_dir
+
+
 def test_system_entrypoint_files_use_elfienest_name() -> None:
     # Given
     expected_files = (
@@ -83,19 +97,7 @@ def test_elfienest_entrypoint_dispatches_cli_to_elfienest_script(
     project_root.mkdir()
     shutil.copy2(PROJECT_ROOT / "elfienest.sh", project_root / "elfienest.sh")
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
-    scripts_dir = project_root / "scripts"
-    scripts_dir.mkdir()
-    shutil.copy2(
-        PROJECT_ROOT / "scripts" / "bootstrap.sh", scripts_dir / "bootstrap.sh"
-    )
-    shutil.copy2(
-        PROJECT_ROOT / "scripts" / "bootstrap_report.sh",
-        scripts_dir / "bootstrap_report.sh",
-    )
-    shutil.copy2(
-        PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh",
-        scripts_dir / "bootstrap_runtime_dependencies.sh",
-    )
+    scripts_dir = _copy_bootstrap_scripts(project_root)
     # This test exercises dispatch after a healthy dependency check; the
     # missing-dependency diagnostic is covered by the following test.
     write_executable(scripts_dir / "bootstrap.sh", "#!/bin/bash\nexit 0\n")
@@ -153,19 +155,7 @@ def test_entrypoint_explains_missing_dependencies_without_misreporting_python(
     project_root.mkdir()
     shutil.copy2(PROJECT_ROOT / "elfienest.sh", project_root / "elfienest.sh")
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
-    scripts_dir = project_root / "scripts"
-    scripts_dir.mkdir()
-    shutil.copy2(
-        PROJECT_ROOT / "scripts" / "bootstrap.sh", scripts_dir / "bootstrap.sh"
-    )
-    shutil.copy2(
-        PROJECT_ROOT / "scripts" / "bootstrap_report.sh",
-        scripts_dir / "bootstrap_report.sh",
-    )
-    shutil.copy2(
-        PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh",
-        scripts_dir / "bootstrap_runtime_dependencies.sh",
-    )
+    scripts_dir = _copy_bootstrap_scripts(project_root)
     (scripts_dir / "serve.py").write_text("", encoding="utf-8")
     write_executable(
         project_root / ".venv" / "bin" / "python3",

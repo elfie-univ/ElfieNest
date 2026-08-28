@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import uuid
 from dataclasses import dataclass
@@ -21,6 +22,7 @@ RETENTION_INTERVAL = timedelta(days=1)
 RAW_RETENTION = timedelta(days=30)
 LEASE_SECONDS = 120
 LOCAL_STATUS_REFRESH_LEASE_SECONDS = 300
+diagnostic_logger = logging.getLogger("elfienest.diagnostics.provider_validation")
 
 
 class ProviderHealthQuery(Protocol):
@@ -178,8 +180,18 @@ class ProviderValidationScheduler:
             self._stop.set()
         if thread is not None:
             thread.join(timeout=2.0)
+        if thread is not None and thread.is_alive():
+            diagnostic_logger.error(
+                "Provider validation scheduler did not stop within 2.0s",
+                extra={
+                    "diagnostic_event": "background_worker_stop_timeout",
+                    "component": "provider_validation",
+                },
+            )
+            return
         with self._lifecycle_lock:
-            self._thread = None
+            if self._thread is thread:
+                self._thread = None
 
     def _run(self) -> None:
         # Populate the local last-known snapshot once in the background when
@@ -189,9 +201,18 @@ class ProviderValidationScheduler:
         while not self._stop.wait(self._interval.total_seconds()):
             try:
                 self.run_once()
-            except Exception:
+            except Exception as error:
                 # A transient storage/projection error must not kill the
                 # long-lived scheduler thread.
+                diagnostic_logger.warning(
+                    "Provider validation scheduler pass failed",
+                    exc_info=True,
+                    extra={
+                        "diagnostic_event": "background_worker_pass_failed",
+                        "component": "provider_validation",
+                        "error_type": type(error).__name__,
+                    },
+                )
                 continue
 
     def _try_acquire(

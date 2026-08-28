@@ -15,6 +15,8 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from elfie.message_types import EventId
+
 from .memory_store import MemoryStorePort
 from .model_food import MemoryModelPort, ask_memory_model
 from .node_types import EdgeTypes, MemoryNode, NodeTypes
@@ -61,6 +63,7 @@ class MemoryEncoder:
         stimulus: str = None,
         sensory: dict = None,
         model_port: MemoryModelPort | None = None,
+        source_event_ids: tuple[EventId, ...] = (),
     ) -> str:
         """编码流程：
         1. 写入SensoryBuffer（事件先进缓冲）
@@ -89,6 +92,7 @@ class MemoryEncoder:
                 intensity=intensity,
                 stimulus=stimulus,
                 sensory=sensory,
+                source_event_ids=source_event_ids,
             )
 
             # 感官索引：将感官关键词持久化到 sensory_index 表
@@ -118,6 +122,7 @@ class MemoryEncoder:
         intensity: float,
         stimulus: str = None,
         sensory: dict = None,
+        source_event_ids: tuple[EventId, ...] = (),
     ) -> str:
         """创建episodic节点
 
@@ -137,6 +142,10 @@ class MemoryEncoder:
             "consolidated": False,
             "timestamp": timestamp,
             "sensory": dict(sensory or {}),
+            "source_event_ids": [str(event_id) for event_id in source_event_ids],
+            "recall_eligible": True,
+            "certainty": "medium",
+            "status": "active",
         }
 
         node = MemoryNode(
@@ -182,7 +191,7 @@ class MemoryEncoder:
                 if prev_ts_str:
                     try:
                         prev_ts = datetime.fromisoformat(prev_ts_str)
-                        now = datetime.now()
+                        now = datetime.now(prev_ts.tzinfo)
                         diff_minutes = (now - prev_ts).total_seconds() / 60.0
 
                         if diff_minutes < 5:

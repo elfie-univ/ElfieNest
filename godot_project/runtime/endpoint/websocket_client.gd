@@ -18,6 +18,9 @@ var _message_sequence := 0
 var _ws_url := ""
 var _next_reconnect_at := 0.0
 var _reconnect_attempt := 0
+var _incident_reconnect_attempts := 0
+var _total_reconnect_attempts := 0
+var _last_socket_state := WebSocketPeer.STATE_CLOSED
 
 
 func setup(ws_url: String, handshake_nonce: String) -> void:
@@ -30,9 +33,23 @@ func setup(ws_url: String, handshake_nonce: String) -> void:
 func process_frame() -> void:
 	_socket.poll()
 	var state := _socket.get_ready_state()
+	if state != _last_socket_state:
+		if state == WebSocketPeer.STATE_OPEN:
+			_log_runtime_event("runtime_websocket_opened", {}, "info")
+		elif state == WebSocketPeer.STATE_CLOSED:
+			_log_runtime_event(
+				"runtime_websocket_closed",
+				{
+					"close_code": _socket.get_close_code(),
+					"close_reason": _socket.get_close_reason(),
+				},
+				"warning",
+			)
+		_last_socket_state = state
 	if state == WebSocketPeer.STATE_OPEN and not _connected:
 		_connected = true
 		_reconnect_attempt = 0
+		_incident_reconnect_attempts = 0
 		_handshake_complete = false
 		_send_event(
 			"hello",
@@ -100,6 +117,11 @@ func _handle_message(raw_message: String) -> void:
 			return
 		_handshake_complete = true
 		runtime_generation = int(payload.get("generation", 0))
+		_log_runtime_event(
+			"runtime_websocket_handshake_complete",
+			{"generation": runtime_generation},
+			"info",
+		)
 		return
 	if _handshake_complete and String(message.get("kind", "")) == "command":
 		command_message.emit(message)
@@ -114,7 +136,22 @@ func _reconnect_when_due() -> void:
 		MAX_RECONNECT_DELAY_SEC,
 	)
 	_reconnect_attempt = mini(_reconnect_attempt + 1, 5)
+	_incident_reconnect_attempts += 1
+	_total_reconnect_attempts += 1
 	_next_reconnect_at = now + retry_delay
+	if (
+		_incident_reconnect_attempts <= 3
+		or _incident_reconnect_attempts % 60 == 0
+	):
+		_log_runtime_event(
+			"runtime_websocket_reconnect",
+			{
+				"attempt": _incident_reconnect_attempts,
+				"total_attempts": _total_reconnect_attempts,
+				"delay_seconds": retry_delay,
+			},
+			"warning",
+		)
 	_connect_websocket()
 
 
@@ -123,7 +160,28 @@ func _connect_websocket() -> void:
 	_connected = false
 	_handshake_complete = false
 	var connect_error := _socket.connect_to_url(_ws_url)
+	_last_socket_state = _socket.get_ready_state()
 	if connect_error != OK:
-		push_error(
-			"Runtime WebSocket connection could not be started: %d" % connect_error
+		_log_runtime_event(
+			"runtime_websocket_connect_failed",
+			{"error_code": connect_error},
+			"error",
 		)
+
+
+func _log_runtime_event(
+	event_name: String,
+	fields: Dictionary = {},
+	level: String = "info",
+) -> void:
+	var payload := {
+		"timestamp": "%sZ" % Time.get_datetime_string_from_system(true),
+		"event": event_name,
+		"level": level,
+		"role": "godot-runtime",
+		"runtime_id": runtime_id,
+		"generation": runtime_generation,
+	}
+	for key: Variant in fields:
+		payload[key] = fields[key]
+	print(JSON.stringify(payload))

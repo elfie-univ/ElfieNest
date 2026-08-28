@@ -3,6 +3,35 @@ import type { BrowserWindowConstructorOptions } from "electron";
 const DEFAULT_BACKGROUND_COLOR = "#fffaf1";
 export const MACOS_CONTENT_INSET_CSS = `
 @media (min-width: 641px) {
+  body::before {
+    position: fixed;
+    z-index: 10;
+    top: 0;
+    right: 0;
+    left: 72px;
+    height: 50px;
+    background: transparent;
+    content: "";
+    user-select: none;
+    -webkit-app-region: drag;
+  }
+  #app :is(button, a, input, textarea, select, [role="button"]) {
+    position: relative;
+    z-index: 11;
+    -webkit-app-region: no-drag;
+  }
+  .setup-locale-control,
+  .observation-monitor__toolbar {
+    z-index: 11 !important;
+    -webkit-app-region: no-drag;
+  }
+  .list-pane-head,
+  .topline,
+  .profile-dossier__identity {
+    position: relative;
+    z-index: 11 !important;
+    -webkit-app-region: no-drag;
+  }
   .manage-sidebar,
   .setup-rail,
   .app-rail {

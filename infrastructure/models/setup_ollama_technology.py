@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from typing import cast
-
+from app.orchestration.lifecycle.ports import ProcessIdentityReaderPort
 from app.orchestration.setup_installation import (
     SetupDownloadedInstaller,
     SetupOllamaBinding,
@@ -15,16 +14,32 @@ from infrastructure.models.ollama.ollama_platform import (
     OllamaPlatformAdapter,
     wait_for_healthy,
 )
-from infrastructure.models.ollama.ollama_platform_commands import official_launch_target
+from infrastructure.models.ollama.ollama_platform_commands import (
+    PlatformName,
+    official_launch_target,
+)
 
 
 class PublicOllamaSetupTechnologyAdapter:
-    def __init__(self, platform: OllamaPlatformAdapter | None = None) -> None:
-        self._platform = platform or OllamaPlatformAdapter()
+    def __init__(
+        self,
+        platform: OllamaPlatformAdapter | None = None,
+        *,
+        process_identity_reader: ProcessIdentityReaderPort | None = None,
+    ) -> None:
+        if platform is None:
+            if process_identity_reader is None:
+                raise ValueError(
+                    "PublicOllamaSetupTechnologyAdapter requires a process identity reader"
+                )
+            platform = OllamaPlatformAdapter(
+                process_identity_reader=process_identity_reader
+            )
+        self._platform = platform
 
     @property
-    def platform(self) -> str:
-        return cast(str, self._platform.platform)
+    def platform(self) -> PlatformName:
+        return self._platform.platform
 
     def default_binding(self) -> SetupOllamaBinding:
         try:

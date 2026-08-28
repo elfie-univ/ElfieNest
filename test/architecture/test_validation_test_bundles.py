@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-import scripts.architecture.validation_cache as validation_cache
-import scripts.architecture.validation_test_bundles as test_bundles
-from scripts.architecture.validation_cache import cache_store
+import scripts.quality.validation.cache as validation_cache
+import scripts.quality.validation.test_bundles as test_bundles
+from scripts.quality.validation.cache import cache_store
 
 EXPECTED_BUNDLES = {
     "app",
@@ -56,14 +56,12 @@ def test_repository_paths_ignore_local_runtime_links_and_generated_roots(
                 "venv/bin/python\n"
                 "build/coverage.xml\n"
                 "coverage.xml\n"
-                "scripts/architecture/validation_cache.py\n"
+                "scripts/quality/validation/cache.py\n"
             )
         ),
     )
 
-    assert test_bundles.repository_paths() == [
-        "scripts/architecture/validation_cache.py"
-    ]
+    assert test_bundles.repository_paths() == ["scripts/quality/validation/cache.py"]
 
 
 def test_bundle_inputs_are_conservative_but_do_not_include_unrelated_roots() -> None:
@@ -98,7 +96,7 @@ def test_bundle_inputs_cover_known_cross_root_consumers() -> None:
         "package.json",
         "pnpm-lock.yaml",
         "resources/config/default.yaml",
-        "scripts/build_devtools_web.py",
+        "scripts/internal/build/build_devtools_web.py",
         "test/devtools/nest_lab/test_world.py",
         "test/scripts/test_node_toolchain.py",
     ]
@@ -115,7 +113,7 @@ def test_bundle_inputs_cover_known_cross_root_consumers() -> None:
     )
 
     assert "nest/public.py" in devtools_inputs
-    assert "scripts/build_devtools_web.py" in devtools_inputs
+    assert "scripts/internal/build/build_devtools_web.py" in devtools_inputs
     assert "nest/public.py" in set(
         test_bundles.bundle_input_paths(
             test_bundles.bundle_by_id("elfie"), repository_paths
@@ -459,7 +457,7 @@ def test_pre_submit_uses_reusable_bundles_instead_of_monolithic_pytest() -> None
         encoding="utf-8"
     )
 
-    assert "validation_test_bundles.py" in source
+    assert "scripts/quality/validation/test_bundles.py" in source
     assert "pytest --cov --cov-report=xml --cov-report=term-missing" not in source
     assert "--direct-full" in source
     assert "BUNDLE_ARGS+=(--no-cache)" in source

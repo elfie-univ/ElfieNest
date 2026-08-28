@@ -8,6 +8,10 @@ import { getBrowserStorage, initializeLocale } from "./i18n/locale"
 import "./styles.css"
 import { SessionProvider } from "./stores/session"
 import { ToastProvider } from "./components/ui/toast"
+import {
+  installGlobalRendererDiagnostics,
+  reportRendererError,
+} from "./renderer_diagnostics"
 
 const i18nInstance = createI18n()
 initializeLocale(i18nInstance, {
@@ -29,7 +33,16 @@ if (import.meta.env.DEV) {
 const mount = document.querySelector<HTMLElement>("#app")
 if (mount === null) throw new Error("ERR_MISSING_APP_MOUNT")
 
-createRoot(mount).render(
+installGlobalRendererDiagnostics()
+
+createRoot(mount, {
+  onUncaughtError: (error, errorInfo) => {
+    reportRendererError("react_uncaught", error, errorInfo.componentStack)
+  },
+  onRecoverableError: (error, errorInfo) => {
+    reportRendererError("react_recoverable", error, errorInfo.componentStack)
+  },
+}).render(
   <StrictMode>
     <I18nextProvider i18n={i18nInstance}>
       <ToastProvider>

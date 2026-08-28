@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import (
     AsyncContextManager,
     Callable,
+    Final,
     Mapping,
     Protocol,
 )  # noqa: E402
@@ -62,6 +63,13 @@ from .v1.auth import verify_csrf_token
 
 logger = logging.getLogger("app.interfaces.api.app")
 
+_SETUP_INSTALLATION_MUTATION_PATHS: Final = frozenset(
+    {
+        "/api/v1/setup/installation",
+        "/api/v1/setup/installation/cancel",
+    }
+)
+
 
 class CommunicationRealtimePort(Protocol):
     """Same-origin connection surface consumed by the chat Interface."""
@@ -104,6 +112,26 @@ def verify_csrf_for_setup(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Setup CSRF token 无效")
 
 
+def _log_csrf_rejection(request: Request, error: HTTPException) -> None:
+    """Record safe presence/origin facts without ever logging credential values."""
+    cookies = request.cookies
+    logger.warning(
+        "CSRF rejected method=%s path=%s detail=%s "
+        "setup_cookie_present=%s setup_cookie_nonempty=%s "
+        "session_cookie_present=%s csrf_header_present=%s "
+        "request_host=%s origin=%s",
+        request.method,
+        request.url.path,
+        error_message(error.detail),
+        "setup_token" in cookies,
+        bool(cookies.get("setup_token")),
+        "session_token" in cookies,
+        bool(request.headers.get("X-CSRF-Token")),
+        request.url.hostname or "<none>",
+        request.headers.get("origin", "<none>"),
+    )
+
+
 # ---------------------------------------------------------------------------
 # 应用工厂
 # ---------------------------------------------------------------------------
@@ -134,7 +162,7 @@ def create_http_application(
     embodiment: EmbodimentSessionService,
     body_device_channel: BodyDeviceChannel,
     lifespan: Callable[[FastAPI], AsyncContextManager[None]],
-    engine_ready: bool,
+    engine_ready: Callable[[], bool],
     godot_web_ready: Callable[[], bool],
     godot_runtime_ready: Callable[[], bool],
     godot_web_dir: Path,
@@ -209,7 +237,9 @@ def create_http_application(
     async def global_exception_handler(
         request: Request, exc: Exception
     ) -> JSONResponse:
-        logger.exception("Unhandled exception: %s %s", request.method, request.url)
+        route = request.scope.get("route")
+        route_template = getattr(route, "path", "<unmatched>")
+        logger.exception("Unhandled exception: %s %s", request.method, route_template)
         return api_error_response(500, "internal_error", "Internal Server Error")
 
     @app.exception_handler(HTTPException)
@@ -259,13 +289,15 @@ def create_http_application(
                 try:
                     if path.startswith("/api/v1/setup/draft/"):
                         verify_csrf_for_setup(request)
-                    elif path == "/api/v1/setup/installation" and request.cookies.get(
-                        "setup_token"
+                    elif (
+                        path in _SETUP_INSTALLATION_MUTATION_PATHS
+                        and request.cookies.get("setup_token")
                     ):
                         verify_csrf_for_setup(request)
                     else:
                         verify_csrf_for_session(request)
                 except HTTPException as exc:
+                    _log_csrf_rejection(request, exc)
                     return api_error_response(
                         exc.status_code,
                         "csrf_rejected",
@@ -288,7 +320,7 @@ def create_http_application(
         generation = identity.get("generation")
         return HealthResponse(
             status="ok",
-            engine_ready=engine_ready,
+            engine_ready=engine_ready(),
             godot_web_ready=godot_web_ready(),
             godot_runtime_ready=godot_runtime_ready(),
             instance_id=(

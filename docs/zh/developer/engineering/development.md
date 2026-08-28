@@ -37,7 +37,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 # 需要完整回归时
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
+  uv run --no-sync python scripts/quality/checks/environment.py
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest test/
 ```
@@ -56,7 +56,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_baseline.py
+  uv run --no-sync python scripts/quality/checks/python_baseline.py
 
 PRE_COMMIT_HOME=/tmp/elfienest-precommit \
   uv run --no-sync pre-commit run --all-files
@@ -174,9 +174,10 @@ Electron 登录入口和移动浏览器。
 
 ## 提交前检查
 
-准备交付一组改动前运行受影响本地验证：普通 checkpoint 使用 G1，功能分支推送使用 G2。
-精确 PR 候选随后使用不可变基础 Manifest、`elfienest/ci-gate` 和原生 merge queue。完整 G3
-在 main 后或显式发布验证时运行。至少确认：
+准备交付一组改动前，运行由改动行为实际触发的聚焦测试。仓库管理的 commit hook 随后只检查
+staged diff、Gitleaks 和 staged Python Ruff。精确 PR 候选使用不可变基础 Manifest、
+`elfienest/ci-gate` 和原生 merge queue；完整全 Lane 后盾在 main 后或显式 full/发布验证
+时运行。至少确认：
 
 1. 改动直接对应的测试通过；
 2. 影响面 Manifest 选中架构边界时，架构测试通过；
@@ -186,14 +187,16 @@ Electron 登录入口和移动浏览器。
 6. README、架构文档与测试在新增目录或跨边界依赖后保持同步。
 
 ```bash
-git fetch --prune origin main
-bash scripts/pre_submit_gate.sh --stage commit \
-  --base-sha "$(git rev-parse origin/main^{commit})"
-# 功能分支推送使用 --stage push；显式完整/发布使用 --stage full
+bash scripts/quality/hooks/install.sh
+# 可选的可复用 checkpoint 或诊断重放：
+bash scripts/pre_submit_gate.sh --stage commit --base-sha <immutable-base>
+bash scripts/pre_submit_gate.sh --stage push --base-sha <immutable-base>
 ```
 
-成功结果只有声明输入完全一致时才能复用；未知、治理和工具链改动会选择全部预合并 Lane。
-不能只因 main 前进就把它合入候选；只有候选 SHA 变化或真实冲突才使证据失效。
+hook 的 warm 目标为 20 秒，不运行测试、MyPy、pnpm、Godot、fetch 或网络操作；普通 push
+不等待上述任一可选重放。成功结果只有声明输入完全一致时才能复用；未知、治理和工具链改动会
+选择全部预合并 Lane。不能只因 main 前进就把它合入候选；只有候选 SHA 变化或真实冲突才使
+证据失效。
 
 ```bash
 pnpm --dir docs install --frozen-lockfile

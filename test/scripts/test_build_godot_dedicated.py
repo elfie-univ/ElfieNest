@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
-from scripts.build_godot_dedicated import (
+from scripts.internal.build.build_godot_dedicated import (
     current_species_catalog_digest,
     runtime_is_current,
 )
@@ -48,10 +48,14 @@ def test_dedicated_runtime_is_current_with_only_linux_executable(
     project = tmp_path / "godot_project"
     project.mkdir()
     (project / "project.godot").write_text("[application]\n", encoding="utf-8")
-    monkeypatch.setattr("scripts.build_godot_dedicated.GODOT_PROJECT", project)
+    monkeypatch.setattr(
+        "scripts.internal.build.build_godot_dedicated.GODOT_PROJECT", project
+    )
     output = tmp_path / "runtime"
 
-    from scripts.build_godot_dedicated import current_source_fingerprint
+    from scripts.internal.build.build_godot_dedicated import (
+        current_source_fingerprint,
+    )
 
     _write_bundle(output, current_source_fingerprint())
 
@@ -67,13 +71,14 @@ def test_developer_entrypoint_exposes_the_dedicated_builder() -> None:
 
     # When / Then: it dispatches directly to the constrained dedicated builder.
     assert '"${1:-}" == "build-godot-dedicated"' in router
-    assert "scripts/build_godot_dedicated.py" in router
+    assert "scripts/internal/build/build_godot_dedicated.py" in router
 
 
 def test_dedicated_builder_is_importable_when_executed_as_a_script() -> None:
     # Given: the entrypoint is invoked exactly as developer.sh invokes it.
     script = (
-        Path(__file__).resolve().parents[2] / "scripts" / "build_godot_dedicated.py"
+        Path(__file__).resolve().parents[2]
+        / "scripts/internal/build/build_godot_dedicated.py"
     )
 
     # When: the builder checks a missing temporary bundle.

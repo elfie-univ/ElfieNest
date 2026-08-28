@@ -98,6 +98,7 @@ from infrastructure.persistence.provider_references import (
 )
 from infrastructure.persistence.provider_storage import ProviderStorageAdapter
 from infrastructure.persistence.report_storage import ReportStorageAdapter
+from infrastructure.platform.lifecycle.process import DefaultProcessIdentityReader
 
 from .app_wiring.accounts import build_accounts_service
 from .app_wiring.adoption import build_adoption_services
@@ -156,6 +157,7 @@ def build_application_container(
         data_home = data_home_from_db_path(db_path)
         provider_catalog_path = final_root_layout(data_home).provider_catalog_config
     provider_catalog = load_provider_catalog(provider_catalog_path)
+    process_identity_reader = DefaultProcessIdentityReader()
     identity_catalog = load_model_identities()
     system_defaults = load_system_defaults()
     species_catalog = load_and_configure_species_catalog()
@@ -286,7 +288,10 @@ def build_application_container(
         references=SQLiteProviderReferenceAdapter(db_path),
         technology=provider_models,
         local_state=provider_models,
-        local_technology=PublicOllamaProviderAdapter(catalog=provider_catalog),
+        local_technology=PublicOllamaProviderAdapter(
+            catalog=provider_catalog,
+            process_identity_reader=process_identity_reader,
+        ),
         local_status_cache=ollama_status_cache,
         oauth=OpenAIChatGptOAuthAdapter(oauth_credentials),
     )
@@ -368,6 +373,7 @@ def build_application_container(
         food_evidence=provider_evidence,
         catalog=provider_catalog,
         data_home=data_home,
+        process_identity_reader=process_identity_reader,
     )
     bodies = BodiesService(SQLiteBodiesAdapter(db_path))
     embodiment = EmbodimentSessionService(SQLiteEmbodimentLeaseAdapter(db_path))

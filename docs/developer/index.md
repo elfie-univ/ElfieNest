@@ -27,6 +27,8 @@ source of truth.
   Brain's conceptual systems, runtime relationships and incremental implementation order.
 - [Elfie Brain evaluation and evolution system](./designs/elfie-brain-evaluation-system):
   evidence-first Q6/P0 evaluation, constrained promotion and long-term evolution.
+- [Elfie Memory architecture](./designs/elfie-memory-architecture): episodic memory, the personal
+  knowledge graph and hybrid graph/text retrieval.
 - [Service lifecycle state-machine design](./designs/service-lifecycle-state-machine):
   stable service tiers, entrypoints, process ownership and convergence.
 - [Provider and endpoint-model availability](./designs/provider-model-availability):
@@ -49,6 +51,8 @@ source of truth.
   aggregate life-system migration pending governance-only removal. Brain
   conformance is complete and its contract is enforced by permanent
   architecture tests.
+- [Elfie Memory conformance](./conformance/elfie-memory): implementation status
+  and remaining external-acceptance gates for storage, consolidation, retrieval and migration.
 - [Application architecture contract](./contracts/application): the
   normative ownership, dependency, Port/Adapter and composition rules for new
   and migrated `app/` code.

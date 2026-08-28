@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections import deque
 from dataclasses import replace
 from datetime import datetime, timezone
 from threading import RLock
@@ -59,6 +60,8 @@ logger = logging.getLogger("app.orchestration.nest_session")
 SessionLifecycleState = Literal[
     "new", "starting", "running", "stopping", "stopped", "failed"
 ]
+_MAX_NEST_EVENT_DELIVERY_ATTEMPTS = 3
+_MAX_QUARANTINED_NEST_EVENT_DELIVERIES = 64
 
 
 class NestSession:
@@ -83,6 +86,10 @@ class NestSession:
             None
         )
         self._state_store = state_store
+        self._nest_event_delivery_attempts: dict[tuple[str, str], int] = {}
+        self._quarantined_nest_event_deliveries: deque[NestEventEnvelope] = deque(
+            maxlen=_MAX_QUARANTINED_NEST_EVENT_DELIVERIES
+        )
         snapshot = (
             state_store.load_snapshot()
             if state_store is not None
@@ -319,6 +326,7 @@ class NestSession:
                 self.nest.invalidate_runtime_state()
                 self._runtime_token = token
                 self._environment_sync_token = None
+                self._nest_event_delivery_attempts.clear()
             self._runtime_sync.poll_connection()
 
     def consume_runtime_event(self, event: WorldEvent) -> None:
@@ -359,14 +367,39 @@ class NestSession:
                 try:
                     elfie.pump_body_events(tuple(event for _, event in items))
                 except Exception:
-                    logger.exception(
-                        "Failed to deliver Nest events to Elfie %s; requeueing",
-                        target_id,
-                    )
+                    quarantined = 0
                     for envelope, _ in items:
+                        key = (envelope.event_id, target_id)
+                        attempts = self._nest_event_delivery_attempts.get(key, 0) + 1
+                        if attempts >= _MAX_NEST_EVENT_DELIVERY_ATTEMPTS:
+                            self._nest_event_delivery_attempts.pop(key, None)
+                            self._quarantined_nest_event_deliveries.append(
+                                replace(envelope, target_ids=(target_id,))
+                            )
+                            quarantined += 1
+                            continue
+                        self._nest_event_delivery_attempts[key] = attempts
                         failed_targets_by_event.setdefault(
                             envelope.event_id, set()
                         ).add(target_id)
+                    if quarantined:
+                        logger.exception(
+                            "Quarantined %s Nest event deliveries for Elfie %s "
+                            "after %s attempts",
+                            quarantined,
+                            target_id,
+                            _MAX_NEST_EVENT_DELIVERY_ATTEMPTS,
+                        )
+                    else:
+                        logger.warning(
+                            "Failed to deliver Nest events to Elfie %s; retrying",
+                            target_id,
+                        )
+                else:
+                    for envelope, _ in items:
+                        self._nest_event_delivery_attempts.pop(
+                            (envelope.event_id, target_id), None
+                        )
         if failed_targets_by_event:
             requeued = tuple(
                 replace(
@@ -382,6 +415,11 @@ class NestSession:
                 if failed_targets_by_event.get(envelope.event_id)
             )
             self.nest.requeue_event_outbox(requeued)
+
+    def quarantined_nest_event_deliveries(self) -> tuple[NestEventEnvelope, ...]:
+        """Return bounded in-memory diagnostics for deterministic delivery failures."""
+        with self._lifecycle_lock:
+            return tuple(self._quarantined_nest_event_deliveries)
 
     def flush_runtime_state(self) -> None:
         """Send one complete actor catalog when the matching world is ready."""

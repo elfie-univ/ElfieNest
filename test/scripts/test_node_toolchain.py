@@ -13,6 +13,7 @@ NODE_PROJECTS = (
     Path("docs"),
     Path("devtools/web"),
 )
+NODE_TOOLCHAIN_CHECK = PROJECT_ROOT / "scripts/quality/checks/node_toolchain.sh"
 
 
 def _copy_node_project_manifests(source_root: Path, target_root: Path) -> None:
@@ -31,7 +32,7 @@ def _copy_node_project_manifests(source_root: Path, target_root: Path) -> None:
 def test_node_toolchain_check_accepts_all_locked_projects() -> None:
     # Given: the repository's four independent Node projects and root toolchain anchor.
     result = subprocess.run(
-        ["bash", str(PROJECT_ROOT / "scripts/check_node_toolchain.sh")],
+        ["bash", str(NODE_TOOLCHAIN_CHECK)],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
@@ -58,7 +59,7 @@ def test_node_toolchain_check_rejects_a_project_with_a_different_pnpm(
 
     # When: the read-only consistency check runs against that checkout.
     result = subprocess.run(
-        ["bash", str(PROJECT_ROOT / "scripts/check_node_toolchain.sh"), str(tmp_path)],
+        ["bash", str(NODE_TOOLCHAIN_CHECK), str(tmp_path)],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,

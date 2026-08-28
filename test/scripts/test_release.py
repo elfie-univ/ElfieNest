@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from scripts import release, release_pipeline, release_planning
+from scripts import release
+from scripts.internal.release import release_pipeline, release_planning
 from test.support.paths import PROJECT_ROOT
 
 
@@ -123,26 +124,34 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     workflow_path = PROJECT_ROOT / ".github" / "workflows" / "release.yml"
     source = workflow_path.read_text(encoding="utf-8")
     workflow = yaml.safe_load(source)
+    preflight = workflow["jobs"]["preflight"]
     godot_web = workflow["jobs"]["godot-web"]
     native_build = workflow["jobs"]["build"]
     matrix = native_build["strategy"]["matrix"]["include"]
 
     # Then: one Linux job exports the platform-neutral Web runtime, each supported
     # package consumes it on a native runner, and publication remains tag-gated.
-    assert godot_web["runs-on"] == "ubuntu-latest"
-    assert native_build["needs"] == "godot-web"
+    assert preflight["runs-on"] == "ubuntu-latest"
+    assert godot_web["needs"] == "preflight"
+    assert native_build["needs"] == ["preflight", "godot-web"]
+    assert native_build["timeout-minutes"] == 90
     assert {entry["target"] for entry in matrix} == set(release.SUPPORTED_TARGETS)
     assert {entry["runner"] for entry in matrix} == {
-        "macos-latest",
+        "macos-14",
         "macos-15-intel",
-        "windows-latest",
-        "ubuntu-latest",
+        "windows-2025",
+        "ubuntu-24.04",
     }
     assert 'tags:\n      - "v*"' in source
     assert "workflow_dispatch:" in source
+    assert source.count("ref: ${{ inputs.release_tag || github.ref }}") == 3
     assert workflow["env"]["PYTHONUTF8"] == "1"
     assert source.count("install_official_godot_toolchain") == 1
     assert "name: godot-web-runtime" in source
+    assert "name: godot-linux-dedicated-runtime" in source
+    assert "build_godot_dedicated.py" in source
+    assert "tar -C build/components -czf build/godot-linux-dedicated.tar.gz" in source
+    assert "tar -C build/components -xzf" in source
     assert "GODOT_USER_HOME" not in source
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in source
     assert (
@@ -152,11 +161,37 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     assert "release_args+=(--prerelease)" in source
     assert "--prebuilt-godot-web" in source
     assert "--run-install-smoke" in source
+    assert "--run-product-journey" in source
+    assert "--run-recovery-matrix" in source
+    assert "--run-viewer-check" in source
+    assert "--smoke-cycles 3" in source
+    assert "--smoke-home" in source
+    assert "name: diagnostics-${{ matrix.target }}" in source
+    assert "failure-diagnostics.json" in source
+    assert "elfienest-smoke-home/failure-diagnostics.json" in source
+    assert "if: always()" in source
+    assert "xvfb-run --auto-servernum" in source
+    assert "command -v xvfb-run" in source
     assert "dist/ElfieNest-${RELEASE_TARGET}-install-smoke.json" in source
     assert "release-artifacts/*-install-smoke.json" not in source
-    assert "SHA256SUMS" not in source
+    assert "SHA256SUMS" in source
+    assert "sha256sum" in source
+    assert "release_evidence.py" in source
+    assert "native-release-evidence.json" in source
+    assert "--verify-tag" in source
+    assert 'tag_commit="$(git rev-list -n 1 "$release_tag")"' in source
+    assert '[[ "$tag_commit" == "$GITHUB_SHA" ]]' in source
     assert "release-artifacts/manifest.json" not in source
     assert 'test -x "$extract_root/opt/ElfieNest/elfienest-gui"' in source
+    assert (
+        'desktop_entry="$extract_root/usr/share/applications/elfienest-gui.desktop"'
+        in source
+    )
+    assert 'test -f "$desktop_entry"' in source
+    assert (
+        'test -x "$extract_root/opt/ElfieNest/resources/godot-linux-dedicated/ElfieNestRuntime"'
+        in source
+    )
     assert 'test -x "$extract_root/usr/bin/elfienest-gui"' not in source
 
     # Public filenames must describe the platform without exposing the CI-only
@@ -166,6 +201,42 @@ def test_desktop_release_workflow_has_four_native_targets_and_tag_publish_gate()
     ).read_text(encoding="utf-8")
     assert "artifactName: ElfieNest-${version}-${os}-${arch}.${ext}" in artifact_config
     assert "-internal-" not in artifact_config
+
+
+def test_release_smoke_wrapper_forwards_all_native_journey_gates(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed: dict[str, object] = {}
+
+    def fake_smoke(target, artifact, evidence_output, **kwargs):
+        observed.update(kwargs)
+        return {"result": "passed"}
+
+    monkeypatch.setattr(
+        "scripts.internal.release.release_install_smoke.run_install_smoke",
+        fake_smoke,
+    )
+
+    result = release.execute_install_smoke(
+        "darwin-arm64",
+        tmp_path / "ElfieNest.pkg",
+        tmp_path / "evidence.json",
+        cycles=3,
+        candidate_sha="a" * 40,
+        product_journey=True,
+        recovery_matrix=True,
+        viewer_check=True,
+    )
+
+    assert result == {"result": "passed"}
+    assert observed == {
+        "cycles": 3,
+        "candidate_sha": "a" * 40,
+        "product_journey": True,
+        "recovery_matrix": True,
+        "viewer_check": True,
+    }
 
 
 def test_prebuilt_godot_web_step_checks_the_shared_runtime_without_exporting(
@@ -191,10 +262,87 @@ def test_prebuilt_godot_web_step_checks_the_shared_runtime_without_exporting(
 
     # When: concrete steps are created for a prebuilt Godot Web runtime.
     steps = release_pipeline.default_release_steps(prebuilt_godot_web=True)
-    steps.build_godot()
+    steps.build_godot("darwin-arm64")
 
     # Then: the runner validates the artifact and never requests another Godot export.
-    assert commands == [("/managed/python", "scripts/build_godot_web.py", "--check")]
+    assert commands == [
+        (
+            "/managed/python",
+            "scripts/internal/build/build_godot_web.py",
+            "--check",
+        )
+    ]
+
+
+def test_prebuilt_linux_godot_step_checks_the_shared_dedicated_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: the Linux runner has downloaded both shared Godot artifacts.
+    commands: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        release_pipeline.check_release_version,
+        "check_versions",
+        lambda *_args: "0.1.0-beta.1",
+    )
+    monkeypatch.setattr(release_pipeline, "_project_python", lambda: "/managed/python")
+    monkeypatch.setattr(
+        release_pipeline,
+        "_run_command",
+        lambda command, _cwd, _environment=None: commands.append(command),
+    )
+
+    # When: concrete Linux steps validate the prebuilt runtime inputs.
+    steps = release_pipeline.default_release_steps(prebuilt_godot_web=True)
+    steps.build_godot("linux-x64")
+
+    # Then: Web and Dedicated exports are both checked without rebuilding either one.
+    assert commands == [
+        (
+            "/managed/python",
+            "scripts/internal/build/build_godot_web.py",
+            "--check",
+        ),
+        (
+            "/managed/python",
+            "scripts/internal/build/build_godot_dedicated.py",
+            "--check",
+        ),
+    ]
+
+
+def test_local_linux_godot_step_exports_web_and_dedicated_runtimes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: a Linux release runner with the controlled Godot toolchain available.
+    commands: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        release_pipeline.check_release_version,
+        "check_versions",
+        lambda *_args: "0.1.0-beta.1",
+    )
+    monkeypatch.setattr(release_pipeline, "_project_python", lambda: "/managed/python")
+    monkeypatch.setattr(
+        release_pipeline,
+        "_run_command",
+        lambda command, _cwd, _environment=None: commands.append(command),
+    )
+
+    # When: a local Linux release prepares its Godot inputs.
+    steps = release_pipeline.default_release_steps()
+    steps.build_godot("linux-x64")
+
+    # Then: both required authority surfaces are exported before assembly.
+    assert commands == [
+        (
+            "/managed/python",
+            "scripts/internal/build/build_godot_web.py",
+            "--ensure",
+        ),
+        (
+            "/managed/python",
+            "scripts/internal/build/build_godot_dedicated.py",
+        ),
+    ]
 
 
 def test_release_session_dispatches_all_targets_and_requires_artifact_hash_and_smoke(
@@ -430,7 +578,7 @@ def test_native_pipeline_passes_the_exact_target_to_the_packager(tmp_path) -> No
     steps = release_pipeline.NativeReleaseSteps(
         ensure_dependencies=lambda: events.append("dependencies"),
         build_web=lambda: events.append("web"),
-        build_godot=lambda: events.append("godot"),
+        build_godot=lambda target: events.append(f"godot:{target}"),
         freeze_core=lambda target: events.append("core") or core,
         freeze_cli=lambda target: events.append("cli") or cli,
         assemble=lambda target, received_core, received_cli: (
@@ -453,7 +601,7 @@ def test_native_pipeline_passes_the_exact_target_to_the_packager(tmp_path) -> No
     assert result == artifact
     assert events == [
         "web",
-        "godot",
+        "godot:darwin-arm64",
         "dependencies",
         "core",
         "cli",
@@ -476,7 +624,7 @@ def test_native_pipeline_stops_before_packaging_when_godot_build_fails() -> None
     steps = release_pipeline.NativeReleaseSteps(
         ensure_dependencies=lambda: events.append("dependencies"),
         build_web=lambda: events.append("web"),
-        build_godot=lambda: (_ for _ in ()).throw(OSError("godot missing")),
+        build_godot=lambda _target: (_ for _ in ()).throw(OSError("godot missing")),
         freeze_core=lambda target: events.append("core"),
         freeze_cli=lambda target: events.append("cli"),
         assemble=lambda target, core, cli: events.append("assemble"),
@@ -519,11 +667,15 @@ def test_desktop_general_build_does_not_require_the_macos_wifi_helper() -> None:
     )
     scripts = manifest["scripts"]
 
-    # Then: TypeScript compilation is cross-platform, while native packaging opts
-    # into the strict macOS helper build explicitly.
+    # Then: TypeScript compilation is cross-platform, while native packaging treats
+    # the macOS helper as an optional enhancement.
     assert "build_macos_wifi_helper.mjs" not in scripts["build"]
     assert scripts["build:macos-helper"] == "node scripts/build_macos_wifi_helper.mjs"
-    assert "pnpm build:macos-helper" in scripts["package"]
+    assert scripts["build:macos-helper:optional"] == (
+        "node scripts/build_optional_macos_wifi_helper.mjs"
+    )
+    assert "pnpm build:macos-helper:optional" in scripts["package"]
+    assert "&& pnpm build:macos-helper &&" not in scripts["package"]
 
 
 def test_desktop_packaging_uses_only_the_current_brand_icon() -> None:
@@ -578,13 +730,23 @@ def test_native_installers_publish_the_global_cli_launcher_contract() -> None:
     assert "launchctl asuser" in mac
     assert "-gc" in mac
     assert '-f "$app"' in mac
+    assert "install_owned_launcher" in mac
+    assert 'readlink "$launcher"' in mac
+    assert "Refusing to replace launcher not owned by ElfieNest" in mac
+    assert "ln -sfn" not in mac
     assert "/usr/local/bin/elfienest" in linux_install
     assert 'app_root="/opt/ElfieNest"' in linux_install
     assert 'gui="$app_root/elfienest-gui"' in linux_install
-    assert 'ln -sfn "$gui" /usr/bin/elfienest-gui' in linux_install
+    assert "install_owned_launcher" in linux_install
+    assert 'readlink "$launcher"' in linux_install
+    assert "Refusing to replace launcher not owned by ElfieNest" in linux_install
+    assert "ln -sfn" not in linux_install
     assert "resources/management-cli/ElfieNestCli" in linux_install
     assert "/usr/bin/elfienest-gui" in linux_remove
     assert "resources/management-cli/ElfieNestCli" in linux_remove
+    assert 'cli="/opt/ElfieNest/resources/management-cli/ElfieNestCli"' in linux_remove
+    assert 'remove_owned_launcher "$launcher" "$cli"' in linux_remove
+    assert "*/resources/management-cli/ElfieNestCli" not in linux_remove
     assert "management-cli\\ElfieNestCli.exe" in windows
     assert "customInstall" in windows
     assert "Call ElfieNestAddLauncherPath" not in windows
@@ -599,6 +761,9 @@ def test_native_installers_publish_the_global_cli_launcher_contract() -> None:
     assert "${UnStrRep}" in windows
     assert "\n${StrRep}\n" not in windows
     assert "Call ElfieNestRemoveLauncherPath" not in windows
+    assert '${StrStr} $2 $1 ";$INSTDIR\\bin;"' in windows
+    assert '${UnStrRep} $2 $1 ";$INSTDIR\\bin;" ";"' in windows
+    assert 'Delete "$INSTDIR\\bin\\elfienest.cmd"' in windows
 
 
 def test_release_cli_only_reports_success_after_its_native_pipeline_finishes(
@@ -848,8 +1013,8 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
         {"ELFIENEST_TARGET": "darwin-arm64"},
     )
 
-    # Then: locked dependencies, TypeScript, and the macOS-only helper precede
-    # electron-builder.
+    # Then: locked dependencies, TypeScript, and the optional macOS-only helper
+    # precede electron-builder.
     assert commands[0] == (
         "npx",
         "--yes",
@@ -862,7 +1027,7 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
         "npx",
         "--yes",
         "pnpm@10.12.1",
-        "build:macos-helper",
+        "build:macos-helper:optional",
     )
     assert commands[3][:7] == (
         "npx",
@@ -881,6 +1046,54 @@ def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
     assert commands[3][config_index + 1].endswith(
         "app/bootstrap/desktop_host/electron-builder.yml"
     )
+
+
+def test_packager_continues_when_optional_macos_wifi_helper_command_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Given: the app shell is buildable but the optional Wi-Fi helper command fails.
+    build_root = tmp_path / "build"
+    dist_root = tmp_path / "dist"
+    resources = build_root / "staging" / "darwin-arm64" / "resources"
+    resources.mkdir(parents=True)
+    _create_built_desktop_interface(build_root)
+    commands: list[tuple[str, ...]] = []
+
+    def run_builder(command, _cwd, _environment) -> None:
+        commands.append(command)
+        if "build:macos-helper:optional" in command:
+            raise subprocess.CalledProcessError(1, command)
+        if not any("electron-builder" in argument for argument in command):
+            return
+        output_argument = next(
+            value
+            for value in command
+            if value.startswith("--config.directories.output=")
+        )
+        output = Path(output_argument.split("=", 1)[1])
+        output.mkdir(parents=True)
+        (output / "ElfieNest-0.1.0-mac-arm64.pkg").write_bytes(b"installer")
+
+    monkeypatch.setattr(release_pipeline, "BUILD_DIR", build_root)
+    monkeypatch.setattr(release_pipeline, "DIST_DIR", dist_root)
+    monkeypatch.setattr(release_pipeline, "_run_command", run_builder)
+
+    # When: the package stage creates the native installer.
+    installer = release_pipeline._package_installer(
+        "darwin-arm64",
+        resources,
+        {"ELFIENEST_TARGET": "darwin-arm64"},
+    )
+
+    # Then: helper omission is observable, but the core installer is still built.
+    assert installer == dist_root / "ElfieNest-0.1.0-mac-arm64.pkg"
+    assert installer.read_bytes() == b"installer"
+    assert any(
+        "electron-builder" in argument for command in commands for argument in command
+    )
+    assert "macos-wifi-helper" in capsys.readouterr().err
 
 
 def test_packager_does_not_build_the_macos_wifi_helper_for_windows(

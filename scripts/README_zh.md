@@ -5,23 +5,45 @@
 `scripts/` 保存仓库级启动、构建、质量检查和人工诊断入口。普通用户与贡献者应
 优先使用根目录稳定入口；不要绕过入口脚本自行拼装一套运行环境。
 
-## 稳定入口背后的脚本
+## 布局与稳定性契约
 
-| 文件 | 分类 | 说明 |
-| --- | --- | --- |
-| `bootstrap.sh` | 依赖编排 | 统一准备源码开发/构建依赖（Python、Node、前端、Godot Web、Electron） |
-| `elfienest.py` | CLI 分发 | 被 `./elfienest.sh` 调用，分发配置、服务生命周期、Owner、数据库、迁移等命令 |
-| `serve.py` | 前台服务 | 启动 FastAPI、引擎和 WebSocket；由 `serve` 或后台生命周期命令调用 |
-| `build_godot_web.py` | 构建 | 导出并校验 Godot Web Runtime，正式输出到 `build/components/godot-web/` |
-| `release.py` | 发布构建 | 组装 staging 资源并调用 electron-builder |
-| `check_quality_baseline.py` | 质量门 | 比较 Ruff、Ruff format、MyPy 当前诊断与受控历史基线 |
-| `check_quality_environment.py` | 质量预检 | 在昂贵的全量门禁前检查全仓测试所需的宿主能力 |
-| `check_node_toolchain.sh` | 质量门 | 校验根目录 Node.js/pnpm 锚点与所有独立 Node 项目的清单 |
-| `architecture/app_layer_scan.py` | 架构门禁 | 对 App 层精确旧债做棘轮约束，基线删除后切换为 deny-all |
-| `architecture/system_layer_scan.py` | 架构门禁 | 对 Elfie/Nest 系统边界精确旧债做棘轮约束，基线删除后切换为 deny-all |
-| `architecture/check_governance_change.py` | 架构门禁 | 分离治理与生产变更，并要求契约中英文同步、升级版本且配套 ADR |
-| `architecture/contract_registry.py` | 架构注册表 | 关联契约、中英文镜像、ADR、Agent 规约、Scanner、测试、台账与基线 |
-| `__init__.py` | 包标记 | 允许架构测试导入脚本中的可测试函数，不是命令入口 |
+根目录只暴露五个稳定运行入口：
+
+| 稳定根路径 | 职责 |
+| --- | --- |
+| `bootstrap.sh` | 准备源码开发与安装包构建依赖 |
+| `elfienest.py` | 为 `./elfienest.sh` 分发产品 CLI |
+| `serve.py` | 启动前台服务或受管生命周期 |
+| `pre_submit_gate.sh` | 显式运行本地 commit、push 或 full checkpoint |
+| `release.py` | 协调严格原生发布 |
+
+`README.md`、`README_zh.md` 和 `__init__.py` 是文档/包元数据，不是额外命令。
+`python_baseline.py`、`godot_host.sh` 等单项检查统一进入 `quality/checks/`，不再作为
+根目录稳定入口。
+
+```text
+scripts/
+├── bootstrap.sh, elfienest.py, serve.py, pre_submit_gate.sh, release.py
+├── governance/                 # 定义哪些改动和依赖是合法的
+│   ├── contract_registry.py    # 版本化契约清单
+│   ├── change_policy.py        # 基于不可变基础的变更分类
+│   ├── boundaries/             # App、系统、结构和有效依赖边界
+│   └── persistence/            # 数据库变更盘点与策略扫描
+├── quality/                    # 执行质量策略选中的检查
+│   ├── checks/                 # 独立 Python、Node、环境与 Godot 检查
+│   ├── validation/             # 检查规划、门禁、候选证据、缓存与可复用测试包
+│   └── hooks/                  # 仓库托管的 Git hook 安装与运行文件
+└── internal/                   # 稳定入口背后的可替换辅助实现
+    ├── bootstrap/              # Bootstrap 报告与依赖解析
+    ├── build/                  # 中间构建组装
+    ├── release/                # 发布规划、清单和烟雾检查
+    └── diagnostics/            # 人工与交互式诊断
+```
+
+`governance/` 是策略层，描述所有权、依赖方向和契约边界；`quality/` 是执行层，运行具体
+检查并组合证据；`internal/` 不表示秘密或安全隔离，只表示路径不是公开命令契约的仓库内部
+辅助代码。有稳定根入口时应使用稳定入口；只有聚焦诊断或文档明确要求的 CI/开发流程才
+直接调用单项检查。
 
 ### bootstrap.sh 用法
 
@@ -45,7 +67,7 @@ Godot 编辑器不是普通启动依赖。只有缺少已导出的 Web Runtime �
 ./scripts/bootstrap.sh report --tier=build
 
 # 校验 Node.js/pnpm 声明
-bash scripts/check_node_toolchain.sh
+bash scripts/quality/checks/node_toolchain.sh
 ```
 
 ### release.py 用法
@@ -69,17 +91,17 @@ bash scripts/check_node_toolchain.sh
 ```bash
 ./elfienest.sh --help
 ./elfienest.sh serve
-./elfienest.sh build-godot-web --check
+./developer.sh build-godot-web --check
 ./developer.sh build-godot-dedicated --check
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_baseline.py
+  uv run --no-sync python scripts/quality/checks/python_baseline.py
 ```
 
 运行全仓 pytest 前先做一次宿主能力预检：
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
+  uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 退出码 `0` 表示允许回环端口绑定。退出码 `2` 表示当前沙箱或宿主策略拒绝
@@ -92,14 +114,14 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 | 文件 | 用途与注意事项 |
 | --- | --- |
-| `chat_with_elfie.py` | 启动长时间引擎循环，与第一个已持久化的精灵在终端对话；需要先完成领养和模型运行时，手工退出后清理服务 |
-| `e2e_dashboard_check.py` | 用临时目录和随机端口启动已配置模型服务，检查登录、领养与管理面板链路；运行前必须配置模型 |
-| `verify_nest_runtime_e2e.py` | 等待一个 Godot Runtime，验证双精灵同步、广播、语义移动和取消终态 |
+| `internal/diagnostics/chat_with_elfie.py` | 启动长时间引擎循环，与第一个已持久化的精灵在终端对话；需要先完成领养和模型运行时，手工退出后清理服务 |
+| `internal/diagnostics/e2e_dashboard_check.py` | 用临时目录和随机端口启动已配置模型服务，检查登录、领养与管理面板链路；运行前必须配置模型 |
+| `internal/diagnostics/verify_nest_runtime_e2e.py` | 等待一个 Godot Runtime，验证双精灵同步、广播、语义移动和取消终态 |
 
 这些脚本可能耗时、占用端口或产生本地数据，不应作为 import 时执行的模块，也不应
 在不知情的情况下指向默认生产数据。可自动化的回归应优先进入 `test/e2e/`。
 
-`verify_nest_runtime_e2e.py` 启动 Python 侧协议 v2 网关；另一个终端需使用脚本
+`internal/diagnostics/verify_nest_runtime_e2e.py` 启动 Python 侧协议 v2 网关；另一个终端需使用脚本
 输出的 WebSocket 地址和 nonce 启动 `godot_project/main.tscn`。脚本只使用内存
 状态，不读取或写入生产 `ELFIE_HOME`。
 
@@ -111,5 +133,6 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 - 不把生成的 Godot Web、Desktop JavaScript、Python Core、日志或缓存写回
   `scripts/` 或其他源码目录。
 
-新增脚本时应明确它是稳定入口、构建/质量门还是人工诊断，并同步相应测试与
+新增脚本时，策略进入 `governance/`，可执行检查进入 `quality/`，辅助实现进入
+`internal/`。新增根目录稳定入口属于脚本布局契约变化，必须同步治理审阅、测试和
 Developer 文档。

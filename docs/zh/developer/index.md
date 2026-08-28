@@ -21,6 +21,7 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
   运行关系和渐进实现顺序。
 - [Elfie Brain 评价与进化系统](./designs/elfie-brain-evaluation-system)：以证据为先的
   Q6/P0 评价、受约束晋级和长期进化闭环。
+- [Elfie Memory 架构](./designs/elfie-memory-architecture)：经历记忆、个人知识图谱与图谱/文本混合检索。
 - [服务生命周期状态机设计](./designs/service-lifecycle-state-machine)：服务稳定层级、入口、
   进程所有权和收敛。
 - [Provider 与 Endpoint 模型可用性](./designs/provider-model-availability)：精选模型加载、
@@ -37,6 +38,7 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
 - [Elfie Brain 内部架构契约](./contracts/brain)：Turn、思考、心智状态与跨回合活动所有权。
 - [Elfie 一致性](./conformance/elfie)：主体级生命系统迁移的收口证据，等待独立治理删除。
   Brain 已完成一致性收口，其契约由永久架构测试守护。
+- [Elfie Memory 一致性](./conformance/elfie-memory)：Memory 存储、整理、检索和迁移的实现状态及剩余外部验收门禁。
 - [应用架构契约](./contracts/application)：`app/` 新增和已迁移代码的所有权、
   依赖方向、Port/Adapter 和组合根规范。
 - [服务生命周期一致性](./conformance/service-lifecycle)：已接受契约与当前实现之间的开放缺口。

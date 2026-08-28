@@ -15,7 +15,7 @@ description: 安全检查仓库内的 Godot 项目，执行单次 headless 验�
 如果 `status` 无法读取进程表，必须停止并通过执行器请求一次主机授权，不得继续调用
 `validate`。
 
-授权后的本机验证使用仓库入口 `scripts/godot_host_validate.sh`。Codex 应以主机授权方式
+授权后的本机验证使用仓库入口 `scripts/quality/checks/godot_host.sh`。Codex 应以主机授权方式
 调用它；用户不需要手工复制命令到 Terminal。若执行器无法提供授权执行，再把同一个入口
 交给用户在普通 Terminal 中运行。
 
@@ -54,7 +54,7 @@ git status --short
 在 Codex 中执行真实验证时，使用主机授权调用：
 
 ```bash
-bash scripts/godot_host_validate.sh \
+bash scripts/quality/checks/godot_host.sh \
   res://scripts/test/test_scene_resource_contract.gd
 ```
 

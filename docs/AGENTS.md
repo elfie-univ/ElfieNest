@@ -46,11 +46,12 @@ Developer 内容直接分为 `architecture/`、可选的 `designs/`、`contracts
   authority 变化必须有 ADR，且同步更新受影响 `AGENTS.md` 和机器门禁。
 - 宏观架构 v1 已冻结；以后改变顶层模块、authority、依赖方向、生产组合/生命周期或
   系统级 Port 语义时，必须新建独立双语 ADR，并先提交不含产品代码的治理变更。
-- 产品迁移只更新当前事实说明、Conformance 和精确 Baseline；不得顺手改写目标契约
-  或 Scanner。治理变更不得混入实现侧文件。
+- 产品迁移只更新当前事实说明、Conformance 和精确 Baseline；不得在同一个本地 commit
+  中顺手改写目标契约或 Scanner。治理与实现使用职责清晰的 commit；只要实现仍通过不可变
+  基础规则，两类 commit 可以进入同一个最终 Pull Request。
 - 普通 Markdown 内容在治理/实现分类中保持中立；`docs/.vitepress/`、文档站
   `package.json` 和锁文件属于实现侧，不能与契约、ADR、Scanner 等治理变更混在同一
-  提交或 Pull Request。
+  本地 commit。最终 Pull Request 是否可同行由不可变基础规则决定。
 - Conformance 只保留仍然存在的缺口、验收门和迁移顺序；历史测试次数、过期失败、
   会话过程和已完成执行计划不作为长期台账内容。
 - 最后一个缺口和 Baseline 条目清零后，先以五类逐行证据把双语台账标为 ready，再立即

@@ -8,7 +8,7 @@
 - 无前驱节点的边界情况
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -193,6 +193,38 @@ class TestMemoryEncoder:
         temporal_edges = [e for e in edges if e.rel == EdgeTypes.TEMPORAL.value]
         assert len(temporal_edges) == 1
         assert temporal_edges[0].target == current_id
+        assert temporal_edges[0].weight == 0.7
+
+    def test_build_encoding_edges_accepts_timezone_aware_genesis_timestamp(
+        self, encoder, storage
+    ):
+        prev_id = "genesis:memory:home-world"
+        storage.add_node(
+            MemoryNode(
+                id=prev_id,
+                type=NodeTypes.EPISODIC.value,
+                content="诞生记忆",
+                metadata={
+                    "timestamp": (
+                        datetime.now(timezone.utc) - timedelta(minutes=10)
+                    ).isoformat()
+                },
+                created_at=datetime.now(timezone.utc).isoformat(),
+            )
+        )
+
+        encoder.build_encoding_edges(
+            node_id="episodic_current_aware",
+            prev_node_id=prev_id,
+        )
+
+        temporal_edges = [
+            edge
+            for edge in storage.get_edges(prev_id, direction="outgoing")
+            if edge.rel == EdgeTypes.TEMPORAL.value
+        ]
+        assert len(temporal_edges) == 1
+        assert temporal_edges[0].target == "episodic_current_aware"
         assert temporal_edges[0].weight == 0.7
 
     def test_build_encoding_edges_temporal_weight_ranges(self, encoder, storage):

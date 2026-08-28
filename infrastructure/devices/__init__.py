@@ -2,9 +2,16 @@
 
 from .body_transport import ExternalEventHandler, ExternalTransport
 from .external_body import ExternalBody
-from .gateway import DeviceGateway, DeviceGatewayTransport
+from .gateway import (
+    CommandEnqueueResult,
+    DeviceCommandQueueFullError,
+    DeviceGateway,
+    DeviceGatewayTransport,
+)
 
 __all__ = (
+    "CommandEnqueueResult",
+    "DeviceCommandQueueFullError",
     "DeviceGateway",
     "DeviceGatewayTransport",
     "ExternalBody",

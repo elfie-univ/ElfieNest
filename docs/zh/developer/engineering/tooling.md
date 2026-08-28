@@ -38,7 +38,7 @@ Web 前端、桌面宿主、文档站和 Developer Tools 仍各自保留独立�
 可用下面的命令检查这些工具链声明是否保持一致：
 
 ```bash
-bash scripts/check_node_toolchain.sh
+bash scripts/quality/checks/node_toolchain.sh
 ```
 
 ## 预览文档站
@@ -177,7 +177,7 @@ Dedicated 权威导出是
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest test/architecture/
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_baseline.py
+  uv run --no-sync python scripts/quality/checks/python_baseline.py
 PRE_COMMIT_HOME=/tmp/elfienest-precommit \
   uv run --no-sync pre-commit run --all-files
 ```

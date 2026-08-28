@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  crashReporter,
   ipcMain,
   Menu,
   nativeImage,
@@ -13,7 +14,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 import {
-  applicationMenuTemplate,
+  APPLICATION_MENU,
   backgroundMenuTemplate,
   normalizeApplicationMenuLocale,
 } from "./application_menu.js";
@@ -21,6 +22,12 @@ import {
   DesktopRoleController,
   type DesktopRoleState,
 } from "./desktop_role_lifecycle.js";
+import {
+  DesktopDiagnostics,
+  installDesktopProcessExceptionHandlers,
+  normalizeRendererDiagnosticPayload,
+  pruneCrashDumps,
+} from "./diagnostics.js";
 import {
   controllerHomeForAppData,
   startControllerIpcServer,
@@ -51,24 +58,37 @@ import { SingleWindowRegistry } from "./windows/window_registry.js";
 let roleController: DesktopRoleController | undefined;
 let explicitExitRequested = false;
 let exitInProgress = false;
+let requestedExitReason = "not-requested";
 const managementWindow = new SingleWindowRegistry<BrowserWindow>();
 let backgroundTray: Tray | undefined;
 let maintenanceTimer: NodeJS.Timeout | undefined;
 let maintenanceRunning = false;
 let maintenanceStarted = false;
+let lastMaintenanceFailure: string | undefined;
 let runtimeUiAvailable = false;
 let managementUiLoaded = false;
+let runtimeUiGeneration: number | undefined;
 let recoveryActionHandler: ((action: RecoveryAction) => void) | undefined;
 let recoveryActionRunning = false;
 let controllerIpcServer: ControllerIpcServer | undefined;
 const controllerOnly = process.argv.includes("--background");
 let controllerEnsurePending = false;
 let controllerStartPromise: Promise<DesktopRoleState> | undefined;
+let desktopDiagnostics: DesktopDiagnostics | undefined;
+let removeProcessExceptionHandlers: (() => void) | undefined;
+let diagnosticsTimer: NodeJS.Timeout | undefined;
+// Runtime shutdown includes quiescing the World authority and Core. A
+// packaged first-run can spend several seconds starting the management CLI
+// before the ordered stop begins; warn after a bounded interval but never
+// exit before the ordered cleanup promise has completed.
+const DESKTOP_CLEANUP_TIMEOUT_MS = 15_000;
+const DESKTOP_IPC_CLOSE_TIMEOUT_MS = 1_000;
 
 type RecoveryAction =
   | "recover-data-home"
   | "open-data-home"
   | "continue-start"
+  | "retry-runtime"
   | "quit";
 
 const configuredUiUrl = process.env["ELFIENEST_UI_URL"];
@@ -95,7 +115,9 @@ function ensureManagementWindow(): Readonly<{ window: BrowserWindow; created: bo
     return window;
   });
   if (result.created && runtimeUiAvailable) {
-    void loadManagementUi(result.window);
+    void loadManagementUi(result.window).catch((error: unknown) => {
+      showRuntimeLoadFailure(result.window, error);
+    });
   }
   return result;
 }
@@ -128,6 +150,12 @@ function showManagementWindow(): void {
   window.focus();
 }
 
+function showRuntimeLoadFailure(window: BrowserWindow, error: unknown): void {
+  managementUiLoaded = false;
+  desktopDiagnostics?.error("management_page_fallback", error);
+  showStartupFailure(window, error);
+}
+
 function hideManagementWindow(): void {
   managementWindow.current()?.hide();
   if (process.platform === "darwin") {
@@ -143,6 +171,7 @@ function recoveryActionFromUrl(url: string): RecoveryAction | undefined {
     action === "recover-data-home"
     || action === "open-data-home"
     || action === "continue-start"
+    || action === "retry-runtime"
     || action === "quit"
   ) {
     return action;
@@ -151,15 +180,49 @@ function recoveryActionFromUrl(url: string): RecoveryAction | undefined {
 }
 
 function bindManagementWindow(window: BrowserWindow): void {
+  window.webContents.on("did-finish-load", () => {
+    desktopDiagnostics?.event("management_page_ready");
+  });
+  window.on("unresponsive", () => {
+    desktopDiagnostics?.event("management_window_unresponsive", {}, "error");
+  });
+  window.on("responsive", () => {
+    desktopDiagnostics?.event("management_window_responsive");
+  });
+  window.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, _validatedUrl, isMainFrame) => {
+      desktopDiagnostics?.event(
+        "management_page_load_failed",
+        {
+          exit_code: errorCode,
+          message: errorDescription,
+          is_main_frame: isMainFrame,
+        },
+        "error",
+      );
+      if (isMainFrame) {
+        showRuntimeLoadFailure(window, new Error(`${errorDescription} (${errorCode})`));
+      }
+    },
+  );
   window.webContents.on("will-navigate", (event, url) => {
     const action = recoveryActionFromUrl(url);
     if (action === undefined) return;
     event.preventDefault();
+    if (action === "retry-runtime") {
+      void retryRuntimeFromFailure();
+      return;
+    }
     recoveryActionHandler?.(action);
   });
   window.webContents.setWindowOpenHandler(({ url }) => {
     const action = recoveryActionFromUrl(url);
     if (action === undefined) return { action: "allow" };
+    if (action === "retry-runtime") {
+      void retryRuntimeFromFailure();
+      return { action: "deny" };
+    }
     recoveryActionHandler?.(action);
     return { action: "deny" };
   });
@@ -213,8 +276,34 @@ function startOwnedRuntimeMaintenance(): void {
       .maintainOwnedRuntime()
       .then((state) => {
         if (state.kind === "failed") {
-          console.error("ElfieNest background Runtime recovery failed", state.reason);
+          if (lastMaintenanceFailure !== state.reason) {
+            lastMaintenanceFailure = state.reason;
+            console.error("ElfieNest background Runtime recovery failed", state.reason);
+            desktopDiagnostics?.event(
+              "runtime_maintenance_failed",
+              { message: state.reason },
+              "error",
+            );
+          }
+        } else {
+          lastMaintenanceFailure = undefined;
+          if (state.kind === "owned" && state.generation !== runtimeUiGeneration) {
+            runtimeUiGeneration = state.generation;
+            runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
+            managementUiLoaded = false;
+            const window = managementWindow.current();
+            if (window !== undefined && runtimeUiUrl !== undefined) {
+              void loadManagementUi(window).catch((error: unknown) => {
+                showRuntimeLoadFailure(window, error);
+              });
+            }
+          }
         }
+      })
+      .catch((error: unknown) => {
+        desktopDiagnostics?.error("runtime_maintenance_rejected", error);
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("ElfieNest background Runtime maintenance rejected", message);
       })
       .finally(() => {
         maintenanceRunning = false;
@@ -234,6 +323,7 @@ async function continueAfterDataHomeRecovery(): Promise<void> {
   runtimeUiAvailable = true;
   if (state.kind === "attached" || state.kind === "owned") {
     runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
+    runtimeUiGeneration = state.generation;
   }
   if (runtimeUiUrl === undefined) {
     showStartupFailure(window, new Error("Runtime did not publish an HTTP endpoint"));
@@ -243,11 +333,40 @@ async function continueAfterDataHomeRecovery(): Promise<void> {
   startOwnedRuntimeMaintenance();
 }
 
+async function retryRuntimeFromFailure(): Promise<void> {
+  const window = managementWindow.current();
+  if (window === undefined || roleController === undefined) return;
+  showStartupProgress(window, "starting");
+  managementUiLoaded = false;
+  try {
+    const state = await roleController.ensureRuntime((phase) => {
+      if (!window.isDestroyed()) showStartupProgress(window, phase);
+    });
+    if (state.kind === "failed") {
+      showStartupFailure(window, new Error(state.reason));
+      return;
+    }
+    runtimeUiAvailable = true;
+    if (state.kind === "attached" || state.kind === "owned") {
+      runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
+      runtimeUiGeneration = state.generation;
+    }
+    if (runtimeUiUrl === undefined) {
+      showStartupFailure(window, new Error("Runtime did not publish an HTTP endpoint"));
+      return;
+    }
+    await loadManagementUi(window);
+    startOwnedRuntimeMaintenance();
+  } catch (error: unknown) {
+    showRuntimeLoadFailure(window, error);
+  }
+}
+
 async function handleDataHomeRecoveryAction(action: RecoveryAction): Promise<void> {
   const window = managementWindow.current();
   if (window === undefined || roleController === undefined) return;
   if (action === "quit") {
-    requestExplicitApplicationExit();
+    requestExplicitApplicationExit("data-home-recovery-quit");
     return;
   }
   if (action === "open-data-home") {
@@ -296,7 +415,22 @@ async function startDesktop(): Promise<void> {
   // Controller recursively.
   process.env["ELFIENEST_CONTROLLER_CLIENT"] = "1";
   if (app.isPackaged) {
-    loadAndValidateResourceManifest(process.resourcesPath, app.getVersion());
+    const manifest = loadAndValidateResourceManifest(
+      process.resourcesPath,
+      app.getVersion(),
+    );
+    process.env["ELFIENEST_SOURCE_REVISION"] = manifest.source_revision;
+    desktopDiagnostics?.setSourceRevision(manifest.source_revision);
+    desktopDiagnostics?.event("desktop_build_attribution", {
+      application_version: manifest.application_version,
+      target: manifest.target,
+    });
+    console.info(
+      "ElfieNest Desktop build",
+      manifest.application_version,
+      manifest.source_revision,
+      manifest.target,
+    );
   }
   const lifecycleCommand = lifecycleCommandExecutable(
     app.isPackaged,
@@ -339,7 +473,7 @@ async function startDesktop(): Promise<void> {
     },
     STOP_SERVER: async (payload) => {
       await assertControllerTarget(payload);
-      setImmediate(() => requestExplicitApplicationExit());
+      setImmediate(() => requestExplicitApplicationExit("controller-stop-server"));
       return { accepted: true, state: "stopping" };
     },
   });
@@ -356,12 +490,19 @@ async function startDesktop(): Promise<void> {
     }
     throw new Error(state.reason);
   }
+  if (state.kind === "attached" || state.kind === "owned") {
+    // A background Controller has no window during initial startup. Keep the
+    // ready Runtime URL available so a later single-instance activation can
+    // create the Viewer and load the real management page.
+    runtimeUiAvailable = true;
+    runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
+    runtimeUiGeneration = state.generation;
+    if (runtimeUiUrl === undefined) {
+      throw new Error("Runtime did not publish an HTTP endpoint");
+    }
+  }
   const window = managementWindow.current();
   if (window !== undefined) {
-    runtimeUiAvailable = true;
-    if (state.kind === "attached" || state.kind === "owned") {
-      runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
-    }
     if (runtimeUiUrl === undefined) {
       throw new Error("Runtime did not publish an HTTP endpoint");
     }
@@ -370,11 +511,55 @@ async function startDesktop(): Promise<void> {
 }
 
 function startDesktopUiRole(): void {
-  app.setPath("userData", controllerHomeForAppData(app.getPath("appData")));
+  Menu.setApplicationMenu(APPLICATION_MENU);
+  const configuredAppData = process.env["ELFIENEST_DESKTOP_APP_DATA"]?.trim();
+  const controllerHome = controllerHomeForAppData(
+    configuredAppData === undefined || configuredAppData === ""
+      ? app.getPath("appData")
+      : configuredAppData,
+  );
+  app.setPath("userData", controllerHome);
   const hasSingleInstanceLock = app.requestSingleInstanceLock();
   if (!hasSingleInstanceLock) {
+    requestedExitReason = "secondary-instance";
+    console.info("ElfieNest Desktop exit requested", requestedExitReason);
     app.quit();
     return;
+  }
+  try {
+    desktopDiagnostics = new DesktopDiagnostics(
+      join(controllerHome, "logs", "desktop-events.jsonl"),
+      {
+        role: "desktop",
+        sourceRevision: process.env["ELFIENEST_SOURCE_REVISION"],
+      },
+    );
+    removeProcessExceptionHandlers = installDesktopProcessExceptionHandlers(
+      desktopDiagnostics,
+    );
+  } catch (error: unknown) {
+    console.error("ElfieNest Desktop diagnostics unavailable", error);
+  }
+  try {
+    crashReporter.start({
+      companyName: "ElfieNest",
+      productName: "ElfieNest",
+      uploadToServer: false,
+      compress: true,
+    });
+  } catch (error: unknown) {
+    desktopDiagnostics?.error("crash_reporter_start_failed", error);
+  }
+  try {
+    pruneCrashDumps(app.getPath("crashDumps"));
+  } catch (error: unknown) {
+    desktopDiagnostics?.error("crash_dump_prune_failed", error);
+  }
+  if (desktopDiagnostics !== undefined) {
+    desktopDiagnostics.event("desktop_process_started", {
+      controller_only: controllerOnly,
+    });
+    startDesktopResourceMonitor();
   }
   app.on("second-instance", (_event, commandLine) => {
     if (commandLine.includes("--background")) {
@@ -388,17 +573,6 @@ function startDesktopUiRole(): void {
     .whenReady()
     .then(() => {
       const locale = normalizeApplicationMenuLocale(app.getLocale());
-      Menu.setApplicationMenu(
-        Menu.buildFromTemplate(
-          applicationMenuTemplate(
-            process.platform,
-            showManagementWindow,
-            hideManagementWindow,
-            requestExplicitApplicationExit,
-            locale,
-          ),
-        ),
-      );
       createBackgroundTray(locale);
       if (!controllerOnly) {
         showManagementWindow();
@@ -414,9 +588,12 @@ function startDesktopUiRole(): void {
       });
     })
     .catch((error: unknown) => {
+      desktopDiagnostics?.error("desktop_start_failed", error);
       const message = error instanceof Error ? error.message : "未知错误";
       console.error("ElfieNest Desktop 启动失败", message);
       if (controllerOnly) {
+        requestedExitReason = "controller-start-failure";
+        console.info("ElfieNest Desktop exit requested", requestedExitReason);
         app.quit();
         return;
       }
@@ -424,6 +601,26 @@ function startDesktopUiRole(): void {
       showStartupFailure(window, error);
       showManagementWindow();
     });
+}
+
+function startDesktopResourceMonitor(): void {
+  if (diagnosticsTimer !== undefined) return;
+  const sample = (): void => {
+    const memory = process.memoryUsage();
+    const cpu = process.cpuUsage();
+    desktopDiagnostics?.event("process_resource_sample", {
+      rss_bytes: memory.rss,
+      heap_used_bytes: memory.heapUsed,
+      heap_total_bytes: memory.heapTotal,
+      external_bytes: memory.external,
+      cpu_user_microseconds: cpu.user,
+      cpu_system_microseconds: cpu.system,
+      active_resource_count: process.getActiveResourcesInfo().length,
+    });
+  };
+  sample();
+  diagnosticsTimer = setInterval(sample, 300_000);
+  diagnosticsTimer.unref?.();
 }
 
 function controllerStatePayload(): Readonly<{
@@ -515,15 +712,19 @@ async function ensureControllerRuntime(): Promise<void> {
   try {
     const state = await roleController.ensureRuntime();
     if (state.kind === "failed") {
+      desktopDiagnostics?.event(
+        "controller_runtime_restore_failed",
+        { message: state.reason },
+        "error",
+      );
       console.error("ElfieNest Controller could not restore the Server", state.reason);
     }
   } catch (error: unknown) {
+    desktopDiagnostics?.error("controller_runtime_restore_rejected", error);
     const detail = error instanceof Error ? error.message : String(error);
     console.error("ElfieNest Controller restore failed", detail);
   }
 }
-
-startDesktopUiRole();
 
 ipcMain.handle("mobile-network:read-current-wifi", async () => {
   return readCurrentWifiName({
@@ -538,22 +739,76 @@ ipcMain.handle("mobile-network:open-location-settings", async () => {
   }
 });
 
+ipcMain.on("diagnostics:renderer-error", (event, payload: unknown) => {
+  const window = managementWindow.current();
+  if (window === undefined || event.sender.id !== window.webContents.id) return;
+  const fields = normalizeRendererDiagnosticPayload(payload);
+  if (fields === undefined) return;
+  desktopDiagnostics?.event(
+    "renderer_error",
+    fields,
+    fields["origin"] === "react_recoverable" ? "warning" : "error",
+  );
+});
+
 app.on("before-quit", (event) => {
-  if (!explicitExitRequested || exitInProgress) {
+  console.info("ElfieNest Desktop before-quit", requestedExitReason);
+  desktopDiagnostics?.event("desktop_before_quit", {
+    reason: requestedExitReason,
+  });
+  // A managed SIGTERM can cause Electron to emit before-quit without first
+  // delivering the Node signal handler. The primary Controller must still
+  // run its ordered Runtime cleanup; a secondary instance has no role
+  // controller and should exit immediately.
+  if (roleController === undefined || exitInProgress) {
     return;
+  }
+  if (!explicitExitRequested) {
+    requestedExitReason = "before-quit";
   }
   event.preventDefault();
   explicitExitRequested = false;
   exitInProgress = true;
+  const cleanupStartedAt = performance.now();
   const cleanup = roleController?.exitApplication() ?? Promise.resolve();
+  const cleanupWarningTimer = setTimeout(() => {
+    desktopDiagnostics?.event(
+      "runtime_cleanup_slow",
+      { warning_ms: DESKTOP_CLEANUP_TIMEOUT_MS },
+      "warning",
+    );
+  }, DESKTOP_CLEANUP_TIMEOUT_MS);
   void cleanup
     .catch((error: unknown) => {
+      desktopDiagnostics?.error("runtime_cleanup_failed", error);
       const message = error instanceof Error ? error.message : String(error);
       console.error("ElfieNest Runtime cleanup during quit failed", message);
     })
     .finally(async () => {
-      await controllerIpcServer?.close();
+      clearTimeout(cleanupWarningTimer);
+      desktopDiagnostics?.event("runtime_cleanup_complete", {
+        duration_ms: Math.round(performance.now() - cleanupStartedAt),
+      });
+      const ipcServer = controllerIpcServer;
+      if (ipcServer !== undefined) {
+        let ipcCloseTimer: NodeJS.Timeout | undefined;
+        const ipcCloseDeadline = new Promise<void>((resolve) => {
+          ipcCloseTimer = setTimeout(() => {
+            desktopDiagnostics?.event(
+              "controller_ipc_close_timeout",
+              { timeout_ms: DESKTOP_IPC_CLOSE_TIMEOUT_MS },
+              "warning",
+            );
+            resolve();
+          }, DESKTOP_IPC_CLOSE_TIMEOUT_MS);
+        });
+        await Promise.race([ipcServer.close(), ipcCloseDeadline]);
+        if (ipcCloseTimer !== undefined) {
+          clearTimeout(ipcCloseTimer);
+        }
+      }
       controllerIpcServer = undefined;
+      console.info("ElfieNest Desktop cleanup complete", requestedExitReason);
       app.exit(0);
     });
 });
@@ -564,14 +819,61 @@ app.on("activate", () => {
 
 app.on("window-all-closed", () => {
   if (backgroundTray === undefined && process.platform !== "darwin") {
+    requestedExitReason = "window-all-closed";
+    console.info("ElfieNest Desktop exit requested", requestedExitReason);
     app.quit();
   }
 });
 
-export function requestExplicitApplicationExit(): void {
+app.on("quit", (_event, exitCode) => {
+  console.info("ElfieNest Desktop exited", requestedExitReason, exitCode);
+  desktopDiagnostics?.event("desktop_process_exited", {
+    reason: requestedExitReason,
+    exit_code: exitCode,
+  });
+  if (diagnosticsTimer !== undefined) {
+    clearInterval(diagnosticsTimer);
+    diagnosticsTimer = undefined;
+  }
+  removeProcessExceptionHandlers?.();
+  removeProcessExceptionHandlers = undefined;
+  desktopDiagnostics?.close();
+});
+
+app.on("render-process-gone", (_event, webContents, details) => {
+  desktopDiagnostics?.event(
+    "render_process_gone",
+    {
+      web_contents_id: webContents.id,
+      reason: details.reason,
+      exit_code: details.exitCode,
+    },
+    "critical",
+  );
+});
+
+app.on("child-process-gone", (_event, details) => {
+  desktopDiagnostics?.event(
+    "child_process_gone",
+    {
+      component: details.type,
+      reason: details.reason,
+      exit_code: details.exitCode,
+      name: details.name,
+      service_name: details.serviceName,
+    },
+    "error",
+  );
+});
+
+export function requestExplicitApplicationExit(
+  reason = "user-request",
+): void {
   if (exitInProgress) {
     return;
   }
+  requestedExitReason = reason;
+  console.info("ElfieNest Desktop exit requested", requestedExitReason);
   explicitExitRequested = true;
   if (maintenanceTimer !== undefined) {
     clearInterval(maintenanceTimer);
@@ -585,3 +887,13 @@ export function requestExplicitApplicationExit(): void {
   backgroundTray = undefined;
   app.quit();
 }
+
+// The packaged lifecycle controller terminates the Desktop Controller with a
+// POSIX signal after asking it to stop the owned runtime.  Handle that signal
+// through the same explicit-exit path as the tray/menu action so Electron runs
+// the normal role cleanup and closes its process instead of lingering in a
+// partially-quit state.
+process.once("SIGTERM", () => requestExplicitApplicationExit("sigterm"));
+process.once("SIGINT", () => requestExplicitApplicationExit("sigint"));
+
+startDesktopUiRole();

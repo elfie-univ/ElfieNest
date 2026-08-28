@@ -85,6 +85,15 @@ def test_runtime_source_declares_protocol_v3_manifest_contract() -> None:
     ).read_text(encoding="utf-8")
 
     assert "const GODOT_PROTOCOL_VERSION := 3" in websocket_client_text
+    assert "get_close_code()" in websocket_client_text
+    assert "get_close_reason()" in websocket_client_text
+    assert '"runtime_websocket_closed"' in websocket_client_text
+    assert '"runtime_websocket_reconnect"' in websocket_client_text
+    assert '"total_attempts": _total_reconnect_attempts' in websocket_client_text
+    assert '"warning"' in websocket_client_text
+    assert '"error"' in websocket_client_text
+    assert "\n\t\t_handshake_complete = true" in websocket_client_text
+    assert "\n\t\t\t_handshake_complete = true" not in websocket_client_text
     assert '"scene_manifest"' in world_controller_text
     assert '"world_configured"' in world_controller_text
     assert "match command_name:" in main_text

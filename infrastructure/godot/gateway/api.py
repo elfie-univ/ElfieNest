@@ -9,8 +9,10 @@ import os
 import secrets
 import socket
 import threading
+from concurrent.futures import CancelledError, Future
 from threading import RLock
 from typing import Any, Protocol, cast
+from urllib.parse import urlsplit
 
 import websockets
 
@@ -28,7 +30,7 @@ from infrastructure.godot.gateway.session import (
     RuntimeSessionNotReadyError,
 )
 
-logger = logging.getLogger("infrastructure.godot.gateway.api")
+logger = logging.getLogger("elfienest.diagnostics.godot_gateway")
 GODOT_PROTOCOL_VERSION = 3
 GATEWAY_STOP_JOIN_TIMEOUT_SECONDS = 0.5
 
@@ -68,6 +70,19 @@ class GodotAPIServer:
             else {
                 f"http://127.0.0.1:{http_port}",
                 f"http://localhost:{http_port}",
+                # The displayless Dedicated Runtime uses Godot's native
+                # WebSocketPeer.  Its handshake Origin is derived from the
+                # WebSocket endpoint rather than the Core HTTP page, so the
+                # exact loopback WS origins must be trusted as well.
+                f"http://127.0.0.1:{self.port}",
+                f"http://localhost:{self.port}",
+                # Godot's native Dedicated export may omit the default port
+                # or the Origin header entirely.  The empty-origin case is
+                # still protected by the per-runtime handshake nonce below;
+                # remote origins remain rejected by the handshake gate.
+                "http://127.0.0.1",
+                "http://localhost",
+                "",
             }
         )
         self.clients: set[Any] = set()
@@ -81,6 +96,8 @@ class GodotAPIServer:
         self._startup_cancelled = threading.Event()
         self._body_sinks: dict[str, BodyEventSink] = {}
         self._body_sinks_lock = RLock()
+        self._diagnostic_counts: dict[str, int] = {}
+        self._diagnostic_counts_lock = RLock()
 
     def start(self) -> None:
         if self._running:
@@ -111,19 +128,35 @@ class GodotAPIServer:
             raise RuntimeError(
                 f"Godot Runtime gateway failed to start: {self._startup_error}"
             ) from self._startup_error
+        logger.info("Godot Runtime gateway thread is ready")
 
     def stop(self) -> None:
         if not self._running:
             return
         self._running = False
         if self._loop is not None and self._loop.is_running():
-            asyncio.run_coroutine_threadsafe(self._async_stop(), self._loop)
+            stop_coroutine = self._async_stop()
+            try:
+                stop_future = asyncio.run_coroutine_threadsafe(
+                    stop_coroutine,
+                    self._loop,
+                )
+            except RuntimeError:
+                stop_coroutine.close()
+                logger.exception("Godot Runtime gateway stop could not be scheduled")
+            else:
+                stop_future.add_done_callback(self._observe_stop_completion)
         if self._thread is not None:
             # The event loop's close coroutine has already been scheduled. Do
             # not hold Core shutdown for the old 2-second thread-join ceiling;
             # the thread is daemon-owned and the process-group stop remains the
             # final safety net if a peer is slow to close.
             self._thread.join(timeout=GATEWAY_STOP_JOIN_TIMEOUT_SECONDS)
+            if self._thread.is_alive():
+                logger.error(
+                    "Godot Runtime gateway thread did not stop within %.1fs",
+                    GATEWAY_STOP_JOIN_TIMEOUT_SECONDS,
+                )
 
     def _run_event_loop(self) -> None:
         if self._loop is None:
@@ -150,6 +183,10 @@ class GodotAPIServer:
             self._server = self._loop.run_until_complete(start_server())
         except BaseException as exc:
             self._startup_error = exc
+            logger.critical(
+                "Godot Runtime gateway startup failed",
+                exc_info=(type(exc), exc, exc.__traceback__),
+            )
             self._ready.set()
             self._loop.close()
             return
@@ -161,8 +198,16 @@ class GodotAPIServer:
         self._ready.set()
         try:
             self._loop.run_forever()
+        except BaseException as exc:
+            logger.critical(
+                "Godot Runtime gateway event loop crashed",
+                exc_info=(type(exc), exc, exc.__traceback__),
+            )
+            raise
         finally:
+            self._running = False
             self._loop.close()
+            logger.info("Godot Runtime gateway event loop stopped")
 
     async def _async_stop(self) -> None:
         if self._server is not None:
@@ -180,12 +225,19 @@ class GodotAPIServer:
     async def _handle_client(self, websocket: Any) -> None:
         request = getattr(websocket, "request", None)
         headers = getattr(request, "headers", {})
-        if headers.get("Origin", "") not in self.allowed_origins:
+        origin = headers.get("Origin", "")
+        if not self._origin_allowed(origin):
+            self._log_handshake_rejection(
+                "origin",
+                "origin not allowed",
+                origin=origin,
+            )
             await websocket.close(4005, "Origin not allowed")
             return
         try:
             raw = await asyncio.wait_for(websocket.recv(), timeout=5.0)
         except asyncio.TimeoutError:
+            self._log_handshake_rejection("timeout", "hello timeout")
             await websocket.close(4001, "Hello timeout: send hello within 5s")
             return
         except websockets.exceptions.ConnectionClosed:
@@ -193,12 +245,18 @@ class GodotAPIServer:
         try:
             data = json.loads(raw)
         except json.JSONDecodeError:
+            self._log_handshake_rejection("invalid_json", "invalid JSON")
             await websocket.close(4002, "Invalid JSON")
             return
         if not isinstance(data, dict):
+            self._log_handshake_rejection("non_object", "non-object payload")
             await websocket.close(4002, "Invalid JSON object")
             return
         if data.get("event") != "hello":
+            self._log_handshake_rejection(
+                "wrong_first_frame",
+                "first frame was not hello",
+            )
             await websocket.close(4003, "First frame must be hello")
             return
         payload = data.get("payload")
@@ -207,6 +265,10 @@ class GodotAPIServer:
             or payload.get("protocol") != GODOT_PROTOCOL_VERSION
             or payload.get("nonce") != self.handshake_nonce
         ):
+            self._log_handshake_rejection(
+                "credential_mismatch",
+                "protocol or credential mismatch",
+            )
             await websocket.close(4004, "Invalid Godot handshake")
             return
         await GodotProtocolV3Handler(
@@ -246,11 +308,119 @@ class GodotAPIServer:
             )
         except RuntimeSessionNotReadyError:
             return None
-        asyncio.run_coroutine_threadsafe(
-            self._broadcast(frame.model_dump(mode="json")),
-            self._loop,
-        )
+        broadcast = self._broadcast(frame.model_dump(mode="json"))
+        try:
+            send_future = asyncio.run_coroutine_threadsafe(broadcast, self._loop)
+        except RuntimeError:
+            broadcast.close()
+            attempt = self._sampled_diagnostic_count("send_schedule_failure")
+            if attempt is not None:
+                logger.exception(
+                    "Godot Runtime gateway command send could not be scheduled",
+                    extra={"attempt": attempt},
+                )
+            return None
+        send_future.add_done_callback(self._observe_send_completion)
         return frame.message_id
+
+    def _observe_send_completion(self, future: Future[None]) -> None:
+        try:
+            future.result()
+        except CancelledError:
+            logger.info("Godot Runtime gateway background send was cancelled")
+        except Exception:
+            attempt = self._sampled_diagnostic_count("background_send_failure")
+            if attempt is not None:
+                logger.exception(
+                    "Godot Runtime gateway background command send failed",
+                    extra={"attempt": attempt},
+                )
+
+    @staticmethod
+    def _observe_stop_completion(future: Future[None]) -> None:
+        try:
+            future.result()
+        except CancelledError:
+            logger.info("Godot Runtime gateway stop was cancelled")
+        except Exception:
+            logger.exception("Godot Runtime gateway asynchronous stop failed")
+
+    def _origin_allowed(self, origin: object) -> bool:
+        """Match WebSocket origins without trusting formatting variations.
+
+        Godot's native WebSocketPeer has emitted the same loopback origin both
+        with and without a trailing slash across platform/runtime versions.
+        Normalize only a valid HTTP(S) origin, then compare it with the
+        explicitly configured allow-list.  Native Dedicated runtimes may omit
+        Origin; the authenticated nonce handshake still protects that case.
+        """
+        normalized = self._normalize_origin(origin)
+        if normalized is None:
+            return False
+        allowed = {
+            value if value == "" else self._normalize_origin(value)
+            for value in self.allowed_origins
+        }
+        return normalized in allowed
+
+    @staticmethod
+    def _normalize_origin(origin: object) -> str | None:
+        if not isinstance(origin, str):
+            return None
+        value = origin.strip()
+        if value == "":
+            return ""
+        try:
+            parsed = urlsplit(value)
+            port = parsed.port
+        except ValueError:
+            return None
+        if (
+            parsed.scheme.lower() not in {"http", "https"}
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.hostname is None
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+        ):
+            return None
+        host = parsed.hostname.lower()
+        netloc = host if ":" not in host else f"[{host}]"
+        if port is not None:
+            netloc = f"{netloc}:{port}"
+        return f"{parsed.scheme.lower()}://{netloc}"
+
+    def _log_handshake_rejection(
+        self,
+        reason: str,
+        message: str,
+        *,
+        origin: object | None = None,
+    ) -> None:
+        attempt = self._sampled_diagnostic_count(f"handshake:{reason}")
+        if attempt is None:
+            return
+        details: dict[str, object] = {
+            "diagnostic_event": "godot_handshake_rejected",
+            "reason": reason,
+            "attempt": attempt,
+        }
+        if origin is not None:
+            details["origin"] = (
+                origin[:256] if isinstance(origin, str) else type(origin).__name__
+            )
+        logger.warning(
+            "Rejected Godot handshake: %s",
+            message,
+            extra=details,
+        )
+
+    def _sampled_diagnostic_count(self, key: str) -> int | None:
+        with self._diagnostic_counts_lock:
+            count = self._diagnostic_counts.get(key, 0) + 1
+            self._diagnostic_counts[key] = count
+        return count if count & (count - 1) == 0 else None
 
     def send_body_command(
         self,
@@ -402,10 +572,20 @@ class GodotAPIServer:
         if not self.clients:
             return
         encoded = json.dumps(message, ensure_ascii=False)
-        await asyncio.gather(
+        results = await asyncio.gather(
             *(client.send(encoded) for client in self.clients),
             return_exceptions=True,
         )
+        failures = sum(isinstance(result, BaseException) for result in results)
+        attempt = (
+            self._sampled_diagnostic_count("broadcast_failure") if failures else None
+        )
+        if attempt is not None:
+            logger.warning(
+                "Godot Runtime gateway broadcast failed for %d client(s)",
+                failures,
+                extra={"attempt": attempt},
+            )
 
 
 __all__ = ("BodyEventSink", "GODOT_PROTOCOL_VERSION", "GodotAPIServer")

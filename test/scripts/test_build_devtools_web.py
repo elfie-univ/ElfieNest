@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from scripts import build_devtools_web
-from scripts.build_devtools_web import bundle_is_current, source_digest
+from scripts.internal.build import build_devtools_web
+from scripts.internal.build.build_devtools_web import bundle_is_current, source_digest
 
 
 def test_bundle_is_current_only_when_frontend_source_matches(tmp_path: Path) -> None:

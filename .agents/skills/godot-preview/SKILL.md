@@ -18,7 +18,7 @@ Use this skill when:
 - A Godot-specific validation script must be run once in a controlled, synchronous process.
 
 ## How to use this skill
-1. Run `scripts/godot_host_validate.sh <validation-script>` from an authorized host shell. The
+1. Run `scripts/quality/checks/godot_host.sh <validation-script>` from an authorized host shell. The
    same command can be run manually from the user's Terminal as a fallback.
 2. The host entrypoint checks for an existing process and then delegates to `godot_guard.py
    validate`, which executes exactly one synchronous headless invocation.

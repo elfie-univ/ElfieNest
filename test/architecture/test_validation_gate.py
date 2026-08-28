@@ -7,15 +7,16 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
-import scripts.architecture.validation_cache as validation_cache
-import scripts.architecture.validation_gate as validation_gate
-import scripts.architecture.validation_plan as validation_plan
-from scripts.architecture.validation_cache import (
+import scripts.quality.validation.cache as validation_cache
+import scripts.quality.validation.candidate_evidence as candidate_evidence
+import scripts.quality.validation.gate as validation_gate
+import scripts.quality.validation.plan as validation_plan
+from scripts.quality.validation.cache import (
     backstop_fingerprint,
     cache_hit,
     cache_store,
 )
-from scripts.architecture.validation_gate import _commands, build_plan
+from scripts.quality.validation.gate import _commands, build_plan
 
 
 def test_provider_changes_select_the_affected_suite_at_push_tier() -> None:
@@ -36,6 +37,21 @@ def test_unknown_executable_changes_fail_closed_without_local_main_escalation() 
     assert plan["full"] is True
     assert plan["unknown_paths"] == ["new_runtime_surface.py"]
     assert all(plan["capabilities"].values())
+
+
+def test_retired_script_paths_select_governance_and_fail_closed() -> None:
+    paths = [
+        "scripts/architecture/scanner.py",
+        "scripts/check_quality_baseline.py",
+    ]
+
+    plan = build_plan(paths, "commit")
+
+    assert plan["full"] is True
+    assert plan["unknown_paths"] == []
+    assert plan["direct_capabilities"]["architecture"] is True
+    assert plan["direct_capabilities"]["governance"] is True
+    assert all("retired script path" in reason for reason in plan["reasons"])
 
 
 def test_source_changes_use_the_mirrored_test_directory_when_available() -> None:
@@ -77,12 +93,86 @@ def test_frontend_change_selects_only_its_parallel_lane() -> None:
     assert selected == {"security_fast", "web_frontend"}
     assert plan["tests"] == []
 
+    commit_plan = build_plan(
+        ["app/interfaces/web/frontend/src/components/Example.tsx"], "commit"
+    )
+    local_labels = {label for label, _command in _commands(commit_plan, "base")}
+    assert "web frontend dependencies" not in local_labels
+    assert "web frontend tests" not in local_labels
+
+
+def test_python_change_selects_remote_tests_and_quality_in_parallel() -> None:
+    plan = build_plan(["app/features/setup/service.py"], "push")
+
+    assert plan["capabilities"]["python_bundles"] is True
+    assert plan["capabilities"]["python_quality"] is True
+    assert plan["capabilities"]["runtime_smoke"] is False
+
+
+def test_nested_agent_rules_are_governance_not_local_product_work() -> None:
+    plan = build_plan(["app/interfaces/web/frontend/AGENTS.md"], "push")
+
+    assert plan["full"] is False
+    assert plan["capabilities"]["web_frontend"] is False
+    assert plan["direct_capabilities"]["governance"] is True
+    assert plan["direct_capabilities"]["architecture"] is True
+    assert plan["direct_capabilities"]["web_frontend"] is False
+
+    local_labels = {label for label, _command in _commands(plan, "base")}
+    assert "governance change policy" in local_labels
+    assert "architecture tests" in local_labels
+    assert "web frontend dependencies" not in local_labels
+
+
+def test_pure_governance_prose_selects_only_governance_docs_and_security() -> None:
+    plan = build_plan(
+        ["docs/developer/decisions/0029-explicit-git-delivery-authorization.md"],
+        "push",
+    )
+
+    selected = {name for name, enabled in plan["capabilities"].items() if enabled}
+    assert plan["full"] is False
+    assert selected == {"security_fast", "architecture", "docs", "governance"}
+
+
+def test_architecture_test_changes_select_architecture_and_python_quality() -> None:
+    plan = build_plan(["test/architecture/test_git_delivery_governance.py"], "push")
+
+    selected = {name for name, enabled in plan["capabilities"].items() if enabled}
+    assert plan["full"] is False
+    assert selected == {
+        "security_fast",
+        "python_quality",
+        "architecture",
+        "governance",
+    }
+
+
+def test_mixed_diff_unions_product_and_governance_lanes_without_full_graph() -> None:
+    plan = build_plan(
+        [
+            "docs/developer/decisions/0029-explicit-git-delivery-authorization.md",
+            "app/interfaces/web/frontend/src/components/Example.tsx",
+        ],
+        "push",
+    )
+
+    selected = {name for name, enabled in plan["capabilities"].items() if enabled}
+    assert plan["full"] is False
+    assert selected == {
+        "security_fast",
+        "web_frontend",
+        "architecture",
+        "docs",
+        "governance",
+    }
+
 
 def test_router_and_workflow_changes_cannot_approve_themselves() -> None:
     plan = build_plan(
         [
             ".github/workflows/ci.yml",
-            "scripts/architecture/validation_plan.py",
+            "scripts/quality/validation/plan.py",
         ],
         "push",
     )
@@ -104,17 +194,45 @@ def test_router_and_workflow_changes_cannot_approve_themselves() -> None:
     assert governance_command[-3:] == [
         "--paths",
         ".github/workflows/ci.yml",
-        "scripts/architecture/validation_plan.py",
+        "scripts/quality/validation/plan.py",
     ]
 
 
+def test_future_script_control_plane_paths_select_every_candidate_lane() -> None:
+    plan = build_plan(
+        [
+            "scripts/governance/change_policy.py",
+            "scripts/quality/checks/environment.py",
+            "scripts/quality/validation/plan.py",
+        ],
+        "push",
+    )
+
+    assert plan["full"] is True
+    assert plan["capabilities"]["governance"] is True
+    assert all(plan["capabilities"].values())
+
+
 def test_bootstrap_and_closure_governance_fail_closed() -> None:
-    bootstrap = build_plan(["scripts/bootstrap_runtime_dependencies.sh"], "push")
+    bootstrap = build_plan(["scripts/bootstrap.sh"], "push")
+    internal_bootstrap = build_plan(
+        ["scripts/internal/bootstrap/runtime_dependencies.sh"], "push"
+    )
+    internal_build = build_plan(["scripts/internal/build/build_godot_web.py"], "push")
+    internal_release = build_plan(
+        ["scripts/internal/release/release_pipeline.py"], "push"
+    )
     closure = build_plan(["task-closure-lifecycle.json"], "push")
 
     assert bootstrap["full"] is True
     assert bootstrap["capabilities"]["toolchain"] is True
     assert bootstrap["capabilities"]["release"] is True
+    assert internal_bootstrap["full"] is True
+    assert internal_bootstrap["direct_capabilities"]["toolchain"] is True
+    assert internal_build["full"] is True
+    assert internal_build["direct_capabilities"]["release"] is True
+    assert internal_release["full"] is True
+    assert internal_release["direct_capabilities"]["release"] is True
     assert closure["full"] is True
     assert closure["capabilities"]["governance"] is True
 
@@ -151,6 +269,7 @@ def test_manifest_exports_single_line_github_outputs(tmp_path: Path) -> None:
     assert values["router_version"] == validation_plan.MANIFEST_SCHEMA_VERSION
     assert values["web_frontend"] == "true"
     assert values["python_bundles"] == "false"
+    assert values["python_quality"] == "false"
     assert json.loads(values["manifest_json"])["full"] is False
 
 
@@ -169,10 +288,64 @@ def test_ci_separates_candidate_merge_and_postsubmit_checks() -> None:
     assert 'require_lane release "$RELEASE_SELECTED" "$RELEASE_RESULT"' in workflow
     assert "name: Enforce main health quarantine" in workflow
     assert '"main-recovery" in labels' in workflow
-    assert "name: Post-submit full backstop" in workflow
-    assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow
+    assert "name: Complete full backstop" in workflow
+    assert "full-gate:" in workflow
+    assert "python-quality:" in workflow
+    assert "runtime-smoke:" in workflow
+    assert "format('candidate-{0}', github.event.pull_request.head.sha)" in workflow
+    assert "inputs.mode == 'candidate'" in workflow
     assert "cancel-in-progress: false" in workflow
-    assert "--stage full --direct-full" in workflow
+    assert "--stage full" in workflow
+    assert "pre-commit run gitleaks --all-files" in workflow
+
+
+def test_pre_pr_evidence_reuse_is_bound_to_trusted_exact_identity() -> None:
+    values = {
+        ("a" * 40, "scripts/quality/validation/plan.py"): (
+            b'MANIFEST_SCHEMA_VERSION = "affected-v3"\n'
+        ),
+    }
+
+    def reader(commit: str, path: str) -> bytes:
+        return values.get((commit, path), f"{commit}:{path}".encode())
+
+    first = candidate_evidence.build_identity("a" * 40, "b" * 40, reader=reader)
+    values[("a" * 40, ".github/workflows/ci.yml")] = b"changed workflow"
+    changed_governance = candidate_evidence.build_identity(
+        "a" * 40, "b" * 40, reader=reader
+    )
+    values[("b" * 40, "uv.lock")] = b"changed toolchain"
+    changed_toolchain = candidate_evidence.build_identity(
+        "a" * 40, "b" * 40, reader=reader
+    )
+    changed_candidate = candidate_evidence.build_identity(
+        "a" * 40, "c" * 40, reader=reader
+    )
+
+    assert first["candidate_sha"] == "b" * 40
+    assert first["manifest_version"] == "affected-v3"
+    assert first["workflow_identity"].endswith("@refs/heads/main")
+    assert changed_governance["artifact_name"] != first["artifact_name"]
+    assert changed_toolchain["artifact_name"] != changed_governance["artifact_name"]
+    assert changed_candidate["artifact_name"] != changed_toolchain["artifact_name"]
+
+
+def test_pr_reuse_verifies_dispatch_source_and_fails_closed() -> None:
+    workflow = (validation_plan.PROJECT_ROOT / ".github/workflows/ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    for required in (
+        "candidate_evidence.py",
+        'run.get("event") == "workflow_dispatch"',
+        'run.get("path") == ".github/workflows/ci.yml"',
+        'run.get("head_branch") == "main"',
+        'run.get("conclusion") == "success"',
+        "git merge-base --is-ancestor",
+        'echo "reused=true"',
+        "Publish exact candidate evidence",
+    ):
+        assert required in workflow
 
 
 def test_ci_uses_the_base_branch_router_and_fails_closed_during_bootstrap() -> None:
@@ -180,9 +353,11 @@ def test_ci_uses_the_base_branch_router_and_fails_closed_during_bootstrap() -> N
         encoding="utf-8"
     )
 
-    assert "$base_sha:scripts/architecture/validation_plan.py" in workflow
+    assert "$base_sha:scripts/quality/validation/plan.py" in workflow
+    assert "$base_sha:scripts/architecture/validation_plan.py" not in workflow
     assert "base branch predates the trusted router; selecting every lane" in workflow
-    assert "grep -q 'MANIFEST_SCHEMA_VERSION = \"affected-v1\"'" in workflow
+    assert "affected-v(1|2|3)" in workflow
+    assert 'MANIFEST_SCHEMA_VERSION = "affected-v3"' in workflow
 
 
 def test_command_selection_keeps_g1_focused_and_adds_g2_quality() -> None:
@@ -203,7 +378,7 @@ def test_command_selection_keeps_g1_focused_and_adds_g2_quality() -> None:
         for label, command in _commands(commit_plan, "base")
         if label == "affected tests"
     )
-    assert "scripts/architecture/validation_test_bundles.py" in affected_command
+    assert "scripts/quality/validation/test_bundles.py" in affected_command
     assert "--selectors" in affected_command
 
 

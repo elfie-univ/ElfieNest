@@ -2,6 +2,7 @@ from dataclasses import replace
 
 import pytest
 
+from elfie.brain.memory.retrieval import MemoryRetriever
 from elfie.genesis import GenesisMemoryCommitter, GenesisValidationError
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
@@ -34,10 +35,73 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
             for edge in storage.get_edges("genesis:self:genesis-check")
         )
         assert (
-            storage.conn.execute("SELECT COUNT(*) FROM known_elfies").fetchone()[0] == 1
+            storage.conn.execute(
+                "SELECT COUNT(*) FROM nodes WHERE json_extract(properties_json, '$.entity_type')='elfie'"
+            ).fetchone()[0]
+            == 1
         )
-        assert storage.conn.execute("SELECT COUNT(*) FROM people").fetchone()[0] == 1
-        assert storage.conn.execute("SELECT COUNT(*) FROM places").fetchone()[0] == 3
+        assert (
+            storage.conn.execute(
+                "SELECT COUNT(*) FROM nodes WHERE json_extract(properties_json, '$.entity_type')='person'"
+            ).fetchone()[0]
+            == 1
+        )
+        assert (
+            storage.conn.execute(
+                "SELECT COUNT(*) FROM nodes WHERE json_extract(properties_json, '$.entity_type')='place'"
+            ).fetchone()[0]
+            == 3
+        )
+        # Target storage keeps each Genesis story as one source Episode.  It
+        # must not create a compatibility node with the same identifier or
+        # lose the Episode evidence chain during initialization.
+        assert (
+            storage.conn.execute(
+                "SELECT COUNT(*) FROM nodes WHERE node_id='genesis:memory:m-0'"
+            ).fetchone()[0]
+            == 0
+        )
+        assert (
+            storage.conn.execute(
+                "SELECT consolidation_state FROM episodes WHERE episode_id='genesis:memory:m-0'"
+            ).fetchone()[0]
+            == "consolidated"
+        )
+        assert (
+            storage.conn.execute(
+                "SELECT COUNT(*) FROM evidence WHERE source_type='episode' AND source_id='genesis:memory:m-0'"
+            ).fetchone()[0]
+            == 1
+        )
+
+
+def test_genesis_materializes_each_known_fact_as_recallable_knowledge() -> None:
+    bundle = _bundle()
+
+    with SQLiteMemoryStoreAdapter.in_memory() as storage:
+        GenesisMemoryCommitter().commit(bundle, storage)
+
+        fact_nodes = [
+            node
+            for node in storage.get_nodes_by_type("knowledge", limit=100)
+            if node.metadata.get("genesis_kind") == "knowledge_fact"
+        ]
+
+        assert [node.content for node in fact_nodes] == list(
+            bundle.self_model_seed.known_facts
+        )
+        assert all(node.metadata.get("recall_eligible") is True for node in fact_nodes)
+        assert all(node.metadata.get("source_event_ids") for node in fact_nodes)
+        assert all(node.metadata.get("certainty") == "high" for node in fact_nodes)
+
+        recalled_ids = {
+            node.id
+            for node in MemoryRetriever(storage).retrieve_by_text(
+                "来自 Elfaria", top_k=10
+            )
+        }
+        assert "genesis:knowledge:genesis-check:0" in recalled_ids
+        assert "genesis:self-model:genesis-check" not in recalled_ids
 
 
 def test_genesis_rejects_a_second_manifest_for_the_same_elfie() -> None:

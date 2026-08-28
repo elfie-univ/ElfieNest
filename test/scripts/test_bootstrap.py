@@ -118,6 +118,24 @@ def test_bootstrap_ensure_dev_builds_electron_authority_host(tmp_path: Path) -> 
     project_root = tmp_path / "project"
     scripts_dir = copy_bootstrap(project_root)
     prepare_build_runtime(project_root)
+    subprocess.run(["git", "init", "-q", str(project_root)], check=True)
+    (project_root / ".pre-commit-config.yaml").write_text(
+        "repos: []\n", encoding="utf-8"
+    )
+    make_executable(
+        project_root / ".fake-bin/uv",
+        "#!/bin/sh\n"
+        'if [ "$1" = "python" ] && [ "$2" = "install" ]; then exit 0; fi\n'
+        'if [ "$1" = "sync" ]; then\n'
+        "  mkdir -p .venv/bin\n"
+        "  for tool in pre-commit ruff; do\n"
+        "    printf '#!/bin/sh\\nexit 0\\n' > .venv/bin/$tool\n"
+        "    chmod +x .venv/bin/$tool\n"
+        "  done\n"
+        "  exit 0\n"
+        "fi\n"
+        "exit 1\n",
+    )
     elfie_home = tmp_path / "elfie-home"
     elfie_home.mkdir()
     desktop_dir = project_root / "app/interfaces/desktop"
@@ -163,7 +181,125 @@ def test_bootstrap_ensure_dev_builds_electron_authority_host(tmp_path: Path) -> 
 
     assert result.returncode == 0, result.stderr
     assert (project_root / "build/components/desktop-interface/main.js").is_file()
+    hooks_dir = Path(
+        subprocess.check_output(
+            [
+                "git",
+                "-C",
+                str(project_root),
+                "rev-parse",
+                "--path-format=absolute",
+                "--git-path",
+                "hooks",
+            ],
+            text=True,
+        ).strip()
+    )
+    assert "ElfieNest managed pre-commit hook" in (hooks_dir / "pre-commit").read_text(
+        encoding="utf-8"
+    )
+    assert not (hooks_dir / "pre-push").exists()
     assert "Electron authority host is ready" in result.stdout
+
+
+def test_bootstrap_hooks_action_only_installs_the_repository_hook(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    scripts_dir = copy_bootstrap(project_root)
+    prepare_build_runtime(project_root)
+    subprocess.run(["git", "init", "-q", str(project_root)], check=True)
+    (project_root / ".pre-commit-config.yaml").write_text(
+        "repos: []\n", encoding="utf-8"
+    )
+    make_executable(
+        project_root / ".venv/bin/pre-commit",
+        "#!/bin/sh\nexit 0\n",
+    )
+
+    result = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "hooks"],
+        cwd=project_root,
+        env={
+            **os.environ,
+            "HOME": str(tmp_path / "home"),
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "ElfieNest fast pre-commit hook is ready" in result.stdout
+    assert "dependency check" not in result.stdout
+
+
+def test_bootstrap_dev_check_detects_and_ensure_repairs_a_missing_hook(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    scripts_dir = copy_bootstrap(project_root)
+    prepare_build_runtime(project_root)
+    subprocess.run(["git", "init", "-q", str(project_root)], check=True)
+    (project_root / ".pre-commit-config.yaml").write_text(
+        "repos: []\n", encoding="utf-8"
+    )
+    make_executable(project_root / ".venv/bin/pre-commit")
+    make_executable(project_root / ".venv/bin/ruff")
+    make_executable(
+        project_root / ".fake-bin/node",
+        "#!/bin/sh\n"
+        'if [ "${1:-}" = "--version" ]; then printf "v20.12.0\\n"; fi\n'
+        "exit 0\n",
+    )
+    make_executable(project_root / "app/interfaces/desktop/node_modules/.bin/electron")
+    for relative_path in (
+        "build/components/desktop-interface/main.js",
+        "app/bootstrap/desktop_host/host_main.mjs",
+        "infrastructure/godot/lifecycle/electron/authority_main.mjs",
+    ):
+        destination = project_root / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text("ready\n", encoding="utf-8")
+    environment = {
+        **os.environ,
+        "HOME": str(tmp_path / "home"),
+        "PATH": f"{project_root / '.fake-bin'}:/usr/bin:/bin:/usr/sbin:/sbin",
+    }
+
+    missing = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "check", "--tier=dev"],
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert missing.returncode == 1
+    assert "managed pre-commit hook is missing" in missing.stderr
+
+    repaired = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "ensure", "--tier=dev"],
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    healthy = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "check", "--tier=dev"],
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert repaired.returncode == 0, repaired.stderr
+    assert healthy.returncode == 0, healthy.stderr
+    assert "managed pre-commit hook is ready" in healthy.stdout
 
 
 def test_bootstrap_report_treats_the_editor_as_optional_when_web_output_exists(
@@ -282,7 +418,7 @@ def test_bootstrap_pnpm_preparation_uses_repository_pinned_version() -> None:
         encoding="utf-8"
     )
     runtime_source = (
-        PROJECT_ROOT / "scripts/bootstrap_runtime_dependencies.sh"
+        PROJECT_ROOT / "scripts/internal/bootstrap/runtime_dependencies.sh"
     ).read_text(encoding="utf-8")
 
     assert 'PNPM_VERSION="10.12.1"' in runtime_source
@@ -335,7 +471,7 @@ def test_bootstrap_accepts_only_dev_and_build_tiers(tmp_path: Path) -> None:
 def test_bootstrap_derives_the_official_godot_toolchain_for_source_builds() -> None:
     # Given: the source-build bootstrap dependency contract.
     runtime_source = (
-        PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh"
+        PROJECT_ROOT / "scripts/internal/bootstrap/runtime_dependencies.sh"
     ).read_text(encoding="utf-8")
 
     # When: Godot prerequisites are inspected before a Web runtime export.
@@ -397,7 +533,7 @@ def test_bootstrap_reuses_a_matching_managed_godot_toolchain(tmp_path: Path) -> 
             'PROJECT_ROOT="$1"; source "$2"; ensure_godot_toolchain; printf "%s|%s\\n" "$GODOT_RESOLVED_BIN" "$GODOT_RESOLVED_EDITOR_DATA"',
             "bootstrap-godot",
             str(project_root),
-            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+            str(scripts_dir / "internal/bootstrap/runtime_dependencies.sh"),
         ],
         env={
             **os.environ,
@@ -437,7 +573,7 @@ def test_bootstrap_reuses_a_matching_system_godot_binary(tmp_path: Path) -> None
             'PROJECT_ROOT="$1"; source "$2"; ensure_godot_toolchain; printf "%s|%s\\n" "$GODOT_RESOLVED_BIN" "$GODOT_RESOLVED_EDITOR_DATA"',
             "bootstrap-godot",
             str(project_root),
-            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+            str(scripts_dir / "internal/bootstrap/runtime_dependencies.sh"),
         ],
         env={
             **os.environ,
@@ -474,7 +610,7 @@ def test_bootstrap_rejects_a_different_godot_compatibility_line(
             'PROJECT_ROOT="$1"; source "$2"; ensure_godot_toolchain',
             "bootstrap-godot",
             str(project_root),
-            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+            str(scripts_dir / "internal/bootstrap/runtime_dependencies.sh"),
         ],
         env={
             **os.environ,
@@ -510,12 +646,29 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
         'if [ "${FAKE_GODOT_DOWNLOAD_FAIL:-0}" = "1" ]; then exit 22; fi\n'
         'output=""\n'
         'url=""\n'
+        'range=""\n'
         'while [ "$#" -gt 0 ]; do\n'
+        '  if [ "$1" = "--head" ]; then\n'
+        '    printf "HTTP/1.1 200 OK\\nContent-Length: 256\\nAccept-Ranges: bytes\\n\\n"\n'
+        "    exit 0\n"
+        "  fi\n"
         '  if [ "$1" = "--output" ]; then output="$2"; shift 2; continue; fi\n'
+        '  if [ "$1" = "--range" ]; then range="$2"; shift 2; continue; fi\n'
         '  url="$1"; shift\n'
         "done\n"
         'printf "%s\\n" "$url" >> "$FAKE_GODOT_URL_LOG"\n'
-        'printf "%s\\n" "$url" > "$output"\n',
+        'start="${range%%-*}"\n'
+        'end="${range##*-}"\n'
+        "size=$((end - start + 1))\n"
+        'printf "%s" "$url" > "$output"\n'
+        'current=$(wc -c < "$output" | tr -d "[:space:]")\n'
+        'if [ "$current" -lt "$size" ]; then\n'
+        '  head -c "$((size - current))" /dev/zero >> "$output"\n'
+        "fi\n"
+        'if [ "$current" -gt "$size" ]; then\n'
+        '  head -c "$size" "$output" > "$output.trimmed"\n'
+        '  mv "$output.trimmed" "$output"\n'
+        "fi\n",
     )
     make_executable(
         fake_bin / "unzip",
@@ -556,7 +709,7 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
             'PROJECT_ROOT="$1"; source "$2"; install_official_godot_toolchain',
             "bootstrap-godot",
             str(project_root),
-            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+            str(scripts_dir / "internal/bootstrap/runtime_dependencies.sh"),
         ],
         env={**environment, "FAKE_GODOT_DOWNLOAD_FAIL": "1"},
         capture_output=True,
@@ -576,7 +729,7 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
             command,
             "bootstrap-godot",
             str(project_root),
-            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+            str(scripts_dir / "internal/bootstrap/runtime_dependencies.sh"),
         ],
         env=environment,
         capture_output=True,
@@ -595,13 +748,20 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
     assert len(download_urls) == 2
     assert all(url.endswith(f"version={required_version}") for url in download_urls)
     curl_invocations = curl_args_log.read_text(encoding="utf-8").splitlines()
-    assert len(curl_invocations) == 3
+    assert len(curl_invocations) == 5
+    assert sum("--head" in invocation for invocation in curl_invocations) == 3
+    assert sum("--range" in invocation for invocation in curl_invocations) == 2
     for invocation in curl_invocations:
         assert "--http1.1" in invocation
-        assert "--retry 5" in invocation
         assert "--retry-all-errors" in invocation
         assert "--retry-delay 2" in invocation
-        assert "--continue-at -" in invocation
+    for invocation in curl_invocations:
+        if "--head" in invocation:
+            assert "--retry 5" in invocation
+        else:
+            assert "--retry 2" in invocation
+            assert "--connect-timeout 20" in invocation
+            assert "--max-time 600" in invocation
 
 
 def test_godot_toolchain_paths_and_downloads_follow_project_godot(
@@ -626,7 +786,7 @@ def test_godot_toolchain_paths_and_downloads_follow_project_godot(
             '"$(godot_download_url templates export_templates.tpz)"',
             "bootstrap-godot",
             str(project_root),
-            str(scripts_dir / "bootstrap_runtime_dependencies.sh"),
+            str(scripts_dir / "internal/bootstrap/runtime_dependencies.sh"),
         ],
         env={
             **os.environ,

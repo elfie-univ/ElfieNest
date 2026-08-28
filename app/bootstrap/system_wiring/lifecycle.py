@@ -200,6 +200,9 @@ def create_lifecycle_facade() -> LifecycleFacade:
     """Create one process-scoped lifecycle facade with explicit Adapter injection."""
     from app.interfaces.web.build_discovery import discover_web_build
     from app.orchestration.lifecycle import LifecycleFacade
+    from infrastructure.godot.artifacts.species_package_validation import (
+        run_godot_species_validation,
+    )
     from infrastructure.godot.artifacts.web_build import GodotWebBuildAdapter
     from infrastructure.godot.lifecycle.authority import GodotAuthorityHostAdapter
     from infrastructure.models.ollama.lifecycle_ollama import OllamaLifecycleAdapter
@@ -220,6 +223,7 @@ def create_lifecycle_facade() -> LifecycleFacade:
     from infrastructure.platform.lifecycle.desktop import LocalDesktopHostAdapter
     from infrastructure.platform.lifecycle.http_probe import UrllibHttpProbeAdapter
     from infrastructure.platform.lifecycle.process import (
+        DefaultProcessIdentityReader,
         DefaultProcessInspector,
         LocalServiceProcessAdapter,
     )
@@ -229,9 +233,9 @@ def create_lifecycle_facade() -> LifecycleFacade:
     )
     from infrastructure.platform.source_cli_state import SourceCliState
     from infrastructure.platform.uninstall import LocalUninstallAdapter
-    from scripts.godot_species_validation import run_godot_species_validation
 
     inspector = DefaultProcessInspector()
+    process_identity_reader = DefaultProcessIdentityReader(inspector)
     local_data = LifecycleDataHomeAdapter()
     project_root = Path(
         os.environ.get("ELFIENEST_PROJECT_ROOT", Path(__file__).resolve().parents[3])
@@ -289,7 +293,11 @@ def create_lifecycle_facade() -> LifecycleFacade:
         ),
         controller_ipc=LocalControllerIpcAdapter(),
         optional_component=OllamaLifecycleAdapter(
-            PublicOllamaProviderAdapter(catalog_loader=load_provider_catalog),
+            PublicOllamaProviderAdapter(
+                catalog_loader=load_provider_catalog,
+                process_identity_reader=process_identity_reader,
+            ),
+            process_identity_reader=process_identity_reader,
             binding_loader=_load_configured_ollama_binding,
         ),
         model_projection_factory=FoodModelHealthProjectionAdapter,

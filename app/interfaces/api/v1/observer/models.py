@@ -45,6 +45,7 @@ class OpenObserverSessionResponse(BaseModel):
     model_config = _STRICT
 
     capability: str = Field(min_length=1)
+    idle_timeout_seconds: int = Field(ge=1)
 
 
 class ObserverInterestRequest(BaseModel):

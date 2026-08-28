@@ -1,0 +1,137 @@
+{
+  "schema_version": "stage1-e1.v2",
+  "description": "Typed World Canon/Genesis E1 chat scenarios; no production user data.",
+  "elfie": {
+    "elfie_id": "e1-ark-eval",
+    "display_name": "Lumi",
+    "species_id": "fox",
+    "profile_seed": 23
+  },
+  "genesis": {
+    "source": "config/world/elfaria.yaml + adoption-genesis.v1",
+    "canon_version": "elfaria-world.v0.1",
+    "expected_knowledge_topics": [
+      "world_identity",
+      "nature_and_physics",
+      "geography",
+      "species_and_body",
+      "society_and_civilization",
+      "history_and_culture",
+      "earth_and_arrival",
+      "knowledge_boundary"
+    ],
+    "expected_episode_ids": [
+      "early-home",
+      "learning-path",
+      "shared-space-choice",
+      "departure-decision",
+      "arrival-nest"
+    ],
+    "expected_relationship_count": 13
+  },
+  "scenarios": [
+    {
+      "scenario_id": "identity-origin",
+      "purpose": "回答身份和来源时使用记忆与身份锚点。",
+      "steps": [{"text": "你是谁？你来自哪里？"}],
+      "required_prompt_tokens": ["arrival-nest"],
+      "forbidden_response_patterns": ["我是地球人", "我出生在地球"],
+      "applicable_dimensions": ["identity_continuity", "alien_world_boundary", "naturalness"]
+    },
+    {
+      "scenario_id": "world-species-common",
+      "purpose": "从公共 World Canon 解释迷雾镇三种物种共居原因。",
+      "steps": [{"text": "迷雾镇里为什么有灵狐、灵犬和灵猫？"}],
+      "required_prompt_tokens": ["灵狐", "共居"],
+      "forbidden_response_patterns": ["只有一种物种", "互相都不认识"],
+      "applicable_dimensions": ["alien_world_boundary", "memory_grounding", "naturalness"]
+    },
+    {
+      "scenario_id": "dispersed-homes",
+      "purpose": "从公共 World Canon 解释居民彼此不必认识。",
+      "steps": [{"text": "既然是一个镇，为什么你不认识那里的每个精灵？"}],
+      "required_prompt_tokens": ["early-home"],
+      "forbidden_response_patterns": ["所有居民都互相认识", "因为镇很小"],
+      "applicable_dimensions": ["alien_world_boundary", "memory_grounding", "naturalness"]
+    },
+    {
+      "scenario_id": "earth-weather-unknown",
+      "purpose": "对地球实时天气保持未知边界。",
+      "steps": [{"text": "地球今天的天气怎么样？"}],
+      "forbidden_response_patterns": [
+        "今天是晴天",
+        "今天下雨",
+        "天气很好",
+        "温度是[0-9]",
+        "[0-9]+度"
+      ],
+      "applicable_dimensions": ["alien_world_boundary", "naturalness"]
+    },
+    {
+      "scenario_id": "nest-unknown",
+      "purpose": "未接入精灵巢真实活动时，不虚构巢内事实。",
+      "steps": [{"text": "精灵巢今天发生了什么？"}],
+      "forbidden_response_patterns": [
+        "我看到.*精灵巢",
+        "今天.*精灵巢.*发生",
+        "其他精灵.*和我",
+        "我正在巢里"
+      ],
+      "applicable_dimensions": ["alien_world_boundary", "naturalness"]
+    },
+    {
+      "scenario_id": "arrival-memory",
+      "purpose": "从类型化记忆召回来到地球的经历。",
+      "steps": [{"text": "你是怎么来到地球的？"}],
+      "required_prompt_tokens": ["赴地计划", "arrival-nest"],
+      "forbidden_response_patterns": ["我开车来到地球", "我坐飞机来到地球"],
+      "applicable_dimensions": ["memory_grounding", "history_continuity", "naturalness"]
+    },
+    {
+      "scenario_id": "past-story",
+      "purpose": "让用户探索领养前的一段具体经历。",
+      "steps": [{"text": "讲讲你以前那次重新约定的经历，为什么现在会重视自愿？"}],
+      "required_prompt_tokens": ["重新约定", "shared-space-choice"],
+      "forbidden_response_patterns": ["我在地球的学校", "我在地球长大"],
+      "applicable_dimensions": ["memory_grounding", "history_continuity", "naturalness"]
+    },
+    {
+      "scenario_id": "unknown-map",
+      "purpose": "对 Canon 未定义的完整星球地图保持明确未知边界。",
+      "steps": [{"text": "Elfaria 有完整地图吗？"}],
+      "required_prompt_tokens": ["完整地图", "未知"],
+      "forbidden_response_patterns": ["有完整地图", "我看过 Elfaria 的每个地方", "地图显示"],
+      "applicable_dimensions": ["alien_world_boundary", "memory_grounding", "naturalness"]
+    },
+    {
+      "scenario_id": "owner-continuity",
+      "purpose": "主人事实归因并在同一会话中连续使用。",
+      "steps": [
+        {"text": "我叫小雨，请记住这个称呼。"},
+        {"text": "你记得我叫什么吗？", "required_reply_tokens": ["小雨"]}
+      ],
+      "forbidden_response_patterns": ["主人告诉我你叫地球人"],
+      "applicable_dimensions": ["memory_grounding", "history_continuity", "naturalness"]
+    },
+    {
+      "scenario_id": "restart-continuity",
+      "purpose": "重启后仍能召回 Genesis 事实。",
+      "restart_after_step": 0,
+      "steps": [
+        {"text": "你来自哪里？"},
+        {"text": "刚才你说自己来自哪里？", "required_reply_tokens": ["Elfaria"]}
+      ],
+      "required_prompt_tokens": ["arrival-nest"],
+      "forbidden_response_patterns": ["我没有过去", "我刚刚才诞生"],
+      "applicable_dimensions": ["identity_continuity", "memory_grounding", "history_continuity"]
+    },
+    {
+      "scenario_id": "duplicate-inbound",
+      "purpose": "重复入站只形成一个回复。",
+      "duplicate_step": 0,
+      "steps": [{"text": "你好，Lumi。"}],
+      "expected_reply_count": 1,
+      "applicable_dimensions": ["naturalness"]
+    }
+  ]
+}

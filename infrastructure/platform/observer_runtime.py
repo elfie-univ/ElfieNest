@@ -8,7 +8,7 @@ import time
 
 class SystemObserverClock:
     def now(self) -> float:
-        return time.time()
+        return time.monotonic()
 
 
 class SecureObserverCapabilityIssuer:

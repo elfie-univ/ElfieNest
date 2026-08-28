@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import multiprocessing as mp
 from datetime import datetime, timezone
 from pathlib import Path
@@ -111,6 +112,34 @@ class _Leases:
     def release_validation_lease(self, lease_key: str, owner_id: str) -> bool:
         self.releases.append(lease_key)
         return True
+
+
+def test_scheduler_keeps_a_stuck_thread_owned_and_records_stop_timeout(
+    caplog,
+) -> None:
+    class StuckThread:
+        def join(self, timeout: float) -> None:
+            assert timeout == 2.0
+
+        def is_alive(self) -> bool:
+            return True
+
+    scheduler = ProviderValidationScheduler(
+        _Availability(),
+        lambda: ServingFoodIndex(generation="g1", foods=(), core_endpoints=()),
+        _Leases(),
+    )
+    stuck = StuckThread()
+    scheduler._thread = stuck
+
+    with caplog.at_level(
+        logging.ERROR,
+        logger="elfienest.diagnostics.provider_validation",
+    ):
+        scheduler.stop()
+
+    assert scheduler._thread is stuck
+    assert "did not stop within" in caplog.text
 
 
 def test_scheduler_checks_all_connections_for_transport_but_only_core_models() -> None:

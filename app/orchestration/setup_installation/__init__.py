@@ -7,7 +7,12 @@ from .errors import (
     SetupInstallationInvalid,
     SetupInstallationUnavailable,
 )
-from .models import ConfirmSetupInstallationCommand, ConfirmSetupInstallationResult
+from .models import (
+    CancelSetupInstallationCommand,
+    CancelSetupInstallationResult,
+    ConfirmSetupInstallationCommand,
+    ConfirmSetupInstallationResult,
+)
 from .ports import (
     CreatedSetupOwner,
     SetupAccountPort,
@@ -27,6 +32,8 @@ from .ports import (
 from .service import SetupInstallationService
 
 __all__ = (
+    "CancelSetupInstallationCommand",
+    "CancelSetupInstallationResult",
     "ConfirmSetupInstallationCommand",
     "ConfirmSetupInstallationResult",
     "CreatedSetupOwner",

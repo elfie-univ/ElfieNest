@@ -43,10 +43,19 @@ from .consolidation import MemoryConsolidator
 from .ebbinghaus_decay import EbbinghausDecay
 from .emotion_weighting import EmotionWeighting
 from .encoding import MemoryEncoder
+from .memory_records import (
+    ClosedEpisode,
+    ConsolidationBatchReceipt,
+    ConsolidationRequest,
+    EpisodeReceipt,
+    RecallBundle,
+    RecallRequest,
+)
 from .memory_store import MemoryStorePort
 from .model_food import MemoryModelPort
-from .node_types import RetrievalQuery
+from .node_types import MemoryNode, RetrievalQuery
 from .recall_formatter import MemoryRecallFormatter
+from .recall_renderer import render_recall_bundle
 from .retrieval import MemoryRetriever
 from .self_narrative import MemorySelfNarrativeProjection
 from .sensory_buffer import SensoryBuffer
@@ -130,6 +139,39 @@ class MemorySystem:
         self.encoder.elfie_id = elfie_id
         self.consolidator.elfie_id = elfie_id
 
+    def record_closed_episode(self, episode: ClosedEpisode) -> EpisodeReceipt:
+        """Persist one already-closed Episode through the source-first contract."""
+        recorder = getattr(self.storage, "record_episode", None)
+        if not callable(recorder):
+            raise TypeError("the configured Memory store does not support Episodes")
+        receipt = recorder(episode)
+        if receipt.status == "committed":
+            self._commit_state(
+                source_event_ids=tuple(
+                    EventId(value) for value in episode.source_event_ids
+                ),
+                causation_id=EventId(f"memory-episode:{episode.episode_id}"),
+            )
+        return receipt
+
+    def recall(self, request: RecallRequest) -> RecallBundle:
+        """Return a bounded provenance-bearing RecallBundle for reasoning."""
+        recall = getattr(self.storage, "recall", None)
+        if not callable(recall):
+            raise TypeError("the configured Memory store does not support RecallBundle")
+        return recall(request)
+
+    def render_recall(
+        self,
+        request: RecallRequest,
+        *,
+        character_limit: int | None = None,
+    ) -> str:
+        """Return the stable text projection of a typed recall result."""
+        return render_recall_bundle(
+            self.recall(request), character_limit=character_limit
+        )
+
     def record_episode(
         self,
         content: Optional[str] = None,
@@ -175,6 +217,7 @@ class MemorySystem:
             stimulus,
             sensory,
             model_port,
+            source_event_ids,
         )
         self._commit_state(
             source_event_ids=source_event_ids,
@@ -202,6 +245,14 @@ class MemorySystem:
                     revision=self.revision,
                     reason="base_revision_mismatch",
                 )
+            # A production SQLite adapter owns the source-first Episode
+            # contract.  Completed interaction candidates already represent a
+            # closed event, so they must bypass the legacy intensity gate and
+            # become one durable, idempotent Episode.  Semantic Fakes retain
+            # the historical encoder path used by focused algorithm tests.
+            recorder = getattr(self.storage, "record_episode", None)
+            if callable(recorder):
+                return self._commit_source_first_candidate(candidate)
             self.encoder.encode(
                 candidate.content,
                 candidate.emotion,
@@ -209,6 +260,7 @@ class MemorySystem:
                 candidate.stimulus,
                 None,
                 None,
+                candidate.source_event_ids,
             )
             self._commit_state(
                 source_event_ids=candidate.source_event_ids,
@@ -224,6 +276,59 @@ class MemorySystem:
                 status=StateCommitStatus.COMMITTED,
                 revision=self.revision,
             )
+
+    def _commit_source_first_candidate(
+        self,
+        candidate: EpisodicMemoryCandidate,
+    ) -> StateCommitReceipt:
+        intensity = (
+            candidate.intensity / 100.0
+            if candidate.intensity > 1.0
+            else candidate.intensity
+        )
+        episode_id = EventId(f"memory-episode:{candidate.candidate_id}")
+        episode = ClosedEpisode(
+            episode_id=str(episode_id),
+            idempotency_key=str(candidate.candidate_id),
+            occurred_from=candidate.created_at.isoformat(),
+            content_text=candidate.content,
+            event_kind="completed_interaction",
+            source_event_ids=tuple(str(value) for value in candidate.source_event_ids),
+            importance=max(0.0, min(1.0, intensity)),
+            emotion=candidate.emotion,
+            emotion_intensity=max(0.0, min(1.0, intensity)),
+            stimulus=candidate.stimulus,
+            metadata={
+                "candidate_id": str(candidate.candidate_id),
+                "source_event_ids": [
+                    str(value) for value in candidate.source_event_ids
+                ],
+            },
+        )
+        receipt = self.storage.record_episode(episode)
+        status = (
+            StateCommitStatus.COMMITTED
+            if receipt.status == "committed"
+            else StateCommitStatus.DUPLICATE
+        )
+        if status is StateCommitStatus.COMMITTED:
+            self._commit_state(
+                source_event_ids=candidate.source_event_ids,
+                causation_id=candidate.candidate_id,
+            )
+        if len(self._committed_episode_candidate_order) == 2048:
+            oldest = self._committed_episode_candidate_order[0]
+            self._committed_episode_candidate_ids.discard(oldest)
+        self._committed_episode_candidate_order.append(candidate.candidate_id)
+        self._committed_episode_candidate_ids.add(candidate.candidate_id)
+        return StateCommitReceipt(
+            candidate_id=candidate.candidate_id,
+            status=status,
+            revision=self.revision,
+            reason="episode_already_present"
+            if status is StateCommitStatus.DUPLICATE
+            else None,
+        )
 
     def retrieve_relevant_memories(
         self,
@@ -250,6 +355,56 @@ class MemorySystem:
         )
         nodes = self.retriever.retrieve(retrieval_query, top_k)
         return [node.content for node in nodes]
+
+    def recall_nodes(
+        self,
+        query: str,
+        *,
+        emotion: str = "",
+        intensity: float = 0.0,
+        current_time: str = "",
+        top_k: int = 5,
+    ) -> list[MemoryNode]:
+        """Return the durable nodes selected for one reasoning context.
+
+        The reasoning boundary needs node identity and provenance, not a
+        preformatted narrative string.  Formatting remains a presentation
+        concern; this method exposes only the typed storage nodes selected by
+        the existing retriever.
+        """
+        recall = getattr(self.storage, "recall", None)
+        if callable(recall):
+            bundle = recall(
+                RecallRequest(
+                    text=query,
+                    mode="basic_local",
+                    seed_limit=max(1, min(top_k * 2, 8)),
+                    node_limit=max(1, min(top_k * 4, 400)),
+                    episode_limit=max(1, min(top_k, 80)),
+                )
+            )
+            ids = [node.node_id for node in bundle.focus_nodes]
+            ids.extend(episode.episode_id for episode in bundle.episodes)
+            result: list[MemoryNode] = []
+            seen: set[str] = set()
+            for node_id in ids:
+                if node_id in seen:
+                    continue
+                node = self.storage.get_node(node_id)
+                if node is None or node.metadata.get("recall_eligible") is False:
+                    continue
+                seen.add(node_id)
+                result.append(node)
+                if len(result) >= top_k:
+                    break
+            return result
+        retrieval_query = RetrievalQuery(
+            text_query=query,
+            current_emotion=emotion,
+            current_intensity=intensity,
+            current_time=current_time,
+        )
+        return self.retriever.retrieve(retrieval_query, top_k)
 
     def pending_consolidation_ids(self, limit: int = 8) -> tuple[str, ...]:
         """Return a bounded, read-only view of episodic work awaiting consolidation."""
@@ -286,6 +441,21 @@ class MemorySystem:
                 causation_id=EventId(f"memory-consolidation:{uuid4().hex}")
             )
         return result
+
+    def run_consolidation_batch(
+        self,
+        request: ConsolidationRequest,
+        model_port: MemoryModelPort | None = None,
+    ) -> ConsolidationBatchReceipt:
+        """Execute one typed, bounded background worker pass."""
+        receipt = self.consolidator.run_batch(request, model_port=model_port)
+        if receipt.consolidated_episode_ids or receipt.failed_episode_ids:
+            self._commit_state(
+                causation_id=EventId(
+                    f"memory-consolidation-batch:{request.worker_id}:{uuid4().hex}"
+                )
+            )
+        return receipt
 
     @property
     def revision(self) -> int:

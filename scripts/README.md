@@ -7,23 +7,49 @@ entry points. Both end users and contributors should prefer the stable entry
 points at the repository root; do not bypass them to assemble your own runtime
 environment.
 
-## Scripts behind the stable entry points
+## Layout and stability contract
 
-| File | Category | Description |
-| --- | --- | --- |
-| `bootstrap.sh` | Dependency orchestration | Unified source-development/build preparation (Python, Node, frontend, Godot Web and Electron) |
-| `elfienest.py` | CLI dispatcher | Called by `./elfienest.sh`; dispatches config, service lifecycle, Owner, database, migration and other commands |
-| `serve.py` | Foreground service | Starts FastAPI, the engine and WebSockets; called by `serve` or background lifecycle commands |
-| `build_godot_web.py` | Build | Exports and validates the Godot Web Runtime; final output goes to `build/components/godot-web/` |
-| `release.py` | Release build | Assembles staging resources and invokes electron-builder |
-| `check_quality_baseline.py` | Quality gate | Compares current Ruff, Ruff format and MyPy diagnostics against the controlled historical baseline |
-| `check_quality_environment.py` | Quality preflight | Checks host capabilities required by repository-wide tests before the expensive full gate |
-| `check_node_toolchain.sh` | Quality gate | Verifies the root Node.js/pnpm anchor and all independent Node project manifests |
-| `architecture/app_layer_scan.py` | Architecture gate | Ratchets exact legacy App-layer violations and switches to deny-all after baseline removal |
-| `architecture/system_layer_scan.py` | Architecture gate | Ratchets exact Elfie/Nest system-boundary violations and switches to deny-all after baseline removal |
-| `architecture/check_governance_change.py` | Architecture gate | Separates governance from production changes and requires mirrored, versioned contract changes with an ADR |
-| `architecture/contract_registry.py` | Architecture registry | Links each contract to its mirrors, ADRs, Agent rules, scanners, tests, conformance register and baseline |
-| `__init__.py` | Package marker | Lets architecture tests import testable functions from scripts; not a command entry point |
+The root exposes only five stable operational entry points:
+
+| Stable root path | Responsibility |
+| --- | --- |
+| `bootstrap.sh` | Prepare source-development and package-build dependencies |
+| `elfienest.py` | Dispatch the product CLI behind `./elfienest.sh` |
+| `serve.py` | Start the foreground service or managed lifecycle |
+| `pre_submit_gate.sh` | Run an explicit local commit, push or full checkpoint |
+| `release.py` | Coordinate strict native releases |
+
+`README.md`, `README_zh.md` and `__init__.py` are documentation/package metadata,
+not additional commands. Single checks such as `python_baseline.py` and
+`godot_host.sh` belong under `quality/checks/`; they are implementation details,
+not stable root entry points.
+
+```text
+scripts/
+├── bootstrap.sh, elfienest.py, serve.py, pre_submit_gate.sh, release.py
+├── governance/                 # Defines what changes and dependencies are legal
+│   ├── contract_registry.py    # Versioned contract inventory
+│   ├── change_policy.py        # Immutable-base change classification
+│   ├── boundaries/             # App/system/structure/effective-dependency rules
+│   └── persistence/            # Database-change inventory and policy scan
+├── quality/                    # Executes checks selected by the quality policy
+│   ├── checks/                 # Independent Python, Node, environment and Godot checks
+│   ├── validation/             # Check planning, gates, candidate evidence, caches and bundles
+│   └── hooks/                  # Repository-managed Git hook installation/runtime
+└── internal/                   # Replaceable helpers behind stable entries
+    ├── bootstrap/              # Bootstrap reporting and dependency resolution
+    ├── build/                  # Intermediate build assembly
+    ├── release/                # Release planning, manifests and smoke checks
+    └── diagnostics/            # Manual and interactive diagnostics
+```
+
+`governance/` is the policy layer: it describes ownership, dependency and
+contract boundaries. `quality/` is the execution layer: it runs concrete checks
+and composes their evidence. `internal/` does not mean private or security
+sensitive; it means repo-owned support code whose path is not a public command
+contract. Call stable root entries whenever one exists, and invoke a leaf check
+directly only for focused diagnosis or when a documented CI/developer workflow
+requires it.
 
 ### bootstrap.sh usage
 
@@ -48,7 +74,7 @@ official build only after an explicit `y` confirmation.
 ./scripts/bootstrap.sh report --tier=build
 
 # Verify the Node.js/pnpm declarations
-bash scripts/check_node_toolchain.sh
+bash scripts/quality/checks/node_toolchain.sh
 ```
 
 ### release.py usage
@@ -73,17 +99,17 @@ Typical usage:
 ```bash
 ./elfienest.sh --help
 ./elfienest.sh serve
-./elfienest.sh build-godot-web --check
+./developer.sh build-godot-web --check
 ./developer.sh build-godot-dedicated --check
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_baseline.py
+  uv run --no-sync python scripts/quality/checks/python_baseline.py
 ```
 
 Before a repository-wide pytest run, probe the host once:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/check_quality_environment.py
+  uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 Exit code `0` means loopback binding is available. Exit code `2` means the
@@ -98,15 +124,15 @@ loops; they are not stable user commands available after install:
 
 | File | Purpose & caveats |
 | --- | --- |
-| `chat_with_elfie.py` | Runs a long-lived engine loop and chats with the first persisted Elfie in the terminal; requires an adopted Elfie and a model runtime; cleans up services on manual exit |
-| `e2e_dashboard_check.py` | Starts the configured model service with a temp directory and random ports to check the login, adoption and management dashboard flow; requires a configured model |
-| `verify_nest_runtime_e2e.py` | Waits for a Godot Runtime and verifies two-Elfie sync, broadcast, semantic motion and cancel terminal states |
+| `internal/diagnostics/chat_with_elfie.py` | Runs a long-lived engine loop and chats with the first persisted Elfie in the terminal; requires an adopted Elfie and a model runtime; cleans up services on manual exit |
+| `internal/diagnostics/e2e_dashboard_check.py` | Starts the configured model service with a temp directory and random ports to check the login, adoption and management dashboard flow; requires a configured model |
+| `internal/diagnostics/verify_nest_runtime_e2e.py` | Waits for a Godot Runtime and verifies two-Elfie sync, broadcast, semantic motion and cancel terminal states |
 
 These scripts may take time, occupy ports or produce local data; they should
 not be executed on import, and must not point at default production data without
 explicit intent. Automatable regression should live under `test/e2e/` instead.
 
-`verify_nest_runtime_e2e.py` starts the Python-side protocol v2 gateway; in
+`internal/diagnostics/verify_nest_runtime_e2e.py` starts the Python-side protocol v2 gateway; in
 another terminal you need to launch `godot_project/main.tscn` against the
 WebSocket address and nonce the script prints. The script uses only in-memory
 state and never reads or writes the production `ELFIE_HOME`.
@@ -119,6 +145,7 @@ state and never reads or writes the production `ELFIE_HOME`.
 - Never write generated Godot Web, Desktop JavaScript, Python Core, logs or
   caches back into `scripts/` or any other source directory.
 
-When you add a new script, make clear whether it is a stable entry point, a
-build / quality gate, or a manual diagnosis tool, and update the corresponding
-tests and Developer docs in lockstep.
+When adding a script, place policy in `governance/`, executable verification in
+`quality/`, and support implementation in `internal/`. Adding another stable
+root entry changes the script-layout contract and requires the corresponding
+governance review, tests and Developer documentation.
