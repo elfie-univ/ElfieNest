@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from app.features.adoption import AcceptedAdoptionReservation
+from app.orchestration.resident_admission import ResidentAdmissionPortError
 from elfie import ElfieFactory
 from elfie.factory import ElfieAssembly
 from elfie.genesis import GenesisAppearanceIntent, GenesisEngine
@@ -70,19 +71,20 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(
         assert any("尊重自愿选择" in norm for norm in elfie.selfhood_snapshot().norms)
         assert memory_store.count_nodes("episodic") == 5
         assert memory_store.get_node("genesis:self:00000001") is not None
-        known_elfie = memory_store.conn.execute(
-            "SELECT species, is_self FROM known_elfies"
-        ).fetchone()
-        assert (known_elfie["species"], known_elfie["is_self"]) == (species_name, 1)
+        known_elfie = memory_store.get_node("genesis:self:00000001")
+        assert known_elfie is not None
+        assert (known_elfie.metadata["species"], known_elfie.metadata["is_self"]) == (
+            species_name,
+            True,
+        )
         self_model = memory_store.get_node("genesis:self-model:00000001")
         assert self_model is not None
         assert self_model.metadata["species_knowledge"]
-        person = memory_store.conn.execute(
-            "SELECT relationship_label, is_owner FROM people"
-        ).fetchone()
-        assert (person["relationship_label"], person["is_owner"]) == (
+        person = memory_store.get_node("genesis:person:owner-7")
+        assert person is not None
+        assert (person.metadata["relationship_label"], person.metadata["is_owner"]) == (
             "earth_household",
-            1,
+            True,
         )
 
     first_profile = profile_store.load()
@@ -95,6 +97,39 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(
     assert YamlEnergyLimitsAdapter(workspace_path / "brain").load() == first_energy
 
     adapter.release(reservation.elfie_id)
+
+
+def test_workspace_materialization_cleans_all_files_when_genesis_commit_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adapter = FinalElfieWorkspaceAdapter(tmp_path)
+    reservation = AcceptedAdoptionReservation(
+        elfie_id="00000006",
+        owner_user_id=7,
+        name="失败回滚精灵",
+        species_id="fox",
+        personality_style="好奇探索",
+        height="standard",
+        build="standard",
+        appearance_seed=46,
+        face="soft",
+        signature="warm",
+        gender="female",
+        birth_date="2001-01-01",
+    )
+
+    def fail_commit(*_args, **_kwargs):
+        raise OSError("synthetic memory publish failure")
+
+    monkeypatch.setattr(
+        "infrastructure.persistence.elfie_workspace.adoption_profiles.GenesisMemoryCommitter.commit",
+        fail_commit,
+    )
+
+    with pytest.raises(ResidentAdmissionPortError):
+        adapter.materialize(reservation)
+
+    assert not (tmp_path / "elfies" / reservation.elfie_id).exists()
 
 
 @pytest.mark.parametrize(

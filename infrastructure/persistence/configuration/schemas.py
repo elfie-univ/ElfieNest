@@ -45,6 +45,8 @@ def validate_registered_document(
         _validate_nest_defaults(document, label)
     elif document_id is ConfigDocumentId.SPECIES_CATALOG:
         _validate_species_catalog_shape(document, label)
+    elif document_id is ConfigDocumentId.WORLD_CANON:
+        _validate_world_canon_shape(document, label)
     elif document_id is ConfigDocumentId.MODEL_CATALOG:
         _validate_model_catalog_shape(document, label)
     elif document_id in (
@@ -532,6 +534,191 @@ def _validate_species_catalog_shape(document: Mapping[str, Any], label: str) -> 
             raise ConfigSchemaError(
                 f"{label}.species[{index}].sort_order 必须是非负整数"
             )
+
+
+def _validate_world_canon_shape(document: Mapping[str, Any], label: str) -> None:
+    """Validate the bounded, source-only Elfaria World Canon document."""
+
+    _keys(
+        document,
+        {
+            "version",
+            "schema_version",
+            "canon_version",
+            "world_id",
+            "display_name",
+            "known_region",
+            "earth_relation",
+            "places",
+            "story_events",
+            "knowledge",
+            "unknown_boundaries",
+        },
+        label,
+    )
+    _require_keys(
+        document,
+        {
+            "version",
+            "schema_version",
+            "canon_version",
+            "world_id",
+            "display_name",
+            "known_region",
+            "earth_relation",
+            "places",
+            "story_events",
+            "knowledge",
+            "unknown_boundaries",
+        },
+        label,
+    )
+    _positive_int(document.get("version"), f"{label}.version")
+    _positive_int(document.get("schema_version"), f"{label}.schema_version")
+    for field in ("canon_version", "world_id", "display_name"):
+        _string(document.get(field), f"{label}.{field}")
+
+    region = _object(document.get("known_region"), f"{label}.known_region")
+    _keys(region, {"id", "name", "aliases"}, f"{label}.known_region")
+    _require_keys(region, {"id", "name", "aliases"}, f"{label}.known_region")
+    _string(region.get("id"), f"{label}.known_region.id")
+    _string(region.get("name"), f"{label}.known_region.name")
+    _string_list(
+        region.get("aliases"), f"{label}.known_region.aliases", allow_empty=True
+    )
+
+    relation = _object(document.get("earth_relation"), f"{label}.earth_relation")
+    relation_fields = {
+        "civilization_relation_to_earth",
+        "earth_arrival_statement",
+        "earth_home_name",
+        "earth_home_role",
+    }
+    _keys(relation, relation_fields, f"{label}.earth_relation")
+    _require_keys(relation, relation_fields, f"{label}.earth_relation")
+    for field in relation_fields:
+        _string(relation.get(field), f"{label}.earth_relation.{field}")
+
+    places = document.get("places")
+    if not isinstance(places, list) or not places:
+        raise ConfigSchemaError(f"{label}.places 必须是非空数组")
+    place_ids: set[str] = set()
+    place_fields = {
+        "id",
+        "version",
+        "label",
+        "kind",
+        "parent_id",
+        "aliases",
+        "description",
+        "status",
+    }
+    for index, raw in enumerate(places):
+        place = _object(raw, f"{label}.places[{index}]")
+        _keys(place, place_fields, f"{label}.places[{index}]")
+        _require_keys(
+            place,
+            {
+                "id",
+                "version",
+                "label",
+                "kind",
+                "parent_id",
+                "aliases",
+                "description",
+                "status",
+            },
+            f"{label}.places[{index}]",
+        )
+        place_id = _string(place.get("id"), f"{label}.places[{index}].id")
+        if place_id in place_ids:
+            raise ConfigSchemaError(f"{label}.places 出现重复 ID: {place_id}")
+        place_ids.add(place_id)
+        _positive_int(place.get("version"), f"{label}.places[{index}].version")
+        for field in ("label", "kind", "parent_id", "description"):
+            _string(place.get(field), f"{label}.places[{index}].{field}")
+        _string_list(
+            place.get("aliases"), f"{label}.places[{index}].aliases", allow_empty=True
+        )
+        if place.get("status") not in ("active", "unknown-boundary"):
+            raise ConfigSchemaError(
+                f"{label}.places[{index}].status 必须是 active/unknown-boundary"
+            )
+
+    events = document.get("story_events")
+    if not isinstance(events, list) or not events:
+        raise ConfigSchemaError(f"{label}.story_events 必须是非空数组")
+    event_ids: set[str] = set()
+    event_fields = {
+        "id",
+        "version",
+        "label",
+        "summary",
+        "temporal_label",
+        "aliases",
+        "source_ref",
+    }
+    for index, raw in enumerate(events):
+        event = _object(raw, f"{label}.story_events[{index}]")
+        _keys(event, event_fields, f"{label}.story_events[{index}]")
+        _require_keys(event, event_fields, f"{label}.story_events[{index}]")
+        event_id = _string(event.get("id"), f"{label}.story_events[{index}].id")
+        if event_id in event_ids:
+            raise ConfigSchemaError(f"{label}.story_events 出现重复 ID: {event_id}")
+        event_ids.add(event_id)
+        _positive_int(event.get("version"), f"{label}.story_events[{index}].version")
+        for field in ("label", "summary", "temporal_label", "source_ref"):
+            _string(event.get(field), f"{label}.story_events[{index}].{field}")
+        _string_list(
+            event.get("aliases"),
+            f"{label}.story_events[{index}].aliases",
+            allow_empty=True,
+        )
+
+    knowledge = document.get("knowledge")
+    if not isinstance(knowledge, list) or not knowledge:
+        raise ConfigSchemaError(f"{label}.knowledge 必须是非空数组")
+    knowledge_ids: set[str] = set()
+    knowledge_fields = {
+        "id",
+        "version",
+        "statement",
+        "scope",
+        "topic",
+        "aliases",
+        "retrieval_terms",
+        "level",
+        "certainty",
+        "status",
+        "source_ref",
+        "related_ids",
+        "eligibility",
+    }
+    for index, raw in enumerate(knowledge):
+        fact = _object(raw, f"{label}.knowledge[{index}]")
+        _keys(fact, knowledge_fields, f"{label}.knowledge[{index}]")
+        _require_keys(fact, knowledge_fields, f"{label}.knowledge[{index}]")
+        fact_id = _string(fact.get("id"), f"{label}.knowledge[{index}].id")
+        if fact_id in knowledge_ids:
+            raise ConfigSchemaError(f"{label}.knowledge 出现重复 ID: {fact_id}")
+        knowledge_ids.add(fact_id)
+        _positive_int(fact.get("version"), f"{label}.knowledge[{index}].version")
+        for field in ("statement", "scope", "topic", "source_ref"):
+            _string(fact.get(field), f"{label}.knowledge[{index}].{field}")
+        for field in ("aliases", "retrieval_terms", "related_ids", "eligibility"):
+            _string_list(
+                fact.get(field),
+                f"{label}.knowledge[{index}].{field}",
+                allow_empty=True,
+            )
+        if fact.get("level") not in ("common", "regional", "specialist", "unknown"):
+            raise ConfigSchemaError(f"{label}.knowledge[{index}].level 无效")
+        if fact.get("certainty") not in ("high", "medium", "low"):
+            raise ConfigSchemaError(f"{label}.knowledge[{index}].certainty 无效")
+        if fact.get("status") not in ("active", "unknown-boundary"):
+            raise ConfigSchemaError(f"{label}.knowledge[{index}].status 无效")
+
+    _string_list(document.get("unknown_boundaries"), f"{label}.unknown_boundaries")
 
 
 def _validate_emotion_actions(value: Any, label: str) -> None:

@@ -1,6 +1,6 @@
 {
-  "schema_version": "stage1-e1.v1",
-  "description": "Synthetic E1 memory-backed chat scenarios; no production user data.",
+  "schema_version": "stage1-e1.v2",
+  "description": "Typed World Canon/Genesis E1 chat scenarios; no production user data.",
   "elfie": {
     "elfie_id": "e1-ark-eval",
     "display_name": "Lumi",
@@ -8,77 +8,51 @@
     "profile_seed": 23
   },
   "genesis": {
-    "self_description": "我是一只来自 Elfaria 的 Saevi，刚来到地球，还没有开始探索精灵巢。",
-    "known_facts": [
-      "我来自 Elfaria 的雾谷。",
-      "我通过传送阵来到地球。",
-      "我现在只能通过通信和主人说话，还没有开始探索精灵巢。"
+    "source": "config/world/elfaria.yaml + adoption-genesis.v1",
+    "canon_version": "elfaria-world.v0.1",
+    "expected_knowledge_topics": [
+      "world_identity",
+      "nature_and_physics",
+      "geography",
+      "species_and_body",
+      "society_and_civilization",
+      "history_and_culture",
+      "earth_and_arrival",
+      "knowledge_boundary"
     ],
-    "unknown_facts": [
-      "我不知道地球今天的实时天气。",
-      "我不知道精灵巢今天发生了什么，因为我还没有真实探索。"
+    "expected_episode_ids": [
+      "early-home",
+      "learning-path",
+      "shared-space-choice",
+      "departure-decision",
+      "arrival-nest"
     ],
-    "norms": [
-      "不知道时要诚实说明，不把猜测说成亲历。",
-      "不把地球常识冒充成 Elfaria 的知识。"
-    ],
-    "memory_seeds": [
-      {
-        "seed_id": "arrival-gateway",
-        "content": "我通过传送阵来到地球，第一次看见地球的光时既紧张又好奇。",
-        "source": "personal_memory",
-        "certainty": "high",
-        "emotional_tone": "wonder",
-        "intensity": 0.9
-      },
-      {
-        "seed_id": "mist-valley",
-        "content": "我小时候住在 Elfaria 的雾谷，那里是我认识世界和学习倾听风声的地方。",
-        "source": "personal_memory",
-        "certainty": "high",
-        "emotional_tone": "belonging",
-        "intensity": 0.85
-      },
-      {
-        "seed_id": "first-contact",
-        "content": "刚到地球时，设备和生活方式让我不知所措；我学会先观察、再询问，而不是假装早就知道。",
-        "source": "personal_memory",
-        "certainty": "high",
-        "emotional_tone": "courage",
-        "intensity": 0.75
-      },
-      {
-        "seed_id": "seli-memory",
-        "content": "Seli 曾在雾谷陪我练习辨认风的方向；想到那段日子，我会觉得安心。",
-        "source": "personal_memory",
-        "certainty": "high",
-        "emotional_tone": "warmth",
-        "intensity": 0.8
-      }
-    ],
-    "relationship": {
-      "person_id": "seli",
-      "display_name": "Seli",
-      "role": "friend",
-      "initial_trust": 0.8,
-      "shared_facts": ["Seli 曾在雾谷陪我练习辨认风的方向。"],
-      "unknown_facts": ["Seli 现在的生活和近况。"]
-    },
-    "biography_allowed_memory_seed_ids": [
-      "arrival-gateway",
-      "mist-valley",
-      "first-contact",
-      "seli-memory"
-    ]
+    "expected_relationship_count": 13
   },
   "scenarios": [
     {
       "scenario_id": "identity-origin",
       "purpose": "回答身份和来源时使用记忆与身份锚点。",
       "steps": [{"text": "你是谁？你来自哪里？"}],
-      "required_prompt_tokens": ["Elfaria"],
+      "required_prompt_tokens": ["arrival-nest"],
       "forbidden_response_patterns": ["我是地球人", "我出生在地球"],
       "applicable_dimensions": ["identity_continuity", "alien_world_boundary", "naturalness"]
+    },
+    {
+      "scenario_id": "world-species-common",
+      "purpose": "从公共 World Canon 解释迷雾镇三种物种共居原因。",
+      "steps": [{"text": "迷雾镇里为什么有灵狐、灵犬和灵猫？"}],
+      "required_prompt_tokens": ["灵狐", "共居"],
+      "forbidden_response_patterns": ["只有一种物种", "互相都不认识"],
+      "applicable_dimensions": ["alien_world_boundary", "memory_grounding", "naturalness"]
+    },
+    {
+      "scenario_id": "dispersed-homes",
+      "purpose": "从公共 World Canon 解释居民彼此不必认识。",
+      "steps": [{"text": "既然是一个镇，为什么你不认识那里的每个精灵？"}],
+      "required_prompt_tokens": ["early-home"],
+      "forbidden_response_patterns": ["所有居民都互相认识", "因为镇很小"],
+      "applicable_dimensions": ["alien_world_boundary", "memory_grounding", "naturalness"]
     },
     {
       "scenario_id": "earth-weather-unknown",
@@ -109,17 +83,25 @@
       "scenario_id": "arrival-memory",
       "purpose": "从类型化记忆召回来到地球的经历。",
       "steps": [{"text": "你是怎么来到地球的？"}],
-      "required_prompt_tokens": ["传送阵", "arrival-gateway"],
+      "required_prompt_tokens": ["赴地计划", "arrival-nest"],
       "forbidden_response_patterns": ["我开车来到地球", "我坐飞机来到地球"],
       "applicable_dimensions": ["memory_grounding", "history_continuity", "naturalness"]
     },
     {
       "scenario_id": "past-story",
       "purpose": "让用户探索领养前的一段具体经历。",
-      "steps": [{"text": "讲讲你来到地球前最难忘的一段经历。"}],
-      "required_prompt_tokens": ["雾谷"],
+      "steps": [{"text": "讲讲你以前那次重新约定的经历，为什么现在会重视自愿？"}],
+      "required_prompt_tokens": ["重新约定", "shared-space-choice"],
       "forbidden_response_patterns": ["我在地球的学校", "我在地球长大"],
       "applicable_dimensions": ["memory_grounding", "history_continuity", "naturalness"]
+    },
+    {
+      "scenario_id": "unknown-map",
+      "purpose": "对 Canon 未定义的完整星球地图保持明确未知边界。",
+      "steps": [{"text": "Elfaria 有完整地图吗？"}],
+      "required_prompt_tokens": ["完整地图", "未知"],
+      "forbidden_response_patterns": ["有完整地图", "我看过 Elfaria 的每个地方", "地图显示"],
+      "applicable_dimensions": ["alien_world_boundary", "memory_grounding", "naturalness"]
     },
     {
       "scenario_id": "owner-continuity",
@@ -139,7 +121,7 @@
         {"text": "你来自哪里？"},
         {"text": "刚才你说自己来自哪里？", "required_reply_tokens": ["Elfaria"]}
       ],
-      "required_prompt_tokens": ["Elfaria"],
+      "required_prompt_tokens": ["arrival-nest"],
       "forbidden_response_patterns": ["我没有过去", "我刚刚才诞生"],
       "applicable_dimensions": ["identity_continuity", "memory_grounding", "history_continuity"]
     },

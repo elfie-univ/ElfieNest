@@ -4,6 +4,32 @@ from elfie.brain.memory.contracts import MemoryContext, MemoryItem, MemoryStateS
 from elfie.brain.memory.ebbinghaus_decay import EbbinghausDecay
 from elfie.brain.memory.emotion_weighting import EmotionWeighting
 from elfie.brain.memory.encoding import MemoryEncoder
+from elfie.brain.memory.memory_records import (
+    AliasInput,
+    AssertionEvidenceInput,
+    AssertionInput,
+    ClosedEpisode,
+    ConsolidationBatchReceipt,
+    ConsolidationProjection,
+    ConsolidationReceipt,
+    ConsolidationRequest,
+    DescriptionInput,
+    EpisodeReceipt,
+    EvidenceInput,
+    MediaReference,
+    MentionInput,
+    NodeInput,
+    RecallAssertion,
+    RecallBundle,
+    RecallConflict,
+    RecallEpisode,
+    RecallEvidence,
+    RecallLimits,
+    RecallNode,
+    RecallPath,
+    RecallRequest,
+    SourceReference,
+)
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.memory.node_types import (
@@ -15,6 +41,7 @@ from elfie.brain.memory.node_types import (
     RetrievalQuery,
 )
 from elfie.brain.memory.recall_formatter import MemoryRecallFormatter
+from elfie.brain.memory.recall_renderer import render_recall_bundle
 from elfie.brain.memory.retrieval import MemoryRetriever
 from elfie.brain.memory.self_narrative import MemorySelfNarrativeProjection
 from elfie.brain.memory.sensory_buffer import SensoryBuffer
@@ -46,4 +73,29 @@ __all__ = [
     "MemoryRecallFormatter",
     "SensoryIndexer",
     "tokenize",
+    "AliasInput",
+    "AssertionEvidenceInput",
+    "AssertionInput",
+    "ClosedEpisode",
+    "ConsolidationProjection",
+    "ConsolidationBatchReceipt",
+    "ConsolidationRequest",
+    "ConsolidationReceipt",
+    "DescriptionInput",
+    "EpisodeReceipt",
+    "EvidenceInput",
+    "MediaReference",
+    "MentionInput",
+    "NodeInput",
+    "RecallAssertion",
+    "RecallBundle",
+    "RecallConflict",
+    "RecallEpisode",
+    "RecallEvidence",
+    "RecallLimits",
+    "RecallNode",
+    "RecallPath",
+    "RecallRequest",
+    "SourceReference",
+    "render_recall_bundle",
 ]

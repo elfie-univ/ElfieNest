@@ -21,6 +21,7 @@ from elfie.brain.reasoning.model_port import (
     ModelResponseMode,
     StructuredOutputMode,
 )
+from elfie.brain.reasoning.reply_safety import ReplySafetyContext
 from elfie.brain.reasoning.run import (
     CognitiveStepKind,
     ReasoningBudget,
@@ -304,6 +305,117 @@ def test_fast_owner_plain_text_never_enters_the_tool_loop() -> None:
     assert result.decode.plan.intents[0].content == "本地模型快路径已生效"
     assert result.tool_calls == 0
     assert tools.requests == []
+
+
+def test_fast_owner_reply_cannot_invent_current_nest_activity() -> None:
+    class HallucinatingOwnerRuntime(SearchRuntime):
+        def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
+            self.calls.append(request)
+            return ModelGenerationResult(
+                text="我现在还不清楚今天精灵巢发生了什么呢，等我看看之后再告诉你哦。",
+                selected_mode=StructuredOutputMode.PLAIN_TEXT,
+                provider="fake",
+                model_key="fake/schema",
+            )
+
+    base = _task()
+    task = replace(
+        base,
+        request=base.request.model_copy(
+            update={
+                "source_domain": SourceDomain.COMMUNICATION,
+                "interaction_scope": CommunicationScope(
+                    channel_id="chat",
+                    conversation_id="owner:1",
+                ),
+                "response_scope": ResponseScope(
+                    external_domain=ExternalExecutionDomain.COMMUNICATION,
+                    channel_id="chat",
+                    conversation_id="owner:1",
+                ),
+                "reasoning_mode": "fast",
+                "response_mode": ModelResponseMode.DIRECT_REPLY,
+            }
+        ),
+        seed=base.seed.model_copy(
+            update={
+                "reply_channel_id": "chat",
+                "reply_conversation_id": "owner:1",
+            }
+        ),
+        reply_safety_context=ReplySafetyContext(
+            current_message="精灵巢今天发生了什么？",
+        ),
+    )
+
+    result = ReasoningRun(
+        model_port=HallucinatingOwnerRuntime(),
+        decoder=DecisionPlanDecoder(),
+        budget=ReasoningBudget(max_steps=3, max_model_calls=1, max_tool_calls=0),
+    ).run(task)
+
+    assert result.decode.plan.intents[0].type == "message"
+    assert result.decode.plan.intents[0].content == (
+        "我现在还没有真实探索精灵巢，所以不知道今天那里发生了什么呢。"
+    )
+    assert any(
+        step.kind is CognitiveStepKind.VERIFY
+        and "current_nest_boundary" in step.summary
+        for step in result.steps
+    )
+
+
+def test_fast_owner_reply_allows_current_nest_activity_with_explicit_observation() -> (
+    None
+):
+    class ObservedOwnerRuntime(SearchRuntime):
+        def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
+            self.calls.append(request)
+            return ModelGenerationResult(
+                text="我刚刚看到巢里的风铃被风吹响了。",
+                selected_mode=StructuredOutputMode.PLAIN_TEXT,
+                provider="fake",
+                model_key="fake/schema",
+            )
+
+    base = _task()
+    task = replace(
+        base,
+        request=base.request.model_copy(
+            update={
+                "source_domain": SourceDomain.COMMUNICATION,
+                "interaction_scope": CommunicationScope(
+                    channel_id="chat",
+                    conversation_id="owner:1",
+                ),
+                "response_scope": ResponseScope(
+                    external_domain=ExternalExecutionDomain.COMMUNICATION,
+                    channel_id="chat",
+                    conversation_id="owner:1",
+                ),
+                "reasoning_mode": "fast",
+                "response_mode": ModelResponseMode.DIRECT_REPLY,
+            }
+        ),
+        seed=base.seed.model_copy(
+            update={
+                "reply_channel_id": "chat",
+                "reply_conversation_id": "owner:1",
+            }
+        ),
+        reply_safety_context=ReplySafetyContext(
+            current_message="精灵巢现在发生了什么？",
+            has_current_nest_observation=True,
+        ),
+    )
+
+    result = ReasoningRun(
+        model_port=ObservedOwnerRuntime(),
+        decoder=DecisionPlanDecoder(),
+        budget=ReasoningBudget(max_steps=3, max_model_calls=1, max_tool_calls=0),
+    ).run(task)
+
+    assert result.decode.plan.intents[0].content == "我刚刚看到巢里的风铃被风吹响了。"
 
 
 def test_reasoning_run_attaches_host_activity_preflight_before_settlement() -> None:

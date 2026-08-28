@@ -15,6 +15,7 @@ from elfie.brain.consolidation.system import (
 from elfie.brain.emotion.contracts import EmotionSnapshot
 from elfie.brain.memory import EpisodicMemoryCandidate
 from elfie.brain.memory.contracts import MemoryContext
+from elfie.brain.memory.memory_records import ClosedEpisode
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.motivation.system import (
     MotivationCheckpoint,
@@ -100,6 +101,14 @@ class BrainContextProvider:
     ) -> Tuple[EpisodicMemoryCandidate, ...]:
         with self._memory_lock:
             return self._memory.candidates(frame, emotion, captured_at)
+
+    def pending_closed_episodes(self) -> tuple[ClosedEpisode, ...]:
+        """Return upstream-closed Episodes awaiting source-first capture."""
+        return self._conversations.pending_closed_episodes()
+
+    def ack_closed_episodes(self, episode_ids: tuple[str, ...]) -> None:
+        """Acknowledge Episodes after the Memory source write succeeds."""
+        self._conversations.ack_closed_episodes(episode_ids)
 
     def memory_checkpoint(self):
         with self._memory_lock:

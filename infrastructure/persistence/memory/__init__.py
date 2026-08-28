@@ -1,5 +1,20 @@
 """Infrastructure persistence Adapters for Elfie semantic memory."""
 
-from .sqlite_memory_store import MemoryStorePathError, SQLiteMemoryStoreAdapter
+from .migration import MigrationReport, import_legacy_database
+from .sqlite_memory_store import (
+    EpisodeIdempotencyError,
+    MemoryStoreMigrationRequired,
+    MemoryStorePathError,
+    MemoryStoreSchemaError,
+    SQLiteMemoryStoreAdapter,
+)
 
-__all__ = ("MemoryStorePathError", "SQLiteMemoryStoreAdapter")
+__all__ = (
+    "EpisodeIdempotencyError",
+    "MemoryStoreMigrationRequired",
+    "MemoryStorePathError",
+    "MemoryStoreSchemaError",
+    "MigrationReport",
+    "SQLiteMemoryStoreAdapter",
+    "import_legacy_database",
+)

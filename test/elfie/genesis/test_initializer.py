@@ -35,10 +35,44 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
             for edge in storage.get_edges("genesis:self:genesis-check")
         )
         assert (
-            storage.conn.execute("SELECT COUNT(*) FROM known_elfies").fetchone()[0] == 1
+            storage.conn.execute(
+                "SELECT COUNT(*) FROM nodes WHERE json_extract(properties_json, '$.entity_type')='elfie'"
+            ).fetchone()[0]
+            == 1
         )
-        assert storage.conn.execute("SELECT COUNT(*) FROM people").fetchone()[0] == 1
-        assert storage.conn.execute("SELECT COUNT(*) FROM places").fetchone()[0] == 3
+        assert (
+            storage.conn.execute(
+                "SELECT COUNT(*) FROM nodes WHERE json_extract(properties_json, '$.entity_type')='person'"
+            ).fetchone()[0]
+            == 1
+        )
+        assert (
+            storage.conn.execute(
+                "SELECT COUNT(*) FROM nodes WHERE json_extract(properties_json, '$.entity_type')='place'"
+            ).fetchone()[0]
+            == 3
+        )
+        # Target storage keeps each Genesis story as one source Episode.  It
+        # must not create a compatibility node with the same identifier or
+        # lose the Episode evidence chain during initialization.
+        assert (
+            storage.conn.execute(
+                "SELECT COUNT(*) FROM nodes WHERE node_id='genesis:memory:m-0'"
+            ).fetchone()[0]
+            == 0
+        )
+        assert (
+            storage.conn.execute(
+                "SELECT consolidation_state FROM episodes WHERE episode_id='genesis:memory:m-0'"
+            ).fetchone()[0]
+            == "consolidated"
+        )
+        assert (
+            storage.conn.execute(
+                "SELECT COUNT(*) FROM evidence WHERE source_type='episode' AND source_id='genesis:memory:m-0'"
+            ).fetchone()[0]
+            == 1
+        )
 
 
 def test_genesis_materializes_each_known_fact_as_recallable_knowledge() -> None:

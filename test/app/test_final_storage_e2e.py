@@ -108,7 +108,9 @@ def test_fresh_root_survives_adoption_chat_memory_and_restart(tmp_path: Path) ->
     assert (workspace / "profile" / "profile.yaml").is_file()
     assert _tables(db_path) == _NEST_TABLES
     assert _tables(workspace / "conversations" / "history.sqlite") == _HISTORY_TABLES
-    assert _tables(workspace / "memory" / "knowledge.sqlite") == set(KNOWLEDGE_TABLES)
+    assert _tables(workspace / "memory" / "knowledge.sqlite") == set(
+        KNOWLEDGE_TABLES
+    ) | {"episodes_fts", "nodes_fts"}
     assert not any(data_home.rglob("history_v2.sqlite"))
     assert not any(data_home.rglob("graph_memory.db"))
     assert not (data_home / "users").exists()
@@ -206,7 +208,9 @@ def test_full_product_chain_uses_one_explicit_final_root(
     ElfieDiagnostics(reopened).memory.storage.close()
     assert _tables(db_path) == _NEST_TABLES
     assert _tables(workspace / "conversations" / "history.sqlite") == _HISTORY_TABLES
-    assert _tables(workspace / "memory" / "knowledge.sqlite") == set(KNOWLEDGE_TABLES)
+    assert _tables(workspace / "memory" / "knowledge.sqlite") == set(
+        KNOWLEDGE_TABLES
+    ) | {"episodes_fts", "nodes_fts"}
 
 
 def _tables(db_path: Path) -> set[str]:

@@ -64,6 +64,8 @@ class ConversationThreadCheckpoint(FrozenContractModel):
     channel_id: _NonBlankText
     conversation_id: _NonBlankText
     messages: Tuple[ConversationMessage, ...] = ()
+    topic_thread_id: Optional[_NonBlankText] = None
+    topic_messages: Tuple[ConversationMessage, ...] = ()
 
 
 class ConversationContextCheckpoint(FrozenContractModel):

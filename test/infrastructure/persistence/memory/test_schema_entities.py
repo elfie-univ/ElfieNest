@@ -1,4 +1,4 @@
-"""Final knowledge store entity-table contract tests."""
+"""Target Memory fact tables and node constraints."""
 
 from __future__ import annotations
 
@@ -8,37 +8,17 @@ from pathlib import Path
 
 import pytest
 
+from elfie.brain.memory.memory_records import NodeInput
 from infrastructure.persistence.memory import (
     MemoryStorePathError,
     SQLiteMemoryStoreAdapter,
 )
+from infrastructure.persistence.memory.schema import KNOWLEDGE_TABLES
 
-EXPECTED_TABLES = {
-    "entities",
-    "people",
-    "known_elfies",
-    "concepts",
-    "places",
-    "events",
-    "entity_edges",
-    "memory_notes",
-    "source_evidence_links",
-}
+EXPECTED_TABLES = set(KNOWLEDGE_TABLES) | {"episodes_fts", "nodes_fts"}
 
 
-def _insert_entity(
-    connection: sqlite3.Connection,
-    entity_id: str,
-    entity_type: str,
-) -> None:
-    connection.execute(
-        "INSERT INTO entities (entity_id, entity_type, name) VALUES (?, ?, ?)",
-        (entity_id, entity_type, entity_id),
-    )
-
-
-def test_creates_exact_final_tables_and_private_database(tmp_path: Path) -> None:
-    """Given a final path, When opened, Then only nine private tables exist."""
+def test_creates_target_tables_and_private_database(tmp_path: Path) -> None:
     db_path = tmp_path / "memory" / "knowledge.sqlite"
     db_path.parent.mkdir()
 
@@ -55,10 +35,8 @@ def test_creates_exact_final_tables_and_private_database(tmp_path: Path) -> None
 
 
 def test_schema_initialization_is_idempotent(tmp_path: Path) -> None:
-    """Given an initialized DB, When reopened, Then the same schema remains."""
     db_path = tmp_path / "knowledge.sqlite"
-
-    with SQLiteMemoryStoreAdapter(db_path) as store:
+    with SQLiteMemoryStoreAdapter(db_path):
         pass
     with SQLiteMemoryStoreAdapter(db_path) as store:
         tables = {
@@ -67,12 +45,12 @@ def test_schema_initialization_is_idempotent(tmp_path: Path) -> None:
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )
         }
+        assert store.schema_version == 3
 
     assert tables == EXPECTED_TABLES
 
 
 def test_rejects_non_final_filename_and_symlink(tmp_path: Path) -> None:
-    """Given unsafe targets, When opened, Then no alternate DB is accepted."""
     target = tmp_path / "real.sqlite"
     target.touch()
     link = tmp_path / "knowledge.sqlite"
@@ -84,57 +62,50 @@ def test_rejects_non_final_filename_and_symlink(tmp_path: Path) -> None:
         SQLiteMemoryStoreAdapter(link)
 
 
-def test_direct_sql_enforces_json_type_scores_and_foreign_keys() -> None:
-    """Given the schema, When invalid entities are inserted, Then SQLite rejects."""
+def test_nodes_keep_metadata_but_not_hidden_graph_edges() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.upsert_node_record(
+            NodeInput(
+                node_id="owner",
+                node_type="person",
+                canonical_label="主人",
+                properties={"relationship_label": "owner"},
+            )
+        )
+        row = store.connection.execute(
+            "SELECT properties_json FROM nodes WHERE node_id='owner'"
+        ).fetchone()
+        assert "edges" not in row[0]
+        assert store.get_node("owner").content == "主人"
+
+
+def test_direct_sql_enforces_json_scores_and_foreign_keys() -> None:
     with SQLiteMemoryStoreAdapter.in_memory() as store:
         with pytest.raises(sqlite3.IntegrityError):
             store.connection.execute(
-                "INSERT INTO entities "
-                "(entity_id, entity_type, name, aliases_json) VALUES (?, ?, ?, ?)",
-                ("bad-json", "person", "Owner", "not-json"),
-            )
-        with pytest.raises(sqlite3.IntegrityError):
-            _insert_entity(store.connection, "bad-type", "animal")
-        with pytest.raises(sqlite3.IntegrityError):
-            store.connection.execute(
-                "INSERT INTO entities "
-                "(entity_id, entity_type, name, confidence) VALUES (?, ?, ?, ?)",
-                ("bad-score", "person", "Owner", 1.2),
+                "INSERT INTO nodes(node_id,node_type,canonical_label,normalized_label,properties_json,updated_at)"
+                " VALUES ('bad','person','坏','坏','not-json','now')"
             )
         with pytest.raises(sqlite3.IntegrityError):
             store.connection.execute(
-                "INSERT INTO people (entity_id) VALUES (?)",
-                ("missing",),
+                "INSERT INTO nodes(node_id,node_type,canonical_label,normalized_label,confidence,updated_at)"
+                " VALUES ('bad-score','person','坏','坏',1.2,'now')"
+            )
+        with pytest.raises(sqlite3.IntegrityError):
+            store.connection.execute(
+                "INSERT INTO node_aliases(alias_id,node_id,alias,normalized_alias,created_at)"
+                " VALUES ('a','missing','别名','别名','now')"
             )
 
 
-def test_direct_sql_enforces_single_owner_self_and_known_elfie_id() -> None:
-    """Given valid entities, When uniqueness is violated, Then writes fail."""
+def test_assertions_require_one_object_form_and_preserve_duplicate_claims() -> None:
     with SQLiteMemoryStoreAdapter.in_memory() as store:
-        for entity_id, entity_type in (
-            ("owner-1", "person"),
-            ("owner-2", "person"),
-            ("self-1", "elfie"),
-            ("self-2", "elfie"),
-        ):
-            _insert_entity(store.connection, entity_id, entity_type)
-
-        store.connection.execute(
-            "INSERT INTO people (entity_id, is_owner) VALUES (?, 1)",
-            ("owner-1",),
-        )
+        store.upsert_node_record(NodeInput("a", "person", "甲"))
+        store.upsert_node_record(NodeInput("b", "person", "乙"))
         with pytest.raises(sqlite3.IntegrityError):
             store.connection.execute(
-                "INSERT INTO people (entity_id, is_owner) VALUES (?, 1)",
-                ("owner-2",),
-            )
-        store.connection.execute(
-            "INSERT INTO known_elfies (entity_id, elfie_id, is_self) VALUES (?, ?, 1)",
-            ("self-1", "12345678"),
-        )
-        with pytest.raises(sqlite3.IntegrityError):
-            store.connection.execute(
-                "INSERT INTO known_elfies (entity_id, elfie_id, is_self) "
-                "VALUES (?, ?, 1)",
-                ("self-2", "87654321"),
+                """INSERT INTO assertions(
+                    assertion_id,subject_node_id,predicate,object_node_id,
+                    object_literal_json,fingerprint,created_at,updated_at
+                ) VALUES ('bad','a','knows','b','{}','bad','now','now')"""
             )

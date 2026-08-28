@@ -19,3 +19,5 @@ service-lifecycle registers contain the active migrations:
   closure-ready after the clause-by-clause and directory-by-directory audit.
 - [Service lifecycle conformance](./service-lifecycle) — open gaps between the
   accepted lifecycle contract and current startup, ownership and entrypoints.
+- [Elfie Memory conformance](./elfie-memory) — implementation status and remaining
+  external-acceptance gates for the approved Memory design.

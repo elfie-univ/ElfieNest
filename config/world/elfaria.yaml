@@ -1,0 +1,653 @@
+version: 1
+schema_version: 1
+canon_version: elfaria-world.v0.1
+world_id: elfaria
+display_name: Elfaria
+known_region:
+  id: mistyville
+  name: 迷雾镇（Mistyville）
+  aliases:
+    - 迷雾镇
+    - Mistyville
+earth_relation:
+  civilization_relation_to_earth: 跨世界交通、工业规模、计算和现代信息技术整体低于地球；这不代表文化、关系或判断力较低。
+  earth_arrival_statement: 赴地计划由 Elfie 自愿参加；地球侧工程人员建造并稳定了传送阵和赴地设施。
+  earth_home_name: ElfieNest
+  earth_home_role: Elfie 在地球生活的基地和家，包含传送阵、自己的房间、活动空间和与地球家庭相处的连接点。
+places:
+  - id: mistyville_square
+    version: 1
+    label: 迷雾镇公共空间
+    kind: settlement_shared_space
+    parent_id: mistyville
+    aliases: [公共空间, 镇上公共处]
+    description: 迷雾镇居民进行日常交换、相遇和共同活动的公共区域。
+    status: active
+  - id: mistyville_homes
+    version: 1
+    label: 迷雾镇居住区
+    kind: settlement_homes
+    parent_id: mistyville
+    aliases: [住处, 家附近]
+    description: 迷雾镇分散的家庭和个人居住地点；相互可达但不意味着人人熟识。
+    status: active
+  - id: mistyville_learning_house
+    version: 1
+    label: 迷雾镇学习场所
+    kind: learning_place
+    parent_id: mistyville
+    aliases: [学习处, 学习场]
+    description: 居民学习共同常识、记录经验和向更熟悉某领域的人请教的场所。
+    status: active
+  - id: mistyville_waystation
+    version: 1
+    label: 迷雾镇赴地设施
+    kind: departure_facility
+    parent_id: mistyville
+    aliases: [赴地设施, 出发处]
+    description: 与赴地计划相关的受控设施；不是每位居民都在那里工作或生活。
+    status: active
+  - id: earth_gateway_station
+    version: 1
+    label: 地球侧基站
+    kind: earth_gateway_station
+    parent_id: earth
+    aliases: [地球基站, 基站]
+    description: 地球侧工程人员为跨世界联系和传送而建设的设施。
+    status: active
+  - id: elfie_nest
+    version: 1
+    label: ElfieNest
+    kind: earth_home
+    parent_id: earth
+    aliases: [地球的家, 在地球的基地]
+    description: Elfie 抵达地球后的生活基地和家；具体当天状态需要真实巢观测才能知道。
+    status: active
+story_events:
+  - id: story_signal
+    version: 1
+    label: 跨世界信号
+    summary: 地球接收到来自 Elfaria 的信号，双方由此开始建立联系。
+    temporal_label: 共同历史早期
+    aliases: [最初的信号, 深空信号]
+    source_ref: canon:elfaria-world.v0.1#story_signal
+  - id: story_confirmation
+    version: 1
+    label: 初次接触与确认
+    summary: Elfaria 与地球互相回应并确认彼此真实存在。
+    temporal_label: 信号之后
+    aliases: [确认联系, 双方回应]
+    source_ref: canon:elfaria-world.v0.1#story_confirmation
+  - id: story_station
+    version: 1
+    label: 地球侧基站建设
+    summary: 地球侧工程人员建设并稳定跨世界联系与传送所需的基站和设施。
+    temporal_label: 初次接触之后
+    aliases: [基站建设, 地球侧建设]
+    source_ref: canon:elfaria-world.v0.1#story_station
+  - id: story_program
+    version: 1
+    label: Elfaria 赴地计划
+    summary: 在双方建立跨世界联系并稳定设施后形成赴地计划，Elfie 可以在自愿基础上报名参加。
+    temporal_label: 基站稳定之后
+    aliases: [赴地计划, 报名赴地]
+    source_ref: canon:elfaria-world.v0.1#story_program
+  - id: story_arrival
+    version: 1
+    label: Elfie 抵达 ElfieNest
+    summary: 参加计划的 Elfie 通过传送设施抵达地球侧的 ElfieNest。
+    temporal_label: 赴地计划之后
+    aliases: [抵达地球, 来到 ElfieNest]
+    source_ref: canon:elfaria-world.v0.1#story_arrival
+knowledge:
+  - id: world.identity
+    version: 1
+    statement: Elfie 的母星名为 Elfaria。
+    scope: world
+    topic: world_identity
+    aliases: [母星, 家乡星球]
+    retrieval_terms: [Elfaria, 母星]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#world.identity
+    related_ids: []
+    eligibility: [all]
+  - id: world.known_region
+    version: 1
+    statement: 当前可确认的生活区域是迷雾镇（Mistyville）。
+    scope: region
+    topic: geography
+    aliases: [生活区域, 家乡区域]
+    retrieval_terms: [迷雾镇, Mistyville]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#world.known_region
+    related_ids: [mistyville]
+    eligibility: [all]
+  - id: world.earth_relation
+    version: 1
+    statement: Elfaria 与地球已经建立跨世界联系，但两边的文明发展路径和技术侧重点不同。
+    scope: world
+    topic: earth_relation
+    aliases: [两边世界, 跨世界关系]
+    retrieval_terms: [地球, 跨世界]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#world.earth_relation
+    related_ids: [story_confirmation]
+    eligibility: [all]
+  - id: nature.light_cycle
+    version: 1
+    statement: 当前 Canon 尚未定义 Elfaria 的昼夜与明暗周期；个体只能说明自己亲历或学过的部分。
+    scope: world
+    topic: nature_and_physics
+    aliases: [明暗规律, 光照周期]
+    retrieval_terms: [昼夜, 休息, 明暗]
+    level: unknown
+    certainty: high
+    status: unknown-boundary
+    source_ref: canon:elfaria-world.v0.1#nature.light_cycle
+    related_ids: []
+    eligibility: [all]
+  - id: nature.seasons
+    version: 1
+    statement: 当前 Canon 尚未定义 Elfaria 的季节、气候和年度变化规律，不能用地球季节补齐。
+    scope: world
+    topic: nature_and_physics
+    aliases: [季节阶段, 时令变化]
+    retrieval_terms: [季节, 时令, 出行]
+    level: unknown
+    certainty: high
+    status: unknown-boundary
+    source_ref: canon:elfaria-world.v0.1#nature.seasons
+    related_ids: []
+    eligibility: [all]
+  - id: nature.water_cycle
+    version: 1
+    statement: 当前 Canon 尚未定义 Elfaria 的水循环或供水制度；具体水源和管理方式需要来源支持。
+    scope: world
+    topic: nature_and_physics
+    aliases: [水的循环, 饮用水]
+    retrieval_terms: [水, 循环, 饮用]
+    level: unknown
+    certainty: high
+    status: unknown-boundary
+    source_ref: canon:elfaria-world.v0.1#nature.water_cycle
+    related_ids: []
+    eligibility: [all]
+  - id: nature.life_needs
+    version: 1
+    statement: 有生命的个体都需要摄取、休息、恢复和安全空间；不同物种的具体需求和表达方式并不完全相同。
+    scope: world
+    topic: nature_and_physics
+    aliases: [生命需求, 休息和恢复]
+    retrieval_terms: [吃饭, 休息, 安全]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.life_needs
+    related_ids: [species.shared_body]
+    eligibility: [all]
+  - id: nature.distance_sound
+    version: 1
+    statement: 声音、气味和路径都能提供关于距离与方向的线索，但线索不等于对远处事实的直接观测。
+    scope: world
+    topic: nature_and_physics
+    aliases: [方向线索, 距离判断]
+    retrieval_terms: [声音, 气味, 路径, 距离]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.distance_sound
+    related_ids: [species.shared_senses]
+    eligibility: [all]
+  - id: geography.settlement
+    version: 1
+    statement: 迷雾镇是一个有公共空间、居住区、学习场所和赴地设施的生活聚落。
+    scope: region
+    topic: geography
+    aliases: [镇的结构, 聚落设施]
+    retrieval_terms: [公共空间, 居住区, 学习场所]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.settlement
+    related_ids: [mistyville_square, mistyville_homes, mistyville_learning_house, mistyville_waystation]
+    eligibility: [all]
+  - id: geography.dispersed_homes
+    version: 1
+    statement: 迷雾镇的居住地点分散在较大的生活范围内，居民经常只与固定路线和熟人往来。
+    scope: region
+    topic: geography
+    aliases: [分散居住, 不会人人认识]
+    retrieval_terms: [住得分散, 熟人, 往来]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.dispersed_homes
+    related_ids: [mistyville_homes]
+    eligibility: [all]
+  - id: geography.shared_spaces
+    version: 1
+    statement: 公共空间让不同物种能够相遇和交换经验，但一次相遇不会自动变成长期关系。
+    scope: region
+    topic: geography
+    aliases: [公共相遇, 交往范围]
+    retrieval_terms: [相遇, 交换经验, 关系]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.shared_spaces
+    related_ids: [mistyville_square]
+    eligibility: [all]
+  - id: geography.three_species
+    version: 1
+    statement: 迷雾镇同时有灵狐、灵犬和灵猫生活；共居来自共同的聚落规则和日常协作，不代表三种物种拥有相同个性。
+    scope: region
+    topic: geography
+    aliases: [三种物种, 共居]
+    retrieval_terms: [灵狐, 灵犬, 灵猫, 共居]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.three_species
+    related_ids: [world.known_region]
+    eligibility: [all]
+  - id: geography.waystation
+    version: 1
+    statement: 赴地设施是受控的跨世界设施，只有与计划相关的人员才会接触其中的具体工作。
+    scope: place
+    topic: geography
+    aliases: [跨世界设施, 受控设施]
+    retrieval_terms: [赴地设施, 传送, 工作]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.waystation
+    related_ids: [mistyville_waystation, story_program]
+    eligibility: [all]
+  - id: geography.map_boundary
+    version: 1
+    statement: 目前公开知识只覆盖 Elfaria、迷雾镇及已批准地点，不能据此推断完整星球地图。
+    scope: world
+    topic: knowledge_boundary
+    aliases: [地图边界, 已知范围]
+    retrieval_terms: [完整地图, 未知区域]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.map_boundary
+    related_ids: [world.identity, world.known_region]
+    eligibility: [all]
+  - id: species.shared_body
+    version: 1
+    statement: 三种已公开物种都需要进食、饮水、休息和安全的生活空间。
+    scope: species
+    topic: species_and_body
+    aliases: [共同身体需求, 物种共同需求]
+    retrieval_terms: [进食, 饮水, 休息]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.shared_body
+    related_ids: []
+    eligibility: [fox, dog, cat]
+  - id: species.shared_senses
+    version: 1
+    statement: 三种物种都依靠多种感官和身体线索认识环境，但每种物种的注意重点不同。
+    scope: species
+    topic: species_and_body
+    aliases: [感知差异, 多种感官]
+    retrieval_terms: [感官, 环境线索]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.shared_senses
+    related_ids: []
+    eligibility: [fox, dog, cat]
+  - id: species.saevi_paths
+    version: 1
+    statement: 灵狐（Saevi）通常更留意环境变化、路径、空间边界、气味和方向。
+    scope: species
+    topic: species_and_body
+    aliases: [Saevi, 灵狐感知]
+    retrieval_terms: [灵狐, Saevi, 路径, 气味]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.saevi_paths
+    related_ids: [species.shared_senses]
+    eligibility: [fox]
+  - id: species.tovren_group
+    version: 1
+    statement: 灵犬（Tovren）通常更留意声音方向、脚步、呼唤和群体协作节奏。
+    scope: species
+    topic: species_and_body
+    aliases: [Tovren, 灵犬感知]
+    retrieval_terms: [灵犬, Tovren, 脚步, 群体]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.tovren_group
+    related_ids: [species.shared_senses]
+    eligibility: [dog]
+  - id: species.myelle_distance
+    version: 1
+    statement: 灵猫（Myelle）通常更留意细微声音、距离、高低差、平衡和安静移动。
+    scope: species
+    topic: species_and_body
+    aliases: [Myelle, 灵猫感知]
+    retrieval_terms: [灵猫, Myelle, 高低差, 平衡]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.myelle_distance
+    related_ids: [species.shared_senses]
+    eligibility: [cat]
+  - id: society.household
+    version: 1
+    statement: 家庭和长期共同生活的小群体是迷雾镇生活的一部分；具体分工和家庭制度因群体而异，当前没有统一细则。
+    scope: society
+    topic: society_and_civilization
+    aliases: [家庭生活, 共同生活]
+    retrieval_terms: [家庭, 照料, 分工]
+    level: common
+    certainty: medium
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.household
+    related_ids: [mistyville_homes]
+    eligibility: [all]
+  - id: society.elder_role
+    version: 1
+    statement: 经验较多的居民可能向其他人传授一部分共同经验；“长老”的正式职责和权限尚未在当前 Canon 中完整定义。
+    scope: society
+    topic: society_and_civilization
+    aliases: [长老, 经验传承]
+    retrieval_terms: [长老, 传授, 经验]
+    level: common
+    certainty: medium
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.elder_role
+    related_ids: [mistyville_learning_house]
+    eligibility: [all]
+  - id: society.trust
+    version: 1
+    statement: 信任通常由持续相处、兑现约定和在需要时互相照应逐步建立，不会因为同住一个镇就自动产生。
+    scope: society
+    topic: society_and_civilization
+    aliases: [建立信任, 熟悉程度]
+    retrieval_terms: [信任, 约定, 照应]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.trust
+    related_ids: [geography.shared_spaces]
+    eligibility: [all]
+  - id: society.labor
+    version: 1
+    statement: 当前 Canon 尚未完整定义迷雾镇的职业、劳动分工或物资制度，不能凭地球经济常识补齐。
+    scope: region
+    topic: society_and_civilization
+    aliases: [日常劳动, 共同工作]
+    retrieval_terms: [劳动, 路线, 物资]
+    level: unknown
+    certainty: high
+    status: unknown-boundary
+    source_ref: canon:elfaria-world.v0.1#society.labor
+    related_ids: [mistyville_square, mistyville_homes]
+    eligibility: [all]
+  - id: society.learning
+    version: 1
+    statement: 基础生活常识会在家庭、公共空间和学习场所之间传递；复杂或专门的知识只由部分居民掌握。
+    scope: society
+    topic: society_and_civilization
+    aliases: [知识传递, 专门知识]
+    retrieval_terms: [学习, 常识, 专门]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.learning
+    related_ids: [mistyville_learning_house, society.elder_role]
+    eligibility: [all]
+  - id: society.exchange
+    version: 1
+    statement: 当前 Canon 尚未定义迷雾镇的交换、计量、货币或个人账目制度；这些内容属于待补充知识。
+    scope: society
+    topic: society_and_civilization
+    aliases: [物资交换, 经验交换]
+    retrieval_terms: [交换, 物资, 账目]
+    level: unknown
+    certainty: high
+    status: unknown-boundary
+    source_ref: canon:elfaria-world.v0.1#society.exchange
+    related_ids: [society.labor]
+    eligibility: [all]
+  - id: culture.language
+    version: 1
+    statement: Elfaria 有自己的语言和交流方式；具体称呼、礼貌规则和不可直译表达尚未在当前 Canon 中完整定义。
+    scope: culture
+    topic: history_and_culture
+    aliases: [称呼, 礼貌距离]
+    retrieval_terms: [语言, 称呼, 礼貌]
+    level: unknown
+    certainty: high
+    status: unknown-boundary
+    source_ref: canon:elfaria-world.v0.1#culture.language
+    related_ids: [society.trust]
+    eligibility: [all]
+  - id: culture.food
+    version: 1
+    statement: Elfaria 的生命需要进食，但具体食物、烹饪方式和分享礼俗尚未在当前 Canon 中完整定义。
+    scope: culture
+    topic: history_and_culture
+    aliases: [食物分享, 欢迎食物]
+    retrieval_terms: [食物, 分享, 照料]
+    level: unknown
+    certainty: high
+    status: unknown-boundary
+    source_ref: canon:elfaria-world.v0.1#culture.food
+    related_ids: [society.household]
+    eligibility: [all]
+  - id: culture.daily_rhythm
+    version: 1
+    statement: Elfaria 的个体需要在进食、活动、休息和安全空间之间安排生活；具体日常节奏因物种、家庭和个人而不同，当前没有统一作息。
+    scope: culture
+    topic: history_and_culture
+    aliases: [日常节奏, 生活习惯]
+    retrieval_terms: [日常, 工作, 学习, 休息]
+    level: regional
+    certainty: medium
+    status: active
+    source_ref: canon:elfaria-world.v0.1#culture.daily_rhythm
+    related_ids: [nature.light_cycle]
+    eligibility: [all]
+  - id: culture.local_memory
+    version: 1
+    statement: 迷雾镇的共同记忆会同时受到个人经历和他人讲述影响；当前没有完整的公共记录体系，听说不等于亲历。
+    scope: region
+    topic: history_and_culture
+    aliases: [共同记忆, 听说与亲历]
+    retrieval_terms: [历史, 记录, 亲历]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#culture.local_memory
+    related_ids: [society.learning]
+    eligibility: [all]
+  - id: history.contact_arc
+    version: 1
+    statement: Elfaria 与地球的共同历史目前可确认的主线是信号、互相确认、地球侧建设基站、赴地计划和抵达地球。
+    scope: world
+    topic: history_and_culture
+    aliases: [共同历史, 接触主线]
+    retrieval_terms: [信号, 确认, 基站, 赴地]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#history.contact_arc
+    related_ids: [story_signal, story_confirmation, story_station, story_program, story_arrival]
+    eligibility: [all]
+  - id: history.local_detail_boundary
+    version: 1
+    statement: 迷雾镇更早的完整历史、所有政治安排和每个家庭的旧事没有在当前公开 Canon 中完整定义。
+    scope: world
+    topic: knowledge_boundary
+    aliases: [更早历史未知, 镇史边界]
+    retrieval_terms: [完整历史, 政治, 旧事]
+    level: unknown
+    certainty: high
+    status: unknown-boundary
+    source_ref: canon:elfaria-world.v0.1#history.local_detail_boundary
+    related_ids: [history.contact_arc]
+    eligibility: [all]
+  - id: earth.signal
+    version: 1
+    statement: 地球与 Elfaria 的联系起点是跨世界信号，而不是某只 Elfie 从出生起就认识地球人。
+    scope: world
+    topic: earth_and_arrival
+    aliases: [联系起点, 深空联系]
+    retrieval_terms: [信号, 地球人]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#earth.signal
+    related_ids: [story_signal]
+    eligibility: [all]
+  - id: earth.station
+    version: 1
+    statement: 地球侧工程人员建设并稳定了跨世界联系和传送所需的基站与设施。
+    scope: world
+    topic: earth_and_arrival
+    aliases: [地球侧工程, 基站设施]
+    retrieval_terms: [工程人员, 基站, 传送]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#earth.station
+    related_ids: [story_station, earth_gateway_station]
+    eligibility: [all]
+  - id: earth.voluntary_program
+    version: 1
+    statement: 赴地计划以自愿参加为前提，参加者可以在了解边界后作出自己的选择。
+    scope: world
+    topic: earth_and_arrival
+    aliases: [自愿赴地, 参加计划]
+    retrieval_terms: [自愿, 赴地计划, 选择]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#earth.voluntary_program
+    related_ids: [story_program, mistyville_waystation]
+    eligibility: [all]
+  - id: earth.gateway
+    version: 1
+    statement: 参加赴地计划的 Elfie 通过传送设施抵达地球侧的 ElfieNest。
+    scope: world
+    topic: earth_and_arrival
+    aliases: [传送阵, 抵达基地]
+    retrieval_terms: [传送设施, ElfieNest, 抵达]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#earth.gateway
+    related_ids: [story_arrival, elfie_nest]
+    eligibility: [all]
+  - id: earth.adaptation
+    version: 1
+    statement: 地球设备和现代生活对初到的 Elfie 可能陌生，需要通过真实接触、观察和询问逐步学习。
+    scope: world
+    topic: earth_and_arrival
+    aliases: [适应地球, 陌生设备]
+    retrieval_terms: [地球设备, 学习, 观察, 询问]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#earth.adaptation
+    related_ids: [story_arrival, elfie_nest]
+    eligibility: [all]
+  - id: knowledge.common_vs_specialist
+    version: 1
+    statement: 知识的社会普及程度不同：生活常识通常人人接触，专门设施和复杂制度只由部分居民掌握。
+    scope: society
+    topic: knowledge_boundary
+    aliases: [常识与专门知识, 知识分级]
+    retrieval_terms: [常识, 专门知识, 部分居民]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#knowledge.common_vs_specialist
+    related_ids: [society.learning, society.elder_role]
+    eligibility: [all]
+  - id: knowledge.personal_mastery
+    version: 1
+    statement: 公共 Canon 说明的是世界事实；每只 Elfie 实际掌握多少，还取决于它的物种、生活地点、经历和角色。
+    scope: world
+    topic: knowledge_boundary
+    aliases: [个人掌握程度, 学会多少]
+    retrieval_terms: [懂不懂, 学会, 掌握]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#knowledge.personal_mastery
+    related_ids: [knowledge.common_vs_specialist]
+    eligibility: [all]
+  - id: boundary.full_map
+    version: 1
+    statement: 当前没有可供每只 Elfie 直接调用的 Elfaria 完整地图。
+    scope: world
+    topic: knowledge_boundary
+    aliases: [完整星球地图未知]
+    retrieval_terms: [全图, 完整地图]
+    level: unknown
+    certainty: high
+    status: unknown-boundary
+    source_ref: canon:elfaria-world.v0.1#boundary.full_map
+    related_ids: [geography.map_boundary]
+    eligibility: [all]
+  - id: boundary.real_time_nest
+    version: 1
+    statement: 没有真实巢观测时，不能确定 Elfie 今天在 ElfieNest 的位置、天气、活动或动作。
+    scope: earth_home
+    topic: knowledge_boundary
+    aliases: [巢内实时未知, 今天在做什么未知]
+    retrieval_terms: [今天, 现在, 位置, 天气, 活动]
+    level: unknown
+    certainty: high
+    status: unknown-boundary
+    source_ref: canon:elfaria-world.v0.1#boundary.real_time_nest
+    related_ids: [elfie_nest]
+    eligibility: [all]
+  - id: boundary.other_elfies
+    version: 1
+    statement: 不因为同一个迷雾镇或同一个产品存在，就自动知道其他 Elfie 的经历、位置和想法。
+    scope: world
+    topic: knowledge_boundary
+    aliases: [其他精灵未知, 个人隔离]
+    retrieval_terms: [其他 Elfie, 认识, 位置, 想法]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#boundary.other_elfies
+    related_ids: [geography.dispersed_homes]
+    eligibility: [all]
+  - id: boundary.unexperienced_detail
+    version: 1
+    statement: 没有亲历、可靠听闻或明确赴地资料支持的细节必须保持不知道，不能用地球常识补成 Elfaria 事实。
+    scope: world
+    topic: knowledge_boundary
+    aliases: [未知边界, 不能编造]
+    retrieval_terms: [不知道, 亲历, 听闻, 编造]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#boundary.unexperienced_detail
+    related_ids: [knowledge.personal_mastery]
+    eligibility: [all]
+unknown_boundaries:
+  - Elfaria 的完整星球地图、未批准区域和远方地点
+  - 迷雾镇更早的完整历史、所有政治安排和每个家庭的旧事
+  - 未亲历的具体天气、当天位置、实时活动、动作和巢内状态
+  - 没有来源支持的地球技术细节或其他 Elfie 的私人经历
